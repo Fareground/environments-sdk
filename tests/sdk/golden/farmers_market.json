@@ -1,0 +1,13 @@
+{
+  "actions": 32,
+  "events": 60,
+  "events_sha256": "fefd8a41ee36291d082bb8ff56f0c3ec37b79f2fb05b27b11846fa80e83b8eb6",
+  "metrics": {
+    "market_avg_price": 4.873333333,
+    "market_sales": 28,
+    "market_turnover": 90.16
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 60
+}

@@ -1,0 +1,269 @@
+"""Coded trader strategies for the order book, ported from the Fareground Exchange population.
+
+A trader whose ``<book>_strategy`` property names a strategy acts through the ``<book>_algo`` tool
+(the generated ``<book>_algo`` policy calls it), so a crowd needs no custom code. Each strategy is a
+few lines of behaviour with per-trader parameters drawn once from the run's seeded randomness and
+kept in the trader's ``<book>_algo`` property, so a crowd of one kind still shows dispersion and a
+snapshot resumes it exactly.
+
+Sizes are in multiples of the book's ``base_qty``; volatility is the realised per-round volatility
+of recent closes (or the book's ``volatility`` before there is a tape).
+
+* ``market_maker`` — requotes both sides around the mid, skews on inventory, widens with volatility,
+  hedges with a market order past its inventory limit.
+* ``momentum`` — buys strength and sells weakness over a lookback; closes when the trend fades.
+* ``mean_reversion`` — fades stretched moves with limit orders inside the spread; exits on reversion.
+* ``fundamentalist`` — trades toward a noisy private estimate of the fair value; patient orders rest.
+* ``noise`` — random arrivals, mostly market orders, fat-tailed sizes, herding on the last move.
+"""
+from __future__ import annotations
+
+import math
+from typing import Any, Callable, Dict, List, Optional
+
+from ...entity import Entity
+from ..errors import RunError
+from ..expr import ExprError, compile_expr
+from ..world import Abort
+from .common import lot_floor
+from .ledger import Account, balance
+from .market_stats import log_returns, stdev
+from .order_book import OrderBookConfig, book_config, cancel_all, place, props_for, quote
+
+__all__ = ["DEFAULTS", "run_algo"]
+
+#: Default parameters per strategy (overridden by a crowd's ``params``).
+DEFAULTS: Dict[str, Dict[str, float]] = {
+    "market_maker": {"activity": 1.0, "half_spread_ticks": 2.0, "vol_mult": 0.25, "quote_mult": 1.0,
+                     "inventory_mult": 8.0, "layers": 2, "position_mult": 16.0},
+    "momentum": {"activity": 0.5, "lookback": 5, "threshold_sigma": 0.5, "size_mult": 1.0, "position_mult": 4.0},
+    "mean_reversion": {"activity": 0.5, "window": 10, "z_threshold": 1.2, "size_mult": 0.8, "position_mult": 4.0},
+    "fundamentalist": {"activity": 0.4, "noise_sigma": 0.8, "margin_sigma": 0.5, "patience": 0.7, "size_mult": 1.0,
+                       "position_mult": 10.0},
+    "noise": {"activity": 0.6, "market_prob": 0.6, "herding": 0.15, "size_mult": 0.5, "size_sigma": 0.7,
+              "position_mult": 6.0},
+}
+#: Per-trader dispersion: parameter → (low, high) multiplier drawn once.
+_DISPERSION: Dict[str, Dict[str, tuple]] = {
+    "market_maker": {"half_spread_ticks": (0.7, 1.6), "quote_mult": (0.6, 1.5), "inventory_mult": (0.7, 1.3),
+                     "vol_mult": (0.7, 1.3)},
+    "momentum": {"lookback": (0.4, 2.0), "threshold_sigma": (0.6, 1.8), "size_mult": (0.5, 1.6)},
+    "mean_reversion": {"window": (0.5, 1.8), "z_threshold": (0.7, 1.4), "size_mult": (0.5, 1.5)},
+    "fundamentalist": {"noise_sigma": (0.5, 1.6), "margin_sigma": (0.6, 1.8), "patience": (0.8, 1.2), "size_mult": (0.6, 1.6)},
+    "noise": {"market_prob": (0.8, 1.2), "herding": (0.3, 1.7)},
+}
+
+
+def _clamp(value: float, low: float, high: float) -> float:
+    return max(low, min(high, value))
+
+
+class _View:
+    """What a coded trader sees when it acts."""
+
+    def __init__(self, world: Any, name: str, cfg: OrderBookConfig, trader: Entity, state: Dict[str, Any]):
+        self.world, self.name, self.cfg, self.trader, self.state = world, name, cfg, trader, state
+        q = quote(world, name)
+        self.last, self.bid, self.ask, self.mid = q["last"], q["bid"], q["ask"], q["mid"]
+        self.tick, self.lot = cfg.tick_size, cfg.lot_size
+        self.prices: List[float] = list(world.props.get(f"{name}_closes") or []) + [self.last]
+        rets = log_returns(self.prices[-31:])
+        self.sigma = stdev(rets) if len(rets) >= 5 and stdev(rets) > 0 else cfg.volatility
+        self.base = cfg.base_qty or cfg.lot_size * 10
+        p = props_for(name)
+        self.position = balance(world, Account(trader, p["shares"])) + balance(world, Account(trader, p["reserved_shares"]))
+        self.inventory = self.position - float(state.get("start", 0.0))
+        self.cash = balance(world, Account(trader, cfg.cash))
+        self.orders: List[str] = []
+
+    def room(self, side: str, mult: float) -> float:
+        cap = mult * self.base
+        return max(0.0, cap - self.inventory) if side == "buy" else max(0.0, cap + self.inventory)
+
+    def order(self, side: str, qty: float, price: Optional[float] = None) -> None:
+        """Submit one order; a leg that is not possible (cash, shares, band) is skipped without undoing the others."""
+        qty = lot_floor(qty, self.lot)
+        if qty <= 0 or (price is not None and price <= 0):
+            return
+        if side == "buy":
+            unit = (price if price is not None else (self.ask or self.last)) * (1 + max(self.cfg.maker_fee_bps, self.cfg.taker_fee_bps) / 1e4)
+            qty = min(qty, lot_floor(balance(self.world, Account(self.trader, self.cfg.cash)) / unit, self.lot)) if unit > 0 else 0
+        else:
+            free = balance(self.world, Account(self.trader, props_for(self.name)["shares"]))
+            qty = min(qty, lot_floor(max(0.0, free + self.cfg.short_limit), self.lot))
+        if qty <= 0:
+            return
+        journal = self.world.journal
+        mark = journal.mark()
+        try:
+            self.orders.append(place(self.world, self.name, self.trader, side, qty, price))
+        except Abort:
+            journal.rollback(mark)
+
+
+def run_algo(world: Any, name: str, trader: Entity) -> str:
+    """Let the trader's coded strategy act once. Returns the receipt."""
+    cfg = book_config(world, name)
+    p = props_for(name)
+    strategy = str(trader.properties.get(p["strategy"]) or "")
+    decide = _STRATEGIES.get(strategy)
+    if decide is None:
+        raise Abort(f"You have no trading strategy on {cfg.instrument or name} (strategies: {', '.join(_STRATEGIES)}).")
+    stored: Any = trader.properties.get(p["algo"]) or {}
+    state: Dict[str, Any] = dict(stored)
+    rng = world.rng
+    if "p" not in state:
+        params = {**DEFAULTS[strategy], **_overrides(cfg, strategy)}
+        for key, (low, high) in _DISPERSION[strategy].items():
+            params[key] = params[key] * rng.uniform(low, high)
+        state["p"] = params
+        state["start"] = balance(world, Account(trader, p["shares"])) + balance(world, Account(trader, p["reserved_shares"]))
+    receipt = "Your strategy stayed out this turn."
+    if world.props.get(f"{name}_halted"):
+        receipt = "Trading is halted; your strategy waits."
+    elif rng.random() < state["p"]["activity"]:
+        view = _View(world, name, cfg, trader, state)
+        decide(view, state["p"], rng)
+        receipt = " ".join(view.orders) if view.orders else "Your strategy placed no orders."
+    world.set_prop(trader, p["algo"], _copy_state(state))
+    world.set_world(f"{name}_receipt", receipt)
+    return receipt
+
+
+def _copy_state(state: Dict[str, Any]) -> Dict[str, Any]:
+    return {k: (dict(v) if isinstance(v, dict) else v) for k, v in state.items()}
+
+
+def _overrides(cfg: OrderBookConfig, strategy: str) -> Dict[str, float]:
+    crowd = cfg.crowd.get(strategy)  # type: ignore[call-overload]
+    return dict(crowd.params) if crowd is not None else {}
+
+
+def _market_maker(v: _View, p: Dict[str, float], rng: Any) -> None:
+    cancel_all(v.world, v.name, v.trader)
+    q = quote(v.world, v.name)
+    centre_price = q["mid"] if q["bid"] is not None and q["ask"] is not None else v.last
+    quote_qty = max(v.lot, v.base * p["quote_mult"])
+    limit = max(quote_qty, v.base * p["inventory_mult"])
+    half = max(1.0, p["half_spread_ticks"] + v.sigma * centre_price / v.tick * p["vol_mult"])
+    inventory = v.inventory
+    if abs(inventory) > limit:
+        v.order("sell" if inventory > 0 else "buy", min(abs(inventory) - limit / 2, quote_qty))
+        held = props_for(v.name)
+        inventory = balance(v.world, Account(v.trader, held["shares"])) + balance(v.world, Account(v.trader, held["reserved_shares"])) \
+            - float(v.state.get("start", 0.0))
+    load = _clamp(inventory / limit, -1.5, 1.5)
+    centre = centre_price / v.tick - _clamp(inventory / limit, -1.0, 1.0) * half * 0.8
+    for layer in range(int(p["layers"])):
+        offset = half + layer * max(1.0, half * 0.8)
+        bid_t, ask_t = math.floor(centre - offset), math.ceil(centre + offset)
+        if ask_t <= bid_t:
+            ask_t = bid_t + 1
+        size = quote_qty * (1.0 + 0.6 * layer)
+        v.order("buy", size * _clamp(1.0 - load, 0.25, 1.75), round(bid_t * v.tick, 10))
+        v.order("sell", size * _clamp(1.0 + load, 0.25, 1.75), round(ask_t * v.tick, 10))
+
+
+def _momentum(v: _View, p: Dict[str, float], rng: Any) -> None:
+    lookback = max(2, int(p["lookback"]))
+    if len(v.prices) <= lookback or v.prices[-lookback - 1] <= 0:
+        return
+    signal = v.prices[-1] / v.prices[-lookback - 1] - 1.0
+    threshold = max(1e-6, p["threshold_sigma"] * v.sigma * math.sqrt(lookback))
+    if v.inventory > 0 and signal < 0:
+        v.order("sell", v.inventory)
+        return
+    if v.inventory < 0 and signal > 0:
+        v.order("buy", -v.inventory)
+        return
+    qty = v.base * p["size_mult"] * _clamp(abs(signal) / threshold, 1.0, 3.0)
+    if signal > threshold:
+        v.order("buy", min(qty, v.room("buy", p["position_mult"])))
+    elif signal < -threshold:
+        v.order("sell", min(qty, v.room("sell", p["position_mult"])))
+
+
+def _mean_reversion(v: _View, p: Dict[str, float], rng: Any) -> None:
+    window = max(4, int(p["window"]))
+    if len(v.prices) < window:
+        return
+    recent = v.prices[-window:]
+    mean = sum(recent) / len(recent)
+    std = math.sqrt(sum((x - mean) ** 2 for x in recent) / len(recent))
+    if std <= 0:
+        return
+    z = (v.prices[-1] - mean) / std
+    if v.inventory and abs(z) < 0.3:
+        v.order("sell" if v.inventory > 0 else "buy", abs(v.inventory))
+        return
+    qty = v.base * p["size_mult"] * _clamp(abs(z) / p["z_threshold"], 1.0, 2.5)
+    if z > p["z_threshold"] and v.ask is not None:
+        price = v.ask - v.tick if v.bid is not None and v.ask - v.bid > v.tick * 1.5 else v.ask
+        v.order("sell", min(qty, v.room("sell", p["position_mult"])), price)
+    elif z < -p["z_threshold"] and v.bid is not None:
+        price = v.bid + v.tick if v.ask is not None and v.ask - v.bid > v.tick * 1.5 else v.bid
+        v.order("buy", min(qty, v.room("buy", p["position_mult"])), price)
+
+
+def _fair_value(v: _View) -> float:
+    raw = v.cfg.fair_value
+    if raw is None:
+        from .order_book import start_price
+
+        return start_price(v.world, v.name)
+    try:
+        value = compile_expr(raw)(v.world.scope(actor=v.trader))
+    except ExprError as exc:
+        raise RunError(str(exc), f"mechanisms.{v.name}.fair_value") from None
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise RunError(f"fair_value must be a number, got {value!r}", f"mechanisms.{v.name}.fair_value")
+    return float(value)
+
+
+def _fundamentalist(v: _View, p: Dict[str, float], rng: Any) -> None:
+    if v.state.get("noise_round") != v.world.round:
+        v.state["noise"] = rng.gauss(0.0, p["noise_sigma"] * v.sigma)
+        v.state["noise_round"] = v.world.round
+    value = _fair_value(v) * (1.0 + v.state["noise"])
+    if value <= 0 or v.mid <= 0:
+        return
+    gap = value / v.mid - 1.0
+    margin = max(1e-6, p["margin_sigma"] * v.sigma)
+    if v.inventory and abs(gap) < margin * 0.5 and ((v.inventory > 0 and gap <= 0) or (v.inventory < 0 and gap >= 0)):
+        v.order("sell" if v.inventory > 0 else "buy", abs(v.inventory))
+        return
+    if abs(gap) < margin * 0.25:
+        return
+    qty = v.base * p["size_mult"] * _clamp(abs(gap) / margin, 0.25, 6.0)
+    patient = rng.random() < p["patience"] * _clamp(margin / abs(gap), 0.2, 1.0)
+    if gap > 0:
+        price = (v.bid if v.bid is not None else v.mid - v.tick) if patient else None
+        v.order("buy", min(qty, v.room("buy", p["position_mult"])), price)
+    else:
+        price = (v.ask if v.ask is not None else v.mid + v.tick) if patient else None
+        v.order("sell", min(qty, v.room("sell", p["position_mult"])), price)
+
+
+def _noise(v: _View, p: Dict[str, float], rng: Any) -> None:
+    tilt = 0.0
+    if len(v.prices) >= 3 and v.prices[-3] > 0:
+        recent = v.prices[-1] / v.prices[-3] - 1.0
+        tilt += _clamp(recent / max(1e-9, v.sigma), -1.0, 1.0) * p["herding"]
+    side = "buy" if rng.random() < _clamp(0.5 + 0.5 * tilt, 0.05, 0.95) else "sell"
+    qty = min(max(v.lot, v.base * p["size_mult"] * math.exp(rng.gauss(0.0, p["size_sigma"]))),
+              v.room(side, p["position_mult"]))
+    if rng.random() < p["market_prob"]:
+        if (v.ask if side == "buy" else v.bid) is not None:
+            v.order(side, qty)
+        return
+    offset = rng.randint(0, 4) * v.tick
+    if side == "buy":
+        v.order("buy", qty, (v.bid if v.bid is not None else v.mid) - offset)
+    else:
+        v.order("sell", qty, (v.ask if v.ask is not None else v.mid) + offset)
+
+
+_STRATEGIES: Dict[str, Callable[[_View, Dict[str, float], Any], None]] = {
+    "market_maker": _market_maker, "momentum": _momentum, "mean_reversion": _mean_reversion,
+    "fundamentalist": _fundamentalist, "noise": _noise,
+}

@@ -1,0 +1,13 @@
+{
+  "actions": 36,
+  "events": 36,
+  "events_sha256": "c50a7ba5875a5284d8ced22c207bddc2615bcf97c587dd7edd2bbc55746e29f8",
+  "metrics": {
+    "election_p_ada": 0.1909534502,
+    "election_p_bo": 0.1256809373,
+    "election_p_cy": 0.6833656124
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 36
+}
