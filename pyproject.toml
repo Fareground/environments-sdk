@@ -61,6 +61,7 @@ ignore = [
 known-first-party = ["fg_env"]
 
 [tool.mypy]
+plugins = ["pydantic.mypy"]
 # Pragmatic baseline — the package ships py.typed, so CI must actually
 # type-check it. Not strict yet: legacy kernel code is annotated
 # incrementally. Tighten flags over time.

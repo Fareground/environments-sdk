@@ -206,4 +206,33 @@ __all__ = [
     "EntitySource",
     "EntityWriteback",
     "PhysicsExprError",
+    # Environment SDK — define a contract, the engine runs it
+    "load",
+    "run",
+    "check",
+    "parse",
+    "experiment",
+    "Env",
+    "Contract",
+    "RunResult",
+    "ExperimentResult",
+    "Wake",
+    "ToolResult",
+    "Issue",
+    "ContractError",
+    "InputError",
+    "RunError",
+    "InvariantViolation",
+    "SnapshotError",
+    "participants",
 ]
+
+# Environment SDK public API. Everything a user needs is importable from ``fg_env``.
+from .sdk.api import check, load, parse, run
+from .sdk.contract import Contract
+from .sdk.errors import ContractError, InputError, InvariantViolation, Issue, RunError, SnapshotError
+from .sdk.experiment import ExperimentResult, experiment
+from .sdk.measure import RunResult
+from .sdk.runtime import Env
+from .sdk.session import ToolResult, Wake
+from .sdk import participants
