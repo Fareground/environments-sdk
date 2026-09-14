@@ -102,8 +102,8 @@ def resolve_inputs(contract: Contract, supplied: Optional[Mapping[str, Any]] = N
         elif spec.source is not None:
             try:
                 value = load_source(spec, data_dir)
-            except _SourceProblem as problem:
-                issues.append(Issue(f"inputs.{name}.source", str(problem), problem.fix))
+            except _SourceProblem as failure:
+                issues.append(Issue(f"inputs.{name}.source", str(failure), failure.fix))
                 continue
         elif spec.default is not None:
             value = copy.deepcopy(spec.default)
