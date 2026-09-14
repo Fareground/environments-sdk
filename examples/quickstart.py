@@ -6,7 +6,7 @@ import json
 import random
 from pathlib import Path
 
-from fg_env_kernel import ActionInstance, Kernel
+from fg_env import ActionInstance, Kernel
 
 template = json.loads(
     (Path(__file__).parent / "tic_tac_toe" / "template.json").read_text()

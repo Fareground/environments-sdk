@@ -1,5 +1,5 @@
 """Tests for kernel/spatial.py"""
-from fg_env_kernel.spatial import NoSpace, GridSpace, GraphSpace, Continuous2DSpace
+from fg_env.spatial import NoSpace, GridSpace, GraphSpace, Continuous2DSpace
 
 
 class TestNoSpace:

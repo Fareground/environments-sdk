@@ -4,15 +4,15 @@ import random
 
 import pytest
 
-from fg_env_kernel.action import Effect, EffectOperation
-from fg_env_kernel.domain.base import DomainModule, DomainModuleManager
-from fg_env_kernel.entity import Entity
-from fg_env_kernel.factions import Faction
-from fg_env_kernel.messaging import Message
-from fg_env_kernel.snapshot import SnapshotRestoreError
-from fg_env_kernel.state import WorldState
-from fg_env_kernel.status_effects import StatusEffectDefinition
-from fg_env_kernel.temporal import Phase
+from fg_env.action import Effect, EffectOperation
+from fg_env.domain.base import DomainModule, DomainModuleManager
+from fg_env.entity import Entity
+from fg_env.factions import Faction
+from fg_env.messaging import Message
+from fg_env.snapshot import SnapshotRestoreError
+from fg_env.state import WorldState
+from fg_env.status_effects import StatusEffectDefinition
+from fg_env.temporal import Phase
 
 
 def world():
@@ -139,7 +139,7 @@ def test_domain_specific_state_rng_and_alias_are_restored_once():
 
 
 def test_relations_resume_threshold_latches_and_remove_stale_edges():
-    from fg_env_kernel.relations import RelationType, RelationThreshold
+    from fg_env.relations import RelationType, RelationThreshold
     source = world()
     source.relations.register_relation_type(RelationType('trust', thresholds=[RelationThreshold(.5, event_name='trusted')]))
     source.relations.set('a', 'b', 'trust', .8)
@@ -155,7 +155,7 @@ def test_relations_resume_threshold_latches_and_remove_stale_edges():
 
 def test_derived_once_rule_does_not_fire_again_after_restore():
     from types import SimpleNamespace
-    from fg_env_kernel.derived_rules import DerivedRulesEngine
+    from fg_env.derived_rules import DerivedRulesEngine
     source = world()
     source._derived_rules = DerivedRulesEngine([{'name': 'once', 'when': True, 'once_global': True,
         'then': [{'operation': 'add', 'target': 'a', 'field': 'health', 'value': 1}]}])

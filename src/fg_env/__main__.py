@@ -2,9 +2,9 @@
 
 Run with:
 
-    python -m fg_env_kernel <command> [args...]
+    python -m fg_env <command> [args...]
 
-(or via the installed console script: ``fg-env-kernel <command>``)
+(or via the installed console script: ``fg-env <command>``)
 
 ## Commands
 
@@ -27,9 +27,9 @@ Run with:
 
 ## Examples
 
-    python -m fg_env_kernel compile examples/tic_tac_toe/template.json --smoke 20
-    python -m fg_env_kernel contract -o docs/kernel_contract.json
-    python -m fg_env_kernel capabilities
+    python -m fg_env compile examples/tic_tac_toe/template.json --smoke 20
+    python -m fg_env contract -o docs/kernel_contract.json
+    python -m fg_env capabilities
 """
 from __future__ import annotations
 
@@ -182,7 +182,7 @@ def cmd_new_primitive(args: argparse.Namespace) -> int:
     )
     file_path.write_text(content)
     print(f"scaffolded {file_path}")
-    print("\nNext: edit the file, then run `python -m fg_env_kernel primitives` to verify it loaded.")
+    print("\nNext: edit the file, then run `python -m fg_env primitives` to verify it loaded.")
     return 0
 
 
@@ -197,7 +197,7 @@ def cmd_scaffold_env(args: argparse.Namespace) -> int:
     scaffold_env(target, args.name)
     print(f"scaffolded env '{args.name}' at {target}")
     print("  files: meta.json, overview.md, template.json")
-    print(f"  next: edit, then `python -m fg_env_kernel compile {target}/template.json`")
+    print(f"  next: edit, then `python -m fg_env compile {target}/template.json`")
     return 0
 
 
@@ -322,7 +322,7 @@ def cmd_lint(args: argparse.Namespace) -> int:
 
 def main(argv: list = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="python -m fg_env_kernel",
+        prog="python -m fg_env",
         description="Fareground env kernel CLI",
     )
     sub = parser.add_subparsers(dest="cmd", required=True)

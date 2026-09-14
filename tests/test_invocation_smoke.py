@@ -3,8 +3,8 @@ from decimal import Decimal
 
 import pytest
 
-from fg_env_kernel import compile_template
-from fg_env_kernel.pipeline.smoke import smoke_test
+from fg_env import compile_template
+from fg_env.pipeline.smoke import smoke_test
 
 
 def checkout(*, cash=0.3, enabled=True):

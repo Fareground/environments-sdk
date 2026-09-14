@@ -5,7 +5,7 @@ extracted here so the engine class stays focused on the tick loop.
 The engine's method is now a 1-line delegation to ``apply_effects()``.
 
 Custom effect ops registered via ``@effect("name")`` (see
-``fg_env_kernel.registry``) are dispatched from within this module
+``fg_env.registry``) are dispatched from within this module
 — that path was already registry-driven (P3) and stays unchanged.
 """
 from __future__ import annotations

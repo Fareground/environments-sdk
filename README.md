@@ -11,7 +11,7 @@
 
 <p>
   <a href="https://github.com/Fareground/env-kernel/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Fareground/env-kernel/ci.yml?branch=main&style=flat-square&label=CI" /></a>
-  <a href="https://pypi.org/project/fg-env-kernel/"><img alt="PyPI" src="https://img.shields.io/pypi/v/fg-env-kernel?style=flat-square" /></a>
+  <a href="https://pypi.org/project/fg-env/"><img alt="PyPI" src="https://img.shields.io/pypi/v/fg-env?style=flat-square" /></a>
   <img alt="Python" src="https://img.shields.io/badge/python-3.11+-3b82f6?style=flat-square" />
   <img alt="Dependencies" src="https://img.shields.io/badge/deps-pydantic%20only-2dd4a7?style=flat-square" />
   <img alt="Engine" src="https://img.shields.io/badge/engine-deterministic-9b59b6?style=flat-square" />
@@ -33,20 +33,20 @@ Between agent turns the world does not have to sit still: an event-driven clock 
 
 ## Install
 
-> **Note:** the distribution name is **`fg-env-kernel`** and the import package is **`fg_env_kernel`**. These are unchanged — downstream projects depend on them, and renaming them would break those imports.
+> **Note:** the distribution name is **`fg-env`** and the import package is **`fg_env`**. These are unchanged — downstream projects depend on them, and renaming them would break those imports.
 
 ```bash
-pip install fg-env-kernel
+pip install fg-env
 ```
 
-Importing the package never scans the filesystem. Drop-in primitive discovery (`kernel_primitives/*.py`) is opt-in: call `fg_env_kernel.discover()` explicitly, or set the `KERNEL_PRIMITIVES_DIR` environment variable — an explicitly configured directory is honored at import time.
+Importing the package never scans the filesystem. Drop-in primitive discovery (`kernel_primitives/*.py`) is opt-in: call `fg_env.discover()` explicitly, or set the `KERNEL_PRIMITIVES_DIR` environment variable — an explicitly configured directory is honored at import time.
 
 ## Quickstart
 
 One line — the built-in seeded random agent plays every turn:
 
 ```python
-from fg_env_kernel import simulate
+from fg_env import simulate
 
 world = simulate("path/to/template.json")   # or a template dict
 print(world.summary())
@@ -59,7 +59,7 @@ print(world.summary())
 A world is a plain dict; an agent is a plain function. This is a complete, runnable program:
 
 ```python
-from fg_env_kernel import ActionInstance, Kernel
+from fg_env import ActionInstance, Kernel
 
 template = {
     "name": "Race to 10",
@@ -145,7 +145,7 @@ A `physics` block on the world definition declares numeric variables and their r
 Register custom verbs, resolution archetypes, phases, and terminations with decorators — the engine looks everything up by string name through the registry. The module-level decorators register process-wide:
 
 ```python
-from fg_env_kernel import effect, EffectContext
+from fg_env import effect, EffectContext
 
 @effect("grant_gold")
 def grant_gold(ctx: EffectContext, spec: dict) -> None:
@@ -156,7 +156,7 @@ def grant_gold(ctx: EffectContext, spec: dict) -> None:
 For per-kernel isolation, fork the registry and register on the fork. A fork sees every built-in primitive (nothing is copied — unknown names fall back to the parent), but its own registrations are invisible to the global registry and to other forks:
 
 ```python
-from fg_env_kernel import Kernel, registry
+from fg_env import Kernel, registry
 
 mine = registry.fork()
 
@@ -178,7 +178,7 @@ Every namespace has an instance decorator (`mine.effect`, `mine.precondition`, `
 ## Project Structure
 
 ```
-src/fg_env_kernel/
+src/fg_env/
   runtime/        the tick loop (discrete + continuous)
   physics.py      coupled-dynamics ODE integrator
   state.py        the world state graph

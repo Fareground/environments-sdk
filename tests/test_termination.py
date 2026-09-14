@@ -9,12 +9,12 @@ Covers:
 
 import pytest
 
-from fg_env_kernel import termination as term
-from fg_env_kernel.registry import termination as term_decorator
-from fg_env_kernel.entity import Entity, EntityType
-from fg_env_kernel.engine import SimulationEngine, TerminationCondition
-from fg_env_kernel.registry import registry
-from fg_env_kernel.state import WorldState
+from fg_env import termination as term
+from fg_env.registry import termination as term_decorator
+from fg_env.entity import Entity, EntityType
+from fg_env.engine import SimulationEngine, TerminationCondition
+from fg_env.registry import registry
+from fg_env.state import WorldState
 
 
 @pytest.fixture

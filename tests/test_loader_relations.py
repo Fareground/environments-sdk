@@ -4,7 +4,7 @@ Regression: the loader only read {from, to, type}, silently dropping the asset
 library's {from_entity, to_entity, relation} edges — every authored social
 structure (trust, agreement, dependency) was lost at world build time.
 """
-from fg_env_kernel.pipeline.loader import build_world_state
+from fg_env.pipeline.loader import build_world_state
 
 
 def _schema(edges):

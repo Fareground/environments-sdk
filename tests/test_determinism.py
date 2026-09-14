@@ -8,8 +8,8 @@ produce byte-identical event logs — modulo the wall-clock ``timestamp`` field.
 If a future change reintroduces nondeterminism (global RNG, set iteration,
 completion-order resolution), one of these tests goes red.
 """
-from fg_env_kernel.action import ActionInstance
-from fg_env_kernel.world_loader import load_world
+from fg_env.action import ActionInstance
+from fg_env.world_loader import load_world
 
 
 def _fingerprint(state) -> list:
@@ -117,13 +117,13 @@ def test_repeated_runs_are_stable():
 def _world_event_run(seed: int):
     """Build a WorldEventEngine with NO rng (the production path) and prove
     the SimulationEngine injects its seeded RNG so the run is reproducible."""
-    from fg_env_kernel.state import WorldState
-    from fg_env_kernel.temporal import TemporalModel, Phase
-    from fg_env_kernel.entity import Entity, EntityType
-    from fg_env_kernel.types import PropertySchema, PropertyType
-    from fg_env_kernel.action import Effect, EffectOperation
-    from fg_env_kernel.world_events import WorldEventDefinition, WorldEventEngine
-    from fg_env_kernel.engine import SimulationEngine
+    from fg_env.state import WorldState
+    from fg_env.temporal import TemporalModel, Phase
+    from fg_env.entity import Entity, EntityType
+    from fg_env.types import PropertySchema, PropertyType
+    from fg_env.action import Effect, EffectOperation
+    from fg_env.world_events import WorldEventDefinition, WorldEventEngine
+    from fg_env.engine import SimulationEngine
 
     state = WorldState()
     state.temporal = TemporalModel(phases=[Phase(name="action")])
@@ -170,8 +170,8 @@ def test_world_events_differ_across_seeds():
 def test_unseeded_run_records_a_replayable_seed():
     """An unseeded engine must still be reproducible after the fact: it mints
     and records a seed, and replaying with that seed reproduces the run."""
-    from fg_env_kernel.runtime.engine import SimulationEngine
-    from fg_env_kernel.state import WorldState
+    from fg_env.runtime.engine import SimulationEngine
+    from fg_env.state import WorldState
 
     first = SimulationEngine(WorldState(), max_rounds=3)
     assert isinstance(first.seed, int)

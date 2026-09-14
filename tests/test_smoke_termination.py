@@ -1,7 +1,7 @@
 """Report actual engine termination evidence, not a stale payload field."""
 import pytest
 
-from fg_env_kernel import compile_template, smoke_test
+from fg_env import compile_template, smoke_test
 
 
 def world(condition):

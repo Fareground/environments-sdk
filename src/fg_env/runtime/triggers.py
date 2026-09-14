@@ -9,7 +9,7 @@ When an event is emitted, schema-declared triggers matching that event type
 fire their own effect chains, which can emit more events — capped at depth 4
 to prevent runaway. The cascade depth counter uses ``threading.local``
 (``engine._cascade_tls``) so parallel-phase threads each get their own counter
-and don't race. The ``TriggerEngine`` in ``fg_env_kernel.triggers`` owns the
+and don't race. The ``TriggerEngine`` in ``fg_env.triggers`` owns the
 matching/dispatch logic; only the engine-side glue lives here.
 """
 from __future__ import annotations

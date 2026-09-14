@@ -143,7 +143,7 @@ def apply_snapshot(state: Any, data: Dict[str, Any]) -> None:
                 cls = type(state.crowd_agents)
             else:
                 module, name = restorers[section]
-                cls = getattr(importlib.import_module(f"fg_env_kernel.{module}"), name)
+                cls = getattr(importlib.import_module(f"fg_env.{module}"), name)
             kwargs: Dict[str, Any] = {}
             if section == "status_effects":
                 kwargs["definitions"] = state.status_effect_defs

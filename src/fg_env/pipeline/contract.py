@@ -17,7 +17,7 @@ tests — the contract is a pure dict.
 
 ## Usage
 
-    from fg_env_kernel import export_kernel_contract
+    from fg_env import export_kernel_contract
 
     contract = export_kernel_contract()
     # Hand it to the agent, or write to disk:

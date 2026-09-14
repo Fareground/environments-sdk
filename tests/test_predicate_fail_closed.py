@@ -3,7 +3,7 @@
 `actor.trust > 99.0` (missing $) used to evaluate True via lexicographic
 string comparison — silently inverting the author's declared gate.
 """
-from fg_env_kernel.predicates import evaluate
+from fg_env.predicates import evaluate
 
 
 class _Ent:

@@ -9,7 +9,7 @@ import logging
 
 import pytest
 
-from fg_env_kernel import Kernel, TemplateError, simulate
+from fg_env import Kernel, TemplateError, simulate
 
 
 def _valid_template():
@@ -69,7 +69,7 @@ class TestWarnings:
     def test_warnings_do_not_raise_by_default(self, caplog):
         t = _valid_template()
         # no termination_conditions → lint WARNING, not an error
-        with caplog.at_level(logging.WARNING, logger="fg_env_kernel.kernel"):
+        with caplog.at_level(logging.WARNING, logger="fg_env.kernel"):
             world = Kernel().load(t)
         assert not world.finished
         assert any("termination_conditions" in r.message
@@ -90,7 +90,7 @@ class TestWarnings:
 
 class TestCustomRegistryNoFalsePositive:
     def test_forked_registry_effect_passes_lint(self):
-        from fg_env_kernel import registry
+        from fg_env import registry
 
         mine = registry.fork()
 

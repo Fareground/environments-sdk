@@ -1,6 +1,6 @@
 import pytest
-from fg_env_kernel import compile_template
-from fg_env_kernel.action import ActionInstance
+from fg_env import compile_template
+from fg_env.action import ActionInstance
 
 
 @pytest.mark.parametrize('quantity,accepted', [(2, True), (8, True), (9, False), (11, False)])

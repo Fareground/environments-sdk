@@ -5,7 +5,7 @@ games would replace with richer logic. They demonstrate the
 DomainModule API and provide hooks the env-builder agent can reference
 by name (`"domain_modules": [{"name": "economic"}]`).
 
-For real markets see ``fg_env_kernel.domain.markets``.
+For real markets see ``fg_env.domain.markets``.
 """
 from typing import Any, Dict, List, Optional
 

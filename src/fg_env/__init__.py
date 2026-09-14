@@ -2,14 +2,14 @@
 
 One line (see ``examples/00_simulate.py``):
 
-    from fg_env_kernel import simulate
+    from fg_env import simulate
 
     world = simulate(template)     # dict, WorldTemplate, or path to JSON
     print(world.summary())
 
 Full control (see ``examples/quickstart.py``):
 
-    from fg_env_kernel import Kernel
+    from fg_env import Kernel
 
     kernel = Kernel(seed=42)
     world = kernel.load(template_dict, decision_fn=my_agent)
@@ -17,7 +17,7 @@ Full control (see ``examples/quickstart.py``):
 
 Extension surface for env-builders:
 
-    from fg_env_kernel import (
+    from fg_env import (
         registry,
         effect, precondition, resolution, phase, termination_decorator, module,
         EffectContext,
@@ -40,7 +40,7 @@ from .registry import (
     target_selector,
 )
 # Re-export the submodule under its natural name so callers can do
-# ``from fg_env_kernel import termination`` and get the module's
+# ``from fg_env import termination`` and get the module's
 # public API (evaluate / check_all / resolve_winner / register_winner_resolver).
 from . import termination
 from .effect_context import EffectContext
@@ -49,7 +49,7 @@ from .effect_context import EffectContext
 from . import composition  # noqa: F401
 
 # Primitive discovery (kernel_primitives/*.py drop-in directories) is
-# opt-in: call ``fg_env_kernel.discover()`` explicitly, or set
+# opt-in: call ``fg_env.discover()`` explicitly, or set
 # ``KERNEL_PRIMITIVES_DIR`` — an explicitly configured directory is a
 # clear request for discovery, so we honor it at import time. Importing
 # the package no longer scans the filesystem or imports arbitrary .py

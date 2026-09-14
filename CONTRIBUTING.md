@@ -2,7 +2,7 @@
 
 ## Development setup
 
-The distribution name is `fg-env-kernel` and the import package is `fg_env_kernel`.
+The distribution name is `fg-env` and the import package is `fg_env`.
 Do not rename either — downstream projects depend on them.
 
 ```bash

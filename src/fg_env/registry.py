@@ -24,7 +24,7 @@ from the domain layer.
 
 ## Usage
 
-    from fg_env_kernel.registry import registry, effect
+    from fg_env.registry import registry, effect
 
     @effect("post_content")
     def _post_content(ctx, effect_spec):

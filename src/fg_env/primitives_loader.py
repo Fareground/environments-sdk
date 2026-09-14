@@ -8,7 +8,7 @@ logged but never fatal):
 
   1. ``<repo_root>/kernel_primitives/*.py``   — repo-shipped library
   2. ``$KERNEL_PRIMITIVES_DIR/*.py``           — env-override directory
-  3. Any package importing ``fg_env_kernel.primitives_loader``
+  3. Any package importing ``fg_env.primitives_loader``
      can call ``discover(custom_dir)`` to register from anywhere.
 
 Files are imported as standard Python modules; the @effect /
@@ -20,10 +20,10 @@ visible via ``export_kernel_contract()``.
 
 Each primitive lives in its own .py file (one primitive per file is
 the canonical style, but multiple are allowed). The template that
-``python -m fg_env_kernel new-primitive`` writes follows this convention:
+``python -m fg_env new-primitive`` writes follows this convention:
 
     \"\"\"<one-line summary>\"\"\"
-    from fg_env_kernel import effect, EffectContext
+    from fg_env import effect, EffectContext
 
     @effect("my_op_name")
     def _my_op(ctx: EffectContext, spec: dict):
@@ -33,7 +33,7 @@ the canonical style, but multiple are allowed). The template that
 ## Why this matters
 
 Without auto-discovery, every new primitive requires editing
-``src/fg_env_kernel/__init__.py`` to import the module. With it,
+``src/fg_env/__init__.py`` to import the module. With it,
 contributors drop a file and ship. Production builds + library
 authors both win.
 """
@@ -132,7 +132,7 @@ def _load_dir(directory: Path) -> List[str]:
 
 def list_loaded_primitives() -> dict:
     """Inspect the live registry and return what's registered, grouped
-    by namespace. Used by ``python -m fg_env_kernel primitives``."""
+    by namespace. Used by ``python -m fg_env primitives``."""
     from .registry import registry
 
     return {
@@ -147,14 +147,14 @@ def list_loaded_primitives() -> dict:
     }
 
 
-# Templates for each primitive kind — used by `python -m fg_env_kernel new-primitive`
+# Templates for each primitive kind — used by `python -m fg_env new-primitive`
 PRIMITIVE_TEMPLATES = {
     "effect": '''"""{description}
 
 Effect handler — fires as part of an action's effects_on_success /
 effects_on_failure / effects_on_partial.
 """
-from fg_env_kernel import effect, EffectContext
+from fg_env import effect, EffectContext
 
 
 @effect("{name}")
@@ -178,8 +178,8 @@ def _{name}(ctx: EffectContext, spec: dict):
 
 Termination check — registers a custom game-end condition.
 """
-from fg_env_kernel.registry import termination
-from fg_env_kernel.termination import register_winner_resolver
+from fg_env.registry import termination
+from fg_env.termination import register_winner_resolver
 
 
 @termination("{name}")
@@ -212,8 +212,8 @@ register_winner_resolver("{name}", _resolve_{name})
 Resolution archetype — determines action outcomes (success/failure,
 magnitude, narrative).
 """
-from fg_env_kernel.registry import resolution
-from fg_env_kernel.resolution import ResolutionArchetype, ResolutionResult
+from fg_env.registry import resolution
+from fg_env.resolution import ResolutionArchetype, ResolutionResult
 
 
 @resolution("{name}")
@@ -240,7 +240,7 @@ Precondition operator — registers a custom action-guard predicate.
 For most cases, use the `expr` field on Precondition instead; only
 write a custom precondition when the logic doesn't fit an expression.
 """
-from fg_env_kernel.registry import precondition
+from fg_env.registry import precondition
 
 
 @precondition("{name}")
@@ -260,7 +260,7 @@ Expression function — adds a $-function callable from any expr context
 (preconditions, conditional effects, terminations).
 
 NOTE: There's no decorator for this — extend the dispatcher in
-src/fg_env_kernel/effects.py:_call_function or wrap the function and
+src/fg_env/effects.py:_call_function or wrap the function and
 add a small adapter. Pure additions to the function library are best
 contributed directly to effects.py until a dedicated registry is added.
 """

@@ -1,8 +1,8 @@
 import copy
 import pytest
-from fg_env_kernel import compile_template
-from fg_env_kernel.action import Precondition, Operator
-from fg_env_kernel.physics import PhysicsModel, PhysicsExprError
+from fg_env import compile_template
+from fg_env.action import Precondition, Operator
+from fg_env.physics import PhysicsModel, PhysicsExprError
 
 BASE = {
     'name': 'Reservation negotiation',

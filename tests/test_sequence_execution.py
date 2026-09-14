@@ -3,9 +3,9 @@ import json
 
 import pytest
 
-from fg_env_kernel import compile_template
-from fg_env_kernel.action import ActionInstance
-from fg_env_kernel.engine import SimulationEngine
+from fg_env import compile_template
+from fg_env.action import ActionInstance
+from fg_env.engine import SimulationEngine
 
 
 def make(mode, duration=3, interruptible=True, phases=1, decision=None, checkpoint=None):

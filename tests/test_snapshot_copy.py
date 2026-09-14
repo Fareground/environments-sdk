@@ -6,7 +6,7 @@ from enum import Enum
 import json
 import random
 
-from fg_env_kernel._snapshot_copy import snapshot_copy
+from fg_env._snapshot_copy import snapshot_copy
 
 
 def test_nested_json_is_detached_and_byte_equivalent():

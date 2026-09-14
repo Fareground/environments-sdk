@@ -29,7 +29,7 @@ jobs:
         run: |
           python -m venv /tmp/smoke
           /tmp/smoke/bin/pip install dist/*.whl
-          /tmp/smoke/bin/python -c "import fg_env_kernel; print(fg_env_kernel.__name__)"
+          /tmp/smoke/bin/python -c "import fg_env; print(fg_env.__name__)"
       - uses: actions/upload-artifact@v4
         with:
           name: dist

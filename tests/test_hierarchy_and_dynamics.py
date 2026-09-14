@@ -1,6 +1,6 @@
 """Faction hierarchy (same_org) + declarative property dynamics."""
-from fg_env_kernel.factions import Faction, FactionManager
-from fg_env_kernel.pipeline.loader import build_world_state
+from fg_env.factions import Faction, FactionManager
+from fg_env.pipeline.loader import build_world_state
 
 
 def _mgr() -> FactionManager:

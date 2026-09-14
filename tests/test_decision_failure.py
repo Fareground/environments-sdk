@@ -1,5 +1,5 @@
 import pytest
-from fg_env_kernel import Kernel
+from fg_env import Kernel
 
 
 def template(mode):

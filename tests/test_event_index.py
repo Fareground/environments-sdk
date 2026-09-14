@@ -10,10 +10,10 @@ import copy
 
 import pytest
 
-from fg_env_kernel import termination as term
-from fg_env_kernel.engine import TerminationCondition
-from fg_env_kernel.event import EventLog, SimEvent
-from fg_env_kernel.state import WorldState
+from fg_env import termination as term
+from fg_env.engine import TerminationCondition
+from fg_env.event import EventLog, SimEvent
+from fg_env.state import WorldState
 
 
 def _event(event_type, round_number):
@@ -171,7 +171,7 @@ class TestTerminationSemantics:
         assert [e.event_type for e in log.get_round(2)] == ["goal", "move"]
 
     def test_runtime_legacy_path_uses_same_count(self):
-        from fg_env_kernel.runtime.termination import _evaluate_condition
+        from fg_env.runtime.termination import _evaluate_condition
 
         class _Registry:
             class terminations:  # noqa: N801 — mimic registry attribute

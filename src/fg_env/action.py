@@ -46,7 +46,7 @@ class Precondition:
         Modern:   Precondition(expr="$actor.gold >= 100")
 
     When ``expr`` is set it takes precedence and is evaluated through
-    the unified predicate engine (``fg_env_kernel.predicates``).
+    the unified predicate engine (``fg_env.predicates``).
     The modern form is preferred for new games — one grammar covers
     every kind of guard.
     """
@@ -69,7 +69,7 @@ class EffectOperation(Enum):
     """Types of state changes an effect can apply.
 
     NOTE: New ops should be added via the kernel registry
-    (``fg_env_kernel.registry.effect``), not by extending this enum.
+    (``fg_env.registry.effect``), not by extending this enum.
     The enum exists for backwards compatibility — built-in ops still
     live here so the engine's legacy switch keeps working, but custom
     games extend the verb set without editing kernel code."""
@@ -156,7 +156,7 @@ class EffectCondition:
         Modern:   EffectCondition(expr="$actor.gold >= 100")
 
     When ``expr`` is set it takes precedence and is evaluated through
-    the unified predicate engine (``fg_env_kernel.predicates``).
+    the unified predicate engine (``fg_env.predicates``).
     """
     subject: str = "actor"              # "actor", "target"
     field: Optional[str] = None         # Property to check

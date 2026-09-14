@@ -4,9 +4,9 @@ import copy
 import pytest
 from pydantic import ValidationError
 
-from fg_env_kernel import compile_template, export_kernel_contract
-from fg_env_kernel.pipeline.loader import load_world
-from fg_env_kernel.triggers import TriggerEngine
+from fg_env import compile_template, export_kernel_contract
+from fg_env.pipeline.loader import load_world
+from fg_env.triggers import TriggerEngine
 
 
 EFFECT = {'operation': 'add', 'target': 'counter', 'field': 'count', 'value': 1}
@@ -98,7 +98,7 @@ def test_trigger_effect_condition_is_not_discarded():
 
 
 def test_failed_trigger_aborts_smoke_instead_of_reporting_a_healthy_world(monkeypatch):
-    from fg_env_kernel.pipeline.smoke import smoke_test
+    from fg_env.pipeline.smoke import smoke_test
     schema = world({'name': 'broken', 'when': 'round_end', 'effect': [EFFECT]})
     result = compile_template(schema)
     assert result.ok, result.errors
@@ -113,7 +113,7 @@ def test_failed_trigger_aborts_smoke_instead_of_reporting_a_healthy_world(monkey
 
 
 def test_registered_trigger_effect_is_not_rejected():
-    from fg_env_kernel import registry
+    from fg_env import registry
     name = '__test_trigger_custom'
     registry.effects.register(name, lambda ctx, spec: None)
     try:

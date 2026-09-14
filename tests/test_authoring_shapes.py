@@ -1,9 +1,9 @@
 import copy
 from dataclasses import fields
 
-from fg_env_kernel import compile_template, export_kernel_contract
-from fg_env_kernel.derived_rules import DerivedRule
-from fg_env_kernel.temporal import Phase
+from fg_env import compile_template, export_kernel_contract
+from fg_env.derived_rules import DerivedRule
+from fg_env.temporal import Phase
 
 
 def test_live_export_resolves_derived_rules_phases_and_effects_without_guesswork():

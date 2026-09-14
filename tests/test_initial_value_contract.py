@@ -3,8 +3,8 @@ import copy
 
 import pytest
 
-from fg_env_kernel import compile_template
-from fg_env_kernel.pipeline.loader import load_world
+from fg_env import compile_template
+from fg_env.pipeline.loader import load_world
 
 
 def world(kind="float", value=10, *, default=False):

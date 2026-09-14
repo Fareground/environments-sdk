@@ -5,7 +5,7 @@ Every termination ``check_type`` is a registered function in
 looks up the check_type and dispatches. Custom games add new win
 conditions with::
 
-    from fg_env_kernel import termination
+    from fg_env import termination
 
     @termination("dominion")
     def _dominion(state, params, rng):

@@ -304,7 +304,7 @@ def _ensure_handler() -> None:
     if _log_handler_installed:
         return
     _log_handler_installed = True
-    root_logger = logging.getLogger("fg_env_kernel")
+    root_logger = logging.getLogger("fg_env")
     if os.environ.get("KERNEL_LOG_JSON", "0") == "1":
         h = logging.StreamHandler()
         h.setFormatter(_JsonFormatter())

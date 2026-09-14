@@ -1,5 +1,5 @@
 """Additional resolution archetype tests."""
-from fg_env_kernel.resolution import (
+from fg_env.resolution import (
     ProbabilisticSkillCheck, ContestOpposed,
     VotingResolution, EvidenceChainResolution, OrderBookResolution,
 )

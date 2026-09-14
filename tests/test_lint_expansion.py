@@ -6,7 +6,7 @@ agent hit:
   - $-refs that don't resolve: `$actor.entity_id` (should be `$actor.id`)
 """
 
-from fg_env_kernel import lint_template
+from fg_env import lint_template
 
 
 BASE = {

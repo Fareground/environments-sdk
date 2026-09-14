@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import logging
 
-from fg_env_kernel import predicates
-from fg_env_kernel.pipeline.lint import lint_template
+from fg_env import predicates
+from fg_env.pipeline.lint import lint_template
 
 
 class _Boom:
@@ -20,7 +20,7 @@ class _Boom:
 def test_failing_predicate_logs_once(caplog):
     predicates._LOGGED_FAILURES.clear()
     bad = _Boom()
-    with caplog.at_level(logging.WARNING, logger="fg_env_kernel.predicates"):
+    with caplog.at_level(logging.WARNING, logger="fg_env.predicates"):
         assert predicates.evaluate(bad) is False
         assert predicates.evaluate(bad) is False
     hits = [r for r in caplog.records if "fail-closed" in r.getMessage()]
@@ -83,7 +83,7 @@ def test_typoed_subcondition_field_is_flagged():
 def test_broadcast_false_reaches_the_runtime_action():
     """The loader must pass visibility through — a hidden night-kill that
     defaults back to broadcast=True is a silent information leak."""
-    from fg_env_kernel.pipeline.loader import build_world_state
+    from fg_env.pipeline.loader import build_world_state
 
     t = _template()
     t["actions"][0]["broadcast"] = False
@@ -95,8 +95,8 @@ def test_broadcast_false_reaches_the_runtime_action():
 
 
 def test_world_scope_property_threshold_fires():
-    from fg_env_kernel.termination import _check_property_threshold
-    from fg_env_kernel.pipeline.loader import build_world_state
+    from fg_env.termination import _check_property_threshold
+    from fg_env.pipeline.loader import build_world_state
 
     state = build_world_state(_template())
     params = {"property": "verdict_recorded", "scope": "world",
@@ -107,8 +107,8 @@ def test_world_scope_property_threshold_fires():
 
 
 def test_world_scope_threshold_reads_legacy_attribute():
-    from fg_env_kernel.termination import _check_property_threshold
-    from fg_env_kernel.pipeline.loader import build_world_state
+    from fg_env.termination import _check_property_threshold
+    from fg_env.pipeline.loader import build_world_state
 
     state = build_world_state(_template())
     state.verdict_recorded = 1
@@ -118,7 +118,7 @@ def test_world_scope_threshold_reads_legacy_attribute():
 
 
 def test_world_properties_survive_snapshot_roundtrip():
-    from fg_env_kernel.pipeline.loader import build_world_state
+    from fg_env.pipeline.loader import build_world_state
 
     state = build_world_state(_template())
     state.properties["market_halted"] = True
@@ -129,15 +129,15 @@ def test_world_properties_survive_snapshot_roundtrip():
 
 
 def test_non_broadcast_action_events_carry_visible_to():
-    from fg_env_kernel.pipeline.loader import build_world_state
-    from fg_env_kernel.runtime.engine import SimulationEngine
+    from fg_env.pipeline.loader import build_world_state
+    from fg_env.runtime.engine import SimulationEngine
 
     t = _template()
     t["actions"][0]["broadcast"] = False
     state = build_world_state(t)
 
     def decide(entity_id, perception, valid_actions):
-        from fg_env_kernel.action import ActionInstance
+        from fg_env.action import ActionInstance
         return ActionInstance(action_name="mine", actor_id=entity_id)
 
     engine = SimulationEngine(state=state, decision_fn=decide,
@@ -161,7 +161,7 @@ def test_negative_predicates_fail_closed_on_unresolved():
 
 def test_unknown_precondition_operator_raises_at_load():
     import pytest
-    from fg_env_kernel.pipeline.loader import build_world_state
+    from fg_env.pipeline.loader import build_world_state
 
     t = _template()
     t["actions"][0]["preconditions"] = [
@@ -172,7 +172,7 @@ def test_unknown_precondition_operator_raises_at_load():
 
 def test_unknown_effect_operation_raises_at_load():
     import pytest
-    from fg_env_kernel.pipeline.loader import build_world_state
+    from fg_env.pipeline.loader import build_world_state
 
     t = _template()
     t["actions"][0]["effects_on_success"] = [
@@ -206,8 +206,8 @@ def test_lint_recurses_subconditions_and_root_fields():
 
 
 def test_new_termination_checkers_fire():
-    from fg_env_kernel.pipeline.loader import build_world_state
-    from fg_env_kernel.registry import registry
+    from fg_env.pipeline.loader import build_world_state
+    from fg_env.registry import registry
 
     state = build_world_state(_template())
     state.temporal.current_round = 7
@@ -236,7 +236,7 @@ def test_dict_not_fails_closed_on_unresolved_operand():
 
 
 def test_engine_compare_fails_closed_on_type_mismatch_and_unknown_op():
-    from fg_env_kernel.runtime.engine import SimulationEngine
+    from fg_env.runtime.engine import SimulationEngine
 
     assert SimulationEngine._compare("high", "gte", 5) is False
     assert SimulationEngine._compare(5, "ltee", 3) is False
@@ -253,14 +253,14 @@ def test_nested_not_still_fails_closed():
 
 
 def test_state_snapshots_emitted_when_enabled():
-    from fg_env_kernel.pipeline.loader import build_world_state
-    from fg_env_kernel.runtime.engine import SimulationEngine
+    from fg_env.pipeline.loader import build_world_state
+    from fg_env.runtime.engine import SimulationEngine
 
     events = []
     state = build_world_state(_template())
 
     def decide(entity_id, perception, valid_actions):
-        from fg_env_kernel.action import ActionInstance
+        from fg_env.action import ActionInstance
         return ActionInstance(action_name="mine", actor_id=entity_id)
 
     engine = SimulationEngine(state=state, decision_fn=decide, max_rounds=2,

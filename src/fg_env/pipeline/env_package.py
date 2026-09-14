@@ -166,7 +166,7 @@ def _load_directory(directory: Path, *, load_primitives: bool) -> EnvPackage:
 def _load_env_primitives(prim_dir: Path) -> None:
     """Import every .py file in the env's primitives/ directory so the
     @effect / @termination / etc. decorators fire and register in the
-    process-global registry (primitives import ``fg_env_kernel``
+    process-global registry (primitives import ``fg_env``
     directly, so they register in the same registry the engine reads).
     """
     from ..primitives_loader import _load_dir

@@ -23,7 +23,7 @@ know its template is structurally sound.
 
 ## Usage
 
-    from fg_env_kernel import compile_template, smoke_test
+    from fg_env import compile_template, smoke_test
 
     result = compile_template(raw_json)
     if not result.ok:

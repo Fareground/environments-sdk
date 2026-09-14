@@ -12,7 +12,7 @@ migration path. This module:
 
 ## Usage
 
-    from fg_env_kernel.pipeline.versioning import (
+    from fg_env.pipeline.versioning import (
         CONTRACT_VERSION, register_migration, upgrade_template,
     )
 

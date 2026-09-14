@@ -16,9 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **BREAKING: primitives auto-discovery no longer runs at import time.**
-  `import fg_env_kernel` no longer scans `kernel_primitives/` directories or
+  `import fg_env` no longer scans `kernel_primitives/` directories or
   imports arbitrary `.py` files. Downstream code must either call
-  `fg_env_kernel.discover()` explicitly or set `KERNEL_PRIMITIVES_DIR`
+  `fg_env.discover()` explicitly or set `KERNEL_PRIMITIVES_DIR`
   (an explicitly configured directory is still honored at import).
 - **`Kernel.load()` / `simulate()` now validate templates before building.**
   ERROR-severity lint issues (no agent-role entity type, unknown effect

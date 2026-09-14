@@ -3,7 +3,7 @@
 Before these, "infect me if a graph NEIGHBOR is infected" was
 inexpressible: relations were readable only as an actor->target boolean.
 """
-from fg_env_kernel.pipeline.loader import load_world
+from fg_env.pipeline.loader import load_world
 
 
 def _epidemic_world():
@@ -43,13 +43,13 @@ def _epidemic_world():
 class TestNeighborQueries:
     def test_neighbors_are_bidirectional(self):
         state, engine = _epidemic_world()
-        from fg_env_kernel.effects import resolve_expression
+        from fg_env.effects import resolve_expression
         out = resolve_expression("$neighbors('p0', 'contact')", state=state)
         assert out == ["p1", "p4"]
 
     def test_neighbor_count_filters_on_property(self):
         state, engine = _epidemic_world()
-        from fg_env_kernel.effects import resolve_expression
+        from fg_env.effects import resolve_expression
         assert resolve_expression(
             "$neighbor_count('p1', 'contact', 'infected')", state=state) == 1
         assert resolve_expression(
@@ -57,7 +57,7 @@ class TestNeighborQueries:
 
     def test_neighbor_sum(self):
         state, engine = _epidemic_world()
-        from fg_env_kernel.effects import resolve_expression
+        from fg_env.effects import resolve_expression
         assert resolve_expression(
             "$neighbor_sum('p1', 'contact', 'viral_load')", state=state) == 2.0
 

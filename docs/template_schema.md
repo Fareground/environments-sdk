@@ -1,6 +1,6 @@
 # World template schema
 
-A human-readable reference for the template dict that `Kernel.load()` / `load_world()` accepts. The authoritative sources are the pydantic models in `src/fg_env_kernel/pipeline/loader.py` (`WorldTemplate` and its sub-specs) and the machine-readable export in [`kernel_contract.json`](kernel_contract.json) — which also carries the **live registries**: every valid `operation`, `resolution_archetype`, `check_type`, phase handler, and domain module name. When in doubt, that file wins.
+A human-readable reference for the template dict that `Kernel.load()` / `load_world()` accepts. The authoritative sources are the pydantic models in `src/fg_env/pipeline/loader.py` (`WorldTemplate` and its sub-specs) and the machine-readable export in [`kernel_contract.json`](kernel_contract.json) — which also carries the **live registries**: every valid `operation`, `resolution_archetype`, `check_type`, phase handler, and domain module name. When in doubt, that file wins.
 
 All sections are optional (every field has a default), and unknown extra keys are allowed — but a playable world needs at least one `entity_types` entry with `role: "agent"`, one entity of that type, and one action whose `actor_type` matches it.
 
@@ -244,11 +244,11 @@ Continuous coupled dynamics, integrated with RK4 between turns. Deterministic an
 }}
 ```
 
-Variables can read entity aggregates and write values back onto entities — see `src/fg_env_kernel/physics.py` (`EntitySource`, `EntityWriteback`) for those blocks.
+Variables can read entity aggregates and write values back onto entities — see `src/fg_env/physics.py` (`EntitySource`, `EntityWriteback`) for those blocks.
 
 ### property_dynamics
 
-Autonomous per-entity drift/spawn/cascade rules, ticked every round: `{"property_dynamics": {"drift_rules": [...], "spawn_rules": [...], "cascade_rules": [...]}}` — see `src/fg_env_kernel/property_dynamics.py` for rule shapes.
+Autonomous per-entity drift/spawn/cascade rules, ticked every round: `{"property_dynamics": {"drift_rules": [...], "spawn_rules": [...], "cascade_rules": [...]}}` — see `src/fg_env/property_dynamics.py` for rule shapes.
 
 ## domain_modules
 
@@ -271,7 +271,7 @@ Available names (chess, poker, monopoly, mafia, prediction_market, securities_tr
 - `factions` — `{id, name, member_ids, parent, properties}` teams.
 - `adjacency` — `{location, neighbors}` edges when not using a graph space.
 - `location_definitions` — per-location properties, entry requirements, modifiers, and tick effects.
-- `goals`, `skill_definitions` + `initial_skills`, `recipes` (crafting), `connectors` — optional subsystems; see their modules under `src/fg_env_kernel/`.
+- `goals`, `skill_definitions` + `initial_skills`, `recipes` (crafting), `connectors` — optional subsystems; see their modules under `src/fg_env/`.
 
 ### Action input validation
 
@@ -288,4 +288,4 @@ Built-in `smoke_test` strategies use seeded sample values and typed targets to
 exercise parameterized mechanics. These samples test structure; they are not
 participant judgments. A callable `decisions` argument is used unchanged, so it
 can test specific valid or invalid inputs. Integrations implementing a baseline
-policy can reuse `fg_env_kernel.policies.sample_action_parameter`.
+policy can reuse `fg_env.policies.sample_action_parameter`.

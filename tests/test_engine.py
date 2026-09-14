@@ -1,13 +1,13 @@
 """Tests for kernel/engine.py -- SimulationEngine with mock decisions."""
-from fg_env_kernel.state import WorldState
-from fg_env_kernel.engine import SimulationEngine
-from fg_env_kernel.entity import EntityType, Entity
-from fg_env_kernel.resource import ResourceType
-from fg_env_kernel.action import (
+from fg_env.state import WorldState
+from fg_env.engine import SimulationEngine
+from fg_env.entity import EntityType, Entity
+from fg_env.resource import ResourceType
+from fg_env.action import (
     ActionDefinition, ActionInstance, Precondition, Effect,
     Operator, EffectOperation,
 )
-from fg_env_kernel.types import PropertySchema, PropertyType
+from fg_env.types import PropertySchema, PropertyType
 
 
 def _build_simple_world() -> WorldState:

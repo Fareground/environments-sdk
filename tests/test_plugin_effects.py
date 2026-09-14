@@ -7,15 +7,15 @@ calling ``@effect("my_op")`` from outside the kernel package.
 """
 import pytest
 
-from fg_env_kernel import EffectContext, effect, registry
-from fg_env_kernel.action import (
+from fg_env import EffectContext, effect, registry
+from fg_env.action import (
     Effect,
     EffectOperation,
 )
-from fg_env_kernel.engine import SimulationEngine, _coerce_effects
-from fg_env_kernel.entity import Entity, EntityType
-from fg_env_kernel.resolution import ResolutionResult
-from fg_env_kernel.state import WorldState
+from fg_env.engine import SimulationEngine, _coerce_effects
+from fg_env.entity import Entity, EntityType
+from fg_env.resolution import ResolutionResult
+from fg_env.state import WorldState
 
 
 @pytest.fixture

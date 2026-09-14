@@ -3,9 +3,9 @@ import math
 
 import pytest
 
-from fg_env_kernel.pipeline.loader import load_world
-from fg_env_kernel.pipeline.compile import compile_template
-from fg_env_kernel.pipeline.smoke import smoke_test
+from fg_env.pipeline.loader import load_world
+from fg_env.pipeline.compile import compile_template
+from fg_env.pipeline.smoke import smoke_test
 
 
 def test_autonomous_physics_is_healthy_without_decisions():

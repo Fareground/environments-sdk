@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from fg_env_kernel import (
+from fg_env import (
     ActionInstance,
     DecisionFn,
     Kernel,
@@ -177,7 +177,7 @@ class TestRegistryIsolation:
         return t
 
     def test_forked_registries_do_not_see_each_other(self):
-        from fg_env_kernel import registry
+        from fg_env import registry
 
         reg_a = registry.fork()
         reg_b = registry.fork()
@@ -191,7 +191,7 @@ class TestRegistryIsolation:
         assert not registry.effects.has("only_in_a")
 
     def test_kernel_with_custom_registry_resolves_its_effect(self):
-        from fg_env_kernel import registry
+        from fg_env import registry
 
         mine = registry.fork()
 
@@ -210,7 +210,7 @@ class TestRegistryIsolation:
     def test_default_kernel_rejects_unknown_custom_effect(self):
         # The effect only exists in a fork nobody passed in — the default
         # kernel must not see it (loader raises on the unknown op).
-        from fg_env_kernel import registry
+        from fg_env import registry
 
         stray = registry.fork()
 
@@ -222,7 +222,7 @@ class TestRegistryIsolation:
             Kernel().load(self._template_with_custom_effect())
 
     def test_fork_sees_builtin_terminations(self):
-        from fg_env_kernel import registry
+        from fg_env import registry
 
         mine = registry.fork()
         template = _template()
@@ -236,7 +236,7 @@ class TestRegistryIsolation:
         assert world.terminated_by == "rich"
 
     def test_custom_termination_in_fork_only(self):
-        from fg_env_kernel import registry
+        from fg_env import registry
 
         mine = registry.fork()
 
@@ -254,6 +254,6 @@ class TestRegistryIsolation:
 
         # Default kernel doesn't know the check_type — the lint gate
         # rejects the template up front instead of silently never firing.
-        from fg_env_kernel import TemplateError
+        from fg_env import TemplateError
         with pytest.raises(TemplateError, match="always_done"):
             Kernel().load(template, decision_fn=_bid(2.0))

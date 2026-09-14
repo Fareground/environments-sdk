@@ -5,8 +5,8 @@ multi-step / aggregate mechanics. Together with the state-query
 functions, they're what makes the engine truly genre-agnostic.
 """
 
-from fg_env_kernel import compile_template
-from fg_env_kernel.action import ActionInstance
+from fg_env import compile_template
+from fg_env.action import ActionInstance
 
 
 # ---------------------------------------------------------------------------
@@ -235,7 +235,7 @@ def test_chain_lightning_rpg_pattern():
 
 def test_kernel_capabilities_expose_new_ops():
     """The new effect ops must show up in the live registry export."""
-    from fg_env_kernel import export_kernel_contract
+    from fg_env import export_kernel_contract
 
     caps = export_kernel_contract()["live_capabilities"]
     ops = caps["effect_operations"]

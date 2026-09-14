@@ -1,6 +1,6 @@
 """Tests for kernel/social.py"""
 from unittest.mock import MagicMock
-from fg_env_kernel.social import (
+from fg_env.social import (
     ContentType, ContentVisibility,
     ContentItem, SocialGraph, ReputationSystem, ViralSpreadModel,
     Feed, SocialPlatformManager,

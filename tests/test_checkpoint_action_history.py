@@ -5,8 +5,8 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from fg_env_kernel.action import ActionDefinition
-from fg_env_kernel.state import ActionHistory
+from fg_env.action import ActionDefinition
+from fg_env.state import ActionHistory
 from test_execution_checkpoint import make_engine, semantic_events
 
 
