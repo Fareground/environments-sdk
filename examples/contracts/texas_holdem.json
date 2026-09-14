@@ -1,0 +1,80 @@
+{
+  "fg_env": "1",
+  "name": "Texas Hold'em",
+  "description": "No-limit Texas Hold'em for 4 to 6 players: blinds, preflop, flop, turn and river betting, all-in side pots and an exact showdown.",
+  "inputs": {
+    "players": {"type": "int", "default": 6, "min": 4, "max": 6, "description": "Seats at the table."},
+    "hands": {"type": "int", "default": 30, "min": 1, "max": 500, "description": "Hands to play (the run also ends when one player holds every chip)."},
+    "starting_stack": {"type": "int", "default": 500, "min": 20, "unit": "chips"},
+    "small_blind": {"type": "int", "default": 5, "min": 1, "unit": "chips"},
+    "big_blind": {"type": "int", "default": 10, "min": 2, "unit": "chips", "description": "Also the minimum bet and raise size."}
+  },
+  "brief": {
+    "situation": "{$inputs.players} players sit at a no-limit Texas Hold'em table with {$inputs.starting_stack} chips each and play up to {$inputs.hands} hands. The dealer button moves one seat to the left after every hand.",
+    "rules": "Each hand every player with chips is dealt 2 private hole cards. The two players left of the button post the small and big blinds (with two players, the button posts the small blind). Four betting rounds follow: preflop (starting left of the big blind), then the flop (3 shared cards face up), the turn (1 more) and the river (1 more), each starting left of the button. On your turn: fold, check (nothing to call), call (match the highest bet, all-in if you are short), bet (open a round with at least the big blind), raise (to a total of at least the highest bet plus the last raise size) or go all-in. A round ends when everyone still in has matched the highest bet or is all-in. An all-in for less than a full raise does not let players who already acted raise again. Showdown: your hand is the best five cards of your 2 hole cards and the 5 board cards. Best first: straight flush, four of a kind, full house, flush, straight (A-2-3-4-5 is the lowest), three of a kind, two pair, pair, high card; higher cards and then kickers break ties, exact ties split the pot (odd chips to the winner nearest the button's left). All-in players only win what they matched from each opponent (side pots). A player with no chips is out.",
+    "roles": {
+      "player": "You want to finish with as many chips as possible: win big pots with strong hands, fold weak ones cheaply, and read what other players' bets say about their cards."
+    }
+  },
+  "clock": {"rounds": "$inputs.hands", "unit": "hand"},
+  "types": {
+    "player": {"agent": true, "description": "A seated player.", "props": {"seat": {"type": "int", "default": 0}}}
+  },
+  "population": [
+    {"type": "player", "count": "$inputs.players", "name": "{$text(['Ana', 'Ben', 'Cleo', 'Dev', 'Eli', 'Fay'][$i - 1])}", "props": {"seat": "$i - 1"}}
+  ],
+  "mechanisms": {
+    "cards": {"kind": "cards", "players": "player", "deal": "never", "zones": {"board": "public"}},
+    "table": {
+      "kind": "pot",
+      "players": "player",
+      "seat": "$it.seat",
+      "stack": "$inputs.starting_stack",
+      "blinds": ["$inputs.small_blind", "$inputs.big_blind"],
+      "setup": [{"collect": "cards"}, {"deal": "cards", "count": 2, "to": "$filter(player, $it.in_hand)"}],
+      "streets": {
+        "preflop": [],
+        "flop": [{"burn": "cards"}, {"deal": "cards", "count": 3, "zone": "board"}],
+        "turn": [{"burn": "cards"}, {"deal": "cards", "count": 1, "zone": "board"}],
+        "river": [{"burn": "cards"}, {"deal": "cards", "count": 1, "zone": "board"}]
+      },
+      "before_showdown": [{"reveal": "$flatten($map($pot_live(table), $hand($it)))"}],
+      "score": "$poker_rank($hand($it) + $zone(board)).score",
+      "label": "$poker_rank($hand($it) + $zone(board)).name"
+    }
+  },
+  "views": {
+    "best_hand": {
+      "for": "player",
+      "when": "$len($hand($actor)) == 2 and not $actor.folded",
+      "show": "With the board you have {$poker_rank($hand($actor) + $zone(board)).name}."
+    }
+  },
+  "policies": {
+    "calling_station": {"rules": [{"do": "check"}, {"do": "call"}]},
+    "tight": {
+      "rules": [
+        {"when": "$poker_rank($hand($actor) + $zone(board)).level >= 2", "do": "raise", "with": {"to": "$pot_options(table, $actor).min_raise_to"}},
+        {"when": "$poker_rank($hand($actor) + $zone(board)).level >= 2", "do": "bet", "with": {"amount": "$pot_options(table, $actor).min_bet"}},
+        {"when": "$poker_rank($hand($actor) + $zone(board)).level >= 1 or $pot_options(table, $actor).to_call <= $inputs.big_blind", "do": "call"},
+        {"do": "check"},
+        {"do": "fold"}
+      ]
+    },
+    "shover": {"rules": [{"do": "all_in"}, {"do": "call"}, {"do": "check"}]}
+  },
+  "metrics": {
+    "pot": {"expr": "$sum($get($world.table_result, pots, []), $it.amount)", "description": "Chips in the last hand's pot.", "unit": "chips"},
+    "players_left": "$count(player, $it.stack > 0)",
+    "chip_leader_stack": "$max(player, $it.stack)"
+  },
+  "end": [
+    {"name": "one_player_left", "when": "$pot_total(table) == 0 and $count(player, $it.stack > 0) <= 1", "winner": "$top(player, $it.stack, 1)[0]", "say": "{$top(player, $it.stack, 1)[0].name} has won every chip."}
+  ],
+  "outputs": {
+    "final_stacks": {"expr": "$map($bottom(player, $it.seat), $it.name + ': ' + $text($it.stack))", "type": "list", "description": "Chips each player holds at the end."},
+    "chip_leader": {"expr": "$top(player, $it.stack, 1)[0].name", "type": "text"},
+    "hands_played": {"expr": "$world.table_hands", "type": "int"},
+    "biggest_pot": {"expr": "$max($series.pot + [0])", "type": "int", "description": "Largest pot of the run, in chips."}
+  }
+}

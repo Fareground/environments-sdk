@@ -1,0 +1,13 @@
+{
+  "actions": 6,
+  "events": 13,
+  "events_sha256": "01455683482c9d6d51c5de11e532cb88c82d141d84a361003c4114ecda93ead6",
+  "metrics": {
+    "chip_leader_stack": 3000,
+    "players_left": 1,
+    "pot": 3000
+  },
+  "rounds": 1,
+  "status": "ended",
+  "wakes": 6
+}

@@ -1,0 +1,12 @@
+{
+  "actions": 16,
+  "events": 17,
+  "events_sha256": "4e7bb46f6747664b9033ce050fc3cc5a14bfc9c59885bf1aae01e27239683d5a",
+  "metrics": {
+    "cards_in_hands": 30,
+    "draw_pile": 50
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 16
+}

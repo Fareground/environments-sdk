@@ -1,0 +1,242 @@
+{
+  "fg_env": "1",
+  "name": "Werewolf (roles mechanism)",
+  "description": "Nine-player social deduction: 2 werewolves, 1 seer, 1 doctor, 5 villagers, dealt and hidden by the roles mechanism, with the day vote as a ballot.",
+  "brief": {
+    "situation": "Nine people live in a village. Two of them are secretly werewolves who kill one villager every night. Roles were dealt at random and are hidden: only the werewolves know each other.",
+    "rules": "Each round has a night and a day. Night: the werewolves agree on a victim, the seer inspects one living player and privately learns whether they are a werewolf, and the doctor protects one living player (not the same player two nights in a row); a protected victim survives. Day: the night's death is announced, living players talk in the public chat, then everyone votes at the same time to exile one player. The player with the most votes is exiled and their role revealed; a tie or no votes means nobody is exiled. Dead players take no further part. The village wins when both werewolves are dead. The werewolves win as soon as they equal or outnumber the other living players.",
+    "roles": {
+      "player": "Your role is shown in your update. Villagers, the seer and the doctor are the village side: find and exile the werewolves. Werewolves: stay hidden, deflect suspicion, and kill until you equal the village. Everything other players say in chat may be a lie."
+    }
+  },
+  "clock": {"rounds": 8, "unit": "round"},
+  "world": {
+    "last_death": {"type": "text", "default": "Nobody has died yet."},
+    "winner": {"type": "text", "default": "none"},
+    "rounds_played": {"type": "int", "default": 0},
+    "saves": {"type": "int", "default": 0},
+    "seer_reads": {"type": "int", "default": 0},
+    "seer_wolf_reads": {"type": "int", "default": 0}
+  },
+  "types": {
+    "player": {
+      "agent": true,
+      "description": "A villager of unknown allegiance.",
+      "props": {
+        "seat": {"type": "int", "default": 0},
+        "nomination": {"type": "text", "default": "", "private": true},
+        "protecting": {"type": "text", "default": "", "private": true},
+        "last_protected": {"type": "text", "default": "", "private": true},
+        "inspected": {"type": "list", "default": [], "private": true},
+        "reads": {"type": "list", "default": [], "private": true},
+        "ready": {"type": "bool", "default": false}
+      }
+    }
+  },
+  "entities": {
+    "p1": {"type": "player", "name": "Ada", "props": {"seat": 1}},
+    "p2": {"type": "player", "name": "Bram", "props": {"seat": 2}},
+    "p3": {"type": "player", "name": "Cleo", "props": {"seat": 3}},
+    "p4": {"type": "player", "name": "Dario", "props": {"seat": 4}},
+    "p5": {"type": "player", "name": "Esme", "props": {"seat": 5}},
+    "p6": {"type": "player", "name": "Finn", "props": {"seat": 6}},
+    "p7": {"type": "player", "name": "Greta", "props": {"seat": 7}},
+    "p8": {"type": "player", "name": "Hugo", "props": {"seat": 8}},
+    "p9": {"type": "player", "name": "Iris", "props": {"seat": 9}}
+  },
+  "mechanisms": {
+    "roles": {
+      "kind": "roles",
+      "players": "player",
+      "deck": {"werewolf": 2, "seer": 1, "doctor": 1, "villager": "rest"},
+      "teams": {"wolves": ["werewolf"], "village": ["seer", "doctor", "villager"]},
+      "know": ["wolves"],
+      "actions": {
+        "whisper": {
+          "roles": ["werewolf"],
+          "description": "At night: send a secret message to your fellow werewolf (e.g. who to kill and why).",
+          "params": {"text": {"type": "text", "max_len": 300, "description": "Your message."}},
+          "do": [{"post": "den", "text": "$params.text"}],
+          "outcome": "Whispered to the pack.",
+          "per_turn": 2
+        },
+        "choose_victim": {
+          "roles": ["werewolf"],
+          "description": "At night: name the villager the pack should kill tonight. If the pack disagrees, one of its choices is picked by chance.",
+          "params": {"target": {"type": "entity", "of": "player", "where": "$it.living and $it.team != wolves", "description": "The player to kill."}},
+          "do": ["$actor.nomination = $params.target.id"],
+          "outcome": "You chose {$params.target.name} as tonight's victim.",
+          "terminal": true
+        },
+        "inspect_player": {
+          "roles": ["seer"],
+          "description": "At night: secretly learn whether one living player is a werewolf.",
+          "params": {"target": {"type": "entity", "of": "player", "where": "$it.living and $it.id != $actor.id and not ($it.id in $actor.inspected)", "description": "The player to inspect."}},
+          "do": [
+            "$verdict = 'a WEREWOLF' if $params.target.role == werewolf else 'not a werewolf'",
+            "$actor.inspected += $params.target.id",
+            "$actor.reads += $params.target.name + ' is ' + $verdict + ' (night ' + $text($round) + ')'",
+            "$world.seer_reads += 1",
+            {"if": "$params.target.role == werewolf", "then": ["$world.seer_wolf_reads += 1"]}
+          ],
+          "outcome": "Your vision is clear: {$params.target.name} is {$verdict}.",
+          "terminal": true
+        },
+        "protect": {
+          "roles": ["doctor"],
+          "description": "At night: protect one living player (yourself allowed) from tonight's attack; not the same player two nights in a row.",
+          "params": {"target": {"type": "entity", "of": "player", "where": "$it.living and $it.id != $actor.last_protected", "description": "The player to protect tonight."}},
+          "do": ["$actor.protecting = $params.target.id"],
+          "outcome": "You will watch over {$params.target.name} tonight.",
+          "terminal": true
+        }
+      }
+    },
+    "exile": {
+      "kind": "ballot",
+      "voters": "player",
+      "options": "$map($filter(player, $it.living), $it.id)",
+      "stage": "day_vote",
+      "when": "$actor.living",
+      "ties": "none",
+      "question": "Who should the village exile?",
+      "announce": "The ballots are counted: {$join($map($filter($keys($result.counts), $get($result.counts, $it) > 0), $entity($it).name + ' ' + $text($get($result.counts, $it))), ', ') or 'nobody voted'}."
+    }
+  },
+  "records": {
+    "den": {"fields": {"text": "text"}, "show": "{author}: {text}", "visible": "$viewer.team == wolves", "description": "The werewolves' secret night whispers."},
+    "chat": {"fields": {"text": "text"}, "show": "{author}: {text}", "description": "The public village square."}
+  },
+  "actions": {
+    "say": {
+      "by": "player",
+      "description": "Day only: speak in the public village chat. Everyone living reads it.",
+      "when": [{"expr": "$actor.living", "why": "The dead cannot speak."}],
+      "params": {"text": {"type": "text", "max_len": 400, "description": "What you say to the village."}},
+      "do": [{"post": "chat", "text": "$params.text"}, {"each": "player", "where": "$it.living and $it.id != $actor.id", "do": ["$it.ready = false"]}],
+      "outcome": "You said it to the village.",
+      "private": true,
+      "per_turn": 1
+    },
+    "done_talking": {
+      "by": "player",
+      "description": "Day only: signal you have nothing more to say for now. Discussion ends when every living player is done (anyone speaking reopens it).",
+      "when": [{"expr": "$actor.living", "why": "The dead cannot speak."}],
+      "do": ["$actor.ready = true"],
+      "private": true,
+      "terminal": true
+    }
+  },
+  "blocks": {
+    "check_win": {
+      "do": [
+        {"if": "$team_alive(wolves) == 0", "then": ["$world.winner = village", {"end": "village_wins", "winner": "village", "say": "Both werewolves are dead. The village wins."}]},
+        {"if": "$world.winner == 'none' and $team_alive(wolves) >= $team_alive(village)", "then": ["$world.winner = werewolves", {"end": "werewolves_win", "winner": "werewolves", "say": "The werewolves now equal the village. The werewolves win."}]}
+      ]
+    }
+  },
+  "stages": [
+    {
+      "name": "night_wolves",
+      "actions": ["whisper", "choose_victim"],
+      "turns": "sequential",
+      "who": "$it.living and $it.role == werewolf",
+      "until": "$all($filter(player, $it.living and $it.role == werewolf), $it.nomination != '') and $len($unique($map($filter(player, $it.living and $it.role == werewolf), $it.nomination))) == 1",
+      "passes": 3,
+      "max_actions": 3,
+      "max_calls": 6,
+      "brief": "Night falls. Agree with your pack on tonight's victim: whisper, then choose. If you disagree, the choice is settled by chance.",
+      "on_enter": [{"each": "player", "do": ["$it.nomination = ''"]}]
+    },
+    {"name": "night_seer", "actions": ["inspect_player"], "turns": "simultaneous", "who": "$it.living and $it.role == seer", "brief": "Night. Choose one living player to inspect."},
+    {
+      "name": "night_doctor",
+      "actions": ["protect"],
+      "turns": "simultaneous",
+      "who": "$it.living and $it.role == doctor",
+      "brief": "Night. Choose one living player to protect.",
+      "on_enter": [{"each": "player", "do": ["$it.protecting = ''"]}],
+      "on_exit": [
+        "$picks = $unique($filter($map($filter(player, $it.living and $it.role == werewolf), $it.nomination), $it != ''))",
+        "$victim_id = $choice($picks) if $len($picks) > 0 else ''",
+        "$doc = $pick(player, $it.living and $it.role == doctor)",
+        "$guarded = $doc.protecting if $doc != null else ''",
+        {"each": "player", "where": "$it.role == doctor", "do": ["$it.last_protected = $it.protecting"]},
+        {
+          "if": "$victim_id == ''",
+          "then": ["$world.last_death = 'The werewolves did not strike last night.'", {"emit": "dawn", "say": "Dawn of round {$round}: {$world.last_death}"}],
+          "else": [
+            {
+              "if": "$victim_id == $guarded",
+              "then": ["$world.saves += 1", "$world.last_death = 'Someone was attacked last night but survived: nobody died.'", {"emit": "dawn", "say": "Dawn of round {$round}: {$world.last_death}"}],
+              "else": [
+                "$victim = $entity($victim_id)",
+                {"eliminate": "$victim", "say": "Dawn of round {$round}: {$victim.name} was killed during the night."},
+                "$world.last_death = $victim.name + ' was killed during the night. They were a ' + $victim.role + '.'"
+              ]
+            }
+          ]
+        },
+        {"block": "check_win"}
+      ]
+    },
+    {
+      "name": "day_discussion",
+      "actions": ["say", "done_talking"],
+      "turns": "sequential",
+      "who": "$it.living",
+      "until": "$all($filter(player, $it.living), $it.ready)",
+      "passes": 3,
+      "quiet": "skip",
+      "max_actions": 2,
+      "max_calls": 6,
+      "brief": "Day {$round}. Discuss who might be a werewolf. Say something, or mark yourself done.",
+      "on_enter": [{"each": "player", "do": ["$it.ready = false"]}]
+    },
+    {"name": "day_vote", "actions": [], "turns": "simultaneous", "who": "$it.living", "max_calls": 4, "brief": "Day {$round}. Vote to exile one player. Most votes is exiled; a tie means nobody is."},
+    {
+      "name": "verdict",
+      "actions": [],
+      "on_enter": [
+        "$out_id = $world.exile_result.winner",
+        {"if": "$out_id != null", "then": [{"eliminate": "$entity($out_id)", "say": "The village exiles {$entity($out_id).name}."}], "else": [{"emit": "verdict", "say": "The vote is tied or empty: nobody is exiled."}]},
+        "$world.rounds_played = $round",
+        {"block": "check_win"}
+      ]
+    }
+  ],
+  "views": {
+    "visions": {"for": "player", "title": "Your visions", "when": "$actor.role == seer", "of": "$actor.reads", "show": "{$it}", "empty": "You have not inspected anyone yet."},
+    "clinic": {"for": "player", "title": "Your protection", "when": "$actor.role == doctor", "show": "{$'Last night you protected ' + $entity($actor.last_protected).name + ' (you cannot pick them again tonight).' if $actor.last_protected != '' else 'You have not protected anyone yet.'}"},
+    "last_night": {"for": "player", "title": "Last night", "stages": ["day_discussion", "day_vote"], "show": "{$world.last_death}"},
+    "chat_history": {"for": "player", "title": "Village chat so far", "of": "$records(chat)", "show": "Day {$it.round} · {$it.author}: «{$it.text}»", "empty": "Nobody has spoken yet.", "look": true},
+    "talking": {"for": "player", "title": "Talking", "stages": ["day_discussion"], "show": "{$count(player, $it.living and $it.ready)} of {$count(player, $it.living)} living players are done talking."}
+  },
+  "policies": {
+    "honest": {
+      "rules": [
+        {"when": "$stage == night_wolves and $actor.nomination == '' and $any(player, $it.role == werewolf and $it.living and $it.nomination != '')", "do": "choose_victim", "with": {"target": "$pick(player, $it.role == werewolf and $it.living and $it.nomination != '').nomination"}},
+        {"when": "$stage == night_wolves", "do": "choose_victim", "with": {"target": "$choice($filter(player, $it.living and $it.team != wolves))"}},
+        {"when": "$stage == night_seer", "do": "inspect_player", "with": {"target": "$choice($filter(player, $it.living and $it.id != $actor.id and not ($it.id in $actor.inspected)))"}},
+        {"when": "$stage == night_doctor", "do": "protect", "with": {"target": "$choice($filter(player, $it.living and $it.id != $actor.last_protected))"}},
+        {"when": "$stage == day_discussion and $actor.role == seer and $any(player, $it.living and $it.role == werewolf and $it.id in $actor.inspected)", "do": "say", "with": {"text": "$text('I am the seer. ') + $pick(player, $it.living and $it.role == werewolf and $it.id in $actor.inspected).name + ' is a werewolf.'"}, "chance": 0.5},
+        {"when": "$stage == day_discussion", "do": "done_talking"},
+        {"when": "$stage == day_vote and $actor.role == werewolf", "do": "exile_vote", "with": {"choice": "$choice($filter(player, $it.living and $it.team != wolves)).id"}},
+        {"when": "$stage == day_vote and $actor.role == seer and $any(player, $it.living and $it.role == werewolf and $it.id in $actor.inspected)", "do": "exile_vote", "with": {"choice": "$pick(player, $it.living and $it.role == werewolf and $it.id in $actor.inspected).id"}},
+        {"when": "$stage == day_vote", "do": "exile_vote", "with": {"choice": "$choice($filter(player, $it.living and $it.id != $actor.id)).id"}}
+      ]
+    }
+  },
+  "metrics": {
+    "living": "$count(player, $it.living)",
+    "living_wolves": "$team_alive(wolves)"
+  },
+  "outputs": {
+    "winning_side": {"expr": "$world.winner", "type": "text", "description": "village, werewolves, or none if the round budget ran out."},
+    "rounds": {"expr": "$world.rounds_played", "type": "int", "description": "Rounds (night + day) played."},
+    "survivors": {"expr": "$map($filter(player, $it.living), $it.name + ' (' + $it.role + ')')", "type": "list"},
+    "seer_reads": {"expr": "$world.seer_reads", "type": "int", "description": "Inspections the seer made."},
+    "correct_seer_reads": {"expr": "$world.seer_wolf_reads", "type": "int", "description": "Inspections that uncovered a werewolf."},
+    "doctor_saves": {"expr": "$world.saves", "type": "int"}
+  }
+}
