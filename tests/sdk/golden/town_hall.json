@@ -1,0 +1,12 @@
+{
+  "actions": 35,
+  "events": 79,
+  "events_sha256": "92175c90510d789c210288c489f0807d81c8bd816c9c223204c1041980818555",
+  "metrics": {
+    "motions": 1,
+    "speeches": 6
+  },
+  "rounds": 3,
+  "status": "ended",
+  "wakes": 78
+}
