@@ -41,6 +41,19 @@ contract-driven Environment SDK: define an environment as one JSON contract, and
   beer game, climate club, ride-hailing, checkers, Diplomacy-style strategy, misinformation network, lemonade stand — each
   written by an LLM agent from the guide alone, with golden-run tests.
 
+- **Reliability**: runs advance through safe points (before each round, stage, pass and sequential
+  turn), so `run(stop=...)` can stop anywhere and the next `run` continues exactly; snapshots capture
+  every subsystem (turn numbering, pending wakes, schedule order, participant-text provenance) and
+  restore to an identical continuation — every example contract is tested split by a JSON snapshot
+  and stopped part-way through a round; `preview` plays earlier seats on a copy and never changes the
+  run; pure `defs` are cached per world state.
+- **LLM participants that survive providers**: retries with backoff for rate limits, timeouts and
+  server errors (honouring `retry-after`), `on_error="fail" | "end_turn"`, one nudge for replies
+  without tool calls, and real provider token usage in `RunResult.stats` (`Wake.record_usage`).
+- **Experiments that keep every run**: up-front validation, failed runs kept with their error,
+  process-pool fallback, and `ExperimentResult.deltas(control)` — paired arm − control differences with
+  small-sample 95% intervals.
+
 #### Changed
 - **BREAKING:** distribution `fg-env-kernel` → `fg-env`, import `fg_env_kernel` → `fg_env`, console
   script `fg-env-kernel` → `fg-env`. The template-based API (`Kernel`, `simulate`, `load_world`) is
