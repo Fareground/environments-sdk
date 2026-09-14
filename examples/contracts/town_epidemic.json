@@ -235,7 +235,8 @@
     "mayor": {
       "agent": true,
       "description": "The town's decision-maker.",
-      "props": {}
+      "props": {},
+      "policy": "threshold_mayor"
     },
     "resident": {
       "agent": true,

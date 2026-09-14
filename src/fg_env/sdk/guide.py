@@ -273,8 +273,9 @@ env = fg_env.load("shop.json", inputs={"budget": 50}, seed=7, arm=None)
 print(env.preview("shopper_1"))                   # brief, update, tools, token estimates
 result = env.run({"shopper": "policy:thrifty", "owner": my_agent})
 result.outputs, result.metrics, result.series, result.stats, result.events, result.summary()
-snap = env.snapshot(); env2 = fg_env.Env.restore(env.contract, snap)   # between rounds
+snap = env.snapshot(); env2 = fg_env.Env.restore("shop.json", snap)   # between rounds; JSON-safe
 exp = fg_env.experiment("shop.json", runs=20, arms=["control", "promo"]); print(exp.table())
+exp.deltas("control")   # paired promo − control per output: mean, sd, ci95, clear (CI excludes 0)
 ```
 
 A participant is any callable taking a `Wake`:
@@ -290,12 +291,19 @@ def my_agent(wake):
 `end()`, `done`, `calls_left`, `actions_left`. In a simultaneous stage a choice is tried at submit, so
 a choice that could not happen is refused immediately and does not use up the turn.
 `env.step(participants)` runs one round; `env.run(participants, rounds=N)` runs N more (an unfinished
-run returns provisional outputs). Read state with `env.entity(id)`, `env.entities(type)`, `env.props`,
+run returns provisional outputs). `env.run(..., stop=lambda env: ...)` is checked before every round,
+stage, pass and sequential turn; the next `run` continues exactly where it stopped (finishing that
+round counts as one of `rounds`). Snapshots are taken between rounds. A participant that raises fails
+the run with its entity id; experiments keep such runs as `status="failed"` and carry on. Read state with `env.entity(id)`, `env.entities(type)`, `env.props`,
 `env.result()`, `env.finished`. `env.preview(id)` plays the start of the next round on a copy and shows
 exactly the turn the agent will get.
 
 LLM participants: `fg_env.participants.anthropic(anthropic.Anthropic(), "claude-sonnet-5")` or
-`fg_env.participants.openai(client, model)`; they cache the brief and loop over tool calls.
+`fg_env.participants.openai(client, model)`; they cache the brief and loop over tool calls, retry rate
+limits, timeouts and server errors (`retries=4`), then fail the run or, with `on_error="end_turn"`,
+forfeit the turn. Their real token usage is in `result.stats` (`llm_calls`, `input_tokens`,
+`output_tokens`, `cache_read_tokens`, `cache_write_tokens`, `llm_retries`, `forfeits`); your own
+participants can add theirs with `wake.record_usage(...)`.
 Built-ins: `"random"`, `"idle"`, `"policy:<name>"`.
 
 `result.events` is the ordered log: `{seq, round, kind, text, actor, to, stage, data}` where kind is

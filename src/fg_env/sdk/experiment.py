@@ -14,8 +14,16 @@ from .seeds import SeedTree
 
 __all__ = ["experiment", "ExperimentResult", "ArmResult"]
 
-#: Two-sided 95% normal quantile, used for every confidence interval reported here.
+#: Two-sided 95% Student-t quantiles by degrees of freedom (1-30); larger samples use the normal 1.96.
+#: Experiments are often a handful of runs, where the normal value would overstate certainty.
+_T95 = (12.706, 4.303, 3.182, 2.776, 2.571, 2.447, 2.365, 2.306, 2.262, 2.228, 2.201, 2.179, 2.160, 2.145,
+        2.131, 2.120, 2.110, 2.101, 2.093, 2.086, 2.080, 2.074, 2.069, 2.064, 2.060, 2.056, 2.052, 2.048,
+        2.045, 2.042)
 _Z95 = 1.96
+
+
+def _critical(n: int) -> float:
+    return _T95[n - 2] if 2 <= n <= len(_T95) + 1 else _Z95
 
 
 def _describe(values: List[Any]) -> Dict[str, Any]:
@@ -48,7 +56,7 @@ def _moments(values: List[float]) -> Dict[str, Any]:
     n = len(values)
     mean = sum(values) / n
     sd = math.sqrt(sum((v - mean) ** 2 for v in values) / (n - 1)) if n > 1 else 0.0
-    half = _Z95 * sd / math.sqrt(n) if n > 1 else 0.0
+    half = _critical(n) * sd / math.sqrt(n) if n > 1 else 0.0
     return {"mean": mean, "sd": sd, "min": min(values), "max": max(values), "ci95": [mean - half, mean + half]}
 
 
