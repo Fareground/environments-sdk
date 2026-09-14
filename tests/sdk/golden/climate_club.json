@@ -3,13 +3,13 @@
   "events": 196,
   "events_sha256": "15b8e472a85f4e4e061732a994fa6871b847fe5cef03fe9d47ef9f7c5d3fd5a6",
   "metrics": {
-    "avg_actual_cut": 50.07333333333333,
-    "avg_pledge": 53.328333333333326,
+    "avg_actual_cut": 50.07333333,
+    "avg_pledge": 53.32833333,
     "club_size": 2,
-    "co2_ppm": 443.5608415367914,
-    "temperature": 1.6310203027325296,
-    "total_gdp": 118.043719449921,
-    "world_emissions": 34.51751393236685
+    "co2_ppm": 443.5608415,
+    "temperature": 1.631020303,
+    "total_gdp": 118.0437194,
+    "world_emissions": 34.51751393
   },
   "rounds": 4,
   "status": "running",

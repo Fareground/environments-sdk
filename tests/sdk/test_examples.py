@@ -16,12 +16,23 @@ GOLDEN = Path(__file__).parent / "golden"
 ROUNDS = 4
 
 
+def _stable(value):
+    """Floats to 10 significant digits: Python 3.12 made float sum() more exact, and goldens must hold on every supported Python."""
+    if isinstance(value, float):
+        return float(f"{value:.10g}")
+    if isinstance(value, list):
+        return [_stable(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _stable(v) for k, v in value.items()}
+    return value
+
+
 def _fingerprint(result: fg_env.RunResult) -> dict:
-    events = json.dumps(result.events, sort_keys=True, default=str)
+    events = json.dumps(_stable(result.events), sort_keys=True, default=str)
     return {
         "status": result.status,
         "rounds": result.rounds,
-        "metrics": result.metrics,
+        "metrics": _stable(result.metrics),
         "events": len(result.events),
         "events_sha256": hashlib.sha256(events.encode()).hexdigest(),
         "actions": result.stats["actions"],

@@ -240,7 +240,9 @@ _PATTERNS = """\
   win checks in `end`.
 * Populations from data: `inputs` of type table + `population.from/where/weight/count` +
   per-row props; traits via `$normal`, `$beta`, `$choice`.
-* Networks: `relations` + `links` generators (`small_world`, `random`, `ring`, `complete`);
+* Networks: `relations` + `links` generators (`small_world`, `random`, `ring`, `complete`). On a
+  one-way relation `random` draws each direction on its own, and `p` may depend on the pair
+  (`"0.1 if $to.influencer else 0.02"`) for influencers and homophily;
   `$neighbors(entity, kind)` in views, effects, contagion events.
 * Continuous dynamics: `physics` vars with rates (math over bare names), `read` from the world,
   `write` back to props; effects adjust `$physics.x` (policy shocks).

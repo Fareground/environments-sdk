@@ -36,7 +36,7 @@ contract-driven Environment SDK: define an environment as one JSON contract, and
   `each`, `env.entity` / `env.entities` / `env.props`, preview of the exact next turn.
 - **Example contracts** in `examples/contracts/` — coffee market, forecasting council, order-book
   exchange, civil trial, town epidemic, werewolf, labor negotiation, Connect Four, Hold'em-lite,
-  beer game, climate club, ride-hailing, checkers, Diplomacy-style strategy, lemonade stand — each
+  beer game, climate club, ride-hailing, checkers, Diplomacy-style strategy, misinformation network, lemonade stand — each
   written by an LLM agent from the guide alone, with golden-run tests.
 
 #### Changed

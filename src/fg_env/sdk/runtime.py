@@ -60,6 +60,7 @@ class _Turn:
         self.pending: List[Dict[str, Any]] = []
         self.stats = Stats(wakes=1)
         self._offered = False
+        self._tools: Optional[List[ToolSpec]] = None
         env._turn_count += 1
         self.number = env._turn_count  # assigned in deterministic order, before any concurrency
 
@@ -96,6 +97,8 @@ class _Turn:
     def tools(self) -> List[ToolSpec]:
         if self.done:
             return []
+        if self._tools is not None:  # nothing changed since the last look (reset by every call)
+            return self._tools
         env = self.env
         with env._lock:
             tools = [env.actions.tool(self.actor, name, self.staged) for name in self._legal()]
@@ -115,6 +118,7 @@ class _Turn:
         if not self._offered:
             self.stats.tools_offered += len(tools)
             self._offered = True
+        self._tools = tools
         return tools
 
     def _must_act_now(self, tools: List[ToolSpec]) -> bool:
@@ -125,6 +129,7 @@ class _Turn:
 
     def call(self, name: str, args: Optional[Dict[str, Any]]) -> ToolResult:
         with self.env._lock:
+            self._tools = None
             return self._call(name, args)
 
     def _call(self, name: str, args: Optional[Dict[str, Any]]) -> ToolResult:

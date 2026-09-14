@@ -640,7 +640,7 @@ class _Checker:
                     self.error(f"{path}.graph", f"unknown graph '{link.graph}'", "complete, ring, random, small_world")
                 self.expr(link.where, f"{path}.where", BASE | {"it"}, {"it": {link.among}})
                 self.value(link.degree, f"{path}.degree", BASE)
-                self.value(link.p, f"{path}.p", BASE)
+                self.value(link.p, f"{path}.p", BASE | {"from", "to"}, {"from": {link.among}, "to": {link.among}})
             elif link.from_ is None or link.to is None:
                 self.error(path, "give `from` and `to`, or `among` with a `graph`")
             else:

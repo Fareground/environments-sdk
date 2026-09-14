@@ -123,3 +123,28 @@ def test_legacy_lint_points_to_check(tmp_path, capsys):
     path.write_text(json.dumps(CHAIN))
     assert main(["lint", str(path)]) == 1
     assert "use `fg-env check" in capsys.readouterr().err
+
+
+NETWORK = {
+    "name": "Followers", "clock": {"rounds": 1},
+    "types": {"user": {"agent": True, "props": {"star": False}}},
+    "population": [{"type": "user", "count": 30, "props": {"star": "$i <= 3"}}],
+    "relations": {"follows": {}},
+    "links": [{"relation": "follows", "among": "user", "graph": "random", "p": "0.9 if $to.star else 0.05"}],
+    "actions": {"wait": {"by": "user", "do": []}},
+    "outputs": {"star_followers": {"expr": "$avg(filter(user, $it.star), $count(user, $linked($it, $outer, follows)))".replace("filter(", "$filter("), "type": "number"}},
+}
+
+
+def test_directed_random_graph_with_per_pair_probability():
+    env = fg_env.load(NETWORK, seed=4)
+    edges = env.world.links["follows"]
+    assert any((a, b) in edges and (b, a) not in edges for a, b in edges)  # one-way links exist
+    stars = {e["id"] for e in env.entities("user") if e["props"]["star"]}
+    into_stars = sum(1 for (_, b) in edges if b in stars) / len(stars)
+    into_others = sum(1 for (_, b) in edges if b not in stars) / (30 - len(stars))
+    assert into_stars > 5 * into_others
+
+
+def test_quote_marker_is_accepted_inside_expressions():
+    assert evaluate("($'yes' if $x else 'no') + $'!'", Scope({"x": True})) == "yes!"

@@ -22,6 +22,7 @@ agents using only `fg-env guide`, as a stress test of the SDK.
 | `climate_club.json` | Six countries from a table input, a CO2 and temperature model, pledges vs actual cuts, a climate club with border tariffs |
 | `ride_hailing.json` | 30 drivers on a 10×10 grid, hourly demand profiles, pickups and trips over time, cancellations, surge pricing per zone |
 | `checkers.json` | English draughts: legal moves only, mandatory captures, multi-jumps within one turn, crowning, no-move loss, draw rule |
+| `misinformation.json` | 200 accounts on a one-way follower network with influencers, ranked feeds, hidden false stories, a fact-checker with delayed research, moderation arms |
 | `diplomacy.json` | Five nations on a province map, private letters and pledges, sealed simultaneous orders with supports, bounces, retreats and builds |
 
 ```bash

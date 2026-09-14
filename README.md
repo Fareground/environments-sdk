@@ -169,7 +169,7 @@ agent from the guide alone, and each is covered by a golden-run test: a coffee m
 households and subscriptions, a forecasting council, a price-time-priority order-book exchange, a
 civil trial, a town epidemic with physics, Werewolf, a labor negotiation, Connect Four, a
 Hold'em-lite poker table, the beer distribution game, a climate club with a CO2 model, a
-ride-hailing city, checkers, and a Diplomacy-style strategy game.
+ride-hailing city, checkers, a Diplomacy-style strategy game, and misinformation spreading on a follower network.
 
 ```bash
 fg-env run examples/contracts/werewolf.json --seed 3

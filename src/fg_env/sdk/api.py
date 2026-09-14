@@ -88,18 +88,20 @@ def check(source: ContractLike, rounds: int = 0, seed: int = 0) -> List[Issue]:
     """
     contract, issues = _check_all(source)
     errors = [i for i in issues if i.severity == "error"]
+    warnings_from_smoke: List[Issue] = []
     if rounds > 0 and contract is not None and not errors:
         try:
             result = load(contract, seed=seed).run(_smoke_participant(seed), rounds=rounds)
             if result.status == "failed":
                 errors.append(_run_issue(result.error or "the run failed"))
             for problem in result.output_issues:
-                errors.append(Issue(problem["path"], problem["message"], problem.get("fix")))
+                warnings_from_smoke.append(Issue(problem["path"], f"{problem['message']} after {rounds} smoke round(s)",
+                                                 "fine if it only has a value later in a run; otherwise guard it", "warning"))
         except ContractError as exc:
             errors.extend(exc.issues)
         except RunError as exc:
             errors.append(_run_issue(str(exc), exc.path))
-    return errors + [i for i in issues if i.severity != "error"]
+    return errors + [i for i in issues if i.severity != "error"] + warnings_from_smoke
 
 
 def _smoke_participant(seed: int) -> Any:

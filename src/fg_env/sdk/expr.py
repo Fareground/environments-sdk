@@ -494,6 +494,9 @@ def _preprocess(source: str) -> str:
             while j < n and (source[j].isalnum() or source[j] == "_"):
                 j += 1
             name = source[i + 1:j]
+            if not name and i + 1 < n and source[i + 1] in "\"'(":
+                i += 1  # `$'text'` and `$(a + b)` mean just the text or the group
+                continue
             if not name or name[0].isdigit():
                 raise ExprError("'$' must be followed by a name, like $actor or $count(...)", source)
             k = j

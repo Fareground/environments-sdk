@@ -6,8 +6,8 @@
     "fair_value": 50,
     "halted": 0,
     "last_price": 50.69,
-    "pnl_market_maker": 1142.6903999999922,
-    "pnl_momentum": 1061.3855000000003,
+    "pnl_market_maker": 1142.6904,
+    "pnl_momentum": 1061.3855,
     "pnl_value": 1078.53125,
     "resting_orders": 5,
     "round_volume": 110

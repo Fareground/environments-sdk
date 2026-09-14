@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from ..entity import Entity
 from .contract import Contract, LinkSpec, PopulationSpec
 from .errors import RunError
-from .expr import ExprError, compile_expr, is_expr, truthy
+from .expr import ExprError, compile_expr, is_expr, truthy  # noqa: F401
 from .seeds import SeedTree
 from .template import compile_template
 from .world import SdkWorld
@@ -180,12 +180,23 @@ def _links(world: SdkWorld, spec: LinkSpec, index: int, seeds: SeedTree) -> None
     rng = seeds.rng("links", index)
     n = len(members)
     degree = _value(world, spec.degree, {}) if spec.degree is not None else None
-    p_value = _value(world, spec.p, {}) if spec.p is not None else None
+    per_pair = isinstance(spec.p, str) and is_expr(spec.p) and bool({"from", "to"} & compile_expr(spec.p).roots)
+    p_value = _value(world, spec.p, {}) if spec.p is not None and not per_pair else None
     if degree is not None and (isinstance(degree, bool) or not isinstance(degree, (int, float)) or degree < 1):
         raise RunError(f"degree must be a number ≥ 1, got {degree!r}", f"{path}.degree")
     if p_value is not None and (isinstance(p_value, bool) or not isinstance(p_value, (int, float)) or not 0 <= p_value <= 1):
         raise RunError(f"p must be a number from 0 to 1, got {p_value!r}", f"{path}.p")
     degree = int(degree) if degree is not None else None
+    directed = not world.contract.relations[spec.relation].symmetric
+
+    def probability(i: int, j: int, default: float) -> float:
+        if not per_pair:
+            return p_value if p_value is not None else default
+        value = _value(world, spec.p, {"from": members[i], "to": members[j]})
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 1:
+            raise RunError(f"p must be a number from 0 to 1, got {value!r} for {members[i].id} → {members[j].id}", f"{path}.p")
+        return float(value)
+
     pairs: Set[Tuple[int, int]] = set()
     graph = spec.graph or "complete"
     if graph == "complete":
@@ -194,9 +205,18 @@ def _links(world: SdkWorld, spec: LinkSpec, index: int, seeds: SeedTree) -> None
         k = max(1, (degree or 2) // 2)
         pairs = {_pair(i, (i + d) % n) for i in range(n) for d in range(1, k + 1) if n > 1 and i != (i + d) % n}
     elif graph == "random":
-        p = p_value if p_value is not None else (min(1.0, (degree or 4) / max(1, n - 1)))
-        pairs = {(i, j) for i in range(n) for j in range(i + 1, n) if rng.random() < p}
+        # On a one-way relation every ordered pair is drawn on its own (follows, trusts);
+        # on a symmetric relation each unordered pair once.
+        default = min(1.0, (degree or 4) / max(1, n - 1))
+        if directed:
+            one_way = [(i, j) for i in range(n) for j in range(n) if i != j and rng.random() < probability(i, j, default)]
+            for i, j in one_way:
+                world.link(spec.relation, members[i], members[j], _value(world, spec.value, {"from": members[i], "to": members[j]}), path)
+            return
+        pairs = {(i, j) for i in range(n) for j in range(i + 1, n) if rng.random() < probability(i, j, default)}
     elif graph == "small_world":
+        if per_pair:
+            raise RunError("a per-pair p ($from, $to) works with graph random", f"{path}.p")
         k = max(1, (degree or 4) // 2)
         p = p_value if p_value is not None else 0.1
         ring = sorted({_pair(i, (i + d) % n) for i in range(n) for d in range(1, k + 1) if n > 1 and i != (i + d) % n})

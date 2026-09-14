@@ -1,11 +1,11 @@
 {
   "actions": 15,
   "events": 19,
-  "events_sha256": "b54276492b1d5f47b21447f55b9cf2b3d0a899f2da40727eeac7384d92b70a3e",
+  "events_sha256": "5f71c421b5d4e6c41787b29f6111d86ef605c22b1b4d2cc00db3ca641006a330",
   "metrics": {
     "admitted": 3,
     "excluded": 1,
-    "net_admitted_strength": -0.18333044658389647
+    "net_admitted_strength": -0.1833304466
   },
   "rounds": 4,
   "status": "running",

@@ -222,7 +222,7 @@ class LinkSpec(_Model):
     among: Optional[str] = Field(None, description="Generate links among entities of this type.")
     graph: Optional[str] = Field(None, description="complete | ring | random | small_world")
     degree: Union[int, str, None] = Field(None, description="Links per member (number or expression).")
-    p: Union[float, str, None] = Field(None, description="Link probability (random) or rewiring probability (small_world); number or expression.")
+    p: Union[float, str, None] = Field(None, description="Link probability (random) or rewiring probability (small_world). For random it may depend on the pair: '0.1 if $to.influencer else 0.02'.")
     where: Optional[str] = None
 
 
