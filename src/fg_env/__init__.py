@@ -28,6 +28,14 @@ extend the engine without modifying its source. The engine looks
 everything up by string name through the registry — this is the
 foundation of the "configure ANY game from schema + rules + viz" goal.
 """
+from importlib.metadata import PackageNotFoundError as _PackageNotFoundError
+from importlib.metadata import version as _dist_version
+
+try:
+    __version__ = _dist_version("fg-env")
+except _PackageNotFoundError:  # a source checkout on PYTHONPATH, not installed
+    __version__ = "0+unknown"
+
 from .registry import (
     KernelRegistry,
     registry,
@@ -127,6 +135,7 @@ from .physics import (
 )
 
 __all__ = [
+    "__version__",
     "WorldTemplate",
     "build_world_state",
     "load_world",
