@@ -64,15 +64,17 @@ def test_network_generators_and_metrics():
     assert len(compile_expr("$components(person, knows)")(scope)) == 1
     assert 0 <= compile_expr("$clustering($a, knows)")(scope) <= 1
 
-    blocks = {"name": "Blocks", "clock": {"rounds": 1}, "types": {"p": {"agent": True, "props": {"g": 0}}},
-              "relations": {"k": {"symmetric": True}, "fan": {}},
+    blocks = {"name": "Blocks", "clock": {"rounds": 1},
+              "inputs": {"edges": {"type": "list", "default": [{"from": "p_1", "to": "p_2", "value": 3}]}},
+              "types": {"p": {"agent": True, "props": {"g": 0}}},
+              "relations": {"k": {"symmetric": True}, "fan": {}, "data": {}},
               "population": [{"type": "p", "count": 40, "props": {"g": "$i % 2"}}],
               "links": [{"relation": "k", "among": "p", "graph": "blocks", "block": "$it.g", "p": 1, "p_between": 0},
                         {"relation": "fan", "among": "p", "graph": "star"},
-                        {"relation": "k", "rows": "[{\"from\": \"p_1\", \"to\": \"p_2\", \"value\": 3}]"}],
+                        {"relation": "data", "rows": "$inputs.edges"}],
               "stages": [{"name": "s", "turns": "sequential"}]}
     env = fg_env.load(blocks, seed=1)
-    assert env.world.relation("p_1", "p_2", "k") == 3
+    assert env.world.relation("p_1", "p_2", "data") == 3
     assert env.world.relation("p_1", "p_3", "k") is not None and env.world.relation("p_2", "p_4", "k") is not None
     scope = env.world.scope()
     assert len(compile_expr("$components(p, k)")(scope)) == 2
