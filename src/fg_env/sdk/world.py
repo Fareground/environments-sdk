@@ -206,7 +206,7 @@ class SdkWorld(World):
         self.rounds = 0
         self.metrics: Dict[str, Any] = {}
         self.series: Dict[str, List[Any]] = {}
-        self.scheduled: List[Tuple[int, int, Dict[str, Any]]] = []
+        self.scheduled: List[Tuple[float, int, Dict[str, Any]]] = []
         self.wake_requests: Dict[str, str] = {}
         #: Continuous clock: the current time, when the run completes, and each agent's next wake time.
         self.time = 0.0
