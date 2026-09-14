@@ -1,8 +1,8 @@
 <div align="center">
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/wordmark-dark.svg" />
-  <img src="assets/wordmark.svg" alt="Fareground" width="320" />
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Fareground/env-kernel/main/assets/wordmark-dark.svg" />
+  <img src="https://raw.githubusercontent.com/Fareground/env-kernel/main/assets/wordmark.svg" alt="Fareground" width="320" />
 </picture>
 
 # fg-env
@@ -164,7 +164,7 @@ by run, so differences between arms come from the arm, not from luck.
 
 ## Examples
 
-[`examples/contracts/`](examples/contracts/) holds complete environments. Each was written by an LLM
+[`examples/contracts/`](https://github.com/Fareground/env-kernel/tree/main/examples/contracts) holds complete environments. Each was written by an LLM
 agent from the guide alone, and each is covered by a golden-run test: a coffee market with sampled
 households and subscriptions, a forecasting council, a price-time-priority order-book exchange, a
 civil trial, a town epidemic with physics, Werewolf, a labor negotiation, Connect Four, a
@@ -184,17 +184,17 @@ JSON between rounds and resume identically.
 ## Template API
 
 The earlier template-based engine API (`Kernel`, `simulate`, `load_world`, the registry decorators)
-remains available for existing templates; see [`docs/template_schema.md`](docs/template_schema.md).
+remains available for existing templates; see [`docs/template_schema.md`](https://github.com/Fareground/env-kernel/blob/main/docs/template_schema.md).
 New environments should use contracts.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for dev setup, tests and lint. What changed is in the
-[CHANGELOG](CHANGELOG.md).
+See [CONTRIBUTING.md](https://github.com/Fareground/env-kernel/blob/main/CONTRIBUTING.md) for dev setup, tests and lint. What changed is in the
+[CHANGELOG](https://github.com/Fareground/env-kernel/blob/main/CHANGELOG.md).
 
 ---
 
 <div align="center">
 <sub>Stewarded by <b>Fareground</b>.</sub><br />
-<sub>Licensed under the <a href="LICENSE">Apache License 2.0</a>.</sub>
+<sub>Licensed under the <a href="https://github.com/Fareground/env-kernel/blob/main/LICENSE">Apache License 2.0</a>.</sub>
 </div>

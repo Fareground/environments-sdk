@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0]
+
 ### Environment SDK (`fg-env`)
 
 The package is renamed `fg-env-kernel` → **`fg-env`** (import `fg_env`) and gains the
@@ -43,7 +45,33 @@ contract-driven Environment SDK: define an environment as one JSON contract, and
 - **BREAKING:** distribution `fg-env-kernel` → `fg-env`, import `fg_env_kernel` → `fg_env`, console
   script `fg-env-kernel` → `fg-env`. The template-based API (`Kernel`, `simulate`, `load_world`) is
   still available under the new name.
+- **BREAKING (template API):** the kernel no longer imports host-application modules.
+  `DomainModuleRegistry` no longer auto-imports a top-level `assets` package, and the template
+  loader no longer constructs `agents.crowd_agent.CrowdAgentManager`. A host that relied on either
+  now registers its domain modules explicitly
+  (`DomainModuleRegistry.get_instance().register(name, cls)`) and attaches its own crowd manager to
+  `state.crowd_agents` after the world is built; `crowd_config` is still recorded on
+  `state._crowd_config`.
 
+#### Added (packaging)
+- `fg_env.__version__` and `fg-env --version`.
+- The contract JSON Schema is committed at `schema/contract.schema.json`; CI fails when the SDK's
+  schema differs from it (`make schema` regenerates it).
+
+#### Migrating from `fg-env-kernel`
+There is no compatibility shim: `import fg_env_kernel` does not work with `fg-env` installed.
+A re-export shim could not cover submodule imports (`fg_env_kernel.state`, ...), and it would
+collide with an installed `fg-env-kernel` that owns the same import directory.
+
+1. Replace the dependency: `pip uninstall fg-env-kernel && pip install fg-env`
+   (in requirements, `fg-env-kernel` → `fg-env>=0.3`).
+2. Rename imports: `fg_env_kernel` → `fg_env` everywhere, including submodule imports
+   (`from fg_env_kernel.state import WorldState` → `from fg_env.state import WorldState`).
+3. Rename CLI calls: `fg-env-kernel <command>` → `fg-env <command>`. Template commands
+   (`compile`, `lint`, `contract`, ...) are unchanged.
+
+The `fg-env-kernel` distribution stays on PyPI at its last 0.2.x release and receives no further
+updates. Projects that cannot migrate yet should pin `fg-env-kernel<0.3`.
 
 ### Fixed
 - `$entity(id).property` now resolves in action guards and termination predicates

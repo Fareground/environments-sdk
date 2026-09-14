@@ -7,8 +7,8 @@ Split into:
 
 A game's template references modules via ``domain_modules: [{"name": "..."}]``
 which looks up the class in DomainModuleRegistry. Complex per-game logic
-(chess legality, monopoly bookkeeping) lives in ``assets/<game>/module.py``
-and is auto-registered at startup.
+(chess legality, monopoly bookkeeping) lives in the host application, which
+registers its classes with ``DomainModuleRegistry.get_instance().register()``.
 """
 from .base import (
     DomainConstraint,

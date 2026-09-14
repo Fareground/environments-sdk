@@ -1,0 +1,2173 @@
+{
+  "$defs": {
+    "ActionSpec": {
+      "additionalProperties": false,
+      "description": "Something an agent can do. Each legal action becomes one typed tool.",
+      "properties": {
+        "by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "description": "Agent type(s) allowed to take it.",
+          "title": "By"
+        },
+        "description": {
+          "default": "",
+          "description": "Tool description the agent reads.",
+          "title": "Description",
+          "type": "string"
+        },
+        "params": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ParamSpec"
+          },
+          "title": "Params",
+          "type": "object"
+        },
+        "when": {
+          "description": "Requirements; the tool is offered only when all hold.",
+          "items": {
+            "$ref": "#/$defs/Condition"
+          },
+          "title": "When",
+          "type": "array"
+        },
+        "chance": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Probability of success; `do` on success, `otherwise` on failure.",
+          "title": "Chance"
+        },
+        "do": {
+          "description": "Effects applied atomically.",
+          "items": {},
+          "title": "Do",
+          "type": "array"
+        },
+        "otherwise": {
+          "description": "Effects when the chance roll fails.",
+          "items": {},
+          "title": "Otherwise",
+          "type": "array"
+        },
+        "outcome": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "What the actor is told (template over $actor, $params).",
+          "title": "Outcome"
+        },
+        "announce": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "What everyone else is told (template).",
+          "title": "Announce"
+        },
+        "private": {
+          "default": false,
+          "description": "Nobody else learns this action happened.",
+          "title": "Private",
+          "type": "boolean"
+        },
+        "terminal": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": false,
+          "description": "Taking it ends the agent's turn: true, or an expression checked after it applies ($actor, $params).",
+          "title": "Terminal"
+        },
+        "per_turn": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Max uses per turn.",
+          "title": "Per Turn"
+        },
+        "per_round": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Max uses per round.",
+          "title": "Per Round"
+        }
+      },
+      "required": [
+        "by"
+      ],
+      "title": "ActionSpec",
+      "type": "object"
+    },
+    "ArmSpec": {
+      "additionalProperties": false,
+      "description": "An experiment variant: input overrides and/or a contract patch.",
+      "properties": {
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "inputs": {
+          "additionalProperties": true,
+          "title": "Inputs",
+          "type": "object"
+        },
+        "patch": {
+          "additionalProperties": true,
+          "description": "Deep-merged into the contract (objects merge, lists replace).",
+          "title": "Patch",
+          "type": "object"
+        }
+      },
+      "title": "ArmSpec",
+      "type": "object"
+    },
+    "BlockSpec": {
+      "additionalProperties": false,
+      "description": "A named, reusable effect list: ``{\"block\": \"settle\", \"with\": {\"buyer\": \"$actor\"}}``.\nThe effects see only the arguments (plus $inputs, $world, $round …), never the caller's locals.",
+      "properties": {
+        "args": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Args",
+          "type": "array"
+        },
+        "do": {
+          "items": {},
+          "title": "Do",
+          "type": "array"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "do"
+      ],
+      "title": "BlockSpec",
+      "type": "object"
+    },
+    "Brief": {
+      "additionalProperties": false,
+      "description": "Static text every agent receives once per wake, before anything dynamic (cacheable).",
+      "properties": {
+        "situation": {
+          "default": "",
+          "description": "What this world is and what is going on (template; {$inputs.x} works).",
+          "title": "Situation",
+          "type": "string"
+        },
+        "rules": {
+          "default": "",
+          "description": "How it works: what agents can do and what happens (template).",
+          "title": "Rules",
+          "type": "string"
+        },
+        "roles": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Extra brief per agent type (template over $actor).",
+          "title": "Roles",
+          "type": "object"
+        }
+      },
+      "title": "Brief",
+      "type": "object"
+    },
+    "Clock": {
+      "additionalProperties": false,
+      "description": "How long a run lasts and how rounds are labelled.",
+      "properties": {
+        "rounds": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 20,
+          "description": "Round budget (number or expression over $inputs).",
+          "title": "Rounds"
+        },
+        "unit": {
+          "default": "round",
+          "description": "Name of one round: day, week, turn, hour …",
+          "title": "Unit",
+          "type": "string"
+        },
+        "start": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ISO date of round 1 (adds a calendar date).",
+          "title": "Start"
+        },
+        "step": {
+          "default": 1,
+          "description": "Units per round (e.g. 7 with unit 'day' = weekly rounds).",
+          "title": "Step",
+          "type": "integer"
+        }
+      },
+      "title": "Clock",
+      "type": "object"
+    },
+    "Condition": {
+      "additionalProperties": false,
+      "description": "A requirement: ``\"$actor.cash > 0\"`` or ``{\"expr\": ..., \"why\": \"You have no money.\"}``.",
+      "properties": {
+        "expr": {
+          "title": "Expr",
+          "type": "string"
+        },
+        "why": {
+          "default": "",
+          "title": "Why",
+          "type": "string"
+        }
+      },
+      "required": [
+        "expr"
+      ],
+      "title": "Condition",
+      "type": "object"
+    },
+    "DefSpec": {
+      "additionalProperties": false,
+      "description": "A named, reusable expression called like a built-in: ``$utility($actor, $params.offer)``.\nShorthand: the expression text (no arguments).",
+      "properties": {
+        "args": {
+          "description": "Argument names; the body reads them as roots ($side).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Args",
+          "type": "array"
+        },
+        "expr": {
+          "title": "Expr",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "expr"
+      ],
+      "title": "DefSpec",
+      "type": "object"
+    },
+    "EndSpec": {
+      "additionalProperties": false,
+      "description": "A condition that ends the run early.",
+      "properties": {
+        "when": {
+          "title": "When",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "winner": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Expression naming the winner(s).",
+          "title": "Winner"
+        },
+        "say": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Say"
+        }
+      },
+      "required": [
+        "when"
+      ],
+      "title": "EndSpec",
+      "type": "object"
+    },
+    "EntitySpec": {
+      "additionalProperties": false,
+      "description": "A named starting entity.",
+      "properties": {
+        "type": {
+          "title": "Type",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "props": {
+          "additionalProperties": true,
+          "title": "Props",
+          "type": "object"
+        },
+        "at": {
+          "default": null,
+          "title": "At"
+        },
+        "brief": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Private text added to this entity's own brief (template).",
+          "title": "Brief"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "EntitySpec",
+      "type": "object"
+    },
+    "EventSpec": {
+      "additionalProperties": false,
+      "description": "World logic outside agent turns: scheduled, periodic, conditional or random.",
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "at": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Round(s) it fires.",
+          "title": "At"
+        },
+        "every": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Fires every N rounds.",
+          "title": "Every"
+        },
+        "when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Fires when true.",
+          "title": "When"
+        },
+        "chance": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Probability of firing when otherwise due.",
+          "title": "Chance"
+        },
+        "phase": {
+          "default": "start",
+          "description": "start (before stages) | end (after stages).",
+          "title": "Phase",
+          "type": "string"
+        },
+        "each": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Run `do` once per item ($it): a type or expression.",
+          "title": "Each"
+        },
+        "as": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Name for the item instead of $it.",
+          "title": "As"
+        },
+        "where": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Where"
+        },
+        "do": {
+          "items": {},
+          "title": "Do",
+          "type": "array"
+        },
+        "say": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Headline agents receive as news.",
+          "title": "Say"
+        },
+        "once": {
+          "default": false,
+          "title": "Once",
+          "type": "boolean"
+        },
+        "arms": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Only in these experiment arms.",
+          "title": "Arms"
+        }
+      },
+      "title": "EventSpec",
+      "type": "object"
+    },
+    "GraphSpace": {
+      "additionalProperties": false,
+      "description": "Named places joined by edges; positions are place names. Distance is the shortest path.",
+      "properties": {
+        "nodes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Nodes",
+          "type": "array"
+        },
+        "edges": {
+          "description": "[a, b] or {from, to, weight}.",
+          "items": {},
+          "title": "Edges",
+          "type": "array"
+        }
+      },
+      "required": [
+        "nodes"
+      ],
+      "title": "GraphSpace",
+      "type": "object"
+    },
+    "GridSpace": {
+      "additionalProperties": false,
+      "description": "A rows × cols board; positions are [row, col]. Distance is steps (diagonal: king moves).",
+      "properties": {
+        "rows": {
+          "title": "Rows",
+          "type": "integer"
+        },
+        "cols": {
+          "title": "Cols",
+          "type": "integer"
+        },
+        "diagonal": {
+          "default": false,
+          "title": "Diagonal",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "rows",
+        "cols"
+      ],
+      "title": "GridSpace",
+      "type": "object"
+    },
+    "InputSpec": {
+      "additionalProperties": false,
+      "description": "A typed value supplied when the environment is loaded (``fg_env.load(..., inputs=)``).",
+      "properties": {
+        "type": {
+          "default": "number",
+          "description": "One of: number, int, bool, text, enum, list, table, map, date, any",
+          "title": "Type",
+          "type": "string"
+        },
+        "default": {
+          "default": null,
+          "description": "Used when the caller supplies nothing.",
+          "title": "Default"
+        },
+        "required": {
+          "default": false,
+          "description": "The caller must supply it (no default).",
+          "title": "Required",
+          "type": "boolean"
+        },
+        "min": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min"
+        },
+        "max": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max"
+        },
+        "values": {
+          "anyOf": [
+            {
+              "items": {},
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Allowed values (type enum).",
+          "title": "Values"
+        },
+        "columns": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Column types (type table): {name: type}.",
+          "title": "Columns"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "unit": {
+          "default": "",
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "title": "InputSpec",
+      "type": "object"
+    },
+    "InvariantSpec": {
+      "additionalProperties": false,
+      "description": "Must always hold; checked after every action and round. A violation fails the run.",
+      "properties": {
+        "expr": {
+          "title": "Expr",
+          "type": "string"
+        },
+        "why": {
+          "default": "",
+          "title": "Why",
+          "type": "string"
+        }
+      },
+      "required": [
+        "expr"
+      ],
+      "title": "InvariantSpec",
+      "type": "object"
+    },
+    "LinkSpec": {
+      "additionalProperties": false,
+      "description": "Starting links: one explicit link, or a generated network among a type.",
+      "properties": {
+        "relation": {
+          "title": "Relation",
+          "type": "string"
+        },
+        "from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "From"
+        },
+        "to": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "To"
+        },
+        "value": {
+          "default": 1,
+          "title": "Value"
+        },
+        "among": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Generate links among entities of this type.",
+          "title": "Among"
+        },
+        "graph": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "complete | ring | random | small_world",
+          "title": "Graph"
+        },
+        "degree": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Links per member (number or expression).",
+          "title": "Degree"
+        },
+        "p": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Link probability (random) or rewiring probability (small_world). For random it may depend on the pair: '0.1 if $to.influencer else 0.02'.",
+          "title": "P"
+        },
+        "where": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Where"
+        }
+      },
+      "required": [
+        "relation"
+      ],
+      "title": "LinkSpec",
+      "type": "object"
+    },
+    "MetricSpec": {
+      "additionalProperties": false,
+      "description": "A number tracked every round (a series). Shorthand: the expression.",
+      "properties": {
+        "expr": {
+          "title": "Expr",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "unit": {
+          "default": "",
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "expr"
+      ],
+      "title": "MetricSpec",
+      "type": "object"
+    },
+    "OutputSpec": {
+      "additionalProperties": false,
+      "description": "A typed field of the run result. ``$metrics.x`` is a metric's final value, ``$series.x`` its history.",
+      "properties": {
+        "expr": {
+          "title": "Expr",
+          "type": "string"
+        },
+        "type": {
+          "default": "any",
+          "description": "One of: number, int, bool, text, list, map, any",
+          "title": "Type",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "expr"
+      ],
+      "title": "OutputSpec",
+      "type": "object"
+    },
+    "ParamSpec": {
+      "additionalProperties": false,
+      "description": "A tool argument. Shorthand: ``\"qty\": \"int\"``.",
+      "properties": {
+        "type": {
+          "default": "number",
+          "description": "One of: number, int, bool, text, enum, entity",
+          "title": "Type",
+          "type": "string"
+        },
+        "of": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Entity type (type entity).",
+          "title": "Of"
+        },
+        "where": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Which entities qualify ($it, $actor, $params for earlier params, $pending).",
+          "title": "Where"
+        },
+        "values": {
+          "anyOf": [
+            {
+              "items": {},
+              "type": "array"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Allowed values or an expression giving them (type enum).",
+          "title": "Values"
+        },
+        "min": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min"
+        },
+        "max": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max"
+        },
+        "max_len": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Maximum length (type text).",
+          "title": "Max Len"
+        },
+        "default": {
+          "default": null,
+          "title": "Default"
+        },
+        "required": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Defaults to true unless a default is given.",
+          "title": "Required"
+        },
+        "invalid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "What the agent is told when its value is not valid (template over $actor, $params, $value).",
+          "title": "Invalid"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "title": "ParamSpec",
+      "type": "object"
+    },
+    "PhysicsSpec": {
+      "additionalProperties": false,
+      "description": "Continuous dynamics advanced every round before agents act. Deterministic.",
+      "properties": {
+        "dt": {
+          "default": 1.0,
+          "description": "Time integrated per round.",
+          "title": "Dt",
+          "type": "number"
+        },
+        "substeps": {
+          "default": 4,
+          "description": "RK4 sub-steps per round.",
+          "title": "Substeps",
+          "type": "integer"
+        },
+        "params": {
+          "additionalProperties": true,
+          "description": "Constants (numbers or expressions over $inputs).",
+          "title": "Params",
+          "type": "object"
+        },
+        "vars": {
+          "additionalProperties": {
+            "$ref": "#/$defs/PhysicsVar"
+          },
+          "title": "Vars",
+          "type": "object"
+        },
+        "read": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Names refreshed from the world before each step: {N: '$count(person)'}.",
+          "title": "Read",
+          "type": "object"
+        },
+        "write": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "After each step: {'world.price': 'P', 'person.risk': 'I/N'}.",
+          "title": "Write",
+          "type": "object"
+        }
+      },
+      "title": "PhysicsSpec",
+      "type": "object"
+    },
+    "PhysicsVar": {
+      "additionalProperties": false,
+      "description": "A continuous variable. With ``rate`` it is integrated (RK4): d(var)/dt = rate.",
+      "properties": {
+        "start": {
+          "default": 0,
+          "description": "Initial value (number or expression).",
+          "title": "Start"
+        },
+        "rate": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Math over variable/param names: 'beta*S*I/N'.",
+          "title": "Rate"
+        },
+        "min": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min"
+        },
+        "max": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max"
+        }
+      },
+      "title": "PhysicsVar",
+      "type": "object"
+    },
+    "PlaneSpace": {
+      "additionalProperties": false,
+      "description": "A width × height area; positions are [x, y]. Distance is straight-line.",
+      "properties": {
+        "width": {
+          "title": "Width",
+          "type": "number"
+        },
+        "height": {
+          "title": "Height",
+          "type": "number"
+        }
+      },
+      "required": [
+        "width",
+        "height"
+      ],
+      "title": "PlaneSpace",
+      "type": "object"
+    },
+    "PolicyRule": {
+      "additionalProperties": false,
+      "description": "One rule of a coded policy: when `when` holds (and the `chance` roll passes), call `do` with `with`.\nWith `each`, the rule is tried once per item ($it): \"for each of my armies, hold\".",
+      "properties": {
+        "each": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A type or expression; the rule is tried for every item ($it).",
+          "title": "Each"
+        },
+        "when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "When"
+        },
+        "do": {
+          "description": "Action name, or 'pass'.",
+          "title": "Do",
+          "type": "string"
+        },
+        "with": {
+          "additionalProperties": true,
+          "description": "Params as values or expressions.",
+          "title": "With",
+          "type": "object"
+        },
+        "chance": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Chance"
+        }
+      },
+      "required": [
+        "do"
+      ],
+      "title": "PolicyRule",
+      "type": "object"
+    },
+    "PolicySpec": {
+      "additionalProperties": false,
+      "description": "A coded participant: the first rule whose condition holds and whose action is legal is taken.",
+      "properties": {
+        "rules": {
+          "items": {
+            "$ref": "#/$defs/PolicyRule"
+          },
+          "title": "Rules",
+          "type": "array"
+        },
+        "repeat": {
+          "default": false,
+          "description": "Keep applying rules until the turn ends (default: one action).",
+          "title": "Repeat",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "rules"
+      ],
+      "title": "PolicySpec",
+      "type": "object"
+    },
+    "PopulationSpec": {
+      "additionalProperties": false,
+      "description": "Entities generated at load: a count, one per table row, or a weighted sample of rows.",
+      "properties": {
+        "type": {
+          "title": "Type",
+          "type": "string"
+        },
+        "count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "How many (number or expression). Omit with `from` = one per row.",
+          "title": "Count"
+        },
+        "from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Expression giving rows (e.g. $inputs.households).",
+          "title": "From"
+        },
+        "where": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Row filter ($row).",
+          "title": "Where"
+        },
+        "weight": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Row sampling weight ($row); sampled without replacement.",
+          "title": "Weight"
+        },
+        "replace": {
+          "default": false,
+          "description": "Sample rows with replacement.",
+          "title": "Replace",
+          "type": "boolean"
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Id template ({$i}, {$row.x}); default <type>_<n>.",
+          "title": "Id"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Name template.",
+          "title": "Name"
+        },
+        "props": {
+          "additionalProperties": true,
+          "description": "Values or expressions ($row, $i, $normal(...)).",
+          "title": "Props",
+          "type": "object"
+        },
+        "at": {
+          "default": null,
+          "title": "At"
+        },
+        "brief": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Private text added to each generated entity's brief (template over $row, $i).",
+          "title": "Brief"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "PopulationSpec",
+      "type": "object"
+    },
+    "PropSpec": {
+      "additionalProperties": false,
+      "description": "One property. Shorthand: a bare value is the default (``\"cash\": 100``).",
+      "properties": {
+        "type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "One of: number, int, bool, text, enum, list, map, any (inferred from default).",
+          "title": "Type"
+        },
+        "default": {
+          "default": null,
+          "description": "Literal or expression (evaluated when the entity is created).",
+          "title": "Default"
+        },
+        "min": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min"
+        },
+        "max": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max"
+        },
+        "values": {
+          "anyOf": [
+            {
+              "items": {},
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Values"
+        },
+        "private": {
+          "default": false,
+          "description": "Hidden from other agents' inspect tool.",
+          "title": "Private",
+          "type": "boolean"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "unit": {
+          "default": "",
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "title": "PropSpec",
+      "type": "object"
+    },
+    "RecordSpec": {
+      "additionalProperties": false,
+      "description": "An append-only log (chat, reviews, bids, transcript). New entries reach agents as news.",
+      "properties": {
+        "fields": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "{field: type}; text fields written by agents are marked untrusted.",
+          "title": "Fields",
+          "type": "object"
+        },
+        "show": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "How one entry reads: '{author}: {text}'.",
+          "title": "Show"
+        },
+        "visible": {
+          "default": "all",
+          "description": "'all' or an expression over $viewer and $it (the entry).",
+          "title": "Visible",
+          "type": "string"
+        },
+        "keep": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Keep only the latest N entries.",
+          "title": "Keep"
+        },
+        "notify": {
+          "default": true,
+          "description": "Deliver new entries to agents in 'since your last turn'.",
+          "title": "Notify",
+          "type": "boolean"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "title": "RecordSpec",
+      "type": "object"
+    },
+    "RelationSpec": {
+      "additionalProperties": false,
+      "description": "A kind of link between entities (follows, trusts, owns …).",
+      "properties": {
+        "symmetric": {
+          "default": false,
+          "title": "Symmetric",
+          "type": "boolean"
+        },
+        "default": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Default"
+        },
+        "min": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min"
+        },
+        "max": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "title": "RelationSpec",
+      "type": "object"
+    },
+    "Space": {
+      "additionalProperties": false,
+      "description": "Where entities are (``at``). Declare exactly one of grid, graph, plane.",
+      "properties": {
+        "grid": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GridSpace"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "graph": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GraphSpace"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "plane": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlaneSpace"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "Space",
+      "type": "object"
+    },
+    "StageSpec": {
+      "additionalProperties": false,
+      "description": "One step of every round. Stages run in order; each wakes agents to take turns.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Run this stage only when true (e.g. $round == 1).",
+          "title": "When"
+        },
+        "actions": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "additionalProperties": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "type": "object"
+            }
+          ],
+          "default": "all",
+          "description": "'all', a list, or {type: [actions]}.",
+          "title": "Actions"
+        },
+        "turns": {
+          "default": "sequential",
+          "description": "sequential (one after another, effects immediate) | simultaneous (same picture, committed together).",
+          "title": "Turns",
+          "type": "string"
+        },
+        "order": {
+          "default": "seat",
+          "description": "seat | random | expression over $it (lowest first).",
+          "title": "Order",
+          "type": "string"
+        },
+        "who": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Which agents are woken ($it); e.g. $it.alive && $chance(0.3).",
+          "title": "Who"
+        },
+        "until": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Repeat turns within the round until true.",
+          "title": "Until"
+        },
+        "passes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Max passes through the agents (default 1, or 10 with until).",
+          "title": "Passes"
+        },
+        "quiet": {
+          "default": "wake",
+          "description": "wake | skip — skip agents with nothing new since their last turn.",
+          "title": "Quiet",
+          "type": "string"
+        },
+        "max_actions": {
+          "default": 1,
+          "description": "Actions an agent may take per turn.",
+          "title": "Max Actions",
+          "type": "integer"
+        },
+        "max_calls": {
+          "default": 8,
+          "description": "Tool calls (including looks) per turn.",
+          "title": "Max Calls",
+          "type": "integer"
+        },
+        "brief": {
+          "default": "",
+          "description": "Instruction shown during this stage (template).",
+          "title": "Brief",
+          "type": "string"
+        },
+        "must_act": {
+          "default": false,
+          "description": "While an action is available, the agent cannot just end its turn.",
+          "title": "Must Act",
+          "type": "boolean"
+        },
+        "on_idle": {
+          "description": "Effects for each agent that ends its turn without acting ($actor): a forfeit, a default move.",
+          "items": {},
+          "title": "On Idle",
+          "type": "array"
+        },
+        "on_enter": {
+          "items": {},
+          "title": "On Enter",
+          "type": "array"
+        },
+        "on_exit": {
+          "items": {},
+          "title": "On Exit",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "StageSpec",
+      "type": "object"
+    },
+    "TypeSpec": {
+      "additionalProperties": false,
+      "description": "A kind of entity. ``agent: true`` types take turns. ``extends`` inherits another type:\nits props, its agent flag, and membership (``$count(trader)`` counts every kind of trader).",
+      "properties": {
+        "agent": {
+          "default": false,
+          "title": "Agent",
+          "type": "boolean"
+        },
+        "extends": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Parent type whose props and role this type inherits.",
+          "title": "Extends"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "props": {
+          "additionalProperties": {
+            "$ref": "#/$defs/PropSpec"
+          },
+          "title": "Props",
+          "type": "object"
+        },
+        "policy": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Default coded policy for agents of this type.",
+          "title": "Policy"
+        },
+        "inspect": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": true,
+          "description": "Whether agents may inspect these entities: true, false, or an expression over $viewer and $it.",
+          "title": "Inspect"
+        }
+      },
+      "title": "TypeSpec",
+      "type": "object"
+    },
+    "ViewSpec": {
+      "additionalProperties": false,
+      "description": "A declared, ranked slice of the world rendered as plain lines for agents.",
+      "properties": {
+        "for": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "default": "all",
+          "description": "Agent type(s) that see it.",
+          "title": "For"
+        },
+        "stages": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stages"
+        },
+        "title": {
+          "default": "",
+          "title": "Title",
+          "type": "string"
+        },
+        "of": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Entity type or expression giving items; omit for a single line.",
+          "title": "Of"
+        },
+        "where": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Filter ($it, $actor).",
+          "title": "Where"
+        },
+        "sort": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Sort key ($it).",
+          "title": "Sort"
+        },
+        "desc": {
+          "default": false,
+          "title": "Desc",
+          "type": "boolean"
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Limit"
+        },
+        "show": {
+          "description": "Template for one item (or the single line).",
+          "title": "Show",
+          "type": "string"
+        },
+        "empty": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Text when no items match (omit to hide the view).",
+          "title": "Empty"
+        },
+        "when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "When"
+        },
+        "look": {
+          "default": false,
+          "description": "Offer it on demand as look(view) instead of always including it.",
+          "title": "Look",
+          "type": "boolean"
+        },
+        "bullet": {
+          "default": true,
+          "description": "Prefix each item with '- ' (false for boards and tables).",
+          "title": "Bullet",
+          "type": "boolean"
+        },
+        "only_changes": {
+          "default": false,
+          "description": "Include it only when it changed since the agent's last turn.",
+          "title": "Only Changes",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "show"
+      ],
+      "title": "ViewSpec",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "An environment: world, people, rules, what agents see, what is measured.",
+  "properties": {
+    "fg_env": {
+      "default": "1",
+      "description": "Contract version.",
+      "title": "Fg Env",
+      "type": "string"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "description": {
+      "default": "",
+      "title": "Description",
+      "type": "string"
+    },
+    "brief": {
+      "$ref": "#/$defs/Brief"
+    },
+    "inputs": {
+      "additionalProperties": {
+        "$ref": "#/$defs/InputSpec"
+      },
+      "title": "Inputs",
+      "type": "object"
+    },
+    "clock": {
+      "$ref": "#/$defs/Clock"
+    },
+    "space": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Space"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "world": {
+      "additionalProperties": {
+        "$ref": "#/$defs/PropSpec"
+      },
+      "description": "Global properties ($world.x).",
+      "title": "World",
+      "type": "object"
+    },
+    "types": {
+      "additionalProperties": {
+        "$ref": "#/$defs/TypeSpec"
+      },
+      "title": "Types",
+      "type": "object"
+    },
+    "entities": {
+      "additionalProperties": {
+        "$ref": "#/$defs/EntitySpec"
+      },
+      "title": "Entities",
+      "type": "object"
+    },
+    "population": {
+      "items": {
+        "$ref": "#/$defs/PopulationSpec"
+      },
+      "title": "Population",
+      "type": "array"
+    },
+    "relations": {
+      "additionalProperties": {
+        "$ref": "#/$defs/RelationSpec"
+      },
+      "title": "Relations",
+      "type": "object"
+    },
+    "links": {
+      "items": {
+        "$ref": "#/$defs/LinkSpec"
+      },
+      "title": "Links",
+      "type": "array"
+    },
+    "physics": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PhysicsSpec"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "records": {
+      "additionalProperties": {
+        "$ref": "#/$defs/RecordSpec"
+      },
+      "title": "Records",
+      "type": "object"
+    },
+    "actions": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ActionSpec"
+      },
+      "title": "Actions",
+      "type": "object"
+    },
+    "stages": {
+      "items": {
+        "$ref": "#/$defs/StageSpec"
+      },
+      "title": "Stages",
+      "type": "array"
+    },
+    "views": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ViewSpec"
+      },
+      "title": "Views",
+      "type": "object"
+    },
+    "events": {
+      "items": {
+        "$ref": "#/$defs/EventSpec"
+      },
+      "title": "Events",
+      "type": "array"
+    },
+    "policies": {
+      "additionalProperties": {
+        "$ref": "#/$defs/PolicySpec"
+      },
+      "title": "Policies",
+      "type": "object"
+    },
+    "metrics": {
+      "additionalProperties": {
+        "$ref": "#/$defs/MetricSpec"
+      },
+      "title": "Metrics",
+      "type": "object"
+    },
+    "outputs": {
+      "additionalProperties": {
+        "$ref": "#/$defs/OutputSpec"
+      },
+      "title": "Outputs",
+      "type": "object"
+    },
+    "end": {
+      "items": {
+        "$ref": "#/$defs/EndSpec"
+      },
+      "title": "End",
+      "type": "array"
+    },
+    "arms": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ArmSpec"
+      },
+      "title": "Arms",
+      "type": "object"
+    },
+    "invariants": {
+      "items": {
+        "$ref": "#/$defs/InvariantSpec"
+      },
+      "title": "Invariants",
+      "type": "array"
+    },
+    "defs": {
+      "additionalProperties": {
+        "$ref": "#/$defs/DefSpec"
+      },
+      "description": "Reusable expressions, called as $name(args).",
+      "title": "Defs",
+      "type": "object"
+    },
+    "blocks": {
+      "additionalProperties": {
+        "$ref": "#/$defs/BlockSpec"
+      },
+      "description": "Reusable effect lists, run with {\"block\": name}.",
+      "title": "Blocks",
+      "type": "object"
+    }
+  },
+  "required": [
+    "name",
+    "types"
+  ],
+  "title": "Contract",
+  "type": "object"
+}

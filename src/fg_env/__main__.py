@@ -336,6 +336,9 @@ def main(argv: list = None) -> int:
         prog="fg-env",
         description="Fareground Environment SDK — check, run, preview and experiment with environment contracts",
     )
+    from . import __version__
+
+    parser.add_argument("--version", action="version", version=f"fg-env {__version__}")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     from .sdk.cli import add_commands

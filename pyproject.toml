@@ -17,8 +17,11 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Games/Entertainment :: Simulation",
+    "Typing :: Typed",
 ]
 dependencies = [
     "pydantic>=2.0",
@@ -28,7 +31,11 @@ dependencies = [
 dev = ["pytest>=8.0", "ruff==0.16.1", "mypy>=1.10", "build>=1.0"]
 
 [project.urls]
+Homepage = "https://github.com/Fareground/env-kernel"
 Repository = "https://github.com/Fareground/env-kernel"
+Documentation = "https://github.com/Fareground/env-kernel/blob/main/docs/README.md"
+Changelog = "https://github.com/Fareground/env-kernel/blob/main/CHANGELOG.md"
+Issues = "https://github.com/Fareground/env-kernel/issues"
 
 [project.scripts]
 fg-env = "fg_env.__main__:main"
