@@ -109,7 +109,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     from .api import load
 
     try:
-        env = load(args.file, inputs=_inputs(args), seed=args.seed, arm=args.arm)
+        env = load(args.file, inputs=_inputs(args), seed=args.seed, arm=args.arm, data_dir=args.data_dir)
     except (ContractError, InputError) as exc:
         return _report_contract_error(exc)
     except (RunError, ExprError) as exc:
@@ -134,7 +134,7 @@ def cmd_preview(args: argparse.Namespace) -> int:
     from .api import load
 
     try:
-        env = load(args.file, inputs=_inputs(args), seed=args.seed, arm=args.arm)
+        env = load(args.file, inputs=_inputs(args), seed=args.seed, arm=args.arm, data_dir=args.data_dir)
         if args.rounds:
             played = env.run(_participants(args.agent), rounds=args.rounds)
             if played.status == "failed":
@@ -169,7 +169,8 @@ def cmd_experiment(args: argparse.Namespace) -> int:
     arms = [a.strip() for a in args.arms.split(",")] if args.arms else None
     try:
         result = experiment(args.file, runs=args.runs, arms=arms, seed=args.seed, inputs=_inputs(args),
-                            participants=_participants(args.agent), rounds=args.rounds, workers=args.workers)
+                            participants=_participants(args.agent), rounds=args.rounds, workers=args.workers,
+                            data_dir=args.data_dir)
     except (ContractError, InputError) as exc:
         return _report_contract_error(exc)
     except (RunError, ExprError) as exc:
@@ -199,6 +200,7 @@ def _common(parser: argparse.ArgumentParser, seed_default: Optional[int]) -> Non
     parser.add_argument("--input", action="append", metavar="NAME=VALUE", help="set an input (JSON value or text)")
     parser.add_argument("--inputs-file", help="JSON file of inputs")
     parser.add_argument("--arm", help="experiment arm to apply")
+    parser.add_argument("--data-dir", help="folder input data files are read from (default: the contract's folder)")
 
 
 def add_commands(sub: Any) -> None:
@@ -238,6 +240,7 @@ def add_commands(sub: Any) -> None:
     p.add_argument("--agent", action="append", metavar="[TYPE_OR_ID=]PARTICIPANT")
     p.add_argument("--rounds", type=int)
     p.add_argument("--workers", type=int, default=1)
+    p.add_argument("--data-dir", help="folder input data files are read from (default: the contract's folder)")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=_guarded(cmd_experiment))
 

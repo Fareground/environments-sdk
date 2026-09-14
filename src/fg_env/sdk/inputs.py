@@ -2,15 +2,26 @@
 from __future__ import annotations
 
 import copy
+import csv
 import datetime as _dt
+import io
+import json
 import math
+import os
 from difflib import get_close_matches
-from typing import Any, Dict, List, Mapping, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Mapping, Optional, Union
 
 from .contract import Contract, InputSpec
 from .errors import InputError, Issue
 
-__all__ = ["resolve_inputs", "check_value"]
+__all__ = ["resolve_inputs", "check_value", "DATA_SUFFIXES", "MAX_DATA_BYTES", "MAX_DATA_ROWS"]
+
+#: Data file kinds an input `source` may name.
+DATA_SUFFIXES = (".csv", ".json", ".jsonl")
+#: Largest data file read for one input, and most rows kept from it.
+MAX_DATA_BYTES = 50_000_000
+MAX_DATA_ROWS = 1_000_000
 
 
 def _is_number(value: Any) -> bool:
@@ -71,8 +82,9 @@ def check_value(type_name: str, value: Any, spec: Optional[InputSpec] = None) ->
     return None
 
 
-def resolve_inputs(contract: Contract, supplied: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
-    """Merge supplied inputs over defaults. Raises :class:`InputError` listing every problem."""
+def resolve_inputs(contract: Contract, supplied: Optional[Mapping[str, Any]] = None,
+                   data_dir: Union[str, "os.PathLike[str]", None] = None) -> Dict[str, Any]:
+    """Merge supplied inputs over data files over defaults. Raises :class:`InputError` listing every problem."""
     supplied = dict(supplied or {})
     issues: List[Issue] = []
     declared = contract.inputs
@@ -87,6 +99,12 @@ def resolve_inputs(contract: Contract, supplied: Optional[Mapping[str, Any]] = N
     for name, spec in declared.items():
         if name in supplied:
             value = supplied[name]
+        elif spec.source is not None:
+            try:
+                value = load_source(spec, data_dir)
+            except _SourceProblem as problem:
+                issues.append(Issue(f"inputs.{name}.source", str(problem), problem.fix))
+                continue
         elif spec.default is not None:
             value = copy.deepcopy(spec.default)
         elif spec.required:
@@ -105,3 +123,99 @@ def resolve_inputs(contract: Contract, supplied: Optional[Mapping[str, Any]] = N
     if issues:
         raise InputError(issues)
     return resolved
+
+
+class _SourceProblem(Exception):
+    def __init__(self, message: str, fix: Optional[str] = None):
+        super().__init__(message)
+        self.fix = fix
+
+
+def load_source(spec: InputSpec, data_dir: Union[str, "os.PathLike[str]", None]) -> Any:
+    """Read an input's data file. Only files inside ``data_dir`` are read: absolute paths, `..`,
+    and links that lead outside it are refused, as are unknown file kinds and oversized files."""
+    name = spec.source or ""
+    if data_dir is None:
+        raise _SourceProblem(f"'{name}' needs a data directory",
+                             "load the contract from its file (its folder is used) or pass data_dir=")
+    relative = Path(name)
+    if not name or "\x00" in name or relative.is_absolute() or ".." in relative.parts:
+        raise _SourceProblem(f"'{name}' must be a file name inside the data directory",
+                             "use a relative path without '..'")
+    suffix = relative.suffix.lower()
+    if suffix not in DATA_SUFFIXES:
+        raise _SourceProblem(f"'{name}' is not a supported data file", f"use one of: {', '.join(DATA_SUFFIXES)}")
+    base = Path(data_dir).resolve()
+    path = (base / relative).resolve()
+    if base != path and base not in path.parents:
+        raise _SourceProblem(f"'{name}' leads outside the data directory", "keep data files inside it")
+    if not path.is_file():
+        raise _SourceProblem(f"file not found: '{name}' in {base}", "check the name and the data directory")
+    size = path.stat().st_size
+    if size > MAX_DATA_BYTES:
+        raise _SourceProblem(f"'{name}' is {size:,} bytes; the limit is {MAX_DATA_BYTES:,}", "use a smaller extract")
+    try:
+        text = path.read_bytes().decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise _SourceProblem(f"'{name}' is not UTF-8 text (invalid byte at position {exc.start})",
+                             "save it as UTF-8") from None
+    if suffix == ".csv":
+        if spec.type != "table":
+            raise _SourceProblem(f"a CSV file gives a table, but this input is {spec.type}", "set type: table")
+        return _csv_rows(text, spec.columns or {}, name)
+    try:
+        if suffix == ".json":
+            return json.loads(text)
+        rows = [json.loads(line) for line in text.splitlines() if line.strip()]
+    except json.JSONDecodeError as exc:
+        raise _SourceProblem(f"'{name}' is not valid JSON: {exc.msg} at line {exc.lineno}", "fix the file") from None
+    if len(rows) > MAX_DATA_ROWS:
+        raise _SourceProblem(f"'{name}' has {len(rows):,} rows; the limit is {MAX_DATA_ROWS:,}", "use a smaller extract")
+    return rows
+
+
+def _csv_rows(text: str, columns: Mapping[str, str], name: str) -> List[Dict[str, Any]]:
+    reader = csv.DictReader(io.StringIO(text))
+    if reader.fieldnames is None:
+        raise _SourceProblem(f"'{name}' has no header row", "put column names on the first line")
+    missing = [column for column in columns if column not in reader.fieldnames]
+    if missing:
+        raise _SourceProblem(f"'{name}' has no column(s) {', '.join(missing)} (columns: {', '.join(reader.fieldnames)})",
+                             "match `columns` to the file's header")
+    rows: List[Dict[str, Any]] = []
+    for line, raw in enumerate(reader, start=2):
+        if len(rows) >= MAX_DATA_ROWS:
+            raise _SourceProblem(f"'{name}' has more than {MAX_DATA_ROWS:,} rows", "use a smaller extract")
+        row: Dict[str, Any] = {}
+        for column, cell in raw.items():
+            if column is None:
+                raise _SourceProblem(f"'{name}' line {line} has more cells than the header", "fix the row")
+            row[column] = _cell(columns.get(column, "text"), cell, name, line, column)
+        rows.append(row)
+    return rows
+
+
+def _cell(kind: str, cell: Optional[str], name: str, line: int, column: str) -> Any:
+    text = (cell or "").strip()
+    if kind in ("text", "enum", "date", "any"):
+        return cell if cell is not None else ""
+    if text == "":
+        return None
+    try:
+        if kind == "int":
+            return int(text)
+        if kind == "number":
+            number = float(text)
+            return int(number) if number.is_integer() and "." not in text and "e" not in text.lower() else number
+    except ValueError:
+        raise _SourceProblem(f"'{name}' line {line} column '{column}' must be {'a whole number' if kind == 'int' else 'a number'}, got {cell!r}",
+                             "fix the cell or the column type") from None
+    if kind == "bool":
+        lowered = text.lower()
+        if lowered in ("true", "yes", "1"):
+            return True
+        if lowered in ("false", "no", "0"):
+            return False
+        raise _SourceProblem(f"'{name}' line {line} column '{column}' must be true or false, got {cell!r}",
+                             "use true/false, yes/no or 1/0")
+    return cell

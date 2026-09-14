@@ -106,6 +106,21 @@ def _merge(data: Dict[str, Any], fragment: Mapping[str, Any]) -> None:
             for stage in value:
                 if stage.get("name") not in names:
                     stages.append(copy.deepcopy(stage))
+        elif section == "brief":
+            brief = data.setdefault("brief", {})
+            for key, text in value.items():
+                if isinstance(text, str):  # rules / situation: the author's text first, the mechanism's after, once
+                    current = brief.get(key) or ""
+                    if text and text not in current:
+                        brief[key] = f"{current}\n\n{text}" if current else text
+                elif isinstance(text, Mapping):  # roles: the author's role text wins
+                    roles = brief.setdefault(key, {})
+                    for role, role_text in text.items():
+                        roles.setdefault(role, role_text)
+        elif section == "clock":
+            clock = data.setdefault("clock", {})
+            for key, item in value.items():
+                clock.setdefault(key, copy.deepcopy(item))
         elif section == "stage_hooks":
             _hook_stages(data, value)
         else:

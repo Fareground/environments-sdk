@@ -6,6 +6,8 @@ inputs exist, and that each expression only uses roots available where it is wri
 """
 from __future__ import annotations
 
+from pathlib import PurePath
+
 import copy
 
 import datetime as _dt
@@ -21,7 +23,7 @@ from .contract import Contract
 from .effects import REPEAT_CEILING, RESERVED_ROOTS, all_ops, registered_op, select_ops, statement_parts
 from .errors import ContractError, Issue
 from .expr import FUNCTIONS, ExprError, compile_expr, is_expr
-from .inputs import check_value
+from .inputs import DATA_SUFFIXES, check_value
 from .template import compile_template
 from .world import prop_type
 
@@ -586,11 +588,24 @@ class _Checker:
                 for column, kind in (spec.columns or {}).items():
                     if kind not in C.INPUT_TYPES or kind in ("table",):
                         self.error(f"{path}.columns.{column}", f"unknown column type '{kind}'")
+            if spec.source is not None:
+                source = PurePath(spec.source)
+                if source.is_absolute() or ".." in source.parts or not spec.source.strip():
+                    self.error(f"{path}.source", f"'{spec.source}' must be a file name inside the data directory",
+                               "use a relative path without '..'")
+                elif source.suffix.lower() not in DATA_SUFFIXES:
+                    self.error(f"{path}.source", f"'{spec.source}' is not a supported data file",
+                               f"use one of: {', '.join(DATA_SUFFIXES)}")
+                elif source.suffix.lower() == ".csv" and spec.type != "table":
+                    self.error(f"{path}.source", f"a CSV file gives a table, but this input is {spec.type}", "set type: table")
+                if spec.default is not None:
+                    self.warn(f"{path}.default", "is never used: the data file provides the value",
+                              "remove the default, or the source")
             if spec.default is not None:
                 problem = check_value(spec.type, spec.default, spec)
                 if problem:
                     self.error(f"{path}.default", problem)
-            elif not spec.required:
+            elif not spec.required and spec.source is None:
                 self.warn(path, "has no default and is not required, so it may be null",
                           "give a default or set required: true")
 

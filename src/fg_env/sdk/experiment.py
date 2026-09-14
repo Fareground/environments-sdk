@@ -7,7 +7,7 @@ from concurrent.futures.process import BrokenProcessPool
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Mapping, Optional
 
-from .api import ContractLike, contract_source, load, parse
+from .api import ContractLike, contract_source, default_data_dir, load, parse
 from .errors import ContractError, Issue
 from .measure import RunResult
 from .seeds import SeedTree
@@ -171,9 +171,9 @@ def _failed(seed: int, arm: Optional[str], inputs: Optional[Mapping[str, Any]], 
 
 
 def _run_job(payload: tuple) -> RunResult:
-    data, inputs, seed, arm, participants, rounds = payload
+    data, inputs, seed, arm, participants, rounds, data_dir = payload
     try:
-        return load(data, inputs=inputs, seed=seed, arm=arm).run(participants, rounds=rounds)
+        return load(data, inputs=inputs, seed=seed, arm=arm, data_dir=data_dir).run(participants, rounds=rounds)
     except Exception as exc:  # reported per run, never fatal to the experiment
         return _failed(seed, arm, inputs, exc)
 
@@ -181,7 +181,7 @@ def _run_job(payload: tuple) -> RunResult:
 def experiment(source: ContractLike, *, runs: int = 10, arms: Optional[List[str]] = None, seed: int = 0,
                inputs: Optional[Mapping[str, Any]] = None, participants: Any = None,
                participants_for: Optional[Callable[[int, Optional[str]], Any]] = None,
-               rounds: Optional[int] = None, workers: int = 1) -> ExperimentResult:
+               rounds: Optional[int] = None, workers: int = 1, data_dir: Any = None) -> ExperimentResult:
     """Run each arm ``runs`` times. Run *i* uses the same seed in every arm, so differences
     between arms come from the arm, not from luck. ``arms`` defaults to every declared arm
     (or a single baseline run set when none are declared). ``participants_for(i, arm)``
@@ -194,6 +194,7 @@ def experiment(source: ContractLike, *, runs: int = 10, arms: Optional[List[str]
     for name, value in (("runs", runs), ("workers", workers)):
         if isinstance(value, bool) or not isinstance(value, int) or value < 1:
             raise ValueError(f"{name} must be a whole number ≥ 1, got {value!r}")
+    folder = default_data_dir(source, data_dir)
     contract = parse(source)
     labels: List[Optional[str]] = list(arms) if arms is not None else (list(contract.arms) or [None])
     unknown = [a for a in labels if a is not None and a not in contract.arms]
@@ -203,7 +204,7 @@ def experiment(source: ContractLike, *, runs: int = 10, arms: Optional[List[str]
     if len(set(labels)) != len(labels):
         raise ValueError(f"arms are listed more than once: {labels}")
     for arm in labels:  # fail fast on what every run shares
-        probe = load(contract, inputs=inputs, seed=0, arm=arm)
+        probe = load(contract, inputs=inputs, seed=0, arm=arm, data_dir=folder)
         if participants_for is None:
             probe._bind(participants)
     tree = SeedTree(seed)
@@ -212,7 +213,7 @@ def experiment(source: ContractLike, *, runs: int = 10, arms: Optional[List[str]
     def one(job: tuple) -> RunResult:
         arm, index = job
         try:
-            env = load(contract, inputs=inputs, seed=seeds[index], arm=arm)
+            env = load(contract, inputs=inputs, seed=seeds[index], arm=arm, data_dir=folder)
             who = participants_for(index, arm) if participants_for is not None else participants
             return env.run(who, rounds=rounds)
         except Exception as exc:
@@ -222,7 +223,8 @@ def experiment(source: ContractLike, *, runs: int = 10, arms: Optional[List[str]
     if workers > 1 and participants_for is None and _portable(participants):
         # Runs are CPU-bound: separate processes use every core.
         data = contract_source(contract)
-        payloads = [(data, inputs, seeds[i], arm, participants, rounds) for arm, i in jobs]
+        payloads = [(data, inputs, seeds[i], arm, participants, rounds, str(folder) if folder else None)
+                    for arm, i in jobs]
         try:
             with ProcessPoolExecutor(max_workers=workers) as processes:
                 results = list(processes.map(_run_job, payloads))

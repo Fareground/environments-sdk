@@ -120,6 +120,7 @@ class InputSpec(_Model):
     max: Optional[float] = None
     values: Optional[List[Any]] = Field(None, description="Allowed values (type enum).")
     columns: Optional[Dict[str, str]] = Field(None, description="Column types (type table): {name: type}.")
+    source: Optional[str] = Field(None, description="Load the value from a data file (.csv → table, .json, .jsonl) inside the data directory: the contract file's folder, or `data_dir=` at load. Undeclared CSV columns stay text.")
     description: str = ""
     unit: str = ""
 

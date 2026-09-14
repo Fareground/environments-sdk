@@ -196,12 +196,23 @@ def _merge(base: Any, patch: Any) -> Any:
     return copy.deepcopy(patch)
 
 
+def default_data_dir(source: ContractLike, data_dir: Union[str, "os.PathLike[str]", None] = None) -> Optional[Path]:
+    """Where input data files are read from: ``data_dir`` when given, else the contract file's folder."""
+    if data_dir is not None:
+        return Path(data_dir)
+    if isinstance(source, os.PathLike) or (isinstance(source, str) and not source.lstrip().startswith(("{", "["))):
+        return Path(source).parent
+    return None
+
+
 def load(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, seed: Optional[int] = None,
-         arm: Optional[str] = None, strict: bool = False, parallel: int = 8) -> Env:
+         arm: Optional[str] = None, strict: bool = False, parallel: int = 8,
+         data_dir: Union[str, "os.PathLike[str]", None] = None) -> Env:
     """Check a contract and build a runnable :class:`Env`.
 
     Errors raise :class:`ContractError` listing every problem with a fix; ``strict=True``
     also rejects warnings. ``seed`` defaults to a fresh one (readable as ``env.seed``).
+    Inputs with a ``source`` read their data file from ``data_dir`` (default: the contract file's folder).
     """
     contract, issues = _check_all(source)
     blocking = [i for i in issues if i.severity == "error" or strict]
@@ -217,13 +228,13 @@ def load(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, se
                 raise ContractError(errors, title=f"arm '{arm}' makes the contract invalid")
         merged.update(contract.arms[arm].inputs)
     merged.update(inputs or {})
-    resolved = resolve_inputs(contract, merged)
+    resolved = resolve_inputs(contract, merged, default_data_dir(source, data_dir))
     return Env(contract, resolved, mint_seed() if seed is None else seed, arm, parallel)
 
 
 def run(source: ContractLike, participants: Any = None, *, inputs: Optional[Mapping[str, Any]] = None,
         seed: Optional[int] = None, arm: Optional[str] = None, rounds: Optional[int] = None,
-        on_event: Any = None, strict: bool = False) -> RunResult:
+        on_event: Any = None, strict: bool = False, data_dir: Union[str, "os.PathLike[str]", None] = None) -> RunResult:
     """Load and run in one call: ``fg_env.run("shop.json", {"buyer": "policy:thrifty"}, seed=1)``."""
-    env = load(source, inputs=inputs, seed=seed, arm=arm, strict=strict)
+    env = load(source, inputs=inputs, seed=seed, arm=arm, strict=strict, data_dir=data_dir)
     return env.run(participants, rounds=rounds, on_event=on_event)

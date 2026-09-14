@@ -222,6 +222,9 @@ _EFFECT_EXAMPLES = {
 _PATTERNS = """\
 ## Patterns for common mechanics
 
+* Data files: `"inputs": {"households": {"type": "table", "source": "households.csv", "columns": {"income":
+  "number", "size": "int"}}}` then `"population": [{"type": "person", "from": "$inputs.households"}]`. Files are
+  read from the contract's folder (or `data_dir=`); undeclared CSV columns stay text. Also `.json` and `.jsonl`.
 * Continuous time (clinics, queues, trading days, emergencies): `"clock": {"mode": "continuous",
   "unit": "minute", "horizon": 480}`, a stage with `"turns": "scheduled"`, and `"duration"` on actions.
   Each agent acts when its time comes (earliest first) and next acts `duration` later (or the stage

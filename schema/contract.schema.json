@@ -763,6 +763,19 @@
           "description": "Column types (type table): {name: type}.",
           "title": "Columns"
         },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Load the value from a data file (.csv → table, .json, .jsonl) inside the data directory: the contract file's folder, or `data_dir=` at load. Undeclared CSV columns stay text.",
+          "title": "Source"
+        },
         "description": {
           "default": "",
           "title": "Description",
