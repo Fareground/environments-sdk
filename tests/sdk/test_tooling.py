@@ -94,3 +94,26 @@ def test_repeat_limit_is_an_error_not_a_silent_stop():
     result = fg_env.run(looping, seed=1)
     assert result.status == "failed"
     assert "reached its limit of 10" in result.error
+
+
+def test_cli_reports_user_mistakes_without_tracebacks(tmp_path, capsys):
+    from fg_env.__main__ import main
+
+    path = tmp_path / "shop.json"
+    path.write_text(json.dumps(SHOP))
+    bad_inputs = tmp_path / "inputs.json"
+    bad_inputs.write_text("[1, 2]")
+    cases = [
+        (["check", str(tmp_path / "missing.json")], 1, "file not found"),
+        (["run", str(path), "--inputs-file", str(tmp_path / "nope.json")], 1, "cannot read --inputs-file"),
+        (["run", str(path), "--inputs-file", str(bad_inputs)], 1, "JSON object"),
+        (["run", str(path), "--input", "shoppers"], 1, "name=value"),
+        (["run", str(path), "--agent", "shopper=policy:nope"], 1, "unknown participant"),
+        (["run", str(path), "--rounds", "-2"], 1, "rounds must be"),
+        (["preview", str(path), "shopper_1", "--stage", "nowhere"], 1, "no stage"),
+        (["experiment", str(path), "--runs", "0"], 1, "runs must be"),
+        (["experiment", str(path), "--arms", "nope"], 1, "not declared"),
+    ]
+    for argv, status, message in cases:
+        assert main(argv) == status, argv
+        assert message in capsys.readouterr().err, argv

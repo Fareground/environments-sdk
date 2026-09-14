@@ -282,3 +282,40 @@ def test_def_results_refresh_after_changes_rollbacks_and_metrics():
     first, second = env.props["draws"]
     assert first != second  # random defs are never cached
     assert env.props["pot"] == 1  # $series grew by the round-1 sample before round 2's on_exit
+
+
+def test_experiments_keep_every_run_and_report_paired_deltas():
+    contract = {**TALK, "inputs": {"lucky": {"type": "number", "default": 0}},
+                "world": {"luck": "$inputs.lucky"},
+                "outputs": {"luck": {"expr": "$world.luck + $sum(member, $it.said) * 0", "type": "number"},
+                            "talkers": {"expr": "$count(member, $it.said > 0)", "type": "number"}},
+                "arms": {"control": {"inputs": {"lucky": 0}}, "lucky": {"inputs": {"lucky": 3}}}}
+    result = fg_env.experiment(contract, runs=4, participants="random")
+    deltas = result.deltas("control")["lucky"]
+    assert deltas["luck"]["mean"] == 3 and deltas["luck"]["clear"]
+    assert deltas["talkers"]["mean"] == 0 and not deltas["talkers"]["clear"]  # common random numbers: identical play
+    assert "lucky − control · luck: +3" in result.table()
+
+    calls = {"n": 0}
+
+    def sometimes_broken(index, arm):
+        calls["n"] += 1
+
+        def participant(wake):
+            if index == 1:
+                raise RuntimeError("model down")
+            wake.end()
+
+        return participant
+
+    mixed = fg_env.experiment(contract, runs=3, participants_for=sometimes_broken)
+    assert [r.status for r in mixed.arms["control"].runs].count("failed") == 1
+    assert "model down" in mixed.arms["control"].failed[0].error
+    assert "failed runs: 2" in mixed.table()
+
+    with pytest.raises(fg_env.ContractError, match="not declared"):
+        fg_env.experiment(contract, runs=1, arms=["nope"])
+    with pytest.raises(ValueError, match="unknown participant"):
+        fg_env.experiment(contract, runs=1, participants="policy:nope")
+    with pytest.raises(ValueError, match="runs"):
+        fg_env.experiment(contract, runs=0)

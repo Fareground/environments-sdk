@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
-from .errors import ContractError, InputError, RunError
+from .errors import ContractError, InputError, RunError, SnapshotError
 from .expr import ExprError
 
 __all__ = ["add_commands"]
@@ -23,17 +24,29 @@ def _pairs(items: Optional[List[str]], flag: str) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     for item in items or []:
         if "=" not in item:
-            raise SystemExit(f"{flag} expects name=value, got {item!r}")
+            raise _UsageError(f"{flag} expects name=value, got {item!r}")
         key, value = item.split("=", 1)
         out[key.strip()] = _parse_value(value)
     return out
 
 
+class _UsageError(Exception):
+    """A command-line mistake: reported as one line, exit status 1."""
+
+
 def _inputs(args: argparse.Namespace) -> Dict[str, Any]:
     inputs: Dict[str, Any] = {}
     if getattr(args, "inputs_file", None):
-        with open(args.inputs_file) as handle:
-            inputs.update(json.load(handle))
+        try:
+            with open(args.inputs_file, encoding="utf-8") as handle:
+                loaded = json.load(handle)
+        except OSError as exc:
+            raise _UsageError(f"cannot read --inputs-file {args.inputs_file}: {exc.strerror or exc}") from None
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise _UsageError(f"--inputs-file {args.inputs_file} is not valid JSON: {exc}") from None
+        if not isinstance(loaded, dict):
+            raise _UsageError(f"--inputs-file {args.inputs_file} must hold a JSON object of name → value")
+        inputs.update(loaded)
     inputs.update(_pairs(getattr(args, "input", None), "--input"))
     return inputs
 
@@ -52,6 +65,29 @@ def _report_contract_error(exc: ContractError) -> int:
     for issue in exc.issues:
         print(f"error: {issue}", file=sys.stderr)
     return 1
+
+
+def _guarded(command: Callable[[argparse.Namespace], int]) -> Callable[[argparse.Namespace], int]:
+    """Every failure a user can cause becomes a message and an exit status, never a traceback."""
+
+    @functools.wraps(command)
+    def run(args: argparse.Namespace) -> int:
+        try:
+            return command(args)
+        except (ContractError, InputError) as exc:
+            return _report_contract_error(exc)
+        except (RunError, ExprError, SnapshotError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        except (_UsageError, ValueError, KeyError, OSError) as exc:
+            message = exc.args[0] if isinstance(exc, KeyError) and exc.args else exc
+            print(f"error: {message}", file=sys.stderr)
+            return 1
+        except KeyboardInterrupt:
+            print("interrupted", file=sys.stderr)
+            return 130
+
+    return run
 
 
 def cmd_check(args: argparse.Namespace) -> int:
@@ -113,11 +149,7 @@ def cmd_preview(args: argparse.Namespace) -> int:
         agents = [e.id for e in env.world.entities.values() if env.contract.types[e.entity_type].agent]
         print(f"no entity '{args.entity}' (agents: {', '.join(agents[:20])})", file=sys.stderr)
         return 1
-    try:
-        view = env.preview(args.entity, args.stage)
-    except (RunError, ExprError, KeyError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 2
+    view = env.preview(args.entity, args.stage)
     if args.json:
         print(json.dumps(view, indent=2, ensure_ascii=False))
         return 0
@@ -175,7 +207,7 @@ def add_commands(sub: Any) -> None:
     p.add_argument("--rounds", type=int, default=1,
                    help="also build and play this many rounds with default participants (0 = static check only)")
     p.add_argument("--json", action="store_true")
-    p.set_defaults(func=cmd_check)
+    p.set_defaults(func=_guarded(cmd_check))
 
     p = sub.add_parser("run", help="run a contract and print the result")
     _common(p, None)
@@ -184,7 +216,7 @@ def add_commands(sub: Any) -> None:
     p.add_argument("--rounds", type=int, help="stop after this many rounds")
     p.add_argument("--events", action="store_true", help="include the event log")
     p.add_argument("--json", action="store_true", help="print the full result as JSON")
-    p.set_defaults(func=cmd_run)
+    p.set_defaults(func=_guarded(cmd_run))
 
     p = sub.add_parser("preview", help="show exactly what an agent would read and which tools it gets")
     _common(p, 0)
@@ -194,7 +226,7 @@ def add_commands(sub: Any) -> None:
     p.add_argument("--agent", action="append", metavar="[TYPE_OR_ID=]PARTICIPANT",
                    help="participants for the rounds played before the preview")
     p.add_argument("--json", action="store_true")
-    p.set_defaults(func=cmd_preview)
+    p.set_defaults(func=_guarded(cmd_preview))
 
     p = sub.add_parser("experiment", help="run arms × N seeded runs and compare outputs")
     p.add_argument("file", help="contract JSON file")
@@ -207,7 +239,7 @@ def add_commands(sub: Any) -> None:
     p.add_argument("--rounds", type=int)
     p.add_argument("--workers", type=int, default=1)
     p.add_argument("--json", action="store_true")
-    p.set_defaults(func=cmd_experiment)
+    p.set_defaults(func=_guarded(cmd_experiment))
 
     p = sub.add_parser("guide", help="print the contract authoring guide")
     p.add_argument("part", nargs="?", help="one part: overview, model, reference, expressions, functions, "
