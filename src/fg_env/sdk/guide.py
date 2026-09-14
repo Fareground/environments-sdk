@@ -15,6 +15,7 @@ from pydantic_core import PydanticUndefined
 
 from . import contract as C
 from .effects import EFFECT_OPS
+from .registry import MECHANISMS, OPS
 from .expr import FUNCTIONS
 from .template import FORMATS
 
@@ -343,7 +344,7 @@ _SECTIONS: List[Tuple[str, List[Type[BaseModel]]]] = [
     ("stages", [C.StageSpec]), ("views", [C.ViewSpec]), ("events", [C.EventSpec]),
     ("policies", [C.PolicySpec, C.PolicyRule]), ("metrics", [C.MetricSpec]), ("outputs", [C.OutputSpec]),
     ("end", [C.EndSpec]), ("arms", [C.ArmSpec]), ("invariants", [C.InvariantSpec]),
-    ("defs", [C.DefSpec]), ("blocks", [C.BlockSpec]),
+    ("defs", [C.DefSpec]), ("blocks", [C.BlockSpec]), ("mechanisms", []),
 ]
 
 _SHAPES = {
@@ -355,6 +356,7 @@ _SHAPES = {
     "metrics": "{metric: MetricSpec | expr}", "outputs": "{output: OutputSpec | expr}", "end": "[EndSpec]",
     "arms": "{arm: ArmSpec}", "invariants": "[InvariantSpec | expr]",
     "defs": "{name: DefSpec | expr}", "blocks": "{name: BlockSpec}",
+    "mechanisms": "{name: {kind, ...config}} — native building blocks; see the mechanisms part",
 }
 
 
@@ -406,8 +408,24 @@ def _functions() -> str:
 
 
 def _effects() -> str:
-    ops = "\n".join(f"- `{op}`: {_EFFECT_EXAMPLES[op]}" for op in EFFECT_OPS)
+    ops = "\n".join([f"- `{op}`: {_EFFECT_EXAMPLES[op]}" for op in EFFECT_OPS]
+                    + [f"- `{name}`: {spec.example}" for name, spec in OPS.items()])
     return _EFFECTS.replace("OPS", ops)
+
+
+def _mechanisms() -> str:
+    lines = ["## Mechanisms (native building blocks)", "",
+             "Declare `\"mechanisms\": {name: {\"kind\": ..., ...config}}`. Each expands into ordinary actions,",
+             "stages, world props and events you can read, preview and override (declare the same name",
+             "yourself to replace a generated part). Kinds:"]
+    for kind, spec in sorted(MECHANISMS.items()):
+        lines += ["", f"### `{kind}`", spec.doc, "", "Config:"]
+        for field_name, info in spec.config.model_fields.items():
+            default = "required" if info.is_required() else f"default {json.dumps(info.default, default=str)}"
+            lines.append(f"- `{field_name}` ({default}): {info.description or ''}")
+        if spec.example:
+            lines += ["", "```json", json.dumps({"mechanisms": {"my_" + kind: spec.example}}, ensure_ascii=False), "```"]
+    return "\n".join(lines)
 
 
 GUIDE_PARTS: Dict[str, Any] = {
@@ -419,6 +437,7 @@ GUIDE_PARTS: Dict[str, Any] = {
     "templates": lambda: _TEMPLATES.replace("FORMATS", ", ".join(f"`{f}`" for f in FORMATS)),
     "effects": _effects,
     "patterns": lambda: _PATTERNS,
+    "mechanisms": _mechanisms,
     "running": lambda: _RUNNING,
     "checklist": lambda: _CHECKLIST,
 }

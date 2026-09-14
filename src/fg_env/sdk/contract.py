@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 
 __all__ = [
     "CONTRACT_VERSION",
@@ -510,6 +510,12 @@ class Contract(_Model):
     invariants: List[InvariantSpec] = Field(default_factory=list)
     defs: Dict[str, DefSpec] = Field(default_factory=dict, description="Reusable expressions, called as $name(args).")
     blocks: Dict[str, BlockSpec] = Field(default_factory=dict, description="Reusable effect lists, run with {\"block\": name}.")
+    mechanisms: Dict[str, Dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Native building blocks by name: {name: {\"kind\": ..., ...config}}; see the guide's mechanisms part.")
+
+    #: The contract as written, before mechanisms were expanded (re-parse this, not a dump).
+    _source: Optional[Dict[str, Any]] = PrivateAttr(default=None)
 
     # -- type lineage ----------------------------------------------------------
 

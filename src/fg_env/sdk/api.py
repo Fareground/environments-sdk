@@ -135,8 +135,14 @@ def apply_arm(contract: Contract, arm: str) -> Contract:
     patch = contract.arms[arm].patch
     if not patch:
         return contract
-    data = contract.model_dump(by_alias=True, exclude_unset=True)
-    return parse_contract(_merge(data, patch))
+    return parse_contract(_merge(contract_source(contract), patch))
+
+
+def contract_source(contract: Contract) -> Dict[str, Any]:
+    """The contract as written (mechanisms unexpanded), for re-parsing with changes."""
+    if contract._source is not None:
+        return copy.deepcopy(contract._source)
+    return contract.model_dump(by_alias=True, exclude_unset=True)
 
 
 def _merge(base: Any, patch: Any) -> Any:

@@ -301,6 +301,9 @@ class SdkWorld(World):
         spec = self.contract.defs.get(name)
         return spec is not None and not spec.args
 
+    def defines(self, name: str) -> bool:
+        return name in self.contract.defs
+
     def call_def(self, name: str, args: List[Any], source: str) -> Any:
         spec = self.contract.defs.get(name)
         if spec is None:

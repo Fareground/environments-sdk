@@ -37,6 +37,7 @@ from ..entity import Entity
 from .errors import RunError
 from .expr import Expr, ExprError, attr, compile_expr, is_expr, resolve, truthy
 from .template import compile_template, format_value
+from .registry import OPS, OpSpec
 from .world import Abort, SdkWorld, _Physics, _Props
 
 __all__ = ["EFFECT_OPS", "RESERVED_ROOTS", "Statement", "compile_statement", "statement_parts", "split_statement", "EffectRunner"]
@@ -298,26 +299,35 @@ class EffectRunner:
     # -- keyed operations ------------------------------------------------------
 
     def _keyed(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-        ops = [key for key in EFFECT_OPS if key in effect]
+        ops = [key for key in all_ops() if key in effect]
         if len(ops) != 1:
             if not ops:
                 keys = ", ".join(effect)
                 hint = get_close_matches(next(iter(effect), ""), list(EFFECT_OPS), n=1)
                 raise RunError(
                     f"unknown effect with keys ({keys})" + (f" — did you mean '{hint[0]}'?" if hint else "")
-                    + f"; effects are: {', '.join(EFFECT_OPS)}",
+                    + f"; effects are: {', '.join(all_ops())}",
                     where,
                 )
             raise RunError(f"an effect object names exactly one operation, got {ops}", where)
-        getattr(self, "_op_" + ops[0])(effect, vars, where)
+        registered = OPS.get(ops[0])
+        if registered is not None:
+            registered.run(self, effect, vars, where)
+        else:
+            getattr(self, "_op_" + ops[0])(effect, vars, where)
 
-    def _eval(self, value: Any, vars: Dict[str, Any]) -> Any:
+    def eval(self, value: Any, vars: Dict[str, Any]) -> Any:
+        """Evaluate an expression (or a structure of them) with these locals."""
         return resolve(value, self.world.scope(**vars))
 
-    def _text(self, template: Optional[str], vars: Dict[str, Any]) -> str:
+    def text(self, template: Optional[str], vars: Dict[str, Any]) -> str:
+        """Render a template with these locals."""
         if not template:
             return ""
         return compile_template(template, None).render(self.world.scope(**vars))
+
+    _eval = eval
+    _text = text
 
     def _op_if(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
         branch = "then" if truthy(self._eval(effect["if"], vars)) else "else"
@@ -479,5 +489,18 @@ def _plain_value(value: Any) -> Any:
     return value
 
 
+def all_ops() -> Dict[str, Tuple[str, ...]]:
+    """Every effect operation and the keys it takes: the core ones, then registered native ops."""
+    return {**EFFECT_OPS, **{name: spec.keys for name, spec in OPS.items()}}
+
+
+def registered_op(name: str) -> Optional[OpSpec]:
+    return OPS.get(name)
+
+
 def is_statement(value: Any) -> bool:
     return isinstance(value, str) and is_expr(value) and split_statement(value) is not None
+
+
+from . import mechanisms as _mechanisms  # noqa: E402,F401  (registers native ops and mechanism kinds)
+assert not set(EFFECT_OPS) & set(OPS), "a registered op shadows a core effect"

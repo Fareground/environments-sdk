@@ -6,6 +6,8 @@ inputs exist, and that each expression only uses roots available where it is wri
 """
 from __future__ import annotations
 
+import copy
+
 import datetime as _dt
 import re
 from difflib import get_close_matches
@@ -16,7 +18,7 @@ from pydantic import BaseModel, ValidationError
 from ..physics import PhysicsExprError, _CompiledExpr, _CONSTS, _FUNCS
 from . import contract as C
 from .contract import Contract
-from .effects import EFFECT_OPS, RESERVED_ROOTS, statement_parts
+from .effects import RESERVED_ROOTS, all_ops, registered_op, statement_parts
 from .errors import ContractError, Issue
 from .expr import FUNCTIONS, ExprError, compile_expr, is_expr
 from .inputs import check_value
@@ -68,8 +70,16 @@ def parse_contract(data: Any) -> Contract:
         return data
     if not isinstance(data, Mapping):
         raise ContractError([Issue("(contract)", f"a contract is a JSON object, got {type(data).__name__}")])
+    from .mechanisms import expand_mechanisms
+
+    source = copy.deepcopy(dict(data))
+    expanded, mechanism_issues = expand_mechanisms(source)
+    if mechanism_issues:
+        raise ContractError(_dedupe(mechanism_issues))
     try:
-        return Contract.model_validate(dict(data))
+        contract = Contract.model_validate(expanded)
+        contract._source = source
+        return contract
     except ValidationError as exc:
         issues = []
         for error in exc.errors():
@@ -212,6 +222,9 @@ class _Checker:
             if name == "records" and symbol is not None and symbol not in self.c.records:
                 self.error(path, f"$records({symbol}): '{symbol}' is not a declared record",
                            self._suggest(symbol, self.c.records))
+        for name, signature in getattr(compiled, "arity_errors", ()):
+            if name not in self.c.defs:
+                self.error(path, f"wrong number of arguments: ${signature}", f"in `{compiled.source}`")
         for name in compiled.functions:
             if name not in FUNCTIONS and name not in self.c.defs:
                 hint = get_close_matches(name, list(FUNCTIONS) + list(self.c.defs), n=1)
@@ -375,14 +388,34 @@ class _Checker:
 
     def _keyed(self, effect: Dict[str, Any], path: str, roots: Set[str], types: Types,
                params: Optional[Mapping[str, C.ParamSpec]]) -> None:
-        ops = [key for key in EFFECT_OPS if key in effect]
+        known = all_ops()
+        ops = [key for key in known if key in effect]
         if len(ops) != 1:
             keys = ", ".join(effect) or "none"
-            hint = self._suggest(next(iter(effect), ""), EFFECT_OPS)
-            self.error(path, f"an operation object names exactly one of: {', '.join(EFFECT_OPS)} (got keys {keys})", hint)
+            hint = self._suggest(next(iter(effect), ""), known)
+            self.error(path, f"an operation object names exactly one of: {', '.join(known)} (got keys {keys})", hint)
             return
         op = ops[0]
-        allowed = set(EFFECT_OPS[op])
+        allowed = set(known[op])
+        native = registered_op(op)
+        if native is not None:
+            for key in effect:
+                if key not in allowed:
+                    self.error(f"{path}.{key}", f"'{key}' is not part of `{op}`",
+                               self._suggest(key, allowed) or f"`{op}` takes: {', '.join(sorted(allowed))}")
+            for key in native.required:
+                if key not in effect:
+                    self.error(path, f"`{op}` needs `{key}`")
+            for key, raw in effect.items():
+                if key in native.literal:
+                    continue
+                if key in native.templates:
+                    self.template(raw, f"{path}.{key}", None, roots, types, params)
+                else:
+                    self.value(raw, f"{path}.{key}", roots, types, params)
+            for issue_path, message, fix in (native.check(self, effect, path) if native.check else []):
+                self.error(issue_path, message, fix)
+            return
         if op != "post":
             for key in effect:
                 if key not in allowed:
@@ -877,7 +910,8 @@ class _Checker:
             if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", name):
                 self.error(path, "def names are letters, digits and underscores")
             if name in FUNCTIONS:
-                self.error(path, f"'{name}' is a built-in function", "choose another name")
+                self.warn(path, f"'{name}' shadows the built-in ${name}; this contract's def is used",
+                          "rename it if you meant the built-in")
             for arg in spec.args:
                 if arg in BASE or arg in RESERVED_ROOTS:
                     self.error(f"{path}.args", f"'{arg}' is a built-in root", "choose another argument name")

@@ -131,6 +131,10 @@ class World:
     def has_def(self, name: str) -> bool:
         return False
 
+    def defines(self, name: str) -> bool:
+        """Whether the contract declares a def called ``name`` (with or without arguments)."""
+        return False
+
     def call_def(self, name: str, args: List[Any], source: str) -> Any:
         """Call a contract-defined function (``defs``). The empty world has none."""
         from difflib import get_close_matches
@@ -449,6 +453,8 @@ def function(
 
     def register(impl: Callable[[Call], Any]) -> Callable[[Call], Any]:
         name = signature.split("(", 1)[0]
+        if name in FUNCTIONS:
+            raise ValueError(f"built-in function ${name} is registered twice")
         FUNCTIONS[name] = FunctionSpec(name, impl, signature, doc, min_args, max_args, frozenset(lazy))
         return impl
 
@@ -544,6 +550,9 @@ class Expr:
     comparisons: FrozenSet[Tuple[Tuple[str, ...], str]] = frozenset()
     #: ``(function, first_argument_symbol, ("it", field), word)`` — the same inside per-item arguments.
     item_comparisons: FrozenSet[Tuple[str, Optional[str], Tuple[str, ...], str]] = frozenset()
+    #: ``(function, signature)`` — built-in calls with the wrong number of arguments. Valid when the
+    #: contract defines its own function of that name (a def shadows a built-in); reported otherwise.
+    arity_errors: FrozenSet[Tuple[str, str]] = frozenset()
 
     def __call__(self, scope: Scope) -> Any:
         try:
@@ -587,7 +596,7 @@ def compile_expr(source: str) -> Expr:
     return Expr(source, run, frozenset(compiler.roots), frozenset(compiler.functions),
                 frozenset(compiler.symbols), frozenset(compiler.paths), frozenset(compiler.calls),
                 frozenset(compiler.item_paths), frozenset(compiler.comparisons),
-                frozenset(compiler.item_comparisons))
+                frozenset(compiler.item_comparisons), frozenset(compiler.arity_errors))
 
 
 def _chain(node: ast.AST) -> Optional[Tuple[str, ...]]:
@@ -609,6 +618,7 @@ class _Compiler:
         self.symbols: set = set()
         self.paths: set = set()
         self.calls: set = set()
+        self.arity_errors: set = set()
         self.item_paths: set = set()
         self.comparisons: set = set()
         self.item_comparisons: set = set()
@@ -763,7 +773,18 @@ class _Compiler:
             return lambda scope: scope.world.call_def(name, [a(scope) for a in user_args], source)
         count = len(node.args)
         if count < spec.min_args or (spec.max_args is not None and count > spec.max_args):
-            raise ExprError(f"wrong number of arguments: ${spec.signature}", source)
+            # Only valid if the contract defines its own `name` (checked at run time and by the checker).
+            self.functions.add(name)
+            self.calls.add((name, None))
+            self.arity_errors.add((name, spec.signature))
+            shadow_args = [self.node(arg) for arg in node.args]
+
+            def shadow_or_fail(scope: Scope) -> Any:
+                if scope.world is not None and scope.world.defines(name):
+                    return scope.world.call_def(name, [a(scope) for a in shadow_args], source)
+                raise ExprError(f"wrong number of arguments: ${spec.signature}", source)
+
+            return shadow_or_fail
         self.functions.add(name)
         first = node.args[0] if node.args else None
         symbol = first.id if isinstance(first, ast.Name) and not first.id.startswith("__") else None
@@ -787,6 +808,9 @@ class _Compiler:
             self.item_comparisons |= {(name, symbol, c[0], c[1]) for c in inner_cmp if c[0][0] == "it"}
 
         def run(scope: Scope) -> Any:
+            world = scope.world
+            if world is not None and world.defines(name):  # the contract's own def wins over the built-in
+                return world.call_def(name, [a(scope) for a in args], source)
             return spec.impl(Call(name, args, scope, source))
 
         return run

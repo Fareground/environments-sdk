@@ -2162,6 +2162,15 @@
       "description": "Reusable effect lists, run with {\"block\": name}.",
       "title": "Blocks",
       "type": "object"
+    },
+    "mechanisms": {
+      "additionalProperties": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "description": "Native building blocks by name: {name: {\"kind\": ..., ...config}}; see the guide's mechanisms part.",
+      "title": "Mechanisms",
+      "type": "object"
     }
   },
   "required": [

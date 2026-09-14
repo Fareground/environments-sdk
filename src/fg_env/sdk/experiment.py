@@ -7,7 +7,7 @@ from concurrent.futures.process import BrokenProcessPool
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Mapping, Optional
 
-from .api import ContractLike, load, parse
+from .api import ContractLike, contract_source, load, parse
 from .errors import ContractError, Issue
 from .measure import RunResult
 from .seeds import SeedTree
@@ -221,7 +221,7 @@ def experiment(source: ContractLike, *, runs: int = 10, arms: Optional[List[str]
     jobs = [(arm, i) for arm in labels for i in range(runs)]
     if workers > 1 and participants_for is None and _portable(participants):
         # Runs are CPU-bound: separate processes use every core.
-        data = contract.model_dump(by_alias=True, exclude_unset=True)
+        data = contract_source(contract)
         payloads = [(data, inputs, seeds[i], arm, participants, rounds) for arm, i in jobs]
         try:
             with ProcessPoolExecutor(max_workers=workers) as processes:
