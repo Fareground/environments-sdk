@@ -13,6 +13,7 @@ from .expr import ExprError, compile_expr, is_expr, truthy  # noqa: F401
 from .seeds import SeedTree
 from .template import compile_template
 from .world import SdkWorld
+from . import networks as _networks  # noqa: F401  (registers network and keyed-draw functions)
 
 __all__ = ["build_world"]
 
@@ -122,6 +123,8 @@ def _population(world: SdkWorld, spec: PopulationSpec, index: int,
         count = _value(world, spec.count, {}) if spec.count is not None else None
         if count is not None:
             rows = _sample(world, rows, spec, _capped(int(_whole(count, f"{path}.count")), f"{path}.count"), path)
+        elif spec.raking is not None:
+            raise RunError("raking reweights rows for sampling; give a `count` to draw", f"{path}.raking")
     else:
         if spec.count is None:
             raise RunError("give `count`, `from`, or both", path)
@@ -130,6 +133,8 @@ def _population(world: SdkWorld, spec: PopulationSpec, index: int,
     id_template = compile_template(spec.id, None) if spec.id else None
     name_template = compile_template(spec.name, None) if spec.name else None
     title = spec.type.replace("_", " ").title()
+    archetypes = _archetypes(world, spec, len(rows), path)
+    declared = world.contract.props_of(spec.type)
     for n, row in enumerate(rows, start=1):
         vars = {"i": n, "row": row}
         scope = world.scope(**vars)
@@ -146,9 +151,18 @@ def _population(world: SdkWorld, spec: PopulationSpec, index: int,
         else:
             name = f"{title} {n}"
         at = _value(world, spec.at, vars)
-        created = world.create(spec.type, entity_id, name, spec.props, at, scope, f"{path}[{n}]")
-        if spec.brief:
-            pending_briefs.append((created.id, spec.brief, {"i": n, "row": row}, f"{path}.brief"))
+        props = dict(spec.props)
+        archetype = archetypes[n - 1] if archetypes else None
+        if archetype is not None:
+            props.update(archetype.props)
+            if "archetype" in declared:
+                props["archetype"] = archetype.name
+        created = world.create(spec.type, entity_id, name, props, at, scope, f"{path}[{n}]")
+        brief = "\n".join(text for text in (spec.brief, archetype.brief if archetype else None) if text)
+        if brief:
+            pending_briefs.append((created.id, brief, {"i": n, "row": row}, f"{path}.brief"))
+        for m_index, members in enumerate(spec.members):
+            _members(world, members, created, row, f"{path}.members[{m_index}]", pending_briefs)
 
 
 def _whole(value: Any, where: str) -> float:
@@ -167,6 +181,8 @@ def _sample(world: SdkWorld, rows: List[Any], spec: PopulationSpec, count: int, 
             if isinstance(w, bool) or not isinstance(w, (int, float)) or w < 0 or not math.isfinite(w):
                 raise RunError(f"row weight must be a number ≥ 0, got {w!r}", f"{path}.weight")
             weights.append(float(w))
+    if spec.raking is not None:
+        weights = rake(rows, weights, spec.raking.margins, spec.raking.iterations, spec.raking.tolerance, f"{path}.raking")
     if spec.replace:
         if not rows:
             raise RunError("no rows to sample from", path)
@@ -188,6 +204,21 @@ def _sample(world: SdkWorld, rows: List[Any], spec: PopulationSpec, count: int, 
 
 def _links(world: SdkWorld, spec: LinkSpec, index: int, seeds: SeedTree) -> None:
     path = f"links[{index}]"
+    if spec.rows is not None:
+        rows = _value(world, spec.rows, {})
+        if not isinstance(rows, list):
+            raise RunError(f"`rows` must give a list of edges, got {type(rows).__name__}", f"{path}.rows")
+        for position, row in enumerate(rows):
+            if not isinstance(row, dict) or "from" not in row or "to" not in row:
+                raise RunError(f"edge {position + 1} needs `from` and `to`, got {row!r}", f"{path}.rows")
+            ends = []
+            for key in ("from", "to"):
+                entity = world.entity(row[key])
+                if entity is None:
+                    raise RunError(f"edge {position + 1}: no entity '{row[key]}'", f"{path}.rows")
+                ends.append(entity)
+            world.link(spec.relation, ends[0], ends[1], row.get("value", _value(world, spec.value, {})), path)
+        return
     if spec.among is None:
         if spec.from_ is None or spec.to is None:
             raise RunError("give `from` and `to`, or `among` with a `graph`", path)
@@ -246,13 +277,155 @@ def _links(world: SdkWorld, spec: LinkSpec, index: int, seeds: SeedTree) -> None
                 if options:
                     b = rng.choice(options)
             pairs.add(_pair(a, b))
+    elif graph == "scale_free":
+        m = _value(world, spec.m, {}) if spec.m is not None else 2
+        if isinstance(m, bool) or not isinstance(m, int) or m < 1:
+            raise RunError(f"m must be a whole number ≥ 1, got {m!r}", f"{path}.m")
+        pairs = _preferential(n, m, rng)
+    elif graph == "blocks":
+        if spec.block is None:
+            raise RunError("graph blocks needs `block` (an expression over $it giving each member's group)", path)
+        groups = [_value(world, spec.block, {"it": member}) for member in members]
+        inside = p_value if p_value is not None else 0.3
+        between = _value(world, spec.p_between, {}) if spec.p_between is not None else 0.02
+        if isinstance(between, bool) or not isinstance(between, (int, float)) or not 0 <= between <= 1:
+            raise RunError(f"p_between must be a number from 0 to 1, got {between!r}", f"{path}.p_between")
+        pairs = {(i, j) for i in range(n) for j in range(i + 1, n)
+                 if rng.random() < (inside if groups[i] == groups[j] else between)}
+    elif graph == "lattice":
+        side = max(1, math.ceil(math.sqrt(n)))
+        pairs = set()
+        for i in range(n):
+            row_i, col_i = divmod(i, side)
+            for j in (i + 1, i + side):
+                if j < n and (j == i + side or divmod(j, side)[0] == row_i):
+                    pairs.add((i, j))
+            del col_i
+    elif graph == "star":
+        hub_value = _value(world, spec.hub, {}) if spec.hub is not None else (members[0] if members else None)
+        hub = world.entity(hub_value)
+        if n and (hub is None or hub not in members):
+            raise RunError(f"the hub must be one of the {spec.among} members, got {hub_value!r}", f"{path}.hub")
+        centre = members.index(hub) if hub is not None else 0
+        pairs = {_pair(centre, j) for j in range(n) if j != centre}
+    elif graph == "bipartite":
+        if spec.with_ is None:
+            raise RunError("graph bipartite needs `with` (the other type)", path)
+        others = world.entities_of(spec.with_)
+        chance = p_value if p_value is not None else min(1.0, (degree or 2) / max(1, len(others)))
+        for member in members:
+            for other in others:
+                if member is not other and rng.random() < chance:
+                    world.link(spec.relation, member, other, _value(world, spec.value, {"from": member, "to": other}), path)
+        return
     else:
-        raise RunError(f"unknown graph '{graph}' (complete, ring, random, small_world)", f"{path}.graph")
+        raise RunError(f"unknown graph '{graph}' (complete, ring, random, small_world, scale_free, blocks, lattice, "
+                       "star, bipartite)", f"{path}.graph")
     for i, j in sorted(pairs):
         value = _value(world, spec.value, {})
         world.link(spec.relation, members[i], members[j], value, path)
         if not world.contract.relations[spec.relation].symmetric:
             world.link(spec.relation, members[j], members[i], value, path)
+
+
+def _archetypes(world: SdkWorld, spec: PopulationSpec, count: int, path: str) -> List[Any]:
+    """The archetype of each generated entity, in order: exact shares (largest remainder, then shuffled)
+    or independent weighted draws."""
+    if not spec.mix:
+        return []
+    weights = []
+    for position, archetype in enumerate(spec.mix):
+        weight = _value(world, archetype.weight, {})
+        if isinstance(weight, bool) or not isinstance(weight, (int, float)) or weight < 0 or not math.isfinite(weight):
+            raise RunError(f"weight must be a number ≥ 0, got {weight!r}", f"{path}.mix[{position}].weight")
+        weights.append(float(weight))
+    total = sum(weights)
+    if total <= 0:
+        raise RunError("every archetype weight is zero", f"{path}.mix")
+    rng = world.seeds.rng("population", path, "mix")
+    if not spec.quota:
+        return rng.choices(list(spec.mix), weights=weights, k=count)
+    exact = [count * w / total for w in weights]
+    counts = [int(math.floor(x)) for x in exact]
+    for position in sorted(range(len(exact)), key=lambda k: (-(exact[k] - counts[k]), k))[: count - sum(counts)]:
+        counts[position] += 1
+    assigned = [archetype for archetype, k in zip(spec.mix, counts) for _ in range(k)]
+    rng.shuffle(assigned)
+    return assigned
+
+
+def _members(world: SdkWorld, spec: Any, parent: Entity, row: Any, path: str,
+             pending_briefs: List[Tuple[str, str, Dict[str, Any], str]]) -> None:
+    count = _value(world, spec.count, {"parent": parent, "row": row})
+    count = _capped(int(_whole(count, f"{path}.count")), f"{path}.count")
+    name_template = compile_template(spec.name, None) if spec.name else None
+    title = spec.type.replace("_", " ").title()
+    for n in range(1, count + 1):
+        vars = {"parent": parent, "row": row, "i": n}
+        scope = world.scope(**vars)
+        name = name_template.render(scope) if name_template is not None else f"{parent.name} {title} {n}"
+        props = dict(spec.props)
+        if spec.parent_prop:
+            props[spec.parent_prop] = parent.id
+        member = world.create(spec.type, None, name, props, parent.location_id, scope, f"{path}[{n}]")
+        if spec.link:
+            world.link(spec.link, member, parent, 1, path)
+        if spec.brief:
+            pending_briefs.append((member.id, spec.brief, vars, f"{path}.brief"))
+
+
+def rake(rows: List[Any], base: Optional[List[float]], margins: Dict[str, Dict[str, float]], iterations: int,
+         tolerance: float, path: str) -> List[float]:
+    """Iterative proportional fitting: weights whose weighted shares match every margin."""
+    weights = list(base) if base is not None else [1.0] * len(rows)
+    for column, targets in margins.items():
+        total = sum(targets.values())
+        if not math.isclose(total, 1.0, abs_tol=1e-6):
+            raise RunError(f"target shares for '{column}' sum to {total:.6g}, not 1", f"{path}.margins.{column}")
+        present = {str(row.get(column)) for row in rows if isinstance(row, dict)}
+        missing = [value for value, share in targets.items() if share > 0 and value not in present]
+        if missing:
+            raise RunError(f"no rows have {column} = {', '.join(missing)}", f"{path}.margins.{column}")
+    for _ in range(iterations):
+        worst = 0.0
+        for column, targets in margins.items():
+            totals: Dict[str, float] = {}
+            for row, weight in zip(rows, weights):
+                key = str(row.get(column)) if isinstance(row, dict) else ""
+                totals[key] = totals.get(key, 0.0) + weight
+            grand = sum(totals.values())
+            if grand <= 0:
+                raise RunError("all row weights are zero", path)
+            for position, row in enumerate(rows):
+                key = str(row.get(column)) if isinstance(row, dict) else ""
+                target = targets.get(key)
+                if target is None or totals.get(key, 0) <= 0:
+                    weights[position] = 0.0 if target is None else weights[position]
+                    continue
+                factor = target * grand / totals[key]
+                worst = max(worst, abs(factor - 1))
+                weights[position] *= factor
+        if worst < tolerance:
+            break
+    return weights
+
+
+def _preferential(n: int, m: int, rng: Any) -> Set[Tuple[int, int]]:
+    """Barabási–Albert: each new member links to m existing members chosen by degree."""
+    pairs: Set[Tuple[int, int]] = set()
+    seed_size = min(n, m + 1)
+    for i in range(seed_size):
+        for j in range(i + 1, seed_size):
+            pairs.add((i, j))
+    targets: List[int] = [v for pair in pairs for v in pair] or list(range(seed_size))
+    for new in range(seed_size, n):
+        chosen: Set[int] = set()
+        while len(chosen) < min(m, new):
+            chosen.add(rng.choice(targets))
+        for old in sorted(chosen):
+            pairs.add(_pair(old, new))
+            targets.extend((old, new))
+    return pairs
 
 
 def _pair(a: int, b: int) -> Tuple[int, int]:

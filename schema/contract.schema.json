@@ -856,8 +856,92 @@
             }
           ],
           "default": null,
-          "description": "complete | ring | random | small_world",
+          "description": "complete | ring | random | small_world | scale_free | blocks | lattice | star | bipartite",
           "title": "Graph"
+        },
+        "m": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "scale_free: links each new member makes (preferential attachment).",
+          "title": "M"
+        },
+        "block": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "blocks: expression over $it giving each member's group; `p` applies within a group, `p_between` across.",
+          "title": "Block"
+        },
+        "p_between": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "blocks: link probability between groups.",
+          "title": "P Between"
+        },
+        "with": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "bipartite: the other type (links run among → with).",
+          "title": "With"
+        },
+        "hub": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "star: expression giving the hub entity (default: the first member).",
+          "title": "Hub"
+        },
+        "rows": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Edges from data: an expression giving rows with `from`, `to` and optional `value`.",
+          "title": "Rows"
         },
         "degree": {
           "anyOf": [
@@ -910,6 +994,92 @@
       "title": "LinkSpec",
       "type": "object"
     },
+    "MembersSpec": {
+      "additionalProperties": false,
+      "description": "Entities generated inside each generated entity (people in a household, staff in a firm).",
+      "properties": {
+        "type": {
+          "title": "Type",
+          "type": "string"
+        },
+        "count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "How many per parent (number or expression over $parent, $row).",
+          "title": "Count"
+        },
+        "props": {
+          "additionalProperties": true,
+          "description": "Values or expressions ($parent, $row, $i, $it).",
+          "title": "Props",
+          "type": "object"
+        },
+        "link": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Relation linking each member to its parent (member → parent).",
+          "title": "Link"
+        },
+        "parent_prop": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A member property set to the parent's id.",
+          "title": "Parent Prop"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Name template ({$parent.name}, {$i}).",
+          "title": "Name"
+        },
+        "brief": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Private brief template for each member.",
+          "title": "Brief"
+        }
+      },
+      "required": [
+        "type",
+        "count"
+      ],
+      "title": "MembersSpec",
+      "type": "object"
+    },
     "MetricSpec": {
       "additionalProperties": false,
       "description": "A number tracked every round (a series). Shorthand: the expression.",
@@ -933,6 +1103,53 @@
         "expr"
       ],
       "title": "MetricSpec",
+      "type": "object"
+    },
+    "MixSpec": {
+      "additionalProperties": false,
+      "description": "One archetype (segment) of a population mix.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "weight": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": 1,
+          "description": "Share of the population (relative; number or expression over $inputs).",
+          "title": "Weight"
+        },
+        "props": {
+          "additionalProperties": true,
+          "description": "Trait values or expressions for this archetype (over $row, $i, $it).",
+          "title": "Props",
+          "type": "object"
+        },
+        "brief": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Extra private brief text for members of this archetype.",
+          "title": "Brief"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "MixSpec",
       "type": "object"
     },
     "OutputSpec": {
@@ -1464,6 +1681,40 @@
           "default": null,
           "description": "Private text added to each generated entity's brief (template over $row, $i).",
           "title": "Brief"
+        },
+        "mix": {
+          "description": "Archetypes: each entity belongs to one, with its own traits and brief; the type's `archetype` prop (if declared) records which.",
+          "items": {
+            "$ref": "#/$defs/MixSpec"
+          },
+          "title": "Mix",
+          "type": "array"
+        },
+        "quota": {
+          "default": true,
+          "description": "Mix counts are exact shares (largest remainder) instead of independent draws.",
+          "title": "Quota",
+          "type": "boolean"
+        },
+        "members": {
+          "description": "Entities generated inside each one (households → people).",
+          "items": {
+            "$ref": "#/$defs/MembersSpec"
+          },
+          "title": "Members",
+          "type": "array"
+        },
+        "raking": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RakingSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Reweight `from` rows to match margins before sampling (uses `weight` as the base weight)."
         }
       },
       "required": [
@@ -1549,6 +1800,41 @@
         }
       },
       "title": "PropSpec",
+      "type": "object"
+    },
+    "RakingSpec": {
+      "additionalProperties": false,
+      "description": "Reweight rows so weighted shares match known margins (iterative proportional fitting).",
+      "properties": {
+        "margins": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object"
+          },
+          "description": "{column: {value: target share}}; shares per column sum to 1.",
+          "title": "Margins",
+          "type": "object"
+        },
+        "iterations": {
+          "default": 50,
+          "maximum": 1000,
+          "minimum": 1,
+          "title": "Iterations",
+          "type": "integer"
+        },
+        "tolerance": {
+          "default": 1e-06,
+          "exclusiveMinimum": 0,
+          "title": "Tolerance",
+          "type": "number"
+        }
+      },
+      "required": [
+        "margins"
+      ],
+      "title": "RakingSpec",
       "type": "object"
     },
     "RecordSpec": {

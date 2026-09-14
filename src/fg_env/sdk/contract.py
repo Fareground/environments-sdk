@@ -235,6 +235,35 @@ class EntitySpec(_Model):
     brief: Optional[str] = Field(None, description="Private text added to this entity's own brief (template).")
 
 
+class MixSpec(_Model):
+    """One archetype (segment) of a population mix."""
+
+    name: str
+    weight: Union[float, str] = Field(1, description="Share of the population (relative; number or expression over $inputs).")
+    props: Dict[str, Any] = Field(default_factory=dict, description="Trait values or expressions for this archetype (over $row, $i, $it).")
+    brief: Optional[str] = Field(None, description="Extra private brief text for members of this archetype.")
+
+
+class MembersSpec(_Model):
+    """Entities generated inside each generated entity (people in a household, staff in a firm)."""
+
+    type: str
+    count: Union[int, str] = Field(..., description="How many per parent (number or expression over $parent, $row).")
+    props: Dict[str, Any] = Field(default_factory=dict, description="Values or expressions ($parent, $row, $i, $it).")
+    link: Optional[str] = Field(None, description="Relation linking each member to its parent (member → parent).")
+    parent_prop: Optional[str] = Field(None, description="A member property set to the parent's id.")
+    name: Optional[str] = Field(None, description="Name template ({$parent.name}, {$i}).")
+    brief: Optional[str] = Field(None, description="Private brief template for each member.")
+
+
+class RakingSpec(_Model):
+    """Reweight rows so weighted shares match known margins (iterative proportional fitting)."""
+
+    margins: Dict[str, Dict[str, float]] = Field(..., description="{column: {value: target share}}; shares per column sum to 1.")
+    iterations: int = Field(50, ge=1, le=1000)
+    tolerance: float = Field(1e-6, gt=0)
+
+
 class PopulationSpec(_Model):
     """Entities generated at load: a count, one per table row, or a weighted sample of rows."""
 
@@ -249,6 +278,10 @@ class PopulationSpec(_Model):
     props: Dict[str, Any] = Field(default_factory=dict, description="Values or expressions ($row, $i, $normal(...)).")
     at: Any = None
     brief: Optional[str] = Field(None, description="Private text added to each generated entity's brief (template over $row, $i).")
+    mix: List[MixSpec] = Field(default_factory=list, description="Archetypes: each entity belongs to one, with its own traits and brief; the type's `archetype` prop (if declared) records which.")
+    quota: bool = Field(True, description="Mix counts are exact shares (largest remainder) instead of independent draws.")
+    members: List[MembersSpec] = Field(default_factory=list, description="Entities generated inside each one (households → people).")
+    raking: Optional[RakingSpec] = Field(None, description="Reweight `from` rows to match margins before sampling (uses `weight` as the base weight).")
 
     @field_validator("count")
     @classmethod
@@ -274,7 +307,13 @@ class LinkSpec(_Model):
     to: Optional[str] = None
     value: Any = 1
     among: Optional[str] = Field(None, description="Generate links among entities of this type.")
-    graph: Optional[str] = Field(None, description="complete | ring | random | small_world")
+    graph: Optional[str] = Field(None, description="complete | ring | random | small_world | scale_free | blocks | lattice | star | bipartite")
+    m: Union[int, str, None] = Field(None, description="scale_free: links each new member makes (preferential attachment).")
+    block: Optional[str] = Field(None, description="blocks: expression over $it giving each member's group; `p` applies within a group, `p_between` across.")
+    p_between: Union[float, str, None] = Field(None, description="blocks: link probability between groups.")
+    with_: Optional[str] = Field(None, alias="with", description="bipartite: the other type (links run among → with).")
+    hub: Optional[str] = Field(None, description="star: expression giving the hub entity (default: the first member).")
+    rows: Optional[str] = Field(None, description="Edges from data: an expression giving rows with `from`, `to` and optional `value`.")
     degree: Union[int, str, None] = Field(None, description="Links per member (number or expression).")
     p: Union[float, str, None] = Field(None, description="Link probability (random) or rewiring probability (small_world). For random it may depend on the pair: '0.1 if $to.influencer else 0.02'.")
     where: Optional[str] = None

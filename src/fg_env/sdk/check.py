@@ -632,12 +632,12 @@ class _Checker:
         if space is not None and sum(x is not None for x in (space.grid, space.graph, space.plane)) != 1:
             self.error("space", "declare exactly one of grid, graph, plane")
 
-    def _prop_spec(self, spec: C.PropSpec, path: str, roots: Iterable[str]) -> None:
+    def _prop_spec(self, spec: C.PropSpec, path: str, roots: Iterable[str], types: Optional[Types] = None) -> None:
         if spec.type is not None and spec.type not in C.PROP_TYPES:
             self.error(f"{path}.type", f"unknown type '{spec.type}'", self._suggest(spec.type, C.PROP_TYPES))
         if spec.type == "enum" and not spec.values:
             self.error(path, "an enum property needs `values`")
-        self.value(spec.default, f"{path}.default", roots)
+        self.value(spec.default, f"{path}.default", roots, types or {})
 
     def _types_and_world(self) -> None:
         for name, spec in self.c.types.items():
@@ -646,7 +646,8 @@ class _Checker:
             for prop, prop_spec in spec.props.items():
                 if prop in ENTITY_FIELDS:
                     self.error(f"types.{name}.props.{prop}", f"'{prop}' is a built-in entity field", "choose another name")
-                self._prop_spec(prop_spec, f"types.{name}.props.{prop}", BASE - {"metrics", "series"} | {"row", "i"})
+                self._prop_spec(prop_spec, f"types.{name}.props.{prop}", BASE - {"metrics", "series"} | {"row", "i", "it"},
+                                {"it": {name}})
             if spec.extends is not None:
                 if spec.extends not in self.c.types:
                     self.error(f"types.{name}.extends", f"'{spec.extends}' is not a declared type",
@@ -689,11 +690,46 @@ class _Checker:
             for key in ("id", "name"):
                 self.template(getattr(group, key), f"{path}.{key}", None, BASE | {"row", "i"})
             self.template(group.brief, f"{path}.brief", "actor", BASE | {"row", "i", "actor"}, {"actor": {group.type}})
+            it_types: Types = {"it": {group.type}}
             for prop, raw in group.props.items():
                 if prop not in self.type_props[group.type]:
                     self.error(f"{path}.props.{prop}", f"'{group.type}' has no property '{prop}'",
                                self._suggest(prop, self.type_props[group.type]))
-                self.value(raw, f"{path}.props.{prop}", BASE | {"row", "i"})
+                self.value(raw, f"{path}.props.{prop}", BASE | {"row", "i", "it"}, it_types)
+            names: Set[str] = set()
+            for m_index, archetype in enumerate(group.mix):
+                mpath = f"{path}.mix[{m_index}]"
+                if archetype.name in names:
+                    self.error(f"{mpath}.name", f"archetype '{archetype.name}' is declared twice")
+                names.add(archetype.name)
+                self.value(archetype.weight, f"{mpath}.weight", {"inputs"})
+                for prop, raw in archetype.props.items():
+                    if prop not in self.type_props[group.type]:
+                        self.error(f"{mpath}.props.{prop}", f"'{group.type}' has no property '{prop}'",
+                                   self._suggest(prop, self.type_props[group.type]))
+                    self.value(raw, f"{mpath}.props.{prop}", BASE | {"row", "i", "it"}, it_types)
+                self.template(archetype.brief, f"{mpath}.brief", "actor", BASE | {"row", "i", "actor"},
+                              {"actor": {group.type}})
+            if group.raking is not None and (group.from_ is None or group.count is None):
+                self.error(f"{path}.raking", "raking reweights `from` rows for sampling; give `from` and `count`")
+            for m_index, members in enumerate(group.members):
+                mpath = f"{path}.members[{m_index}]"
+                if not self._type(members.type, f"{mpath}.type"):
+                    continue
+                parent = {"parent": {group.type}, "it": {members.type}}
+                self.value(members.count, f"{mpath}.count", BASE | {"parent", "row"}, parent)
+                for prop, raw in members.props.items():
+                    if prop not in self.type_props[members.type]:
+                        self.error(f"{mpath}.props.{prop}", f"'{members.type}' has no property '{prop}'",
+                                   self._suggest(prop, self.type_props[members.type]))
+                    self.value(raw, f"{mpath}.props.{prop}", BASE | {"parent", "row", "i", "it"}, parent)
+                if members.parent_prop is not None and members.parent_prop not in self.type_props[members.type]:
+                    self.error(f"{mpath}.parent_prop", f"'{members.type}' has no property '{members.parent_prop}'")
+                if members.link is not None and members.link not in self.c.relations:
+                    self.error(f"{mpath}.link", f"'{members.link}' is not a declared relation",
+                               self._suggest(members.link, self.c.relations))
+                self.template(members.name, f"{mpath}.name", None, BASE | {"parent", "row", "i"}, parent)
+                self.template(members.brief, f"{mpath}.brief", None, BASE | {"parent", "row", "i"}, parent)
 
     def _relations(self) -> None:
         for index, link in enumerate(self.c.links):
@@ -701,12 +737,26 @@ class _Checker:
             if link.relation not in self.c.relations:
                 self.error(f"{path}.relation", f"'{link.relation}' is not a declared relation",
                            self._suggest(link.relation, self.c.relations) or "declare it under `relations`")
-            if link.among is not None:
-                if self._type(link.among, f"{path}.among") and link.graph not in (None, "complete", "ring", "random", "small_world"):
-                    self.error(f"{path}.graph", f"unknown graph '{link.graph}'", "complete, ring, random, small_world")
+            graphs = ("complete", "ring", "random", "small_world", "scale_free", "blocks", "lattice", "star", "bipartite")
+            if link.rows is not None:
+                self.expr(link.rows, f"{path}.rows", BASE)
+            elif link.among is not None:
+                if self._type(link.among, f"{path}.among") and link.graph not in (None, *graphs):
+                    self.error(f"{path}.graph", f"unknown graph '{link.graph}'", ", ".join(graphs))
                 self.expr(link.where, f"{path}.where", BASE | {"it"}, {"it": {link.among}})
                 self.value(link.degree, f"{path}.degree", BASE)
                 self.value(link.p, f"{path}.p", BASE | {"from", "to"}, {"from": {link.among}, "to": {link.among}})
+                self.value(link.m, f"{path}.m", BASE)
+                self.value(link.p_between, f"{path}.p_between", BASE)
+                self.expr(link.block, f"{path}.block", BASE | {"it"}, {"it": {link.among}})
+                self.value(link.hub, f"{path}.hub", BASE)
+                if link.graph == "blocks" and link.block is None:
+                    self.error(path, "graph blocks needs `block` (an expression over $it giving each member's group)")
+                if link.graph == "bipartite":
+                    if link.with_ is None:
+                        self.error(path, "graph bipartite needs `with` (the other type)")
+                    else:
+                        self._type(link.with_, f"{path}.with")
             elif link.from_ is None or link.to is None:
                 self.error(path, "give `from` and `to`, or `among` with a `graph`")
             else:

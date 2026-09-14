@@ -567,10 +567,11 @@ class SdkWorld(World):
         if unknown:
             raise RunError(f"'{type_name}' has no properties {sorted(unknown)} (declared: {', '.join(declared) or 'none'})", where)
         entity = Entity(id=eid, name=name or eid, entity_type=type_name, properties={}, location_id=None)
+        own = scope.child(it=entity)  # props read earlier props of the same entity: `$it.income * 0.3`
         for prop, prop_spec in declared.items():
             raw = props[prop] if prop in props else prop_spec.default
             try:
-                value = compile_expr(raw)(scope) if is_expr(raw) else _copy(raw)
+                value = compile_expr(raw)(own) if is_expr(raw) else _copy(raw)
             except ExprError as exc:
                 raise RunError(str(exc), f"{where}.props.{prop}") from None
             entity.properties[prop] = self._coerce(prop_spec, _plain(value), f"{where}.props.{prop}")
