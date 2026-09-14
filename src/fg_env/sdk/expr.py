@@ -139,6 +139,9 @@ class _Budget(threading.local):
     hold = 0
     used = 0
     limit = EVAL_BUDGET
+    #: The running expression's own ceiling: inside a shared block each expression still gets at most
+    #: EVAL_BUDGET steps, so one hostile rule cannot spend the whole block's budget.
+    cap = EVAL_BUDGET
     label = ""
     shared = False
 
@@ -150,6 +153,10 @@ def charge(amount: int, source: Optional[str] = None) -> None:
     """Count ``amount`` units of work against the running evaluation's budget."""
     budget = _BUDGET
     budget.used += amount
+    if budget.used > budget.cap and budget.cap < budget.limit:
+        raise ExprError(
+            f"evaluation exceeded its work budget of {EVAL_BUDGET:,} steps (items visited and elements built); "
+            "narrow what it loops over or split the work across rounds", source)
     if budget.used > budget.limit:
         who = f"{budget.label} exceeded its shared" if budget.shared and budget.label else "evaluation exceeded its"
         raise ExprError(
@@ -181,10 +188,12 @@ def shared_budget(limit: int = EVAL_BUDGET, label: str = "") -> Iterator[None]:
         yield
         return
     budget.hold, budget.shared, budget.used, budget.limit, budget.label = 1, True, 0, limit, label
+    budget.cap = limit
     try:
         yield
     finally:
         budget.hold, budget.shared, budget.used, budget.limit, budget.label = 0, False, 0, EVAL_BUDGET, ""
+        budget.cap = EVAL_BUDGET
 
 
 def _held(run: Callable[[], Any]) -> Any:
@@ -711,11 +720,14 @@ class Expr:
     def __call__(self, scope: Scope) -> Any:
         budget = _BUDGET
         if budget.hold:  # nested inside other work (a def, a record rule, a shared block): charge it
+            if budget.shared and budget.hold == 1:  # an expression directly in a shared block: its own ceiling too
+                budget.cap = min(budget.limit, budget.used + EVAL_BUDGET)
             budget.used += 1
-            if budget.used > budget.limit:
+            if budget.used > budget.limit or budget.used > budget.cap:
                 charge(0, self.source)
         else:  # a top-level evaluation starts a fresh budget
             budget.used = 0
+            budget.cap = EVAL_BUDGET
         try:
             return self.run(scope)
         except ExprError:
