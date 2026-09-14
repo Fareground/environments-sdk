@@ -1166,14 +1166,12 @@ def _apply_social(state: WorldState, config: Dict[str, Any]) -> None:
 
 
 def _apply_crowd(state: WorldState, config: Dict[str, Any]) -> None:
-    """Always init crowd manager so per-archetype NPC selection works
-    even when crowd_ratio is 0."""
-    try:
-        from agents.crowd_agent import CrowdAgentManager
-    except Exception:
-        return
-    mgr = CrowdAgentManager()
-    state.crowd_agents = mgr
+    """Record the template's ``crowd_config`` for the host application.
+
+    The kernel ships no crowd-agent manager. A host that runs crowd agents
+    attaches its own manager to ``state.crowd_agents`` after the world is built
+    and reads this config from ``state._crowd_config``.
+    """
     if config and config.get("enabled"):
         state._crowd_config = config  # type: ignore[attr-defined]  # loader-injected runtime attr, read via getattr()
     else:

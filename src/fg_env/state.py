@@ -305,8 +305,9 @@ class WorldState:
     # Cognitive architecture (emotions, biases, bounded rationality)
     cognition: Optional[CognitionManager] = None
 
-    # Multi-resolution crowd agents (CrowdAgentManager from agents.crowd_agent)
-    crowd_agents: Optional[Any] = None  # Type is agents.crowd_agent.CrowdAgentManager
+    # Crowd-agent manager attached by the host application (the kernel ships none).
+    # Duck-typed: is_crowd, get_behavior, get_crowd_trends, record_action, remove, to_dict.
+    crowd_agents: Optional[Any] = None
 
     # Social platform (social graph, content, feeds, reputation, viral spread)
     social: Optional[SocialPlatformManager] = None

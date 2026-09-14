@@ -199,28 +199,9 @@ class DomainModuleRegistry:
             logging.getLogger(__name__).exception(
                 "Failed to register generic kernel modules (turn_manager, hidden_state, board, deck, trade, state_machine)"
             )
-        # Auto-discover every DomainModule shipped under `assets/<name>/module.py`.
-        # The asset loader handles dynamic imports and registration name resolution.
-        try:
-            from assets import register_modules as _register_asset_modules
-        except ImportError:
-            # No `assets` package providing register_modules on the path
-            # (a bare assets/ media directory also lands here as a
-            # namespace package) — normal for the published library;
-            # downstream apps that ship one get it auto-loaded.
-            pass
-        else:
-            try:
-                _register_asset_modules(self)
-            except Exception:  # pragma: no cover — defensive at startup
-                import logging
-                logging.getLogger(__name__).exception(
-                    "Failed to load asset-side domain modules; only built-in stubs are available."
-                )
-        # Studio-built environments carry their DomainModule source on
-        # the WorldDefinition row and are registered at run time by the
-        # sim worker — no disk discovery needed (see
-        # services/module_codegen.py:register_module_from_source).
+        # Host applications register their own modules explicitly with
+        # ``DomainModuleRegistry.get_instance().register(name, cls)``; the
+        # kernel never imports modules from outside this package.
 
     @classmethod
     def get_instance(cls) -> "DomainModuleRegistry":
