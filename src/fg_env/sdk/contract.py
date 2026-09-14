@@ -58,7 +58,9 @@ CONTRACT_VERSION = "1"
 
 INPUT_TYPES = ("number", "int", "bool", "text", "enum", "list", "table", "map", "date", "any")
 PROP_TYPES = ("number", "int", "bool", "text", "enum", "list", "map", "any")
-PARAM_TYPES = ("number", "int", "bool", "text", "enum", "entity")
+PARAM_TYPES = ("number", "int", "bool", "text", "enum", "entity", "list")
+#: Most items a list argument may hold.
+MAX_LIST_ITEMS = 1_000
 OUTPUT_TYPES = ("number", "int", "bool", "text", "list", "map", "any")
 
 Effects = List[Any]
@@ -330,6 +332,10 @@ class ParamSpec(_Model):
     min: Union[float, str, None] = None
     max: Union[float, str, None] = None
     max_len: Optional[int] = Field(None, description="Maximum length (type text).")
+    items: Optional["ParamSpec"] = Field(None, description="Type list: the spec every element follows (e.g. {\"type\": \"enum\", \"values\": [...]}). Shorthand: `of` makes entity items, `values` enum items.")
+    min_items: Optional[int] = Field(None, ge=0, description="Type list: fewest elements.")
+    max_items: Optional[int] = Field(None, ge=0, description="Type list: most elements.")
+    unique: bool = Field(True, description="Type list: no element twice (rankings, hands of cards).")
     default: Any = None
     required: Optional[bool] = Field(None, description="Defaults to true unless a default is given.")
     invalid: Optional[str] = Field(None, description="What the agent is told when its value is not valid (template over $actor, $params, $value).")
@@ -339,6 +345,9 @@ class ParamSpec(_Model):
     @classmethod
     def _shorthand(cls, data: Any) -> Any:
         return {"type": data} if isinstance(data, str) else data
+
+
+ParamSpec.model_rebuild()
 
 
 class Condition(_ExprShorthand):

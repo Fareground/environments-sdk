@@ -80,7 +80,31 @@ def sample_args(schema: Mapping[str, Any], rng: random.Random) -> Dict[str, Any]
             args[name] = rng.random() < 0.5
         elif kind == "string":
             args[name] = "ok"
+        elif kind == "array":
+            items = _sample_list(prop, rng)
+            if items is not None:
+                args[name] = items
     return args
+
+
+def _sample_list(prop: Mapping[str, Any], rng: random.Random) -> Optional[List[Any]]:
+    item = prop.get("items") or {}
+    low = int(prop.get("minItems", 0))
+    high = max(low, min(int(prop.get("maxItems", low + 3)), low + 3))
+    unique = bool(prop.get("uniqueItems"))
+    pool = item.get("enum")
+    if pool is not None:
+        if unique:
+            if low > len(pool):
+                return None
+            return rng.sample(list(pool), rng.randint(low, min(high, len(pool))))
+        return [rng.choice(pool) for _ in range(rng.randint(low, high))] if pool else ([] if low == 0 else None)
+    out: List[Any] = []
+    for _ in range(rng.randint(low, high)):
+        value = sample_args({"properties": {"x": item}}, rng).get("x")
+        if value is not None and not (unique and value in out):
+            out.append(value)
+    return out if len(out) >= low else None
 
 
 class Idle:

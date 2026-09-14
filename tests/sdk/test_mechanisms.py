@@ -151,3 +151,67 @@ def test_a_def_shadows_a_built_in_function_of_the_same_name():
     env = fg_env.load(contract, seed=1)
     env.run("idle", rounds=1)
     assert env.props["shown"] == 40
+
+
+SHOP_LIST = {
+    "name": "Basket",
+    "clock": {"rounds": 1},
+    "world": {"picked": {"type": "list", "default": []}},
+    "types": {"shopper": {"agent": True}, "item": {"props": {"price": 1}}},
+    "entities": {"s": {"type": "shopper"}, "apple": {"type": "item"}, "pear": {"type": "item"}, "fig": {"type": "item"}},
+    "actions": {
+        "rank": {"by": "shopper", "params": {"order": {"type": "list", "values": ["red", "green", "blue"],
+                                                       "min_items": 2, "max_items": 3}},
+                 "do": ["$world.picked = $params.order"], "terminal": True},
+        "basket": {"by": "shopper", "params": {"items": {"type": "list", "of": "item", "max_items": 2}},
+                   "do": ["$world.picked = $map($params.items, $it.id)"], "terminal": True},
+        "numbers": {"by": "shopper", "params": {"xs": {"type": "list", "items": {"type": "int", "min": 0, "max": 9},
+                                                       "unique": False}},
+                    "do": ["$world.picked = $params.xs"], "terminal": True},
+    },
+    "stages": [{"name": "shop", "turns": "sequential"}],
+}
+
+
+def test_list_parameters_validate_every_item_and_render_as_arrays():
+    env = fg_env.load(SHOP_LIST, seed=1)
+    book, actor = env.actions, env.world.entities["s"]
+    schema = book.tool(actor, "rank").input_schema["properties"]["order"]
+    assert schema["type"] == "array" and schema["items"]["enum"] == ["red", "green", "blue"]
+    assert schema["minItems"] == 2 and schema["maxItems"] == 3 and schema["uniqueItems"]
+    assert book.validate(actor, "rank", {"order": ["red"]})[1] == "order needs at least 2 item(s), got 1"
+    assert "more than once" in book.validate(actor, "rank", {"order": ["red", "red"]})[1]
+    assert "item 2 must be one of" in book.validate(actor, "rank", {"order": ["red", "pink"]})[1]
+    assert book.validate(actor, "rank", {"order": '["blue", "red"]'})[0]["order"] == ["blue", "red"]
+    assert book.validate(actor, "rank", {"order": "green, blue"})[0]["order"] == ["green", "blue"]
+    items = book.validate(actor, "basket", {"items": ["apple", "fig"]})[0]["items"]
+    assert [i.id for i in items] == ["apple", "fig"]
+    assert "allows at most 2" in book.validate(actor, "basket", {"items": ["apple", "fig", "pear"]})[1]
+    assert book.validate(actor, "numbers", {"xs": [3, 3, 9]})[0]["xs"] == [3, 3, 9]
+    assert "item 1 must be at most 9" in book.validate(actor, "numbers", {"xs": [12]})[1]
+    assert fg_env.run(SHOP_LIST, seed=3).status != "failed"  # random agents fill arrays too
+
+
+def test_list_parameter_contract_errors():
+    bad = json.loads(json.dumps(SHOP_LIST))
+    bad["actions"]["rank"]["params"]["order"].update(min_items=5, max_items=2)
+    bad["actions"]["basket"]["params"]["items"] = {"type": "list", "items": {"type": "list"}}
+    messages = [i.message for i in fg_env.check(bad) if i.severity == "error"]
+    assert any("min_items (5) is more than max_items (2)" in m for m in messages)
+    assert any("a list of lists is not supported" in m for m in messages)
+
+
+def test_ranked_ballot_runs_instant_runoff():
+    contract = {**COUNCIL, "mechanisms": {"budget": {"kind": "ballot", "voters": "member", "options": ["a", "b", "c"],
+                                                     "method": "ranked", "question": "Pick a plan"}}}
+    rankings = {"member_1": ["a"], "member_2": ["a"], "member_3": ["b"], "member_4": ["b"], "member_5": ["c", "b"]}
+
+    def rank(wake):
+        if "budget_vote" in {t.name for t in wake.tools}:
+            wake.call("budget_vote", {"choices": rankings[wake.entity_id]})
+        wake.end()
+
+    env = fg_env.load(contract, seed=1)
+    env.run(rank, rounds=1)
+    result = env.props["budget_result"]
+    assert result["winner"] == "b" and len(result["rounds"]) == 2

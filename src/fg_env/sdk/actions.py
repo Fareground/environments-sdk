@@ -1,6 +1,8 @@
 """Actions as tools: which are legal, their JSON Schemas, argument validation, atomic apply."""
 from __future__ import annotations
 
+import json
+
 import math
 import re
 import reprlib
@@ -8,7 +10,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from ..entity import Entity
-from .contract import ActionSpec, Contract, ParamSpec, RecordSpec, StageSpec
+from .contract import MAX_LIST_ITEMS, ActionSpec, Contract, ParamSpec, RecordSpec, StageSpec
 from .effects import EffectRunner
 from .errors import RunError
 from .expr import EVAL_BUDGET, ExprError, Untrusted, compile_expr, is_expr, resolve, shared_budget, truthy
@@ -227,6 +229,21 @@ class ActionBook:
                 out["enum"] = [_plain(v) for v in values]
                 if all(isinstance(v, str) for v in out["enum"]):
                     out["type"] = "string"
+        elif param.type == "list":
+            item = _item_spec(param)
+            item_schema = self._param_schema(actor, action, pname, item)
+            item_schema.pop("default", None)
+            item_description = item_schema.pop("description", "")
+            out["type"] = "array"
+            out["items"] = item_schema
+            low, high = _list_bounds(param)
+            if low:
+                out["minItems"] = low
+            out["maxItems"] = high
+            if param.unique:
+                out["uniqueItems"] = True
+            if item_description and item_description != description:
+                description = f"{description} Each item: {item_description}".strip()
         elif param.type == "entity":
             out["type"] = "string"
             choices = self._choices(actor, action, pname, param)
@@ -378,6 +395,8 @@ class ActionBook:
                 if len(folded) == 1:
                     return folded[0], None
             return None, f"must be one of {', '.join(format_value(v) for v in values)} (got {_preview(raw)})"
+        if kind == "list":
+            return self._list_value(actor, action, pname, param, raw, params)
         if kind == "entity":
             choices = self._choices(actor, action, pname, param, params)
             if isinstance(raw, dict) and isinstance(raw.get("id"), str):
@@ -395,6 +414,36 @@ class ActionBook:
             shown = f"'{raw}'" if len(raw) <= 60 else _preview(raw)
             return None, f"{shown} is not a valid {param.of} here (valid: {listing or 'none'})"
         raise RunError(f"unknown parameter type '{kind}'", f"actions.{action}.params.{pname}")
+
+    def _list_value(self, actor: Entity, action: str, pname: str, param: ParamSpec, raw: Any,
+                    params: Dict[str, Any]) -> Tuple[Any, Optional[str]]:
+        if isinstance(raw, str):  # a model sometimes sends a list as JSON text or comma-separated words
+            text = raw.strip()
+            try:
+                decoded = json.loads(text) if text.startswith("[") else None
+            except ValueError:
+                decoded = None
+            raw = decoded if isinstance(decoded, list) else [part.strip() for part in text.split(",") if part.strip()]
+        if not isinstance(raw, (list, tuple)):
+            return None, f"must be a list, got {_preview(raw)}"
+        low, high = _list_bounds(param)
+        if len(raw) < low:
+            return None, f"needs at least {low} item(s), got {len(raw)}"
+        if len(raw) > high:
+            return None, f"allows at most {high} item(s), got {len(raw)}"
+        item = _item_spec(param)
+        values: List[Any] = []
+        seen: set = set()
+        for index, element in enumerate(raw):
+            value, problem = self._value(actor, action, pname, item, element, params)
+            if problem:
+                return None, f"item {index + 1} {problem}"
+            key = getattr(value, "id", None) or json.dumps(_plain(value), sort_keys=True, default=str)
+            if param.unique and key in seen:
+                return None, f"lists {format_value(_plain(value))} more than once"
+            seen.add(key)
+            values.append(value)
+        return values, None
 
     # -- apply ---------------------------------------------------------------------
 
@@ -514,6 +563,23 @@ class ActionBook:
         verb = name.replace("_", " ")
         suffix = "" if success else " — it did not succeed"
         return f"{actor.name}: {verb}{self._args_text(params)}{suffix}."
+
+
+def _item_spec(param: ParamSpec) -> ParamSpec:
+    """The element spec of a list parameter: explicit `items`, or `of` / `values` shorthand."""
+    if param.items is not None:
+        return param.items
+    if param.of is not None:
+        return ParamSpec(type="entity", of=param.of, where=param.where)
+    if param.values is not None:
+        return ParamSpec(type="enum", values=param.values)
+    return ParamSpec(type="text", max_len=param.max_len)
+
+
+def _list_bounds(param: ParamSpec) -> Tuple[int, int]:
+    low = param.min_items or 0
+    high = min(param.max_items if param.max_items is not None else MAX_LIST_ITEMS, MAX_LIST_ITEMS)
+    return low, high
 
 
 def _number_arg(raw: Any) -> Any:

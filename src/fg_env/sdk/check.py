@@ -759,6 +759,8 @@ class _Checker:
                     elif self._type(param.of, f"{ppath}.of"):
                         self.expr(param.where, f"{ppath}.where", BASE | {"actor", "it", "i", "params"},
                                   {"actor": by_types, "it": {param.of}}, spec.params)
+                elif param.type == "list":
+                    self._list_param(param, ppath, by_types, types, spec.params)
                 elif param.type == "enum":
                     if param.values is None:
                         self.error(ppath, "an enum parameter needs `values`")
@@ -784,6 +786,36 @@ class _Checker:
                               BASE | {"actor", "params", "value"}, types, spec.params)
             if not any(name in _stage_action_names(s, self.c) for s in self.c.stage_list()):
                 self.warn(path, "is not available in any stage", "add it to a stage's `actions`")
+
+    def _list_param(self, param: C.ParamSpec, ppath: str, by_types: Set[str], types: Types,
+                    params: Mapping[str, C.ParamSpec]) -> None:
+        item = param.items
+        if item is not None:
+            if item.type not in C.PARAM_TYPES:
+                self.error(f"{ppath}.items.type", f"unknown type '{item.type}'", self._suggest(item.type, C.PARAM_TYPES))
+                return
+            if item.type == "list":
+                self.error(f"{ppath}.items", "a list of lists is not supported", "use items of enum, entity, text, number, int or bool")
+                return
+        elif param.of is None and param.values is None:
+            self.warn(ppath, "a list without `items`, `of` or `values` takes free-text items",
+                      "say what each item is, e.g. \"values\": [...] or \"of\": \"card\"")
+        if param.min_items is not None and param.max_items is not None and param.min_items > param.max_items:
+            self.error(ppath, f"min_items ({param.min_items}) is more than max_items ({param.max_items})")
+        if param.max_items is not None and param.max_items > C.MAX_LIST_ITEMS:
+            self.error(f"{ppath}.max_items", f"is more than the limit of {C.MAX_LIST_ITEMS}")
+        entity_of = item.of if item is not None and item.type == "entity" else (param.of if item is None else None)
+        where = item.where if item is not None else param.where
+        if (item is not None and item.type == "entity") or (item is None and param.of is not None):
+            if entity_of is None:
+                self.error(f"{ppath}.items", "entity items need `of` (the entity type)")
+            elif self._type(entity_of, f"{ppath}.of"):
+                self.expr(where, f"{ppath}.where", BASE | {"actor", "it", "i", "params"},
+                          {"actor": by_types, "it": {entity_of}}, params)
+        values = item.values if item is not None and item.type == "enum" else (param.values if item is None else None)
+        if item is not None and item.type == "enum" and values is None:
+            self.error(f"{ppath}.items", "enum items need `values`")
+        self.value(values, f"{ppath}.values", BASE | {"actor", "params"}, types, params)
 
     def _stages(self) -> None:
         seen: Set[str] = set()

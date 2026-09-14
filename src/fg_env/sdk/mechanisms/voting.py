@@ -231,8 +231,10 @@ class BallotConfig(BaseModel):
 
     voters: str = Field(..., description="Agent type that votes (subtypes included).")
     options: Union[List[Any], str] = Field(..., description="The choices: a list, or an expression giving a list (e.g. \"$map(candidate, $it.id)\").")
-    method: Literal["plurality", "majority", "supermajority"] = Field(
-        "plurality", description="plurality (most votes) | majority (more than half) | supermajority (threshold, default 2/3).")
+    method: Literal["plurality", "majority", "supermajority", "approval", "ranked", "borda", "condorcet"] = Field(
+        "plurality", description="plurality (most votes) | majority (more than half) | supermajority (threshold, default 2/3) "
+                                 "| approval (approve any number) | ranked (instant runoff) | borda | condorcet (Copeland); "
+                                 "the last four take a list ballot.")
     threshold: Optional[float] = Field(None, ge=0, le=1, description="Share of votes needed to pass (majority/supermajority).")
     quorum: Optional[float] = Field(None, ge=0, le=1, description="Share of eligible voters who must cast a ballot (abstentions count).")
     abstain: bool = Field(True, description="Voters may abstain.")
@@ -323,12 +325,25 @@ def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any])
     vote, abstain = f"{name}_vote", f"{name}_abstain"
     question = f" on: {config.question}" if config.question else ""
     open_ballot = f"not ($actor.id in $world.{ballots})"
+    ballot_param: Dict[str, Any]
+    if config.method in SINGLE:
+        ballot_param = {"choice": {"type": "enum", "values": config.options, "description": "Your choice."}}
+        cast, told, how = "$params.choice", "You voted {$params.choice}.", "Cast your ballot"
+    else:
+        wording = {"approval": ("every option you approve of", "Approve options"),
+                   "ranked": ("the options in order of preference, most preferred first", "Rank the options"),
+                   "borda": ("the options in order of preference, most preferred first", "Rank the options"),
+                   "condorcet": ("the options in order of preference, most preferred first", "Rank the options")}
+        what, how = wording[config.method]
+        ballot_param = {"choices": {"type": "list", "values": config.options, "min_items": 1, "unique": True,
+                                    "description": f"List {what}."}}
+        cast, told = "$params.choices", "Your ballot: {$params.choices}."
     actions: Dict[str, Any] = {
-        vote: {"by": config.voters, "description": f"Cast your ballot{question}.",
-               "params": {"choice": {"type": "enum", "values": config.options, "description": "Your choice."}},
+        vote: {"by": config.voters, "description": f"{how}{question}.",
+               "params": ballot_param,
                "when": [{"expr": open_ballot, "why": "You have already voted."}],
-               "do": [f"$world.{ballots}[$actor.id] = $params.choice"],
-               "outcome": "You voted {$params.choice}." if config.secret else None,
+               "do": [f"$world.{ballots}[$actor.id] = {cast}"],
+               "outcome": told if config.secret else None,
                "private": config.secret, "terminal": True},
     }
     if config.abstain:
