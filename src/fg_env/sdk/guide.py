@@ -432,7 +432,8 @@ def _mechanisms() -> str:
     for kind, spec in sorted(MECHANISMS.items()):
         lines += ["", f"### `{kind}`", spec.doc, "", "Config:"]
         for field_name, info in spec.config.model_fields.items():
-            default = "required" if info.is_required() else f"default {json.dumps(info.default, default=str)}"
+            default = "required" if info.is_required() else \
+                f"default {json.dumps(info.get_default(call_default_factory=True), default=str)}"
             lines.append(f"- `{field_name}` ({default}): {info.description or ''}")
         if spec.example:
             lines += ["", "```json", json.dumps({"mechanisms": {"my_" + kind: spec.example}}, ensure_ascii=False), "```"]
