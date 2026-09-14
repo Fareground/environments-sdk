@@ -10,7 +10,7 @@ import json
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Generator, List, Mapping, Optional
+from typing import Any, Callable, Dict, Generator, List, Mapping, Optional, Tuple
 
 from ..entity import Entity
 from .actions import ACTION_BUDGET, ActionBook, stage_actions
@@ -162,7 +162,7 @@ class Env:
             inputs=self.inputs, outputs=outputs, metrics=dict(self.world.metrics),
             series={k: list(v) for k, v in self.world.series.items()}, winner=end.get("winner"),
             error=self.error, output_issues=issues, stats=self.stats.to_dict(),
-            events=[e.to_dict() for e in self.world.log],
+            events=[e.to_dict() for e in self.world.log], time=self.world.time if self.world.continuous else None,
         )
 
     def snapshot(self) -> Dict[str, Any]:
@@ -238,6 +238,14 @@ class Env:
         self._in_round = True
         if self.status in ("ready", "stopped"):
             self.status = "running"
+        elapsed: Optional[float] = None
+        if world.continuous:
+            elapsed = self._advance_time()
+            if elapsed is None:  # the next moment is past the horizon
+                self._in_round = False
+                self.ended_by, self.status = "horizon", "completed"
+                self._final_event()
+                return False
         world.round += 1
         world.stage = None
         self._used_round.clear()
@@ -248,9 +256,38 @@ class Env:
             self._finish()
             return False
         with self._lock:
-            world.step_physics()
+            if elapsed is None:
+                world.step_physics()
+            elif elapsed > 0:
+                world.step_physics(elapsed)
             world.journal.clear()
         return True
+
+    def _advance_time(self) -> Optional[float]:
+        """Move a continuous clock to the next round's moment; the time elapsed, or None past the horizon."""
+        world, clock = self.world, self.contract.clock
+        if world.round == 0:
+            return 0.0
+        previous = world.time
+        target = previous + clock.tick
+        if clock.jump:
+            due = self._next_due()
+            if due is not None:
+                target = max(previous, due)
+        if world.horizon is not None and target > world.horizon:
+            return None
+        world.time = target
+        world.touch()
+        return target - previous
+
+    def _next_due(self) -> Optional[float]:
+        """The earliest moment something is due: a living agent's wake time or a scheduled effect."""
+        world = self.world
+        times = [at for entity_id, at in world.wake_at.items()
+                 if (entity := world.entities.get(entity_id)) is not None and entity.alive]
+        if world.scheduled:
+            times.append(world.scheduled[0][0])
+        return min(times) if times else None
 
     def _round(self) -> _Steps:
         world = self.world
@@ -301,7 +338,7 @@ class Env:
 
     def _run_scheduled(self) -> None:
         world = self.world
-        while world.scheduled and world.scheduled[0][0] <= world.round:
+        while world.scheduled and world.scheduled[0][0] <= world.now():
             _, _, item = heapq.heappop(world.scheduled)
             self._atomic(item["effects"], world.thaw(item["vars"]), item["path"])
 
@@ -406,6 +443,8 @@ class Env:
             agents = self._eligible(stage)
             if stage.turns == "simultaneous":
                 yield from self._simultaneous(stage, agents, pass_index)
+            elif stage.turns == "scheduled":
+                yield from self._scheduled(stage, agents, pass_index)
             else:
                 yield from self._sequential(stage, agents, pass_index)
             if self._ended():
@@ -480,6 +519,59 @@ class Env:
             memory.cursor = self.world.log[-1].seq if self.world.log else 0
             memory.turns += 1
             self._flush_events()
+
+    def _scheduled(self, stage: StageSpec, agents: List[Entity], pass_index: int) -> _Steps:
+        """Continuous clock: every agent whose wake time has come takes a turn, earliest first. Its
+        next wake is now plus the duration of what it did, or the stage interval if it did nothing
+        timed — unless something during the turn already scheduled it later."""
+        world = self.world
+        now = world.time
+        due: List[Tuple[float, int, Entity]] = []
+        for position, actor in enumerate(agents):
+            at = world.wake_at.get(actor.id)
+            if at is None:
+                at = self._stage_time(stage.first_wake, 0.0, f"stages.{stage.name}.first_wake", it=actor, i=position)
+                world.set_wake_at(actor.id, at)
+            if at <= now:
+                due.append((at, position, actor))
+        due.sort(key=lambda item: (item[0], item[1]))
+        for _, _, actor in due:
+            if not actor.alive or self._ended():
+                return
+            reason = self._reason(actor, stage, pass_index)
+            if reason is None:
+                world.set_wake_at(actor.id, now + self._interval(stage, actor))
+                continue
+            yield _Point(stage, {actor.id: reason})
+            turn = Turn(self, actor, stage, reason, staged=False)
+            self._drive(turn)
+            if stage.on_idle and turn.stats.actions == 0 and actor.alive:
+                self._atomic(stage.on_idle, {"actor": actor}, f"stages.{stage.name}.on_idle")
+            scheduled = world.wake_at.get(actor.id, now)
+            if scheduled <= now:
+                step = turn.elapsed if turn.elapsed > 0 else self._interval(stage, actor)
+                world.set_wake_at(actor.id, now + step)
+            memory = self._memory(actor.id)
+            memory.cursor = world.log[-1].seq if world.log else 0
+            memory.turns += 1
+            self._flush_events()
+
+    def _interval(self, stage: StageSpec, actor: Entity) -> float:
+        value = self._stage_time(stage.interval, self.contract.clock.tick, f"stages.{stage.name}.interval", actor=actor)
+        if value <= 0:
+            raise RunError(f"interval must be greater than 0, got {value}", f"stages.{stage.name}.interval")
+        return value
+
+    def _stage_time(self, raw: Any, default: float, path: str, **vars: Any) -> float:
+        if raw is None:
+            return default
+        try:
+            value = compile_expr(raw)(self.world.scope(**vars)) if isinstance(raw, str) else raw
+        except ExprError as exc:
+            raise RunError(str(exc), path) from None
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or value != value or value < 0:
+            raise RunError(f"must be a time ≥ 0, got {value!r}", path)
+        return float(value)
 
     def _simultaneous(self, stage: StageSpec, agents: List[Entity], pass_index: int) -> _Steps:
         reasons: Dict[str, str] = {}

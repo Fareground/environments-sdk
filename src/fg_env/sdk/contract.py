@@ -139,6 +139,10 @@ class Clock(_Model):
     unit: str = Field("round", description="Name of one round: day, week, turn, hour …")
     start: Optional[str] = Field(None, description="ISO date of round 1 (adds a calendar date).")
     step: int = Field(1, description="Units per round (e.g. 7 with unit 'day' = weekly rounds).")
+    mode: str = Field("rounds", description="rounds (every round is one step) | continuous (time is a number: actions take `duration`, `scheduled` stages wake agents when their time comes).")
+    tick: float = Field(1.0, gt=0, description="Continuous: how far time moves when nothing is due sooner.")
+    jump: bool = Field(True, description="Continuous: jump straight to the next moment something is due (an agent's turn or an `after` effect) instead of moving by `tick`.")
+    horizon: Union[float, str, None] = Field(None, description="Continuous: the run completes when time would pass this (number or expression over $inputs).")
 
     @field_validator("rounds")
     @classmethod
@@ -374,6 +378,7 @@ class ActionSpec(_Model):
     terminal: Union[bool, str] = Field(False, description="Taking it ends the agent's turn: true, or an expression checked after it applies ($actor, $params).")
     per_turn: Optional[int] = Field(None, description="Max uses per turn.")
     per_round: Optional[int] = Field(None, description="Max uses per round.")
+    duration: Union[float, str, None] = Field(None, description="Continuous clock: how long it takes (number or expression over $actor, $params); the actor's next scheduled turn comes that much later.")
 
     @model_validator(mode="before")
     @classmethod
@@ -389,7 +394,9 @@ class StageSpec(_Model):
     name: str
     when: Optional[str] = Field(None, description="Run this stage only when true (e.g. $round == 1).")
     actions: Union[str, List[str], Dict[str, List[str]]] = Field("all", description="'all', a list, or {type: [actions]}.")
-    turns: str = Field("sequential", description="sequential (one after another, effects immediate) | simultaneous (same picture, committed together).")
+    turns: str = Field("sequential", description="sequential (one after another, effects immediate) | simultaneous (same picture, committed together) | scheduled (continuous clock: each agent whose wake time has come, earliest first).")
+    interval: Union[float, str, None] = Field(None, description="Scheduled turns: time until an agent that took no timed action is woken again (number or expression over $actor; default clock.tick).")
+    first_wake: Union[float, str, None] = Field(None, description="Scheduled turns: each agent's first wake time (number or expression over $it, $i; default 0).")
     order: str = Field("seat", description="seat | random | expression over $it (lowest first).")
     who: Optional[str] = Field(None, description="Which agents are woken ($it); e.g. $it.alive && $chance(0.3).")
     until: Optional[str] = Field(None, description="Repeat turns within the round until true.")

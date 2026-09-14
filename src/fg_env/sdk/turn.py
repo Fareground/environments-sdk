@@ -60,6 +60,8 @@ class Turn:
         #: What this agent already did (sequential) or submitted (simultaneous) this turn, as $pending.
         self.pending: List[Dict[str, Any]] = []
         self.stats = Stats(wakes=1)
+        #: Clock time taken by this turn's actions (continuous clock).
+        self.elapsed = 0.0
         self._offered = False
         self._tools: Optional[List[ToolSpec]] = None
         if peek:
@@ -203,6 +205,8 @@ class Turn:
             return self._after(ToolResult(False, outcome.text, data=_REJECTED))
         self._count(name)
         self.pending.append({"action": name, **_plain(params)})
+        if env.world.continuous:
+            self.elapsed += env.actions.duration(self.actor, name, params)
         env._after_commit(f"actions.{name}")
         self.stats.actions += 1
         ended = env.actions.ends_turn(self.actor, name, params) or self.actions_left <= 0 or env.world.end_request is not None

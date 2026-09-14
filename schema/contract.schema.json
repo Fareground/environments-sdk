@@ -138,6 +138,22 @@
           "default": null,
           "description": "Max uses per round.",
           "title": "Per Round"
+        },
+        "duration": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Continuous clock: how long it takes (number or expression over $actor, $params); the actor's next scheduled turn comes that much later.",
+          "title": "Duration"
         }
       },
       "required": [
@@ -267,6 +283,41 @@
           "description": "Units per round (e.g. 7 with unit 'day' = weekly rounds).",
           "title": "Step",
           "type": "integer"
+        },
+        "mode": {
+          "default": "rounds",
+          "description": "rounds (every round is one step) | continuous (time is a number: actions take `duration`, `scheduled` stages wake agents when their time comes).",
+          "title": "Mode",
+          "type": "string"
+        },
+        "tick": {
+          "default": 1.0,
+          "description": "Continuous: how far time moves when nothing is due sooner.",
+          "exclusiveMinimum": 0,
+          "title": "Tick",
+          "type": "number"
+        },
+        "jump": {
+          "default": true,
+          "description": "Continuous: jump straight to the next moment something is due (an agent's turn or an `after` effect) instead of moving by `tick`.",
+          "title": "Jump",
+          "type": "boolean"
+        },
+        "horizon": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Continuous: the run completes when time would pass this (number or expression over $inputs).",
+          "title": "Horizon"
         }
       },
       "title": "Clock",
@@ -1702,9 +1753,41 @@
         },
         "turns": {
           "default": "sequential",
-          "description": "sequential (one after another, effects immediate) | simultaneous (same picture, committed together).",
+          "description": "sequential (one after another, effects immediate) | simultaneous (same picture, committed together) | scheduled (continuous clock: each agent whose wake time has come, earliest first).",
           "title": "Turns",
           "type": "string"
+        },
+        "interval": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Scheduled turns: time until an agent that took no timed action is woken again (number or expression over $actor; default clock.tick).",
+          "title": "Interval"
+        },
+        "first_wake": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Scheduled turns: each agent's first wake time (number or expression over $it, $i; default 0).",
+          "title": "First Wake"
         },
         "order": {
           "default": "seat",

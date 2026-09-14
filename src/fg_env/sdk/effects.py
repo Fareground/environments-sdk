@@ -57,7 +57,7 @@ EFFECT_OPS: Dict[str, Tuple[str, ...]] = {
     "fail": ("fail",),
     "end": ("end", "winner", "say"),
     "after": ("after", "do"),
-    "wake": ("wake", "why"),
+    "wake": ("wake", "why", "in"),
     "repeat": ("repeat", "while", "do"),
     "block": ("block", "with"),
 }
@@ -443,15 +443,29 @@ class EffectRunner:
         self.world.request_end(str(effect["end"]), _plain_value(winner), self._text(effect.get("say"), vars))
 
     def _op_after(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-        rounds = self._eval(effect["after"], vars)
-        if isinstance(rounds, bool) or not isinstance(rounds, int) or rounds < 1:
-            raise RunError(f"`after` needs a whole number of rounds ≥ 1, got {rounds!r}", where)
-        self.world.schedule(self.world.round + rounds, effect.get("do") or [], vars, f"{where}.do")
+        delay = self._eval(effect["after"], vars)
+        world = self.world
+        if world.continuous:
+            if isinstance(delay, bool) or not isinstance(delay, (int, float)) or not delay > 0:
+                raise RunError(f"`after` needs a time greater than 0 on a continuous clock, got {delay!r}", where)
+            world.schedule(world.time + delay, effect.get("do") or [], vars, f"{where}.do")
+            return
+        if isinstance(delay, bool) or not isinstance(delay, int) or delay < 1:
+            raise RunError(f"`after` needs a whole number of rounds ≥ 1, got {delay!r}", where)
+        world.schedule(world.round + delay, effect.get("do") or [], vars, f"{where}.do")
 
     def _op_wake(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
         why = self._text(effect.get("why"), vars) or "You were asked to act."
+        world = self.world
+        delay = self._eval(effect["in"], vars) if "in" in effect else 0
+        if "in" in effect and not world.continuous:
+            raise RunError("`in` needs a continuous clock (clock.mode: continuous)", where)
+        if isinstance(delay, bool) or not isinstance(delay, (int, float)) or delay < 0:
+            raise RunError(f"`in` must be a time ≥ 0, got {delay!r}", where)
         for entity_id in _to_ids(self._eval(effect["wake"], vars), where) or ():
-            self.world.request_wake(entity_id, why)
+            world.request_wake(entity_id, why)
+            if world.continuous:
+                world.set_wake_at(entity_id, world.time + delay)
 
     def _op_block(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
         name = effect["block"]

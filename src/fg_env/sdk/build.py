@@ -59,7 +59,17 @@ def _value(world: SdkWorld, raw: Any, vars: Dict[str, Any]) -> Any:
 
 
 def _rounds(world: SdkWorld) -> int:
-    rounds = _value(world, world.contract.clock.rounds, {})
+    clock = world.contract.clock
+    if clock.mode == "continuous":
+        horizon = _value(world, clock.horizon, {}) if clock.horizon is not None else None
+        if horizon is not None and (isinstance(horizon, bool) or not isinstance(horizon, (int, float)) or horizon < 0):
+            raise RunError(f"must be a time ≥ 0, got {horizon!r}", "clock.horizon")
+        world.horizon = float(horizon) if horizon is not None else None
+        if "rounds" not in clock.model_fields_set:
+            if world.horizon is None:
+                raise RunError("a continuous clock needs a `horizon` (or an explicit `rounds` budget)", "clock")
+            return MAX_ROUNDS
+    rounds = _value(world, clock.rounds, {})
     if isinstance(rounds, float) and rounds.is_integer():
         rounds = int(rounds)
     if isinstance(rounds, bool) or not isinstance(rounds, int) or rounds < 1:

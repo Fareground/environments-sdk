@@ -90,6 +90,7 @@ def take_snapshot(env: "Env") -> Dict[str, Any]:
         "scheduled": [[due, order, encode(item)] for due, order, item in w.scheduled],
         "schedule_seq": w._schedule_seq,
         "wake_requests": encode(w.wake_requests),
+        "time": w.time, "horizon": w.horizon, "wake_at": dict(w.wake_at),
         "counters": dict(w.counters), "end_request": encode(w.end_request),
         "fired_once": sorted(env._fired_once),
         "turn_count": env._turn_count,
@@ -162,7 +163,8 @@ def _restore(cls: Type[_E], contract: Contract, snapshot: Mapping[str, Any], par
     for raw in snapshot["log"]:
         e = decode(raw)
         w.log.append(LogEvent(e["seq"], e["round"], e["kind"], e.get("text", ""), e.get("actor"),
-                              tuple(e["to"]) if e.get("to") is not None else None, e.get("data", {}), e.get("stage")))
+                              tuple(e["to"]) if e.get("to") is not None else None, e.get("data", {}), e.get("stage"),
+                              e.get("time")))
     w._seq = snapshot["seq"]
     if snapshot.get("physics") and w.physics is not None:
         restored = PhysicsModel.from_dict(snapshot["physics"])
@@ -174,6 +176,8 @@ def _restore(cls: Type[_E], contract: Contract, snapshot: Mapping[str, Any], par
     w.scheduled = [(due, order, decode(item)) for due, order, item in snapshot["scheduled"]]
     w._schedule_seq = snapshot["schedule_seq"]
     w.wake_requests = decode(snapshot["wake_requests"])
+    w.time, w.horizon = float(snapshot["time"]), snapshot.get("horizon")
+    w.wake_at = {str(k): float(v) for k, v in snapshot["wake_at"].items()}
     w.counters = dict(snapshot["counters"])
     w.end_request = decode(snapshot.get("end_request"))
     w.round, w.rounds = snapshot["round"], snapshot["rounds"]

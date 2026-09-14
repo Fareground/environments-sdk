@@ -70,6 +70,8 @@ class RunResult:
     series: Dict[str, List[Any]]
     winner: Any = None
     error: Optional[str] = None
+    #: The clock time reached (continuous clock), else None.
+    time: Optional[float] = None
     output_issues: List[Dict[str, Any]] = field(default_factory=list)
     stats: Dict[str, Any] = field(default_factory=dict)
     events: List[Dict[str, Any]] = field(default_factory=list)

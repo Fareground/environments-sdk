@@ -282,8 +282,9 @@ class _Checker:
             if first not in self.c.metrics:
                 self.error(path, f"$series.{first}: no such metric", self._suggest(first, self.c.metrics))
         elif root == "clock":
-            if first not in ("round", "rounds", "left", "unit", "date", "label"):
-                self.error(path, f"$clock.{first}: no such field", "clock fields: round, rounds, left, unit, date, label")
+            if first not in ("round", "rounds", "left", "unit", "date", "label", "time", "horizon"):
+                self.error(path, f"$clock.{first}: no such field",
+                           "clock fields: round, rounds, left, unit, date, label, time, horizon")
 
     def _spec_for(self, chain: Tuple[str, ...], types: Types, params: Mapping[str, C.ParamSpec]) -> Optional[Tuple[Any, str]]:
         """``(allowed values, kind)`` of the field a chain reads, when statically known."""
@@ -463,6 +464,9 @@ class _Checker:
                 v("to")
             if op == "wake":
                 self.template(effect.get("why"), f"{path}.why", None, roots, types, params)
+                v("in")
+                if "in" in effect and self.c.clock.mode != "continuous":
+                    self.error(f"{path}.in", "`in` needs a continuous clock", "set clock.mode to continuous")
         elif op == "transfer":
             prop = effect["transfer"]
             if not any(prop in props for props in self.type_props.values()):
@@ -601,6 +605,16 @@ class _Checker:
                 self.error("clock.start", f"'{clock.start}' is not an ISO date", "e.g. 2026-01-31")
         if clock.step < 1:
             self.error("clock.step", "must be at least 1")
+        if clock.mode not in ("rounds", "continuous"):
+            self.error("clock.mode", f"unknown mode '{clock.mode}'", "rounds or continuous")
+        elif clock.mode == "continuous":
+            if clock.horizon is None and "rounds" not in clock.model_fields_set:
+                self.error("clock", "a continuous clock needs a `horizon` (or an explicit `rounds` budget)",
+                           "e.g. \"horizon\": 480 with unit minute")
+            if isinstance(clock.horizon, str):
+                self.expr(clock.horizon, "clock.horizon", {"inputs"})
+        elif clock.horizon is not None or "tick" in clock.model_fields_set or "jump" in clock.model_fields_set:
+            self.warn("clock", "horizon, tick and jump only apply with \"mode\": \"continuous\"")
         if clock.start and clock.unit.lower().rstrip("s") not in ("day", "week", "month", "year", "hour", "minute"):
             self.warn("clock.start", f"a calendar date is not shown for unit '{clock.unit}'",
                       "use day, week, month, year, hour or minute")
@@ -773,6 +787,9 @@ class _Checker:
                 self.expr(condition.expr, f"{path}.when[{index}]", BASE | {"actor"}, types)
             roots = set(BASE | {"actor", "params"})
             self.value(spec.chance, f"{path}.chance", roots, types, spec.params)
+            self.value(spec.duration, f"{path}.duration", roots, types, spec.params)
+            if spec.duration is not None and self.c.clock.mode != "continuous":
+                self.warn(f"{path}.duration", "duration only applies with a continuous clock")
             after = self.effects(spec.do, f"{path}.do", roots, dict(types), spec.params)
             after |= self.effects(spec.otherwise, f"{path}.otherwise", roots, dict(types), spec.params)
             if spec.otherwise and spec.chance is None:
@@ -834,8 +851,15 @@ class _Checker:
                     self._type(type_name, f"{path}.actions.{type_name}", agent=True)
             elif isinstance(stage.actions, str) and stage.actions != "all":
                 self.error(f"{path}.actions", "use 'all', a list of action names, or {type: [actions]}")
-            if stage.turns not in ("sequential", "simultaneous"):
-                self.error(f"{path}.turns", f"unknown turns '{stage.turns}'", "sequential or simultaneous")
+            if stage.turns not in ("sequential", "simultaneous", "scheduled"):
+                self.error(f"{path}.turns", f"unknown turns '{stage.turns}'", "sequential, simultaneous or scheduled")
+            continuous = self.c.clock.mode == "continuous"
+            if stage.turns == "scheduled" and not continuous:
+                self.error(f"{path}.turns", "scheduled turns need a continuous clock", "set clock.mode to continuous")
+            if (stage.interval is not None or stage.first_wake is not None) and stage.turns != "scheduled":
+                self.warn(path, "interval and first_wake only apply to scheduled turns")
+            self.value(stage.interval, f"{path}.interval", BASE | {"actor"}, {"actor": set(self.agents)})
+            self.value(stage.first_wake, f"{path}.first_wake", BASE | {"it", "i"}, {"it": set(self.agents)})
             if stage.quiet not in ("wake", "skip"):
                 self.error(f"{path}.quiet", f"unknown quiet '{stage.quiet}'", "wake or skip")
             if stage.max_actions < 1 or stage.max_calls < 1:

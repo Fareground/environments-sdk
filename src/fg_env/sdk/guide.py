@@ -213,14 +213,20 @@ _EFFECT_EXAMPLES = {
     "emit": '{"emit": "shock", "say": "Prices jump {$world.inflation|pct}.", "to": "$filter(buyer, $it.vip)", "data": {}}',
     "fail": '{"fail": "You cannot afford that."}  (roll back the action; text goes to the actor)',
     "end": '{"end": "bankrupt", "winner": "$top(player, $it.score, 1)[0]", "say": "..."}',
-    "after": '{"after": 3, "do": [...]}  (runs 3 rounds later with the same locals)',
-    "wake": '{"wake": "$params.who", "why": "{$actor.name} asked you a question."}',
+    "after": '{"after": 3, "do": [...]}  (runs 3 rounds later with the same locals; on a continuous clock, 3 time units later)',
+    "wake": '{"wake": "$params.who", "why": "{$actor.name} asked you a question.", "in": 5}  (in: continuous clock only — wake them that much later)',
     "repeat": '{"repeat": 1000, "while": "$count(order) > 1", "do": [...]}  (error if still true at the limit)',
     "block": '{"block": "settle", "with": {"buyer": "$actor", "qty": "$params.qty"}}  (runs a named effect list from `blocks`)',
 }
 
 _PATTERNS = """\
 ## Patterns for common mechanics
+
+* Continuous time (clinics, queues, trading days, emergencies): `"clock": {"mode": "continuous",
+  "unit": "minute", "horizon": 480}`, a stage with `"turns": "scheduled"`, and `"duration"` on actions.
+  Each agent acts when its time comes (earliest first) and next acts `duration` later (or the stage
+  `interval` if it did nothing timed); `$clock.time` is the time; `after` and `wake` with `in` schedule
+  by time; physics rates are per time unit. The run jumps from one due moment to the next.
 
 * Money & trade: number props + `transfer` (atomic, never negative). Invariants like
   `"$all(trader, $it.cash >= 0)"` guard the books.

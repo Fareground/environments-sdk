@@ -499,6 +499,19 @@ class ActionBook:
             raise
         return Outcome(True, text, success, params)
 
+    def duration(self, actor: Entity, name: str, params: Dict[str, Any]) -> float:
+        """How long the action takes on a continuous clock (0 when it declares no duration)."""
+        raw = self.contract.actions[name].duration
+        if raw is None:
+            return 0.0
+        try:
+            value = compile_expr(raw)(self.world.scope(actor=actor, params=params)) if is_expr(raw) else raw
+        except ExprError as exc:
+            raise RunError(str(exc), f"actions.{name}.duration") from None
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
+            raise RunError(f"duration must be a number ≥ 0, got {format_value(value)}", f"actions.{name}.duration")
+        return float(value)
+
     def ends_turn(self, actor: Entity, name: str, params: Dict[str, Any]) -> bool:
         terminal = self.contract.actions[name].terminal
         if isinstance(terminal, bool):

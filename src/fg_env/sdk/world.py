@@ -73,12 +73,14 @@ class LogEvent:
     to: Optional[Tuple[str, ...]] = None
     data: Dict[str, Any] = field(default_factory=dict)
     stage: Optional[str] = None
+    #: Clock time when it happened (continuous clock only).
+    time: Optional[float] = None
 
     def visible_to(self, entity_id: str) -> bool:
         return self.to is None or entity_id in self.to
 
     def expr_attr(self, name: str, source: Optional[str]) -> Any:
-        if name in ("seq", "round", "kind", "text", "actor", "stage"):
+        if name in ("seq", "round", "kind", "text", "actor", "stage", "time"):
             return getattr(self, name)
         if name in self.data:
             return self.data[name]
@@ -94,6 +96,8 @@ class LogEvent:
             out["to"] = list(self.to)
         if self.data:
             out["data"] = self.data
+        if self.time is not None:
+            out["time"] = self.time
         return out
 
 
@@ -146,7 +150,11 @@ class _Clock:
             return w.date()
         if name == "label":
             return w.clock_label()
-        raise ExprError(f"clock has no field '{name}' (round, rounds, left, unit, date, label)", source)
+        if name == "time":
+            return w.now()
+        if name == "horizon":
+            return w.horizon
+        raise ExprError(f"clock has no field '{name}' (round, rounds, left, unit, date, label, time, horizon)", source)
 
 
 class _Journal:
@@ -200,6 +208,10 @@ class SdkWorld(World):
         self.series: Dict[str, List[Any]] = {}
         self.scheduled: List[Tuple[int, int, Dict[str, Any]]] = []
         self.wake_requests: Dict[str, str] = {}
+        #: Continuous clock: the current time, when the run completes, and each agent's next wake time.
+        self.time = 0.0
+        self.horizon: Optional[float] = None
+        self.wake_at: Dict[str, float] = {}
         #: Tie-break for scheduled effects due in the same round: the order they were scheduled.
         self._schedule_seq = 0
         #: Shortest-path distances on the (static) place graph, filled as they are asked for.
@@ -399,11 +411,33 @@ class SdkWorld(World):
 
     # -- clock ---------------------------------------------------------------
 
+    @property
+    def continuous(self) -> bool:
+        return self.contract.clock.mode == "continuous"
+
+    def now(self) -> float:
+        """The current time: the clock time when continuous, otherwise the round number."""
+        return self.time if self.continuous else self.round
+
+    def set_wake_at(self, entity_id: str, when: float) -> None:
+        missing = entity_id not in self.wake_at
+        old = self.wake_at.get(entity_id)
+        self.wake_at[entity_id] = float(when)
+
+        def undo() -> None:
+            if missing:
+                self.wake_at.pop(entity_id, None)
+            else:
+                self.wake_at[entity_id] = old  # type: ignore[assignment]
+
+        self.journal.push(undo)
+
     def date(self) -> Optional[str]:
         clock = self.contract.clock
         if not clock.start:
             return None
-        n = clock.step * max(0, max(1, self.round) - 1)
+        elapsed = self.time if self.continuous else max(0, max(1, self.round) - 1)
+        n = clock.step * elapsed
         unit = clock.unit.lower().rstrip("s")
         if unit in ("hour", "minute"):
             moment = _dt.datetime.fromisoformat(clock.start)
@@ -412,17 +446,22 @@ class SdkWorld(World):
         start = _dt.date.fromisoformat(clock.start[:10])
         if unit in ("day", "week"):
             return (start + _dt.timedelta(days=(7 if unit == "week" else 1) * n)).isoformat()
+        whole = int(n)
         if unit == "month":
-            months = start.month - 1 + n
+            months = start.month - 1 + whole
             year, month = start.year + months // 12, months % 12 + 1
             return _dt.date(year, month, min(start.day, 28)).isoformat()
         if unit == "year":
-            return str(start.year + n)
+            return str(start.year + whole)
         return None
 
     def clock_label(self) -> str:
         unit = self.contract.clock.unit
-        label = f"{unit[:1].upper()}{unit[1:]} {max(1, self.round)} of {self.rounds}"
+        name = f"{unit[:1].upper()}{unit[1:]}"
+        if self.continuous:
+            label = f"{name} {_short(self.time)}" + (f" of {_short(self.horizon)}" if self.horizon is not None else "")
+        else:
+            label = f"{name} {max(1, self.round)} of {self.rounds}"
         date = self.date()
         return f"{label} ({date})" if date else label
 
@@ -660,7 +699,8 @@ class SdkWorld(World):
              to: Optional[Iterable[str]] = None, data: Optional[Dict[str, Any]] = None) -> LogEvent:
         self._seq += 1
         event = LogEvent(self._seq, self.round, kind, text, actor,
-                         tuple(to) if to is not None else None, dict(data or {}), self.stage)
+                         tuple(to) if to is not None else None, dict(data or {}), self.stage,
+                         self.time if self.continuous else None)
         self.log.append(event)
 
         def undo() -> None:
@@ -673,7 +713,8 @@ class SdkWorld(World):
         self.journal.push(undo)
         return event
 
-    def schedule(self, due_round: int, effects: List[Any], vars: Dict[str, Any], path: str) -> None:
+    def schedule(self, due_round: float, effects: List[Any], vars: Dict[str, Any], path: str) -> None:
+        """Run ``effects`` when the round (or, on a continuous clock, the time) reaches ``due_round``."""
         item = {"effects": effects, "vars": {k: _freeze(v) for k, v in vars.items()}, "path": path}
         self._schedule_seq += 1
         entry = (due_round, self._schedule_seq, item)
@@ -777,12 +818,14 @@ class SdkWorld(World):
                 raise RunError(str(exc), f"physics.read.{name}") from None
             self.physics.params[name] = float(_number(value, f"physics.read.{name}"))
 
-    def step_physics(self) -> List[Dict[str, Any]]:
+    def step_physics(self, elapsed: Optional[float] = None) -> List[Dict[str, Any]]:
+        """Advance physics one round, or by ``elapsed`` clock time on a continuous clock
+        (rates are then per clock unit)."""
         spec = self.contract.physics
         if spec is None or self.physics is None:
             return []
         self._refresh_physics_reads()
-        changes = self.physics.integrate(spec.dt)
+        changes = self.physics.integrate(spec.dt if elapsed is None else spec.dt * elapsed)
         self.touch()
         errors = [c for c in changes if c.get("type") == "physics_error"]
         if errors:
@@ -828,6 +871,12 @@ def _pure_defs(contract: Contract) -> frozenset:
                 impure.add(name)
                 changed = True
     return frozenset(uses) - impure
+
+
+def _short(value: Optional[float]) -> str:
+    if value is None:
+        return ""
+    return f"{value:.10g}" if isinstance(value, float) else str(value)
 
 
 def _id(value: Any) -> str:
