@@ -1,0 +1,21 @@
+{
+  "actions": 600,
+  "events": 1200,
+  "events_sha256": "1da50f9d0392a861740e7a6009aa85fd1e0003f0aee8ee308231ccc6321b6152",
+  "metrics": {
+    "active_subscribers": 0,
+    "avg_list_price": 4.11,
+    "avg_paid_price": 3.92,
+    "cups_sold": 83,
+    "share_bean_there": 0.2771,
+    "share_campus_brew": 0.3133,
+    "share_daily_grind": 0.2651,
+    "share_nova": 0.0,
+    "share_riverside_roasters": 0.1446,
+    "spend_share_of_income": 0.01411,
+    "turned_away": 0
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 600
+}

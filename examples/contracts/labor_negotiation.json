@@ -1,0 +1,1038 @@
+{
+  "fg_env": "1",
+  "name": "Labor contract negotiation",
+  "description": "A union and a firm bargain over wages, benefits and a job guarantee with alternating offers, strikes and lockouts, a mediator from round 7, and a hard deadline.",
+  "inputs": {
+    "union_reservation": {
+      "type": "number",
+      "default": 45,
+      "min": 0,
+      "max": 100,
+      "unit": "points",
+      "description": "What the union is worth with no contract (walk-away value), on the union's 0-100 scale. Private to the union."
+    },
+    "firm_reservation": {
+      "type": "number",
+      "default": 40,
+      "min": 0,
+      "max": 100,
+      "unit": "points",
+      "description": "What the firm is worth with no contract (walk-away value), on the firm's 0-100 scale. Private to the firm."
+    },
+    "strike_cost": {
+      "type": "number",
+      "default": 4,
+      "min": 0,
+      "max": 25,
+      "unit": "points per round",
+      "description": "What each side loses for every round a strike or lockout lasts."
+    },
+    "deadline": {
+      "type": "int",
+      "default": 12,
+      "min": 7,
+      "max": 12,
+      "unit": "rounds",
+      "description": "Last round of bargaining. With no signed contract by then, both sides take their walk-away value minus dispute costs."
+    }
+  },
+  "brief": {
+    "situation": "The collective agreement at a manufacturing plant has expired. The union and the firm are bargaining over a new three-part contract: a wage increase (0 to 8%), a benefits package (basic, standard, enhanced or premium) and a job guarantee (0 to 5 years). A neutral mediator is available from round 7.",
+    "rules": "Bargaining uses alternating offers: the union moves in odd rounds, the firm in even rounds. On your move you may accept the other side's standing offer (the contract is signed immediately) or table a counter-offer that replaces it. The union may call a strike and the firm may declare a lockout; while either lasts, both sides lose the stated cost every round until the side that started it calls it off or a contract is signed. From round 7 the mediator may table one compromise proposal; both sides answer it in a sealed vote and it is signed only if both accept. There is a hard deadline: with no contract by then, each side takes its walk-away value minus everything the dispute cost it. Each side scores a contract from 0 to 100 points using its own private priorities; neither side knows the other's priorities or walk-away value.",
+    "roles": {
+      "union_rep": "You are the union's chief negotiator. Your members gain from a higher wage increase, better benefits and a longer job guarantee. Your goal is the highest score for the union after dispute costs. A contract below your walk-away value leaves members worse off than no deal.",
+      "firm_rep": "You are the firm's chief negotiator. The firm gains from a lower wage increase, leaner benefits and a shorter job guarantee. Your goal is the highest score for the firm after dispute costs. A contract below your walk-away value leaves the firm worse off than no deal.",
+      "mediator": "You are the neutral mediator. You do not know either side's priorities or walk-away values; you see only what they table. Your goal is a signed contract both sides can live with. From round 7 you may table exactly one compromise proposal, so time it and shape it well."
+    }
+  },
+  "clock": {
+    "rounds": "$inputs.deadline",
+    "unit": "round"
+  },
+  "world": {
+    "wage_cap": {
+      "default": 8,
+      "description": "Largest wage increase on the table (%)."
+    },
+    "years_cap": {
+      "default": 5,
+      "description": "Longest job guarantee on the table (years)."
+    },
+    "benefit_tiers": {
+      "type": "list",
+      "default": [
+        "basic",
+        "standard",
+        "enhanced",
+        "premium"
+      ]
+    },
+    "benefit_score": {
+      "type": "map",
+      "default": {
+        "basic": 0,
+        "standard": 0.3333,
+        "enhanced": 0.6667,
+        "premium": 1
+      }
+    },
+    "benefit_index": {
+      "type": "map",
+      "default": {
+        "basic": 0,
+        "standard": 1,
+        "enhanced": 2,
+        "premium": 3
+      }
+    },
+    "offer_by": {
+      "type": "enum",
+      "values": [
+        "none",
+        "union",
+        "firm"
+      ],
+      "default": "none"
+    },
+    "offer_wage": 0.0,
+    "offer_benefits": {
+      "type": "enum",
+      "values": [
+        "basic",
+        "standard",
+        "enhanced",
+        "premium"
+      ],
+      "default": "basic"
+    },
+    "offer_years": {
+      "type": "int",
+      "default": 0
+    },
+    "offer_round": {
+      "type": "int",
+      "default": 0
+    },
+    "proposal_open": false,
+    "mediator_used": false,
+    "prop_wage": 0.0,
+    "prop_benefits": {
+      "type": "enum",
+      "values": [
+        "basic",
+        "standard",
+        "enhanced",
+        "premium"
+      ],
+      "default": "basic"
+    },
+    "prop_years": {
+      "type": "int",
+      "default": 0
+    },
+    "deal": false,
+    "deal_via": {
+      "type": "enum",
+      "values": [
+        "none",
+        "accepted offer",
+        "mediator proposal"
+      ],
+      "default": "none"
+    },
+    "deal_round": {
+      "type": "int",
+      "default": 0
+    },
+    "deal_wage": 0.0,
+    "deal_benefits": {
+      "type": "enum",
+      "values": [
+        "basic",
+        "standard",
+        "enhanced",
+        "premium"
+      ],
+      "default": "basic"
+    },
+    "deal_years": {
+      "type": "int",
+      "default": 0
+    },
+    "dispute": {
+      "type": "enum",
+      "values": [
+        "none",
+        "strike",
+        "lockout"
+      ],
+      "default": "none"
+    },
+    "dispute_since": {
+      "type": "int",
+      "default": 0
+    },
+    "strike_rounds": {
+      "type": "int",
+      "default": 0
+    },
+    "lockout_rounds": {
+      "type": "int",
+      "default": 0
+    }
+  },
+  "types": {
+    "union_rep": {
+      "agent": true,
+      "description": "The union's negotiating team.",
+      "props": {
+        "side": {
+          "type": "text",
+          "default": "union"
+        },
+        "flip": {
+          "default": 0,
+          "description": "0: more is better for this side; 1: less is better."
+        },
+        "reservation": {
+          "default": "$inputs.union_reservation",
+          "private": true
+        },
+        "w_wage": {
+          "default": 0.5,
+          "private": true
+        },
+        "w_benefits": {
+          "default": 0.3,
+          "private": true
+        },
+        "w_years": {
+          "default": 0.2,
+          "private": true
+        },
+        "costs": {
+          "default": 0.0,
+          "private": true
+        },
+        "offer_value": {
+          "default": 0.0,
+          "private": true
+        },
+        "proposal_value": {
+          "default": 0.0,
+          "private": true
+        },
+        "deal_value": {
+          "default": 0.0,
+          "private": true
+        },
+        "has_offered": false,
+        "last_wage": 0.0,
+        "last_benefits": {
+          "type": "enum",
+          "values": [
+            "basic",
+            "standard",
+            "enhanced",
+            "premium"
+          ],
+          "default": "basic"
+        },
+        "last_years": {
+          "type": "int",
+          "default": 0
+        },
+        "vote": {
+          "type": "enum",
+          "values": [
+            "none",
+            "accept",
+            "reject"
+          ],
+          "default": "none",
+          "private": true
+        }
+      }
+    },
+    "firm_rep": {
+      "agent": true,
+      "description": "The firm's negotiating team.",
+      "props": {
+        "side": {
+          "type": "text",
+          "default": "firm"
+        },
+        "flip": {
+          "default": 1,
+          "description": "0: more is better for this side; 1: less is better."
+        },
+        "reservation": {
+          "default": "$inputs.firm_reservation",
+          "private": true
+        },
+        "w_wage": {
+          "default": 0.6,
+          "private": true
+        },
+        "w_benefits": {
+          "default": 0.25,
+          "private": true
+        },
+        "w_years": {
+          "default": 0.15,
+          "private": true
+        },
+        "costs": {
+          "default": 0.0,
+          "private": true
+        },
+        "offer_value": {
+          "default": 0.0,
+          "private": true
+        },
+        "proposal_value": {
+          "default": 0.0,
+          "private": true
+        },
+        "deal_value": {
+          "default": 0.0,
+          "private": true
+        },
+        "has_offered": false,
+        "last_wage": 0.0,
+        "last_benefits": {
+          "type": "enum",
+          "values": [
+            "basic",
+            "standard",
+            "enhanced",
+            "premium"
+          ],
+          "default": "basic"
+        },
+        "last_years": {
+          "type": "int",
+          "default": 0
+        },
+        "vote": {
+          "type": "enum",
+          "values": [
+            "none",
+            "accept",
+            "reject"
+          ],
+          "default": "none",
+          "private": true
+        }
+      }
+    },
+    "mediator": {
+      "agent": true,
+      "description": "A neutral mediator.",
+      "policy": "split_difference",
+      "props": {}
+    }
+  },
+  "entities": {
+    "union": {
+      "type": "union_rep",
+      "name": "Union"
+    },
+    "firm": {
+      "type": "firm_rep",
+      "name": "Firm"
+    },
+    "mediator": {
+      "type": "mediator",
+      "name": "Mediator"
+    }
+  },
+  "records": {
+    "table_talk": {
+      "fields": {
+        "text": "text"
+      },
+      "show": "{author}: {text}",
+      "description": "What negotiators say across the table alongside their moves."
+    }
+  },
+  "actions": {
+    "accept_offer": {
+      "by": [
+        "union_rep",
+        "firm_rep"
+      ],
+      "description": "Accept the other side's standing offer. The contract is signed on those terms immediately and any strike or lockout ends.",
+      "when": [
+        {
+          "expr": "not $world.deal",
+          "why": "A contract is already signed."
+        },
+        {
+          "expr": "$world.offer_by != 'none'",
+          "why": "Nothing is on the table yet. Table an offer with counter_offer."
+        },
+        {
+          "expr": "$world.offer_by != $actor.side",
+          "why": "The standing offer is your own. Wait for the other side, or table a new one."
+        }
+      ],
+      "do": [
+        "$world.deal = true",
+        "$world.deal_via = 'accepted offer'",
+        "$world.deal_round = $round",
+        "$world.deal_wage = $world.offer_wage",
+        "$world.deal_benefits = $world.offer_benefits",
+        "$world.deal_years = $world.offer_years",
+        "$world.dispute = 'none'",
+        {
+          "each": "[$entity(union), $entity(firm)]",
+          "do": [
+            "$it.deal_value = $it.offer_value"
+          ]
+        }
+      ],
+      "outcome": "You accepted: wage +{$world.deal_wage|1}%, {$world.deal_benefits} benefits, {$world.deal_years}-year job guarantee. The contract is signed; it scores {$actor.deal_value|1} points for you.",
+      "announce": "{$actor.name} accepted the standing offer. Contract signed: wage +{$world.deal_wage|1}%, {$world.deal_benefits} benefits, {$world.deal_years}-year job guarantee.",
+      "terminal": true
+    },
+    "counter_offer": {
+      "by": [
+        "union_rep",
+        "firm_rep"
+      ],
+      "description": "Table a full contract offer. It replaces the standing offer and the other side answers on its next move.",
+      "when": [
+        {
+          "expr": "not $world.deal",
+          "why": "A contract is already signed."
+        }
+      ],
+      "params": {
+        "wage": {
+          "type": "number",
+          "min": 0,
+          "max": 8,
+          "description": "Wage increase in percent (0 to 8, one decimal)."
+        },
+        "benefits": {
+          "type": "enum",
+          "values": [
+            "basic",
+            "standard",
+            "enhanced",
+            "premium"
+          ],
+          "description": "Benefits package."
+        },
+        "years": {
+          "type": "int",
+          "min": 0,
+          "max": 5,
+          "description": "Job guarantee in years (0 to 5)."
+        },
+        "message": {
+          "type": "text",
+          "max_len": 280,
+          "default": "",
+          "description": "Optional short statement to the other side."
+        }
+      },
+      "do": [
+        "$world.offer_by = $actor.side",
+        "$world.offer_round = $round",
+        "$world.offer_wage = $round($params.wage, 1)",
+        "$world.offer_benefits = $params.benefits",
+        "$world.offer_years = $params.years",
+        "$actor.has_offered = true",
+        "$actor.last_wage = $world.offer_wage",
+        "$actor.last_benefits = $params.benefits",
+        "$actor.last_years = $params.years",
+        {
+          "each": "[$entity(union), $entity(firm)]",
+          "do": [
+            "$it.offer_value = 100 * ($it.w_wage * $abs($it.flip - $world.offer_wage / $world.wage_cap) + $it.w_benefits * $abs($it.flip - $get($world.benefit_score, $world.offer_benefits)) + $it.w_years * $abs($it.flip - $world.offer_years / $world.years_cap))"
+          ]
+        },
+        {
+          "if": "$params.message != ''",
+          "then": [
+            {
+              "post": "table_talk",
+              "text": "$params.message"
+            }
+          ]
+        }
+      ],
+      "outcome": "You tabled: wage +{$world.offer_wage|1}%, {$params.benefits} benefits, {$params.years}-year job guarantee. For you it scores {$actor.offer_value|1} points (walk-away {$actor.reservation|1}).",
+      "announce": "{$actor.name} tabled an offer: wage +{$world.offer_wage|1}%, {$params.benefits} benefits, {$params.years}-year job guarantee.",
+      "terminal": true
+    },
+    "call_strike": {
+      "by": "union_rep",
+      "description": "Call a strike. From this round on, both sides lose the dispute cost every round until you end it or a contract is signed. You can still table or accept an offer this turn.",
+      "when": [
+        {
+          "expr": "not $world.deal",
+          "why": "A contract is already signed."
+        },
+        {
+          "expr": "$world.dispute == 'none'",
+          "why": "A dispute is already under way."
+        }
+      ],
+      "do": [
+        "$world.dispute = strike",
+        "$world.dispute_since = $round"
+      ],
+      "outcome": "The union is on strike. Both sides now lose {$inputs.strike_cost|1} points per round.",
+      "announce": "The union has called a strike. Both sides lose {$inputs.strike_cost|1} points per round while it lasts."
+    },
+    "end_strike": {
+      "by": "union_rep",
+      "description": "Call off the strike; members return to work.",
+      "when": [
+        {
+          "expr": "$world.dispute == strike",
+          "why": "There is no strike to end."
+        }
+      ],
+      "do": [
+        "$world.dispute = 'none'"
+      ],
+      "outcome": "The strike is over.",
+      "announce": "The union has called off its strike."
+    },
+    "call_lockout": {
+      "by": "firm_rep",
+      "description": "Declare a lockout. From this round on, both sides lose the dispute cost every round until you lift it or a contract is signed. You can still table or accept an offer this turn.",
+      "when": [
+        {
+          "expr": "not $world.deal",
+          "why": "A contract is already signed."
+        },
+        {
+          "expr": "$world.dispute == 'none'",
+          "why": "A dispute is already under way."
+        }
+      ],
+      "do": [
+        "$world.dispute = lockout",
+        "$world.dispute_since = $round"
+      ],
+      "outcome": "The plant is locked out. Both sides now lose {$inputs.strike_cost|1} points per round.",
+      "announce": "The firm has declared a lockout. Both sides lose {$inputs.strike_cost|1} points per round while it lasts."
+    },
+    "end_lockout": {
+      "by": "firm_rep",
+      "description": "Lift the lockout; the plant reopens.",
+      "when": [
+        {
+          "expr": "$world.dispute == lockout",
+          "why": "There is no lockout to lift."
+        }
+      ],
+      "do": [
+        "$world.dispute = 'none'"
+      ],
+      "outcome": "The lockout is lifted.",
+      "announce": "The firm has lifted its lockout."
+    },
+    "propose_compromise": {
+      "by": "mediator",
+      "description": "Table your one compromise proposal. Both sides then vote on it in secret; it is signed only if both accept.",
+      "when": [
+        {
+          "expr": "$round > 6",
+          "why": "The mediator can only intervene from round 7."
+        },
+        {
+          "expr": "not $world.mediator_used",
+          "why": "You have already used your one proposal."
+        },
+        {
+          "expr": "not $world.deal",
+          "why": "A contract is already signed."
+        }
+      ],
+      "params": {
+        "wage": {
+          "type": "number",
+          "min": 0,
+          "max": 8,
+          "description": "Wage increase in percent (0 to 8, one decimal)."
+        },
+        "benefits": {
+          "type": "enum",
+          "values": [
+            "basic",
+            "standard",
+            "enhanced",
+            "premium"
+          ],
+          "description": "Benefits package."
+        },
+        "years": {
+          "type": "int",
+          "min": 0,
+          "max": 5,
+          "description": "Job guarantee in years (0 to 5)."
+        },
+        "message": {
+          "type": "text",
+          "max_len": 280,
+          "default": "",
+          "description": "Optional short rationale addressed to both sides."
+        }
+      },
+      "do": [
+        "$world.prop_wage = $round($params.wage, 1)",
+        "$world.prop_benefits = $params.benefits",
+        "$world.prop_years = $params.years",
+        "$world.proposal_open = true",
+        "$world.mediator_used = true",
+        {
+          "each": "[$entity(union), $entity(firm)]",
+          "do": [
+            "$it.vote = 'none'",
+            "$it.proposal_value = 100 * ($it.w_wage * $abs($it.flip - $world.prop_wage / $world.wage_cap) + $it.w_benefits * $abs($it.flip - $get($world.benefit_score, $world.prop_benefits)) + $it.w_years * $abs($it.flip - $world.prop_years / $world.years_cap))"
+          ]
+        },
+        {
+          "if": "$params.message != ''",
+          "then": [
+            {
+              "post": "table_talk",
+              "text": "$params.message"
+            }
+          ]
+        }
+      ],
+      "outcome": "You tabled the compromise: wage +{$world.prop_wage|1}%, {$params.benefits} benefits, {$params.years}-year job guarantee. Both sides now vote.",
+      "announce": "The mediator proposes a compromise: wage +{$world.prop_wage|1}%, {$params.benefits} benefits, {$params.years}-year job guarantee. Both sides vote on it now."
+    },
+    "vote_on_proposal": {
+      "by": [
+        "union_rep",
+        "firm_rep"
+      ],
+      "description": "Accept or reject the mediator's compromise. Votes are sealed; the contract is signed only if both sides accept.",
+      "when": [
+        {
+          "expr": "$world.proposal_open",
+          "why": "There is no mediator proposal to vote on."
+        }
+      ],
+      "params": {
+        "decision": {
+          "type": "enum",
+          "values": [
+            "accept",
+            "reject"
+          ]
+        }
+      },
+      "do": [
+        "$actor.vote = $params.decision"
+      ],
+      "outcome": "You voted to {$params.decision} the mediator's proposal.",
+      "private": true,
+      "terminal": true
+    }
+  },
+  "stages": [
+    {
+      "name": "mediation",
+      "when": "$round > 6 and not $world.deal and not $world.mediator_used",
+      "who": "$it.type == mediator",
+      "actions": [
+        "propose_compromise"
+      ],
+      "max_actions": 1,
+      "max_calls": 6,
+      "brief": "You may table your one compromise proposal now, or end your turn and wait for a better moment."
+    },
+    {
+      "name": "mediator_vote",
+      "when": "$world.proposal_open",
+      "who": "$it.type != mediator",
+      "turns": "simultaneous",
+      "actions": [
+        "vote_on_proposal"
+      ],
+      "max_actions": 1,
+      "max_calls": 6,
+      "brief": "Vote on the mediator's compromise. If you do not vote, it counts as a rejection.",
+      "on_exit": [
+        {
+          "if": "$entity(union).vote == accept and $entity(firm).vote == accept",
+          "then": [
+            "$world.deal = true",
+            "$world.deal_via = 'mediator proposal'",
+            "$world.deal_round = $round",
+            "$world.deal_wage = $world.prop_wage",
+            "$world.deal_benefits = $world.prop_benefits",
+            "$world.deal_years = $world.prop_years",
+            "$world.dispute = 'none'",
+            {
+              "each": "[$entity(union), $entity(firm)]",
+              "do": [
+                "$it.deal_value = $it.proposal_value"
+              ]
+            },
+            {
+              "emit": "mediated_deal",
+              "say": "Both sides accepted the mediator's compromise. Contract signed: wage +{$world.deal_wage|1}%, {$world.deal_benefits} benefits, {$world.deal_years}-year job guarantee."
+            }
+          ],
+          "else": [
+            {
+              "emit": "mediation_failed",
+              "say": "The mediator's compromise was not adopted (union: {$entity(union).vote}, firm: {$entity(firm).vote}). Bargaining continues."
+            }
+          ]
+        },
+        "$world.proposal_open = false"
+      ]
+    },
+    {
+      "name": "bargaining",
+      "when": "not $world.deal",
+      "who": "$it.type == (union_rep if $round % 2 == 1 else firm_rep)",
+      "actions": [
+        "accept_offer",
+        "counter_offer",
+        "call_strike",
+        "end_strike",
+        "call_lockout",
+        "end_lockout"
+      ],
+      "max_actions": 2,
+      "max_calls": 8,
+      "brief": "It is your move. Accept the standing offer or table a counter-offer; you may also start or end a strike or lockout first."
+    }
+  ],
+  "events": [
+    {
+      "name": "dispute_costs",
+      "phase": "end",
+      "when": "$world.dispute != 'none' and not $world.deal",
+      "do": [
+        {
+          "if": "$world.dispute == strike",
+          "then": [
+            "$world.strike_rounds += 1"
+          ],
+          "else": [
+            "$world.lockout_rounds += 1"
+          ]
+        },
+        {
+          "each": "[$entity(union), $entity(firm)]",
+          "do": [
+            "$it.costs += $inputs.strike_cost"
+          ]
+        }
+      ],
+      "say": "The {$world.dispute} cost each side {$inputs.strike_cost|1} points this round."
+    },
+    {
+      "name": "deadline_warning",
+      "phase": "start",
+      "when": "$round == $clock.rounds - 1 and not $world.deal",
+      "say": "Two rounds remain before the hard deadline."
+    },
+    {
+      "name": "deadline",
+      "phase": "end",
+      "when": "$round == $clock.rounds and not $world.deal",
+      "say": "The deadline has passed without a contract. Each side falls back to its walk-away value minus dispute costs."
+    }
+  ],
+  "views": {
+    "position": {
+      "for": [
+        "union_rep",
+        "firm_rep"
+      ],
+      "title": "Your private position",
+      "show": "Walk-away value {reservation|1} points. Priorities: wage {w_wage|pct}, benefits {w_benefits|pct}, job guarantee {w_years|pct}. Dispute costs so far: {costs|1} points."
+    },
+    "scoring": {
+      "for": [
+        "union_rep",
+        "firm_rep"
+      ],
+      "title": "How a contract scores for you (0-100)",
+      "show": "{$text('Wage 0%, basic benefits, 0 years score 0 on each issue; 8%, premium, 5 years score 100.' if $actor.flip == 0 else 'Wage 8%, premium benefits, 5 years score 0 on each issue; 0%, basic, 0 years score 100.')} Benefit steps are a third apart. Your score is the priority-weighted sum."
+    },
+    "nothing_tabled": {
+      "for": [
+        "union_rep",
+        "firm_rep",
+        "mediator"
+      ],
+      "title": "On the table",
+      "when": "$world.offer_by == 'none'",
+      "show": "Nothing tabled yet."
+    },
+    "standing_offer": {
+      "for": [
+        "union_rep",
+        "firm_rep",
+        "mediator"
+      ],
+      "title": "On the table",
+      "when": "$world.offer_by != 'none'",
+      "show": "{$entity($world.offer_by).name} offer from round {$world.offer_round}: wage +{$world.offer_wage|1}%, {$world.offer_benefits} benefits, {$world.offer_years}-year job guarantee."
+    },
+    "offer_value": {
+      "for": [
+        "union_rep",
+        "firm_rep"
+      ],
+      "when": "$world.offer_by != 'none'",
+      "show": "That offer scores {offer_value|1} points for you ({$text('above') if $actor.offer_value >= $actor.reservation else $text('below')} your walk-away value)."
+    },
+    "last_offers": {
+      "for": [
+        "mediator"
+      ],
+      "title": "Latest offers from each side",
+      "of": "$filter([$entity(union), $entity(firm)], $it.has_offered)",
+      "show": "{name}: wage +{last_wage|1}%, {last_benefits} benefits, {last_years}-year job guarantee",
+      "empty": "Neither side has tabled an offer yet."
+    },
+    "proposal": {
+      "for": [
+        "union_rep",
+        "firm_rep"
+      ],
+      "when": "$world.proposal_open",
+      "title": "Mediator's compromise",
+      "show": "Wage +{$world.prop_wage|1}%, {$world.prop_benefits} benefits, {$world.prop_years}-year job guarantee. It scores {proposal_value|1} points for you (walk-away {reservation|1})."
+    },
+    "dispute": {
+      "for": "all",
+      "when": "$world.dispute != 'none'",
+      "title": "Industrial action",
+      "show": "A {$world.dispute} has been running since round {$world.dispute_since}; it costs each side {$inputs.strike_cost|1} points per round."
+    },
+    "clock": {
+      "for": "all",
+      "show": "Hard deadline: end of round {$clock.rounds} ({$clock.rounds - $round} round(s) left). {$text('The mediator can table one proposal from round 7.') if not $world.mediator_used else $text('The mediator has used its proposal.')}"
+    }
+  },
+  "policies": {
+    "split_difference": {
+      "rules": [
+        {
+          "when": "$entity(union).has_offered and $entity(firm).has_offered",
+          "do": "propose_compromise",
+          "with": {
+            "wage": "$round(($entity(union).last_wage + $entity(firm).last_wage) / 2, 1)",
+            "benefits": "$world.benefit_tiers[$round(($get($world.benefit_index, $entity(union).last_benefits) + $get($world.benefit_index, $entity(firm).last_benefits)) / 2)]",
+            "years": "$round(($entity(union).last_years + $entity(firm).last_years) / 2)",
+            "message": "Both of you have moved. This splits the difference on every issue."
+          }
+        },
+        {
+          "do": "pass"
+        }
+      ]
+    },
+    "hardline_union": {
+      "repeat": true,
+      "rules": [
+        {
+          "when": "$actor.offer_value >= $actor.reservation + 12 - $round",
+          "do": "accept_offer"
+        },
+        {
+          "when": "$round >= 3 and $world.offer_by == firm and $actor.offer_value < $actor.reservation",
+          "do": "call_strike"
+        },
+        {
+          "when": "$world.dispute == strike and $actor.offer_value >= $actor.reservation",
+          "do": "end_strike"
+        },
+        {
+          "when": "$world.proposal_open",
+          "do": "vote_on_proposal",
+          "with": {
+            "decision": "$text('accept') if $actor.proposal_value >= $actor.reservation else $text('reject')"
+          }
+        },
+        {
+          "do": "counter_offer",
+          "with": {
+            "wage": "$clamp(7.5 - 0.5 * $round, 3, 8)",
+            "benefits": "premium if $round < 6 else enhanced",
+            "years": "5 if $round < 8 else 4",
+            "message": "Our members will not accept less."
+          }
+        }
+      ]
+    },
+    "conceding_firm": {
+      "repeat": true,
+      "rules": [
+        {
+          "when": "$actor.offer_value >= $max($actor.reservation, 75 - 3 * $round)",
+          "do": "accept_offer"
+        },
+        {
+          "when": "$world.proposal_open",
+          "do": "vote_on_proposal",
+          "with": {
+            "decision": "$text('accept') if $actor.proposal_value >= $actor.reservation else $text('reject')"
+          }
+        },
+        {
+          "do": "counter_offer",
+          "with": {
+            "wage": "$clamp(0.4 * $round - 0.8, 0, 4)",
+            "benefits": "standard if $round < 8 else enhanced",
+            "years": "$min(5, $floor($round / 2))",
+            "message": ""
+          }
+        }
+      ]
+    },
+    "reasonable": {
+      "repeat": true,
+      "rules": [
+        {
+          "when": "$actor.offer_value >= $actor.reservation + 20 * (1 - $round / $clock.rounds)",
+          "do": "accept_offer"
+        },
+        {
+          "when": "$world.proposal_open",
+          "do": "vote_on_proposal",
+          "with": {
+            "decision": "$text('accept') if $actor.proposal_value >= $actor.reservation else $text('reject')"
+          }
+        },
+        {
+          "do": "counter_offer",
+          "with": {
+            "wage": "$round($clamp(8 - 0.5 * $round, 2, 8), 1) if $actor.flip == 0 else $round($clamp(0.35 * $round, 0, 6), 1)",
+            "benefits": "premium if $actor.flip == 0 else standard",
+            "years": "$floor($clamp(6 - $round / 2, 3, 5)) if $actor.flip == 0 else $floor($clamp($round / 3, 0, 5))",
+            "message": ""
+          }
+        }
+      ]
+    }
+  },
+  "metrics": {
+    "union_offer_value": {
+      "expr": "$entity(union).offer_value",
+      "unit": "points",
+      "description": "Union's score of the standing offer."
+    },
+    "firm_offer_value": {
+      "expr": "$entity(firm).offer_value",
+      "unit": "points",
+      "description": "Firm's score of the standing offer."
+    },
+    "wage_gap": {
+      "expr": "$entity(union).last_wage - $entity(firm).last_wage if $entity(union).has_offered and $entity(firm).has_offered else null",
+      "unit": "%",
+      "description": "Distance between the latest wage offers."
+    },
+    "dispute_active": {
+      "expr": "1 if $world.dispute != 'none' else 0"
+    }
+  },
+  "outputs": {
+    "deal": {
+      "expr": "$world.deal",
+      "type": "bool",
+      "description": "Whether a contract was signed."
+    },
+    "agreed_via": {
+      "expr": "$world.deal_via",
+      "type": "text"
+    },
+    "final_wage": {
+      "expr": "$world.deal_wage if $world.deal else null",
+      "type": "number",
+      "description": "Wage increase in the signed contract (%)."
+    },
+    "final_benefits": {
+      "expr": "$world.deal_benefits if $world.deal else null",
+      "type": "text"
+    },
+    "final_years": {
+      "expr": "$world.deal_years if $world.deal else null",
+      "type": "int"
+    },
+    "final_terms": {
+      "expr": "'wage +' + $text($world.deal_wage) + '%, ' + $text($world.deal_benefits) + ' benefits, ' + $text($world.deal_years) + '-year job guarantee' if $world.deal else 'no contract'",
+      "type": "text"
+    },
+    "rounds_to_agreement": {
+      "expr": "$world.deal_round if $world.deal else null",
+      "type": "int"
+    },
+    "union_utility": {
+      "expr": "$round(($entity(union).deal_value if $world.deal else $entity(union).reservation) - $entity(union).costs, 2)",
+      "type": "number",
+      "description": "Union's final score after dispute costs."
+    },
+    "firm_utility": {
+      "expr": "$round(($entity(firm).deal_value if $world.deal else $entity(firm).reservation) - $entity(firm).costs, 2)",
+      "type": "number",
+      "description": "Firm's final score after dispute costs."
+    },
+    "union_surplus": {
+      "expr": "$round($outputs.union_utility - $entity(union).reservation, 2)",
+      "type": "number",
+      "description": "Union's gain over its walk-away value."
+    },
+    "firm_surplus": {
+      "expr": "$round($outputs.firm_utility - $entity(firm).reservation, 2)",
+      "type": "number",
+      "description": "Firm's gain over its walk-away value."
+    },
+    "joint_surplus": {
+      "expr": "$round($outputs.union_surplus + $outputs.firm_surplus, 2)",
+      "type": "number"
+    },
+    "union_surplus_share": {
+      "expr": "$round($outputs.union_surplus / $outputs.joint_surplus, 3) if $outputs.union_surplus > 0 and $outputs.firm_surplus > 0 else null",
+      "type": "number",
+      "description": "Union's share of the joint gain, when both sides gained."
+    },
+    "strike_rounds": {
+      "expr": "$world.strike_rounds",
+      "type": "int"
+    },
+    "lockout_rounds": {
+      "expr": "$world.lockout_rounds",
+      "type": "int"
+    }
+  },
+  "end": [
+    {
+      "when": "$world.deal",
+      "name": "agreement",
+      "say": "A new contract has been signed."
+    }
+  ],
+  "invariants": [
+    {
+      "expr": "$abs($entity(union).w_wage + $entity(union).w_benefits + $entity(union).w_years - 1) < 0.001",
+      "why": "Union priorities must sum to 1."
+    },
+    {
+      "expr": "$abs($entity(firm).w_wage + $entity(firm).w_benefits + $entity(firm).w_years - 1) < 0.001",
+      "why": "Firm priorities must sum to 1."
+    },
+    {
+      "expr": "$world.strike_rounds + $world.lockout_rounds <= $round",
+      "why": "Dispute rounds cannot exceed rounds played."
+    }
+  ]
+}

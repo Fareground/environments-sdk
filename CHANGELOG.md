@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Environment SDK (`fg-env`)
+
+The package is renamed `fg-env-kernel` → **`fg-env`** (import `fg_env`) and gains the
+contract-driven Environment SDK: define an environment as one JSON contract, and the engine runs it.
+
+#### Added
+- **One contract for any environment** (`fg_env.load(contract).run(participants)`): typed `inputs`,
+  static `brief`, `clock`, `space`, global `world` props, `types` with inheritance (`extends`),
+  named `entities`, sampled `population` (weighted rows, distributions), `relations` and generated
+  `links` networks, continuous `physics` (RK4) bound to the world, `records`, `actions` as typed tools,
+  `stages` (sequential or sealed simultaneous turns, `until`, `quiet`), declared `views`, `events`
+  (scheduled, periodic, conditional, random, per arm), coded `policies`, `metrics`, typed `outputs`,
+  `end` conditions, experiment `arms`, `invariants`, reusable `defs` (expressions) and `blocks` (effects).
+- **One strict, safe expression language** with aggregates (`$count`, `$sum`, `$top`, `$median`,
+  `$quantile`, `$dict` …), randomness from the run's seed tree, map literals, `$outer` in nested items.
+- **LLM-native turns**: a cacheable brief, a compact update (why now, what changed since the last
+  turn, ranked views), one JSON-Schema tool per legal action, correction text for invalid calls,
+  atomic actions with rollback, participant text kept «untrusted» wherever it travels.
+- **Participants**: any callable taking a `Wake`; built-in `random`, `idle`, `policy:<name>`, and
+  Anthropic / OpenAI tool-loop participants that take your own client.
+- **Tooling**: `fg_env.check` (every issue with its path and a fix; optional smoke rounds),
+  `env.preview`, snapshots (`env.snapshot()` / `Env.restore`), `fg_env.experiment` (arms × seeded runs,
+  common random numbers), generated authoring guide (`fg_env.guide()`), JSON Schema (`fg_env.schema()`),
+  CLI `fg-env check | run | preview | experiment | guide | schema`.
+- **Example contracts** in `examples/contracts/` — coffee market, forecasting council, order-book
+  exchange, civil trial, town epidemic, werewolf, labor negotiation, Connect Four, Hold'em-lite,
+  lemonade stand — each written by an LLM agent from the guide alone, with golden-run tests.
+
+#### Changed
+- **BREAKING:** distribution `fg-env-kernel` → `fg-env`, import `fg_env_kernel` → `fg_env`, console
+  script `fg-env-kernel` → `fg-env`. The template-based API (`Kernel`, `simulate`, `load_world`) is
+  still available under the new name.
+
+
 ### Fixed
 - `$entity(id).property` now resolves in action guards and termination predicates
   through the existing typed effect-value resolver. Missing entities/properties,

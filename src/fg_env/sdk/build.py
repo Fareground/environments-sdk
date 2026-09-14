@@ -19,6 +19,7 @@ __all__ = ["build_world"]
 def build_world(contract: Contract, inputs: Dict[str, Any], seeds: SeedTree, arm: Optional[str] = None) -> SdkWorld:
     world = SdkWorld(contract, inputs, seeds, arm)
     world.rng = seeds.rng("build")
+    pending_briefs: List[Tuple[str, str, Dict[str, Any], str]] = []
     try:
         world.rounds = _rounds(world)
         world.round = 0
@@ -26,11 +27,23 @@ def build_world(contract: Contract, inputs: Dict[str, Any], seeds: SeedTree, arm
         for entity_id, named in contract.entities.items():
             world.create(named.type, entity_id, named.name or entity_id, named.props, _value(world, named.at, {}),
                          world.scope(), f"entities.{entity_id}")
+            if named.brief:
+                pending_briefs.append((entity_id, named.brief, {}, f"entities.{entity_id}.brief"))
         for index, group in enumerate(contract.population):
-            _population(world, group, index)
+            _population(world, group, index, pending_briefs)
         for index, link in enumerate(contract.links):
             _links(world, link, index, seeds)
         world.build_physics()
+        world.series = {name: [] for name in contract.metrics}
+        world.metrics = {name: None for name in contract.metrics}
+        # Briefs render once the whole world exists, so they can count and read everything.
+        for entity_id, template, vars, path in pending_briefs:
+            actor = world.entities[entity_id]
+            try:
+                world.entity_briefs[entity_id] = compile_template(template, "actor").render(
+                    world.scope(actor=actor, **vars)).strip()
+            except ExprError as exc:
+                raise RunError(str(exc), path) from None
     except ExprError as exc:
         raise RunError(str(exc), "build") from None
     world.journal.clear()
@@ -60,7 +73,8 @@ def _world_props(world: SdkWorld) -> None:
         world.props[name] = world._coerce(spec, value, f"world.{name}")
 
 
-def _population(world: SdkWorld, spec: PopulationSpec, index: int) -> None:
+def _population(world: SdkWorld, spec: PopulationSpec, index: int,
+                pending_briefs: List[Tuple[str, str, Dict[str, Any], str]]) -> None:
     path = f"population[{index}]"
     rows: List[Any]
     if spec.from_ is not None:
@@ -96,7 +110,9 @@ def _population(world: SdkWorld, spec: PopulationSpec, index: int) -> None:
         else:
             name = f"{title} {n}"
         at = _value(world, spec.at, vars)
-        world.create(spec.type, entity_id, name, spec.props, at, scope, f"{path}[{n}]")
+        created = world.create(spec.type, entity_id, name, spec.props, at, scope, f"{path}[{n}]")
+        if spec.brief:
+            pending_briefs.append((created.id, spec.brief, {"i": n, "row": row}, f"{path}.brief"))
 
 
 def _whole(value: Any, where: str) -> float:
@@ -147,19 +163,26 @@ def _links(world: SdkWorld, spec: LinkSpec, index: int, seeds: SeedTree) -> None
         members = [m for m in members if truthy(_value(world, spec.where, {"it": m}))]
     rng = seeds.rng("links", index)
     n = len(members)
+    degree = _value(world, spec.degree, {}) if spec.degree is not None else None
+    p_value = _value(world, spec.p, {}) if spec.p is not None else None
+    if degree is not None and (isinstance(degree, bool) or not isinstance(degree, (int, float)) or degree < 1):
+        raise RunError(f"degree must be a number ≥ 1, got {degree!r}", f"{path}.degree")
+    if p_value is not None and (isinstance(p_value, bool) or not isinstance(p_value, (int, float)) or not 0 <= p_value <= 1):
+        raise RunError(f"p must be a number from 0 to 1, got {p_value!r}", f"{path}.p")
+    degree = int(degree) if degree is not None else None
     pairs: Set[Tuple[int, int]] = set()
     graph = spec.graph or "complete"
     if graph == "complete":
         pairs = {(i, j) for i in range(n) for j in range(i + 1, n)}
     elif graph == "ring":
-        k = max(1, (spec.degree or 2) // 2)
+        k = max(1, (degree or 2) // 2)
         pairs = {_pair(i, (i + d) % n) for i in range(n) for d in range(1, k + 1) if n > 1 and i != (i + d) % n}
     elif graph == "random":
-        p = spec.p if spec.p is not None else (min(1.0, (spec.degree or 4) / max(1, n - 1)))
+        p = p_value if p_value is not None else (min(1.0, (degree or 4) / max(1, n - 1)))
         pairs = {(i, j) for i in range(n) for j in range(i + 1, n) if rng.random() < p}
     elif graph == "small_world":
-        k = max(1, (spec.degree or 4) // 2)
-        p = spec.p if spec.p is not None else 0.1
+        k = max(1, (degree or 4) // 2)
+        p = p_value if p_value is not None else 0.1
         ring = sorted({_pair(i, (i + d) % n) for i in range(n) for d in range(1, k + 1) if n > 1 and i != (i + d) % n})
         for a, b in ring:
             if rng.random() < p and n > 2:

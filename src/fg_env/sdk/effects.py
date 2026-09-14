@@ -8,7 +8,7 @@ An effect list mixes assignment statements and keyed operations::
     {"each": "offer", "where": "$it.stock == 0", "do": ["$it.listed = false"]}
     {"create": "review", "props": {"stars": "$params.stars"}, "as": "made"}
     {"remove": "$params.target"}
-    {"transfer": "cash", "from": "$actor", "to": "$params.seller", "amount": 10}
+    {"transfer": "cash", "from": "$actor", "to": "$params.seller", "amount": 10, "into": "cash"}
     {"link": "follows", "from": "$actor", "to": "$params.who", "value": 1}
     {"unlink": "follows", "from": "$actor", "to": "$params.who"}
     {"move": "$actor", "to": "$params.place"}
@@ -19,6 +19,7 @@ An effect list mixes assignment statements and keyed operations::
     {"after": 3, "do": [...]}
     {"wake": "$params.who", "why": "{$actor.name} asked you a question."}
     {"repeat": 1000, "while": "$best_bid.price >= $best_ask.price", "do": [...]}
+    {"block": "settle", "with": {"buyer": "$actor", "qty": "$params.qty"}}
 
 Everything an action does is atomic: ``fail`` (or any error) rolls every change back.
 A ``repeat`` loop that is still running when its limit is reached is an error, so a
@@ -38,14 +39,14 @@ from .expr import Expr, ExprError, attr, compile_expr, is_expr, resolve, truthy
 from .template import compile_template
 from .world import Abort, SdkWorld, _Physics, _Props
 
-__all__ = ["EFFECT_OPS", "RESERVED_ROOTS", "Statement", "compile_statement", "EffectRunner"]
+__all__ = ["EFFECT_OPS", "RESERVED_ROOTS", "Statement", "compile_statement", "statement_parts", "split_statement", "EffectRunner"]
 
 EFFECT_OPS: Dict[str, Tuple[str, ...]] = {
     "if": ("if", "then", "else"),
     "each": ("each", "where", "do", "as"),
     "create": ("create", "count", "id", "name", "props", "at", "as"),
     "remove": ("remove",),
-    "transfer": ("transfer", "from", "to", "amount"),
+    "transfer": ("transfer", "from", "to", "amount", "into"),
     "link": ("link", "from", "to", "value"),
     "unlink": ("unlink", "from", "to"),
     "move": ("move", "to"),
@@ -56,6 +57,7 @@ EFFECT_OPS: Dict[str, Tuple[str, ...]] = {
     "after": ("after", "do"),
     "wake": ("wake", "why"),
     "repeat": ("repeat", "while", "do"),
+    "block": ("block", "with"),
 }
 
 #: Hard ceiling for one ``repeat`` loop, whatever the contract asks for.
@@ -66,10 +68,63 @@ RESERVED_ROOTS = frozenset({
     "stage", "metrics", "series", "arm", "viewer", "event",
 })
 
-_STATEMENT = re.compile(
-    r"^\s*\$([A-Za-z_][A-Za-z0-9_]*)((?:\.[A-Za-z_][A-Za-z0-9_]*)*)\s*(\+=|-=|\*=|/=|=)(?!=)\s*(.+?)\s*$",
-    re.S,
-)
+_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def split_statement(source: str) -> Optional[Tuple[str, str, str]]:
+    """``(left, operator, right)`` for an assignment text, or None when it is not one."""
+    depth, quote, i, n = 0, None, 0, len(source)
+    while i < n:
+        ch = source[i]
+        if quote:
+            if ch == "\\":
+                i += 2
+                continue
+            if ch == quote:
+                quote = None
+        elif ch in "\"'":
+            quote = ch
+        elif ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+        elif depth == 0:
+            for op in ("+=", "-=", "*=", "/="):
+                if source.startswith(op, i):
+                    return source[:i].strip(), op, source[i + 2:].strip()
+            if ch == "=" and not source.startswith("==", i) and (i == 0 or source[i - 1] not in "=!<>"):
+                return source[:i].strip(), "=", source[i + 1:].strip()
+        i += 1
+    return None
+
+
+def statement_parts(source: str) -> Tuple[Optional[str], Optional[str], Optional[str], str, str]:
+    """``(target, prop, local, op, value)`` of an assignment; raises :class:`ExprError` if malformed."""
+    parts = split_statement(source)
+    if parts is None or not parts[0].startswith("$") or not parts[2]:
+        raise ExprError(
+            "an effect text must be an assignment like `$actor.cash -= 5` or `$total = $params.qty * 2`",
+            source,
+        )
+    left, op, right = parts
+    if _NAME.match(left[1:]):
+        return None, None, left[1:], op, right
+    depth, quote, dot = 0, None, None
+    for i, ch in enumerate(left):
+        if quote:
+            if ch == quote:
+                quote = None
+        elif ch in "\"'":
+            quote = ch
+        elif ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+        elif ch == "." and depth == 0:
+            dot = i
+    if dot is None or not _NAME.match(left[dot + 1:]):
+        raise ExprError("the left side must end in a property, like `$actor.cash` or `$entity(x).cash`", source)
+    return left[:dot], left[dot + 1:], None, op, right
 
 
 @dataclass(frozen=True)
@@ -84,23 +139,14 @@ class Statement:
 
 @lru_cache(maxsize=8_192)
 def compile_statement(source: str) -> Statement:
-    match = _STATEMENT.match(source)
-    if not match:
-        raise ExprError(
-            "an effect text must be an assignment like `$actor.cash -= 5` or `$total = $params.qty * 2`",
-            source,
-        )
-    root, dotted, op, rhs = match.groups()
-    value = compile_expr(rhs)
-    if not dotted:
-        if root in RESERVED_ROOTS:
-            raise ExprError(f"${root} cannot be reassigned; assign to one of its fields instead", source)
-        if op != "=":
-            return Statement(source, compile_expr(f"${root}"), None, root, op, value)
-        return Statement(source, None, None, root, op, value)
-    parts = dotted.lstrip(".").split(".")
-    target_src = "$" + root + "".join("." + p for p in parts[:-1])
-    return Statement(source, compile_expr(target_src), parts[-1], None, op, value)
+    target, prop, local, op, right = statement_parts(source)
+    value = compile_expr(right)
+    if local is not None:
+        if local in RESERVED_ROOTS:
+            raise ExprError(f"${local} cannot be reassigned; assign to one of its fields instead", source)
+        return Statement(source, compile_expr(f"${local}") if op != "=" else None, None, local, op, value)
+    assert target is not None
+    return Statement(source, compile_expr(target), prop, None, op, value)
 
 
 def _to_ids(value: Any, where: str) -> Optional[Tuple[str, ...]]:
@@ -274,13 +320,14 @@ class EffectRunner:
         amount = self._eval(effect.get("amount"), vars)
         if isinstance(amount, bool) or not isinstance(amount, (int, float)) or amount < 0:
             raise RunError(f"transfer amount must be a number ≥ 0, got {amount!r}", where)
+        into = effect.get("into") or prop
         have = attr(source, prop, where)
         if have < amount:
             from .template import format_value
 
             raise Abort(f"{source.name} has only {format_value(have)} {prop}; {format_value(amount)} is needed.")
         self.world.set_prop(source, prop, have - amount)
-        self.world.set_prop(target, prop, attr(target, prop, where) + amount)
+        self.world.set_prop(target, into, attr(target, into, where) + amount)
 
     def _op_link(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
         value = self._eval(effect.get("value", 1), vars)
@@ -332,6 +379,24 @@ class EffectRunner:
         for entity_id in _to_ids(self._eval(effect["wake"], vars), where) or ():
             self.world.wake_requests[entity_id] = why
 
+    def _op_block(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        name = effect["block"]
+        spec = self.world.contract.blocks.get(name)
+        if spec is None:
+            raise RunError(f"'{name}' is not a declared block (blocks: {', '.join(self.world.contract.blocks) or 'none'})", where)
+        given = effect.get("with") or {}
+        if set(given) != set(spec.args):
+            raise RunError(f"block '{name}' takes arguments {spec.args}, got {sorted(given)}", where)
+        depth = getattr(self, "_depth", 0)
+        if depth >= 16:
+            raise RunError(f"block '{name}' runs blocks too deeply (recursion?)", where)
+        inner = {key: self._eval(value, vars) for key, value in given.items()}
+        self._depth = depth + 1
+        try:
+            self.run(spec.do, inner, f"blocks.{name}.do")
+        finally:
+            self._depth = depth
+
     def _op_repeat(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
         limit = self._eval(effect["repeat"], vars)
         if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= REPEAT_CEILING:
@@ -356,4 +421,4 @@ def _plain_value(value: Any) -> Any:
 
 
 def is_statement(value: Any) -> bool:
-    return isinstance(value, str) and is_expr(value) and bool(_STATEMENT.match(value))
+    return isinstance(value, str) and is_expr(value) and split_statement(value) is not None

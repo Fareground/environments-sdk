@@ -37,6 +37,8 @@ __all__ = [
     "OutputSpec",
     "EndSpec",
     "ArmSpec",
+    "DefSpec",
+    "BlockSpec",
     "InvariantSpec",
     "INPUT_TYPES",
     "PROP_TYPES",
@@ -89,9 +91,9 @@ class InputSpec(_Model):
 class Brief(_Model):
     """Static text every agent receives once per wake, before anything dynamic (cacheable)."""
 
-    situation: str = Field("", description="What this world is and what is going on.")
-    rules: str = Field("", description="How it works: what agents can do and what happens.")
-    roles: Dict[str, str] = Field(default_factory=dict, description="Extra brief per agent type.")
+    situation: str = Field("", description="What this world is and what is going on (template; {$inputs.x} works).")
+    rules: str = Field("", description="How it works: what agents can do and what happens (template).")
+    roles: Dict[str, str] = Field(default_factory=dict, description="Extra brief per agent type (template over $actor).")
 
 
 class Clock(_Model):
@@ -154,18 +156,23 @@ class PropSpec(_Model):
     @model_validator(mode="before")
     @classmethod
     def _shorthand(cls, data: Any) -> Any:
-        if isinstance(data, dict) and data and set(data) <= _PROP_KEYS:
+        # An object is a spec when it names `type` or `default` (other keys must then be
+        # valid spec keys); a map-valued default is written {"type": "map", "default": {...}}.
+        if isinstance(data, dict) and data and ("type" in data or "default" in data or set(data) <= _PROP_KEYS):
             return data
         return {"default": data}
 
 
 class TypeSpec(_Model):
-    """A kind of entity. ``agent: true`` types take turns."""
+    """A kind of entity. ``agent: true`` types take turns. ``extends`` inherits another type:
+    its props, its agent flag, and membership (``$count(trader)`` counts every kind of trader)."""
 
     agent: bool = False
+    extends: Optional[str] = Field(None, description="Parent type whose props and role this type inherits.")
     description: str = ""
     props: Dict[str, PropSpec] = Field(default_factory=dict)
     policy: Optional[str] = Field(None, description="Default coded policy for agents of this type.")
+    inspect: Union[bool, str] = Field(True, description="Whether agents may inspect these entities: true, false, or an expression over $viewer and $it.")
 
 
 class EntitySpec(_Model):
@@ -175,6 +182,7 @@ class EntitySpec(_Model):
     name: Optional[str] = None
     props: Dict[str, Any] = Field(default_factory=dict)
     at: Any = None
+    brief: Optional[str] = Field(None, description="Private text added to this entity's own brief (template).")
 
 
 class PopulationSpec(_Model):
@@ -190,6 +198,7 @@ class PopulationSpec(_Model):
     name: Optional[str] = Field(None, description="Name template.")
     props: Dict[str, Any] = Field(default_factory=dict, description="Values or expressions ($row, $i, $normal(...)).")
     at: Any = None
+    brief: Optional[str] = Field(None, description="Private text added to each generated entity's brief (template over $row, $i).")
 
 
 class RelationSpec(_Model):
@@ -211,8 +220,8 @@ class LinkSpec(_Model):
     value: Any = 1
     among: Optional[str] = Field(None, description="Generate links among entities of this type.")
     graph: Optional[str] = Field(None, description="complete | ring | random | small_world")
-    degree: Optional[int] = None
-    p: Optional[float] = Field(None, description="Link probability (random) or rewiring probability (small_world).")
+    degree: Union[int, str, None] = Field(None, description="Links per member (number or expression).")
+    p: Union[float, str, None] = Field(None, description="Link probability (random) or rewiring probability (small_world); number or expression.")
     where: Optional[str] = None
 
 
@@ -344,6 +353,7 @@ class ViewSpec(_Model):
     empty: Optional[str] = Field(None, description="Text when no items match (omit to hide the view).")
     when: Optional[str] = None
     look: bool = Field(False, description="Offer it on demand as look(view) instead of always including it.")
+    bullet: bool = Field(True, description="Prefix each item with '- ' (false for boards and tables).")
     only_changes: bool = Field(False, description="Include it only when it changed since the agent's last turn.")
 
 
@@ -357,6 +367,7 @@ class EventSpec(_Model):
     chance: Union[float, str, None] = Field(None, description="Probability of firing when otherwise due.")
     phase: str = Field("start", description="start (before stages) | end (after stages).")
     each: Optional[str] = Field(None, description="Run `do` once per item ($it): a type or expression.")
+    as_: Optional[str] = Field(None, alias="as", description="Name for the item instead of $it.")
     where: Optional[str] = None
     do: Effects = Field(default_factory=list)
     say: Optional[str] = Field(None, description="Headline agents receive as news.")
@@ -419,6 +430,29 @@ class EndSpec(_Model):
     say: Optional[str] = None
 
 
+class DefSpec(_Model):
+    """A named, reusable expression called like a built-in: ``$utility($actor, $params.offer)``.
+    Shorthand: the expression text (no arguments)."""
+
+    args: List[str] = Field(default_factory=list, description="Argument names; the body reads them as roots ($side).")
+    expr: str
+    description: str = ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _expand(cls, data: Any) -> Any:
+        return data if isinstance(data, dict) else {"expr": data}
+
+
+class BlockSpec(_Model):
+    """A named, reusable effect list: ``{"block": "settle", "with": {"buyer": "$actor"}}``.
+    The effects see only the arguments (plus $inputs, $world, $round …), never the caller's locals."""
+
+    args: List[str] = Field(default_factory=list)
+    do: Effects
+    description: str = ""
+
+
 class ArmSpec(_Model):
     """An experiment variant: input overrides and/or a contract patch."""
 
@@ -468,9 +502,38 @@ class Contract(_Model):
     end: List[EndSpec] = Field(default_factory=list)
     arms: Dict[str, ArmSpec] = Field(default_factory=dict)
     invariants: List[InvariantSpec] = Field(default_factory=list)
+    defs: Dict[str, DefSpec] = Field(default_factory=dict, description="Reusable expressions, called as $name(args).")
+    blocks: Dict[str, BlockSpec] = Field(default_factory=dict, description="Reusable effect lists, run with {\"block\": name}.")
+
+    # -- type lineage ----------------------------------------------------------
+
+    def lineage(self, type_name: str) -> List[str]:
+        """``type_name`` and its ancestors, root first. Stops at unknown types and cycles."""
+        chain: List[str] = []
+        current: Optional[str] = type_name
+        while current is not None and current in self.types and current not in chain:
+            chain.append(current)
+            current = self.types[current].extends
+        return list(reversed(chain))
+
+    def is_a(self, type_name: str, ancestor: str) -> bool:
+        return ancestor in self.lineage(type_name)
+
+    def subtypes(self, type_name: str) -> List[str]:
+        """``type_name`` and every type that extends it (directly or not)."""
+        return [name for name in self.types if self.is_a(name, type_name)]
+
+    def props_of(self, type_name: str) -> Dict[str, PropSpec]:
+        props: Dict[str, PropSpec] = {}
+        for name in self.lineage(type_name):
+            props.update(self.types[name].props)
+        return props
+
+    def is_agent(self, type_name: str) -> bool:
+        return any(self.types[name].agent for name in self.lineage(type_name))
 
     def agent_types(self) -> List[str]:
-        return [name for name, spec in self.types.items() if spec.agent]
+        return [name for name in self.types if self.is_agent(name)]
 
     def stage_list(self) -> List[StageSpec]:
         """Declared stages, or the default single stage where every action is available."""

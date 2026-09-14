@@ -12,7 +12,8 @@ from .expr import Call, ExprError, _describe, _entity_id, _number, attr, functio
 
 
 def _numbers(call: Call, values: List[Any]) -> List[Any]:
-    return [_number(v, call.source, f"numbers in ${call.name}") for v in values]
+    """Numbers from ``values``; nulls are skipped (like SQL aggregates)."""
+    return [_number(v, call.source, f"numbers in ${call.name}") for v in values if v is not None]
 
 
 def _is_scalar_form(call: Call) -> bool:
@@ -28,22 +29,30 @@ def _count(call: Call) -> int:
     return len(call.filtered(0, 1))
 
 
-@function("sum(items, value, where?)", "Total of `value` over items matching `where`.",
-          min_args=2, max_args=3, lazy=[1, 2])
+@function("sum(items, value?, where?)", "Total of `value` over items matching `where`; $sum(list) adds a list of numbers.",
+          min_args=1, max_args=3, lazy=[1, 2])
 def _sum(call: Call) -> Any:
+    if len(call) == 1:
+        return sum(_numbers(call, call.collection(0)))
     items = call.filtered(0, 2)
     return sum(_numbers(call, [call.each(1, it, i) for i, it in enumerate(items)]))
 
 
-@function("avg(items, value, where?)", "Mean of `value` over matching items; null when none match.",
-          min_args=2, max_args=3, lazy=[1, 2])
+@function("avg(items, value?, where?)", "Mean of `value` over matching items (nulls skipped); null when none. $avg(list) averages a list.",
+          min_args=1, max_args=3, lazy=[1, 2])
 def _avg(call: Call) -> Any:
+    if len(call) == 1:
+        values = _numbers(call, call.collection(0))
+        return sum(values) / len(values) if values else None
     items = call.filtered(0, 2)
     values = _numbers(call, [call.each(1, it, i) for i, it in enumerate(items)])
     return sum(values) / len(values) if values else None
 
 
 def _extreme(call: Call, pick: Any) -> Any:
+    if len(call) == 1:
+        values = _numbers(call, call.collection(0))
+        return pick(values) if values else None
     if _is_scalar_form(call):
         return pick(_numbers(call, [call.arg(i) for i in range(len(call))]))
     items = call.filtered(0, 2)
@@ -51,26 +60,33 @@ def _extreme(call: Call, pick: Any) -> Any:
     return pick(values) if values else None
 
 
-@function("min(items, value, where?) | min(a, b, ...)",
-          "Smallest `value` over matching items, or the smallest of the numbers given.",
+@function("min(items, value, where?) | min(list) | min(a, b, ...)",
+          "Smallest `value` over matching items, of a list, or of the numbers given.",
           min_args=1, lazy=[1, 2])
 def _min(call: Call) -> Any:
     return _extreme(call, min)
 
 
-@function("max(items, value, where?) | max(a, b, ...)",
-          "Largest `value` over matching items, or the largest of the numbers given.",
+@function("max(items, value, where?) | max(list) | max(a, b, ...)",
+          "Largest `value` over matching items, of a list, or of the numbers given.",
           min_args=1, lazy=[1, 2])
 def _max(call: Call) -> Any:
     return _extreme(call, max)
 
 
+def _sort_key(call: Call, key: Any) -> Any:
+    """A number, text, or a list of them (compared in order: `[$it.price, -$it.seq]`)."""
+    parts = key if isinstance(key, list) else [key]
+    for part in parts:
+        if not isinstance(part, (int, float, str)) or isinstance(part, bool):
+            raise ExprError(f"${call.name}: sort key must be a number, text, or a list of them, got {_describe(part)}",
+                            call.source)
+    return tuple(parts) if isinstance(key, list) else key
+
+
 def _sorted(call: Call, descending: bool) -> List[Any]:
     items = call.filtered(0, 3)
-    keyed = [(call.each(1, it, i), i, it) for i, it in enumerate(items)]
-    for key, _, _ in keyed:
-        if not isinstance(key, (int, float, str)) or isinstance(key, bool):
-            raise ExprError(f"${call.name}: sort key must be a number or text, got {_describe(key)}", call.source)
+    keyed = [(_sort_key(call, call.each(1, it, i)), i, it) for i, it in enumerate(items)]
     keyed.sort(key=lambda t: (t[0], t[1]), reverse=descending)
     ordered = [it for _, _, it in keyed]
     if len(call) > 2 and call.arg(2) is not None:
@@ -78,7 +94,75 @@ def _sorted(call: Call, descending: bool) -> List[Any]:
     return ordered
 
 
-@function("top(items, by, n?, where?)", "Items sorted by `by`, highest first; the first `n` when given.",
+def _values(call: Call, value_arg: int, where_arg: int) -> List[Any]:
+    items = call.filtered(0, where_arg)
+    return _numbers(call, [call.each(value_arg, it, i) for i, it in enumerate(items)])
+
+
+@function("median(items, value, where?)", "Median of `value` over matching items (nulls skipped); null when none.",
+          min_args=2, max_args=3, lazy=[1, 2])
+def _median(call: Call) -> Any:
+    values = sorted(_values(call, 1, 2))
+    if not values:
+        return None
+    mid = len(values) // 2
+    return values[mid] if len(values) % 2 else (values[mid - 1] + values[mid]) / 2
+
+
+@function("quantile(items, value, q, where?)", "The q-quantile (0–1, linear interpolation) of `value`; null when none.",
+          min_args=3, max_args=4, lazy=[1, 3])
+def _quantile(call: Call) -> Any:
+    q = call.number(2)
+    if not 0 <= q <= 1:
+        raise ExprError(f"$quantile q must be between 0 and 1, got {q}", call.source)
+    values = sorted(_values(call, 1, 3))
+    if not values:
+        return None
+    position = q * (len(values) - 1)
+    low = math.floor(position)
+    high = min(low + 1, len(values) - 1)
+    return values[low] + (values[high] - values[low]) * (position - low)
+
+
+@function("stdev(items, value, where?)", "Sample standard deviation of `value`; null when fewer than two.",
+          min_args=2, max_args=3, lazy=[1, 2])
+def _stdev(call: Call) -> Any:
+    values = _values(call, 1, 2)
+    if len(values) < 2:
+        return None
+    mean = sum(values) / len(values)
+    return math.sqrt(sum((v - mean) ** 2 for v in values) / (len(values) - 1))
+
+
+@function("dict(items, key, value)", "A {key: value} map with one entry per item (later items win).",
+          min_args=3, max_args=3, lazy=[1, 2])
+def _dict(call: Call) -> dict:
+    out: dict = {}
+    for i, item in enumerate(call.collection(0)):
+        key = _entity_id(call.each(1, item, i))
+        if not isinstance(key, (str, int, float)) or isinstance(key, bool):
+            raise ExprError(f"$dict keys must be text or numbers, got {_describe(key)}", call.source)
+        out[str(key)] = call.each(2, item, i)
+    return out
+
+
+@function("keys(map)", "The keys of a map.", min_args=1, max_args=1)
+def _keys(call: Call) -> List[Any]:
+    value = call.arg(0)
+    if not isinstance(value, dict):
+        raise ExprError(f"$keys needs a map, got {_describe(value)}", call.source)
+    return list(value)
+
+
+@function("values(map)", "The values of a map.", min_args=1, max_args=1)
+def _map_values(call: Call) -> List[Any]:
+    value = call.arg(0)
+    if not isinstance(value, dict):
+        raise ExprError(f"$values needs a map, got {_describe(value)}", call.source)
+    return list(value.values())
+
+
+@function("top(items, by, n?, where?)", "Items sorted by `by` (a value or a list of values), highest first; the first `n` when given.",
           min_args=2, max_args=4, lazy=[1, 3])
 def _top(call: Call) -> List[Any]:
     return _sorted(call, True)
@@ -180,12 +264,16 @@ def _mode(call: Call) -> Any:
     return next(k for k, v in counts.items() if v == best)
 
 
-@function("get(object, key, default?)", "Field `key` of an entity, map or record; `default` when missing.",
+@function("get(object, key, default?)", "Field `key` of an entity, map or record, or element `key` of a list; `default` when missing.",
           min_args=2, max_args=3)
 def _get(call: Call) -> Any:
     obj, key = call.arg(0), call.arg(1)
     if isinstance(obj, dict):
         return obj.get(key, call.arg(2))
+    if isinstance(obj, (list, tuple)):
+        if isinstance(key, int) and not isinstance(key, bool) and -len(obj) <= key < len(obj):
+            return obj[key]
+        return call.arg(2)
     if obj is None:
         return call.arg(2)
     try:
@@ -215,7 +303,9 @@ def _exists(call: Call) -> bool:
 @function("records(name, where?)", "Entries of a declared record, oldest first.",
           min_args=1, max_args=2, lazy=[1])
 def _records(call: Call) -> List[Any]:
-    rows = call.scope.world.records(str(call.arg(0)))
+    # Visibility follows whoever is looking ($viewer, else $actor); metrics and outputs see all.
+    viewer = call.scope.vars.get("viewer") or call.scope.vars.get("actor")
+    rows = call.scope.world.visible_records(str(call.arg(0)), viewer)
     if len(call) < 2:
         return list(rows)
     return [row for i, row in enumerate(rows) if truthy(call.each(1, row, i))]
@@ -359,7 +449,7 @@ def _poisson(call: Call) -> int:
         k += 1
 
 
-@function("choice(items, weights?)", "One item picked at random (optionally weighted by `weights`).",
+@function("choice(items, weight?)", "One item picked at random; `weight` is a per-item expression ($it), e.g. $choice([a, b], $it == a and 3 or 1).",
           min_args=1, max_args=2, lazy=[1])
 def _choice(call: Call) -> Any:
     items = call.collection(0)
@@ -417,3 +507,63 @@ def _join(call: Call) -> str:
     from .template import format_value
 
     return str(call.arg(1, ", ")).join(format_value(item) for item in call.collection(0))
+
+
+# ---------------------------------------------------------------------------
+# Lists and formatting
+# ---------------------------------------------------------------------------
+
+
+@function("sort(items, by?)", "Items in ascending order of `by` (a value or list of values; default the items themselves).",
+          min_args=1, max_args=2, lazy=[1])
+def _sort(call: Call) -> List[Any]:
+    items = call.collection(0)
+    if len(call) < 2:
+        keyed = [(_sort_key(call, it), i, it) for i, it in enumerate(items)]
+    else:
+        keyed = [(_sort_key(call, call.each(1, it, i)), i, it) for i, it in enumerate(items)]
+    keyed.sort(key=lambda t: (t[0], t[1]))
+    return [it for _, _, it in keyed]
+
+
+@function("reverse(list)", "The list in reverse order.", min_args=1, max_args=1)
+def _reverse(call: Call) -> List[Any]:
+    return list(reversed(call.collection(0)))
+
+
+@function("slice(list, start, end?)", "Elements from `start` up to (not including) `end`; negative counts from the end.",
+          min_args=2, max_args=3)
+def _slice(call: Call) -> List[Any]:
+    items = call.collection(0)
+    start = int(call.number(1))
+    end = int(call.number(2)) if len(call) > 2 and call.arg(2) is not None else None
+    return items[start:end]
+
+
+@function("range(n) | range(start, end)", "Whole numbers 0..n-1, or start..end-1.", min_args=1, max_args=2)
+def _range(call: Call) -> List[int]:
+    start, end = (0, int(call.number(0))) if len(call) == 1 else (int(call.number(0)), int(call.number(1)))
+    if end - start > 100_000:
+        raise ExprError("$range is limited to 100,000 numbers", call.source)
+    return list(range(start, end))
+
+
+@function("fmt(value, format)", "The value as text in a template format: money, pct, int, 0–4 decimals, upper, …",
+          min_args=2, max_args=2)
+def _fmt(call: Call) -> str:
+    from .template import FORMATS, _FORMATS
+
+    name = str(call.arg(1))
+    if name not in _FORMATS:
+        raise ExprError(f"$fmt: unknown format '{name}' (formats: {', '.join(FORMATS)})", call.source)
+    return _FORMATS[name](call.arg(0))
+
+
+@function("is(entity, type)", "True when the entity is of `type` or a type that extends it.", min_args=2, max_args=2)
+def _is(call: Call) -> bool:
+    entity, type_name = call.arg(0), str(call.arg(1))
+    if entity is None:
+        return False
+    if not hasattr(entity, "entity_type"):
+        raise ExprError(f"$is needs an entity, got {_describe(entity)}", call.source)
+    return call.scope.world.is_a(entity.entity_type, type_name)

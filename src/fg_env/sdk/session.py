@@ -73,6 +73,11 @@ class Wake:
     def reason(self) -> str:
         return self._turn.reason
 
+    @property
+    def me(self) -> Dict[str, Any]:
+        """A copy of this agent's own properties (for scripted participants)."""
+        return dict(self._turn.actor.properties)
+
     # -- what the agent reads ---------------------------------------------------
 
     @property

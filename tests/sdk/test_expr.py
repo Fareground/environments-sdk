@@ -76,7 +76,7 @@ def test_strict_errors_name_the_fix():
     with pytest.raises(ExprError, match="not available here"):
         evaluate("$target.cash", s)
     with pytest.raises(ExprError, match="did you mean \\$count"):
-        compile_expr("$cuont(offer)")
+        evaluate("$cuont(offer)", s)  # unknown names may be contract `defs`, so this is a run-time error
     with pytest.raises(ExprError, match="division by zero"):
         evaluate("$actor.cash / 0", s)
     with pytest.raises(ExprError, match="expected a number"):

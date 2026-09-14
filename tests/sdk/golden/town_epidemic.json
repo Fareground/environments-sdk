@@ -1,0 +1,18 @@
+{
+  "actions": 604,
+  "events": 1205,
+  "events_sha256": "129f7e0883e5fc44398d53c0498cd1edde7052d61dfc0a4e45676dcfd290314e",
+  "metrics": {
+    "active": 4,
+    "budget": 58200,
+    "compliance": 0,
+    "dead": 0,
+    "hospital_load": 0.18381840660785045,
+    "lockdown": 0,
+    "new_cases": 0,
+    "recovered": 2
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 604
+}

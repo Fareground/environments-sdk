@@ -1,0 +1,550 @@
+{
+  "fg_env": "1",
+  "name": "Rate Decision Forecasting Council",
+  "description": "Seven expert panelists forecast whether the central bank cuts rates at its next meeting: sealed initial ballot, open deliberation until everyone is ready, sealed final ballot.",
+  "brief": {
+    "situation": "You sit on a forecasting council of seven experts. The question: will the central bank cut its policy rate at its next meeting, three weeks from now? Public briefing: policy rate 4.50%, unchanged for the last two meetings. Headline CPI 2.9% y/y (down from 3.4% six months ago); core CPI 3.1% and sticky in services. Unemployment 4.3%, up from 3.9% over six months; payroll growth has slowed to roughly a third of last year's pace. GDP grew 0.3% q/q last quarter. The last statement dropped the phrase 'further tightening may be warranted' and said risks are 'more balanced' and decisions are 'data-dependent'. Rate futures imply about a 55% chance of a cut. One CPI print and one jobs report land before the meeting.",
+    "rules": "The session has three stages. 1) Initial ballot: privately submit your probability (0-100%) that the bank cuts, with a one-line rationale. 2) Discussion: the initial ballots are revealed and the council talks in a shared chat over several passes. On your turn you may post a message, revise your working estimate, and mark yourself ready. Any new message un-readies everyone, so the discussion ends when a full pass goes by with everyone ready and no new messages, or when the pass cap is reached. 3) Final ballot: privately submit your final probability. Some panelists hold private information that only they can see; you decide whether and how to share yours. You are scored on the accuracy of your final ballot, not on agreeing with anyone.",
+    "roles": {
+      "panelist": "You are an expert panelist. Bring your own expertise and prior, read the others' arguments carefully, update when the evidence warrants it, and hold your ground when it does not."
+    }
+  },
+  "clock": {
+    "rounds": 1,
+    "unit": "session"
+  },
+  "types": {
+    "panelist": {
+      "agent": true,
+      "description": "An expert on the forecasting council.",
+      "props": {
+        "expertise": {
+          "type": "text",
+          "default": "",
+          "description": "Area of expertise."
+        },
+        "lens": {
+          "type": "text",
+          "default": "",
+          "description": "How this panelist tends to read the evidence."
+        },
+        "prior": {
+          "type": "number",
+          "default": 50,
+          "min": 0,
+          "max": 100,
+          "private": true,
+          "description": "Starting inclination in percent."
+        },
+        "private_info": {
+          "type": "text",
+          "default": "",
+          "private": true,
+          "description": "Information only this panelist holds."
+        },
+        "initial": {
+          "type": "number",
+          "default": null,
+          "min": 0,
+          "max": 100,
+          "description": "Initial ballot (%)."
+        },
+        "initial_why": {
+          "type": "text",
+          "default": ""
+        },
+        "working": {
+          "type": "number",
+          "default": null,
+          "min": 0,
+          "max": 100,
+          "description": "Current working estimate shown during discussion (%)."
+        },
+        "revisions": {
+          "type": "int",
+          "default": 0
+        },
+        "final": {
+          "type": "number",
+          "default": null,
+          "min": 0,
+          "max": 100,
+          "private": true,
+          "description": "Final ballot (%)."
+        },
+        "abstained": {
+          "type": "list",
+          "default": []
+        },
+        "ready": {
+          "type": "bool",
+          "default": false
+        },
+        "messages": {
+          "type": "int",
+          "default": 0
+        }
+      }
+    }
+  },
+  "entities": {
+    "okafor": {
+      "type": "panelist",
+      "name": "Dr. Amara Okafor",
+      "props": {
+        "expertise": "former central bank staff economist; policy reaction functions",
+        "lens": "Committees move slowly and telegraph cuts; a cut without explicit guidance is rare.",
+        "prior": 45
+      }
+    },
+    "lindqvist": {
+      "type": "panelist",
+      "name": "Marcus Lindqvist",
+      "props": {
+        "expertise": "rates strategist; futures and swaps pricing",
+        "lens": "Market pricing aggregates information well; deviations need a strong reason.",
+        "prior": 58,
+        "private_info": "Your desk's client flow shows large real-money accounts adding receive-fixed positions this week, and two primary dealers you trust privately put the cut at 70%."
+      }
+    },
+    "raman": {
+      "type": "panelist",
+      "name": "Dr. Priya Raman",
+      "props": {
+        "expertise": "labor economist; employment and wages",
+        "lens": "The labor market leads the policy turn; a cooling job market forces the bank's hand.",
+        "prior": 65,
+        "private_info": "Your research team's unpublished regional hiring survey (large sample, historically tracks official payrolls closely) points to the coming jobs report being flat to slightly negative."
+      }
+    },
+    "vogel": {
+      "type": "panelist",
+      "name": "Henrik Vogel",
+      "props": {
+        "expertise": "inflation economist; former fiscal council member",
+        "lens": "Sticky services inflation keeps central banks cautious; they fear cutting too early more than too late.",
+        "prior": 30
+      }
+    },
+    "marin": {
+      "type": "panelist",
+      "name": "Sofía Marín",
+      "props": {
+        "expertise": "central bank communications and committee politics",
+        "lens": "Read the committee, not the data: who votes, what they said, and what they need to see.",
+        "prior": 50,
+        "private_info": "At an off-record roundtable last week, two voting committee members separately stressed there was 'no urgency' and that they want 'at least two more months of services inflation data'."
+      }
+    },
+    "watanabe": {
+      "type": "panelist",
+      "name": "Kenji Watanabe",
+      "props": {
+        "expertise": "global macro and currencies",
+        "lens": "External conditions matter: a weak currency or energy shock ties the bank's hands.",
+        "prior": 48,
+        "private_info": "Your contacts in energy markets expect a supply cut announcement next week that could add roughly 0.3 percentage points to headline inflation within two months."
+      }
+    },
+    "haddad": {
+      "type": "panelist",
+      "name": "Leila Haddad",
+      "props": {
+        "expertise": "generalist superforecaster; base rates and calibration",
+        "lens": "Start from the base rate, adjust modestly, avoid overconfidence in stories.",
+        "prior": 50,
+        "private_info": "Your base-rate study: after a statement shifts to 'balanced risks / data-dependent' language, this bank cut at the very next meeting 35% of the time and within two meetings 70% of the time."
+      }
+    }
+  },
+  "records": {
+    "chat": {
+      "description": "The council's shared discussion.",
+      "fields": {
+        "text": "text"
+      },
+      "show": "{author}: {text}"
+    }
+  },
+  "actions": {
+    "cast_initial": {
+      "by": "panelist",
+      "description": "Submit your sealed initial probability that the bank cuts at the next meeting, with a one-line rationale. Others see it when discussion opens.",
+      "params": {
+        "probability": {
+          "type": "number",
+          "min": 0,
+          "max": 100,
+          "description": "Chance of a cut, in percent (0-100)."
+        },
+        "rationale": {
+          "type": "text",
+          "max_len": 240,
+          "description": "One line: the main reason for your number."
+        }
+      },
+      "when": [
+        {
+          "expr": "$actor.initial == null",
+          "why": "You have already cast your initial ballot."
+        }
+      ],
+      "do": [
+        "$actor.initial = $params.probability",
+        "$actor.working = $params.probability",
+        "$actor.initial_why = $params.rationale"
+      ],
+      "outcome": "Initial ballot recorded: {$params.probability|1}%.",
+      "private": true,
+      "terminal": true
+    },
+    "say": {
+      "by": "panelist",
+      "description": "Post a message to the council chat (an argument, evidence, a question to someone). Posting un-readies everyone so they can respond.",
+      "params": {
+        "text": {
+          "type": "text",
+          "max_len": 800,
+          "description": "Your message to the council."
+        }
+      },
+      "do": [
+        {
+          "post": "chat",
+          "text": "$params.text"
+        },
+        "$actor.messages += 1",
+        {
+          "each": "panelist",
+          "do": [
+            "$it.ready = false"
+          ]
+        }
+      ],
+      "outcome": "Message posted to the council.",
+      "per_turn": 1,
+      "private": true
+    },
+    "revise_estimate": {
+      "by": "panelist",
+      "description": "Update your publicly visible working estimate during discussion. It is not your final ballot.",
+      "params": {
+        "probability": {
+          "type": "number",
+          "min": 0,
+          "max": 100,
+          "description": "Your current estimate of a cut, in percent."
+        }
+      },
+      "when": [
+        {
+          "expr": "$actor.initial != null",
+          "why": "You have no initial ballot to revise."
+        }
+      ],
+      "do": [
+        {
+          "if": "$params.probability == $actor.working",
+          "then": [
+            {
+              "fail": "That is already your working estimate; post a message or mark yourself ready instead."
+            }
+          ]
+        },
+        "$old = $actor.working",
+        "$actor.working = $params.probability",
+        "$actor.revisions += 1"
+      ],
+      "outcome": "Working estimate moved from {$old|1}% to {$params.probability|1}%.",
+      "announce": "{$actor.name} revised their working estimate from {$old|1}% to {$params.probability|1}%.",
+      "per_turn": 1
+    },
+    "mark_ready": {
+      "by": "panelist",
+      "description": "Say you have nothing more to add for now. Ends your turn. A new message from anyone will un-ready you.",
+      "params": {},
+      "when": [
+        {
+          "expr": "not $actor.ready",
+          "why": "You are already marked ready."
+        }
+      ],
+      "do": [
+        "$actor.ready = true"
+      ],
+      "outcome": "You are marked ready.",
+      "announce": "{$actor.name} is ready to vote.",
+      "terminal": true
+    },
+    "cast_final": {
+      "by": "panelist",
+      "description": "Submit your sealed final probability that the bank cuts at the next meeting. This is the ballot you are scored on.",
+      "params": {
+        "probability": {
+          "type": "number",
+          "min": 0,
+          "max": 100,
+          "description": "Chance of a cut, in percent (0-100)."
+        }
+      },
+      "when": [
+        {
+          "expr": "$actor.final == null",
+          "why": "You have already cast your final ballot."
+        }
+      ],
+      "do": [
+        "$actor.final = $params.probability"
+      ],
+      "outcome": "Final ballot recorded: {$params.probability|1}%.",
+      "private": true,
+      "terminal": true
+    }
+  },
+  "stages": [
+    {
+      "name": "initial_ballot",
+      "turns": "simultaneous",
+      "actions": [
+        "cast_initial"
+      ],
+      "max_actions": 1,
+      "max_calls": 4,
+      "brief": "Initial ballot. Read the briefing and your private information, then cast your sealed probability with cast_initial.",
+      "on_exit": [
+        {
+          "each": "panelist",
+          "where": "$it.initial == null",
+          "do": [
+            "$it.initial = $it.prior",
+            "$it.working = $it.prior",
+            "$it.abstained += initial",
+            "$it.initial_why = 'no ballot submitted; recorded at stated prior'"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "discussion",
+      "turns": "sequential",
+      "order": "random",
+      "actions": [
+        "say",
+        "revise_estimate",
+        "mark_ready"
+      ],
+      "until": "$all(panelist, $it.ready)",
+      "passes": 6,
+      "quiet": "skip",
+      "max_actions": 3,
+      "max_calls": 6,
+      "brief": "Discussion. Read the new messages, respond if you have something that moves the question, revise your working estimate if your view changed, and mark_ready when you have nothing more to add.",
+      "on_enter": [
+        {
+          "emit": "discussion_open",
+          "say": "Initial ballots are revealed and the discussion is open."
+        }
+      ]
+    },
+    {
+      "name": "final_ballot",
+      "turns": "simultaneous",
+      "actions": [
+        "cast_final"
+      ],
+      "max_actions": 1,
+      "max_calls": 4,
+      "brief": "Final ballot. Weigh everything you heard and cast your sealed final probability with cast_final.",
+      "on_exit": [
+        {
+          "each": "panelist",
+          "where": "$it.final == null",
+          "do": [
+            "$it.final = $it.working",
+            "$it.abstained += final"
+          ]
+        }
+      ]
+    }
+  ],
+  "views": {
+    "you": {
+      "for": "panelist",
+      "title": "You",
+      "show": "{name} — {expertise}. Your lens: {lens} Your starting inclination: about {prior|0}%."
+    },
+    "private_info": {
+      "for": "panelist",
+      "title": "Private information (only you can see this)",
+      "when": "$actor.private_info != ''",
+      "show": "{private_info}"
+    },
+    "ballots": {
+      "for": "panelist",
+      "stages": [
+        "discussion",
+        "final_ballot"
+      ],
+      "title": "Council estimates (initial → working)",
+      "of": "panelist",
+      "sort": "$it.working",
+      "desc": true,
+      "show": "[{id}] {name} ({expertise}): initial {initial|1}% → now {working|1}%{' · ready' if $it.ready else ''} — «{initial_why}»",
+      "when": "$all(panelist, $it.working != null)"
+    },
+    "council_state": {
+      "for": "panelist",
+      "stages": [
+        "discussion",
+        "final_ballot"
+      ],
+      "title": "Council",
+      "show": "Working estimates: mean {$avg(panelist, $it.working)|1}%, range {$min(panelist, $it.working)|1}–{$max(panelist, $it.working)|1}%. Ready: {$count(panelist, $it.ready)}/{$count(panelist)}. Messages so far: {$len($records(chat))}.",
+      "when": "$all(panelist, $it.working != null)"
+    }
+  },
+  "metrics": {
+    "messages": "$len($records(chat))",
+    "ready_count": "$count(panelist, $it.ready)"
+  },
+  "outputs": {
+    "initial_mean": {
+      "type": "number",
+      "expr": "$round($avg(panelist, $it.initial), 2)",
+      "description": "Mean initial probability (%)."
+    },
+    "initial_median": {
+      "type": "number",
+      "expr": "$round(($bottom(panelist, $it.initial)[$count(panelist) // 2].initial + $bottom(panelist, $it.initial)[($count(panelist) - 1) // 2].initial) / 2, 2)",
+      "description": "Median initial probability (%)."
+    },
+    "final_mean": {
+      "type": "number",
+      "expr": "$round($avg(panelist, $it.final), 2)",
+      "description": "Mean final probability (%)."
+    },
+    "final_median": {
+      "type": "number",
+      "expr": "$round(($bottom(panelist, $it.final)[$count(panelist) // 2].final + $bottom(panelist, $it.final)[($count(panelist) - 1) // 2].final) / 2, 2)",
+      "description": "Median final probability (%)."
+    },
+    "aggregate_shift": {
+      "type": "number",
+      "expr": "$round($outputs.final_mean - $outputs.initial_mean, 2)",
+      "description": "Change in mean probability, final minus initial (points)."
+    },
+    "shift_by_panelist": {
+      "type": "list",
+      "expr": "$map(panelist, $it.name + ': ' + $text($round($it.final - $it.initial, 1)))",
+      "description": "Final minus initial per panelist (points)."
+    },
+    "final_range": {
+      "type": "number",
+      "expr": "$round($max(panelist, $it.final) - $min(panelist, $it.final), 2)",
+      "description": "Highest minus lowest final ballot (points)."
+    },
+    "final_stdev": {
+      "type": "number",
+      "expr": "$round($sqrt($avg(panelist, ($it.final - $outputs.final_mean) ** 2)), 2)",
+      "description": "Population standard deviation of final ballots (points)."
+    },
+    "initial_stdev": {
+      "type": "number",
+      "expr": "$round($sqrt($avg(panelist, ($it.initial - $outputs.initial_mean) ** 2)), 2)",
+      "description": "Population standard deviation of initial ballots (points)."
+    },
+    "messages": {
+      "type": "int",
+      "expr": "$len($records(chat))",
+      "description": "Chat messages posted."
+    },
+    "messages_by_panelist": {
+      "type": "list",
+      "expr": "$map(panelist, $it.name + ': ' + $text($it.messages))"
+    },
+    "biggest_mind_change": {
+      "type": "text",
+      "expr": "$top(panelist, $abs($it.final - $it.initial), 1)[0].name if $max(panelist, $abs($it.final - $it.initial)) > 0 else 'nobody changed'",
+      "description": "Panelist whose ballot moved the most."
+    },
+    "biggest_mind_change_points": {
+      "type": "number",
+      "expr": "$round($max(panelist, $abs($it.final - $it.initial)), 2)"
+    },
+    "abstentions": {
+      "type": "list",
+      "expr": "$map($filter(panelist, $len($it.abstained) > 0), $it.name + ' (' + $join($it.abstained) + ')')",
+      "description": "Ballots filled in by default because a panelist did not vote."
+    },
+    "consensus_reached": {
+      "type": "bool",
+      "expr": "$all(panelist, $it.ready)",
+      "description": "Everyone marked ready before the pass cap."
+    }
+  },
+  "policies": {
+    "anchored": {
+      "repeat": true,
+      "rules": [
+        {
+          "do": "cast_initial",
+          "with": {
+            "probability": "$actor.prior",
+            "rationale": "My prior from my own field."
+          }
+        },
+        {
+          "when": "$actor.messages == 0",
+          "do": "say",
+          "with": {
+            "text": "I stay near my prior; I have not seen evidence that moves me."
+          }
+        },
+        {
+          "do": "mark_ready"
+        },
+        {
+          "do": "cast_final",
+          "with": {
+            "probability": "$actor.initial"
+          }
+        }
+      ]
+    },
+    "averager": {
+      "repeat": true,
+      "rules": [
+        {
+          "do": "cast_initial",
+          "with": {
+            "probability": "$actor.prior",
+            "rationale": "Starting from my prior."
+          }
+        },
+        {
+          "when": "$actor.messages == 0",
+          "do": "say",
+          "with": {
+            "text": "'The council average is ' + $text($round($avg(panelist, $it.working), 1)) + '%; I will move toward it.'"
+          }
+        },
+        {
+          "when": "$abs($actor.working - $avg(panelist, $it.working)) > 1",
+          "do": "revise_estimate",
+          "with": {
+            "probability": "$round($avg(panelist, $it.working), 1)"
+          }
+        },
+        {
+          "do": "mark_ready"
+        },
+        {
+          "do": "cast_final",
+          "with": {
+            "probability": "($actor.working + $avg(panelist, $it.working)) / 2"
+          }
+        }
+      ]
+    }
+  }
+}

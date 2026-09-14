@@ -6,7 +6,8 @@ import json
 import sys
 from typing import Any, Dict, List, Optional
 
-from .errors import ContractError, InputError
+from .errors import ContractError, InputError, RunError
+from .expr import ExprError
 
 __all__ = ["add_commands"]
 
@@ -56,9 +57,9 @@ def _report_contract_error(exc: ContractError) -> int:
 def cmd_check(args: argparse.Namespace) -> int:
     from .api import check
 
-    issues = check(args.file)
+    issues = check(args.file, rounds=args.rounds)
     if args.json:
-        print(json.dumps([i.to_dict() for i in issues], indent=2))
+        print(json.dumps([i.to_dict() for i in issues], indent=2, ensure_ascii=False))
     else:
         for issue in issues:
             print(("error: " if issue.severity == "error" else "warning: ") + f"{issue.path}: {issue.message}"
@@ -75,6 +76,9 @@ def cmd_run(args: argparse.Namespace) -> int:
         env = load(args.file, inputs=_inputs(args), seed=args.seed, arm=args.arm)
     except (ContractError, InputError) as exc:
         return _report_contract_error(exc)
+    except (RunError, ExprError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     result = env.run(_participants(args.agent), rounds=args.rounds)
     if args.json:
         print(result.to_json(events=args.events))
@@ -95,15 +99,27 @@ def cmd_preview(args: argparse.Namespace) -> int:
 
     try:
         env = load(args.file, inputs=_inputs(args), seed=args.seed, arm=args.arm)
+        if args.rounds:
+            played = env.run(_participants(args.agent), rounds=args.rounds)
+            if played.status == "failed":
+                print(f"error: {played.error}", file=sys.stderr)
+                return 2
     except (ContractError, InputError) as exc:
         return _report_contract_error(exc)
+    except (RunError, ExprError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     if args.entity not in env.world.entities:
         agents = [e.id for e in env.world.entities.values() if env.contract.types[e.entity_type].agent]
         print(f"no entity '{args.entity}' (agents: {', '.join(agents[:20])})", file=sys.stderr)
         return 1
-    view = env.preview(args.entity, args.stage)
+    try:
+        view = env.preview(args.entity, args.stage)
+    except (RunError, ExprError, KeyError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     if args.json:
-        print(json.dumps(view, indent=2))
+        print(json.dumps(view, indent=2, ensure_ascii=False))
         return 0
     print("=== brief ===\n" + view["brief"])
     print("\n=== update ===\n" + view["update"])
@@ -124,7 +140,10 @@ def cmd_experiment(args: argparse.Namespace) -> int:
                             participants=_participants(args.agent), rounds=args.rounds, workers=args.workers)
     except (ContractError, InputError) as exc:
         return _report_contract_error(exc)
-    print(json.dumps(result.to_dict(), indent=2, default=str) if args.json else result.table())
+    except (RunError, ExprError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    print(json.dumps(result.to_dict(), indent=2, default=str, ensure_ascii=False) if args.json else result.table())
     return 0
 
 
@@ -138,7 +157,7 @@ def cmd_guide(args: argparse.Namespace) -> int:
 def cmd_schema(args: argparse.Namespace) -> int:
     from .guide import schema
 
-    print(json.dumps(schema(), indent=2))
+    print(json.dumps(schema(), indent=2, ensure_ascii=False))
     return 0
 
 
@@ -153,6 +172,8 @@ def _common(parser: argparse.ArgumentParser, seed_default: Optional[int]) -> Non
 def add_commands(sub: Any) -> None:
     p = sub.add_parser("check", help="check a contract and list every problem with its fix")
     p.add_argument("file", help="contract JSON file")
+    p.add_argument("--rounds", type=int, default=1,
+                   help="also build and play this many rounds with default participants (0 = static check only)")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_check)
 
@@ -168,7 +189,10 @@ def add_commands(sub: Any) -> None:
     p = sub.add_parser("preview", help="show exactly what an agent would read and which tools it gets")
     _common(p, 0)
     p.add_argument("entity", help="agent entity id")
-    p.add_argument("--stage", help="stage name (default: the first)")
+    p.add_argument("--stage", help="stage name (default: the first stage where this agent can act)")
+    p.add_argument("--rounds", type=int, default=0, help="play this many rounds first, then preview")
+    p.add_argument("--agent", action="append", metavar="[TYPE_OR_ID=]PARTICIPANT",
+                   help="participants for the rounds played before the preview")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_preview)
 

@@ -82,7 +82,12 @@ turn, uses `max_actions`, or runs out of `max_calls`.
 * `turns: simultaneous` — everyone sees the same state; actions are submitted, then committed in
   order after all have chosen (sealed bids, votes, simultaneous moves). Outcomes arrive as news.
 * `until` repeats passes within the round (deliberation until everyone is ready).
-* `quiet: skip` skips agents with nothing new since their last turn.
+* `quiet: skip` skips agents with nothing new since their last turn (from the second pass on;
+  the first pass always wakes everyone).
+* `look` and `inspect` calls count toward `max_calls`.
+* A stage with `actions: []` wakes nobody: use it as a pure resolution step (`on_enter`/`on_exit`).
+* `end` conditions are checked after the start events, after each stage, and at the end of the round.
+  To end at once in the middle of a stage (a winning move), use the `end` effect inside the action.
 
 What an agent reads:
 * brief (static, cacheable): name, situation, rules, its identity and role text.
@@ -91,6 +96,11 @@ What an agent reads:
   every declared view that applies. Text written by participants is wrapped «like this».
 * tools: one per legal action with a JSON Schema (entity choices as enums, numeric bounds when
   they depend only on the actor), plus look/inspect/end_turn. Invalid calls return what to fix.
+
+Unless an action is `private` or sets `announce`, others read a default line
+"Name: action (args)."; an action that posts to a record announces nothing extra (the entry
+is the news). Text an agent types (text params) keeps its provenance wherever it is stored and
+always renders «quoted», in news, views and outcomes.
 
 An action applies atomically: if any effect `fail`s or a `transfer` lacks funds, every change
 is rolled back and the agent is told why. Contract errors (bad expression at run time) stop
@@ -108,6 +118,12 @@ Any string containing `$name` is an expression; other strings are literal text.
 * Operators: `+ - * / // % **`, `== != < <= > >=`, `and or not` (`&& || !`), `in`,
   `a if cond else b`, lists `[1, 2]`, indexing `$top(offer, $it.price, 1)[0]`.
 * Entities expose `id name type alive at` and their props. Comparing an entity with an id works.
+* Maps: `{wage: 3, 'job years': 2}`; read with `.key` or `$get(map, key, default)`.
+* Nested per-item functions rebind `$it`; the enclosing item is `$outer`:
+  `$sum(trader, $sum(order, $it.qty, $it.owner == $outer.id))`.
+* Every function call needs its `$`: `$max(a, b)`, never `max(a, b)`.
+* Contract `defs` are called like built-ins: `$utility($actor, $params.offer)`.
+* Bare words are text even when they match a property name: write `$actor.bet`, not `bet`.
 * Strict: unknown props, missing roots and type errors are errors, never silent zeros.
 
 Roots available by location (plus everywhere: $inputs $world $physics $clock $round $stage
@@ -126,7 +142,11 @@ $metrics $series $arm):
 | records.*.show | $it (entry: author, round, fields) |
 | events.*.where/do (with each) | $it $i |
 | population.*.where/weight | $row |
-| population.*.props/id/name | $row $i |
+| population.*.props/id/name | $row $i ($i counts from 1) |
+| population.*.brief, entities.*.brief | $actor (+ $row $i for population) |
+| types.*.inspect | $viewer $it |
+| defs.*.expr | the def's args |
+| blocks.*.do | the block's args + locals |
 | policies.*.rules.* | $actor |
 | outputs.* | $outputs (earlier outputs) |
 
@@ -139,7 +159,11 @@ _TEMPLATES = """\
 `"[{id}] {name} · {price|money} · {rating|1}★"`
 * `{field}` reads the template's subject (`$it` in list views and record show, `$actor` in
   single-line views and stage briefs). Elsewhere use full expressions: `{$params.qty}`.
-* `{$expr}` any expression. `{value|format}` formats: FORMATS.
+* `{$expr}` any expression, including ones that start with a quote: `{$'yes' if $x else 'no'}`.
+  `{value|format}` formats: FORMATS. In an expression use `$fmt(value, 'pct')`.
+* A text field holding only an expression (`"say": "$inputs.headline"`) renders its value.
+* Effect values (post fields, emit data, create props) that contain `{$…}` render as templates:
+  `{"post": "log", "text": "{$actor.name} bid {$params.amount|money}"}`.
 * Numbers print compactly; entities print as their name; lists join with commas; null is `—`.
 * `{{` and `}}` are literal braces.
 """
@@ -174,6 +198,7 @@ _EFFECT_EXAMPLES = {
     "after": '{"after": 3, "do": [...]}  (runs 3 rounds later with the same locals)',
     "wake": '{"wake": "$params.who", "why": "{$actor.name} asked you a question."}',
     "repeat": '{"repeat": 1000, "while": "$count(order) > 1", "do": [...]}  (error if still true at the limit)',
+    "block": '{"block": "settle", "with": {"buyer": "$actor", "qty": "$params.qty"}}  (runs a named effect list from `blocks`)',
 }
 
 _PATTERNS = """\
@@ -188,6 +213,9 @@ _PATTERNS = """\
   `on_exit` effect tallies with `$mode($map(voter, $it.vote))` or `$count(voter, $it.vote == yes)`.
 * Deliberation: records (`chat`) + a sequential stage with `until: "$all(member, $it.ready)"`
   and `quiet: skip`; a `say` action posts and clears readiness.
+* Hidden roles: a world prop `deck` defaulting to `$shuffle([wolf, wolf, seer, villager, ...])`, then
+  `population` props `{"role": "$world.deck[$i - 1]"}` and a private per-entity
+  `brief: "You are a {$actor.role}."`; gate actions with `when: "$actor.role == wolf"`.
 * Hidden information: `private` props (hidden from others' inspect), per-type views, record
   `visible` rules, `to` on posts/emits, `private: true` actions (no announcement).
 * Board and card games: `space.grid` + piece entities with `at`, or cell entities; legal moves
@@ -202,6 +230,13 @@ _PATTERNS = """\
 * Scenarios & experiments: `inputs` for scenario knobs, `arms` for variants (input overrides or
   patches), `events` with `at`/`every`/`chance`/`arms` for shocks; `fg_env.experiment` runs arms
   with shared seeds.
+* Families of agents: `types.trader` with shared props, then `types.market_maker: {"extends": "trader"}`;
+  `$count(trader)`, `by: trader`, views `for: trader` and `brief.roles.trader` cover every kind.
+* Reusable logic: `defs` for formulas (`"utility": {"args": ["side", "offer"], "expr": "..."}`) and
+  `blocks` for effect lists (`{"block": "match", "with": {"order": "$made"}}`).
+* Scoping inspection: `types.X.inspect: false` (or an expression over `$viewer` and `$it`) hides
+  entities from the inspect tool; `private` props hide single values.
+* Boards and tables in views: `"bullet": false` prints lines without "- ".
 * Coded participants: `policies` rules (first legal matching rule wins) for crowds and baselines;
   set `types.X.policy` to make them the default.
 """
@@ -226,11 +261,25 @@ def my_agent(wake):
     result = wake.call("buy", {"offer": "latte", "qty": 1})   # result.ok, result.text, result.ended
     wake.end()
 ```
+`Wake`: `entity_id name type round stage reason me` (own props), `brief`, `update`, `tools` (each a
+`ToolSpec`: name, description, input_schema, kind act|look|end, terminal), `tools_for("anthropic"|"openai")`,
+`call(name, args)` → `ToolResult(ok, text, ended, data)` (`data.error` is `invalid` or `rejected`),
+`end()`, `done`, `calls_left`, `actions_left`. In a simultaneous stage a choice is tried at submit, so
+a choice that could not happen is refused immediately and does not use up the turn.
+`env.step(participants)` runs one round; `env.run(participants, rounds=N)` runs N more.
+
 LLM participants: `fg_env.participants.anthropic(anthropic.Anthropic(), "claude-sonnet-5")` or
 `fg_env.participants.openai(client, model)`; they cache the brief and loop over tool calls.
 Built-ins: `"random"`, `"idle"`, `"policy:<name>"`.
 
-CLI: `fg-env check|run|preview|experiment|guide|schema` (`fg-env run file.json --seed 1
+`result.events` is the ordered log: `{seq, round, kind, text, actor, to, stage, data}` where kind is
+`action` (data: action, params, success), `outcome` (a sealed action's result, to its actor),
+`record` (data: record, entry, fields), `news` (event `say`), any `emit` name, or `end` (data: ended_by, winner).
+`result.winner` is set by `end` conditions or effects that give `winner`.
+
+CLI: `fg-env check file.json` (static check plus one played round; `--rounds 0` for static only),
+`fg-env preview file.json agent_id --rounds 5 --agent trader=policy:quote` (see a mid-run turn),
+`fg-env check|run|preview|experiment|guide|schema` (`fg-env run file.json --seed 1
 --input budget=50 --agent shopper=policy:thrifty --json`).
 """
 
@@ -260,6 +309,7 @@ _SECTIONS: List[Tuple[str, List[Type[BaseModel]]]] = [
     ("stages", [C.StageSpec]), ("views", [C.ViewSpec]), ("events", [C.EventSpec]),
     ("policies", [C.PolicySpec, C.PolicyRule]), ("metrics", [C.MetricSpec]), ("outputs", [C.OutputSpec]),
     ("end", [C.EndSpec]), ("arms", [C.ArmSpec]), ("invariants", [C.InvariantSpec]),
+    ("defs", [C.DefSpec]), ("blocks", [C.BlockSpec]),
 ]
 
 _SHAPES = {
@@ -270,6 +320,7 @@ _SHAPES = {
     "views": "{view: ViewSpec}", "events": "[EventSpec]", "policies": "{policy: PolicySpec}",
     "metrics": "{metric: MetricSpec | expr}", "outputs": "{output: OutputSpec | expr}", "end": "[EndSpec]",
     "arms": "{arm: ArmSpec}", "invariants": "[InvariantSpec | expr]",
+    "defs": "{name: DefSpec | expr}", "blocks": "{name: BlockSpec}",
 }
 
 

@@ -9,7 +9,7 @@ from ..entity import Entity
 from .contract import ActionSpec, Contract, ParamSpec, StageSpec
 from .effects import EffectRunner
 from .errors import RunError
-from .expr import ExprError, compile_expr, is_expr, truthy
+from .expr import ExprError, Untrusted, compile_expr, is_expr, truthy
 from .template import compile_template, format_value
 from .world import Abort, SdkWorld, _plain
 
@@ -60,7 +60,11 @@ def stage_actions(contract: Contract, stage: StageSpec, type_name: str) -> List[
     elif isinstance(spec, list):
         names = list(spec)
     elif isinstance(spec, dict):
-        names = list(spec.get(type_name, []))
+        names = []
+        for kind in reversed(contract.lineage(type_name)):  # the most specific type's list wins
+            if kind in spec:
+                names = list(spec[kind])
+                break
     else:
         names = []
     out = []
@@ -69,7 +73,7 @@ def stage_actions(contract: Contract, stage: StageSpec, type_name: str) -> List[
         if action is None:
             continue
         by = [action.by] if isinstance(action.by, str) else action.by
-        if type_name in by:
+        if any(contract.is_a(type_name, allowed) for allowed in by):
             out.append(name)
     return out
 
@@ -98,7 +102,7 @@ class ActionBook:
             except ExprError as exc:
                 raise RunError(str(exc), f"actions.{name}.when[{index}]") from None
             if not ok:
-                return condition.why or "its requirements are not met"
+                return (condition.why or "its requirements are not met").rstrip(". ")
         for pname, param in spec.params.items():
             if param.type == "entity" and self._required(param) and not self._choices(actor, name, pname, param):
                 return f"there is no valid {param.of or 'target'} for {pname}"
@@ -274,7 +278,7 @@ class ActionBook:
             text = str(raw)
             if param.max_len is not None and len(text) > param.max_len:
                 return None, f"is {len(text)} characters; the limit is {param.max_len}"
-            return text, None
+            return Untrusted(text), None
         if kind == "enum":
             values = param.values
             if isinstance(values, str):
@@ -317,6 +321,7 @@ class ActionBook:
         vars: Dict[str, Any] = {"actor": actor, "params": params}
         path = f"actions.{name}"
         success = True
+        log_mark = world.log[-1].seq if world.log else 0
         try:
             if spec.chance is not None:
                 probability = compile_expr(spec.chance)(world.scope(**vars)) if is_expr(spec.chance) else spec.chance
@@ -327,12 +332,18 @@ class ActionBook:
             text = self._render(spec.outcome, vars, f"{path}.outcome") if spec.outcome else self._default_outcome(name, params, success)
             announce = spec.announce
             if not spec.private:
-                line = self._render(announce, vars, f"{path}.announce") if announce is not None else \
-                    self._default_announce(actor, name, params, success)
+                posted = any(e.kind == "record" for e in world.log[-64:] if e.seq > log_mark)
+                if announce is not None:
+                    line = self._render(announce, vars, f"{path}.announce")
+                elif posted:
+                    line = ""  # the posted entry itself is the news
+                else:
+                    line = self._default_announce(actor, name, params, success)
                 # Public: every agent may learn of it; the actor's own announcement is
                 # filtered out of its news by perception.
-                world.emit("action", line, actor=actor.id, to=None,
-                           data={"action": name, "params": _plain(params), "success": success})
+                announcement = world.emit("action", line, actor=actor.id, to=None,
+                                          data={"action": name, "params": _plain(params), "success": success})
+                _first_in_order(world, log_mark, announcement)
             else:
                 world.emit("action", "", actor=actor.id, to=(actor.id,),
                            data={"action": name, "params": _plain(params), "success": success, "private": True})
@@ -346,6 +357,18 @@ class ActionBook:
             world.journal.rollback(mark)
             raise
         return Outcome(True, text, success, params)
+
+    def dry_run(self, actor: Entity, name: str, params: Dict[str, Any]) -> Optional[str]:
+        """Apply and roll back, to catch a doomed sealed choice at submit. Returns the refusal, or None."""
+        world = self.world
+        mark = world.journal.mark()
+        rng_state = world.rng.getstate()
+        try:
+            outcome = self.apply(actor, name, params)
+        finally:
+            world.journal.rollback(mark)
+            world.rng.setstate(rng_state)
+        return None if outcome.ok else outcome.text
 
     def _render(self, template: str, vars: Dict[str, Any], path: str) -> str:
         try:
@@ -366,3 +389,17 @@ class ActionBook:
         verb = name.replace("_", " ")
         suffix = "" if success else " — it did not succeed"
         return f"{actor.name}: {verb}{self._args_text(params)}{suffix}."
+
+
+def _first_in_order(world: SdkWorld, log_mark: int, event: Any) -> None:
+    """Move an action's announcement ahead of the news its own effects produced."""
+    log = world.log
+    index = len(log) - 1
+    while index > 0 and log[index - 1].seq > log_mark:
+        index -= 1
+    if log[index] is event:
+        return
+    log.remove(event)
+    log.insert(index, event)
+    for offset, item in enumerate(log[index:]):
+        item.seq = log_mark + 1 + offset

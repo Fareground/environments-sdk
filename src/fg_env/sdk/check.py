@@ -16,11 +16,12 @@ from pydantic import BaseModel, ValidationError
 from ..physics import PhysicsExprError, _CompiledExpr, _CONSTS, _FUNCS
 from . import contract as C
 from .contract import Contract
-from .effects import EFFECT_OPS, RESERVED_ROOTS, _STATEMENT
+from .effects import EFFECT_OPS, RESERVED_ROOTS, statement_parts
 from .errors import ContractError, Issue
-from .expr import ExprError, compile_expr, is_expr
+from .expr import FUNCTIONS, ExprError, compile_expr, is_expr
 from .inputs import check_value
 from .template import compile_template
+from .world import prop_type
 
 __all__ = ["parse_contract", "check_contract"]
 
@@ -32,6 +33,9 @@ _COLLECTION_FUNCS = frozenset({"count", "sum", "avg", "min", "max", "top", "bott
                                "any", "all", "ids", "first", "last", "shuffle", "sample", "choice"})
 
 Types = Dict[str, Set[str]]
+
+#: Bare words an author may mean as "no value"; in expressions they are plain text.
+_NULL_WORDS = frozenset({"none", "None", "nil", "undefined", "Null", "NULL", "empty"})
 
 
 def _all_field_names() -> List[str]:
@@ -108,8 +112,20 @@ class _Checker:
     def __init__(self, contract: Contract):
         self.c = contract
         self.issues: List[Issue] = []
-        self.type_props: Dict[str, Set[str]] = {t: set(s.props) for t, s in contract.types.items()}
-        self.agents = [t for t, s in contract.types.items() if s.agent]
+        self.type_props: Dict[str, Set[str]] = {t: set(contract.props_of(t)) for t in contract.types}
+        self.agents = contract.agent_types()
+        words: Set[str] = set(contract.types) | set(contract.records) | set(contract.relations) | set(contract.actions)
+        words |= {s.name for s in contract.stage_list()} | set(contract.metrics) | set(contract.policies) | set(contract.arms)
+        for kind in contract.types:
+            for spec in contract.props_of(kind).values():
+                words |= {str(v) for v in spec.values or []}
+        for action in contract.actions.values():
+            for param in action.params.values():
+                if isinstance(param.values, list):
+                    words |= {str(v) for v in param.values}
+        for input_spec in contract.inputs.values():
+            words |= {str(v) for v in input_spec.values or []}
+        self.known_words = words
         self.stage_names = [s.name for s in contract.stage_list()]
 
     # -- reporting -----------------------------------------------------------------
@@ -131,7 +147,7 @@ class _Checker:
             self.error(path, f"'{name}' is not a declared type", self._suggest(name, self.c.types)
                        or f"types: {', '.join(self.c.types)}")
             return False
-        if agent and not self.c.types[name].agent:
+        if agent and not self.c.is_agent(name):
             self.error(path, f"'{name}' is not an agent type", f"set types.{name}.agent: true")
             return False
         return True
@@ -154,8 +170,10 @@ class _Checker:
 
     def value(self, raw: Any, path: str, roots: Iterable[str], types: Optional[Types] = None,
               params: Optional[Mapping[str, C.ParamSpec]] = None) -> None:
-        """A literal or an expression (deeply, for lists and objects)."""
-        if isinstance(raw, str) and is_expr(raw):
+        """A literal, a template text, or an expression (deeply, for lists and objects)."""
+        if isinstance(raw, str) and "{$" in raw:
+            self.template(raw, path, None, roots, types, params)
+        elif isinstance(raw, str) and is_expr(raw):
             self.expr(raw, path, roots, types, params)
         elif isinstance(raw, list):
             for i, item in enumerate(raw):
@@ -191,6 +209,23 @@ class _Checker:
             if name == "records" and symbol is not None and symbol not in self.c.records:
                 self.error(path, f"$records({symbol}): '{symbol}' is not a declared record",
                            self._suggest(symbol, self.c.records))
+        for name in compiled.functions:
+            if name not in FUNCTIONS and name not in self.c.defs:
+                hint = get_close_matches(name, list(FUNCTIONS) + list(self.c.defs), n=1)
+                self.error(path, f"unknown function ${name}",
+                           (f"did you mean ${hint[0]}?" if hint else "declare it under `defs`") + f" — in `{compiled.source}`")
+        for chain, word in compiled.comparisons:
+            self._compare(self._spec_for(chain, types, params), chain, word, path, compiled.source)
+        for _, symbol, chain, word in compiled.item_comparisons:
+            if symbol in self.c.types and len(chain) == 2:
+                spec = self.c.props_of(symbol).get(chain[1])
+                self._compare((spec.values, prop_type(spec)) if spec else None, chain, word, path, compiled.source)
+        actor_props: Set[str] = set()
+        for kind in types.get("actor", ()):
+            actor_props |= self.type_props.get(kind, set())
+        for word in compiled.symbols:
+            if word in actor_props and word not in self.known_words:
+                self.warn(path, f"bare word '{word}' is the text '{word}'", f"did you mean $actor.{word}? — in `{compiled.source}`")
         for chain in compiled.paths:
             self._chain(chain, path, types, params, compiled.source)
         for _, symbol, chain in compiled.item_paths:
@@ -233,6 +268,48 @@ class _Checker:
             if first not in ("round", "rounds", "left", "unit", "date", "label"):
                 self.error(path, f"$clock.{first}: no such field", "clock fields: round, rounds, left, unit, date, label")
 
+    def _spec_for(self, chain: Tuple[str, ...], types: Types, params: Mapping[str, C.ParamSpec]) -> Optional[Tuple[Any, str]]:
+        """``(allowed values, kind)`` of the field a chain reads, when statically known."""
+        root = chain[0]
+        if root in types and len(chain) == 2:
+            for kind in types[root]:
+                spec = self.c.props_of(kind).get(chain[1]) if kind in self.c.types else None
+                if spec is not None:
+                    return spec.values, prop_type(spec)
+        if root == "world" and len(chain) == 2 and chain[1] in self.c.world:
+            spec = self.c.world[chain[1]]
+            return spec.values, prop_type(spec)
+        if root == "params" and params and chain[1] in params:
+            param = params[chain[1]]
+            if len(chain) == 2:
+                return (param.values if isinstance(param.values, list) else None), param.type
+            if len(chain) == 3 and param.type == "entity" and param.of in self.c.types:
+                spec = self.c.props_of(param.of).get(chain[2])
+                if spec is not None:
+                    return spec.values, prop_type(spec)
+        if root == "inputs" and len(chain) == 2 and chain[1] in self.c.inputs:
+            spec_in = self.c.inputs[chain[1]]
+            return spec_in.values, spec_in.type
+        return None
+
+    def _compare(self, known: Optional[Tuple[Any, str]], chain: Tuple[str, ...], word: str, path: str, source: str) -> None:
+        field = "$" + ".".join(chain)
+        if known is None:
+            if word in _NULL_WORDS:
+                self.warn(path, f"'{word}' is the text '{word}', not an empty value", f"write null for no value — in `{source}`")
+            return
+        values, kind = known
+        if values:
+            allowed = [str(v) for v in values]
+            if word not in allowed:
+                hint = get_close_matches(word, allowed, n=1)
+                self.error(path, f"{field} is one of {', '.join(allowed)}; '{word}' is not",
+                           (f"did you mean '{hint[0]}'?" if hint else "compare with one of the values") + f" — in `{source}`")
+        elif kind in ("number", "int", "bool"):
+            self.error(path, f"{field} is a {kind}, compared with the text '{word}'", f"fix the comparison — in `{source}`")
+        elif word in _NULL_WORDS:
+            self.warn(path, f"'{word}' is the text '{word}', not an empty value", f"write null for no value — in `{source}`")
+
     def _prop(self, type_names: Set[str], field: str, path: str, source: str, root: str) -> None:
         if field in ENTITY_FIELDS or field.isdigit():
             return
@@ -265,18 +342,24 @@ class _Checker:
 
     def _statement(self, source: str, path: str, roots: Set[str], types: Types,
                    params: Optional[Mapping[str, C.ParamSpec]]) -> None:
-        match = _STATEMENT.match(source)
-        if not match:
-            self.error(path, "not an assignment", "write `$actor.cash -= 5`, `$world.open = true` or `$total = 3`")
+        try:
+            target, prop, local, _, right = statement_parts(source)
+        except ExprError as exc:
+            self.error(path, exc.detail, "write `$actor.cash -= 5`, `$world.open = true` or `$total = 3`")
             return
-        root, dotted, _, rhs = match.groups()
-        self.expr(rhs, path, roots, types, params)
-        if not dotted:
-            if root in RESERVED_ROOTS:
-                self.error(path, f"${root} cannot be reassigned", "assign to one of its fields")
-            roots.add(root)
+        self.expr(right, path, roots, types, params)
+        if local is not None:
+            if local in RESERVED_ROOTS:
+                self.error(path, f"${local} cannot be reassigned", "assign to one of its fields")
+            roots.add(local)
             return
-        fields = tuple(dotted.lstrip(".").split("."))
+        assert target is not None and prop is not None
+        simple = re.fullmatch(r"\$([A-Za-z_][A-Za-z0-9_]*)((?:\.[A-Za-z_][A-Za-z0-9_]*)*)", target)
+        if simple is None:
+            self.expr(target, path, roots, types, params)
+            return
+        root = simple.group(1)
+        fields = tuple(f for f in simple.group(2).split(".") if f) + (prop,)
         if root not in roots:
             self.error(path, f"${root} is not available here", f"available: {', '.join('$' + r for r in sorted(roots))}")
             return
@@ -341,6 +424,9 @@ class _Checker:
             prop = effect["transfer"]
             if not any(prop in props for props in self.type_props.values()):
                 self.error(f"{path}.transfer", f"no type has a property '{prop}'")
+            into = effect.get("into")
+            if into is not None and not any(into in props for props in self.type_props.values()):
+                self.error(f"{path}.into", f"no type has a property '{into}'")
             for key in ("from", "to", "amount"):
                 if key not in effect:
                     self.error(path, f"`transfer` needs `{key}`")
@@ -381,6 +467,22 @@ class _Checker:
         elif op == "after":
             v("after")
             self.effects(effect.get("do", []), f"{path}.do", roots, types, params)
+        elif op == "block":
+            block = self.c.blocks.get(effect["block"])
+            given = effect.get("with") or {}
+            if block is None:
+                self.error(f"{path}.block", f"'{effect['block']}' is not a declared block",
+                           self._suggest(effect["block"], self.c.blocks) or "declare it under `blocks`")
+            elif not isinstance(given, dict):
+                self.error(f"{path}.with", "`with` is an object of arguments")
+            else:
+                for name in sorted(set(block.args) - set(given)):
+                    self.error(f"{path}.with", f"missing argument '{name}' for block '{effect['block']}'")
+                for name in sorted(set(given) - set(block.args)):
+                    self.error(f"{path}.with.{name}", f"block '{effect['block']}' has no argument '{name}'",
+                               f"arguments: {', '.join(block.args) or 'none'}")
+                for name, raw in given.items():
+                    self.value(raw, f"{path}.with.{name}", roots, types, params)
         elif op == "repeat":
             v("repeat")
             self.expr(effect.get("while"), f"{path}.while", roots, types, params)
@@ -393,8 +495,9 @@ class _Checker:
         if c.fg_env != C.CONTRACT_VERSION:
             self.error("fg_env", f"unsupported contract version '{c.fg_env}'", f"use \"{C.CONTRACT_VERSION}\"")
         if not self.agents:
-            self.error("types", "no agent type", "mark at least one type with agent: true")
+            self.warn("types", "no agent type, so nothing takes turns", "fine for a pure simulation; otherwise set agent: true")
         self._inputs()
+        self._brief()
         self._clock_space()
         self._types_and_world()
         self._entities()
@@ -408,6 +511,7 @@ class _Checker:
         self._policies()
         self._measure()
         self._arms()
+        self._defs_and_blocks()
 
     def _inputs(self) -> None:
         for name, spec in self.c.inputs.items():
@@ -428,6 +532,14 @@ class _Checker:
             elif not spec.required:
                 self.warn(path, "has no default and is not required, so it may be null",
                           "give a default or set required: true")
+
+    def _brief(self) -> None:
+        roots, types = BASE | {"actor"}, {"actor": set(self.agents)}
+        self.template(self.c.brief.situation or None, "brief.situation", "actor", roots, types)
+        self.template(self.c.brief.rules or None, "brief.rules", "actor", roots, types)
+        for type_name, text in self.c.brief.roles.items():
+            if self._type(type_name, f"brief.roles.{type_name}", agent=True):
+                self.template(text, f"brief.roles.{type_name}", "actor", roots, {"actor": {type_name}})
 
     def _clock_space(self) -> None:
         clock = self.c.clock
@@ -461,9 +573,20 @@ class _Checker:
                 if prop in ENTITY_FIELDS:
                     self.error(f"types.{name}.props.{prop}", f"'{prop}' is a built-in entity field", "choose another name")
                 self._prop_spec(prop_spec, f"types.{name}.props.{prop}", BASE - {"metrics", "series"} | {"row", "i"})
+            if spec.extends is not None:
+                if spec.extends not in self.c.types:
+                    self.error(f"types.{name}.extends", f"'{spec.extends}' is not a declared type",
+                               self._suggest(spec.extends, self.c.types))
+                elif name in self.c.lineage(spec.extends):
+                    self.error(f"types.{name}.extends", "types extend each other in a cycle")
+            if isinstance(spec.inspect, str):
+                self.expr(spec.inspect, f"types.{name}.inspect", BASE | {"viewer", "it"},
+                          {"viewer": set(self.agents), "it": set(self.c.subtypes(name))})
             if spec.policy is not None and spec.policy not in self.c.policies:
                 self.error(f"types.{name}.policy", f"'{spec.policy}' is not a declared policy", self._suggest(spec.policy, self.c.policies))
-            if spec.agent and not any(name in ([a.by] if isinstance(a.by, str) else a.by) for a in self.c.actions.values()):
+            if self.c.is_agent(name) and not any(
+                any(self.c.is_a(name, b) for b in ([a.by] if isinstance(a.by, str) else a.by)) for a in self.c.actions.values()
+            ) and not any(self.c.is_a(other, name) and other != name for other in self.c.types):
                 self.warn(f"types.{name}", "agent type has no actions", "add an action with `by`")
         for prop, world_spec in self.c.world.items():
             self._prop_spec(world_spec, f"world.{prop}", {"inputs"})
@@ -477,6 +600,8 @@ class _Checker:
                         self.error(f"{path}.props.{prop}", f"'{spec.type}' has no property '{prop}'",
                                    self._suggest(prop, self.type_props[spec.type]))
                     self.value(raw, f"{path}.props.{prop}", BASE)
+            if spec.type in self.c.types:
+                self.template(spec.brief, f"{path}.brief", "actor", BASE | {"actor"}, {"actor": {spec.type}})
         for index, group in enumerate(self.c.population):
             path = f"population[{index}]"
             if not self._type(group.type, f"{path}.type"):
@@ -489,6 +614,7 @@ class _Checker:
             self.expr(group.weight, f"{path}.weight", BASE | {"row"})
             for key in ("id", "name"):
                 self.template(getattr(group, key), f"{path}.{key}", None, BASE | {"row", "i"})
+            self.template(group.brief, f"{path}.brief", "actor", BASE | {"row", "i", "actor"}, {"actor": {group.type}})
             for prop, raw in group.props.items():
                 if prop not in self.type_props[group.type]:
                     self.error(f"{path}.props.{prop}", f"'{group.type}' has no property '{prop}'",
@@ -505,6 +631,8 @@ class _Checker:
                 if self._type(link.among, f"{path}.among") and link.graph not in (None, "complete", "ring", "random", "small_world"):
                     self.error(f"{path}.graph", f"unknown graph '{link.graph}'", "complete, ring, random, small_world")
                 self.expr(link.where, f"{path}.where", BASE | {"it"}, {"it": {link.among}})
+                self.value(link.degree, f"{path}.degree", BASE)
+                self.value(link.p, f"{path}.p", BASE)
             elif link.from_ is None or link.to is None:
                 self.error(path, "give `from` and `to`, or `among` with a `graph`")
             else:
@@ -517,6 +645,10 @@ class _Checker:
         if spec is None:
             return
         names = set(spec.vars) | set(spec.params) | set(spec.read) | set(_CONSTS) | set(_FUNCS) | {"t"}
+        for name in spec.read:
+            if name in spec.vars or name in spec.params:
+                self.error(f"physics.read.{name}", f"'{name}' is also a variable or param, so the read would be ignored",
+                           "give the read its own name and use it in the rates")
         for name, raw in spec.params.items():
             self.value(raw, f"physics.params.{name}", {"inputs", "world"})
         for name, src in spec.read.items():
@@ -671,9 +803,10 @@ class _Checker:
             types: Types = {}
             roots = set(BASE)
             if event.each is not None:
-                roots |= {"it", "i"}
+                item = event.as_ or "it"
+                roots |= {item, "i"}
                 if event.each in self.c.types:
-                    types["it"] = {event.each}
+                    types[item] = {event.each}
                 else:
                     self.expr(event.each, f"{path}.each", BASE)
             self.expr(event.where, f"{path}.where", roots, types)
@@ -716,6 +849,24 @@ class _Checker:
             self.expr(invariant.expr, f"invariants[{index}]", BASE)
         if not self.c.outputs:
             self.warn("outputs", "no outputs declared", "declare the typed results this environment produces")
+
+    def _defs_and_blocks(self) -> None:
+        for name, spec in self.c.defs.items():
+            path = f"defs.{name}"
+            if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", name):
+                self.error(path, "def names are letters, digits and underscores")
+            if name in FUNCTIONS:
+                self.error(path, f"'{name}' is a built-in function", "choose another name")
+            for arg in spec.args:
+                if arg in BASE or arg in RESERVED_ROOTS:
+                    self.error(f"{path}.args", f"'{arg}' is a built-in root", "choose another argument name")
+            self.expr(spec.expr, f"{path}.expr", BASE | set(spec.args))
+        for name, block in self.c.blocks.items():
+            path = f"blocks.{name}"
+            for arg in block.args:
+                if arg in BASE or arg in RESERVED_ROOTS:
+                    self.error(f"{path}.args", f"'{arg}' is a built-in root", "choose another argument name")
+            self.effects(block.do, f"{path}.do", set(BASE) | set(block.args), {})
 
     def _arms(self) -> None:
         for name, arm in self.c.arms.items():

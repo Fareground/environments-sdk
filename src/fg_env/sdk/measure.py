@@ -73,7 +73,7 @@ class RunResult:
         return out
 
     def to_json(self, events: bool = True, indent: Optional[int] = 2) -> str:
-        return json.dumps(self.to_dict(events), indent=indent, default=str)
+        return json.dumps(self.to_dict(events), indent=indent, default=str, ensure_ascii=False)
 
     def summary(self) -> str:
         how = f"ended by {self.ended_by}" if self.ended_by else self.status

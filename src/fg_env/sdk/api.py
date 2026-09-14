@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Mapping, Optional, Union
 
 from .check import check_contract, parse_contract
 from .contract import Contract
-from .errors import ContractError, Issue
+from .errors import ContractError, Issue, RunError
 from .inputs import resolve_inputs
 from .measure import RunResult
 from .runtime import Env
@@ -79,10 +79,50 @@ def _check_all(source: ContractLike) -> tuple[Optional[Contract], List[Issue]]:
     return contract, check_contract(contract)
 
 
-def check(source: ContractLike) -> List[Issue]:
-    """Every problem in a contract, errors first then warnings. Never raises for contract problems."""
-    _, issues = _check_all(source)
-    return [i for i in issues if i.severity == "error"] + [i for i in issues if i.severity != "error"]
+def check(source: ContractLike, rounds: int = 0, seed: int = 0) -> List[Issue]:
+    """Every problem in a contract, errors first then warnings. Never raises for contract problems.
+
+    With ``rounds > 0`` a clean contract is also built and played for that many rounds with
+    default participants, so problems that only appear with real values (sampling, first
+    turns, views) are reported the same way.
+    """
+    contract, issues = _check_all(source)
+    errors = [i for i in issues if i.severity == "error"]
+    if rounds > 0 and contract is not None and not errors:
+        try:
+            result = load(contract, seed=seed).run(_smoke_participant(seed), rounds=rounds)
+            if result.status == "failed":
+                errors.append(_run_issue(result.error or "the run failed"))
+            for problem in result.output_issues:
+                errors.append(Issue(problem["path"], problem["message"], problem.get("fix")))
+        except ContractError as exc:
+            errors.extend(exc.issues)
+        except RunError as exc:
+            errors.append(_run_issue(str(exc), exc.path))
+    return errors + [i for i in issues if i.severity != "error"]
+
+
+def _smoke_participant(seed: int) -> Any:
+    """Reads everything an agent would read (brief, update, tools), then acts at random,
+    so a smoke run exercises every view and template, not just the rules."""
+    from .participants import RandomAgent
+
+    random_agent = RandomAgent(seed)
+
+    def participant(wake: Any) -> None:
+        wake.brief
+        wake.update
+        random_agent(wake)
+
+    return participant
+
+
+def _run_issue(message: str, path: Optional[str] = None) -> Issue:
+    if path is None and ": " in message:
+        head, _, rest = message.partition(": ")
+        if " " not in head:
+            path, message = head, rest
+    return Issue(path or "(run)", message, "fix the rule at this path (found by a smoke run)")
 
 
 def apply_arm(contract: Contract, arm: str) -> Contract:

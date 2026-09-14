@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from .expr import ExprError, Expr, Scope, compile_expr
+from .expr import ExprError, Expr, Scope, Untrusted, compile_expr
 
 __all__ = ["Template", "compile_template", "render", "format_value"]
 
@@ -29,6 +29,8 @@ _FIELD = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*|\[\d+\])
 def format_value(value: Any) -> str:
     if value is None:
         return "—"
+    if isinstance(value, Untrusted):
+        return "«" + str.__str__(value).replace("«", "‹").replace("»", "›") + "»"
     if isinstance(value, bool):
         return "yes" if value else "no"
     if isinstance(value, float):
@@ -101,6 +103,9 @@ def compile_template(source: str, subject: Optional[str] = "it") -> Template:
     """Compile a template. Bare ``{field}`` reads ``$<subject>.field``."""
     if not isinstance(source, str):
         raise ExprError("a template must be text", str(source))
+    stripped = source.strip()
+    if "{" not in stripped and stripped.startswith("$") and len(stripped) > 1 and (stripped[1].isalpha() or stripped[1] == "_"):
+        source = "{" + stripped + "}"  # a text field holding only an expression renders its value
     parts: List[Any] = []
     exprs: List[Expr] = []
     buf: List[str] = []
@@ -142,7 +147,9 @@ def compile_template(source: str, subject: Optional[str] = "it") -> Template:
                 raise ExprError(f"unknown format '{tail.strip()}' (use one of: {', '.join(FORMATS)})", source)
         if not inner:
             raise ExprError("empty {} in template", source)
-        if "$" not in inner:
+        if inner.startswith("$") and len(inner) > 1 and not (inner[1].isalpha() or inner[1] == "_"):
+            inner = inner[1:].strip()  # `{$'yes' if $x else 'no'}` → the expression after the marker
+        if "$" not in inner and not inner.startswith(("'", '"', "(")):
             if not _FIELD.match(inner):
                 raise ExprError(f"'{{{inner}}}' is not a field name; write an expression as {{$...}}", source)
             if subject is None:

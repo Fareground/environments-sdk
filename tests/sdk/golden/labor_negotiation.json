@@ -1,0 +1,14 @@
+{
+  "actions": 4,
+  "events": 8,
+  "events_sha256": "f770ff6f4aea341f41a0284c4ced0df5b983249999ac195c6c65bbdb8c728a98",
+  "metrics": {
+    "dispute_active": 0,
+    "firm_offer_value": 21.0825,
+    "union_offer_value": 79.376,
+    "wage_gap": null
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 4
+}

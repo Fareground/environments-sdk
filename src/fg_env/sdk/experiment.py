@@ -17,6 +17,13 @@ def _describe(values: List[Any]) -> Dict[str, Any]:
     present = [v for v in values if v is not None]
     if not present:
         return {"n": 0}
+    if all(isinstance(v, dict) for v in present):
+        keys: List[str] = []
+        for v in present:
+            keys += [k for k in v if k not in keys]
+        return {"n": len(present), "keys": {k: _describe([v.get(k) for v in present]) for k in keys}}
+    if all(isinstance(v, list) for v in present):
+        return {"n": len(present), "length": _describe([len(v) for v in present])}
     if all(isinstance(v, bool) for v in present):
         return {"n": len(present), "rate": sum(present) / len(present)}
     if all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in present):
@@ -64,6 +71,11 @@ class ExperimentResult:
                     cells.append(f"{label}: {stats['mean']:.4g} ± {stats['sd']:.2g} (n={stats['n']})")
                 elif "rate" in stats:
                     cells.append(f"{label}: {stats['rate']:.0%} (n={stats['n']})")
+                elif "keys" in stats:
+                    parts = [f"{k} {s['mean']:.3g}" for k, s in stats["keys"].items() if "mean" in s][:6]
+                    cells.append(f"{label}: " + (", ".join(parts) or f"{len(stats['keys'])} keys"))
+                elif "length" in stats:
+                    cells.append(f"{label}: lists of ~{stats['length'].get('mean', 0):.3g} items")
                 elif "counts" in stats:
                     top = ", ".join(f"{k}×{v}" for k, v in list(stats["counts"].items())[:3])
                     cells.append(f"{label}: {top}")

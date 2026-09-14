@@ -35,6 +35,9 @@ def _seed_for(base: int, wake: Wake) -> int:
 class RandomAgent:
     """Takes up to ``actions`` random legal actions per turn with valid random arguments."""
 
+    #: Coded participants are fast; running them in order avoids thread overhead.
+    concurrent = False
+
     def __init__(self, seed: int = 0, actions: int = 1, pass_rate: float = 0.0):
         self.seed = seed
         self.actions = actions
@@ -81,6 +84,9 @@ def sample_args(schema: Mapping[str, Any], rng: random.Random) -> Dict[str, Any]
 class Idle:
     """Never acts."""
 
+    #: Coded participants are fast; running them in order avoids thread overhead.
+    concurrent = False
+
     def __call__(self, wake: Wake) -> None:
         wake.end()
 
@@ -89,7 +95,10 @@ class Idle:
 
 
 class PolicyAgent:
-    """Runs a coded policy from the contract's ``policies`` section."""
+    """Runs a coded policy from the contract's ``policies`` section: the first rule whose condition
+    holds, whose action is legal and whose arguments are valid is taken."""
+
+    concurrent = False
 
     def __init__(self, contract: "Contract", name: str, seed: int = 0):
         if name not in contract.policies:
@@ -126,6 +135,10 @@ class PolicyAgent:
                 args = {k: (v.id if hasattr(v, "entity_type") else v) for k, v in args.items()}
                 if rule.do not in {t.name for t in wake.tools}:
                     continue
+                with turn.env._lock:
+                    _, problem = turn.env.actions.validate(turn.actor, rule.do, args)
+                if problem:
+                    continue  # this rule does not fit right now; try the next one
                 result = wake.call(rule.do, args)
                 if result.ok:
                     acted = True

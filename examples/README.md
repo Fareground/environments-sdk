@@ -1,34 +1,37 @@
 # Examples
 
-Runnable, end-to-end examples of the SDK facade. From a clone of the repo:
+## Contracts
+
+Complete environments in [`contracts/`](contracts/). Each one checks clean, runs, and is covered by a
+golden-run test (`tests/sdk/test_examples.py`). All except the lemonade stand were written by LLM
+agents using only `fg-env guide`, as a stress test of the SDK.
+
+| Contract | What it exercises |
+|---|---|
+| `lemonade_stand.json` | The minimal contract from the guide: simultaneous pricing, an end-of-round event, typed outputs |
+| `coffee_market.json` | Households sampled from a table input, a neighbourhood map, cafés with capacity and subscriptions, reviews, a network, an arm that opens a new chain |
+| `forecast_council.json` | Private information, sealed ballots, a chat deliberation until everyone is ready, aggregate outputs |
+| `order_book_exchange.json` | Orders as entities, price-time priority matching with partial fills, reserves, fees, a news shock, a circuit breaker, conservation invariants |
+| `civil_trial.json` | Roles, a phase state machine, exhibits with hidden strength, objections and rulings, a jury room hidden from counsel, secret ballots |
+| `town_epidemic.json` | 300 residents on a small-world network, contagion events, physics for hospital load and immunity, a mayor with a budget, early vs late lockdown arms |
+| `werewolf.json` | Hidden roles dealt from a shuffled deck, private night actions, a public day vote with ties |
+| `labor_negotiation.json` | Alternating offers over three issues, private reservation values, strikes and lockouts, a mediator, a deadline |
+| `connect_four.json` | A 6×7 board rendered as text rows, gravity drops, win detection in four directions |
+| `holdem_lite.json` | A shuffled deck, private hole cards, blinds, one betting round with side pots, hand ranking at showdown |
+
+```bash
+fg-env check contracts/werewolf.json
+fg-env preview contracts/werewolf.json p1
+fg-env run contracts/werewolf.json --seed 3 --events
+fg-env experiment contracts/town_epidemic.json --runs 5
+```
+
+## Template API scripts
+
+`00_simulate.py`, `quickstart.py` and `tic_tac_toe/template.json` use the earlier template-based API
+(`simulate`, `Kernel`), which remains available for existing templates:
 
 ```bash
 PYTHONPATH=src python3 examples/00_simulate.py
 PYTHONPATH=src python3 examples/quickstart.py
 ```
-
-(With the package pip-installed, drop the `PYTHONPATH=src`.)
-
-## 00_simulate.py
-
-The one-liner: `simulate(path_to_template)` loads the tic-tac-toe template, lets the built-in seeded random policy play every turn, and returns the finished `World` — then `world.summary()` reads the outcome. Zero configuration; deterministic given the seed.
-
-## quickstart.py
-
-The whole loop in ~35 lines: load `tic_tac_toe/template.json`, plug in a toy `decision_fn` (a random-cell picker — the slot where an LLM call goes), step until `world.finished`, then read `world.terminated_by` and the final event narrative. A seeded `Kernel` plus a deterministic `decision_fn` makes the run reproducible.
-
-## tic_tac_toe/template.json
-
-A complete world as pure JSON — no Python anywhere in the template:
-
-- one `entity_types` entry (`Player`, `role: "agent"`) and two entity instances carrying an `X`/`O` mark;
-- the `board` **domain module** providing the 3x3 grid, occupancy rules, and per-agent board perception (`perception["domain_data"]`);
-- one action, `place_mark`, whose effect is the registered `place_on_board` operation;
-- a `board_pattern` termination (`row_3`/`col_3`/`diag_3`) plus `temporal.max_rounds: 9` as the draw backstop.
-
-## From here to your own template
-
-1. Start from the inline template in the [README quickstart](../README.md#quickstart) (no domain module — plain properties, an `add` effect, an `expr` termination) or copy `tic_tac_toe/template.json`.
-2. Describe your world: `entity_types` (at least one with `role: "agent"`), `entities`, `actions` whose `actor_type` matches, `termination_conditions`, and `temporal.max_rounds` as a budget. Every field is documented in [`docs/template_schema.md`](../docs/template_schema.md); valid effect operations / archetypes / check types / module names are listed live in [`docs/kernel_contract.json`](../docs/kernel_contract.json).
-3. Replace the toy `decision_fn` with your agent. It receives `(entity_id, perception, valid_actions)` and returns an `ActionInstance` or `None` — the perception dict is designed to be serialized straight into an LLM prompt.
-4. Validate before running: `lint_template(template)` flags contract violations, and `smoke_test(engine)` (on the engine from `load_world`) plays a short scripted run.

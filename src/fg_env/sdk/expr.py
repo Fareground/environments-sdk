@@ -35,6 +35,7 @@ from functools import lru_cache
 from typing import Any, Callable, Dict, FrozenSet, List, Mapping, Optional, Sequence, Tuple
 
 __all__ = [
+    "Untrusted",
     "ExprError",
     "Expr",
     "Scope",
@@ -55,6 +56,13 @@ _MAX_NODES = 2_048
 _EXPR_MARK = re.compile(r"\$[A-Za-z_]")
 _ROOT_PREFIX = "__r_"
 _FUNC_PREFIX = "__f_"
+
+
+class Untrusted(str):
+    """Text written by a participant. It keeps that provenance wherever it is stored and
+    renders wrapped in «» so other agents read it as information, never instructions."""
+
+    __slots__ = ()
 
 
 class ExprError(ValueError):
@@ -99,6 +107,9 @@ class World:
     def records(self, name: str) -> List[Any]:
         raise ExprError(f"no record '{name}' exists in this context")
 
+    def visible_records(self, name: str, viewer: Any) -> List[Any]:
+        return self.records(name)
+
     def events(self, name: Optional[str]) -> List[Any]:
         return []
 
@@ -113,6 +124,16 @@ class World:
 
     def is_type(self, name: str) -> bool:
         return False
+
+    def is_a(self, type_name: str, ancestor: str) -> bool:
+        return type_name == ancestor
+
+    def call_def(self, name: str, args: List[Any], source: str) -> Any:
+        """Call a contract-defined function (``defs``). The empty world has none."""
+        from difflib import get_close_matches
+
+        hint = get_close_matches(name, list(FUNCTIONS), n=1)
+        raise ExprError(f"unknown function ${name}" + (f" — did you mean ${hint[0]}?" if hint else ""), source)
 
 
 _EMPTY_WORLD = World()
@@ -228,7 +249,8 @@ def _in(item: Any, container: Any, source: str) -> bool:
 
 def _add(a: Any, b: Any, source: str) -> Any:
     if isinstance(a, str) and isinstance(b, str):
-        return a + b
+        joined = str.__add__(a, b)
+        return Untrusted(joined) if isinstance(a, Untrusted) or isinstance(b, Untrusted) else joined
     if isinstance(a, list) and isinstance(b, list):
         return a + b
     return _finite(_number(a, source) + _number(b, source), source)
@@ -290,7 +312,7 @@ _COMPARE: Dict[type, Callable[[Any, Any, str], bool]] = {
     ast.NotIn: lambda a, b, s: not _in(a, b, s),
 }
 
-_LITERAL_NAMES = {"true": True, "false": False, "null": None, "none": None}
+_LITERAL_NAMES = {"true": True, "false": False, "null": None}
 
 
 # ---------------------------------------------------------------------------
@@ -321,8 +343,8 @@ class Call:
         return self.nodes[index](self.scope)
 
     def each(self, index: int, item: Any, position: int = 0) -> Any:
-        """Evaluate argument ``index`` with ``$it`` bound to ``item``."""
-        return self.nodes[index](self.scope.child(it=item, i=position))
+        """Evaluate argument ``index`` with ``$it`` bound to ``item`` (the enclosing ``$it`` is ``$outer``)."""
+        return self.nodes[index](self.scope.child(it=item, i=position, outer=self.scope.vars.get("it")))
 
     def collection(self, index: int = 0) -> List[Any]:
         value = self.arg(index)
@@ -401,7 +423,7 @@ def function(
 
 _ALLOWED = (
     ast.Expression, ast.Constant, ast.Name, ast.Load, ast.Attribute, ast.Subscript,
-    ast.Call, ast.List, ast.Tuple, ast.BinOp, ast.UnaryOp, ast.BoolOp, ast.Compare,
+    ast.Call, ast.List, ast.Tuple, ast.Dict, ast.BinOp, ast.UnaryOp, ast.BoolOp, ast.Compare,
     ast.IfExp, ast.Add, ast.Sub, ast.Mult, ast.Div, ast.FloorDiv, ast.Mod, ast.Pow,
     ast.USub, ast.UAdd, ast.Not, ast.And, ast.Or, ast.Eq, ast.NotEq, ast.Lt, ast.LtE,
     ast.Gt, ast.GtE, ast.In, ast.NotIn,
@@ -477,9 +499,20 @@ class Expr:
     #: ``(function, first_argument_symbol, ("it", field, ...))`` — item fields read inside
     #: per-item arguments, e.g. ``("sum", "offer", ("it", "price"))``.
     item_paths: FrozenSet[Tuple[str, Optional[str], Tuple[str, ...]]] = frozenset()
+    #: ``(("actor", "status"), "open")`` — a root field compared with a bare word.
+    comparisons: FrozenSet[Tuple[Tuple[str, ...], str]] = frozenset()
+    #: ``(function, first_argument_symbol, ("it", field), word)`` — the same inside per-item arguments.
+    item_comparisons: FrozenSet[Tuple[str, Optional[str], Tuple[str, ...], str]] = frozenset()
 
     def __call__(self, scope: Scope) -> Any:
-        return self.run(scope)
+        try:
+            return self.run(scope)
+        except ExprError:
+            raise
+        except RecursionError:
+            raise ExprError("evaluation nested too deeply", self.source) from None
+        except (ArithmeticError, IndexError, KeyError, TypeError, ValueError, AttributeError) as exc:
+            raise ExprError(f"could not evaluate: {type(exc).__name__}: {exc}", self.source) from None
 
 
 @lru_cache(maxsize=16_384)
@@ -512,7 +545,8 @@ def compile_expr(source: str) -> Expr:
     run = compiler.node(tree.body)
     return Expr(source, run, frozenset(compiler.roots), frozenset(compiler.functions),
                 frozenset(compiler.symbols), frozenset(compiler.paths), frozenset(compiler.calls),
-                frozenset(compiler.item_paths))
+                frozenset(compiler.item_paths), frozenset(compiler.comparisons),
+                frozenset(compiler.item_comparisons))
 
 
 def _chain(node: ast.AST) -> Optional[Tuple[str, ...]]:
@@ -535,6 +569,8 @@ class _Compiler:
         self.paths: set = set()
         self.calls: set = set()
         self.item_paths: set = set()
+        self.comparisons: set = set()
+        self.item_comparisons: set = set()
 
     def node(self, node: ast.AST) -> Evaluator:
         method = getattr(self, "_" + type(node).__name__)
@@ -590,6 +626,18 @@ class _Compiler:
 
     _Tuple = _List
 
+    def _Dict(self, node: ast.Dict) -> Evaluator:
+        keys: List[str] = []
+        for key in node.keys:
+            if isinstance(key, ast.Constant) and isinstance(key.value, (str, int, float)) and not isinstance(key.value, bool):
+                keys.append(str(key.value))
+            elif isinstance(key, ast.Name) and not key.id.startswith("__"):
+                keys.append(key.id)
+            else:
+                raise ExprError("map keys must be text or numbers, like {wage: 3, 'job years': 2}", self.source)
+        values = [self.node(value) for value in node.values]
+        return lambda scope: {k: v(scope) for k, v in zip(keys, values)}
+
     def _BinOp(self, node: ast.BinOp) -> Evaluator:
         left, right, source = self.node(node.left), self.node(node.right), self.source
         op = _BINARY[type(node.op)]
@@ -608,7 +656,21 @@ class _Compiler:
             return lambda scope: all(truthy(v(scope)) for v in values)
         return lambda scope: any(truthy(v(scope)) for v in values)
 
+    def _word(self, node: ast.AST) -> List[str]:
+        if isinstance(node, ast.Name) and not node.id.startswith("__") and node.id not in _LITERAL_NAMES:
+            return [node.id]
+        if isinstance(node, (ast.List, ast.Tuple)):
+            return [w for item in node.elts for w in self._word(item)]
+        return []
+
     def _Compare(self, node: ast.Compare) -> Evaluator:
+        operands = [node.left, *node.comparators]
+        for a, b in zip(operands, operands[1:]):
+            for chain_node, other in ((a, b), (b, a)):
+                chain = _chain(chain_node)
+                if chain is not None and len(chain) > 1:
+                    for word in self._word(other):
+                        self.comparisons.add((chain, word))
         left = self.node(node.left)
         pairs = [(_COMPARE[type(op)], self.node(rhs)) for op, rhs in zip(node.ops, node.comparators)]
         source = self.source
@@ -634,11 +696,12 @@ class _Compiler:
         spec = FUNCTIONS.get(name)
         source = self.source
         if spec is None:
-            from difflib import get_close_matches
-
-            hint = get_close_matches(name, list(FUNCTIONS), n=1)
-            suffix = f" — did you mean ${hint[0]}?" if hint else ""
-            raise ExprError(f"unknown function ${name}{suffix}", source)
+            # A contract-defined function (`defs`), resolved by the world at run time and
+            # verified by the checker against the contract.
+            self.functions.add(name)
+            self.calls.add((name, None))
+            user_args = [self.node(arg) for arg in node.args]
+            return lambda scope: scope.world.call_def(name, [a(scope) for a in user_args], source)
         count = len(node.args)
         if count < spec.min_args or (spec.max_args is not None and count > spec.max_args):
             raise ExprError(f"wrong number of arguments: ${spec.signature}", source)
@@ -652,14 +715,17 @@ class _Compiler:
                 args.append(self.node(arg))
                 continue
             # $it and $i inside a per-item argument are bound by the function, not the caller.
-            outer_roots, outer_paths = self.roots, self.paths
-            self.roots, self.paths = set(), set()
+            saved = (self.roots, self.paths, self.comparisons)
+            self.roots, self.paths, self.comparisons = set(), set(), set()
             args.append(self.node(arg))
-            inner_roots, inner_paths = self.roots, self.paths
-            self.roots, self.paths = outer_roots, outer_paths
-            self.roots |= inner_roots - {"it", "i"}
-            self.paths |= {p for p in inner_paths if p[0] not in ("it", "i")}
+            inner_roots, inner_paths, inner_cmp = self.roots, self.paths, self.comparisons
+            self.roots, self.paths, self.comparisons = saved
+            bound = ("it", "i", "outer")
+            self.roots |= inner_roots - set(bound)
+            self.paths |= {p for p in inner_paths if p[0] not in bound}
             self.item_paths |= {(name, symbol, p) for p in inner_paths if p[0] == "it"}
+            self.comparisons |= {c for c in inner_cmp if c[0][0] not in bound}
+            self.item_comparisons |= {(name, symbol, c[0], c[1]) for c in inner_cmp if c[0][0] == "it"}
 
         def run(scope: Scope) -> Any:
             return spec.impl(Call(name, args, scope, source))
@@ -673,7 +739,12 @@ def evaluate(source: str, scope: Optional[Scope] = None) -> Any:
 
 
 def resolve(value: Any, scope: Scope) -> Any:
-    """Resolve a contract value: expression strings evaluate, containers resolve deeply."""
+    """Resolve a contract value: text with ``{$...}`` renders as a template, expression strings
+    evaluate, containers resolve deeply."""
+    if isinstance(value, str) and "{$" in value:
+        from .template import compile_template
+
+        return compile_template(value, None).render(scope)
     if is_expr(value):
         return compile_expr(value)(scope)
     if isinstance(value, list):

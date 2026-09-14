@@ -1,0 +1,84 @@
+{
+  "name": "Lemonade stand",
+  "brief": {
+    "situation": "Two kids sell lemonade on a hot day.",
+    "rules": "Set your price each round. Cheaper stands get more customers."
+  },
+  "clock": {
+    "rounds": 5,
+    "unit": "hour"
+  },
+  "types": {
+    "seller": {
+      "agent": true,
+      "props": {
+        "price": 1.0,
+        "earned": 0
+      }
+    }
+  },
+  "entities": {
+    "ana": {
+      "type": "seller",
+      "name": "Ana"
+    },
+    "ben": {
+      "type": "seller",
+      "name": "Ben"
+    }
+  },
+  "actions": {
+    "set_price": {
+      "by": "seller",
+      "description": "Set your price for this hour.",
+      "params": {
+        "price": {
+          "type": "number",
+          "min": 0.25,
+          "max": 5
+        }
+      },
+      "do": [
+        "$actor.price = $params.price"
+      ],
+      "terminal": true
+    }
+  },
+  "stages": [
+    {
+      "name": "pricing",
+      "turns": "simultaneous"
+    }
+  ],
+  "events": [
+    {
+      "phase": "end",
+      "each": "seller",
+      "do": [
+        "$share = (1 / $it.price) / $sum(seller, 1 / $it.price)",
+        "$it.earned += $round(40 * $share) * $it.price"
+      ]
+    }
+  ],
+  "views": {
+    "market": {
+      "for": "seller",
+      "title": "Stands",
+      "of": "seller",
+      "show": "{name}: price {price|money}, earned {earned|money}"
+    }
+  },
+  "metrics": {
+    "avg_price": "$avg(seller, $it.price)"
+  },
+  "outputs": {
+    "winner": {
+      "expr": "$top(seller, $it.earned, 1)[0].name",
+      "type": "text"
+    },
+    "avg_price": {
+      "expr": "$metrics.avg_price",
+      "type": "number"
+    }
+  }
+}

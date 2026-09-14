@@ -5,6 +5,8 @@ from __future__ import annotations
 import datetime as _dt
 import heapq
 import math
+import threading
+from difflib import get_close_matches
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
@@ -12,7 +14,7 @@ from ..entity import Entity
 from ..physics import PhysicsExprError, PhysicsModel, PhysicsVariable, _CompiledExpr
 from .contract import Contract, PropSpec
 from .errors import RunError
-from .expr import ExprError, Scope, World, compile_expr, is_expr
+from .expr import FUNCTIONS, ExprError, Scope, World, compile_expr, is_expr, truthy
 from .seeds import SeedTree
 
 __all__ = ["SdkWorld", "Entry", "LogEvent", "Abort", "prop_type"]
@@ -173,13 +175,18 @@ class SdkWorld(World):
         self.inputs = inputs
         self.seeds = seeds
         self.arm = arm
+        self._local = threading.local()
         self.rng = seeds.rng("world")
         self.entities: Dict[str, Entity] = {}
         self.props: Dict[str, Any] = {}
         self.links: Dict[str, Dict[Tuple[str, str], float]] = {name: {} for name in contract.relations}
+        #: relation → entity id → {linked entity id: number of edges between them}
+        self.adjacent: Dict[str, Dict[str, Dict[str, int]]] = {name: {} for name in contract.relations}
         self.records_store: Dict[str, List[Entry]] = {name: [] for name in contract.records}
         #: Retained record entries by sequence number (entries dropped by `keep` are removed).
         self.entry_by_seq: Dict[int, Entry] = {}
+        #: Per-entity brief text rendered at build (from entities.*.brief / population.brief).
+        self.entity_briefs: Dict[str, str] = {}
         self.log: List[LogEvent] = []
         self.physics: Optional[PhysicsModel] = None
         self.round = 0
@@ -197,14 +204,31 @@ class SdkWorld(World):
         self._props_view = _Props(self)
         self._physics_view = _Physics(self)
         self._clock_view = _Clock(self)
-        self._type_props = {t: spec.props for t, spec in contract.types.items()}
+        self._type_props = {t: contract.props_of(t) for t in contract.types}
+        self._subtypes = {t: set(contract.subtypes(t)) for t in contract.types}
+
+    # -- randomness --------------------------------------------------------------
+
+    @property  # type: ignore[override]
+    def rng(self) -> Any:
+        """The random stream for the current context: a turn's own stream while an agent's turn
+        runs (so concurrent turns never race for draws), otherwise the run's main stream."""
+        return getattr(self._local, "rng", None) or self._rng
+
+    @rng.setter
+    def rng(self, value: Any) -> None:
+        self._rng = value
+
+    def use_turn_rng(self, rng: Any) -> None:
+        self._local.rng = rng
 
     # -- expression interface ------------------------------------------------
 
     def entities_of(self, type_name: str) -> List[Entity]:
         if type_name not in self.contract.types:
             raise ExprError(f"'{type_name}' is not a declared type (types: {', '.join(self.contract.types)})")
-        return [e for e in self.entities.values() if e.entity_type == type_name and e.alive]
+        kinds = self._subtypes[type_name]
+        return [e for e in self.entities.values() if e.entity_type in kinds and e.alive]
 
     def entity(self, entity_id: Any) -> Optional[Entity]:
         if isinstance(entity_id, Entity):
@@ -225,15 +249,53 @@ class SdkWorld(World):
         return edges.get(self._key(kind, _id(a), _id(b)))
 
     def neighbors(self, entity: Any, kind: str) -> List[Entity]:
-        eid = _id(entity)
+        self._edges(kind)
+        linked = self.adjacent[kind].get(_id(entity), {})
         out: List[Entity] = []
-        for (a, b) in self._edges(kind):
-            other = b if a == eid else a if b == eid else None
-            if other is not None and other != eid:
-                found = self.entities.get(other)
-                if found is not None and found.alive and found not in out:
-                    out.append(found)
+        for other in linked:
+            found = self.entities.get(other)
+            if found is not None and found.alive:
+                out.append(found)
         return out
+
+    def visible_records(self, name: str, viewer: Any) -> List[Entry]:
+        rows = self.records(name)
+        if not isinstance(viewer, Entity):
+            return rows
+        return [row for row in rows if self.entry_visible(name, row, viewer)]
+
+    def entry_visible(self, record: str, entry: Entry, viewer: Optional[Entity]) -> bool:
+        if viewer is None:
+            return True
+        to = entry.get("to")
+        if to is not None and viewer.id not in to and entry.get("author") != viewer.id:
+            return False
+        visible = self.contract.records[record].visible
+        if visible == "all":
+            return True
+        try:
+            return truthy(compile_expr(visible)(self.scope(viewer=viewer, it=entry)))
+        except ExprError as exc:
+            raise RunError(str(exc), f"records.{record}.visible") from None
+
+    def is_a(self, type_name: str, ancestor: str) -> bool:
+        return type_name in self._subtypes.get(ancestor, ())
+
+    def call_def(self, name: str, args: List[Any], source: str) -> Any:
+        spec = self.contract.defs.get(name)
+        if spec is None:
+            hint = get_close_matches(name, list(FUNCTIONS) + list(self.contract.defs), n=1)
+            raise ExprError(f"unknown function ${name}" + (f" — did you mean ${hint[0]}?" if hint else ""), source)
+        if len(args) != len(spec.args):
+            raise ExprError(f"${name} takes {len(spec.args)} argument(s) ({', '.join(spec.args) or 'none'}), got {len(args)}", source)
+        depth = getattr(self._local, "depth", 0)
+        if depth >= 32:
+            raise ExprError(f"${name}: defs call each other too deeply (recursion?)", source)
+        self._local.depth = depth + 1
+        try:
+            return compile_expr(spec.expr)(self.scope(**dict(zip(spec.args, args))))
+        finally:
+            self._local.depth = depth
 
     def distance(self, a: Any, b: Any) -> float:
         return _distance(self.contract, _location(a), _location(b))
@@ -273,7 +335,7 @@ class SdkWorld(World):
 
     def clock_label(self) -> str:
         unit = self.contract.clock.unit
-        label = f"{unit[:1].upper()}{unit[1:]} {self.round} of {self.rounds}"
+        label = f"{unit[:1].upper()}{unit[1:]} {max(1, self.round)} of {self.rounds}"
         date = self.date()
         return f"{label} ({date})" if date else label
 
@@ -372,11 +434,12 @@ class SdkWorld(World):
         eid = entity_id or self.next_id(type_name)
         if eid in self.entities:
             raise RunError(f"an entity with id '{eid}' already exists", where)
-        unknown = set(props) - set(spec.props)
+        declared = self._type_props[type_name]
+        unknown = set(props) - set(declared)
         if unknown:
-            raise RunError(f"'{type_name}' has no properties {sorted(unknown)} (declared: {', '.join(spec.props) or 'none'})", where)
+            raise RunError(f"'{type_name}' has no properties {sorted(unknown)} (declared: {', '.join(declared) or 'none'})", where)
         entity = Entity(id=eid, name=name or eid, entity_type=type_name, properties={}, location_id=None)
-        for prop, prop_spec in spec.props.items():
+        for prop, prop_spec in declared.items():
             raw = props[prop] if prop in props else prop_spec.default
             try:
                 value = compile_expr(raw)(scope) if is_expr(raw) else _copy(raw)
@@ -417,14 +480,49 @@ class SdkWorld(World):
         missing = key not in edges
         old = edges.get(key)
         edges[key] = value
-        self.journal.push(lambda: edges.pop(key) if missing else edges.__setitem__(key, old))
+        if missing:
+            self._adjust(kind, key, 1)
+
+        def undo() -> None:
+            if missing:
+                edges.pop(key, None)
+                self._adjust(kind, key, -1)
+            else:
+                edges[key] = old
+
+        self.journal.push(undo)
 
     def unlink(self, kind: str, a: Any, b: Any, where: str) -> None:
         edges = self._edges(kind, where)
         key = self._key(kind, _id(a), _id(b))
         if key in edges:
             old = edges.pop(key)
-            self.journal.push(lambda: edges.__setitem__(key, old))
+            self._adjust(kind, key, -1)
+
+            def undo() -> None:
+                edges[key] = old
+                self._adjust(kind, key, 1)
+
+            self.journal.push(undo)
+
+    def _adjust(self, kind: str, key: Tuple[str, str], delta: int) -> None:
+        a, b = key
+        if a == b:
+            return
+        index = self.adjacent[kind]
+        for x, y in ((a, b), (b, a)):
+            row = index.setdefault(x, {})
+            count = row.get(y, 0) + delta
+            if count > 0:
+                row[y] = count
+            else:
+                row.pop(y, None)
+
+    def rebuild_adjacency(self) -> None:
+        self.adjacent = {kind: {} for kind in self.links}
+        for kind, edges in self.links.items():
+            for key in edges:
+                self._adjust(kind, key, 1)
 
     def post(self, record: str, fields: Dict[str, Any], author: Optional[str],
              to: Optional[Tuple[str, ...]], where: str) -> Entry:
@@ -438,7 +536,7 @@ class SdkWorld(World):
         entry.world = self
         for name, kind in spec.fields.items():
             value = _plain(fields.get(name))
-            if value is not None and kind == "text":
+            if value is not None and kind == "text" and not isinstance(value, str):
                 value = str(value)
             entry[name] = value
         self._record_seq += 1
@@ -465,7 +563,8 @@ class SdkWorld(World):
 
         self.journal.push(undo)
         if spec.notify:
-            self.emit("record", "", actor=author, to=to, data={"record": record, "entry": entry["seq"]})
+            self.emit("record", "", actor=author, to=to, data={
+                "record": record, "entry": entry["seq"], "fields": {name: entry[name] for name in spec.fields}})
         return entry
 
     def emit(self, kind: str, text: str, *, actor: Optional[str] = None,
@@ -476,8 +575,8 @@ class SdkWorld(World):
         self.log.append(event)
 
         def undo() -> None:
-            if self.log and self.log[-1] is event:
-                self.log.pop()
+            if event in self.log:
+                self.log.remove(event)
                 self._seq -= 1
 
         self.journal.push(undo)
@@ -540,6 +639,8 @@ class SdkWorld(World):
         for name, raw in spec.params.items():
             params[name] = float(_number(compile_expr(raw)(scope) if is_expr(raw) else raw, f"physics.params.{name}"))
         for name in spec.read:
+            if name in spec.vars or name in spec.params:
+                raise RunError(f"'{name}' is both a read name and a variable or param; give the read its own name", f"physics.read.{name}")
             params.setdefault(name, 0.0)
         variables = []
         for name, var in spec.vars.items():
