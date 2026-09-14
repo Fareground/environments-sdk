@@ -236,6 +236,19 @@ __all__ = [
     "InvariantViolation",
     "SnapshotError",
     "participants",
+    "analysis",
+    "sweep",
+    "sensitivity",
+    "calibrate",
+    "score",
+    "backtest",
+    "precision",
+    "behavior_checks",
+    "highlights",
+    "narrative",
+    "drivers",
+    "compare",
+    "chain",
 ]
 
 # Environment SDK public API. Everything a user needs is importable from ``fg_env``.
@@ -248,3 +261,6 @@ from .sdk.measure import RunResult
 from .sdk.runtime import Env
 from .sdk.session import ToolResult, Wake
 from .sdk import participants
+from .sdk import analysis
+from .sdk.analysis import (backtest, behavior_checks, calibrate, chain, compare, drivers, highlights, narrative,
+                           precision, score, sensitivity, sweep)

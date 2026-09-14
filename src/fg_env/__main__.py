@@ -342,8 +342,10 @@ def main(argv: list = None) -> int:
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     from .sdk.cli import add_commands
+    from .sdk.analysis.cli import add_analysis_commands
 
     add_commands(sub)
+    add_analysis_commands(sub)
 
     p_compile = sub.add_parser("compile", help="[template API] validate, lint, optionally smoke-test a JSON template")
     p_compile.add_argument("file", help="path to template.json")
