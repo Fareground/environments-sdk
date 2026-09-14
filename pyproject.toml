@@ -4,11 +4,11 @@ build-backend = "hatchling.build"
 
 [project]
 name = "fg-env"
-version = "0.2.0.post12"
-description = "Game-agnostic simulation kernel for building agent environments."
+version = "0.3.0"
+description = "The Environment SDK for AI agents: define an environment as one JSON contract, the engine runs it."
 readme = "README.md"
 requires-python = ">=3.11"
-keywords = ["simulation", "kernel", "agents", "environments", "game-engine", "ai"]
+keywords = ["agents", "environments", "llm", "simulation", "multi-agent", "sdk", "contract", "ai"]
 license = { text = "Apache-2.0" }
 classifiers = [
     "Development Status :: 3 - Alpha",
