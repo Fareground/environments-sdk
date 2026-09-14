@@ -152,16 +152,20 @@ class _Clock:
 class _Journal:
     def __init__(self) -> None:
         self._undo: List[Callable[[], object]] = []
+        #: Bumped by every change and every undo: equal versions mean an unchanged world.
+        self.version = 0
 
     def mark(self) -> int:
         return len(self._undo)
 
     def push(self, undo: Callable[[], object]) -> None:
         self._undo.append(undo)
+        self.version += 1
 
     def rollback(self, mark: int) -> None:
         while len(self._undo) > mark:
             self._undo.pop()()
+            self.version += 1
 
     def clear(self) -> None:
         self._undo.clear()
@@ -209,6 +213,11 @@ class SdkWorld(World):
         self._physics_view = _Physics(self)
         self._clock_view = _Clock(self)
         self._type_props = {t: contract.props_of(t) for t in contract.types}
+        #: Results of pure defs for the current world state (see :meth:`call_def`).
+        self._def_cache: Dict[Any, Any] = {}
+        self._def_cache_state: Any = None
+        #: Empty while the world is being built (build writes state outside the journal).
+        self._pure_defs: frozenset = frozenset()
         self._subtypes = {t: set(contract.subtypes(t)) for t in contract.types}
 
     # -- randomness --------------------------------------------------------------
@@ -299,14 +308,51 @@ class SdkWorld(World):
             raise ExprError(f"unknown function ${name}" + (f" — did you mean ${hint[0]}?" if hint else ""), source)
         if len(args) != len(spec.args):
             raise ExprError(f"${name} takes {len(spec.args)} argument(s) ({', '.join(spec.args) or 'none'}), got {len(args)}", source)
+        key = self._def_key(name, args)
+        if key is not None:
+            state = self._state_version()
+            if state != self._def_cache_state:
+                self._def_cache, self._def_cache_state = {}, state
+            elif key in self._def_cache:
+                return self._def_cache[key]
         depth = getattr(self._local, "depth", 0)
         if depth >= 32:
             raise ExprError(f"${name}: defs call each other too deeply (recursion?)", source)
         self._local.depth = depth + 1
         try:
-            return compile_expr(spec.expr)(self.scope(**dict(zip(spec.args, args))))
+            value = compile_expr(spec.expr)(self.scope(**dict(zip(spec.args, args))))
         finally:
             self._local.depth = depth
+        if key is not None and self._state_version() == state and isinstance(value, _CACHEABLE):
+            self._def_cache[key] = value
+        return value
+
+    def enable_def_cache(self) -> None:
+        """Start caching pure def results; called once the world is built."""
+        self._pure_defs = _pure_defs(self.contract)
+        self.touch()
+
+    def touch(self) -> None:
+        """Record a change made outside the journal (metrics sampling, physics), so cached reads refresh."""
+        self.journal.version += 1
+
+    def _state_version(self) -> Any:
+        pending = getattr(self._local, "pending", None)
+        return (self.journal.version, self.round, self.stage, id(pending), len(pending or ()))
+
+    def _def_key(self, name: str, args: List[Any]) -> Optional[Tuple[Any, ...]]:
+        """A cache key for a pure def call, or None when the call cannot be cached."""
+        if name not in self._pure_defs:
+            return None
+        parts: List[Any] = [name]
+        for arg in args:
+            if isinstance(arg, Entity):
+                parts.append(("$entity", arg.id))
+            elif arg is None or type(arg) in (int, float, bool, str):
+                parts.append((type(arg).__name__, arg))
+            else:
+                return None  # lists, maps, records and participant text are not cached
+        return tuple(parts)
 
     def distance(self, a: Any, b: Any) -> float:
         start, end = _location(a), _location(b)
@@ -732,6 +778,7 @@ class SdkWorld(World):
             return []
         self._refresh_physics_reads()
         changes = self.physics.integrate(spec.dt)
+        self.touch()
         errors = [c for c in changes if c.get("type") == "physics_error"]
         if errors:
             raise RunError(errors[0]["narrative"], "physics")
@@ -749,6 +796,33 @@ class SdkWorld(World):
 
 
 # ---------------------------------------------------------------------------
+
+
+#: Functions that draw random numbers: a def using one (directly or through another def) is never cached.
+_RANDOM_FUNCTIONS = frozenset({"random", "chance", "uniform", "randint", "normal", "lognormal", "beta",
+                               "exponential", "poisson", "choice", "sample", "shuffle"})
+
+#: Def results that are immutable, so a cached value can be handed out again safely.
+_CACHEABLE = (int, float, bool, str, type(None), Entity)
+
+
+def _pure_defs(contract: Contract) -> frozenset:
+    """Defs whose value depends only on their arguments and the world state (no random draws)."""
+    uses: Dict[str, frozenset] = {}
+    for name, spec in contract.defs.items():
+        try:
+            uses[name] = compile_expr(spec.expr).functions
+        except ExprError:
+            uses[name] = frozenset(_RANDOM_FUNCTIONS)  # reported by the checker; never cached
+    impure = {name for name, fns in uses.items() if fns & _RANDOM_FUNCTIONS}
+    changed = True
+    while changed:
+        changed = False
+        for name, fns in uses.items():
+            if name not in impure and fns & impure:
+                impure.add(name)
+                changed = True
+    return frozenset(uses) - impure
 
 
 def _id(value: Any) -> str:

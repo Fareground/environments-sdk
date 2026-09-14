@@ -244,3 +244,41 @@ def test_a_callback_error_marks_the_run_failed_and_is_raised():
     with pytest.raises(KeyError):
         env.run(_talker, on_event=boom)
     assert env.status == "failed" and "sink down" in (env.error or "")
+
+
+CACHED = {
+    "name": "Def cache", "clock": {"rounds": 3},
+    "world": {"pot": 0, "seen": {"type": "list", "default": []}, "draws": {"type": "list", "default": []}},
+    "types": {"player": {"agent": True, "props": {"score": 0}}},
+    "entities": {"a": {"type": "player"}, "b": {"type": "player"}},
+    "defs": {"lead": {"args": ["p"], "expr": "$p.score - $sum(player, $it.score) / 2"},
+             "rolls": {"args": [], "expr": "$randint(1, 1000000)"},
+             "last_total": {"args": [], "expr": "$len($series.total)"}},
+    "metrics": {"total": "$sum(player, $it.score)"},
+    "actions": {
+        "score": {"by": "player", "do": ["$world.seen += $lead($actor)", "$actor.score += 3",
+                                         "$world.seen += $lead($actor)"]},
+        "score_then_fail": {"by": "player", "do": ["$actor.score += 100", "$world.seen += $lead($actor)",
+                                                   {"fail": "no"}]},
+        "roll": {"by": "player", "do": ["$world.draws += $rolls", "$world.draws += $rolls"]},
+    },
+    "stages": [{"name": "play", "turns": "sequential", "on_exit": ["$world.pot = $last_total"]}],
+}
+
+
+def test_def_results_refresh_after_changes_rollbacks_and_metrics():
+    env = fg_env.load(CACHED, seed=1)
+
+    def play(wake):
+        if wake.entity_id == "a" and wake.round == 1:
+            wake.call("score_then_fail")
+            wake.call("score")
+        if wake.entity_id == "b" and wake.round == 2:  # one action per turn by default
+            wake.call("roll")
+        wake.end()
+
+    env.run(play, rounds=2)
+    assert env.props["seen"] == [0, 1.5]  # before and after the change in one action; the failed one left nothing
+    first, second = env.props["draws"]
+    assert first != second  # random defs are never cached
+    assert env.props["pot"] == 1  # $series grew by the round-1 sample before round 2's on_exit

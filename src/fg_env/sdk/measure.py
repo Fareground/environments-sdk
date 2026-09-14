@@ -108,8 +108,10 @@ def sample_metrics(contract: Contract, world: SdkWorld) -> None:
             raise RunError(str(exc), f"metrics.{name}") from None
         values[name] = value
         world.series.setdefault(name, []).append(value)
+        world.touch()
     world.metrics.clear()
     world.metrics.update(values)
+    world.touch()
 
 
 def compute_outputs(contract: Contract, world: SdkWorld) -> tuple[Dict[str, Any], List[Issue]]:

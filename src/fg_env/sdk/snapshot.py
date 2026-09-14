@@ -191,5 +191,6 @@ def _restore(cls: Type[_E], contract: Contract, snapshot: Mapping[str, Any], par
     for name in Stats.__dataclass_fields__:
         setattr(env.stats, name, snapshot["stats"].get(name, 0))
     w.journal.clear()
+    w.touch()  # the state was replaced wholesale: nothing cached before holds
     env._emitted = len(w.log)
     return env

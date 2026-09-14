@@ -55,6 +55,7 @@ class Env:
         self.parallel = max(1, parallel)
         self.seeds = SeedTree(seed)
         self.world = build_world(contract, inputs, self.seeds, arm)
+        self.world.enable_def_cache()
         self.effects = EffectRunner(self.world)
         self.actions = ActionBook(contract, self.world, self.effects)
         self.perception = Perception(contract, self.world)
