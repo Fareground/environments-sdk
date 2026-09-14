@@ -1870,6 +1870,12 @@
           "title": "On Idle",
           "type": "array"
         },
+        "auto": {
+          "default": false,
+          "description": "Play trivial turns without waking the agent: take the only legal action when it has no arguments, skip the turn when nothing is legal.",
+          "title": "Auto",
+          "type": "boolean"
+        },
         "on_enter": {
           "items": {},
           "title": "On Enter",
@@ -1885,6 +1891,74 @@
         "name"
       ],
       "title": "StageSpec",
+      "type": "object"
+    },
+    "TriggerSpec": {
+      "additionalProperties": false,
+      "description": "World logic that reacts the moment a condition becomes true — after any action, effect,\nphysics step or round end — instead of waiting for the next event phase.",
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "when": {
+          "description": "Fires when this becomes true (it re-arms once it is false again).",
+          "title": "When",
+          "type": "string"
+        },
+        "do": {
+          "items": {},
+          "title": "Do",
+          "type": "array"
+        },
+        "say": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Headline agents receive as news.",
+          "title": "Say"
+        },
+        "once": {
+          "default": false,
+          "description": "Fire at most once per run.",
+          "title": "Once",
+          "type": "boolean"
+        },
+        "arms": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Only in these experiment arms.",
+          "title": "Arms"
+        }
+      },
+      "required": [
+        "when"
+      ],
+      "title": "TriggerSpec",
       "type": "object"
     },
     "TypeSpec": {
@@ -2232,6 +2306,14 @@
         "$ref": "#/$defs/EventSpec"
       },
       "title": "Events",
+      "type": "array"
+    },
+    "triggers": {
+      "description": "Reactions that fire the moment a condition becomes true.",
+      "items": {
+        "$ref": "#/$defs/TriggerSpec"
+      },
+      "title": "Triggers",
       "type": "array"
     },
     "policies": {

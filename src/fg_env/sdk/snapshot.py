@@ -94,6 +94,7 @@ def take_snapshot(env: "Env") -> Dict[str, Any]:
         "counters": dict(w.counters), "end_request": encode(w.end_request),
         "fired_once": sorted(env._fired_once),
         "turn_count": env._turn_count,
+        "triggers": {"armed": {str(k): v for k, v in env._trigger_armed.items()}, "fired": sorted(env._triggers_fired)},
         "memory": {k: {"cursor": m.cursor, "views": encode(m.views), "turns": m.turns} for k, m in env._memories.items()},
         "rng": [state[0], list(state[1]), state[2]],
         "stats": env.stats.to_dict(),
@@ -186,6 +187,8 @@ def _restore(cls: Type[_E], contract: Contract, snapshot: Mapping[str, Any], par
     w.rng.setstate((state[0], tuple(state[1]), state[2]))
     env._fired_once = set(snapshot["fired_once"])
     env._turn_count = int(snapshot["turn_count"])
+    env._trigger_armed = {int(k): bool(v) for k, v in snapshot["triggers"]["armed"].items()}
+    env._triggers_fired = set(snapshot["triggers"]["fired"])
     for key, m in snapshot["memory"].items():
         memory = env._memory(key)
         memory.cursor, memory.views, memory.turns = m["cursor"], decode(m["views"]), m["turns"]

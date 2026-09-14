@@ -38,6 +38,10 @@ class Stats:
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
     llm_retries: int = 0
+    #: Turns played without waking the agent (stage `auto`).
+    auto_turns: int = 0
+    #: Out-of-turn reaction turns (`wake` with `now`).
+    reactions: int = 0
     #: Turns a participant gave up after a provider error (``on_error="end_turn"``).
     forfeits: int = 0
 

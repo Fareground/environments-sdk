@@ -208,6 +208,7 @@ class Turn:
         if env.world.continuous:
             self.elapsed += env.actions.duration(self.actor, name, params)
         env._after_commit(f"actions.{name}")
+        env._react(self.stage)
         self.stats.actions += 1
         ended = env.actions.ends_turn(self.actor, name, params) or self.actions_left <= 0 or env.world.end_request is not None
         return self._after(ToolResult(True, outcome.text, ended, {"success": outcome.success}))

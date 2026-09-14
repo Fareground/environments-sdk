@@ -471,6 +471,9 @@ class _Checker:
             if op == "wake":
                 self.template(effect.get("why"), f"{path}.why", None, roots, types, params)
                 v("in")
+                v("now")
+                if "in" in effect and "now" in effect:
+                    self.error(path, "`wake` takes `now` or `in`, not both")
                 if "in" in effect and self.c.clock.mode != "continuous":
                     self.error(f"{path}.in", "`in` needs a continuous clock", "set clock.mode to continuous")
         elif op == "transfer":
@@ -565,6 +568,7 @@ class _Checker:
         self._stages()
         self._views()
         self._events()
+        self._triggers()
         self._policies()
         self._measure()
         self._arms()
@@ -931,6 +935,18 @@ class _Checker:
             self.effects(event.do, f"{path}.do", roots, types)
             self.template(event.say, f"{path}.say", None, BASE)
             if not event.do and not event.say:
+                self.warn(path, "does nothing", "add `do` or `say`")
+
+    def _triggers(self) -> None:
+        for index, trigger in enumerate(self.c.triggers):
+            path = f"triggers[{index}]"
+            for arm in trigger.arms or []:
+                if arm not in self.c.arms:
+                    self.error(f"{path}.arms", f"'{arm}' is not a declared arm", self._suggest(arm, self.c.arms))
+            self.expr(trigger.when, f"{path}.when", BASE)
+            self.effects(trigger.do, f"{path}.do", set(BASE), {})
+            self.template(trigger.say, f"{path}.say", None, BASE)
+            if not trigger.do and not trigger.say:
                 self.warn(path, "does nothing", "add `do` or `say`")
 
     def _policies(self) -> None:

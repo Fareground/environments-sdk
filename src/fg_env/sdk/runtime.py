@@ -23,7 +23,7 @@ from .measure import RunResult, Stats, compute_outputs, sample_metrics
 from .participants import Participant, resolve_participant
 from .perception import Perception
 from .seeds import SeedTree
-from .session import Wake
+from .session import END_TURN, Wake
 from .snapshot import SNAPSHOT_VERSION, restore_env, take_snapshot
 from .template import compile_template
 from .turn import Memory, Turn, entity_dict
@@ -76,6 +76,11 @@ class Env:
         self._turn_count = 0
         #: The round in progress while a run is stopped inside it.
         self._cursor: Optional[_Steps] = None
+        #: Last truth value of each trigger's condition, and triggers that fired once.
+        self._trigger_armed: Dict[int, bool] = {}
+        self._triggers_fired: set = set()
+        self._trigger_depth = 0
+        self._reaction_depth = 0
         self._in_round = False
         self._inspectable = any(self._inspect_rule(kind) is not False for kind in contract.types)
         self._check_invariants("build")
@@ -261,6 +266,10 @@ class Env:
             elif elapsed > 0:
                 world.step_physics(elapsed)
             world.journal.clear()
+        self._check_triggers("physics")
+        if self._ended():
+            self._finish()
+            return False
         return True
 
     def _advance_time(self) -> Optional[float]:
@@ -303,6 +312,7 @@ class Env:
         world.stage = None
         self._run_events("end")
         sample_metrics(self.contract, world)
+        self._check_triggers("round end")
         self._check_invariants("round")
         self._check_end()
         self._flush_events()
@@ -419,11 +429,81 @@ class Env:
                 self.world.journal.rollback(mark)
                 raise
             self._after_commit(path)
+            self._react(self._stage_spec())
         return True
+
+    def _stage_spec(self) -> Optional[StageSpec]:
+        name = self.world.stage
+        return next((s for s in self.contract.stage_list() if s.name == name), None) if name else None
 
     def _after_commit(self, path: str) -> None:
         self._check_invariants(path)
         self.world.journal.clear()
+        self._check_triggers(path)
+
+    #: How deep triggers may set off further triggers, and reactions further reactions.
+    TRIGGER_DEPTH = 8
+    REACTION_DEPTH = 4
+
+    def _check_triggers(self, path: str) -> None:
+        if not self.contract.triggers or self._ended():
+            return
+        if self._trigger_depth >= self.TRIGGER_DEPTH:
+            raise RunError(f"triggers set each other off more than {self.TRIGGER_DEPTH} levels deep (a loop?)", path)
+        world = self.world
+        self._trigger_depth += 1
+        try:
+            for index, trigger in enumerate(self.contract.triggers):
+                if trigger.arms is not None and self.arm not in trigger.arms:
+                    continue
+                if trigger.once and index in self._triggers_fired:
+                    continue
+                where = f"triggers[{index}]"
+                try:
+                    holds = truthy(compile_expr(trigger.when)(world.scope()))
+                except ExprError as exc:
+                    raise RunError(str(exc), f"{where}.when") from None
+                was = self._trigger_armed.get(index, False)
+                self._trigger_armed[index] = holds
+                if not holds or was:
+                    continue
+                if trigger.once:
+                    self._triggers_fired.add(index)
+                self._atomic(trigger.do, {}, f"{where}.do")
+                if trigger.say:
+                    try:
+                        text = compile_template(trigger.say, None).render(world.scope())
+                    except ExprError as exc:
+                        raise RunError(str(exc), f"{where}.say") from None
+                    if text.strip():
+                        world.emit("news", text, data={"trigger": trigger.name or index})
+                    world.journal.clear()
+                if self._ended():
+                    return
+        finally:
+            self._trigger_depth -= 1
+
+    def _react(self, stage: Optional[StageSpec]) -> None:
+        """Give every agent asked to react (`wake` with `now`) a turn right away, in the current stage."""
+        world = self.world
+        while world.reactions and not self._ended():
+            entity_id, why = world.reactions.pop(0)
+            actor = world.entities.get(entity_id)
+            if actor is None or not actor.alive or not self.contract.is_agent(actor.entity_type):
+                continue
+            if self._reaction_depth >= self.REACTION_DEPTH:
+                raise RunError(f"reactions set each other off more than {self.REACTION_DEPTH} levels deep", "wake.now")
+            spec = stage or next(iter(self.contract.stage_list()))
+            self._reaction_depth += 1
+            try:
+                turn = Turn(self, actor, spec, why, staged=False)
+                turn.stats.reactions = 1
+                self._drive(turn)
+            finally:
+                self._reaction_depth -= 1
+            memory = self._memory(actor.id)
+            memory.cursor = world.log[-1].seq if world.log else 0
+            memory.turns += 1
 
     # -- stages & turns ------------------------------------------------------------------
 
@@ -624,11 +704,14 @@ class Env:
             if outcome.ok:
                 self.stats.actions += 1
                 self._after_commit(f"actions.{name}")
+                self._react(turn.stage)
             else:
                 self.stats.rejected_actions += 1
                 world.journal.clear()
 
     def _drive(self, turn: Turn) -> None:
+        if turn.stage.auto and not turn.staged and self._auto_turn(turn):
+            return
         participant = self._participant(turn.actor)
         world = self.world
         world.use_turn_rng(self.seeds.rng("turn", world.round, turn.number))
@@ -648,6 +731,32 @@ class Env:
                 turn.stats.idle_turns += 1
             with self._lock:
                 self.stats.add(turn.stats)
+
+    def _auto_turn(self, turn: Turn) -> bool:
+        """Play a trivial turn without the agent: the only legal action when it takes no arguments,
+        or nothing when no action is legal. False when the agent has a real choice."""
+        world = self.world
+        world.use_turn_rng(self.seeds.rng("turn", world.round, turn.number))
+        world.use_turn_pending(turn.pending)
+        try:
+            acts = [tool for tool in turn.tools() if tool.kind == "act"]
+            if len(acts) > 1 or (acts and acts[0].input_schema.get("properties")):
+                return False
+            if acts:
+                turn.call(acts[0].name, {})
+            if not turn.done:
+                turn.call(END_TURN, {})
+            turn.stats.wakes = 0
+            turn.stats.auto_turns = 1
+        finally:
+            world.use_turn_rng(None)
+            world.use_turn_pending(None)
+            turn.done = True
+            if turn.stats.actions == 0 and not turn.intents:
+                turn.stats.idle_turns += 1
+            with self._lock:
+                self.stats.add(turn.stats)
+        return True
 
     # -- preview ---------------------------------------------------------------------------
 

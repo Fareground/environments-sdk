@@ -57,7 +57,7 @@ EFFECT_OPS: Dict[str, Tuple[str, ...]] = {
     "fail": ("fail",),
     "end": ("end", "winner", "say"),
     "after": ("after", "do"),
-    "wake": ("wake", "why", "in"),
+    "wake": ("wake", "why", "in", "now"),
     "repeat": ("repeat", "while", "do"),
     "block": ("block", "with"),
 }
@@ -530,7 +530,13 @@ class EffectRunner:
             raise RunError("`in` needs a continuous clock (clock.mode: continuous)", where)
         if isinstance(delay, bool) or not isinstance(delay, (int, float)) or delay < 0:
             raise RunError(f"`in` must be a time ≥ 0, got {delay!r}", where)
+        now = truthy(self._eval(effect["now"], vars)) if "now" in effect else False
+        if now and "in" in effect:
+            raise RunError("`wake` takes `now` or `in`, not both", where)
         for entity_id in _to_ids(self._eval(effect["wake"], vars), where) or ():
+            if now:
+                world.request_reaction(entity_id, why)
+                continue
             world.request_wake(entity_id, why)
             if world.continuous:
                 world.set_wake_at(entity_id, world.time + delay)

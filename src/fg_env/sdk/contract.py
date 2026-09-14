@@ -407,6 +407,7 @@ class StageSpec(_Model):
     brief: str = Field("", description="Instruction shown during this stage (template).")
     must_act: bool = Field(False, description="While an action is available, the agent cannot just end its turn.")
     on_idle: Effects = Field(default_factory=list, description="Effects for each agent that ends its turn without acting ($actor): a forfeit, a default move.")
+    auto: bool = Field(False, description="Play trivial turns without waking the agent: take the only legal action when it has no arguments, skip the turn when nothing is legal.")
     on_enter: Effects = Field(default_factory=list)
     on_exit: Effects = Field(default_factory=list)
 
@@ -460,6 +461,25 @@ class EventSpec(_Model):
     do: Effects = Field(default_factory=list)
     say: Optional[str] = Field(None, description="Headline agents receive as news.")
     once: bool = False
+    arms: Optional[List[str]] = Field(None, description="Only in these experiment arms.")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _arms_list(cls, data: Any) -> Any:
+        if isinstance(data, dict) and isinstance(data.get("arms"), str):
+            data = {**data, "arms": [data["arms"]]}
+        return data
+
+
+class TriggerSpec(_Model):
+    """World logic that reacts the moment a condition becomes true — after any action, effect,
+    physics step or round end — instead of waiting for the next event phase."""
+
+    name: Optional[str] = None
+    when: str = Field(..., description="Fires when this becomes true (it re-arms once it is false again).")
+    do: Effects = Field(default_factory=list)
+    say: Optional[str] = Field(None, description="Headline agents receive as news.")
+    once: bool = Field(False, description="Fire at most once per run.")
     arms: Optional[List[str]] = Field(None, description="Only in these experiment arms.")
 
     @model_validator(mode="before")
@@ -586,6 +606,7 @@ class Contract(_Model):
     stages: List[StageSpec] = Field(default_factory=list)
     views: Dict[str, ViewSpec] = Field(default_factory=dict)
     events: List[EventSpec] = Field(default_factory=list)
+    triggers: List[TriggerSpec] = Field(default_factory=list, description="Reactions that fire the moment a condition becomes true.")
     policies: Dict[str, PolicySpec] = Field(default_factory=dict)
     metrics: Dict[str, MetricSpec] = Field(default_factory=dict)
     outputs: Dict[str, OutputSpec] = Field(default_factory=dict)

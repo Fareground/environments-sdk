@@ -208,6 +208,8 @@ class SdkWorld(World):
         self.series: Dict[str, List[Any]] = {}
         self.scheduled: List[Tuple[float, int, Dict[str, Any]]] = []
         self.wake_requests: Dict[str, str] = {}
+        #: Agents asked to react right away (`wake` with `now`), answered as soon as the change commits.
+        self.reactions: List[Tuple[str, str]] = []
         #: Continuous clock: the current time, when the run completes, and each agent's next wake time.
         self.time = 0.0
         self.horizon: Optional[float] = None
@@ -724,6 +726,18 @@ class SdkWorld(World):
             if entry in self.scheduled:
                 self.scheduled.remove(entry)
                 heapq.heapify(self.scheduled)
+
+        self.journal.push(undo)
+
+    def request_reaction(self, entity_id: str, why: str) -> None:
+        entry = (entity_id, why)
+        self.reactions.append(entry)
+
+        def undo() -> None:
+            for index in range(len(self.reactions) - 1, -1, -1):
+                if self.reactions[index] is entry:
+                    del self.reactions[index]
+                    break
 
         self.journal.push(undo)
 
