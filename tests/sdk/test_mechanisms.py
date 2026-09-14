@@ -297,3 +297,52 @@ def test_guide_renders_factory_defaults_of_mechanism_config():
         assert "`tiebreak` (default [])" in text and "PydanticUndefined" not in text
     finally:
         MECHANISMS.pop(kind, None)
+
+
+def test_crashing_extensions_are_reported_against_their_use_never_raised_or_blamed_on_participants():
+    from pydantic import BaseModel
+
+    from fg_env.sdk.registry import MECHANISMS, OPS, effect_op, mechanism
+
+    class Empty(BaseModel):
+        pass
+
+    kind, op_check, op_run = "test_crashing_expand", "test_crashing_check", "test_crashing_run"
+
+    @mechanism(kind, Empty, "Crashes while expanding.")
+    def _expand(name, config, contract):
+        raise KeyError("missing piece")
+
+    def bad_check(checker, effect, path):
+        raise ValueError("bad check")
+
+    @effect_op(op_check, keys=(), literal=(op_check,), example="{}", check=bad_check)
+    def _checked(runner, effect, vars, where):
+        return None
+
+    @effect_op(op_run, keys=(), literal=(op_run,), example="{}")
+    def _boom(runner, effect, vars, where):
+        raise ValueError("kaboom")
+
+    try:
+        base = {"name": "Crash", "clock": {"rounds": 1}, "types": {"p": {"agent": True}},
+                "entities": {"p": {"type": "p"}}, "stages": [{"name": "s", "turns": "sequential"}]}
+        issues = fg_env.check({**base, "mechanisms": {"m": {"kind": kind}}})
+        assert any("failed to expand: KeyError" in i.message for i in issues)
+        hooked = {**base, "mechanisms": {"vote": {"kind": "ballot", "voters": "p", "options": ["a"], "stage": "nowhere"}}}
+        assert any("there is no stage 'nowhere'" in i.message for i in fg_env.check(hooked))
+        issues = fg_env.check({**base, "actions": {"go": {"by": "p", "do": [{op_check: "x"}], "terminal": True}}})
+        assert any("check failed: ValueError" in i.message for i in issues)
+        env = fg_env.load({**base, "actions": {"go": {"by": "p", "do": [{op_run: "x"}], "terminal": True}}}, seed=1)
+
+        def play(wake):
+            wake.call("go")
+            wake.end()
+
+        result = env.run(play)
+        assert result.status == "failed" and "`test_crashing_run` failed: ValueError: kaboom" in result.error
+        assert "participant" not in result.error
+    finally:
+        MECHANISMS.pop(kind, None)
+        OPS.pop(op_check, None)
+        OPS.pop(op_run, None)

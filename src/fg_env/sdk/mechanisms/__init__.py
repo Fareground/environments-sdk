@@ -72,10 +72,14 @@ def expand_mechanisms(data: Mapping[str, Any]) -> Tuple[Dict[str, Any], List[Iss
             continue
         try:
             fragment = spec.expand(name, config, out)
+            _merge(out, fragment)
         except MechanismError as exc:
             issues.append(Issue(f"{path}.{exc.path}" if exc.path else path, str(exc), exc.fix))
             continue
-        _merge(out, fragment)
+        except Exception as exc:  # a broken mechanism must not crash parsing: report it against its use
+            issues.append(Issue(path, f"the `{kind}` mechanism failed to expand: {type(exc).__name__}: {exc}",
+                                "this is a bug in the mechanism; report it with the contract"))
+            continue
     return out, issues
 
 

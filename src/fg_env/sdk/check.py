@@ -423,8 +423,14 @@ class _Checker:
                     self.template(raw, f"{path}.{key}", None, roots, types, params)
                 else:
                     self.value(raw, f"{path}.{key}", roots, types, params)
-            for issue_path, message, fix in (native.check(self, effect, path) if native.check else []):
-                self.error(issue_path, message, fix)
+            if native.check is not None:
+                try:
+                    findings = list(native.check(self, effect, path))
+                except Exception as exc:  # a mechanism's check hook crashed: report it and keep checking the rest
+                    findings = [(path, f"the `{op}` check failed: {type(exc).__name__}: {exc}",
+                                 "this is a bug in the mechanism; report it with the contract")]
+                for issue_path, message, fix in findings:
+                    self.error(issue_path, message, fix)
             return
         if op != "post":
             for key in effect:

@@ -394,10 +394,15 @@ class EffectRunner:
                 )
             raise RunError(f"an effect object names exactly one operation, got {ops}", where)
         registered = OPS.get(ops[0])
-        if registered is not None:
-            registered.run(self, effect, vars, where)
-        else:
+        if registered is None:
             getattr(self, "_op_" + ops[0])(effect, vars, where)
+            return
+        try:
+            registered.run(self, effect, vars, where)
+        except (Abort, RunError, ExprError, ArithmeticError):
+            raise
+        except Exception as exc:  # a mechanism op crashed: the op's fault at this path, never the participant's
+            raise RunError(f"`{ops[0]}` failed: {type(exc).__name__}: {exc}", where) from exc
 
     def eval(self, value: Any, vars: Dict[str, Any]) -> Any:
         """Evaluate an expression (or a structure of them) with these locals."""
