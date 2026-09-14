@@ -138,3 +138,4 @@ def _canonical(value: Any) -> str:
 
 
 from . import voting  # noqa: E402,F401  (registers the built-in mechanisms)
+from . import markets  # noqa: E402,F401  (registers the market mechanisms)
