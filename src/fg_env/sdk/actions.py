@@ -2,18 +2,52 @@
 from __future__ import annotations
 
 import math
+import re
+import reprlib
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from ..entity import Entity
-from .contract import ActionSpec, Contract, ParamSpec, StageSpec
+from .contract import ActionSpec, Contract, ParamSpec, RecordSpec, StageSpec
 from .effects import EffectRunner
 from .errors import RunError
-from .expr import ExprError, Untrusted, compile_expr, is_expr, truthy
+from .expr import EVAL_BUDGET, ExprError, Untrusted, compile_expr, is_expr, resolve, shared_budget, truthy
 from .template import compile_template, format_value
 from .world import Abort, SdkWorld, _plain
 
-__all__ = ["ToolSpec", "Outcome", "ActionBook", "stage_actions"]
+__all__ = ["ACTION_BUDGET", "TEXT_MAX_LEN", "MAX_SAFE_INT", "ToolSpec", "Outcome", "ActionBook", "stage_actions"]
+
+#: Work one action application may do in total (all its conditions, effects and templates).
+ACTION_BUDGET = 5 * EVAL_BUDGET
+
+#: Longest text a participant may pass to a text parameter that declares no `max_len`.
+TEXT_MAX_LEN = 4_000
+#: Largest magnitude a number argument may have (the whole numbers JSON carries exactly).
+MAX_SAFE_INT = 2**53 - 1
+#: Longest text read as a number (`"12.5"`); anything longer is not a number.
+_NUMBER_TEXT = 64
+#: Unknown argument names listed in one correction.
+_LISTED_UNKNOWN = 8
+#: Significant digits kept for schema bounds and defaults (0.1 + 0.2 shows as 0.3).
+_SCHEMA_DIGITS = 12
+_LEFTOVER_EXPR = re.compile(r"\$['\"(A-Za-z_]")
+
+_PREVIEW = reprlib.Repr()
+_PREVIEW.maxstring = 60
+_PREVIEW.maxother = 60
+_PREVIEW.maxlevel = 3
+_PREVIEW.maxlist = 6
+_PREVIEW.maxdict = 6
+
+
+def _preview(value: Any) -> str:
+    """A short, safe rendering of an argument for a correction message, whatever it is."""
+    return _PREVIEW.repr(value)
+
+
+def _tidy(value: Any) -> Any:
+    """Drop float noise: 0.30000000000000004 → 0.3."""
+    return float(f"{value:.{_SCHEMA_DIGITS}g}") if isinstance(value, float) else value
 
 #: Entity choices listed inline (id = name) in a tool schema up to this many.
 _NAMED_CHOICES = 12
@@ -178,7 +212,7 @@ class ActionBook:
         if param.type in ("number", "int"):
             out["type"] = "integer" if param.type == "int" else "number"
             for key, bound in (("minimum", param.min), ("maximum", param.max)):
-                value = self._static(actor, bound)
+                value = _tidy(self._static(actor, bound))
                 if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
                     out[key] = math.ceil(value) if (param.type == "int" and key == "minimum") else (
                         math.floor(value) if param.type == "int" else value)
@@ -186,8 +220,7 @@ class ActionBook:
             out["type"] = "boolean"
         elif param.type == "text":
             out["type"] = "string"
-            if param.max_len:
-                out["maxLength"] = param.max_len
+            out["maxLength"] = param.max_len if param.max_len is not None else TEXT_MAX_LEN
         elif param.type == "enum":
             values = self._static(actor, param.values) if isinstance(param.values, str) else param.values
             if isinstance(values, list) and values:
@@ -209,9 +242,28 @@ class ActionBook:
                 description = (description or f"Id of a {param.of}.").strip()
         if description:
             out["description"] = description
-        if param.default is not None and not is_expr(param.default):
-            out["default"] = param.default
+        default = self._schema_default(actor, param)
+        if default is not None:
+            out["default"] = default
         return out
+
+    def _schema_default(self, actor: Entity, param: ParamSpec) -> Any:
+        """The default as the agent would get it, or None when it cannot be known before the call
+        (it reads other arguments) — never the raw expression text."""
+        raw = param.default
+        if raw is None:
+            return None
+        if _mentions_expr(raw):
+            try:
+                raw = resolve(raw, self.world.scope(actor=actor))
+            except ExprError:
+                return None
+            if _mentions_expr(raw):
+                return None
+        value = _plain(raw)
+        if isinstance(value, float) and not math.isfinite(value):
+            return None
+        return _tidy(value)
 
     # -- validation ---------------------------------------------------------------
 
@@ -221,13 +273,15 @@ class ActionBook:
         if args is None:
             args = {}
         if not isinstance(args, dict):
-            return {}, "arguments must be an object"
+            return {}, f"arguments must be an object of named arguments, got {_preview(args)}"
         problems: List[str] = []
-        unknown = [key for key in args if key not in spec.params]
+        unknown = [key for key in args if not isinstance(key, str) or key not in spec.params]
         if unknown:
-            problems.append(
-                f"unknown argument(s) {', '.join(unknown)} (arguments: {', '.join(spec.params) or 'none'})"
-            )
+            listed = ", ".join(key if isinstance(key, str) and len(key) <= 60 else _preview(key)
+                               for key in unknown[:_LISTED_UNKNOWN])
+            if len(unknown) > _LISTED_UNKNOWN:
+                listed += f" and {len(unknown) - _LISTED_UNKNOWN} more"
+            problems.append(f"unknown argument(s) {listed} (arguments: {', '.join(spec.params) or 'none'})")
         params: Dict[str, Any] = {}
         for pname, param in spec.params.items():
             raw = args.get(pname)
@@ -247,8 +301,9 @@ class ActionBook:
             value, problem = self._value(actor, name, pname, param, raw, params)
             if problem and param.invalid:
                 try:
+                    shown = Untrusted(raw) if isinstance(raw, str) else raw
                     problem = compile_template(param.invalid, None).render(
-                        self.world.scope(actor=actor, params=params, value=raw))
+                        self.world.scope(actor=actor, params=params, value=shown))
                 except ExprError as exc:
                     raise RunError(str(exc), f"actions.{name}.params.{pname}.invalid") from None
                 problems.append(problem.rstrip("."))
@@ -264,17 +319,16 @@ class ActionBook:
                params: Dict[str, Any]) -> Tuple[Any, Optional[str]]:
         kind = param.type
         if kind in ("number", "int"):
-            value = raw
-            if isinstance(value, str):
-                try:
-                    value = float(value.strip())
-                except ValueError:
-                    return None, f"must be a number, got {raw!r}"
-            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
-                return None, f"must be a number, got {raw!r}"
+            value = _number_arg(raw)
+            if value is None:
+                return None, f"must be a number, got {_preview(raw)}"
+            if isinstance(value, float) and not math.isfinite(value):
+                return None, f"must be a finite number, got {_preview(raw)}"
+            if abs(value) > MAX_SAFE_INT:
+                return None, f"must be between -{MAX_SAFE_INT} and {MAX_SAFE_INT}"
             if kind == "int":
-                if float(value) != int(value):
-                    return None, f"must be a whole number, got {raw}"
+                if isinstance(value, float) and not value.is_integer():
+                    return None, f"must be a whole number, got {_preview(raw) if isinstance(raw, str) else raw}"
                 value = int(value)
             scope = self.world.scope(actor=actor, params=params)
             for label, bound, bad in (("at least", param.min, lambda v, b: v < b), ("at most", param.max, lambda v, b: v > b)):
@@ -284,22 +338,27 @@ class ActionBook:
                     limit = compile_expr(bound)(scope) if is_expr(bound) else bound
                 except ExprError as exc:
                     raise RunError(str(exc), f"actions.{action}.params.{pname}") from None
+                if limit is not None and (isinstance(limit, bool) or not isinstance(limit, (int, float))):
+                    raise RunError(f"the {label} bound must be a number, got {format_value(limit)}",
+                                   f"actions.{action}.params.{pname}")
                 if limit is not None and bad(value, limit):
                     return None, f"must be {label} {format_value(limit)} (got {format_value(value)})"
             return value, None
         if kind == "bool":
-            if isinstance(raw, str) and raw.lower() in ("true", "false"):
-                return raw.lower() == "true", None
+            if isinstance(raw, str) and raw.strip().lower() in ("true", "false"):
+                return raw.strip().lower() == "true", None
             if not isinstance(raw, bool):
-                return None, f"must be true or false, got {raw!r}"
+                return None, f"must be true or false, got {_preview(raw)}"
             return raw, None
         if kind == "text":
-            if not isinstance(raw, (str, int, float)) or isinstance(raw, bool):
-                return None, f"must be text, got {raw!r}"
-            text = str(raw)
-            if param.max_len is not None and len(text) > param.max_len:
-                return None, f"is {len(text)} characters; the limit is {param.max_len}"
-            return Untrusted(text), None
+            if isinstance(raw, bool) or not isinstance(raw, (str, int, float)) \
+                    or (isinstance(raw, float) and not math.isfinite(raw)) \
+                    or (isinstance(raw, int) and abs(raw) > MAX_SAFE_INT):
+                return None, f"must be text, got {_preview(raw)}"
+            limit = param.max_len if param.max_len is not None else TEXT_MAX_LEN
+            if isinstance(raw, str) and len(raw) > limit:
+                return None, f"is {len(raw)} characters; the limit is {limit}"
+            return Untrusted(str.__str__(raw) if isinstance(raw, str) else repr(raw)), None
         if kind == "enum":
             values = param.values
             if isinstance(values, str):
@@ -307,35 +366,46 @@ class ActionBook:
                     values = compile_expr(values)(self.world.scope(actor=actor, params=params))
                 except ExprError as exc:
                     raise RunError(str(exc), f"actions.{action}.params.{pname}.values") from None
+            if values is not None and not isinstance(values, (list, tuple)):
+                raise RunError(f"values must give a list, got {format_value(values)}",
+                               f"actions.{action}.params.{pname}.values")
             values = [_plain(v) for v in (values or [])]
-            if raw in values:
-                return raw, None
+            same = [v for v in values if v == raw and isinstance(v, bool) == isinstance(raw, bool)]
+            if same:
+                return same[0], None
             if isinstance(raw, str):
                 folded = [v for v in values if isinstance(v, str) and v.lower() == raw.strip().lower()]
                 if len(folded) == 1:
                     return folded[0], None
-            return None, f"must be one of {', '.join(format_value(v) for v in values)} (got {raw!r})"
+            return None, f"must be one of {', '.join(format_value(v) for v in values)} (got {_preview(raw)})"
         if kind == "entity":
             choices = self._choices(actor, action, pname, param, params)
             if isinstance(raw, dict) and isinstance(raw.get("id"), str):
                 raw = raw["id"]
             if not isinstance(raw, str):
-                return None, f"must be an id, got {raw!r}"
+                return None, f"must be an id, got {_preview(raw)}"
             key = raw.strip()
             for choice in choices:
                 if choice.id == key:
                     return choice, None
-            by_name = [c for c in choices if c.name.lower() == key.lower()]
+            by_name = [c for c in choices if (c.name or "").lower() == key.lower()]
             if len(by_name) == 1:
                 return by_name[0], None
             listing = ", ".join(c.id for c in choices[:8]) + (" …" if len(choices) > 8 else "")
-            return None, f"'{raw}' is not a valid {param.of} here (valid: {listing or 'none'})"
+            shown = f"'{raw}'" if len(raw) <= 60 else _preview(raw)
+            return None, f"{shown} is not a valid {param.of} here (valid: {listing or 'none'})"
         raise RunError(f"unknown parameter type '{kind}'", f"actions.{action}.params.{pname}")
 
     # -- apply ---------------------------------------------------------------------
 
     def apply(self, actor: Entity, name: str, params: Dict[str, Any]) -> Outcome:
-        """Apply atomically. A `fail` effect or failed transfer rolls back and returns ok=False."""
+        """Apply atomically. A `fail` effect or failed transfer rolls back and returns ok=False.
+        Everything the action evaluates shares one work budget, so a loop of effects is bounded
+        as a whole, not only each expression in it."""
+        with shared_budget(ACTION_BUDGET, f"actions.{name}"):
+            return self._apply(actor, name, params)
+
+    def _apply(self, actor: Entity, name: str, params: Dict[str, Any]) -> Outcome:
         spec: ActionSpec = self.contract.actions[name]
         world = self.world
         mark = world.journal.mark()
@@ -343,6 +413,7 @@ class ActionBook:
         path = f"actions.{name}"
         success = True
         log_mark = world.log[-1].seq if world.log else 0
+        record_mark = world._record_seq
         try:
             if spec.chance is not None:
                 probability = compile_expr(spec.chance)(world.scope(**vars)) if is_expr(spec.chance) else spec.chance
@@ -353,17 +424,17 @@ class ActionBook:
             text = self._render(spec.outcome, vars, f"{path}.outcome") if spec.outcome else self._default_outcome(name, params, success)
             announce = spec.announce
             if not spec.private:
-                posted = any(e.kind == "record" for e in world.log[-64:] if e.seq > log_mark)
+                public = self._public_params(params, self._posted_since(record_mark))
                 if announce is not None:
                     line = self._render(announce, vars, f"{path}.announce")
-                elif posted:
+                elif _notified_since(world, log_mark):
                     line = ""  # the posted entry itself is the news
                 else:
-                    line = self._default_announce(actor, name, params, success)
+                    line = self._default_announce(actor, name, public, success)
                 # Public: every agent may learn of it; the actor's own announcement is
                 # filtered out of its news by perception.
                 announcement = world.emit("action", line, actor=actor.id, to=None,
-                                          data={"action": name, "params": _plain(params), "success": success})
+                                          data={"action": name, "params": _plain(public), "success": success})
                 _first_in_order(world, log_mark, announcement)
             else:
                 world.emit("action", "", actor=actor.id, to=(actor.id,),
@@ -400,6 +471,30 @@ class ActionBook:
             world.rng.setstate(rng_state)
         return None if outcome.ok else outcome.text
 
+    def _posted_since(self, record_mark: int) -> List[Tuple[RecordSpec, Dict[str, Any]]]:
+        """Entries posted after ``record_mark``, with their record's spec."""
+        if self.world._record_seq == record_mark:
+            return []
+        posted: List[Tuple[RecordSpec, Dict[str, Any]]] = []
+        for name, spec in self.contract.records.items():
+            for entry in reversed(self.world.records_store.get(name, [])):
+                if entry["seq"] <= record_mark:
+                    break
+                posted.append((spec, entry))
+        return posted
+
+    @staticmethod
+    def _public_params(params: Dict[str, Any], posted: Sequence[Tuple[RecordSpec, Dict[str, Any]]]) -> Dict[str, Any]:
+        """The arguments an announcement may repeat. An entry that is not broadcast to everyone
+        (a record that does not notify, a directed or restricted entry) keeps its content to
+        its own audience, so arguments carried into it are left out."""
+        kept = [entry.get(field) for spec, entry in posted
+                if not spec.notify or entry.get("to") is not None or spec.visible != "all"
+                for field in spec.fields]
+        if not kept:
+            return params
+        return {k: v for k, v in params.items() if not _carried(_plain(v), kept)}
+
     def _render(self, template: str, vars: Dict[str, Any], path: str) -> str:
         try:
             return compile_template(template, None).render(self.world.scope(**vars))
@@ -419,6 +514,56 @@ class ActionBook:
         verb = name.replace("_", " ")
         suffix = "" if success else " — it did not succeed"
         return f"{actor.name}: {verb}{self._args_text(params)}{suffix}."
+
+
+def _number_arg(raw: Any) -> Any:
+    """``raw`` as a number (numeric text is read), or None when it is not one."""
+    if isinstance(raw, str):
+        text = raw.strip()
+        if len(text) > _NUMBER_TEXT:
+            return None
+        try:
+            return float(text)
+        except ValueError:
+            return None
+    if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+        return None
+    return raw
+
+
+def _mentions_expr(value: Any) -> bool:
+    """True when ``value`` still holds expression or template text anywhere inside it."""
+    if isinstance(value, str):
+        return bool(_LEFTOVER_EXPR.search(value)) or is_expr(value)
+    if isinstance(value, (list, tuple)):
+        return any(_mentions_expr(item) for item in value)
+    if isinstance(value, dict):
+        return any(_mentions_expr(item) for item in value.values())
+    return False
+
+
+def _carried(value: Any, fields: Sequence[Any]) -> bool:
+    """True when an argument value (or text containing it) is stored in one of ``fields``."""
+    if value is None or isinstance(value, bool) or value == "":
+        return False
+    for stored in fields:
+        if stored == value:
+            return True
+        if isinstance(value, str) and isinstance(stored, str) and value in stored:
+            return True
+        if isinstance(stored, (list, tuple)) and any(_carried(value, [item]) for item in stored):
+            return True
+    return False
+
+
+def _notified_since(world: SdkWorld, log_mark: int) -> bool:
+    """True when a record entry was delivered as news after log position ``log_mark``."""
+    for event in reversed(world.log):
+        if event.seq <= log_mark:
+            return False
+        if event.kind == "record":
+            return True
+    return False
 
 
 def _first_in_order(world: SdkWorld, log_mark: int, event: Any) -> None:
