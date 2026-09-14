@@ -329,8 +329,9 @@ class ActionBook:
             if not spec.private:
                 line = self._render(announce, vars, f"{path}.announce") if announce is not None else \
                     self._default_announce(actor, name, params, success)
-                everyone_else = tuple(e.id for e in world.entities.values() if e.id != actor.id) if line else ()
-                world.emit("action", line, actor=actor.id, to=everyone_else,
+                # Public: every agent may learn of it; the actor's own announcement is
+                # filtered out of its news by perception.
+                world.emit("action", line, actor=actor.id, to=None,
                            data={"action": name, "params": _plain(params), "success": success})
             else:
                 world.emit("action", "", actor=actor.id, to=(actor.id,),

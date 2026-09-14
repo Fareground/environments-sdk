@@ -506,7 +506,7 @@ class Env:
         requested = self.world.wake_requests.pop(actor.id, None)
         memory = self._memory(actor.id)
         if stage.quiet == "skip" and requested is None and memory.turns > 0:
-            if not self.perception.news(actor, memory.cursor):
+            if not self.perception.news(actor, memory.cursor, 1)[0]:
                 return None
         if requested:
             return requested
@@ -724,12 +724,14 @@ class Env:
         w.props = dict(snapshot["props"])
         w.links = {kind: {(a, b): v for a, b, v in edges} for kind, edges in snapshot["links"].items()}
         w.records_store = {}
+        w.entry_by_seq = {}
         for name, rows in snapshot["records"].items():
             entries = []
             for row in rows:
                 entry = Entry(row)
                 entry.world = w
                 entries.append(entry)
+                w.entry_by_seq[entry["seq"]] = entry
             w.records_store[name] = entries
         w._record_seq = snapshot["record_seq"]
         w.log = [LogEvent(e["seq"], e["round"], e["kind"], e.get("text", ""), e.get("actor"),

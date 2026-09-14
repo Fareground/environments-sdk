@@ -178,6 +178,8 @@ class SdkWorld(World):
         self.props: Dict[str, Any] = {}
         self.links: Dict[str, Dict[Tuple[str, str], float]] = {name: {} for name in contract.relations}
         self.records_store: Dict[str, List[Entry]] = {name: [] for name in contract.records}
+        #: Retained record entries by sequence number (entries dropped by `keep` are removed).
+        self.entry_by_seq: Dict[int, Entry] = {}
         self.log: List[LogEvent] = []
         self.physics: Optional[PhysicsModel] = None
         self.round = 0
@@ -444,15 +446,21 @@ class SdkWorld(World):
                       "author": author, "to": list(to) if to is not None else None})
         rows = self.records_store[record]
         rows.append(entry)
+        self.entry_by_seq[entry["seq"]] = entry
         dropped: List[Entry] = []
         if spec.keep is not None and len(rows) > spec.keep:
             dropped = rows[: len(rows) - spec.keep]
             del rows[: len(rows) - spec.keep]
+            for old in dropped:
+                self.entry_by_seq.pop(old["seq"], None)
 
         def undo() -> None:
             if entry in rows:
                 rows.remove(entry)
+            self.entry_by_seq.pop(entry["seq"], None)
             rows[:0] = dropped
+            for old in dropped:
+                self.entry_by_seq[old["seq"]] = old
             self._record_seq -= 1
 
         self.journal.push(undo)

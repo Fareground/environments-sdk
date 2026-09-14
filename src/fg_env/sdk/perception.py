@@ -70,12 +70,11 @@ class Perception:
             lines.append(self._render(stage.brief, actor, f"stages.{stage.name}.brief"))
         if reason:
             lines.append(f"Now: {reason}")
-        news = self.news(actor, since)
-        if news:
+        news, hidden = self.news(actor, since, DELTA_LIMIT)
+        if news or hidden:
             lines += ["", "Since your last turn:"]
-            if len(news) > DELTA_LIMIT:
-                lines.append(f"- ({len(news) - DELTA_LIMIT} earlier items not shown)")
-                news = news[-DELTA_LIMIT:]
+            if hidden:
+                lines.append(f"- ({hidden} earlier items not shown)")
             lines += [f"- {line}" for line in news]
         for name, view in self.contract.views.items():
             if view.look or not self._applies(view, actor, stage):
@@ -168,15 +167,34 @@ class Perception:
         except ExprError as exc:
             raise RunError(str(exc), f"records.{record}.visible") from None
 
-    def news(self, actor: Entity, since: int) -> List[str]:
-        out: List[str] = []
-        for event in self._events_after(since):
+    def news(self, actor: Entity, since: int, limit: Optional[int] = None) -> Tuple[List[str], int]:
+        """News lines for ``actor`` after log position ``since``, newest ``limit`` rendered.
+
+        Returns ``(lines, hidden)`` where ``hidden`` counts older items beyond the limit.
+        Only the lines that will be shown are rendered, so a busy world stays cheap.
+        """
+        lines: List[str] = []
+        hidden = 0
+        for event in reversed(self._events_after(since)):
             if not event.visible_to(actor.id):
+                continue
+            if limit is not None and len(lines) >= limit:
+                if self._would_show(event, actor):
+                    hidden += 1
                 continue
             line = self._event_line(event, actor)
             if line:
-                out.append(line)
-        return out
+                lines.append(line)
+        lines.reverse()
+        return lines, hidden
+
+    def _would_show(self, event: LogEvent, actor: Entity) -> bool:
+        if event.kind == "record":
+            entry = self.world.entry_by_seq.get(event.data.get("entry"))
+            return entry is not None and entry.get("author") != actor.id
+        if event.kind == "action" and event.actor == actor.id:
+            return False
+        return bool(event.text)
 
     def _events_after(self, since: int) -> List[LogEvent]:
         log = self.world.log
@@ -204,7 +222,7 @@ class Perception:
         spec = self.contract.records.get(name)
         if spec is None:
             return None
-        entry = next((row for row in self.world.records_store.get(name, []) if row["seq"] == event.data.get("entry")), None)
+        entry = self.world.entry_by_seq.get(event.data.get("entry"))
         if entry is None or entry.get("author") == actor.id or not self.entry_visible(name, entry, actor):
             return None
         quoted = Entry({k: (_quote(v) if spec.fields.get(k) == "text" and v is not None else v) for k, v in entry.items()})
