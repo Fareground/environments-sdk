@@ -42,7 +42,9 @@ def format_value(value: Any) -> str:
     if isinstance(value, (list, tuple)):
         return ", ".join(format_value(v) for v in value)
     if isinstance(value, dict):
-        return ", ".join(f"{k}: {format_value(v)}" for k, v in value.items())
+        # A key that is participant text renders quoted, like any other participant text.
+        return ", ".join(f"{format_value(k) if isinstance(k, Untrusted) else k}: {format_value(v)}"
+                         for k, v in value.items())
     return str(value)
 
 
@@ -95,7 +97,11 @@ class Template:
                 value = expr(scope)
             except ExprError as exc:
                 raise ExprError(f"template {self.source!r}: {exc.detail}", exc.source) from None
-            out.append(_FORMATS[fmt](value) if fmt else format_value(value))
+            try:
+                out.append(_FORMATS[fmt](value) if fmt else format_value(value))
+            except (ArithmeticError, ValueError, TypeError, RecursionError) as exc:
+                raise ExprError(f"template {self.source!r}: cannot format {type(value).__name__} value ({exc})",
+                                expr.source) from None
         return "".join(out)
 
 
