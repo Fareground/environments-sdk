@@ -116,6 +116,18 @@ class Wake:
         """Finish the turn."""
         return self._turn.call(END_TURN, {})
 
+    def record_usage(self, *, llm_calls: int = 0, input_tokens: int = 0, output_tokens: int = 0,
+                     cache_read_tokens: int = 0, cache_write_tokens: int = 0, llm_retries: int = 0,
+                     forfeits: int = 0) -> None:
+        """Add a model's real usage to the run's statistics (the built-in LLM participants call this)."""
+        stats = self._turn.stats
+        for name, value in (("llm_calls", llm_calls), ("input_tokens", input_tokens), ("output_tokens", output_tokens),
+                            ("cache_read_tokens", cache_read_tokens), ("cache_write_tokens", cache_write_tokens),
+                            ("llm_retries", llm_retries), ("forfeits", forfeits)):
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f"{name} must be a whole number ≥ 0, got {value!r}")
+            setattr(stats, name, getattr(stats, name) + value)
+
     @property
     def done(self) -> bool:
         return self._turn.done

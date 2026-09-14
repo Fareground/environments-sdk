@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import json
 import random
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Union
+import threading
+import time
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Optional, Union
 
 from .expr import ExprError, compile_expr, resolve, truthy
 from .session import Wake
@@ -210,119 +212,228 @@ class _LLMUsage:
         self.output_tokens = 0
         self.cache_read_tokens = 0
         self.cache_write_tokens = 0
+        self.retries = 0
+        self.forfeits = 0
 
     def to_dict(self) -> Dict[str, int]:
         return dict(self.__dict__)
 
 
-class _Anthropic:
-    def __init__(self, client: Any, model: str, max_tokens: int, max_steps: int, system: str):
+#: HTTP statuses worth retrying: timeouts, conflicts, rate limits, overload and server errors.
+_RETRY_STATUSES = frozenset({408, 409, 429, 500, 502, 503, 504, 529})
+_RETRY_NAMES = ("RateLimit", "Timeout", "Connection", "Overloaded", "InternalServer", "ServiceUnavailable")
+_MAX_BACKOFF_SECONDS = 60.0
+_NUDGE = "Act only by calling your tools. When you have nothing more to do, call end_turn."
+
+
+def _retryable(exc: BaseException) -> bool:
+    status = getattr(exc, "status_code", None)
+    if isinstance(status, int):
+        return status in _RETRY_STATUSES
+    return any(part in type(exc).__name__ for part in _RETRY_NAMES)
+
+
+def _retry_after(exc: BaseException) -> Optional[float]:
+    headers = getattr(getattr(exc, "response", None), "headers", None)
+    try:
+        value = float(headers.get("retry-after")) if headers is not None else None
+    except (TypeError, ValueError):
+        return None
+    return value if value is not None and value >= 0 else None
+
+
+class _ProviderFailed(Exception):
+    """A provider call still failed after its retries."""
+
+
+class _LLMParticipant:
+    """The shared tool loop: retries, usage accounting, the error policy."""
+
+    def __init__(self, client: Any, model: str, max_steps: int, system: str, retries: int, on_error: str):
+        if on_error not in ("fail", "end_turn"):
+            raise ValueError(f"on_error must be 'fail' or 'end_turn', got {on_error!r}")
+        if isinstance(retries, bool) or not isinstance(retries, int) or retries < 0:
+            raise ValueError(f"retries must be a whole number ≥ 0, got {retries!r}")
+        if isinstance(max_steps, bool) or not isinstance(max_steps, int) or max_steps < 1:
+            raise ValueError(f"max_steps must be a whole number ≥ 1, got {max_steps!r}")
         self.client = client
         self.model = model
-        self.max_tokens = max_tokens
         self.max_steps = max_steps
         self.system = system
+        self.retries = retries
+        self.on_error = on_error
         self.usage = _LLMUsage()
+        self._usage_lock = threading.Lock()
 
     def __call__(self, wake: Wake) -> None:
+        try:
+            self._turn(wake)
+        except _ProviderFailed as failure:
+            cause = failure.__cause__ or failure
+            if self.on_error == "fail":
+                raise cause
+            self._record(wake, forfeits=1)
+        if not wake.done:
+            wake.end()
+
+    def _turn(self, wake: Wake) -> None:
+        raise NotImplementedError
+
+    def _create(self, wake: Wake, request: Callable[[], Any]) -> Any:
+        for attempt in range(self.retries + 1):
+            try:
+                return request()
+            except Exception as exc:
+                if attempt >= self.retries or not _retryable(exc):
+                    raise _ProviderFailed(f"{type(exc).__name__}: {exc}") from exc
+                self._record(wake, llm_retries=1)
+                delay = _retry_after(exc)
+                time.sleep(min(_MAX_BACKOFF_SECONDS, delay if delay is not None else 2.0 ** attempt))
+        raise AssertionError("unreachable")
+
+    def _record(self, wake: Wake, **counts: int) -> None:
+        wake.record_usage(**counts)
+        mapping = {"llm_calls": "calls", "llm_retries": "retries"}
+        with self._usage_lock:
+            for name, value in counts.items():
+                attr_name = mapping.get(name, name)
+                setattr(self.usage, attr_name, getattr(self.usage, attr_name) + value)
+
+
+class _Anthropic(_LLMParticipant):
+    def __init__(self, client: Any, model: str, max_tokens: int, max_steps: int, system: str, retries: int,
+                 on_error: str):
+        super().__init__(client, model, max_steps, system, retries, on_error)
+        self.max_tokens = max_tokens
+
+    def _turn(self, wake: Wake) -> None:
         system = [{"type": "text", "text": (self.system + "\n\n" if self.system else "") + wake.brief,
                    "cache_control": {"type": "ephemeral"}}]
         messages: List[Dict[str, Any]] = [{"role": "user", "content": wake.update}]
+        nudged = False
         for _ in range(self.max_steps):
             if wake.done:
                 return
             tools = wake.tools_for("anthropic")
-            response = self.client.messages.create(model=self.model, max_tokens=self.max_tokens,
-                                                   system=system, tools=tools, messages=messages)
-            self._count(getattr(response, "usage", None))
-            calls = [block for block in response.content if getattr(block, "type", "") == "tool_use"]
-            messages.append({"role": "assistant", "content": [_block_dict(b) for b in response.content]})
+            response = self._create(wake, lambda: self.client.messages.create(
+                model=self.model, max_tokens=self.max_tokens, system=system, tools=tools, messages=messages))
+            self._count(wake, getattr(response, "usage", None))
+            content = [_block_dict(b) for b in (getattr(response, "content", None) or [])]
+            calls = [block for block in content if block.get("type") == "tool_use"]
+            if not content:
+                return
+            messages.append({"role": "assistant", "content": content})
             if not calls:
-                break
+                if nudged or wake.done:
+                    return
+                nudged = True
+                messages.append({"role": "user", "content": _NUDGE})
+                continue
             results = []
             for block in calls:
-                result = wake.call(block.name, dict(block.input or {}))
-                results.append({"type": "tool_result", "tool_use_id": block.id, "content": result.text,
+                args = block.get("input")
+                result = wake.call(str(block.get("name")), args if isinstance(args, dict) else None)
+                results.append({"type": "tool_result", "tool_use_id": block.get("id"), "content": result.text,
                                 "is_error": not result.ok})
             messages.append({"role": "user", "content": results})
-        if not wake.done:
-            wake.end()
 
-    def _count(self, usage: Any) -> None:
-        self.usage.calls += 1
-        if usage is None:
-            return
-        self.usage.input_tokens += getattr(usage, "input_tokens", 0) or 0
-        self.usage.output_tokens += getattr(usage, "output_tokens", 0) or 0
-        self.usage.cache_read_tokens += getattr(usage, "cache_read_input_tokens", 0) or 0
-        self.usage.cache_write_tokens += getattr(usage, "cache_creation_input_tokens", 0) or 0
+    def _count(self, wake: Wake, usage: Any) -> None:
+        def number(name: str) -> int:
+            value = getattr(usage, name, 0) if usage is not None else 0
+            return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
+
+        self._record(wake, llm_calls=1, input_tokens=number("input_tokens"), output_tokens=number("output_tokens"),
+                     cache_read_tokens=number("cache_read_input_tokens"),
+                     cache_write_tokens=number("cache_creation_input_tokens"))
 
 
 def _block_dict(block: Any) -> Dict[str, Any]:
-    kind = getattr(block, "type", "")
+    kind = getattr(block, "type", None) or (block.get("type") if isinstance(block, Mapping) else "")
     if kind == "text":
-        return {"type": "text", "text": block.text}
+        return {"type": "text", "text": _field(block, "text") or ""}
     if kind == "tool_use":
-        return {"type": "tool_use", "id": block.id, "name": block.name, "input": block.input}
+        return {"type": "tool_use", "id": _field(block, "id"), "name": _field(block, "name"),
+                "input": _field(block, "input") or {}}
     if hasattr(block, "model_dump"):
-        return block.model_dump()
-    return dict(block)
+        return dict(block.model_dump())
+    return dict(block) if isinstance(block, Mapping) else {"type": str(kind)}
 
 
-def anthropic(client: Any, model: str, *, max_tokens: int = 1024, max_steps: int = 8, system: str = "") -> Participant:
+def _field(block: Any, name: str) -> Any:
+    return block.get(name) if isinstance(block, Mapping) else getattr(block, name, None)
+
+
+def anthropic(client: Any, model: str, *, max_tokens: int = 1024, max_steps: int = 8, system: str = "",
+              retries: int = 4, on_error: str = "fail") -> Participant:
     """An LLM participant using an ``anthropic.Anthropic()`` client. The brief is prompt-cached.
 
-    ``participant.usage`` accumulates token counts across turns.
+    Rate limits, timeouts, overload and server errors are retried ``retries`` times with backoff
+    (honouring ``retry-after``). If a call still fails, ``on_error="fail"`` fails the run with that
+    error and ``"end_turn"`` forfeits the turn and counts it in ``stats["forfeits"]``. Real token
+    usage lands in the run's statistics and in ``participant.usage``.
     """
-    return _Anthropic(client, model, max_tokens, max_steps, system)
+    return _Anthropic(client, model, max_tokens, max_steps, system, retries, on_error)
 
 
-class _OpenAI:
-    def __init__(self, client: Any, model: str, max_steps: int, system: str):
-        self.client = client
-        self.model = model
-        self.max_steps = max_steps
-        self.system = system
-        self.usage = _LLMUsage()
-
-    def __call__(self, wake: Wake) -> None:
+class _OpenAI(_LLMParticipant):
+    def _turn(self, wake: Wake) -> None:
         messages: List[Dict[str, Any]] = [
             {"role": "system", "content": (self.system + "\n\n" if self.system else "") + wake.brief},
             {"role": "user", "content": wake.update},
         ]
+        nudged = False
         for _ in range(self.max_steps):
             if wake.done:
                 return
-            response = self.client.chat.completions.create(model=self.model, messages=messages,
-                                                            tools=wake.tools_for("openai"))
-            self.usage.calls += 1
-            usage = getattr(response, "usage", None)
-            if usage is not None:
-                self.usage.input_tokens += getattr(usage, "prompt_tokens", 0) or 0
-                self.usage.output_tokens += getattr(usage, "completion_tokens", 0) or 0
-            message = response.choices[0].message
+            tools = wake.tools_for("openai")
+            response = self._create(wake, lambda: self.client.chat.completions.create(
+                model=self.model, messages=messages, tools=tools))
+            self._count(wake, getattr(response, "usage", None))
+            choices = getattr(response, "choices", None) or []
+            if not choices:
+                return
+            message = choices[0].message
             calls = list(getattr(message, "tool_calls", None) or [])
-            messages.append({"role": "assistant", "content": message.content or "",
-                             "tool_calls": [{"id": c.id, "type": "function",
-                                             "function": {"name": c.function.name, "arguments": c.function.arguments}}
-                                            for c in calls] or None})
+            assistant: Dict[str, Any] = {"role": "assistant", "content": getattr(message, "content", None) or ""}
+            if calls:
+                assistant["tool_calls"] = [{"id": c.id, "type": "function",
+                                            "function": {"name": c.function.name, "arguments": c.function.arguments}}
+                                           for c in calls]
+            messages.append(assistant)
             if not calls:
-                break
+                if nudged or wake.done:
+                    return
+                nudged = True
+                messages.append({"role": "user", "content": _NUDGE})
+                continue
             for c in calls:
                 try:
                     args = json.loads(c.function.arguments or "{}")
-                except json.JSONDecodeError:
+                except (json.JSONDecodeError, TypeError):
                     args = None
-                result = wake.call(c.function.name, args) if isinstance(args, dict) else None
-                text = result.text if result else "arguments were not valid JSON; call again"
+                if isinstance(args, dict):
+                    text = wake.call(c.function.name, args).text
+                else:
+                    text = "The arguments were not a JSON object of named values; call the tool again with valid JSON."
                 messages.append({"role": "tool", "tool_call_id": c.id, "content": text})
-        if not wake.done:
-            wake.end()
+
+    def _count(self, wake: Wake, usage: Any) -> None:
+        def number(owner: Any, name: str) -> int:
+            value = getattr(owner, name, 0) if owner is not None else 0
+            return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
+
+        cached = number(getattr(usage, "prompt_tokens_details", None), "cached_tokens")
+        self._record(wake, llm_calls=1, input_tokens=number(usage, "prompt_tokens"),
+                     output_tokens=number(usage, "completion_tokens"), cache_read_tokens=cached)
 
 
-def openai(client: Any, model: str, *, max_steps: int = 8, system: str = "") -> Participant:
-    """An LLM participant using an ``openai.OpenAI()``-compatible client (chat completions + tools)."""
-    return _OpenAI(client, model, max_steps, system)
+def openai(client: Any, model: str, *, max_steps: int = 8, system: str = "", retries: int = 4,
+           on_error: str = "fail") -> Participant:
+    """An LLM participant using an ``openai.OpenAI()``-compatible client (chat completions + tools).
+
+    Retries, ``on_error`` and usage accounting work as for :func:`anthropic`.
+    """
+    return _OpenAI(client, model, max_steps, system, retries, on_error)
 
 
 ParticipantsArg = Union[None, Participant, str, Mapping[str, Any]]

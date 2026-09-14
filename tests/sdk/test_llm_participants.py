@@ -2,6 +2,8 @@
 import json
 from types import SimpleNamespace as NS
 
+import pytest
+
 import fg_env
 from fg_env import participants
 
@@ -71,5 +73,80 @@ def test_openai_participant_handles_bad_json_and_bids():
     assert result.ok, result.summary()
     assert result.outputs == {"winner": "Ann", "price": 30}
     tool_messages = [m for m in client.requests[1]["messages"] if m["role"] == "tool"]
-    assert "not valid JSON" in tool_messages[0]["content"]
+    assert "not a JSON object" in tool_messages[0]["content"]
+    assert "tool_calls" not in client.requests[1]["messages"][-1] or client.requests[1]["messages"][-1]["tool_calls"]
     assert client.requests[0]["tools"][0]["function"]["name"] == "bid"
+
+
+class Flaky(Exception):
+    def __init__(self, status_code, retry_after=None):
+        super().__init__(f"HTTP {status_code}")
+        self.status_code = status_code
+        self.response = NS(headers={"retry-after": retry_after} if retry_after is not None else {})
+
+
+class FailingAnthropic(FakeAnthropic):
+    """Raises the queued errors before answering from the script."""
+
+    def __init__(self, script, errors):
+        super().__init__(script)
+        self.errors = list(errors)
+
+    def create(self, **request):
+        if self.errors:
+            self.requests.append(None)
+            raise self.errors.pop(0)
+        return super().create(**request)
+
+
+def test_transient_provider_errors_are_retried_with_backoff(monkeypatch):
+    sleeps = []
+    monkeypatch.setattr(participants.time, "sleep", sleeps.append)
+    client = FailingAnthropic([[("buy", {"offer": "espresso", "qty": 1})], [("end_turn", {})]],
+                              [Flaky(429, retry_after="3"), Flaky(529)])
+    agent = participants.anthropic(client, "claude-sonnet-5")
+    result = fg_env.load(SHOP, seed=1, inputs={"shoppers": 1}).run(agent, rounds=1)
+    assert result.status != "failed", result.error
+    assert sleeps == [3.0, 2.0]
+    assert result.stats["llm_retries"] == 2 and agent.usage.retries == 2
+    assert result.stats["llm_calls"] == 2 and result.stats["input_tokens"] == 200
+    assert result.stats["cache_read_tokens"] == 160
+
+
+def test_permanent_provider_errors_fail_the_run_or_forfeit_the_turn(monkeypatch):
+    monkeypatch.setattr(participants.time, "sleep", lambda _: None)
+    failing = participants.anthropic(FailingAnthropic([], [Flaky(400)]), "claude-sonnet-5")
+    result = fg_env.load(SHOP, seed=1, inputs={"shoppers": 1}).run(failing, rounds=1)
+    assert result.status == "failed" and "HTTP 400" in result.error
+
+    exhausted = FailingAnthropic([], [Flaky(503)] * 3)
+    forfeiting = participants.anthropic(exhausted, "claude-sonnet-5", retries=2, on_error="end_turn")
+    result = fg_env.load(SHOP, seed=1, inputs={"shoppers": 1}).run(forfeiting, rounds=1)
+    assert result.status != "failed", result.error
+    assert result.stats["forfeits"] == 1 and result.stats["llm_retries"] == 2
+
+    with pytest.raises(ValueError, match="on_error"):
+        participants.anthropic(exhausted, "m", on_error="ignore")
+
+
+def test_a_model_that_only_talks_is_nudged_once():
+    client = FakeAnthropic([[], [("buy", {"offer": "espresso", "qty": 1})], [("end_turn", {})]])
+    agent = participants.anthropic(client, "claude-sonnet-5")
+    env = fg_env.load(SHOP, seed=1, inputs={"shoppers": 1})
+    env.run(agent, rounds=1)
+    assert client.requests[1]["messages"][-1] == {"role": "user", "content": participants._NUDGE}
+    assert env.world.props["revenue"] == 3
+
+    silent = FakeAnthropic([])
+    env = fg_env.load(SHOP, seed=1, inputs={"shoppers": 1})
+    env.run(participants.anthropic(silent, "claude-sonnet-5"), rounds=1)
+    assert len(silent.requests) == 2  # one nudge, then the turn ends
+
+
+def test_usage_survives_snapshots_and_resumes():
+    client = FakeAnthropic([[("end_turn", {})]] * 4)
+    agent = participants.anthropic(client, "claude-sonnet-5")
+    env = fg_env.load(SHOP, seed=1, inputs={"shoppers": 1})
+    env.run(agent, rounds=1)
+    restored = fg_env.Env.restore(env.contract, env.snapshot())
+    assert restored.stats.llm_calls == 1 and restored.stats.input_tokens == 100

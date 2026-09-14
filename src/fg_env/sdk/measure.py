@@ -31,6 +31,15 @@ class Stats:
     #: Turns whose brief / update was actually read (coded participants often read neither).
     brief_reads: int = 0
     update_reads: int = 0
+    #: Reported by LLM participants (see :meth:`Wake.record_usage`): real provider numbers, not estimates.
+    llm_calls: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
+    llm_retries: int = 0
+    #: Turns a participant gave up after a provider error (``on_error="end_turn"``).
+    forfeits: int = 0
 
     def add(self, other: "Stats") -> None:
         for name in self.__dataclass_fields__:
