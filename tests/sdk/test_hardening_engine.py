@@ -319,3 +319,49 @@ def test_experiments_keep_every_run_and_report_paired_deltas():
         fg_env.experiment(contract, runs=1, participants="policy:nope")
     with pytest.raises(ValueError, match="runs"):
         fg_env.experiment(contract, runs=0)
+
+
+def test_views_never_reveal_events_addressed_to_someone_else():
+    contract = {**TALK, "views": {"log": {"for": "member", "title": "Log", "show": "{$len($events(action))} actions"}},
+                "actions": {**TALK["actions"], "whisper": {"by": "member", "private": True, "do": ["$actor.said += 1"]}}}
+    env = fg_env.load(contract, seed=1)
+    seen = {}
+
+    def play(wake):
+        if wake.entity_id == "member_1":
+            wake.call("whisper")
+        else:
+            seen[wake.entity_id] = wake.update
+        wake.end()
+
+    env.run(play, rounds=1)
+    private = [e for e in env.world.log if e.kind == "action" and e.to is not None]
+    assert private, "the whisper is logged privately"
+    assert "0 actions" in seen["member_2"]
+
+
+def test_effect_results_past_the_size_limits_are_errors():
+    from fg_env.sdk.expr import MAX_INT_BITS
+
+    contract = {**TALK, "world": {"n": 3, "xs": {"type": "list", "default": [1]}},
+                "actions": {"square": {"by": "member", "do": ["$world.n *= $world.n"]},
+                            "grow": {"by": "member", "do": ["$world.xs += $world.xs"]},
+                            "spawn": {"by": "member", "do": [{"create": "member", "count": "$world.n"}]}}}
+
+    def failure(action, **props):
+        env = fg_env.load(contract, seed=1)
+        env.world.props.update(props)
+
+        def play(wake):
+            wake.call(action)
+            wake.end()
+
+        result = env.run(play, rounds=1)
+        assert result.status == "failed", action
+        return result.error or ""
+
+    assert "bits" in failure("square", n=2 ** (MAX_INT_BITS - 10))
+    assert "limit" in failure("grow", xs=list(range(600_000)))
+    assert "limit" in failure("spawn", n=10 ** 9)
+    with pytest.raises(ValueError, match="at most"):
+        fg_env.load(TALK, seed=1).run(rounds=10 ** 9)

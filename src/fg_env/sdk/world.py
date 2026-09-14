@@ -257,8 +257,10 @@ class SdkWorld(World):
             raise ExprError(f"'{name}' is not a declared record (records: {known})")
         return self.records_store[name]
 
-    def events(self, kind: Optional[str]) -> List[LogEvent]:
-        return [e for e in self.log if kind is None or e.kind == kind]
+    def events(self, kind: Optional[str], viewer: Any = None) -> List[LogEvent]:
+        """Events so far; with a ``viewer`` (views, record visibility) only those it may know about."""
+        seen = viewer.id if isinstance(viewer, Entity) else None
+        return [e for e in self.log if (kind is None or e.kind == kind) and (seen is None or e.visible_to(seen))]
 
     def relation(self, a: Any, b: Any, kind: str) -> Optional[float]:
         edges = self._edges(kind)

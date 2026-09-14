@@ -7,7 +7,7 @@ import math
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from ..entity import Entity
-from .contract import Contract, LinkSpec, PopulationSpec
+from .contract import MAX_POPULATION, MAX_ROUNDS, Contract, LinkSpec, PopulationSpec
 from .errors import RunError
 from .expr import ExprError, compile_expr, is_expr, truthy  # noqa: F401
 from .seeds import SeedTree
@@ -64,7 +64,15 @@ def _rounds(world: SdkWorld) -> int:
         rounds = int(rounds)
     if isinstance(rounds, bool) or not isinstance(rounds, int) or rounds < 1:
         raise RunError(f"must be a whole number ≥ 1, got {rounds!r}", "clock.rounds")
+    if rounds > MAX_ROUNDS:
+        raise RunError(f"{rounds:,} rounds is more than the limit of {MAX_ROUNDS:,}", "clock.rounds")
     return rounds
+
+
+def _capped(count: int, path: str) -> int:
+    if count > MAX_POPULATION:
+        raise RunError(f"{count:,} entities is more than the limit of {MAX_POPULATION:,}", path)
+    return count
 
 
 _ENTITY_FUNCTIONS = frozenset({"entity", "exists", "records", "neighbors", "relation", "linked", "events"})
@@ -103,11 +111,11 @@ def _population(world: SdkWorld, spec: PopulationSpec, index: int,
             rows = [row for row in rows if truthy(_value(world, spec.where, {"row": row}))]
         count = _value(world, spec.count, {}) if spec.count is not None else None
         if count is not None:
-            rows = _sample(world, rows, spec, int(_whole(count, f"{path}.count")), path)
+            rows = _sample(world, rows, spec, _capped(int(_whole(count, f"{path}.count")), f"{path}.count"), path)
     else:
         if spec.count is None:
             raise RunError("give `count`, `from`, or both", path)
-        count = int(_whole(_value(world, spec.count, {}), f"{path}.count"))
+        count = _capped(int(_whole(_value(world, spec.count, {}), f"{path}.count")), f"{path}.count")
         rows = [None] * count
     id_template = compile_template(spec.id, None) if spec.id else None
     name_template = compile_template(spec.name, None) if spec.name else None

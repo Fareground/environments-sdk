@@ -42,7 +42,7 @@ class Perception:
 
     def brief(self, actor: Entity) -> str:
         c = self.contract
-        scope = self.world.scope(actor=actor)
+        scope = self.world.scope(actor=actor, viewer=actor)
 
         def text(template: str, path: str) -> str:
             try:
@@ -111,7 +111,7 @@ class Perception:
 
     def render_view(self, name: str, view: ViewSpec, actor: Entity) -> Optional[str]:
         path = f"views.{name}"
-        scope = self.world.scope(actor=actor)
+        scope = self.world.scope(actor=actor, viewer=actor)
         try:
             if view.when is not None and not truthy(compile_expr(view.when)(scope)):
                 return None
@@ -139,7 +139,7 @@ class Perception:
             if view.empty is None:
                 return None
             rendered = [view.empty]
-        title = self._title(view.title, self.world.scope(actor=actor), path) or name.replace("_", " ").capitalize()
+        title = self._title(view.title, self.world.scope(actor=actor, viewer=actor), path) or name.replace("_", " ").capitalize()
         return f"{title}:\n" + "\n".join(rendered)
 
     def _title(self, title: str, scope: Any, path: str) -> str:
@@ -167,7 +167,7 @@ class Perception:
 
     def _render(self, template: str, actor: Entity, path: str) -> str:
         try:
-            return compile_template(template, "actor").render(self.world.scope(actor=actor))
+            return compile_template(template, "actor").render(self.world.scope(actor=actor, viewer=actor))
         except ExprError as exc:
             raise RunError(str(exc), path) from None
 

@@ -402,7 +402,7 @@ def test_contract_sources_are_read_unambiguously(tmp_path):
 
 
 @pytest.mark.parametrize("source, needle", [
-    ("nope.json", "neither an existing file nor JSON text"),
+    ("nope.json", "file not found"),
     ("not json at all", "neither an existing file nor JSON text"),
     ("x" * 10_000, "neither an existing file nor JSON text"),
     ("bad\x00name", "neither an existing file nor JSON text"),

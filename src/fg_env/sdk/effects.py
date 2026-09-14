@@ -35,7 +35,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from ..entity import Entity
 from .errors import RunError
-from .expr import Expr, ExprError, attr, compile_expr, is_expr, resolve, truthy
+from .contract import MAX_CREATE
+from .expr import MAX_INT_BITS, Expr, ExprError, attr, check_size, compile_expr, is_expr, resolve, truthy
 from .template import compile_template, format_value
 from .registry import OPS, OpSpec
 from .world import Abort, SdkWorld, _Physics, _Props
@@ -277,6 +278,15 @@ class EffectRunner:
 
     @staticmethod
     def _combine(op: str, current: Any, value: Any, source: str) -> Any:
+        """``current op value`` for +=, -=, *=, /=, refusing results past the size limits."""
+        result = EffectRunner._combine_raw(op, current, value, source)
+        if isinstance(result, int) and not isinstance(result, bool) and result.bit_length() > MAX_INT_BITS:
+            raise ExprError(f"a whole number of {result.bit_length():,} bits is past the limit of {MAX_INT_BITS:,} bits",
+                            source)
+        return check_size(result, source)
+
+    @staticmethod
+    def _combine_raw(op: str, current: Any, value: Any, source: str) -> Any:
         if op == "+=" and isinstance(current, list):
             return current + (list(value) if isinstance(value, list) else [value])
         if op == "-=" and isinstance(current, list):
@@ -350,6 +360,8 @@ class EffectRunner:
         count = self._eval(effect.get("count", 1), vars)
         if isinstance(count, bool) or not isinstance(count, int) or count < 0:
             raise RunError(f"count must be a whole number ≥ 0, got {count!r}", where)
+        if count > MAX_CREATE:
+            raise RunError(f"count {count:,} is more than the limit of {MAX_CREATE:,} entities per create", where)
         made: List[Entity] = []
         for n in range(count):
             inner = {**vars, "i": n + 1}

@@ -233,7 +233,7 @@ class World:
     def visible_records(self, name: str, viewer: Any) -> List[Any]:
         return self.records(name)
 
-    def events(self, name: Optional[str]) -> List[Any]:
+    def events(self, name: Optional[str], viewer: Any = None) -> List[Any]:
         return []
 
     def relation(self, a: Any, b: Any, kind: str) -> Optional[float]:

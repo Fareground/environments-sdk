@@ -339,7 +339,7 @@ def _records(call: Call) -> List[Any]:
           min_args=0, max_args=2, lazy=[1])
 def _events(call: Call) -> List[Any]:
     kind = call.arg(0) if len(call) else None
-    rows = call.scope.world.events(kind)
+    rows = call.scope.world.events(kind, call.scope.vars.get("viewer"))
     charge(len(rows), call.source)
     if len(call) < 2:
         return list(rows)

@@ -13,12 +13,12 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Generator, List, Mapping, Optional
 
 from ..entity import Entity
-from .actions import ActionBook, stage_actions
+from .actions import ACTION_BUDGET, ActionBook, stage_actions
 from .build import build_world
-from .contract import Contract, StageSpec
+from .contract import MAX_ROUNDS, Contract, StageSpec
 from .effects import EffectRunner
 from .errors import InvariantViolation, RunError
-from .expr import ExprError, compile_expr, truthy
+from .expr import ExprError, compile_expr, shared_budget, truthy
 from .measure import RunResult, Stats, compute_outputs, sample_metrics
 from .participants import Participant, resolve_participant
 from .perception import Perception
@@ -106,6 +106,8 @@ class Env:
         """
         if rounds is not None and (isinstance(rounds, bool) or not isinstance(rounds, int) or rounds < 0):
             raise ValueError(f"rounds must be a whole number ≥ 0, got {rounds!r}")
+        if rounds is not None and rounds > MAX_ROUNDS:
+            raise ValueError(f"rounds must be at most {MAX_ROUNDS:,}, got {rounds:,}")
         if not self._running.acquire(blocking=False):
             raise RuntimeError("this environment is already running; run() cannot be called again until it returns")
         try:
@@ -371,7 +373,8 @@ class Env:
         with self._lock:
             mark = self.world.journal.mark()
             try:
-                self.effects.run(effects, dict(vars), path)
+                with shared_budget(ACTION_BUDGET, path):
+                    self.effects.run(effects, dict(vars), path)
             except Abort:
                 self.world.journal.rollback(mark)
                 return False

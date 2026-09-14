@@ -4,10 +4,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Tuple
 
 from ..entity import Entity
-from .actions import ToolSpec, stage_actions
+from .actions import ACTION_BUDGET, ToolSpec, stage_actions
 from .contract import StageSpec
 from .errors import RunError
-from .expr import ExprError, compile_expr, truthy
+from .expr import ExprError, compile_expr, shared_budget, truthy
 from .measure import Stats
 from .session import END_TURN, ToolResult
 from .template import format_value
@@ -74,7 +74,8 @@ class Turn:
     def brief(self) -> str:
         if self._brief is None:
             with self.env._lock:
-                self._brief = self.env._brief(self.actor)
+                with shared_budget(ACTION_BUDGET, "brief"):
+                    self._brief = self.env._brief(self.actor)
             self.stats.brief_chars = len(self._brief)
             self.stats.brief_reads = 1
         return self._brief
@@ -83,7 +84,9 @@ class Turn:
     def update(self) -> str:
         if self._update is None:
             with self.env._lock:
-                self._update = self.env.perception.update(self.actor, self.stage, self.reason, self._since, self._views)
+                with shared_budget(ACTION_BUDGET, "update"):
+                    self._update = self.env.perception.update(self.actor, self.stage, self.reason, self._since,
+                                                              self._views)
             self.stats.update_chars = len(self._update)
             self.stats.update_reads = 1
         return self._update
@@ -237,7 +240,8 @@ class Turn:
         if not isinstance(name, str) or name not in looks:
             self.stats.invalid_calls += 1
             return self._after(ToolResult(False, f"view must be one of: {', '.join(looks) or 'none'}.", data=_INVALID))
-        text = env.perception.render_view(name, env.contract.views[name], self.actor)
+        with shared_budget(ACTION_BUDGET, f"views.{name}"):
+            text = env.perception.render_view(name, env.contract.views[name], self.actor)
         return self._after(ToolResult(True, text or "Nothing to show."))
 
     def _inspect(self, args: Optional[Mapping[str, Any]]) -> ToolResult:
