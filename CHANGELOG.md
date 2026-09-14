@@ -31,9 +31,13 @@ contract-driven Environment SDK: define an environment as one JSON contract, and
   `env.preview`, snapshots (`env.snapshot()` / `Env.restore`), `fg_env.experiment` (arms × seeded runs,
   common random numbers), generated authoring guide (`fg_env.guide()`), JSON Schema (`fg_env.schema()`),
   CLI `fg-env check | run | preview | experiment | guide | schema`.
+- **Turn and state controls**: `must_act` / `on_idle`, expression `terminal`, `$pending`, params whose
+  choices depend on earlier params, element assignment (`$world.board[$i] = x`), policy rules with
+  `each`, `env.entity` / `env.entities` / `env.props`, preview of the exact next turn.
 - **Example contracts** in `examples/contracts/` — coffee market, forecasting council, order-book
   exchange, civil trial, town epidemic, werewolf, labor negotiation, Connect Four, Hold'em-lite,
-  lemonade stand — each written by an LLM agent from the guide alone, with golden-run tests.
+  beer game, climate club, ride-hailing, checkers, Diplomacy-style strategy, lemonade stand — each
+  written by an LLM agent from the guide alone, with golden-run tests.
 
 #### Changed
 - **BREAKING:** distribution `fg-env-kernel` → `fg-env`, import `fg_env_kernel` → `fg_env`, console

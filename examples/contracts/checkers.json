@@ -1,0 +1,397 @@
+{
+  "fg_env": "1",
+  "name": "Checkers",
+  "description": "English draughts for two players on an 8x8 board.",
+  "inputs": {
+    "start": {
+      "type": "list",
+      "default": [],
+      "description": "Optional starting position: 64 cells, row 8 first, a..h within a row; '.', 'b', 'B', 'w', 'W'. Empty = standard setup."
+    },
+    "first": {
+      "type": "enum",
+      "values": [
+        "b",
+        "w"
+      ],
+      "default": "b",
+      "description": "Side to move first (b = Black)."
+    },
+    "draw_after": {
+      "type": "int",
+      "default": 40,
+      "min": 1,
+      "description": "Moves in a row without a capture that end the game in a draw."
+    }
+  },
+  "brief": {
+    "situation": "A game of checkers (English draughts) between Black and White on an 8x8 board. Only the dark squares are used.",
+    "rules": "Squares are named like chess: columns a-h left to right, rows 8 (top) to 1 (bottom). On the board, b/w are Black/White men, B/W are kings, '.' is empty. Black starts at the bottom and its men move up (toward row 8); White starts at the top and its men move down (toward row 1). A man moves one square diagonally forward onto an empty square (written c3-d4). A capture jumps diagonally over an adjacent enemy piece onto the empty square just beyond it, removing that piece (written c3xe5). Captures are mandatory: when any capture is available you must capture. After a capture, if the same piece can capture again it must keep jumping in the same turn, one jump per move call. A man that reaches the far row is crowned a king, which ends the turn; kings move and capture both forward and backward. A player with no legal move on their turn loses. The game is a draw after {$inputs.draw_after} moves in a row without a capture. Your move tool only lists legal moves.",
+    "roles": {
+      "player": "You play {$actor.name}. Win by capturing or blocking every enemy piece."
+    }
+  },
+  "clock": {
+    "rounds": 1200,
+    "unit": "turn"
+  },
+  "world": {
+    "board": {
+      "type": "list",
+      "default": "$inputs.start if $len($inputs.start) == 64 else $map($range(64), ('w' if $it // 8 < 3 else ('b' if $it // 8 > 4 else '.')) if ($it // 8 + $it % 8) % 2 == 1 else '.')",
+      "description": "64 cells, index = row*8 + col, row 0 is row 8 on the board."
+    },
+    "turn": {
+      "type": "text",
+      "default": "$inputs.first"
+    },
+    "chain": {
+      "type": "int",
+      "default": -1,
+      "description": "Square of the piece that must keep jumping, or -1."
+    },
+    "turn_over": false,
+    "turn_captured": false,
+    "moves": {
+      "type": "int",
+      "default": 0
+    },
+    "quiet": {
+      "type": "int",
+      "default": 0,
+      "description": "Completed moves in a row without a capture."
+    },
+    "initial_pieces": {
+      "type": "int",
+      "default": "$count($inputs.start, $it != '.') if $len($inputs.start) == 64 else 24"
+    }
+  },
+  "types": {
+    "player": {
+      "agent": true,
+      "props": {
+        "color": {
+          "type": "enum",
+          "values": [
+            "b",
+            "w"
+          ],
+          "default": "b"
+        },
+        "captures": {
+          "type": "int",
+          "default": 0
+        },
+        "kings": {
+          "type": "int",
+          "default": 0
+        }
+      }
+    }
+  },
+  "entities": {
+    "black": {
+      "type": "player",
+      "name": "Black",
+      "props": {
+        "color": "b"
+      }
+    },
+    "white": {
+      "type": "player",
+      "name": "White",
+      "props": {
+        "color": "w"
+      }
+    }
+  },
+  "defs": {
+    "mine": {
+      "args": [
+        "cell",
+        "color"
+      ],
+      "expr": "$lower($cell) == $color"
+    },
+    "enemy": {
+      "args": [
+        "cell",
+        "color"
+      ],
+      "expr": "$cell != '.' and $lower($cell) != $color"
+    },
+    "src": {
+      "args": [
+        "k"
+      ],
+      "expr": "$k // 8"
+    },
+    "dr": {
+      "args": [
+        "k"
+      ],
+      "expr": "[-1, -1, 1, 1][($k // 2) % 4]"
+    },
+    "dc": {
+      "args": [
+        "k"
+      ],
+      "expr": "[-1, 1, -1, 1][($k // 2) % 4]"
+    },
+    "tr": {
+      "args": [
+        "k"
+      ],
+      "expr": "$k // 64 + $dr($k) * (1 + $k % 2)"
+    },
+    "tc": {
+      "args": [
+        "k"
+      ],
+      "expr": "($k // 8) % 8 + $dc($k) * (1 + $k % 2)"
+    },
+    "dest": {
+      "args": [
+        "k"
+      ],
+      "expr": "$tr($k) * 8 + $tc($k)"
+    },
+    "mid": {
+      "args": [
+        "k"
+      ],
+      "expr": "($k // 64 + $dr($k)) * 8 + ($k // 8) % 8 + $dc($k)"
+    },
+    "forward": {
+      "args": [
+        "color"
+      ],
+      "expr": "-1 if $color == 'b' else 1"
+    },
+    "valid": {
+      "args": [
+        "k",
+        "color"
+      ],
+      "expr": "$mine($world.board[$k // 8], $color) and ($world.board[$k // 8] in ['B', 'W'] or $dr($k) == $forward($color)) and $tr($k) >= 0 and $tr($k) < 8 and $tc($k) >= 0 and $tc($k) < 8 and $world.board[$dest($k)] == '.' and ($k % 2 == 0 or $enemy($world.board[$mid($k)], $color))"
+    },
+    "jumps": {
+      "args": [
+        "color"
+      ],
+      "expr": "$filter($range(512), $it % 2 == 1 and ($world.chain < 0 or $it // 8 == $world.chain) and $valid($it, $color))"
+    },
+    "steps": {
+      "args": [
+        "color"
+      ],
+      "expr": "$filter($range(512), $it % 2 == 0 and $world.chain < 0 and $valid($it, $color))"
+    },
+    "legal": {
+      "args": [
+        "color"
+      ],
+      "expr": "$jumps($color) if $len($jumps($color)) > 0 else $steps($color)"
+    },
+    "sqname": {
+      "args": [
+        "sq"
+      ],
+      "expr": "$join([['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'][$sq % 8], $text(8 - $sq // 8)], '')"
+    },
+    "label": {
+      "args": [
+        "k"
+      ],
+      "expr": "$join([$sqname($k // 8), 'x' if $k % 2 == 1 else '-', $sqname($dest($k))], '')"
+    },
+    "labels": {
+      "args": [
+        "color"
+      ],
+      "expr": "$map($legal($color), $label($it))"
+    },
+    "boardline": {
+      "args": [
+        "r"
+      ],
+      "expr": "'   a b c d e f g h' if $r == 8 else $join([$text(8 - $r), ' |', $join($map($range(8), $world.board[$r * 8 + $it]), ' ')], '')"
+    },
+    "count_side": {
+      "args": [
+        "color"
+      ],
+      "expr": "$count($world.board, $lower($it) == $color)"
+    }
+  },
+  "blocks": {
+    "finish_turn": {
+      "description": "Close the current player's turn and hand the move to the opponent.",
+      "do": [
+        "$world.chain = -1",
+        "$world.turn_over = true",
+        "$world.moves += 1",
+        "$world.quiet = 0 if $world.turn_captured else $world.quiet + 1",
+        "$world.turn = 'w' if $world.turn == 'b' else 'b'"
+      ]
+    }
+  },
+  "actions": {
+    "move": {
+      "by": "player",
+      "description": "Make one move or one capture jump. Steps are written from-to (c3-d4); jumps are written fromxto (c3xe5). After a jump, if the same piece can jump again you will be asked to continue.",
+      "params": {
+        "move": {
+          "type": "enum",
+          "values": "$labels($actor.color)",
+          "description": "One of your legal moves."
+        }
+      },
+      "when": [
+        {
+          "expr": "$world.turn == $actor.color",
+          "why": "It is not your turn."
+        }
+      ],
+      "do": [
+        "$k = $pick($legal($actor.color), $label($it) == $params.move)",
+        {
+          "if": "$k == null",
+          "then": [
+            {
+              "fail": "{$params.move} is not a legal move. Legal moves: {$join($labels($actor.color))}."
+            }
+          ]
+        },
+        "$s = $k // 8",
+        "$d = $dest($k)",
+        "$jump = $k % 2 == 1",
+        "$m = $mid($k) if $jump else -1",
+        "$piece = $world.board[$s]",
+        "$crown = $piece == $actor.color and $d // 8 == (0 if $actor.color == 'b' else 7)",
+        "$placed = ('B' if $actor.color == 'b' else 'W') if $crown else $piece",
+        "$world.board = $map($range(64), $placed if $it == $d else ('.' if $it == $s or $it == $m else $world.board[$it]))",
+        {
+          "if": "$crown",
+          "then": [
+            "$actor.kings += 1"
+          ]
+        },
+        {
+          "if": "$jump",
+          "then": [
+            "$actor.captures += 1",
+            "$world.turn_captured = true"
+          ]
+        },
+        {
+          "if": "$jump and not $crown",
+          "then": [
+            "$world.chain = $d"
+          ]
+        },
+        "$more = $jump and not $crown and $len($jumps($actor.color)) > 0",
+        {
+          "if": "not $more",
+          "then": [
+            {
+              "block": "finish_turn"
+            }
+          ]
+        }
+      ],
+      "outcome": "You played {$params.move}.{$' Crowned a king.' if $crown else ''}{$join([' Captured a piece; you must jump again with the same piece (', $sqname($d), ').'], '') if $more else ''}",
+      "announce": "{$actor.name} played {$params.move}.",
+      "terminal": true
+    }
+  },
+  "stages": [
+    {
+      "name": "move",
+      "who": "$it.color == $world.turn",
+      "turns": "sequential",
+      "until": "$world.turn_over",
+      "passes": 12,
+      "max_actions": 1,
+      "max_calls": 6,
+      "brief": "Your move. Pick one legal move."
+    }
+  ],
+  "events": [
+    {
+      "name": "new_turn",
+      "phase": "start",
+      "do": [
+        "$world.turn_over = false",
+        "$world.turn_captured = false"
+      ]
+    }
+  ],
+  "views": {
+    "board": {
+      "for": "player",
+      "title": "Board",
+      "of": "$range(9)",
+      "bullet": false,
+      "show": "{$boardline($it)}"
+    },
+    "status": {
+      "for": "player",
+      "title": "Status",
+      "show": "You are {name}: your pieces are {$'b (men) and B (kings)' if $actor.color == 'b' else 'w (men) and W (kings)'}; your men move toward row {$'8' if $actor.color == 'b' else '1'}. Pieces: you {$count_side($actor.color)}, opponent {$count_side('w' if $actor.color == 'b' else 'b')}. Moves without a capture: {$world.quiet} of {$inputs.draw_after}."
+    },
+    "must_jump": {
+      "for": "player",
+      "title": "Continue",
+      "when": "$world.chain >= 0 and $world.turn == $actor.color",
+      "show": "You just captured and must keep jumping with your piece on {$sqname($world.chain)}."
+    },
+    "legal": {
+      "for": "player",
+      "title": "Your legal moves",
+      "when": "$world.turn == $actor.color",
+      "show": "{$join($labels($actor.color))}{$' (a capture is available, so you must capture)' if $len($jumps($actor.color)) > 0 and $world.chain < 0 else ''}"
+    }
+  },
+  "metrics": {
+    "black_pieces": "$count_side('b')",
+    "white_pieces": "$count_side('w')"
+  },
+  "invariants": [
+    {
+      "expr": "$count($world.board, $it != '.') + $sum(player, $it.captures) == $world.initial_pieces",
+      "why": "Every removed piece is a counted capture."
+    }
+  ],
+  "end": [
+    {
+      "name": "no_legal_move",
+      "when": "$len($legal($world.turn)) == 0",
+      "winner": "$pick(player, $it.color != $world.turn)",
+      "say": "{$pick(player, $it.color == $world.turn).name} has no legal move and loses."
+    },
+    {
+      "name": "draw",
+      "when": "$world.quiet >= $inputs.draw_after",
+      "say": "Draw: {$inputs.draw_after} moves in a row without a capture."
+    }
+  ],
+  "outputs": {
+    "winner": {
+      "expr": "$pick(player, $it.color != $world.turn).name if $len($legal($world.turn)) == 0 else 'draw'",
+      "type": "text"
+    },
+    "total_moves": {
+      "expr": "$world.moves",
+      "type": "int"
+    },
+    "captures": {
+      "expr": "$dict(player, $it.name, $it.captures)",
+      "type": "map"
+    },
+    "kings_made": {
+      "expr": "$dict(player, $it.name, $it.kings)",
+      "type": "map"
+    }
+  }
+}

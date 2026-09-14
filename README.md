@@ -167,8 +167,9 @@ by run, so differences between arms come from the arm, not from luck.
 [`examples/contracts/`](examples/contracts/) holds complete environments. Each was written by an LLM
 agent from the guide alone, and each is covered by a golden-run test: a coffee market with sampled
 households and subscriptions, a forecasting council, a price-time-priority order-book exchange, a
-civil trial, a town epidemic with physics, Werewolf, a labor negotiation, Connect Four, and a
-Hold'em-lite poker table.
+civil trial, a town epidemic with physics, Werewolf, a labor negotiation, Connect Four, a
+Hold'em-lite poker table, the beer distribution game, a climate club with a CO2 model, a
+ride-hailing city, checkers, and a Diplomacy-style strategy game.
 
 ```bash
 fg-env run examples/contracts/werewolf.json --seed 3

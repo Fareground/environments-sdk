@@ -1,0 +1,945 @@
+{
+  "fg_env": "1",
+  "name": "Climate club negotiation 2025-2055",
+  "description": "Six major economies negotiate emission cuts over six five-year periods under a continuous CO2-temperature model, with an optional climate club (common carbon price, border tariffs on non-members).",
+  "inputs": {
+    "countries": {
+      "type": "table",
+      "description": "One row per negotiating country (2025 values).",
+      "columns": {
+        "id": "text",
+        "name": "text",
+        "gdp": "number",
+        "intensity": "number",
+        "population": "number",
+        "vulnerability": "number",
+        "growth": "number",
+        "exports": "number"
+      },
+      "default": [
+        {
+          "id": "usa",
+          "name": "United States",
+          "gdp": 28.0,
+          "intensity": 0.18,
+          "population": 335,
+          "vulnerability": 0.0008,
+          "growth": 0.02,
+          "exports": 0.11
+        },
+        {
+          "id": "eu",
+          "name": "European Union",
+          "gdp": 19.0,
+          "intensity": 0.14,
+          "population": 448,
+          "vulnerability": 0.0006,
+          "growth": 0.013,
+          "exports": 0.2
+        },
+        {
+          "id": "chn",
+          "name": "China",
+          "gdp": 18.5,
+          "intensity": 0.68,
+          "population": 1410,
+          "vulnerability": 0.0012,
+          "growth": 0.04,
+          "exports": 0.2
+        },
+        {
+          "id": "ind",
+          "name": "India",
+          "gdp": 3.9,
+          "intensity": 0.77,
+          "population": 1430,
+          "vulnerability": 0.0022,
+          "growth": 0.06,
+          "exports": 0.22
+        },
+        {
+          "id": "rus",
+          "name": "Russia",
+          "gdp": 2.0,
+          "intensity": 0.9,
+          "population": 144,
+          "vulnerability": 0.0002,
+          "growth": 0.012,
+          "exports": 0.25
+        },
+        {
+          "id": "idn",
+          "name": "Indonesia",
+          "gdp": 1.4,
+          "intensity": 0.52,
+          "population": 278,
+          "vulnerability": 0.0018,
+          "growth": 0.05,
+          "exports": 0.22
+        }
+      ]
+    },
+    "club_enabled": {
+      "type": "bool",
+      "default": true,
+      "description": "Whether a climate club can be joined."
+    },
+    "tariffs_enabled": {
+      "type": "bool",
+      "default": true,
+      "description": "Whether club members may levy a border carbon tariff on non-members."
+    },
+    "club_price": {
+      "type": "number",
+      "default": 100,
+      "min": 0,
+      "unit": "$/tCO2",
+      "description": "Common carbon price every club member must apply."
+    },
+    "backstop_price": {
+      "type": "number",
+      "default": 450,
+      "min": 1,
+      "unit": "$/tCO2",
+      "description": "Carbon price at which a 100% cut pays off; sets abatement cost: cost share of GDP = backstop x intensity / 2000 x cut^2."
+    },
+    "tariff_incidence": {
+      "type": "number",
+      "default": 1.0,
+      "min": 0,
+      "description": "Share of a border tariff's value that is lost to the exporting economy."
+    },
+    "decarbonization": {
+      "type": "number",
+      "default": 0.015,
+      "min": 0,
+      "max": 0.1,
+      "description": "Autonomous yearly decline in emissions intensity."
+    },
+    "rest_of_world_emissions": {
+      "type": "number",
+      "default": 13,
+      "min": 0,
+      "unit": "GtCO2/yr",
+      "description": "Emissions from countries outside the negotiation."
+    },
+    "co2_2020": {
+      "type": "number",
+      "default": 412,
+      "unit": "ppm",
+      "description": "Atmospheric CO2 in 2020; the first physics step brings it to 2025."
+    },
+    "temperature_2020": {
+      "type": "number",
+      "default": 1.2,
+      "unit": "degC",
+      "description": "Warming above pre-industrial in 2020."
+    },
+    "airborne_fraction": {
+      "type": "number",
+      "default": 0.6,
+      "min": 0,
+      "max": 1,
+      "description": "Share of emitted CO2 that stays in the atmosphere at first."
+    },
+    "co2_removal_rate": {
+      "type": "number",
+      "default": 0.004,
+      "min": 0,
+      "unit": "1/yr",
+      "description": "Yearly uptake of excess CO2 (above 280 ppm) by oceans and land."
+    },
+    "climate_sensitivity": {
+      "type": "number",
+      "default": 3.0,
+      "min": 0.5,
+      "unit": "degC per CO2 doubling"
+    },
+    "temperature_lag": {
+      "type": "number",
+      "default": 20,
+      "min": 1,
+      "unit": "years",
+      "description": "Time constant with which temperature follows its CO2 equilibrium."
+    }
+  },
+  "brief": {
+    "situation": "It is 2025. Six economies that emit most of the world's CO2 meet every five years until 2055 to negotiate climate policy. Warming already stands near +1.3 degC and rises with atmospheric CO2, with a lag of decades. You are the chief negotiator of your country: protect its long-run prosperity.",
+    "rules": "Each meeting (one round = five years) has three steps. 1) Forum: speak to all delegations, write privately to one, then call done_talking. 2) Pledges: publicly pledge a cut in emissions (% below business-as-usual) and, if a climate club exists, join or leave it. 3) Implementation: privately choose the cut you actually make this period; everyone sees your measured cut at the next meeting.\nEconomics: GDP grows at your baseline rate minus climate damages of vulnerability x temperature^2 per year, and everyone suffers from world warming whoever emits. Cutting costs a share of GDP that rises with the square of the cut (dirtier economies pay more per % cut).\nClimate club: members apply the common carbon price, which forces a minimum cut. Members may levy a border carbon tariff on non-members' exports, costing non-members GDP. Tariff revenue is recycled at home and not counted. Rest-of-world emissions continue unchanged."
+  },
+  "clock": {
+    "rounds": 7,
+    "unit": "year",
+    "step": 5,
+    "start": "2025-01-01"
+  },
+  "defs": {
+    "negotiating": {
+      "expr": "$round < $clock.rounds",
+      "description": "True in the six meeting rounds; the last round only settles the climate in 2055."
+    },
+    "club_min_cut": {
+      "expr": "($min(100, 100 * $inputs.club_price / $inputs.backstop_price) if $inputs.club_enabled else 0)",
+      "description": "Minimum cut (%) implied by the club carbon price."
+    },
+    "abatement_share": {
+      "args": [
+        "cut",
+        "intensity"
+      ],
+      "expr": "$inputs.backstop_price * $intensity / 2000 * ($cut / 100) ** 2",
+      "description": "Share of GDP spent to cut emissions by `cut` percent."
+    },
+    "border_rate": {
+      "args": [
+        "intensity"
+      ],
+      "expr": "$inputs.club_price * $intensity / 1000",
+      "description": "Ad-valorem border tariff on an exporter with this carbon intensity."
+    },
+    "tariff_share": {
+      "args": [
+        "c"
+      ],
+      "expr": "(0 if ($c.member or not $inputs.tariffs_enabled) else $inputs.tariff_incidence * $c.exports * $border_rate($c.intensity) * $sum(country, $it.potential, $it.member and $it.tariff) / $sum(country, $it.potential))",
+      "description": "Share of GDP a country loses to border tariffs this period."
+    },
+    "bau_emissions": {
+      "args": [
+        "c"
+      ],
+      "expr": "$c.intensity * $c.potential",
+      "description": "Business-as-usual emissions in GtCO2/yr."
+    },
+    "warming": {
+      "expr": "$physics.T"
+    },
+    "year": {
+      "expr": "2020 + 5 * $round",
+      "description": "Calendar year at the start of this round (clock.start does not label years)."
+    },
+    "share": {
+      "args": [
+        "x"
+      ],
+      "expr": "$fmt(100 * $x, 2) + '%'",
+      "description": "A GDP share as a percentage with two decimals."
+    }
+  },
+  "types": {
+    "country": {
+      "agent": true,
+      "description": "A negotiating economy.",
+      "props": {
+        "gdp": {
+          "type": "number",
+          "default": 1,
+          "description": "GDP after abatement and tariff costs, $ trillion."
+        },
+        "potential": {
+          "type": "number",
+          "default": 1,
+          "description": "GDP before this period's abatement and tariff costs, $ trillion."
+        },
+        "bau_gdp": {
+          "type": "number",
+          "default": 1,
+          "description": "GDP on a path with no warming, no abatement and no tariffs."
+        },
+        "intensity": {
+          "type": "number",
+          "default": 0.3,
+          "min": 0,
+          "description": "Emissions intensity, kgCO2 per $ (= GtCO2 per $ trillion)."
+        },
+        "population": {
+          "type": "number",
+          "default": 100,
+          "description": "Millions."
+        },
+        "vulnerability": {
+          "type": "number",
+          "default": 0.002,
+          "min": 0
+        },
+        "growth": {
+          "type": "number",
+          "default": 0.02
+        },
+        "exports": {
+          "type": "number",
+          "default": 0.2,
+          "min": 0,
+          "max": 1
+        },
+        "emissions": {
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "description": "GtCO2/yr in the current period."
+        },
+        "pledge": {
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "max": 100,
+          "description": "Public pledge, % below business-as-usual."
+        },
+        "cut": {
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "max": 100,
+          "private": true,
+          "description": "Cut actually chosen for this period (secret until measured)."
+        },
+        "last_cut": {
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "max": 100,
+          "description": "Measured cut of the last completed period."
+        },
+        "member": {
+          "type": "bool",
+          "default": false
+        },
+        "tariff": {
+          "type": "bool",
+          "default": false
+        },
+        "ready": {
+          "type": "bool",
+          "default": false
+        },
+        "abatement_cost": {
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "description": "Share of GDP spent on abatement last period."
+        },
+        "tariff_cost": {
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "description": "Share of GDP lost to border tariffs last period."
+        },
+        "output_lost": {
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "description": "Cumulative GDP lost versus the no-warming, no-policy path, $ trillion."
+        },
+        "pledges": {
+          "type": "list",
+          "default": []
+        },
+        "cuts": {
+          "type": "list",
+          "default": []
+        },
+        "membership": {
+          "type": "list",
+          "default": []
+        }
+      }
+    }
+  },
+  "population": [
+    {
+      "type": "country",
+      "from": "$inputs.countries",
+      "id": "{$row.id}",
+      "name": "{$row.name}",
+      "props": {
+        "gdp": "$row.gdp",
+        "potential": "$row.gdp",
+        "bau_gdp": "$row.gdp",
+        "intensity": "$row.intensity",
+        "population": "$row.population",
+        "vulnerability": "$row.vulnerability",
+        "growth": "$row.growth",
+        "exports": "$row.exports",
+        "emissions": "$row.intensity * $row.gdp"
+      },
+      "brief": "You represent {$actor.name}: {$actor.population|int} million people, GDP ${$actor.gdp|1} trillion growing {$actor.growth|pct} a year before climate damages, emitting {$actor.emissions|1} GtCO2 a year ({$actor.intensity|2} kg per $). Climate vulnerability {$actor.vulnerability|4}: at +2 degC warming your growth loses {$share(4 * $actor.vulnerability)} a year. Exports are {$actor.exports|pct} of GDP."
+    }
+  ],
+  "physics": {
+    "dt": 1,
+    "substeps": 20,
+    "params": {
+      "years": 5,
+      "k": "$inputs.airborne_fraction / 7.81",
+      "removal": "$inputs.co2_removal_rate",
+      "S": "$inputs.climate_sensitivity",
+      "tau": "$inputs.temperature_lag",
+      "C0": 280
+    },
+    "vars": {
+      "C": {
+        "start": "$inputs.co2_2020",
+        "rate": "years * (k * E - removal * (C - C0))",
+        "min": 0
+      },
+      "T": {
+        "start": "$inputs.temperature_2020",
+        "rate": "years * (S * log(C / C0) / log(2) - T) / tau"
+      }
+    },
+    "read": {
+      "E": "$sum(country, $it.emissions) + $inputs.rest_of_world_emissions"
+    }
+  },
+  "records": {
+    "forum": {
+      "fields": {
+        "text": "text"
+      },
+      "show": "{author}: {text}",
+      "description": "The shared negotiating forum."
+    },
+    "letters": {
+      "fields": {
+        "text": "text"
+      },
+      "show": "{author} (privately): {text}",
+      "description": "Private messages between delegations."
+    }
+  },
+  "actions": {
+    "speak": {
+      "by": "country",
+      "description": "Say something to every delegation in the shared forum.",
+      "params": {
+        "text": {
+          "type": "text",
+          "max_len": 600,
+          "description": "Your statement."
+        }
+      },
+      "per_turn": 1,
+      "do": [
+        {
+          "post": "forum",
+          "text": "$params.text"
+        },
+        {
+          "each": "country",
+          "where": "$it.id != $actor.id",
+          "do": [
+            "$it.ready = false"
+          ]
+        }
+      ],
+      "outcome": "Your statement is in the forum."
+    },
+    "write": {
+      "by": "country",
+      "description": "Send a private message to one other delegation.",
+      "params": {
+        "to": {
+          "type": "entity",
+          "of": "country",
+          "where": "$it.id != $actor.id",
+          "description": "Recipient delegation."
+        },
+        "text": {
+          "type": "text",
+          "max_len": 600
+        }
+      },
+      "per_turn": 1,
+      "do": [
+        {
+          "post": "letters",
+          "text": "$params.text",
+          "to": "$params.to"
+        },
+        "$params.to.ready = false"
+      ],
+      "outcome": "Your message was delivered privately to {$params.to.name}."
+    },
+    "done_talking": {
+      "by": "country",
+      "description": "You have nothing more to say this meeting.",
+      "do": [
+        "$actor.ready = true"
+      ],
+      "private": true,
+      "terminal": true
+    },
+    "join_club": {
+      "by": "country",
+      "description": "Join the climate club: from this period you must cut at least the club minimum (the common carbon price). Choose whether you levy a border tariff on non-members.",
+      "when": [
+        {
+          "expr": "$inputs.club_enabled",
+          "why": "There is no climate club in this scenario."
+        },
+        {
+          "expr": "not $actor.member",
+          "why": "You are already a member."
+        }
+      ],
+      "params": {
+        "tariff": {
+          "type": "bool",
+          "default": false,
+          "description": "Levy the border carbon tariff on non-members (only if tariffs are allowed)."
+        }
+      },
+      "do": [
+        {
+          "if": "$params.tariff and not $inputs.tariffs_enabled",
+          "then": [
+            {
+              "fail": "Border tariffs are not allowed in this scenario; join with tariff false."
+            }
+          ]
+        },
+        "$actor.member = true",
+        "$actor.tariff = $params.tariff"
+      ],
+      "outcome": "{$actor.name} is now a club member{$' levying the border tariff' if $params.tariff else ''}.",
+      "announce": "{$actor.name} joins the climate club{$' and levies a border tariff on non-members' if $params.tariff else ''}.",
+      "per_turn": 1
+    },
+    "set_tariff": {
+      "by": "country",
+      "description": "As a club member, switch your border carbon tariff on non-members on or off.",
+      "when": [
+        {
+          "expr": "$actor.member",
+          "why": "Only club members can levy the border tariff."
+        },
+        {
+          "expr": "$inputs.tariffs_enabled",
+          "why": "Border tariffs are not allowed in this scenario."
+        }
+      ],
+      "params": {
+        "on": {
+          "type": "bool"
+        }
+      },
+      "do": [
+        {
+          "if": "$params.on == $actor.tariff",
+          "then": [
+            {
+              "fail": "Your tariff is already {$'on' if $actor.tariff else 'off'}."
+            }
+          ]
+        },
+        "$actor.tariff = $params.on"
+      ],
+      "announce": "{$actor.name} {$'imposes' if $params.on else 'lifts'} its border carbon tariff.",
+      "per_turn": 1
+    },
+    "leave_club": {
+      "by": "country",
+      "description": "Leave the climate club (you will face members' border tariffs).",
+      "when": [
+        {
+          "expr": "$actor.member",
+          "why": "You are not a member."
+        }
+      ],
+      "do": [
+        "$actor.member = false",
+        "$actor.tariff = false"
+      ],
+      "announce": "{$actor.name} leaves the climate club.",
+      "per_turn": 1
+    },
+    "pledge": {
+      "by": "country",
+      "description": "Publicly pledge your emission cut for this five-year period, in % below business-as-usual. Change club status before pledging.",
+      "params": {
+        "cut": {
+          "type": "number",
+          "min": 0,
+          "max": 100,
+          "description": "Pledged cut, % below business-as-usual."
+        }
+      },
+      "do": [
+        "$actor.pledge = $params.cut"
+      ],
+      "outcome": "You pledged a {$params.cut|1}% cut.",
+      "announce": "{$actor.name} pledges a {$params.cut|1}% cut below business-as-usual.",
+      "terminal": true
+    },
+    "implement": {
+      "by": "country",
+      "description": "Choose the emission cut you actually make this period (% below business-as-usual). Secret now; measured and shown to all next meeting. Club members cannot go below the club minimum.",
+      "params": {
+        "cut": {
+          "type": "number",
+          "min": "$club_min_cut() if $actor.member else 0",
+          "max": 100
+        }
+      },
+      "do": [
+        "$actor.cut = $params.cut"
+      ],
+      "outcome": "You will cut {$params.cut|1}% this period, costing about {$share($abatement_share($params.cut, $actor.intensity))} of GDP a year.",
+      "private": true,
+      "terminal": true
+    }
+  },
+  "stages": [
+    {
+      "name": "forum",
+      "when": "$negotiating()",
+      "turns": "sequential",
+      "actions": [
+        "speak",
+        "write",
+        "done_talking"
+      ],
+      "until": "$all(country, $it.ready)",
+      "passes": 3,
+      "quiet": "skip",
+      "max_actions": 3,
+      "max_calls": 8,
+      "on_enter": [
+        {
+          "each": "country",
+          "do": [
+            "$it.ready = false"
+          ]
+        }
+      ],
+      "brief": "Meeting of {$year()} (period {$year()}-{$year() + 5}). Forum: speak to all and/or write privately to one delegation, then call done_talking."
+    },
+    {
+      "name": "pledging",
+      "when": "$negotiating()",
+      "turns": "simultaneous",
+      "actions": [
+        "join_club",
+        "set_tariff",
+        "leave_club",
+        "pledge"
+      ],
+      "max_actions": 2,
+      "max_calls": 6,
+      "brief": "Pledges for {$year()}-{$year() + 5}: change club status first if you wish (join_club, set_tariff, leave_club), then pledge your cut; pledge ends your turn."
+    },
+    {
+      "name": "implementation",
+      "when": "$negotiating()",
+      "turns": "simultaneous",
+      "actions": [
+        "implement"
+      ],
+      "max_actions": 1,
+      "max_calls": 4,
+      "brief": "Choose your actual cut for {$year()}-{$year() + 5}. Your pledge was {$actor.pledge|1}%{$'; as a club member you must cut at least ' + $fmt($club_min_cut(), 1) + '%' if $actor.member else ''}."
+    }
+  ],
+  "events": [
+    {
+      "name": "settle_period",
+      "phase": "end",
+      "when": "$negotiating()",
+      "do": [
+        {
+          "each": "country",
+          "where": "$it.member and $it.cut < $club_min_cut()",
+          "do": [
+            "$it.cut = $club_min_cut()"
+          ]
+        },
+        {
+          "each": "country",
+          "do": [
+            "$it.abatement_cost = $abatement_share($it.cut, $it.intensity)",
+            "$it.tariff_cost = $tariff_share($it)"
+          ]
+        },
+        {
+          "each": "country",
+          "do": [
+            "$it.emissions = $bau_emissions($it) * (1 - $it.cut / 100)",
+            "$it.gdp = $it.potential * (1 - $it.abatement_cost - $it.tariff_cost)",
+            "$it.output_lost += 5 * ($it.bau_gdp - $it.gdp)",
+            "$it.pledges += $it.pledge",
+            "$it.cuts += $it.cut",
+            "$it.membership += $it.member",
+            "$it.last_cut = $it.cut",
+            "$it.potential = $it.potential * (1 + $it.growth - $it.vulnerability * $warming() ** 2) ** 5",
+            "$it.bau_gdp = $it.bau_gdp * (1 + $it.growth) ** 5",
+            "$it.intensity = $it.intensity * (1 - $inputs.decarbonization) ** 5",
+            "$it.gdp = $it.potential * (1 - $it.abatement_cost - $it.tariff_cost)"
+          ]
+        },
+        "$world.cumulative_emissions += 5 * ($sum(country, $it.emissions) + $inputs.rest_of_world_emissions)",
+        "$world.negotiated_emissions += 5 * $sum(country, $it.emissions)"
+      ],
+      "say": "Period settled: the six emit {$fmt($sum(country, $it.emissions), 1)} GtCO2 a year; club members: {$count(country, $it.member)}."
+    }
+  ],
+  "world": {
+    "cumulative_emissions": {
+      "type": "number",
+      "default": 0,
+      "description": "World GtCO2 emitted since 2025."
+    },
+    "negotiated_emissions": {
+      "type": "number",
+      "default": 0,
+      "description": "GtCO2 emitted by the six since 2025."
+    }
+  },
+  "views": {
+    "climate": {
+      "title": "Climate",
+      "show": "{$year()}: CO2 {$fmt($physics.C, 1)} ppm, warming +{$fmt($physics.T, 2)} degC above pre-industrial. In {$year() - 5}-{$year()} the six emitted {$fmt($sum(country, $it.emissions), 1)} GtCO2/yr and the rest of the world {$inputs.rest_of_world_emissions}. World emissions since 2025: {$fmt($world.cumulative_emissions, 0)} GtCO2.",
+      "bullet": false
+    },
+    "club": {
+      "title": "Climate club",
+      "when": "$inputs.club_enabled",
+      "show": "Carbon price {$inputs.club_price|money} per tonne, so members cut at least {$fmt($club_min_cut(), 1)}%. Members: {$join($map($filter(country, $it.member), $it.name + (' (tariff)' if $it.tariff else ''))) if $any(country, $it.member) else 'none'}.{$' Border tariffs: a non-member exporter with carbon intensity i pays ' + $fmt($inputs.club_price / 1000, 2) + ' x i ad valorem on sales to tariffing members.' if $inputs.tariffs_enabled else ' Border tariffs are not allowed.'}",
+      "bullet": false
+    },
+    "countries": {
+      "title": "Delegations (GDP $ trillion; cuts % below business-as-usual)",
+      "of": "country",
+      "sort": "$it.gdp",
+      "desc": true,
+      "show": "[{id}] {name}: GDP {gdp|1} ({$share(1 - $it.gdp / $it.bau_gdp)} below no-warming path), emits {emissions|2} Gt/yr, pledged {pledge|0}%, measured cut {last_cut|0}%{$', club member' if $it.member else ''}{$' with tariff' if $it.tariff else ''}, vulnerability {vulnerability|4}"
+    },
+    "my_economy": {
+      "title": "Your economy",
+      "show": "Business-as-usual emissions for {$year()}-{$year() + 5}: {$fmt($bau_emissions($actor), 2)} Gt/yr. Yearly cost of a cut, share of GDP: 10% = {$share($abatement_share(10, $actor.intensity))}, 25% = {$share($abatement_share(25, $actor.intensity))}, 50% = {$share($abatement_share(50, $actor.intensity))}, 100% = {$share($abatement_share(100, $actor.intensity))}. Climate damages now cut your growth by {$share($actor.vulnerability * $physics.T ** 2)} a year. Last period you spent {$share($actor.abatement_cost)} of GDP on abatement and lost {$share($actor.tariff_cost)} to tariffs.{$' Outside the club, current tariffs would cost you ' + $share($inputs.tariff_incidence * $actor.exports * $border_rate($actor.intensity) * $sum(country, $it.potential, $it.member and $it.tariff) / $sum(country, $it.potential)) + ' of GDP a year.' if ($inputs.tariffs_enabled and not $actor.member) else ''}",
+      "bullet": false
+    }
+  },
+  "metrics": {
+    "co2_ppm": {
+      "expr": "$physics.C",
+      "unit": "ppm"
+    },
+    "temperature": {
+      "expr": "$physics.T",
+      "unit": "degC"
+    },
+    "world_emissions": {
+      "expr": "$sum(country, $it.emissions) + $inputs.rest_of_world_emissions",
+      "unit": "GtCO2/yr"
+    },
+    "club_size": {
+      "expr": "$count(country, $it.member)"
+    },
+    "avg_pledge": {
+      "expr": "$avg(country, $it.pledge)",
+      "unit": "%"
+    },
+    "avg_actual_cut": {
+      "expr": "$avg(country, $it.last_cut)",
+      "unit": "%"
+    },
+    "total_gdp": {
+      "expr": "$sum(country, $it.gdp)",
+      "unit": "$ trillion"
+    }
+  },
+  "outputs": {
+    "final_temperature": {
+      "expr": "$physics.T",
+      "type": "number",
+      "description": "Warming above pre-industrial in 2055, degC."
+    },
+    "final_co2": {
+      "expr": "$physics.C",
+      "type": "number",
+      "description": "Atmospheric CO2 in 2055, ppm."
+    },
+    "cumulative_emissions": {
+      "expr": "$world.cumulative_emissions",
+      "type": "number",
+      "description": "World GtCO2 emitted 2025-2055."
+    },
+    "negotiated_cumulative_emissions": {
+      "expr": "$world.negotiated_emissions",
+      "type": "number",
+      "description": "GtCO2 emitted 2025-2055 by the six countries."
+    },
+    "gdp_loss_pct": {
+      "expr": "$dict(country, $it.name, $round(100 * (1 - $it.gdp / $it.bau_gdp), 2))",
+      "type": "map",
+      "description": "2055 GDP shortfall versus the no-warming, no-policy path, %."
+    },
+    "cumulative_output_lost": {
+      "expr": "$dict(country, $it.name, $round($it.output_lost, 2))",
+      "type": "map",
+      "description": "GDP lost 2025-2055 versus the no-warming, no-policy path, $ trillion."
+    },
+    "pledged_cuts": {
+      "expr": "$dict(country, $it.name, $it.pledges)",
+      "type": "map",
+      "description": "Pledged cut per period, %."
+    },
+    "actual_cuts": {
+      "expr": "$dict(country, $it.name, $it.cuts)",
+      "type": "map",
+      "description": "Implemented cut per period, %."
+    },
+    "pledge_gap": {
+      "expr": "$round($avg($map(country, $avg($it.pledges))) - $avg($map(country, $avg($it.cuts))), 2)",
+      "type": "number",
+      "description": "Average pledged minus average actual cut, percentage points."
+    },
+    "club_membership": {
+      "expr": "$dict(country, $it.name, $it.membership)",
+      "type": "map",
+      "description": "Club membership per period."
+    },
+    "club_size_by_round": {
+      "expr": "$series.club_size",
+      "type": "list"
+    },
+    "temperature_path": {
+      "expr": "$series.temperature",
+      "type": "list"
+    },
+    "co2_path": {
+      "expr": "$series.co2_ppm",
+      "type": "list"
+    }
+  },
+  "invariants": [
+    {
+      "expr": "$all(country, $it.gdp > 0)",
+      "why": "GDP must stay positive."
+    },
+    {
+      "expr": "$all(country, $len($it.cuts) == 0 or not $last($it.membership) or $last($it.cuts) >= $club_min_cut() - 0.000001)",
+      "why": "Every settled period, club members cut at least the club minimum."
+    }
+  ],
+  "policies": {
+    "business_as_usual": {
+      "rules": [
+        {
+          "when": "$stage == forum",
+          "do": "done_talking"
+        },
+        {
+          "when": "$stage == pledging",
+          "do": "pledge",
+          "with": {
+            "cut": 0
+          }
+        },
+        {
+          "when": "$stage == implementation",
+          "do": "implement",
+          "with": {
+            "cut": 0
+          }
+        }
+      ]
+    },
+    "ambitious": {
+      "rules": [
+        {
+          "when": "$stage == forum",
+          "do": "done_talking"
+        },
+        {
+          "when": "$stage == pledging and $inputs.club_enabled and not $actor.member",
+          "do": "join_club",
+          "with": {
+            "tariff": "$inputs.tariffs_enabled"
+          }
+        },
+        {
+          "when": "$stage == pledging",
+          "do": "pledge",
+          "with": {
+            "cut": 50
+          }
+        },
+        {
+          "when": "$stage == implementation",
+          "do": "implement",
+          "with": {
+            "cut": 50
+          }
+        }
+      ]
+    },
+    "free_rider": {
+      "rules": [
+        {
+          "when": "$stage == forum",
+          "do": "done_talking"
+        },
+        {
+          "when": "$stage == pledging",
+          "do": "pledge",
+          "with": {
+            "cut": 30
+          }
+        },
+        {
+          "when": "$stage == implementation",
+          "do": "implement",
+          "with": {
+            "cut": "$club_min_cut() if $actor.member else 0"
+          }
+        }
+      ]
+    },
+    "conditional": {
+      "rules": [
+        {
+          "when": "$stage == forum",
+          "do": "done_talking"
+        },
+        {
+          "when": "$stage == pledging and $inputs.club_enabled and not $actor.member and ($count(country, $it.member) >= 2 or $actor.tariff_cost > 0)",
+          "do": "join_club",
+          "with": {
+            "tariff": "$inputs.tariffs_enabled"
+          }
+        },
+        {
+          "when": "$stage == pledging",
+          "do": "pledge",
+          "with": {
+            "cut": "$club_min_cut() if $actor.member else 10"
+          }
+        },
+        {
+          "when": "$stage == implementation",
+          "do": "implement",
+          "with": {
+            "cut": "$club_min_cut() if $actor.member else 5"
+          }
+        }
+      ]
+    }
+  },
+  "arms": {
+    "no_club": {
+      "description": "No climate club: only voluntary pledges.",
+      "inputs": {
+        "club_enabled": false,
+        "tariffs_enabled": false
+      }
+    },
+    "club_tariffs": {
+      "description": "Climate club with a common carbon price; members may levy border tariffs on non-members.",
+      "inputs": {
+        "club_enabled": true,
+        "tariffs_enabled": true
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "actions": 4,
+  "events": 4,
+  "events_sha256": "a7080b294ee8a054efac8d0ee1902c57a64c9540c6bd4584937b634da3d10871",
+  "metrics": {
+    "black_pieces": 12,
+    "white_pieces": 12
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 4
+}
