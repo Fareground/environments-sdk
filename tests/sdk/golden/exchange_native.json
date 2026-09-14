@@ -1,0 +1,18 @@
+{
+  "actions": 80,
+  "events": 81,
+  "events_sha256": "ef8dd6b18386b1e1a8e4d73c99d142df3075c48a3c008adc275f811bc6c851ab",
+  "metrics": {
+    "acme_orders": 14,
+    "acme_price": 49.83,
+    "acme_spread": 0.51,
+    "acme_volume": 54.0,
+    "fair_value": 50,
+    "pnl_market_maker": -258.66761,
+    "pnl_momentum": -272.0,
+    "pnl_value": -289.94575
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 80
+}

@@ -1,0 +1,81 @@
+{
+  "fg_env": "1",
+  "name": "Auction house",
+  "description": "Collectors with private valuations bid for three identical vases. The same crowd meets every auction format as an experiment arm: sealed first-price (base), Vickrey second-price, English, Dutch, uniform-price and a double auction against dealers.",
+  "inputs": {
+    "collectors": {"type": "int", "default": 6, "min": 2, "max": 40, "description": "Bidders in the room."},
+    "budget": {"type": "number", "default": 200, "min": 1, "unit": "$", "description": "Cash per collector."}
+  },
+  "brief": {
+    "situation": "An auction house sells antique vases. Every collector has a private idea of what one vase is worth to them.",
+    "rules": "Bid for vases with the auction tool; how bids win and what the winner pays depends on the auction format described with each lot. Money for a bid is held until the lot closes, and you get back whatever you do not pay. Your score is the value of the vases you win minus what you paid."
+  },
+  "clock": {"rounds": 9, "unit": "round"},
+  "types": {
+    "collector": {"agent": true, "policy": "collector", "props": {
+      "cash": 0,
+      "value": {"type": "number", "default": 0, "private": true, "description": "What one vase is worth to this collector."}
+    }},
+    "dealer": {"description": "A dealer holding vases; trades only in the double auction.", "props": {
+      "cash": 0,
+      "cost": {"type": "number", "default": 0, "private": true, "description": "What a vase cost the dealer."},
+      "house_units": {"type": "int", "default": 0, "description": "Vases held."}
+    }}
+  },
+  "population": [
+    {"type": "collector", "count": "$inputs.collectors", "name": "Collector {$i}",
+     "props": {"cash": "$inputs.budget", "value": "$round($uniform(40, 160), 2)"},
+     "brief": "A vase is worth {$actor.value|money} to you."},
+    {"type": "dealer", "count": 2, "name": "Dealer {$i}", "props": {"house_units": 2, "cost": "$round($uniform(30, 90), 2)"},
+     "brief": "Each of your vases cost you {$actor.cost|money}."}
+  ],
+  "mechanisms": {
+    "house": {
+      "kind": "auction",
+      "format": "first_price",
+      "bidders": "collector",
+      "item": "an antique vase",
+      "stock": 3,
+      "reserve": 30,
+      "start_price": 170,
+      "decrement": 15,
+      "increment": 5,
+      "timeout": 1
+    }
+  },
+  "policies": {
+    "collector": {"rules": [
+      {"when": "$auction(house).format == 'english' and $auction(house).min_bid <= $actor.value", "do": "house_bid",
+       "with": {"price": "$auction(house).min_bid", "qty": 1}},
+      {"when": "$auction(house).format == 'dutch' and $auction(house).price <= $actor.value * 0.85", "do": "house_bid",
+       "with": {"price": "$auction(house).price", "qty": 1}},
+      {"when": "$auction(house).format == 'second_price'", "do": "house_bid", "with": {"price": "$actor.value", "qty": 1}},
+      {"when": "$auction(house).format == 'first_price'", "do": "house_bid", "with": {"price": "$round($actor.value * 0.8, 2)", "qty": 1}},
+      {"when": "$auction(house).format == 'uniform' or $auction(house).format == 'double'", "do": "house_bid",
+       "with": {"price": "$round($actor.value * 0.9, 2)", "qty": 1}},
+      {"do": "pass"}
+    ]}
+  },
+  "arms": {
+    "first_price": {"description": "Sealed first-price: the highest bid wins and pays its bid."},
+    "second_price": {"description": "Sealed Vickrey: the highest bid wins and pays the second-highest.",
+                     "patch": {"mechanisms": {"house": {"format": "second_price"}}}},
+    "english": {"description": "Open ascending bids with a $5 increment.",
+                "patch": {"mechanisms": {"house": {"format": "english"}}}},
+    "dutch": {"description": "A clock falling $15 a round from $170.",
+              "patch": {"mechanisms": {"house": {"format": "dutch"}}}},
+    "uniform": {"description": "All three vases in one lot at one clearing price.",
+                "patch": {"mechanisms": {"house": {"format": "uniform", "units": 3}}}},
+    "double": {"description": "Dealers ask, collectors bid, cleared together each round.",
+               "patch": {"mechanisms": {"house": {"format": "double", "sellers": "dealer"}},
+                         "types": {"dealer": {"agent": true, "policy": "dealer"}},
+                         "policies": {"dealer": {"rules": [
+                           {"when": "$actor.house_units > 0", "do": "house_ask", "with": {"price": "$round($actor.cost * 1.2, 2)", "qty": 1}},
+                           {"do": "pass"}]}}}}
+  },
+  "outputs": {
+    "surplus": {"expr": "$round($sum(collector, $it.house_units * $it.value + $it.cash + $it.house_escrow) - $inputs.collectors * $inputs.budget, 2)", "type": "number", "description": "Collectors' value won minus what they paid."},
+    "allocated_value": {"expr": "$round($sum(collector, $it.house_units * $it.value), 2)", "type": "number", "description": "Total value of the vases to whoever won them."},
+    "winners": {"expr": "$map($filter(collector, $it.house_units > 0), $it.name)", "type": "list", "description": "Who won vases."}
+  }
+}
