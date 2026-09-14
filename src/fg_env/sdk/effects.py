@@ -256,6 +256,8 @@ class EffectRunner:
                     raise RunError(f"an effect is text or an object, got {effect!r}", where)
             except ExprError as exc:
                 raise RunError(str(exc), where) from None
+            except ArithmeticError as exc:  # a contract rule's arithmetic failed: the rule's fault, never the participant's
+                raise RunError(f"arithmetic failed: {exc}", where) from None
 
     # -- statements ------------------------------------------------------------
 
@@ -347,7 +349,10 @@ class EffectRunner:
     @staticmethod
     def _combine(op: str, current: Any, value: Any, source: str) -> Any:
         """``current op value`` for +=, -=, *=, /=, refusing results past the size limits."""
-        result = EffectRunner._combine_raw(op, current, value, source)
+        try:
+            result = EffectRunner._combine_raw(op, current, value, source)
+        except OverflowError:
+            raise ExprError(f"`{op}` gives a result too large to represent", source) from None
         if isinstance(result, int) and not isinstance(result, bool) and result.bit_length() > MAX_INT_BITS:
             raise ExprError(f"a whole number of {result.bit_length():,} bits is past the limit of {MAX_INT_BITS:,} bits",
                             source)

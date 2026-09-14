@@ -415,3 +415,25 @@ def test_nested_write_errors_are_precise():
     assert result.status == "failed" and "index 5 is out of range for a list of 2" in (result.error or "")
     bad = {**NESTED, "actions": {"x": {"by": "hero", "do": ["$world.grid[0]..y = 1"]}}}
     assert any("property name" in i.message for i in fg_env.check(bad))
+
+
+def test_arithmetic_overflow_in_a_rule_is_the_rule_s_error_not_the_participant_s():
+    contract = {"name": "Overflow", "clock": {"rounds": 1},
+                "types": {"p": {"agent": True, "props": {"cash": 10.5, "count": {"type": "int", "default": 3}}}},
+                "entities": {"p": {"type": "p"}},
+                "actions": {"grow": {"by": "p", "do": ["$actor.cash *= (10 ** 1000)"], "terminal": True},
+                            "grow_int": {"by": "p", "do": ["$actor.count *= (10 ** 1000)"], "terminal": True},
+                            "set_huge": {"by": "p", "do": ["$actor.cash = (10 ** 1000)"], "terminal": True}},
+                "stages": [{"name": "s", "turns": "sequential"}]}
+    for action, expected in (("grow", "too large to represent"), ("grow_int", "fits in a float"),
+                             ("set_huge", "fits in a float")):
+        env = fg_env.load(contract, seed=1)
+
+        def play(wake, action=action):
+            wake.call(action)
+            wake.end()
+
+        result = env.run(play)
+        assert result.status == "failed", action
+        assert expected in result.error and "participant" not in result.error, (action, result.error)
+        assert "digits" not in result.error and len(result.error) < 400, result.error

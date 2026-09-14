@@ -476,8 +476,8 @@ class SdkWorld(World):
         if value is None:
             return None
         if kind in ("number", "int"):
-            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
-                raise RunError(f"must be a number, got {value!r}", where)
+            if not _finite_number(value):
+                raise RunError(f"must be a finite number that fits in a float, got {_shown_value(value)}", where)
             if spec.min is not None:
                 value = max(spec.min, value)
             if spec.max is not None:
@@ -523,8 +523,8 @@ class SdkWorld(World):
         model = self.physics
         if model is None:
             raise RunError("this environment declares no physics", f"physics.{name}")
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
-            raise RunError(f"must be a finite number, got {value!r}", f"physics.{name}")
+        if not _finite_number(value):
+            raise RunError(f"must be a finite number that fits in a float, got {_shown_value(value)}", f"physics.{name}")
         if name in model.variables:
             var = model.variables[name]
             old = var.value
@@ -907,9 +907,28 @@ def _location(value: Any) -> Any:
 
 
 def _number(value: Any, where: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
-        raise RunError(f"must be a finite number, got {value!r}", where)
+    if not _finite_number(value):
+        raise RunError(f"must be a finite number that fits in a float, got {_shown_value(value)}", where)
     return value
+
+
+def _finite_number(value: Any) -> bool:
+    """A real number that is finite and fits in a float. Never raises: a huge whole number that
+    cannot be converted to a float is simply not a storable number."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
+
+
+def _shown_value(value: Any) -> str:
+    """A value for an error message; huge whole numbers are described, not printed digit by digit."""
+    if isinstance(value, int) and not isinstance(value, bool) and value.bit_length() > 64:
+        return f"a whole number of {value.bit_length():,} bits"
+    text = repr(value)
+    return text if len(text) <= 80 else text[:77] + "..."
 
 
 def _copy(value: Any) -> Any:
