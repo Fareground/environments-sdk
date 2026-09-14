@@ -1,0 +1,13 @@
+{
+  "actions": 8,
+  "events": 9,
+  "events_sha256": "004924900e772e0c9a16d67fa3fd31b72216d643e1adaba1d17ec137b2239398",
+  "metrics": {
+    "candidates_left": 12,
+    "games_finished": 1,
+    "guesses_made": 8
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 8
+}

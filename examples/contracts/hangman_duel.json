@@ -1,0 +1,218 @@
+{
+  "fg_env": "1",
+  "name": "Hangman duel",
+  "description": "Two players each reveal the other's secret word letter by letter before running out of strikes, best of three games.",
+  "brief": {
+    "situation": "Two players face off at hangman. In every game each of you holds a secret word that your rival must uncover, while you uncover theirs.",
+    "rules": "On your turn either guess one letter or try to solve the whole word. A letter in the word is revealed everywhere it appears; a letter that is not costs you a strike. A wrong solve costs {$inputs.solve_penalty} strikes. At {$inputs.strikes} strikes you are hanged for the rest of the game. The first to uncover the word wins the game; if both do so in the same round, fewer strikes wins; otherwise it is a draw, as it is when both are hanged. The first to win {$inputs.wins_needed} games wins the match; after {$inputs.games} games the player with more wins takes it.",
+    "roles": {
+      "player": "Win the match: guess common letters early, then solve as soon as you are sure."
+    }
+  },
+  "inputs": {
+    "words": {
+      "type": "list",
+      "description": "The pool secret words are dealt from (lower-case letters).",
+      "default": ["giraffe", "lantern", "volcano", "puzzle", "harbor", "journey", "compass", "blanket", "orchard",
+                  "whisper", "thunder", "pumpkin", "sapphire", "marble", "gallery", "kingdom", "library", "monsoon",
+                  "nectar", "paradox", "quartz", "rhythm", "saffron", "trumpet", "umbrella", "vanilla", "walnut",
+                  "yogurt", "zeppelin", "anchor", "biscuit", "canyon", "dolphin", "emerald", "falcon", "glacier",
+                  "hammock", "igloo", "jigsaw", "kettle"]
+    },
+    "strikes": {"type": "int", "default": 6, "min": 1, "max": 26, "description": "Strikes that hang a player."},
+    "solve_penalty": {"type": "int", "default": 2, "min": 0, "description": "Strikes for a wrong solve."},
+    "wins_needed": {"type": "int", "default": 2, "min": 1, "description": "Game wins that take the match."},
+    "games": {"type": "int", "default": 3, "min": 1, "description": "Most games in the match."}
+  },
+  "clock": {"rounds": "$inputs.games * ($inputs.strikes + 26)", "unit": "turn"},
+  "world": {
+    "game": {"type": "int", "default": 1, "description": "The game being played."},
+    "turns": {"type": "int", "default": 0, "description": "Rounds played in this game."},
+    "last_result": {"type": "text", "default": "No game finished yet."},
+    "draws": {"type": "int", "default": 0}
+  },
+  "types": {
+    "player": {
+      "agent": true,
+      "policy": "frequency",
+      "description": "A duellist.",
+      "props": {
+        "secret": {"type": "text", "default": "$choice($inputs.words)", "private": true,
+                   "description": "The word your rival must uncover this game."},
+        "guessed": {"type": "list", "default": [], "description": "Letters guessed this game."},
+        "strikes": {"type": "int", "default": 0},
+        "solved": {"type": "bool", "default": false},
+        "wins": {"type": "int", "default": 0},
+        "letters_guessed": {"type": "int", "default": 0},
+        "solve_attempts": {"type": "int", "default": 0}
+      }
+    }
+  },
+  "entities": {
+    "cora": {"type": "player", "name": "Cora"},
+    "dev": {"type": "player", "name": "Dev"}
+  },
+  "defs": {
+    "rival_of": {"args": ["p"], "expr": "$pick(player, $it.id != $p.id)", "description": "The other player."},
+    "board_of": {"args": ["p"], "expr": "$join($chars($mask($rival_of($p).secret, $p.guessed)), ' ')",
+                 "description": "A player's board: their rival's word with unguessed letters hidden."},
+    "playing": {"args": ["p"], "expr": "not $p.solved and $p.strikes < $inputs.strikes",
+                "description": "Still trying to uncover the word this game."},
+    "candidates": {"args": ["p"], "expr": "$filter($inputs.words, $mask($it, $p.guessed) == $mask($rival_of($p).secret, $p.guessed))",
+                   "description": "Words that fit a player's board and misses."},
+    "best_letter": {"args": ["p"],
+                    "expr": "$top($filter($items($tally($flatten($map($candidates($p), $unique($chars($it)))))), not ($it[0] in $p.guessed)), $it[1], 1)[0][0]",
+                    "description": "The unguessed letter found in the most fitting words."}
+  },
+  "actions": {
+    "guess_letter": {
+      "by": "player",
+      "description": "Guess one letter of your rival's word.",
+      "params": {
+        "letter": {"type": "text", "max_len": 5, "description": "One letter a-z."}
+      },
+      "when": [{"expr": "$playing($actor)", "why": "You are not playing this game any more."}],
+      "do": [
+        "$l = $lower($trim($params.letter))",
+        {"if": "not $matches($l, '^[a-z]$')", "then": [{"fail": "Guess exactly one letter a-z, and {$params.letter} is not one."}]},
+        {"if": "$l in $actor.guessed", "then": [{"fail": "You already guessed {$upper($l)}."}]},
+        "$rival = $rival_of($actor)",
+        "$hits = $count_text($lower($rival.secret), $l)",
+        "$actor.guessed = $sort($actor.guessed + [$l])",
+        "$actor.letters_guessed += 1",
+        {"if": "$hits == 0", "then": ["$actor.strikes += 1"]},
+        {"if": "not $contains($mask($rival.secret, $actor.guessed), '_')", "then": ["$actor.solved = true"]}
+      ],
+      "outcome": "{$upper($l)}: {$text($hits) + ' in the word' if $hits > 0 else 'not in the word, a strike'}. Board: {$board_of($actor)} (strikes {$actor.strikes} of {$inputs.strikes})",
+      "private": true,
+      "terminal": true
+    },
+    "solve": {
+      "by": "player",
+      "description": "Name the whole word. A wrong answer costs strikes.",
+      "params": {
+        "answer": {"type": "text", "max_len": 40, "description": "The word you think it is."}
+      },
+      "when": [{"expr": "$playing($actor)", "why": "You are not playing this game any more."}],
+      "do": [
+        "$a = $lower($trim($params.answer))",
+        {"if": "not $matches($a, '^[a-z]+$')", "then": [{"fail": "Answer with letters a-z only; {$params.answer} is not a word."}]},
+        "$rival = $rival_of($actor)",
+        "$actor.solve_attempts += 1",
+        {"if": "$a == $lower($rival.secret)",
+         "then": ["$actor.solved = true", "$actor.guessed = $sort($union($actor.guessed, $chars($a)))"],
+         "else": ["$actor.strikes = $min($inputs.strikes, $actor.strikes + $inputs.solve_penalty)"]},
+        "$verdict = 'right' if $actor.solved else ('wrong, but close' if $similar($a, $lower($rival.secret)) >= 0.7 else 'wrong')"
+      ],
+      "outcome": "{$upper($a)} is {$verdict}. Board: {$board_of($actor)} (strikes {$actor.strikes} of {$inputs.strikes})",
+      "private": true,
+      "terminal": true
+    }
+  },
+  "stages": [
+    {
+      "name": "play",
+      "turns": "sequential",
+      "who": "$playing($it)",
+      "max_actions": 1,
+      "max_calls": 6,
+      "must_act": true,
+      "brief": "Game {$world.game}. Your board: {$board_of($actor)}. Strikes {$actor.strikes} of {$inputs.strikes}. Guess a letter or solve."
+    },
+    {
+      "name": "settle",
+      "actions": [],
+      "on_enter": [
+        "$world.turns += 1",
+        "$solvers = $filter(player, $it.solved)",
+        "$game_over = $len($solvers) > 0 or $all(player, $it.strikes >= $inputs.strikes)",
+        {"if": "$len($solvers) > 0 and $count($solvers, $it.strikes == $min($solvers, $it.strikes)) == 1",
+         "then": [
+           "$champion = $bottom($solvers, $it.strikes, 1)[0]",
+           "$champion.wins += 1",
+           "$world.last_result = 'Game ' + $text($world.game) + ': ' + $champion.name + ' uncovered the word with ' + $text($champion.strikes) + ' strikes.'"
+         ],
+         "else": [
+           {"if": "$game_over",
+            "then": [
+              "$world.draws += 1",
+              "$world.last_result = 'Game ' + $text($world.game) + ' was drawn.'"
+            ]}
+         ]},
+        {"if": "$game_over",
+         "then": [
+           {"emit": "game_over",
+            "say": "{$world.last_result} The words were {$join($map(player, $it.name + ' held ' + $upper($it.secret)), ', ')}."},
+           "$world.game += 1",
+           "$world.turns = 0",
+           {"each": "player",
+            "do": ["$it.secret = $choice($inputs.words)", "$it.guessed = []", "$it.strikes = 0", "$it.solved = false"]}
+         ]}
+      ]
+    }
+  ],
+  "views": {
+    "board": {
+      "for": "player",
+      "show": "Your board: {$board_of($actor)}   Letters tried: {$join($map($actor.guessed, $upper($it)), ' ') or 'none'}   Strikes: {$actor.strikes} of {$inputs.strikes}"
+    },
+    "rival": {
+      "for": "player",
+      "show": "Your rival: {$count($chars($mask($actor.secret, $rival_of($actor).guessed)), $it == '_')} letters of your word still hidden, {$rival_of($actor).strikes} strikes{' (uncovered it)' if $rival_of($actor).solved else ''}."
+    },
+    "match": {
+      "for": "player",
+      "show": "Game {$world.game} of up to {$inputs.games}. Wins: {$join($map(player, $it.name + ' ' + $text($it.wins)), ', ')}. {$world.last_result}"
+    }
+  },
+  "end": [
+    {
+      "name": "match_won",
+      "when": "$any(player, $it.wins >= $inputs.wins_needed)",
+      "winner": "$filter(player, $it.wins >= $inputs.wins_needed)",
+      "say": "{$top(player, $it.wins, 1)[0].name} wins the match."
+    },
+    {
+      "name": "games_played",
+      "when": "$world.game > $inputs.games",
+      "winner": "$filter(player, $it.wins == $max(player, $it.wins))",
+      "say": "All {$inputs.games} games are played."
+    }
+  ],
+  "invariants": [
+    {"expr": "$all(player, $it.strikes <= $inputs.strikes)", "why": "Strikes never pass the hanging limit."},
+    {"expr": "$sum(player, $it.wins) + $world.draws == $world.game - 1", "why": "Every finished game is a win or a draw."}
+  ],
+  "policies": {
+    "frequency": {
+      "rules": [
+        {"when": "$len($candidates($actor)) == 1", "do": "solve", "with": {"answer": "$candidates($actor)[0]"}},
+        {"when": "$len($candidates($actor)) <= 3", "chance": 0.3, "do": "solve",
+         "with": {"answer": "$choice($candidates($actor))"}},
+        {"do": "guess_letter", "with": {"letter": "$best_letter($actor)"}}
+      ]
+    },
+    "alphabet": {
+      "rules": [
+        {"do": "guess_letter", "with": {"letter": "$first($difference($chars('etaoinshrdlucmfwypvbgkjqxz'), $actor.guessed))"}}
+      ]
+    }
+  },
+  "metrics": {
+    "games_finished": "$world.game - 1",
+    "strikes": "$sum(player, $it.strikes)",
+    "letters_hidden": "$sum(player, $count($chars($mask($rival_of($it).secret, $it.guessed)), $it == '_'))"
+  },
+  "outputs": {
+    "winner": {
+      "expr": "$top(player, $it.wins, 1)[0].name if $max(player, $it.wins) > $min(player, $it.wins) else 'draw'",
+      "type": "text",
+      "description": "The match winner's name, or draw."
+    },
+    "wins": {"expr": "$dict(player, $it.name, $it.wins)", "type": "map"},
+    "draws": {"expr": "$world.draws", "type": "int"},
+    "games": {"expr": "$world.game - 1", "type": "int", "description": "Games finished."},
+    "letters_guessed": {"expr": "$dict(player, $it.name, $it.letters_guessed)", "type": "map"},
+    "solve_attempts": {"expr": "$dict(player, $it.name, $it.solve_attempts)", "type": "map"}
+  }
+}
