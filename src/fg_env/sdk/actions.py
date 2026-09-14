@@ -104,25 +104,35 @@ class ActionBook:
             if not ok:
                 return (condition.why or "its requirements are not met").rstrip(". ")
         for pname, param in spec.params.items():
-            if param.type == "entity" and self._required(param) and not self._choices(actor, name, pname, param):
-                return f"there is no valid {param.of or 'target'} for {pname}"
+            if param.type == "entity" and self._required(param) and not self._depends_on_params(param) \
+                    and not self._choices(actor, name, pname, param):
+                return f"there is no {param.of or 'target'} you can choose for {pname} right now"
         return None
 
     @staticmethod
     def _required(param: ParamSpec) -> bool:
         return param.required if param.required is not None else param.default is None
 
-    def _choices(self, actor: Entity, action: str, pname: str, param: ParamSpec) -> List[Entity]:
+    @staticmethod
+    def _depends_on_params(param: ParamSpec) -> bool:
+        return param.where is not None and "params" in compile_expr(param.where).roots
+
+    def _choices(self, actor: Entity, action: str, pname: str, param: ParamSpec,
+                 params: Optional[Dict[str, Any]] = None) -> List[Entity]:
+        """Entities that qualify. A `where` over earlier params is applied once they are known
+        (at validation); before that (tool schemas) every entity of the type is listed."""
         if param.of is None:
             raise RunError("an entity parameter needs `of` (the entity type)", f"actions.{action}.params.{pname}")
         items = self.world.entities_of(param.of)
         if param.where is None:
             return items
         expr = compile_expr(param.where)
+        if "params" in expr.roots and params is None:
+            return items
         out = []
         for position, item in enumerate(items):
             try:
-                if truthy(expr(self.world.scope(actor=actor, it=item, i=position))):
+                if truthy(expr(self.world.scope(actor=actor, it=item, i=position, params=params or {}))):
                     out.append(item)
             except ExprError as exc:
                 raise RunError(str(exc), f"actions.{action}.params.{pname}.where") from None
@@ -144,9 +154,11 @@ class ActionBook:
         description = spec.description or name.replace("_", " ").capitalize() + "."
         if staged:
             description += " (Committed when everyone has chosen.)"
-        if spec.terminal:
+        if spec.terminal is True and "turn" not in description.lower():
             description += " Ends your turn."
-        return ToolSpec(name, description, schema, "act", spec.terminal)
+        elif isinstance(spec.terminal, str):
+            description += " May end your turn."
+        return ToolSpec(name, description, schema, "act", spec.terminal is True)
 
     def _static(self, actor: Entity, raw: Any) -> Any:
         """Evaluate a bound that depends only on the actor; None when it needs call arguments."""
@@ -185,7 +197,9 @@ class ActionBook:
         elif param.type == "entity":
             out["type"] = "string"
             choices = self._choices(actor, action, pname, param)
-            if len(choices) <= _ENUM_CHOICES:
+            if self._depends_on_params(param):
+                description = (description + " Valid choices depend on the other arguments.").strip()
+            if len(choices) <= _ENUM_CHOICES and not self._depends_on_params(param):
                 out["enum"] = [c.id for c in choices]
             if len(choices) <= _NAMED_CHOICES:
                 listing = "; ".join(f"{c.id} = {c.name}" for c in choices if c.name != c.id)
@@ -231,7 +245,14 @@ class ActionBook:
                     params[pname] = None
                     continue
             value, problem = self._value(actor, name, pname, param, raw, params)
-            if problem:
+            if problem and param.invalid:
+                try:
+                    problem = compile_template(param.invalid, None).render(
+                        self.world.scope(actor=actor, params=params, value=raw))
+                except ExprError as exc:
+                    raise RunError(str(exc), f"actions.{name}.params.{pname}.invalid") from None
+                problems.append(problem.rstrip("."))
+            elif problem:
                 problems.append(f"{pname} {problem}")
             else:
                 params[pname] = value
@@ -295,7 +316,7 @@ class ActionBook:
                     return folded[0], None
             return None, f"must be one of {', '.join(format_value(v) for v in values)} (got {raw!r})"
         if kind == "entity":
-            choices = self._choices(actor, action, pname, param)
+            choices = self._choices(actor, action, pname, param, params)
             if isinstance(raw, dict) and isinstance(raw.get("id"), str):
                 raw = raw["id"]
             if not isinstance(raw, str):
@@ -357,6 +378,15 @@ class ActionBook:
             world.journal.rollback(mark)
             raise
         return Outcome(True, text, success, params)
+
+    def ends_turn(self, actor: Entity, name: str, params: Dict[str, Any]) -> bool:
+        terminal = self.contract.actions[name].terminal
+        if isinstance(terminal, bool):
+            return terminal
+        try:
+            return truthy(compile_expr(terminal)(self.world.scope(actor=actor, params=params)))
+        except ExprError as exc:
+            raise RunError(str(exc), f"actions.{name}.terminal") from None
 
     def dry_run(self, actor: Entity, name: str, params: Dict[str, Any]) -> Optional[str]:
         """Apply and roll back, to catch a doomed sealed choice at submit. Returns the refusal, or None."""

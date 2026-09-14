@@ -75,8 +75,9 @@ class Wake:
 
     @property
     def me(self) -> Dict[str, Any]:
-        """A copy of this agent's own properties (for scripted participants)."""
-        return dict(self._turn.actor.properties)
+        """A copy of this agent's own properties plus ``id``, ``name``, ``type`` and ``at``."""
+        actor = self._turn.actor
+        return {**actor.properties, "id": actor.id, "name": actor.name, "type": actor.entity_type, "at": actor.location_id}
 
     # -- what the agent reads ---------------------------------------------------
 

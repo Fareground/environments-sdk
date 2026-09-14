@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import math
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Mapping, Optional
 
@@ -93,6 +93,18 @@ class ExperimentResult:
             for label, arm in self.arms.items()}}
 
 
+def _portable(participants: Any) -> bool:
+    """Participants given by name (``"random"``, ``"policy:x"``, or a mapping of those) can run in other processes."""
+    if participants is None or isinstance(participants, str):
+        return True
+    return isinstance(participants, Mapping) and all(isinstance(v, str) for v in participants.values())
+
+
+def _run_job(payload: tuple) -> RunResult:
+    data, inputs, seed, arm, participants, rounds = payload
+    return load(data, inputs=inputs, seed=seed, arm=arm).run(participants, rounds=rounds)
+
+
 def experiment(source: ContractLike, *, runs: int = 10, arms: Optional[List[str]] = None, seed: int = 0,
                inputs: Optional[Mapping[str, Any]] = None, participants: Any = None,
                participants_for: Optional[Callable[[int, Optional[str]], Any]] = None,
@@ -114,7 +126,13 @@ def experiment(source: ContractLike, *, runs: int = 10, arms: Optional[List[str]
         return env.run(who, rounds=rounds)
 
     jobs = [(arm, i) for arm in labels for i in range(runs)]
-    if workers > 1:
+    if workers > 1 and participants_for is None and _portable(participants):
+        # Runs are CPU-bound: separate processes use every core.
+        data = contract.model_dump(by_alias=True, exclude_unset=True)
+        payloads = [(data, inputs, seeds[i], arm, participants, rounds) for arm, i in jobs]
+        with ProcessPoolExecutor(max_workers=workers) as processes:
+            results = list(processes.map(_run_job, payloads))
+    elif workers > 1:
         with ThreadPoolExecutor(max_workers=workers) as pool:
             results = list(pool.map(one, jobs))
     else:

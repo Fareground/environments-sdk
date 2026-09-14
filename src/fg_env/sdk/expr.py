@@ -128,6 +128,9 @@ class World:
     def is_a(self, type_name: str, ancestor: str) -> bool:
         return type_name == ancestor
 
+    def has_def(self, name: str) -> bool:
+        return False
+
     def call_def(self, name: str, args: List[Any], source: str) -> Any:
         """Call a contract-defined function (``defs``). The empty world has none."""
         from difflib import get_close_matches
@@ -179,6 +182,8 @@ class Scope:
         try:
             return self.vars[name]
         except KeyError:
+            if self.world.has_def(name):  # a def without arguments reads like a value: $negotiating
+                return self.world.call_def(name, [], source)
             available = ", ".join(f"${k}" for k in sorted(self.vars)) or "none"
             raise ExprError(f"${name} is not available here (available: {available})", source) from None
 
@@ -685,9 +690,27 @@ class _Compiler:
 
     def _BoolOp(self, node: ast.BoolOp) -> Evaluator:
         values = [self.node(v) for v in node.values]
+        # Like Python: `a or b` gives the first truthy value (a default), `a and b` the first falsy one.
         if isinstance(node.op, ast.And):
-            return lambda scope: all(truthy(v(scope)) for v in values)
-        return lambda scope: any(truthy(v(scope)) for v in values)
+            def run_and(scope: Scope) -> Any:
+                result: Any = True
+                for value in values:
+                    result = value(scope)
+                    if not truthy(result):
+                        return result
+                return result
+
+            return run_and
+
+        def run_or(scope: Scope) -> Any:
+            result: Any = False
+            for value in values:
+                result = value(scope)
+                if truthy(result):
+                    return result
+            return result
+
+        return run_or
 
     def _word(self, node: ast.AST) -> List[str]:
         if isinstance(node, ast.Name) and not node.id.startswith("__") and node.id not in _LITERAL_NAMES:

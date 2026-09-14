@@ -567,3 +567,14 @@ def _is(call: Call) -> bool:
     if not hasattr(entity, "entity_type"):
         raise ExprError(f"$is needs an entity, got {_describe(entity)}", call.source)
     return call.scope.world.is_a(entity.entity_type, type_name)
+
+
+@function("flatten(lists)", "One list from a list of lists (one level).", min_args=1, max_args=1)
+def _flatten(call: Call) -> List[Any]:
+    out: List[Any] = []
+    for item in call.collection(0):
+        if isinstance(item, (list, tuple)):
+            out.extend(item)
+        else:
+            out.append(item)
+    return out

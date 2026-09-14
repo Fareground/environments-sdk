@@ -222,6 +222,9 @@ class SdkWorld(World):
     def use_turn_rng(self, rng: Any) -> None:
         self._local.rng = rng
 
+    def use_turn_pending(self, pending: Optional[List[Dict[str, Any]]]) -> None:
+        self._local.pending = pending
+
     # -- expression interface ------------------------------------------------
 
     def entities_of(self, type_name: str) -> List[Entity]:
@@ -281,6 +284,10 @@ class SdkWorld(World):
     def is_a(self, type_name: str, ancestor: str) -> bool:
         return type_name in self._subtypes.get(ancestor, ())
 
+    def has_def(self, name: str) -> bool:
+        spec = self.contract.defs.get(name)
+        return spec is not None and not spec.args
+
     def call_def(self, name: str, args: List[Any], source: str) -> Any:
         spec = self.contract.defs.get(name)
         if spec is None:
@@ -316,6 +323,7 @@ class SdkWorld(World):
             "metrics": self.metrics,
             "series": self.series,
             "arm": self.arm,
+            "pending": getattr(self._local, "pending", None) or [],
         }
         base.update(values)
         return Scope(base, self)
@@ -326,12 +334,22 @@ class SdkWorld(World):
         clock = self.contract.clock
         if not clock.start:
             return None
-        start = _dt.date.fromisoformat(clock.start[:10])
+        n = clock.step * max(0, max(1, self.round) - 1)
         unit = clock.unit.lower().rstrip("s")
-        per = {"day": 1, "week": 7}.get(unit)
-        if per is None:
-            return None
-        return (start + _dt.timedelta(days=per * clock.step * max(0, self.round - 1))).isoformat()
+        if unit in ("hour", "minute"):
+            moment = _dt.datetime.fromisoformat(clock.start)
+            delta = _dt.timedelta(hours=n) if unit == "hour" else _dt.timedelta(minutes=n)
+            return (moment + delta).isoformat(timespec="minutes")
+        start = _dt.date.fromisoformat(clock.start[:10])
+        if unit in ("day", "week"):
+            return (start + _dt.timedelta(days=(7 if unit == "week" else 1) * n)).isoformat()
+        if unit == "month":
+            months = start.month - 1 + n
+            year, month = start.year + months // 12, months % 12 + 1
+            return _dt.date(year, month, min(start.day, 28)).isoformat()
+        if unit == "year":
+            return str(start.year + n)
+        return None
 
     def clock_label(self) -> str:
         unit = self.contract.clock.unit

@@ -65,7 +65,7 @@ REPEAT_CEILING = 100_000
 
 RESERVED_ROOTS = frozenset({
     "actor", "params", "it", "i", "row", "inputs", "world", "physics", "clock", "round",
-    "stage", "metrics", "series", "arm", "viewer", "event",
+    "stage", "metrics", "series", "arm", "viewer", "event", "outer", "pending",
 })
 
 _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*$")
@@ -98,8 +98,12 @@ def split_statement(source: str) -> Optional[Tuple[str, str, str]]:
     return None
 
 
-def statement_parts(source: str) -> Tuple[Optional[str], Optional[str], Optional[str], str, str]:
-    """``(target, prop, local, op, value)`` of an assignment; raises :class:`ExprError` if malformed."""
+def statement_parts(source: str) -> Tuple[Optional[str], Optional[str], Optional[str], str, str, Optional[str]]:
+    """``(target, prop, local, op, value, index)`` of an assignment; raises :class:`ExprError` if malformed.
+
+    ``index`` is set for element assignment: ``$world.board[$i] = x`` → target ``$world``,
+    prop ``board``, index ``$i``.
+    """
     parts = split_statement(source)
     if parts is None or not parts[0].startswith("$") or not parts[2]:
         raise ExprError(
@@ -108,7 +112,22 @@ def statement_parts(source: str) -> Tuple[Optional[str], Optional[str], Optional
         )
     left, op, right = parts
     if _NAME.match(left[1:]):
-        return None, None, left[1:], op, right
+        return None, None, left[1:], op, right, None
+    index: Optional[str] = None
+    if left.endswith("]"):
+        depth, opening = 0, None
+        for i in range(len(left) - 1, -1, -1):
+            if left[i] == "]":
+                depth += 1
+            elif left[i] == "[":
+                depth -= 1
+                if depth == 0:
+                    opening = i
+                    break
+        if opening is None or not left[opening + 1:-1].strip():
+            raise ExprError("an element assignment looks like `$world.board[$i] = x`", source)
+        index = left[opening + 1:-1].strip()
+        left = left[:opening]
     depth, quote, dot = 0, None, None
     for i, ch in enumerate(left):
         if quote:
@@ -123,8 +142,8 @@ def statement_parts(source: str) -> Tuple[Optional[str], Optional[str], Optional
         elif ch == "." and depth == 0:
             dot = i
     if dot is None or not _NAME.match(left[dot + 1:]):
-        raise ExprError("the left side must end in a property, like `$actor.cash` or `$entity(x).cash`", source)
-    return left[:dot], left[dot + 1:], None, op, right
+        raise ExprError("the left side must end in a property, like `$actor.cash`, `$entity(x).cash` or `$world.board[$i]`", source)
+    return left[:dot], left[dot + 1:], None, op, right, index
 
 
 @dataclass(frozen=True)
@@ -135,18 +154,19 @@ class Statement:
     local: Optional[str]
     op: str
     value: Expr
+    index: Optional[Expr] = None
 
 
 @lru_cache(maxsize=8_192)
 def compile_statement(source: str) -> Statement:
-    target, prop, local, op, right = statement_parts(source)
+    target, prop, local, op, right, index = statement_parts(source)
     value = compile_expr(right)
     if local is not None:
         if local in RESERVED_ROOTS:
             raise ExprError(f"${local} cannot be reassigned; assign to one of its fields instead", source)
         return Statement(source, compile_expr(f"${local}") if op != "=" else None, None, local, op, value)
     assert target is not None
-    return Statement(source, compile_expr(target), prop, None, op, value)
+    return Statement(source, compile_expr(target), prop, None, op, value, compile_expr(index) if index else None)
 
 
 def _to_ids(value: Any, where: str) -> Optional[Tuple[str, ...]]:
@@ -223,7 +243,27 @@ class EffectRunner:
             return
         assert stmt.target is not None and stmt.prop is not None
         owner = stmt.target(scope)
-        if stmt.op != "=":
+        if stmt.index is not None:
+            container = attr(owner, stmt.prop, source)
+            key = stmt.index(scope)
+            if isinstance(container, list):
+                if isinstance(key, bool) or not isinstance(key, int) or not -len(container) <= key < len(container):
+                    raise ExprError(f"index {key!r} is out of range for a list of {len(container)}", source)
+                updated: Any = list(container)
+            elif isinstance(container, dict):
+                key = str(key)
+                updated = dict(container)
+            else:
+                raise ExprError(f"`{stmt.prop}` is not a list or map, so it has no elements to assign", source)
+            if stmt.op != "=":
+                if isinstance(updated, list) or key in updated:
+                    current = updated[key]
+                else:  # a new map key counts from nothing: tallies, running totals
+                    current = [] if isinstance(value, list) else 0
+                value = self._combine(stmt.op, current, value, source)
+            updated[key] = value
+            value = updated
+        elif stmt.op != "=":
             value = self._combine(stmt.op, attr(owner, stmt.prop, source), value, source)
         if isinstance(owner, Entity):
             self.world.set_prop(owner, stmt.prop, value)

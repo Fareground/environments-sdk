@@ -115,38 +115,67 @@ class PolicyAgent:
             for index, rule in enumerate(self.spec.rules):
                 path = f"policies.{self.name}.rules[{index}]"
                 scope = turn.env.world.scope(actor=turn.actor)
-                try:
-                    if rule.when is not None and not truthy(compile_expr(rule.when)(scope)):
-                        continue
-                    if rule.chance is not None:
-                        p = compile_expr(rule.chance)(scope) if isinstance(rule.chance, str) else rule.chance
-                        if isinstance(p, bool) or not isinstance(p, (int, float)):
-                            raise ExprError(f"chance must be a number, got {p!r}", str(rule.chance))
-                        if rng.random() >= p:
-                            continue
-                    if rule.do == "pass":
-                        wake.end()
+                if rule.each is None:
+                    outcome = self._try(wake, rule, scope, rng, path)
+                    if outcome == "passed":
                         return
-                    args = resolve(rule.with_, scope)
-                except ExprError as exc:
-                    from .errors import RunError
-
-                    raise RunError(str(exc), path) from None
-                args = {k: (v.id if hasattr(v, "entity_type") else v) for k, v in args.items()}
-                if rule.do not in {t.name for t in wake.tools}:
+                    if outcome == "acted":
+                        acted = True
+                        break
                     continue
-                with turn.env._lock:
-                    _, problem = turn.env.actions.validate(turn.actor, rule.do, args)
-                if problem:
-                    continue  # this rule does not fit right now; try the next one
-                result = wake.call(rule.do, args)
-                if result.ok:
-                    acted = True
+                for position, item in enumerate(self._items(turn, rule.each, scope, path)):
+                    if wake.done:
+                        return
+                    outcome = self._try(wake, rule, scope.child(it=item, i=position), rng, path)
+                    if outcome == "passed":
+                        return
+                    acted = acted or outcome == "acted"
+                if acted:
                     break
             if not acted or not self.spec.repeat:
                 break
         if not wake.done:
             wake.end()
+
+    @staticmethod
+    def _items(turn: Any, each: str, scope: Any, path: str) -> List[Any]:
+        from .errors import RunError
+
+        world = turn.env.world
+        try:
+            items = world.entities_of(each) if each in turn.env.contract.types else compile_expr(each)(scope)
+        except ExprError as exc:
+            raise RunError(str(exc), f"{path}.each") from None
+        return list(items or [])
+
+    def _try(self, wake: Wake, rule: Any, scope: Any, rng: random.Random, path: str) -> str:
+        """Try one rule: "acted", "passed" (the turn ends), or "skipped"."""
+        turn = wake._turn
+        try:
+            if rule.when is not None and not truthy(compile_expr(rule.when)(scope)):
+                return "skipped"
+            if rule.chance is not None:
+                p = compile_expr(rule.chance)(scope) if isinstance(rule.chance, str) else rule.chance
+                if isinstance(p, bool) or not isinstance(p, (int, float)):
+                    raise ExprError(f"chance must be a number, got {p!r}", str(rule.chance))
+                if rng.random() >= p:
+                    return "skipped"
+            if rule.do == "pass":
+                wake.end()
+                return "passed"
+            args = resolve(rule.with_, scope)
+        except ExprError as exc:
+            from .errors import RunError
+
+            raise RunError(str(exc), path) from None
+        args = {k: (v.id if hasattr(v, "entity_type") else v) for k, v in args.items()}
+        if rule.do not in {t.name for t in wake.tools}:
+            return "skipped"
+        with turn.env._lock:
+            _, problem = turn.env.actions.validate(turn.actor, rule.do, args)
+        if problem:
+            return "skipped"  # this rule does not fit right now; try the next one
+        return "acted" if wake.call(rule.do, args).ok else "skipped"
 
     def __repr__(self) -> str:
         return f"PolicyAgent({self.name!r})"

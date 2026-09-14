@@ -86,6 +86,13 @@ turn, uses `max_actions`, or runs out of `max_calls`.
   the first pass always wakes everyone).
 * `look` and `inspect` calls count toward `max_calls`.
 * A stage with `actions: []` wakes nobody: use it as a pure resolution step (`on_enter`/`on_exit`).
+* `must_act: true` removes `end_turn` while an action is available; `on_idle` effects run for each agent
+  that ends a turn without acting (`$actor`) — a forfeit or a default move.
+* `terminal` may be an expression checked after the action applies (`"$world.jump_finished"`), so a
+  move can end the turn only sometimes (multi-jumps).
+* Physics steps at the start of every round, including round 1, before any stage.
+* Invariants are checked after every action and effect block: write them for states that must hold
+  at all times, not ones that only settle at the end of a stage.
 * `end` conditions are checked after the start events, after each stage, and at the end of the round.
   To end at once in the middle of a stage (a winning move), use the `end` effect inside the action.
 
@@ -122,6 +129,15 @@ Any string containing `$name` is an expression; other strings are literal text.
 * Nested per-item functions rebind `$it`; the enclosing item is `$outer`:
   `$sum(trader, $sum(order, $it.qty, $it.owner == $outer.id))`.
 * Every function call needs its `$`: `$max(a, b)`, never `max(a, b)`.
+* `a or b` gives the first truthy value (a default: `$x or 0`); `a and b` the first falsy one.
+* A def without arguments reads like a value: `$negotiating` or `$negotiating()`.
+* `$pending` lists what the agent already did or submitted this turn (`{action, ...args}`): use it in
+  param `where` or `when` to stop ordering the same army twice.
+* A param `where` may read earlier params: `{"to": {"type": "entity", "of": "province",
+  "where": "$linked($params.army.at, $it.id, border)"}}` (the tool then lists every province and
+  validation enforces the rule).
+* Reserved roots cannot be used as local names: $actor $params $it $i $row $inputs $world $physics
+  $clock $round $stage $metrics $series $arm $viewer $event $outer.
 * Contract `defs` are called like built-ins: `$utility($actor, $params.offer)`.
 * Bare words are text even when they match a property name: write `$actor.bet`, not `bet`.
 * Strict: unknown props, missing roots and type errors are errors, never silent zeros.
@@ -176,6 +192,7 @@ Assignment text:
   entity props (`$actor.x`, `$params.offer.x`, `$it.x`), `$world.x`, `$physics.x`.
 * `"$total = $params.qty * 2"` — a local (`$total`) usable by later effects and the outcome.
 * `+=`/`-=` on a list prop append/remove an item.
+* Element assignment: `"$world.board[$i] = $actor.mark"`, `"$actor.scores[round_2] += 1"` (lists and maps).
 * Numeric props are clamped to their min/max; types are enforced.
 
 Operation objects (exactly one operation key each):
@@ -184,7 +201,7 @@ OPS
 
 _EFFECT_EXAMPLES = {
     "if": '{"if": "$cost > $actor.cash", "then": [...], "else": [...]}',
-    "each": '{"each": "offer", "where": "$it.stock == 0", "do": ["$it.listed = false"], "as": "it"}',
+    "each": '{"each": "offer", "where": "$it.stock == 0", "do": ["$it.listed = false"]}  (with "as": "o", write $o instead of $it)',
     "create": '{"create": "review", "count": 1, "name": "Review {$i}", "props": {"stars": "$params.stars"}, "at": null, "as": "made"}',
     "remove": '{"remove": "$params.target"}',
     "transfer": '{"transfer": "cash", "from": "$actor", "to": "$params.seller", "amount": 10}  (fails the action if short)',
@@ -236,7 +253,11 @@ _PATTERNS = """\
   `blocks` for effect lists (`{"block": "match", "with": {"order": "$made"}}`).
 * Scoping inspection: `types.X.inspect: false` (or an expression over `$viewer` and `$it`) hides
   entities from the inspect tool; `private` props hide single values.
-* Boards and tables in views: `"bullet": false` prints lines without "- ".
+* Boards and tables in views: `"bullet": false` prints lines without "- ". View titles are templates.
+* Participants keyed by a parent type (`{"tier": ...}`) and `policy` on a parent type reach every subtype.
+* Calendars: `clock.start` with unit day, week, month, year, hour or minute adds the date to the time label.
+* Policy rules with `each` act once per item: `{"each": "$filter(army, $it.owner == $actor.id)",
+  "do": "hold", "with": {"army": "$it"}}`.
 * Coded participants: `policies` rules (first legal matching rule wins) for crowds and baselines;
   set `types.X.policy` to make them the default.
 """
@@ -266,7 +287,10 @@ def my_agent(wake):
 `call(name, args)` → `ToolResult(ok, text, ended, data)` (`data.error` is `invalid` or `rejected`),
 `end()`, `done`, `calls_left`, `actions_left`. In a simultaneous stage a choice is tried at submit, so
 a choice that could not happen is refused immediately and does not use up the turn.
-`env.step(participants)` runs one round; `env.run(participants, rounds=N)` runs N more.
+`env.step(participants)` runs one round; `env.run(participants, rounds=N)` runs N more (an unfinished
+run returns provisional outputs). Read state with `env.entity(id)`, `env.entities(type)`, `env.props`,
+`env.result()`, `env.finished`. `env.preview(id)` plays the start of the next round on a copy and shows
+exactly the turn the agent will get.
 
 LLM participants: `fg_env.participants.anthropic(anthropic.Anthropic(), "claude-sonnet-5")` or
 `fg_env.participants.openai(client, model)`; they cache the brief and loop over tool calls.

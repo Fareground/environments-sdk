@@ -25,7 +25,7 @@ from .world import prop_type
 
 __all__ = ["parse_contract", "check_contract"]
 
-BASE = frozenset({"inputs", "world", "physics", "clock", "round", "stage", "metrics", "series", "arm"})
+BASE = frozenset({"inputs", "world", "physics", "clock", "round", "stage", "metrics", "series", "arm", "pending"})
 ENTITY_FIELDS = frozenset({"id", "name", "type", "alive", "at"})
 ENTRY_FIELDS = frozenset({"seq", "round", "stage", "author", "to"})
 RECORD_FIELD_TYPES = ("text", "number", "int", "bool", "list", "map", "any")
@@ -81,7 +81,10 @@ def parse_contract(data: Any) -> Contract:
                 key = str(loc[-1]) if loc else ""
                 hint = get_close_matches(key, _FIELD_NAMES, n=1, cutoff=0.7)
                 message = f"'{key}' is not a field here"
-                fix = f"did you mean '{hint[0]}'?" if hint else "remove it"
+                if hint and hint[0] == key:
+                    fix = f"'{key}' belongs to another part of the contract; remove it here"
+                else:
+                    fix = f"did you mean '{hint[0]}'?" if hint else "remove it"
             elif kind == "missing":
                 message = "is required"
             else:
@@ -197,7 +200,7 @@ class _Checker:
     def _refs(self, compiled: Any, path: str, roots: Set[str], types: Types,
               params: Mapping[str, C.ParamSpec]) -> None:
         for root in compiled.roots:
-            if root not in roots:
+            if root not in roots and not (root in self.c.defs and not self.c.defs[root].args):
                 available = ", ".join(f"${r}" for r in sorted(roots))
                 self.error(path, f"${root} is not available here", f"available: {available} — in `{compiled.source}`")
         for name, symbol in compiled.calls:
@@ -343,11 +346,13 @@ class _Checker:
     def _statement(self, source: str, path: str, roots: Set[str], types: Types,
                    params: Optional[Mapping[str, C.ParamSpec]]) -> None:
         try:
-            target, prop, local, _, right = statement_parts(source)
+            target, prop, local, _, right, index = statement_parts(source)
         except ExprError as exc:
             self.error(path, exc.detail, "write `$actor.cash -= 5`, `$world.open = true` or `$total = 3`")
             return
         self.expr(right, path, roots, types, params)
+        if index is not None:
+            self.expr(index, path, roots, types, params)
         if local is not None:
             if local in RESERVED_ROOTS:
                 self.error(path, f"${local} cannot be reassigned", "assign to one of its fields")
@@ -554,6 +559,9 @@ class _Checker:
                 self.error("clock.start", f"'{clock.start}' is not an ISO date", "e.g. 2026-01-31")
         if clock.step < 1:
             self.error("clock.step", "must be at least 1")
+        if clock.start and clock.unit.lower().rstrip("s") not in ("day", "week", "month", "year", "hour", "minute"):
+            self.warn("clock.start", f"a calendar date is not shown for unit '{clock.unit}'",
+                      "use day, week, month, year, hour or minute")
         space = self.c.space
         if space is not None and sum(x is not None for x in (space.grid, space.graph, space.plane)) != 1:
             self.error("space", "declare exactly one of grid, graph, plane")
@@ -707,8 +715,8 @@ class _Checker:
                     if param.of is None:
                         self.error(ppath, "an entity parameter needs `of` (the entity type)")
                     elif self._type(param.of, f"{ppath}.of"):
-                        self.expr(param.where, f"{ppath}.where", BASE | {"actor", "it", "i"},
-                                  {"actor": by_types, "it": {param.of}})
+                        self.expr(param.where, f"{ppath}.where", BASE | {"actor", "it", "i", "params"},
+                                  {"actor": by_types, "it": {param.of}}, spec.params)
                 elif param.type == "enum":
                     if param.values is None:
                         self.error(ppath, "an enum parameter needs `values`")
@@ -727,6 +735,11 @@ class _Checker:
                 self.warn(f"{path}.otherwise", "runs only when `chance` fails, and there is no `chance`")
             for key in ("outcome", "announce"):
                 self.template(getattr(spec, key), f"{path}.{key}", None, after, types, spec.params)
+            if isinstance(spec.terminal, str):
+                self.expr(spec.terminal, f"{path}.terminal", after, types, spec.params)
+            for pname, param in spec.params.items():
+                self.template(param.invalid, f"{path}.params.{pname}.invalid", None,
+                              BASE | {"actor", "params", "value"}, types, spec.params)
             if not any(name in _stage_action_names(s, self.c) for s in self.c.stage_list()):
                 self.warn(path, "is not available in any stage", "add it to a stage's `actions`")
 
@@ -762,6 +775,7 @@ class _Checker:
             self.template(stage.brief or None, f"{path}.brief", "actor", BASE | {"actor"}, {"actor": set(self.agents)})
             self.effects(stage.on_enter, f"{path}.on_enter", set(BASE), {})
             self.effects(stage.on_exit, f"{path}.on_exit", set(BASE), {})
+            self.effects(stage.on_idle, f"{path}.on_idle", set(BASE) | {"actor"}, {"actor": set(self.agents)})
 
     def _views(self) -> None:
         for name, view in self.c.views.items():
@@ -829,9 +843,16 @@ class _Checker:
                         if key not in action.params:
                             self.error(f"{path}.with.{key}", f"'{rule.do}' has no parameter '{key}'",
                                        self._suggest(key, action.params))
-                self.expr(rule.when, f"{path}.when", BASE | {"actor"}, actor_types)
-                self.value(rule.chance, f"{path}.chance", BASE | {"actor"}, actor_types)
-                self.value(rule.with_, f"{path}.with", BASE | {"actor"}, actor_types)
+                rule_roots = BASE | {"actor"}
+                if rule.each is not None:
+                    if rule.each not in self.c.types:
+                        self.expr(rule.each, f"{path}.each", BASE | {"actor"}, actor_types)
+                    else:
+                        actor_types = {**actor_types, "it": set(self.c.subtypes(rule.each))}
+                    rule_roots = rule_roots | {"it", "i"}
+                self.expr(rule.when, f"{path}.when", rule_roots, actor_types)
+                self.value(rule.chance, f"{path}.chance", rule_roots, actor_types)
+                self.value(rule.with_, f"{path}.with", rule_roots, actor_types)
 
     def _measure(self) -> None:
         for name, metric in self.c.metrics.items():
@@ -861,6 +882,14 @@ class _Checker:
                 if arg in BASE or arg in RESERVED_ROOTS:
                     self.error(f"{path}.args", f"'{arg}' is a built-in root", "choose another argument name")
             self.expr(spec.expr, f"{path}.expr", BASE | set(spec.args))
+            bare: Set[str] = set()
+            try:
+                bare = set(compile_expr(spec.expr).symbols) & set(spec.args)
+            except ExprError:
+                pass
+            for arg in sorted(bare):
+                self.error(f"{path}.expr", f"argument '{arg}' is written without $, so it is the text '{arg}'",
+                           f"write ${arg}")
         for name, block in self.c.blocks.items():
             path = f"blocks.{name}"
             for arg in block.args:

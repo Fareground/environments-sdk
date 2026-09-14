@@ -88,7 +88,7 @@ def test_inspect_is_scoped_by_type_rules():
         wake.end()
 
     fg_env.run(EXCHANGE, agent, seed=1, rounds=1)
-    assert seen["m"][0] == "No active entity with that id."
+    assert seen["m"][0] == "No entity with that id is available to inspect."
     assert seen["t"][0].startswith("Tia [t] (taker)")
 
 
@@ -135,4 +135,4 @@ def test_check_smoke_round_and_cli_preview_after_rounds(tmp_path, capsys):
     path = tmp_path / "x.json"
     path.write_text(json.dumps(EXCHANGE))
     assert main(["preview", str(path), "m", "--rounds", "1", "--agent", "idle"]) == 0
-    assert "Round 1 of 2 · quote" in capsys.readouterr().out
+    assert "Round 2 of 2 · quote" in capsys.readouterr().out  # the next real turn, after one played round

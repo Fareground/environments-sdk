@@ -65,6 +65,7 @@ def _decimals(n: int) -> Callable[[Any], str]:
 _FORMATS: Dict[str, Callable[[Any], str]] = {
     "money": _money,
     "pct": lambda v: f"{v * 100:.0f}%" if isinstance(v, (int, float)) and not isinstance(v, bool) else format_value(v),
+    "pct1": lambda v: f"{v * 100:.1f}%" if isinstance(v, (int, float)) and not isinstance(v, bool) else format_value(v),
     "int": lambda v: f"{round(v):,}" if isinstance(v, (int, float)) and not isinstance(v, bool) else format_value(v),
     "upper": lambda v: format_value(v).upper(),
     "lower": lambda v: format_value(v).lower(),

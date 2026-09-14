@@ -33,6 +33,7 @@ def build_world(contract: Contract, inputs: Dict[str, Any], seeds: SeedTree, arm
             _population(world, group, index, pending_briefs)
         for index, link in enumerate(contract.links):
             _links(world, link, index, seeds)
+        _world_props(world, after_entities=True)
         world.build_physics()
         world.series = {name: [] for name in contract.metrics}
         world.metrics = {name: None for name in contract.metrics}
@@ -64,8 +65,23 @@ def _rounds(world: SdkWorld) -> int:
     return rounds
 
 
-def _world_props(world: SdkWorld) -> None:
+_ENTITY_FUNCTIONS = frozenset({"entity", "exists", "records", "neighbors", "relation", "linked", "events"})
+
+
+def _needs_entities(world: SdkWorld, raw: Any) -> bool:
+    if not is_expr(raw):
+        return False
+    compiled = compile_expr(raw)
+    return bool(compiled.functions & _ENTITY_FUNCTIONS) or any(
+        symbol in world.contract.types for _, symbol in compiled.calls if symbol)
+
+
+def _world_props(world: SdkWorld, after_entities: bool = False) -> None:
+    """World defaults are evaluated before entities exist, except those that read entities
+    (`$sum(tier, ...)`, `$entity(x)`), which are evaluated once the world is populated."""
     for name, spec in world.contract.world.items():
+        if _needs_entities(world, spec.default) != after_entities:
+            continue
         try:
             value = _value(world, spec.default, {})
         except ExprError as exc:

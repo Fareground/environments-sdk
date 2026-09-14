@@ -139,7 +139,7 @@ class Space(_Model):
 # Types, entities, population, relations
 # ---------------------------------------------------------------------------
 
-_PROP_KEYS = {"type", "default", "min", "max", "values", "private", "description"}
+_PROP_KEYS = {"type", "default", "min", "max", "values", "private", "description", "unit"}
 
 
 class PropSpec(_Model):
@@ -152,6 +152,7 @@ class PropSpec(_Model):
     values: Optional[List[Any]] = None
     private: bool = Field(False, description="Hidden from other agents' inspect tool.")
     description: str = ""
+    unit: str = ""
 
     @model_validator(mode="before")
     @classmethod
@@ -271,13 +272,14 @@ class ParamSpec(_Model):
 
     type: str = Field("number", description="One of: " + ", ".join(PARAM_TYPES))
     of: Optional[str] = Field(None, description="Entity type (type entity).")
-    where: Optional[str] = Field(None, description="Which entities qualify ($it, $actor).")
+    where: Optional[str] = Field(None, description="Which entities qualify ($it, $actor, $params for earlier params, $pending).")
     values: Union[List[Any], str, None] = Field(None, description="Allowed values or an expression giving them (type enum).")
     min: Union[float, str, None] = None
     max: Union[float, str, None] = None
     max_len: Optional[int] = Field(None, description="Maximum length (type text).")
     default: Any = None
     required: Optional[bool] = Field(None, description="Defaults to true unless a default is given.")
+    invalid: Optional[str] = Field(None, description="What the agent is told when its value is not valid (template over $actor, $params, $value).")
     description: str = ""
 
     @model_validator(mode="before")
@@ -307,7 +309,7 @@ class ActionSpec(_Model):
     outcome: Optional[str] = Field(None, description="What the actor is told (template over $actor, $params).")
     announce: Optional[str] = Field(None, description="What everyone else is told (template).")
     private: bool = Field(False, description="Nobody else learns this action happened.")
-    terminal: bool = Field(False, description="Taking it ends the agent's turn.")
+    terminal: Union[bool, str] = Field(False, description="Taking it ends the agent's turn: true, or an expression checked after it applies ($actor, $params).")
     per_turn: Optional[int] = Field(None, description="Max uses per turn.")
     per_round: Optional[int] = Field(None, description="Max uses per round.")
 
@@ -334,6 +336,8 @@ class StageSpec(_Model):
     max_actions: int = Field(1, description="Actions an agent may take per turn.")
     max_calls: int = Field(8, description="Tool calls (including looks) per turn.")
     brief: str = Field("", description="Instruction shown during this stage (template).")
+    must_act: bool = Field(False, description="While an action is available, the agent cannot just end its turn.")
+    on_idle: Effects = Field(default_factory=list, description="Effects for each agent that ends its turn without acting ($actor): a forfeit, a default move.")
     on_enter: Effects = Field(default_factory=list)
     on_exit: Effects = Field(default_factory=list)
 
@@ -383,8 +387,10 @@ class EventSpec(_Model):
 
 
 class PolicyRule(_Model):
-    """One rule of a coded policy: when `when` holds (and the `chance` roll passes), call `do` with `with`."""
+    """One rule of a coded policy: when `when` holds (and the `chance` roll passes), call `do` with `with`.
+    With `each`, the rule is tried once per item ($it): "for each of my armies, hold"."""
 
+    each: Optional[str] = Field(None, description="A type or expression; the rule is tried for every item ($it).")
     when: Optional[str] = None
     do: str = Field(..., description="Action name, or 'pass'.")
     with_: Dict[str, Any] = Field(default_factory=dict, alias="with", description="Params as values or expressions.")

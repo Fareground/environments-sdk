@@ -45,6 +45,11 @@ def _load_json(path: str) -> Any:
         return json.load(f)
 
 
+def _is_sdk_contract(raw: Any) -> bool:
+    """True for an fg_env contract (checked with `fg-env check`), not a legacy template."""
+    return isinstance(raw, dict) and "types" in raw and "entity_types" not in raw
+
+
 def cmd_compile(args: argparse.Namespace) -> int:
     from . import compile_template, smoke_test
 
@@ -54,6 +59,9 @@ def cmd_compile(args: argparse.Namespace) -> int:
         print(f"error reading {args.file}: {e}", file=sys.stderr)
         return 1
 
+    if _is_sdk_contract(raw):
+        print(f"{args.file} is an fg_env contract: use `fg-env check {args.file}`", file=sys.stderr)
+        return 1
     result = compile_template(
         raw,
         seed=args.seed,
@@ -300,6 +308,9 @@ def cmd_lint(args: argparse.Namespace) -> int:
         print(f"error reading {args.file}: {e}", file=sys.stderr)
         return 1
 
+    if _is_sdk_contract(raw):
+        print(f"{args.file} is an fg_env contract: use `fg-env check {args.file}`", file=sys.stderr)
+        return 1
     issues = lint_template(raw)
     errors = [i for i in issues if i.severity == "error"]
     warnings = [i for i in issues if i.severity == "warning"]
@@ -331,7 +342,7 @@ def main(argv: list = None) -> int:
 
     add_commands(sub)
 
-    p_compile = sub.add_parser("compile", help="validate, lint, optionally smoke-test a JSON template")
+    p_compile = sub.add_parser("compile", help="[template API] validate, lint, optionally smoke-test a JSON template")
     p_compile.add_argument("file", help="path to template.json")
     p_compile.add_argument("--smoke", type=int, metavar="ROUNDS",
                            help="also run smoke_test for ROUNDS rounds")
@@ -339,28 +350,28 @@ def main(argv: list = None) -> int:
     p_compile.add_argument("--no-lint", action="store_true", help="skip static lint")
     p_compile.set_defaults(func=cmd_compile)
 
-    p_contract = sub.add_parser("contract", help="dump JSON Schema + live capabilities")
+    p_contract = sub.add_parser("contract", help="[template API] dump JSON Schema + live capabilities")
     p_contract.add_argument("-o", "--output", help="write to file instead of stdout")
     p_contract.set_defaults(func=cmd_contract)
 
-    p_caps = sub.add_parser("capabilities", help="print live capability lists")
+    p_caps = sub.add_parser("capabilities", help="[template API] print live capability lists")
     p_caps.set_defaults(func=cmd_capabilities)
 
-    p_versions = sub.add_parser("versions", help="list contract versions")
+    p_versions = sub.add_parser("versions", help="[template API] list contract versions")
     p_versions.set_defaults(func=cmd_versions)
 
-    p_lint = sub.add_parser("lint", help="run lint only (no engine build)")
+    p_lint = sub.add_parser("lint", help="[template API] run lint only (no engine build)")
     p_lint.add_argument("file", help="path to template.json")
     p_lint.set_defaults(func=cmd_lint)
 
-    p_prims = sub.add_parser("primitives", help="list every registered primitive by namespace")
+    p_prims = sub.add_parser("primitives", help="[template API] list every registered primitive by namespace")
     p_prims.add_argument("--kind", choices=["effects", "preconditions", "resolutions",
                                             "phases", "terminations", "modules",
                                             "target_selectors", "triggers"],
                          help="filter to one namespace")
     p_prims.set_defaults(func=cmd_primitives)
 
-    p_new = sub.add_parser("new-primitive", help="scaffold a new primitive file")
+    p_new = sub.add_parser("new-primitive", help="[template API] scaffold a new primitive file")
     p_new.add_argument("--kind", required=True,
                         choices=["effect", "termination", "resolution",
                                  "precondition", "expr_func"],
@@ -372,31 +383,31 @@ def main(argv: list = None) -> int:
     p_new.set_defaults(func=cmd_new_primitive)
 
     # ── Env package commands ──────────────────────────────────────
-    p_scaffold = sub.add_parser("scaffold-env", help="create a fresh env package directory")
+    p_scaffold = sub.add_parser("scaffold-env", help="[template API] create a fresh env package directory")
     p_scaffold.add_argument("directory", help="target directory path")
     p_scaffold.add_argument("--name", required=True, help="env slug (snake_case)")
     p_scaffold.add_argument("--force", action="store_true",
                             help="overwrite existing directory")
     p_scaffold.set_defaults(func=cmd_scaffold_env)
 
-    p_pack = sub.add_parser("pack", help="zip an env directory into a .simworld archive")
+    p_pack = sub.add_parser("pack", help="[template API] zip an env directory into a .simworld archive")
     p_pack.add_argument("directory", help="env directory to pack")
     p_pack.add_argument("-o", "--output", help="archive path (default: <dir>.simworld)")
     p_pack.set_defaults(func=cmd_pack)
 
-    p_unpack = sub.add_parser("unpack", help="extract a .simworld archive")
+    p_unpack = sub.add_parser("unpack", help="[template API] extract a .simworld archive")
     p_unpack.add_argument("archive", help=".simworld file to unpack")
     p_unpack.add_argument("-d", "--directory",
                           help="target directory (default: archive name)")
     p_unpack.set_defaults(func=cmd_unpack)
 
-    p_info = sub.add_parser("env-info", help="show metadata + compile status of an env package")
+    p_info = sub.add_parser("env-info", help="[template API] show metadata + compile status of an env package")
     p_info.add_argument("path", help="env directory or .simworld archive")
     p_info.add_argument("--no-compile", action="store_true",
                         help="skip compile (faster, but doesn't validate runtime)")
     p_info.set_defaults(func=cmd_env_info)
 
-    p_replay = sub.add_parser("replay", help="deterministic step-by-step trace")
+    p_replay = sub.add_parser("replay", help="[template API] deterministic step-by-step trace")
     p_replay.add_argument("file", help="path to template.json")
     p_replay.add_argument("--seed", type=int, default=42)
     p_replay.add_argument("--rounds", type=int, default=50)

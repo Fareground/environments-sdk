@@ -85,8 +85,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     else:
         print(result.summary())
         stats = result.stats
-        print(f"agents: {stats['wakes']} turns, {stats['actions']} actions, {stats['invalid_calls']} invalid calls, "
-              f"~{stats['avg_update_tokens']} update tokens per turn")
+        tokens = f", ~{stats['avg_update_tokens']} update tokens per read turn" if stats["update_reads"] else ""
+        print(f"agents: {stats['wakes']} turns, {stats['actions']} actions, {stats['invalid_calls']} invalid calls{tokens}")
         if args.events:
             for event in result.events:
                 if event.get("text"):

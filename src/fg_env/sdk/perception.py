@@ -66,7 +66,7 @@ class Perception:
         own = self.world.entity_briefs.get(actor.id)
         if own:
             lines.append(own)
-        lines.append("Act only through your tools. Call end_turn when you are finished.")
+        lines.append("Act only through your tools. Your turn ends when you take a final action or call end_turn.")
         if self._takes_text:
             lines.append(_UNTRUSTED_NOTE)
         return "\n".join(lines)
@@ -117,7 +117,8 @@ class Perception:
                 return None
             if view.of is None:
                 body = compile_template(view.show, "actor").render(scope)
-                return f"{view.title}: {body}" if view.title else body
+                title = self._title(view.title, scope, path)
+                return f"{title}: {body}" if title else body
             items = self._items(view, scope)
             if view.where is not None:
                 where = compile_expr(view.where)
@@ -138,8 +139,16 @@ class Perception:
             if view.empty is None:
                 return None
             rendered = [view.empty]
-        title = view.title or name.replace("_", " ").capitalize()
+        title = self._title(view.title, self.world.scope(actor=actor), path) or name.replace("_", " ").capitalize()
         return f"{title}:\n" + "\n".join(rendered)
+
+    def _title(self, title: str, scope: Any, path: str) -> str:
+        if "{" not in title:
+            return title
+        try:
+            return compile_template(title, "actor").render(scope)
+        except ExprError as exc:
+            raise RunError(str(exc), f"{path}.title") from None
 
     def _items(self, view: ViewSpec, scope: Any) -> List[Any]:
         source = view.of or ""

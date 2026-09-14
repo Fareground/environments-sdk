@@ -56,6 +56,8 @@ class _Turn:
         self.done = False
         self.used: Dict[str, int] = {}
         self.intents: List[Tuple[str, Dict[str, Any]]] = []
+        #: What this agent already did (sequential) or submitted (simultaneous) this turn, as $pending.
+        self.pending: List[Dict[str, Any]] = []
         self.stats = Stats(wakes=1)
         self._offered = False
         env._turn_count += 1
@@ -69,6 +71,7 @@ class _Turn:
             with self.env._lock:
                 self._brief = self.env._brief(self.actor)
             self.stats.brief_chars = len(self._brief)
+            self.stats.brief_reads = 1
         return self._brief
 
     @property
@@ -77,6 +80,7 @@ class _Turn:
             with self.env._lock:
                 self._update = self.env.perception.update(self.actor, self.stage, self.reason, self._since, self._views)
             self.stats.update_chars = len(self._update)
+            self.stats.update_reads = 1
         return self._update
 
     # -- tools ------------------------------------------------------------------
@@ -100,16 +104,22 @@ class _Turn:
             tools.append(ToolSpec("look", "Show one of these views: " + ", ".join(looks) + ".", {
                 "type": "object", "properties": {"view": {"type": "string", "enum": looks}},
                 "required": ["view"], "additionalProperties": False}, "look"))
-        tools.append(ToolSpec("inspect", "Details of one entity by id (uses one tool call).", {
-            "type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"],
-            "additionalProperties": False}, "look"))
-        end_text = "Finish your turn." if not self.staged else "Finish your turn (your choices are submitted)."
-        tools.append(ToolSpec(END_TURN, end_text, {"type": "object", "properties": {}, "additionalProperties": False},
-                              "end", True))
+        if env._inspectable:
+            tools.append(ToolSpec("inspect", "Details of one entity by id (uses one tool call).", {
+                "type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"],
+                "additionalProperties": False}, "look"))
+        if not self._must_act_now(tools):
+            end_text = "Finish your turn." if not self.staged else "Finish your turn (your choices are submitted)."
+            tools.append(ToolSpec(END_TURN, end_text, {"type": "object", "properties": {}, "additionalProperties": False},
+                                  "end", True))
         if not self._offered:
             self.stats.tools_offered += len(tools)
             self._offered = True
         return tools
+
+    def _must_act_now(self, tools: List[ToolSpec]) -> bool:
+        acted = self.actions_left < self.stage.max_actions or bool(self.intents)
+        return self.stage.must_act and not acted and any(t.kind == "act" for t in tools)
 
     # -- calls -------------------------------------------------------------------
 
@@ -119,7 +129,7 @@ class _Turn:
 
     def _call(self, name: str, args: Optional[Dict[str, Any]]) -> ToolResult:
         if self.done:
-            return ToolResult(False, "Your turn is already over; nothing was done.", True)
+            return ToolResult(False, "Your turn is already over; nothing was done.", True, dict(_ENDED))
         if self.calls_left <= 0:
             self.done = True
             return ToolResult(False, "No tool calls left this turn; your turn is over.", True)
@@ -127,6 +137,10 @@ class _Turn:
         self.stats.calls += 1
         env = self.env
         if name == END_TURN:
+            if self.stage.must_act and self.actions_left == self.stage.max_actions and not self.intents and self._legal():
+                self.stats.invalid_calls += 1
+                return self._after(ToolResult(False, f"You must act during {self.stage.name}. Available actions: "
+                                                     f"{', '.join(self._legal())}.", data=_INVALID))
             self.done = True
             return ToolResult(True, "Turn ended.", True)
         if name == "look":
@@ -158,19 +172,21 @@ class _Turn:
                 self.stats.rejected_actions += 1
                 return self._after(ToolResult(False, refusal, data=_REJECTED))
             self.intents.append((name, dict(args or {})))
+            self.pending.append({"action": name, **_plain(params)})
             self._count(name)
-            ended = spec.terminal or self.actions_left <= 0
+            ended = env.actions.ends_turn(self.actor, name, params) or self.actions_left <= 0
             text = f"Submitted {name.replace('_', ' ')}{_args_text(params)}; it resolves when everyone has chosen."
             return self._after(ToolResult(True, text, ended))
         outcome = env.actions.apply(self.actor, name, params)
         if outcome.ok:
             self._count(name)
+            self.pending.append({"action": name, **_plain(params)})
             env._after_commit(f"actions.{name}")
         if not outcome.ok:
             self.stats.rejected_actions += 1
             return self._after(ToolResult(False, outcome.text, data=_REJECTED))
         self.stats.actions += 1
-        ended = spec.terminal or self.actions_left <= 0 or env.world.end_request is not None
+        ended = env.actions.ends_turn(self.actor, name, params) or self.actions_left <= 0 or env.world.end_request is not None
         return self._after(ToolResult(True, outcome.text, ended, {"success": outcome.success}))
 
     def _count(self, name: str) -> None:
@@ -189,12 +205,7 @@ class _Turn:
         return result
 
     def _may_inspect(self, target: Entity) -> bool:
-        contract = self.env.contract
-        rule: Any = True
-        for kind in reversed(contract.lineage(target.entity_type)):
-            if "inspect" in contract.types[kind].model_fields_set:
-                rule = contract.types[kind].inspect
-                break
+        rule = self.env._inspect_rule(target.entity_type)
         if isinstance(rule, bool):
             return rule or target.id == self.actor.id
         try:
@@ -218,7 +229,7 @@ class _Turn:
         target = env.world.entity((args or {}).get("id"))
         if target is None or not target.alive or not self._may_inspect(target):
             self.stats.invalid_calls += 1
-            return self._after(ToolResult(False, "No active entity with that id.", data=_INVALID))
+            return self._after(ToolResult(False, "No entity with that id is available to inspect.", data=_INVALID))
         specs = env.contract.props_of(target.entity_type)
         own = target.id == self.actor.id
         shown = [f"{k}: {format_value(v)}" for k, v in target.properties.items()
@@ -228,8 +239,14 @@ class _Turn:
         return self._after(ToolResult(True, text))
 
 
+def _entity_dict(entity: Entity) -> Dict[str, Any]:
+    return {"id": entity.id, "name": entity.name, "type": entity.entity_type, "alive": entity.alive,
+            "at": entity.location_id, "props": dict(entity.properties)}
+
+
 _INVALID = {"error": "invalid"}
 _REJECTED = {"error": "rejected"}
+_ENDED = {"error": "ended"}
 
 
 def _args_text(params: Mapping[str, Any]) -> str:
@@ -292,6 +309,7 @@ class Env:
         self._on_event: Optional[Callable[[Dict[str, Any]], None]] = None
         self._emitted = 0
         self._turn_count = 0
+        self._inspectable = any(self._inspect_rule(kind) is not False for kind in contract.types)
         self._check_invariants("build")
 
     # -- public API ----------------------------------------------------------------
@@ -334,6 +352,22 @@ class Env:
         self._flush_events()
         return self.result()
 
+    def entity(self, entity_id: str) -> Optional[Dict[str, Any]]:
+        """A copy of one entity: ``{id, name, type, alive, at, props}``, or None."""
+        found = self.world.entities.get(entity_id)
+        return _entity_dict(found) if found is not None else None
+
+    def entities(self, type_name: Optional[str] = None, alive: bool = True) -> List[Dict[str, Any]]:
+        """Copies of entities, optionally of one type (subtypes included) and only alive ones."""
+        kinds = set(self.contract.subtypes(type_name)) if type_name else None
+        return [_entity_dict(e) for e in self.world.entities.values()
+                if (kinds is None or e.entity_type in kinds) and (e.alive or not alive)]
+
+    @property
+    def props(self) -> Dict[str, Any]:
+        """A copy of the world's global properties."""
+        return dict(self.world.props)
+
     def step(self, participants: Any = None) -> RunResult:
         """Run exactly one round."""
         return self.run(participants, rounds=1)
@@ -341,7 +375,7 @@ class Env:
     def result(self) -> RunResult:
         outputs: Dict[str, Any] = {}
         issues: List[Dict[str, Any]] = []
-        if self.finished and self.status != "failed":
+        if self.status != "failed":  # unfinished runs get provisional outputs
             computed, problems = compute_outputs(self.contract, self.world)
             outputs, issues = computed, [p.to_dict() for p in problems]
         end = self.world.end_request or {}
@@ -354,7 +388,21 @@ class Env:
         )
 
     def preview(self, entity_id: str, stage: Optional[str] = None) -> Dict[str, Any]:
-        """What an agent would receive if woken now: brief, update and tools. Changes nothing."""
+        """What the agent would receive on its next turn: brief, update and tools. Changes nothing.
+
+        Between rounds this plays the start of the next round on a copy (scheduled effects,
+        start events, physics), so the preview shows the turn exactly as the agent will get it.
+        """
+        if self.world.entity(entity_id) is None:
+            raise KeyError(f"no entity '{entity_id}'")
+        if not self.finished and self.world.stage is None:
+            probe = Env.restore(self.contract, self.snapshot(), parallel=1)
+            probe._participants_spec = dict(getattr(self, "_participants_spec", {}))
+            probe._begin_round()
+            return probe._preview_now(entity_id, stage)
+        return self._preview_now(entity_id, stage)
+
+    def _preview_now(self, entity_id: str, stage: Optional[str]) -> Dict[str, Any]:
         actor = self.world.entity(entity_id)
         if actor is None:
             raise KeyError(f"no entity '{entity_id}'")
@@ -366,6 +414,10 @@ class Env:
         if spec is None:
             raise KeyError(f"no stage '{stage}' (stages: {', '.join(s.name for s in stages)})")
         reason = "Everyone chooses at the same time." if spec.turns == "simultaneous" else "It is your turn."
+        if spec.when is not None and not truthy(compile_expr(spec.when)(self.world.scope())):
+            reason = f"(Preview only: stage {spec.name} does not run this round.)"
+        elif actor not in self._eligible(spec):
+            reason = f"(Preview only: {actor.name} would not be woken in {spec.name} now.)"
         turn = _Turn(self, actor, spec, reason, spec.turns == "simultaneous", peek=True)
         tools = turn.tools()
         return {"brief": turn.brief, "update": turn.update, "tools": [t.to_dict() for t in tools],
@@ -374,7 +426,8 @@ class Env:
 
     # -- round -----------------------------------------------------------------------
 
-    def _round(self) -> None:
+    def _begin_round(self) -> bool:
+        """Start the next round: scheduled effects, start events, physics. False if the run ended."""
         world = self.world
         if self.status == "ready":
             self.status = "running"
@@ -385,10 +438,17 @@ class Env:
         self._run_events("start")
         self._check_end()
         if self._ended():
-            return self._finish()
+            self._finish()
+            return False
         with self._lock:
             world.step_physics()
             world.journal.clear()
+        return True
+
+    def _round(self) -> None:
+        world = self.world
+        if not self._begin_round():
+            return
         for stage in self.contract.stage_list():
             if self._stopped():
                 return
@@ -601,6 +661,8 @@ class Env:
                 continue
             turn = _Turn(self, actor, stage, reason, staged=False)
             self._drive(turn)
+            if stage.on_idle and turn.stats.actions == 0 and actor.alive:
+                self._atomic(stage.on_idle, {"actor": actor}, f"stages.{stage.name}.on_idle")
             memory = self._memory(actor.id)
             memory.cursor = self.world.log[-1].seq if self.world.log else 0
             memory.turns += 1
@@ -633,6 +695,8 @@ class Env:
                 if self._ended():
                     return
                 self._commit_intent(turn, name, args)
+            if stage.on_idle and not turn.intents and turn.actor.alive and not self._ended():
+                self._atomic(stage.on_idle, {"actor": turn.actor}, f"stages.{stage.name}.on_idle")
         self._flush_events()
 
     def _commit_intent(self, turn: _Turn, name: str, args: Dict[str, Any]) -> None:
@@ -661,6 +725,7 @@ class Env:
         participant = self._participant(turn.actor)
         world = self.world
         world.use_turn_rng(self.seeds.rng("turn", world.round, turn.number))
+        world.use_turn_pending(turn.pending)
         try:
             participant(Wake(turn))
         except (RunError, ExprError):
@@ -670,6 +735,7 @@ class Env:
                            f"participant:{turn.actor.id}") from exc
         finally:
             world.use_turn_rng(None)
+            world.use_turn_pending(None)
             turn.done = True
             if turn.stats.actions == 0 and not turn.intents:
                 turn.stats.idle_turns += 1
@@ -697,14 +763,25 @@ class Env:
         if cached is not None:
             return cached
         spec = getattr(self, "_participants_spec", {})
-        value = spec.get(actor.id, spec.get(actor.entity_type, spec.get("*")))
+        lineage = list(reversed(self.contract.lineage(actor.entity_type)))  # most specific type first
+        value = spec.get(actor.id)
         if value is None:
-            value = self.contract.types[actor.entity_type].policy or "random"
+            value = next((spec[kind] for kind in lineage if kind in spec), spec.get("*"))
+        if value is None:
+            value = next((self.contract.types[kind].policy for kind in lineage if self.contract.types[kind].policy),
+                         None) or "random"
         participant = resolve_participant(value, self.contract, self.seeds.derive("participant"))
         self._participants[actor.id] = participant
         return participant
 
     # -- checks --------------------------------------------------------------------------------
+
+    def _inspect_rule(self, type_name: str) -> Any:
+        """The inspect rule for a type, inherited through `extends`."""
+        for kind in reversed(self.contract.lineage(type_name)):
+            if "inspect" in self.contract.types[kind].model_fields_set:
+                return self.contract.types[kind].inspect
+        return True
 
     def _check_invariants(self, path: str) -> None:
         scope = self.world.scope()

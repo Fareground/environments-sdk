@@ -28,6 +28,9 @@ class Stats:
     brief_chars: int = 0
     update_chars: int = 0
     tools_offered: int = 0
+    #: Turns whose brief / update was actually read (coded participants often read neither).
+    brief_reads: int = 0
+    update_reads: int = 0
 
     def add(self, other: "Stats") -> None:
         for name in self.__dataclass_fields__:
@@ -36,8 +39,8 @@ class Stats:
     def to_dict(self) -> Dict[str, Any]:
         out: Dict[str, Any] = asdict(self)
         wakes = max(1, self.wakes)
-        out["avg_update_tokens"] = round(self.update_chars / wakes / 4)
-        out["avg_brief_tokens"] = round(self.brief_chars / wakes / 4)
+        out["avg_update_tokens"] = round(self.update_chars / max(1, self.update_reads) / 4)
+        out["avg_brief_tokens"] = round(self.brief_chars / max(1, self.brief_reads) / 4)
         out["avg_tools"] = round(self.tools_offered / wakes, 1)
         out["invalid_rate"] = round(self.invalid_calls / max(1, self.calls), 3)
         return out
@@ -80,7 +83,7 @@ class RunResult:
         lines = [f"{self.status} after {self.rounds} round(s) — {how} (seed {self.seed}{', arm ' + self.arm if self.arm else ''})"]
         if self.error:
             lines.append(f"error: {self.error}")
-        if self.winner is not None:
+        if self.winner is not None and "winner" not in self.outputs:
             lines.append(f"winner: {self.winner}")
         for key, value in self.outputs.items():
             lines.append(f"{key}: {_short(value)}")
