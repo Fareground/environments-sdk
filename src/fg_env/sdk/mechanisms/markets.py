@@ -2,7 +2,7 @@
 
 Importing this module registers every market function, effect op and mechanism kind:
 
-* :mod:`.market_stats` — ``$returns``, ``$realized_vol``, ``$autocorr``, ``$excess_kurtosis``,
+* :mod:`.market_stats` — ``$realized_vol``, ``$excess_kurtosis``,
   ``$vol_clustering``, ``$volume_vol_corr``, ``$market_stats``, ``$market_realism``.
 * :mod:`.order_book` / :mod:`.book_mechanism` / :mod:`.traders` — the ``order_book`` mechanism,
   the ``book`` op, ``$book*`` functions and coded trader strategies.

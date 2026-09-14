@@ -5,7 +5,7 @@ market shows — volatility level, fat tails, no memory in returns, volatility c
 volume that tracks volatility — as in the Fareground Exchange calibration. Every component is a
 0..1 score shown with both values, so the overall number is auditable.
 
-Expression functions: ``$returns``, ``$realized_vol``, ``$autocorr``, ``$excess_kurtosis``,
+Expression functions: ``$realized_vol``, ``$excess_kurtosis``,
 ``$vol_clustering``, ``$volume_vol_corr``, ``$market_stats`` and ``$market_realism``.
 """
 from __future__ import annotations
@@ -193,24 +193,10 @@ def _stats_of(call: Call, value: Any, what: str) -> Dict[str, float]:
                     call.source)
 
 
-@function("returns(prices)", "Log returns between consecutive prices (a list one shorter).", min_args=1, max_args=1)
-def _returns_function(call: Call) -> List[float]:
-    return log_returns(_numbers(call, 0, "prices"))
-
-
 @function("realized_vol(prices)", "Realized volatility: the standard deviation of log returns of a price series.",
           min_args=1, max_args=1)
 def _realized_vol_function(call: Call) -> float:
     return stdev(log_returns(_numbers(call, 0, "prices")))
-
-
-@function("autocorr(values, lag?)", "Autocorrelation of a series at `lag` (default 1); 0 when too short.",
-          min_args=1, max_args=2)
-def _autocorr_function(call: Call) -> float:
-    lag = call.arg(1, 1)
-    if isinstance(lag, bool) or not isinstance(lag, int) or lag < 1:
-        raise ExprError(f"$autocorr: lag must be a whole number ≥ 1, got {lag!r}", call.source)
-    return autocorr(_numbers(call, 0, "values"), lag)
 
 
 @function("excess_kurtosis(values)", "Excess kurtosis of a series (0 for a normal; positive = fat tails).",

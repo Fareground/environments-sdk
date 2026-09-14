@@ -610,3 +610,6 @@ def _flatten(call: Call) -> List[Any]:
             out.append(item)
     charge(len(out), call.source)
     return out
+
+
+from . import stdlib as _stdlib  # noqa: E402,F401  (registers the standard library)
