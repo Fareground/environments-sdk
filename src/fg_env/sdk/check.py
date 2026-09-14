@@ -381,6 +381,10 @@ class _Checker:
         elif op == "after":
             v("after")
             self.effects(effect.get("do", []), f"{path}.do", roots, types, params)
+        elif op == "repeat":
+            v("repeat")
+            self.expr(effect.get("while"), f"{path}.while", roots, types, params)
+            roots |= self.effects(effect.get("do", []), f"{path}.do", roots, types, params)
 
     # -- sections -----------------------------------------------------------------------
 

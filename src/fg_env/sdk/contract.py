@@ -104,17 +104,23 @@ class Clock(_Model):
 
 
 class GridSpace(_Model):
+    """A rows × cols board; positions are [row, col]. Distance is steps (diagonal: king moves)."""
+
     rows: int
     cols: int
     diagonal: bool = False
 
 
 class GraphSpace(_Model):
+    """Named places joined by edges; positions are place names. Distance is the shortest path."""
+
     nodes: List[str]
     edges: List[Any] = Field(default_factory=list, description="[a, b] or {from, to, weight}.")
 
 
 class PlaneSpace(_Model):
+    """A width × height area; positions are [x, y]. Distance is straight-line."""
+
     width: float
     height: float
 
@@ -366,6 +372,8 @@ class EventSpec(_Model):
 
 
 class PolicyRule(_Model):
+    """One rule of a coded policy: when `when` holds (and the `chance` roll passes), call `do` with `with`."""
+
     when: Optional[str] = None
     do: str = Field(..., description="Action name, or 'pass'.")
     with_: Dict[str, Any] = Field(default_factory=dict, alias="with", description="Params as values or expressions.")

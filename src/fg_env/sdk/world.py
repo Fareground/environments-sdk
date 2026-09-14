@@ -32,9 +32,9 @@ def prop_type(spec: PropSpec) -> str:
     value = spec.default
     if isinstance(value, bool):
         return "bool"
-    if isinstance(value, int):
-        return "int"
-    if isinstance(value, float):
+    # A numeric default means "a number": `"cash": 0` must accept 12.5 later.
+    # Whole-number enforcement is opt-in with `"type": "int"`.
+    if isinstance(value, (int, float)):
         return "number"
     if isinstance(value, str) and not is_expr(value):
         return "enum" if spec.values else "text"

@@ -18,8 +18,11 @@ An effect list mixes assignment statements and keyed operations::
     {"end": "bankrupt", "winner": "$top(player, $it.score, 1)", "say": "..."}
     {"after": 3, "do": [...]}
     {"wake": "$params.who", "why": "{$actor.name} asked you a question."}
+    {"repeat": 1000, "while": "$best_bid.price >= $best_ask.price", "do": [...]}
 
 Everything an action does is atomic: ``fail`` (or any error) rolls every change back.
+A ``repeat`` loop that is still running when its limit is reached is an error, so a
+rule that never settles is reported instead of silently truncated.
 """
 from __future__ import annotations
 
@@ -52,7 +55,11 @@ EFFECT_OPS: Dict[str, Tuple[str, ...]] = {
     "end": ("end", "winner", "say"),
     "after": ("after", "do"),
     "wake": ("wake", "why"),
+    "repeat": ("repeat", "while", "do"),
 }
+
+#: Hard ceiling for one ``repeat`` loop, whatever the contract asks for.
+REPEAT_CEILING = 100_000
 
 RESERVED_ROOTS = frozenset({
     "actor", "params", "it", "i", "row", "inputs", "world", "physics", "clock", "round",
@@ -324,6 +331,18 @@ class EffectRunner:
         why = self._text(effect.get("why"), vars) or "You were asked to act."
         for entity_id in _to_ids(self._eval(effect["wake"], vars), where) or ():
             self.world.wake_requests[entity_id] = why
+
+    def _op_repeat(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        limit = self._eval(effect["repeat"], vars)
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= REPEAT_CEILING:
+            raise RunError(f"`repeat` needs a whole-number limit from 1 to {REPEAT_CEILING}, got {limit!r}", where)
+        condition = effect.get("while")
+        for _ in range(limit):
+            if condition is not None and not truthy(self._eval(condition, vars)):
+                return
+            self.run(effect.get("do") or [], vars, f"{where}.do")
+        if condition is not None and truthy(self._eval(condition, vars)):
+            raise RunError(f"`repeat` reached its limit of {limit} while `{condition}` still holds", where)
 
 
 def _plain_value(value: Any) -> Any:

@@ -322,10 +322,14 @@ def cmd_lint(args: argparse.Namespace) -> int:
 
 def main(argv: list = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="python -m fg_env",
-        description="Fareground env kernel CLI",
+        prog="fg-env",
+        description="Fareground Environment SDK — check, run, preview and experiment with environment contracts",
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
+
+    from .sdk.cli import add_commands
+
+    add_commands(sub)
 
     p_compile = sub.add_parser("compile", help="validate, lint, optionally smoke-test a JSON template")
     p_compile.add_argument("file", help="path to template.json")

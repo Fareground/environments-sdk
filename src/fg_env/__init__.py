@@ -212,6 +212,8 @@ __all__ = [
     "check",
     "parse",
     "experiment",
+    "guide",
+    "schema",
     "Env",
     "Contract",
     "RunResult",
@@ -232,6 +234,7 @@ from .sdk.api import check, load, parse, run
 from .sdk.contract import Contract
 from .sdk.errors import ContractError, InputError, InvariantViolation, Issue, RunError, SnapshotError
 from .sdk.experiment import ExperimentResult, experiment
+from .sdk.guide import guide, schema
 from .sdk.measure import RunResult
 from .sdk.runtime import Env
 from .sdk.session import ToolResult, Wake
