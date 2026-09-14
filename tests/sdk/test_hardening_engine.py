@@ -365,3 +365,53 @@ def test_effect_results_past_the_size_limits_are_errors():
     assert "limit" in failure("spawn", n=10 ** 9)
     with pytest.raises(ValueError, match="at most"):
         fg_env.load(TALK, seed=1).run(rounds=10 ** 9)
+
+
+NESTED = {
+    "name": "Nested", "clock": {"rounds": 1},
+    "world": {"grid": {"type": "list", "default": [[0, 0, 0], [0, 0, 0]]},
+              "book": {"type": "map", "default": {"bids": [{"px": 10, "qty": 5}], "tally": {}}}},
+    "types": {"hero": {"agent": True, "props": {"stats": {"type": "map", "default": {"hp": 10, "tags": []}}}}},
+    "entities": {"h": {"type": "hero"}},
+    "actions": {
+        "paint": {"by": "hero", "params": {"r": "int", "c": "int"}, "do": ["$world.grid[$params.r][$params.c] = 7"]},
+        "hurt": {"by": "hero", "do": ["$actor.stats.hp -= 3", "$actor.stats.tags += poisoned"]},
+        "fill": {"by": "hero", "do": ["$world.book.bids[0].qty -= 2", "$world.book.tally.yes += 1",
+                                     "$world.book.tally.yes += 1"]},
+        "paint_then_fail": {"by": "hero", "do": ["$world.grid[0][0] = 9", {"fail": "no"}]},
+    },
+    "stages": [{"name": "s", "turns": "sequential", "max_actions": 5}],
+}
+
+
+def test_nested_writes_update_copies_and_roll_back():
+    env = fg_env.load(NESTED, seed=1)
+    before = env.contract.world["grid"].default
+
+    def play(wake):
+        assert wake.call("paint", {"r": 1, "c": 2}).ok
+        assert wake.call("hurt").ok
+        assert wake.call("fill").ok
+        assert not wake.call("paint_then_fail").ok
+        wake.end()
+
+    result = env.run(play)
+    assert result.status == "completed", result.error
+    assert env.props["grid"] == [[0, 0, 0], [0, 0, 7]]
+    assert before == [[0, 0, 0], [0, 0, 0]]
+    assert env.entity("h")["props"]["stats"] == {"hp": 7, "tags": ["poisoned"]}
+    assert env.props["book"] == {"bids": [{"px": 10, "qty": 3}], "tally": {"yes": 2}}
+
+
+def test_nested_write_errors_are_precise():
+    env = fg_env.load(NESTED, seed=1)
+    texts = []
+
+    def play(wake):
+        texts.append(wake.call("paint", {"r": 5, "c": 0}))
+        wake.end()
+
+    result = env.run(play)
+    assert result.status == "failed" and "index 5 is out of range for a list of 2" in (result.error or "")
+    bad = {**NESTED, "actions": {"x": {"by": "hero", "do": ["$world.grid[0]..y = 1"]}}}
+    assert any("property name" in i.message for i in fg_env.check(bad))

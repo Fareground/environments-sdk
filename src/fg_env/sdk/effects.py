@@ -100,11 +100,12 @@ def split_statement(source: str) -> Optional[Tuple[str, str, str]]:
     return None
 
 
-def statement_parts(source: str) -> Tuple[Optional[str], Optional[str], Optional[str], str, str, Optional[str]]:
-    """``(target, prop, local, op, value, index)`` of an assignment; raises :class:`ExprError` if malformed.
+def statement_parts(source: str) -> Tuple[Optional[str], Tuple[Tuple[str, str], ...], Optional[str], str, str]:
+    """``(base, steps, local, op, value)`` of an assignment; raises :class:`ExprError` if malformed.
 
-    ``index`` is set for element assignment: ``$world.board[$i] = x`` → target ``$world``,
-    prop ``board``, index ``$i``.
+    ``$total = 3`` → local ``total``. ``$world.board[$r][$c] = x`` → base ``$world`` and steps
+    ``(("field", "board"), ("index", "$r"), ("index", "$c"))``. ``$entity(x).bag.apples += 1`` →
+    base ``$entity(x)`` and two field steps.
     """
     parts = split_statement(source)
     if parts is None or not parts[0].startswith("$") or not parts[2]:
@@ -114,61 +115,85 @@ def statement_parts(source: str) -> Tuple[Optional[str], Optional[str], Optional
         )
     left, op, right = parts
     if _NAME.match(left[1:]):
-        return None, None, left[1:], op, right, None
-    index: Optional[str] = None
-    if left.endswith("]"):
-        depth, opening = 0, None
-        for i in range(len(left) - 1, -1, -1):
-            if left[i] == "]":
-                depth += 1
-            elif left[i] == "[":
-                depth -= 1
-                if depth == 0:
-                    opening = i
-                    break
-        if opening is None or not left[opening + 1:-1].strip():
-            raise ExprError("an element assignment looks like `$world.board[$i] = x`", source)
-        index = left[opening + 1:-1].strip()
-        left = left[:opening]
-    depth, quote, dot = 0, None, None
-    for i, ch in enumerate(left):
+        return None, (), left[1:], op, right
+    base, steps = _target_steps(left, source)
+    if not steps or steps[0][0] != "field":
+        raise ExprError("the left side must name a property, like `$actor.cash`, `$entity(x).cash` or "
+                        "`$world.board[$i][$j]`", source)
+    return base, steps, None, op, right
+
+
+def _target_steps(left: str, source: str) -> Tuple[str, Tuple[Tuple[str, str], ...]]:
+    match = re.match(r"\$[A-Za-z_][A-Za-z0-9_]*", left)
+    if match is None:
+        raise ExprError("the left side must start with a root like `$actor` or `$world`", source)
+    i = match.end()
+    if i < len(left) and left[i] == "(":
+        i = _closing(left, i, "(", ")", source) + 1
+    base = left[:i]
+    steps: List[Tuple[str, str]] = []
+    while i < len(left):
+        ch = left[i]
+        if ch == ".":
+            field = re.match(r"[A-Za-z_][A-Za-z0-9_]*", left[i + 1:])
+            if field is None:
+                raise ExprError("a `.` must be followed by a property name", source)
+            steps.append(("field", field.group(0)))
+            i += 1 + field.end()
+        elif ch == "[":
+            close = _closing(left, i, "[", "]", source)
+            index = left[i + 1:close].strip()
+            if not index:
+                raise ExprError("an element assignment looks like `$world.board[$i] = x`", source)
+            steps.append(("index", index))
+            i = close + 1
+        elif ch.isspace():
+            i += 1
+        else:
+            raise ExprError(f"unexpected `{ch}` on the left side of the assignment", source)
+    return base, tuple(steps)
+
+
+def _closing(text: str, start: int, opening: str, closing: str, source: str) -> int:
+    depth, quote = 0, None
+    for i in range(start, len(text)):
+        ch = text[i]
         if quote:
             if ch == quote:
                 quote = None
         elif ch in "\"'":
             quote = ch
-        elif ch in "([{":
+        elif ch == opening:
             depth += 1
-        elif ch in ")]}":
+        elif ch == closing:
             depth -= 1
-        elif ch == "." and depth == 0:
-            dot = i
-    if dot is None or not _NAME.match(left[dot + 1:]):
-        raise ExprError("the left side must end in a property, like `$actor.cash`, `$entity(x).cash` or `$world.board[$i]`", source)
-    return left[:dot], left[dot + 1:], None, op, right, index
+            if depth == 0:
+                return i
+    raise ExprError(f"`{opening}` is never closed on the left side of the assignment", source)
 
 
 @dataclass(frozen=True)
 class Statement:
     source: str
-    target: Optional[Expr]
-    prop: Optional[str]
+    base: Optional[Expr]
+    #: ``("field", name)`` or ``("index", compiled expression)`` steps after the base.
+    steps: Tuple[Tuple[str, Any], ...]
     local: Optional[str]
     op: str
     value: Expr
-    index: Optional[Expr] = None
 
 
 @lru_cache(maxsize=8_192)
 def compile_statement(source: str) -> Statement:
-    target, prop, local, op, right, index = statement_parts(source)
+    base, steps, local, op, right = statement_parts(source)
     value = compile_expr(right)
     if local is not None:
         if local in RESERVED_ROOTS:
             raise ExprError(f"${local} cannot be reassigned; assign to one of its fields instead", source)
-        return Statement(source, compile_expr(f"${local}") if op != "=" else None, None, local, op, value)
-    assert target is not None
-    return Statement(source, compile_expr(target), prop, None, op, value, compile_expr(index) if index else None)
+        return Statement(source, None, (), local, op, value)
+    assert base is not None
+    compiled = tuple((kind, compile_expr(text) if kind == "index" else text) for kind, text in steps)
+    return Statement(source, compile_expr(base), compiled, None, op, value)
 
 
 def _to_ids(value: Any, where: str) -> Optional[Tuple[str, ...]]:
@@ -243,38 +268,81 @@ class EffectRunner:
                 value = self._combine(stmt.op, scope.root(stmt.local, source), value, source)
             vars[stmt.local] = value
             return
-        assert stmt.target is not None and stmt.prop is not None
-        owner = stmt.target(scope)
-        if stmt.index is not None:
-            container = attr(owner, stmt.prop, source)
-            key = stmt.index(scope)
-            if isinstance(container, list):
-                if isinstance(key, bool) or not isinstance(key, int) or not -len(container) <= key < len(container):
-                    raise ExprError(f"index {key!r} is out of range for a list of {len(container)}", source)
-                updated: Any = list(container)
-            elif isinstance(container, dict):
-                key = str(key)
-                updated = dict(container)
-            else:
-                raise ExprError(f"`{stmt.prop}` is not a list or map, so it has no elements to assign", source)
-            if stmt.op != "=":
-                if isinstance(updated, list) or key in updated:
-                    current = updated[key]
-                else:  # a new map key counts from nothing: tallies, running totals
-                    current = [] if isinstance(value, list) else 0
-                value = self._combine(stmt.op, current, value, source)
-            updated[key] = value
-            value = updated
+        assert stmt.base is not None
+        owner, prop, rest = self._owner(stmt, scope, source, where)
+        if rest:
+            value = self._set_in(attr(owner, prop, source), rest, stmt.op, value, source, prop)
         elif stmt.op != "=":
-            value = self._combine(stmt.op, attr(owner, stmt.prop, source), value, source)
+            value = self._combine(stmt.op, attr(owner, prop, source), value, source)
         if isinstance(owner, Entity):
-            self.world.set_prop(owner, stmt.prop, value)
+            self.world.set_prop(owner, prop, value)
         elif isinstance(owner, _Props):
-            self.world.set_world(stmt.prop, value)
-        elif isinstance(owner, _Physics):
-            self.world.set_physics(stmt.prop, value)
+            self.world.set_world(prop, value)
         else:
+            self.world.set_physics(prop, value)
+
+    def _owner(self, stmt: Statement, scope: Any, source: str, where: str) -> Tuple[Any, str, List[Tuple[str, Any]]]:
+        """The deepest entity / $world / $physics on the target path, the property written on it, and
+        the element path (resolved keys) inside that property's value."""
+        current = stmt.base(scope)  # type: ignore[misc]
+        found: Optional[Tuple[Any, int]] = None
+        for position, (kind, step) in enumerate(stmt.steps):
+            if kind == "field" and isinstance(current, (Entity, _Props, _Physics)):
+                found = (current, position)
+            if position == len(stmt.steps) - 1:
+                break
+            current = attr(current, step, source) if kind == "field" else self._element(current, step(scope), source)
+        if found is None:
             raise RunError(f"can only assign to an entity's property, $world.x or $physics.x (`{source}`)", where)
+        owner, position = found
+        prop = stmt.steps[position][1]
+        rest = [(kind, step(scope) if kind == "index" else step) for kind, step in stmt.steps[position + 1:]]
+        return owner, prop, rest
+
+    @staticmethod
+    def _element(container: Any, key: Any, source: str) -> Any:
+        if isinstance(container, list):
+            if isinstance(key, bool) or not isinstance(key, int) or not -len(container) <= key < len(container):
+                raise ExprError(f"index {key!r} is out of range for a list of {len(container)}", source)
+            return container[key]
+        if isinstance(container, dict):
+            name = str(key)
+            if name not in container:
+                raise ExprError(f"no key {name!r} (keys: {', '.join(map(str, list(container)[:12]))})", source)
+            return container[name]
+        return attr(container, str(key), source)
+
+    def _set_in(self, container: Any, path: List[Tuple[str, Any]], op: str, value: Any, source: str,
+                label: str) -> Any:
+        """A copy of ``container`` with the element at ``path`` assigned (or combined with ``op``)."""
+        kind, key = path[0]
+        last = len(path) == 1
+        if isinstance(container, list):
+            if kind == "field" or isinstance(key, bool) or not isinstance(key, int) \
+                    or not -len(container) <= key < len(container):
+                shown = key if kind == "index" else f".{key}"
+                raise ExprError(f"`{label}` is a list of {len(container)}; {shown!r} is not a valid index", source)
+            updated: Any = list(container)
+        elif isinstance(container, dict):
+            key = str(key)
+            updated = dict(container)
+        elif container is None and not last:
+            raise ExprError(f"`{label}` has no value to assign into", source)
+        else:
+            raise ExprError(f"`{label}` is not a list or map, so it has no elements to assign", source)
+        exists = isinstance(updated, list) or key in updated
+        if last:
+            if op != "=":
+                current = updated[key] if exists else ([] if isinstance(value, list) else 0)
+                value = self._combine(op, current, value, source)
+            updated[key] = value
+        else:
+            if not exists:
+                if op != "=" and not isinstance(updated, dict):
+                    raise ExprError(f"no element {key!r} in `{label}`", source)
+                updated[key] = {}
+            updated[key] = self._set_in(updated[key], path[1:], op, value, source, f"{label}[{key!r}]")
+        return check_size(updated, source)
 
     @staticmethod
     def _combine(op: str, current: Any, value: Any, source: str) -> Any:

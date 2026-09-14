@@ -361,25 +361,31 @@ class _Checker:
     def _statement(self, source: str, path: str, roots: Set[str], types: Types,
                    params: Optional[Mapping[str, C.ParamSpec]]) -> None:
         try:
-            target, prop, local, _, right, index = statement_parts(source)
+            base, steps, local, _, right = statement_parts(source)
         except ExprError as exc:
-            self.error(path, exc.detail, "write `$actor.cash -= 5`, `$world.open = true` or `$total = 3`")
+            self.error(path, exc.detail, "write `$actor.cash -= 5`, `$world.board[$i][$j] = x` or `$total = 3`")
             return
         self.expr(right, path, roots, types, params)
-        if index is not None:
-            self.expr(index, path, roots, types, params)
+        for kind, step in steps:
+            if kind == "index":
+                self.expr(step, path, roots, types, params)
         if local is not None:
             if local in RESERVED_ROOTS:
                 self.error(path, f"${local} cannot be reassigned", "assign to one of its fields")
             roots.add(local)
             return
-        assert target is not None and prop is not None
-        simple = re.fullmatch(r"\$([A-Za-z_][A-Za-z0-9_]*)((?:\.[A-Za-z_][A-Za-z0-9_]*)*)", target)
+        assert base is not None
+        simple = re.fullmatch(r"\$([A-Za-z_][A-Za-z0-9_]*)", base)
         if simple is None:
-            self.expr(target, path, roots, types, params)
+            self.expr(base, path, roots, types, params)
             return
         root = simple.group(1)
-        fields = tuple(f for f in simple.group(2).split(".") if f) + (prop,)
+        leading: List[str] = []  # the property path up to the first element index
+        for kind, step in steps:
+            if kind != "field":
+                break
+            leading.append(step)
+        fields = tuple(leading)
         if root not in roots:
             self.error(path, f"${root} is not available here", f"available: {', '.join('$' + r for r in sorted(roots))}")
             return
