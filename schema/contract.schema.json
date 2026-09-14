@@ -1377,7 +1377,7 @@
     },
     "PropSpec": {
       "additionalProperties": false,
-      "description": "One property. Shorthand: a bare value is the default (``\"cash\": 100``).",
+      "description": "One property. Shorthand: a bare value is the default (``\"cash\": 100``).\n\nIn a type that ``extends`` another, a property the parent declares is overridden field by\nfield: only the fields written here change (a bare value changes only the default), so the\nparent's ``private``, ``type``, ``min``, ``max`` and ``values`` still apply.",
       "properties": {
         "type": {
           "anyOf": [

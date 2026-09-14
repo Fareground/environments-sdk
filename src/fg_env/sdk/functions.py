@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import math
-from typing import Any, List
+from typing import Any, Dict, Iterable, List, Tuple
 
-from .expr import Call, ExprError, _describe, _entity_id, _number, attr, function, truthy
+from .expr import (
+    MAX_LIST_LEN, MAX_RANGE, Call, ExprError, Untrusted, _describe, _entity_id, _held, _number, attr, charge,
+    check_size, derived, function, truthy,
+)
 
 # ---------------------------------------------------------------------------
 # Collections — first argument is an entity type name or a list
@@ -134,16 +137,36 @@ def _stdev(call: Call) -> Any:
     return math.sqrt(sum((v - mean) ** 2 for v in values) / (len(values) - 1))
 
 
+def _keyed(pairs: Iterable[Tuple[Any, Any]], combine: Any = None) -> dict:
+    """A map from (key, value) pairs in first-seen key order. Equal keys merge (``combine(old, new)``,
+    default: the later value wins); a key that was ever participant text stays marked untrusted."""
+    index: Dict[Any, int] = {}
+    keys: List[Any] = []
+    values: List[Any] = []
+    for key, value in pairs:
+        at = index.get(key)
+        if at is None:
+            index[key] = len(keys)
+            keys.append(key)
+            values.append(value)
+            continue
+        if isinstance(key, Untrusted):
+            keys[at] = key
+        values[at] = combine(values[at], value) if combine else value
+    return dict(zip(keys, values))
+
+
 @function("dict(items, key, value)", "A {key: value} map with one entry per item (later items win).",
           min_args=3, max_args=3, lazy=[1, 2])
 def _dict(call: Call) -> dict:
-    out: dict = {}
-    for i, item in enumerate(call.collection(0)):
-        key = _entity_id(call.each(1, item, i))
-        if not isinstance(key, (str, int, float)) or isinstance(key, bool):
-            raise ExprError(f"$dict keys must be text or numbers, got {_describe(key)}", call.source)
-        out[str(key)] = call.each(2, item, i)
-    return out
+    def pairs() -> Iterable[Tuple[Any, Any]]:
+        for i, item in enumerate(call.collection(0)):
+            key = _entity_id(call.each(1, item, i))
+            if not isinstance(key, (str, int, float)) or isinstance(key, bool):
+                raise ExprError(f"$dict keys must be text or numbers, got {_describe(key)}", call.source)
+            yield (key if isinstance(key, str) else str(key)), call.each(2, item, i)
+
+    return _keyed(pairs())
 
 
 @function("keys(map)", "The keys of a map.", min_args=1, max_args=1)
@@ -151,7 +174,7 @@ def _keys(call: Call) -> List[Any]:
     value = call.arg(0)
     if not isinstance(value, dict):
         raise ExprError(f"$keys needs a map, got {_describe(value)}", call.source)
-    return list(value)
+    return check_size(list(value), call.source)
 
 
 @function("values(map)", "The values of a map.", min_args=1, max_args=1)
@@ -159,7 +182,7 @@ def _map_values(call: Call) -> List[Any]:
     value = call.arg(0)
     if not isinstance(value, dict):
         raise ExprError(f"$values needs a map, got {_describe(value)}", call.source)
-    return list(value.values())
+    return check_size(list(value.values()), call.source)
 
 
 @function("top(items, by, n?, where?)", "Items sorted by `by` (a value or a list of values), highest first; the first `n` when given.",
@@ -232,26 +255,25 @@ def _last(call: Call) -> Any:
 
 @function("unique(list)", "The list with duplicates removed, order kept.", min_args=1, max_args=1)
 def _unique(call: Call) -> List[Any]:
-    seen: set = set()
-    out = []
+    seen: Dict[Any, int] = {}
+    out: List[Any] = []
     for item in call.collection(0):
         key = _entity_id(item)
         if isinstance(key, (list, dict)):
             key = repr(key)
-        if key not in seen:
-            seen.add(key)
+        at = seen.get(key)
+        if at is None:
+            seen[key] = len(out)
             out.append(item)
+        elif isinstance(item, Untrusted) and not isinstance(out[at], Untrusted):
+            out[at] = item  # equal text: keep the participant-text marker
     return out
 
 
 @function("tally(list)", "Counts of each distinct value, as a {value: count} map (order of first appearance).",
           min_args=1, max_args=1)
 def _tally(call: Call) -> dict:
-    out: dict = {}
-    for item in call.collection(0):
-        key = _entity_id(item)
-        out[key] = out.get(key, 0) + 1
-    return out
+    return _keyed(((_entity_id(item), 1) for item in call.collection(0)), lambda old, new: old + new)
 
 
 @function("mode(list)", "The most frequent value (first seen wins ties), or null for an empty list.",
@@ -305,7 +327,9 @@ def _exists(call: Call) -> bool:
 def _records(call: Call) -> List[Any]:
     # Visibility follows whoever is looking ($viewer, else $actor); metrics and outputs see all.
     viewer = call.scope.vars.get("viewer") or call.scope.vars.get("actor")
-    rows = call.scope.world.visible_records(str(call.arg(0)), viewer)
+    name = str(call.arg(0))
+    rows = _held(lambda: call.scope.world.visible_records(name, viewer))  # evaluates `visible` per entry
+    charge(len(rows), call.source)
     if len(call) < 2:
         return list(rows)
     return [row for i, row in enumerate(rows) if truthy(call.each(1, row, i))]
@@ -316,6 +340,7 @@ def _records(call: Call) -> List[Any]:
 def _events(call: Call) -> List[Any]:
     kind = call.arg(0) if len(call) else None
     rows = call.scope.world.events(kind)
+    charge(len(rows), call.source)
     if len(call) < 2:
         return list(rows)
     return [row for i, row in enumerate(rows) if truthy(call.each(1, row, i))]
@@ -335,7 +360,7 @@ def _linked(call: Call) -> bool:
 @function("neighbors(entity, kind)", "Entities linked to `entity` by `kind` (either direction).",
           min_args=2, max_args=2)
 def _neighbors(call: Call) -> List[Any]:
-    return list(call.scope.world.neighbors(call.arg(0), str(call.arg(1))))
+    return check_size(list(call.scope.world.neighbors(call.arg(0), str(call.arg(1)))), call.source)
 
 
 @function("distance(a, b)", "Distance between two entities or places in the declared space.",
@@ -492,7 +517,8 @@ def _text(call: Call) -> str:
 
 @function("lower(text)", "Lower-case text.", min_args=1, max_args=1)
 def _lower(call: Call) -> str:
-    return str(call.arg(0)).lower()
+    value = call.arg(0)
+    return derived(str(value).lower(), value)
 
 
 @function("contains(text, part)", "True when `part` occurs in `text` (case-insensitive).",
@@ -506,7 +532,9 @@ def _contains(call: Call) -> bool:
 def _join(call: Call) -> str:
     from .template import format_value
 
-    return str(call.arg(1, ", ")).join(format_value(item) for item in call.collection(0))
+    separator = call.arg(1, ", ")
+    text = str(separator).join(format_value(item) for item in call.collection(0))
+    return derived(check_size(text, call.source), separator)
 
 
 # ---------------------------------------------------------------------------
@@ -543,8 +571,9 @@ def _slice(call: Call) -> List[Any]:
 @function("range(n) | range(start, end)", "Whole numbers 0..n-1, or start..end-1.", min_args=1, max_args=2)
 def _range(call: Call) -> List[int]:
     start, end = (0, int(call.number(0))) if len(call) == 1 else (int(call.number(0)), int(call.number(1)))
-    if end - start > 100_000:
-        raise ExprError("$range is limited to 100,000 numbers", call.source)
+    if end - start > MAX_RANGE:
+        raise ExprError(f"$range is limited to {MAX_RANGE:,} numbers", call.source)
+    charge(max(0, end - start), call.source)
     return list(range(start, end))
 
 
@@ -556,7 +585,7 @@ def _fmt(call: Call) -> str:
     name = str(call.arg(1))
     if name not in _FORMATS:
         raise ExprError(f"$fmt: unknown format '{name}' (formats: {', '.join(FORMATS)})", call.source)
-    return _FORMATS[name](call.arg(0))
+    return check_size(_FORMATS[name](call.arg(0)), call.source)
 
 
 @function("is(entity, type)", "True when the entity is of `type` or a type that extends it.", min_args=2, max_args=2)
@@ -574,7 +603,10 @@ def _flatten(call: Call) -> List[Any]:
     out: List[Any] = []
     for item in call.collection(0):
         if isinstance(item, (list, tuple)):
+            if len(out) + len(item) > MAX_LIST_LEN:
+                raise ExprError(f"$flatten would build more than {MAX_LIST_LEN:,} items", call.source)
             out.extend(item)
         else:
             out.append(item)
+    charge(len(out), call.source)
     return out

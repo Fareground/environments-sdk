@@ -30,12 +30,24 @@ import ast
 import math
 import operator
 import re
+import threading
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from functools import lru_cache
-from typing import Any, Callable, Dict, FrozenSet, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, FrozenSet, Iterator, List, Mapping, Optional, Sequence, Tuple
 
 __all__ = [
+    "EVAL_BUDGET",
+    "MAX_INT_BITS",
+    "MAX_LIST_LEN",
+    "MAX_RANGE",
+    "MAX_TEXT_LEN",
     "Untrusted",
+    "tainted",
+    "derived",
+    "charge",
+    "check_size",
+    "shared_budget",
     "ExprError",
     "Expr",
     "Scope",
@@ -57,12 +69,49 @@ _EXPR_MARK = re.compile(r"\$[A-Za-z_]")
 _ROOT_PREFIX = "__r_"
 _FUNC_PREFIX = "__f_"
 
+#: Work one top-level evaluation may do: items visited by per-item arguments, collection
+#: elements read or built, nested evaluations. Guards against runaway nesting like
+#: ``$map($range(100000), $map($range(100000), ...))``.
+EVAL_BUDGET = 2_000_000
+#: Longest list ``$range`` may produce.
+MAX_RANGE = 100_000
+#: Longest list any operation may build.
+MAX_LIST_LEN = 1_000_000
+#: Longest text any operation may build.
+MAX_TEXT_LEN = 1_000_000
+#: Largest whole number (in bits) ``*`` and ``**`` may produce.
+MAX_INT_BITS = 4_096
+
 
 class Untrusted(str):
     """Text written by a participant. It keeps that provenance wherever it is stored and
-    renders wrapped in «» so other agents read it as information, never instructions."""
+    renders wrapped in «» so other agents read it as information, never instructions.
+
+    ``str(value)`` keeps the marker, so code that normalises keys or values with ``str()``
+    cannot silently launder participant text; ``str.__str__(value)`` gives the plain text."""
 
     __slots__ = ()
+
+    def __str__(self) -> str:
+        return self
+
+
+def tainted(value: Any) -> bool:
+    """True when ``value`` is, or contains (in list items, map keys or values), participant text."""
+    if isinstance(value, Untrusted):
+        return True
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return False
+    if isinstance(value, (list, tuple)):
+        return any(tainted(item) for item in value)
+    if isinstance(value, Mapping):
+        return any(tainted(key) or tainted(item) for key, item in value.items())
+    return False
+
+
+def derived(text: str, *sources: Any) -> str:
+    """``text`` marked untrusted when any of the values it was derived from carries participant text."""
+    return Untrusted(text) if any(tainted(source) for source in sources) else text
 
 
 class ExprError(ValueError):
@@ -72,6 +121,80 @@ class ExprError(ValueError):
         self.source = source
         self.detail = message
         super().__init__(f"{message} — in `{source}`" if source else message)
+
+
+# ---------------------------------------------------------------------------
+# Execution budget
+# ---------------------------------------------------------------------------
+
+
+class _Budget(threading.local):
+    """Per-thread work counter. Turns run on worker threads, so each keeps its own.
+
+    ``hold`` counts open nesting points — a def call, a record-visibility rule, a shared
+    block: while it is non-zero an evaluation is nested inside other work and charges that
+    work's budget; at zero an evaluation is top-level and starts a fresh budget. Only those
+    points run evaluations inside evaluations, so plain rules pay one read and one write."""
+
+    hold = 0
+    used = 0
+    limit = EVAL_BUDGET
+    label = ""
+    shared = False
+
+
+_BUDGET = _Budget()
+
+
+def charge(amount: int, source: Optional[str] = None) -> None:
+    """Count ``amount`` units of work against the running evaluation's budget."""
+    budget = _BUDGET
+    budget.used += amount
+    if budget.used > budget.limit:
+        who = f"{budget.label} exceeded its shared" if budget.shared and budget.label else "evaluation exceeded its"
+        raise ExprError(
+            f"{who} work budget of {budget.limit:,} steps (items visited and elements built); "
+            "narrow what it loops over or split the work across rounds", source)
+
+
+def check_size(value: Any, source: Optional[str]) -> Any:
+    """Refuse lists and text longer than :data:`MAX_LIST_LEN` / :data:`MAX_TEXT_LEN`."""
+    if isinstance(value, str):
+        if len(value) > MAX_TEXT_LEN:
+            raise ExprError(f"text would be {len(value):,} characters; the limit is {MAX_TEXT_LEN:,}", source)
+    elif isinstance(value, (list, tuple)):
+        if len(value) > MAX_LIST_LEN:
+            raise ExprError(f"a list would have {len(value):,} items; the limit is {MAX_LIST_LEN:,}", source)
+        charge(len(value), source)
+    return value
+
+
+@contextmanager
+def shared_budget(limit: int = EVAL_BUDGET, label: str = "") -> Iterator[None]:
+    """Make every evaluation inside the block share one budget of ``limit`` steps.
+
+    Code that loops over expressions outside the language (an action's effects, a view's
+    items) wraps the loop so the loop as a whole is bounded, not only each evaluation.
+    Nested blocks keep the outermost budget."""
+    budget = _BUDGET
+    if budget.hold:
+        yield
+        return
+    budget.hold, budget.shared, budget.used, budget.limit, budget.label = 1, True, 0, limit, label
+    try:
+        yield
+    finally:
+        budget.hold, budget.shared, budget.used, budget.limit, budget.label = 0, False, 0, EVAL_BUDGET, ""
+
+
+def _held(run: Callable[[], Any]) -> Any:
+    """Run a function call's work as nested work (its evaluations charge the caller's budget)."""
+    budget = _BUDGET
+    budget.hold += 1
+    try:
+        return run()
+    finally:
+        budget.hold -= 1
 
 
 def is_expr(value: Any) -> bool:
@@ -187,7 +310,7 @@ class Scope:
             return self.vars[name]
         except KeyError:
             if self.world.has_def(name):  # a def without arguments reads like a value: $negotiating
-                return self.world.call_def(name, [], source)
+                return _held(lambda: self.world.call_def(name, [], source))
             available = ", ".join(f"${k}" for k in sorted(self.vars)) or "none"
             raise ExprError(f"${name} is not available here (available: {available})", source) from None
 
@@ -284,6 +407,7 @@ def _in(item: Any, container: Any, source: str) -> bool:
     if isinstance(container, Mapping):
         return item in container
     if isinstance(container, (list, tuple, set, frozenset)):
+        charge(len(container), source)
         key = _entity_id(item)
         return any(_entity_id(x) == key for x in container)
     raise ExprError(f"'in' needs a list or text on the right, got {_describe(container)}", source)
@@ -291,11 +415,30 @@ def _in(item: Any, container: Any, source: str) -> bool:
 
 def _add(a: Any, b: Any, source: str) -> Any:
     if isinstance(a, str) and isinstance(b, str):
+        if len(a) + len(b) > MAX_TEXT_LEN:
+            raise ExprError(f"text would be {len(a) + len(b):,} characters; the limit is {MAX_TEXT_LEN:,}", source)
         joined = str.__add__(a, b)
         return Untrusted(joined) if isinstance(a, Untrusted) or isinstance(b, Untrusted) else joined
     if isinstance(a, list) and isinstance(b, list):
+        if len(a) + len(b) > MAX_LIST_LEN:
+            raise ExprError(f"a list would have {len(a) + len(b):,} items; the limit is {MAX_LIST_LEN:,}", source)
+        charge(len(a) + len(b), source)
         return a + b
     return _finite(_number(a, source) + _number(b, source), source)
+
+
+def _too_big(bits: int, source: str) -> ExprError:
+    return ExprError(f"a whole number of about {bits:,} bits is past the limit of {MAX_INT_BITS:,} bits", source)
+
+
+def _mul(a: Any, b: Any, source: str) -> Any:
+    a, b = _number(a, source), _number(b, source)
+    if type(a) is float or type(b) is float:
+        return _finite(a * b, source)
+    bits = a.bit_length() + b.bit_length()
+    if bits > MAX_INT_BITS + 1:
+        raise _too_big(bits, source)
+    return a * b
 
 
 def _div(op: Callable[[Any, Any], Any]) -> Callable[[Any, Any, str], Any]:
@@ -312,6 +455,10 @@ def _pow(a: Any, b: Any, source: str) -> Any:
     a, b = _number(a, source), _number(b, source)
     if abs(b) > 1024:
         raise ExprError("exponent too large", source)
+    if isinstance(a, int) and isinstance(b, int) and b > 1 and abs(a) > 1:
+        bits = (abs(a).bit_length() - 1) * b
+        if bits > MAX_INT_BITS:
+            raise _too_big(bits, source)
     try:
         return _finite(a ** b, source)
     except (OverflowError, ZeroDivisionError) as exc:
@@ -325,7 +472,7 @@ def _arith(op: Callable[[Any, Any], Any]) -> Callable[[Any, Any, str], Any]:
 _BINARY: Dict[type, Callable[[Any, Any, str], Any]] = {
     ast.Add: _add,
     ast.Sub: _arith(operator.sub),
-    ast.Mult: _arith(operator.mul),
+    ast.Mult: _mul,
     ast.Div: _div(operator.truediv),
     ast.FloorDiv: _div(operator.floordiv),
     ast.Mod: _div(operator.mod),
@@ -386,6 +533,7 @@ class Call:
 
     def each(self, index: int, item: Any, position: int = 0) -> Any:
         """Evaluate argument ``index`` with ``$it`` bound to ``item`` (the enclosing ``$it`` is ``$outer``)."""
+        # Not charged: per-item arguments run over a collection whose length was charged.
         return self.nodes[index](self.scope.child(it=item, i=position, outer=self.scope.vars.get("it")))
 
     def collection(self, index: int = 0) -> List[Any]:
@@ -396,16 +544,22 @@ class Call:
                     f"${self.name}: '{value}' is not an entity type (pass a type name or a list)",
                     self.source,
                 )
-            return list(self.scope.world.entities_of(value))
-        if value is None:
+            items = list(self.scope.world.entities_of(value))
+        elif value is None:
             return []
-        if isinstance(value, Mapping):
-            return list(value.values())
-        if isinstance(value, (list, tuple)):
-            return list(value)
-        if hasattr(value, "entity_type"):
+        elif isinstance(value, Mapping):
+            items = list(value.values())
+        elif isinstance(value, (list, tuple)):
+            items = list(value)
+        elif hasattr(value, "entity_type"):
             return [value]
-        raise ExprError(f"${self.name}: expected an entity type or a list, got {_describe(value)}", self.source)
+        else:
+            raise ExprError(f"${self.name}: expected an entity type or a list, got {_describe(value)}", self.source)
+        budget = _BUDGET  # inlined charge(len(items)): every collection function passes here
+        budget.used += len(items)
+        if budget.used > budget.limit:
+            charge(0, self.source)
+        return items
 
     def filtered(self, index: int = 0, where: Optional[int] = None) -> List[Any]:
         items = self.collection(index)
@@ -555,6 +709,13 @@ class Expr:
     arity_errors: FrozenSet[Tuple[str, str]] = frozenset()
 
     def __call__(self, scope: Scope) -> Any:
+        budget = _BUDGET
+        if budget.hold:  # nested inside other work (a def, a record rule, a shared block): charge it
+            budget.used += 1
+            if budget.used > budget.limit:
+                charge(0, self.source)
+        else:  # a top-level evaluation starts a fresh budget
+            budget.used = 0
         try:
             return self.run(scope)
         except ExprError:
@@ -562,7 +723,7 @@ class Expr:
         except RecursionError:
             raise ExprError("evaluation nested too deeply", self.source) from None
         except (ArithmeticError, IndexError, KeyError, TypeError, ValueError, AttributeError) as exc:
-            raise ExprError(f"could not evaluate: {type(exc).__name__}: {exc}", self.source) from None
+            raise ExprError(f"could not evaluate: {type(exc).__name__}: {str(exc)[:200]}", self.source) from None
 
 
 @lru_cache(maxsize=16_384)
@@ -577,8 +738,10 @@ def compile_expr(source: str) -> Expr:
         tree = ast.parse(_preprocess(source), mode="eval")
     except SyntaxError as exc:
         raise ExprError(f"syntax error: {exc.msg}", source) from None
-    except RecursionError:
+    except (RecursionError, MemoryError):
         raise ExprError("expression is nested too deeply", source) from None
+    except ValueError as exc:  # e.g. a NUL character
+        raise ExprError(f"syntax error: {exc}", source) from None
     nodes = list(ast.walk(tree))
     if len(nodes) > _MAX_NODES:
         raise ExprError("expression is too large", source)
@@ -592,7 +755,10 @@ def compile_expr(source: str) -> Expr:
         if isinstance(node, ast.Attribute) and node.attr.startswith("_"):
             raise ExprError(f"private field '{node.attr}' cannot be read", source)
     compiler = _Compiler(source)
-    run = compiler.node(tree.body)
+    try:
+        run = compiler.node(tree.body)
+    except RecursionError:
+        raise ExprError("expression is nested too deeply", source) from None
     return Expr(source, run, frozenset(compiler.roots), frozenset(compiler.functions),
                 frozenset(compiler.symbols), frozenset(compiler.paths), frozenset(compiler.calls),
                 frozenset(compiler.item_paths), frozenset(compiler.comparisons),
@@ -770,7 +936,17 @@ class _Compiler:
             self.functions.add(name)
             self.calls.add((name, None))
             user_args = [self.node(arg) for arg in node.args]
-            return lambda scope: scope.world.call_def(name, [a(scope) for a in user_args], source)
+
+            def run_def(scope: Scope) -> Any:
+                values = [a(scope) for a in user_args]  # arguments belong to the caller's evaluation
+                budget = _BUDGET  # the def body is nested work: it charges the caller's budget
+                budget.hold += 1
+                try:
+                    return scope.world.call_def(name, values, source)
+                finally:
+                    budget.hold -= 1
+
+            return run_def
         count = len(node.args)
         if count < spec.min_args or (spec.max_args is not None and count > spec.max_args):
             # Only valid if the contract defines its own `name` (checked at run time and by the checker).
