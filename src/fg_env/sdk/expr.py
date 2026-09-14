@@ -139,6 +139,32 @@ class World:
 _EMPTY_WORLD = World()
 
 
+class _Layer(Mapping):
+    """Roots of a child scope: a few new names over the parent's roots, without copying them."""
+
+    __slots__ = ("own", "parent")
+
+    def __init__(self, own: Dict[str, Any], parent: Mapping[str, Any]):
+        self.own = own
+        self.parent = parent
+
+    def __getitem__(self, name: str) -> Any:
+        if name in self.own:
+            return self.own[name]
+        return self.parent[name]
+
+    def __contains__(self, name: object) -> bool:
+        return name in self.own or name in self.parent
+
+    def __iter__(self) -> Any:
+        seen = set(self.own)
+        yield from self.own
+        yield from (name for name in self.parent if name not in seen)
+
+    def __len__(self) -> int:
+        return len(set(self.own) | set(self.parent))
+
+
 @dataclass(frozen=True)
 class Scope:
     """Values visible to an expression: named roots plus the world to query."""
@@ -147,9 +173,7 @@ class Scope:
     world: World = _EMPTY_WORLD
 
     def child(self, **values: Any) -> "Scope":
-        merged = dict(self.vars)
-        merged.update(values)
-        return Scope(merged, self.world)
+        return Scope(_Layer(values, self.vars), self.world)
 
     def root(self, name: str, source: str) -> Any:
         try:
@@ -168,6 +192,10 @@ def attr(obj: Any, name: str, source: Optional[str] = None) -> Any:
     """Read ``obj.name`` under expression semantics (entities, dicts, records)."""
     if name.startswith("_"):
         raise ExprError(f"private field '{name}' cannot be read", source)
+    if type(obj) is _Entity:  # the common case, first
+        props = obj.properties
+        if name in props and name not in _ENTITY_FIELDS:
+            return props[name]
     if obj is None:
         raise ExprError(f"cannot read '.{name}' of null", source)
     reader = getattr(obj, "expr_attr", None)
@@ -199,6 +227,11 @@ def attr(obj: Any, name: str, source: Optional[str] = None) -> Any:
     if isinstance(obj, (list, tuple)) and name in ("count", "size", "length"):
         return len(obj)
     raise ExprError(f"cannot read '.{name}' of {type(obj).__name__} {obj!r}", source)
+
+
+from ..entity import Entity as _Entity  # noqa: E402 — storage type, read on the hot path
+
+_ENTITY_FIELDS = frozenset({"id", "name", "type", "alive", "at"})
 
 
 def _entity_id(value: Any) -> Any:

@@ -61,7 +61,7 @@ class Entry(dict):
         raise ExprError(f"record entry has no field '{name}' (fields: {', '.join(sorted(self))})", source)
 
 
-@dataclass
+@dataclass(eq=False)
 class LogEvent:
     """Something that happened, in order. ``to`` None means every agent may learn of it."""
 
@@ -553,8 +553,10 @@ class SdkWorld(World):
                 self.entry_by_seq.pop(old["seq"], None)
 
         def undo() -> None:
-            if entry in rows:
-                rows.remove(entry)
+            for index in range(len(rows) - 1, -1, -1):
+                if rows[index] is entry:
+                    del rows[index]
+                    break
             self.entry_by_seq.pop(entry["seq"], None)
             rows[:0] = dropped
             for old in dropped:
@@ -575,9 +577,11 @@ class SdkWorld(World):
         self.log.append(event)
 
         def undo() -> None:
-            if event in self.log:
-                self.log.remove(event)
-                self._seq -= 1
+            for index in range(len(self.log) - 1, -1, -1):  # rolled-back events sit near the end
+                if self.log[index] is event:
+                    del self.log[index]
+                    self._seq -= 1
+                    break
 
         self.journal.push(undo)
         return event
