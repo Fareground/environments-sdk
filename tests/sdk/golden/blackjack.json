@@ -1,0 +1,12 @@
+{
+  "actions": 24,
+  "events": 44,
+  "events_sha256": "a12b74ea9adbc59b5bdd570dc50a1b5b493f39c397b217e3eccd0de45ac71cf9",
+  "metrics": {
+    "dealer_busts": 0,
+    "total_chips": 273
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 24
+}

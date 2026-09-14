@@ -155,3 +155,4 @@ def _canonical(value: Any) -> str:
 from . import voting  # noqa: E402,F401  (registers the built-in mechanisms)
 from . import boards  # noqa: E402,F401  (registers the board-game mechanism)
 from . import markets  # noqa: E402,F401  (registers the market mechanisms)
+from . import card_scoring, cards, cards_mechanism, pot, roles, slots  # noqa: E402,F401  (cards, pots, roles, worker placement)
