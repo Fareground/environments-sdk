@@ -16,7 +16,7 @@ from pydantic import BaseModel, ValidationError
 from ..physics import PhysicsExprError, _CompiledExpr, _CONSTS, _FUNCS
 from . import contract as C
 from .contract import Contract
-from .effects import EFFECT_OPS, RESERVED_ROOTS, statement_parts
+from .effects import EFFECT_OPS, REPEAT_CEILING, RESERVED_ROOTS, statement_parts
 from .errors import ContractError, Issue
 from .expr import FUNCTIONS, ExprError, compile_expr, is_expr
 from .inputs import check_value
@@ -89,6 +89,7 @@ def parse_contract(data: Any) -> Contract:
                 message = "is required"
             else:
                 message = error["msg"]
+                fix = (error.get("ctx") or {}).get("fix")
             issues.append(Issue(path, message, fix))
         raise ContractError(_dedupe(issues)) from None
 
@@ -413,6 +414,10 @@ class _Checker:
                                    self._suggest(prop, self.type_props[type_name]))
                     self.value(raw, f"{path}.props.{prop}", roots | {"i"}, types, params)
             v("count")
+            count = effect.get("count")
+            if isinstance(count, int) and not isinstance(count, bool) and count > C.MAX_CREATE:
+                self.error(f"{path}.count", f"is {count:,}, above the ceiling of {C.MAX_CREATE:,}",
+                           "create fewer entities at once")
             v("at")
             for key in ("id", "name"):
                 self.template(effect.get(key), f"{path}.{key}", None, roots | {"i"}, types, params)
@@ -490,6 +495,10 @@ class _Checker:
                     self.value(raw, f"{path}.with.{name}", roots, types, params)
         elif op == "repeat":
             v("repeat")
+            limit = effect.get("repeat")
+            if isinstance(limit, int) and not isinstance(limit, bool) and not 1 <= limit <= REPEAT_CEILING:
+                self.error(f"{path}.repeat", f"is {limit:,}; a repeat limit runs from 1 to {REPEAT_CEILING:,}",
+                           "use a smaller limit; a loop that needs more never settles")
             self.expr(effect.get("while"), f"{path}.while", roots, types, params)
             roots |= self.effects(effect.get("do", []), f"{path}.do", roots, types, params)
 

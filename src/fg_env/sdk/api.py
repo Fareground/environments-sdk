@@ -20,21 +20,61 @@ __all__ = ["ContractLike", "parse", "check", "load", "run", "apply_arm"]
 ContractLike = Union[Contract, Mapping[str, Any], str, "os.PathLike[str]"]
 
 
+_SOURCES = "pass a path to a contract file, a dict, JSON text, or a Contract"
+#: Longest path or text quoted back in an error.
+_SHOWN = 120
+
+
 def _read(source: ContractLike) -> Any:
+    """The contract data behind ``source``.
+
+    A string is JSON text when it starts (after whitespace) with ``{`` or ``[`` and a file path
+    otherwise: a contract is a JSON object, so contract text cannot start any other way."""
     if isinstance(source, (Contract, Mapping)):
         return source
-    if isinstance(source, os.PathLike) or (isinstance(source, str) and not source.lstrip().startswith("{")):
+    if isinstance(source, str) and source.lstrip().startswith(("{", "[")):
+        return _json(source, "(json text)")
+    if isinstance(source, (str, os.PathLike)):
         path = Path(source)
-        if not path.exists():
-            raise ContractError([Issue("(contract)", f"file not found: {path}", "pass a path, a dict, or JSON text")])
-        text = path.read_text()
-        where = str(path)
-    else:
-        text, where = str(source), "(json text)"
+        return _json(_file_text(path), _shown(str(path)))
+    raise ContractError([Issue("(contract)", f"cannot read a contract from {type(source).__name__}", _SOURCES)])
+
+
+def _shown(text: str) -> str:
+    return text if len(text) <= _SHOWN else text[:_SHOWN - 3] + "..."
+
+
+def _file_text(path: Path) -> str:
+    shown = _shown(str(path))
+    try:
+        exists, is_dir = path.exists(), path.is_dir()
+    except (OSError, ValueError):  # a name too long for the filesystem, or one holding a NUL
+        exists = is_dir = False
+    if not exists:
+        raise ContractError([Issue("(contract)", f"'{shown}' is neither an existing file nor JSON text",
+                                   "JSON text must be an object starting with '{'; otherwise " + _SOURCES)])
+    if is_dir:
+        raise ContractError([Issue("(contract)", f"'{shown}' is a directory, not a contract file",
+                                   "pass the path of the .json file")])
+    try:
+        data = path.read_bytes()
+    except OSError as exc:
+        raise ContractError([Issue("(contract)", f"cannot read '{shown}': {exc.strerror or exc}",
+                                   "check that the file is readable")]) from None
+    try:
+        return data.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise ContractError([Issue(shown, f"is not UTF-8 text (invalid byte at position {exc.start})",
+                                   "save the contract as UTF-8 JSON")]) from None
+
+
+def _json(text: str, where: str) -> Any:
     try:
         return json.loads(text)
     except json.JSONDecodeError as exc:
         raise ContractError([Issue(where, f"not valid JSON: {exc.msg} at line {exc.lineno} column {exc.colno}")]) from None
+    except (ValueError, RecursionError) as exc:  # nested too deeply, or a number too long to read
+        raise ContractError([Issue(where, f"cannot read this JSON: {str(exc)[:_SHOWN] or 'nested too deeply'}")]) from None
 
 
 def parse(source: ContractLike) -> Contract:

@@ -7,7 +7,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic_core import PydanticCustomError
 
 __all__ = [
     "CONTRACT_VERSION",
@@ -44,6 +45,13 @@ __all__ = [
     "PROP_TYPES",
     "PARAM_TYPES",
     "OUTPUT_TYPES",
+    "MAX_ROUNDS",
+    "MAX_STAGE_PASSES",
+    "MAX_TURN_CALLS",
+    "MAX_TURN_ACTIONS",
+    "MAX_POPULATION",
+    "MAX_CREATE",
+    "MAX_SUBSTEPS",
 ]
 
 CONTRACT_VERSION = "1"
@@ -54,6 +62,32 @@ PARAM_TYPES = ("number", "int", "bool", "text", "enum", "entity")
 OUTPUT_TYPES = ("number", "int", "bool", "text", "list", "map", "any")
 
 Effects = List[Any]
+
+# Ceilings: generous for any real environment, low enough that a typo cannot make a run
+# effectively infinite or exhaust memory.
+
+#: Most rounds a run may last.
+MAX_ROUNDS = 100_000
+#: Most passes a stage may make through its agents in one round.
+MAX_STAGE_PASSES = 10_000
+#: Most tool calls (including looks) one turn may allow.
+MAX_TURN_CALLS = 1_000
+#: Most actions one turn may allow.
+MAX_TURN_ACTIONS = 1_000
+#: Most entities one population group may generate.
+MAX_POPULATION = 1_000_000
+#: Most entities one ``create`` effect may make (checked where the count is a literal).
+MAX_CREATE = 100_000
+#: Most physics sub-steps per round.
+MAX_SUBSTEPS = 10_000
+
+
+def _ceiling(value: Any, limit: int, fix: str) -> Any:
+    """Reject a literal whole number above ``limit``."""
+    if isinstance(value, int) and not isinstance(value, bool) and value > limit:
+        raise PydanticCustomError("ceiling", "is {value}, above the ceiling of {limit}",
+                                  {"value": f"{value:,}", "limit": f"{limit:,}", "fix": fix})
+    return value
 
 
 class _Model(BaseModel):
@@ -104,6 +138,11 @@ class Clock(_Model):
     start: Optional[str] = Field(None, description="ISO date of round 1 (adds a calendar date).")
     step: int = Field(1, description="Units per round (e.g. 7 with unit 'day' = weekly rounds).")
 
+    @field_validator("rounds")
+    @classmethod
+    def _rounds_ceiling(cls, value: Any) -> Any:
+        return _ceiling(value, MAX_ROUNDS, "a run that long is almost certainly a typo; use fewer rounds")
+
 
 class GridSpace(_Model):
     """A rows × cols board; positions are [row, col]. Distance is steps (diagonal: king moves)."""
@@ -143,7 +182,11 @@ _PROP_KEYS = {"type", "default", "min", "max", "values", "private", "description
 
 
 class PropSpec(_Model):
-    """One property. Shorthand: a bare value is the default (``"cash": 100``)."""
+    """One property. Shorthand: a bare value is the default (``"cash": 100``).
+
+    In a type that ``extends`` another, a property the parent declares is overridden field by
+    field: only the fields written here change (a bare value changes only the default), so the
+    parent's ``private``, ``type``, ``min``, ``max`` and ``values`` still apply."""
 
     type: Optional[str] = Field(None, description="One of: " + ", ".join(PROP_TYPES) + " (inferred from default).")
     default: Any = Field(None, description="Literal or expression (evaluated when the entity is created).")
@@ -201,6 +244,11 @@ class PopulationSpec(_Model):
     at: Any = None
     brief: Optional[str] = Field(None, description="Private text added to each generated entity's brief (template over $row, $i).")
 
+    @field_validator("count")
+    @classmethod
+    def _count_ceiling(cls, value: Any) -> Any:
+        return _ceiling(value, MAX_POPULATION, "generate fewer entities; this many is almost certainly a typo")
+
 
 class RelationSpec(_Model):
     """A kind of link between entities (follows, trusts, owns …)."""
@@ -249,6 +297,11 @@ class PhysicsSpec(_Model):
     vars: Dict[str, PhysicsVar] = Field(default_factory=dict)
     read: Dict[str, str] = Field(default_factory=dict, description="Names refreshed from the world before each step: {N: '$count(person)'}.")
     write: Dict[str, str] = Field(default_factory=dict, description="After each step: {'world.price': 'P', 'person.risk': 'I/N'}.")
+
+    @field_validator("substeps")
+    @classmethod
+    def _substeps_ceiling(cls, value: int) -> int:
+        return _ceiling(value, MAX_SUBSTEPS, "use fewer sub-steps or a smaller dt")
 
 
 # ---------------------------------------------------------------------------
@@ -340,6 +393,21 @@ class StageSpec(_Model):
     on_idle: Effects = Field(default_factory=list, description="Effects for each agent that ends its turn without acting ($actor): a forfeit, a default move.")
     on_enter: Effects = Field(default_factory=list)
     on_exit: Effects = Field(default_factory=list)
+
+    @field_validator("passes")
+    @classmethod
+    def _passes_ceiling(cls, value: Optional[int]) -> Optional[int]:
+        return _ceiling(value, MAX_STAGE_PASSES, "use fewer passes; a stage that needs this many never settles")
+
+    @field_validator("max_calls")
+    @classmethod
+    def _calls_ceiling(cls, value: int) -> int:
+        return _ceiling(value, MAX_TURN_CALLS, "allow fewer tool calls per turn")
+
+    @field_validator("max_actions")
+    @classmethod
+    def _actions_ceiling(cls, value: int) -> int:
+        return _ceiling(value, MAX_TURN_ACTIONS, "allow fewer actions per turn")
 
 
 class ViewSpec(_Model):
@@ -530,9 +598,15 @@ class Contract(_Model):
         return [name for name in self.types if self.is_a(name, type_name)]
 
     def props_of(self, type_name: str) -> Dict[str, PropSpec]:
+        """Every property of ``type_name``, inherited ones included. A subtype's override changes
+        only the fields it writes, so ``"secret": 5`` over ``{"default": 1, "private": true}``
+        stays private."""
         props: Dict[str, PropSpec] = {}
         for name in self.lineage(type_name):
-            props.update(self.types[name].props)
+            for prop, spec in self.types[name].props.items():
+                inherited = props.get(prop)
+                props[prop] = spec if inherited is None else inherited.model_copy(
+                    update={key: getattr(spec, key) for key in spec.model_fields_set})
         return props
 
     def is_agent(self, type_name: str) -> bool:
