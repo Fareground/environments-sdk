@@ -1,0 +1,49 @@
+{
+  "fg_env": "1",
+  "name": "Go 9x9",
+  "description": "Go on a 9x9 board with area scoring and komi, played natively by the board mechanism.",
+  "brief": {
+    "situation": "A game of Go on a 9x9 board. Black (X) plays first against White (O).",
+    "rules": "Take turns placing a stone on an empty point (written like c3) or pass. A group of stones with no empty point next to it is captured and removed. You may not place a stone where your own group would have no liberties unless it captures, and you may not immediately retake a single stone in a ko. Two passes in a row end the game. Area scoring: your stones plus the empty points only you surround; White adds 7.5 komi.",
+    "roles": {
+      "player": "You play {$actor.name}. Control more of the board than your opponent."
+    }
+  },
+  "clock": {
+    "rounds": 300,
+    "unit": "move"
+  },
+  "mechanisms": {
+    "go": {
+      "kind": "board",
+      "size": 9,
+      "sides": [
+        {
+          "id": "black",
+          "mark": "X"
+        },
+        {
+          "id": "white",
+          "mark": "O"
+        }
+      ],
+      "pieces": {
+        "stone": {}
+      },
+      "place": {},
+      "captures": [
+        {
+          "rule": "enclose"
+        }
+      ],
+      "pass": true,
+      "score": "area",
+      "komi": {
+        "white": 7.5
+      }
+    }
+  },
+  "metrics": {
+    "stones": "$count(piece)"
+  }
+}

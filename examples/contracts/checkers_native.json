@@ -1,0 +1,80 @@
+{
+  "fg_env": "1",
+  "name": "Checkers (native)",
+  "description": "English draughts for two players on an 8x8 board, played natively by the board mechanism.",
+  "brief": {
+    "situation": "A game of checkers (English draughts) between Black and White on an 8x8 board. Only the dark squares are used.",
+    "rules": "Black (b men, B kings) starts at the bottom and moves up; White (w, W) starts at the top and moves down. A man steps one square diagonally forward (c3-d4). A capture jumps diagonally over an adjacent enemy onto the empty square beyond (c3xe5). Captures are mandatory, and a piece that can keep jumping must, one jump per move call. A man reaching the far row is crowned a king, which ends the turn; kings move and capture backward too. A player with no legal move loses. 80 moves in a row without a capture or a man moving is a draw.",
+    "roles": {
+      "player": "You play {$actor.name}. Win by capturing or blocking every enemy piece."
+    }
+  },
+  "clock": {
+    "rounds": 1200,
+    "unit": "turn"
+  },
+  "mechanisms": {
+    "checkers": {
+      "kind": "board",
+      "sides": [
+        "black",
+        "white"
+      ],
+      "pieces": {
+        "M": {
+          "name": "man",
+          "symbol": {
+            "black": "b",
+            "white": "w"
+          },
+          "irreversible": true,
+          "promote": {
+            "to": [
+              "K"
+            ]
+          },
+          "moves": [
+            {
+              "step": [
+                "fl",
+                "fr"
+              ],
+              "only": "move"
+            },
+            {
+              "jump": [
+                "fl",
+                "fr"
+              ],
+              "chain": true
+            }
+          ]
+        },
+        "K": {
+          "name": "king",
+          "symbol": {
+            "black": "B",
+            "white": "W"
+          },
+          "moves": [
+            {
+              "step": "diagonal",
+              "only": "move"
+            },
+            {
+              "jump": "diagonal",
+              "chain": true
+            }
+          ]
+        }
+      },
+      "setup": "1w1w1w1w/w1w1w1w1/1w1w1w1w/8/8/b1b1b1b1/1b1b1b1b/b1b1b1b1",
+      "mandatory_capture": true,
+      "move_limit": 80
+    }
+  },
+  "metrics": {
+    "black_pieces": "$count(piece, $it.owner == black)",
+    "white_pieces": "$count(piece, $it.owner == white)"
+  }
+}
