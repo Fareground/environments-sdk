@@ -18,7 +18,7 @@ from pydantic import BaseModel, ValidationError
 from ..physics import PhysicsExprError, _CompiledExpr, _CONSTS, _FUNCS
 from . import contract as C
 from .contract import Contract
-from .effects import REPEAT_CEILING, RESERVED_ROOTS, all_ops, registered_op, statement_parts
+from .effects import REPEAT_CEILING, RESERVED_ROOTS, all_ops, registered_op, select_ops, statement_parts
 from .errors import ContractError, Issue
 from .expr import FUNCTIONS, ExprError, compile_expr, is_expr
 from .inputs import check_value
@@ -397,7 +397,7 @@ class _Checker:
     def _keyed(self, effect: Dict[str, Any], path: str, roots: Set[str], types: Types,
                params: Optional[Mapping[str, C.ParamSpec]]) -> None:
         known = all_ops()
-        ops = [key for key in known if key in effect]
+        ops = select_ops(effect)
         if len(ops) != 1:
             keys = ", ".join(effect) or "none"
             hint = self._suggest(next(iter(effect), ""), known)

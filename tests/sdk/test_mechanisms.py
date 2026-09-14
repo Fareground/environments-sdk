@@ -215,3 +215,34 @@ def test_ranked_ballot_runs_instant_runoff():
     env.run(rank, rounds=1)
     result = env.props["budget_result"]
     assert result["winner"] == "b" and len(result["rounds"]) == 2
+
+
+def test_a_native_op_is_identified_by_its_own_key_even_with_core_op_named_fields():
+    from fg_env.sdk.registry import OPS, effect_op
+
+    name = "test_nudge_counter"
+
+    @effect_op(name, keys=("move",), literal=(name,), example='{"test_nudge_counter": "n", "move": 2}')
+    def _nudge(runner, effect, vars, where):
+        world = runner.world
+        world.set_world(effect[name], world.props[effect[name]] + runner.eval(effect["move"], vars))
+
+    try:
+        contract = {"name": "Nudge", "clock": {"rounds": 1}, "world": {"n": 0},
+                    "types": {"p": {"agent": True}}, "entities": {"p": {"type": "p"}},
+                    "actions": {"go": {"by": "p", "do": [{name: "n", "move": 2}], "terminal": True}},
+                    "stages": [{"name": "s", "turns": "sequential"}]}
+        assert not [i for i in fg_env.check(contract) if i.severity == "error"]
+        env = fg_env.load(contract, seed=1)
+
+        def play(wake):
+            assert wake.call("go").ok
+            wake.end()
+
+        env.run(play)
+        assert env.props["n"] == 2
+        both = {**contract, "actions": {"go": {"by": "p", "do": [{name: "n", "board_move": "e2-e4"}],
+                                               "terminal": True}}}
+        assert any("names exactly one" in i.message for i in fg_env.check(both) if i.severity == "error")
+    finally:
+        OPS.pop(name, None)

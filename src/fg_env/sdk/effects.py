@@ -377,7 +377,7 @@ class EffectRunner:
     # -- keyed operations ------------------------------------------------------
 
     def _keyed(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-        ops = [key for key in all_ops() if key in effect]
+        ops = select_ops(effect)
         if len(ops) != 1:
             if not ops:
                 keys = ", ".join(effect)
@@ -587,6 +587,16 @@ def _plain_value(value: Any) -> Any:
     if isinstance(value, dict):
         return {k: _plain_value(v) for k, v in value.items()}
     return value
+
+
+def select_ops(effect: Dict[str, Any]) -> List[str]:
+    """The operation an effect object names. A registered native op is identified by its own key, so
+    its other keys may share a core op's name (``{"board_move": ..., "move": ...}``); otherwise every
+    key that names an operation counts, and anything but exactly one is an error for the caller."""
+    native = [key for key in OPS if key in effect]
+    if len(native) == 1:
+        return native
+    return [key for key in all_ops() if key in effect]
 
 
 def all_ops() -> Dict[str, Tuple[str, ...]]:
