@@ -196,6 +196,10 @@ class SdkWorld(World):
         self.series: Dict[str, List[Any]] = {}
         self.scheduled: List[Tuple[int, int, Dict[str, Any]]] = []
         self.wake_requests: Dict[str, str] = {}
+        #: Tie-break for scheduled effects due in the same round: the order they were scheduled.
+        self._schedule_seq = 0
+        #: Shortest-path distances on the (static) place graph, filled as they are asked for.
+        self._graph_distances: Dict[Tuple[Any, Any], float] = {}
         self.end_request: Optional[Dict[str, Any]] = None
         self.counters: Dict[str, int] = {}
         self.journal = _Journal()
@@ -305,7 +309,21 @@ class SdkWorld(World):
             self._local.depth = depth
 
     def distance(self, a: Any, b: Any) -> float:
-        return _distance(self.contract, _location(a), _location(b))
+        start, end = _location(a), _location(b)
+        space = self.contract.space
+        if space is None or space.graph is None or start is None or end is None:
+            return _distance(self.contract, start, end)
+        key = (start, end)
+        if key not in self._graph_distances:
+            self._graph_distances[key] = self._graph_distances[(end, start)] = _distance(self.contract, start, end)
+        return self._graph_distances[key]
+
+    def prop_spec(self, entity: Entity, prop: str) -> PropSpec:
+        specs = self._type_props.get(entity.entity_type, {})
+        if prop not in specs:
+            raise RunError(f"'{entity.entity_type}' has no property '{prop}' (declared: {', '.join(specs) or 'none'})",
+                           f"{entity.entity_type}.{prop}")
+        return specs[prop]
 
     def is_type(self, name: str) -> bool:
         return name in self.contract.types
@@ -606,9 +624,29 @@ class SdkWorld(World):
 
     def schedule(self, due_round: int, effects: List[Any], vars: Dict[str, Any], path: str) -> None:
         item = {"effects": effects, "vars": {k: _freeze(v) for k, v in vars.items()}, "path": path}
-        entry = (due_round, self._seq, item)
+        self._schedule_seq += 1
+        entry = (due_round, self._schedule_seq, item)
         heapq.heappush(self.scheduled, entry)
-        self.journal.push(lambda: self.scheduled.remove(entry) if entry in self.scheduled else None)
+
+        def undo() -> None:
+            if entry in self.scheduled:
+                self.scheduled.remove(entry)
+                heapq.heapify(self.scheduled)
+
+        self.journal.push(undo)
+
+    def request_wake(self, entity_id: str, why: str) -> None:
+        missing = entity_id not in self.wake_requests
+        old = self.wake_requests.get(entity_id)
+        self.wake_requests[entity_id] = why
+
+        def undo() -> None:
+            if missing:
+                self.wake_requests.pop(entity_id, None)
+            else:
+                self.wake_requests[entity_id] = old  # type: ignore[assignment]
+
+        self.journal.push(undo)
 
     def request_end(self, name: str, winner: Any, text: str) -> None:
         if self.end_request is None:

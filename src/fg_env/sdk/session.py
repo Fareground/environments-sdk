@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 from .actions import ToolSpec
 
 if TYPE_CHECKING:
-    from .runtime import _Turn
+    from .turn import Turn
 
 __all__ = ["Wake", "ToolResult", "END_TURN"]
 
@@ -44,7 +44,7 @@ class ToolResult:
 class Wake:
     """One agent's turn. Obtained from the runtime; never constructed directly."""
 
-    def __init__(self, turn: "_Turn"):
+    def __init__(self, turn: "Turn"):
         self._turn = turn
 
     # -- who / when / why -----------------------------------------------------

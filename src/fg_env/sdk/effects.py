@@ -36,7 +36,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from ..entity import Entity
 from .errors import RunError
 from .expr import Expr, ExprError, attr, compile_expr, is_expr, resolve, truthy
-from .template import compile_template
+from .template import compile_template, format_value
 from .world import Abort, SdkWorld, _Physics, _Props
 
 __all__ = ["EFFECT_OPS", "RESERVED_ROOTS", "Statement", "compile_statement", "statement_parts", "split_statement", "EffectRunner"]
@@ -332,6 +332,9 @@ class EffectRunner:
             if where_expr is not None and not truthy(self._eval(where_expr, inner)):
                 continue
             self.run(effect.get("do") or [], inner, f"{where}.do")
+            # Locals assigned in the body (running totals, a best-so-far) stay assigned after it;
+            # only the loop's own names are scoped to it.
+            vars.update((key, value) for key, value in inner.items() if key not in (name, "i"))
 
     def _op_create(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
         count = self._eval(effect.get("count", 1), vars)
@@ -361,13 +364,22 @@ class EffectRunner:
         if isinstance(amount, bool) or not isinstance(amount, (int, float)) or amount < 0:
             raise RunError(f"transfer amount must be a number ≥ 0, got {amount!r}", where)
         into = effect.get("into") or prop
-        have = attr(source, prop, where)
+        have = _amount_held(source, prop, where)
+        held = _amount_held(target, into, where)
         if have < amount:
-            from .template import format_value
-
             raise Abort(f"{source.name} has only {format_value(have)} {prop}; {format_value(amount)} is needed.")
+        # A transfer moves value; it never creates or destroys it. Limits that would clamp
+        # either side refuse the transfer instead.
+        low = self.world.prop_spec(source, prop).min
+        if low is not None and have - amount < low:
+            raise Abort(f"{source.name} cannot go below {format_value(low)} {prop}; "
+                        f"at most {format_value(have - low)} can be given.")
+        high = self.world.prop_spec(target, into).max
+        if high is not None and held + amount > high:
+            raise Abort(f"{target.name} can hold at most {format_value(high)} {into}; "
+                        f"at most {format_value(max(0, high - held))} more fits.")
         self.world.set_prop(source, prop, have - amount)
-        self.world.set_prop(target, into, attr(target, into, where) + amount)
+        self.world.set_prop(target, into, _amount_held(target, into, where) + amount)
 
     def _op_link(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
         value = self._eval(effect.get("value", 1), vars)
@@ -417,7 +429,7 @@ class EffectRunner:
     def _op_wake(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
         why = self._text(effect.get("why"), vars) or "You were asked to act."
         for entity_id in _to_ids(self._eval(effect["wake"], vars), where) or ():
-            self.world.wake_requests[entity_id] = why
+            self.world.request_wake(entity_id, why)
 
     def _op_block(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
         name = effect["block"]
@@ -448,6 +460,13 @@ class EffectRunner:
             self.run(effect.get("do") or [], vars, f"{where}.do")
         if condition is not None and truthy(self._eval(condition, vars)):
             raise RunError(f"`repeat` reached its limit of {limit} while `{condition}` still holds", where)
+
+
+def _amount_held(entity: Entity, prop: str, where: str) -> float:
+    value = attr(entity, prop, where)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise RunError(f"`transfer` moves numbers, but {entity.id}.{prop} is {value!r}", where)
+    return value
 
 
 def _plain_value(value: Any) -> Any:

@@ -2,6 +2,7 @@
 sampled population, starting links and physics."""
 from __future__ import annotations
 
+import copy
 import math
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -53,7 +54,8 @@ def build_world(contract: Contract, inputs: Dict[str, Any], seeds: SeedTree, arm
 
 
 def _value(world: SdkWorld, raw: Any, vars: Dict[str, Any]) -> Any:
-    return compile_expr(raw)(world.scope(**vars)) if is_expr(raw) else raw
+    # Literal lists and maps are copied, so a run never shares (or mutates) the contract's objects.
+    return compile_expr(raw)(world.scope(**vars)) if is_expr(raw) else copy.deepcopy(raw)
 
 
 def _rounds(world: SdkWorld) -> int:

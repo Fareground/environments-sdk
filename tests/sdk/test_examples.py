@@ -52,3 +52,28 @@ def test_example_contract(path: Path) -> None:
     if os.environ.get("FG_ENV_UPDATE_GOLDEN") or not golden.exists():
         golden.write_text(json.dumps(_fingerprint(result), indent=2, sort_keys=True, default=str) + "\n")
     assert _fingerprint(result) == json.loads(golden.read_text())
+
+
+@pytest.mark.parametrize("path", EXAMPLES, ids=[p.stem for p in EXAMPLES])
+def test_example_resumes_exactly(path: Path) -> None:
+    """A run split by a JSON snapshot, or stopped part-way through a round, ends exactly like one straight run."""
+    straight = fg_env.load(path, seed=11).run(rounds=ROUNDS).to_dict()
+
+    env = fg_env.load(path, seed=11)
+    env.run(rounds=1)
+    if not env.finished:
+        env = fg_env.Env.restore(path, json.loads(json.dumps(env.snapshot())))
+        env.run(rounds=ROUNDS - 1)
+    assert env.result().to_dict() == straight
+
+    points = {"n": 0}
+
+    def stop_part_way(_env: fg_env.Env) -> bool:
+        points["n"] += 1
+        return points["n"] == 7
+
+    env = fg_env.load(path, seed=11)
+    env.run(rounds=ROUNDS, stop=stop_part_way)
+    if env.status == "stopped":
+        env.run(rounds=ROUNDS - env.round + (1 if env._in_round else 0))
+    assert env.result().to_dict() == straight
