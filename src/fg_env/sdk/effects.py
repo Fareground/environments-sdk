@@ -595,13 +595,21 @@ def _plain_value(value: Any) -> Any:
 
 
 def select_ops(effect: Dict[str, Any]) -> List[str]:
-    """The operation an effect object names. A registered native op is identified by its own key, so
-    its other keys may share a core op's name (``{"board_move": ..., "move": ...}``); otherwise every
-    key that names an operation counts, and anything but exactly one is an error for the caller."""
+    """The operation(s) an effect object names; anything but exactly one is an error for the caller.
+
+    * A ``post``'s other keys are record fields, whatever they are called (a field may be named
+      like a native op, e.g. ``deal``).
+    * A single native op wins over core-op-named keys it declares itself
+      (``{"board_move": ..., "move": ...}`` when ``move`` is one of its keys).
+    * Otherwise every key that names an operation counts.
+    """
+    core = [key for key in EFFECT_OPS if key in effect]
+    if core == ["post"]:
+        return core
     native = [key for key in OPS if key in effect]
-    if len(native) == 1:
+    if len(native) == 1 and all(key in OPS[native[0]].keys for key in core):
         return native
-    return [key for key in all_ops() if key in effect]
+    return core + native
 
 
 def all_ops() -> Dict[str, Tuple[str, ...]]:

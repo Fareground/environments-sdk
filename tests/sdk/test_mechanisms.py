@@ -246,3 +246,54 @@ def test_a_native_op_is_identified_by_its_own_key_even_with_core_op_named_fields
         assert any("names exactly one" in i.message for i in fg_env.check(both) if i.severity == "error")
     finally:
         OPS.pop(name, None)
+
+
+def test_a_post_keeps_fields_named_like_native_ops_and_undeclared_mixes_are_ambiguous():
+    from fg_env.sdk.registry import OPS, effect_op
+
+    name = "test_stamp"
+
+    @effect_op(name, keys=(), literal=(name,), example='{"test_stamp": "n"}')
+    def _stamp(runner, effect, vars, where):
+        runner.world.set_world(effect[name], 1)
+
+    try:
+        contract = {"name": "Post", "clock": {"rounds": 1}, "world": {"n": 0},
+                    "types": {"p": {"agent": True}}, "entities": {"p": {"type": "p"}},
+                    "records": {"log": {"fields": {name: "text"}, "notify": False}},
+                    "actions": {"go": {"by": "p", "do": [{"post": "log", name: "hello"}], "terminal": True}},
+                    "stages": [{"name": "s", "turns": "sequential"}]}
+        assert not [i for i in fg_env.check(contract) if i.severity == "error"]
+        env = fg_env.load(contract, seed=1)
+
+        def play(wake):
+            assert wake.call("go").ok
+            wake.end()
+
+        env.run(play)
+        assert [row[name] for row in env.world.records_store["log"]] == ["hello"] and env.props["n"] == 0
+        mixed = {**contract, "actions": {"go": {"by": "p", "do": [{name: "n", "move": "$actor"}], "terminal": True}}}
+        assert any("names exactly one" in i.message for i in fg_env.check(mixed) if i.severity == "error")
+    finally:
+        OPS.pop(name, None)
+
+
+def test_guide_renders_factory_defaults_of_mechanism_config():
+    from pydantic import BaseModel, Field
+
+    from fg_env.sdk.registry import MECHANISMS, mechanism
+
+    class WithFactory(BaseModel):
+        tiebreak: list = Field(default_factory=list, description="Tie-breakers.")
+
+    kind = "test_factory_defaults"
+
+    @mechanism(kind, WithFactory, "Has a factory default.")
+    def _expand(name, config, contract):
+        return {}
+
+    try:
+        text = fg_env.guide("mechanisms")
+        assert "`tiebreak` (default [])" in text and "PydanticUndefined" not in text
+    finally:
+        MECHANISMS.pop(kind, None)
