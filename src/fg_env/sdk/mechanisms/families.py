@@ -36,7 +36,8 @@ family("decision", "Collective choice: ballots and structured deliberation with 
        {"who": "agent type that decides", "ties": SHARED["ties"], "private": SHARED["private"],
         "stage": SHARED["stage"], "when": SHARED["when"], "tools": SHARED["tools"]})
 family("game", "Game equipment: boards with enforced rules, cards, betting pots and worker-placement slots.",
-       {"who": "agent type that plays", "stage": SHARED["stage"], "views": SHARED["views"]})
+       {"who": "agent type that plays", "stage": SHARED["stage"], "views": SHARED["views"], "qty": SHARED["qty"],
+        "tools": SHARED["tools"]})
 family("flow", "Who acts when and how it ends: turn order, procedures with phases, victory conditions.",
        {"who": "agent type whose turns or victory it governs", "views": SHARED["views"]})
 family("groups", "Who belongs with whom: hidden roles and teams, factions and alliances, relationships.",

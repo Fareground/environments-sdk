@@ -304,7 +304,7 @@ def test_a_native_op_is_identified_by_its_own_key_even_with_core_op_named_fields
 
         env.run(play)
         assert env.props["n"] == 2
-        both = {**contract, "actions": {"go": {"by": "p", "do": [{name: "n", "board_move": "e2-e4"}],
+        both = {**contract, "actions": {"go": {"by": "p", "do": [{name: "n", "game": "e2-e4"}],
                                                "terminal": True}}}
         assert any("names exactly one" in i.message for i in fg_env.check(both) if i.severity == "error")
     finally:

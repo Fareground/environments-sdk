@@ -24,22 +24,23 @@
     {"type": "player", "count": "$inputs.players", "name": "{$text(['Ana', 'Ben', 'Cleo', 'Dev', 'Eli', 'Fay'][$i - 1])}", "props": {"seat": "$i - 1"}}
   ],
   "mechanisms": {
-    "cards": {"kind": "cards", "players": "player", "deal": "never", "zones": {"board": "public"}},
+    "cards": {"kind": "game", "mode": "cards", "who": "player", "deal": "never", "zones": {"board": "public"}},
     "table": {
-      "kind": "pot",
-      "players": "player",
+      "kind": "game",
+      "mode": "pot",
+      "who": "player",
       "seat": "$it.seat",
       "stack": "$inputs.starting_stack",
       "blinds": ["$inputs.small_blind", "$inputs.big_blind"],
-      "setup": [{"collect": "cards"}, {"deal": "cards", "count": 2, "to": "$filter(player, $it.in_hand)"}],
+      "setup": [{"game": "cards", "action": "collect"}, {"game": "cards", "action": "deal", "qty": 2, "to": "$filter(player, $it.in_hand)"}],
       "streets": {
         "preflop": [],
         "{street.name}": {
           "for": [{"name": "flop", "cards": 3}, {"name": "turn", "cards": 1}, {"name": "river", "cards": 1}], "as": "street",
-          "make": [{"burn": "cards"}, {"deal": "cards", "count": "{street.cards}", "zone": "board"}]
+          "make": [{"game": "cards", "action": "burn"}, {"game": "cards", "action": "deal", "qty": "{street.cards}", "zone": "board"}]
         }
       },
-      "before_showdown": [{"reveal": "$flatten($map($pot_live(table), $hand($it)))"}],
+      "before_showdown": [{"game": "cards", "action": "reveal", "cards": "$flatten($map($pot_live(table), $hand($it)))"}],
       "score": "$poker_rank($hand($it) + $zone(board)).score",
       "label": "$poker_rank($hand($it) + $zone(board)).name"
     }
@@ -52,17 +53,17 @@
     }
   },
   "policies": {
-    "calling_station": {"rules": [{"do": "check"}, {"do": "call"}]},
+    "calling_station": {"rules": [{"do": "table_check"}, {"do": "table_call"}]},
     "tight": {
       "rules": [
-        {"when": "$poker_rank($hand($actor) + $zone(board)).level >= 2", "do": "raise", "with": {"to": "$pot_options(table, $actor).min_raise_to"}},
-        {"when": "$poker_rank($hand($actor) + $zone(board)).level >= 2", "do": "bet", "with": {"amount": "$pot_options(table, $actor).min_bet"}},
-        {"when": "$poker_rank($hand($actor) + $zone(board)).level >= 1 or $pot_options(table, $actor).to_call <= $inputs.big_blind", "do": "call"},
-        {"do": "check"},
-        {"do": "fold"}
+        {"when": "$poker_rank($hand($actor) + $zone(board)).level >= 2", "do": "table_raise", "with": {"to": "$pot_options(table, $actor).min_raise_to"}},
+        {"when": "$poker_rank($hand($actor) + $zone(board)).level >= 2", "do": "table_bet", "with": {"amount": "$pot_options(table, $actor).min_bet"}},
+        {"when": "$poker_rank($hand($actor) + $zone(board)).level >= 1 or $pot_options(table, $actor).to_call <= $inputs.big_blind", "do": "table_call"},
+        {"do": "table_check"},
+        {"do": "table_fold"}
       ]
     },
-    "shover": {"rules": [{"do": "all_in"}, {"do": "call"}, {"do": "check"}]}
+    "shover": {"rules": [{"do": "table_all_in"}, {"do": "table_call"}, {"do": "table_check"}]}
   },
   "metrics": {
     "pot": {"expr": "$sum($get($world.table_result, pots, []), $it.amount)", "description": "Chips in the last hand's pot.", "unit": "chips"},

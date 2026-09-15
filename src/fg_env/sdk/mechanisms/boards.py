@@ -1,4 +1,4 @@
-"""Board games: the ``board`` mechanism, the ``$board_*`` functions and the ``board_*`` effect ops.
+"""Board games: the ``game`` family's ``board`` mode, the ``$board_*`` functions and its ``game`` op actions.
 
 Pieces are entities (props ``owner``, ``kind``, ``cell``, ``moved``); turn state lives in world props
 named after the board (``<name>_turn``, ``<name>_result`` …). Everything is read from and written to
@@ -14,14 +14,14 @@ from typing import Any, Dict, List, Mapping, Optional, Tuple
 from ...entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, function
-from ..registry import MechanismError, effect_op, mechanism
+from ..registry import MechanismError, config_data, family_action, mode, use_key
 from ..world import Abort
 from .board_engine import Move, Pos, has_line, in_check, legal, make, position_key, render, score
 from .board_rules import BoardConfig, Rules, compile_rules, parse_setup
 
 __all__ = ["rules_of", "position_of"]
 
-_KIND = "board"
+KEY = "game.board"
 
 
 # ---------------------------------------------------------------------------
@@ -38,13 +38,13 @@ def rules_of(world: Any, name: Any) -> Rules:
     if contract is None:
         raise MechanismError("board functions need a running environment")
     raw = contract.mechanisms.get(name) if isinstance(name, str) else None
-    if not isinstance(raw, Mapping) or raw.get("kind") != _KIND:
-        boards = [n for n, m in contract.mechanisms.items() if isinstance(m, Mapping) and m.get("kind") == _KIND]
-        raise MechanismError(f"'{name}' is not a declared board", f"boards: {', '.join(boards) or 'none declared'}")
+    if not isinstance(raw, Mapping) or use_key(raw) != KEY:
+        boards = [n for n, m in contract.mechanisms.items() if use_key(m) == KEY]
+        raise MechanismError(f"'{name}' is not a declared game board", f"boards: {', '.join(boards) or 'none declared'}")
     cached = _COMPILED.get(id(raw))
     if cached is not None and cached[0] is raw:
         return cached[1]
-    rules = compile_rules(name, BoardConfig.model_validate({k: v for k, v in raw.items() if k != "kind"}))
+    rules = compile_rules(name, BoardConfig.model_validate(config_data(raw)))
     if len(_COMPILED) > 256:
         _COMPILED.clear()
     _COMPILED[id(raw)] = (raw, rules)
@@ -272,7 +272,7 @@ def _number(value: float) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Effect ops
+# The game op's board actions
 # ---------------------------------------------------------------------------
 
 
@@ -281,16 +281,6 @@ def _op_rules(runner: Any, name: Any, where: str) -> Rules:
         return rules_of(runner.world, name)
     except MechanismError as exc:
         raise RunError(str(exc) + (f" — {exc.fix}" if exc.fix else ""), where) from None
-
-
-def _check_board_name(checker: Any, effect: Dict[str, Any], path: str) -> list:
-    op = next(k for k in effect if k.startswith("board_"))
-    name = effect[op]
-    raw = checker.c.mechanisms.get(name) if isinstance(name, str) else None
-    if isinstance(raw, Mapping) and raw.get("kind") == _KIND:
-        return []
-    boards = [n for n, m in checker.c.mechanisms.items() if isinstance(m, Mapping) and m.get("kind") == _KIND]
-    return [(f"{path}.{op}", f"'{name}' is not a declared board", f"boards: {', '.join(boards) or 'none declared'}")]
 
 
 def _mover(runner: Any, rules: Rules, state: _State, vars: Dict[str, Any]) -> int:
@@ -304,11 +294,11 @@ def _mover(runner: Any, rules: Rules, state: _State, vars: Dict[str, Any]) -> in
     return side
 
 
-@effect_op("board_move", keys=("text",), required=("text",), literal=("board_move",), check=_check_board_name,
-           example='{"board_move": "chess", "text": "$params.move"}  (play a legal move for the side to move: '
-                   'captures, promotion, capture rules, chains, turn, and game-end detection; fails if illegal)')
+@family_action("game", ("board",), "move", keys=("text",), required=("text",), was=("board_move",),
+               example='{"game": "chess", "action": "move", "text": "$params.move"}  (play a legal move for the side to '
+                       'move: captures, promotion, capture rules, chains, turn, and game-end detection; fails if illegal)')
 def _move_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-    rules = _op_rules(runner, effect["board_move"], where)
+    rules = _op_rules(runner, effect["game"], where)
     world = runner.world
     state = _state(world, rules)
     side = _mover(runner, rules, state, vars)
@@ -332,10 +322,10 @@ def _find(moves: List[Move], text: Any) -> Optional[Move]:
     return folded[0] if len(folded) == 1 else None
 
 
-@effect_op("board_pass", keys=(), literal=("board_pass",), check=_check_board_name,
-           example='{"board_pass": "go"}  (the side to move passes; enough passes in a row end the game by score)')
+@family_action("game", ("board",), "pass", was=("board_pass",),
+               example='{"game": "go", "action": "pass"}  (the side to move passes; enough passes in a row end the game by score)')
 def _pass_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-    rules = _op_rules(runner, effect["board_pass"], where)
+    rules = _op_rules(runner, effect["game"], where)
     world = runner.world
     state = _state(world, rules)
     side = _mover(runner, rules, state, vars)
@@ -358,12 +348,11 @@ def _pass_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: s
         _next_turn(world, rules, after)
 
 
-@effect_op("board_setup", keys=("position", "turn"), required=("position",), literal=("board_setup",),
-           check=_check_board_name,
-           example='{"board_setup": "chess", "position": "$inputs.start", "turn": "black"}  (replace every piece with '
-                   'a position — board-symbol rows or {side: {kind: [cells]}} — and restart the game state)')
+@family_action("game", ("board",), "setup", keys=("position", "turn"), required=("position",), was=("board_setup",),
+               example='{"game": "chess", "action": "setup", "position": "$inputs.start", "turn": "black"}  (replace every '
+                       'piece with a position — board-symbol rows or {side: {kind: [cells]}} — and restart the game state)')
 def _setup_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-    rules = _op_rules(runner, effect["board_setup"], where)
+    rules = _op_rules(runner, effect["game"], where)
     world = runner.world
     spec = runner.eval(effect["position"], vars)
     turn = runner.eval(effect.get("turn"), vars) if "turn" in effect else rules.sides[0]
@@ -514,7 +503,7 @@ def _next_turn(world: Any, rules: Rules, after: Pos, moves: Optional[List[Move]]
                 _write(world, rules, after, current)
             return
         world.emit(rules.name, f"{rules.side_names[current.turn]} has no legal move and passes.",
-                   data={"mechanism": _KIND, "pass": rules.sides[current.turn]})
+                   data={"mechanism": "board", "pass": rules.sides[current.turn]})
         current = current.copy()
         current.turn = (current.turn + 1) % len(rules.sides)
         current.ep_cell = current.ep_piece = current.ko = -1
@@ -554,7 +543,7 @@ def _finish(world: Any, rules: Rules, pos: Pos, reason: str, winner: Optional[in
 
 
 # ---------------------------------------------------------------------------
-# The board mechanism
+# The board mode
 # ---------------------------------------------------------------------------
 
 
@@ -579,26 +568,25 @@ orthogonal diagonal all, relative to the side's forward f fr r br b bl l fl; hex
 graph edge labels; `"step": "adjacent"` moves to any edge-sharing neighbour (graphs). Promotion:
 `"promote": {"zone": "far", "to": ["Q", "R", "B", "N"]}`. Capture rules (`captures`): custodial, flip (Othello),
 enclose (Go: liberties, suicide, ko). Setup rows use the board symbols: first side upper case, second lower
-case (or each side's `mark` when there is one kind); `board_setup` loads a position mid-run. Limits: one piece
-per cell (no stacks), dice are not built in."""
+case (or each side's `mark` when there is one kind); the `setup` action loads a position mid-run. Limits: one
+piece per cell (no stacks), dice are not built in."""
 
 
-@mechanism(_KIND, BoardConfig, _DOC, example={
-    "kind": "board", "size": [3, 3], "sides": ["x", "o"], "pieces": {"mark": {}}, "place": {}, "line": 3,
-    "no_moves": "draw"})
+@mode("game", "board", BoardConfig, _DOC, example={
+    "size": [3, 3], "sides": ["x", "o"], "pieces": {"mark": {}}, "place": {}, "line": 3, "no_moves": "draw"}, was="board")
 def _expand_board(name: str, config: BoardConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     rules = compile_rules(name, config)
     _check_shared_types(name, config, contract)
-    players, piece_type = config.players, config.piece_type
+    players, piece_type = config.who, config.piece_type
     types = contract.get("types") or {}
     if players in types and not types[players].get("agent") and not types[players].get("extends"):
-        raise MechanismError(f"players type '{players}' is not an agent type", "set \"agent\": true on it", "players")
+        raise MechanismError(f"who '{players}' is not an agent type", "set \"agent\": true on it", "who")
     entities: Dict[str, Any] = {}
     declared = contract.get("entities") or {}
     for index, side_id in enumerate(rules.sides):
         if side_id in declared and declared[side_id].get("type") != players:
             raise MechanismError(f"entity '{side_id}' is a {declared[side_id].get('type')}, not a {players}",
-                                 f"make it type {players} or set `players`", "sides")
+                                 f"make it type {players} or set `who`", "sides")
         entities[side_id] = {"type": players, "name": rules.side_names[index]}
     counters: Dict[Tuple[int, str], int] = {}
     for side, kind, cell in parse_setup(rules, config.setup):
@@ -617,12 +605,12 @@ def _expand_board(name: str, config: BoardConfig, contract: Mapping[str, Any]) -
         "params": {"move": {"type": "enum", "values": f"$board_moves('{name}', $actor)", "description": "One of your legal moves."}},
         "when": [{"expr": f"{turn} == $actor.id", "why": "It is not your turn."},
                  {"expr": f"$len($board_moves('{name}', $actor)) > 0", "why": "You have no legal move."}],
-        "do": [{"board_move": name, "text": "$params.move"}],
+        "do": [{"game": name, "action": "move", "text": "$params.move"}],
         "outcome": report, "announce": report, "terminal": f"{turn} != $actor.id"}}
     if config.allow_pass:
         actions[pass_] = {"by": players, "description": "Pass instead of moving.",
                           "when": [{"expr": f"{turn} == $actor.id and $world.{name}_chain == ''", "why": "You cannot pass now."}],
-                          "do": [{"board_pass": name}], "outcome": report, "announce": report, "terminal": True}
+                          "do": [{"game": name, "action": "pass"}], "outcome": report, "announce": report, "terminal": True}
     chain_turn = max(2, rules.geo.size // 2) if rules.chains else 1
     fragment: Dict[str, Any] = {
         "types": {players: {"agent": True, "description": "A player at the board."},
@@ -671,7 +659,7 @@ def _move_help(rules: Rules) -> str:
 
 def _check_shared_types(name: str, config: BoardConfig, contract: Mapping[str, Any]) -> None:
     for other, raw in (contract.get("mechanisms") or {}).items():
-        if other == name or not isinstance(raw, Mapping) or raw.get("kind") != _KIND:
+        if other == name or use_key(raw) != KEY:
             continue
         if raw.get("piece_type", "piece") == config.piece_type:
             raise MechanismError(f"boards '{other}' and '{name}' both use the piece type '{config.piece_type}'",

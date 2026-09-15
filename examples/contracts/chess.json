@@ -15,7 +15,8 @@
   },
   "mechanisms": {
     "chess": {
-      "kind": "board",
+      "kind": "game",
+      "mode": "board",
       "sides": [
         "white",
         "black"

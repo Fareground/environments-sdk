@@ -15,7 +15,8 @@
   },
   "mechanisms": {
     "go": {
-      "kind": "board",
+      "kind": "game",
+      "mode": "board",
       "size": 9,
       "sides": [
         {
