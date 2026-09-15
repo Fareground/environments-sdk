@@ -420,11 +420,12 @@ awaitable) works everywhere, and a simultaneous stage runs them concurrently wit
 result. Inside an event loop use `result = await env.arun(participants, ...)`: participants run on that loop,
 so clients bound to it work. `wake.time_limit` and `wake.time_left` give the turn's deadline.
 `fg_env.load(..., exposures=True)` records what every agent was shown on every wake in `result.exposures`,
-`{"texts": {hash: text}, "wakes": [...]}`: brief, update and view hashes and sizes, news event sequence
+`{"texts": {hash: text}, "wakes": [...], "chance": [...]}`: brief, update and view hashes and sizes, news event sequence
 numbers, tools offered, every call with its arguments and result, timeouts and undone turns — every text
 stored once. `$seen(agent, item)` asks whether an agent was shown an event, a record entry or a view by name;
-a contract that uses it records exposures automatically. `result.frames` and `env.spectate()` give the
-spectator views.
+a contract that uses it records exposures automatically. `experiment`, `tournament`, `evaluate` and `run_jobs`
+take `exposures=True` too, every run keeping its own (`--exposures` with `--json`). `result.frames` and
+`env.spectate()` give the spectator views (`fg-env run file.json --frames frames.json` saves them).
 
 Traces: a run with `exposures=True` is a trace (`fg-env run file.json --trace run.jsonl`); `result.save("run.json")`
 or `.jsonl`, `fg_env.RunResult.load(path)`. `t = fg_env.trace(result_or_file)`: `t.overview()` (per agent: turns,
@@ -435,6 +436,8 @@ every call with its result), `t.timeline("ana")`, `t.search("bribe")` (in what a
 calls (`fg_env.participants.replay(t)`) and host answers, and reports the first divergence — a turn, the brief or
 update text, the tools offered, a call result, an event or the ending; `fallback="policy:x"` plays on after it
 (`fg-env trace run.jsonl replay shop.json`, exit 1 on a divergence). Each wake's `steps` are what it replays.
+Outcomes a `chance=` chooser picked are recorded (`exposures.chance`) and replayed without it (a changed chance
+node is a divergence); a forked run replays from the snapshot it continued from (`exposures.start`).
 Evaluation: `fg_env.evaluate(suite, focal=my_agent, background="policy:reciprocate", seats="villager",
 score="$outputs.cash[$seat]", modes={"resident": 0.75, "visitor": 0.25}, runs=20).summary()` runs every scenario and
 mode with `focal` in a seeded draw of the seats and again with `baseline` (default: the background) in the same seats
@@ -446,7 +449,9 @@ Budgets: `env.run(..., budget={"tokens": 200000, "calls": 500, "host_calls": 50,
 "on_exhaust": "end"})` caps a run: reported input + output tokens, tool calls, host answers on the tape, wall-clock
 seconds. It is checked before every round, stage, pass and turn (a turn in progress finishes): `end` ends the run
 (`ended_by: "budget"`), `idle` lets it finish with every agent idle. `result.budget` has the limits, use and the
-limit that ran out; snapshots keep it; `evaluate` and `fg-env run --budget tokens=200000` take one.
+limit that ran out; snapshots keep it. `experiment` (with `branch_at` the shared rounds count toward each arm),
+`tournament`, `evaluate` and `run_jobs` give every run the whole budget, as `--budget tokens=200000` does on
+`fg-env run`, `experiment`, `tournament` and `evaluate`. Usage reported after a turn ran out of time still counts.
 `env.step(participants)` runs one round; `env.run(participants, rounds=N)` runs N more (an unfinished
 run returns provisional outputs). `env.run(..., stop=lambda env: ...)` is checked before every round,
 stage, pass and sequential turn; the next `run` continues exactly where it stopped (finishing that

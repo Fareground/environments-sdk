@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 from ..analysis.runner import AnalysisError, check_positive_int, run_seeds
 from ..analysis.stats import estimate
 from ..api import ContractLike, default_data_dir, load, parse
+from ..budget import Budget
 from ..experiment import Job, run_jobs, worker_pool
 from ..measure import RunResult
 from .result import TournamentResult
@@ -21,7 +22,8 @@ def tournament(contract: ContractLike, entrants: Mapping[str, Any], *, seats: Op
                pairing: str = "round_robin", games: int = 1, score: ScoreSpec = None, rating: str = "elo",
                swiss_rounds: Optional[int] = None, others: Any = None, inputs: Optional[Mapping[str, Any]] = None,
                arm: Optional[str] = None, rounds: Optional[int] = None, seed: int = 0, workers: int = 1,
-               data_dir: Any = None) -> TournamentResult:
+               data_dir: Any = None, budget: Optional[Mapping[str, Any]] = None,
+               exposures: bool = False) -> TournamentResult:
     """Play ``entrants`` (``{name: participant}``) against each other in the contract's ``seats``.
 
     ``seats`` are agent entity ids (default: every agent the contract starts with). ``pairing``:
@@ -43,6 +45,8 @@ def tournament(contract: ContractLike, entrants: Mapping[str, Any], *, seats: Op
     α-Rank and a Schulze vote, which stay meaningful when skill is not transitive; ``returns`` gives every
     entrant's score in every seat, and each standing's ``cost`` its turns, calls, invalid calls, timeouts,
     undone turns and model tokens. A callable entrant is shared by all its games: with ``workers > 1`` those run in threads at once.
+    ``budget`` caps each game on its own (:mod:`fg_env.sdk.budget`); ``exposures=True`` records what agents saw in
+    every game (``result.runs[i].exposures``, events kept), each a trace to read or replay.
     """
     names = _entrant_names(entrants)
     check_positive_int("games", games)
@@ -55,6 +59,8 @@ def tournament(contract: ContractLike, entrants: Mapping[str, Any], *, seats: Op
         raise ValueError(f"rating must be {' or '.join(RATINGS)}, got {rating!r}")
     if swiss_rounds is not None and pairing != "swiss":
         raise ValueError("swiss_rounds applies only to pairing='swiss'")
+    if budget is not None:
+        Budget.parse(budget)
     folder = default_data_dir(contract, data_dir)
     parsed = parse(contract)
     fixed = dict(inputs or {})
@@ -81,7 +87,8 @@ def tournament(contract: ContractLike, entrants: Mapping[str, Any], *, seats: Op
         jobs = [Job(fixed, arm, seeds[g], {"round": round_index, "seating": s, "game": g},
                     _participants(seat_ids, seating, entrants, others))
                 for s, seating in enumerate(seatings) for g in range(games)]
-        results = run_jobs(parsed, jobs, rounds=rounds, workers=workers, events=False, pool=pool, data_dir=folder)
+        results = run_jobs(parsed, jobs, rounds=rounds, workers=workers, events=False, pool=pool, data_dir=folder,
+                           budget=budget, exposures=exposures)
         batch = [_record(job, result, seat_ids, seatings[job.tags["seating"]], scorer) for job, result in zip(jobs, results)]
         ledger.record_round(batch)
         records.extend(batch)
