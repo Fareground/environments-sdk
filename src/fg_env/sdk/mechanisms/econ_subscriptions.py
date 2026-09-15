@@ -98,13 +98,14 @@ def _expand_subscriptions(name: str, config: SubscriptionsConfig, contract: Mapp
     }
     agents = agent_types(contract, subscribers)
     mine = "$it.subscriber == $actor.id and $it.status != ended"
+    trial_available = f"$it.trial > 0 and not $any({sub}, $it.subscriber == $actor.id and $it.plan == $outer.id)"
     if agents:
         actions, views = fragment["actions"], fragment["views"]
         if "subscribe" in config.actions:
             actions[f"{name}_subscribe"] = {
-                "by": agents, "description": "Subscribe to a plan: its price is charged now and every period (a free trial first when it has one).",
+                "by": agents, "description": "Subscribe to a plan: its price is charged now and every period (a free trial on your first subscription to a plan that offers one).",
                 "params": {"plan": {"type": "entity", "of": plan,
-                                    "where": f"not $subscribed($actor, $it.id) and ($it.trial > 0 or $has($actor, '{config.currency}', $it.price))",
+                                    "where": f"not $subscribed($actor, $it.id) and (({trial_available}) or $has($actor, '{config.currency}', $it.price))",
                                     "description": "Plan."}},
                 "do": [{"agreements": name, "action": "subscribe", "who": "$actor", "plan": "$params.plan"}],
                 "outcome": "You subscribed to {$params.plan.name}.", "private": True}
@@ -121,7 +122,7 @@ def _expand_subscriptions(name: str, config: SubscriptionsConfig, contract: Mapp
                 "do": ["$params.subscription.cancelling = false"],
                 "outcome": "It renews again in round {$params.subscription.renews}.", "private": True}
         views[f"{name}_plans"] = {"for": agents, "title": "Plans", "of": plan, "look": True,
-                                  "show": "[{id}] {name}: {price|money} every {period} rounds{$' · ' + $text($it.trial) + ' rounds free' if $it.trial > 0 else ''}"}
+                                  "show": "[{id}] {name}: {price|money} every {period} rounds{$' · ' + $text($it.trial) + ' rounds free' if " + trial_available + " else ''}"}
         views[f"{name}_mine"] = {"for": agents, "title": "Your subscriptions", "of": sub, "where": mine,
                                  "show": "[{id}] {$entity($it.plan).name}: {status}, next charge round {renews} at {$entity($it.plan).price|money}{$' (cancelled, ends then)' if $it.cancelling else ''}"}
     sellers = agent_types(contract, providers)

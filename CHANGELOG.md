@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Environment SDK (`fg-env`)
 
+#### Composition and agent choices
+- Subscription choices and plan views account for each actor’s prior trials. Rejoining requires an affordable
+  payment after a used trial, including when other agreements draw on the same budget.
+
 #### Numerical fidelity and timing
 - Demand-count sampling and stockout-conditioned fitting recover from probability underflow. Large Poisson and
   negative-binomial counts invert their distributions instead of using a clipped normal approximation, preserving
