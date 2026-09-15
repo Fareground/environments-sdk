@@ -123,25 +123,14 @@ class AssetStore:
                max_bytes: Optional[int] = None) -> Tuple[Optional[Asset], Optional[str]]:
         """Store a file a participant hands in: ``(asset, None)`` or ``(None, what to fix)``. The same bytes submitted
         again are the same asset (its first submitter stays its owner)."""
-        if len(data) == 0:
-            return None, "is an empty file"
-        kind, media_type = sniff(data)
-        if kind == "text" and _markdown(name):
-            media_type = "text/markdown"
-        allowed = list(kinds) if kinds else list(KINDS)
-        if kind not in allowed:
-            return None, f"is a {kind} file ({media_type}); accepted: {', '.join(allowed)}"
-        limit = min(max_bytes if max_bytes is not None else MAX_BYTES[kind], HARD_MAX_BYTES)
-        if len(data) > limit:
-            return None, f"is {len(data):,} bytes; the limit is {limit:,}"
-        key = blobs.keep_bytes(data)
-        asset_id = f"{SUBMITTED}{key[:16]}"
-        known = self.assets.get(asset_id)
+        asset, problem = accepts(data, name, owner, kinds, max_bytes)
+        if asset is None:
+            return None, problem
+        blobs.keep_bytes(data)
+        known = self.assets.get(asset.id)
         if known is not None:
-            return (known, None) if known.hash == key else (None, "collides with another submitted file")
-        asset = Asset(id=asset_id, kind=kind, media_type=media_type, name=_file_name(name, kind, media_type),
-                      size=len(data), hash=key, owner=owner)
-        self.assets[asset_id] = asset
+            return (known, None) if known.hash == asset.hash else (None, "collides with another submitted file")
+        self.assets[asset.id] = asset
         return asset, None
 
     def adopt(self, meta: Mapping[str, Any]) -> Asset:
@@ -153,6 +142,10 @@ class AssetStore:
         return self.assets[asset.id]
 
     # -- state ----------------------------------------------------------------------------------
+
+    def copy(self) -> "AssetStore":
+        """An independent store knowing the same assets (entries are immutable; bytes stay found by hash)."""
+        return AssetStore(dict(self.assets), self.resolved, dict(self._texts))
 
     def catalog(self) -> "AssetStore":
         """A store with the contract's catalog only (a run rebuilt from its start adds submissions as it replays)."""
@@ -169,6 +162,25 @@ class AssetStore:
 
     def of(self, ids: Iterable[str]) -> List[Asset]:
         return [self.assets[key] for key in ids if key in self.assets]
+
+
+def accepts(data: bytes, name: Any, owner: str, kinds: Optional[Sequence[str]] = None,
+            max_bytes: Optional[int] = None) -> Tuple[Optional[Asset], Optional[str]]:
+    """The asset a submitted file would become, or what to fix — decided from its bytes alone, storing nothing."""
+    if len(data) == 0:
+        return None, "is an empty file"
+    kind, media_type = sniff(data)
+    if kind == "text" and _markdown(name):
+        media_type = "text/markdown"
+    allowed = list(kinds) if kinds else list(KINDS)
+    if kind not in allowed:
+        return None, f"is a {kind} file ({media_type}); accepted: {', '.join(allowed)}"
+    limit = min(max_bytes if max_bytes is not None else MAX_BYTES[kind], HARD_MAX_BYTES)
+    if len(data) > limit:
+        return None, f"is {len(data):,} bytes; the limit is {limit:,}"
+    key = blobs.digest(data)
+    return Asset(id=f"{SUBMITTED}{key[:16]}", kind=kind, media_type=media_type, name=_file_name(name, kind, media_type),
+                 size=len(data), hash=key, owner=owner), None
 
 
 def _markdown(name: Any) -> bool:

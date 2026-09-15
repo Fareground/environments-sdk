@@ -13,11 +13,13 @@ from __future__ import annotations
 import base64
 import binascii
 import os
+from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Mapping, Optional, Tuple, Union
 
+from . import blobs
 from .kinds import HARD_MAX_BYTES, KINDS, MAX_BYTES
-from .store import SUBMITTED, Asset
+from .store import SUBMITTED, Asset, accepts
 
 if TYPE_CHECKING:
     from ..contract import ParamSpec
@@ -147,6 +149,39 @@ def upload(turn: "Turn", source: Union[bytes, bytearray, str, "os.PathLike[str]"
             raise ValueError(f"the file {problem}")
         _record(turn, asset)
         return asset.id
+
+
+@contextmanager
+def previewed(turn: "Turn", name: Any, args: Any) -> Iterator[Tuple[Any, Optional[str]]]:
+    """``(args, problem)`` as :func:`intake` would make them — files replaced by the ids they would get — for a check
+    that must change nothing (a game's legality check before the call is made). Accepted files are known to the store
+    only inside the block, which then leaves it exactly as it was: nothing is recorded, nothing is kept."""
+    params = _file_params(turn, name, args) if isinstance(args, Mapping) else {}
+    store = turn.env.world.assets
+    added: List[str] = []
+    out: Any = dict(args) if params else args
+    problem: Optional[str] = None
+    try:
+        for pname, param in params.items():
+            raw = out.get(pname)
+            data, file_name, problem = _payload(raw) if raw is not None else (None, None, None)
+            if problem is not None:
+                break
+            if data is None:
+                continue
+            asset, problem = accepts(data, file_name, turn.actor.id, param.kinds, _limit(param))
+            if asset is None:
+                problem = f"{pname} the file {problem}"
+                break
+            if not store.has(asset.id):
+                blobs.keep_bytes(data)
+                store.add(asset)
+                added.append(asset.id)
+            out[pname] = {"asset": asset.id}
+        yield out, problem
+    finally:
+        for key in added:
+            store.assets.pop(key, None)
 
 
 def file_value(world: "SdkWorld", param: "ParamSpec", raw: Any) -> Tuple[Any, Optional[str]]:

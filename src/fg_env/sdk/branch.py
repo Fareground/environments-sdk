@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import weakref
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Optional, Set, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Optional, Set, Type, TypeVar, Union
 
 from .actions import ToolSpec
 from .chance import ChanceNode
@@ -26,7 +26,9 @@ from .snapshot import restore_state, take_snapshot
 if TYPE_CHECKING:
     from .turn import Turn
 
-__all__ = ["Decision", "Branch", "clone_turn", "clone_env", "copy_pilot", "use_chance", "outcome_index"]
+__all__ = ["Decision", "Branch", "clone_turn", "clone_env", "copy_pilot", "fresh_copy", "use_chance", "outcome_index"]
+
+_Copy = TypeVar("_Copy", bound=PilotedEnv)
 
 
 @dataclass(frozen=True)
@@ -217,19 +219,25 @@ def outcome_index(node: ChanceNode, outcome: Union[int, str]) -> int:
 def copy_pilot(source: Env, tape: Tape, turn_count: int, base: Optional[Mapping[str, Any]], *,
                controlled: Set[str], explicit: bool, participants: Any = None, checkpoints: bool = False) -> Pilot:
     """A pilot for a fresh copy of ``source`` that will replay ``tape`` from ``base``."""
+    env = fresh_copy(source, base, participants, PilotedEnv)
+    return Pilot(env, playback=Playback(tape, turn_count), controlled=controlled, explicit=explicit,
+                 checkpoints=checkpoints)
+
+
+def fresh_copy(source: Env, base: Optional[Mapping[str, Any]], participants: Any, kind: Type[_Copy]) -> _Copy:
+    """A new run of ``kind`` built like ``source`` — from ``base`` (a snapshot), else from its build — bound to its
+    hosts and to ``participants`` (default: its named participants)."""
     if base is None:
         seed = source.build_seed if isinstance(source, PilotedEnv) else source.seed
-        env = PilotedEnv(source.contract, source.inputs, seed, source.arm, parallel=1,
-                         exposures=source.world.exposures is not None, assets=source.world.assets.catalog())
+        env = kind(source.contract, source.inputs, seed, source.arm, parallel=1,
+                   exposures=source.world.exposures is not None, assets=source.world.assets.catalog())
     else:
-        env = restore_state(PilotedEnv, source.contract, base, parallel=1)
+        env = restore_state(kind, source.contract, base, parallel=1)
     env.origin.base, env.origin.unarmed = dict(base) if base is not None else None, source.origin.unarmed
     _share_hosts(source, env)
-    pilot = Pilot(env, playback=Playback(tape, turn_count), controlled=controlled, explicit=explicit,
-                  checkpoints=checkpoints)
     named = {key: value for key, value in source.driver.spec.items() if isinstance(value, str)}
     env.driver.bind(participants if participants is not None else (named or None))
-    return pilot
+    return env
 
 
 def clone_turn(turn: "Turn", *, participants: Any = None, seed: Optional[int] = None,

@@ -276,6 +276,40 @@ def test_a_changed_file_is_never_passed_off_as_the_recorded_one(tmp_path):
         env.world.assets.data(asset)
 
 
+def test_a_direct_copy_of_a_stepped_game_keeps_its_own_asset_index(tmp_path, monkeypatch):
+    from fg_env.sdk.game import apply_step, game
+    from fg_env.sdk.game import state as game_state
+    from fg_env.sdk.stepping import Stepper
+
+    (tmp_path / "photo.png").write_bytes(png())
+    contract = {"name": "Photo duel", "clock": {"rounds": 3},
+                "game": {"players": "seat", "returns": "1 if $actor.shown != 'photo' else 0"},
+                "assets": {"photo": {"file": "photo.png", "caption": "The board"}},
+                "types": {"seat": {"agent": True, "props": {"shown": {"type": "asset", "default": "photo"}}}},
+                "entities": {"a": {"type": "seat"}, "b": {"type": "seat"}},
+                "actions": {"submit_photo": {"by": "seat", "params": {"photo": {"type": "file", "kinds": ["image"]}},
+                                             "do": "$actor.shown = $params.photo"},
+                            "wait": {"by": "seat"}},
+                "views": {"board": {"show": "The board", "attach": "$actor.shown"}}}
+    path = tmp_path / "duel.json"
+    path.write_text(json.dumps(contract))
+
+    def no_replay(*args, **kwargs):
+        raise AssertionError("the copy fell back to replaying the run instead of copying it directly")
+
+    monkeypatch.setattr(game_state, "replayed", no_replay)
+    state = game(path, seed=1).new_initial_state()
+    assert isinstance(state._run, Stepper)
+    child = state.clone()
+    submitted = __import__("base64").b64encode(png(color=(1, 99, 7))).decode()
+    apply_step(child, {"seat": 0, "tool": "submit_photo", "args": {"photo": {"data": submitted, "name": "mine.png"}}})
+    mine, theirs = child._run._run().world.assets, state._run._run().world.assets
+    assert mine is not theirs and mine.has("photo") and theirs.has("photo")
+    assert [key for key in mine.assets if key.startswith("upload:")] and not any(key.startswith("upload:") for key in theirs.assets)
+    child.close()
+    state.close()
+
+
 # -- describing files --------------------------------------------------------------------------------------------
 
 

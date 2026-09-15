@@ -18,7 +18,7 @@ from .build import build_world
 from .contract import MAX_ROUNDS, Contract, StageSpec
 from .copying import Copying
 from .diagnostics import diagnose
-from .driving import Driver, run_on_worker
+from .driving import WAITING, Driver, run_on_worker
 from .effects import EffectRunner
 from .errors import RunError
 from .exposure import ExposureLog, asks_seen, recording
@@ -49,7 +49,23 @@ class _Point:
     reasons: Dict[str, str] = field(default_factory=dict)
 
 
-_Steps = Generator[_Point, None, None]
+@dataclass
+class _Where:
+    """Where the round in progress is, kept current as it plays, so a copy of the run taken while a turn waits for a
+    decision continues that round from the same place (see :mod:`fg_env.sdk.stepping`)."""
+
+    stage: int = 0
+    pass_index: int = 0
+    #: The agents of the pass being played, in turn order.
+    agents: List[Entity] = field(default_factory=list)
+    #: The waiting turn's place: in ``agents`` (sequential), or among the stage's sealed turns (simultaneous).
+    position: int = 0
+    #: The waiting turn itself (set on a copy only).
+    turn: Optional[Turn] = None
+
+
+#: A round's steps: its safe points (:class:`_Point`), and ``WAITING`` while a turn waits for a decision.
+_Steps = Generator[Any, None, None]
 
 
 class Env(Copying, RunChecks):
@@ -96,8 +112,9 @@ class Env(Copying, RunChecks):
         self._on_event: Optional[Callable[[Dict[str, Any]], None]] = None
         self._emitted = 0
         self._turn_count = 0
-        #: The round in progress while a run is stopped inside it.
+        #: The round in progress while a run is stopped inside it, and where in it the run is.
         self._cursor: Optional[_Steps] = None
+        self._where = _Where()
         #: Last truth value of each trigger's condition, and triggers that fired once.
         self._trigger_armed: Dict[int, bool] = {}
         self._triggers_fired: set = set()
@@ -298,7 +315,9 @@ class Env(Copying, RunChecks):
                 self._cursor = self._round()
             elif self.status == "stopped":
                 self.status = "running"
-            for _ in self._cursor:
+            for point in self._cursor:
+                if point is WAITING:  # a turn waits for a decision: the run pauses here, its round kept
+                    return
                 self.origin.tape.points += 1
                 if (self.budget is not None and self.budget.enforce(self)) or (stop is not None and stop(self)):
                     self.status = self.status if self.finished else "stopped"
@@ -376,13 +395,24 @@ class Env(Copying, RunChecks):
             times.append(world.scheduled[0][0])
         return min(times) if times else None
 
-    def _round(self) -> _Steps:
+    def _round(self, resumed: bool = False) -> _Steps:
+        """A round, from its start — or, ``resumed``, from the waiting turn a copy of the run was taken in (see
+        :class:`_Where`)."""
         world = self.world
-        if not self._begin_round():
-            return
-        for stage in self.contract.stage_list():
-            yield _Point(stage)
-            yield from self._run_stage(stage)
+        if not resumed:
+            if not self._begin_round():
+                return
+            self._where = _Where()
+        stages = self.contract.stage_list()
+        for index in range(self._where.stage, len(stages)):
+            stage = stages[index]
+            if resumed:
+                resumed = False
+                yield from self._run_stage(stage, resumed=True)
+            else:
+                self._where.stage = index
+                yield _Point(stage)
+                yield from self._run_stage(stage)
             self._check_end()
             if self._ended():
                 self._finish()
@@ -461,29 +491,36 @@ class Env(Copying, RunChecks):
 
     # -- stages & turns ------------------------------------------------------------------
 
-    def _run_stage(self, stage: StageSpec) -> _Steps:
-        world = self.world
+    def _run_stage(self, stage: StageSpec, resumed: bool = False) -> _Steps:
+        world, where = self.world, self._where
         path = f"stages.{stage.name}"
-        runs = self._stage_runs(stage)
-        self.diagnosis.stage(stage.name, reached=1, ran=int(runs))
-        if not runs:
-            return
-        world.stage = stage.name
-        self._atomic(stage.on_enter, {}, f"{path}.on_enter")
-        if self._ended():
-            return
+        if not resumed:
+            runs = self._stage_runs(stage)
+            self.diagnosis.stage(stage.name, reached=1, ran=int(runs))
+            if not runs:
+                return
+            world.stage = stage.name
+            self._atomic(stage.on_enter, {}, f"{path}.on_enter")
+            if self._ended():
+                return
+            where.pass_index = 0
         passes = stage.passes or (10 if stage.until else 1)
-        for pass_index in range(passes):
-            if pass_index:
-                yield _Point(stage)
-            agents = self._eligible(stage)
-            self.diagnosis.stage(stage.name, woke=len(agents))
+        for pass_index in range(where.pass_index, passes):
+            if resumed:
+                agents = where.agents
+            else:
+                if pass_index:
+                    yield _Point(stage)
+                agents = self._eligible(stage)
+                where.pass_index, where.agents = pass_index, agents
+                self.diagnosis.stage(stage.name, woke=len(agents))
             if stage.turns == "simultaneous":
-                yield from self._simultaneous(stage, agents, pass_index)
-            elif stage.turns == "scheduled":
+                yield from self._simultaneous(stage, agents, pass_index, resumed)
+            elif stage.turns == "scheduled":  # never resumed: copies are not taken in scheduled stages
                 yield from self._scheduled(stage, agents, pass_index)
             else:
-                yield from self._sequential(stage, agents, pass_index)
+                yield from self._sequential(stage, agents, pass_index, resumed)
+            resumed = False
             if self._ended():
                 return
             if stage.until is not None:
@@ -540,18 +577,26 @@ class Env(Copying, RunChecks):
             return "Everyone chooses at the same time."
         return "It is your turn." if pass_index == 0 else "Your turn again."
 
-    def _sequential(self, stage: StageSpec, agents: List[Entity], pass_index: int) -> _Steps:
-        for actor in agents:
-            if not actor.alive or self._ended():
-                return
-            reason = self._reason(actor, stage, pass_index)
-            if reason is None:
-                continue
-            if not self._wake_hook(stage, actor):
-                continue
-            yield _Point(stage, {actor.id: reason})
-            turn = Turn(self, actor, stage, reason, staged=False)
-            self.driver.drive([turn])
+    def _sequential(self, stage: StageSpec, agents: List[Entity], pass_index: int, resumed: bool = False) -> _Steps:
+        where = self._where
+        for position in range(where.position if resumed else 0, len(agents)):
+            actor = agents[position]
+            if resumed:
+                resumed, turn, where.turn = False, where.turn, None
+                assert turn is not None
+                yield from self.driver.drive_steps([turn], resume=0)
+            else:
+                if not actor.alive or self._ended():
+                    return
+                reason = self._reason(actor, stage, pass_index)
+                if reason is None:
+                    continue
+                if not self._wake_hook(stage, actor):
+                    continue
+                where.position = position
+                yield _Point(stage, {actor.id: reason})
+                turn = Turn(self, actor, stage, reason, staged=False)
+                yield from self.driver.drive_steps([turn])
             if not self._timed_out(turn) and stage.on_idle and turn.stats.actions == 0 and actor.alive:
                 self._atomic(stage.on_idle, {"actor": actor}, f"stages.{stage.name}.on_idle")
             self._turn_end_hook(stage, actor)
@@ -586,7 +631,7 @@ class Env(Copying, RunChecks):
                 continue
             yield _Point(stage, {actor.id: reason})
             turn = Turn(self, actor, stage, reason, staged=False)
-            self.driver.drive([turn])
+            yield from self.driver.drive_steps([turn])
             if not self._timed_out(turn) and stage.on_idle and turn.stats.actions == 0 and actor.alive:
                 self._atomic(stage.on_idle, {"actor": actor}, f"stages.{stage.name}.on_idle")
             self._turn_end_hook(stage, actor)
@@ -659,24 +704,28 @@ class Env(Copying, RunChecks):
             raise RunError(f"must be a time ≥ 0, got {value!r}", path)
         return float(value)
 
-    def _simultaneous(self, stage: StageSpec, agents: List[Entity], pass_index: int) -> _Steps:
-        reasons: Dict[str, str] = {}
-        for actor in agents:
-            reason = self._reason(actor, stage, pass_index)
-            if reason is not None:
-                reasons[actor.id] = reason
-        for actor in agents:
-            if actor.id in reasons and not self._wake_hook(stage, actor):
-                del reasons[actor.id]
-        if reasons:
-            yield _Point(stage, dict(reasons))
-        turns = [Turn(self, actor, stage, reasons[actor.id], staged=True) for actor in agents if actor.id in reasons]
-        cursor = self.world.log[-1].seq if self.world.log else 0
-        for turn in turns:
-            memory = self._memory(turn.actor.id)
-            memory.cursor = cursor
-            memory.turns += 1
-        self.driver.drive(turns, together=True)
+    def _simultaneous(self, stage: StageSpec, agents: List[Entity], pass_index: int, resumed: bool = False) -> _Steps:
+        if resumed:
+            turns = list(self.origin.staged)
+            yield from self.driver.drive_steps(turns, together=True, resume=self._where.position)
+        else:
+            reasons: Dict[str, str] = {}
+            for actor in agents:
+                reason = self._reason(actor, stage, pass_index)
+                if reason is not None:
+                    reasons[actor.id] = reason
+            for actor in agents:
+                if actor.id in reasons and not self._wake_hook(stage, actor):
+                    del reasons[actor.id]
+            if reasons:
+                yield _Point(stage, dict(reasons))
+            turns = [Turn(self, actor, stage, reasons[actor.id], staged=True) for actor in agents if actor.id in reasons]
+            cursor = self.world.log[-1].seq if self.world.log else 0
+            for turn in turns:
+                memory = self._memory(turn.actor.id)
+                memory.cursor = cursor
+                memory.turns += 1
+            yield from self.driver.drive_steps(turns, together=True)
         try:
             yield from self._commit_choices(stage, turns)
         finally:
