@@ -54,15 +54,16 @@ def input_spec(contract: Contract, name: str) -> Any:
 
 def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = None, rounds: Optional[int] = None,
              workers: int = 1, events: bool = False, pool: Optional[Pool] = None,
-             hosts: Any = None) -> List[RunResult]:
+             hosts: Any = None, require_success: bool = True) -> List[RunResult]:
     """:func:`fg_env.sdk.experiment.run_jobs` for analyses: event logs dropped by default, and
-    :class:`AnalysisError` when every run failed (the first error is quoted)."""
+    :class:`AnalysisError` when every run failed (the first error is quoted), unless
+    ``require_success=False`` lets diagnostic callers inspect the original failures."""
     check_positive_int("workers", workers)
     if rounds is not None:
         check_positive_int("rounds", rounds)
     results = _run_jobs(as_contract(source), jobs, participants=participants, rounds=rounds, workers=workers,
                         events=events, pool=pool, hosts=hosts)
-    if results and all(r.status == "failed" for r in results):
+    if require_success and results and all(r.status == "failed" for r in results):
         raise AnalysisError(f"all {len(results)} run(s) failed; first error: {results[0].error}")
     return results
 

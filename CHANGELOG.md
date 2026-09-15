@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Behavior checks retain actual failures from all-failed baseline and input-variant runs instead of
+  rerunning participants or replacing the cause with a generic message. Batch construction-time
+  runtime failures are recorded per job; invalid contracts and input shapes still fail fast.
 - Waiting procedure response windows now settle items whose remaining responders have departed.
   Living responders still block resolution; generated/custom windows, snapshots and rollback retain
   their existing semantics. No new authoring setting is required.

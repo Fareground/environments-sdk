@@ -17,7 +17,7 @@ from .api import ContractLike, contract_source, default_data_dir, load, located,
 from .arm_inputs import arm_input_overrides, override_message
 from .budget import Budget
 from .contract import Contract
-from .errors import ContractError, Issue
+from .errors import ContractError, Issue, RunError
 from .measure import RunResult
 from .seeds import SeedTree
 
@@ -331,14 +331,21 @@ def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = N
         return job.participants if job.participants is not None else participants
 
     probed: Set[Tuple[str, Optional[str]]] = set()
+    bound = False
     for job in jobs:  # fail fast on what the jobs share
         key = (json.dumps(dict(job.inputs), sort_keys=True, default=str), job.arm)
         if key in probed:
             continue
         probed.add(key)
-        env = load(contract, inputs=dict(job.inputs), seed=0, arm=job.arm, hosts=hosts)
-        if participants_for is None and len(probed) == 1:
+        try:
+            env = load(contract, inputs=dict(job.inputs), seed=0, arm=job.arm, hosts=hosts)
+        except RunError:
+            # An invariant or construction effect can fail for this input/seed only.
+            # The actual job records its failure; schema/input errors still fail fast.
+            continue
+        if participants_for is None and not bound:
             env.driver.bind(assigned(job))
+            bound = True
 
     def one(job: Job) -> RunResult:
         try:

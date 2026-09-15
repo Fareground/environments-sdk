@@ -122,13 +122,11 @@ def behavior_checks(contract: ContractLike, *, runs: int = 4, rounds: Optional[i
     seeds = runner.run_seeds(seed, runs)
     baseline_jobs = [runner.Job(base_inputs, None, s) for s in seeds]
     findings: List[Finding] = []
-    try:
-        baseline = runner.run_jobs(parsed, baseline_jobs, participants=participants, rounds=rounds, workers=workers,
-                                   events=True, hosts=hosts)
-    except runner.AnalysisError:  # every run failed: report the first error and stop
-        probe = runner.execute_job(parsed, baseline_jobs[0], participants, rounds, False, hosts=hosts)
-        findings.append(Finding("runs_fail", "error", "(run)", f"Every run failed: {probe.error}. "
-                                "Fix this first; nothing else can be checked.", {"error": probe.error}))
+    baseline = runner.run_jobs(parsed, baseline_jobs, participants=participants, rounds=rounds, workers=workers,
+                               events=True, hosts=hosts, require_success=False)
+    if all(r.status == "failed" for r in baseline):
+        findings.append(Finding("runs_fail", "error", "(run)", f"Every run failed: {baseline[0].error}. "
+                                "Fix this first; nothing else can be checked.", {"error": baseline[0].error}))
         return CheckReport(parsed.name, runs, rounds, findings, [], list(parsed.inputs))
     completed = [r for r in baseline if r.status != "failed"]
     findings += _failures(baseline)
@@ -270,10 +268,8 @@ def _input_findings(contract: Any, base_inputs: Mapping[str, Any], baseline: Seq
         return tested, untested, []
     cells = [({**base_inputs, name: v}, None) for name, v in plan]
     jobs = runner.jobs_for(cells, seeds)
-    try:
-        results = runner.run_jobs(contract, jobs, participants=participants, rounds=rounds, workers=workers, hosts=hosts)
-    except runner.AnalysisError:
-        results = [runner.failed_result(job, RuntimeError("every variant run failed")) for job in jobs]
+    results = runner.run_jobs(contract, jobs, participants=participants, rounds=rounds, workers=workers,
+                              hosts=hosts, require_success=False)
     grouped = runner.by_cell(jobs, results, len(cells))
     base_prints = [_fingerprint(r) if r.status != "failed" else None for r in baseline]
     changed: Dict[str, List[Any]] = {}
