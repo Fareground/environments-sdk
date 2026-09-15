@@ -22,7 +22,7 @@ import threading
 import time
 from collections import deque
 from concurrent.futures import Future
-from typing import TYPE_CHECKING, Any, Callable, Deque, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Deque, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple
 
 from ..entity import Entity
 from .errors import RunError
@@ -34,7 +34,15 @@ if TYPE_CHECKING:
     from .runtime import Env
     from .turn import Turn
 
-__all__ = ["Driver", "is_async", "background_loop", "run_on_worker"]
+__all__ = ["Driver", "is_async", "background_loop", "run_on_worker", "WAITING", "Unpausable"]
+
+#: What a round yields while a participant that plays in steps waits for a decision (see :mod:`fg_env.sdk.stepping`).
+WAITING = object()
+
+
+class Unpausable(BaseException):
+    """A participant that plays in steps had to wait for a decision where the run cannot pause."""
+
 
 _LOOP_LOCK = threading.Lock()
 _IDLE = Idle()
@@ -202,9 +210,21 @@ class Driver:
     def drive(self, turns: Sequence["Turn"], together: bool = False) -> None:
         """Play ``turns``: one at a time, or — ``together``, a simultaneous stage — concurrently where the
         participants allow it. Participant failures raise :class:`RunError` once every turn has stopped."""
+        for _ in self.drive_steps(turns, together):
+            raise Unpausable(f"{turns[0].actor.id}'s turn waits for a decision where the run cannot pause "
+                             "(a reaction inside another agent's call)")
+
+    def drive_steps(self, turns: Sequence["Turn"], together: bool = False,
+                    resume: Optional[int] = None) -> Iterator[object]:
+        """:meth:`drive` as the engine's round plays it: a participant that plays its turn in steps (it has a
+        ``steps(turn)`` generator) pauses the round by yielding :data:`WAITING` while it waits for a decision.
+        ``resume`` continues a copy of the run at the turn with that index, which was waiting when it was copied."""
         env = self.env
-        auto = [turn for turn in turns if turn.stage.auto and not turn.staged]
-        played = [turn for turn in turns if turn not in auto or not self._auto(turn)]
+        if resume is None:
+            auto = [turn for turn in turns if turn.stage.auto and not turn.staged]
+            played = [turn for turn in turns if turn not in auto or not self._auto(turn)]
+        else:
+            played = list(turns)  # a waiting turn was never an auto turn
         chosen = [(turn, self.participant(turn.actor)) for turn in played]
         concurrent = sum(1 for _, p in chosen if getattr(p, "concurrent", True))
         threaded = together and env.parallel > 1 and concurrent > 1
@@ -212,7 +232,13 @@ class Driver:
         if together:
             env.origin.staged = list(turns)  # sealed choices still being made (read by game states)
         try:
-            for turn, participant in chosen:
+            for index, (turn, participant) in enumerate(chosen):
+                if resume is not None and index < resume:
+                    continue  # played before the copy was taken
+                steps = getattr(participant, "steps", None)
+                if steps is not None:
+                    yield from steps(turn)
+                    continue
                 alone = not (threaded and getattr(participant, "concurrent", True))
                 if turn.time_limit is not None or is_async(participant) or not alone:
                     queue.append((turn, participant, alone))
