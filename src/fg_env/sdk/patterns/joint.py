@@ -18,6 +18,13 @@ replaces each by its expected value given it was more than what was sold and ref
 (expectation–maximisation). A stockout that sold nothing still says demand was at least one, which is most of what it
 tells about a slow seller. With ``fit.noise`` naming a counts pattern, the dispersion is estimated around the fitted
 means — censored rows through their expected spread given that — and the fit is repeated with it.
+
+Standard errors come from each row's observed information (a censored row's less what its censoring leaves unknown).
+A profile's and a scale's errors are those of the profile rescaled to average 1 and of the level it leaves, carried
+through every slot's coefficient — not the first slot's, which the coefficients are measured from. Parameters whose
+drivers move together in the history (promotions that are always price cuts, promotions timed with the season or the
+trend) are named in a note with how much the overlap widens their errors and their 95% ranges: the errors carry it,
+and the note says why they are wide.
 """
 from __future__ import annotations
 
@@ -35,6 +42,9 @@ from .runtime import key_text
 __all__ = ["fit_product"]
 
 _REFITS = 3
+#: A parameter is reported as overlapping others when their shared movement makes its variance this many times what
+#: it would be were its driver unrelated to theirs — its standard error doubled.
+_OVERLAP = 4.0
 
 
 class _Term:
@@ -150,10 +160,11 @@ def fit_product(problem: Problem, configs: Dict[str, Any]) -> Tuple[Dict[str, Di
         raise problem.fail(_confounded(terms, design, str(exc))) from None
     if fit.noise:
         for refit in range(_REFITS):
-            k = dispersion(ys, result.means, censored)
+            k = dispersion(ys, result.means, censored, fitted=design.width + design.count)
             result = count_regression(design, ys, offset=offsets, censored=censored, k=k, start=result,
                                       errors=refit == _REFITS - 1)
     updates, estimates = _estimates(problem, terms, base_keys, result, rows, row_keys)
+    notes.extend(_overlaps(terms, result, updates))
     if fit.noise:
         noise = Estimate({"dispersion": k if k is not None else 1e6}, {}, "method of moments around the fitted means", ["dist"])
         updates[fit.noise] = {None: noise}
@@ -170,37 +181,106 @@ def fit_product(problem: Problem, configs: Dict[str, Any]) -> Tuple[Dict[str, Di
 
 def _estimates(problem: Problem, terms: List[_Term], base_keys: List[Optional[str]], result: Any, rows: List[Row],
                row_keys: List[Dict[str, Optional[str]]]) -> Tuple[Dict[str, Dict[Optional[str], Estimate]], List[str]]:
-    coef, se = result.coef, result.se
+    coef, se, covariance = result.coef, result.se, result.covariance
     updates: Dict[str, Dict[Optional[str], Estimate]] = {}
     level_shift: Dict[Tuple[str, Optional[str]], float] = {}
+    level_gradient: Dict[Tuple[str, Optional[str]], Dict[int, float]] = {}
     names: List[str] = []
     for term in terms:
         for key in term.keys:
             if term.field == "profile":
-                logs = [0.0] + [coef[term.index(key, i)] for i in range(term.width)]
-                errors = [0.0] + [se[term.index(key, i)] for i in range(term.width)]
-                raw = [math.exp(v) for v in logs]
+                columns = [term.index(key, i) for i in range(term.width)]
+                raw = [1.0] + [math.exp(coef[j]) for j in columns]
                 mean = sum(raw) / len(raw)
                 profile = [v / mean for v in raw]
                 level_shift[(term.pattern, key)] = math.log(mean)
-                estimate = Estimate({"profile": profile}, {"profile": [p * e for p, e in zip(profile, errors)]},
-                                    "joint count regression", ["period", "form"])
+                # the profile averages 1, so a slot's log is its coefficient less the log of the mean, and its error
+                # carries every slot's — the first slot's too, the reference the coefficients are measured from
+                gradient = level_gradient[(term.pattern, key)] = {j: p / len(raw) for j, p in zip(columns, profile[1:])}
+                errors = [p * math.sqrt(_variance({j: (slot == i + 1) - g for i, (j, g) in enumerate(gradient.items())},
+                                                  covariance)) for slot, p in enumerate(profile)]
+                estimate = Estimate({"profile": profile}, {"profile": errors}, "joint count regression", ["period", "form"])
             else:
                 estimate = Estimate({term.field: coef[term.index(key)]}, {term.field: se[term.index(key)]},
                                     "joint count regression", _assumed(term.field))
             updates.setdefault(term.pattern, {})[key] = estimate
         names.append(f"{term.pattern}.{term.field}")
-    shift_by_key: Dict[Optional[str], float] = {}
+    shift_by_key: Dict[Optional[str], Tuple[float, Dict[int, float]]] = {}
     by_pattern = {term.pattern: term for term in terms}
     for mapping, row in zip(row_keys, rows):
-        shift = sum(level_shift.get((name, _at(by_pattern[name], key)), 0.0) for name, key in mapping.items() if name in by_pattern)
-        shift_by_key.setdefault(row.key if base_keys != [None] else None, shift)
+        base = row.key if base_keys != [None] else None
+        if base not in shift_by_key:
+            levels = [(name, _at(by_pattern[name], key)) for name, key in mapping.items() if name in by_pattern]
+            shift_by_key[base] = (sum(level_shift.get(level, 0.0) for level in levels),
+                                  {j: g for level in levels for j, g in level_gradient.get(level, {}).items()})
     scale: Dict[Optional[str], Estimate] = {}
     for group, key in enumerate(base_keys):
-        value = math.exp(result.intercepts[group] + shift_by_key.get(key, 0.0))
-        scale[key] = Estimate({"scale": value}, {"scale": value * result.intercept_se[group]}, "joint count regression")
+        shift, gradient = shift_by_key.get(key, (0.0, {}))
+        value = math.exp(result.intercepts[group] + shift)
+        # the scale is the level where the profiles average 1, not the first slot's level the intercept measures
+        crossed = result.intercept_covariance[group]
+        variance = (result.intercept_se[group] ** 2 + 2 * sum(g * crossed[j] for j, g in gradient.items())
+                    + _variance(gradient, covariance))
+        scale[key] = Estimate({"scale": value}, {"scale": value * math.sqrt(max(0.0, variance))}, "joint count regression")
     updates[problem.name] = scale
     return updates, [f"{problem.name}.scale", *names]
+
+
+def _overlaps(terms: List[_Term], result: Any, updates: Dict[str, Dict[Optional[str], Estimate]]) -> List[str]:
+    """Parameters the history can hardly tell apart — promotions that are always price cuts, promotions timed with the
+    season or the trend — named together, with how much their overlap widens each one's standard error. The errors
+    already carry it; the note says why they are wide and what data would narrow them."""
+    covariance, inflation = result.covariance, result.inflation
+    columns = [(term.index(key, slot), term, key) for term in terms for key in term.keys for slot in range(term.width)]
+    widest: Dict[str, Tuple[float, int, _Term, Optional[str]]] = {}  # each parameter's most inflated column
+    for j, term, key in columns:
+        name = _label(term, key)
+        if inflation[j] > widest.get(name, (0.0,))[0]:
+            widest[name] = (inflation[j], j, term, key)
+    groups: List[Dict[str, float]] = []  # parameters that overlap, each with its strongest correlation
+    for name, (factor, j, term, _) in widest.items():
+        pairs = [(abs(covariance[j][other]) / math.sqrt(covariance[j][j] * covariance[other][other]), _label(t, k))
+                 for other, t, k in columns if t.pattern != term.pattern and covariance[j][j] > 0 and covariance[other][other] > 0]
+        if factor < _OVERLAP or not pairs:
+            continue
+        correlation, partner = max(pairs, key=lambda pair: pair[0])
+        joined = [group for group in groups if name in group or partner in group]
+        merged = {member: value for group in joined for member, value in group.items()}
+        for member in (name, partner):
+            merged[member] = max(merged.get(member, 0.0), correlation)
+        groups = [group for group in groups if not any(group is other for other in joined)] + [merged]
+    notes = []
+    for group in groups:
+        widened = [f"{name} ×{math.sqrt(widest[name][0]):.1f}" for name in group if widest[name][0] >= _OVERLAP]
+        ranges = [shown for shown in (_range(updates, *widest[name][2:]) for name in group) if shown]
+        notes.append(f"{_join(list(group))} move together in this history (estimates correlated up to "
+                     f"±{max(group.values()):.2f}), so it can hardly tell them apart: the overlap widens their standard "
+                     f"errors ({', '.join(widened)}) and the fitted uncertainty carries that"
+                     + (f" — 95% ranges {'; '.join(ranges)}" if ranges else "")
+                     + "; history in which they vary on their own would narrow them")
+    return notes
+
+
+def _label(term: _Term, key: Optional[str]) -> str:
+    return f"{term.pattern}.{term.field}" + (f" ({key})" if key is not None else "")
+
+
+def _range(updates: Dict[str, Dict[Optional[str], Estimate]], term: _Term, key: Optional[str]) -> str:
+    """A single-number estimate as its 95% range, for a note (a profile has no one number to show)."""
+    estimate = updates[term.pattern][key]
+    value, error = estimate.params[term.field], estimate.errors.get(term.field)
+    if not isinstance(value, float) or not isinstance(error, float):
+        return ""
+    return f"{_label(term, key)} {value:.3g} ± {1.96 * error:.2g}"
+
+
+def _join(names: List[str]) -> str:
+    return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
+
+
+def _variance(gradient: Dict[int, float], covariance: List[List[float]]) -> float:
+    """The variance of Σ gradient·coefficient: a linearised combination of the fitted coefficients."""
+    return max(0.0, sum(a * b * covariance[i][j] for i, a in gradient.items() for j, b in gradient.items()))
 
 
 def _confounded(terms: List[_Term], design: Design, reason: str) -> str:

@@ -100,6 +100,10 @@ class _Solution:
     covariance: Matrix  # of the scaled coefficients, before multiplying by the residual variance
     intercept_var: List[float]
     scales: List[float]
+    #: Each group intercept's covariance with each scaled coefficient (same units as ``covariance``).
+    intercept_cross: Matrix = field(default_factory=list)
+    #: Each coefficient's variance inflation: its variance over what it would be were its column unrelated to the rest.
+    inflation: List[float] = field(default_factory=list)
 
 
 def _cholesky(a: Matrix) -> Optional[Matrix]:
@@ -174,6 +178,7 @@ def _solve(design: Design, w: Sequence[float], y: Sequence[float], covariance: b
             rhs[i] -= b[i] * group_y[group] * inv_w
             for j in nonzero:
                 schur[i][j] -= b[i] * b[j] * inv_w
+    schur_diagonal = [schur[i][i] for i in range(p)]
     lower = _cholesky(schur) if p else []
     if lower is None:
         raise ValueError(_COLLINEAR)
@@ -184,14 +189,17 @@ def _solve(design: Design, w: Sequence[float], y: Sequence[float], covariance: b
         if found is None:
             raise ValueError(_COLLINEAR)
         inverted = found
-    intercepts, intercept_var = [], []
+    intercepts, intercept_var, intercept_cross = [], [], []
     for group in range(g):
         b, inv_w, nonzero = cross[group], 1.0 / group_weight[group], supports[group]
         intercepts.append((group_y[group] - sum(b[i] * scaled_coef[i] for i in nonzero)) * inv_w)
         if covariance:
-            spread = sum(b[i] * inv_w * sum(inverted[i][j] * b[j] * inv_w for j in nonzero) for i in nonzero)
-            intercept_var.append(inv_w + spread)
-    return _Solution([c / s for c, s in zip(scaled_coef, scales)], intercepts, inverted, intercept_var, scales)
+            line = [-inv_w * sum(b[j] * inverted[j][i] for j in nonzero) for i in range(p)]
+            intercept_cross.append(line)
+            intercept_var.append(inv_w - inv_w * sum(b[i] * line[i] for i in nonzero))
+    inflation = [inverted[i][i] * schur_diagonal[i] for i in range(p)] if inverted else []
+    return _Solution([c / s for c, s in zip(scaled_coef, scales)], intercepts, inverted, intercept_var, scales,
+                     intercept_cross, inflation)
 
 
 def least_squares(x: Union[Design, Sequence[Sequence[float]]], y: Sequence[float], weights: Optional[Sequence[float]] = None,
@@ -254,6 +262,13 @@ class CountFit:
     iterations: int
     intercepts: List[float] = field(default_factory=list)
     intercept_se: List[float] = field(default_factory=list)
+    #: The coefficients' covariance, and each group intercept's covariance with each coefficient — what the standard
+    #: error of a quantity combining several of them (a profile rescaled to average 1) needs.
+    covariance: List[List[float]] = field(default_factory=list)
+    intercept_covariance: List[List[float]] = field(default_factory=list)
+    #: Each coefficient's variance inflation: how many times its variance is what it would be were its driver unrelated
+    #: to the other coefficients' drivers (1: separate; large: the data can hardly tell it from the others).
+    inflation: List[float] = field(default_factory=list)
 
 
 def count_regression(x: Union[Design, Sequence[Sequence[float]]], y: Sequence[float], *,
@@ -310,14 +325,33 @@ def count_regression(x: Union[Design, Sequence[Sequence[float]]], y: Sequence[fl
             break
     if not errors:
         return CountFit(coef, [], means, filled, done, intercepts, [])
-    weights = [m / (1 + m / k) if k else m for m in means]
-    solution = _solve(design, weights, [0.0] * n)
+    solution = _solve(design, [_information(m, v, k, c) for m, v, c in zip(means, y, cens)], [0.0] * n)
     pearson = sum((f - m) ** 2 / (m + (m * m / k if k else 0.0)) for f, m, c in zip(filled, means, cens) if not c)
     free = max(1, sum(1 for c in cens if not c) - design.width - design.count)
     spread = max(1.0, pearson / free)  # quasi-likelihood: widen errors when the counts are noisier than the model
-    se = [math.sqrt(max(0.0, solution.covariance[i][i] * spread)) / solution.scales[i] for i in range(design.width)]
+    scales = solution.scales
+    covariance = [[value * spread / (scales[i] * scales[j]) for j, value in enumerate(line)]
+                  for i, line in enumerate(solution.covariance)]
+    se = [math.sqrt(max(0.0, covariance[i][i])) for i in range(design.width)]
     intercept_se = [math.sqrt(max(0.0, v * spread)) for v in solution.intercept_var]
-    return CountFit(coef, se, means, filled, done, intercepts, intercept_se)
+    crossed = [[value * spread / scales[j] for j, value in enumerate(line)] for line in solution.intercept_cross]
+    return CountFit(coef, se, means, filled, done, intercepts, intercept_se, covariance, crossed, solution.inflation)
+
+
+def _information(mean: float, seen: float, k: Optional[float], censored: bool) -> float:
+    """A row's observed information about its log mean — the curvature of its log-likelihood there.
+
+    A negative-binomial count's curvature grows with the count, so it is read at the count seen rather than averaged
+    over counts: when stockouts decide which rows are seen in full, those are the low draws, and their average would
+    overstate what they tell. A censored row is read at its expected count given it was more than what sold, less the
+    spread of that count left unknown (Louis' missing information), so errors from a censored fit are as wide as the
+    censoring makes them."""
+    damp = 1 + mean / k if k else 1.0
+    count, unknown = float(seen), 0.0
+    if censored:
+        count, second = truncated_moments(mean, k, seen + 1)
+        unknown = second - count * count
+    return max(0.0, (mean * (1 + count / k) if k else mean) - unknown) / (damp * damp)
 
 
 def truncated_moments(mean: float, k: Optional[float], floor: float) -> Tuple[float, float]:
@@ -336,14 +370,18 @@ def truncated_moments(mean: float, k: Optional[float], floor: float) -> Tuple[fl
 
 
 def dispersion(values: Sequence[float], means: Sequence[float], censored: Optional[Sequence[bool]] = None,
-               iterations: int = 30) -> Optional[float]:
+               iterations: int = 30, fitted: int = 0) -> Optional[float]:
     """The negative-binomial k matching Σ(y − μ)² = Σ(μ + μ²/k); None when the counts are not over-dispersed.
 
     A censored row (demand went unmet, so it was more than what was sold) counts with its expected squared distance
     from the mean given that, so stockouts — which cut off exactly the high draws — do not make demand look calmer
-    than it is; k and those expectations are iterated to agree."""
+    than it is; k and those expectations are iterated to agree. Means ``fitted`` from these values with that many
+    parameters sit closer to the counts seen than the true means do, so those squared distances are scaled up by
+    n / (n − fitted), as a residual variance is, or k would come out too large and demand too calm (a censored row's
+    expected distance comes from the model, not from a count the fit could chase, and is left as it is)."""
     cens = list(censored) if censored is not None else [False] * len(values)
     squares = sum(m * m for m in means)
+    widen = len(values) / (len(values) - fitted) if len(values) > fitted else 1.0
 
     def solve(k: Optional[float]) -> Optional[float]:
         excess = 0.0
@@ -352,7 +390,7 @@ def dispersion(values: Sequence[float], means: Sequence[float], censored: Option
                 first, second = truncated_moments(m, k, v + 1)
                 excess += second - 2 * m * first + m * m - m
             else:
-                excess += (v - m) ** 2 - m
+                excess += widen * (v - m) ** 2 - m
         return squares / excess if excess > 0 and squares > 0 else None
 
     k = solve(None)

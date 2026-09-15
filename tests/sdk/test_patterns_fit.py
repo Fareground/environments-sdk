@@ -5,6 +5,7 @@ import csv
 import math
 import random
 import statistics
+from datetime import date, timedelta
 
 import pytest
 
@@ -357,3 +358,93 @@ def test_describe_lists_every_pattern_in_plain_words():
     text = fg_env.describe(contract).markdown
     assert "### World patterns" in text and "Shoppers buy less when prices rise" in text
     assert "`$pattern.price_effect(price)`" in text
+
+
+def test_a_censored_fits_errors_are_as_wide_as_its_censored_likelihood_not_as_if_every_count_had_been_seen():
+    from fg_env.sdk.patterns.numeric import count_regression
+
+    rng = random.Random(21)
+    k, rows, ys, censored = 3.0, [], [], []
+    for _ in range(3000):
+        x = rng.uniform(-1, 1)
+        demand = _negbin(rng, math.exp(1.5 + 0.8 * x), k)
+        stock = rng.randrange(1, 10)
+        rows.append([x])
+        ys.append(min(demand, stock))
+        censored.append(demand > stock)
+    assert 0.25 < statistics.fmean(censored) < 0.5
+    fit = count_regression(rows, ys, censored=censored, groups=[0] * len(ys), k=k)
+
+    def loglik(a, b):
+        total = 0.0
+        for (x,), y, cut in zip(rows, ys, censored):
+            mean = math.exp(a + b * x)
+            log_pmf = [math.lgamma(v + k) - math.lgamma(k) - math.lgamma(v + 1) + k * math.log(k / (k + mean))
+                       + v * math.log(mean / (k + mean)) for v in range(y + 1)]
+            total += math.log(1 - sum(math.exp(v) for v in log_pmf)) if cut else log_pmf[y]
+        return total
+
+    a, b, h = fit.intercepts[0], fit.coef[0], 1e-3
+    grid = {(i, j): loglik(a + i * h, b + j * h) for i in (-1, 0, 1) for j in (-1, 0, 1)}
+    haa = (grid[1, 0] - 2 * grid[0, 0] + grid[-1, 0]) / h ** 2
+    hbb = (grid[0, 1] - 2 * grid[0, 0] + grid[0, -1]) / h ** 2
+    hab = (grid[1, 1] - grid[1, -1] - grid[-1, 1] + grid[-1, -1]) / (4 * h ** 2)
+    determinant = haa * hbb - hab ** 2
+    assert fit.se[0] == pytest.approx(math.sqrt(-haa / determinant), rel=0.05)
+    assert fit.intercept_se[0] == pytest.approx(math.sqrt(-hbb / determinant), rel=0.05)
+
+
+def test_dispersion_around_means_fitted_with_many_parameters_is_not_overstated():
+    from fg_env.sdk.patterns.numeric import dispersion
+
+    rng = random.Random(22)
+    values, means = [], []
+    for _ in range(300):
+        mean = rng.uniform(2, 10)
+        counts = [_negbin(rng, mean, 2.0) for _ in range(6)]
+        values += counts
+        means += [statistics.fmean(counts)] * 6  # each group's mean fitted from its own six counts
+    assert dispersion(values, means) > 2.5  # read as if the means were known, demand looks calmer than it is
+    assert dispersion(values, means, fitted=300) == pytest.approx(2.0, rel=0.12)
+
+
+def test_fitted_scales_and_a_seasonal_profile_carry_errors_as_wide_as_their_estimates_spread():
+    profile = [0.8, 0.85, 1.0, 1.1, 1.2, 1.25, 1.2, 1.05, 0.95, 0.9, 0.85, 0.85]
+    profile = [p * 12 / sum(profile) for p in profile]
+    bases = {"a": 4.0, "b": 9.0, "c": 20.0}
+    weeks = [date(2020, 1, 6) + timedelta(weeks=week) for week in range(104)]
+    estimates = {name: [] for name in [*bases, "first", "peak"]}
+    for seed in range(30):
+        rng = random.Random(seed)
+        rows = [{"time": str(day), "sku": sku, "units": _negbin(rng, base * profile[day.month - 1], 4.0)}
+                for day in weeks for sku, base in bases.items()]
+        inputs = _fitted({"season": {"kind": "seasonal", "period": "year", "profile": [1] * 12},
+                          "demand": {"kind": "product", "table": "$inputs.skus", "column": "sku", "scale": "$row.base",
+                                     "of": ["season"], "fit": {"data": "$inputs.history", "value": "units", "time": "time",
+                                                                "key": "sku", "noise": "sales"}},
+                          "sales": {"kind": "counts", "dispersion": 1}}, rows, clock=WEEKS, rounds=104,
+                         inputs={"skus": {"type": "table", "default": [{"sku": s, "base": 1.0} for s in bases]}}
+                         ).contract["inputs"]
+        for row in inputs["demand_fit"]["default"]:
+            estimates[row["sku"]].append((row["scale"], row["scale_se"]))
+        for name, slot in (("first", 0), ("peak", 5)):
+            estimates[name].append((inputs["season_profile"]["default"][slot], inputs["season_profile_se"]["default"][slot]))
+    for name, pairs in estimates.items():  # the first month is what the fit measures the others from, yet has an error
+        spread = statistics.stdev(value for value, _ in pairs)
+        assert 0.7 < statistics.fmean(error for _, error in pairs) / spread < 1.4, name
+
+
+def test_a_promotion_that_is_always_a_price_cut_is_reported_as_overlapping_the_price_response_with_its_range():
+    tied = _shop()
+    tied["patterns"]["wobble"]["sd"] = 0.03
+    tied["events"][0]["do"] = ["$it.promo = 0.3 if $pattern.roll($it) < 0.15 else 0",
+                               "$it.price = $round(20 * (1 - $it.promo) * $exp($pattern.wobble($it)), 2)"]
+    result = _shop_fit(tied, _history(tied, seed=23))
+    inputs = result.contract["inputs"]
+    lift, error = inputs["promo_lift"]["default"], inputs["promo_lift_se"]["default"]
+    overlap = [note for note in result.fits[0].notes if "move together" in note]
+    assert len(overlap) == 1 and "promo.lift" in overlap[0] and "price_effect.elasticity" in overlap[0]
+    assert f"promo.lift {lift:.3g} ± {1.96 * error:.2g}" in overlap[0]
+    separate = _shop_fit(_shop(), _history(_shop(), seed=23))
+    assert not [note for note in separate.fits[0].notes if "move together" in note]
+    assert error > 2 * separate.contract["inputs"]["promo_lift_se"]["default"]

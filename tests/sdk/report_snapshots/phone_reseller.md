@@ -2,29 +2,30 @@
 
 ## What the model says
 
-- The baseline and buy to a 90% service level instead of three weeks of cover are within noise on profit: +$15 (95% CI −$437 to +$468), so the rule cannot pick between them.
+- The baseline and buy to a 90% service level instead of three weeks of cover are within noise on profit: +$65 (95% CI −$261 to +$390), so the rule cannot pick between them.
 - Decide between them on something else: nothing measured here separates them.
-- With the baseline, fill rate is above 95% only just: the interval crosses it (mean 96.3%, 95% CI 93.5%–99%).
-- Expected: fill rate 95.8% (80% range 95.5%–97.2%); profit $16,381 (80% range $16,253–$17,215).
+- With the baseline, fill rate is clearly above 95% (mean 96.7%, 95% CI 95.2%–98.1%).
+- Expected: fill rate 96.5% (80% range 96.3%–97.1%); profit $16,457 (80% range $16,138–$17,214).
 
 **Options**
 
 | Option | Fill rate | Profit |
 |---|---|---|
-| The baseline ≈ | 95.8% (80% range 95.5%–97.2%) | $16,381 (80% range $16,253–$17,215) |
-| List retail 8% cheaper and sell to wholesale at 90% of value | 94.6% (80% range 94.3%–95.2%) | $15,964 (80% range $15,582–$16,216) |
-| Buy to a 90% service level instead of three weeks of cover ≈ | 96.8% (80% range 96.1%–97.9%) | $16,339 (80% range $16,098–$17,349) |
+| The baseline ≈ | 96.5% (80% range 96.3%–97.1%) | $16,457 (80% range $16,138–$17,214) |
+| List retail 8% cheaper and sell to wholesale at 90% of value | 95% (80% range 94.6%–95%) | $16,004 (80% range $15,344–$16,407) |
+| Buy to a 90% service level instead of three weeks of cover ≈ | 97% (80% range 96.6%–97.7%) | $16,373 (80% range $15,973–$17,257) |
 
 ## What drives it
 
 - Retail demand over the 28 days is about 244 units. For every model, the day of the week adds 10% on Thursdays and takes away 15% on Mondays.
 - Wholesale demand over the 28 days is about 254 units. For every model, the trend adds 5% over the 28 days, against its level on 2026-01-01.
-- In a typical run, units on order rose 155 (+119%) on day 8 (2026-08-10), then gave back all of it by day 21 (2026-08-23).
-- In a typical run, units in stock rose 48 (+23%) on day 16 (2026-08-18), then gave back 52% of it by day 28 (2026-08-30), while stock value rose $7,131 (+18%).
+- List retail 8% cheaper and sell to wholesale at 90% of value: fill rate −1.8 points against the baseline (95% CI −3.0 points to −0.6 points).
+- In a typical run, units on order rose 165 (+138%) on day 8 (2026-08-10), then gave back all of it by day 27 (2026-08-29).
+- In a typical run, lost sales rose 4 on day 25 (2026-08-27), then gave back all of it by day 26 (2026-08-28).
 
 ## Risks
 
-- With list retail 8% cheaper and sell to wholesale at 90% of value: fill rate 94.6% (80% range 94.3%–95.2%).
+- With list retail 8% cheaper and sell to wholesale at 90% of value: fill rate 95% (80% range 94.6%–95%).
 
 ## What the model assumes
 
