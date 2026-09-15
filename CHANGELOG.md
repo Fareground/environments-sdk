@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Weighted threshold diffusion respects explicit flow direction when reciprocal links have different weights.
+- Threshold diffusion accumulates contacts instead of overwriting prior outreach exposures. Each step counts
+  active informing neighbours until adoption/rejection; unique reach and the adoption threshold remain separate.
 - Diffusion publishes each adoption batch before its hooks. Hooks see current adoption state, nested diffusion
   changes survive, and later steps use those changes. Refused hooks still roll back the whole action.
 - Inspection listings with fixed visibility can be reused across ordinary viewers until journaled state changes.

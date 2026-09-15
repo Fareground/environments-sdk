@@ -16,6 +16,8 @@ followed account adopted) or ``both``.
 * threshold — an agent adopts when the (link-weighted, with ``weighted``) share of its
   informing neighbours who adopted reaches its threshold (a number, an expression over ``$it``
   and ``$item``, or ``"random"``: drawn once per agent and item from the run's seed).
+  Each step counts one contact per adopted informing neighbour until adoption or rejection;
+  these contacts accumulate with explicit exposures, separately from unique reach.
 
 Items step every round in ``phase`` (or only through ``{"social": name, "action": "step"}``).
 Randomness comes from the world's seeded stream; all state is the world prop ``<name>``.
@@ -312,7 +314,7 @@ def _threshold(runner: Any, name: str, config: DiffusionConfig, state: Dict[str,
             if source in adopted:
                 active += weight
                 count += 1
-        state["exposed"][agent] = count
+        state["exposed"][agent] = state["exposed"].get(agent, 0) + count
         if total > 0 and active / total >= _threshold_of(world, name, config, state, item, agent):
             joining.append(agent)
     for agent in joining:
@@ -322,8 +324,11 @@ def _threshold(runner: Any, name: str, config: DiffusionConfig, state: Dict[str,
 
 
 def _weight(world: Any, config: DiffusionConfig, source: str, target: str) -> float:
-    forward = world.relation(source, target, config.over)
-    value = forward if forward is not None else world.relation(target, source, config.over)
+    if config.flow == "against":
+        value = world.relation(target, source, config.over)
+    else:
+        forward = world.relation(source, target, config.over)
+        value = forward if config.flow == "along" or forward is not None else world.relation(target, source, config.over)
     return max(0.0, float(value or 0.0))
 
 
