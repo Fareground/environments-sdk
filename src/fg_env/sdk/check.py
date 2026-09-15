@@ -12,6 +12,7 @@ import copy
 
 import datetime as _dt
 import re
+import keyword
 from difflib import get_close_matches
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
 
@@ -578,6 +579,7 @@ class _Checker:
         self._brief()
         self._clock_space()
         self._types_and_world()
+        self._keyword_names()
         self._entities()
         self._relations()
         self._physics()
@@ -669,6 +671,16 @@ class _Checker:
         if spec.type == "enum" and not spec.values:
             self.error(path, "an enum property needs `values`")
         self.value(spec.default, f"{path}.default", roots, types or {})
+
+    def _keyword_names(self) -> None:
+        """Names read as `$x.name` cannot be Python keywords (`$it.from`, `$params.in` do not parse)."""
+        named = [(f"types.{t}.props.{p}", p) for t, spec in self.c.types.items() for p in spec.props]
+        named += [(f"world.{p}", p) for p in self.c.world]
+        named += [(f"inputs.{p}", p) for p in self.c.inputs]
+        named += [(f"actions.{a}.params.{p}", p) for a, spec in self.c.actions.items() for p in spec.params]
+        for path, name in named:
+            if keyword.iskeyword(name):
+                self.error(path, f"'{name}' is a reserved word, so expressions cannot read it", f"rename it, e.g. '{name}_'")
 
     def _types_and_world(self) -> None:
         for name, spec in self.c.types.items():

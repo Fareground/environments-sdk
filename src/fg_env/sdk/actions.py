@@ -141,7 +141,7 @@ class ActionBook:
                 return (condition.why or "its requirements are not met").rstrip(". ")
         for pname, param in spec.params.items():
             if param.type == "entity" and self._required(param) and not self._depends_on_params(param) \
-                    and not self._choices(actor, name, pname, param):
+                    and not self._choices(actor, name, pname, param, first=True):
                 return f"there is no {param.of or 'target'} you can choose for {pname} right now"
         return None
 
@@ -154,9 +154,10 @@ class ActionBook:
         return param.where is not None and "params" in compile_expr(param.where).roots
 
     def _choices(self, actor: Entity, action: str, pname: str, param: ParamSpec,
-                 params: Optional[Dict[str, Any]] = None) -> List[Entity]:
+                 params: Optional[Dict[str, Any]] = None, first: bool = False) -> List[Entity]:
         """Entities that qualify. A `where` over earlier params is applied once they are known
-        (at validation); before that (tool schemas) every entity of the type is listed."""
+        (at validation); before that (tool schemas) every entity of the type is listed. With
+        ``first``, stop at the first one (enough to know whether any qualifies)."""
         if param.of is None:
             raise RunError("an entity parameter needs `of` (the entity type)", f"actions.{action}.params.{pname}")
         items = self.world.entities_of(param.of)
@@ -166,10 +167,13 @@ class ActionBook:
         if "params" in expr.roots and params is None:
             return items
         out = []
+        base = self.world.scope(actor=actor, params=params or {})
         for position, item in enumerate(items):
             try:
-                if truthy(expr(self.world.scope(actor=actor, it=item, i=position, params=params or {}))):
+                if truthy(expr(base.child(it=item, i=position))):
                     out.append(item)
+                    if first:
+                        break
             except ExprError as exc:
                 raise RunError(str(exc), f"actions.{action}.params.{pname}.where") from None
         return out
@@ -300,7 +304,10 @@ class ActionBook:
                 listed += f" and {len(unknown) - _LISTED_UNKNOWN} more"
             problems.append(f"unknown argument(s) {listed} (arguments: {', '.join(spec.params) or 'none'})")
         params: Dict[str, Any] = {}
+        seen: List[str] = []
         for pname, param in spec.params.items():
+            failed = [p for p in seen if p not in params]  # earlier arguments that were wrong or missing
+            seen.append(pname)
             raw = args.get(pname)
             if raw is None:
                 if param.default is not None:
@@ -308,6 +315,9 @@ class ActionBook:
                         raw = compile_expr(param.default)(self.world.scope(actor=actor, params=params)) \
                             if is_expr(param.default) else param.default
                     except ExprError as exc:
+                        if failed:
+                            problems.append(_waiting_on(pname, failed))
+                            continue
                         raise RunError(str(exc), f"actions.{name}.params.{pname}.default") from None
                 elif self._required(param):
                     problems.append(f"{pname} is required")
@@ -315,7 +325,13 @@ class ActionBook:
                 else:
                     params[pname] = None
                     continue
-            value, problem = self._value(actor, name, pname, param, raw, params)
+            try:
+                value, problem = self._value(actor, name, pname, param, raw, params)
+            except RunError:
+                if not failed:
+                    raise
+                problems.append(_waiting_on(pname, failed))  # its bounds or choices read an argument that failed
+                continue
             if problem and param.invalid:
                 try:
                     shown = Untrusted(raw) if isinstance(raw, str) else raw
@@ -657,3 +673,7 @@ def _first_in_order(world: SdkWorld, log_mark: int, event: Any) -> None:
     log.insert(index, event)
     for offset, item in enumerate(log[index:]):
         item.seq = log_mark + 1 + offset
+
+
+def _waiting_on(pname: str, failed: List[str]) -> str:
+    return f"{pname} can be checked once {', '.join(failed)} {'is' if len(failed) == 1 else 'are'} corrected"

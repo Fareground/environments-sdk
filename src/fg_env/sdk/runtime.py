@@ -422,8 +422,10 @@ class Env:
             try:
                 with shared_budget(ACTION_BUDGET, path):
                     self.effects.run(effects, dict(vars), path)
-            except Abort:
+            except Abort as refusal:
                 self.world.journal.rollback(mark)
+                self.world.emit("refused", f"{path} was refused: {refusal.reason}", to=[],
+                                data={"path": path, "reason": refusal.reason})
                 return False
             except BaseException:
                 self.world.journal.rollback(mark)
