@@ -218,12 +218,12 @@ _EFFECT_EXAMPLES = {
     "link": '{"link": "trusts", "from": "$actor", "to": "$params.who", "value": 0.8, "props": {"since": "$round"}}  (creates or updates: without `value` an existing link keeps its value and a new one gets the relation\'s `default`; `props` sets link fields, a new link starting from their defaults)',
     "unlink": '{"unlink": "follows", "from": "$actor", "to": "$params.who"}',
     "move": '{"move": "$actor", "to": "$params.place"}',
-    "post": '{"post": "chat", "text": "$params.text", "to": "$params.who"}  (record fields as keys; to = private recipients)',
-    "emit": '{"emit": "shock", "say": "Prices jump {$world.inflation|pct}.", "to": "$filter(buyer, $it.vip)", "data": {}}',
+    "post": '{"post": "chat", "text": "$params.text", "to": "$params.who", "delay": 2, "drop": 0.1}  (record fields as keys; to = private recipients; optional `delay` — rounds, or time on a continuous clock — and `drop` chance)',
+    "emit": '{"emit": "shock", "say": "Prices jump {$world.inflation|pct}.", "to": "$filter(buyer, $it.vip)", "data": {}, "delay": 1}  (optional `delay` and `drop`, as for post)',
     "fail": '{"fail": "You cannot afford that."}  (roll back the action; text goes to the actor)',
     "end": '{"end": "bankrupt", "winner": "$top(player, $it.score, 1)[0]", "say": "..."}',
     "after": '{"after": 3, "do": [...]}  (runs 3 rounds later with the same locals; on a continuous clock, 3 time units later)',
-    "wake": '{"wake": "$params.who", "why": "{$actor.name} asked you a question."}  (a turn later; "now": true — they react right away, before this turn continues; "in": 5 — continuous clock, that much later)',
+    "wake": '{"wake": "$params.who", "why": "{$actor.name} asked you a question."}  (a turn later; "now": true — they react right away, before this turn continues; "in": 5 — continuous clock, that much later; "drop": 0.2 — the wake may be lost)',
     "repeat": '{"repeat": 1000, "while": "$count(order) > 1", "do": [...]}  (error if still true at the limit)',
     "block": '{"block": "settle", "with": {"buyer": "$actor", "qty": "$params.qty"}}  (runs a named effect list from `blocks`)',
 }
@@ -276,6 +276,9 @@ _PATTERNS = """\
   Every person integrates its own number props; rates read its number props, the type's `params` and
   `read`s (per entity, over `$it`) and world physics names. `where` limits who integrates this step.
   Entities couple through `read` (explicit in time): the values are fixed for the whole step.
+* Latency and lossy channels: `"delay": 2` on `post`/`emit` delivers the message 2 rounds (or clock units)
+  later with its content as it was when sent; `"drop": 0.1` loses it (also on `wake`), rolled from the
+  run's seed when sent. A refused action sends nothing. Entries carry the round they arrive.
 * External data (prices, news, weather): `"feeds": {"oil": {"host": "market", "into": "world.oil_price",
   "query": {"symbol": "BRENT", "date": "{$clock.date}"}, "fallback": "$world.oil_price * $uniform(0.98, 1.02)"}}`,
   or `"into": "records.news"` for entries. Bind the host when loading: `fg_env.load(path, hosts={"market":

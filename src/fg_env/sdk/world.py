@@ -688,9 +688,13 @@ class SdkWorld(World):
         self.journal.push(undo)
         return event
 
-    def schedule(self, due_round: float, effects: List[Any], vars: Dict[str, Any], path: str) -> None:
-        """Run ``effects`` when the round (or, on a continuous clock, the time) reaches ``due_round``."""
-        item = {"effects": effects, "vars": {k: _freeze(v) for k, v in vars.items()}, "path": path}
+    def schedule(self, due_round: float, effects: List[Any], vars: Dict[str, Any], path: str,
+                 delivery: Optional[Dict[str, Any]] = None) -> None:
+        """Run ``effects`` when the round (or, on a continuous clock, the time) reaches ``due_round``;
+        or, with ``delivery``, deliver that message (see :mod:`delivery`)."""
+        item: Dict[str, Any] = {"effects": effects, "vars": {k: _freeze(v) for k, v in vars.items()}, "path": path}
+        if delivery is not None:
+            item["delivery"] = delivery
         self._schedule_seq += 1
         entry = (due_round, self._schedule_seq, item)
         heapq.heappush(self.scheduled, entry)

@@ -16,6 +16,7 @@ from typing import Any, Callable, Dict, Generator, List, Mapping, Optional, Tupl
 from ..entity import Entity
 from .actions import ACTION_BUDGET, ActionBook, stage_actions
 from .build import build_world
+from .delivery import run_delivery
 from .contract import MAX_ROUNDS, Contract, StageSpec
 from .effects import EffectRunner
 from .errors import InvariantViolation, RunError
@@ -364,7 +365,10 @@ class Env:
         world = self.world
         while world.scheduled and world.scheduled[0][0] <= world.now():
             _, _, item = heapq.heappop(world.scheduled)
-            self._atomic(item["effects"], world.thaw(item["vars"]), item["path"])
+            if "delivery" in item:
+                run_delivery(self, item)
+            else:
+                self._atomic(item["effects"], world.thaw(item["vars"]), item["path"])
 
     def _run_events(self, phase: str) -> None:
         world = self.world

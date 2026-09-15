@@ -1,4 +1,5 @@
-"""Static checks for the state model: noise, per-entity dynamics, link fields, lifecycle hooks, feeds."""
+"""Static checks for the state model: noise, per-entity dynamics, link fields, lifecycle hooks, feeds,
+message delivery."""
 from __future__ import annotations
 
 import keyword
@@ -17,9 +18,30 @@ from .props import prop_type
 if TYPE_CHECKING:
     from .check import Types, _Checker
 
-__all__ = ["check_physics_state", "check_relation_fields", "check_link_fields", "check_hooks", "check_feeds"]
+__all__ = ["check_physics_state", "check_relation_fields", "check_link_fields", "check_hooks", "check_feeds",
+           "check_delivery"]
 
 _FIELD_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def check_delivery(checker: "_Checker", op: str, effect: Dict[str, Any], path: str) -> None:
+    """Literal `delay` and `drop` values on a post, emit or wake effect."""
+    drop, delay = effect.get("drop"), effect.get("delay")
+    if _literal_number(drop) and not 0 <= drop <= 1:
+        checker.error(f"{path}.drop", f"is {drop}; a drop chance runs from 0 to 1")
+    if "delay" not in effect:
+        return
+    if op == "wake":
+        checker.error(f"{path}.delay", "`wake` takes `in` (continuous clock) instead of `delay`",
+                      "on a rounds clock, put the wake inside an `after` effect")
+        return
+    continuous = checker.c.clock.mode == "continuous"
+    if _literal_number(delay) and (delay < 0 or (not continuous and not isinstance(delay, int))):
+        checker.error(f"{path}.delay", f"is {delay}; a delay is " + ("a time ≥ 0" if continuous else "a whole number of rounds ≥ 0"))
+
+
+def _literal_number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
 def check_feeds(checker: "_Checker", base: FrozenSet[str]) -> None:

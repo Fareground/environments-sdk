@@ -13,7 +13,7 @@ An effect list mixes assignment statements and keyed operations::
     "$link($actor, $params.who, follows).since = $round"
     {"unlink": "follows", "from": "$actor", "to": "$params.who"}
     {"move": "$actor", "to": "$params.place"}
-    {"post": "chat", "text": "$params.text", "to": "$params.who"}
+    {"post": "chat", "text": "$params.text", "to": "$params.who", "delay": 2, "drop": 0.1}
     {"emit": "shock", "say": "Prices jump {$world.inflation|pct}.", "to": "$filter(buyer, $it.vip)"}
     {"fail": "You cannot afford that."}
     {"end": "bankrupt", "winner": "$top(player, $it.score, 1)", "say": "..."}
@@ -37,6 +37,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from ..entity import Entity
 from .errors import RunError
 from .contract import MAX_CREATE
+from .delivery import dropped, send
 from .expr import MAX_INT_BITS, Expr, ExprError, attr, check_size, compile_expr, is_expr, resolve, truthy
 from .template import compile_template, format_value
 from .links import Link
@@ -54,15 +55,18 @@ EFFECT_OPS: Dict[str, Tuple[str, ...]] = {
     "link": ("link", "from", "to", "value", "props"),
     "unlink": ("unlink", "from", "to"),
     "move": ("move", "to"),
-    "post": ("post", "to", "author"),  # plus the record's fields
-    "emit": ("emit", "say", "to", "data"),
+    "post": ("post", "to", "author", "delay", "drop"),  # plus the record's fields
+    "emit": ("emit", "say", "to", "data", "delay", "drop"),
     "fail": ("fail",),
     "end": ("end", "winner", "say"),
     "after": ("after", "do"),
-    "wake": ("wake", "why", "in", "now"),
+    "wake": ("wake", "why", "in", "now", "drop"),
     "repeat": ("repeat", "while", "do"),
     "block": ("block", "with"),
 }
+
+#: ``post`` keys that are not record fields.
+POST_KEYS = frozenset(EFFECT_OPS["post"])
 
 #: Hard ceiling for one ``repeat`` loop, whatever the contract asks for.
 REPEAT_CEILING = 100_000
@@ -527,7 +531,9 @@ class EffectRunner:
         self.world.move(entity, self._eval(effect.get("to"), vars), where)
 
     def _op_post(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-        fields = {k: self._eval(v, vars) for k, v in effect.items() if k not in ("post", "to", "author")}
+        if self._dropped(effect, vars, where):
+            return
+        fields = {k: _plain_value(self._eval(v, vars)) for k, v in effect.items() if k not in POST_KEYS}
         if "author" in effect:
             author_value = self._eval(effect["author"], vars)
             author = _entity(author_value, self.world, where).id if author_value is not None else None
@@ -535,15 +541,24 @@ class EffectRunner:
             actor = vars.get("actor")
             author = actor.id if isinstance(actor, Entity) else None
         to = _to_ids(self._eval(effect.get("to"), vars), where) if "to" in effect else None
-        self.world.post(effect["post"], fields, author, to, where)
+        send(self.world, self._eval(effect["delay"], vars) if "delay" in effect else None,
+             {"kind": "post", "record": effect["post"], "fields": fields, "author": author,
+              "to": list(to) if to is not None else None}, where)
 
     def _op_emit(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        if self._dropped(effect, vars, where):
+            return
         to = _to_ids(self._eval(effect.get("to"), vars), where) if "to" in effect else None
         actor = vars.get("actor")
         data = self._eval(effect.get("data") or {}, vars)
-        self.world.emit(str(effect["emit"]), self._text(effect.get("say"), vars),
-                        actor=actor.id if isinstance(actor, Entity) else None, to=to,
-                        data={k: _plain_value(v) for k, v in data.items()})
+        send(self.world, self._eval(effect["delay"], vars) if "delay" in effect else None,
+             {"kind": "emit", "event": str(effect["emit"]), "text": self._text(effect.get("say"), vars),
+              "actor": actor.id if isinstance(actor, Entity) else None, "to": list(to) if to is not None else None,
+              "data": {k: _plain_value(v) for k, v in data.items()}}, where)
+
+    def _dropped(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> bool:
+        """Roll the effect's ``drop`` chance (a lossy channel): True when the message is lost."""
+        return "drop" in effect and dropped(self.world, self._eval(effect["drop"], vars), f"{where}.drop")
 
     def _op_fail(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
         raise Abort(self._text(effect["fail"], vars) or "That is not possible right now.")
@@ -575,6 +590,8 @@ class EffectRunner:
         now = truthy(self._eval(effect["now"], vars)) if "now" in effect else False
         if now and "in" in effect:
             raise RunError("`wake` takes `now` or `in`, not both", where)
+        if self._dropped(effect, vars, where):
+            return
         for entity_id in _to_ids(self._eval(effect["wake"], vars), where) or ():
             if now:
                 world.request_reaction(entity_id, why)

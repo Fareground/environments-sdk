@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   host tape so snapshots, restores and replays never ask again; host text is marked untrusted. A declared
   `fallback` answers without a host, drawing randomness from its own seeded stream. New `StubFeed` stub and
   `adapters.historical(rows, at=, value=)` for backtests.
+- **Delivery latency and lossy channels**: `delay` on `post` and `emit` delivers the message rounds (or clock
+  time) later with the content it had when sent; `drop` on `post`, `emit` and `wake` loses it with a chance
+  rolled from the run's seed. Pending deliveries are journaled (a refused action sends nothing) and carried
+  by snapshots with their provenance. `delay` and `drop` are now reserved record field names.
 
 ### Changed
 - `link` without `value` keeps an existing link's value (it used to reset it to 1); a new link gets the
