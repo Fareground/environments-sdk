@@ -31,6 +31,10 @@ _NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
 #: Sections merged by key: the author's entry wins over a generated one of the same name.
 _KEYED = ("inputs", "world", "entities", "relations", "records", "actions", "views", "policies", "metrics",
           "outputs", "defs", "blocks", "arms")
+#: Stage settings a mechanism may fill in on a stage the author declared (never overriding the author).
+_HOOK_SETTINGS = ("turns", "order", "who", "until", "passes", "quiet", "max_actions", "max_calls", "must_act", "auto",
+                  "brief")
+_HOOK_KEYS = frozenset({"actions", "on_enter", "on_exit", *_HOOK_SETTINGS})
 #: Sections merged by appending generated items (an identical item is never added twice).
 _LISTED = ("population", "links", "events", "end", "invariants")
 
@@ -146,6 +150,13 @@ def _hook_stages(data: Dict[str, Any], hooks: Mapping[str, Mapping[str, Any]]) -
         elif isinstance(current, dict):
             for names in current.values():
                 names.extend(a for a in actions if a not in names)
+        unknown = set(hook) - _HOOK_KEYS
+        if unknown:
+            raise MechanismError(f"a stage hook cannot set {', '.join(sorted(unknown))}",
+                                 f"hooks set: {', '.join(sorted(_HOOK_KEYS))}", "stage")
+        for key in _HOOK_SETTINGS:  # turn settings the author left unset
+            if key in hook:
+                stage.setdefault(key, copy.deepcopy(hook[key]))
         for key in ("on_enter", "on_exit"):
             effects = stage.setdefault(key, [])
             seen = {_canonical(e) for e in effects}
