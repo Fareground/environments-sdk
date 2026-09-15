@@ -122,6 +122,14 @@ MAPE and R², what was estimated and what was assumed. `fit` blocks stay in the 
   mistaken for price response. `censored: "stockout"` marks rows that only give a lower bound (sales capped by stock):
   they are fitted as censored (expectation–maximisation), not dropped. `noise: "sales"` estimates that counts pattern's
   dispersion around the fitted means.
+* `fit` and `calibration` answer different questions. `fit` estimates parameters from recorded data, once, and
+  writes them into the contract; the `calibration` section tunes inputs at every load so simulated outputs hit
+  targets — for what only the simulation identifies. Never list a fitted input in `calibration.params` (the checker
+  warns): the load would replace the estimate.
+* Judge a fitted contract on history it did not see: `fg_env.validate(result.contract, cases, season=52, test=0.25)`.
+  `result.priors` holds the number estimates as `{input: {dist: "normal", mean, sd}}` for `uncertainty=` on
+  experiment, sweep, backtest and validate — pass the input `parameter_uncertainty: 0` with them, since the contract
+  already draws every fitted parameter itself.
 * `fg_env.decompose(contract, "demand", key="BRP-TOY-V")` shows every factor of a product or sum and what it adds,
   round by round; `fg_env.describe(contract)` lists every pattern in plain words."""
 

@@ -28,8 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fits its base per key, profiles, trend, price elasticity and promotion lift together in one count regression, so a
   promotion is not mistaken for price response; stockout rows marked `censored` are fitted as lower bounds, and a
   singular design names the factors the data cannot tell apart. `result.report()` gives each fit's method, error and
-  what was assumed. `fg_env.decompose(contract, "demand", key=...)` shows what each factor of a product adds, and
-  `fg_env.describe` lists every pattern in plain words.
+  what was assumed; `result.priors` gives the number estimates as normal priors for `uncertainty=`. The checker warns
+  when a fitted input is also tuned by the load-time `calibration` section. `fg_env.decompose(contract, "demand",
+  key=...)` shows what each factor of a product adds, and `fg_env.describe` lists every pattern in plain words.
 - **Example `auto_parts_store`**: twelve SKUs with per-category seasons, growth, price elasticity, promotions with a
   dip after them, substitution between tiers, stockouts with lost and spilled demand, noisy lead times and
   negative-binomial sales, fitted from a bundled three-year history that its `truth` arm generates

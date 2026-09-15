@@ -3,7 +3,7 @@ import math
 
 import pytest
 
-from patterns_helpers import series
+from patterns_helpers import errors, series, world
 
 WEEKS = {"unit": "week", "start": "2025-01-06"}
 
@@ -137,3 +137,14 @@ def test_a_named_period_without_a_calendar_start_counts_from_round_one_in_clock_
     got = series({"s": {"kind": "seasonal", "period": "year", "amplitude": 1, "peak": 0, "form": "add"}},
                  {"s": "$pattern.s"}, rounds=2, clock={"unit": "month", "step": 6})
     assert got["s"] == pytest.approx([1, -1])
+
+
+def test_a_calendar_follows_a_start_date_read_from_an_input():
+    effects = [{"on": "weekend", "effect": 1.5}]
+    options = {"clock": {"unit": "day", "start": "$inputs.start"},
+               "inputs": {"start": {"type": "date", "default": "2025-12-22"}}}
+    assert not errors(world({"c": {"kind": "calendar", "effects": effects},
+                             "g": {"kind": "trend", "rate": 0.01, "form": "exponential", "origin": "2026-01-05"}}, **options))
+    got = series({"c": {"kind": "calendar", "effects": effects}}, {"c": "$pattern.c"}, rounds=7,
+                 values={"start": "2025-12-24"}, **options)
+    assert got["c"] == [1, 1, 1, 1.5, 1.5, 1, 1]  # Wednesday 24 December, the weekend on the 27th and 28th

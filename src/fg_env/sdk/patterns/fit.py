@@ -89,10 +89,15 @@ class PatternFit:
 
 @dataclass
 class FitResult:
-    """The fitted contract (data, like the one given) and a report per pattern."""
+    """The fitted contract (data, like the one given), a report per pattern, and the estimates as priors."""
 
     contract: Dict[str, Any]
     fits: List[PatternFit]
+    #: Every fitted number input with a standard error as ``{input: {"dist": "normal", "mean", "sd"}}`` — the form
+    #: ``uncertainty=`` takes on experiment, sweep, backtest and validate. The contract already draws these (and the
+    #: per-key and list parameters, which have no input of their own) through each pattern's ``uncertainty``; pass
+    #: the input ``parameter_uncertainty: 0`` alongside so they are not drawn twice.
+    priors: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
     def report(self) -> str:
         return "\n".join(fit.line() for fit in self.fits) or "no pattern declares `fit`"
@@ -153,6 +158,7 @@ def fit_patterns(contract: ContractLike, *, data_dir: Union[str, Path, None] = N
     covered = {factor for cfg in configs.values() if cfg.fit and isinstance(cfg.fit.x, dict) for factor in cfg.fit.x}
     covered |= {cfg.fit.noise for cfg in configs.values() if cfg.fit and cfg.fit.noise}
     reports: List[PatternFit] = []
+    priors: Dict[str, Dict[str, Any]] = {}
     for name in order:
         cfg = configs[name]
         if name in covered:
@@ -161,11 +167,12 @@ def fit_patterns(contract: ContractLike, *, data_dir: Union[str, Path, None] = N
         problem = Problem(name, cfg, _rows(name, cfg, env), env)
         updates, report = _estimate(problem, configs)
         for pattern, per_key in updates.items():
-            _write_back(fitted, pattern, configs[pattern], per_key, env, cfg.fit.data if cfg.fit else "data")
+            data = cfg.fit.data if cfg.fit else "data"
+            priors.update(_write_back(fitted, pattern, configs[pattern], per_key, env, data))
         reports.append(report)
         env = load(fitted, data_dir=folder, seed=0, inputs=dict(inputs or {}))
         configs = {n: validated(n, spec)[0] or configs[n] for n, spec in fitted["patterns"].items()}
-    return FitResult(fitted, reports)
+    return FitResult(fitted, reports, priors)
 
 
 def _estimate(problem: Problem, configs: Dict[str, PatternConfig]) -> Tuple[Dict[str, Dict[Optional[str], Estimate]], PatternFit]:
@@ -325,8 +332,10 @@ def _usable(error: Any) -> bool:
 
 
 def _write_back(contract: Dict[str, Any], name: str, cfg: PatternConfig, per_key: Mapping[Optional[str], Estimate],
-                env: Any, data: str) -> None:
+                env: Any, data: str) -> Dict[str, Dict[str, Any]]:
+    """Write one pattern's estimates into the contract; returns its number inputs with errors as normal priors."""
     spec = contract["patterns"][name]
+    priors: Dict[str, Dict[str, Any]] = {}
     inputs = contract.setdefault("inputs", {})
     fields = sorted({f for est in per_key.values() for f in est.params})
     with_errors = sorted({f for est in per_key.values() for f, e in est.errors.items() if _usable(e)})
@@ -346,6 +355,8 @@ def _write_back(contract: Dict[str, Any], name: str, cfg: PatternConfig, per_key
             if f in with_errors and _usable(est.errors.get(f)):
                 inputs[f"{name}_{f}_se"] = _input(est.errors[f], f"Standard error of {name}_{f}.")
                 uncertainty[f] = _error_expr(f"$inputs.{name}_{f}_se", est.params[f])
+                if not isinstance(est.params[f], list):
+                    priors[f"{name}_{f}"] = {"dist": "normal", "mean": est.params[f], "sd": est.errors[f]}
     else:
         rows = _table_rows(name, cfg, per_key, fields, with_errors, env)
         column = cfg.column or "key"
@@ -359,6 +370,7 @@ def _write_back(contract: Dict[str, Any], name: str, cfg: PatternConfig, per_key
                 uncertainty[f] = _error_expr(f"$row.{f}_se", sample)
     if uncertainty:
         spec["uncertainty"] = uncertainty
+    return priors
 
 
 def _input(value: Any, description: str) -> Dict[str, Any]:

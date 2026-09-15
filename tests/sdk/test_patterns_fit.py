@@ -280,6 +280,7 @@ def test_fitted_parameters_are_written_back_as_inputs_with_errors_that_runs_draw
     assert statistics.pstdev(draws) == pytest.approx(error, rel=0.3)
     exact = fg_env.run(fitted, "idle", seed=1, rounds=1, inputs={"parameter_uncertainty": 0}).series["e"][0]
     assert exact == pytest.approx(estimate)
+    assert result.priors == {"p_elasticity": {"dist": "normal", "mean": estimate, "sd": error}}
 
 
 def test_fit_reads_data_files_from_the_data_directory(tmp_path):
