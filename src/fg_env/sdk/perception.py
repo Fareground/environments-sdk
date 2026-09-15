@@ -281,7 +281,8 @@ class Perception:
     def _would_show(self, event: LogEvent, actor: Entity) -> bool:
         if event.kind == "record":
             entry = self.world.entry_by_seq.get(event.data.get("entry"))
-            return entry is not None and entry.get("author") != actor.id
+            return (entry is not None and entry.get("author") != actor.id
+                    and self.world.event_visible(event, actor))
         if event.kind == "action" and event.actor == actor.id:
             return False
         return bool(event.text)

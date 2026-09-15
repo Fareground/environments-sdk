@@ -216,8 +216,19 @@ class SdkWorld(World):
 
     def events(self, kind: Optional[str], viewer: Any = None) -> List[LogEvent]:
         """Events so far; with a ``viewer`` (views, record visibility) only those it may know about."""
-        seen = viewer.id if isinstance(viewer, Entity) else None
-        return [e for e in self.log if (kind is None or e.kind == kind) and (seen is None or e.visible_to(seen))]
+        seen = viewer if isinstance(viewer, Entity) else None
+        return [e for e in self.log if (kind is None or e.kind == kind)
+                and (seen is None or self.event_visible(e, seen))]
+
+    def event_visible(self, event: LogEvent, viewer: Entity) -> bool:
+        """Record notifications carry the same visibility as their retained source entry."""
+        if not event.visible_to(viewer.id):
+            return False
+        if event.kind != "record":
+            return True
+        record = event.data.get("record")
+        entry = self.entry_by_seq.get(event.data.get("entry"))
+        return record in self.contract.records and entry is not None and self.entry_visible(record, entry, viewer)
 
     def relation(self, a: Any, b: Any, kind: str) -> Optional[float]:
         return _links.relation(self, a, b, kind)

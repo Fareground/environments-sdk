@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Reader-scoped `$events` enforces record visibility and retention as well as notification recipients;
+  `$actor` is the reader when no `$viewer` is supplied. Omniscient analysis retains the full event log.
+  Truncated news counts exclude records the reader cannot access, preventing private activity from
+  appearing in the omitted-item count. Visibility evaluations share the expression work budget.
 - `$median(list)` now accepts a numeric list directly, consistent with `$avg` and `$stdev`; nulls are
   skipped and empty/all-null lists return null. Existing projected and filtered entity forms are unchanged.
 - Unknown `$mean(...)` expressions suggest `$avg`, the arithmetic mean, rather than the similarly spelled

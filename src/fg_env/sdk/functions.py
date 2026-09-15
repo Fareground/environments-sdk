@@ -340,11 +340,13 @@ def _records(call: Call) -> List[Any]:
     return [row for i, row in enumerate(rows) if truthy(call.each(1, row, i))]
 
 
-@function("events(kind?, where?)", "Events so far (optionally of one kind), oldest first.",
+@function("events(kind?, where?)", "Events so far (optionally of one kind), oldest first. Reads follow $viewer, else "
+          "$actor; with neither, all events. Record events obey their retained entry's visibility.",
           min_args=0, max_args=2, lazy=[1])
 def _events(call: Call) -> List[Any]:
     kind = call.arg(0) if len(call) else None
-    rows = call.scope.world.events(kind, call.scope.vars.get("viewer"))
+    viewer = call.scope.vars.get("viewer") or call.scope.vars.get("actor")
+    rows = _held(lambda: call.scope.world.events(kind, viewer))
     charge(len(rows), call.source)
     if len(call) < 2:
         return list(rows)
