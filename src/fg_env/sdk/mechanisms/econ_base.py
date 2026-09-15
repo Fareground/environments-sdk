@@ -20,7 +20,8 @@ from ..registry import MechanismError
 
 __all__ = [
     "EPS", "NAME", "CONFIG_MODELS", "register_config", "config_of", "uses_of", "cached", "type_list", "require_types",
-    "require_currency", "top_types", "declared_use", "guarded", "choice_param", "entity_of", "maybe_entity", "props",
+    "require_currency", "lineage", "common_ancestor", "top_types", "declared_use", "guarded", "choice_param", "entity_of",
+    "maybe_entity", "props",
     "to_ids", "whole", "amount", "bump", "money", "emit_to", "compiles",
 ]
 
@@ -93,7 +94,16 @@ def require_types(contract: Mapping[str, Any], names: Sequence[str], field: str)
             raise MechanismError(f"'{name}' is not a declared type", f"types: {', '.join(types) or 'none'}", field)
 
 
-def _lineage(contract: Mapping[str, Any], name: str) -> List[str]:
+def common_ancestor(contract: Mapping[str, Any], names: Sequence[str]) -> Optional[str]:
+    """The most specific type every one of ``names`` is (or extends), or None when they share none."""
+    chains = [lineage(contract, name) for name in names]
+    if not chains:
+        return None
+    return next((t for t in chains[0] if all(t in chain for chain in chains[1:])), None)
+
+
+def lineage(contract: Mapping[str, Any], name: str) -> List[str]:
+    """``name`` then its ancestors, nearest first (raw contract, before parsing)."""
     types = contract.get("types") or {}
     chain: List[str] = []
     current: Optional[str] = name
@@ -115,7 +125,7 @@ def top_types(contract: Mapping[str, Any], names: Sequence[str]) -> List[str]:
     """``names`` without any type whose ancestor is also listed (so no entity is counted twice)."""
     out = []
     for name in dict.fromkeys(names):
-        if not any(parent in names for parent in _lineage(contract, name)[1:]):
+        if not any(parent in names for parent in lineage(contract, name)[1:]):
             out.append(name)
     return out
 

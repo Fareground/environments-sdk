@@ -1,10 +1,18 @@
 """Economy mechanisms: inventory, ledger, production, subscriptions, bookings, negotiation, labor
 and supply chains — value is conserved, tools list only valid choices, runs are deterministic."""
 import copy
+import json
+from pathlib import Path
 
 import pytest
 
 import fg_env
+from fg_env.sdk.expr import compile_expr
+
+EXAMPLES = Path(__file__).parents[2] / "examples" / "contracts"
+#: Economy examples and the input that sets their length.
+LONG_RUNS = {"corner_shop_town": {"days": 200}, "trade_negotiation": {"years": 200}, "crafting_village": {"days": 200},
+             "beer_game_native": {"weeks": 200}}
 
 
 def scripted(plan):
@@ -681,3 +689,56 @@ def test_supply_chain_orders_travel_up_and_production_enters_the_producer_pipeli
     assert env.props["stock_flows"] == {"sold": {"widget": -3}, "production": {"widget": 6}}
     env.run("idle", rounds=1)
     assert env.entity("plant")["props"]["flow_incoming"] == 4 and env.entity("plant")["props"]["flow_received"] == 6
+
+
+# ---------------------------------------------------------------------------
+# examples: conservation, determinism, resume
+# ---------------------------------------------------------------------------
+
+
+def _conserved_everywhere(env):
+    uses = [name for name, use in env.contract.mechanisms.items() if use["kind"] in ("ledger", "inventory")]
+    assert uses
+    return {name: compile_expr(f"$conserved('{name}')")(env.world.scope()) for name in uses}
+
+
+@pytest.mark.parametrize("stem", sorted(LONG_RUNS))
+def test_examples_conserve_value_over_200_random_agent_rounds(stem):
+    env = fg_env.load(EXAMPLES / f"{stem}.json", inputs=LONG_RUNS[stem], seed=3)
+    result = env.run("random")
+    assert result.status == "completed" and result.rounds == 200, result.error
+    assert result.stats["actions"] > 0
+    assert set(_conserved_everywhere(env).values()) == {True}
+
+
+@pytest.mark.parametrize("stem", sorted(LONG_RUNS))
+def test_examples_are_deterministic_and_resume_identically(stem):
+    path, inputs = EXAMPLES / f"{stem}.json", {**LONG_RUNS[stem]}
+    straight = fg_env.load(path, inputs=inputs, seed=5).run("random", rounds=30).to_dict()
+    assert fg_env.load(path, inputs=inputs, seed=5).run("random", rounds=30).to_dict() == straight
+    env = fg_env.load(path, inputs=inputs, seed=5)
+    env.run("random", rounds=12)
+    restored = fg_env.Env.restore(path, json.loads(json.dumps(env.snapshot())))
+    restored.run("random", rounds=18)
+    assert restored.result().to_dict() == straight
+
+
+@pytest.mark.parametrize("policy", [None, "policy:base_stock", "policy:passthrough"])
+@pytest.mark.parametrize("arm", [None, "shared_demand"])
+def test_native_beer_game_reproduces_the_hand_written_one(policy, arm):
+    participants = {"tier": policy} if policy else None
+    original = fg_env.load(EXAMPLES / "beer_game.json", seed=1, arm=arm).run(participants)
+    native = fg_env.load(EXAMPLES / "beer_game_native.json", seed=1, arm=arm).run(participants)
+    for key in ("total_cost", "bullwhip_ratio", "peak_backlog", "weeks_until_stable", "cost_by_tier", "peak_backlog_by_tier"):
+        assert native.outputs[key] == original.outputs[key], key
+    assert native.series["factory_order"] == original.series["factory_order"]
+
+
+def test_guide_documents_every_economy_kind_function_and_op():
+    mechanisms, effects, everything = fg_env.guide("mechanisms"), fg_env.guide("effects"), fg_env.guide()
+    for kind in ("inventory", "ledger", "production", "subscriptions", "bookings", "negotiation", "labor", "supply_chain"):
+        assert f"### `{kind}`" in mechanisms
+    for op in ("pay", "mint", "burn", "give_items", "make_items", "use_items", "propose_terms", "place_order"):
+        assert f"`{op}`" in effects
+    for fn in ("$has(", "$count_items(", "$net_worth(", "$conserved(", "$skill(", "$subscribed(", "$pipeline("):
+        assert fn in everything

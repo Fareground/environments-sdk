@@ -12,7 +12,8 @@ from ..expr import Call, ExprError, function
 from ..registry import MechanismError, effect_op, mechanism
 from ..world import Abort
 from .econ_assets import destroy_items, held, put_items, take_items
-from .econ_base import bump, compiles, config_of, declared_use, entity_of, maybe_entity, props, register_config, whole
+from .econ_base import (bump, common_ancestor, compiles, config_of, declared_use, entity_of, maybe_entity, props, register_config,
+                        whole)
 from .econ_inventory import agent_types
 
 __all__ = ["SupplyChainConfig"]
@@ -67,12 +68,15 @@ def _expand_supply_chain(name: str, config: SupplyChainConfig, contract: Mapping
     for field in ("demand", "order_delay", "lead_time", "production_delay", "initial_flow", "holding_cost", "backlog_cost",
                   "max_order", "default_order"):
         compiles(getattr(config, field), field)
-    types: List[str] = []
+    node_types: List[str] = []
     for node in config.nodes:
         if node not in entities:
             raise MechanismError(f"node '{node}' is not a declared entity", "nodes are ids under `entities`", "nodes")
-        if entities[node].get("type") not in types:
-            types.append(entities[node]["type"])
+        if entities[node].get("type") not in node_types:
+            node_types.append(entities[node]["type"])
+    # Node props go on the most specific type all nodes share, so expressions over that type can read them.
+    shared = common_ancestor(contract, node_types)
+    types = [shared] if shared is not None else node_types
     whole_int = {"type": "int", "default": 0, "min": 0}
     node_props: Dict[str, Any] = {
         f"{name}_backlog": {**whole_int, "description": "Units owed downstream."},

@@ -1,0 +1,15 @@
+{
+  "actions": 11,
+  "events": 11,
+  "events_sha256": "939687e538846a7d7c5cc378c6d9943e6ada33bae7cd222fc55a04d9fa0a566d",
+  "metrics": {
+    "avg_health": 10.0,
+    "avg_skill": 0.0,
+    "bread_made": 0,
+    "iron_made": 0,
+    "village_worth": 91.0
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 16
+}

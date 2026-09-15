@@ -1,0 +1,14 @@
+{
+  "actions": 8,
+  "events": 11,
+  "events_sha256": "38db4cb088fa9999adef761eb5e0e03d20bae1ab16fea5327884954c5eb06632",
+  "metrics": {
+    "arland_credits": 3830.0,
+    "borin_credits": 148.0,
+    "borin_shortfall": 53,
+    "deal_active": 0
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 8
+}
