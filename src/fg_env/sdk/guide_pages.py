@@ -22,7 +22,7 @@ __all__ = ["SECTIONS", "section_page", "roots_table", "expressions_page", "FUNCT
            "functions_index", "functions_page", "effects_page", "mechanisms_page", "family_page", "mode_page"]
 
 #: Roots every expression may read, wherever it is written.
-EVERYWHERE = "$inputs $world $physics $clock $round $stage $metrics $series $arm"
+EVERYWHERE = "$inputs $world $physics $clock $round $stage $metrics $series $arm $pattern"
 
 #: (section, where in it, the extra roots available there).
 ROOTS: List[Tuple[str, str, str]] = [
@@ -139,7 +139,7 @@ _MODULE_GROUPS = {
     "stdlib.scoring": "stats", "space_functions": "space", "networks": "space", "stdlib.puzzles": "game",
     "mechanisms._common": "conditions", "mechanisms.card_scoring": "game", "mechanisms.cards": "game",
     "mechanisms.econ_assets": "economy", "mechanisms.market_stats": "market", "mechanisms.order_book": "market",
-    "mechanisms.package_auction": "market", "mechanisms.memory": "mind",
+    "mechanisms.package_auction": "market", "mechanisms.memory": "mind", "patterns.runtime": "world",
 }
 #: What each non-family group holds, in the order the guide lists them.
 FUNCTION_GROUPS = {

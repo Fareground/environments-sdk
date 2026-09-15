@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Environment SDK (`fg-env`)
 
+#### Added
+- **World patterns** (`patterns`): the world's own regularities declared once, like its physics, and read anywhere as
+  values — `$pattern.winter`, `$pattern.price_effect($it.price)`, `$pattern.season($it.category)`. Kinds for time
+  (trend, seasonal, calendar, cycle, lifecycle, step, series), random paths from each pattern's own seeded stream
+  (random walk, mean reversion, autoregression, volatility clustering, regimes, shocks, noise, weather), responses
+  (elasticity, cross-price substitution, promotions with a dip after, saturation, thresholds, reference prices,
+  learning curves, network effects, hazards), population (draws, segments, Bass diffusion, habit and fatigue),
+  observation (negative-binomial counts, measurement error, censoring, missing values), memory (carry-over and lags)
+  and composition (product, sum). Parameters are fixed for a run and may read `$inputs`, so sweeps, arms,
+  sensitivity, calibration and forks apply to them; keys come from an entity type, a list or a table of per-key
+  parameters; `record` makes a pattern a metric; `uncertainty` draws parameters around their estimates each run.
+  `guide("patterns")` teaches them; the former `patterns` part (recipes) is now `guide("recipes")`.
+
 #### Changed
 - **A short core guide**: `fg_env.guide()` / `fg-env guide` is a ~2.8K-token core — the model, a quickstart that
   runs with defaults, the essential sections and fields, expression and effect basics, the mechanism families and a

@@ -373,6 +373,7 @@ class Env(Copying):
                 return
         world.stage = None
         self.happenings.run_events("end")
+        world.patterns.commit()
         sample_metrics(self.contract, world)
         self.happenings.check_triggers("round end")
         self._check_invariants("round", "round")

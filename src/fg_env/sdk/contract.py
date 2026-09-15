@@ -760,6 +760,9 @@ class Contract(_Model):
     links: List[LinkSpec] = Field(default_factory=list)
     physics: Optional[PhysicsSpec] = None
     feeds: Dict[str, FeedSpec] = Field(default_factory=dict, description="External data written into world props or records, answered by host adapters.")
+    patterns: Dict[str, Dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Named patterns of the world — trends, seasons, responses, random processes, draws — read as $pattern.<name>; see the guide's patterns part.")
     records: Dict[str, RecordSpec] = Field(default_factory=dict)
     actions: Dict[str, ActionSpec] = Field(default_factory=dict)
     stages: List[StageSpec] = Field(default_factory=list)
