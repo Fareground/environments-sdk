@@ -13,8 +13,8 @@ from ..expr import Call, ExprError, function
 from ..registry import MechanismError, effect_op, mechanism
 from ..world import Abort
 from .econ_assets import assets, balance, move_items, move_money
-from .econ_base import (bump, choice_param, compiles, config_of, emit_to, entity_of, money, props, register_config, require_types, run_hook,
-                        to_ids, type_list, valid_name, whole)
+from .econ_base import (INVENTORY, LEDGER, bump, choice_param, compiles, config_of, declared_names, emit_to, entity_of, money, props,
+                        register_config, require_types, run_hook, to_ids, type_list, valid_name, whole)
 from .econ_inventory import agent_types
 
 __all__ = ["NegotiationConfig", "IssueSpec", "ObligationSpec", "BreachSpec"]
@@ -128,9 +128,8 @@ def _expand_negotiation(name: str, config: NegotiationConfig, contract: Mapping[
             raise MechanismError("an enum issue needs `values`", None, f"issues.{issue}.values")
         if spec.min is not None and spec.max is not None and spec.min > spec.max:
             raise MechanismError("min is above max", None, f"issues.{issue}")
-    mechanisms = contract.get("mechanisms") or {}
-    currencies = {c for u in mechanisms.values() if isinstance(u, Mapping) and u.get("kind") == "ledger" for c in (u.get("currencies") or {})}
-    items = {i for u in mechanisms.values() if isinstance(u, Mapping) and u.get("kind") == "inventory" for i in (u.get("items") or {})}
+    currencies = declared_names(contract, LEDGER, "currencies")
+    items = declared_names(contract, INVENTORY, "items")
     for index, duty in enumerate(config.obligations):
         path = f"obligations[{index}]"
         for field in ("from_", "to", "amount", "times", "pay", "give"):
