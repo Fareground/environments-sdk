@@ -412,7 +412,7 @@
     },
     "CalibrationSpec": {
       "additionalProperties": false,
-      "description": "A quick pilot calibration run whenever the contract loads: inputs are fitted so short pilot sessions hit the\ntargets, and the session runs with the fitted values (``env.inputs``, ``result.inputs``; the fit is in\n``env.calibration``). Deterministic given the session's seed. It costs ``budget × runs`` pilot sessions plus\n``holdout`` at every load that does not set a fitted input itself — setting one (or sweeping it) skips it.",
+      "description": "A quick pilot calibration run whenever the contract loads: inputs are fitted so short pilot sessions hit the\ntargets, and the session runs with the fitted values (``env.inputs``, ``result.inputs``; the fit is in\n``env.calibration``). Deterministic given the session's seed. It costs ``budget × runs`` pilot sessions plus\n``holdout`` at every load that does not set a fitted input itself — setting one (or sweeping it) skips it.\n\nA pilot fit is only as steady as its pilots: a noisy target (a volatility over a few dozen bars) fitted with one\nshort pilot per point can land anywhere in the range, even on its bounds (check ``env.calibration``). Longer\npilots, more ``runs`` per point, a larger ``holdout`` and a range no wider than plausible make it reliable.",
       "properties": {
         "params": {
           "additionalProperties": {

@@ -755,7 +755,11 @@ class CalibrationSpec(_Model):
     """A quick pilot calibration run whenever the contract loads: inputs are fitted so short pilot sessions hit the
     targets, and the session runs with the fitted values (``env.inputs``, ``result.inputs``; the fit is in
     ``env.calibration``). Deterministic given the session's seed. It costs ``budget × runs`` pilot sessions plus
-    ``holdout`` at every load that does not set a fitted input itself — setting one (or sweeping it) skips it."""
+    ``holdout`` at every load that does not set a fitted input itself — setting one (or sweeping it) skips it.
+
+    A pilot fit is only as steady as its pilots: a noisy target (a volatility over a few dozen bars) fitted with one
+    short pilot per point can land anywhere in the range, even on its bounds (check ``env.calibration``). Longer
+    pilots, more ``runs`` per point, a larger ``holdout`` and a range no wider than plausible make it reliable."""
 
     params: Dict[str, Dict[str, Any]] = Field(..., min_length=1, description="{input: {low?, high?, log?}}: number or int inputs to fit (the range defaults to the input's min and max).")
     targets: Dict[str, Any] = Field(..., min_length=1, description="{output or metric: target} as fg_env.calibrate takes them; a number (or a stat target's `value`) may be an expression over $inputs and $world, read from the world this session builds.")
