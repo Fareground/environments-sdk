@@ -62,6 +62,8 @@ class Env:
         self.actions = ActionBook(contract, self.world, self.effects)
         self.perception = Perception(contract, self.world)
         self.stats = Stats()
+        #: The same numbers per agent entity id (a tournament bills each entrant for its own turns).
+        self.agent_stats: Dict[str, Stats] = {}
         self.status = "ready"
         self.ended_by: Optional[str] = None
         self.error: Optional[str] = None
@@ -209,6 +211,7 @@ class Env:
             inputs=self.inputs, outputs=outputs, metrics=dict(self.world.metrics),
             series={k: list(v) for k, v in self.world.series.items()}, winner=end.get("winner"),
             error=self.error, output_issues=issues, stats=self.stats.to_dict(),
+            agent_stats={key: self.agent_stats[key].to_dict() for key in sorted(self.agent_stats)},
             events=[e.to_dict() for e in self.world.log], time=self.world.time if self.world.continuous else None,
             exposures=self.world.exposures.to_dict() if self.world.exposures is not None else {},
             frames=[dict(frame) for frame in self.previews.frames],
@@ -664,6 +667,11 @@ class Env:
             self._turn_end_hook(stage, turn.actor)
         yield from ()
 
+    def _tally(self, actor_id: str, stats: Stats) -> None:
+        """Add numbers to the run's totals and to the agent's own (callers hold the lock)."""
+        self.stats.add(stats)
+        self.agent_stats.setdefault(actor_id, Stats()).add(stats)
+
     def _settle_choices(self, turn: Turn, mark: int, applied: int) -> bool:
         """An atomic simultaneous stage: keep one agent's committed choices when they meet `valid`, else undo
         them all and tell the agent why. True when the agent's choices stand."""
@@ -679,9 +687,7 @@ class Env:
             world.emit("outcome", f"Your choices were undone: {why}.", actor=turn.actor.id, to=(turn.actor.id,),
                        data={"ok": False, "undone": True})
             world.journal.clear()
-            self.stats.actions -= applied
-            self.stats.rejected_actions += applied
-            self.stats.undone_turns += 1
+            self._tally(turn.actor.id, Stats(actions=-applied, rejected_actions=applied, undone_turns=1))
             turn.stats.undone_turns = 1
         return False
 
@@ -698,17 +704,17 @@ class Env:
                            actor=actor.id, to=(actor.id,), data={"action": name, "ok": False})
                 if not deferred:
                     world.journal.clear()
-                self.stats.rejected_actions += 1
+                self._tally(actor.id, Stats(rejected_actions=1))
                 return 0
             outcome = self.actions.apply(actor, name, params)
             text = outcome.text if outcome.ok else f"Your {verb} failed: {outcome.text}"
             world.emit("outcome", text, actor=actor.id, to=(actor.id,), data={"action": name, "ok": outcome.ok})
             if not outcome.ok:
-                self.stats.rejected_actions += 1
+                self._tally(actor.id, Stats(rejected_actions=1))
                 if not deferred:
                     world.journal.clear()
                 return 0
-            self.stats.actions += 1
+            self._tally(actor.id, Stats(actions=1))
             if not deferred:
                 self._after_commit(f"actions.{name}")
                 self.happenings.react(turn.stage)

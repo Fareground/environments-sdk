@@ -180,6 +180,45 @@ def cmd_experiment(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_tournament(args: argparse.Namespace) -> int:
+    from .tournament import tournament
+
+    entrants: Dict[str, Any] = {}
+    for item in args.entrant or []:
+        name, sep, participant = (part.strip() for part in item.partition("="))
+        if not sep or not name or not participant:
+            raise _UsageError(f"--entrant expects NAME=PARTICIPANT, got {item!r}")
+        if name in entrants:
+            raise _UsageError(f"entrant '{name}' is given twice")
+        entrants[name] = participant
+    result = tournament(args.file, entrants, seats=args.seat, pairing=args.pairing, games=args.games, score=args.score,
+                        rating=args.rating, swiss_rounds=args.swiss_rounds, others=args.others, inputs=_inputs(args),
+                        arm=args.arm, rounds=args.rounds, seed=args.seed, workers=args.workers, data_dir=args.data_dir)
+    print(json.dumps(result.to_dict(), indent=2, default=str, ensure_ascii=False) if args.json else result.summary())
+    return 0
+
+
+def _description(args: argparse.Namespace) -> Any:
+    from .describe import describe
+
+    return describe(args.file, inputs=_inputs(args), arm=args.arm, data_dir=args.data_dir)
+
+
+def cmd_describe(args: argparse.Namespace) -> int:
+    description = _description(args)
+    if args.json:
+        print(json.dumps(description.to_dict(), indent=2, default=str, ensure_ascii=False))
+    else:
+        print(description.markdown, end="")
+    return 0
+
+
+def cmd_info(args: argparse.Namespace) -> int:
+    description = _description(args)
+    print(json.dumps(description.metadata, indent=2, default=str, ensure_ascii=False) if args.json else description.info())
+    return 0
+
+
 def cmd_expand(args: argparse.Namespace) -> int:
     from .api import expand
 
@@ -250,6 +289,35 @@ def add_commands(sub: Any) -> None:
     p.add_argument("--data-dir", help="folder input data files are read from (default: the contract's folder)")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=_guarded(cmd_experiment))
+
+    p = sub.add_parser("tournament", help="play entrants against each other in the contract's seats and rate them")
+    _common(p, 0)
+    p.add_argument("--entrant", action="append", metavar="NAME=PARTICIPANT",
+                   help="an entrant: random | idle | policy:<name> (give at least two)")
+    p.add_argument("--seat", action="append", metavar="ENTITY_ID", help="a seat (default: every starting agent)")
+    p.add_argument("--pairing", choices=("round_robin", "all_play_all", "swiss"), default="round_robin")
+    p.add_argument("--games", type=int, default=1, help="games per seating (game g shares its seed across seatings)")
+    p.add_argument("--score", help="output name or expression over $outputs and $seat (default: the winner)")
+    p.add_argument("--rating", choices=("elo", "glicko2"), default="elo", help="rating the standings are ranked by")
+    p.add_argument("--swiss-rounds", type=int, help="Swiss rounds (default: log2 of the entrants, rounded up)")
+    p.add_argument("--others", metavar="PARTICIPANT", help="participant for agents without a seat")
+    p.add_argument("--rounds", type=int, help="stop each game after this many rounds")
+    p.add_argument("--workers", type=int, default=1)
+    p.add_argument("--json", action="store_true", help="print the full result as JSON")
+    p.set_defaults(func=_guarded(cmd_tournament))
+
+    for name, text, command in (
+            ("describe", "write an ODD-protocol description of a contract (markdown; --json adds the game metadata)",
+             cmd_describe),
+            ("info", "derived game metadata: turns, chance, information, players, length, action space", cmd_info)):
+        p = sub.add_parser(name, help=text)
+        p.add_argument("file", help="contract JSON file")
+        p.add_argument("--input", action="append", metavar="NAME=VALUE", help="set an input (JSON value or text)")
+        p.add_argument("--inputs-file", help="JSON file of inputs")
+        p.add_argument("--arm", help="describe the contract with this arm applied")
+        p.add_argument("--data-dir", help="folder input data files are read from (default: the contract's folder)")
+        p.add_argument("--json", action="store_true", help="print JSON")
+        p.set_defaults(func=_guarded(command))
 
     p = sub.add_parser("expand", help="print the contract as the engine reads it: imports merged, macros expanded")
     p.add_argument("file", help="contract JSON file")

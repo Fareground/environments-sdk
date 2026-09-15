@@ -229,7 +229,7 @@ class Driver:
             turn.done = True
             if turn.stats.actions == 0 and not turn.intents:
                 turn.stats.idle_turns += 1
-            env.stats.add(turn.stats)
+            env._tally(turn.actor.id, turn.stats)
             if turn.exposure is not None and not turn.staged:  # simultaneous turns close once their choices commit
                 turn.exposure.close(turn)
 
