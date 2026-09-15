@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Backtests reject missing, non-finite or incorrectly typed forecast outputs instead of turning them into
+  negative events, synthetic categories or silently reduced ensembles; threshold arguments are validated.
 - Procedure checks warn when `all_did` is paired with actor-specific action conditions, explaining that
   all declared actor types remain required and suggesting filtered completion for a smaller cohort.
 - Added a declarative regional-rollout acceptance composition: nested macros instantiate independent

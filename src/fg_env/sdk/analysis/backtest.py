@@ -105,6 +105,8 @@ def backtest(contract: ContractLike, cases: Sequence[Mapping[str, Any]], output:
     answers host requests (feeds, judges) in every run.
     """
     runner.check_positive_int("runs", runs)
+    if threshold is not None and not is_number(threshold):
+        raise ValueError("threshold must be a finite number")
     if not cases:
         raise ValueError("backtest needs at least one case")
     parsed = runner.as_contract(contract, data_dir)
@@ -115,6 +117,8 @@ def backtest(contract: ContractLike, cases: Sequence[Mapping[str, Any]], output:
     parts = splits(case_names(cases), test=test, folds=folds, seed=seed) if test is not None or folds is not None else []
     outcomes = [case["outcome"] for case in cases]
     kind = _case_kind(outcomes, threshold)
+    if kind == "categorical" and threshold is not None:
+        raise ValueError("threshold applies to numeric or yes/no case outcomes, not categorical outcomes")
     seeds = runner.run_seeds(seed, runs)
     cells = [(dict(case.get("inputs") or {}), case.get("arm", arm)) for case in cases]
     jobs = runner.jobs_for(cells, seeds)
@@ -192,13 +196,20 @@ def _held_out(kind: str, forecasts: Sequence[Any], events: Sequence[Any], parts:
 def _forecast(kind: str, raw: List[Any], threshold: Optional[float], name: str) -> tuple:
     if not raw:
         raise runner.AnalysisError(f"{name}: every run failed, so there is no forecast")
+    expected = "a finite number" if kind == "ensemble" or threshold is not None else \
+        "yes/no" if kind == "binary" else "text"
+    valid = is_number if expected == "a finite number" else \
+        (lambda value: isinstance(value, bool)) if kind == "binary" else (lambda value: isinstance(value, str))
+    invalid = [value for value in raw if not valid(value)]
+    if invalid:
+        raise runner.AnalysisError(
+            f"{name}: {len(invalid)} of {len(raw)} forecast output(s) are missing or invalid; "
+            f"expected {expected}, got {invalid[0]!r}. Every successful run needs a valid forecast output.")
     if kind == "binary":
         if threshold is not None:
-            flags = [is_number(v) and v > threshold for v in raw]
-        elif all(isinstance(v, bool) for v in raw):
-            flags = list(raw)
+            flags = [v > threshold for v in raw]
         else:
-            raise ValueError("the output is not yes/no: pass threshold= to forecast 'output > threshold'")
+            flags = list(raw)
         p = sum(flags) / len(flags)
         return p, f"{p:.0%}"
     if kind == "categorical":
@@ -207,9 +218,7 @@ def _forecast(kind: str, raw: List[Any], threshold: Optional[float], name: str) 
             counts[str(v)] = counts.get(str(v), 0) + 1
         dist = {k: c / len(raw) for k, c in sorted(counts.items(), key=lambda kv: -kv[1])}
         return dist, ", ".join(f"{k} {p:.0%}" for k, p in list(dist.items())[:3])
-    values = [float(v) for v in raw if is_number(v)]
-    if not values:
-        raise runner.AnalysisError(f"{name}: the output is never a number, so there is no ensemble forecast")
+    values = [float(v) for v in raw]
     tail = (1 - _ENSEMBLE_LEVEL) / 2
     return values, f"median {quantile(values, 0.5):.4g} ({_ENSEMBLE_LEVEL:.0%}: {quantile(values, tail):.4g}–{quantile(values, 1 - tail):.4g})"
 
