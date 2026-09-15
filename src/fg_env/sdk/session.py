@@ -141,7 +141,8 @@ class Wake:
             with self._turn.env._lock:
                 self._turn.exposure.used({"llm_calls": llm_calls, "input_tokens": input_tokens,
                                           "output_tokens": output_tokens, "cache_read_tokens": cache_read_tokens,
-                                          "cache_write_tokens": cache_write_tokens})
+                                          "cache_write_tokens": cache_write_tokens, "llm_retries": llm_retries,
+                                          "forfeits": forfeits})
 
     @property
     def done(self) -> bool:

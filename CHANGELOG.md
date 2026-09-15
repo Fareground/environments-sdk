@@ -10,6 +10,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Added
+- **Traces** (`fg_env.trace(result_or_file)`, `fg-env run --trace run.jsonl`, `fg-env trace FILE ...`): read a run
+  recorded with `exposures=True` — `overview()` per agent (turns, calls, invalid rate, timeouts, tokens), `turn()` in
+  full (what the agent read, the tools offered, every call with its result), `timeline()`, `search()`, `invalid()`
+  (refused calls with their corrections), `agent()`. `result.save(path)` / `RunResult.load(path)` write and read JSON
+  or JSON lines; a recorded result also carries `host_tape`.
+- **Replay** (`trace.replay(contract)`, `fg_env.participants.replay(trace)`, `fg-env trace FILE replay CONTRACT`): a
+  recorded LLM and host run plays again offline from its calls and host answers, checked turn by turn; the first
+  divergence (turn, brief or update text, tools offered, call result, event, ending) is reported precisely, and a
+  `fallback` participant can play on after it.
+- **Evaluation** (`fg_env.evaluate(suite, focal=..., background=..., baseline=..., seats=..., score=..., modes=...)`,
+  `fg-env evaluate`): a focal participant in a seeded share of a scenario's seats among background agents, paired
+  with a baseline in the same seats on the same seeds; focal score per focal seat, paired difference with a 95%
+  interval and cost, per scenario, mode, tag, held-out split and overall.
+- **Run budgets** (`env.run(..., budget={"tokens", "calls", "host_calls", "seconds", "on_exhaust": "end" | "idle"})`):
+  checked at every safe point; a run that runs out ends with `ended_by: "budget"` or idles its agents;
+  `result.budget` and snapshots record it.
 - **Turn time limits**: stage `time_limit` (seconds, or an expression over `$actor`) and `on_timeout`
   effects, plus a run-wide default (`env.run(..., time_limit=30)`). A participant past its deadline loses
   the turn — later calls are refused, a `timeout` event and `stats["timeouts"]` record it — and a hung one

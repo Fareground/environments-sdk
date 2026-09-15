@@ -22,7 +22,7 @@ from .session import Wake
 if TYPE_CHECKING:
     from .contract import Contract
 
-__all__ = ["Participant", "RandomAgent", "Idle", "PolicyAgent", "anthropic", "openai", "resolve_participant"]
+__all__ = ["Participant", "RandomAgent", "Idle", "PolicyAgent", "anthropic", "openai", "replay", "resolve_participant"]
 
 Participant = Callable[[Wake], Any]
 
@@ -224,6 +224,16 @@ def resolve_participant(value: Any, contract: "Contract", seed: int) -> Particip
         f"unknown participant {value!r}: use a callable, 'random', 'idle', or 'policy:<name>' "
         f"(policies: {', '.join(contract.policies) or 'none'})"
     )
+
+
+def replay(recording: Any, fallback: Any = None) -> Participant:
+    """A participant that makes a recorded run's tool calls again, turn by turn, checking every wake against the
+    recording (``recording``: a result with exposures, its dict, a saved file, or a trace). On the first difference
+    the run fails with the divergence, or — given ``fallback`` — that participant plays on. Usually you want
+    ``fg_env.trace(recording).replay(contract)``, which also replays the host answers and compares the outcome."""
+    from .trace.replay import Replayer
+
+    return Replayer(recording, fallback)
 
 
 # ---------------------------------------------------------------------------

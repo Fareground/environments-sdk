@@ -1,4 +1,5 @@
-"""Command line for the Environment SDK: check, run, preview, experiment, guide, schema."""
+"""Command line for the Environment SDK: check, run, preview, experiment, guide, schema (trace and
+evaluate are in :mod:`fg_env.sdk.cli_runs`)."""
 from __future__ import annotations
 
 import argparse
@@ -107,15 +108,19 @@ def cmd_check(args: argparse.Namespace) -> int:
 
 def cmd_run(args: argparse.Namespace) -> int:
     from .api import load
+    from .cli_runs import budget_arg
 
     try:
-        env = load(args.file, inputs=_inputs(args), seed=args.seed, arm=args.arm, data_dir=args.data_dir)
+        env = load(args.file, inputs=_inputs(args), seed=args.seed, arm=args.arm, data_dir=args.data_dir,
+                   exposures=bool(args.trace))
     except (ContractError, InputError) as exc:
         return _report_contract_error(exc)
     except (RunError, ExprError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    result = env.run(_participants(args.agent), rounds=args.rounds)
+    result = env.run(_participants(args.agent), rounds=args.rounds, budget=budget_arg(args.budget))
+    if args.trace:
+        result.save(args.trace)
     if args.json:
         print(result.to_json(events=args.events))
     else:
@@ -264,6 +269,10 @@ def add_commands(sub: Any) -> None:
     p.add_argument("--rounds", type=int, help="stop after this many rounds")
     p.add_argument("--events", action="store_true", help="include the event log")
     p.add_argument("--json", action="store_true", help="print the full result as JSON")
+    p.add_argument("--trace", metavar="FILE", help="record what every agent saw and did, and save the result to FILE "
+                                                   "(.json or .jsonl) for fg-env trace and fg-env replay")
+    p.add_argument("--budget", action="append", metavar="NAME=VALUE",
+                   help="cap the run: tokens, calls, host_calls, seconds; on_exhaust=end|idle")
     p.set_defaults(func=_guarded(cmd_run))
 
     p = sub.add_parser("preview", help="show exactly what an agent would read and which tools it gets")
@@ -318,6 +327,10 @@ def add_commands(sub: Any) -> None:
         p.add_argument("--data-dir", help="folder input data files are read from (default: the contract's folder)")
         p.add_argument("--json", action="store_true", help="print JSON")
         p.set_defaults(func=_guarded(command))
+
+    from .cli_runs import add_run_commands
+
+    add_run_commands(sub)
 
     p = sub.add_parser("expand", help="print the contract as the engine reads it: imports merged, macros expanded")
     p.add_argument("file", help="contract JSON file")

@@ -252,6 +252,8 @@ __all__ = [
     "chain",
     "tournament",
     "describe",
+    "trace",
+    "evaluate",
 ]
 
 # Environment SDK public API. Everything a user needs is importable from ``fg_env``.
@@ -269,3 +271,5 @@ from .sdk.analysis import (backtest, behavior_checks, calibrate, chain, compare,
                            precision, score, sensitivity, sweep)
 from .sdk.tournament import tournament
 from .sdk.describe import describe
+from .sdk.trace import trace
+from .sdk.evaluate import evaluate

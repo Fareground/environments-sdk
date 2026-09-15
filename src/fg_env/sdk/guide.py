@@ -400,6 +400,28 @@ numbers, tools offered, every call with its arguments and result, timeouts and u
 stored once. `$seen(agent, item)` asks whether an agent was shown an event, a record entry or a view by name;
 a contract that uses it records exposures automatically. `result.frames` and `env.spectate()` give the
 spectator views.
+
+Traces: a run with `exposures=True` is a trace (`fg-env run file.json --trace run.jsonl`); `result.save("run.json")`
+or `.jsonl`, `fg_env.RunResult.load(path)`. `t = fg_env.trace(result_or_file)`: `t.overview()` (per agent: turns,
+calls, invalid rate, timeouts, tokens), `t.turn(7)` or `t.turn("ana", 3)` (what the agent read, the tools offered,
+every call with its result), `t.timeline("ana")`, `t.search("bribe")` (in what agents read or wrote), `t.invalid()`
+(refused calls with the correction given), `t.agent("ana")`; each has `.data` and prints as text
+(`fg-env trace run.jsonl turn ana 3`). `t.replay("shop.json")` runs the contract again offline with the recorded
+calls (`fg_env.participants.replay(t)`) and host answers, and reports the first divergence — a turn, the brief or
+update text, the tools offered, a call result, an event or the ending; `fallback="policy:x"` plays on after it
+(`fg-env trace run.jsonl replay shop.json`, exit 1 on a divergence). A recorded timeout cannot be replayed.
+Evaluation: `fg_env.evaluate(suite, focal=my_agent, background="policy:reciprocate", seats="villager",
+score="$outputs.cash[$seat]", modes={"resident": 0.75, "visitor": 0.25}, runs=20).summary()` runs every scenario and
+mode with `focal` in a seeded draw of the seats and again with `baseline` (default: the background) in the same seats
+on the same seed: focal score per focal seat, the baseline's, the paired difference with a 95% interval and cost, per
+scenario, mode, tag, held out vs in sample and overall. A suite is a contract, a list of scenarios
+`{contract, name, inputs, arm, seats, score, background, baseline, modes, tags, held_out}`, or a
+`{"scenarios": [...]}` file (`fg-env evaluate suite.json --focal policy:x --mode visitor=0.25`).
+Budgets: `env.run(..., budget={"tokens": 200000, "calls": 500, "host_calls": 50, "seconds": 600,
+"on_exhaust": "end"})` caps a run: reported input + output tokens, tool calls, host answers on the tape, wall-clock
+seconds. It is checked before every round, stage, pass and turn (a turn in progress finishes): `end` ends the run
+(`ended_by: "budget"`), `idle` lets it finish with every agent idle. `result.budget` has the limits, use and the
+limit that ran out; snapshots keep it; `evaluate` and `fg-env run --budget tokens=200000` take one.
 `env.step(participants)` runs one round; `env.run(participants, rounds=N)` runs N more (an unfinished
 run returns provisional outputs). `env.run(..., stop=lambda env: ...)` is checked before every round,
 stage, pass and sequential turn; the next `run` continues exactly where it stopped (finishing that
@@ -423,7 +445,7 @@ Built-ins: `"random"`, `"idle"`, `"policy:<name>"`.
 
 CLI: `fg-env check file.json` (static check plus one played round; `--rounds 0` for static only),
 `fg-env preview file.json agent_id --rounds 5 --agent trader=policy:quote` (see a mid-run turn),
-`fg-env check|run|preview|experiment|guide|schema` (`fg-env run file.json --seed 1
+`fg-env check|run|preview|experiment|tournament|evaluate|trace|guide|schema` (`fg-env run file.json --seed 1
 --input budget=50 --agent shopper=policy:thrifty --json`).
 """
 
