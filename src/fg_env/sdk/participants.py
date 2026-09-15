@@ -195,7 +195,9 @@ class PolicyAgent:
 
             raise RunError(str(exc), path) from None
         args = {k: (v.id if hasattr(v, "entity_type") else v) for k, v in args.items()}
-        if rule.do not in {t.name for t in wake.tools}:
+        with turn.env._lock:  # legality without building tool schemas: coded crowds never read them
+            legal = not wake.done and rule.do in turn._legal()
+        if not legal:
             return "skipped"
         with turn.env._lock:
             _, problem = turn.env.actions.validate(turn.actor, rule.do, args)
