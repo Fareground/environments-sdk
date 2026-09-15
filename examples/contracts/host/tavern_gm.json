@@ -1,0 +1,75 @@
+{
+  "fg_env": "1",
+  "name": "Tavern with a game master",
+  "description": "Adventurers in a tavern describe what they try in their own words; a game master resolves each attempt, but only within the contract's allow-list.",
+  "brief": {
+    "situation": "A rainy night at the Crooked Lantern tavern. Old Tomas keeps the bar.",
+    "rules": "On your turn, say what you try with attempt. A game master decides what happens. It can only hurt or heal people in your room by a little, move gold between you and the innkeeper, walk you to a neighbouring room, raise or calm the alarm, and spread news."
+  },
+  "clock": {"rounds": 4, "unit": "hour"},
+  "space": {
+    "graph": {
+      "nodes": ["common_room", "cellar", "kitchen", "yard"],
+      "edges": [["common_room", "cellar"], ["common_room", "kitchen"], ["kitchen", "yard"]]
+    }
+  },
+  "world": {"alarm": false},
+  "types": {
+    "adventurer": {
+      "agent": true,
+      "props": {
+        "health": {"type": "number", "default": 8, "min": 0, "max": 10},
+        "gold": {"type": "number", "default": 10, "min": 0}
+      }
+    },
+    "innkeeper": {
+      "props": {"gold": {"type": "number", "default": 50, "min": 0}}
+    }
+  },
+  "entities": {
+    "mira": {"type": "adventurer", "name": "Mira", "at": "common_room"},
+    "bram": {"type": "adventurer", "name": "Bram", "at": "common_room"},
+    "tomas": {"type": "innkeeper", "name": "Old Tomas", "at": "common_room"}
+  },
+  "stages": [{"name": "act", "turns": "sequential", "must_act": true}],
+  "mechanisms": {
+    "gm": {
+      "kind": "game_master",
+      "by": "adventurer",
+      "rules": "A small tavern on a rainy night. Be fair, terse and grounded: ordinary actions have ordinary results.",
+      "max_effects": 5,
+      "context": {
+        "room": "$actor.at",
+        "people_here": "$map($filter(adventurer, $it.at == $actor.at and $it.id != $actor.id), $it.name)",
+        "innkeeper_here": "$any(innkeeper, $it.at == $actor.at)",
+        "alarm": "$world.alarm"
+      },
+      "allow": [
+        {"effect": "set", "target": "$filter(adventurer, $it.at == $actor.at)", "prop": "health", "min": 0, "max": 10, "delta": 3,
+         "description": "Hurt or heal an adventurer in the same room by up to 3."},
+        {"effect": "transfer", "prop": "gold", "from": "actor", "to": "$filter(innkeeper, $it.at == $actor.at)", "amount": 5,
+         "description": "The actor pays the innkeeper here up to 5 gold."},
+        {"effect": "transfer", "prop": "gold", "from": "$filter(innkeeper, $it.at == $actor.at)", "to": "actor", "amount": 3,
+         "description": "The innkeeper here pays the actor up to 3 gold."},
+        {"effect": "move", "to": "adjacent", "description": "The actor walks to a neighbouring room."},
+        {"effect": "set_world", "prop": "alarm", "values": [true, false], "description": "Raise or calm the alarm."},
+        {"effect": "news", "max_len": 160, "description": "Something everyone in the tavern notices."}
+      ]
+    }
+  },
+  "views": {
+    "you": {"for": "adventurer", "show": "You are in the {at}, with health {health} and {gold} gold."},
+    "alarm": {"for": "adventurer", "when": "$world.alarm", "show": "The alarm bell is ringing."}
+  },
+  "invariants": [
+    {"expr": "$sum(adventurer, $it.gold) + $sum(innkeeper, $it.gold) == 70", "why": "gold only changes hands"}
+  ],
+  "outputs": {
+    "mira_health": {"expr": "$entity(mira).health", "type": "number"},
+    "bram_health": {"expr": "$entity(bram).health", "type": "number"},
+    "innkeeper_gold": {"expr": "$entity(tomas).gold", "type": "number"},
+    "alarm": {"expr": "$world.alarm", "type": "bool"},
+    "attempts": {"expr": "$count($records(gm))", "type": "int"},
+    "refused": {"expr": "$count($records(gm), $it.refused)", "type": "int"}
+  }
+}
