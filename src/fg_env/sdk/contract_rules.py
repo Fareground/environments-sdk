@@ -2,7 +2,7 @@
 policies."""
 from __future__ import annotations
 
-from typing import Annotated, Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BeforeValidator, Field, field_validator, model_validator
 
@@ -48,6 +48,7 @@ class ParamSpec(_Model):
     max: Union[float, str, None] = None
     step: Optional[float] = Field(None, gt=0, description="Type number or int: values go in steps of this size from `min` (or 0), which makes the parameter enumerable for games.")
     max_len: Optional[int] = Field(None, description="Maximum length (type text).")
+    overflow: Literal["refuse", "truncate"] = Field("refuse", description="Type text: text longer than `max_len` is refused (the agent is told to shorten it), or with `truncate` cut after the last full sentence that fits (the agent is told what was cut).")
     items: Optional["ParamSpec"] = Field(None, description="Type list: the spec every element follows (e.g. {\"type\": \"enum\", \"values\": [...]}). Shorthand: `of` makes entity items, `values` enum items.")
     min_items: Optional[int] = Field(None, ge=0, description="Type list: fewest elements.")
     max_items: Optional[int] = Field(None, ge=0, description="Type list: most elements.")

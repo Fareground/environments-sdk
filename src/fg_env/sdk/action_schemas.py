@@ -13,7 +13,7 @@ from .assets.intake import file_schema
 from .contract import ParamSpec
 from .expr import ExprError, compile_expr, is_expr, resolve
 from .template import format_value
-from .tool_text import shared_description, shared_param, text_limit, usage_limits
+from .tool_text import compact_ids, shared_description, shared_param, text_limit, usage_limits
 from .world import _plain
 
 if TYPE_CHECKING:
@@ -173,7 +173,7 @@ class ActionSchemas:
             out["type"] = "string"
             out["maxLength"] = param.max_len if param.max_len is not None else TEXT_MAX_LEN
             if param.max_len is not None:
-                description = f"{description or ''} {text_limit(param.max_len)}".strip()
+                description = f"{description or ''} {text_limit(param.max_len, param.overflow)}".strip()
         elif param.type == "enum":
             values = self._static(actor, param.values) if isinstance(param.values, str) else param.values
             if isinstance(values, list) and values:
@@ -208,6 +208,8 @@ class ActionSchemas:
                     description = f"{description} Options: {listing}.".strip()
             else:
                 description = (description or f"Id of a {param.of}.").strip()
+                if "enum" not in out and not self._depends_on_params(param):
+                    description += f" One of: {compact_ids([c.id for c in choices])}."
         if description:
             out["description"] = description
         default = self._schema_default(actor, param)

@@ -10,15 +10,18 @@ import time
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Tuple
 
 from ..entity import Entity
+from .action_schemas import _choice_names
 from .actions import ACTION_BUDGET, ToolSpec, stage_actions
-from .assets.delivery import Attachment, references
+from .assets.delivery import Attachment
 from .contract import StageSpec
 from .errors import RunError
 from .expr import ExprError, compile_expr, shared_budget, truthy
 from .measure import Stats
-from .reads import READS, find_target, handle_filter, inspect_tool, look_tool, may_inspect
+from .reads import (READS, UNCHANGED, find_target, handle_filter, inspect_text, inspect_tool, look_tool, may_inspect,
+                    reads_refused)
 from .session import END_TURN, ToolResult
 from .template import compile_template, entity_handles, format_value
+from .tool_text import cut_text, offer_text
 from .world import _plain
 
 if TYPE_CHECKING:
@@ -70,9 +73,12 @@ class Turn:
         #: The assets delivered with the brief and with the update.
         self._delivered: List[str] = []
         self.calls_left = stage.max_calls
-        #: Looks and inspects that do not spend a call (see :mod:`fg_env.sdk.reads`).
+        #: Looks and inspects that do not spend a call (see :mod:`fg_env.sdk.reads`); below zero, the refused ones.
         self.reads_left = stage.max_calls
-        #: The stage required an action, one was available, and the agent took none (set when the turn is finished).
+        #: What this turn's reads returned, to answer a repeated read that it is unchanged.
+        self._reads: List[str] = []
+        #: An action was available and the agent took none, in a stage that required one or with its calls used up
+        #: (set when the turn is finished).
         self.did_not_act = False
         self.actions_left = stage.max_actions
         self.done = False
@@ -210,10 +216,12 @@ class Turn:
             tools = env.actions.tools(self.actor, self._legal(), self.staged)
         looks = env.perception.look_views(self.actor, self.stage)
         if looks:
-            tools.append(look_tool(looks))
+            tools.append(look_tool([(name, env.contract.views[name].title) for name in looks], self.stage.max_calls))
         if env._inspectable:
             with env._lock:
-                tools.append(inspect_tool(env, self.actor))
+                inspect = inspect_tool(env, self.actor, self.stage.max_calls)
+            if inspect is not None:
+                tools.append(inspect)
         if not self._must_act_now(tools):
             if self.staged:
                 end_text = "Finish your turn (your choices are submitted)."
@@ -265,37 +273,32 @@ class Turn:
         refused = self.refusal()
         if refused is not None:
             return refused
-        if name in READS and self.reads_left > 0:
-            self.reads_left -= 1  # reading never spends the calls the agent needs to act
-        elif self.calls_left <= 0:
+        if name in READS:
+            return self._read(name, args)
+        if self.calls_left <= 0:
             self.done = True
             return ToolResult(False, "No tool calls left this turn; your turn is over.", True)
-        else:
-            self.calls_left -= 1
+        self.calls_left -= 1
         self.stats.calls += 1
         env = self.env
         if not isinstance(name, str):
             self.stats.invalid_calls += 1
-            return self._after(ToolResult(False, f"A tool name is text, got {type(name).__name__}. Available actions: "
-                                                 f"{', '.join(self._legal()) or 'none'}.", data=_INVALID))
+            return self._after(ToolResult(False, f"A tool name is text, got {type(name).__name__}. {self._offer()}",
+                                          data=_INVALID))
         if args is not None and not isinstance(args, Mapping):
             self.stats.invalid_calls += 1
             return self._after(ToolResult(False, f"{name} was not done: arguments must be an object of named values, "
                                                  f"got {type(args).__name__}.", data=_INVALID))
         if name == END_TURN:
-            if self.stage.must_act and self.actions_left == self.stage.max_actions and not self.intents and self._legal():
+            if self._must_act():
                 self.stats.invalid_calls += 1
-                return self._after(ToolResult(False, f"You must act during {self.stage.name}. Available actions: "
-                                                     f"{', '.join(self._legal())}.", data=_INVALID))
+                return self._after(ToolResult(False, f"You must act during {self.stage.name}. {self._offer()}",
+                                              data=_INVALID))
             why = self.settle()
             if why is not None:
                 return self._after(self._undone(why))
             self.done = True
             return ToolResult(True, "Turn ended.", True)
-        if name == "look":
-            return self._look(args)
-        if name == "inspect":
-            return self._inspect(args)
         available = stage_actions(env.contract, self.stage, self.actor.entity_type)
         if name not in env.contract.actions and name in env.actions.groups:  # a shared tool: its `action` picks one
             name, args, problem = env.actions.route(name, args, self._legal())
@@ -305,9 +308,8 @@ class Turn:
         spec = env.contract.actions.get(name)
         if spec is None or name not in available:
             self.stats.invalid_calls += 1
-            legal = ", ".join(self._legal()) or "none"
             why = "is not a tool" if spec is None else f"is not available during {self.stage.name}"
-            return self._after(ToolResult(False, f"'{name}' {why}. Available actions: {legal}.", data=_INVALID))
+            return self._after(ToolResult(False, f"'{name}' {why}. {self._offer()}", data=_INVALID))
         if self.actions_left <= 0:
             self.stats.invalid_calls += 1
             return self._after(ToolResult(False, "You have no actions left this turn; call end_turn.", data=_INVALID))
@@ -315,6 +317,7 @@ class Turn:
         if blocked:
             self.stats.invalid_calls += 1
             return self._after(ToolResult(False, f"You cannot {name.replace('_', ' ')} now: {blocked}.", data=_INVALID))
+        args, cut = _cut(spec.params, args)
         params, problem = env.actions.validate(self.actor, name, args)
         if problem:
             self.stats.invalid_calls += 1
@@ -329,7 +332,7 @@ class Turn:
             self.pending.append({"action": name, **_plain(params)})
             self._count(name)
             ended = env.actions.ends_turn(self.actor, name, params) or self.actions_left <= 0
-            text = f"Submitted {name.replace('_', ' ')}{_args_text(params)}; it resolves when everyone has chosen."
+            text = f"Submitted {name.replace('_', ' ')}{_args_text(params)}; it resolves when everyone has chosen.{cut}"
             return self._after(ToolResult(True, text, ended))
         outcome = env.actions.apply(self.actor, name, params)
         if not outcome.ok:
@@ -347,8 +350,25 @@ class Turn:
             why = self.settle()
             if why is not None:
                 return self._after(self._undone(why))
-        return self._after(ToolResult(True, _with_references(outcome.text, files), ended, {"success": outcome.success},
-                                      files))
+        return self._after(ToolResult(True, _with_references(outcome.text, files) + cut, ended,
+                                      {"success": outcome.success}, files))
+
+    def _must_act(self) -> bool:
+        """The stage requires an action, the turn has taken none, and one is available."""
+        return (self.stage.must_act and self.actions_left == self.stage.max_actions and not self.intents
+                and bool(self._legal()))
+
+    def _offer(self) -> str:
+        """What the agent can call now, in the form its tools take: actions sharing a tool under that tool."""
+        plain: List[str] = []
+        shared: Dict[str, List[str]] = {}
+        for name in self._legal():
+            tool = self.env.contract.actions[name].tool
+            if tool is None:
+                plain.append(name)
+            else:
+                shared.setdefault(tool, []).append(_choice_names(tool, self.env.actions.groups[tool])[name])
+        return offer_text(plain, list(shared.items()))
 
     def _count(self, name: str) -> None:
         self.used[name] = self.used.get(name, 0) + 1
@@ -445,13 +465,40 @@ class Turn:
     def _may_inspect(self, target: Entity) -> bool:
         return may_inspect(self.env, self.actor, target)
 
+    def _read(self, name: str, args: Any) -> ToolResult:
+        """A look or an inspect: free within the turn's allowance, refused past it without spending a call."""
+        allowance = self.stage.max_calls
+        self.reads_left -= 1
+        self.stats.calls += 1
+        if self.reads_left < 0:
+            self.stats.invalid_calls += 1
+            stopped = self.reads_left < -allowance  # the backstop for a participant that only reads
+            if stopped:
+                self.calls_left = 0
+                self.done = True
+            return ToolResult(False, reads_refused(allowance, self._must_act(), stopped), stopped, dict(_INVALID))
+        if args is not None and not isinstance(args, Mapping):
+            self.stats.invalid_calls += 1
+            return ToolResult(False, f"{name} was not done: arguments must be an object of named values, "
+                                     f"got {type(args).__name__}.", data=_INVALID)
+        result = self._look(args) if name == "look" else self._inspect(args)
+        if result.ok:
+            seen = f"{name}\n{result.text}"
+            if seen in self._reads:
+                result = ToolResult(True, UNCHANGED)
+            else:
+                self._reads.append(seen)
+            if self.reads_left == 0:
+                result.text += " (That was your last free read this turn.)"
+        return result
+
     def _look(self, args: Optional[Mapping[str, Any]]) -> ToolResult:
         env = self.env
         name = (args or {}).get("view")
         looks = env.perception.look_views(self.actor, self.stage)
         if not isinstance(name, str) or name not in looks:
             self.stats.invalid_calls += 1
-            return self._after(ToolResult(False, f"view must be one of: {', '.join(looks) or 'none'}.", data=_INVALID))
+            return ToolResult(False, f"view must be one of: {', '.join(looks) or 'none'}.", data=_INVALID)
         shown = _shown() if self.exposure is not None else None
         attached: List[str] = []
         with shared_budget(ACTION_BUDGET, f"views.{name}"), entity_handles(handle_filter(env, self.actor)):
@@ -459,23 +506,16 @@ class Turn:
         if self.exposure is not None and shown is not None and text is not None:
             shown.views.append((name, text))
             self.exposure.looked(shown)
-        return self._after(ToolResult(True, text or "Nothing to show.", attachments=self.attachments(attached)))
+        return ToolResult(True, text or "Nothing to show.", attachments=self.attachments(attached))
 
     def _inspect(self, args: Optional[Mapping[str, Any]]) -> ToolResult:
         env = self.env
         target, refusal = find_target(env, self.actor, (args or {}).get("id"))
         if target is None:
             self.stats.invalid_calls += 1
-            return self._after(ToolResult(False, refusal, data=_INVALID))
-        specs = env.contract.props_of(target.entity_type)
-        own = target.id == self.actor.id
-        visible = {k: v for k, v in target.properties.items() if own or not specs.get(k) or not specs[k].private}
-        files: List[str] = [str(v) for k, v in visible.items() if specs.get(k) is not None and specs[k].type == "asset"
-                            and env.world.assets.has(v)]
-        shown = [f"{k}: {references(env.world.assets, [v]) if v in files else format_value(v)}" for k, v in visible.items()]
-        where = f" at {format_value(target.location_id)}" if target.location_id is not None else ""
-        text = f"{target.name} [{target.id}] ({target.entity_type}){where}" + ("\n" + "\n".join(shown) if shown else "")
-        return self._after(ToolResult(True, text, attachments=self.attachments(files)))
+            return ToolResult(False, refusal, data=_INVALID)
+        text, files = inspect_text(env, self.actor, target)
+        return ToolResult(True, text, attachments=self.attachments(files))
 
 
 def _shown() -> Any:
@@ -487,6 +527,20 @@ def _shown() -> Any:
 def entity_dict(entity: Entity) -> Dict[str, Any]:
     return {"id": entity.id, "name": entity.name, "type": entity.entity_type, "alive": entity.alive,
             "at": entity.location_id, "props": _plain(dict(entity.properties))}
+
+
+def _cut(params: Mapping[str, Any], args: Any) -> Tuple[Any, str]:
+    """``args`` with text past its `max_len` cut where its parameter says `overflow: truncate`, and the note that tells
+    the agent what was cut (empty when nothing was)."""
+    if not isinstance(args, Mapping):
+        return args, ""
+    out, notes = dict(args), []
+    for pname, param in params.items():
+        raw = out.get(pname)
+        if param.overflow == "truncate" and param.max_len is not None and isinstance(raw, str) and len(raw) > param.max_len:
+            out[pname] = cut_text(raw, param.max_len)
+            notes.append(f" (Your {pname} was cut to {len(out[pname])} of {len(raw)} characters; the rest was not said.)")
+    return (out, "".join(notes)) if notes else (args, "")
 
 
 def _with_references(text: str, files: List[Attachment]) -> str:
