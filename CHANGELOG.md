@@ -52,6 +52,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read one family or mode.
 
 #### Added
+- **An optimiser** (`fg_env.optimise(contract, decisions, objective, constraints, runs=, budget=, method=, workers=,
+  holdout_seeds=, uncertainty=)`, `fg-env optimise`): searches decisions — ranges (stepped or continuous), choices and
+  vectors (a list or map input per half hour or category, with per-position bounds, a monotone order or a sum) — for
+  `"maximise margin"` / `"minimise p90 of cost"` (or an expression over `$outputs`) under constraints such as
+  `"fill_rate >= 0.95"` or `"sl >= 0.8 in 90% of runs"`. Methods: grid, random, Latin hypercube, local (coordinate
+  descent with step halving, then paired moves along constraints), race (successive halving) and calibration's
+  Nelder–Mead and cross-entropy; `auto` picks one. Every decision runs on common seeds; the search's best are
+  confirmed on new seeds, where the choice is made and reported; the choice and the runner-up then run on fresh seeds
+  with a paired difference and a plain seed-luck flag. When nothing meets the constraints, the closest decision and
+  each shortfall; sensitivity one step around the best; two or three objectives trace a Pareto frontier checked on
+  fresh seeds. `guide("optimise")`. On a copy of the business study's contact centre ("service level 80% in 90% of
+  runs"), the cheapest plan that passed on four seeds met it in 55% of 60 fresh runs; the optimiser's plan, judged on
+  30 seeds, in 87% (within noise of 90%), for 4% less than the manager's rule.
 - **Validation that tells the truth** (`fg_env.validate(contract, cases, runs=, levels=(0.8, 0.95), season=, test=)`):
   each case's `actuals` — a number, a map per key (product, category) or a list — checked against the run ensembles:
   bias, MAPE, WAPE, RMSE and CRPS overall, per key and on held-out cases; interval coverage at each nominal level with

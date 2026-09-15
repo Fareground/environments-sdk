@@ -12,6 +12,7 @@ from typing import Any, Callable, Dict, List, Optional
 from . import contract as C
 from .guide_pages import (SECTIONS, effects_page, expressions_page, family_page, function_groups, functions_index,
                           functions_page, mechanisms_page, mode_page, section_page)
+from .analysis.optimise_guide import OPTIMISE
 from .assets.guide import ASSETS
 from .guide_text import CHECKLIST, INSPECT, MACROS, MODEL, PATTERNS, RUNNING, TEMPLATES
 from .macros import MAX_MACRO_DEPTH, MAX_MACRO_ITEMS
@@ -175,6 +176,8 @@ _PARTS_MAP = [
     ("macros", "repeat structure from data with `for`/`make`"),
     ("inspect", "debugging a run in brief: summary, outputs, diagnostics, events, traces, replay"),
     ("running", "Python API: participants, runs, snapshots, experiments, traces, evaluation, games, gyms, CLI"),
+    ("optimise", "the best decision under constraints: decision vectors, objectives, methods, fresh-seed checks, "
+                 "Pareto frontiers"),
     ("checklist", "what makes an environment great for LLM agents"),
 ]
 
@@ -204,6 +207,7 @@ _TOPICS: Dict[str, Callable[[], str]] = {
     "macros": lambda: MACROS.replace("MAX_ITEMS", f"{MAX_MACRO_ITEMS:,}").replace("MAX_DEPTH", str(MAX_MACRO_DEPTH)),
     "inspect": lambda: INSPECT,
     "running": lambda: RUNNING,
+    "optimise": lambda: OPTIMISE,
     "assets": lambda: section_page("assets") + "\n\n" + ASSETS,
     "checklist": lambda: CHECKLIST,
 }
@@ -218,7 +222,7 @@ def guide_parts() -> List[str]:
     for name, family in FAMILIES.items():
         names += [name, *[spec.key for spec in family.modes.values()]]
     names += [f"functions.{group}" for group in function_groups() if group in FAMILIES]
-    return [*names, "inspect", "running", "checklist", "all"]
+    return [*names, "inspect", "running", "optimise", "checklist", "all"]
 
 
 def _render(part: str) -> Optional[str]:
