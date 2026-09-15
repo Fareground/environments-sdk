@@ -1,0 +1,91 @@
+{
+  "fg_env": "1",
+  "name": "Kuhn poker",
+  "description": "The smallest poker: three cards, one each, one bet. Its equilibrium value for the first player is -1/18, so solvers can check themselves against it (fg_env.game).",
+  "brief": {
+    "situation": "Two players, a deck of three cards (1, 2, 3), one card each, ante 1.",
+    "rules": "P0 acts first: pass or bet 1. A bet facing a bet calls; a pass facing a bet folds. If both pass, or both bet, the higher card wins the pot."
+  },
+  "clock": {"rounds": 1, "unit": "hand"},
+  "world": {
+    "history": {"type": "text", "default": "", "description": "p = pass, b = bet, in order."},
+    "to_act": {"type": "text", "default": "p0"},
+    "over": false,
+    "winner": {"type": "text", "default": ""},
+    "stake": 0
+  },
+  "types": {
+    "player": {
+      "agent": true,
+      "description": "One of the two players.",
+      "props": {"seat": 0, "card": {"type": "int", "default": 0, "private": true}}
+    }
+  },
+  "entities": {
+    "p0": {"type": "player", "name": "P0", "props": {"seat": 0}},
+    "p1": {"type": "player", "name": "P1", "props": {"seat": 1}}
+  },
+  "events": [
+    {
+      "name": "deal",
+      "at": 1,
+      "phase": "start",
+      "do": [
+        {"chance": "deal p0", "outcomes": [1, 2, 3], "as": "first", "do": ["$entity('p0').card = $first"]},
+        {"chance": "deal p1", "outcomes": "$filter([1, 2, 3], $it != $entity('p0').card)", "as": "second",
+         "do": ["$entity('p1').card = $second"]}
+      ]
+    }
+  ],
+  "blocks": {
+    "settle": {
+      "args": ["who", "stake"],
+      "do": ["$world.winner = $who.id", "$world.stake = $stake", "$world.over = true", {"end": "hand_over", "winner": "$who"}]
+    }
+  },
+  "actions": {
+    "pass": {
+      "by": "player",
+      "description": "Check, or fold facing a bet.",
+      "terminal": true,
+      "when": [{"expr": "$world.to_act == $actor.id and not $world.over", "why": "It is not your turn."}],
+      "do": [
+        {"if": "$world.history == ''",
+         "then": ["$world.history = 'p'", "$world.to_act = 'p1'"],
+         "else": [{"if": "$world.history == 'p'",
+                   "then": [{"block": "settle", "with": {"who": "$top(player, $it.card, 1)[0]", "stake": 1}}],
+                   "else": [{"block": "settle", "with": {"who": "$filter(player, $it.id != $actor.id)[0]", "stake": 1}}]}]}
+      ]
+    },
+    "bet": {
+      "by": "player",
+      "description": "Bet 1, or call a bet.",
+      "terminal": true,
+      "when": [{"expr": "$world.to_act == $actor.id and not $world.over", "why": "It is not your turn."}],
+      "do": [
+        {"if": "$world.history == ''",
+         "then": ["$world.history = 'b'", "$world.to_act = 'p1'"],
+         "else": [{"if": "$world.history == 'p'",
+                   "then": ["$world.history = 'pb'", "$world.to_act = 'p0'"],
+                   "else": [{"block": "settle", "with": {"who": "$top(player, $it.card, 1)[0]", "stake": 2}}]}]}
+      ]
+    }
+  },
+  "stages": [
+    {"name": "betting", "order": "$it.seat", "who": "$world.to_act == $it.id", "until": "$world.over", "passes": 3,
+     "must_act": true}
+  ],
+  "views": {
+    "table": {"for": "player", "show": "Your card: {$actor.card}. Betting so far: {$world.history}."}
+  },
+  "game": {
+    "players": "player",
+    "seat": "$it.seat",
+    "utility": "zero_sum",
+    "returns": "($world.stake if $actor.id == $world.winner else -$world.stake) if $world.over else 0"
+  },
+  "outputs": {
+    "history": {"expr": "$world.history", "type": "text", "description": "The betting, e.g. pb or bb."},
+    "winner": {"expr": "$world.winner", "type": "text"}
+  }
+}

@@ -222,6 +222,13 @@ __all__ = [
     "parse",
     "expand",
     "experiment",
+    "fork",
+    "game",
+    "gym",
+    "Branch",
+    "Game",
+    "GameState",
+    "GymEnv",
     "guide",
     "schema",
     "Env",
@@ -254,6 +261,10 @@ __all__ = [
 
 # Environment SDK public API. Everything a user needs is importable from ``fg_env``.
 from .sdk.api import check, expand, load, parse, run
+from .sdk.branch import Branch
+from .sdk.fork import fork
+from .sdk.game import Game, GameState, game
+from .sdk.gym import GymEnv, gym
 from .sdk.contract import Contract
 from .sdk.errors import ContractError, InputError, InvariantViolation, Issue, RunError, SnapshotError
 from .sdk.experiment import ExperimentResult, experiment
