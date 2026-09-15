@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Environment SDK (`fg-env`)
 
+#### Added
+- **World patterns** (`patterns`): the world's own regularities declared once, like its physics, and read anywhere as
+  values — `$pattern.winter`, `$pattern.price_effect($it.price)`, `$pattern.season($it.category)`. Kinds for time
+  (trend, seasonal, calendar, cycle, lifecycle, step, series), random paths from each pattern's own seeded stream
+  (random walk, mean reversion, autoregression, volatility clustering, regimes, shocks, noise, weather), responses
+  (elasticity, cross-price substitution, promotions with a dip after, saturation, thresholds, reference prices,
+  learning curves, network effects, hazards), population (draws, segments, Bass diffusion, habit and fatigue),
+  observation (negative-binomial counts, measurement error, censoring, missing values), memory (carry-over and lags)
+  and composition (product, sum). Parameters are fixed for a run and may read `$inputs`, so sweeps, arms,
+  sensitivity, calibration and forks apply to them; keys come from an entity type, a list or a table of per-key
+  parameters; `record` makes a pattern a metric; `uncertainty` draws parameters around their estimates each run.
+  `guide("patterns")` teaches them; the former `patterns` part (recipes) is now `guide("recipes")`.
+- **Fitting patterns from data** (`fg_env.fit_patterns(contract, data_dir=...)`): every pattern with a `fit` block is
+  estimated from its rows — least squares, harmonic and log-log regression, the method of moments, grid search and
+  maximum likelihood, one documented estimator per kind — and the estimates are written back as inputs with their
+  standard errors, which become the pattern's `uncertainty` (scaled by the input `parameter_uncertainty`). A `product`
+  fits its base per key, profiles, trend, price elasticity and promotion lift together in one count regression, so a
+  promotion is not mistaken for price response; stockout rows marked `censored` are fitted as lower bounds, and a
+  singular design names the factors the data cannot tell apart. `result.report()` gives each fit's method, error and
+  what was assumed; `result.priors` gives the number estimates as normal priors for `uncertainty=`. The checker warns
+  when a fitted input is also tuned by the load-time `calibration` section. `fg_env.decompose(contract, "demand",
+  key=...)` shows what each factor of a product adds, and `fg_env.describe` lists every pattern in plain words.
+- **Example `auto_parts_store`**: twelve SKUs with per-category seasons, growth, price elasticity, promotions with a
+  dip after them, substitution between tiers, stockouts with lost and spilled demand, noisy lead times and
+  negative-binomial sales, fitted from a bundled three-year history that its `truth` arm generates
+  (`examples/auto_parts_history.py`); arms compare the store's lean reorder rule with a forecast-driven one.
+
 #### Fixed
 - **LLM turns that ran out of words**: a reply cut off at the output limit counts in `stats["truncated"]` (per
   wake in exposures and `agent_stats`) and, with no tool call, is asked once for a short tool call
@@ -44,6 +71,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   error naming the circle. A local named like a reserved root (`$row = …`) says to rename it.
 
 #### Changed
+- **The `dynamics` mechanism family is gone: the world's own changes are `patterns`.** A drift rule becomes a trend,
+  seasonal, random-walk or mean-reversion pattern (applied to state by an event, or `physics`, where agents change
+  the same property); a shock becomes a `shocks` pattern an event reads; a prior becomes a `draw` pattern. Declaring a
+  `dynamics` mechanism (or `drift`, `shocks`, `priors`) says which pattern replaces it. `epidemic_shocks` and the
+  flagship exchange's calibration are migrated; their golden runs changed because the draws now come from pattern
+  streams, while their behaviour did not (200 seeds of `epidemic_shocks` and 24 of the flagship: no output mean
+  differs by more than 1.3 standard errors). The flagship's stylized-facts test pins its experiment seed, with the
+  measured pass rates beside it.
 - **A short core guide**: `fg_env.guide()` / `fg-env guide` is a ~2.8K-token core — the model, a quickstart that
   runs with defaults, the essential sections and fields, expression and effect basics, the mechanism families and a
   map of every other part. Each contract section (`guide("actions")`, with the `$` roots available there), function
@@ -68,7 +103,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Mechanism families**: mechanisms are declared as `"kind": <family>, "mode": <variant>` (`market`,
   `economy`, `agreements`, `decision`, `game`, `flow`, `groups`, `social`, `mind`, `conditions`,
-  `dynamics`, `host`). Each mode keeps its own strict config: a field that does not belong to it is an
+  `host`). Each mode keeps its own strict config: a field that does not belong to it is an
   error naming the mode, listing its fields and suggesting the closest one. An old kind name is refused
   with the new `kind` and `mode`. A family has one effect op, `{"<family>": "<mechanism>", "action": ...}`,
   checked per action. The guide lists the families first; `guide("market")` and `guide("market.auction")`
