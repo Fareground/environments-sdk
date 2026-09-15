@@ -7,6 +7,7 @@ every analysis runs its variants on common random numbers, derived exactly as
 * :func:`sweep` — outputs across a grid or Latin hypercube of inputs, with main effects.
 * :func:`sensitivity` — rank inputs by influence (one-at-a-time elasticities, Morris, Sobol-lite).
 * :func:`calibrate` — fit inputs to target numbers, paths, distributions or stylized facts.
+* :func:`optimise` — the best decision for an objective under constraints (or a Pareto frontier), checked on fresh seeds.
 * :func:`score` and :func:`backtest` — verify forecasts against outcomes.
 * :func:`validate` — errors, bias, interval coverage and baselines against actual values, per key and overall;
   ``uncertainty=`` (:mod:`.draws`) carries parameter uncertainty into the runs.
@@ -23,6 +24,7 @@ from .compare import ChainResult, Comparison, chain, compare
 from .drivers import Driver, DriversResult, drivers
 from .facts import STATISTICS, statistic
 from .highlights import Highlight, highlights, narrative
+from .optimise import OptimisationResult, optimise
 from .runner import AnalysisError
 from .scoring import (
     brier, brier_multiclass, crps, crps_ensemble, ece, interval_coverage, log_loss, log_loss_multiclass, murphy,
@@ -38,5 +40,5 @@ __all__ = [
     "interval_coverage", "reliability", "ece", "murphy", "skill_score", "backtest", "BacktestResult",
     "precision", "PrecisionResult", "behavior_checks", "CheckReport", "Finding", "highlights", "narrative",
     "Highlight", "drivers", "DriversResult", "Driver", "compare", "Comparison", "chain", "ChainResult",
-    "statistic", "STATISTICS", "AnalysisError", "validate", "ValidationResult",
+    "statistic", "STATISTICS", "AnalysisError", "validate", "ValidationResult", "optimise", "OptimisationResult",
 ]
