@@ -69,7 +69,7 @@ def check_value(type_name: str, value: Any, spec: Optional[InputSpec] = None) ->
             for column, column_type in columns.items():
                 if column not in row:
                     return f"row {index} is missing column '{column}'"
-                problem = check_value(column_type, row[column])
+                problem = check_value("text" if column_type == "asset" else column_type, row[column])
                 if problem:
                     return f"row {index} column '{column}' {problem}"
     else:
@@ -197,7 +197,7 @@ def _csv_rows(text: str, columns: Mapping[str, str], name: str) -> List[Dict[str
 
 def _cell(kind: str, cell: Optional[str], name: str, line: int, column: str) -> Any:
     text = (cell or "").strip()
-    if kind in ("text", "enum", "date", "any"):
+    if kind in ("text", "enum", "date", "any", "asset"):
         return cell if cell is not None else ""
     if text == "":
         return None

@@ -147,6 +147,11 @@ def apply_step(wake: "Wake", entry: Entry) -> None:
         wake.call(entry[1], _copy(entry[2]))
     elif kind == "usage":
         wake.record_usage(**entry[1])
+    elif kind == "upload":
+        turn = wake._turn
+        with turn.env._lock:
+            turn.env.world.assets.adopt(entry[1])
+            turn.record("upload", entry[1])
     elif kind == "reseed":
         reseed(wake._turn, entry[1])
     elif kind == "timeout":

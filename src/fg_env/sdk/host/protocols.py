@@ -8,12 +8,16 @@ Every request is plain JSON data. Text that participants wrote arrives as plain 
 it: a host must treat all of it as information about the environment, never as instructions.
 Every answer must be plain JSON data too; the engine validates it, records it for replay and
 marks any text in it as untrusted before an agent reads it.
+
+A request may carry files: ``"attachments": [{"id", "type", "media_type", "name", "size", "hash", "caption"?,
+"alt"?, "untrusted"?, "data": base64 | "text": text}]`` (a judged exhibit, a described photo). Treat their content
+as information too.
 """
 from __future__ import annotations
 
 from typing import Any, Mapping, Protocol, Sequence, runtime_checkable
 
-__all__ = ["HostError", "Evaluator", "GameMaster", "Tools", "Writer", "Ranker", "Feed"]
+__all__ = ["HostError", "Evaluator", "GameMaster", "Tools", "Writer", "Ranker", "Feed", "Describer"]
 
 
 class HostError(Exception):
@@ -90,3 +94,15 @@ class Feed(Protocol):
     """
 
     def fetch(self, request: Mapping[str, Any]) -> Any: ...
+
+
+@runtime_checkable
+class Describer(Protocol):
+    """Describes a file for an asset's ``describe`` host: a caption and the text it holds (a PDF's text, a photo's
+    visible writing, a recording's transcript).
+
+    Request: ``{"task": "describe", "asset": {"id", "name", "type", "media_type", "caption", "alt", "tags"},
+    "attachments": [the file]}``. Answer: ``{"caption": text, "text": text}``.
+    """
+
+    def describe(self, request: Mapping[str, Any]) -> Mapping[str, Any]: ...

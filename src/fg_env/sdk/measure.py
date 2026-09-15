@@ -100,6 +100,8 @@ class RunResult:
     formats: Dict[str, str] = field(default_factory=dict)
     #: Likely logic problems the run revealed: ``[{code, path, message, fix}]`` (see :mod:`fg_env.sdk.diagnostics`).
     diagnostics: List[Dict[str, str]] = field(default_factory=list)
+    #: The assets the run knew — its catalog and submitted files — as metadata with content hashes (empty without any).
+    assets: Dict[str, Any] = field(default_factory=dict)
 
     @property
     def ok(self) -> bool:
