@@ -95,6 +95,8 @@ class RunResult:
     host_tape: Dict[str, Any] = field(default_factory=dict)
     #: The run's budget: ``{limits, on_exhaust, used, exhausted}`` (empty without one).
     budget: Dict[str, Any] = field(default_factory=dict)
+    #: The assets the run knew — its catalog and submitted files — as metadata with content hashes (empty without any).
+    assets: Dict[str, Any] = field(default_factory=dict)
 
     @property
     def ok(self) -> bool:

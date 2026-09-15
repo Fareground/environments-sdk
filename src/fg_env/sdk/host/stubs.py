@@ -13,7 +13,7 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Union
 
 FeedValues = Union[None, Callable[[Mapping[str, Any]], Any], Mapping[int, Any], Sequence[Any]]
 
-__all__ = ["StubEvaluator", "StubGameMaster", "StubTools", "StubWriter", "StubRanker", "StubFeed"]
+__all__ = ["StubEvaluator", "StubGameMaster", "StubTools", "StubWriter", "StubRanker", "StubFeed", "StubDescriber"]
 
 
 def _digest(*parts: Any) -> int:
@@ -136,3 +136,21 @@ class StubFeed(_Recording):
         if isinstance(values, Sequence) and not isinstance(values, str) and values:
             return values[min(max(0, int(moment or 1) - 1), len(values) - 1)]
         return (_digest(request.get("feed"), request.get("query"), moment) % 10_001) / 100
+
+
+class StubDescriber(_Recording):
+    """Describes files with ``describe(request)``, or from their metadata: the caption names the file's type and name,
+    and a text file's content is its text."""
+
+    def __init__(self, describe: Optional[Callable[[Mapping[str, Any]], Mapping[str, Any]]] = None):
+        super().__init__()
+        self._describe = describe
+
+    def describe(self, request: Mapping[str, Any]) -> Mapping[str, Any]:
+        self.calls.append(request)
+        if self._describe is not None:
+            return self._describe(request)
+        asset = request.get("asset") or {}
+        files = request.get("attachments") or []
+        text = next((item["text"] for item in files if isinstance(item.get("text"), str)), "")
+        return {"caption": f"A {asset.get('type', 'file')} named {asset.get('name', '')}", "text": text}

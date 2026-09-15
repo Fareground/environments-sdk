@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Environment SDK (`fg-env`)
 
+#### Added
+- **Files and media** (`guide('assets')`): a contract's `assets` section declares files and folders beside it —
+  images (png, jpg, webp, gif), PDFs, text and markdown, audio (wav, mp3) and other files — read once at load,
+  confined to the contract's folder (no `..`, absolute paths, hidden files or links out), checked against their
+  extension and size limits, and hashed. Properties and record fields of type `asset`, table input columns of type
+  `asset` (paths), and `$asset(ref)` (`name type media_type size hash caption alt tags text`) reference them.
+  Agents receive files only through what they may see — a view's `attach`, a record entry's asset fields, an
+  event addressed to them, `brief.attach`, their own action's `attach` and `inspect` (never another entity's
+  private asset) — as a compact reference in the text and as `wake.attachments` / `ToolResult.attachments`
+  (`read()`, `text()`). `participants.anthropic` and `participants.openai` send real image, document, file and
+  audio parts (`media=` chooses the types; `media=()` for text-only models). A `file` parameter (`kinds`,
+  `max_bytes`) takes a file from the agent (base64 `data`, `text`, or a submitted `asset` id; `wake.upload` for
+  coded participants), stored as an untrusted asset recognised from its bytes. The judge and game master take
+  `attach` (a judged entry brings its files), an asset's `describe` host writes a caption and text at build
+  (`host.Describer`, `host.stubs.StubDescriber`), and the reference host adapters send attachments as multimodal
+  content. Snapshots, clones, forks, the tape and the exposure log (`assets: [{id, hash, in}]`) hold ids and
+  hashes, never bytes; a replay checks the files each wake received; `result.save` writes the run's files to
+  `<name>.assets/` and `RunResult.load` provides them again (`fg_env.sdk.assets.provide(folder)` elsewhere).
+  Examples: `court_exhibits.json` (sealed then revealed exhibits, a judge host receiving them) and
+  `product_listing.json` (a CSV catalogue with photos, sellers relisting with a submitted photo).
+
 #### Changed
 - **A short core guide**: `fg_env.guide()` / `fg-env guide` is a ~2.8K-token core — the model, a quickstart that
   runs with defaults, the essential sections and fields, expression and effect basics, the mechanism families and a

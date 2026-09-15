@@ -220,7 +220,7 @@ def copy_pilot(source: Env, tape: Tape, turn_count: int, base: Optional[Mapping[
     if base is None:
         seed = source.build_seed if isinstance(source, PilotedEnv) else source.seed
         env = PilotedEnv(source.contract, source.inputs, seed, source.arm, parallel=1,
-                         exposures=source.world.exposures is not None)
+                         exposures=source.world.exposures is not None, assets=source.world.assets.catalog())
     else:
         env = restore_state(PilotedEnv, source.contract, base, parallel=1)
     env.origin.base, env.origin.unarmed = dict(base) if base is not None else None, source.origin.unarmed

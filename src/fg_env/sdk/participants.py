@@ -15,8 +15,9 @@ import math
 import random
 import threading
 import time
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Collection, Dict, List, Mapping, Optional, Union
 
+from .assets.multimodal import ANTHROPIC_MEDIA, OPENAI_MEDIA, anthropic_parts, media_set, openai_parts
 from .expr import ExprError, compile_expr, resolve, truthy
 from .session import Wake
 
@@ -299,7 +300,8 @@ class _ProviderFailed(Exception):
 class _LLMParticipant:
     """The shared tool loop: retries, usage accounting, the error policy."""
 
-    def __init__(self, client: Any, model: str, max_steps: int, system: str, retries: int, on_error: str):
+    def __init__(self, client: Any, model: str, max_steps: int, system: str, retries: int, on_error: str,
+                 media: frozenset = frozenset()):
         if on_error not in ("fail", "end_turn"):
             raise ValueError(f"on_error must be 'fail' or 'end_turn', got {on_error!r}")
         if isinstance(retries, bool) or not isinstance(retries, int) or retries < 0:
@@ -312,6 +314,8 @@ class _LLMParticipant:
         self.system = system
         self.retries = retries
         self.on_error = on_error
+        #: Attachment types sent as real content; the rest reach the model as their text references only.
+        self.media = media
         self.usage = _LLMUsage()
         self._usage_lock = threading.Lock()
 
@@ -352,14 +356,16 @@ class _LLMParticipant:
 
 class _Anthropic(_LLMParticipant):
     def __init__(self, client: Any, model: str, max_tokens: int, max_steps: int, system: str, retries: int,
-                 on_error: str):
-        super().__init__(client, model, max_steps, system, retries, on_error)
+                 on_error: str, media: frozenset):
+        super().__init__(client, model, max_steps, system, retries, on_error, media)
         self.max_tokens = max_tokens
 
     def _turn(self, wake: Wake) -> None:
         system = [{"type": "text", "text": (self.system + "\n\n" if self.system else "") + wake.brief,
                    "cache_control": {"type": "ephemeral"}}]
-        messages: List[Dict[str, Any]] = [{"role": "user", "content": wake.update}]
+        parts = anthropic_parts(wake.attachments, self.media) if self.media else []
+        opening: Any = [{"type": "text", "text": wake.update}, *parts] if parts else wake.update
+        messages: List[Dict[str, Any]] = [{"role": "user", "content": opening}]
         nudged = False
         for _ in range(self.max_steps):
             if wake.done:
@@ -383,7 +389,9 @@ class _Anthropic(_LLMParticipant):
             for block in calls:
                 args = block.get("input")
                 result = wake.call(str(block.get("name")), args if isinstance(args, dict) else None)
-                results.append({"type": "tool_result", "tool_use_id": block.get("id"), "content": result.text,
+                files = anthropic_parts(result.attachments, self.media) if self.media and result.attachments else []
+                reply: Any = [{"type": "text", "text": result.text}, *files] if files else result.text
+                results.append({"type": "tool_result", "tool_use_id": block.get("id"), "content": reply,
                                 "is_error": not result.ok})
             messages.append({"role": "user", "content": results})
 
@@ -414,22 +422,28 @@ def _field(block: Any, name: str) -> Any:
 
 
 def anthropic(client: Any, model: str, *, max_tokens: int = 1024, max_steps: int = 8, system: str = "",
-              retries: int = 4, on_error: str = "fail") -> Participant:
+              retries: int = 4, on_error: str = "fail", media: Optional[Collection[str]] = None) -> Participant:
     """An LLM participant using an ``anthropic.Anthropic()`` client. The brief is prompt-cached.
+
+    Files the agent receives are sent as image and document blocks after the text (``media``: the attachment types
+    sent as content, default image, pdf and text; ``media=()`` for a text-only model, which reads each file's
+    reference — its caption and alt text — in the text only). See :mod:`fg_env.sdk.assets.multimodal`.
 
     Rate limits, timeouts, overload and server errors are retried ``retries`` times with backoff
     (honouring ``retry-after``). If a call still fails, ``on_error="fail"`` fails the run with that
     error and ``"end_turn"`` forfeits the turn and counts it in ``stats["forfeits"]``. Real token
     usage lands in the run's statistics and in ``participant.usage``.
     """
-    return _Anthropic(client, model, max_tokens, max_steps, system, retries, on_error)
+    return _Anthropic(client, model, max_tokens, max_steps, system, retries, on_error,
+                      media_set(media, ANTHROPIC_MEDIA, ANTHROPIC_MEDIA))
 
 
 class _OpenAI(_LLMParticipant):
     def _turn(self, wake: Wake) -> None:
+        parts = openai_parts(wake.attachments, self.media) if self.media else []
         messages: List[Dict[str, Any]] = [
             {"role": "system", "content": (self.system + "\n\n" if self.system else "") + wake.brief},
-            {"role": "user", "content": wake.update},
+            {"role": "user", "content": [{"type": "text", "text": wake.update}, *parts] if parts else wake.update},
         ]
         nudged = False
         for _ in range(self.max_steps):
@@ -456,16 +470,23 @@ class _OpenAI(_LLMParticipant):
                 nudged = True
                 messages.append({"role": "user", "content": _NUDGE})
                 continue
+            files: List[Dict[str, Any]] = []
             for c in calls:
                 try:
                     args = json.loads(c.function.arguments or "{}")
                 except (json.JSONDecodeError, TypeError):
                     args = None
                 if isinstance(args, dict):
-                    text = wake.call(c.function.name, args).text
+                    result = wake.call(c.function.name, args)
+                    text = result.text
+                    if self.media and result.attachments:
+                        files += openai_parts(result.attachments, self.media)
                 else:
                     text = "The arguments were not a JSON object of named values; call the tool again with valid JSON."
                 messages.append({"role": "tool", "tool_call_id": c.id, "content": text})
+            if files:  # tool messages carry text only: the files follow in one user message
+                messages.append({"role": "user", "content": [{"type": "text", "text": "Files from the tool results above:"},
+                                                             *files]})
 
     def _count(self, wake: Wake, usage: Any) -> None:
         def number(owner: Any, name: str) -> int:
@@ -478,12 +499,14 @@ class _OpenAI(_LLMParticipant):
 
 
 def openai(client: Any, model: str, *, max_steps: int = 8, system: str = "", retries: int = 4,
-           on_error: str = "fail") -> Participant:
+           on_error: str = "fail", media: Optional[Collection[str]] = None) -> Participant:
     """An LLM participant using an ``openai.OpenAI()``-compatible client (chat completions + tools).
 
-    Retries, ``on_error`` and usage accounting work as for :func:`anthropic`.
+    Retries, ``on_error`` and usage accounting work as for :func:`anthropic`. Files are sent as ``image_url`` data
+    URLs, ``file`` and ``input_audio`` parts (``media``: default image, pdf, audio and text; ``()`` for text only);
+    files from tool results follow the tool messages in one user message.
     """
-    return _OpenAI(client, model, max_steps, system, retries, on_error)
+    return _OpenAI(client, model, max_steps, system, retries, on_error, media_set(media, OPENAI_MEDIA, OPENAI_MEDIA))
 
 
 ParticipantsArg = Union[None, Participant, str, Mapping[str, Any]]

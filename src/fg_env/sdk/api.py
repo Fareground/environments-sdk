@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
+from .assets.catalog import resolve_assets
 from .check import check_contract, parse_contract
 from .contract import Contract
 from .errors import ContractError, Issue, RunError
@@ -214,7 +215,7 @@ def check(source: ContractLike, rounds: int = 1, seed: int = 0) -> List[Issue]:
     warnings_from_smoke: List[Issue] = []
     if rounds > 0 and contract is not None and not errors:
         try:
-            result = load(contract, seed=seed).run(_smoke_participant(seed), rounds=rounds)
+            result = load(contract, seed=seed, data_dir=default_data_dir(source)).run(_smoke_participant(seed), rounds=rounds)
             if result.status == "failed":
                 errors.append(_run_issue(result.error or "the run failed"))
             for problem in result.output_issues:
@@ -278,7 +279,7 @@ def _merge(base: Any, patch: Any) -> Any:
 
 
 def default_data_dir(source: ContractLike, data_dir: Union[str, "os.PathLike[str]", None] = None) -> Optional[Path]:
-    """Where input data files are read from: ``data_dir`` when given, else the contract file's folder."""
+    """Where input data files and assets are read from: ``data_dir`` when given, else the contract file's folder."""
     if data_dir is not None:
         return Path(data_dir)
     if isinstance(source, os.PathLike) or (isinstance(source, str) and not source.lstrip().startswith(("{", "["))):
@@ -294,7 +295,8 @@ def load(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, se
 
     Errors raise :class:`ContractError` listing every problem with a fix; ``strict=True``
     also rejects warnings. ``seed`` defaults to a fresh one (readable as ``env.seed``).
-    Inputs with a ``source`` read their data file from ``data_dir`` (default: the contract file's folder).
+    Inputs with a ``source`` and the contract's ``assets`` read their files from ``data_dir`` (default: the contract
+    file's folder).
     ``hosts`` (a :class:`~fg_env.sdk.host.Hosts` or a mapping of host name to adapter) answers the
     judgment the contract asks of a host; build-time host work (personas) is done before round 1.
     ``exposures=True`` records what every agent was shown on every wake (``result.exposures``); a
@@ -318,8 +320,10 @@ def load(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, se
                 raise ContractError(errors, title=f"arm '{arm}' makes the contract invalid")
         merged.update(contract.arms[arm].inputs)
     merged.update(inputs or {})
-    resolved = resolve_inputs(contract, merged, default_data_dir(source, data_dir))
-    env = Env(contract, resolved, mint_seed() if seed is None else seed, arm, parallel, exposures)
+    folder = default_data_dir(source, data_dir)
+    resolved = resolve_inputs(contract, merged, folder)
+    assets = resolve_assets(contract, resolved, folder)
+    env = Env(contract, resolved, mint_seed() if seed is None else seed, arm, parallel, exposures, assets)
     env.origin.unarmed = unarmed
     if chance is not None:
         from .branch import use_chance

@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Tuple
 
 from ..entity import Entity
 from .actions import ACTION_BUDGET, ToolSpec, stage_actions
+from .assets.delivery import Attachment, references
 from .contract import StageSpec
 from .errors import RunError
 from .expr import ExprError, compile_expr, shared_budget, truthy
@@ -65,6 +66,8 @@ class Turn:
         self._views = dict(memory.views) if peek else memory.views
         self._brief: Optional[str] = None
         self._update: Optional[str] = None
+        #: The assets delivered with the brief and with the update.
+        self._delivered: List[str] = []
         self.calls_left = stage.max_calls
         self.actions_left = stage.max_actions
         self.done = False
@@ -141,6 +144,7 @@ class Turn:
                     self._brief = self.env._brief(self.actor)
                 self.stats.brief_chars = len(self._brief)
                 self.stats.brief_reads = 1
+                self._deliver(self.env._brief_assets.get(self.actor.id, []), "brief")
                 if self.exposure is not None:
                     self.exposure.read_brief(self._brief)
             return self._brief
@@ -152,14 +156,27 @@ class Turn:
                 if self.closed:
                     return _CLOSED_TEXT
                 shown = _shown() if self.exposure is not None else None
+                attached: List[str] = []
                 with shared_budget(ACTION_BUDGET, "update"):
                     self._update = self.env.perception.update(self.actor, self.stage, self.reason, self._since,
-                                                              self._views, self.time_limit, shown)
+                                                              self._views, self.time_limit, shown, attached)
                 self.stats.update_chars = len(self._update)
                 self.stats.update_reads = 1
+                self._deliver(attached, "update")
                 if self.exposure is not None and shown is not None:
                     self.exposure.read_update(self._update, shown)
             return self._update
+
+    def _deliver(self, ids: List[str], where: str) -> None:
+        fresh = [key for key in ids if key not in self._delivered]
+        self._delivered.extend(fresh)
+        if self.exposure is not None and fresh:
+            self.exposure.shown(self.env.world.assets.of(fresh), where)
+
+    def attachments(self, ids: Optional[List[str]] = None) -> List[Attachment]:
+        """The files delivered with the brief and update (or the assets ``ids``), as participants receive them."""
+        store = self.env.world.assets
+        return [Attachment(asset, store) for asset in store.of(self._delivered if ids is None else ids)]
 
     # -- tools ------------------------------------------------------------------
 
@@ -302,6 +319,7 @@ class Turn:
         if not outcome.ok:
             self.stats.rejected_actions += 1
             return self._after(ToolResult(False, outcome.text, data=_REJECTED))
+        files = self.attachments(outcome.assets)
         self._count(name)
         self.pending.append({"action": name, **_plain(params)})
         if env.world.continuous:
@@ -313,7 +331,8 @@ class Turn:
             why = self.settle()
             if why is not None:
                 return self._after(self._undone(why))
-        return self._after(ToolResult(True, outcome.text, ended, {"success": outcome.success}))
+        return self._after(ToolResult(True, _with_references(outcome.text, files), ended, {"success": outcome.success},
+                                      files))
 
     def _count(self, name: str) -> None:
         self.used[name] = self.used.get(name, 0) + 1
@@ -423,12 +442,13 @@ class Turn:
             self.stats.invalid_calls += 1
             return self._after(ToolResult(False, f"view must be one of: {', '.join(looks) or 'none'}.", data=_INVALID))
         shown = _shown() if self.exposure is not None else None
+        attached: List[str] = []
         with shared_budget(ACTION_BUDGET, f"views.{name}"):
-            text = env.perception.render_view(name, env.contract.views[name], self.actor, shown)
+            text = env.perception.render_view(name, env.contract.views[name], self.actor, shown, attached)
         if self.exposure is not None and shown is not None and text is not None:
             shown.views.append((name, text))
             self.exposure.looked(shown)
-        return self._after(ToolResult(True, text or "Nothing to show."))
+        return self._after(ToolResult(True, text or "Nothing to show.", attachments=self.attachments(attached)))
 
     def _inspect(self, args: Optional[Mapping[str, Any]]) -> ToolResult:
         env = self.env
@@ -439,11 +459,13 @@ class Turn:
             return self._after(ToolResult(False, "No entity with that id is available to inspect.", data=_INVALID))
         specs = env.contract.props_of(target.entity_type)
         own = target.id == self.actor.id
-        shown = [f"{k}: {format_value(v)}" for k, v in target.properties.items()
-                 if own or not specs.get(k) or not specs[k].private]
+        visible = {k: v for k, v in target.properties.items() if own or not specs.get(k) or not specs[k].private}
+        files: List[str] = [str(v) for k, v in visible.items() if specs.get(k) is not None and specs[k].type == "asset"
+                            and env.world.assets.has(v)]
+        shown = [f"{k}: {references(env.world.assets, [v]) if v in files else format_value(v)}" for k, v in visible.items()]
         where = f" at {format_value(target.location_id)}" if target.location_id is not None else ""
         text = f"{target.name} [{target.id}] ({target.entity_type}){where}" + ("\n" + "\n".join(shown) if shown else "")
-        return self._after(ToolResult(True, text))
+        return self._after(ToolResult(True, text, attachments=self.attachments(files)))
 
 
 def _shown() -> Any:
@@ -455,6 +477,10 @@ def _shown() -> Any:
 def entity_dict(entity: Entity) -> Dict[str, Any]:
     return {"id": entity.id, "name": entity.name, "type": entity.entity_type, "alive": entity.alive,
             "at": entity.location_id, "props": _plain(dict(entity.properties))}
+
+
+def _with_references(text: str, files: List[Attachment]) -> str:
+    return f"{text} {' '.join(file.reference for file in files)}" if files else text
 
 
 def _args_text(params: Mapping[str, Any]) -> str:
