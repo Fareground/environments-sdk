@@ -91,6 +91,7 @@ SECTIONS: List[Tuple[str, List[Type[BaseModel]], str, str]] = [
     ("feeds", [C.FeedSpec], "{feed: FeedSpec}", "External data written into world props or records, answered by host adapters."),
     ("policies", [C.PolicySpec, C.PolicyRule], "{policy: PolicySpec}", "Coded participants as rules, for crowds and baselines (`policy:<name>`)."),
     ("arms", [C.ArmSpec], "{arm: ArmSpec}", "Experiment variants: input overrides or contract patches."),
+    ("calibration", [C.CalibrationSpec], "CalibrationSpec", "Inputs fitted by short pilot sessions every time the contract loads, reproducible from the session's seed; a load that sets a fitted input skips it (each load costs budget × runs pilot sessions)."),
     ("defs", [C.DefSpec], "{name: expr | DefSpec}", "Reusable expressions, called like built-ins: $utility($actor, 3)."),
     ("blocks", [C.BlockSpec], "{name: BlockSpec}", "Reusable effect lists, run with {\"block\": name, \"with\": {...}}."),
     ("imports", [], "[path]", "Contract files merged into this one (relative to it, inside its folder); this contract's own entries win, and imported files may import others."),
@@ -139,7 +140,8 @@ _MODULE_GROUPS = {
     "stdlib.words": "text", "stdlib.dates": "dates", "stdlib.lists": "lists", "stdlib.tables": "lists", "stdlib.sets": "lists", "stdlib.stats": "stats",
     "stdlib.scoring": "stats", "space_functions": "space", "networks": "space", "stdlib.puzzles": "game",
     "mechanisms._common": "conditions", "mechanisms.card_scoring": "game", "mechanisms.cards": "game",
-    "mechanisms.econ_assets": "economy", "mechanisms.market_stats": "market", "mechanisms.order_book": "market",
+    "mechanisms.econ_assets": "economy", "mechanisms.market_stats": "market", "mechanisms.book_functions": "market",
+    "mechanisms.book_rules": "market",
     "mechanisms.package_auction": "market", "mechanisms.auction_reads": "market", "mechanisms.memory": "mind",
 }
 #: What each non-family group holds, in the order the guide lists them.

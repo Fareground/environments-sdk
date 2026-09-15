@@ -34,6 +34,12 @@ DISTRIBUTIONS = {"normal": ("mean", "sd"), "lognormal": ("median", "sd"), "unifo
 def parameter_draws(contract: Any, uncertainty: Any, count: int, seed: int) -> List[Dict[str, Any]]:
     """``count`` parameter draws (one per run) from a calibration, a list of points or priors."""
     rng = SeedTree(seed).rng("parameter-draws")
+    report = getattr(uncertainty, "calibration", None)  # a loaded session: its load-time calibration report
+    if isinstance(report, Mapping):
+        uncertainty = report
+    if isinstance(uncertainty, Mapping) and "plausible" in uncertainty and "params" in uncertainty:
+        chosen = list(uncertainty["plausible"]) or [dict(uncertainty["params"])]
+        return [_checked(contract, dict(rng.choice(chosen)), "a calibration's plausible point") for _ in range(count)]
     points = getattr(uncertainty, "plausible", None)
     if points is not None:
         chosen = list(points) or [dict(uncertainty.params)]

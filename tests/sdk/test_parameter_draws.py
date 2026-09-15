@@ -91,3 +91,15 @@ def test_calibration_names_the_target_traded_away_when_the_others_count_for_more
     result = fg_env.calibrate(CENTRE, cases, {"p": {"low": 0, "high": 1}}, runs=1, budget=40, method="golden")
     [note] = [n for n in result.notes if "of the misfit" in n]
     assert note.startswith("sl carries") and "the search traded it away" in note
+
+
+def test_a_load_time_calibration_report_or_its_session_is_drawn_from_like_a_calibration():
+    contract = {**LINEAR, "calibration": {"params": {"p": {"low": 0.5, "high": 2}}, "targets": {"y": 12}, "runs": 1,
+                                         "budget": 10}}
+    env = fg_env.load(contract, seed=1)
+    report = env.calibration
+    assert report["params"] in report["plausible"]
+    allowed = {point["p"] for point in report["plausible"]}
+    for source in (env, report):
+        runs = fg_env.experiment(contract, arms=["base"], runs=4, uncertainty=source).arms["base"].runs
+        assert {r.inputs["p"] for r in runs} <= allowed

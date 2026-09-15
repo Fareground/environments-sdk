@@ -78,3 +78,5 @@ no_strict_optional = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# A serializer warning means a contract field holds a value its type does not expect: fail instead of warning.
+filterwarnings = ["error:Pydantic serializer warnings:UserWarning"]

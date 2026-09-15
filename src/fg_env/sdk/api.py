@@ -12,6 +12,7 @@ from .check import check_contract, parse_contract
 from .contract import Contract
 from .errors import ContractError, Issue, RunError
 from .inputs import resolve_inputs
+from .load_calibration import calibrate_at_load
 from .macros import expand_macros
 from .measure import RunResult
 from .runtime import Env
@@ -232,7 +233,7 @@ def check(source: ContractLike, rounds: int = 1, seed: int = 0, *, data_dir: Dat
     warnings_from_smoke: List[Issue] = []
     if rounds > 0 and contract is not None and not errors:
         try:
-            result = load(contract, seed=seed, hosts=hosts).run(_smoke_participant(seed), rounds=rounds)
+            result = load(contract, seed=seed, hosts=hosts, calibrate=False).run(_smoke_participant(seed), rounds=rounds)
             if result.status == "failed":
                 errors.append(_run_issue(result.error or "the run failed"))
             for problem in result.output_issues:
@@ -312,7 +313,7 @@ def default_data_dir(source: ContractLike, data_dir: DataDir = None) -> Optional
 
 def load(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, seed: Optional[int] = None,
          arm: Optional[str] = None, strict: bool = False, parallel: int = 8,
-         data_dir: DataDir = None, hosts: Any = None, exposures: bool = False, chance: Any = None) -> Env:
+         data_dir: DataDir = None, hosts: Any = None, exposures: bool = False, chance: Any = None, calibrate: bool = True) -> Env:
     """Check a contract and build a runnable :class:`Env`.
 
     Errors raise :class:`ContractError` listing every problem with a fix; ``strict=True``
@@ -325,7 +326,8 @@ def load(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, se
     contract that calls ``$seen`` records it anyway. ``chance`` decides `chance` effects: ``"sampled"`` (the
     default: drawn from the seeded stream) or a callable given each :class:`~fg_env.sdk.chance.ChanceNode`
     that returns the index of the outcome to take (a fixed deal, duplicate formats); :func:`fg_env.game`
-    enumerates chance for search.
+    enumerates chance for search. A contract with a ``calibration`` section fits its inputs with pilot sessions first
+    (``env.calibration`` is the report); ``calibrate=False`` skips that, as ``fg_env.check``'s smoke round does.
     """
     contract, issues = _check_all(source, data_dir)
     blocking = [i for i in issues if i.severity == "error" or strict]
@@ -345,7 +347,15 @@ def load(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, se
     folder = default_data_dir(contract)
     resolved = resolve_inputs(contract, merged, folder)
     assets = resolve_assets(contract, resolved, folder)
-    env = Env(contract, resolved, mint_seed() if seed is None else seed, arm, parallel, exposures, assets)
+    run_seed = mint_seed() if seed is None else seed
+    report = None
+    if calibrate and contract.calibration is not None:
+        report = calibrate_at_load(contract, merged, resolved, run_seed, arm,
+                                   lambda values: Env(contract, dict(values), run_seed, arm, parallel, False, assets))
+        if report is not None:
+            resolved = resolve_inputs(contract, {**merged, **report["params"]}, folder)
+    env = Env(contract, resolved, run_seed, arm, parallel, exposures, assets)
+    env.calibration = report
     env.origin.unarmed = unarmed
     if chance is not None:
         from .branch import use_chance

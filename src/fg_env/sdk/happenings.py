@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, List, Optional
 
 from .delivery import run_delivery
 from .contract import StageSpec
+from .build import whole_setting
 from .errors import RunError
 from .expr import ExprError, compile_expr, truthy
 from .sync_events import run_sync
@@ -110,7 +111,8 @@ class Happenings:
                 rounds = at if isinstance(at, list) else [at]
                 if world.round not in rounds:
                     return False
-            if event.every is not None and (world.round - 1) % event.every != 0:
+            every = whole_setting(world, event.every, f"{path}.every")
+            if every is not None and (world.round - 1) % every != 0:
                 return False
             if event.when is not None and not truthy(compile_expr(event.when)(scope)):
                 return False
