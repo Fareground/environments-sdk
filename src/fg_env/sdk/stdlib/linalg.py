@@ -165,9 +165,9 @@ def _inverse(call: Call) -> Matrix:
     return _eliminate(call, matrix, [[1.0 if r == c else 0.0 for c in range(n)] for r in range(n)], "the matrix")
 
 
-@function("solve(a, b)", "x such that a × x = b, for a square matrix a and a list b (or a matrix b, solved column by column).",
+@function("linsolve(a, b)", "x such that a × x = b, for a square matrix a and a list b (or a matrix b, solved column by column).",
           min_args=2, max_args=2)
-def _solve(call: Call) -> Any:
+def _linsolve(call: Call) -> Any:
     a = _square(call, 0, "a")
     columns = _is_matrix(call.arg(1))
     b = _matrix(call, 1, "b") if columns else [[v] for v in _vector(call, 1, "b")]

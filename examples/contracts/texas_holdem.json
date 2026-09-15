@@ -34,9 +34,10 @@
       "setup": [{"collect": "cards"}, {"deal": "cards", "count": 2, "to": "$filter(player, $it.in_hand)"}],
       "streets": {
         "preflop": [],
-        "flop": [{"burn": "cards"}, {"deal": "cards", "count": 3, "zone": "board"}],
-        "turn": [{"burn": "cards"}, {"deal": "cards", "count": 1, "zone": "board"}],
-        "river": [{"burn": "cards"}, {"deal": "cards", "count": 1, "zone": "board"}]
+        "{street.name}": {
+          "for": [{"name": "flop", "cards": 3}, {"name": "turn", "cards": 1}, {"name": "river", "cards": 1}], "as": "street",
+          "make": [{"burn": "cards"}, {"deal": "cards", "count": "{street.cards}", "zone": "board"}]
+        }
       },
       "before_showdown": [{"reveal": "$flatten($map($pot_live(table), $hand($it)))"}],
       "score": "$poker_rank($hand($it) + $zone(board)).score",

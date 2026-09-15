@@ -346,6 +346,22 @@ def _events(call: Call) -> List[Any]:
     return [row for i, row in enumerate(rows) if truthy(call.each(1, row, i))]
 
 
+@function("seen(agent, item)",
+          "Whether `agent` was shown `item` on a wake so far — an event (from $events), a record entry "
+          "(from $records) or a view by name. Needs the exposure log, which a contract that calls $seen keeps.",
+          min_args=2, max_args=2)
+def _seen(call: Call) -> bool:
+    log = getattr(call.scope.world, "exposures", None)
+    if log is None:
+        raise ExprError("$seen needs the exposure log, which this run does not keep; load it with exposures=True",
+                        call.source)
+    item = call.arg(1)
+    found = log.seen(_entity_id(call.arg(0)), item)
+    if found is None:
+        raise ExprError(f"$seen: expected an event, a record entry or a view name, got {_describe(item)}", call.source)
+    return bool(found)
+
+
 @function("relation(a, b, kind)", "Value of the `kind` link from a to b, or null when not linked.",
           min_args=3, max_args=3)
 def _relation(call: Call) -> Any:
@@ -355,6 +371,24 @@ def _relation(call: Call) -> Any:
 @function("linked(a, b, kind)", "True when a has a `kind` link to b.", min_args=3, max_args=3)
 def _linked(call: Call) -> bool:
     return call.scope.world.relation(call.arg(0), call.arg(1), str(call.arg(2))) is not None
+
+
+@function("link(a, b, kind)", "The `kind` link from a to b — its `value`, `source`, `target`, `kind` and the relation's "
+          "fields — or null when not linked. Effects assign `.value` or a field: `$link($actor, $it, trusts).since = $round`.",
+          min_args=3, max_args=3)
+def _link(call: Call) -> Any:
+    return call.scope.world.link_view(call.arg(0), call.arg(1), str(call.arg(2)))
+
+
+@function("links(entity, kind, where?)", "The `kind` links from `entity` (either direction on a symmetric relation) to living "
+          "entities, each with `value`, `source`, `target` and the relation's fields; `where` filters ($it is a link).",
+          min_args=2, max_args=3, lazy=[2])
+def _links(call: Call) -> List[Any]:
+    rows = call.scope.world.links_of(call.arg(0), str(call.arg(1)))
+    charge(len(rows), call.source)
+    if len(call) < 3:
+        return list(rows)
+    return [row for i, row in enumerate(rows) if truthy(call.each(2, row, i))]
 
 
 @function("neighbors(entity, kind)", "Entities linked to `entity` by `kind` (either direction).",

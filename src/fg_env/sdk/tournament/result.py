@@ -66,15 +66,19 @@ class TournamentResult:
         return "\n".join(lines)
 
     def _cost_lines(self) -> List[str]:
-        rows = [row for row in self.standings if row["cost"]["calls"] or row["cost"]["llm_calls"]]
-        if not rows:
+        costs = [row["cost"] for row in self.standings]
+        if not any(c["calls"] or c["llm_calls"] or c["timeouts"] or c["undone_turns"] for c in costs):
             return []
-        tokens = any(row["cost"]["input_tokens"] or row["cost"]["output_tokens"] for row in rows)
-        header = ["entrant", "turns", "tool calls", "invalid"] + (["LLM calls", "tokens in", "tokens out"] if tokens else [])
+        tokens = any(c["input_tokens"] or c["output_tokens"] for c in costs)
+        timing = any(c["timeouts"] or c["undone_turns"] for c in costs)
+        header = ["entrant", "turns", "tool calls", "invalid"] + (["timeouts", "undone turns"] if timing else []) \
+            + (["LLM calls", "tokens in", "tokens out"] if tokens else [])
         table = [header]
         for row in self.standings:
             c = row["cost"]
             cells = [row["entrant"], str(c["wakes"]), str(c["calls"]), f"{c['invalid_calls']} ({c['invalid_rate']:.0%})"]
+            if timing:
+                cells += [str(c["timeouts"]), str(c["undone_turns"])]
             if tokens:
                 cells += [str(c["llm_calls"]), f"{c['input_tokens']:,}", f"{c['output_tokens']:,}"]
             table.append(cells)

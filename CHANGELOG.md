@@ -7,7 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+### Environment SDK (`fg-env`)
+
+#### Added
+- **Turn time limits**: stage `time_limit` (seconds, or an expression over `$actor`) and `on_timeout`
+  effects, plus a run-wide default (`env.run(..., time_limit=30)`). A participant past its deadline loses
+  the turn — later calls are refused, a `timeout` event and `stats["timeouts"]` record it — and a hung one
+  never hangs the run. The update and `env.preview` show the limit; `wake.time_limit` / `wake.time_left`.
+- **Async participants**: `async def` participants (or async `__call__`, or functions returning an
+  awaitable) work in `env.run`, run concurrently in simultaneous stages with deterministic results, and
+  natively inside an event loop with `await env.arun(...)`.
+- **Exposure log** (`fg_env.load(..., exposures=True)`): `result.exposures` records, per wake, the brief,
+  update and views shown (texts stored once by hash), news delivered, tools offered and every call with its
+  arguments and result; kept in snapshots. `$seen(agent, item)` asks whether an agent was shown an event,
+  a record entry or a view (a contract that uses it records exposures automatically).
+- **Spectator views** (`"for": "spectator"`): an omniscient picture for UIs and reports, rendered each round
+  into `result.frames` and on demand with `env.spectate()`, never shown to an agent.
+- **Atomic turns**: stage `atomic` and `valid` — a turn's actions apply together, triggers, reactions and
+  invariants wait for the turn, and a turn that breaks `valid` is undone whole with a correction
+  (`stats["undone_turns"]`). Example: `examples/contracts/hopscotch_race.json`.
+
+- **Per-entity dynamics** (`physics.per.<type>`): every entity of a type integrates its own ODEs over its
+  number props (viral load, firm capital, habit strength), reading its own props, per-entity `read`s, the
+  type's `params` and world physics values; `where` limits who steps, `write` sets other props. Stepped by
+  the same clock right after world physics; thousands of entities per step.
+- **Stochastic terms** (`noise`, Euler–Maruyama) on world physics variables and per-entity variables, drawn
+  from streams derived from the run seed, so adding noise never shifts any other random draw.
+- **Link fields** (`relations.<kind>.props`): typed fields on every link (defaults may read `$from`/`$to`),
+  read with `$link(a, b, kind).field` and listed with `$links(entity, kind, where?)`; set by `link` with
+  `props`, by assignment (`"$link($actor, $it, trusts).since = $round"`), in generated `links` and from
+  `rows` columns; removed with the link, journaled, and carried by snapshots.
+- **Entity lifecycle hooks** (`types.<type>.on_create` / `on_remove`, `$it` = the entity): run for every
+  creation and removal — effects, mechanisms, other hooks — atomically with the change that caused them,
+  inherited through `extends` (ancestors first) and guarded against endless recursion. Entities made at
+  build run `on_create` once the whole world exists; `on_create_at_build: false` opts a type out.
+- **External data feeds** (`feeds: {name: {host, into, query, every, when, fallback}}`): live or historical
+  values (prices, news, weather) written into `world.<prop>` or `records.<record>` at the start of a due
+  round, answered by a host adapter implementing the new `Feed` protocol (`fetch(request)`), recorded on the
+  host tape so snapshots, restores and replays never ask again; host text is marked untrusted. A declared
+  `fallback` answers without a host, drawing randomness from its own seeded stream. New `StubFeed` stub and
+  `adapters.historical(rows, at=, value=)` for backtests.
+- **Delivery latency and lossy channels**: `delay` on `post` and `emit` delivers the message rounds (or clock
+  time) later with the content it had when sent; `drop` on `post`, `emit` and `wake` loses it with a chance
+  rolled from the run's seed. Pending deliveries are journaled (a refused action sends nothing) and carried
+  by snapshots with their provenance. `delay` and `drop` are now reserved record field names.
+- Example `examples/contracts/outbreak_network.json`: per-resident viral load and immunity with noise, a
+  contact network whose links carry a setting and closeness, newcomers wired in by `on_create`, a weather
+  feed with a seeded fallback, and advisories that arrive a day late and are sometimes lost.
 - **Tournaments** (`fg_env.tournament(contract, entrants={name: participant})`, `fg-env tournament`): round
   robin, all-play-all (every seat order) or Swiss pairing; entrants rotate through every seat and game *g*
   replays the same seed at every table (duplicate deals). Games are scored by the winner, an output, an
@@ -34,11 +80,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Job.participants`: a job in `run_jobs` can carry its own participants; participants given by name still
   run in worker processes.
 - **Linear algebra in expressions**: `$dot`, `$matmul`, `$transpose`, `$identity`, `$inverse`, `$det`
-  (exact for whole numbers) and `$solve` on nested lists, with errors that name the bad shape or a
+  (exact for whole numbers) and `$linsolve` on nested lists, with errors that name the bad shape or a
   singular matrix, and work charged against the evaluation budget.
 - **Correlated draws**: `$mvnormal(means, cov)` samples a multivariate normal from the run's seeded
   generator (Cholesky; the covariance is checked to be symmetric positive semi-definite). Draw once in a
   population list prop and read the parts through `$it` for correlated traits.
+
+#### Changed
+- Async participants are awaited instead of refused.
+- `link` without `value` keeps an existing link's value (it used to reset it to 1); a new link gets the
+  relation's `default` (previously ignored), or 1.
 
 ## [0.3.0]
 

@@ -99,8 +99,8 @@ def _entities(contract: C.Contract, metadata: Mapping[str, Any]) -> List[str]:
     if contract.world:
         lines += ["### Global state (`$world`)", ""] + _props_table(contract.world)
     if contract.relations:
-        lines += ["### Relations", ""] + _table(["relation", "symmetric", "range", "meaning"], [
-            [name, "yes" if spec.symmetric else "no", _range(spec.min, spec.max), spec.description]
+        lines += ["### Relations", ""] + _table(["relation", "symmetric", "range", "link fields", "meaning"], [
+            [name, "yes" if spec.symmetric else "no", _range(spec.min, spec.max), ", ".join(spec.props), spec.description]
             for name, spec in contract.relations.items()])
     if contract.records:
         lines += ["### Records (append-only logs)", ""] + _table(["record", "fields", "who can read an entry", "keeps"], [
@@ -123,11 +123,14 @@ def _entities(contract: C.Contract, metadata: Mapping[str, Any]) -> List[str]:
 
 def _process(contract: C.Contract, metadata: Mapping[str, Any]) -> List[str]:
     lines = ["## 3. Process overview and scheduling", "",
-             "Each round: scheduled effects, start-phase events, a physics step, every stage in order, end-phase "
-             "events, metric sampling, then invariant and end checks. Triggers fire the moment their condition becomes "
-             "true.", ""]
-    lines += _table(["#", "stage", "turns", "who acts", "order", "runs when", "repeats until", "actions offered"], [
+             "Each round: scheduled effects, external data feeds, start-phase events, a physics step (world variables, "
+             "then per-entity dynamics), every stage in order, end-phase events, metric sampling, then invariant and "
+             "end checks. Triggers fire the moment their condition becomes true, and lifecycle hooks the moment an "
+             "entity is created or removed.", ""]
+    lines += _table(["#", "stage", "turns", "who acts", "order", "runs when", "repeats until", "atomic", "time limit (s)",
+                     "actions offered"], [
         [i + 1, s.name, s.turns, s.who or "every agent", s.order, s.when or "every round", s.until or "",
+         "yes" if s.atomic or s.valid else "", "" if s.time_limit is None else s.time_limit,
          s.actions if isinstance(s.actions, str) else json.dumps(s.actions)]
         for i, s in enumerate(contract.stage_list())])
     if contract.events:
@@ -173,6 +176,9 @@ def _concepts(contract: C.Contract, metadata: Mapping[str, Any]) -> List[str]:
                for kind, views in observations.get("views", {}).items()]
     sensing += [f"record `{name}` is readable by {who}" for name, who in observations.get("records", {}).items()]
     sensing += [f"entities of type `{kind}` can be inspected by {who}" for kind, who in observations.get("inspect", {}).items()]
+    if observations.get("spectator"):
+        sensing.append("spectator views, rendered for reports and UIs and never shown to an agent: "
+                       + ", ".join(f"`{name}`" for name in observations["spectator"]))
     lines += ["**Sensing.** Agents read a static brief and a per-turn update in plain text, and act through typed tools.", ""]
     lines += _bullets(sensing, "")
     lines += [f"**Information.** {metadata.get('information', 'unknown')}.", ""] + _bullets(evidence.get("information", []), "")
@@ -216,6 +222,11 @@ def _inputs(contract: C.Contract, metadata: Mapping[str, Any]) -> List[str]:
     if contract.arms:
         lines += ["Experiment arms:", ""] + _table(["arm", "inputs", "patches", "meaning"], [
             [name, spec.inputs, ", ".join(spec.patch), spec.description] for name, spec in contract.arms.items()])
+    if contract.feeds:
+        lines += ["External data (feeds answered by host adapters; every answer is recorded on the host tape):", ""] + _table(
+            ["feed", "host", "written into", "every (rounds)", "when", "without a host"], [
+                [name, feed.host, feed.into, feed.every, feed.when or "",
+                 "the run stops" if feed.fallback is None else feed.fallback] for name, feed in contract.feeds.items()])
     return lines
 
 
@@ -239,6 +250,17 @@ def _submodels(contract: C.Contract, metadata: Mapping[str, Any]) -> List[str]:
     for index, event in enumerate(contract.events):
         if event.do:
             lines += [f"### Event `{event.name or f'event {index + 1}'}`", ""] + _code(event.do)
+    for stage in contract.stage_list():
+        if stage.valid or stage.on_timeout:
+            lines += [f"### Turn rules of stage `{stage.name}`", ""]
+            lines += ["A turn stands only when:", ""] + _bullets(
+                [f"`{c.expr}`" + (f" — {c.why}" if c.why else "") for c in stage.valid], "") if stage.valid else []
+            lines += ["When a turn runs out of time:", ""] + _code(stage.on_timeout) if stage.on_timeout else []
+    for kind, type_spec in contract.types.items():
+        for hook in ("on_create", "on_remove"):
+            if getattr(type_spec, hook):
+                lines += [f"### Lifecycle hook `{kind}.{hook}`", ""] + _code(getattr(type_spec, hook))
+    lines += _dynamics(contract)
     for name, formula in contract.defs.items():
         lines += [f"### Formula `${name}({', '.join(formula.args)})`", ""] \
             + ([formula.description, ""] if formula.description else []) + _code([formula.expr])
@@ -254,6 +276,21 @@ def _submodels(contract: C.Contract, metadata: Mapping[str, Any]) -> List[str]:
     return lines
 
 
+def _dynamics(contract: C.Contract) -> List[str]:
+    physics = contract.physics
+    if physics is None:
+        return []
+    lines = [f"### Continuous dynamics (dt {physics.dt:g}, {physics.substeps} sub-steps a round)", ""]
+    lines += _table(["variable", "starts at", "rate", "noise", "range"], [
+        [name, var.start, var.rate or "", var.noise or "", _range(var.min, var.max)] for name, var in physics.vars.items()])
+    for kind, dynamics in physics.per.items():
+        lines += [f"### Per-entity dynamics of `{kind}`" + (f" (where `{dynamics.where}`)" if dynamics.where else ""), ""]
+        lines += _table(["prop", "rate", "noise"], [[name, var.rate, var.noise or ""] for name, var in dynamics.vars.items()])
+        if dynamics.write:
+            lines += ["Then sets:", ""] + _bullets([f"`{prop}` = `{expr}`" for prop, expr in dynamics.write.items()], "")
+    return lines
+
+
 def _summary(metadata: Mapping[str, Any]) -> List[str]:
     length: Dict[str, Any] = metadata.get("max_game_length", {})
     space: Dict[str, Any] = metadata.get("action_space", {})
@@ -263,6 +300,7 @@ def _summary(metadata: Mapping[str, Any]) -> List[str]:
             ["most players", metadata.get("max_players")], ["longest game (rounds)", length.get("rounds")],
             ["most decisions", length.get("decisions")],
             ["action space", f"{space.get('kind')}" + (f", at most {space['size']} distinct actions" if space.get("size") else "")],
+            ["external data", ", ".join(feed["feed"] for feed in metadata.get("external_data", [])) or "none"],
             ["concepts", ", ".join(metadata.get("concepts", [])) or "—"]]
     return ["## Game-theoretic summary", "", "Values that cannot be derived from the contract are `unknown`.", ""] + \
         _table(["property", "value"], [[k, "unknown" if v is None else v] for k, v in rows])

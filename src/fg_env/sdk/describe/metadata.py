@@ -41,10 +41,13 @@ class _Scan:
         self.effects = [(path, node) for path, node in self.nodes if walk.in_effects(path)]
         posts = [path for path, node in self.effects if "post" in node]
         self.texts: List[Tuple[str, str, FrozenSet[str]]] = []
+        spectators = tuple(f"views.{name}." for name, view in contract.views.items() if _spectator(view))
         for path, text in walk.texts(data):
             where = set(walk.roles(path))
             if any(_record_field(path, prefix) for prefix in posts):
                 where.add("shown")  # a post's fields become an entry agents read
+            if path.startswith(spectators):
+                where.clear()  # rendered for reports and UIs, never for an agent
             self.texts.append((path, text, frozenset(where)))
         shown = [text for _, text, where in self.texts if "shown" in where]
         rules = [text for _, text, where in self.texts if "rules" in where]
@@ -55,6 +58,14 @@ class _Scan:
         self.rule_world: Set[str] = set().union(*(walk.world_reads(text) for text in rules))
         self.shows_physics = any("$physics." in text for text in shown)
         self.created = [(path, node["create"]) for path, node in self.effects if "create" in node]
+
+
+def _spectator(view: Any) -> bool:
+    return "spectator" in (view.for_ if isinstance(view.for_, list) else [view.for_])
+
+
+def _lossy(node: Mapping[str, Any]) -> bool:
+    return node.get("drop") not in (None, 0, False) and bool({"post", "emit", "wake"} & set(node))
 
 
 def _record_field(path: str, prefix: str) -> bool:
@@ -82,6 +93,8 @@ def game_metadata(contract: Contract, probe: Any = None, probe_error: Optional[s
             "information": information, "utility": "unknown", "num_players": count, "min_players": low,
             "max_players": high, "players_by_type": by_type, "max_game_length": length, "action_space": space,
             "observations": _observations(contract), "concepts": _concepts(contract, scan),
+            "external_data": [{"feed": name, "host": feed.host, "into": feed.into, "every": feed.every}
+                              for name, feed in contract.feeds.items()],
             "evidence": {key: _capped(lines) for key, lines in evidence.items()}}
 
 
@@ -96,7 +109,16 @@ def _dynamics(contract: Contract) -> Tuple[str, List[str]]:
     if not acting:
         return "none", ["no stage offers actions"]
     kinds = list(dict.fromkeys(stage.turns for stage in acting))
-    return (kinds[0] if len(kinds) == 1 else "mixed"), [f"stage {s.name}: {s.turns} turns" for s in acting]
+    return (kinds[0] if len(kinds) == 1 else "mixed"), [_stage_note(s) for s in acting]
+
+
+def _stage_note(stage: Any) -> str:
+    notes = [f"stage {stage.name}: {stage.turns} turns"]
+    if stage.atomic or stage.valid:
+        notes.append("atomic (a turn's actions stand or fall together)")
+    if stage.time_limit is not None:
+        notes.append(f"time limit {stage.time_limit} s")
+    return ", ".join(notes)
 
 
 def _chance(contract: Contract, scan: _Scan) -> Tuple[str, List[str], List[str]]:
@@ -110,9 +132,15 @@ def _chance(contract: Contract, scan: _Scan) -> Tuple[str, List[str], List[str]]
     for path, node in scan.effects:
         for op in sorted(set(node) & ops):
             play.append(f"{path} uses the {op} op, which draws at random")
+        if _lossy(node):
+            play.append(f"{path} may lose the message (drop)")
     play += [f"actions.{name}.chance is {spec.chance}" for name, spec in contract.actions.items() if spec.chance is not None]
     play += [f"events[{i}].chance is {e.chance}" for i, e in enumerate(contract.events) if e.chance is not None]
     play += [f"stage {s.name} wakes agents in random order" for s in contract.stage_list() if s.order == "random"]
+    if contract.physics is not None:
+        play += [f"physics.vars.{name}.noise is a random term" for name, var in contract.physics.vars.items() if var.noise]
+        play += [f"physics.per.{kind}.vars.{name}.noise is a random term" for kind, dynamics in contract.physics.per.items()
+                 for name, var in dynamics.vars.items() if var.noise]
     for i, link in enumerate(contract.links):
         if link.graph in _RANDOM_GRAPHS or (link.graph is not None and link.p is not None):
             setup.append(f"links[{i}] draws a {link.graph} network")
@@ -142,6 +170,7 @@ def _information(contract: Contract, scan: _Scan) -> Tuple[str, List[str]]:
                if r.visible.strip() != "all"]
     hiding += [f"{path} reaches only `{node['to']}`" for path, node in scan.effects
                if ("post" in node or "emit" in node) and node.get("to") not in (None, "", [])]
+    hiding += [f"{path} can lose messages on the way (drop)" for path, node in scan.effects if _lossy(node)]
     hiding += [f"entities.{eid}.brief is private to that entity" for eid, e in contract.entities.items() if e.brief]
     for i, group in enumerate(contract.population):
         if group.brief or any(m.brief for m in group.mix) or any(m.brief for m in group.members):
@@ -236,6 +265,8 @@ def _length(contract: Contract, scan: _Scan, probe: Any, players: Optional[int])
         evidence.append("scheduled turns come as often as action durations allow")
     elif wakes:
         evidence.append(f"{wakes[0]} wakes agents for extra turns")
+    elif any(stage.valid for stage in acting):
+        evidence.append(f"stage {next(s.name for s in acting if s.valid)} replays a turn that breaks `valid`")
     elif players is None:
         evidence.append("the number of players is not fixed")
     else:
@@ -320,7 +351,8 @@ def _observations(contract: Contract) -> Dict[str, Any]:
                 rule = contract.types[ancestor].inspect
                 break
         inspect[kind] = "everyone" if rule is True else "no one" if rule is False else f"only when `{rule}`"
-    return {"text": True, "struct": False, "tensor": False, "views": views, "records": records, "inspect": inspect}
+    return {"text": True, "struct": False, "tensor": False, "views": views, "records": records, "inspect": inspect,
+            "spectator": [name for name, view in contract.views.items() if _spectator(view)]}
 
 
 def _concepts(contract: Contract, scan: _Scan) -> List[str]:
@@ -338,5 +370,12 @@ def _concepts(contract: Contract, scan: _Scan) -> List[str]:
         "population": bool(contract.population),
         "continuous_time": contract.clock.mode == "continuous",
         "physics": contract.physics is not None,
+        "entity_dynamics": contract.physics is not None and bool(contract.physics.per),
+        "atomic_turns": any(stage.atomic or stage.valid for stage in contract.stage_list()),
+        "time_limits": any(stage.time_limit is not None for stage in contract.stage_list()),
+        "lifecycle_hooks": any(spec.on_create or spec.on_remove for spec in contract.types.values()),
+        "delayed_or_lossy_messages": any("delay" in node or _lossy(node) for _, node in scan.effects
+                                         if {"post", "emit", "wake"} & set(node)),
+        "external_data": bool(contract.feeds),
     }
     return [name for name, present in found.items() if present]

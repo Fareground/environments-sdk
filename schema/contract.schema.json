@@ -423,6 +423,57 @@
       "title": "EndSpec",
       "type": "object"
     },
+    "EntityDynamics": {
+      "additionalProperties": false,
+      "description": "Continuous dynamics each entity of a type (subtypes too) integrates on its own, stepped by\nthe same clock right after world physics. The variables are the type's number props, so\nviews, effects and snapshots see them like any other prop; their min/max hold at every sub-step.",
+      "properties": {
+        "where": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Which entities integrate this step ($it); the others keep their values.",
+          "title": "Where"
+        },
+        "params": {
+          "additionalProperties": true,
+          "description": "Constants for this type (numbers or expressions over $inputs, $world).",
+          "title": "Params",
+          "type": "object"
+        },
+        "read": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Names refreshed per entity before each step: {exposure: '$count($neighbors($it, contact), $it.sick)'}.",
+          "title": "Read",
+          "type": "object"
+        },
+        "vars": {
+          "additionalProperties": {
+            "$ref": "#/$defs/EntityVar"
+          },
+          "description": "{number prop: EntityVar | rate}: the props integrated.",
+          "title": "Vars",
+          "type": "object"
+        },
+        "write": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "After each step, other props of the entity from math: {'sick': 'viral_load > 5'}.",
+          "title": "Write",
+          "type": "object"
+        }
+      },
+      "title": "EntityDynamics",
+      "type": "object"
+    },
     "EntitySpec": {
       "additionalProperties": false,
       "description": "A named starting entity.",
@@ -470,6 +521,35 @@
         "type"
       ],
       "title": "EntitySpec",
+      "type": "object"
+    },
+    "EntityVar": {
+      "additionalProperties": false,
+      "description": "How one number property changes by itself on every entity. Shorthand: the rate text.",
+      "properties": {
+        "rate": {
+          "description": "d(prop)/dt as math over names: the entity's own number props, this type's params and reads, world physics variables and params, and t.",
+          "title": "Rate",
+          "type": "string"
+        },
+        "noise": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Stochastic term (Euler–Maruyama), drawn from the run's seed: d(prop) = rate·dt + noise·dW.",
+          "title": "Noise"
+        }
+      },
+      "required": [
+        "rate"
+      ],
+      "title": "EntityVar",
       "type": "object"
     },
     "EventSpec": {
@@ -637,6 +717,63 @@
         }
       },
       "title": "EventSpec",
+      "type": "object"
+    },
+    "FeedSpec": {
+      "additionalProperties": false,
+      "description": "External data written into the world — live or historical prices, news, weather — answered\nby a host adapter (``fetch(request)``) at the start of a round, before events and physics.\nEvery answer is recorded on the host tape, so snapshots, restores and replays never ask again;\ntext from a host is marked untrusted.",
+      "properties": {
+        "host": {
+          "description": "Name of the host adapter that answers (a Feed).",
+          "title": "Host",
+          "type": "string"
+        },
+        "into": {
+          "description": "'world.<prop>' (the answer is the new value) or 'records.<record>' (the answer is one entry's fields, or a list of entries).",
+          "title": "Into",
+          "type": "string"
+        },
+        "query": {
+          "default": null,
+          "description": "What to ask for: data whose texts may be expressions or templates over the world ($world, $clock, $round, $inputs).",
+          "title": "Query"
+        },
+        "every": {
+          "default": 1,
+          "description": "Fetch every N rounds, from round 1.",
+          "minimum": 1,
+          "title": "Every",
+          "type": "integer"
+        },
+        "when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Fetch only when true.",
+          "title": "When"
+        },
+        "fallback": {
+          "default": null,
+          "description": "The value (or entries) used when no host is bound: a literal or an expression, whose random draws come from the run's seed. Without one, a run with no host stops and names the host it needs.",
+          "title": "Fallback"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "host",
+        "into"
+      ],
+      "title": "FeedSpec",
       "type": "object"
     },
     "GraphSpace": {
@@ -987,6 +1124,12 @@
           "default": null,
           "description": "Link probability (random) or rewiring probability (small_world). For random it may depend on the pair: '0.1 if $to.influencer else 0.02'.",
           "title": "P"
+        },
+        "props": {
+          "additionalProperties": true,
+          "description": "Link field values or expressions over $from and $to ($row too with `rows`, whose columns named like a field fill it).",
+          "title": "Props",
+          "type": "object"
         },
         "where": {
           "anyOf": [
@@ -1416,6 +1559,14 @@
           "description": "After each step: {'world.price': 'P', 'person.risk': 'I/N'}.",
           "title": "Write",
           "type": "object"
+        },
+        "per": {
+          "additionalProperties": {
+            "$ref": "#/$defs/EntityDynamics"
+          },
+          "description": "{type: EntityDynamics}: dynamics every entity integrates on its own (viral load, firm capital, habit strength).",
+          "title": "Per",
+          "type": "object"
         }
       },
       "title": "PhysicsSpec",
@@ -1442,6 +1593,19 @@
           "default": null,
           "description": "Math over variable/param names: 'beta*S*I/N'.",
           "title": "Rate"
+        },
+        "noise": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Stochastic term (Euler–Maruyama): d(var) = rate·dt + noise·dW, drawn from the run's seed; e.g. 'sigma*price'. Needs a rate; the var's min/max then hold at every sub-step.",
+          "title": "Noise"
         },
         "min": {
           "anyOf": [
@@ -1911,7 +2075,7 @@
     },
     "RelationSpec": {
       "additionalProperties": false,
-      "description": "A kind of link between entities (follows, trusts, owns …).",
+      "description": "A kind of link between entities (follows, trusts, owns …). Every link carries a number\n(``value``) and, with ``props``, typed fields of its own (``since``, ``channel``, ``strength``).",
       "properties": {
         "symmetric": {
           "default": false,
@@ -1928,6 +2092,7 @@
             }
           ],
           "default": null,
+          "description": "Value of a link made without one (default 1).",
           "title": "Default"
         },
         "min": {
@@ -1953,6 +2118,14 @@
           ],
           "default": null,
           "title": "Max"
+        },
+        "props": {
+          "additionalProperties": {
+            "$ref": "#/$defs/PropSpec"
+          },
+          "description": "Typed fields every link carries, read as $link(a, b, kind).field; defaults may be expressions over $from and $to.",
+          "title": "Props",
+          "type": "object"
         },
         "description": {
           "default": "",
@@ -2187,6 +2360,42 @@
           "title": "Auto",
           "type": "boolean"
         },
+        "time_limit": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Wall-clock seconds each agent has for its turn (number, or expression over $actor; null uses the run's `time_limit`). Past it the turn ends, later calls are refused and `on_timeout` runs.",
+          "title": "Time Limit"
+        },
+        "on_timeout": {
+          "description": "Effects for each agent whose turn ran out of time ($actor), instead of `on_idle`.",
+          "items": {},
+          "title": "On Timeout",
+          "type": "array"
+        },
+        "atomic": {
+          "default": false,
+          "description": "The turn's actions apply together or not at all: triggers, reactions and invariants wait until the turn ends, and a turn that breaks `valid` is undone.",
+          "title": "Atomic",
+          "type": "boolean"
+        },
+        "valid": {
+          "description": "Conditions the whole turn must meet when it ends ($actor, $pending); if one fails, every action of the turn is undone and the agent is told `why` and plays the turn again. Makes the stage atomic.",
+          "items": {
+            "$ref": "#/$defs/Condition"
+          },
+          "title": "Valid",
+          "type": "array"
+        },
         "on_enter": {
           "items": {},
           "title": "On Enter",
@@ -2274,7 +2483,7 @@
     },
     "TypeSpec": {
       "additionalProperties": false,
-      "description": "A kind of entity. ``agent: true`` types take turns. ``extends`` inherits another type:\nits props, its agent flag, and membership (``$count(trader)`` counts every kind of trader).",
+      "description": "A kind of entity. ``agent: true`` types take turns. ``extends`` inherits another type:\nits props, its agent flag, its lifecycle hooks and membership (``$count(trader)`` counts\nevery kind of trader).",
       "properties": {
         "agent": {
           "default": false,
@@ -2331,6 +2540,24 @@
           "default": true,
           "description": "Whether agents may inspect these entities: true, false, or an expression over $viewer and $it.",
           "title": "Inspect"
+        },
+        "on_create": {
+          "description": "Effects run for every entity of this type (subtypes too) the moment it is created ($it), atomically with whatever created it; an ancestor's hooks run first.",
+          "items": {},
+          "title": "On Create",
+          "type": "array"
+        },
+        "on_remove": {
+          "description": "Effects run for every entity of this type (subtypes too) the moment it is removed ($it, already no longer alive), atomically with the removal.",
+          "items": {},
+          "title": "On Remove",
+          "type": "array"
+        },
+        "on_create_at_build": {
+          "default": true,
+          "description": "Also run on_create for entities made when the world is built (once the whole world exists, in creation order); false runs it only for entities created during the run. The nearest declaration in the type's lineage wins.",
+          "title": "On Create At Build",
+          "type": "boolean"
         }
       },
       "title": "TypeSpec",
@@ -2353,7 +2580,7 @@
             }
           ],
           "default": "all",
-          "description": "Agent type(s) that see it.",
+          "description": "Agent type(s) that see it, or \"spectator\": an omniscient view for UIs and reports, rendered into `result.frames` each round and by `env.spectate()`, never shown to an agent.",
           "title": "For"
         },
         "stages": {
@@ -2591,6 +2818,14 @@
         }
       ],
       "default": null
+    },
+    "feeds": {
+      "additionalProperties": {
+        "$ref": "#/$defs/FeedSpec"
+      },
+      "description": "External data written into world props or records, answered by host adapters.",
+      "title": "Feeds",
+      "type": "object"
     },
     "records": {
       "additionalProperties": {

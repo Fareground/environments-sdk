@@ -5,6 +5,7 @@ two-player fits, equilibria of small games worked by hand), never from the code 
 """
 import json
 import math
+import time
 
 import pytest
 
@@ -240,6 +241,18 @@ def test_callable_entrants_are_billed_for_their_model_usage():
     assert result.standing("llm")["cost"]["input_tokens"] == 200  # 2 seatings × 2 games × 50
     assert result.standing("bot")["cost"]["input_tokens"] == 0
     assert "tokens in" in result.summary()
+
+
+def test_entrants_are_billed_for_turns_that_ran_out_of_time():
+    def slow(wake):
+        time.sleep(0.3)
+
+    timed = json.loads(json.dumps(NUMBERS))
+    timed["stages"][0]["time_limit"] = 0.05
+    result = tournament(timed, {"slow": slow, "bot": "policy:3"})
+    assert result.standing("slow")["cost"]["timeouts"] == 2  # one timed-out turn in each of its two games
+    assert result.standing("bot")["cost"]["timeouts"] == 0
+    assert "timeouts" in result.summary()
 
 
 @pytest.mark.parametrize("kwargs, message", [

@@ -220,6 +220,7 @@ __all__ = [
     "run",
     "check",
     "parse",
+    "expand",
     "experiment",
     "guide",
     "schema",
@@ -254,7 +255,7 @@ __all__ = [
 ]
 
 # Environment SDK public API. Everything a user needs is importable from ``fg_env``.
-from .sdk.api import check, load, parse, run
+from .sdk.api import check, expand, load, parse, run
 from .sdk.contract import Contract
 from .sdk.errors import ContractError, InputError, InvariantViolation, Issue, RunError, SnapshotError
 from .sdk.experiment import ExperimentResult, experiment

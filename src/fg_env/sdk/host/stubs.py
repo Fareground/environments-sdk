@@ -11,7 +11,9 @@ import json
 import re
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Union
 
-__all__ = ["StubEvaluator", "StubGameMaster", "StubTools", "StubWriter", "StubRanker"]
+FeedValues = Union[None, Callable[[Mapping[str, Any]], Any], Mapping[int, Any], Sequence[Any]]
+
+__all__ = ["StubEvaluator", "StubGameMaster", "StubTools", "StubWriter", "StubRanker", "StubFeed"]
 
 
 def _digest(*parts: Any) -> int:
@@ -113,3 +115,24 @@ class StubRanker(_Recording):
             found = set(re.findall(r"[a-z0-9]+", str(item.get("text", "")).lower()))
             out.append(len(words & found) / len(words) if words else 0.0)
         return out
+
+
+class StubFeed(_Recording):
+    """Answers feed requests from ``values``: a function of the request, a table by round, or a list
+    (round 1 reads the first item, later rounds past its end read the last); with nothing, a
+    deterministic number from 0 to 100 derived from the feed, query and round."""
+
+    def __init__(self, values: FeedValues = None):
+        super().__init__()
+        self._values = values
+
+    def fetch(self, request: Mapping[str, Any]) -> Any:
+        self.calls.append(request)
+        values, moment = self._values, request.get("round")
+        if callable(values):
+            return values(request)
+        if isinstance(values, Mapping):
+            return values.get(moment)
+        if isinstance(values, Sequence) and not isinstance(values, str) and values:
+            return values[min(max(0, int(moment or 1) - 1), len(values) - 1)]
+        return (_digest(request.get("feed"), request.get("query"), moment) % 10_001) / 100

@@ -52,10 +52,10 @@ def test_determinant_is_exact_for_whole_numbers_and_floating_otherwise():
     assert ev("$det([[1.0, 2], [2, 4]])") == 0.0
 
 
-def test_solve_finds_x_with_a_times_x_equal_to_b():
+def test_linsolve_finds_x_with_a_times_x_equal_to_b():
     # 2x + y = 3, x + 3y = 5  →  x = 0.8, y = 1.4
-    assert ev("$solve([[2, 1], [1, 3]], [3, 5])") == [pytest.approx(0.8), pytest.approx(1.4)]
-    assert ev("$solve([[2, 0], [0, 4]], [[2, 4], [8, 4]])") == [[pytest.approx(1.0), pytest.approx(2.0)],
+    assert ev("$linsolve([[2, 1], [1, 3]], [3, 5])") == [pytest.approx(0.8), pytest.approx(1.4)]
+    assert ev("$linsolve([[2, 0], [0, 4]], [[2, 4], [8, 4]])") == [[pytest.approx(1.0), pytest.approx(2.0)],
                                                                 [pytest.approx(2.0), pytest.approx(1.0)]]
 
 
@@ -68,8 +68,8 @@ def test_solve_finds_x_with_a_times_x_equal_to_b():
     ("$transpose([1, 2])", "list of rows"),
     ("$inverse([[1, 2], [2, 4]])", "singular"),
     ("$inverse([[1, 2, 3], [4, 5, 6]])", "must be square, got 2×3"),
-    ("$solve([[1, 1], [1, 1]], [1, 2])", "singular"),
-    ("$solve([[1, 0], [0, 1]], [1, 2, 3])", "b must have 2 numbers"),
+    ("$linsolve([[1, 1], [1, 1]], [1, 2])", "singular"),
+    ("$linsolve([[1, 0], [0, 1]], [1, 2, 3])", "b must have 2 numbers"),
     ("$det([[1, true], [0, 1]])", "row 0, column 1 must be a number, got bool True"),
     ("$identity(0)", "at least 1"),
     ("$identity(1001)", "the limit is 1,000,000"),

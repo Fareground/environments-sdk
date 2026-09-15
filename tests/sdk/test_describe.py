@@ -117,6 +117,29 @@ def test_example_contracts_are_classified_from_their_expanded_parts():
     assert chess["information"] in ("perfect", "unknown")  # never imperfect: chess hides nothing
 
 
+def test_feeds_noise_hooks_lossy_messages_atomic_turns_and_spectators_are_described():
+    outbreak = describe(EXAMPLES / "outbreak_network.json").metadata
+    assert outbreak["external_data"] == [{"feed": "weather", "host": "weather", "into": "world.temperature", "every": 1}]
+    chance = outbreak["evidence"]["chance_mode"]
+    assert "feeds.weather.fallback calls $normal" in chance
+    assert "physics.per.resident.vars.viral_load.noise is a random term" in chance
+    assert "actions.advise.do[0] may lose the message (drop)" in chance
+    assert outbreak["information"] == "imperfect"
+    assert {"entity_dynamics", "lifecycle_hooks", "external_data", "delayed_or_lossy_messages"} <= set(outbreak["concepts"])
+    hop = describe(EXAMPLES / "hopscotch_race.json")
+    assert hop.metadata["evidence"]["dynamics"] == [
+        "stage hop: sequential turns, atomic (a turn's actions stand or fall together), time limit 30.0 s"]
+    assert hop.metadata["observations"]["spectator"] == ["race"]
+    assert hop.metadata["max_game_length"]["decisions"] is None  # a turn that breaks `valid` is played again
+    assert "### Turn rules of stage `hop`" in hop.markdown and "never shown to an agent: `race`" in hop.markdown
+
+
+def test_a_spectator_view_does_not_show_state_to_agents():
+    omniscient = describe(_variant(views={"heap": {"for": "spectator", "show": "Stones left: {$world.stones}"}})).metadata
+    assert omniscient["information"] == "unknown"
+    assert omniscient["observations"]["spectator"] == ["heap"] and omniscient["observations"]["views"] == {"player": []}
+
+
 def test_every_example_contract_is_described():
     for path in sorted(EXAMPLES.glob("*.json")):
         description = describe(path)

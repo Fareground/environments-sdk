@@ -219,6 +219,13 @@ def cmd_info(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_expand(args: argparse.Namespace) -> int:
+    from .api import expand
+
+    print(json.dumps(expand(args.file, mechanisms=args.mechanisms), indent=2, ensure_ascii=False))
+    return 0
+
+
 def cmd_guide(args: argparse.Namespace) -> int:
     from .guide import guide
 
@@ -312,9 +319,14 @@ def add_commands(sub: Any) -> None:
         p.add_argument("--json", action="store_true", help="print JSON")
         p.set_defaults(func=_guarded(command))
 
+    p = sub.add_parser("expand", help="print the contract as the engine reads it: imports merged, macros expanded")
+    p.add_argument("file", help="contract JSON file")
+    p.add_argument("--mechanisms", action="store_true", help="also expand every mechanism into ordinary sections")
+    p.set_defaults(func=_guarded(cmd_expand))
+
     p = sub.add_parser("guide", help="print the contract authoring guide")
-    p.add_argument("part", nargs="?", help="one part: overview, model, reference, expressions, functions, "
-                                           "templates, effects, patterns, running, checklist")
+    p.add_argument("part", nargs="?", help="one part: overview, model, reference, expressions, macros, functions, "
+                                           "templates, effects, patterns, mechanisms, running, checklist")
     p.set_defaults(func=cmd_guide)
 
     p = sub.add_parser("schema", help="print the contract JSON Schema")

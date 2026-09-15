@@ -85,14 +85,14 @@ def bind(env: "Env", hosts: HostsLike) -> "Env":
         return env
     _BOUND[env.world] = resolved
     if not getattr(env, "_host_probe_bound", False):
-        make_probe = env._probe
+        make_probe = env.previews.probe
 
         def probe(snapshot: Mapping[str, Any]) -> "Env":
             copy = make_probe(snapshot)
             current = _BOUND.get(env.world)
             return bind(copy, current) if current is not None else copy
 
-        env._probe = probe  # type: ignore[method-assign]
+        env.previews.probe = probe  # type: ignore[method-assign]
         env._host_probe_bound = True  # type: ignore[attr-defined]
     return env
 

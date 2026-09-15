@@ -1,0 +1,11 @@
+{
+  "actions": 4,
+  "events": 4,
+  "events_sha256": "834d239d553d864e5715d24ad2f30cb9fba8864a34f458abed6831af7ff7b61c",
+  "metrics": {
+    "leader_square": 3
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 8
+}

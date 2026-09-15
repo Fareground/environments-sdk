@@ -15,6 +15,7 @@ from pydantic_core import PydanticUndefined
 
 from . import contract as C
 from .effects import EFFECT_OPS
+from .macros import MAX_MACRO_DEPTH, MAX_MACRO_ITEMS
 from .registry import MECHANISMS, OPS
 from .expr import FUNCTIONS
 from .template import FORMATS
@@ -71,7 +72,7 @@ Run it: `fg_env.run(contract, seed=1)` (random agents), `fg_env.run(contract, {"
 _MODEL = """\
 ## How a run works
 
-Each round: scheduled effects → events (phase start) → physics step → each stage in order →
+Each round: scheduled effects → feeds → events (phase start) → physics step → each stage in order →
 events (phase end) → metrics sampled → invariants and end conditions checked. A run ends when
 an `end` condition holds, an effect `end`s it, or `clock.rounds` is used up.
 
@@ -91,7 +92,25 @@ turn, uses `max_actions`, or runs out of `max_calls`.
   that ends a turn without acting (`$actor`) — a forfeit or a default move.
 * `terminal` may be an expression checked after the action applies (`"$world.jump_finished"`), so a
   move can end the turn only sometimes (multi-jumps).
-* Physics steps at the start of every round, including round 1, before any stage.
+* `time_limit` gives each agent wall-clock seconds for its turn (a number, or an expression over `$actor`;
+  `env.run(..., time_limit=30)` covers stages that set none). Past it the turn ends, later calls are
+  refused, a `timeout` event is logged and `on_timeout` runs instead of `on_idle`. The agent's update says
+  how long it has. A participant that finishes in time plays exactly as it would without a limit.
+* `atomic: true` makes a turn's actions apply together: each applies at once (the agent sees its result),
+  but triggers, reactions and invariants wait until the turn ends. `valid` conditions (`$actor`, `$pending`)
+  are checked when a turn that acted ends; if one fails, every action of the turn is undone, the agent is
+  told `why` and plays the turn again (castling through check, a full backgammon move). `valid` makes a
+  stage atomic. In a simultaneous stage each agent's choices commit or are undone together.
+* Views with `"for": "spectator"` are an omniscient picture for UIs and reports: rendered at the end of
+  every round into `result.frames` (the last marked `final`) and on demand by `env.spectate()`, never
+  shown to an agent. They have no `$actor`; randomness they draw never changes the run.
+* Physics steps at the start of every round, including round 1, before any stage: world variables
+  first, then `physics.per` dynamics for every entity, which read the world variables' new values.
+* Lifecycle hooks: `types.X.on_create` / `on_remove` run for every entity of X (and its subtypes; an
+  ancestor's hooks first) the moment it is created or removed — by an effect, a mechanism or a hook —
+  inside that change, so a `fail` in a hook refuses it. Entities made at build run on_create once the
+  whole world exists, in creation order (`on_create_at_build: false` skips them). `$it` is the entity;
+  in on_remove it is already no longer alive. Hooks setting off hooks stop at 16 levels.
 * Invariants are checked after every action and effect block: write them for states that must hold
   at all times, not ones that only settle at the end of a stage.
 * `end` conditions are checked after the start events, after each stage, and at the end of the round.
@@ -152,9 +171,11 @@ $metrics $series $arm):
 | params.*.min/max/values/default | $actor $params (earlier params) |
 | actions.*.chance/do/otherwise/outcome/announce | $actor $params + locals |
 | stages.*.who/order | $it $i |
-| stages.*.brief | $actor |
+| stages.*.brief, stages.*.time_limit, stages.*.on_timeout | $actor |
+| stages.*.valid (expr and why) | $actor $pending |
 | views.*.when/of | $actor |
 | views.*.where/sort/show | $actor $it $i |
+| views with for: spectator | no $actor ($it $i in lists) |
 | records.*.visible | $viewer $it (entry) |
 | records.*.show | $it (entry: author, round, fields) |
 | events.*.where/do (with each) | $it $i |
@@ -162,12 +183,47 @@ $metrics $series $arm):
 | population.*.props/id/name | $row $i ($i counts from 1) |
 | population.*.brief, entities.*.brief | $actor (+ $row $i for population) |
 | types.*.inspect | $viewer $it |
+| types.*.on_create/on_remove | $it (the entity) + locals |
+| relations.*.props.*.default | $from $to |
+| links.*.props | $from $to (+ $row with `rows`) |
+| physics.per.*.read/where | $it |
+| feeds.*.query/when/fallback | — |
 | defs.*.expr | the def's args |
 | blocks.*.do | the block's args + locals |
 | policies.*.rules.* | $actor |
 | outputs.* | $outputs (earlier outputs) |
 
 `$clock` fields: round rounds left unit date label. `$metrics.x` = latest value; `$series.x` = list per round.
+"""
+
+_MACROS = """\
+## Macros (repeat structure from data)
+
+An object with `for` and `make` is a macro: it repeats `make` once per value, replacing `{name}`
+placeholders (the `as` name) in strings and keys. Expanded when the contract is read, before
+mechanisms, in every file on its own (see the result with `fg_env.expand(contract)` or `fg-env expand file.json`).
+
+```json
+"stages": [{"for": ["flop", "turn", "river"], "as": "street",
+            "make": {"name": "{street}", "actions": ["bet_{street}"]}}],
+"actions": {"bet_{street}": {"for": ["flop", "turn", "river"], "as": "street",
+            "make": {"by": "player", "do": ["$actor.bets = $actor.bets + ['{street}']"]}}}
+```
+
+* In a list a macro becomes one item per value. As a map entry whose key holds one of its
+  placeholders (`"bet_{street}"`) it becomes one entry per value; under any other key
+  (`"stages": {"for": ...}`) it becomes the list of made values.
+* `for`: a list (of values or objects), `{"range": n}` (0..n-1), `{"range": [start, end]}` or
+  `{"range": [start, end, step]}` (the end excluded, like `$range`), or a placeholder giving a list
+  from an outer loop (`"for": "{street.cards}"`).
+* `{x}` alone in a string keeps the value's type (`"count": "{n}"` is a number); in longer text it is
+  written out (lists and maps as JSON). `{x.field}` reads a field, `{x.0}` a list item, `{n+1}` and
+  `{n-1}` offset a whole number. `"index": "i"` names the 0-based position.
+* Nest loops by making a macro whose `make` is a macro: `"move_{a}_{b}"` with `for` a, `make` {`for` b …}.
+* Only loop variables are replaced: template fields like `{name}` and `{{` stay as they are, so do
+  not name a loop variable after a property you read in a template.
+* Limits: MAX_ITEMS generated values per file, loops MAX_DEPTH deep. Two generated entries with one
+  name, a missing field or a wrong `for` are errors with the macro's path.
 """
 
 _TEMPLATES = """\
@@ -194,6 +250,8 @@ Assignment text:
 * `"$total = $params.qty * 2"` — a local (`$total`) usable by later effects and the outcome.
 * `+=`/`-=` on a list prop append/remove an item.
 * Element assignment: `"$world.board[$i] = $actor.mark"`, `"$actor.scores[round_2] += 1"` (lists and maps).
+* Links: `"$link($actor, $params.who, trusts).value += 0.1"`, `"$link($actor, $params.who, trusts).since = $round"`
+  (the link must exist; its value is clamped to the relation's min/max, fields are typed like props).
 * Numeric props are clamped to their min/max; types are enforced.
 
 Operation objects (exactly one operation key each):
@@ -206,15 +264,15 @@ _EFFECT_EXAMPLES = {
     "create": '{"create": "review", "count": 1, "name": "Review {$i}", "props": {"stars": "$params.stars"}, "at": null, "as": "made"}',
     "remove": '{"remove": "$params.target"}',
     "transfer": '{"transfer": "cash", "from": "$actor", "to": "$params.seller", "amount": 10}  (fails the action if short)',
-    "link": '{"link": "follows", "from": "$actor", "to": "$params.who", "value": 1}',
+    "link": '{"link": "trusts", "from": "$actor", "to": "$params.who", "value": 0.8, "props": {"since": "$round"}}  (creates or updates: without `value` an existing link keeps its value and a new one gets the relation\'s `default`; `props` sets link fields, a new link starting from their defaults)',
     "unlink": '{"unlink": "follows", "from": "$actor", "to": "$params.who"}',
     "move": '{"move": "$actor", "to": "$params.place"}',
-    "post": '{"post": "chat", "text": "$params.text", "to": "$params.who"}  (record fields as keys; to = private recipients)',
-    "emit": '{"emit": "shock", "say": "Prices jump {$world.inflation|pct}.", "to": "$filter(buyer, $it.vip)", "data": {}}',
+    "post": '{"post": "chat", "text": "$params.text", "to": "$params.who", "delay": 2, "drop": 0.1}  (record fields as keys; to = private recipients; optional `delay` — rounds, or time on a continuous clock — and `drop` chance)',
+    "emit": '{"emit": "shock", "say": "Prices jump {$world.inflation|pct}.", "to": "$filter(buyer, $it.vip)", "data": {}, "delay": 1}  (optional `delay` and `drop`, as for post)',
     "fail": '{"fail": "You cannot afford that."}  (roll back the action; text goes to the actor)',
     "end": '{"end": "bankrupt", "winner": "$top(player, $it.score, 1)[0]", "say": "..."}',
     "after": '{"after": 3, "do": [...]}  (runs 3 rounds later with the same locals; on a continuous clock, 3 time units later)',
-    "wake": '{"wake": "$params.who", "why": "{$actor.name} asked you a question."}  (a turn later; "now": true — they react right away, before this turn continues; "in": 5 — continuous clock, that much later)',
+    "wake": '{"wake": "$params.who", "why": "{$actor.name} asked you a question."}  (a turn later; "now": true — they react right away, before this turn continues; "in": 5 — continuous clock, that much later; "drop": 0.2 — the wake may be lost)',
     "repeat": '{"repeat": 1000, "while": "$count(order) > 1", "do": [...]}  (error if still true at the limit)',
     "block": '{"block": "settle", "with": {"buyer": "$actor", "qty": "$params.qty"}}  (runs a named effect list from `blocks`)',
 }
@@ -256,13 +314,37 @@ _PATTERNS = """\
   one-way relation `random` draws each direction on its own, and `p` may depend on the pair
   (`"0.1 if $to.influencer else 0.02"`) for influencers and homophily;
   `$neighbors(entity, kind)` in views, effects, contagion events.
+* Links with data: `"relations": {"trusts": {"props": {"since": {"type": "int", "default": "$round"},
+  "channel": {"type": "enum", "values": ["work", "family"], "default": "work"}}}}`. Read `$link(a, b, trusts).since`;
+  list `$links($actor, trusts)` in views (`"show": "{target.name} via {channel}"`); set fields with `link` +
+  `props`, by assignment, or in `links` (`props` over `$from`/`$to`; `rows` columns named like a field fill it).
 * Continuous dynamics: `physics` vars with rates (math over bare names), `read` from the world,
-  `write` back to props; effects adjust `$physics.x` (policy shocks).
+  `write` back to props; effects adjust `$physics.x` (policy shocks). `noise` adds a random term
+  (`"noise": "sigma*price"`, Euler–Maruyama, drawn from the run's seed).
+* Per-entity dynamics (viral load, firm capital, habit strength): `"physics": {"per": {"person": {"vars":
+  {"viral_load": {"rate": "growth*viral_load - immunity*viral_load", "noise": "0.2*viral_load"}},
+  "read": {"exposure": "$count($neighbors($it, contact), $it.sick)"}, "write": {"sick": "viral_load > 5"}}}}`.
+  Every person integrates its own number props; rates read its number props, the type's `params` and
+  `read`s (per entity, over `$it`) and world physics names. `where` limits who integrates this step.
+  Entities couple through `read` (explicit in time): the values are fixed for the whole step.
+* Latency and lossy channels: `"delay": 2` on `post`/`emit` delivers the message 2 rounds (or clock units)
+  later with its content as it was when sent; `"drop": 0.1` loses it (also on `wake`), rolled from the
+  run's seed when sent. A refused action sends nothing. Entries carry the round they arrive.
+* External data (prices, news, weather): `"feeds": {"oil": {"host": "market", "into": "world.oil_price",
+  "query": {"symbol": "BRENT", "date": "{$clock.date}"}, "fallback": "$world.oil_price * $uniform(0.98, 1.02)"}}`,
+  or `"into": "records.news"` for entries. Bind the host when loading: `fg_env.load(path, hosts={"market":
+  adapter})`, where the adapter is any object with `fetch(request)`; `fg_env.sdk.host.adapters.historical(rows,
+  at="date", value="close")` replays a price history for backtests. Answers are recorded on the host tape:
+  snapshots, restores and replays never ask again, and host text reaches agents «quoted».
 * Scenarios & experiments: `inputs` for scenario knobs, `arms` for variants (input overrides or
   patches), `events` with `at`/`every`/`chance`/`arms` for shocks; `fg_env.experiment` runs arms
   with shared seeds.
 * Families of agents: `types.trader` with shared props, then `types.market_maker: {"extends": "trader"}`;
   `$count(trader)`, `by: trader`, views `for: trader` and `brief.roles.trader` cover every kind.
+* Bookkeeping on birth and death: `"types": {"firm": {"on_create": ["$world.firms_founded += 1",
+  {"link": "supplies", "from": "$it", "to": "$top(supplier, $it.capacity, 1)[0]"}], "on_remove":
+  [{"each": "$filter(job, $it.employer == $outer.id)", "do": [{"remove": "$it"}]}]}}` — every firm, however it
+  was created, is counted and connected; closing one lays off its jobs.
 * Reusable logic: `defs` for formulas (`"utility": {"args": ["side", "offer"], "expr": "..."}`) and
   `blocks` for effect lists (`{"block": "match", "with": {"order": "$made"}}`).
 * Scoping inspection: `types.X.inspect: false` (or an expression over `$viewer` and `$it`) hides
@@ -308,6 +390,16 @@ def my_agent(wake):
 `call(name, args)` → `ToolResult(ok, text, ended, data)` (`data.error` is `invalid` or `rejected`),
 `end()`, `done`, `calls_left`, `actions_left`. In a simultaneous stage a choice is tried at submit, so
 a choice that could not happen is refused immediately and does not use up the turn.
+Async participants: an `async def` (or an object with an async `__call__`, or a function that returns an
+awaitable) works everywhere, and a simultaneous stage runs them concurrently with the same deterministic
+result. Inside an event loop use `result = await env.arun(participants, ...)`: participants run on that loop,
+so clients bound to it work. `wake.time_limit` and `wake.time_left` give the turn's deadline.
+`fg_env.load(..., exposures=True)` records what every agent was shown on every wake in `result.exposures`,
+`{"texts": {hash: text}, "wakes": [...]}`: brief, update and view hashes and sizes, news event sequence
+numbers, tools offered, every call with its arguments and result, timeouts and undone turns — every text
+stored once. `$seen(agent, item)` asks whether an agent was shown an event, a record entry or a view by name;
+a contract that uses it records exposures automatically. `result.frames` and `env.spectate()` give the
+spectator views.
 `env.step(participants)` runs one round; `env.run(participants, rounds=N)` runs N more (an unfinished
 run returns provisional outputs). `env.run(..., stop=lambda env: ...)` is checked before every round,
 stage, pass and sequential turn; the next `run` continues exactly where it stopped (finishing that
@@ -356,7 +448,7 @@ _SECTIONS: List[Tuple[str, List[Type[BaseModel]]]] = [
     ("imports", []), ("inputs", [C.InputSpec]), ("brief", [C.Brief]), ("clock", [C.Clock]),
     ("space", [C.Space, C.GridSpace, C.GraphSpace, C.PlaneSpace]), ("world", [C.PropSpec]),
     ("types", [C.TypeSpec, C.PropSpec]), ("entities", [C.EntitySpec]), ("population", [C.PopulationSpec]),
-    ("relations", [C.RelationSpec]), ("links", [C.LinkSpec]), ("physics", [C.PhysicsSpec, C.PhysicsVar]),
+    ("relations", [C.RelationSpec]), ("links", [C.LinkSpec]), ("physics", [C.PhysicsSpec, C.PhysicsVar, C.EntityDynamics, C.EntityVar]), ("feeds", [C.FeedSpec]),
     ("records", [C.RecordSpec]), ("actions", [C.ActionSpec, C.ParamSpec, C.Condition]),
     ("stages", [C.StageSpec]), ("views", [C.ViewSpec]), ("events", [C.EventSpec]), ("triggers", [C.TriggerSpec]),
     ("policies", [C.PolicySpec, C.PolicyRule]), ("metrics", [C.MetricSpec]), ("outputs", [C.OutputSpec]),
@@ -368,7 +460,7 @@ _SHAPES = {
     "imports": "[path] — contract files merged into this one (relative to it, inside its folder); this contract's own entries win, and imported files may import others",
     "inputs": "{name: InputSpec}", "brief": "Brief", "clock": "Clock", "space": "Space", "world": "{prop: PropSpec}",
     "types": "{type: TypeSpec}", "entities": "{id: EntitySpec}", "population": "[PopulationSpec]",
-    "relations": "{relation: RelationSpec}", "links": "[LinkSpec]", "physics": "PhysicsSpec",
+    "relations": "{relation: RelationSpec}", "links": "[LinkSpec]", "physics": "PhysicsSpec", "feeds": "{feed: FeedSpec}",
     "records": "{record: RecordSpec}", "actions": "{action: ActionSpec}", "stages": "[StageSpec]",
     "views": "{view: ViewSpec}", "events": "[EventSpec]", "triggers": "[TriggerSpec]", "policies": "{policy: PolicySpec}",
     "metrics": "{metric: MetricSpec | expr}", "outputs": "{output: OutputSpec | expr}", "end": "[EndSpec]",
@@ -379,7 +471,7 @@ _SHAPES = {
 
 
 def _type_name(annotation: Any, field: str) -> str:
-    if field in ("do", "otherwise", "on_enter", "on_exit"):
+    if field in ("do", "otherwise", "on_enter", "on_exit", "on_create", "on_remove"):
         return "effects"
     origin = typing.get_origin(annotation)
     args = typing.get_args(annotation)
@@ -474,6 +566,7 @@ GUIDE_PARTS: Dict[str, Any] = {
     "model": lambda: _MODEL,
     "reference": _reference,
     "expressions": lambda: _EXPRESSIONS,
+    "macros": lambda: _MACROS.replace("MAX_ITEMS", f"{MAX_MACRO_ITEMS:,}").replace("MAX_DEPTH", str(MAX_MACRO_DEPTH)),
     "functions": _functions,
     "templates": lambda: _TEMPLATES.replace("FORMATS", ", ".join(f"`{f}`" for f in FORMATS)),
     "effects": _effects,
@@ -485,8 +578,8 @@ GUIDE_PARTS: Dict[str, Any] = {
 
 
 def guide(part: Optional[str] = None) -> str:
-    """The authoring guide (all parts), or one part: overview, model, reference, expressions,
-    functions, templates, effects, patterns, running, checklist."""
+    """The authoring guide (all parts), or one part: overview, model, reference, expressions, macros,
+    functions, templates, effects, patterns, mechanisms, running, checklist."""
     if part is None:
         return "\n\n".join(render() for render in GUIDE_PARTS.values())
     if part not in GUIDE_PARTS:

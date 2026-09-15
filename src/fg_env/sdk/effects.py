@@ -9,10 +9,11 @@ An effect list mixes assignment statements and keyed operations::
     {"create": "review", "props": {"stars": "$params.stars"}, "as": "made"}
     {"remove": "$params.target"}
     {"transfer": "cash", "from": "$actor", "to": "$params.seller", "amount": 10, "into": "cash"}
-    {"link": "follows", "from": "$actor", "to": "$params.who", "value": 1}
+    {"link": "follows", "from": "$actor", "to": "$params.who", "value": 1, "props": {"since": "$round"}}
+    "$link($actor, $params.who, follows).since = $round"
     {"unlink": "follows", "from": "$actor", "to": "$params.who"}
     {"move": "$actor", "to": "$params.place"}
-    {"post": "chat", "text": "$params.text", "to": "$params.who"}
+    {"post": "chat", "text": "$params.text", "to": "$params.who", "delay": 2, "drop": 0.1}
     {"emit": "shock", "say": "Prices jump {$world.inflation|pct}.", "to": "$filter(buyer, $it.vip)"}
     {"fail": "You cannot afford that."}
     {"end": "bankrupt", "winner": "$top(player, $it.score, 1)", "say": "..."}
@@ -36,8 +37,10 @@ from typing import Any, Dict, List, Optional, Tuple
 from ..entity import Entity
 from .errors import RunError
 from .contract import MAX_CREATE
+from .delivery import dropped, send
 from .expr import MAX_INT_BITS, Expr, ExprError, attr, check_size, compile_expr, is_expr, resolve, truthy
 from .template import compile_template, format_value
+from .links import Link
 from .registry import OPS, OpSpec
 from .world import Abort, SdkWorld, _Physics, _Props
 
@@ -49,18 +52,21 @@ EFFECT_OPS: Dict[str, Tuple[str, ...]] = {
     "create": ("create", "count", "id", "name", "props", "at", "as"),
     "remove": ("remove",),
     "transfer": ("transfer", "from", "to", "amount", "into"),
-    "link": ("link", "from", "to", "value"),
+    "link": ("link", "from", "to", "value", "props"),
     "unlink": ("unlink", "from", "to"),
     "move": ("move", "to"),
-    "post": ("post", "to", "author"),  # plus the record's fields
-    "emit": ("emit", "say", "to", "data"),
+    "post": ("post", "to", "author", "delay", "drop"),  # plus the record's fields
+    "emit": ("emit", "say", "to", "data", "delay", "drop"),
     "fail": ("fail",),
     "end": ("end", "winner", "say"),
     "after": ("after", "do"),
-    "wake": ("wake", "why", "in", "now"),
+    "wake": ("wake", "why", "in", "now", "drop"),
     "repeat": ("repeat", "while", "do"),
     "block": ("block", "with"),
 }
+
+#: ``post`` keys that are not record fields.
+POST_KEYS = frozenset(EFFECT_OPS["post"])
 
 #: Hard ceiling for one ``repeat`` loop, whatever the contract asks for.
 REPEAT_CEILING = 100_000
@@ -239,10 +245,35 @@ def _items(value: Any, world: SdkWorld, where: str) -> List[Any]:
 
 
 class EffectRunner:
-    """Applies effect lists to one world."""
+    """Applies effect lists to one world, and runs the types' lifecycle hooks when entities are
+    created or removed (inside whatever change made them, so they commit or roll back with it)."""
+
+    #: How deep lifecycle hooks may set off further hooks.
+    HOOK_DEPTH = 16
 
     def __init__(self, world: SdkWorld):
         self.world = world
+        self._hook_depth = 0
+        self._hooks: Dict[Tuple[str, str], List[Tuple[str, List[Any]]]] = {}
+        world.lifecycle = self.lifecycle
+
+    def lifecycle(self, hook: str, entity: Entity, where: str) -> None:
+        """Run ``hook`` (on_create / on_remove) of the entity's type and its ancestors, root first ($it)."""
+        key = (entity.entity_type, hook)
+        hooks = self._hooks.get(key)
+        if hooks is None:
+            hooks = self._hooks[key] = self.world.contract.hooks_of(entity.entity_type, hook)
+        if not hooks:
+            return
+        if self._hook_depth >= self.HOOK_DEPTH:
+            raise RunError(f"{hook} hooks set each other off more than {self.HOOK_DEPTH} levels deep "
+                           f"(does {entity.entity_type}'s {hook} create or remove another {entity.entity_type}?)", where)
+        self._hook_depth += 1
+        try:
+            for type_name, effects in hooks:
+                self.run(effects, {"it": entity}, f"types.{type_name}.{hook}")
+        finally:
+            self._hook_depth -= 1
 
     def run(self, effects: List[Any], vars: Dict[str, Any], path: str) -> None:
         for index, effect in enumerate(effects or []):
@@ -278,24 +309,26 @@ class EffectRunner:
             value = self._combine(stmt.op, attr(owner, prop, source), value, source)
         if isinstance(owner, Entity):
             self.world.set_prop(owner, prop, value)
+        elif isinstance(owner, Link):
+            self.world.set_link_field(owner, prop, value, where)
         elif isinstance(owner, _Props):
             self.world.set_world(prop, value)
         else:
             self.world.set_physics(prop, value)
 
     def _owner(self, stmt: Statement, scope: Any, source: str, where: str) -> Tuple[Any, str, List[Tuple[str, Any]]]:
-        """The deepest entity / $world / $physics on the target path, the property written on it, and
+        """The deepest entity / link / $world / $physics on the target path, the property written on it, and
         the element path (resolved keys) inside that property's value."""
         current = stmt.base(scope)  # type: ignore[misc]
         found: Optional[Tuple[Any, int]] = None
         for position, (kind, step) in enumerate(stmt.steps):
-            if kind == "field" and isinstance(current, (Entity, _Props, _Physics)):
+            if kind == "field" and isinstance(current, (Entity, Link, _Props, _Physics)):
                 found = (current, position)
             if position == len(stmt.steps) - 1:
                 break
             current = attr(current, step, source) if kind == "field" else self._element(current, step(scope), source)
         if found is None:
-            raise RunError(f"can only assign to an entity's property, $world.x or $physics.x (`{source}`)", where)
+            raise RunError(f"can only assign to an entity's property, a link's field, $world.x or $physics.x (`{source}`)", where)
         owner, position = found
         prop = stmt.steps[position][1]
         rest = [(kind, step(scope) if kind == "index" else step) for kind, step in stmt.steps[position + 1:]]
@@ -454,7 +487,7 @@ class EffectRunner:
     def _op_remove(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
         value = self._eval(effect["remove"], vars)
         for item in value if isinstance(value, list) else [value]:
-            self.world.remove(_entity(item, self.world, where))
+            self.world.remove(_entity(item, self.world, where), where)
 
     def _op_transfer(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
         prop = effect["transfer"]
@@ -482,9 +515,12 @@ class EffectRunner:
         self.world.set_prop(target, into, _amount_held(target, into, where) + amount)
 
     def _op_link(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-        value = self._eval(effect.get("value", 1), vars)
+        value = self._eval(effect["value"], vars) if "value" in effect else None
+        fields = effect.get("props") or {}
+        if not isinstance(fields, dict):
+            raise RunError(f"`props` is an object of link fields, got {fields!r}", where)
         self.world.link(effect["link"], self._eval(effect.get("from"), vars), self._eval(effect.get("to"), vars),
-                        value, where)
+                        value, where, {name: self._eval(raw, vars) for name, raw in fields.items()})
 
     def _op_unlink(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
         self.world.unlink(effect["unlink"], self._eval(effect.get("from"), vars), self._eval(effect.get("to"), vars),
@@ -495,7 +531,9 @@ class EffectRunner:
         self.world.move(entity, self._eval(effect.get("to"), vars), where)
 
     def _op_post(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-        fields = {k: self._eval(v, vars) for k, v in effect.items() if k not in ("post", "to", "author")}
+        if self._dropped(effect, vars, where):
+            return
+        fields = {k: _plain_value(self._eval(v, vars)) for k, v in effect.items() if k not in POST_KEYS}
         if "author" in effect:
             author_value = self._eval(effect["author"], vars)
             author = _entity(author_value, self.world, where).id if author_value is not None else None
@@ -503,15 +541,24 @@ class EffectRunner:
             actor = vars.get("actor")
             author = actor.id if isinstance(actor, Entity) else None
         to = _to_ids(self._eval(effect.get("to"), vars), where) if "to" in effect else None
-        self.world.post(effect["post"], fields, author, to, where)
+        send(self.world, self._eval(effect["delay"], vars) if "delay" in effect else None,
+             {"kind": "post", "record": effect["post"], "fields": fields, "author": author,
+              "to": list(to) if to is not None else None}, where)
 
     def _op_emit(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        if self._dropped(effect, vars, where):
+            return
         to = _to_ids(self._eval(effect.get("to"), vars), where) if "to" in effect else None
         actor = vars.get("actor")
         data = self._eval(effect.get("data") or {}, vars)
-        self.world.emit(str(effect["emit"]), self._text(effect.get("say"), vars),
-                        actor=actor.id if isinstance(actor, Entity) else None, to=to,
-                        data={k: _plain_value(v) for k, v in data.items()})
+        send(self.world, self._eval(effect["delay"], vars) if "delay" in effect else None,
+             {"kind": "emit", "event": str(effect["emit"]), "text": self._text(effect.get("say"), vars),
+              "actor": actor.id if isinstance(actor, Entity) else None, "to": list(to) if to is not None else None,
+              "data": {k: _plain_value(v) for k, v in data.items()}}, where)
+
+    def _dropped(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> bool:
+        """Roll the effect's ``drop`` chance (a lossy channel): True when the message is lost."""
+        return "drop" in effect and dropped(self.world, self._eval(effect["drop"], vars), f"{where}.drop")
 
     def _op_fail(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
         raise Abort(self._text(effect["fail"], vars) or "That is not possible right now.")
@@ -543,6 +590,8 @@ class EffectRunner:
         now = truthy(self._eval(effect["now"], vars)) if "now" in effect else False
         if now and "in" in effect:
             raise RunError("`wake` takes `now` or `in`, not both", where)
+        if self._dropped(effect, vars, where):
+            return
         for entity_id in _to_ids(self._eval(effect["wake"], vars), where) or ():
             if now:
                 world.request_reaction(entity_id, why)
@@ -592,6 +641,8 @@ def _amount_held(entity: Entity, prop: str, where: str) -> float:
 def _plain_value(value: Any) -> Any:
     if isinstance(value, Entity):
         return value.id
+    if isinstance(value, Link):
+        return _plain_value(value.as_dict())
     if isinstance(value, list):
         return [_plain_value(v) for v in value]
     if isinstance(value, dict):

@@ -29,8 +29,9 @@ Design goals:
   aggregate of an entity property (sum/avg/…), and/or write its value back onto
   entities (broadcast/distribute). That is how a `price` field becomes every
   trader's observed price, or an `infected` count drives per-agent state.
-* **Deterministic & serializable.** No hidden RNG; full ``to_dict``/``from_dict``
-  for replay and fork.
+* **Deterministic & serializable.** No hidden RNG: a variable with a ``noise`` term
+  (Euler–Maruyama) draws only from the random stream the caller passes to
+  :meth:`PhysicsModel.integrate`. Full ``to_dict``/``from_dict`` for replay and fork.
 
 The expression sub-language is a *safe* numeric evaluator (whitelisted AST), not
 ``eval`` — it cannot touch attributes, names, or builtins outside the math
@@ -214,10 +215,13 @@ class PhysicsVariable:
     ``source`` is *algebraic* — refreshed from the entity graph each step and
     available to other equations (read-only). ``min``/``max`` clamp the value
     after each integration step (e.g. a population or price can't go negative).
+    A ``noise`` expression adds a stochastic term: d(value) = rate·dt + noise·dW,
+    where dW is a Wiener increment; noisy variables are clamped at every sub-step.
     """
     name: str
     value: float = 0.0
     rate: Optional[str] = None          # d(value)/dt expression; None = not integrated
+    noise: Optional[str] = None         # diffusion coefficient of the Wiener increment; needs a rate
     min: Optional[float] = None
     max: Optional[float] = None
     source: Optional[EntitySource] = None
@@ -227,6 +231,8 @@ class PhysicsVariable:
         d: Dict[str, Any] = {"name": self.name, "value": self.value}
         if self.rate is not None:
             d["rate"] = self.rate
+        if self.noise is not None:
+            d["noise"] = self.noise
         if self.min is not None:
             d["min"] = self.min
         if self.max is not None:
@@ -243,6 +249,7 @@ class PhysicsVariable:
             name=d["name"],
             value=float(d.get("value", 0.0)),
             rate=d.get("rate"),
+            noise=d.get("noise"),
             min=d.get("min"),
             max=d.get("max"),
             source=EntitySource.from_dict(d["source"]) if d.get("source") else None,
@@ -296,6 +303,13 @@ class PhysicsModel:
             for name, v in self.variables.items()
             if v.rate is not None
         }
+        self._noise: Dict[str, _CompiledExpr] = {}
+        for name, v in self.variables.items():
+            if v.noise is None:
+                continue
+            if v.rate is None:
+                raise PhysicsExprError(f"variable {name!r} has noise but no rate — give it a rate (\"0\" for pure noise)")
+            self._noise[name] = _CompiledExpr(v.noise)
         self._validate_names()
         # A variable can be integrated (rate) OR algebraically bound to the
         # entity graph (source), not both — a source refresh each step would
@@ -336,12 +350,13 @@ class PhysicsModel:
         constant, the time symbol, or a whitelisted function. Fail loud at build
         time, not silently to zero at run time."""
         known = set(self.variables) | set(self.params) | set(_CONSTS) | set(_FUNCS) | {"t"}
-        for name, expr in self._compiled.items():
-            unknown = expr._names - known
-            if unknown:
-                raise PhysicsExprError(
-                    f"rate for {name!r} references unknown symbol(s): {sorted(unknown)}"
-                )
+        for label, compiled in (("rate", self._compiled), ("noise", self._noise)):
+            for name, expr in compiled.items():
+                unknown = expr._names - known
+                if unknown:
+                    raise PhysicsExprError(
+                        f"{label} for {name!r} references unknown symbol(s): {sorted(unknown)}"
+                    )
 
     # -- integration ------------------------------------------------------
 
@@ -366,8 +381,11 @@ class PhysicsModel:
         ns = self._namespace(full, t)
         return {name: expr.eval(ns) for name, expr in self._compiled.items()}
 
-    def integrate(self, dt: float, state: Any = None) -> List[Dict[str, Any]]:
+    def integrate(self, dt: float, state: Any = None, rng: Any = None) -> List[Dict[str, Any]]:
         """Advance the system forward by ``dt`` time units.
+
+        Variables with ``noise`` need ``rng`` (a :class:`random.Random`): each sub-step of
+        length h adds ``noise · sqrt(h) · N(0, 1)`` after the RK4 drift, drawing in variable order.
 
         If ``state`` is given, source-bound variables are first refreshed from
         the entity graph, and writeback variables are pushed back afterwards.
@@ -386,6 +404,8 @@ class PhysicsModel:
 
         if dt <= 0 or not self._compiled:
             return self._apply_writebacks(state) if state is not None else []
+        if self._noise and rng is None:
+            raise PhysicsExprError("noisy variables need a random stream: pass rng= to integrate()")
 
         before = {n: self.variables[n].value for n in self._compiled}
 
@@ -401,7 +421,10 @@ class PhysicsModel:
                 k2 = self._derivatives({n: y[n] + 0.5 * h * k1[n] for n in y}, t + 0.5 * h)
                 k3 = self._derivatives({n: y[n] + 0.5 * h * k2[n] for n in y}, t + 0.5 * h)
                 k4 = self._derivatives({n: y[n] + h * k3[n] for n in y}, t + h)
-                y = {n: y[n] + (h / 6.0) * (k1[n] + 2 * k2[n] + 2 * k3[n] + k4[n]) for n in y}
+                drift = {n: y[n] + (h / 6.0) * (k1[n] + 2 * k2[n] + 2 * k3[n] + k4[n]) for n in y}
+                if self._noise:
+                    drift = self._diffuse(y, drift, t, h, rng)
+                y = drift
                 t += h
         except (ArithmeticError, ValueError) as exc:
             return [{
@@ -441,6 +464,25 @@ class PhysicsModel:
         if state is not None:
             changes.extend(self._apply_writebacks(state))
         return changes
+
+    def _diffuse(self, start: Dict[str, float], drift: Dict[str, float], t: float, h: float,
+                 rng: Any) -> Dict[str, float]:
+        """Euler–Maruyama: the noise term at the sub-step's start, scaled by a Wiener increment,
+        then every noisy variable clamped to its bounds."""
+        full: Dict[str, float] = {n: v.value for n, v in self.variables.items()}
+        full.update(start)
+        ns = self._namespace(full, t)
+        root = math.sqrt(h)
+        out = dict(drift)
+        for name, expr in self._noise.items():
+            value = out[name] + expr.eval(ns) * root * rng.gauss(0.0, 1.0)
+            var = self.variables[name]
+            if var.min is not None:
+                value = max(var.min, value)
+            if var.max is not None:
+                value = min(var.max, value)
+            out[name] = value
+        return out
 
     def _refresh_sources(self, state: Any) -> None:
         for v in self.variables.values():

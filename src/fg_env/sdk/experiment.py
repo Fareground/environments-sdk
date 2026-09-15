@@ -245,7 +245,7 @@ def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = N
         probed.add(key)
         env = load(contract, inputs=dict(job.inputs), seed=0, arm=job.arm, data_dir=folder)
         if participants_for is None and len(probed) == 1:
-            env._bind(assigned(job))
+            env.driver.bind(assigned(job))
 
     def one(job: Job) -> RunResult:
         try:

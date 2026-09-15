@@ -41,8 +41,8 @@ def tournament(contract: ContractLike, entrants: Mapping[str, Any], *, seats: Op
     Standings are ranked by ``rating``: ``elo`` (maximum-likelihood, with 95% intervals) or ``glicko2``;
     both are reported, with win/draw/loss, points and score means. ``evaluation`` adds the Nash average,
     α-Rank and a Schulze vote, which stay meaningful when skill is not transitive; ``returns`` gives every
-    entrant's score in every seat, and each standing's ``cost`` its turns, calls, invalid calls and model
-    tokens. A callable entrant is shared by all its games: with ``workers > 1`` those run in threads at once.
+    entrant's score in every seat, and each standing's ``cost`` its turns, calls, invalid calls, timeouts,
+    undone turns and model tokens. A callable entrant is shared by all its games: with ``workers > 1`` those run in threads at once.
     """
     names = _entrant_names(entrants)
     check_positive_int("games", games)
@@ -66,11 +66,11 @@ def tournament(contract: ContractLike, entrants: Mapping[str, Any], *, seats: Op
                          "pass seats=[...] to seat entrants in fewer of the agents")
     for name in names:
         try:
-            probe._bind({seat_ids[0]: entrants[name]})
+            probe.driver.bind({seat_ids[0]: entrants[name]})
         except (TypeError, ValueError) as exc:
             raise ValueError(f"entrant '{name}': {exc}") from None
     if others is not None:
-        probe._bind({"*": others})
+        probe.driver.bind({"*": others})
     scorer = SeatScorer(probe.contract, score, seat_ids, agents)
     seeds = run_seeds(seed, games)
     ledger = Ledger(names, seat_ids)
