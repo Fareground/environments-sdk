@@ -66,9 +66,7 @@ def _header(subject: Game, seed: int) -> List[str]:
     state = subject.new_initial_state()
     try:
         for index, entity in enumerate(subject.players):
-            env = state._pilot.env
-            actor = env.world.entities[entity]
-            brief = state._pilot.read(lambda: env.perception.brief(actor))
+            brief = state._run.read(lambda env: env.perception.brief(env.world.entities[entity]))
             lines += ["", f"## Brief of seat {index} ({entity})"] + [f"  | {line}" for line in str(brief).splitlines()]
     finally:
         state.close()
