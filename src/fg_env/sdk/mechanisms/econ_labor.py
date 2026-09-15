@@ -28,9 +28,9 @@ class FirmSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     output: str = Field(..., description="Item made.")
-    per_worker: Union[float, str] = Field(1, description="Units per worker per round (number or expression over $firm and $workers).")
+    per_worker: Union[float, str] = Field(1.0, description="Units per worker per round (number or expression over $firm and $workers).")
     inputs: Dict[str, int] = Field({}, description="Goods used up per unit {item: qty}.")
-    price: Union[float, str] = Field(1, description="Starting posted price (prop `<name>_price`).")
+    price: Union[float, str] = Field(1.0, description="Starting posted price (prop `<name>_price`).")
     price_min: float = Field(0, ge=0, description="Lowest price a firm may post.")
     price_max: Optional[float] = Field(None, ge=0, description="Highest price a firm may post.")
 

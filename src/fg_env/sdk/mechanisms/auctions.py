@@ -63,7 +63,7 @@ class AuctionConfig(BaseModel):
                                                    "mechanism itself (stock and revenue in world props).")
     stock: Union[int, str] = Field(1, description="Units the house has to sell (number or expression).")
     units: int = Field(1, ge=1, description="Units in each lot (uniform), or the most units one bid or ask may carry (double).")
-    reserve: Union[float, str] = Field(0, description="Lowest acceptable price per unit (number or expression).")
+    reserve: Union[float, str] = Field(0.0, description="Lowest acceptable price per unit (number or expression).")
     start_price: Optional[Union[float, str]] = Field(None, description="dutch: where the clock starts.")
     decrement: float = Field(1, gt=0, description="dutch: how much the clock falls each round.")
     increment: float = Field(1, gt=0, description="english: minimum raise over the high bid.")
@@ -215,7 +215,8 @@ def bid(world: Any, name: str, trader: Entity, side: str, price: Any, qty: Any =
     lot["bids"] = kept
     world.set_world(f"{name}_lot", lot)
     verb = "ask" if side == "ask" else "bid"
-    return _receipt(world, name, f"Your sealed {verb} of {fmt(price, 4)} for {qty} {item} is in.")
+    amount = item if qty == 1 else f"{qty} × {item}"
+    return _receipt(world, name, f"Your sealed {verb} of {fmt(price, 4)} for {amount} is in.")
 
 
 def _refund(world: Any, name: str, cfg: AuctionConfig, entry: Mapping[str, Any], keep: float = 0.0) -> None:

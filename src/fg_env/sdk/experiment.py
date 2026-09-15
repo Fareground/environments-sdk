@@ -10,6 +10,7 @@ from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Sequence, Set, Tuple
 
 from .api import ContractLike, contract_source, default_data_dir, load, parse
+from .arm_inputs import arm_input_overrides, override_message
 from .budget import Budget
 from .contract import Contract
 from .errors import ContractError, Issue
@@ -69,6 +70,8 @@ class ArmResult:
     arm: Optional[str]
     runs: List[RunResult]
     outputs: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    #: Inputs of this arm the experiment's own inputs replaced, in plain words (see :mod:`fg_env.sdk.arm_inputs`).
+    overridden: List[str] = field(default_factory=list)
 
     @property
     def failed(self) -> List[RunResult]:
@@ -143,6 +146,7 @@ class ExperimentResult:
                 else:
                     cells.append(f"{label}: —")
             lines.append(f"{key}: " + " | ".join(cells))
+        lines += [f"warning: {message}" for arm in self.arms.values() for message in arm.overridden]
         if len(self.arms) > 1:
             control = next(iter(self.arms))
             for name, outputs in self.deltas(control).items():
@@ -383,5 +387,7 @@ def experiment(source: ContractLike, *, runs: int = 10, arms: Optional[List[str]
         arm_runs = [r for job, r in zip(jobs, results) if job.arm == arm]
         summary = {name: _describe([r.outputs.get(name) for r in arm_runs if r.status != "failed"])
                    for name in contract.outputs}
-        out[arm or "baseline"] = ArmResult(arm, arm_runs, summary)
+        overridden = [override_message(arm, name, arm_value, given)
+                      for name, arm_value, given in arm_input_overrides(contract, arm, inputs or {})] if arm else []
+        out[arm or "baseline"] = ArmResult(arm, arm_runs, summary, overridden)
     return ExperimentResult(out, seeds)

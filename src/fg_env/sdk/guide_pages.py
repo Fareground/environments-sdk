@@ -68,6 +68,7 @@ SECTIONS: List[Tuple[str, List[Type[BaseModel]], str, str]] = [
     ("clock", [C.Clock], "Clock", "How long a run lasts (`rounds`, default 20) and what one round is called."),
     ("inputs", [C.InputSpec], "{name: InputSpec}", "Typed values supplied when the contract is loaded ($inputs.x): knobs, data tables."),
     ("world", [C.PropSpec], "{prop: default | PropSpec}", "Global properties ($world.x)."),
+    ("assets", [C.AssetSpec], "{asset: AssetSpec}", "Files beside the contract — images, PDFs, text, audio — delivered to agents under the visibility rules; see guide('assets')."),
     ("types", [C.TypeSpec, C.PropSpec], "{type: TypeSpec}", "Kinds of entities and their properties; `agent: true` makes a type act."),
     ("entities", [C.EntitySpec], "{id: EntitySpec}", "Named entities (the name defaults to the id)."),
     ("population", [C.PopulationSpec], "[PopulationSpec]", "Generated entities: a count, or one per data row, with sampled traits."),
@@ -90,6 +91,7 @@ SECTIONS: List[Tuple[str, List[Type[BaseModel]], str, str]] = [
     ("feeds", [C.FeedSpec], "{feed: FeedSpec}", "External data written into world props or records, answered by host adapters."),
     ("policies", [C.PolicySpec, C.PolicyRule], "{policy: PolicySpec}", "Coded participants as rules, for crowds and baselines (`policy:<name>`)."),
     ("arms", [C.ArmSpec], "{arm: ArmSpec}", "Experiment variants: input overrides or contract patches."),
+    ("calibration", [C.CalibrationSpec], "CalibrationSpec", "Inputs fitted by short pilot sessions every time the contract loads, reproducible from the session's seed; a load that sets a fitted input skips it (each load costs budget × runs pilot sessions)."),
     ("defs", [C.DefSpec], "{name: expr | DefSpec}", "Reusable expressions, called like built-ins: $utility($actor, 3)."),
     ("blocks", [C.BlockSpec], "{name: BlockSpec}", "Reusable effect lists, run with {\"block\": name, \"with\": {...}}."),
     ("imports", [], "[path]", "Contract files merged into this one (relative to it, inside its folder); this contract's own entries win, and imported files may import others."),
@@ -127,7 +129,7 @@ def section_page(section: str) -> str:
 _CORE_GROUPS = {
     "collections": "count sum avg min max median quantile stdev top bottom filter map pick any all ids len first last "
                    "unique tally mode sort reverse slice range flatten dict keys values get is",
-    "world": "entity exists records events seen",
+    "world": "entity exists records events seen asset",
     "space": "relation linked link links neighbors distance",
     "math": "abs floor ceil sqrt exp log round clamp pct",
     "random": "random chance uniform randint normal lognormal beta exponential poisson choice sample shuffle",
@@ -138,7 +140,8 @@ _MODULE_GROUPS = {
     "stdlib.words": "text", "stdlib.lists": "lists", "stdlib.sets": "lists", "stdlib.stats": "stats",
     "stdlib.scoring": "stats", "space_functions": "space", "networks": "space", "stdlib.puzzles": "game",
     "mechanisms._common": "conditions", "mechanisms.card_scoring": "game", "mechanisms.cards": "game",
-    "mechanisms.econ_assets": "economy", "mechanisms.market_stats": "market", "mechanisms.order_book": "market",
+    "mechanisms.econ_assets": "economy", "mechanisms.market_stats": "market", "mechanisms.book_functions": "market",
+    "mechanisms.book_rules": "market",
     "mechanisms.package_auction": "market", "mechanisms.auction_reads": "market", "mechanisms.memory": "mind",
     "patterns.runtime": "world",
 }

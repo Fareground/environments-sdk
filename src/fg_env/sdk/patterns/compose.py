@@ -66,7 +66,7 @@ def _operands(ctx: Any) -> List[float]:
 
 class ProductConfig(_Combined):
     kind: Literal["product"] = "product"
-    scale: Number = Field(1, description="Multiplies the product (a base level).")
+    scale: Number = Field(1.0, description="Multiplies the product (a base level).")
 
 
 @kind("product", "composition", "composite", ProductConfig,
@@ -85,7 +85,7 @@ def _product(ctx: Any) -> float:
 class SumConfig(_Combined):
     kind: Literal["sum"] = "sum"
     weights: Optional[List[Number]] = Field(None, description="One weight per pattern (default 1 each).")
-    base: Number = Field(0, description="Added to the sum.")
+    base: Number = Field(0.0, description="Added to the sum.")
 
     @model_validator(mode="after")
     def _weights(self) -> "SumConfig":

@@ -230,7 +230,7 @@ def fresh_copy(source: Env, base: Optional[Mapping[str, Any]], participants: Any
     if base is None:
         seed = source.build_seed if isinstance(source, PilotedEnv) else source.seed
         env = kind(source.contract, source.inputs, seed, source.arm, parallel=1,
-                   exposures=source.world.exposures is not None)
+                   exposures=source.world.exposures is not None, assets=source.world.assets.catalog())
     else:
         env = restore_state(kind, source.contract, base, parallel=1)
     env.origin.base, env.origin.unarmed = dict(base) if base is not None else None, source.origin.unarmed
@@ -277,7 +277,7 @@ def clone_env(source: Env) -> Env:
         copy = restore_state(type(source), source.contract, snapshot, source.parallel)
         copy.origin.base, copy.origin.unarmed = snapshot, source.origin.unarmed
         copy.driver.spec = dict(source.driver.spec)
-        copy.time_limit = source.time_limit
+        copy.time_limit, copy.calibration = source.time_limit, source.calibration
         _keep_chance(source, copy)
         hosts = hosts_for(source.world)
         if hosts is not None:
@@ -294,7 +294,7 @@ def clone_env(source: Env) -> Env:
     env.pilot = None
     env.world.chance_picker = None
     _keep_chance(source, env)
-    env.parallel, env.time_limit = source.parallel, source.time_limit
+    env.parallel, env.time_limit, env.calibration = source.parallel, source.time_limit, source.calibration
     if env.status != "stopped" or env.origin.tape.points != source.origin.tape.points:
         raise RunError("the copy did not stop where the original stopped; the run's state was changed outside the "
                        "engine", "clone")

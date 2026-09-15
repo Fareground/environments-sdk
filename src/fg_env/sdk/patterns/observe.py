@@ -52,7 +52,7 @@ class CountsConfig(PatternConfig):
     kind: Literal["counts"] = "counts"
     dist: Literal["poisson", "negative_binomial"] = Field("negative_binomial", description="poisson: variance = mean | "
                                                                                            "negative_binomial: variance = mean + mean²/dispersion (over-dispersed).")
-    dispersion: Number = Field(10, description="negative_binomial: k; smaller is noisier (fitted by the method of moments).")
+    dispersion: Number = Field(10.0, description="negative_binomial: k; smaller is noisier (fitted by the method of moments).")
     every: Optional[float] = Field(None, gt=0, description="Clock units per fresh draw (default: one round).")
 
 
@@ -74,7 +74,7 @@ def _counts(ctx: Any, mean: Any) -> int:
 class MeasurementConfig(PatternConfig):
     kind: Literal["measurement"] = "measurement"
     sd: Number = Field(..., description="Spread of the error (a share of the value with form multiply).")
-    bias: Number = Field(0, description="Systematic error (a share with form multiply: 0.05 reads 5% high).")
+    bias: Number = Field(0.0, description="Systematic error (a share with form multiply: 0.05 reads 5% high).")
     form: Literal["add", "multiply"] = Field("multiply", description="add: value + bias + sd·z | multiply: value·(1 + bias + sd·z).")
     whole: bool = Field(False, description="Round the reading to a whole number.")
     every: Optional[float] = Field(None, gt=0, description="Clock units per fresh draw (default: one round).")

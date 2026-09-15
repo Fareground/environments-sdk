@@ -37,9 +37,9 @@ def _bound(ctx: Any, value: float) -> float:
 
 class RandomWalkConfig(_Stepped):
     kind: Literal["random_walk"] = "random_walk"
-    start: Number = Field(0, description="Value at round 1.")
-    drift: Number = Field(0, description="Added each step (form add) or log growth each step (form multiply).")
-    sd: Number = Field(1, description="Standard deviation of each step's change (of its log with form multiply).")
+    start: Number = Field(0.0, description="Value at round 1.")
+    drift: Number = Field(0.0, description="Added each step (form add) or log growth each step (form multiply).")
+    sd: Number = Field(1.0, description="Standard deviation of each step's change (of its log with form multiply).")
     form: Literal["add", "multiply"] = Field("add", description="add: x + drift + sd·z | multiply (geometric): x·e^(drift + sd·z).")
 
 
@@ -75,7 +75,7 @@ class MeanReversionConfig(_Stepped):
     kind: Literal["mean_reversion"] = "mean_reversion"
     mean: Number = Field(..., description="The level it is pulled back to.")
     rate: Number = Field(..., description="Pull per clock unit (0.1: a gap shrinks by e^−0.1 ≈ 10% a unit).")
-    sd: Number = Field(0, description="Noise per √unit (the long-run spread is sd / √(2·rate)).")
+    sd: Number = Field(0.0, description="Noise per √unit (the long-run spread is sd / √(2·rate)).")
     start: Optional[Number] = Field(None, description="Value at round 1 (default: the mean).")
 
 
@@ -105,8 +105,8 @@ def _mean_reversion(ctx: Any) -> float:
 class AutoregressiveConfig(_Stepped):
     kind: Literal["autoregressive"] = "autoregressive"
     coefficients: Union[List[Number], str] = Field(..., description="[φ1, φ2, …]: how much each earlier step carries into the next.")
-    mean: Number = Field(0, description="The level deviations are measured from.")
-    sd: Number = Field(1, description="Standard deviation of each step's new shock.")
+    mean: Number = Field(0.0, description="The level deviations are measured from.")
+    sd: Number = Field(1.0, description="Standard deviation of each step's new shock.")
     start: Optional[Number] = Field(None, description="Value of the first steps (default: the mean).")
 
 
@@ -141,8 +141,8 @@ class VolatilityConfig(_Stepped):
     omega: Number = Field(..., description="Baseline variance added each step (> 0).")
     alpha: Number = Field(0.1, description="How much the last return's size raises the next variance.")
     beta: Number = Field(0.85, description="How much the last variance carries over (alpha + beta < 1 is stable).")
-    mean: Number = Field(0, description="Mean return per step.")
-    start: Number = Field(100, description="Level at round 1 (output level).")
+    mean: Number = Field(0.0, description="Mean return per step.")
+    start: Number = Field(100.0, description="Level at round 1 (output level).")
     output: Literal["returns", "level", "volatility"] = Field("returns", description="returns: each step's log return | "
                                                                                     "level: start compounded by the returns | volatility: the standard deviation now.")
 
@@ -240,11 +240,11 @@ def _regimes(ctx: Any) -> Any:
 
 class ShocksConfig(_Stepped):
     kind: Literal["shocks"] = "shocks"
-    chance: Number = Field(0, description="Probability a shock starts in a step.")
+    chance: Number = Field(0.0, description="Probability a shock starts in a step.")
     at: List[Union[float, str]] = Field(default_factory=list, description="Times shocks certainly start (clock units or ISO dates).")
     recur: Optional[Number] = Field(None, description="Clock units between shocks that recur on schedule (from the window's start).")
-    size: Number = Field(1, description="Each shock's size (form add: added; multiply: 1 + size).")
-    size_sd: Number = Field(0, description="Spread of each shock's size (normal).")
+    size: Number = Field(1.0, description="Each shock's size (form add: added; multiply: 1 + size).")
+    size_sd: Number = Field(0.0, description="Spread of each shock's size (normal).")
     lasts: int = Field(1, ge=1, description="Steps a shock stays at full size.")
     half_life: Optional[Number] = Field(None, description="Steps for what is left of a shock to halve once it has lasted "
                                                           "(without one it ends at once).")
@@ -320,10 +320,10 @@ def _shocks(ctx: Any) -> float:
 class NoiseConfig(_Stepped):
     kind: Literal["noise"] = "noise"
     dist: Literal["normal", "uniform", "lognormal", "laplace"] = Field("normal", description="The distribution of each step's draw.")
-    mean: Number = Field(0, description="Centre (normal, laplace); log-mean (lognormal).")
-    sd: Number = Field(1, description="Spread (normal, laplace: scale·√2; lognormal: log-sd).")
-    low: Number = Field(0, description="Lowest value (uniform).")
-    high: Number = Field(1, description="Highest value (uniform).")
+    mean: Number = Field(0.0, description="Centre (normal, laplace); log-mean (lognormal).")
+    sd: Number = Field(1.0, description="Spread (normal, laplace: scale·√2; lognormal: log-sd).")
+    low: Number = Field(0.0, description="Lowest value (uniform).")
+    high: Number = Field(1.0, description="Highest value (uniform).")
 
 
 @kind("noise", "random", "process", NoiseConfig,
@@ -353,10 +353,10 @@ def _noise(ctx: Any) -> float:
 class WeatherConfig(_Stepped):
     kind: Literal["weather"] = "weather"
     mean: Number = Field(..., description="Average over the year.")
-    amplitude: Number = Field(0, description="Seasonal swing above and below the mean.")
+    amplitude: Number = Field(0.0, description="Seasonal swing above and below the mean.")
     peak: Number = Field(0.55, description="Where in the year it is highest, from 0 to 1 (0.55 ≈ mid-July).")
     persistence: Number = Field(0.7, description="How much of a step's departure from normal carries into the next (0–1).")
-    sd: Number = Field(1, description="Typical departure from the seasonal normal.")
+    sd: Number = Field(1.0, description="Typical departure from the seasonal normal.")
 
 
 def _weather_step(ctx: Any, rng: Any, state: float, step: int) -> Tuple[float, float]:

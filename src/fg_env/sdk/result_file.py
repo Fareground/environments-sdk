@@ -6,6 +6,10 @@ log, then ``{"event": ...}``, ``{"text": [hash, text]}``, ``{"wake": ...}`` and 
 fork's ``{"start": ...}``) — so a run with
 thousands of wakes can be read line by line. ``RunResult.load(path)`` reads either, and also the plain
 JSON ``fg-env run --json`` prints.
+
+A run that knew assets also writes their bytes into a folder beside the file — ``run.json`` → ``run.assets/``, one
+file per asset named by its content hash — and loading the result provides that folder again, so the saved run
+replays on any machine.
 """
 from __future__ import annotations
 
@@ -18,7 +22,7 @@ from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Mapping, Union
 if TYPE_CHECKING:
     from .measure import RunResult
 
-__all__ = ["RESULT_FORMAT", "save_result", "load_result", "result_from_dict"]
+__all__ = ["RESULT_FORMAT", "save_result", "load_result", "result_from_dict", "asset_folder"]
 
 #: The version of the saved-result format.
 RESULT_FORMAT = 1
@@ -31,8 +35,33 @@ def _jsonl(path: PathLike) -> bool:
     return str(path).endswith(".jsonl")
 
 
+def asset_folder(path: PathLike) -> Path:
+    """Where a saved result keeps its asset files: ``run.json`` → ``run.assets``."""
+    target = Path(path)
+    return target.with_name(target.name.rsplit(".", 1)[0] + ".assets")
+
+
+def _save_assets(index: Mapping[str, Any], path: PathLike) -> None:
+    from .assets import blobs
+
+    rows = (index or {}).get("assets") or []
+    if not rows:
+        return
+    folder = asset_folder(path)
+    folder.mkdir(exist_ok=True)
+    for row in rows:
+        target = folder / (row["hash"] + Path(str(row.get("path") or row["name"])).suffix.lower())
+        if target.exists():
+            continue
+        try:
+            target.write_bytes(blobs.read(row["hash"]))
+        except blobs.BlobMissing as exc:
+            raise ValueError(f"cannot save asset '{row['id']}' with the result: {exc}") from None
+
+
 def save_result(result: "RunResult", path: PathLike) -> None:
     data = result.to_dict()
+    _save_assets(data.get("assets") or {}, path)
     with open(path, "w", encoding="utf-8") as handle:
         if not _jsonl(path):
             json.dump({"fg_env_result": RESULT_FORMAT, **data}, handle, ensure_ascii=False, default=str)
@@ -72,6 +101,11 @@ def load_result(path: PathLike) -> "RunResult":
     except json.JSONDecodeError as exc:
         raise ValueError(f"'{shown}' is not valid JSON ({exc.msg} at line {exc.lineno}); "
                          "pass a file written by result.save()") from None
+    folder = asset_folder(path)
+    if folder.is_dir():
+        from .assets import blobs
+
+        blobs.provide(folder)
     return result_from_dict(data, shown)
 
 

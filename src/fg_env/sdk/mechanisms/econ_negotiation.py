@@ -66,7 +66,7 @@ class ObligationSpec(BaseModel):
 class BreachSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    penalty: Union[float, str] = Field(0, description="Owed to the other side on each breach: number or expression over $terms and $duty.")
+    penalty: Union[float, str] = Field(0.0, description="Owed to the other side on each breach: number or expression over $terms and $duty.")
     currency: Optional[str] = Field(None, description="Currency of the penalty (default: the breached payment's, or the first ledger's).")
     terminate: bool = Field(False, description="A breach ends the deal: remaining installments are cancelled.")
     on_breach: List[Any] = Field([], description="Effects on a breach ($deal, $duty, $breacher, $victim, $terms).")

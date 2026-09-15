@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Iterator, List,
 
 from ..entity import Entity
 from ..physics import PhysicsModel, _CompiledExpr
+from .assets.store import AssetStore
 from .contract import Contract, PropSpec
 from .errors import RunError
 from .expr import ExprError, FUNCTIONS, Scope, Untrusted, World, compile_expr, is_expr, truthy
@@ -109,8 +110,12 @@ class SdkWorld(World):
         self.exposures: Any = None
         #: Names of properties written since the build (read by the run's diagnostics; see run_diagnosis.py).
         self.written: "set[str]" = set()
-        #: While a simultaneous stage commits its choices, notes `=` assignments (a run_diagnosis.SealedWrites).
-        self.sealed_writes: Any = None
+        #: While sealed choices commit or an `each` loop runs, notes `=` assignments (see run_diagnosis.py).
+        self.watched_writes: Any = None
+        #: The run's diagnosis counts (a run_diagnosis.Diagnosis), set by the run.
+        self.diagnosis: Any = None
+        #: The files the run knows (the contract's catalog, once loaded from its folder, and submitted files).
+        self.assets = AssetStore()
         self._seq = 0
         self._record_seq = 0
         self._props_view = PropsView(self)
@@ -435,6 +440,8 @@ class SdkWorld(World):
             raise RunError(f"must be a list, got {value!r}", where)
         elif kind == "map" and not isinstance(value, dict):
             raise RunError(f"must be an object, got {value!r}", where)
+        elif kind == "asset":
+            return self.assets.ref(value, where)
         return value
 
     def set_prop(self, entity: Entity, prop: str, value: Any) -> None:
@@ -621,6 +628,8 @@ class SdkWorld(World):
             value = _plain(fields.get(name))
             if value is not None and kind == "text" and not isinstance(value, str):
                 value = str(value)
+            elif value is not None and kind == "asset":
+                value = self.assets.ref(value, f"{where}.{name}")
             entry[name] = value
         self._record_seq += 1
         entry.update({"seq": self._record_seq, "round": self.round, "stage": self.stage,

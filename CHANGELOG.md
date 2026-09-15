@@ -54,6 +54,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read one family or mode.
 
 #### Added
+- **Order-book venue rules as expressions** (`guide('market.order_book')`): `tick_size`, `lot_size`, maker/taker fees,
+  `collar_pct`, `price_band_pct`, `halt_pct`, `halt_rounds`, `halt_window`, `short_limit`, `max_short_leverage`,
+  `order_ttl`, `max_orders` and `bar_rounds` accept expressions over `$inputs`, resolved once when the world is built
+  into `$world.<name>_rules` (each checked against its limits, naming the field), so a tick can follow the price level
+  and fees can be swept or calibrated. Snapshots, clones and forks carry the resolved values.
+- **Bars of several rounds and a bar-aware circuit breaker**: `bar_rounds` makes `<name>_bars` record one OHLCV bar
+  (with vwap, trades, whether a halt tripped and aggressive flow by trader kind) every N rounds, and
+  `$book(name).bar` is the bar in progress. The breaker measures from `halt_reference` (`round_open`, `bar_open` or
+  `rolling` with `halt_window`), looks on every trade or at `round_end` (the mid), and halts for `halt_rounds` or to
+  the `bar_end`. The book's `open`/`close` actions run once per round, so an author end event can close the round
+  first and read the bar just recorded.
+- **Stage `passes` and event `every` as expressions** over `$inputs`, checked statically and resolved at load.
+- **Calibration at load** (`guide('calibration')`): a contract's `calibration` section fits inputs with short pilot
+  sessions whenever a session loads (targets may be expressions read from the built world); the session runs with
+  the fitted values, reproducible from its seed, and `env.calibration` reports the fit and its cost. A load that sets
+  a fitted input (the pilot sessions themselves, a sweep, `fg_env.check`'s smoke round via `calibrate=False`)
+  skips it.
+- **Files and media** (`guide('assets')`): a contract's `assets` section declares files and folders beside it —
+  images (png, jpg, webp, gif), PDFs, text and markdown, audio (wav, mp3) and other files — read once at load,
+  confined to the contract's folder (no `..`, absolute paths, hidden files or links out), checked against their
+  extension and size limits, and hashed. Properties and record fields of type `asset`, table input columns of type
+  `asset` (paths), and `$asset(ref)` (`name type media_type size hash caption alt tags text`) reference them.
+  Agents receive files only through what they may see — a view's `attach`, a record entry's asset fields, an
+  event addressed to them, `brief.attach`, their own action's `attach` and `inspect` (never another entity's
+  private asset) — as a compact reference in the text and as `wake.attachments` / `ToolResult.attachments`
+  (`read()`, `text()`). `participants.anthropic` and `participants.openai` send real image, document, file and
+  audio parts (`media=` chooses the types; `media=()` for text-only models). A `file` parameter (`kinds`,
+  `max_bytes`) takes a file from the agent (base64 `data`, `text`, or a submitted `asset` id; `wake.upload` for
+  coded participants), stored as an untrusted asset recognised from its bytes. The judge and game master take
+  `attach` (a judged entry brings its files), an asset's `describe` host writes a caption and text at build
+  (`host.Describer`, `host.stubs.StubDescriber`), and the reference host adapters send attachments as multimodal
+  content. Snapshots, clones, forks, the tape and the exposure log (`assets: [{id, hash, in}]`) hold ids and
+  hashes, never bytes; a replay checks the files each wake received; `result.save` writes the run's files to
+  `<name>.assets/` and `RunResult.load` provides them again (`fg_env.sdk.assets.provide(folder)` elsewhere).
+  Examples: `court_exhibits.json` (sealed then revealed exhibits, a judge host receiving them) and
+  `product_listing.json` (a CSV catalogue with photos, sellers relisting with a submitted photo).
 - **Flagship exchange** (`examples/contracts/exchange_flagship.json`): the platform Exchange rebuilt as a contract — a
   calibrated crowd of market makers, momentum, mean-reversion, fundamental, noise and passive traders on one order book,
   one round per pass through a bar, bars, a circuit breaker on the bar's open, scheduled news, sentiment, volume and

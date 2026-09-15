@@ -176,8 +176,8 @@ class DiffusionConfig(PatternConfig):
     kind: Literal["diffusion"] = "diffusion"
     p: Number = Field(..., description="Innovation: the share adopting on their own each unit.")
     q: Number = Field(..., description="Imitation: how strongly adopters draw in others (word of mouth).")
-    market: Number = Field(1, description="Everyone who will eventually adopt.")
-    start: Union[float, str] = Field(0, description="When adoption begins: clock units or an ISO date.")
+    market: Number = Field(1.0, description="Everyone who will eventually adopt.")
+    start: Union[float, str] = Field(0.0, description="When adoption begins: clock units or an ISO date.")
     output: Literal["adopters", "new", "share", "hazard"] = Field(
         "adopters", description="adopters: total so far | new: adopting this round | share: of the market | "
                                 "hazard: called with the adopted share, the chance a non-adopter adopts now (p + q·share).")

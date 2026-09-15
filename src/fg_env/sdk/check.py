@@ -51,13 +51,14 @@ from .patterns.check import check_pattern_call, check_patterns
 from .returns import check_game
 from .template import FORMATS, compile_template
 from .world import prop_type
+from .assets.checks import check_assets
 
 __all__ = ["parse_contract", "check_contract"]
 
 BASE = frozenset({"inputs", "world", "physics", "clock", "round", "stage", "metrics", "series", "arm", "pending", "pattern"})
 ENTITY_FIELDS = frozenset({"id", "name", "type", "alive", "at"})
 ENTRY_FIELDS = frozenset({"seq", "round", "stage", "author", "to"})
-RECORD_FIELD_TYPES = ("text", "number", "int", "bool", "list", "map", "any")
+RECORD_FIELD_TYPES = ("text", "number", "int", "bool", "list", "map", "any", "asset")
 
 
 #: Collection functions whose first parameter is not spelled ``items``.
@@ -379,6 +380,10 @@ class _Checker:
             self.error(path, exc.detail, "write `$actor.cash -= 5`, `$world.board[$i][$j] = x` or `$total = 3`")
             return
         self.expr(right, path, roots, types, params)
+        if re.search(r"'[^']*\{\$[^']*'|\"[^\"]*\{\$[^\"]*\"", right):
+            self.warn(path, "stores `{$...}` literally: placeholders fill in only in templates (outcome, say, show, text)",
+                      "build the text as an expression, e.g. `$text($params.n) + ': ' + $hint`, or store the values and "
+                      "format them in a view's show")
         for kind, step in steps:
             if kind == "index":
                 self.expr(step, path, roots, types, params)
@@ -625,8 +630,10 @@ class _Checker:
         self._policies()
         self._measure()
         self._arms()
+        self._calibration()
         self._defs_and_blocks()
         check_game(self)
+        check_assets(self, BASE)
 
     def _inputs(self) -> None:
         for name, spec in self.c.inputs.items():
@@ -638,7 +645,7 @@ class _Checker:
                 self.error(path, "an enum input needs `values`")
             if spec.type == "table":
                 for column, kind in (spec.columns or {}).items():
-                    if kind not in C.INPUT_TYPES or kind in ("table",):
+                    if (kind not in C.INPUT_TYPES and kind != "asset") or kind in ("table",):
                         self.error(f"{path}.columns.{column}", f"unknown column type '{kind}'")
             if spec.source is not None:
                 source = PurePath(spec.source)
@@ -1030,6 +1037,8 @@ class _Checker:
             self.expr(stage.who, f"{path}.who", BASE | {"it", "i"}, agent_types)
             self.expr(stage.until, f"{path}.until", BASE)
             self.expr(stage.when, f"{path}.when", BASE)
+            if isinstance(stage.passes, str):
+                self.expr(stage.passes, f"{path}.passes", {"inputs"})
             self.template(stage.brief or None, f"{path}.brief", "actor", BASE | {"actor"}, {"actor": set(self.agents)})
             self.effects(stage.on_enter, f"{path}.on_enter", set(BASE), {})
             self.effects(stage.on_exit, f"{path}.on_exit", set(BASE), {})
@@ -1094,6 +1103,10 @@ class _Checker:
                     self.error(f"{path}.arms", f"'{arm}' is not a declared arm", self._hint(arm, self.c.arms, "arms"))
             self.value(event.at, f"{path}.at", BASE)
             self.expr(event.when, f"{path}.when", BASE)
+            if isinstance(event.every, str):
+                self.expr(event.every, f"{path}.every", {"inputs"})
+            elif event.every is not None and event.every < 1:
+                self.error(f"{path}.every", "must be at least 1")
             self.value(event.chance, f"{path}.chance", BASE)
             types: Types = {}
             roots = set(BASE)
@@ -1210,6 +1223,42 @@ class _Checker:
                 if key not in Contract.model_fields:
                     self.error(f"arms.{name}.patch.{key}", f"'{key}' is not a contract section",
                                self._suggest(key, Contract.model_fields))
+
+    def _calibration(self) -> None:
+        spec = self.c.calibration
+        if spec is None:
+            return
+        for name, given in spec.params.items():
+            path = f"calibration.params.{name}"
+            declared = self.c.inputs.get(name)
+            if declared is None:
+                self.error(path, f"'{name}' is not a declared input", self._hint(name, self.c.inputs, "inputs"))
+                continue
+            if declared.type not in ("number", "int"):
+                self.error(path, f"'{name}' is a {declared.type} input; only number and int inputs can be fitted")
+                continue
+            extra = sorted(set(given) - {"low", "high", "log"})
+            if extra:
+                self.error(path, f"unknown key(s) {', '.join(extra)}", "give low, high and log")
+            low, high = given.get("low", declared.min), given.get("high", declared.max)
+            if low is None or high is None:
+                self.error(path, "has no range", f"give {{\"low\": …, \"high\": …}} or declare min and max on inputs.{name}")
+            elif not low < high:
+                self.error(path, f"low {low} must be below high {high}")
+        for name in spec.inputs:
+            if name not in self.c.inputs:
+                self.error(f"calibration.inputs.{name}", f"'{name}' is not a declared input",
+                           self._hint(name, self.c.inputs, "inputs"))
+            elif name in spec.params:
+                self.error(f"calibration.inputs.{name}", f"'{name}' is fitted; a pilot input cannot also fix it")
+        measures = {**self.c.outputs, **self.c.metrics}
+        for name, target in spec.targets.items():
+            path = f"calibration.targets.{name}"
+            measure = str(target.get("of", name)) if isinstance(target, dict) and "stat" in target else name
+            measure = measure[len("series."):] if measure.startswith("series.") else measure
+            if measure not in measures:
+                self.error(path, f"'{measure}' is not an output or metric", self._hint(measure, measures, "outputs and metrics"))
+            self.value(target.get("value") if isinstance(target, dict) else target, path, BASE)
 
 
 def _stage_action_names(stage: C.StageSpec, contract: Contract, raw: bool = False) -> List[str]:

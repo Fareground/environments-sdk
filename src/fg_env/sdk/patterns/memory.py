@@ -65,7 +65,7 @@ class CarryoverConfig(_Memory):
     lag: int = Field(0, ge=0, description="Steps before an input starts to count.")
     form: Literal["sum", "average"] = Field("sum", description="sum: input + retain·stock (adstock) | "
                                                               "average: (1 − retain)·input + retain·stock (a moving average).")
-    start: Number = Field(0, description="The stock before round 1 (and the input before a lag has filled).")
+    start: Number = Field(0.0, description="The stock before round 1 (and the input before a lag has filled).")
 
 
 def _lagged(ctx: Any, x: float, before: Optional[Dict[str, Any]]) -> float:
@@ -116,7 +116,7 @@ class PromotionConfig(_Memory):
     lift: Number = Field(..., description="Extra demand per unit of promotion intensity (form linear: 0.6 = +60% at 1).")
     form: Literal["linear", "exponential"] = Field("linear", description="linear: 1 + lift·intensity | exponential: "
                                                                         "e^(lift·intensity) (log-linear; 20% off at lift 1.65 ≈ +39%).")
-    dip: Number = Field(0, description="Demand lost after a promotion per unit of promotion still remembered (pull-forward).")
+    dip: Number = Field(0.0, description="Demand lost after a promotion per unit of promotion still remembered (pull-forward).")
     retain: Number = Field(0.5, description="Share of the remembered promotion kept each step (how long the dip lasts).")
     half_life: Optional[Number] = Field(None, description="Steps for the remembered promotion to halve (instead of retain).")
 
@@ -154,8 +154,8 @@ def _promotion(ctx: Any) -> float:
 class ReferencePriceConfig(_Memory):
     kind: Literal["reference_price"] = "reference_price"
     retain: Number = Field(0.7, description="Weight of the old reference when it updates toward the price paid.")
-    gain: Number = Field(1, description="Demand gained per share the price is below the reference.")
-    loss: Number = Field(2, description="Demand lost per share the price is above it (losses loom larger).")
+    gain: Number = Field(1.0, description="Demand gained per share the price is below the reference.")
+    loss: Number = Field(2.0, description="Demand lost per share the price is above it (losses loom larger).")
     output: Literal["effect", "reference"] = Field("effect", description="effect: the demand multiplier | reference: the remembered price.")
 
 

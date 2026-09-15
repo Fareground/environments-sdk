@@ -21,7 +21,7 @@ __all__ = ["LedgerConfig"]
 class CurrencySpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    start: Union[float, str] = Field(0, description="Starting balance of every holder (number or expression).")
+    start: Union[float, str] = Field(0.0, description="Starting balance of every holder (number or expression).")
     credit: Union[float, str, None] = Field(None, description="How far below zero a holder may go (number or expression); none when omitted.")
     unit: str = Field("", description="Unit shown with amounts.")
     value: float = Field(1, description="Worth of one unit in $net_worth.")
@@ -62,7 +62,7 @@ class LoanSpec(BaseModel):
     currency: Optional[str] = None
     rate_min: float = Field(0, ge=0, description="Lowest interest per round.")
     rate_max: float = Field(0.2, ge=0, description="Highest interest per round.")
-    max_amount: Union[float, str] = Field(1000, description="Largest loan (number or expression over $actor).")
+    max_amount: Union[float, str] = Field(1000.0, description="Largest loan (number or expression over $actor).")
     max_term: int = Field(12, ge=1, description="Longest term in rounds.")
     grace: int = Field(0, ge=0, description="Rounds after the due date before an unpaid loan defaults.")
     on_default: List[Any] = Field([], description="Effects when a loan defaults ($loan, $lender, $borrower, $unpaid).")

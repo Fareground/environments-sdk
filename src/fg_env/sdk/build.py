@@ -7,7 +7,8 @@ import math
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from ..entity import Entity
-from .contract import MAX_POPULATION, MAX_ROUNDS, Contract, LinkSpec, PopulationSpec
+from .assets.store import AssetStore
+from .contract import MAX_POPULATION, MAX_ROUNDS, MAX_STAGE_PASSES, Contract, LinkSpec, PopulationSpec
 from .effects import EffectRunner
 from .errors import RunError
 from .expr import ExprError, compile_expr, is_expr, resolve, truthy  # noqa: F401
@@ -19,12 +20,16 @@ from . import networks as _networks  # noqa: F401  (registers network and keyed-
 __all__ = ["build_world"]
 
 
-def build_world(contract: Contract, inputs: Dict[str, Any], seeds: SeedTree, arm: Optional[str] = None) -> SdkWorld:
+def build_world(contract: Contract, inputs: Dict[str, Any], seeds: SeedTree, arm: Optional[str] = None,
+                assets: Optional[AssetStore] = None) -> SdkWorld:
     world = SdkWorld(contract, inputs, seeds, arm)
+    if assets is not None:
+        world.assets = assets
     world.rng = seeds.rng("build")
     pending_briefs: List[Tuple[str, str, Dict[str, Any], str]] = []
     try:
         world.rounds = _rounds(world)
+        _count_settings(world)
         world.round = 0
         world.build_space()
         _world_props(world)
@@ -95,6 +100,32 @@ def _rounds(world: SdkWorld) -> int:
     if rounds > MAX_ROUNDS:
         raise RunError(f"{rounds:,} rounds is more than the limit of {MAX_ROUNDS:,}", "clock.rounds")
     return rounds
+
+
+def whole_setting(world: SdkWorld, raw: Any, path: str, limit: Optional[int] = None) -> Optional[int]:
+    """A count setting (a stage's `passes`, an event's `every`): a literal as written, or an expression over
+    $inputs giving a whole number ≥ 1. Inputs never change during a run, so reading it again gives the same number."""
+    if not isinstance(raw, str):
+        return raw
+    try:
+        value = compile_expr(raw)(world.scope())
+    except ExprError as exc:
+        raise RunError(str(exc), path) from None
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise RunError(f"must be a whole number ≥ 1, got {value!r}", path)
+    if limit is not None and value > limit:
+        raise RunError(f"is {value:,}, above the ceiling of {limit:,}", path)
+    return value
+
+
+def _count_settings(world: SdkWorld) -> None:
+    """Expression counts fail at load, not in the round that first reads them."""
+    for stage in world.contract.stage_list():
+        whole_setting(world, stage.passes, f"stages.{stage.name}.passes", MAX_STAGE_PASSES)
+    for index, event in enumerate(world.contract.events):
+        whole_setting(world, event.every, f"events[{index}].every")
 
 
 def _capped(count: int, path: str) -> int:

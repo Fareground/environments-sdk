@@ -5,12 +5,13 @@ reference, field by field, is generated from these models (see ``fg_env.guide()`
 """
 from __future__ import annotations
 
-from typing import Annotated, Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
 from pydantic import (BaseModel, BeforeValidator, ConfigDict, Field, PrivateAttr, WithJsonSchema, field_validator,
                       model_validator)
 from pydantic_core import PydanticCustomError
 
+from .assets.spec import AssetSpec
 from .game_spec import UTILITIES, GameSpec
 from .host.tape import TAPE, tape_prop
 
@@ -45,6 +46,7 @@ __all__ = [
     "OutputSpec",
     "EndSpec",
     "ArmSpec",
+    "AssetSpec",
     "GameSpec",
     "UTILITIES",
     "DefSpec",
@@ -68,8 +70,8 @@ __all__ = [
 CONTRACT_VERSION = "1"
 
 INPUT_TYPES = ("number", "int", "bool", "text", "enum", "list", "table", "map", "date", "any")
-PROP_TYPES = ("number", "int", "bool", "text", "enum", "list", "map", "any")
-PARAM_TYPES = ("number", "int", "bool", "text", "enum", "entity", "list")
+PROP_TYPES = ("number", "int", "bool", "text", "enum", "list", "map", "any", "asset")
+PARAM_TYPES = ("number", "int", "bool", "text", "enum", "entity", "list", "file")
 #: Most items a list argument may hold.
 MAX_LIST_ITEMS = 1_000
 OUTPUT_TYPES = ("number", "int", "bool", "text", "list", "map", "any")
@@ -162,6 +164,7 @@ class Brief(_Model):
     situation: str = Field("", description="What this world is and what is going on (template; {$inputs.x} works).")
     rules: str = Field("", description="How it works: what agents can do and what happens (template).")
     roles: Dict[str, str] = Field(default_factory=dict, description="Extra brief per agent type (template over $actor).")
+    attach: Optional[str] = Field(None, description="Assets every agent receives with its brief: an expression over $actor giving an asset id, a list of them, or null.")
 
 
 class Clock(_Model):
@@ -293,7 +296,7 @@ class MixSpec(_Model):
     """One archetype (segment) of a population mix."""
 
     name: str
-    weight: Union[float, str] = Field(1, description="Share of the population (relative; number or expression over $inputs).")
+    weight: Union[float, str] = Field(1.0, description="Share of the population (relative; number or expression over $inputs).")
     props: Dict[str, Any] = Field(default_factory=dict, description="Trait values or expressions for this archetype (over $row, $i, $it).")
     brief: Optional[str] = Field(None, description="Extra private brief text for members of this archetype.")
 
@@ -481,6 +484,8 @@ class ParamSpec(_Model):
     default: Any = None
     required: Optional[bool] = Field(None, description="Defaults to true unless a default is given.")
     invalid: Optional[str] = Field(None, description="What the agent is told when its value is not valid (template over $actor, $params, $value).")
+    kinds: Optional[List[str]] = Field(None, description="Type file: the asset types accepted (image, pdf, text, audio, file; default all).")
+    max_bytes: Optional[int] = Field(None, description="Type file: the largest file accepted (default: the largest for its kinds).")
     description: str = ""
 
     @model_validator(mode="before")
@@ -517,6 +522,7 @@ class ActionSpec(_Model):
     per_round: Optional[int] = Field(None, description="Max uses per round.")
     duration: Union[float, str, None] = Field(None, description="Continuous clock: how long it takes (number or expression over $actor, $params); the actor's next scheduled turn comes that much later.")
     tool: Optional[str] = Field(None, description="Offer this action inside one tool of this name, shared by every action naming it: the agent picks the action with the tool's `action` argument, which lists the ones legal now.")
+    attach: Optional[str] = Field(None, description="Assets the actor receives with the result (an expression over $actor, $params giving an asset id, a list or null); a sealed choice's arrive with its outcome.")
 
     @model_validator(mode="before")
     @classmethod
@@ -538,7 +544,7 @@ class StageSpec(_Model):
     order: str = Field("seat", description="seat | random | expression over $it (lowest first).")
     who: Optional[str] = Field(None, description="Which agents are woken ($it); e.g. $it.alive && $chance(0.3).")
     until: Optional[str] = Field(None, description="Repeat turns within the round until true.")
-    passes: Optional[int] = Field(None, description="Max passes through the agents (default 1, or 10 with until).")
+    passes: Union[int, str, None] = Field(None, description="Max passes through the agents (default 1, or 10 with until): a number or an expression over $inputs.")
     quiet: str = Field("wake", description="wake | skip — skip agents with nothing new since their last turn.")
     max_actions: int = Field(1, description="Actions an agent may take per turn.")
     max_calls: int = Field(8, description="Tool calls (including looks) per turn.")
@@ -564,7 +570,7 @@ class StageSpec(_Model):
 
     @field_validator("passes")
     @classmethod
-    def _passes_ceiling(cls, value: Optional[int]) -> Optional[int]:
+    def _passes_ceiling(cls, value: Any) -> Any:
         return _ceiling(value, MAX_STAGE_PASSES, "use fewer passes; a stage that needs this many never settles")
 
     @field_validator("max_calls")
@@ -595,6 +601,7 @@ class ViewSpec(_Model):
     look: bool = Field(False, description="Offer it on demand as look(view) instead of always including it.")
     bullet: bool = Field(True, description="Prefix each item with '- ' (false for boards and tables).")
     only_changes: bool = Field(False, description="Include it only when it changed since the agent's last turn.")
+    attach: Optional[str] = Field(None, description="Assets delivered with the view: an expression giving an asset id, a list or null — per listed item ($it) with `of`, else once ($actor).")
 
 
 class EventSpec(_Model):
@@ -602,7 +609,7 @@ class EventSpec(_Model):
 
     name: Optional[str] = None
     at: Union[int, List[int], str, None] = Field(None, description="Round(s) it fires.")
-    every: Optional[int] = Field(None, description="Fires every N rounds.")
+    every: Union[int, str, None] = Field(None, description="Fires every N rounds, from round 1: a number or an expression over $inputs.")
     when: Optional[str] = Field(None, description="Fires when true.")
     chance: Union[float, str, None] = Field(None, description="Probability of firing when otherwise due.")
     phase: str = Field("start", description="start (before stages) | end (after stages).")
@@ -744,6 +751,26 @@ class InvariantSpec(_ExprShorthand):
 # ---------------------------------------------------------------------------
 
 
+class CalibrationSpec(_Model):
+    """A quick pilot calibration run whenever the contract loads: inputs are fitted so short pilot sessions hit the
+    targets, and the session runs with the fitted values (``env.inputs``, ``result.inputs``; the fit is in
+    ``env.calibration``). Deterministic given the session's seed. It costs ``budget × runs`` pilot sessions plus
+    ``holdout`` at every load that does not set a fitted input itself — setting one (or sweeping it) skips it.
+
+    A pilot fit is only as steady as its pilots: a noisy target (a volatility over a few dozen bars) fitted with one
+    short pilot per point can land anywhere in the range, even on its bounds (check ``env.calibration``). Longer
+    pilots, more ``runs`` per point, a larger ``holdout`` and a range no wider than plausible make it reliable."""
+
+    params: Dict[str, Dict[str, Any]] = Field(..., min_length=1, description="{input: {low?, high?, log?}}: number or int inputs to fit (the range defaults to the input's min and max).")
+    targets: Dict[str, Any] = Field(..., min_length=1, description="{output or metric: target} as fg_env.calibrate takes them; a number (or a stat target's `value`) may be an expression over $inputs and $world, read from the world this session builds.")
+    inputs: Dict[str, Any] = Field(default_factory=dict, description="Inputs of the pilot sessions only, e.g. fewer bars; the session's own inputs apply underneath.")
+    runs: int = Field(2, ge=1, le=20, description="Pilot sessions per evaluated point.")
+    budget: int = Field(6, ge=2, le=50, description="Distinct points evaluated.")
+    holdout: int = Field(1, ge=1, le=20, description="Pilot sessions on fresh seeds that validate the fit.")
+    method: Literal["auto", "bisection", "golden", "nelder_mead", "cross_entropy"] = Field("auto", description="Search method (see fg_env.calibrate).")
+    workers: int = Field(1, ge=1, le=64, description="Pilot sessions run in this many processes at once.")
+
+
 class Contract(_Model):
     """An environment: world, people, rules, what agents see, what is measured."""
 
@@ -752,6 +779,7 @@ class Contract(_Model):
     description: str = ""
     imports: List[str] = Field(default_factory=list, description="Contract files merged into this one (paths relative to this file, inside its folder); this contract's own entries win. Imported files may import others.")
     brief: Brief = Field(default_factory=Brief)
+    assets: Dict[str, AssetSpec] = Field(default_factory=dict, description="Files beside the contract (images, PDFs, text, audio) by id; see guide('assets').")
     inputs: Dict[str, InputSpec] = Field(default_factory=dict)
     clock: Clock = Field(default_factory=Clock)
     space: Optional[Space] = None
@@ -777,6 +805,7 @@ class Contract(_Model):
     outputs: Dict[str, OutputSpec] = Field(default_factory=dict)
     end: List[EndSpec] = Field(default_factory=list)
     arms: Dict[str, ArmSpec] = Field(default_factory=dict)
+    calibration: Optional[CalibrationSpec] = Field(None, description="Inputs fitted by short pilot sessions whenever the contract loads.")
     game: Optional[GameSpec] = Field(None, description="Seats, returns and utility for game and learning interfaces.")
     invariants: List[InvariantSpec] = Field(default_factory=list)
     defs: Dict[str, DefSpec] = Field(default_factory=dict, description="Reusable expressions, called as $name(args).")
@@ -791,9 +820,11 @@ class Contract(_Model):
     @model_validator(mode="before")
     @classmethod
     def _feed_tape(cls, data: Any) -> Any:
-        """Feeds record their answers on the host tape, so a contract with feeds declares it."""
+        """Feeds and described assets record their answers on the host tape, so such a contract declares it."""
         world = data.get("world") if isinstance(data, dict) else None
-        if isinstance(data, dict) and data.get("feeds") and isinstance(world or {}, dict) and TAPE not in (world or {}):
+        assets = data.get("assets") if isinstance(data, dict) else None
+        described = isinstance(assets, dict) and any(isinstance(a, dict) and a.get("describe") for a in assets.values())
+        if isinstance(data, dict) and (data.get("feeds") or described) and isinstance(world or {}, dict) and TAPE not in (world or {}):
             data = {**data, "world": {**(world or {}), TAPE: tape_prop()}}
         return data
 

@@ -312,8 +312,8 @@ class EffectRunner:
             value = self._set_in(attr(owner, prop, source), rest, stmt.op, value, source, prop)
         elif stmt.op != "=":
             value = self._combine(stmt.op, attr(owner, prop, source), value, source)
-        if stmt.op == "=" and self.world.sealed_writes is not None and isinstance(owner, (Entity, PropsView)):
-            self.world.sealed_writes.assigned(owner, prop, [key for _, key in rest], value, source)
+        if stmt.op == "=" and self.world.watched_writes is not None and isinstance(owner, (Entity, PropsView)):
+            self.world.watched_writes.assigned(owner, prop, [key for _, key in rest], value, source)
         if isinstance(owner, Entity):
             self.world.set_prop(owner, prop, value)
         elif isinstance(owner, Link):
@@ -467,14 +467,23 @@ class EffectRunner:
         name = effect.get("as") or "it"
         items = _items(self._eval(effect["each"], vars), self.world, where)
         where_expr = effect.get("where")
-        for position, item in enumerate(items):
-            inner = {**vars, name: item, "i": position}
-            if where_expr is not None and not truthy(self._eval(where_expr, inner)):
-                continue
-            self.run(effect.get("do") or [], inner, f"{where}.do")
-            # Locals assigned in the body (running totals, a best-so-far) stay assigned after it;
-            # only the loop's own names are scoped to it.
-            vars.update((key, value) for key, value in inner.items() if key not in (name, "i"))
+        from .run_diagnosis import LoopWrites  # run_diagnosis reads actions, which run effects
+
+        watch = LoopWrites.start(self.world, effect, where)
+        try:
+            for position, item in enumerate(items):
+                inner = {**vars, name: item, "i": position}
+                if where_expr is not None and not truthy(self._eval(where_expr, inner)):
+                    continue
+                if watch is not None:
+                    watch.item, watch.position = item, position
+                self.run(effect.get("do") or [], inner, f"{where}.do")
+                # Locals assigned in the body (running totals, a best-so-far) stay assigned after it;
+                # only the loop's own names are scoped to it.
+                vars.update((key, value) for key, value in inner.items() if key not in (name, "i"))
+        finally:
+            if watch is not None:
+                self.world.watched_writes = None
 
     def _op_create(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
         count = self._eval(effect.get("count", 1), vars)

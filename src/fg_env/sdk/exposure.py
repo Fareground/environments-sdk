@@ -17,7 +17,8 @@ under its content hash, so a brief read on a hundred turns costs one copy. A wak
      "entries": [entry seq, ...],                        # record entries shown (as news or in a view)
      "view_events": [seq, ...],                          # log events listed inside views
      "tools": [name, ...], "tool_sets": [hash, ...],     # names offered; each distinct definition set
-     "calls": [{"tool", "args", "ok", "ended", "result": hash, "error"?}],
+     "calls": [{"tool", "args", "ok", "ended", "result": hash, "error"?, "assets": [hash, ...]?}],
+     "assets": [{"id", "hash", "in": "brief" | "update" | "call"}]?,   # files delivered (only when any were)
      "invalid": 0, "timed_out": false, "undone": 0, "usage": {...}?, "late_usage": {...}?,
      "steps": [["brief"], ["update"], ["tools"], ["call", tool, args], ["usage", {...}], ["timeout"], ...]}
 
@@ -138,6 +139,11 @@ class Exposure:
         else:
             self.log.index(record["entity"], shown)
 
+    def shown(self, assets: Iterable[Any], where: str) -> None:
+        """Note the files delivered to the agent (their ids and content hashes, never their bytes)."""
+        delivered = self.record.setdefault("assets", [])
+        delivered.extend({"id": asset.id, "hash": asset.hash, "in": where} for asset in assets)
+
     def offered(self, tools: Iterable["ToolSpec"]) -> None:
         listed = list(tools)
         record = self.record
@@ -154,6 +160,9 @@ class Exposure:
         error = result.data.get("error") if result.data else None
         if error:
             call["error"] = error
+        if result.attachments:
+            call["assets"] = [file.hash for file in result.attachments]
+            self.shown(result.attachments, "call")
         self.record["calls"].append(call)
 
     def used(self, counts: Mapping[str, int], late: bool = False) -> None:

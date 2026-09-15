@@ -24,7 +24,7 @@ def driver(ctx: Any, value: Any, what: str) -> float:
 class ElasticityConfig(PatternConfig):
     kind: Literal["elasticity"] = "elasticity"
     elasticity: Number = Field(..., description="% change in quantity per % change in price at the reference (−1.5).")
-    reference: Number = Field(1, description="The price where the effect is 1.")
+    reference: Number = Field(1.0, description="The price where the effect is 1.")
     form: Literal["constant", "linear"] = Field("constant", description="constant: (price/reference)^elasticity | "
                                                                        "linear: 1 + elasticity·(price/reference − 1), never below 0.")
 
@@ -49,7 +49,7 @@ class CrossPriceConfig(PatternConfig):
     kind: Literal["cross_price"] = "cross_price"
     reference: Union[Number, Dict[str, Number]] = Field(..., description="Reference price: one for all keys, or {key: price}.")
     own: Number = Field(..., description="Own-price elasticity (on the diagonal).")
-    cross: Number = Field(0, description="Cross-price elasticity toward the other keys (> 0: substitutes, < 0: complements).")
+    cross: Number = Field(0.0, description="Cross-price elasticity toward the other keys (> 0: substitutes, < 0: complements).")
     groups: Union[Dict[str, str], str, None] = Field(None, description="{key: group}: cross effects only within a group "
                                                                        "(tiers of the same part).")
     matrix: Union[List[List[Number]], str, None] = Field(None, description="Full elasticities instead of own/cross: "
@@ -95,13 +95,13 @@ class SaturationConfig(PatternConfig):
     kind: Literal["saturation"] = "saturation"
     form: Literal["hill", "logistic", "exponential"] = Field("hill", description="hill: limit·x^shape/(half^shape + x^shape) | "
                                                            "logistic: limit/(1 + e^(−steepness·(x − midpoint))) | exponential: limit·(1 − e^(−x/scale)).")
-    limit: Number = Field(1, description="The most it gives.")
-    base: Number = Field(0, description="Added to the result (the level with no driver).")
-    half: Number = Field(1, description="hill: the driver giving half the limit.")
-    shape: Number = Field(1, description="hill: steepness (> 1 is S-shaped).")
-    midpoint: Number = Field(0, description="logistic: the driver at half the limit.")
-    steepness: Number = Field(1, description="logistic: how sharp the rise is.")
-    scale: Number = Field(1, description="exponential: the driver that gives 63% of the limit.")
+    limit: Number = Field(1.0, description="The most it gives.")
+    base: Number = Field(0.0, description="Added to the result (the level with no driver).")
+    half: Number = Field(1.0, description="hill: the driver giving half the limit.")
+    shape: Number = Field(1.0, description="hill: steepness (> 1 is S-shaped).")
+    midpoint: Number = Field(0.0, description="logistic: the driver at half the limit.")
+    steepness: Number = Field(1.0, description="logistic: how sharp the rise is.")
+    scale: Number = Field(1.0, description="exponential: the driver that gives 63% of the limit.")
 
 
 @kind("saturation", "response", "response", SaturationConfig,
@@ -129,9 +129,9 @@ def _saturation(ctx: Any, x: Any) -> float:
 class ThresholdConfig(PatternConfig):
     kind: Literal["threshold"] = "threshold"
     at: Number = Field(..., description="The tipping point.")
-    below: Number = Field(0, description="Value below it.")
-    above: Number = Field(1, description="Value above it.")
-    width: Number = Field(0, description="0: a hard switch | > 0: a smooth one over about this width.")
+    below: Number = Field(0.0, description="Value below it.")
+    above: Number = Field(1.0, description="Value above it.")
+    width: Number = Field(0.0, description="0: a hard switch | > 0: a smooth one over about this width.")
 
 
 @kind("threshold", "response", "response", ThresholdConfig,
@@ -152,7 +152,7 @@ class LearningCurveConfig(PatternConfig):
     kind: Literal["learning_curve"] = "learning_curve"
     first: Number = Field(..., description="Cost (or time) of the first unit.")
     rate: Number = Field(0.8, description="Progress ratio: each doubling of cumulative units multiplies the cost by it.")
-    floor: Number = Field(0, description="Lowest it gets.")
+    floor: Number = Field(0.0, description="Lowest it gets.")
 
 
 @kind("learning_curve", "response", "response", LearningCurveConfig,
@@ -169,8 +169,8 @@ class NetworkConfig(PatternConfig):
     kind: Literal["network"] = "network"
     form: Literal["power", "log"] = Field("power", description="power: base + strength·users^exponent | log: base + strength·ln(1 + users).")
     strength: Number = Field(..., description="How much users add.")
-    exponent: Number = Field(1, description="power: 1 linear, 2 Metcalfe-like, < 1 diminishing.")
-    base: Number = Field(1, description="Value with no users.")
+    exponent: Number = Field(1.0, description="power: 1 linear, 2 Metcalfe-like, < 1 diminishing.")
+    base: Number = Field(1.0, description="Value with no users.")
 
 
 @kind("network", "response", "response", NetworkConfig,
@@ -191,10 +191,10 @@ class HazardConfig(PatternConfig):
         "constant", description="constant: the same chance at every age | weibull: rising (shape > 1) or falling (< 1) | "
                                 "loglogistic: rising then falling | table: one chance per age.")
     rate: Number = Field(0.05, description="constant: chance per `span`.")
-    shape: Number = Field(1, description="weibull, loglogistic: the curve's shape.")
-    scale: Number = Field(10, description="weibull, loglogistic: typical age, in clock units.")
+    shape: Number = Field(1.0, description="weibull, loglogistic: the curve's shape.")
+    scale: Number = Field(10.0, description="weibull, loglogistic: typical age, in clock units.")
     values: Union[List[Number], str, None] = Field(None, description="table: chance at age 0, 1, 2 … (the last repeats).")
-    span: Number = Field(1, description="Clock units the chance covers (usually one round).")
+    span: Number = Field(1.0, description="Clock units the chance covers (usually one round).")
 
 
 def _survival(ctx: Any, age: float) -> float:

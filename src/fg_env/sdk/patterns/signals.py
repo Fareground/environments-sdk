@@ -46,13 +46,13 @@ class TrendConfig(PatternConfig):
     kind: Literal["trend"] = "trend"
     form: Literal["linear", "exponential", "logistic"] = Field("linear", description="linear: start + slope·t | "
                                                            "exponential: start·e^(rate·t) | logistic: capacity / (1 + e^(−steepness·(t − midpoint))).")
-    start: Number = Field(1, description="Value at `origin` (linear, exponential).")
-    slope: Number = Field(0, description="Change per clock unit (linear).")
-    rate: Number = Field(0, description="Growth per clock unit, as a log rate: 0.01 ≈ +1% a unit (exponential).")
-    capacity: Number = Field(1, description="The level it saturates at (logistic).")
-    midpoint: Number = Field(0, description="Clock units after `origin` when it is half way (logistic).")
-    steepness: Number = Field(1, description="How fast it rises around the midpoint (logistic).")
-    origin: Union[float, str] = Field(0, description="Where t counts from: clock units from round 1, or an ISO date.")
+    start: Number = Field(1.0, description="Value at `origin` (linear, exponential).")
+    slope: Number = Field(0.0, description="Change per clock unit (linear).")
+    rate: Number = Field(0.0, description="Growth per clock unit, as a log rate: 0.01 ≈ +1% a unit (exponential).")
+    capacity: Number = Field(1.0, description="The level it saturates at (logistic).")
+    midpoint: Number = Field(0.0, description="Clock units after `origin` when it is half way (logistic).")
+    steepness: Number = Field(1.0, description="How fast it rises around the midpoint (logistic).")
+    origin: Union[float, str] = Field(0.0, description="Where t counts from: clock units from round 1, or an ISO date.")
 
 
 def _trend_words(cfg: TrendConfig) -> str:
@@ -91,8 +91,8 @@ class SeasonalConfig(PatternConfig):
                                                                   "of clock units. With clock.start, year, week and day follow the calendar.")
     profile: Union[List[Number], str, None] = Field(None, description="One value per slot of the period: 12 over a year are "
                                                                      "calendar months, 7 over a week weekdays (Monday first), 24 over a day hours; other counts are equal slices.")
-    amplitude: Number = Field(0, description="Height of a smooth yearly-style wave (0.2 = ±20% with form multiply).")
-    peak: Number = Field(0, description="Where in the period the wave peaks, from 0 to 1 (0.5 = the middle).")
+    amplitude: Number = Field(0.0, description="Height of a smooth yearly-style wave (0.2 = ±20% with form multiply).")
+    peak: Number = Field(0.0, description="Where in the period the wave peaks, from 0 to 1 (0.5 = the middle).")
     harmonics: Union[List[List[Number]], str, None] = Field(None, description="[[sin, cos], …]: the k-th pair is a wave "
                                                                              "k times per period (fitted by harmonic regression).")
     form: Literal["multiply", "add"] = Field("multiply", description="multiply: an index around 1 (profile × (1 + waves)) | "
@@ -261,9 +261,9 @@ def _calendar_effects(ctx: Any) -> float:
 class CycleConfig(PatternConfig):
     kind: Literal["cycle"] = "cycle"
     period: Number = Field(..., description="Clock units per cycle (a business cycle of 20 weeks: 20).")
-    amplitude: Number = Field(1, description="Height above and below the level.")
-    level: Number = Field(0, description="The centre it swings around.")
-    phase: Number = Field(0, description="Share of a cycle it is shifted later, from 0 to 1.")
+    amplitude: Number = Field(1.0, description="Height above and below the level.")
+    level: Number = Field(0.0, description="The centre it swings around.")
+    phase: Number = Field(0.0, description="Share of a cycle it is shifted later, from 0 to 1.")
     shape: Literal["sine", "square", "triangle", "sawtooth"] = Field("sine", description="The wave's shape.")
 
 
@@ -297,10 +297,10 @@ class LifecycleConfig(PatternConfig):
     kind: Literal["lifecycle"] = "lifecycle"
     start: Union[float, str, List[Moment]] = Field(..., description="When it begins: clock units, an ISO date, or a list "
                                                                     "(one curve per start, multiplied: each later model launch).")
-    before: Number = Field(1, description="Value before the start.")
-    peak: Number = Field(1, description="Value when the ramp ends.")
-    floor: Number = Field(0, description="Level it decays toward.")
-    ramp: Number = Field(0, description="Clock units rising from `before` to `peak` after the start.")
+    before: Number = Field(1.0, description="Value before the start.")
+    peak: Number = Field(1.0, description="Value when the ramp ends.")
+    floor: Number = Field(0.0, description="Level it decays toward.")
+    ramp: Number = Field(0.0, description="Clock units rising from `before` to `peak` after the start.")
     half_life: Optional[Number] = Field(None, description="Clock units for the gap above the floor to halve.")
     rate: Optional[Number] = Field(None, description="Decay per clock unit as a log rate (instead of half_life).")
 
@@ -364,7 +364,7 @@ class StepChange(BaseModel):
 
 class StepConfig(PatternConfig):
     kind: Literal["step"] = "step"
-    start: Number = Field(0, description="The value before any change.")
+    start: Number = Field(0.0, description="The value before any change.")
     changes: List[StepChange] = Field(..., description="[{at, to | by | times}]: changes that last (a new tax, a price list).")
 
 

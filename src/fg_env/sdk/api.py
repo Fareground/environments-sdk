@@ -7,10 +7,12 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
+from .assets.catalog import resolve_assets
 from .check import check_contract, parse_contract
 from .contract import Contract
 from .errors import ContractError, Issue, RunError
 from .inputs import resolve_inputs
+from .load_calibration import calibrate_at_load
 from .macros import expand_macros
 from .measure import RunResult
 from .runtime import Env
@@ -214,7 +216,8 @@ def check(source: ContractLike, rounds: int = 1, seed: int = 0) -> List[Issue]:
     warnings_from_smoke: List[Issue] = []
     if rounds > 0 and contract is not None and not errors:
         try:
-            result = load(contract, seed=seed, data_dir=default_data_dir(source)).run(_smoke_participant(seed), rounds=rounds)
+            result = load(contract, seed=seed, data_dir=default_data_dir(source), calibrate=False).run(
+                _smoke_participant(seed), rounds=rounds)
             if result.status == "failed":
                 errors.append(_run_issue(result.error or "the run failed"))
             for problem in result.output_issues:
@@ -281,7 +284,7 @@ def _merge(base: Any, patch: Any) -> Any:
 
 
 def default_data_dir(source: ContractLike, data_dir: Union[str, "os.PathLike[str]", None] = None) -> Optional[Path]:
-    """Where input data files are read from: ``data_dir`` when given, else the contract file's folder."""
+    """Where input data files and assets are read from: ``data_dir`` when given, else the contract file's folder."""
     if data_dir is not None:
         return Path(data_dir)
     if isinstance(source, os.PathLike) or (isinstance(source, str) and not source.lstrip().startswith(("{", "["))):
@@ -292,19 +295,21 @@ def default_data_dir(source: ContractLike, data_dir: Union[str, "os.PathLike[str
 def load(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, seed: Optional[int] = None,
          arm: Optional[str] = None, strict: bool = False, parallel: int = 8,
          data_dir: Union[str, "os.PathLike[str]", None] = None, hosts: Any = None, exposures: bool = False,
-         chance: Any = None) -> Env:
+         chance: Any = None, calibrate: bool = True) -> Env:
     """Check a contract and build a runnable :class:`Env`.
 
     Errors raise :class:`ContractError` listing every problem with a fix; ``strict=True``
     also rejects warnings. ``seed`` defaults to a fresh one (readable as ``env.seed``).
-    Inputs with a ``source`` read their data file from ``data_dir`` (default: the contract file's folder).
+    Inputs with a ``source`` and the contract's ``assets`` read their files from ``data_dir`` (default: the contract
+    file's folder).
     ``hosts`` (a :class:`~fg_env.sdk.host.Hosts` or a mapping of host name to adapter) answers the
     judgment the contract asks of a host; build-time host work (personas) is done before round 1.
     ``exposures=True`` records what every agent was shown on every wake (``result.exposures``); a
     contract that calls ``$seen`` records it anyway. ``chance`` decides `chance` effects: ``"sampled"`` (the
     default: drawn from the seeded stream) or a callable given each :class:`~fg_env.sdk.chance.ChanceNode`
     that returns the index of the outcome to take (a fixed deal, duplicate formats); :func:`fg_env.game`
-    enumerates chance for search.
+    enumerates chance for search. A contract with a ``calibration`` section fits its inputs with pilot sessions first
+    (``env.calibration`` is the report); ``calibrate=False`` skips that, as ``fg_env.check``'s smoke round does.
     """
     contract, issues = _check_all(source)
     blocking = [i for i in issues if i.severity == "error" or strict]
@@ -321,8 +326,18 @@ def load(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, se
                 raise ContractError(errors, title=f"arm '{arm}' makes the contract invalid")
         merged.update(contract.arms[arm].inputs)
     merged.update(inputs or {})
-    resolved = resolve_inputs(contract, merged, default_data_dir(source, data_dir))
-    env = Env(contract, resolved, mint_seed() if seed is None else seed, arm, parallel, exposures)
+    folder = default_data_dir(source, data_dir)
+    resolved = resolve_inputs(contract, merged, folder)
+    assets = resolve_assets(contract, resolved, folder)
+    run_seed = mint_seed() if seed is None else seed
+    report = None
+    if calibrate and contract.calibration is not None:
+        report = calibrate_at_load(contract, merged, resolved, run_seed, arm,
+                                   lambda values: Env(contract, dict(values), run_seed, arm, parallel, False, assets))
+        if report is not None:
+            resolved = resolve_inputs(contract, {**merged, **report["params"]}, folder)
+    env = Env(contract, resolved, run_seed, arm, parallel, exposures, assets)
+    env.calibration = report
     env.origin.unarmed = unarmed
     if chance is not None:
         from .branch import use_chance
