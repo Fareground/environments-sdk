@@ -551,7 +551,7 @@ def _expand(name: str, config: FeedConfig, contract: Mapping[str, Any]) -> Dict[
     in_feed = {"type": "enum", "values": visible, "description": "The [id] of a post in your feed or trending."}
     feed_when = [{"expr": f"$len({visible}) > 0", "why": "There is no post to see: your feed and trending are empty."}]
     text = {"type": "text", "max_len": config.max_chars}
-    who = {"type": "entity", "of": accounts, "description": "The account."}
+    who = {"type": "entity", "of": accounts, "description": "The account (not yourself)."}
 
     def act(description: str, do: Dict[str, Any], params: Dict[str, Any], when: Optional[List[Any]] = None,
             **extra: Any) -> Dict[str, Any]:

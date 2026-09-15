@@ -36,10 +36,10 @@ def test_text_limits_are_stated_in_words_and_usage_caps_before_the_first_call():
                                     "params": {"text": {"type": "text", "max_len": 400, "description": "What you say."}}}}}
     say = _first_tools(contract, "ann")["tools"]["say"]
     assert say.description == "Say. Once per turn and at most 3 times per round."
-    assert say.input_schema["properties"]["text"]["description"] == "What you say. Up to 400 characters (about 60 words)."
+    assert say.input_schema["properties"]["text"]["description"] == "What you say. Up to 400 characters (about 50 words)."
     from fg_env.sdk.tool_text import text_limit
 
-    assert text_limit(600) == "Up to 600 characters (about 90 words)." and text_limit(4) == "Up to 4 characters (about 1 word)."
+    assert text_limit(600) == "Up to 600 characters (about 70 words)." and text_limit(4) == "Up to 4 characters (about 1 word)."
 
 
 def test_holdem_says_whether_a_hand_uses_the_hole_cards_or_is_on_the_board():
@@ -63,20 +63,47 @@ def test_a_silent_poker_player_is_reported_and_folds_visibly():
 
 def test_the_floor_refusal_says_what_to_do_before_and_after_raising_a_hand():
     texts = []
+    tools = {}
 
     def resident(wake):
         if wake.stage != "hall" or texts:
             return wake.end() if not wake.done else None
+        tools.update({tool.name: tool for tool in wake.tools})
         texts.append(wake.call("hall_speak", {"text": "Parks are good."}).text)
-        wake.call("hall_raise_hand", {})
+        texts.append(wake.call("hall_raise_hand", {}).text)
         texts.append(wake.call("hall_speak", {"text": "Parks are good."}).text)
         texts.append(wake.call("hall_raise_hand", {}).text)
         wake.end()
 
     fg_env.run(_example("town_hall.json"), {"r1": resident}, seed=1, inputs={"residents": 3}, rounds=1)
     assert texts[0] == "You cannot hall speak now: You do not hold the floor: raise your hand and wait to be recognized."
-    assert texts[1] == "You cannot hall speak now: Your hand is raised: wait to be recognized."
-    assert texts[2] == "You cannot hall raise hand now: Your hand is raised: wait to be recognized."
+    assert texts[1] == ("Your hand is raised. The chair gives the floor between turns: end your turn now; you will be "
+                        "woken when you hold the floor.")
+    assert texts[2] == "You cannot hall speak now: Your hand is raised: wait to be recognized."
+    assert texts[3] == "You cannot hall raise hand now: Your hand is raised: wait to be recognized."
+    assert tools["hall_raise_hand"].description.startswith(
+        "Ask the chair for the floor, then end your turn: you are woken when you hold the floor.")
+
+
+def test_a_refused_tool_name_points_to_the_shared_tool_form_and_to_end_turn_when_nothing_is_open():
+    contract = _example("town_hall.json")
+    contract["mechanisms"]["hall"]["tools"] = "one"
+    texts = []
+
+    def resident(wake):
+        if wake.stage == "hall" and not texts:
+            texts.append(wake.call("speak", {"text": "Parks are good."}).text)
+        if not wake.done:
+            wake.end()
+
+    fg_env.run(contract, {"r1": resident}, seed=1, inputs={"residents": 3}, rounds=1)
+    assert texts[0].startswith("'speak' is not a tool. Use hall with action: ") and "hall_" not in texts[0]
+    closed = {"name": "Closed", "clock": {"rounds": 1}, "types": {"p": {"agent": True, "props": {"score": 0}}},
+              "entities": {"ann": {"type": "p"}}, "stages": [{"name": "play"}],
+              "actions": {"move": {"by": "p", "when": ["$actor.score > 5"], "do": ["$actor.score += 1"]}}}
+    refused = []
+    fg_env.run(closed, {"ann": lambda wake: refused.append(wake.call("vote", {}).text)}, seed=1)
+    assert refused == ["'vote' is not a tool. No actions are available now — call end_turn."]
 
 
 def test_the_house_view_shows_the_ballot_count_only_while_voting_is_open():
@@ -170,3 +197,78 @@ def test_an_account_may_reply_to_a_trending_post_it_does_not_follow():
 
     fg_env.run(copy.deepcopy(contract), {"a": ann, "b": bo, "c": "idle"}, seed=1)
     assert outcome["reply"].ok, outcome["reply"].text
+
+
+def test_the_participants_guide_says_how_to_avoid_truncated_replies():
+    from fg_env.sdk.guide_text import RUNNING
+
+    assert "reasoning_effort=\"low\"" in RUNNING and "frequent decisions" in RUNNING
+
+
+def _talk(overflow=None):
+    text = {"type": "text", "max_len": 60, "description": "What you say."}
+    if overflow:
+        text["overflow"] = overflow
+    return {"name": "Square", "clock": {"rounds": 1}, "types": {"person": {"agent": True}},
+            "entities": {"ann": {"type": "person"}}, "stages": [{"name": "talk"}],
+            "records": {"chat": {"fields": {"text": "text"}, "show": "{author}: {text}"}},
+            "actions": {"say": {"by": "person", "params": {"text": text}, "do": [{"post": "chat", "text": "$params.text"}],
+                                "outcome": "Said.", "terminal": True}}}
+
+
+LONG = "The dam is fine, I checked it myself. Please stop sharing the rumor now. It is false."
+
+
+def test_long_text_is_refused_by_default_and_cut_after_the_last_sentence_that_fits_when_asked():
+    seen = {}
+
+    def speaker(wake):
+        seen["description"] = next(t for t in wake.tools if t.name == "say").input_schema["properties"]["text"]["description"]
+        seen["result"] = wake.call("say", {"text": LONG})
+        if not wake.done:
+            wake.end()
+
+    fg_env.run(_talk(), {"ann": speaker}, seed=1)
+    assert not seen["result"].ok and "the limit is 60" in seen["result"].text
+    result = fg_env.run(_talk("truncate"), {"ann": speaker}, seed=1)
+    assert seen["result"].ok
+    assert seen["result"].text == "Said. (Your text was cut to 37 of 85 characters; the rest was not said.)"
+    assert seen["description"] == ("What you say. Up to 60 characters (about 7 words); longer text is cut after the last "
+                                   "full sentence that fits.")
+    assert [e["data"]["fields"]["text"] for e in result.events if e["kind"] == "record"] == [LONG[:37]]
+
+
+def test_overflow_truncate_needs_a_text_parameter_with_a_limit():
+    contract = _talk("truncate")
+    del contract["actions"]["say"]["params"]["text"]["max_len"]
+    issues = [issue for issue in fg_env.check(contract, rounds=0) if "overflow" in str(issue)]
+    assert issues and issues[0].severity == "error"
+
+
+def test_werewolf_speech_that_runs_long_is_cut_not_lost():
+    seen = []
+    first_try = ("Hugo here. Nothing strong yet, and I won't pretend otherwise. Two observations: the near-unanimous "
+                 "\"Ada was too eager\" chorus is real, but it's also the safest line to echo — Greta's right not to let it "
+                 "harden into today's exile. And \"let's hear from the quiet seats\" spreads suspicion thin, as Finn "
+                 "noted. My weak read: wolves are more likely among those shaping the frame early and steering "
+                 "consensus than in silence. I'll decide my vote late and watch who pushes a fast bandwagon.")
+
+    def player(wake):
+        if wake.stage == "day_discussion" and not seen and any(t.name == "say" for t in wake.tools):
+            seen.append(wake.call("say", {"text": first_try}))
+        if not wake.done and any(t.kind == "end" for t in wake.tools):
+            wake.end()
+
+    fg_env.run(_example("werewolf.json"), {"*": "random", "p8": player}, seed=2, rounds=1)
+    assert seen and seen[0].ok and "was cut to" in seen[0].text
+
+
+def test_the_social_follow_target_lists_the_accounts_and_the_brief_says_the_fact_desk_is_not_one():
+    seen = _first_tools(_example("social_network.json"), "u1", inputs={"accounts": 150})
+    who = seen["tools"]["net_follow"].input_schema["properties"]["who"]
+    assert who["description"] == "The account (not yourself). One of: u1–u150."
+    assert "checker" not in seen["tools"]["inspect"].description
+    briefs = []
+    fg_env.run(_example("social_network.json"), {"u1": lambda wake: briefs.append(wake.brief)}, seed=1,
+               inputs={"accounts": 150}, rounds=1)
+    assert "fact desk" in briefs[0] and "cannot be followed" in briefs[0]

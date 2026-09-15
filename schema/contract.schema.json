@@ -2056,6 +2056,16 @@
           "description": "Maximum length (type text).",
           "title": "Max Len"
         },
+        "overflow": {
+          "default": "refuse",
+          "description": "Type text: text longer than `max_len` is refused (the agent is told to shorten it), or with `truncate` cut after the last full sentence that fits (the agent is told what was cut).",
+          "enum": [
+            "refuse",
+            "truncate"
+          ],
+          "title": "Overflow",
+          "type": "string"
+        },
         "items": {
           "anyOf": [
             {

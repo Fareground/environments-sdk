@@ -45,7 +45,7 @@
   },
   "brief": {
     "situation": "A city's residents use a follower network. A false rumor says the river dam has cracked.",
-    "rules": "Each hour read your feed and do one thing: post, like, repost, reply, follow or block, or nothing. Your feed ranks recent posts from accounts you follow by engagement and recency.",
+    "rules": "Each hour read your feed and do one thing: post, like, repost, reply, follow or block, or nothing. Your feed ranks recent posts from accounts you follow by engagement and recency. The City fact desk labels misleading posts; it is not an account and cannot be followed.",
     "roles": {
       "fact_checker": "You check claims. Label posts spreading the dam rumor misleading."
     }
