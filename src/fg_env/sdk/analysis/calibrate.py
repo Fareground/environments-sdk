@@ -45,8 +45,6 @@ _ZERO_SCALE = 1.0
 _NOISE_RESAMPLES = 200
 #: Evaluated points within this many objective standard errors of the best are "equally good".
 _PLAUSIBLE_SE = 2.0
-#: Cross-entropy population per generation, per parameter, and the share kept as elite.
-_CE_POPULATION_PER_DIM, _CE_ELITE_SHARE = 6, 0.25
 #: A target making up at least this share of the misfit at the best fit, with at most half the weight, is called out.
 _DOMINANT_SHARE = 0.75
 
@@ -487,10 +485,8 @@ def _search(method: str, names: List[str], goals: List[Target], evaluator: optim
         optimize.nelder_mead(evaluator, dims)
         return "nelder_mead"
     if method == "cross_entropy":
-        population = _CE_POPULATION_PER_DIM * dims
-        elite = max(2, int(population * _CE_ELITE_SHARE))
-        optimize.cross_entropy(evaluator, dims, SeedTree(seed).rng("cross-entropy"), population, elite,
-                               generations=max(1, budget // population))
+        population, elite, generations = optimize.cross_entropy_sizes(dims, budget)
+        optimize.cross_entropy(evaluator, dims, SeedTree(seed).rng("cross-entropy"), population, elite, generations)
         return "cross_entropy"
     raise ValueError(f"method must be auto, bisection, golden, nelder_mead or cross_entropy, got {method!r}")
 
