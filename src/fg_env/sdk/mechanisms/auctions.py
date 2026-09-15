@@ -14,6 +14,10 @@ until it closes:
 * ``dutch`` — a descending clock starts at ``start_price`` and falls by ``decrement`` each round;
   the first bid at or above the clock takes the lot at the clock price. It closes unsold below the
   reserve.
+* ``combinatorial`` — sealed package bids on bundles of distinct ``items``; each bidder wins at most
+  one of its packages and each item goes to one winner, chosen exactly to raise the most over the
+  per-item reserves (:mod:`.package_auction`). Winners pay VCG prices (or their bids); a bidder's
+  escrow is its highest package bid.
 
 Every bid escrows its money (and every ask its units) so a winner can always pay; losers and
 change are refunded from escrow. Proceeds go to the ``seller`` entity, or to
@@ -22,7 +26,7 @@ change are refunded from escrow. Proceeds go to the ``seller`` entity, or to
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, List, Literal, Mapping, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Mapping, Optional, Tuple, Union, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -33,11 +37,12 @@ from ..registry import MechanismError, effect_op, mechanism
 from ..world import Abort
 from .common import config_of, entity_of, fmt, name_check, number
 from .ledger import Account, balance, clean, move
+from .package_auction import MAX_PACKAGE_BIDS, MAX_PACKAGE_ITEMS, PackageBid, SearchLimit, settle
 
 __all__ = ["AuctionConfig", "FORMATS", "SEALED"]
 
-FORMATS = ("first_price", "second_price", "english", "dutch", "double", "uniform")
-SEALED = ("first_price", "second_price", "double", "uniform")
+FORMATS = ("first_price", "second_price", "english", "dutch", "double", "uniform", "combinatorial")
+SEALED = ("first_price", "second_price", "double", "uniform", "combinatorial")
 
 
 class AuctionConfig(BaseModel):
@@ -45,8 +50,9 @@ class AuctionConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    format: Literal["first_price", "second_price", "english", "dutch", "double", "uniform"] = Field(
-        ..., description="first_price | second_price (Vickrey) | english | dutch | double | uniform (multi-unit).")
+    format: Literal["first_price", "second_price", "english", "dutch", "double", "uniform", "combinatorial"] = Field(
+        ..., description="first_price | second_price (Vickrey) | english | dutch | double | uniform (multi-unit) | "
+                         "combinatorial (package bids on `items`).")
     bidders: str = Field(..., description="Agent type that bids (subtypes included).")
     sellers: Optional[str] = Field(None, description="double: agent type that asks (default: the bidders).")
     cash: str = Field("cash", description="Property holding cash.")
@@ -61,6 +67,10 @@ class AuctionConfig(BaseModel):
     timeout: int = Field(1, ge=1, description="english: rounds without a new bid before the lot closes.")
     ties: Literal["first", "random"] = Field("first", description="Equal bids: the earliest wins, or a seeded random one.")
     price_rule: Literal["lowest_accepted", "highest_rejected"] = Field("lowest_accepted", description="uniform: the clearing price.")
+    items: List[str] = Field(default_factory=list, description="combinatorial: the distinct items for sale, bid on in packages.")
+    reserves: Dict[str, Union[float, str]] = Field(default_factory=dict, description="combinatorial: reserve per item (number or expression); others use `reserve`.")
+    packages: int = Field(3, ge=1, le=8, description="combinatorial: most package bids one bidder may hold (it wins at most one).")
+    payment: Literal["vcg", "pay_bid"] = Field("vcg", description="combinatorial: vcg (winners pay the value they displace; truthful bids are safe) | pay_bid.")
     when: Optional[str] = Field(None, description="Open lots only when true (e.g. \"$round <= 3\").")
     stage: Optional[str] = Field(None, description="Bid during this declared stage; default: a stage named after the auction.")
     conserve: bool = Field(True, description="Declare invariants that cash and units are conserved and escrow matches bids.")
@@ -91,10 +101,11 @@ def _parties(world: Any, cfg: AuctionConfig) -> List[Entity]:
 
 
 def _payee(world: Any, name: str, cfg: AuctionConfig) -> Tuple[Account, Account]:
-    """Where money goes and units come from."""
+    """Where money goes and units come from (a combinatorial lot's items always come from the house list)."""
     if cfg.seller:
         seller = entity_of(world, cfg.seller, f"mechanisms.{name}.seller", "the seller")
-        return Account(seller, cfg.cash), Account(seller, f"{name}_units")
+        source = Account(None, f"{name}_stock") if cfg.format == "combinatorial" else Account(seller, f"{name}_units")
+        return Account(seller, cfg.cash), source
     return Account(None, f"{name}_revenue"), Account(None, f"{name}_stock")
 
 
@@ -110,7 +121,7 @@ def min_bid(world: Any, name: str) -> float:
         return float(lot["price"]) + cfg.increment
     if cfg.format == "dutch" and lot.get("open"):
         return float(lot["price"])
-    return 0.0 if cfg.format == "double" else reserve
+    return 0.0 if cfg.format in ("double", "combinatorial") else reserve
 
 
 def _receipt(world: Any, name: str, text: str) -> str:
@@ -140,7 +151,7 @@ def open_lot(world: Any, name: str) -> None:
                                     "price": price, "leader": None, "last_bid": world.round, "bids": []})
 
 
-def bid(world: Any, name: str, trader: Entity, side: str, price: Any, qty: Any = 1) -> str:
+def bid(world: Any, name: str, trader: Entity, side: str, price: Any, qty: Any = 1, items: Any = None) -> str:
     cfg = auction_config(world, name)
     lot = _lot(world, name)
     if not lot.get("open"):
@@ -157,6 +168,8 @@ def bid(world: Any, name: str, trader: Entity, side: str, price: Any, qty: Any =
         raise Abort("This auction sells one unit at a time; bid for qty 1.")
     if cfg.format in ("uniform", "double") and qty > cfg.units:
         raise Abort(f"Bid or ask for at most {cfg.units} units.")
+    if cfg.format == "combinatorial":
+        return _bid_package(world, name, cfg, trader, price, items, lot)
     floor = min_bid(world, name)
     if side == "bid" and price < floor - 1e-9:
         raise Abort(f"Your bid must be at least {fmt(floor, 4)}.")
@@ -217,14 +230,16 @@ def _won(world: Any, name: str, trader: Entity, qty: int) -> None:
 
 
 def _close(world: Any, name: str, cfg: AuctionConfig, lot: Dict[str, Any], winners: List[Tuple[str, int, float]],
-           note: str) -> None:
+           note: str, packages: Optional[Mapping[str, List[str]]] = None) -> None:
     lot = {**lot, "open": False, "bids": []}
     world.set_world(f"{name}_lot", lot)
     if winners:
         world.set_world(f"{name}_sold", int(world.props.get(f"{name}_sold") or 0) + sum(q for _, q, _ in winners))
     for winner, qty, price in winners or [("", 0, 0.0)]:
-        world.post(f"{name}_results", {"lot": lot["number"], "winner": winner, "price": clean(price), "qty": qty, "note": note},
-                   None, None, f"mechanisms.{name}")
+        fields: Dict[str, Any] = {"lot": lot["number"], "winner": winner, "price": clean(price), "qty": qty, "note": note}
+        if cfg.format == "combinatorial":
+            fields["items"] = list((packages or {}).get(winner, []))
+        world.post(f"{name}_results", fields, None, None, f"mechanisms.{name}")
 
 
 def _order(world: Any, cfg: AuctionConfig, bids: List[Dict[str, Any]], descending: bool) -> List[Dict[str, Any]]:
@@ -254,6 +269,9 @@ def close_sealed(world: Any, name: str) -> None:
     bids = _order(world, cfg, [b for b in lot["bids"] if b["side"] == "bid"], True)
     if cfg.format == "double":
         _clear_double(world, name, cfg, lot, bids)
+        return
+    if cfg.format == "combinatorial":
+        _clear_packages(world, name, cfg, lot)
         return
     reserve = _reserve(world, name, cfg)
     supply = cfg.units if cfg.format == "uniform" else 1
@@ -331,6 +349,84 @@ def _clear_double(world: Any, name: str, cfg: AuctionConfig, lot: Dict[str, Any]
            note=f"double auction cleared at {fmt(price, 4)}" if trades else "no bid met an ask")
 
 
+def _item_reserves(world: Any, name: str, cfg: AuctionConfig) -> Dict[str, float]:
+    return {item: number(world, cfg.reserves.get(item, cfg.reserve), f"mechanisms.{name}.reserves.{item}") for item in cfg.items}
+
+
+def _bid_package(world: Any, name: str, cfg: AuctionConfig, trader: Entity, price: float, items: Any,
+                 lot: Dict[str, Any]) -> str:
+    """A sealed XOR package bid: a new package, or a new price for one the bidder already bid on."""
+    left = list(world.props.get(f"{name}_items") or [])
+    if not isinstance(items, (list, tuple)) or not items or not all(isinstance(i, str) for i in items):
+        raise Abort(f"List the items you want together, e.g. [{', '.join(left[:2])}].")
+    wanted = list(dict.fromkeys(items))
+    missing = [item for item in wanted if item not in left]
+    if missing:
+        raise Abort(f"Not for sale now: {', '.join(missing)} (for sale: {', '.join(left) or 'nothing'}).")
+    reserves = _item_reserves(world, name, cfg)
+    floor = sum(reserves[item] for item in wanted)
+    if price < floor - 1e-9:
+        raise Abort(f"Your bid for {' + '.join(wanted)} must be at least {fmt(floor, 4)} (the items' reserves).")
+    bids = lot["bids"]
+    mine = [b for b in bids if b["bidder"] == trader.id]
+    same = next((b for b in mine if set(b["items"]) == set(wanted)), None)
+    if same is None and len(mine) >= cfg.packages:
+        raise Abort(f"You already hold {cfg.packages} package bids; bid on one of those packages again to change its price.")
+    if same is None and len(bids) >= MAX_PACKAGE_BIDS:
+        raise Abort(f"This lot already holds {MAX_PACKAGE_BIDS} bids, the most it can settle exactly.")
+    seq = int(world.props.get(f"{name}_seq") or 0) + 1
+    world.set_world(f"{name}_seq", seq)
+    kept = [b for b in bids if b is not same] + [{"bidder": trader.id, "price": clean(price), "qty": 1, "seq": seq,
+                                                  "side": "bid", "items": wanted}]
+    held = max((b["price"] for b in mine), default=0.0)
+    needed = max(b["price"] for b in kept if b["bidder"] == trader.id)
+    cash, escrow = Account(trader, cfg.cash), Account(trader, f"{name}_escrow")
+    if needed > held:
+        move(world, cash, escrow, clean(needed - held), what="cash")
+    elif held > needed:
+        move(world, escrow, cash, clean(held - needed), what="escrow")
+    lot["bids"] = kept
+    world.set_world(f"{name}_lot", lot)
+    return _receipt(world, name, f"Your sealed bid of {fmt(price, 4)} for {' + '.join(wanted)} is in. You win at most one of "
+                                 f"your packages, so {fmt(needed, 4)} (your highest bid) is held.")
+
+
+def _clear_packages(world: Any, name: str, cfg: AuctionConfig, lot: Dict[str, Any]) -> None:
+    payee, source = _payee(world, name, cfg)
+    ordered = sorted(lot["bids"], key=lambda b: b["seq"])
+    if cfg.ties == "random":
+        world.rng.shuffle(ordered)
+    bids = [PackageBid(b["bidder"], tuple(b["items"]), float(b["price"])) for b in ordered]
+    try:
+        winners, _ = settle(bids, _item_reserves(world, name, cfg), cfg.payment)
+    except SearchLimit as exc:
+        raise RunError(f"the {name} auction cannot settle its lot exactly: {exc} ({len(bids)} bids on {len(cfg.items)} items)",
+                       f"mechanisms.{name}.packages") from None
+    won = {w["bidder"]: w for w in winners}
+    left = list(world.props.get(f"{name}_items") or [])
+    for bidder in dict.fromkeys(b["bidder"] for b in ordered):
+        owner = entity_of(world, bidder, f"mechanisms.{name}", "a bidder")
+        escrow = Account(owner, f"{name}_escrow")
+        win = won.get(bidder)
+        pays = clean(win["pays"]) if win else 0.0
+        if pays:
+            move(world, escrow, payee, pays, what="escrow")
+        change = clean(balance(world, escrow))
+        if change:
+            move(world, escrow, Account(owner, cfg.cash), change, what="escrow")
+        if win:
+            move(world, source, Account(owner, f"{name}_units"), len(win["items"]), what="units")
+            owned = cast(List[str], owner.properties.get(f"{name}_items") or [])
+            world.set_prop(owner, f"{name}_items", [*owned, *win["items"]])
+            left = [item for item in left if item not in win["items"]]
+            _won(world, name, owner, len(win["items"]))
+    world.set_world(f"{name}_items", left)
+    note = "VCG price" if cfg.payment == "vcg" else "pays its bid"
+    _close(world, name, cfg, lot, [(w["bidder"], len(w["items"]), w["pays"]) for w in winners],
+           note=note if winners else ("no bid met the reserves" if bids else "no bids"),
+           packages={w["bidder"]: w["items"] for w in winners})
+
+
 def tick(world: Any, name: str) -> None:
     """End of a round for open-outcry lots: the Dutch clock falls; an English lot without new bids closes."""
     cfg = auction_config(world, name)
@@ -364,7 +460,8 @@ def rebase(world: Any, name: str) -> None:
 
 def _totals(world: Any, name: str, cfg: AuctionConfig) -> Tuple[float, float]:
     cash = float(world.props.get(f"{name}_revenue") or 0)
-    units = float(world.props.get(f"{name}_stock") or 0) if not cfg.seller else 0.0
+    house_units = not cfg.seller or cfg.format == "combinatorial"
+    units = float(world.props.get(f"{name}_stock") or 0) if house_units else 0.0
     for party in _parties(world, cfg):
         cash += balance(world, Account(party, cfg.cash)) + balance(world, Account(party, f"{name}_escrow"))
         units += balance(world, Account(party, f"{name}_units")) + balance(world, Account(party, f"{name}_escrow_units"))
@@ -378,8 +475,16 @@ def audit(world: Any, name: str) -> List[str]:
     escrow: Dict[str, float] = {}
     escrow_units: Dict[str, float] = {}
     for entry in lot.get("bids", []) if lot.get("open") else []:
+        if cfg.format == "combinatorial":  # XOR bids: the highest one is held
+            escrow[entry["bidder"]] = max(escrow.get(entry["bidder"], 0.0), entry["price"])
+            continue
         target = escrow if entry["side"] == "bid" else escrow_units
         target[entry["bidder"]] = target.get(entry["bidder"], 0.0) + (entry["price"] * entry["qty"] if entry["side"] == "bid" else entry["qty"])
+    if cfg.format == "combinatorial":
+        held = list(world.props.get(f"{name}_items") or [])
+        held += [item for party in _parties(world, cfg) for item in cast(List[str], party.properties.get(f"{name}_items") or [])]
+        if sorted(held) != sorted(cfg.items):
+            problems.append(f"items are not conserved: held {sorted(held)}, sold from {sorted(cfg.items)}")
     for party in _parties(world, cfg):
         for prop, expected in ((f"{name}_escrow", escrow), (f"{name}_escrow_units", escrow_units)):
             have = balance(world, Account(party, prop))
@@ -405,12 +510,22 @@ def describe(world: Any, name: str, viewer: Optional[Entity]) -> str:
              "second_price": "Sealed-bid Vickrey auction (highest bid wins and pays the second-highest bid)",
              "english": "English auction (open ascending bids)", "dutch": "Dutch auction (falling clock; first taker wins)",
              "double": "Double auction (sealed bids and asks cleared at one price)",
-             "uniform": f"Uniform-price auction ({cfg.units} units to the highest bids at one price)"}[cfg.format]
+             "uniform": f"Uniform-price auction ({cfg.units} units to the highest bids at one price)",
+             "combinatorial": "Combinatorial auction (sealed package bids; you win at most one package; winners pay "
+                              + ("VCG prices)" if cfg.payment == "vcg" else "their bids)")}[cfg.format]
     if not lot.get("open"):
         return f"{label}: no lot is open right now."
     reserve = _reserve(world, name, cfg)
     parts = [f"{label}: lot {lot['number']}, {cfg.item}"]
-    if cfg.format == "english":
+    if cfg.format == "combinatorial":
+        reserves = _item_reserves(world, name, cfg)
+        left = world.props.get(f"{name}_items") or []
+        parts.append("for sale: " + ", ".join(f"{item} (reserve {fmt(reserves[item], 4)})" if reserves[item] else item for item in left))
+        mine = [b for b in lot.get("bids", []) if viewer is not None and b["bidder"] == viewer.id]
+        if mine:
+            parts.append("your bids: " + "; ".join(f"{' + '.join(b['items'])} at {fmt(b['price'], 4)}" for b in mine))
+        parts.append(f"{len(lot.get('bids', []))} sealed bid(s) in")
+    elif cfg.format == "english":
         leader = world.entity(lot.get("leader")) if lot.get("leader") else None
         parts.append(f"high bid {fmt(lot['price'], 4)} by {'you' if leader is viewer and viewer is not None else leader.name}"
                      if leader else f"no bids yet (reserve {fmt(reserve, 4)})")
@@ -435,8 +550,8 @@ def _auction(call: Call) -> str:
     return str(call.arg(0))
 
 
-@function("auction(name)", "An auction's state: {format, open, lot, price, leader, min_bid, reserve, bids, sold, revenue, stock}.",
-          min_args=1, max_args=1)
+@function("auction(name)", "An auction's state: {format, open, lot, price, leader, min_bid, reserve, bids, sold, revenue, stock, "
+          "items} (items: what a combinatorial lot still has for sale).", min_args=1, max_args=1)
 def _auction_function(call: Call) -> Dict[str, Any]:
     name = _auction(call)
     world: Any = call.scope.world
@@ -445,7 +560,8 @@ def _auction_function(call: Call) -> Dict[str, Any]:
     return {"format": cfg.format, "open": bool(lot.get("open")), "lot": lot.get("number", 0), "price": lot.get("price"),
             "leader": lot.get("leader"), "min_bid": min_bid(world, name), "reserve": _reserve(world, name, cfg),
             "bids": len(lot.get("bids", [])) if lot.get("open") else 0, "sold": world.props.get(f"{name}_sold") or 0,
-            "revenue": world.props.get(f"{name}_revenue") or 0, "stock": world.props.get(f"{name}_stock") or 0}
+            "revenue": world.props.get(f"{name}_revenue") or 0, "stock": world.props.get(f"{name}_stock") or 0,
+            "items": list(world.props.get(f"{name}_items") or [])}
 
 
 @function("auction_text(name, viewer?)", "The open lot as one plain sentence (what is sold, prices, your bids).", min_args=1, max_args=2)
@@ -462,10 +578,11 @@ def _ok_function(call: Call) -> bool:
 AUCTION_ACTIONS = ("bid", "ask", "open", "close", "tick", "rebase")
 
 
-@effect_op("auction", keys=("action", "trader", "price", "qty"), literal=("auction", "action"), required=("action",),
+@effect_op("auction", keys=("action", "trader", "price", "qty", "items"), literal=("auction", "action"), required=("action",),
            check=name_check("auction", "auction", AUCTION_ACTIONS),
            example='{"auction": "house", "action": "bid", "trader": "$actor", "price": 120}  (auction: bid | ask | open | '
-                   'close (sealed lots) | tick (English/Dutch clock) | rebase; receipt in $world.house_receipt)')
+                   'close (sealed lots) | tick (English/Dutch clock) | rebase; `items` lists a combinatorial package; '
+                   'receipt in $world.house_receipt)')
 def _auction_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
     name, action = effect["auction"], effect["action"]
@@ -480,7 +597,8 @@ def _auction_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where
             rebase(world, name)
         elif action in ("bid", "ask"):
             trader = entity_of(world, runner.eval(effect.get("trader", "$actor"), vars), where, "a bidder")
-            bid(world, name, trader, action, runner.eval(effect.get("price"), vars), runner.eval(effect.get("qty", 1), vars))
+            bid(world, name, trader, action, runner.eval(effect.get("price"), vars), runner.eval(effect.get("qty", 1), vars),
+                runner.eval(effect.get("items"), vars))
         else:
             raise RunError(f"auction action must be one of {', '.join(AUCTION_ACTIONS)}, got {action!r}", where)
     except RunError as exc:
@@ -488,11 +606,33 @@ def _auction_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where
 
 
 def _party_props(name: str, cfg: AuctionConfig) -> Dict[str, Any]:
-    return {cfg.cash: {"type": "number", "default": 0},
-            f"{name}_units": {"type": "int", "default": 0, "description": f"Units of {cfg.item} held."},
-            f"{name}_escrow": {"type": "number", "default": 0, "private": True, "description": "Cash held for open bids."},
-            f"{name}_escrow_units": {"type": "int", "default": 0, "private": True},
-            f"{name}_won": {"type": "int", "default": 0}}
+    props = {cfg.cash: {"type": "number", "default": 0},
+             f"{name}_units": {"type": "int", "default": 0, "description": f"Units of {cfg.item} held."},
+             f"{name}_escrow": {"type": "number", "default": 0, "private": True, "description": "Cash held for open bids."},
+             f"{name}_escrow_units": {"type": "int", "default": 0, "private": True},
+             f"{name}_won": {"type": "int", "default": 0}}
+    if cfg.format == "combinatorial":
+        props[f"{name}_items"] = {"type": "list", "default": [], "description": "Items won."}
+    return props
+
+
+def _check_packages(cfg: AuctionConfig) -> None:
+    if cfg.format != "combinatorial":
+        if cfg.items or cfg.reserves:
+            raise MechanismError("`items` and `reserves` belong to a combinatorial auction", "set format: combinatorial", "items")
+        return
+    if not cfg.items:
+        raise MechanismError("a combinatorial auction needs `items`: the distinct things sold in packages",
+                             'e.g. "items": ["north", "south", "east"]', "items")
+    if len(set(cfg.items)) != len(cfg.items) or not all(item.strip() for item in cfg.items):
+        raise MechanismError("`items` must be distinct, non-empty names", None, "items")
+    if len(cfg.items) > MAX_PACKAGE_ITEMS:
+        raise MechanismError(f"a combinatorial auction sells at most {MAX_PACKAGE_ITEMS} items at once (exact winner "
+                             "determination)", "split the items across lots or auctions", "items")
+    unknown = sorted(set(cfg.reserves) - set(cfg.items))
+    if unknown:
+        raise MechanismError(f"reserves name items that are not for sale: {', '.join(unknown)}", f"items: {', '.join(cfg.items)}",
+                             "reserves")
 
 
 @mechanism("auction", AuctionConfig,
@@ -512,6 +652,8 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
         raise MechanismError("a dutch auction needs `start_price`", None, "start_price")
     if cfg.format not in ("uniform", "double") and cfg.units != 1:
         raise MechanismError("only uniform and double auctions trade several units at once", "set units: 1", "units")
+    _check_packages(cfg)
+    packaged = cfg.format == "combinatorial"
     party_types = {cfg.bidders: {"props": _party_props(name, cfg)}}
     if cfg.format == "double":
         party_types[cfg.sellers or cfg.bidders] = {"props": _party_props(name, cfg)}
@@ -530,19 +672,28 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
                         f"{cfg.timeout} round(s) without a new bid; the winner pays its bid.",
              "dutch": "The clock price falls every round; the first bid at or above it takes the lot at the clock price.",
              "double": "Sealed bids to buy and asks to sell, cleared together at one price between the marginal bid and ask.",
-             "uniform": f"Sealed bids for up to {cfg.units} units; the highest bids win and all pay one clearing price."}[cfg.format]
-    escrow = " Your bid's full amount is held until the lot closes; you get back whatever you do not pay."
+             "uniform": f"Sealed bids for up to {cfg.units} units; the highest bids win and all pay one clearing price.",
+             "combinatorial": f"Sealed bids on packages of {', '.join(cfg.items)}: bid on up to {cfg.packages} packages; you win "
+                              "at most one of them and each item goes to one winner, chosen to raise the most over the reserves. "
+                              + ("Winners pay only the value their win takes from the other bidders, so bidding what a package is "
+                                 "worth to you is safe." if cfg.payment == "vcg" else "Winners pay their bids.")}[cfg.format]
+    escrow = (" Your highest package bid is held until the lot closes; you get back whatever you do not pay." if packaged else
+              " Your bid's full amount is held until the lot closes; you get back whatever you do not pay.")
+    amount = {"qty": {"type": "int", "min": 1, "max": 1 if single else cfg.units, "default": 1, "description": "Units wanted."}}
+    if packaged:
+        amount = {"package": {"type": "list", "items": {"type": "enum", "values": cfg.items}, "min_items": 1,
+                              "max_items": len(cfg.items), "description": "The items you want together."}}
     actions: Dict[str, Any] = {
         f"{name}_bid": {
             "by": cfg.bidders, "description": f"Bid for {cfg.item}. {rules}{escrow}",
-            "params": {"price": {"type": "number", "min": f"$auction({name}).min_bid", "max": f"$actor.{cfg.cash}",
-                                 "description": "Price per unit."},
-                       "qty": {"type": "int", "min": 1, "max": 1 if single else cfg.units,
-                               "default": 1, "description": "Units wanted."}},
+            "params": {**amount, "price": {"type": "number", "min": f"$auction({name}).min_bid",
+                                           "max": f"$actor.{cfg.cash} + $actor.{name}_escrow" if packaged else f"$actor.{cfg.cash}",
+                                           "description": "Price for the whole package." if packaged else "Price per unit."}},
             "when": [{"expr": f"$auction({name}).open", "why": "No lot is open."},
                      {"expr": f"$actor.{cfg.cash} > 0", "why": "You have no cash."}],
-            "do": [{"auction": name, "action": "bid", "trader": "$actor", "price": "$params.price", "qty": "$params.qty"}],
-            "outcome": receipt, "private": sealed, "terminal": sealed,
+            "do": [{"auction": name, "action": "bid", "trader": "$actor", "price": "$params.price",
+                    **({"items": "$params.package"} if packaged else {"qty": "$params.qty"})}],
+            "outcome": receipt, "private": sealed, "terminal": sealed and not packaged,
         },
     }
     if cfg.format == "english":
@@ -557,25 +708,30 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
             "do": [{"auction": name, "action": "ask", "trader": "$actor", "price": "$params.price", "qty": "$params.qty"}],
             "outcome": receipt, "private": True, "terminal": True,
         }
+    winner_text = ("{$entity($it.winner).name if $it.winner else 'unsold'}" +
+                   ("{$' won ' + $join($it.items, ' + ') + ' for ' + $fmt($it.price, 'money') if $it.winner else ''}" if packaged else
+                    "{$' × ' + $text($it.qty) + ' at ' + $fmt($it.price, 'money') if $it.winner else ''}"))
     fragment: Dict[str, Any] = {
         "types": party_types,
         "world": {f"{name}_lot": {"type": "map", "default": {}}, f"{name}_seq": {"type": "int", "default": 0},
+                  **({f"{name}_items": {"type": "list", "default": list(cfg.items), "description": "Items still for sale."}}
+                     if packaged else {}),
                   f"{name}_revenue": {"type": "number", "default": 0, "description": "House proceeds."},
-                  f"{name}_stock": {"type": "int", "default": 0 if cfg.seller or cfg.format == "double" else cfg.stock,
+                  f"{name}_stock": {"type": "int", "default": len(cfg.items) if packaged else
+                                    0 if cfg.seller or cfg.format == "double" else cfg.stock,
                                     "description": "Units the house still has to sell."},
                   f"{name}_sold": {"type": "int", "default": 0}, f"{name}_supply": {"type": "map", "default": {}},
                   f"{name}_receipt": {"type": "text", "default": ""}},
-        "records": {f"{name}_results": {"fields": {"lot": "int", "winner": "text", "price": "number", "qty": "int", "note": "text"},
-                                        "show": "Lot {lot}: {$entity($it.winner).name if $it.winner else 'unsold'}"
-                                                "{$' × ' + $text($it.qty) + ' at ' + $fmt($it.price, 'money') if $it.winner else ''} ({note})",
+        "records": {f"{name}_results": {"fields": {"lot": "int", "winner": "text", "price": "number", "qty": "int", "note": "text",
+                                                   **({"items": "list"} if packaged else {})},
+                                        "show": f"Lot {{lot}}: {winner_text} ({{note}})",
                                         "description": "Closed lots."}},
         "actions": actions,
         "events": [{"name": f"{name}_open", "phase": "start", "do": [{"auction": name, "action": "open"}]}],
         "views": {f"{name}_lot": {"for": sorted({cfg.bidders, cfg.sellers or cfg.bidders}), "show": f"{{$auction_text({name}, $actor)}}"},
                   f"{name}_recent": {"for": sorted({cfg.bidders, cfg.sellers or cfg.bidders}), "title": "Recent results",
                                      "of": f"$reverse($slice($records({name}_results), -3))",
-                                     "show": "Lot {lot}: {$entity($it.winner).name if $it.winner else 'unsold'}"
-                                             "{$' × ' + $text($it.qty) + ' at ' + $fmt($it.price, 'money') if $it.winner else ''}"}},
+                                     "show": f"Lot {{lot}}: {winner_text}"}},
         "metrics": {f"{name}_sold": f"$world.{name}_sold", f"{name}_revenue": f"$world.{name}_revenue"},
         "outputs": {f"{name}_sold": {"expr": f"$world.{name}_sold", "type": "int", "description": "Units sold."},
                     f"{name}_revenue": {"expr": f"$world.{name}_revenue", "type": "number", "description": "House proceeds."},
@@ -592,9 +748,14 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
             stage["order"] = "random"
         if sealed:
             stage["on_exit"] = [{"auction": name, "action": "close"}]
+        if packaged:
+            stage.update(max_actions=cfg.packages, max_calls=cfg.packages + 4)
         fragment["stages"] = [stage]
     else:
-        fragment["stage_hooks"] = {cfg.stage: {"actions": names, "on_exit": [{"auction": name, "action": "close"}] if sealed else []}}
+        hook: Dict[str, Any] = {"actions": names, "on_exit": [{"auction": name, "action": "close"}] if sealed else []}
+        if packaged:
+            hook.update(max_actions=cfg.packages, max_calls=cfg.packages + 4)
+        fragment["stage_hooks"] = {cfg.stage: hook}
     if cfg.conserve:
         fragment["invariants"] = [{"expr": f"$auction_ok({name})",
                                    "why": f"The {name} auction conserves cash and units and escrow matches open bids."}]

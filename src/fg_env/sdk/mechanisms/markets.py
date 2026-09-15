@@ -9,7 +9,8 @@ Importing this module registers every market function, effect op and mechanism k
 * :mod:`.amm` — the ``prediction_market`` mechanism (LMSR and CPMM), the ``amm`` op, ``$amm*``,
   ``$lmsr_*`` and ``$cpmm_prices``.
 * :mod:`.auctions` — the ``auction`` mechanism (first/second price, English, Dutch, double,
-  uniform), the ``auction`` op, ``$auction*``.
+  uniform, combinatorial), the ``auction`` op, ``$auction*``; :mod:`.package_auction` — exact
+  package winner determination with VCG payments and ``$package_winners``.
 * :mod:`.posted` — the ``posted_market`` mechanism (listings, promotions, haggling, ranking), the
   ``posted`` op, ``$shelf`` and ``$posted_*``.
 
@@ -23,7 +24,8 @@ from . import order_book  # noqa: F401
 from . import book_mechanism  # noqa: F401
 from . import traders  # noqa: F401
 from . import amm  # noqa: F401
+from . import package_auction  # noqa: F401
 from . import auctions  # noqa: F401
 from . import posted  # noqa: F401
 
-__all__ = ["market_stats", "order_book", "book_mechanism", "traders", "amm", "auctions", "posted"]
+__all__ = ["market_stats", "order_book", "book_mechanism", "traders", "amm", "package_auction", "auctions", "posted"]
