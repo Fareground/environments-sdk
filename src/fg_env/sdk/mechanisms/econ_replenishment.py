@@ -167,7 +167,7 @@ def _expand_replenishment(name: str, config: ReplenishmentConfig, contract: Mapp
             "outcome": "You ordered {$params.qty} × {$params.item.name}."}}
         fragment["views"] = {f"{name}_stock": {
             "for": agents, "title": "Stock", "of": items,
-            "show": f"{{name}}: {{{demand.stock}}} on hand, {{{name}_on_order}} on order, sold {{{config.demand}_sold}} last round"}}
+            "show": f"{{$it}}: {{{demand.stock}}} on hand, {{{name}_on_order}} on order, sold {{{config.demand}_sold}} last round"}}
     return fragment
 
 

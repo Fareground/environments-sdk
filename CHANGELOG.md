@@ -50,6 +50,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   purchase-order histories that its `truth` arm generates (`examples/auto_parts_history.py`). Arms compare the store's
   lean reorder rule with a service-level policy; `examples/auto_parts_policies.py` compares service levels, optimises
   one per category under a fill-rate constraint and validates the forecast on held-out quarters.
+- **Example `phone_reseller`**: a bulk reseller of used iPhones (four models × four grades) on the same modes — value
+  from price new × resale share × grade, decaying with age and stepping down at every later launch (a lifecycle
+  pattern); retail and wholesale channels as segments with their own demand, prices and return rates; weekly lot
+  buying within a lot minimum, case packs and a budget, with delivery and grading times drawn per lot. Demand, the
+  markup elasticity and lead times are fitted from sales and lot histories its `truth` arm records;
+  `examples/phone_reseller_study.py` compares channels, forks a run into a new-model launch and validates on
+  held-out weeks.
 
 #### Changed
 - **Fitting is faster**: a product's joint count regression solves by Cholesky from a design built once, computes
