@@ -447,6 +447,8 @@ class StageSpec(_Model):
     brief: str = Field("", description="Instruction shown during this stage (template).")
     must_act: bool = Field(False, description="While an action is available, the agent cannot just end its turn.")
     on_idle: Effects = Field(default_factory=list, description="Effects for each agent that ends its turn without acting ($actor): a forfeit, a default move.")
+    on_wake: Effects = Field(default_factory=list, description="Effects for each agent just before its turn ($actor), so what it reads reflects them: an upkeep, a draw, marking news as seen.")
+    on_turn_end: Effects = Field(default_factory=list, description="Effects for each agent after its turn ($actor), whether or not it acted (simultaneous: after choices are committed).")
     auto: bool = Field(False, description="Play trivial turns without waking the agent: take the only legal action when it has no arguments, skip the turn when nothing is legal.")
     on_enter: Effects = Field(default_factory=list)
     on_exit: Effects = Field(default_factory=list)

@@ -985,7 +985,8 @@ class _Checker:
             self.template(stage.brief or None, f"{path}.brief", "actor", BASE | {"actor"}, {"actor": set(self.agents)})
             self.effects(stage.on_enter, f"{path}.on_enter", set(BASE), {})
             self.effects(stage.on_exit, f"{path}.on_exit", set(BASE), {})
-            self.effects(stage.on_idle, f"{path}.on_idle", set(BASE) | {"actor"}, {"actor": set(self.agents)})
+            for hook in ("on_idle", "on_wake", "on_turn_end"):
+                self.effects(getattr(stage, hook), f"{path}.{hook}", set(BASE) | {"actor"}, {"actor": set(self.agents)})
 
     def _views(self) -> None:
         for name, view in self.c.views.items():

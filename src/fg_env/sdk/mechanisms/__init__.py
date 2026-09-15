@@ -35,7 +35,9 @@ _KEYED = ("inputs", "world", "relations", "records", "actions", "views", "polici
 #: Stage settings a mechanism may fill in on a stage the author declared (never overriding the author).
 _HOOK_SETTINGS = ("turns", "order", "who", "until", "passes", "quiet", "max_actions", "max_calls", "must_act", "auto",
                   "brief")
-_HOOK_KEYS = frozenset({"actions", "on_enter", "on_exit", *_HOOK_SETTINGS})
+#: Stage effect lists a mechanism may append to.
+_HOOK_EFFECTS = ("on_enter", "on_exit", "on_idle", "on_wake", "on_turn_end")
+_HOOK_KEYS = frozenset({"actions", *_HOOK_EFFECTS, *_HOOK_SETTINGS})
 #: Sections merged by appending generated items (an identical item is never added twice).
 _LISTED = ("population", "links", "events", "end", "invariants")
 #: What an action hook may add to a declared action.
@@ -192,7 +194,7 @@ def _hook_stages(data: Dict[str, Any], hooks: Mapping[str, Mapping[str, Any]]) -
         for key in _HOOK_SETTINGS:  # turn settings the author left unset
             if key in hook:
                 stage.setdefault(key, copy.deepcopy(hook[key]))
-        for key in ("on_enter", "on_exit"):
+        for key in _HOOK_EFFECTS:
             effects = stage.setdefault(key, [])
             seen = {_canonical(e) for e in effects}
             effects.extend(copy.deepcopy(e) for e in hook.get(key) or [] if _canonical(e) not in seen)

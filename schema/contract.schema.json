@@ -2169,6 +2169,18 @@
           "title": "On Idle",
           "type": "array"
         },
+        "on_wake": {
+          "description": "Effects for each agent just before its turn ($actor), so what it reads reflects them: an upkeep, a draw, marking news as seen.",
+          "items": {},
+          "title": "On Wake",
+          "type": "array"
+        },
+        "on_turn_end": {
+          "description": "Effects for each agent after its turn ($actor), whether or not it acted (simultaneous: after choices are committed).",
+          "items": {},
+          "title": "On Turn End",
+          "type": "array"
+        },
         "auto": {
           "default": false,
           "description": "Play trivial turns without waking the agent: take the only legal action when it has no arguments, skip the turn when nothing is legal.",

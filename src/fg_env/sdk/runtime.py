@@ -603,11 +603,14 @@ class Env:
             reason = self._reason(actor, stage, pass_index)
             if reason is None:
                 continue
+            if not self._wake_hook(stage, actor):
+                continue
             yield _Point(stage, {actor.id: reason})
             turn = Turn(self, actor, stage, reason, staged=False)
             self._drive(turn)
             if stage.on_idle and turn.stats.actions == 0 and actor.alive:
                 self._atomic(stage.on_idle, {"actor": actor}, f"stages.{stage.name}.on_idle")
+            self._turn_end_hook(stage, actor)
             memory = self._memory(actor.id)
             memory.cursor = self.world.log[-1].seq if self.world.log else 0
             memory.turns += 1
@@ -635,11 +638,14 @@ class Env:
             if reason is None:
                 world.set_wake_at(actor.id, now + self._interval(stage, actor))
                 continue
+            if not self._wake_hook(stage, actor):
+                continue
             yield _Point(stage, {actor.id: reason})
             turn = Turn(self, actor, stage, reason, staged=False)
             self._drive(turn)
             if stage.on_idle and turn.stats.actions == 0 and actor.alive:
                 self._atomic(stage.on_idle, {"actor": actor}, f"stages.{stage.name}.on_idle")
+            self._turn_end_hook(stage, actor)
             scheduled = world.wake_at.get(actor.id, now)
             if scheduled <= now:
                 step = turn.elapsed if turn.elapsed > 0 else self._interval(stage, actor)
@@ -648,6 +654,17 @@ class Env:
             memory.cursor = world.log[-1].seq if world.log else 0
             memory.turns += 1
             self._flush_events()
+
+    def _wake_hook(self, stage: StageSpec, actor: Entity) -> bool:
+        """Run the stage's ``on_wake`` for ``actor`` before its turn; False when it no longer takes the turn."""
+        if stage.on_wake:
+            self._atomic(stage.on_wake, {"actor": actor}, f"stages.{stage.name}.on_wake")
+        return actor.alive and not self._ended()
+
+    def _turn_end_hook(self, stage: StageSpec, actor: Entity) -> None:
+        """Run the stage's ``on_turn_end`` for ``actor`` after its turn (and its actions) are done."""
+        if stage.on_turn_end and actor.alive and not self._ended():
+            self._atomic(stage.on_turn_end, {"actor": actor}, f"stages.{stage.name}.on_turn_end")
 
     def _interval(self, stage: StageSpec, actor: Entity) -> float:
         value = self._stage_time(stage.interval, self.contract.clock.tick, f"stages.{stage.name}.interval", actor=actor)
@@ -672,6 +689,9 @@ class Env:
             reason = self._reason(actor, stage, pass_index)
             if reason is not None:
                 reasons[actor.id] = reason
+        for actor in agents:
+            if actor.id in reasons and not self._wake_hook(stage, actor):
+                del reasons[actor.id]
         if reasons:
             yield _Point(stage, dict(reasons))
         turns = [Turn(self, actor, stage, reasons[actor.id], staged=True) for actor in agents if actor.id in reasons]
@@ -697,6 +717,7 @@ class Env:
                 self._commit_intent(turn, name, args)
             if stage.on_idle and not turn.intents and turn.actor.alive and not self._ended():
                 self._atomic(stage.on_idle, {"actor": turn.actor}, f"stages.{stage.name}.on_idle")
+            self._turn_end_hook(stage, turn.actor)
         self._flush_events()
 
     def _commit_intent(self, turn: Turn, name: str, args: Dict[str, Any]) -> None:
