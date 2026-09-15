@@ -8,6 +8,7 @@ from ..analysis.stats import estimate
 from ..tournament.result import _columns, _estimate
 
 if TYPE_CHECKING:
+    from ..measure import RunResult
     from .suite import Scenario
 
 __all__ = ["COST_FIELDS", "EvaluationResult", "summarize"]
@@ -22,7 +23,8 @@ class EvaluationResult:
     """``scenarios``: one row per scenario and mode. ``modes``, ``tags``, ``splits`` (``in_sample`` / ``held_out``,
     when the suite holds scenarios out) and ``overall`` pool the run pairs they cover. Every pool has ``n`` scored
     pairs, ``focal``, ``baseline`` and ``difference`` (focal − baseline) estimates with 95% intervals, ``clear``
-    (the interval excludes zero), ``unscored`` pairs and ``cost`` per side. ``pairs`` holds every run pair."""
+    (the interval excludes zero), ``unscored`` pairs and ``cost`` per side. ``pairs`` holds every run pair, and
+    ``results`` every run: pair *i* is ``results[2i]`` (focal) and ``results[2i + 1]`` (baseline)."""
 
     focal: str
     runs: int
@@ -34,6 +36,7 @@ class EvaluationResult:
     overall: Dict[str, Any]
     pairs: List[Dict[str, Any]]
     notes: List[str] = field(default_factory=list)
+    results: List["RunResult"] = field(default_factory=list)
 
     def summary(self) -> str:
         lines = [f"Evaluation of {self.focal}: {len({row['scenario'] for row in self.scenarios})} scenario(s), "
@@ -57,11 +60,12 @@ class EvaluationResult:
     def to_dict(self) -> Dict[str, Any]:
         return {"focal": self.focal, "runs": self.runs, "seed": self.seed, "scenarios": self.scenarios,
                 "modes": self.modes, "tags": self.tags, "splits": self.splits, "overall": self.overall,
-                "pairs": self.pairs, "notes": self.notes}
+                "pairs": self.pairs, "notes": self.notes,
+                "results": [r.to_dict(events=bool(r.exposures)) for r in self.results]}
 
 
 def summarize(cases: Sequence["Scenario"], pairs: Sequence[Dict[str, Any]], *, focal: str, runs: int,
-              seed: int) -> EvaluationResult:
+              seed: int, results: Sequence["RunResult"] = ()) -> EvaluationResult:
     by_name = {case.name: case for case in cases}
     rows = []
     for case in cases:
@@ -83,7 +87,7 @@ def summarize(cases: Sequence["Scenario"], pairs: Sequence[Dict[str, Any]], *, f
         if held else {}
     unscored = [p for p in pairs if p["difference"] is None]
     notes = [f"{len(unscored)} of {len(pairs)} run pair(s) were left out (first: {unscored[0]['note']})"] if unscored else []
-    return EvaluationResult(focal, runs, seed, rows, modes, tags, splits, _pool(pairs), list(pairs), notes)
+    return EvaluationResult(focal, runs, seed, rows, modes, tags, splits, _pool(pairs), list(pairs), notes, list(results))
 
 
 def _pool(pairs: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:

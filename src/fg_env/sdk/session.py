@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 from .actions import ToolSpec
+from .measure import Stats
 
 if TYPE_CHECKING:
     from .branch import Branch
@@ -127,8 +128,11 @@ class Wake:
 
     def call(self, name: str, args: Optional[Dict[str, Any]] = None) -> ToolResult:
         """Execute one tool call. Invalid calls cost nothing but a call and return what to fix."""
-        self._turn.record("call", name, _copy(args))
-        return self._turn.call(name, args)
+        turn = self._turn
+        with turn.env._lock:  # a call made after the deadline is refused, so it is no step on the tape
+            if turn.refusal() is None:
+                turn.record("call", name, _copy(args))
+            return turn.call(name, args)
 
     def end(self) -> ToolResult:
         """Finish the turn."""
@@ -156,7 +160,8 @@ class Wake:
     def record_usage(self, *, llm_calls: int = 0, input_tokens: int = 0, output_tokens: int = 0,
                      cache_read_tokens: int = 0, cache_write_tokens: int = 0, llm_retries: int = 0,
                      forfeits: int = 0) -> None:
-        """Add a model's real usage to the run's statistics (the built-in LLM participants call this)."""
+        """Add a model's real usage to the run's statistics (the built-in LLM participants call this). Usage reported
+        after the turn is over (it ran out of time) still counts toward the statistics and the budget."""
         stats = self._turn.stats
         counts = (("llm_calls", llm_calls), ("input_tokens", input_tokens), ("output_tokens", output_tokens),
                   ("cache_read_tokens", cache_read_tokens), ("cache_write_tokens", cache_write_tokens),
@@ -164,14 +169,20 @@ class Wake:
         for name, value in counts:
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
                 raise ValueError(f"{name} must be a whole number ≥ 0, got {value!r}")
-        self._turn.record("usage", {name: value for name, value in counts if value})
-        for name, value in counts:
-            setattr(stats, name, getattr(stats, name) + value)
-        if self._turn.exposure is not None:
-            with self._turn.env._lock:
-                self._turn.exposure.used({"llm_calls": llm_calls, "input_tokens": input_tokens,
-                                          "output_tokens": output_tokens, "cache_read_tokens": cache_read_tokens,
-                                          "cache_write_tokens": cache_write_tokens})
+        turn = self._turn
+        reported = {name: value for name, value in counts if value}
+        shown = {name: value for name, value in reported.items() if name in _SHOWN_USAGE}
+        with turn.env._lock:
+            if turn.tallied:  # the turn is over and counted: add to the run's totals; the participant still cannot act
+                turn.env._tally(turn.actor.id, Stats(**reported))
+                if turn.exposure is not None:
+                    turn.exposure.used(shown, late=True)
+                return
+            turn.record("usage", reported)
+            for name, value in reported.items():
+                setattr(stats, name, getattr(stats, name) + value)
+            if turn.exposure is not None:
+                turn.exposure.used(shown)
 
     @property
     def done(self) -> bool:
@@ -197,6 +208,10 @@ class Wake:
 
     def __repr__(self) -> str:
         return f"<Wake {self.entity_id} round {self.round} stage {self.stage!r}{' done' if self.done else ''}>"
+
+
+#: The reported usage an exposure record shows.
+_SHOWN_USAGE = ("llm_calls", "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens")
 
 
 def _copy(value: Any) -> Any:

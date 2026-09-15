@@ -1,6 +1,6 @@
 """Observation APIs never fall back to private owner setup text."""
 import pytest
-from fg_env import compile_template
+from fg_env.legacy import compile_template
 from fg_env.runtime.perception import build_perception
 
 

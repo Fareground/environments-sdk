@@ -62,6 +62,13 @@ def _participants(items: Optional[List[str]]) -> Optional[Dict[str, Any]]:
     return out
 
 
+def _check_exposures(args: argparse.Namespace) -> None:
+    """``--exposures`` records into the result, so the result must go somewhere."""
+    if args.exposures and not (args.json or getattr(args, "trace", None)):
+        where = "add --json to print it" + (", or --trace FILE to save it" if hasattr(args, "trace") else "")
+        raise _UsageError(f"--exposures records what every agent saw into the result: {where}")
+
+
 def _report_contract_error(exc: ContractError) -> int:
     for issue in exc.issues:
         print(f"error: {issue}", file=sys.stderr)
@@ -123,11 +130,12 @@ def _checked(path: str, rounds: int) -> str:
 
 def cmd_run(args: argparse.Namespace) -> int:
     from .api import load
-    from .cli_runs import budget_arg
+    from .cli_runs import budget_arg, save_frames
 
+    _check_exposures(args)
     try:
         env = load(args.file, inputs=_inputs(args), seed=args.seed, arm=args.arm, data_dir=args.data_dir,
-                   exposures=bool(args.trace))
+                   exposures=bool(args.trace or args.exposures))
     except (ContractError, InputError) as exc:
         return _report_contract_error(exc)
     except (RunError, ExprError) as exc:
@@ -136,6 +144,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     result = env.run(_participants(args.agent), rounds=args.rounds, budget=budget_arg(args.budget))
     if args.trace:
         result.save(args.trace)
+    if args.frames:
+        save_frames(args.frames, result)
     if args.json:
         print(result.to_json(events=args.events))
     else:
@@ -184,13 +194,15 @@ def cmd_preview(args: argparse.Namespace) -> int:
 
 
 def cmd_experiment(args: argparse.Namespace) -> int:
+    from .cli_runs import budget_arg
     from .experiment import experiment
 
+    _check_exposures(args)
     arms = [a.strip() for a in args.arms.split(",")] if args.arms else None
     try:
         result = experiment(args.file, runs=args.runs, arms=arms, seed=args.seed, inputs=_inputs(args),
                             participants=_participants(args.agent), rounds=args.rounds, workers=args.workers,
-                            data_dir=args.data_dir)
+                            data_dir=args.data_dir, budget=budget_arg(args.budget), exposures=args.exposures)
     except (ContractError, InputError) as exc:
         return _report_contract_error(exc)
     except (RunError, ExprError) as exc:
@@ -201,8 +213,10 @@ def cmd_experiment(args: argparse.Namespace) -> int:
 
 
 def cmd_tournament(args: argparse.Namespace) -> int:
+    from .cli_runs import budget_arg
     from .tournament import tournament
 
+    _check_exposures(args)
     entrants: Dict[str, Any] = {}
     for item in args.entrant or []:
         name, sep, participant = (part.strip() for part in item.partition("="))
@@ -213,7 +227,8 @@ def cmd_tournament(args: argparse.Namespace) -> int:
         entrants[name] = participant
     result = tournament(args.file, entrants, seats=args.seat, pairing=args.pairing, games=args.games, score=args.score,
                         rating=args.rating, swiss_rounds=args.swiss_rounds, others=args.others, inputs=_inputs(args),
-                        arm=args.arm, rounds=args.rounds, seed=args.seed, workers=args.workers, data_dir=args.data_dir)
+                        arm=args.arm, rounds=args.rounds, seed=args.seed, workers=args.workers, data_dir=args.data_dir,
+                        budget=budget_arg(args.budget), exposures=args.exposures)
     print(json.dumps(result.to_dict(), indent=2, default=str, ensure_ascii=False) if args.json else result.summary())
     return 0
 
@@ -277,6 +292,13 @@ def _common(parser: argparse.ArgumentParser, seed_default: Optional[int]) -> Non
     parser.add_argument("--data-dir", help="folder input data files are read from (default: the contract's folder)")
 
 
+def _batch_flags(parser: argparse.ArgumentParser, what: str) -> None:
+    parser.add_argument("--budget", action="append", metavar="NAME=VALUE",
+                        help=f"budget for each {what}: tokens, calls, host_calls, seconds; on_exhaust=end|idle")
+    parser.add_argument("--exposures", action="store_true",
+                        help=f"record what every agent saw in each {what} (in the --json output)")
+
+
 def add_commands(sub: Any) -> None:
     p = sub.add_parser("check", help="check a contract and list every problem with its fix")
     p.add_argument("file", help="contract JSON file")
@@ -296,6 +318,10 @@ def add_commands(sub: Any) -> None:
                                                    "(.json or .jsonl) for fg-env trace and fg-env replay")
     p.add_argument("--budget", action="append", metavar="NAME=VALUE",
                    help="cap the run: tokens, calls, host_calls, seconds; on_exhaust=end|idle")
+    p.add_argument("--exposures", action="store_true",
+                   help="record what every agent saw and did (in the --json output; --trace records it too)")
+    p.add_argument("--frames", metavar="FILE", help="save the spectator frames (views for spectators, one per round) "
+                                                    "to FILE as JSON")
     p.set_defaults(func=_guarded(cmd_run))
 
     p = sub.add_parser("preview", help="show exactly what an agent would read and which tools it gets")
@@ -320,6 +346,7 @@ def add_commands(sub: Any) -> None:
     p.add_argument("--workers", type=int, default=1)
     p.add_argument("--data-dir", help="folder input data files are read from (default: the contract's folder)")
     p.add_argument("--json", action="store_true")
+    _batch_flags(p, "run")
     p.set_defaults(func=_guarded(cmd_experiment))
 
     p = sub.add_parser("tournament", help="play entrants against each other in the contract's seats and rate them")
@@ -336,6 +363,7 @@ def add_commands(sub: Any) -> None:
     p.add_argument("--rounds", type=int, help="stop each game after this many rounds")
     p.add_argument("--workers", type=int, default=1)
     p.add_argument("--json", action="store_true", help="print the full result as JSON")
+    _batch_flags(p, "game")
     p.set_defaults(func=_guarded(cmd_tournament))
 
     for name, text, command in (

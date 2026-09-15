@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from .runtime import Env
 
 __all__ = ["SNAPSHOT_VERSION", "KEEP_ARM", "contract_hash", "run_identity", "encode", "decode", "take_snapshot", "restore_env",
-           "restore_state", "matching_contract", "check_snapshot"]
+           "restore_state", "matching_contract", "check_snapshot", "recording_start"]
 
 SNAPSHOT_VERSION = 2
 
@@ -126,7 +126,16 @@ def take_snapshot(env: "Env") -> Dict[str, Any]:
         "layers": w.space.state() if w.space is not None else {},
         "frames": encode(env.previews.frames),
         "budget": env.budget.to_dict(env) if env.budget is not None else None,
+        "start": env.origin.start,
     }
+
+
+def recording_start(snapshot: Mapping[str, Any]) -> Dict[str, Any]:
+    """``snapshot`` as the start of a recording: its exposure log given as counts, because the recording that
+    continues from it holds those first entries (a result never carries its exposures twice)."""
+    held = snapshot.get("exposures")
+    counts = {"wakes": len(held["wakes"]), "chance": len(held.get("chance") or [])} if held is not None else None
+    return {**{key: value for key, value in snapshot.items() if key != "start"}, "exposures": counts}
 
 
 def matching_contract(contract: Any, snapshot: Mapping[str, Any]) -> Tuple[Contract, Contract]:
@@ -257,6 +266,7 @@ def _restore(cls: Type[_E], contract: Contract, snapshot: Mapping[str, Any], par
     if snapshot.get("exposures") is not None:
         w.exposures = ExposureLog.from_dict(snapshot["exposures"])
     env.previews.frames = decode(snapshot.get("frames") or [])
+    env.origin.start = snapshot.get("start")
     if snapshot.get("budget") is not None:
         env.budget = Budget.from_dict(snapshot["budget"])
     w.journal.clear()

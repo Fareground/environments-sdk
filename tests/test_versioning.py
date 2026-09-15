@@ -83,7 +83,7 @@ class TestCompileIntegration:
     def test_compile_template_calls_upgrade(self):
         """A legacy template with no contract_version still compiles —
         upgrade_template adds the field transparently."""
-        from fg_env import compile_template
+        from fg_env.legacy import compile_template
 
         # Minimum valid template, no contract_version
         raw = {

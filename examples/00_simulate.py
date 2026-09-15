@@ -4,7 +4,7 @@
 """
 from pathlib import Path
 
-from fg_env import simulate
+from fg_env.legacy import simulate
 
 world = simulate(Path(__file__).parent / "tic_tac_toe" / "template.json", seed=7)
 

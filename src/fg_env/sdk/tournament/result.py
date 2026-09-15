@@ -89,7 +89,7 @@ class TournamentResult:
                 "seats": self.seats, "entrants": self.entrants, "games_per_seating": self.games_per_seating,
                 "standings": self.standings, "evaluation": self.evaluation, "head_to_head": self.head_to_head,
                 "returns": self.returns, "seat_points": self.seat_points, "games": self.games, "notes": self.notes,
-                "runs": [r.to_dict(events=False) for r in self.runs]}
+                "runs": [r.to_dict(events=bool(r.exposures)) for r in self.runs]}
 
 
 def _estimate(stats: Mapping[str, Any]) -> str:
