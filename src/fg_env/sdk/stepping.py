@@ -19,7 +19,7 @@ read from a copy replayed on a thread and paused there.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, FrozenSet, Iterator, List, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, FrozenSet, Iterator, List, Optional, Sequence, Tuple
 
 from ..entity import Entity
 from .chance import ChanceNode
@@ -155,6 +155,9 @@ class Stepper:
         self.frozen = False
         self._base: Optional[Stepper] = None
         self._played: Optional[_Played] = None
+        #: (stage, tool, last seat still choosing) → [decisions that stopped at a chance node, decisions]; shared by
+        #: every copy, it only decides when copying ahead is cheaper than rebuilding, never what a decision does.
+        self._chance_seen: Dict[Tuple[str, str, bool], List[int]] = {}
         self.attach(env, None)
 
     def attach(self, env: SteppedEnv, waiting: Optional[Waiting]) -> None:
@@ -204,9 +207,33 @@ class Stepper:
 
     def call(self, name: str, args: Any) -> Optional[ToolResult]:
         """A tool call in the waiting turn; None when it stopped at a chance node."""
-        if self._waiting is None:
+        waiting = self._waiting
+        if waiting is None:
             raise RuntimeError(self._not_waiting("a tool call in a turn"))
-        return self._play(_Decision("call", name, args), ())
+        if not self.explicit:
+            return self._play(_Decision("call", name, args), ())
+        turn = waiting.wake._turn
+        env = self._run()
+        kind = (turn.stage.name, name, sum(1 for t in env.origin.staged if not t.done) <= 1)
+        seen = self._chance_seen.setdefault(kind, [0, 0])
+        if seen[1] and seen[0] * self._since_base() >= seen[1]:
+            self._rebase()  # a rebuild here is expected to cost more than one copy now
+        result = self._play(_Decision("call", name, args), ())
+        seen[0] += self._at_chance is not None
+        seen[1] += 1
+        return result
+
+    def _since_base(self) -> int:
+        count, step = 0, self._played
+        while step is not None:
+            count, step = count + 1, step.previous
+        return count
+
+    def _rebase(self) -> None:
+        """Make a frozen copy of the run as it is now the base its later decisions are rebuilt from."""
+        base = self.clone()
+        base.frozen = True
+        self._base, self._played = base, None
 
     def choose(self, index: int) -> Optional[ToolResult]:
         """The outcome of the chance node the run waits at; the result of the call it completes, if any."""
