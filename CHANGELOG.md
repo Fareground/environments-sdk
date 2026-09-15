@@ -44,6 +44,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   negative-binomial sales, fitted from a bundled three-year history that its `truth` arm generates
   (`examples/auto_parts_history.py`); arms compare the store's lean reorder rule with a forecast-driven one.
 #### Fixed
+- **Narratives a reader can follow**: rounds are named in the clock's terms everywhere — `half-hour` for a clock of 30
+  minutes, `09:30–10:00` (with the weekday and date when a run spans days) on a dated sub-day clock, `Week 7
+  (2026-10-12)` on a weekly one — through `fg_env.sdk.clock_words`, which `RunResult.unit`, `period` and `summary`
+  now use ("completed after 24 half-hours"). A narrative tells one measure's moment once (a peak is not repeated next
+  to the reversal it belongs to), leaves out moments no more unusual than the run's usual ups and downs (a short run
+  still tells its largest changes, and says why), names what happened with a move — other measures that moved in the
+  same round and the world's news in that round or the one before — and shows results in their declared formats.
 - **Data files everywhere**: a parsed contract remembers its data folder (the contract file's folder, or `data_dir=`),
   so `check`, `experiment`, `run_jobs` workers, `calibrate`, `backtest`, `precision`, `sweep`, `sensitivity`,
   `behavior_checks` and `chain` read `source` inputs instead of failing. Each takes `data_dir=` and `hosts=` (runs

@@ -470,7 +470,8 @@ def test_highlights_on_a_synthetic_series():
                    events=[{"round": 6, "kind": "news", "text": "Storm hits.", "data": {"event": "storm"}}], rounds=8)
     found = highlights(run, top=10)
     kinds = {(h.kind, h.round) for h in found}
-    assert ("reversal", 4) in kinds and ("peak", 4) in kinds and ("event", 6) in kinds
+    assert ("reversal", 4) in kinds and ("event", 6) in kinds
+    assert ("peak", 4) not in kinds  # the peak is the same moment as the reversal, told once
     reversal = next(h for h in found if h.kind == "reversal")
     assert "gave back 90%" in reversal.text
     assert found == highlights(run, top=10)
@@ -486,7 +487,7 @@ def test_highlights_on_the_order_book_exchange():
     assert all(1 <= h.round <= run.rounds for h in top)
     assert [h.to_dict() for h in top] == [h.to_dict() for h in highlights(run, top=5)]
     story = narrative(run)
-    assert story.startswith("Completed after 15 round(s)") and "Round 9" in story and "Results:" in story
+    assert story.startswith("Completed after 15 rounds") and "Round 9" in story and "Results:" in story
 
 
 # --- drivers ----------------------------------------------------------------------------------------
