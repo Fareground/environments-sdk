@@ -42,7 +42,7 @@ __all__ = ["OrderBookConfig", "CrowdSpec", "STRATEGIES", "book_config", "place",
            "open_round", "close_round", "quote", "depth", "account", "audit", "props_for"]
 
 KEY = "market.order_book"
-STRATEGIES = ("market_maker", "momentum", "mean_reversion", "fundamentalist", "noise")
+STRATEGIES = ("market_maker", "momentum", "mean_reversion", "fundamentalist", "noise", "passive")
 #: Closes kept for coded strategies (the full history is in the metric series and the bars record).
 CLOSES_WINDOW = 256
 
@@ -55,7 +55,7 @@ class CrowdSpec(BaseModel):
     count: Union[int, str] = Field(..., description="How many (number or expression).")
     cash: Union[float, str] = Field(0, description="Starting cash each (number or expression).")
     shares: Union[float, str] = Field(0, description="Starting shares each (number or expression).")
-    params: Dict[str, float] = Field({}, description="Strategy parameter overrides (see the guide).")
+    params: Dict[str, Union[float, str]] = Field({}, description="Strategy parameter overrides (see the guide): numbers, or expressions read once per trader when its parameters are drawn.")
 
 
 class OrderBookConfig(BaseModel):
@@ -76,18 +76,25 @@ class OrderBookConfig(BaseModel):
     halt_pct: Optional[float] = Field(None, gt=0, le=1, description="Circuit breaker: halt when a trade moves this far from the round's reference price.")
     halt_rounds: int = Field(1, ge=0, description="Extra rounds a halt lasts after the round it trips.")
     short_limit: float = Field(0, ge=0, description="How far below zero a trader's shares may go (0 = no short selling).")
+    max_short_leverage: Optional[float] = Field(None, gt=0, description="A sell is refused when the short position it could leave would be worth more than this multiple of the trader's equity (short_limit stays the absolute cap).")
     order_ttl: Optional[int] = Field(None, ge=1, description="Resting orders expire after this many rounds.")
     max_orders: int = Field(20, ge=1, description="Resting orders one trader may have.")
     depth_levels: int = Field(5, ge=1, le=50, description="Price levels per side shown in the book view.")
     tape: int = Field(50, ge=1, description="Recent trades kept in the <name>_tape record.")
-    volatility: float = Field(0.02, gt=0, description="Per-round return volatility coded strategies assume before the tape shows one.")
-    base_qty: Optional[float] = Field(None, gt=0, description="Coded strategies' unit of order size (default 10 lots).")
+    volatility: Union[float, str] = Field(0.02, description="Per-round return volatility coded strategies assume before the tape shows one (number or expression).")
+    measure_volatility: bool = Field(True, description="Coded strategies measure volatility from recent closes; false makes them always assume `volatility` (a calibrated value).")
+    base_qty: Optional[Union[float, str]] = Field(None, description="Coded strategies' unit of order size (default 10 lots); an expression is read on every turn, so a controller can steer it.")
+    flow_scale: Optional[str] = Field(None, description="Expression multiplying speculative order sizes (momentum, noise, passive); default 1.")
+    sentiment: Optional[str] = Field(None, description="Expression for market sentiment in [-1, 1] that tilts noise traders toward buying or selling; default 0.")
     fair_value: Optional[str] = Field(None, description="Expression for the true value fundamentalists estimate (default: the start price).")
-    crowd: Dict[Literal["market_maker", "momentum", "mean_reversion", "fundamentalist", "noise"], CrowdSpec] = Field(
+    crowd: Dict[Literal["market_maker", "momentum", "mean_reversion", "fundamentalist", "noise", "passive"], CrowdSpec] = Field(
         {}, description="Coded traders by strategy: {market_maker: {count, cash, shares, params}}.")
     stage: Optional[str] = Field(None, description="Trade during this declared stage; default: a sequential stage named after the book.")
     max_actions: int = Field(4, ge=1, description="Actions per turn in the generated stage.")
-    conserve: bool = Field(True, description="Declare invariants that cash and shares are conserved and reserves match the book.")
+    conserve: Union[bool, Literal["action", "round", "end"]] = Field(
+        True, description="Declare invariants that cash and shares are conserved and reserves match the book: true or "
+                          "action (checked after every action), round (after every round: much cheaper for big crowds), "
+                          "end (once, when the run finishes), or false.")
     tools: ToolsSetting = tools_field()
 
 
@@ -112,7 +119,19 @@ def _ticks(price: float, tick: float) -> int:
 
 
 def _book(world: Any, name: str) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-    return [dict(o) for o in world.props.get(f"{name}_bids") or []], [dict(o) for o in world.props.get(f"{name}_asks") or []]
+    """Both sides as fresh lists sharing the stored orders: an order is never changed in place (a partial fill
+    replaces it with a copy), so the lists can be stored back without copying every order."""
+    return list(world.props.get(f"{name}_bids") or []), list(world.props.get(f"{name}_asks") or [])
+
+
+def _touch_qty(orders: List[Dict[str, Any]]) -> float:
+    """Quantity resting at the best price of one side."""
+    total: float = 0
+    for order in orders:
+        if order["price"] != orders[0]["price"]:
+            break
+        total += order["qty"]
+    return total
 
 
 def _fees(cfg: OrderBookConfig) -> Tuple[float, float]:
@@ -137,8 +156,7 @@ def quote(world: Any, name: str) -> Dict[str, Any]:
     return {
         "instrument": cfg.instrument or name, "last": last, "bid": bid, "ask": ask, "mid": mid,
         "spread": round(ask - bid, 10) if bid is not None and ask is not None else None,
-        "bid_qty": sum(o["qty"] for o in bids if bid is not None and o["price"] == bid),
-        "ask_qty": sum(o["qty"] for o in asks if ask is not None and o["price"] == ask),
+        "bid_qty": _touch_qty(bids), "ask_qty": _touch_qty(asks),
         "ref": float(world.props.get(f"{name}_ref") or last), "halted": halted,
         "halt_until": world.props.get(f"{name}_halt_until") if halted else None,
         "open": bar.get("open", last), "high": bar.get("high", last), "low": bar.get("low", last),
@@ -146,6 +164,7 @@ def quote(world: Any, name: str) -> Dict[str, Any]:
         "volume": volume, "vwap": notional / volume if volume > 0 else None,
         "trades": world.props.get(f"{name}_trades") or 0, "fees": world.props.get(f"{name}_fees") or 0,
         "halts": world.props.get(f"{name}_halts") or 0, "orders": len(bids) + len(asks),
+        "flow": world.props.get(f"{name}_flow") or {}, "liquidations": world.props.get(f"{name}_liquidations") or 0,
         "tick": cfg.tick_size, "lot": cfg.lot_size, "maker_fee_bps": cfg.maker_fee_bps, "taker_fee_bps": cfg.taker_fee_bps,
         "band_low": _band(cfg, last)[0], "band_high": _band(cfg, last)[1],
     }
@@ -185,6 +204,19 @@ def _num(entity: Entity, prop: str) -> float:
     return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else 0.0
 
 
+def short_room(world: Any, name: str, cfg: OrderBookConfig, trader: Entity) -> float:
+    """Shares the trader may sell below zero: ``short_limit``, capped by ``max_short_leverage`` × equity."""
+    if cfg.max_short_leverage is None or cfg.short_limit <= 0:
+        return cfg.short_limit
+    p = props_for(name)
+    last = float(world.props.get(f"{name}_last") or 0)
+    if last <= 0:
+        return 0.0
+    position = balance(world, Account(trader, p["shares"])) + balance(world, Account(trader, p["reserved_shares"]))
+    equity = balance(world, Account(trader, cfg.currency)) + balance(world, Account(trader, p["reserved_cash"])) + position * last
+    return max(0.0, min(cfg.short_limit, cfg.max_short_leverage * equity / last))
+
+
 def account(world: Any, name: str, trader: Entity) -> Dict[str, Any]:
     cfg = book_config(world, name)
     p = props_for(name)
@@ -203,7 +235,7 @@ def account(world: Any, name: str, trader: Entity) -> Dict[str, Any]:
         "position": position, "equity": clean(equity), "pnl": clean(equity - _num(trader, p["start_value"])),
         "fees_paid": trader.properties.get(p["fees_paid"]) or 0, "orders": len(orders),
         "max_buy": lot_floor(cash / (low * (1 + max(maker, taker))), cfg.lot_size) if low > 0 else 0,
-        "max_sell": lot_floor(max(0.0, shares + cfg.short_limit), cfg.lot_size),
+        "max_sell": lot_floor(max(0.0, shares + short_room(world, name, cfg, trader)), cfg.lot_size),
     }
 
 
@@ -244,9 +276,10 @@ def _insert(orders: List[Dict[str, Any]], order: Dict[str, Any], side: str) -> N
     orders.insert(bisect.bisect(keys, (-order["price"] if side == "buy" else order["price"], order["seq"])), order)
 
 
-def place(world: Any, name: str, trader: Entity, side: str, qty: Any, price: Any = None) -> str:
+def place(world: Any, name: str, trader: Entity, side: str, qty: Any, price: Any = None, kind: Optional[str] = None) -> str:
     """Submit a buy or sell (limit when ``price`` is given, market otherwise). Returns the receipt text;
-    refuses with :class:`Abort` (nothing changes) when the order is not possible."""
+    refuses with :class:`Abort` (nothing changes) when the order is not possible. ``kind`` labels the
+    aggressive flow (default: the trader's coded strategy, or ``agent``)."""
     cfg = book_config(world, name)
     p = props_for(name)
     unit = cfg.instrument or name
@@ -294,9 +327,10 @@ def place(world: Any, name: str, trader: Entity, side: str, qty: Any, price: Any
                         f"{fmt(have)}. Buy at most {fmt(most, 6)} at this price, or cancel resting buys.")
     if side == "sell":
         free = balance(world, shares)
-        if free - size < -cfg.short_limit - EPS:
-            most = lot_floor(max(0.0, free + cfg.short_limit), cfg.lot_size)
-            short = f" (short selling up to {fmt(cfg.short_limit, 6)} allowed)" if cfg.short_limit else ""
+        room = short_room(world, name, cfg, trader)
+        if free - size < -room - EPS:
+            most = lot_floor(max(0.0, free + room), cfg.lot_size)
+            short = f" (short selling up to {fmt(room, 6)} allowed now)" if cfg.short_limit else ""
             raise Abort(f"Not enough free shares: you can sell at most {fmt(most, 6)}{short}; resting sells reserve shares.")
     fees = Account(None, f"{name}_fees")
     fills: List[_Fill] = []
@@ -334,9 +368,11 @@ def place(world: Any, name: str, trader: Entity, side: str, qty: Any, price: Any
         world.set_prop(trader, p["fees_paid"], clean(_num(trader, p["fees_paid"]) + notional * taker))
         world.set_prop(maker_entity, p["fees_paid"],
                        clean(_num(maker_entity, p["fees_paid"]) + notional * maker))
-        best["qty"] = clean(best["qty"] - q)
-        if best["qty"] <= EPS:
+        remaining = clean(best["qty"] - q)
+        if remaining <= EPS:
             opposite.pop(0)
+        else:
+            opposite[0] = {**best, "qty": remaining}
         left = clean(left - q)
         spent += notional
         paid += notional * taker
@@ -356,11 +392,14 @@ def place(world: Any, name: str, trader: Entity, side: str, qty: Any, price: Any
         _insert(own, {"id": f"{name}_{seq}", "owner": trader.id, "side": side, "price": limit_price, "qty": left,
                       "seq": seq, "round": world.round}, side)
         rested = left
-    world.set_world(f"{name}_bids", bids)
-    world.set_world(f"{name}_asks", asks)
-    filled = clean(sum(f.qty for f in fills))
+    own_side, opposite_side = ("bids", "asks") if side == "buy" else ("asks", "bids")
+    if rested:
+        world.set_world(f"{name}_{own_side}", own, trusted=True)
+    if fills or prevented:
+        world.set_world(f"{name}_{opposite_side}", opposite, trusted=True)
+    filled =clean(sum(f.qty for f in fills))
     if fills:
-        _record_fills(world, name, fills)
+        _record_fills(world, name, fills, side, kind or str(trader.properties.get(p["strategy"]) or "agent"))
     if tripped:
         _trip(world, cfg, name, fills[-1].price, ref)
     parts = [f"{side.upper()} {fmt(size, 6)} {unit} {'@ ' + fmt(limit_price, 4) if price is not None else 'at market'}: "
@@ -380,9 +419,13 @@ def place(world: Any, name: str, trader: Entity, side: str, qty: Any, price: Any
     return _receipt(world, name, ", ".join(parts) + ".")
 
 
-def _record_fills(world: Any, name: str, fills: List[_Fill]) -> None:
+def _record_fills(world: Any, name: str, fills: List[_Fill], side: str, kind: str) -> None:
     bar = dict(world.props.get(f"{name}_bar") or {})
     volume = sum(f.qty for f in fills)
+    flow = {k: dict(v) for k, v in (bar.get("flow") or {}).items()}
+    by_kind = flow.setdefault(kind, {"buy": 0, "sell": 0})
+    by_kind[side] = clean(by_kind[side] + volume)
+    bar["flow"] = flow
     notional = sum(f.qty * f.price for f in fills)
     prices = [f.price for f in fills]
     last = float(world.props.get(f"{name}_last") or prices[0])
@@ -419,7 +462,7 @@ def cancel(world: Any, name: str, trader: Entity, order_id: Any) -> str:
             if order["id"] == order_id and order["owner"] == trader.id:
                 _release(world, cfg, name, order)
                 orders.pop(index)
-                world.set_world(f"{name}_{side}", orders)
+                world.set_world(f"{name}_{side}", orders, trusted=True)
                 return _receipt(world, name, f"Cancelled {order['side']} {fmt(order['qty'], 6)} @ {fmt(order['price'], 4)}.")
     raise Abort(f"You have no resting order {order_id!r} in {cfg.instrument or name}.")
 
@@ -437,7 +480,7 @@ def cancel_all(world: Any, name: str, trader: Entity) -> str:
             else:
                 keep.append(order)
         if len(keep) != len(orders):
-            world.set_world(f"{name}_{side}", keep)
+            world.set_world(f"{name}_{side}", keep, trusted=True)
     return _receipt(world, name, f"Cancelled {count} order(s).")
 
 
@@ -491,9 +534,9 @@ def open_round(world: Any, name: str) -> None:
                                                   f"{fmt(order['price'], 4)} expired; its reserve was released.",
                                to=(order["owner"],), data={"mechanism": KEY, "order": order["id"]})
                 else:
-                    keep.append(dict(order))
+                    keep.append(order)
             if len(keep) != len(orders):
-                world.set_world(f"{name}_{side}", keep)
+                world.set_world(f"{name}_{side}", keep, trusted=True)
     world.set_world(f"{name}_ref", last)
     world.set_world(f"{name}_bar", {"open": last, "high": last, "low": last, "close": last, "volume": 0, "notional": 0,
                                     "trades": 0})
@@ -511,6 +554,7 @@ def close_round(world: Any, name: str) -> None:
                                 "trades": bar.get("trades", 0)}, None, None, f"mechanisms.{name}")
     closes = list(world.props.get(f"{name}_closes") or []) + [last]
     world.set_world(f"{name}_closes", closes[-CLOSES_WINDOW:])
+    world.set_world(f"{name}_flow", bar.get("flow") or {})
 
 
 def audit(world: Any, name: str) -> List[str]:
@@ -582,8 +626,9 @@ def _trader(call: Call, index: int) -> Entity:
 
 
 @function("book(name)", "Top of an order book: {last, bid, ask, mid, spread, bid_qty, ask_qty, ref, halted, halt_until, "
-          "open, high, low, round_volume, round_trades, volume, vwap, trades, fees, halts, orders, tick, lot, band_low, "
-          "band_high}.", min_args=1, max_args=1)
+          "open, high, low, round_volume, round_trades, volume, vwap, trades, fees, halts, orders, flow, liquidations, tick, "
+          "lot, band_low, band_high}; flow is the last round's aggressive {buy, sell} quantity by trader kind.",
+          min_args=1, max_args=1)
 def _book_function(call: Call) -> Dict[str, Any]:
     return quote(call.scope.world, _name(call))
 

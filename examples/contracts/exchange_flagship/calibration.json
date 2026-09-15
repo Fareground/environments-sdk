@@ -1,0 +1,57 @@
+{
+  "fg_env": "1",
+  "name": "Exchange flagship: calibration",
+  "description": "Calibration of the flagship exchange from its seed history, as data: the targets (per-bar volatility and volume), the crowd sizes and order size they imply, the latent fundamental (a geometric random walk with jumps, stepped every pass), sentiment that fades, and the two per-bar controllers that hold volume and volatility on target.",
+  "defs": {
+    "seed_bars": {"expr": "$slice($inputs.history, -$inputs.seed_bars)", "description": "The seed bars the run is calibrated on."},
+    "seed_stats": {"expr": "$market_stats($map($seed_bars(), $it.close), $map($seed_bars(), $it.volume))", "description": "Stylized facts of the seed history."},
+    "crowd_size": {"args": ["kind"], "expr": "$max(2 if $kind == 'market_maker' else 0, $round($inputs.participants * $get($get($inputs.presets, $inputs.population_preset), $kind, 0)))", "description": "How many traders of a kind the preset gives."},
+    "expected_orders": {"expr": "$inputs.substeps * $sum($map($keys($inputs.activity), $crowd_size($it) * $get($inputs.activity, $it)))", "description": "Order activations per bar."},
+    "order_size": {"expr": "$max(1, $seed_stats().avg_volume / ($expected_orders() * 0.35))", "description": "Base order size that reproduces historical volume."},
+    "capital": {"expr": "$inputs.median_capital if $inputs.median_capital > 0 else $order_size() * $last($seed_bars()).close / 0.03", "description": "Median trader capital (an order is about 3% of it)."}
+  },
+  "world": {
+    "start_price": {"type": "number", "default": "$last($seed_bars()).close", "description": "Last close of the seed history."},
+    "target_sigma": {"type": "number", "default": "($seed_stats().sigma if $seed_stats().sigma > 0 else 0.01) * $inputs.volatility_scale", "description": "Per-bar volatility the run aims for."},
+    "target_volume": {"type": "number", "default": "$seed_stats().avg_volume", "description": "Per-bar volume the run aims for."},
+    "base_qty": {"type": "number", "default": "$order_size()", "description": "Calibrated base order size."},
+    "median_capital": {"type": "number", "default": "$capital()"},
+    "fundamental": {"type": "number", "default": "$last($seed_bars()).close", "private": true, "description": "Latent value of the stock."},
+    "sentiment": {"type": "number", "default": 0, "min": -1, "max": 1, "description": "Market mood set by news; it fades."},
+    "news": {"type": "list", "default": [], "description": "Active news: [{headline, shock_pct, sentiment, until, duration}]."},
+    "size_scale": {"type": "number", "default": 1, "description": "Volume controller: multiplies every order size."},
+    "volume_ema": {"type": "number", "default": "$seed_stats().avg_volume"},
+    "flow_scale": {"type": "number", "default": "$inputs.flow_scale", "description": "Volatility controller: multiplies speculative order sizes."}
+  },
+  "mechanisms": {
+    "fundamental_walk": {
+      "kind": "dynamics", "mode": "drift",
+      "rules": {"fundamental": {"target": "world.fundamental", "model": "geometric", "rate": "$inputs.drift_pct_per_bar / 100 / $inputs.substeps",
+                                "sd": "$world.target_sigma * 0.7 / $sqrt($inputs.substeps)", "min": 0.01,
+                                "description": "The latent value moves less than the tape."}}
+    },
+    "fundamental_jumps": {
+      "kind": "dynamics", "mode": "shocks",
+      "shocks": {"jump": {"chance": "$inputs.jump_prob_bar / $inputs.substeps", "do": ["$world.fundamental = $max(0.01, $world.fundamental * $exp($normal(0, $inputs.jump_sigma)))"],
+                          "description": "Unannounced jumps in the latent value."}}
+    }
+  },
+  "events": [
+    {"name": "scheduled_news", "phase": "start", "when": "$bar_starts()", "each": "$filter($inputs.events, $it.bar == $bar())", "as": "story",
+     "do": ["$world.fundamental = $max(0.01, $world.fundamental * (1 + $story.shock_pct / 100))",
+            "$world.sentiment = $clamp($world.sentiment + $story.sentiment, -1, 1)",
+            "$world.news = $world.news + [{headline: $story.headline, shock_pct: $story.shock_pct, sentiment: $story.sentiment, until: $bar() + $story.duration_bars, duration: $story.duration_bars}]",
+            {"emit": "news", "say": "NEWS: {$story.headline}"}]},
+    {"name": "volume_controller", "phase": "end", "when": "$bar_ends()",
+     "do": ["$volume = $last($records(bars)).volume",
+            "$world.volume_ema = 0.7 * $world.volume_ema + 0.3 * $volume",
+            "$world.size_scale = $clamp($world.size_scale * ($clamp($sqrt($world.target_volume / $world.volume_ema), 0.7, 1.4) if $volume > 0 and $world.volume_ema > 0 else 1.3), 0.05, 20)"]},
+    {"name": "volatility_controller", "phase": "end", "when": "$bar_ends() and $len($records(bars)) >= 6 and $inputs.volatility_gain > 0",
+     "do": ["$realised = $stdev($map($slice($records(bars), -16), $log($it.close / $it.open)))",
+            {"if": "$realised > 0", "then": "$world.flow_scale = $clamp($world.flow_scale * $exp($clamp(0.5 * $log($world.target_sigma / $realised), -$inputs.volatility_gain, $inputs.volatility_gain)), 0.25 * $inputs.flow_scale, 4 * $inputs.flow_scale)"}]},
+    {"name": "news_fades", "phase": "end",
+     "do": ["$world.sentiment = $world.sentiment * $exp(-1 / ($max([5] + $map($world.news, $it.duration)) * $inputs.substeps))",
+            "$world.sentiment = 0 if $abs($world.sentiment) < 0.001 else $world.sentiment",
+            "$world.news = $filter($world.news, $it.until > $round // $inputs.substeps + 1)"]}
+  ]
+}
