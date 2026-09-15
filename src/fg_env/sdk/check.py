@@ -28,6 +28,7 @@ from .contract import Contract
 from .check_state import check_feeds, check_hooks, check_physics_state, check_relation_fields
 from .errors import ContractError, Issue
 from .expr import FUNCTIONS, ExprError, compile_expr, is_expr
+from .expr_calls import suggest_function
 from .parse_errors import validation_issues
 from .patterns.check import check_pattern_call, check_patterns
 from .returns import check_game
@@ -219,9 +220,9 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, RuleChecks):
                 self.error(path, f"wrong number of arguments: ${signature}", f"in `{compiled.source}`")
         for name in compiled.functions:
             if name not in FUNCTIONS and name not in self.c.defs:
-                hint = get_close_matches(name, list(FUNCTIONS) + list(self.c.defs), n=1)
+                hint = suggest_function(name, list(FUNCTIONS) + list(self.c.defs))
                 self.error(path, f"unknown function ${name}",
-                           (f"did you mean ${hint[0]}?" if hint else "declare it under `defs`") + f" — in `{compiled.source}`")
+                           (f"did you mean ${hint}?" if hint else "declare it under `defs`") + f" — in `{compiled.source}`")
         for chain, word in compiled.comparisons:
             self._compare(self._spec_for(chain, types, params), chain, word, path, compiled.source)
         for _, symbol, chain, word in compiled.item_comparisons:

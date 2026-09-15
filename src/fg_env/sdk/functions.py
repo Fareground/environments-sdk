@@ -104,10 +104,10 @@ def _values(call: Call, value_arg: int, where_arg: int) -> List[Any]:
     return _numbers(call, [call.each(value_arg, it, i) for i, it in enumerate(items)])
 
 
-@function("median(items, value, where?)", "Median of `value` over matching items (nulls skipped); null when none.",
-          min_args=2, max_args=3, lazy=[1, 2])
+@function("median(items, value?, where?)", "Median of `value` over matching items, or of a list (nulls skipped); null when none.",
+          min_args=1, max_args=3, lazy=[1, 2])
 def _median(call: Call) -> Any:
-    values = sorted(_values(call, 1, 2))
+    values = sorted(_numbers(call, call.collection(0)) if len(call) == 1 else _values(call, 1, 2))
     if not values:
         return None
     mid = len(values) // 2

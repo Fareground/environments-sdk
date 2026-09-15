@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- `$median(list)` now accepts a numeric list directly, consistent with `$avg` and `$stdev`; nulls are
+  skipped and empty/all-null lists return null. Existing projected and filtered entity forms are unchanged.
+- Unknown `$mean(...)` expressions suggest `$avg`, the arithmetic mean, rather than the similarly spelled
+  `$median`. Static checks and both runtime expression paths share the same suggestion logic; unknown
+  functions remain errors and explicitly authored definitions retain their behavior.
 - Procedure validation warns at `all_did` transitions shared by multiple procedures: successful actions
   are counted across stages during each phase, so overlapping procedures can share completion evidence.
   The warning explains independent-action and state-based alternatives without changing runtime behavior.

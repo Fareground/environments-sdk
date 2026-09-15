@@ -6,7 +6,6 @@ import heapq
 import threading
 from contextlib import contextmanager
 from contextvars import ContextVar
-from difflib import get_close_matches
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Iterator, List, Optional, Tuple
 
 from ..entity import Entity
@@ -14,6 +13,7 @@ from ..physics import PhysicsModel, _CompiledExpr
 from .assets.store import AssetStore
 from .contract import Contract, PropSpec
 from .errors import RunError
+from .expr_calls import suggest_function
 from .expr import ExprError, FUNCTIONS, Scope, Untrusted, World, compile_expr, is_expr, truthy
 from .props import finite_number as _finite_number, prop_type, shown_value as _shown_value
 from .seeds import SeedTree
@@ -265,8 +265,8 @@ class SdkWorld(World):
     def call_def(self, name: str, args: List[Any], source: str) -> Any:
         spec = self.contract.defs.get(name)
         if spec is None:
-            hint = get_close_matches(name, list(FUNCTIONS) + list(self.contract.defs), n=1)
-            raise ExprError(f"unknown function ${name}" + (f" — did you mean ${hint[0]}?" if hint else ""), source)
+            hint = suggest_function(name, list(FUNCTIONS) + list(self.contract.defs))
+            raise ExprError(f"unknown function ${name}" + (f" — did you mean ${hint}?" if hint else ""), source)
         if len(args) != len(spec.args):
             raise ExprError(f"${name} takes {len(spec.args)} argument(s) ({', '.join(spec.args) or 'none'}), got {len(args)}", source)
         local = self._here()  # the running turn's state, read once: nothing before the evaluation changes it

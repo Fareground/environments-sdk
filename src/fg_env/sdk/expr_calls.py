@@ -3,6 +3,7 @@ equality guard that lets collection functions skip items a condition certainly r
 from __future__ import annotations
 
 from dataclasses import dataclass
+from difflib import get_close_matches
 from typing import Any, Callable, Dict, FrozenSet, Iterator, List, Mapping, Optional, Sequence, Tuple
 
 from .expr_base import _BUDGET, ExprError, charge, truthy
@@ -10,6 +11,15 @@ from .expr_scope import Scope
 from .expr_values import _ENTITY_FIELDS, _Entity, _describe, _entity_id, _number
 
 __all__ = ["Evaluator", "EqualityGuard", "Call", "FunctionSpec", "FUNCTIONS", "function"]
+
+
+def suggest_function(name: str, candidates: Sequence[str]) -> Optional[str]:
+    """Suggest a known name without confusing arithmetic mean with median."""
+    if name == "mean" and "avg" in candidates:
+        return "avg"
+    matches = get_close_matches(name, candidates, n=1)
+    return matches[0] if matches else None
+
 
 Evaluator = Callable[[Scope], Any]
 

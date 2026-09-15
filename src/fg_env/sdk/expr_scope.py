@@ -70,12 +70,10 @@ class World:
 
     def call_def(self, name: str, args: List[Any], source: str) -> Any:
         """Call a contract-defined function (``defs``). The empty world has none."""
-        from difflib import get_close_matches
+        from .expr_calls import FUNCTIONS, suggest_function
 
-        from .expr_calls import FUNCTIONS
-
-        hint = get_close_matches(name, list(FUNCTIONS), n=1)
-        raise ExprError(f"unknown function ${name}" + (f" — did you mean ${hint[0]}?" if hint else ""), source)
+        hint = suggest_function(name, list(FUNCTIONS))
+        raise ExprError(f"unknown function ${name}" + (f" — did you mean ${hint}?" if hint else ""), source)
 
 
 _EMPTY_WORLD = World()
