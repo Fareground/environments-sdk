@@ -199,6 +199,8 @@ PATTERNS = """\
 * Data files: `"inputs": {"households": {"type": "table", "source": "households.csv", "columns": {"income":
   "number", "size": "int"}}}` then `"population": [{"type": "person", "from": "$inputs.households"}]`. Files are
   read from the contract's folder (or `data_dir=`); undeclared CSV columns stay text. Also `.json` and `.jsonl`.
+  Read a big table by key, not by scanning it per row: `$lookup($inputs.sales, sku, $row.sku)` (rows, indexed once
+  per run; fields and keys may be lists) and `$lookup_one($inputs.models, model, $row.model)`.
 * Continuous time (clinics, queues, trading days, emergencies): `"clock": {"mode": "continuous",
   "unit": "minute", "horizon": 480}`, a stage with `"turns": "scheduled"`, and `"duration"` on actions.
   Each agent acts when its time comes (earliest first) and next acts `duration` later (or the stage

@@ -52,6 +52,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read one family or mode.
 
 #### Added
+- **Keyed table lookups**: `$lookup(table, field, key)` gives the rows whose field equals the key and
+  `$lookup_one(table, field, key, default?)` the first; an input table is indexed once per run (other lists per call),
+  fields and keys may be lists. Deriving each of 228 SKUs' base demand from a 35,568-row sales history at load went
+  from 26.9 s (`$filter`) to 0.3 s.
 - **Calendar functions**: `$date_add(date, n, unit?)` (day, week, month, quarter, year, hour, minute; months keep the
   day or take the month's last), `$days_between(a, b)`, `$date_part(date, part)` (year, quarter, month, day, weekday,
   ISO week, day of year, hour, minute, weekday and month names) and `$is_holiday(date, dates)`. `clock.start` may
