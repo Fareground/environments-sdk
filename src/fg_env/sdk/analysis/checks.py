@@ -104,27 +104,29 @@ def _fingerprint(result: RunResult) -> str:
 def behavior_checks(contract: ContractLike, *, runs: int = 4, rounds: Optional[int] = None, seed: int = 0,
                     participants: Any = "random", inputs: Optional[Mapping[str, Any]] = None,
                     test_inputs: Optional[Sequence[str]] = None, perturb: float = 0.5,
-                    workers: int = 1) -> CheckReport:
+                    workers: int = 1, data_dir: Any = None, hosts: Any = None) -> CheckReport:
     """Run ``runs`` seeds with random agents (plus one set per varied input) and report findings.
 
     ``test_inputs`` limits which inputs are varied (default: every number, whole number, yes/no
     and choice input); each is moved by ±``perturb`` of its value (flipped, or set to another
     choice) on the same seeds, so any difference comes from the input. ``rounds`` caps each run:
     shorter runs are faster but can miss behaviour that only appears later, which the findings say.
+    ``data_dir`` is where inputs with a ``source`` are read (default: the contract file's folder); ``hosts`` answers
+    host requests in every run.
     """
     runner.check_positive_int("runs", runs)
     if not 0 < perturb < 1:
         raise ValueError(f"perturb must be between 0 and 1, got {perturb}")
-    parsed = runner.as_contract(contract)
+    parsed = runner.as_contract(contract, data_dir)
     base_inputs = dict(inputs or {})
     seeds = runner.run_seeds(seed, runs)
     baseline_jobs = [runner.Job(base_inputs, None, s) for s in seeds]
     findings: List[Finding] = []
     try:
         baseline = runner.run_jobs(parsed, baseline_jobs, participants=participants, rounds=rounds, workers=workers,
-                                   events=True)
+                                   events=True, hosts=hosts)
     except runner.AnalysisError:  # every run failed: report the first error and stop
-        probe = runner.execute_job(parsed, baseline_jobs[0], participants, rounds, False)
+        probe = runner.execute_job(parsed, baseline_jobs[0], participants, rounds, False, hosts=hosts)
         findings.append(Finding("runs_fail", "error", "(run)", f"Every run failed: {probe.error}. "
                                 "Fix this first; nothing else can be checked.", {"error": probe.error}))
         return CheckReport(parsed.name, runs, rounds, findings, [], list(parsed.inputs))
@@ -135,7 +137,7 @@ def behavior_checks(contract: ContractLike, *, runs: int = 4, rounds: Optional[i
     findings += _action_findings(parsed, completed, rounds)
     findings += _stage_findings(parsed, completed, rounds)
     tested, untested, input_findings = _input_findings(parsed, base_inputs, baseline, seeds, test_inputs, perturb,
-                                                       participants, rounds, workers)
+                                                       participants, rounds, workers, hosts)
     findings += input_findings
     order = {"error": 0, "warning": 1, "info": 2}
     findings.sort(key=lambda f: order[f.severity])
@@ -247,7 +249,7 @@ def _stage_findings(contract: Any, runs: Sequence[RunResult], rounds: Optional[i
 
 def _input_findings(contract: Any, base_inputs: Mapping[str, Any], baseline: Sequence[RunResult], seeds: Sequence[int],
                     test_inputs: Optional[Sequence[str]], perturb: float, participants: Any, rounds: Optional[int],
-                    workers: int) -> Tuple[List[str], List[str], List[Finding]]:
+                    workers: int, hosts: Any) -> Tuple[List[str], List[str], List[Finding]]:
     names = list(test_inputs) if test_inputs is not None else list(contract.inputs)
     for name in names:
         runner.input_spec(contract, name)
@@ -269,7 +271,7 @@ def _input_findings(contract: Any, base_inputs: Mapping[str, Any], baseline: Seq
     cells = [({**base_inputs, name: v}, None) for name, v in plan]
     jobs = runner.jobs_for(cells, seeds)
     try:
-        results = runner.run_jobs(contract, jobs, participants=participants, rounds=rounds, workers=workers)
+        results = runner.run_jobs(contract, jobs, participants=participants, rounds=rounds, workers=workers, hosts=hosts)
     except runner.AnalysisError:
         results = [runner.failed_result(job, RuntimeError("every variant run failed")) for job in jobs]
     grouped = runner.by_cell(jobs, results, len(cells))

@@ -13,8 +13,10 @@ from .effects import EffectRunner
 from .errors import RunError
 from .expr import ExprError, compile_expr, is_expr, resolve, truthy  # noqa: F401
 from .seeds import SeedTree
+from .stdlib.dates import parse_moment
 from .template import compile_template
 from .world import Abort, SdkWorld
+from .world_defaults import default_order, world_reads
 from . import networks as _networks  # noqa: F401  (registers network and keyed-draw functions)
 
 __all__ = ["build_world"]
@@ -29,6 +31,7 @@ def build_world(contract: Contract, inputs: Dict[str, Any], seeds: SeedTree, arm
     pending_briefs: List[Tuple[str, str, Dict[str, Any], str]] = []
     try:
         world.rounds = _rounds(world)
+        world.start = _clock_start(world)
         _count_settings(world)
         world.round = 0
         world.build_space()
@@ -102,6 +105,21 @@ def _rounds(world: SdkWorld) -> int:
     return rounds
 
 
+def _clock_start(world: SdkWorld) -> Optional[str]:
+    """``clock.start`` as a calendar date: as written, or read from ``$inputs`` (null leaves the run without dates)."""
+    raw = world.contract.clock.start
+    if raw is None or not is_expr(raw):
+        return raw
+    value = _value(world, raw, {})
+    if value is None:
+        return None
+    try:
+        parse_moment(value if isinstance(value, str) else "")
+    except ValueError:
+        raise RunError(f"must give an ISO date like 2026-01-31, got {value!r}", "clock.start") from None
+    return value
+
+
 def whole_setting(world: SdkWorld, raw: Any, path: str, limit: Optional[int] = None) -> Optional[int]:
     """A count setting (a stage's `passes`, an event's `every`): a literal as written, or an expression over
     $inputs giving a whole number ≥ 1. Inputs never change during a run, so reading it again gives the same number."""
@@ -147,9 +165,17 @@ def _needs_entities(world: SdkWorld, raw: Any) -> bool:
 
 def _world_props(world: SdkWorld, after_entities: bool = False) -> None:
     """World defaults are evaluated before entities exist, except those that read entities
-    (`$sum(tier, ...)`, `$entity(x)`), which are evaluated once the world is populated."""
-    for name, spec in world.contract.world.items():
-        if _needs_entities(world, spec.default) != after_entities:
+    (`$sum(tier, ...)`, `$entity(x)`) or read a world property that does, which are evaluated once the world is
+    populated. A default reading other world properties (`$world.rates`) is evaluated after them."""
+    specs = world.contract.world
+    order, _ = default_order({name: spec.default for name, spec in specs.items()})
+    late: Set[str] = set()
+    for name in order:
+        if _needs_entities(world, specs[name].default) or world_reads(specs[name].default) & late:
+            late.add(name)
+    for name in order:
+        spec = specs[name]
+        if (name in late) != after_entities:
             continue
         try:
             value = _value(world, spec.default, {})

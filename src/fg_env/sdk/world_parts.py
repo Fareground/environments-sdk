@@ -114,13 +114,15 @@ class ClockView:
             return max(0, w.rounds - w.round)
         if name == "date":
             return w.date()
+        if name == "start":
+            return w.start
         if name == "label":
             return w.clock_label()
         if name == "time":
             return w.now()
         if name == "horizon":
             return w.horizon
-        raise ExprError(f"clock has no field '{name}' (round, rounds, left, unit, date, label, time, horizon)", source)
+        raise ExprError(f"clock has no field '{name}' (round, rounds, left, unit, date, start, label, time, horizon)", source)
 
 
 class Journal:

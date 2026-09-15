@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Environment SDK (`fg-env`)
 
+#### Fixed
+- **Data files everywhere**: a parsed contract remembers its data folder (the contract file's folder, or `data_dir=`),
+  so `check`, `experiment`, `run_jobs` workers, `calibrate`, `backtest`, `precision`, `sweep`, `sensitivity`,
+  `behavior_checks` and `chain` read `source` inputs instead of failing. Each takes `data_dir=` and `hosts=` (runs
+  answered by hosts stay in this process); the CLI's `check` and analysis commands take `--data-dir`.
+- **A property named `make` is data**: an object is a macro only when it has `for` and `make` (or only macro fields);
+  a macro missing `for`, or data with both fields, says to rename the field.
+- **World defaults read other world properties** (`"plan": "$map($world.rates, $it * 2)"`), evaluated in dependency
+  order (after the entities when a property they read needs them); defaults reading each other in a circle are an
+  error naming the circle. A local named like a reserved root (`$row = …`) says to rename it.
+
 #### Changed
 - **A short core guide**: `fg_env.guide()` / `fg-env guide` is a ~2.8K-token core — the model, a quickstart that
   runs with defaults, the essential sections and fields, expression and effect basics, the mechanism families and a
@@ -41,6 +52,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read one family or mode.
 
 #### Added
+- **Validation that tells the truth** (`fg_env.validate(contract, cases, runs=, levels=(0.8, 0.95), season=, test=)`):
+  each case's `actuals` — a number, a map per key (product, category) or a list — checked against the run ensembles:
+  bias, MAPE, WAPE, RMSE and CRPS overall, per key and on held-out cases; interval coverage at each nominal level with
+  a loud warning when intervals clearly hold fewer actual values than they claim; and a comparison with the last
+  value, the earlier mean and the value one season back, with a warning when a baseline wins. Plain `report()` and
+  structured `to_dict()`. `backtest` notes the same coverage warning.
+- **Parameter uncertainty in runs**: `uncertainty=` on `experiment`, `sweep`, `backtest` and `validate` draws
+  parameters per run from a calibration's plausible points (`CalibrationResult.plausible`), a list of points or
+  priors (`normal`, `lognormal`, `uniform`, `triangular`, `values`, clipped by `min`/`max`); run *i* draws the same in
+  every arm, cell and case. Forecasting 10 quarters with p treated as known, 80% intervals held 1 of 10 actual values;
+  drawing p held at least 8. A contract's load-time `calibration` report records its plausible points too, and
+  `uncertainty=` takes that report or the loaded session (`env`) itself.
+- **Scan lint**: `check` warns, with a fix, when work that repeats per entity or row re-reads a whole input table
+  (events and `each` over a type, type hooks, population rows: use `$lookup`) or when a block that schedules itself
+  again through `after` reads every entity of a type (keep a world list such as a queue of ids), defs followed. Once-per-
+  round scans and per-entity pairing are not reported; the shipped examples raise none.
+- **Negotiation settlement**: the `agreements` `negotiation` mode takes `transfers` (unique entities a signed deal
+  hands over, `{"items": "$filter(phone, $it.owner == $proposer.id)", "count": "$terms.units", "to": "$acceptor"}`,
+  listed in `<name>_deal.items`) and `on_sign` effects (`$deal`, `$proposer`, `$acceptor`, `$parties`, `$terms`). A
+  settlement that cannot happen (too few items, a `fail`) refuses the acceptance, so one lot is never sold twice.
+- **Keyed table lookups**: `$lookup(table, field, key)` gives the rows whose field equals the key and
+  `$lookup_one(table, field, key, default?)` the first; an input table is indexed once per run (other lists per call),
+  fields and keys may be lists. Deriving each of 228 SKUs' base demand from a 35,568-row sales history at load went
+  from 26.9 s (`$filter`) to 0.3 s.
+- **Calendar functions**: `$date_add(date, n, unit?)` (day, week, month, quarter, year, hour, minute; months keep the
+  day or take the month's last), `$days_between(a, b)`, `$date_part(date, part)` (year, quarter, month, day, weekday,
+  ISO week, day of year, hour, minute, weekday and month names) and `$is_holiday(date, dates)`. `clock.start` may
+  read an input (`"$inputs.start"`), readable as `$clock.start`; `RunResult.clock` records the clock, and summaries,
+  highlights and narratives name rounds in its unit with their date (`Week 3 (2026-09-14): …`).
 - **Order-book venue rules as expressions** (`guide('market.order_book')`): `tick_size`, `lot_size`, maker/taker fees,
   `collar_pct`, `price_band_pct`, `halt_pct`, `halt_rounds`, `halt_window`, `short_limit`, `max_short_leverage`,
   `order_ttl`, `max_orders` and `bar_rounds` accept expressions over `$inputs`, resolved once when the world is built

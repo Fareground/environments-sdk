@@ -257,6 +257,8 @@ class Env(Copying, RunChecks):
             host_tape=tape_of(self) if self.world.exposures is not None else {}, budget=Budget.report(self),
             formats={name: spec.format for name, spec in self.contract.outputs.items() if spec.format},
             diagnostics=diagnose(self, outputs),
+            clock={"mode": self.contract.clock.mode, "unit": self.contract.clock.unit, "step": self.contract.clock.step,
+                   "start": self.world.start},
             assets=self.world.assets.to_dict() if len(self.world.assets) else {},
         )
 

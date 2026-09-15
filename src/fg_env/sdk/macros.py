@@ -55,8 +55,11 @@ class _MacroError(Exception):
 
 
 def is_macro(value: Any) -> bool:
-    """True when ``value`` is a macro object (it has a ``make``)."""
-    return isinstance(value, Mapping) and "make" in value
+    """True when ``value`` is a macro object: it has both ``for`` and ``make``, or only macro fields with ``make``
+    (a macro missing its ``for``, reported as one). Data with a field named ``make`` (a car's make) is not a macro."""
+    if not isinstance(value, Mapping) or "make" not in value:
+        return False
+    return "for" in value or (len(value) > 1 and set(value) <= _KEYS)
 
 
 def expand_macros(data: Any) -> Any:
@@ -74,7 +77,7 @@ def expand_macros(data: Any) -> Any:
 
 def _has_macro(value: Any) -> bool:
     if isinstance(value, Mapping):
-        return "make" in value or any(_has_macro(v) for v in value.values())
+        return is_macro(value) or any(_has_macro(v) for v in value.values())
     if isinstance(value, list):
         return any(_has_macro(v) for v in value)
     return False
@@ -172,9 +175,12 @@ class _Expander:
             raise _MacroError(where, f"macros are nested more than {MAX_MACRO_DEPTH} deep", "flatten the loops into data")
         unknown = sorted(set(macro) - _KEYS)
         if unknown:
-            raise _MacroError(_join(where, unknown[0]), "is not a macro field", f"a macro takes for, as, index and make: {_FIX}")
+            raise _MacroError(_join(where, unknown[0]), "is not a macro field",
+                              f"a macro takes for, as, index and make: {_FIX}; data with fields named `for` and `make` "
+                              "is read as a macro, so rename one of them (e.g. `vehicle_make`)")
         if "for" not in macro:
-            raise _MacroError(where, "a macro needs `for`: the values to repeat over", _FIX)
+            raise _MacroError(where, "a macro needs `for`: the values to repeat over",
+                              f"{_FIX}; if this is data, not a macro, rename its `make` field (e.g. `vehicle_make`)")
         name = self.variable(macro, "as", env, where, required=True)
         index_name = self.variable(macro, "index", env, where, required=False)
         if index_name is not None and index_name == name:
