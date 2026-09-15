@@ -17,6 +17,7 @@ from .assets.delivery import attached_ids
 from .contract import ActionSpec, Contract, ParamSpec, RecordSpec, StageSpec
 from .effects import EffectRunner
 from .errors import RunError
+from .probability import is_probability
 from .expr import EVAL_BUDGET, ExprError, Scope, compile_expr, is_expr, shared_budget, truthy
 from .template import compile_template, format_value
 from .world import Abort, SdkWorld, _plain
@@ -187,8 +188,8 @@ class ActionBook(ActionSchemas, ActionValidation):
         try:
             if spec.chance is not None:
                 probability = compile_expr(spec.chance)(world.scope(**vars)) if is_expr(spec.chance) else spec.chance
-                if isinstance(probability, bool) or not isinstance(probability, (int, float)):
-                    raise RunError(f"chance must be a number, got {probability!r}", f"{path}.chance")
+                if not is_probability(probability):
+                    raise RunError(f"chance must be a number from 0 to 1, got {probability!r}", f"{path}.chance")
                 success = world.rng.random() < probability
             self.effects.run(spec.do if success else spec.otherwise, vars, f"{path}.{'do' if success else 'otherwise'}")
             text = self._render(spec.outcome, vars, f"{path}.outcome") if spec.outcome else \

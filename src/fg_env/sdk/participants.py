@@ -18,6 +18,7 @@ import time
 from typing import TYPE_CHECKING, Any, Callable, Collection, Dict, List, Mapping, Optional, Union
 
 from .assets.multimodal import ANTHROPIC_MEDIA, OPENAI_MEDIA, anthropic_parts, media_set, openai_parts
+from .probability import is_probability
 from .expr import ExprError, compile_expr, resolve, truthy
 from .session import END_TURN, ToolResult, Wake
 
@@ -190,8 +191,8 @@ class PolicyAgent:
                 return "skipped"
             if rule.chance is not None:
                 p = compile_expr(rule.chance)(scope) if isinstance(rule.chance, str) else rule.chance
-                if isinstance(p, bool) or not isinstance(p, (int, float)):
-                    raise ExprError(f"chance must be a number, got {p!r}", str(rule.chance))
+                if not is_probability(p):
+                    raise ExprError(f"chance must be a number from 0 to 1, got {p!r}", str(rule.chance))
                 if rng.random() >= p:
                     return "skipped"
             if rule.do == "pass":

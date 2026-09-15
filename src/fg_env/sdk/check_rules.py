@@ -5,6 +5,7 @@ import re
 from typing import TYPE_CHECKING, Set
 
 from . import contract as C
+from .probability import check_literal_probability
 from .check_roots import BASE
 from .check_space import check_event_order
 from .contract import Contract
@@ -38,6 +39,7 @@ class RuleChecks:
             elif event.every is not None and event.every < 1:
                 self.error(f"{path}.every", "must be at least 1")
             self.value(event.chance, f"{path}.chance", BASE)
+            check_literal_probability(self, event.chance, f"{path}.chance")
             types: Types = {}
             roots = set(BASE)
             if event.each is not None:
@@ -89,6 +91,7 @@ class RuleChecks:
                     rule_roots = rule_roots | {"it", "i"}
                 self.expr(rule.when, f"{path}.when", rule_roots, actor_types)
                 self.value(rule.chance, f"{path}.chance", rule_roots, actor_types)
+                check_literal_probability(self, rule.chance, f"{path}.chance")
                 self.value(rule.with_, f"{path}.with", rule_roots, actor_types)
 
     def _measure(self: "_Checker") -> None:  # type: ignore[misc]

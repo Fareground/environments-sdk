@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, List, Mapping, Set
 
 from . import contract as C
 from .check_params import check_param_bounds
+from .probability import check_literal_probability
 from .check_roots import BASE
 from .check_turns import check_spectator_view, check_stage_turns, spectator_audience_issues
 from .contract import Contract
@@ -59,6 +60,7 @@ class ActionChecks:
                 self.expr(condition.expr, f"{path}.when[{index}]", BASE | {"actor", "params"}, types, spec.params)
             roots = set(BASE | {"actor", "params"})
             self.value(spec.chance, f"{path}.chance", roots, types, spec.params)
+            check_literal_probability(self, spec.chance, f"{path}.chance")
             self.value(spec.duration, f"{path}.duration", roots, types, spec.params)
             if spec.duration is not None and self.c.clock.mode != "continuous":
                 self.warn(f"{path}.duration", "duration only applies with a continuous clock")

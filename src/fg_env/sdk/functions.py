@@ -5,6 +5,7 @@ import math
 from typing import Any, Dict, Iterable, List, Tuple
 
 from .poisson import sample_poisson
+from .probability import is_probability
 
 from .expr import (
     MAX_LIST_LEN, MAX_RANGE, Call, ExprError, Untrusted, _describe, _entity_id, _held, _number, attr, charge,
@@ -469,7 +470,12 @@ def _random(call: Call) -> float:
 
 @function("chance(p)", "True with probability p.", min_args=1, max_args=1)
 def _chance(call: Call) -> bool:
-    return call.rng.random() < call.number(0)
+    # Retain draw order when the argument itself draws randomness.
+    roll = call.rng.random()
+    probability = call.number(0)
+    if not is_probability(probability):
+        raise ExprError(f"$chance probability must be a number from 0 to 1, got {probability!r}", call.source)
+    return roll < probability
 
 
 @function("uniform(low, high)", "Uniform number between low and high.", min_args=2, max_args=2)
