@@ -1,0 +1,13 @@
+{
+  "actions": 33,
+  "events": 35,
+  "events_sha256": "ca80005cc5c6d1f9448621eee2fe58e8c5afe5a1817e9a65c708b39a3f11fd95",
+  "metrics": {
+    "heroes_hp": 57,
+    "monsters_hp": 47,
+    "poisoned": 1
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 24
+}

@@ -1,0 +1,13 @@
+{
+  "actions": 14,
+  "events": 18,
+  "events_sha256": "68a5819996d4023a14769473b5a3225482f7301ad929b84c474bd981c3fccfc5",
+  "metrics": {
+    "admitted": 3,
+    "excluded": 1,
+    "net_admitted_strength": -0.1833304466
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 14
+}
