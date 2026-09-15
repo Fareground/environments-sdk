@@ -84,7 +84,8 @@ class VictoryConfig(Config):
     """How players win, lose or end with no winner."""
 
     who: str = Field(..., description="The type whose members can win (subtypes included).")
-    alive: str = Field("true", description="Who is still in ($it), e.g. $it.hp > 0.")
+    alive: str = Field("true", description="Who is still in ($it), e.g. $it.hp > 0 — any condition, not only the "
+                                           "built-in `alive` (false once an entity is removed).")
     conditions: List[VictoryCondition] = Field(
         ..., min_length=1,
         description="Tried in order; each one of {first_to + score}, {most, at}, {last_standing: true}, {last_team}, "
@@ -107,7 +108,7 @@ def _labelled(cfg: VictoryConfig) -> List[Tuple[str, VictoryCondition]]:
 @mode("flow", "victory", VictoryConfig,
       "Win conditions: first to a score, highest score at a round, last one standing, last team, cooperative win or "
       "loss, a condition held for K rounds, eliminating a type, or completing objectives — with tiebreaks and tie "
-      "rules. Generates `end` entries (and end-of-round events for `most` and `stable`); $winner(items, by, ties) "
+      "rules. Generates `end` entries (and end-of-round events for `most` and `stable`); $best(items, by, ties) "
       "resolves winners anywhere. For an agent type it fills the `game` section: seats and returns ($won).",
       example={"who": "player", "alive": "not $it.bankrupt",
                "conditions": [{"first_to": 10, "score": "$it.points"}, {"last_standing": True},
@@ -122,8 +123,8 @@ def _expand(name: str, cfg: VictoryConfig, contract: Mapping[str, Any]) -> Dict[
     events: List[Dict[str, Any]] = []
     world: Dict[str, Any] = {}
 
-    def winner_of(items: str, keys: List[str]) -> str:
-        return f"$winner({items}, [{', '.join(keys) or '0'}], '{cfg.ties}')"
+    def best_of(items: str, keys: List[str]) -> str:
+        return f"$best({items}, [{', '.join(keys) or '0'}], '{cfg.ties}')"
 
     for index, (label, c) in enumerate(_labelled(cfg)):
         field = f"conditions[{index}]"
@@ -132,11 +133,11 @@ def _expand(name: str, cfg: VictoryConfig, contract: Mapping[str, Any]) -> Dict[
         winner: Optional[str]
         if kind == "first_to":
             reached = f"$filter({players}, {alive} and ({c.score}) >= ({c.first_to}))"
-            when, winner = f"$len({reached}) > 0", winner_of(reached, [f"({c.score})", *breaks])
+            when, winner = f"$len({reached}) > 0", best_of(reached, [f"({c.score})", *breaks])
         elif kind == "most":
-            winner = winner_of(in_play, [f"({c.most})", *breaks])
+            winner = best_of(in_play, [f"({c.most})", *breaks])
         elif kind == "last_standing":
-            when, winner = f"$count({players}, {alive}) <= 1", winner_of(in_play, breaks)
+            when, winner = f"$count({players}, {alive}) <= 1", best_of(in_play, breaks)
         elif kind == "last_team":
             teams = f"$unique($map({in_play}, {c.last_team}))"
             when, winner = f"$len({teams}) <= 1", f"$first({teams})"
@@ -156,7 +157,7 @@ def _expand(name: str, cfg: VictoryConfig, contract: Mapping[str, Any]) -> Dict[
         else:
             met = " and ".join(f"({o})" for o in c.objectives or [])
             done = f"$filter({players}, {alive} and {met})"
-            when, winner = f"$len({done}) > 0", winner_of(done, breaks)
+            when, winner = f"$len({done}) > 0", best_of(done, breaks)
         if c.winner is not None:
             winner = c.winner
         say = c.say or _default_say(kind, winner)
@@ -190,26 +191,26 @@ def _key(call: Call, value: Any) -> Any:
         if isinstance(part, bool):
             part = int(part)
         if not isinstance(part, (int, float, str)):
-            raise ExprError(f"$winner: a ranking key is a number, text or a list of them, got {part!r}", call.source)
+            raise ExprError(f"$best: a ranking key is a number, text or a list of them, got {part!r}", call.source)
     return tuple(int(p) if isinstance(p, bool) else p for p in parts)
 
 
-@function("winner(items, by, ties?)",
+@function("best(items, by, ties?)",
           "The best of `items` by `by` (a value or list of values, highest first): one item, a list when tied and ties is "
           "'share' (default), null when tied and ties is 'none', one at random (seeded) when 'random'; null when empty.",
           min_args=2, max_args=3, lazy=[1])
-def _winner(call: Call) -> Any:
+def _best(call: Call) -> Any:
     items = call.collection(0)
     ties = call.arg(2, "share")
     if ties not in ("share", "none", "random"):
-        raise ExprError(f"$winner: ties is share, none or random, got {ties!r}", call.source)
+        raise ExprError(f"$best: ties is share, none or random, got {ties!r}", call.source)
     if not items:
         return None
     try:
         keyed = [(_key(call, call.each(1, item, i)), item) for i, item in enumerate(items)]
         best = max(key for key, _ in keyed)
     except TypeError:
-        raise ExprError("$winner: ranking keys must be comparable (all numbers or all text)", call.source) from None
+        raise ExprError("$best: ranking keys must be comparable (all numbers or all text)", call.source) from None
     top = [item for key, item in keyed if key == best]
     if len(top) == 1:
         return top[0]

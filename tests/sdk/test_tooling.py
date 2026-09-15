@@ -6,51 +6,97 @@ import fg_env
 from fg_env.__main__ import main
 from fg_env.sdk.effects import EFFECT_OPS
 from fg_env.sdk.expr import FUNCTIONS
-from fg_env.sdk.guide import guide, schema
+from fg_env.sdk.guide import QUICKSTART, guide, guide_parts, schema
+from fg_env.sdk.guide_pages import SECTIONS, function_groups
+from fg_env.sdk.registry import FAMILIES
 
 from test_runtime import SHOP
 
 
-def test_guide_covers_every_function_effect_and_section():
-    text = guide()
-    for name in FUNCTIONS:
-        assert f"${name}(" in text
+#: The core guide must stay short enough to read before writing a first contract (characters / 4 ≈ tokens).
+CORE_TOKENS = 6_000
+
+
+def test_the_core_guide_is_short_and_maps_every_part():
+    core = guide()
+    assert len(core) / 4 < CORE_TOKENS
+    for name, *_ in SECTIONS:
+        assert f"`{name}`" in core
+    for family in FAMILIES:
+        assert f"| `{family}` |" in core
+    for topic in ("model", "expressions", "templates", "effects", "functions", "mechanisms", "patterns", "macros",
+                  "running", "checklist"):
+        assert f"- `{topic}` —" in core
+    assert guide("core") == core
+
+
+def test_every_part_renders_and_all_holds_every_function_effect_section_and_mode():
+    whole = guide("all")
+    for part in guide_parts()[:-1]:
+        assert guide(part).strip(), part
+    for name, spec in FUNCTIONS.items():
+        assert f"`${spec.signature}`" in whole, name
     for op in EFFECT_OPS:
-        assert f"`{op}`" in text
+        assert f"`{op}`" in whole
     for section in fg_env.Contract.model_fields:
         if section not in ("fg_env", "name", "description"):
-            assert f"### {section}:" in text
-    assert guide("effects").startswith("## Effects")
-    with pytest.raises(KeyError):
-        guide("nope")
+            assert f"## `{section}`:" in whole or section == "mechanisms", section
+    for family in FAMILIES.values():
+        for spec in family.modes.values():
+            assert guide(spec.key) in whole
 
 
-def test_guide_covers_every_mechanism_family_mode_field_and_action():
-    from fg_env.sdk.registry import FAMILIES
+def test_every_function_belongs_to_a_named_group():
+    groups = function_groups()
+    assert "other" not in groups
+    listed = [spec.name for specs in groups.values() for spec in specs]
+    assert sorted(listed) == sorted(FUNCTIONS)
+    assert "$variance(" in guide("functions.stats") and "$auction(" in guide("market")
 
+
+def test_an_unknown_part_suggests_the_closest_one():
+    with pytest.raises(KeyError, match="did you mean 'market.auction'"):
+        guide("market.auctoin")
+    with pytest.raises(KeyError, match="did you mean 'actions'"):
+        guide("action")
+
+
+def test_cli_guide_prints_a_part_and_suggests_one_for_a_typo(capsys):
+    assert main(["guide", "actions"]) == 0
+    assert capsys.readouterr().out.startswith("## `actions`:")
+    assert main(["guide", "actoins"]) == 1
+    assert "did you mean 'actions'" in capsys.readouterr().err
+
+
+def test_section_pages_list_the_roots_available_there():
+    actions = guide("actions")
+    assert actions.startswith("## `actions`:") and "| params.*.where | $actor $it $i $params" in actions
+    assert "$result" in guide("outputs") and "Roots" not in guide("imports")
+
+
+def test_the_mechanism_family_table_lists_every_mode():
     table = guide("mechanisms")
-    whole = guide()
     for name, family in FAMILIES.items():
         assert f"| `{name}` |" in table
+        page = guide(name)
         for mode, spec in family.modes.items():
-            page = guide(f"{name}.{mode}")
-            assert page.startswith(f"### `{name}.{mode}`") and page in whole and page in guide(name)
+            assert f"- `{mode}`:" in page
+            mode_page = guide(f"{name}.{mode}")
+            assert mode_page.startswith(f"### `{name}.{mode}`")
             for field in spec.config.model_fields:
-                assert f"- `{field}` (" in page, (name, mode, field)
+                assert f"- `{field}` (" in mode_page, (name, mode, field)
             marker = f"Actions of the `{name}` op:"
-            listed = page[page.index(marker):] if marker in page else ""
+            listed = mode_page[mode_page.index(marker):] if marker in mode_page else ""
             for action, op in family.actions.get(mode, {}).items():
                 assert (f"\n- `{action}`" in listed) is not op.internal, (name, mode, action)
 
 
-def test_guide_example_contract_is_valid_and_runs():
-    text = guide("overview")
-    start = text.index("```json") + len("```json")
-    example = json.loads(text[start:text.index("```", start)])
-    assert [i for i in fg_env.check(example) if i.severity == "error"] == []
-    result = fg_env.run(example, seed=1)
-    assert result.ok, result.summary()
-    assert result.outputs["winner"] in ("Ana", "Ben")
+def test_the_quickstart_contract_checks_clean_and_runs_with_defaults():
+    quickstart = json.loads(QUICKSTART)
+    assert QUICKSTART in guide()
+    assert fg_env.check(quickstart) == []
+    result = fg_env.run(quickstart, seed=1)
+    assert result.ok and result.rounds == 20 and result.outputs["richest"] in ("ann", "bob")
 
 
 def test_schema_describes_the_contract():

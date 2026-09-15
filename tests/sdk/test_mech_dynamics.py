@@ -596,17 +596,17 @@ def test_rotation_advances_by_seat_when_a_member_is_skipped_mid_run():
     assert env.props["calls"][7:] == ["a", "b", "c"]  # round 4: the rotation is back to seat a
 
 
-def test_hooks_refuse_an_action_whose_effects_are_not_a_list():
-    bad = json.loads(json.dumps(ARENA))
-    bad["actions"]["bash"]["do"] = {"conditions": "conditions", "action": "apply", "status": "stun", "who": "$params.target"}
-    bad["mechanisms"]["abilities"] = {"kind": "conditions", "mode": "cooldowns", "actions": {"bash": {"cooldown": 1}}}
-    with pytest.raises(ContractError, match=r"actions\.bash\.do must be a list"):
-        fg_env.parse(bad)
+def test_hooks_extend_an_action_whose_effects_are_written_as_one_effect():
+    one = json.loads(json.dumps(ARENA))
+    stun = {"conditions": "conditions", "action": "apply", "status": "stun", "who": "$params.target"}
+    one["actions"]["bash"]["do"] = stun
+    one["mechanisms"]["abilities"] = {"kind": "conditions", "mode": "cooldowns", "actions": {"bash": {"cooldown": 1}}}
+    do = fg_env.parse(one).actions["bash"].do
+    assert do[0] == stun and len(do) > 1
     otherwise = json.loads(json.dumps(ARENA))
     otherwise["actions"]["bash"].update(chance=0.5, otherwise="$actor.hp -= 1")
     otherwise["mechanisms"]["abilities"] = {"kind": "conditions", "mode": "cooldowns", "actions": {"bash": {"cooldown": 1}}}
-    with pytest.raises(ContractError, match=r"actions\.bash\.otherwise must be a list"):
-        fg_env.parse(otherwise)
+    assert fg_env.parse(otherwise).actions["bash"].otherwise[0] == "$actor.hp -= 1"
 
 
 # ---------------------------------------------------------------------------
@@ -798,27 +798,26 @@ def test_author_entries_win_and_hooks_are_visible_in_the_contract():
 def test_guide_documents_the_new_kinds_and_functions():
     text = fg_env.guide("mechanisms")
     assert "| `conditions` | status, cooldowns, channeling, terrain |" in text
-    conditions = fg_env.guide("conditions")
+    conditions = "\n".join(fg_env.guide(f"conditions.{mode}") for mode in ("status", "cooldowns", "channeling", "terrain"))
     for mode in ("status", "cooldowns", "channeling", "terrain"):
-        assert f"### `conditions.{mode}`" in conditions
+        assert f"### `conditions.{mode}`" in conditions and f"- `{mode}`:" in fg_env.guide("conditions")
     assert "- `apply`" in conditions and "- `interrupt`" in conditions and '"action": "tick"' not in conditions
     assert "| `dynamics` | drift, shocks, priors |" in text
-    dynamics = fg_env.guide("dynamics")
+    dynamics = "\n".join(fg_env.guide(f"dynamics.{mode}") for mode in ("drift", "shocks", "priors"))
     assert "### `dynamics.priors`" in dynamics and "- `fire`" in dynamics and "- `step`" not in dynamics
     assert "| `flow` | procedure, order, victory |" in text
-    flow = fg_env.guide("flow")
+    flow = "\n".join(fg_env.guide(f"flow.{mode}") for mode in ("procedure", "order", "victory"))
     assert "### `flow.victory`" in flow and "- `extra_turn`" in flow and "- `push`" in flow
     assert '"action": "advance"' not in flow
-    functions = fg_env.guide("functions")
-    for name in ("$effective(", "$has_status(", "$ready(", "$prior(", "$winner(", "$won(", "$terrain(", "$turn_rank("):
-        assert name in functions
+    for name in ("$effective(", "$has_status(", "$ready(", "$prior(", "$best(", "$won(", "$terrain(", "$turn_rank("):
+        assert name in fg_env.guide("all")
 
 
 # ---------------------------------------------------------------------------
 # Acceptance examples
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("name", ["dungeon_skirmish", "civil_trial_procedure", "epidemic_shocks"])
+@pytest.mark.parametrize("name", ["dungeon_skirmish", "civil_trial", "epidemic_shocks"])
 def test_acceptance_examples_check_run_and_resume(name):
     path = EXAMPLES / f"{name}.json"
     assert _errors(path) == []
@@ -841,14 +840,8 @@ def test_dungeon_skirmish_uses_every_tactical_family():
     assert result.status in ("completed", "ended"), result.error
 
 
-def _content_size(path):
-    """Bytes of the contract as data (minified), so nesting depth does not count as size."""
-    return len(json.dumps(json.loads(path.read_text()), separators=(",", ":"), ensure_ascii=False))
-
-
-def test_civil_trial_procedure_reaches_a_verdict_and_is_smaller():
-    procedure = EXAMPLES / "civil_trial_procedure.json"
-    assert _content_size(procedure) < _content_size(EXAMPLES / "civil_trial.json")
+def test_civil_trial_procedure_reaches_a_verdict():
+    procedure = EXAMPLES / "civil_trial.json"
     result = fg_env.load(procedure, seed=2).run()
     assert result.status == "ended", result.error
     assert result.outputs["verdict"] in ("liable", "not_liable", "hung")

@@ -250,8 +250,7 @@
         "$actor.acted = true"
       ],
       "outcome": "You folded.",
-      "announce": "{$actor.name} folds.",
-      "terminal": true
+      "announce": "{$actor.name} folds."
     },
     "check": {
       "by": "player",
@@ -266,8 +265,7 @@
         "$actor.acted = true"
       ],
       "outcome": "You checked.",
-      "announce": "{$actor.name} checks.",
-      "terminal": true
+      "announce": "{$actor.name} checks."
     },
     "call": {
       "by": "player",
@@ -287,8 +285,7 @@
         "$actor.acted = true"
       ],
       "outcome": "You called {$amount}{$text(' and are all-in' if $actor.stack == 0 else '')}. Pot is {$world.pot}.",
-      "announce": "{$actor.name} calls {$amount}{$text(' (all-in)' if $actor.stack == 0 else '')}.",
-      "terminal": true
+      "announce": "{$actor.name} calls {$amount}{$text(' (all-in)' if $actor.stack == 0 else '')}."
     },
     "raise": {
       "by": "player",
@@ -335,8 +332,7 @@
         "$world.current_bet = $params.to"
       ],
       "outcome": "You raised to {$params.to}{$text(' (all-in)' if $actor.stack == 0 else '')}. Pot is {$world.pot}.",
-      "announce": "{$actor.name} raises to {$params.to}{$text(' (all-in)' if $actor.stack == 0 else '')}.",
-      "terminal": true
+      "announce": "{$actor.name} raises to {$params.to}{$text(' (all-in)' if $actor.stack == 0 else '')}."
     }
   },
   "stages": [

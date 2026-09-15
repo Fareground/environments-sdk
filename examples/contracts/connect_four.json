@@ -1,371 +1,47 @@
 {
   "fg_env": "1",
-  "name": "Connect Four",
-  "description": "Classic Connect Four on a 6-row, 7-column board for two players.",
+  "name": "Connect Four (native)",
+  "description": "Classic Connect Four on a 6-row, 7-column board, played natively by the board mechanism.",
   "brief": {
     "situation": "Two players face each other across an upright Connect Four board with 6 rows and 7 columns.",
-    "rules": "Players alternate turns, X moves first. On your turn choose a column (1-7) that is not full; your piece falls to the lowest empty cell of that column. The first player to line up four of their pieces in a row horizontally, vertically or diagonally wins at once. If all 42 cells fill with no four in a row, the game is a draw. The board is shown with row 1 at the top and row 6 at the bottom; '.' is an empty cell.",
+    "rules": "Red (X) moves first. On your turn drop a piece into a column that is not full; it falls to the lowest empty cell, which is how the move is written (d1 is the bottom of column d). The first player with four pieces in a row horizontally, vertically or diagonally wins at once. A full board with no four in a row is a draw.",
     "roles": {
-      "player": "You want to connect four of your own pieces before your opponent does, and to block any line of three they are building."
+      "player": "Connect four of your own pieces before your opponent does, and block their lines of three."
     }
   },
   "clock": {
     "rounds": 42,
     "unit": "move"
   },
-  "world": {
-    "turn": {
-      "type": "text",
-      "default": "X",
-      "description": "Mark of the player to move."
-    },
-    "moves": {
-      "type": "int",
-      "default": 0
-    },
-    "winner": {
-      "type": "text",
-      "default": "",
-      "description": "Name of the winner, empty while undecided."
-    },
-    "winning_move": {
-      "type": "int",
-      "default": 0
-    },
-    "last_move": {
-      "type": "text",
-      "default": "none yet"
-    }
-  },
-  "types": {
-    "player": {
-      "agent": true,
-      "description": "One of the two players.",
-      "props": {
-        "mark": {
-          "type": "text",
-          "default": "X"
+  "mechanisms": {
+    "connect4": {
+      "kind": "game",
+      "mode": "board",
+      "size": [
+        6,
+        7
+      ],
+      "sides": [
+        {
+          "id": "red",
+          "mark": "X"
+        },
+        {
+          "id": "yellow",
+          "mark": "O"
         }
-      }
-    },
-    "cell": {
-      "description": "One board cell; r = 0 at the top, c = 0 at the left.",
-      "props": {
-        "r": {
-          "type": "int",
-          "default": 0
-        },
-        "c": {
-          "type": "int",
-          "default": 0
-        },
-        "mark": {
-          "type": "text",
-          "default": "."
-        }
-      }
-    },
-    "row": {
-      "description": "One rendered board row.",
-      "props": {
-        "r": {
-          "type": "int",
-          "default": 0
-        },
-        "line": {
-          "type": "text",
-          "default": ". . . . . . ."
-        }
-      }
-    },
-    "window": {
-      "description": "One possible line of four cells: start (r0, c0) and direction (dr, dc).",
-      "props": {
-        "r0": {
-          "type": "int",
-          "default": 0
-        },
-        "c0": {
-          "type": "int",
-          "default": 0
-        },
-        "dr": {
-          "type": "int",
-          "default": 0
-        },
-        "dc": {
-          "type": "int",
-          "default": 1
-        },
-        "x": {
-          "type": "int",
-          "default": 0
-        },
-        "o": {
-          "type": "int",
-          "default": 0
-        }
-      }
-    }
-  },
-  "entities": {
-    "red": {
-      "type": "player",
-      "name": "Red",
-      "props": {
-        "mark": "X"
-      }
-    },
-    "yellow": {
-      "type": "player",
-      "name": "Yellow",
-      "props": {
-        "mark": "O"
-      }
-    }
-  },
-  "population": [
-    {
-      "type": "cell",
-      "count": 42,
-      "id": "cell_{$i - 1}",
-      "props": {
-        "r": "($i - 1) // 7",
-        "c": "($i - 1) % 7"
-      }
-    },
-    {
-      "type": "row",
-      "count": 6,
-      "id": "row_{$i}",
-      "props": {
-        "r": "$i - 1"
-      }
-    },
-    {
-      "type": "window",
-      "count": 24,
-      "id": "h_{$i}",
-      "props": {
-        "r0": "($i - 1) // 4",
-        "c0": "($i - 1) % 4",
-        "dr": 0,
-        "dc": 1
-      }
-    },
-    {
-      "type": "window",
-      "count": 21,
-      "id": "v_{$i}",
-      "props": {
-        "r0": "($i - 1) // 7",
-        "c0": "($i - 1) % 7",
-        "dr": 1,
-        "dc": 0
-      }
-    },
-    {
-      "type": "window",
-      "count": 12,
-      "id": "d_{$i}",
-      "props": {
-        "r0": "($i - 1) // 4",
-        "c0": "($i - 1) % 4",
-        "dr": 1,
-        "dc": 1
-      }
-    },
-    {
-      "type": "window",
-      "count": 12,
-      "id": "a_{$i}",
-      "props": {
-        "r0": "($i - 1) // 4",
-        "c0": "($i - 1) % 4 + 3",
-        "dr": 1,
-        "dc": -1
-      }
-    }
-  ],
-  "actions": {
-    "drop": {
-      "by": "player",
-      "description": "Drop one of your pieces into a column (1 = leftmost, 7 = rightmost). Only columns with room are offered.",
-      "params": {
-        "column": {
-          "type": "enum",
-          "description": "Column number, 1 to 7.",
-          "values": "$map($bottom($filter(cell, $it.r == 0 and $it.mark == '.'), $it.c), $it.c + 1)"
-        }
+      ],
+      "pieces": {
+        "disc": {}
       },
-      "when": [
-        {
-          "expr": "$actor.mark == $world.turn",
-          "why": "It is not your turn."
-        }
-      ],
-      "do": [
-        "$slot = $top(cell, $it.r, 1, $it.c == $params.column - 1 and $it.mark == '.')[0]",
-        "$slot.mark = $actor.mark",
-        {
-          "each": "window",
-          "as": "w",
-          "where": "$any([0, 1, 2, 3], $w.r0 + $it * $w.dr == $slot.r and $w.c0 + $it * $w.dc == $slot.c)",
-          "do": [
-            "$w.x += 1 if $actor.mark == 'X' else 0",
-            "$w.o += 1 if $actor.mark == 'O' else 0"
-          ]
-        },
-        {
-          "each": "row",
-          "as": "line",
-          "where": "$line.r == $slot.r",
-          "do": [
-            "$line.line = $join($map($bottom(cell, $it.c, null, $it.r == $line.r), $it.mark), ' ')"
-          ]
-        },
-        "$world.moves += 1",
-        "$world.last_move = $actor.name + ' (' + $actor.mark + ') in column ' + $text($params.column)",
-        "$world.turn = 'O' if $actor.mark == 'X' else 'X'",
-        {
-          "if": "$any(window, $it.x == 4 or $it.o == 4)",
-          "then": [
-            "$world.winner = $actor.name",
-            "$world.winning_move = $world.moves",
-            {
-              "end": "four_in_a_row",
-              "winner": "$actor",
-              "say": "{$actor.name} ({$actor.mark}) connects four on move {$world.moves}!"
-            }
-          ]
-        }
-      ],
-      "outcome": "Your {$actor.mark} landed in column {$params.column}, row {$slot.r + 1}.",
-      "announce": "{$actor.name} ({$actor.mark}) dropped a piece into column {$params.column}; it landed on row {$slot.r + 1}.",
-      "terminal": true
-    }
-  },
-  "stages": [
-    {
-      "name": "move",
-      "turns": "sequential",
-      "who": "$it.mark == $world.turn",
-      "max_actions": 1,
-      "max_calls": 6,
-      "brief": "Your move as {mark}. Pick a column."
-    }
-  ],
-  "views": {
-    "board": {
-      "for": "player",
-      "title": "Board (row 1 top, row 6 bottom)",
-      "of": "row",
-      "sort": "$it.r",
-      "show": "{$it.r + 1} | {line}"
-    },
-    "columns": {
-      "for": "player",
-      "show": "    1 2 3 4 5 6 7"
-    },
-    "status": {
-      "for": "player",
-      "show": "You play {mark}. Moves played: {$world.moves}. Last move: {$world.last_move}."
-    }
-  },
-  "end": [
-    {
-      "name": "board_full",
-      "when": "$world.moves >= 42 and $world.winner == ''",
-      "say": "The board is full with no four in a row: a draw."
-    }
-  ],
-  "invariants": [
-    {
-      "expr": "$count(cell, $it.mark != '.') == $world.moves",
-      "why": "Every move places exactly one piece."
-    }
-  ],
-  "policies": {
-    "center_first": {
-      "rules": [
-        {
-          "do": "drop",
-          "with": {
-            "column": 4
-          }
-        },
-        {
-          "do": "drop",
-          "with": {
-            "column": 3
-          }
-        },
-        {
-          "do": "drop",
-          "with": {
-            "column": 5
-          }
-        },
-        {
-          "do": "drop",
-          "with": {
-            "column": 2
-          }
-        },
-        {
-          "do": "drop",
-          "with": {
-            "column": 6
-          }
-        },
-        {
-          "do": "drop",
-          "with": {
-            "column": 1
-          }
-        },
-        {
-          "do": "drop",
-          "with": {
-            "column": 7
-          }
-        }
-      ]
-    },
-    "leftmost": {
-      "rules": [
-        {
-          "do": "drop",
-          "with": {
-            "column": "$min($filter(cell, $it.r == 0 and $it.mark == '.'), $it.c) + 1"
-          }
-        }
-      ]
+      "place": {
+        "gravity": "s"
+      },
+      "line": 4,
+      "no_moves": "draw"
     }
   },
   "metrics": {
-    "pieces": "$count(cell, $it.mark != '.')",
-    "open_columns": "$count(cell, $it.r == 0 and $it.mark == '.')"
-  },
-  "outputs": {
-    "winner": {
-      "expr": "$world.winner if $world.winner != '' else 'draw'",
-      "type": "text",
-      "description": "Winner's name, or 'draw'."
-    },
-    "winning_move": {
-      "expr": "$world.winning_move",
-      "type": "int",
-      "description": "Move number on which four were connected (0 for a draw)."
-    },
-    "moves": {
-      "expr": "$world.moves",
-      "type": "int"
-    },
-    "final_board": {
-      "expr": "$map($bottom(row, $it.r), $it.line)",
-      "type": "list",
-      "description": "Rows top to bottom."
-    }
+    "pieces": "$count(piece)"
   }
 }

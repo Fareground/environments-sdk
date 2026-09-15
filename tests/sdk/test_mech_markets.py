@@ -580,5 +580,6 @@ def test_guide_documents_the_market_family():
     page = fg_env.guide("market.auction")
     assert page.startswith("### `market.auction`") and "`house`" in page and "- `bid`" in page and "- `tick`" not in page
     family = fg_env.guide("market")
-    assert all(f"### `market.{mode}`" in family for mode in ("order_book", "auction", "prediction", "posted"))
-    assert "- `set_price`" in family and "- `open`" not in family
+    assert all(f"- `{mode}`:" in family for mode in ("order_book", "auction", "prediction", "posted"))
+    posted = fg_env.guide("market.posted")
+    assert "- `set_price`" in posted and "- `open`" not in posted

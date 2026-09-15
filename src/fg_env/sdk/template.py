@@ -145,7 +145,7 @@ def compile_template(source: str, subject: Optional[str] = "it") -> Template:
                 depth -= 1
             end += 1
         if depth:
-            raise ExprError("unclosed '{' in template", source)
+            raise ExprError("unclosed '{' in template: close it with '}', or write '{{' for a literal brace", source)
         inner = source[i + 1:end - 1].strip()
         fmt = None
         if "|" in inner and not inner.rsplit("|", 1)[1].strip().startswith("|"):

@@ -10,7 +10,7 @@ from .errors import Issue, RunError
 from .expr import ExprError, compile_expr
 from .template import format_value
 
-__all__ = ["seat_ids", "seat_returns", "seat_rewards", "measured", "utility_issues", "check_game"]
+__all__ = ["seat_ids", "seat_returns", "seat_rewards", "measured", "utility_issues", "check_game", "run_result"]
 
 #: How far returns may miss their declared utility class (float noise), relative to their size.
 UTILITY_TOLERANCE = 1e-9
@@ -51,15 +51,31 @@ def seat_rewards(contract: Contract, world: Any, seats: Sequence[str]) -> Option
     return _per_seat(world, spec.rewards, "game.rewards", seats)
 
 
+def run_result(world: Any) -> Dict[str, Any]:
+    """`$result`: how the run has ended so far. ``winner`` is what an `end` named — its entities as entities
+    (removed ones too), several as a list, anything else as it is — or null; ``ended_by`` is the end's name, or null
+    while the run goes on or when it ran out of rounds."""
+    ending = world.end_request or {}
+
+    def entity(value: Any) -> Any:
+        if isinstance(value, list):
+            return [entity(item) for item in value]
+        found = world.entities.get(value) if isinstance(value, str) else None
+        return found if isinstance(found, Entity) else value
+
+    return {"winner": entity(ending.get("winner")), "ended_by": ending.get("name")}
+
+
 def _per_seat(world: Any, source: str, path: str, seats: Sequence[str]) -> Dict[str, float]:
     expr = compile_expr(source)
+    result = run_result(world)
     out: Dict[str, float] = {}
     for seat in seats:
         entity = world.entities.get(seat)
         if not isinstance(entity, Entity):
             raise RunError(f"seat '{seat}' is not an entity of this run", path)
         try:
-            value = expr(world.scope(actor=entity))
+            value = expr(world.scope(actor=entity, result=result))
         except ExprError as exc:
             raise RunError(str(exc), path) from None
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
@@ -115,9 +131,9 @@ def check_game(checker: Any) -> None:
     checker.expr(spec.seat, "game.seat", BASE | {"it", "i"}, {"it": kinds})
     if spec.returns is None:
         checker.error("game.returns", "is required: what each seat has scored",
-                      'e.g. "1 if $world.winner == $actor.id else 0", an expression over $actor')
+                      'e.g. "1 if $result.winner == $actor else 0", an expression over $actor and $result')
     for key in ("returns", "rewards"):
-        checker.expr(getattr(spec, key), f"game.{key}", BASE | {"actor"}, {"actor": kinds})
+        checker.expr(getattr(spec, key), f"game.{key}", BASE | {"actor", "result"}, {"actor": kinds})
     if spec.utility not in UTILITIES:
         checker.error("game.utility", f"unknown utility '{spec.utility}'", checker._suggest(spec.utility, UTILITIES)
                       or ", ".join(UTILITIES))

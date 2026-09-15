@@ -679,8 +679,9 @@ def _check_packages(cfg: AuctionConfig) -> None:
            "An auction: sealed first_price, second_price (Vickrey), english (ascending, increment, timeout), dutch (falling "
            "clock), double (call market at one price) or uniform (multi-unit, one price). Tools `<name>_bid` (price, qty) "
            "and, for double, `<name>_ask`. Bids escrow cash, asks escrow units; proceeds go to the `house` entity or "
-           "$world.<name>_revenue. Results are posted to the `<name>_results` record; read the lot with $auction(name) "
-           "and $auction_text(name, viewer).",
+           "$world.<name>_revenue. Each closed lot is posted to the `<name>_results` record (winner, price, qty, lot, note): read the "
+           "last sale as $last($records(<name>_results)).winner; $auction(name) is the open lot, reset once it closes, "
+           "and $auction_text(name, viewer) describes it.",
            example={"format": "second_price", "who": "collector", "item": "a painting", "stock": 3, "reserve": 50},
            was="auction")
 def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:

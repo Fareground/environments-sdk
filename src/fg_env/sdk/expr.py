@@ -823,6 +823,14 @@ class Expr:
         return lambda item: guard.rules_out(item, key)
 
 
+def _syntax_hint(source: str) -> str:
+    """What a syntax error most likely is: `=` for `==`, or a root written without its `$`."""
+    bare = re.sub(r"'[^']*'|\"[^\"]*\"", "''", source)
+    if re.search(r"(?<![=!<>])=(?!=)", bare):
+        return " — compare with `==` (a single `=` assigns, and only in effects)"
+    return ""
+
+
 @lru_cache(maxsize=16_384)
 def compile_expr(source: str) -> Expr:
     """Parse and validate ``source`` once. Raises :class:`ExprError` on bad syntax."""
@@ -834,7 +842,7 @@ def compile_expr(source: str) -> Expr:
     try:
         tree = ast.parse(_preprocess(source), mode="eval")
     except SyntaxError as exc:
-        raise ExprError(f"syntax error: {exc.msg}", source) from None
+        raise ExprError(f"syntax error: {exc.msg}{_syntax_hint(source)}", source) from None
     except (RecursionError, MemoryError):
         raise ExprError("expression is nested too deeply", source) from None
     except ValueError as exc:  # e.g. a NUL character
@@ -848,7 +856,13 @@ def compile_expr(source: str) -> Expr:
         if isinstance(node, ast.Call) and (node.keywords or not (
             isinstance(node.func, ast.Name) and node.func.id.startswith(_FUNC_PREFIX)
         )):
-            raise ExprError("only $functions can be called, with positional arguments", source)
+            called = node.func.id if isinstance(node.func, ast.Name) and not node.keywords else None
+            raise ExprError("only $functions can be called, with positional arguments"
+                            + (f": write ${called}(...)" if called else ""), source)
+        if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) \
+                and not node.value.id.startswith((_ROOT_PREFIX, _FUNC_PREFIX)) and node.value.id not in _LITERAL_NAMES:
+            raise ExprError(f"'{node.value.id}.{node.attr}' reads a field of plain text: write ${node.value.id}.{node.attr}",
+                            source)
         if isinstance(node, ast.Attribute) and node.attr.startswith("_"):
             raise ExprError(f"private field '{node.attr}' cannot be read", source)
     compiler = _Compiler(source)

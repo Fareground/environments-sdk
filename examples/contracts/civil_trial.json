@@ -1,7 +1,7 @@
 {
   "fg_env": "1",
-  "name": "Harbor Fabrication v. Meridian Logistics",
-  "description": "A civil jury trial over breach of a supply contract: openings, exhibits with objections and rulings, closings, a sealed jury room, secret ballots and a judgment with damages.",
+  "name": "Harbor Fabrication v. Meridian Logistics (procedure)",
+  "description": "The civil jury trial on the procedure mechanism: openings, direct examination with exhibits, objections and rulings, cross-examination, closings, a sealed jury room, secret ballots and a judgment.",
   "inputs": {
     "claimed_damages": {
       "type": "number",
@@ -15,7 +15,7 @@
       "default": 2,
       "min": 1,
       "max": 4,
-      "description": "Days of evidence; each side offers one exhibit per day."
+      "description": "Days of direct examination, then of cross-examination."
     },
     "votes_required": {
       "type": "int",
@@ -34,7 +34,7 @@
   },
   "brief": {
     "situation": "Civil jury trial, Superior Court. Harbor Fabrication LLC (plaintiff) built and delivered custom warehouse racking to Meridian Logistics Inc. (defendant) under a signed supply agreement. Meridian refused to pay the final installments and terminated the contract, saying the welds were defective and deliveries late. Harbor sues for breach of contract and asks for damages. The standard is preponderance of the evidence: the plaintiff must show breach is more likely than not.",
-    "rules": "The trial runs in phases, one court day per round: opening statements; evidence days, where each side offers one exhibit with a claimed credibility, opposing counsel may object, and the judge rules to admit or exclude it (unopposed exhibits are admitted); closing arguments and jury instructions; jury deliberation in a closed jury room, then a secret ballot; and the judgment. Only admitted exhibits reach the jury. A verdict needs the required number of matching ballots; otherwise the jury deliberates again, and after the last ballot the judge declares a mistrial.",
+    "rules": "The trial runs in phases, one court day per round: opening statements; direct examination days, where each side offers one exhibit with a claimed credibility, opposing counsel may object and the judge rules to admit or exclude it (unopposed exhibits are admitted); cross-examination days, where each side may challenge one admitted exhibit of the other side (weak exhibits lose weight, strong ones hold up); closing arguments and jury instructions; deliberation in a closed jury room, then a secret ballot; the verdict and judgment. Only admitted exhibits reach the jury. A verdict needs the required number of matching ballots; otherwise the jury deliberates again, and after the last ballot the judge declares a mistrial.",
     "roles": {
       "attorney": "You are trial counsel. Win for your client: present your strongest admissible evidence, keep damaging or improper evidence out with well-founded objections, and argue persuasively. You know the true strength of your own exhibits; the jury sees only what is admitted, your claimed credibility and your pitch. Overclaiming a weak exhibit can backfire with jurors.",
       "judge": "You are the presiding judge. Be fair and follow the rules of evidence: sustain an objection when the exhibit's foundation actually shows the defect named (hearsay, lack of authentication, irrelevance, or unfair prejudice that outweighs its value); otherwise overrule it. Instruct the jury, and at the end enter judgment. You may reduce (never raise) the jury's damages award if it is not supported.",
@@ -42,26 +42,10 @@
     }
   },
   "clock": {
-    "rounds": "3 + $inputs.evidence_rounds + $inputs.max_ballots",
+    "rounds": "4 + 2 * $inputs.evidence_rounds + 2 * $inputs.max_ballots",
     "unit": "court day"
   },
   "world": {
-    "phase": {
-      "type": "enum",
-      "values": [
-        "opening",
-        "evidence",
-        "closing",
-        "deliberation",
-        "judgment",
-        "closed"
-      ],
-      "default": "opening"
-    },
-    "evidence_day": {
-      "type": "int",
-      "default": 0
-    },
     "objections": {
       "type": "int",
       "default": 0
@@ -281,6 +265,11 @@
           "private": true
         },
         "presented": {
+          "default": false,
+          "private": true
+        },
+        "crossed": {
+          "type": "bool",
           "default": false,
           "private": true
         }
@@ -537,10 +526,6 @@
       "description": "Deliver your opening statement to the jury: what the case is about and what the evidence will show.",
       "when": [
         {
-          "expr": "$world.phase == opening",
-          "why": "Opening statements are over."
-        },
-        {
           "expr": "not $actor.opened",
           "why": "You already gave your opening."
         }
@@ -562,18 +547,11 @@
         }
       ],
       "outcome": "Your opening statement is on the record.",
-      "announce": "{$actor.name} delivered an opening statement.",
-      "terminal": true
+      "announce": "{$actor.name} delivered an opening statement."
     },
     "offer_exhibit": {
       "by": "attorney",
       "description": "Offer one exhibit from your case file into evidence today. State how credible you claim it is (0 to 1) and a short pitch for the jury.",
-      "when": [
-        {
-          "expr": "$world.phase == evidence",
-          "why": "Exhibits can only be offered during evidence days."
-        }
-      ],
       "params": {
         "exhibit": {
           "type": "entity",
@@ -597,22 +575,15 @@
         "$params.exhibit.status = offered",
         "$params.exhibit.claim = $params.claimed_credibility",
         "$params.exhibit.pitch = $params.pitch",
-        "$params.exhibit.day = $world.evidence_day"
+        "$params.exhibit.day = $world.trial_round"
       ],
       "outcome": "You offered {$params.exhibit.name} (claimed credibility {$params.claimed_credibility|pct}).",
       "announce": "{$actor.name} offered {$params.exhibit.name} into evidence, claiming credibility {$params.claimed_credibility|pct}.",
-      "per_round": 1,
-      "terminal": true
+      "per_round": 1
     },
     "object": {
       "by": "attorney",
       "description": "Object to an exhibit opposing counsel offered today. Name the ground and argue it from the exhibit's foundation. The judge rules. Unopposed exhibits are admitted.",
-      "when": [
-        {
-          "expr": "$world.phase == evidence",
-          "why": "Objections are only made during evidence days."
-        }
-      ],
       "params": {
         "exhibit": {
           "type": "entity",
@@ -649,12 +620,6 @@
     "rule_on_objection": {
       "by": "judge",
       "description": "Rule on a pending objection. Sustain to exclude the exhibit; overrule to admit it.",
-      "when": [
-        {
-          "expr": "$count(exhibit, $it.status == objected) > 0",
-          "why": "No objection is pending."
-        }
-      ],
       "params": {
         "exhibit": {
           "type": "entity",
@@ -702,10 +667,6 @@
       "description": "Deliver your closing argument: tie the admitted evidence to the verdict and damages you want.",
       "when": [
         {
-          "expr": "$world.phase == closing",
-          "why": "It is not time for closing arguments."
-        },
-        {
           "expr": "not $actor.closed",
           "why": "You already gave your closing."
         }
@@ -726,17 +687,12 @@
         }
       ],
       "outcome": "Your closing argument is on the record.",
-      "announce": "{$actor.name} delivered a closing argument.",
-      "terminal": true
+      "announce": "{$actor.name} delivered a closing argument."
     },
     "instruct_jury": {
       "by": "judge",
       "description": "Give the jury its instructions on the law: burden of proof, what breach requires, and how to assess damages.",
       "when": [
-        {
-          "expr": "$world.phase == closing",
-          "why": "Jury instructions come after closing arguments."
-        },
         {
           "expr": "not $actor.instructed",
           "why": "You already instructed the jury."
@@ -758,18 +714,11 @@
         }
       ],
       "outcome": "The jury has been instructed.",
-      "announce": "{$actor.name} instructed the jury.",
-      "terminal": true
+      "announce": "{$actor.name} instructed the jury."
     },
     "speak": {
       "by": "juror",
       "description": "Say something to the other jurors in the jury room. Only jurors hear it.",
-      "when": [
-        {
-          "expr": "$world.phase == deliberation",
-          "why": "The jury is not deliberating."
-        }
-      ],
       "params": {
         "text": {
           "type": "text",
@@ -799,10 +748,6 @@
       "description": "Tell the foreman you are ready to vote. Anyone speaking afterwards reopens the discussion.",
       "when": [
         {
-          "expr": "$world.phase == deliberation",
-          "why": "The jury is not deliberating."
-        },
-        {
           "expr": "not $actor.ready",
           "why": "You are already marked ready."
         }
@@ -822,10 +767,6 @@
       "by": "juror",
       "description": "Cast your secret ballot. If you find Meridian liable, state the damages you would award (0 up to the amount claimed); if not liable, award is ignored.",
       "when": [
-        {
-          "expr": "$world.phase == deliberation",
-          "why": "Voting happens during deliberation."
-        },
         {
           "expr": "$actor.vote == undecided",
           "why": "You already voted on this ballot."
@@ -852,18 +793,11 @@
         "$actor.award = $params.award if $params.verdict == liable else 0"
       ],
       "outcome": "Your secret ballot is cast: {$params.verdict}.",
-      "private": true,
-      "terminal": true
+      "private": true
     },
     "enter_judgment": {
       "by": "judge",
       "description": "Enter final judgment on the jury's verdict. You may reduce the jury's damages award if the evidence does not support it, but not raise it.",
-      "when": [
-        {
-          "expr": "$world.phase == judgment",
-          "why": "There is no verdict to enter judgment on yet."
-        }
-      ],
       "params": {
         "damages": {
           "type": "number",
@@ -879,7 +813,6 @@
       "do": [
         "$world.damages = $params.damages",
         "$world.judgment_reason = $params.reason",
-        "$world.phase = closed",
         {
           "post": "transcript",
           "kind": "judgment",
@@ -891,200 +824,45 @@
           "say": "Judgment entered: {$world.verdict}, damages {$params.damages|money}."
         }
       ],
-      "outcome": "Judgment entered with damages of {$params.damages|money}.",
-      "terminal": true
+      "outcome": "Judgment entered with damages of {$params.damages|money}."
+    },
+    "cross_examine": {
+      "by": "attorney",
+      "description": "Cross-examine the witness behind one admitted exhibit of the other side. A weak exhibit loses weight with the jury; a strong one holds up.",
+      "params": {
+        "exhibit": {
+          "type": "entity",
+          "of": "exhibit",
+          "where": "$it.side != $actor.side and $it.status == admitted and not $it.crossed"
+        },
+        "question": {
+          "type": "text",
+          "max_len": 600,
+          "description": "Your line of questioning."
+        }
+      },
+      "do": [
+        "$params.exhibit.crossed = true",
+        {
+          "post": "transcript",
+          "kind": "cross",
+          "text": "$params.question",
+          "speaker": "$actor.name"
+        },
+        {
+          "each": "impression",
+          "where": "$it.exhibit == $params.exhibit.id",
+          "do": [
+            "$it.score = $clamp($it.score - 0.35 * (1 - $params.exhibit.strength), 0, 1)",
+            "$it.feel = $feel($it.score)"
+          ]
+        }
+      ],
+      "announce": "{$actor.name} cross-examined the witness behind {$params.exhibit.name}.",
+      "per_round": 1
     }
   },
-  "stages": [
-    {
-      "name": "openings",
-      "when": "$world.phase == opening",
-      "who": "$it.type == attorney",
-      "actions": [
-        "opening_statement"
-      ],
-      "turns": "sequential",
-      "brief": "Opening statements. Plaintiff's counsel speaks first, then the defense."
-    },
-    {
-      "name": "offers",
-      "when": "$world.phase == evidence",
-      "who": "$it.type == attorney",
-      "actions": [
-        "offer_exhibit"
-      ],
-      "turns": "simultaneous",
-      "brief": "Evidence day {$world.evidence_day} of {$inputs.evidence_rounds}. Offer one exhibit from your case file."
-    },
-    {
-      "name": "objections",
-      "when": "$world.phase == evidence and $count(exhibit, $it.status == offered) > 0",
-      "who": "$it.type == attorney",
-      "actions": [
-        "object"
-      ],
-      "turns": "sequential",
-      "max_actions": 1,
-      "brief": "Objections. You may object to what opposing counsel offered today, or end your turn to let it in.",
-      "on_exit": [
-        {
-          "each": "exhibit",
-          "where": "$it.status == offered",
-          "do": [
-            "$it.status = admitted",
-            {
-              "post": "transcript",
-              "kind": "ruling",
-              "text": "$it.name + ' admitted without objection.'",
-              "speaker": "Clerk"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "rulings",
-      "when": "$world.phase == evidence and $count(exhibit, $it.status == objected) > 0",
-      "who": "$it.type == judge",
-      "actions": [
-        "rule_on_objection"
-      ],
-      "turns": "sequential",
-      "max_actions": 4,
-      "until": "$count(exhibit, $it.status == objected) == 0",
-      "passes": 3,
-      "brief": "Rule on each pending objection.",
-      "on_exit": [
-        {
-          "each": "exhibit",
-          "where": "$it.status == objected",
-          "do": [
-            "$it.status = admitted",
-            {
-              "post": "transcript",
-              "kind": "ruling",
-              "text": "$it.name + ': no ruling made; objection deemed overruled and the exhibit admitted.'",
-              "speaker": "Clerk"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "closings",
-      "when": "$world.phase == closing",
-      "who": "$it.type == attorney",
-      "actions": [
-        "closing_argument"
-      ],
-      "turns": "sequential",
-      "brief": "Closing arguments. Plaintiff first, then the defense."
-    },
-    {
-      "name": "instructions",
-      "when": "$world.phase == closing",
-      "who": "$it.type == judge",
-      "actions": [
-        "instruct_jury"
-      ],
-      "turns": "sequential",
-      "brief": "Instruct the jury before it retires to deliberate."
-    },
-    {
-      "name": "deliberation",
-      "when": "$world.phase == deliberation",
-      "who": "$it.type == juror",
-      "actions": [
-        "speak",
-        "ready_to_vote"
-      ],
-      "turns": "sequential",
-      "max_actions": 2,
-      "until": "$all(juror, $it.ready)",
-      "passes": 4,
-      "quiet": "skip",
-      "brief": "Jury room, ballot {$world.ballots + 1} of {$inputs.max_ballots}. Discuss the case, then mark yourself ready to vote."
-    },
-    {
-      "name": "ballot",
-      "when": "$world.phase == deliberation",
-      "who": "$it.type == juror",
-      "actions": [
-        "cast_ballot"
-      ],
-      "turns": "simultaneous",
-      "brief": "Secret ballot {$world.ballots + 1} of {$inputs.max_ballots}. {$inputs.votes_required} of 6 must agree.",
-      "on_exit": [
-        "$world.ballots += 1",
-        "$world.liable_votes = $count(juror, $it.vote == liable)",
-        "$world.not_liable_votes = $count(juror, $it.vote == not_liable)",
-        {
-          "if": "$world.liable_votes >= $inputs.votes_required",
-          "then": [
-            "$world.verdict = liable",
-            "$world.jury_award = $round($avg(juror, $it.award, $it.vote == liable))",
-            "$world.phase = judgment",
-            {
-              "emit": "verdict",
-              "say": "The jury finds Meridian LIABLE ({$world.liable_votes}-{6 - $world.liable_votes}) and awards {$world.jury_award|money}."
-            }
-          ],
-          "else": [
-            {
-              "if": "$world.not_liable_votes >= $inputs.votes_required",
-              "then": [
-                "$world.verdict = not_liable",
-                "$world.jury_award = 0",
-                "$world.phase = judgment",
-                {
-                  "emit": "verdict",
-                  "say": "The jury finds Meridian NOT LIABLE ({$world.not_liable_votes}-{6 - $world.not_liable_votes})."
-                }
-              ],
-              "else": [
-                {
-                  "if": "$world.ballots >= $inputs.max_ballots",
-                  "then": [
-                    "$world.verdict = hung",
-                    "$world.phase = closed",
-                    {
-                      "end": "mistrial",
-                      "say": "The jury is hopelessly deadlocked ({$world.liable_votes} liable, {$world.not_liable_votes} not liable). Mistrial declared."
-                    }
-                  ],
-                  "else": [
-                    {
-                      "emit": "deadlock",
-                      "say": "Ballot {$world.ballots} did not reach a verdict ({$world.liable_votes} liable, {$world.not_liable_votes} not liable). The judge sends the jury back to deliberate.",
-                      "to": "$filter(juror, true)"
-                    },
-                    {
-                      "each": "juror",
-                      "do": [
-                        "$it.vote = undecided",
-                        "$it.award = 0",
-                        "$it.ready = false"
-                      ]
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "judgment",
-      "when": "$world.phase == judgment",
-      "who": "$it.type == judge",
-      "actions": [
-        "enter_judgment"
-      ],
-      "turns": "sequential",
-      "brief": "The jury returned {$world.verdict} with an award of {$world.jury_award|money}. Enter judgment."
-    }
-  ],
+  "stages": [],
   "events": [
     {
       "name": "present_admitted",
@@ -1112,62 +890,9 @@
                 "pitch": "$ex.pitch",
                 "sign": "$ex.sign",
                 "score": "$s",
-                "feel": "'compelling' if $s >= 0.7 else ('fairly convincing' if $s >= 0.5 else ('not very convincing' if $s >= 0.3 else 'hard to believe'))"
+                "feel": "$feel($s)"
               }
             }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "advance_phase",
-      "phase": "end",
-      "do": [
-        {
-          "if": "$world.phase == opening",
-          "then": [
-            "$world.phase = evidence",
-            "$world.evidence_day = 1"
-          ],
-          "else": [
-            {
-              "if": "$world.phase == evidence",
-              "then": [
-                {
-                  "if": "$world.evidence_day >= $inputs.evidence_rounds",
-                  "then": [
-                    "$world.phase = closing"
-                  ],
-                  "else": [
-                    "$world.evidence_day += 1"
-                  ]
-                }
-              ],
-              "else": [
-                {
-                  "if": "$world.phase == closing",
-                  "then": [
-                    "$world.phase = deliberation"
-                  ]
-                }
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "jurors_form_views",
-      "phase": "start",
-      "when": "$world.phase == deliberation",
-      "do": [
-        {
-          "each": "juror",
-          "as": "j",
-          "do": [
-            "$p = $avg(impression, $it.score, $it.juror == $j.id and $it.sign == 1)",
-            "$d = $avg(impression, $it.score, $it.juror == $j.id and $it.sign == -1)",
-            "$j.lean = (0 if $p == null else $p) - (0 if $d == null else $d) + 0.3 * $j.bias - 0.05"
           ]
         }
       ]
@@ -1176,7 +901,7 @@
   "views": {
     "case_status": {
       "title": "Court",
-      "show": "Phase: {$world.phase}. Amount claimed: {$inputs.claimed_damages|money}. Objections so far: {$world.objections} ({$world.sustained} sustained).",
+      "show": "Amount claimed: {$inputs.claimed_damages|money}. Objections so far: {$world.objections} ({$world.sustained} sustained).",
       "for": [
         "attorney",
         "judge"
@@ -1185,7 +910,7 @@
     "jury_case": {
       "for": "juror",
       "title": "Court",
-      "show": "Phase: {$world.phase}. Amount claimed by Harbor: {$inputs.claimed_damages|money}."
+      "show": "Amount claimed by Harbor: {$inputs.claimed_damages|money}."
     },
     "my_role": {
       "for": "attorney",
@@ -1226,7 +951,7 @@
     },
     "verdict_status": {
       "for": "judge",
-      "when": "$world.phase == judgment",
+      "when": "$world.trial_phase == verdict",
       "title": "Verdict",
       "show": "{$world.verdict} ({$world.liable_votes} liable, {$world.not_liable_votes} not liable). Jury award: {$world.jury_award|money}."
     },
@@ -1259,14 +984,13 @@
     "advocate": {
       "rules": [
         {
-          "when": "$world.phase == opening",
           "do": "opening_statement",
           "with": {
             "statement": "'Members of the jury, the evidence will show my client, ' + $actor.client + ', is in the right.'"
           }
         },
         {
-          "when": "$world.phase == evidence and $count(exhibit, $it.side != $actor.side and $it.status == offered and $it.claim > 0.6) > 0",
+          "when": "$count(exhibit, $it.side != $actor.side and $it.status == offered and $it.claim > 0.6) > 0",
           "do": "object",
           "with": {
             "exhibit": "$top(exhibit, $it.claim, 1, $it.side != $actor.side and $it.status == offered)[0]",
@@ -1275,7 +999,6 @@
           }
         },
         {
-          "when": "$world.phase == evidence",
           "do": "offer_exhibit",
           "with": {
             "exhibit": "$top(exhibit, $it.strength, 1, $it.side == $actor.side and $it.status == held)[0]",
@@ -1284,7 +1007,14 @@
           }
         },
         {
-          "when": "$world.phase == closing",
+          "when": "$count(exhibit, $it.side != $actor.side and $it.status == admitted and not $it.crossed) > 0",
+          "do": "cross_examine",
+          "with": {
+            "exhibit": "$top(exhibit, $it.claim, 1, $it.side != $actor.side and $it.status == admitted and not $it.crossed)[0]",
+            "question": "Isn't it true this exhibit does not show what counsel claims?"
+          }
+        },
+        {
           "do": "closing_argument",
           "with": {
             "argument": "'The admitted evidence favours ' + $actor.client + '. Decide accordingly.'"
@@ -1313,14 +1043,12 @@
           }
         },
         {
-          "when": "$world.phase == closing",
           "do": "instruct_jury",
           "with": {
             "instructions": "Harbor must prove by a preponderance of the evidence that Meridian breached the agreement. If so, award damages that fairly compensate Harbor for its proven loss."
           }
         },
         {
-          "when": "$world.phase == judgment",
           "do": "enter_judgment",
           "with": {
             "damages": "$world.jury_award",
@@ -1333,18 +1061,17 @@
     "evidence_weigher": {
       "rules": [
         {
-          "when": "$world.phase == deliberation and $actor.vote == undecided and not $actor.spoke",
+          "when": "$actor.vote == undecided and not $actor.spoke",
           "do": "speak",
           "with": {
             "text": "'I lean ' + ('toward Harbor.' if $actor.lean > 0 else 'toward Meridian.')"
           }
         },
         {
-          "when": "$world.phase == deliberation and not $actor.ready and $actor.vote == undecided",
+          "when": "not $actor.ready and $actor.vote == undecided",
           "do": "ready_to_vote"
         },
         {
-          "when": "$world.phase == deliberation",
           "do": "cast_ballot",
           "with": {
             "verdict": "'liable' if $actor.lean > 0 else 'not_liable'",
@@ -1408,6 +1135,15 @@
       "expr": "$metrics.net_admitted_strength",
       "type": "number",
       "description": "Ground truth: plaintiff minus defense true strength of what the jury saw."
+    },
+    "phases": {
+      "expr": "$world.trial_history",
+      "type": "list",
+      "description": "Phases of the trial, in order."
+    },
+    "cross_examinations": {
+      "expr": "$count(exhibit, $it.crossed)",
+      "type": "int"
     }
   },
   "invariants": [
@@ -1419,5 +1155,258 @@
       "expr": "$world.sustained <= $world.objections",
       "why": "Cannot sustain more objections than were made."
     }
-  ]
+  ],
+  "defs": {
+    "feel": {
+      "args": [
+        "s"
+      ],
+      "expr": "'compelling' if $s >= 0.7 else ('fairly convincing' if $s >= 0.5 else ('not very convincing' if $s >= 0.3 else 'hard to believe'))"
+    }
+  },
+  "mechanisms": {
+    "trial": {
+      "kind": "flow",
+      "mode": "procedure",
+      "phases": {
+        "opening": {
+          "title": "Opening statements",
+          "stages": [
+            {
+              "name": "openings",
+              "actions": [
+                "opening_statement"
+              ],
+              "brief": "Opening statements. Plaintiff's counsel speaks first, then the defense."
+            }
+          ],
+          "next": [
+            {
+              "to": "direct",
+              "all_did": "opening_statement"
+            },
+            {
+              "to": "direct",
+              "after": 2
+            }
+          ]
+        },
+        "direct": {
+          "title": "Direct examination",
+          "stages": [
+            {
+              "name": "offers",
+              "actions": [
+                "offer_exhibit"
+              ],
+              "turns": "simultaneous",
+              "brief": "Direct examination, day {$world.trial_round} of {$inputs.evidence_rounds}. Offer one exhibit from your case file."
+            },
+            {
+              "name": "objections",
+              "actions": [
+                "object"
+              ],
+              "max_actions": 1,
+              "brief": "Objections. You may object to what opposing counsel offered today, or end your turn to let it in.",
+              "on_exit": [
+                {
+                  "each": "exhibit",
+                  "where": "$it.status == offered",
+                  "do": [
+                    "$it.status = admitted",
+                    {
+                      "post": "transcript",
+                      "kind": "ruling",
+                      "text": "$it.name + ' admitted without objection.'",
+                      "speaker": "Clerk"
+                    }
+                  ]
+                }
+              ],
+              "when": "$count(exhibit, $it.status == offered) > 0"
+            },
+            {
+              "name": "rulings",
+              "actions": [
+                "rule_on_objection"
+              ],
+              "max_actions": 4,
+              "until": "$count(exhibit, $it.status == objected) == 0",
+              "passes": 3,
+              "brief": "Rule on each pending objection.",
+              "on_exit": [
+                {
+                  "each": "exhibit",
+                  "where": "$it.status == objected",
+                  "do": [
+                    "$it.status = admitted",
+                    {
+                      "post": "transcript",
+                      "kind": "ruling",
+                      "text": "$it.name + ': no ruling made; objection deemed overruled and the exhibit admitted.'",
+                      "speaker": "Clerk"
+                    }
+                  ]
+                }
+              ],
+              "when": "$count(exhibit, $it.status == objected) > 0"
+            }
+          ],
+          "next": [
+            {
+              "to": "cross",
+              "after": "$inputs.evidence_rounds"
+            }
+          ]
+        },
+        "cross": {
+          "title": "Cross-examination",
+          "stages": [
+            {
+              "actions": [
+                "cross_examine"
+              ],
+              "brief": "Cross-examination, day {$world.trial_round} of {$inputs.evidence_rounds}. Challenge one admitted exhibit of the other side, or end your turn."
+            }
+          ],
+          "next": [
+            {
+              "to": "closing",
+              "after": "$inputs.evidence_rounds"
+            }
+          ]
+        },
+        "closing": {
+          "title": "Closings and instructions",
+          "stages": [
+            {
+              "name": "closings",
+              "actions": [
+                "closing_argument",
+                "instruct_jury"
+              ],
+              "brief": "Closing arguments (plaintiff, then defense), then the judge instructs the jury."
+            }
+          ],
+          "next": [
+            {
+              "to": "deliberation",
+              "all_did": "instruct_jury"
+            },
+            {
+              "to": "deliberation",
+              "after": 2
+            }
+          ]
+        },
+        "deliberation": {
+          "title": "Jury deliberation",
+          "on_enter": [
+            {
+              "each": "juror",
+              "as": "j",
+              "do": [
+                "$p = $avg(impression, $it.score, $it.juror == $j.id and $it.sign == 1)",
+                "$d = $avg(impression, $it.score, $it.juror == $j.id and $it.sign == -1)",
+                "$j.lean = (0 if $p == null else $p) - (0 if $d == null else $d) + 0.3 * $j.bias - 0.05"
+              ]
+            }
+          ],
+          "stages": [
+            {
+              "name": "deliberation",
+              "actions": [
+                "speak",
+                "ready_to_vote"
+              ],
+              "max_actions": 2,
+              "until": "$all(juror, $it.ready)",
+              "passes": 4,
+              "quiet": "skip",
+              "brief": "Jury room, ballot {$world.ballots + 1} of {$inputs.max_ballots}. Discuss the case, then mark yourself ready to vote."
+            }
+          ],
+          "next": "vote"
+        },
+        "vote": {
+          "title": "Secret ballot",
+          "stages": [
+            {
+              "name": "ballot",
+              "actions": [
+                "cast_ballot"
+              ],
+              "turns": "simultaneous",
+              "brief": "Secret ballot {$world.ballots + 1} of {$inputs.max_ballots}. {$inputs.votes_required} of 6 must agree.",
+              "on_exit": [
+                "$world.ballots += 1",
+                "$world.liable_votes = $count(juror, $it.vote == liable)",
+                "$world.not_liable_votes = $count(juror, $it.vote == not_liable)",
+                {
+                  "if": "$world.liable_votes >= $inputs.votes_required",
+                  "then": [
+                    "$world.verdict = liable",
+                    "$world.jury_award = $round($avg(juror, $it.award, $it.vote == liable))"
+                  ]
+                },
+                {
+                  "if": "$world.not_liable_votes >= $inputs.votes_required",
+                  "then": [
+                    "$world.verdict = not_liable"
+                  ]
+                }
+              ]
+            }
+          ],
+          "next": [
+            {
+              "to": "verdict",
+              "when": "$world.verdict != pending",
+              "say": "Verdict: {$world.verdict} ({$world.liable_votes} liable, {$world.not_liable_votes} not liable), award {$world.jury_award|money}."
+            },
+            {
+              "to": "mistrial",
+              "when": "$world.ballots >= $inputs.max_ballots"
+            },
+            {
+              "to": "deliberation",
+              "say": "Ballot {$world.ballots} did not reach a verdict ({$world.liable_votes} liable, {$world.not_liable_votes} not liable). The judge sends the jury back.",
+              "do": [
+                {
+                  "each": "juror",
+                  "do": [
+                    "$it.vote = undecided",
+                    "$it.award = 0",
+                    "$it.ready = false",
+                    "$it.spoke = false"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "verdict": {
+          "title": "Verdict and judgment",
+          "stages": [
+            {
+              "name": "judgment",
+              "actions": [
+                "enter_judgment"
+              ],
+              "brief": "The jury returned {$world.verdict} with an award of {$world.jury_award|money}. Enter judgment."
+            }
+          ],
+          "terminal": true
+        },
+        "mistrial": {
+          "terminal": true,
+          "on_enter": [
+            "$world.verdict = hung"
+          ],
+          "say": "The jury is deadlocked ({$world.liable_votes} liable, {$world.not_liable_votes} not liable). Mistrial declared."
+        }
+      }
+    }
+  }
 }

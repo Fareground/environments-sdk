@@ -51,8 +51,7 @@
       "params": {"amount": {"type": "int", "min": "$inputs.min_bet", "max": "$min($inputs.max_bet, $actor.chips)", "description": "Chips to bet."}},
       "do": ["$actor.chips -= $params.amount", "$actor.wager = $params.amount"],
       "outcome": "You bet {$params.amount}.",
-      "announce": "{$actor.name} bets {$params.amount}.",
-      "terminal": true
+      "announce": "{$actor.name} bets {$params.amount}."
     },
     "hit": {
       "by": "player",

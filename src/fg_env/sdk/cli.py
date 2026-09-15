@@ -109,8 +109,36 @@ def cmd_check(args: argparse.Namespace) -> int:
             print(("error: " if issue.severity == "error" else "warning: ") + f"{issue.path}: {issue.message}"
                   + (f" → {issue.fix}" if issue.fix else ""))
         errors = sum(1 for i in issues if i.severity == "error")
-        print("contract OK" if not errors else f"{errors} error(s)", file=sys.stderr if errors else sys.stdout)
+        if errors:
+            print(f"{errors} error(s)", file=sys.stderr)
+        else:
+            _print_generated(args.file)
+            print(_checked(args.file, args.rounds))
     return 1 if any(i.severity == "error" for i in issues) else 0
+
+
+def _print_generated(path: str) -> None:
+    """What each mechanism added to the contract, one line each (``fg-env expand --mechanisms`` shows all of it)."""
+    from .api import expand
+    from .mechanisms import generated_summary
+
+    lines = generated_summary(expand(path))
+    if lines:
+        print("mechanisms generated (fg-env expand --mechanisms shows them in full):")
+        for line in lines:
+            print(f"  {line}")
+
+
+def _checked(path: str, rounds: int) -> str:
+    """What a clean check covered, and a default the author may not know is at work."""
+    from .api import parse
+
+    contract = parse(path)
+    played = f" and played {rounds} round(s) with random agents" if rounds > 0 else " (static checks only)"
+    clock = contract.clock
+    note = "" if clock.mode == "continuous" or "rounds" in clock.model_fields_set else \
+        f"; clock.rounds is not set, so a run lasts {clock.rounds} rounds"
+    return f"contract OK: checked every section{played}{note}"
 
 
 def cmd_run(args: argparse.Namespace) -> int:
@@ -168,6 +196,7 @@ def cmd_preview(args: argparse.Namespace) -> int:
     if args.json:
         print(json.dumps(view, indent=2, ensure_ascii=False))
         return 0
+    _print_generated(args.file)
     print("=== brief ===\n" + view["brief"])
     print("\n=== update ===\n" + view["update"])
     print("\n=== tools ===")
@@ -390,15 +419,19 @@ def add_commands(sub: Any) -> None:
     add_run_commands(sub)
     add_game_commands(sub)
 
+    from .cli_new import add_new_command
+
+    add_new_command(sub)
+
     p = sub.add_parser("expand", help="print the contract as the engine reads it: imports merged, macros expanded")
     p.add_argument("file", help="contract JSON file")
     p.add_argument("--mechanisms", action="store_true", help="also expand every mechanism into ordinary sections")
     p.set_defaults(func=_guarded(cmd_expand))
 
-    p = sub.add_parser("guide", help="print the contract authoring guide")
-    p.add_argument("part", nargs="?", help="one part: overview, model, reference, expressions, macros, functions, "
-                                           "templates, effects, patterns, mechanisms, running, checklist")
-    p.set_defaults(func=cmd_guide)
+    p = sub.add_parser("guide", help="print the core authoring guide, or one part of it (the core guide maps them)")
+    p.add_argument("part", nargs="?", help="a section (actions), topic (expressions), function group (functions.stats), "
+                                           "family (market) or mode (market.auction); all for everything")
+    p.set_defaults(func=_guarded(cmd_guide))
 
     p = sub.add_parser("schema", help="print the contract JSON Schema")
     p.set_defaults(func=cmd_schema)

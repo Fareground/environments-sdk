@@ -401,7 +401,7 @@ def test_errors_name_the_function_and_the_fix(source, match):
 
 
 def test_every_function_is_registered_documented_and_in_the_guide():
-    text = guide()
+    text = guide("all")
     names = {re.match(r"\$(\w+)\(", source).group(1) for source, _ in VALUES + ERRORS}
     names |= {"shuffle", "binomial", "geometric", "gamma", "weibull", "triangular", "dirichlet", "multinomial",
               "zipf", "truncnormal", "dice"}

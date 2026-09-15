@@ -46,6 +46,8 @@ from .registry import OPS, OpSpec, renamed_op_hint
 from .world import Abort, SdkWorld
 from .world_parts import PhysicsView, PropsView
 
+from .contract import one_or_many
+
 __all__ = ["EFFECT_OPS", "RESERVED_ROOTS", "Statement", "compile_statement", "statement_parts", "split_statement", "EffectRunner"]
 
 EFFECT_OPS: Dict[str, Tuple[str, ...]] = {
@@ -76,7 +78,7 @@ REPEAT_CEILING = 100_000
 
 RESERVED_ROOTS = frozenset({
     "actor", "params", "it", "i", "row", "inputs", "world", "physics", "clock", "round",
-    "stage", "metrics", "series", "arm", "viewer", "event", "outer", "pending",
+    "stage", "metrics", "series", "arm", "viewer", "event", "outer", "pending", "result",
 })
 
 _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*$")
@@ -279,7 +281,7 @@ class EffectRunner:
             self._hook_depth -= 1
 
     def run(self, effects: List[Any], vars: Dict[str, Any], path: str) -> None:
-        for index, effect in enumerate(effects or []):
+        for index, effect in enumerate(one_or_many(effects) or []):
             where = f"{path}[{index}]"
             try:
                 if isinstance(effect, str):

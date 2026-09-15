@@ -20,14 +20,14 @@ import json
 import re
 import typing
 from difflib import get_close_matches
-from typing import Any, Dict, List, Mapping, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 from pydantic import BaseModel, ValidationError
 
 from ..errors import Issue
 from ..registry import FAMILIES, RENAMED_KINDS, MechanismError, config_data
 
-__all__ = ["expand_mechanisms", "merge_sections", "FAMILIES"]
+__all__ = ["expand_mechanisms", "merge_sections", "generated_summary", "FAMILIES"]
 
 _NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
 
@@ -44,12 +44,19 @@ _HOOK_KEYS = frozenset({"actions", *_HOOK_EFFECTS, *_HOOK_SETTINGS})
 _LISTED = ("population", "links", "events", "triggers", "end", "invariants")
 #: What an action hook may add to a declared action.
 _ACTION_HOOK_KEYS = ("when", "do", "otherwise")
+#: Words authors use for the agent type a mechanism involves; every family calls it `who`.
+_ACTOR_WORDS = frozenset({"by", "of", "among", "voter", "voters", "bidder", "bidders", "player", "players",
+                          "member", "members", "trader", "traders", "holder", "holders", "guest", "guests",
+                          "party", "parties", "agent", "agents", "participants"})
 #: Most mechanism uses one contract may expand, generated ones included.
 MAX_MECHANISMS = 256
 
 
-def expand_mechanisms(data: Mapping[str, Any]) -> Tuple[Dict[str, Any], List[Issue]]:
-    """The contract with every declared mechanism expanded, plus any problems with their configs."""
+def expand_mechanisms(data: Mapping[str, Any], generated: Optional[Dict[str, Dict[str, List[str]]]] = None
+                      ) -> Tuple[Dict[str, Any], List[Issue]]:
+    """The contract with every declared mechanism expanded, plus any problems with their configs.
+
+    With ``generated``, each use's entry lists the names it added, by section (see :func:`_added`)."""
     uses = data.get("mechanisms")
     if not uses:
         return dict(data), []
@@ -67,8 +74,60 @@ def expand_mechanisms(data: Mapping[str, Any]) -> Tuple[Dict[str, Any], List[Iss
             break
         for name, use in todo:
             expanded.append(name)
+            before = _names(out) if generated is not None else {}
             issues.extend(_expand_one(out, name, use))
+            if generated is not None:
+                generated[str(name)] = _added(before, _names(out))
     return out, issues
+
+
+#: Sections whose entries have names (``stages`` by each stage's name).
+_NAMED = ("actions", "stages", "views", "records", "world", "metrics", "outputs", "defs", "blocks", "types", "entities")
+#: Sections of unnamed items, reported by how many were added.
+_COUNTED = ("events", "triggers", "end", "invariants", "population", "links")
+
+
+def _names(data: Mapping[str, Any]) -> Dict[str, List[str]]:
+    out: Dict[str, List[str]] = {}
+    for section in _NAMED:
+        value = data.get(section)
+        if section == "stages" and isinstance(value, list):
+            out[section] = [str(s.get("name")) for s in value if isinstance(s, Mapping)]
+        elif isinstance(value, Mapping):
+            out[section] = [str(key) for key in value]
+    for section in _COUNTED:
+        value = data.get(section)
+        out[section] = [""] * len(value) if isinstance(value, list) else []
+    return out
+
+
+def _added(before: Mapping[str, List[str]], after: Mapping[str, List[str]]) -> Dict[str, List[str]]:
+    """Names new in ``after``, by section; unnamed sections give one empty name per added item."""
+    added: Dict[str, List[str]] = {}
+    for section, names in after.items():
+        old = before.get(section, [])
+        new = names[len(old):] if section in _COUNTED else [n for n in names if n not in set(old)]
+        if new:
+            added[section] = new
+    return added
+
+
+def generated_summary(data: Mapping[str, Any]) -> List[str]:
+    """One compact line per declared mechanism naming what it generated, e.g.
+    ``sale (market.auction): actions sale_bid · stages sale · outputs sale_sold, sale_revenue · 2 events``."""
+    uses = data.get("mechanisms")
+    if not isinstance(uses, Mapping) or not uses:
+        return []
+    generated: Dict[str, Dict[str, List[str]]] = {}
+    expand_mechanisms(data, generated)
+    lines = []
+    for name, parts in generated.items():
+        use = (data.get("mechanisms") or {}).get(name)
+        label = f"{use.get('kind')}.{use.get('mode')}" if isinstance(use, Mapping) and use.get("mode") else "generated"
+        shown = [f"{section} {', '.join(names)}" if section in _NAMED else f"{len(names)} {section}"
+                 for section, names in parts.items()]
+        lines.append(f"{name} ({label}): {' · '.join(shown) or 'extends declared parts only'}")
+    return lines
 
 
 def _expand_one(out: Dict[str, Any], name: Any, use: Any) -> List[Issue]:
@@ -134,12 +193,14 @@ def _config_issue(path: str, label: str, model: Any, error: Mapping[str, Any]) -
     if error["type"] == "extra_forbidden":
         field = str(loc[-1])
         fields = _fields_at(model, loc[:-1])
-        hint = get_close_matches(field, fields, n=1)
+        hint = get_close_matches(field, fields, n=1) or (["who"] if "who" in fields and field in _ACTOR_WORDS else [])
         owner = label if len(loc) == 1 else f"`{'.'.join(str(p) for p in loc[:-1])}`"
         fix = (f"did you mean '{hint[0]}'? " if hint else "") + (f"{owner} takes: {', '.join(fields)}" if fields else "")
         return Issue(at, f"`{field}` is not a field of {owner}", fix.strip() or None)
     if error["type"] == "missing":
-        return Issue(at, "is required", f"{label} takes: {', '.join(model.model_fields)}")
+        info = model.model_fields.get(str(loc[0])) if len(loc) == 1 else None
+        about = f"`{loc[0]}`: {info.description.rstrip('.')}. " if info is not None and info.description else ""
+        return Issue(at, "is required", f"{about}{label} takes: {', '.join(model.model_fields)}")
     return Issue(at, str(error["msg"]), None)
 
 
@@ -283,7 +344,8 @@ def _hook_stages(data: Dict[str, Any], hooks: Mapping[str, Mapping[str, Any]]) -
             if key in hook:
                 stage.setdefault(key, copy.deepcopy(hook[key]))
         for key in _HOOK_EFFECTS:
-            effects = stage.setdefault(key, [])
+            written = stage.get(key, [])
+            effects = stage[key] = [written] if isinstance(written, (str, Mapping)) else written
             seen = {_canonical(e) for e in effects}
             effects.extend(copy.deepcopy(e) for e in hook.get(key) or [] if _canonical(e) not in seen)
 
@@ -309,7 +371,7 @@ def _hook_actions(data: Dict[str, Any], hooks: Mapping[str, Mapping[str, Any]]) 
             if not extra:
                 continue
             current = action.get(key)
-            if key == "when" and isinstance(current, (str, Mapping)):
+            if isinstance(current, (str, Mapping)):
                 current = [current]
             if current is not None and not isinstance(current, list):
                 raise MechanismError(f"actions.{name}.{key} must be a list, got {type(current).__name__}",

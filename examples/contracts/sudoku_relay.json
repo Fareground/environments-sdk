@@ -31,8 +31,7 @@
          "then": ["$world.board[$params.row][$params.col] = $params.digit", "$actor.score += 1"],
          "else": ["$actor.score -= 1"]}
       ],
-      "outcome": "{$'Correct: the digit stays.' if $world.board[$params.row][$params.col] == $params.digit else 'Wrong digit: it was not placed, and you lose a point.'}",
-      "terminal": true
+      "outcome": "{$'Correct: the digit stays.' if $world.board[$params.row][$params.col] == $params.digit else 'Wrong digit: it was not placed, and you lose a point.'}"
     }
   },
   "stages": [{"name": "solve", "turns": "sequential"}],

@@ -197,9 +197,11 @@ def test_guide_documents_mechanisms_and_native_ops():
     page = fg_env.guide("decision.ballot")
     assert page.startswith("### `decision.ballot`") and "`quorum`" in page and "- `tally`" in page
     family = fg_env.guide("decision")
-    assert "### `decision.deliberation`" in family and "- `speak`" in family and "- `open`" not in family
+    assert "- `deliberation`:" in family and "### `decision.deliberation`" not in family  # modes are their own parts
+    deliberation = fg_env.guide("decision.deliberation")
+    assert "- `speak`" in deliberation and "- `open`" not in deliberation
     assert '- `decision`: {"decision": "<decision mechanism>", "action": ...}' in fg_env.guide("effects")
-    assert "$tally_votes(" in fg_env.guide()
+    assert "$tally_votes(" in family and "$tally_votes(" in fg_env.guide("functions.decision")
     with pytest.raises(KeyError):
         fg_env.guide("decision.nope")
 
@@ -398,3 +400,24 @@ def test_crashing_extensions_are_reported_against_their_use_never_raised_or_blam
         result = env.run(play)
         assert result.status == "failed" and "`test_crash.boom` failed: ValueError: kaboom" in result.error
         assert "participant" not in result.error
+
+
+def test_check_and_preview_list_what_each_mechanism_generated(tmp_path, capsys):
+    from fg_env.__main__ import main
+    from fg_env.sdk.mechanisms import generated_summary
+
+    contract = {"name": "Sale", "types": {"bidder": {"agent": True, "props": {"cash": 100}}},
+                "entities": {"a": {"type": "bidder"}, "b": {"type": "bidder"}},
+                "mechanisms": {"sale": {"kind": "market", "mode": "auction", "format": "first_price", "who": "bidder",
+                                        "item": "a painting"}}}
+    lines = generated_summary(contract)
+    assert len(lines) == 1 and lines[0].startswith("sale (market.auction): actions sale_bid")
+    assert "stages sale" in lines[0] and "outputs" in lines[0]
+    assert generated_summary({"name": "x", "types": {}}) == []
+    path = tmp_path / "sale.json"
+    path.write_text(json.dumps(contract))
+    assert main(["check", str(path)]) == 0
+    assert "sale (market.auction): actions sale_bid" in capsys.readouterr().out
+    assert main(["preview", str(path), "a"]) == 0
+    assert "mechanisms generated" in capsys.readouterr().out
+

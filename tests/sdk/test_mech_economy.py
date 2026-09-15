@@ -12,7 +12,7 @@ from fg_env.sdk.expr import compile_expr
 EXAMPLES = Path(__file__).parents[2] / "examples" / "contracts"
 #: Economy examples and the input that sets their length.
 LONG_RUNS = {"corner_shop_town": {"days": 200}, "trade_negotiation": {"years": 200}, "crafting_village": {"days": 200},
-             "beer_game_native": {"weeks": 200}}
+             "beer_game": {"weeks": 200}}
 
 
 def scripted(plan):
@@ -867,23 +867,23 @@ def test_examples_are_deterministic_and_resume_identically(stem):
 @pytest.mark.parametrize("arm", [None, "shared_demand"])
 def test_native_beer_game_reproduces_the_hand_written_one(policy, arm):
     participants = {"tier": policy} if policy else None
-    original = fg_env.load(EXAMPLES / "beer_game.json", seed=1, arm=arm).run(participants)
-    native = fg_env.load(EXAMPLES / "beer_game_native.json", seed=1, arm=arm).run(participants)
+    original = fg_env.load(Path(__file__).parent / "fixtures" / "beer_game_hand_written.json", seed=1, arm=arm).run(participants)
+    native = fg_env.load(EXAMPLES / "beer_game.json", seed=1, arm=arm).run(participants)
     for key in ("total_cost", "bullwhip_ratio", "peak_backlog", "weeks_until_stable", "cost_by_tier", "peak_backlog_by_tier"):
         assert native.outputs[key] == original.outputs[key], key
     assert native.series["factory_order"] == original.series["factory_order"]
 
 
 def test_guide_documents_every_economy_mode_function_and_op():
-    mechanisms, effects, everything = fg_env.guide("mechanisms"), fg_env.guide("effects"), fg_env.guide()
-    economy = fg_env.guide("economy")
+    mechanisms, effects, everything = fg_env.guide("mechanisms"), fg_env.guide("effects"), fg_env.guide("all")
+    economy = "\n".join(fg_env.guide(f"economy.{mode}") for mode in ("ledger", "inventory", "production", "supply_chain"))
     for mode in ("ledger", "inventory", "production", "supply_chain"):
         assert f"### `economy.{mode}`" in economy
     for action in ("pay", "mint", "burn", "lend", "repay", "give", "make", "use", "drop", "pickup", "start", "order"):
         assert f"- `{action}`" in economy
     assert "- `tick`" not in economy and "- `close`" not in economy  # generated bookkeeping stays out of the guide
     assert '- `economy`: {"economy": "<economy mechanism>", "action": ...}' in effects
-    agreements = fg_env.guide("agreements")
+    agreements = "\n".join(fg_env.guide(f"agreements.{mode}") for mode in ("negotiation", "labor", "subscriptions", "bookings"))
     for mode in ("negotiation", "labor", "subscriptions", "bookings"):
         assert f"### `agreements.{mode}`" in agreements
     for action in ("propose", "counter", "accept", "reject", "withdraw", "fulfill", "hire", "quit", "fire", "subscribe",

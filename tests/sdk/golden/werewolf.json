@@ -1,12 +1,12 @@
 {
-  "actions": 133,
-  "events": 227,
-  "events_sha256": "1613923255a43c4bc1a964b740486475e47b5479a7c3f796f29126d56b06cece",
+  "actions": 131,
+  "events": 235,
+  "events_sha256": "23e6fd42ece9683fc08a5e7e13ef2be25e927ca8482d542282b6231cadce3e74",
   "metrics": {
     "living": 4,
-    "living_wolves": 2
+    "living_wolves": 1
   },
   "rounds": 4,
-  "status": "ended",
-  "wakes": 134
+  "status": "running",
+  "wakes": 131
 }

@@ -85,6 +85,6 @@ def test_template_expression_may_start_with_a_quote():
 
 
 def test_guide_reference_mentions_new_fields():
-    text = fg_env.guide("reference")
+    text = fg_env.guide("entities")
     assert "`brief`: text — Private text added" in text
     assert json.dumps  # guide stays importable

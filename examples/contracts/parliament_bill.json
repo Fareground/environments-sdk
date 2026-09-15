@@ -28,12 +28,12 @@
   "records": {"hansard": {"fields": {"text": "text"}, "show": "{author}: {text}", "description": "What was said in the chamber."}},
   "actions": {
     "speak": {"by": "mp", "description": "Speak in the debate.", "params": {"text": {"type": "text", "max_len": 400}},
-              "do": [{"post": "hansard", "text": "$params.text"}], "terminal": true},
+              "do": [{"post": "hansard", "text": "$params.text"}]},
     "amend": {"by": "mp", "description": "Propose an amendment to the bill's wording.",
               "params": {"text": {"type": "text", "max_len": 200}},
-              "do": ["$world.amendments += $params.text"], "outcome": "Your amendment is added.", "terminal": true},
+              "do": ["$world.amendments += $params.text"], "outcome": "Your amendment is added."},
     "vote": {"by": "mp", "description": "Vote in the division.", "params": {"choice": {"type": "enum", "values": ["aye", "no"]}},
-             "do": ["$actor.vote = $params.choice"], "outcome": "You voted {$params.choice}.", "private": true, "terminal": true}
+             "do": ["$actor.vote = $params.choice"], "outcome": "You voted {$params.choice}.", "private": true}
   },
   "mechanisms": {
     "bill": {"kind": "flow", "mode": "procedure", "phases": {

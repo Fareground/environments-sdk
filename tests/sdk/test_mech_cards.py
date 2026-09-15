@@ -550,7 +550,7 @@ def test_tools_one_offers_every_betting_move_as_one_tool():
 def test_guide_documents_the_card_mechanisms_ops_and_functions():
     mechanisms = fg_env.guide("mechanisms")
     assert "| `game` | board, cards, pot, slots |" in mechanisms and "| `groups` | roles, relationships, factions |" in mechanisms
-    game = fg_env.guide("game")
+    game = "\n".join(fg_env.guide(key) for key in ("game.cards", "game.pot", "game.slots"))
     for key in ("game.cards", "game.pot", "game.slots"):
         assert f"### `{key}`" in game
     for action in ("deal", "draw", "reveal", "peek", "give", "fold", "raise", "place"):
@@ -558,9 +558,9 @@ def test_guide_documents_the_card_mechanisms_ops_and_functions():
     assert "- `setup`" not in fg_env.guide("game.cards") and "- `timeout`" not in game
     roles = fg_env.guide("groups.roles")
     assert "- `eliminate`" in roles and "- `reveal`" in roles and "- `deal`" not in roles
-    functions = fg_env.guide("functions")
+    functions = fg_env.guide("functions.game")
     for name in ("poker_rank", "blackjack_value", "trick_winner", "follow_suit", "hand", "zone", "top_card", "pot_options"):
-        assert f"${name}(" in functions
+        assert f"${name}(" in functions and f"${name}" in fg_env.guide("functions")
 
 
 # ---------------------------------------------------------------------------
@@ -625,7 +625,7 @@ def test_no_player_ever_sees_another_players_hidden_cards(seed):
 
 @pytest.mark.parametrize("seed", range(1, 5))
 def test_no_player_learns_a_hidden_role_before_it_is_revealed(seed):
-    env = fg_env.load(EXAMPLES / "werewolf_roles.json", seed=seed)
+    env = fg_env.load(EXAMPLES / "werewolf.json", seed=seed)
     spy = Spy(env, seed, _hidden_roles)
     result = env.run(spy)
     assert result.status in ("completed", "ended"), result.error

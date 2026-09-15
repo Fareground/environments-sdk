@@ -195,7 +195,7 @@
       "who": "unit",
       "conditions": [
         {"last_team": "$it.team", "name": "last_team_standing"},
-        {"most": "$sum(unit, $it.hp, $it.team == $outer.team)", "name": "time_up", "say": "Time is up: the {$first($map($winner(unit, $sum(unit, $it.hp, $it.team == $outer.team)), $it.team))} have more health left."}
+        {"most": "$sum(unit, $it.hp, $it.team == $outer.team)", "name": "time_up", "say": "Time is up: the {$first($map($best(unit, $sum(unit, $it.hp, $it.team == $outer.team)), $it.team))} have more health left."}
       ]
     }
   },

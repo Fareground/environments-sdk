@@ -33,7 +33,7 @@
           "type": "object"
         },
         "when": {
-          "description": "Requirements; the tool is offered only when all hold.",
+          "description": "Requirements (one or a list). Those over $actor decide whether the tool is offered; those that read $params refuse a call that breaks them, with their `why`.",
           "items": {
             "$ref": "#/$defs/Condition"
           },
@@ -57,16 +57,36 @@
           "title": "Chance"
         },
         "do": {
+          "anyOf": [
+            {
+              "items": {},
+              "type": "array"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "object"
+            }
+          ],
           "description": "Effects applied atomically.",
-          "items": {},
-          "title": "Do",
-          "type": "array"
+          "title": "Do"
         },
         "otherwise": {
+          "anyOf": [
+            {
+              "items": {},
+              "type": "array"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "object"
+            }
+          ],
           "description": "Effects when the chance roll fails.",
-          "items": {},
-          "title": "Otherwise",
-          "type": "array"
+          "title": "Otherwise"
         },
         "outcome": {
           "anyOf": [
@@ -211,9 +231,19 @@
           "type": "array"
         },
         "do": {
-          "items": {},
-          "title": "Do",
-          "type": "array"
+          "anyOf": [
+            {
+              "items": {},
+              "type": "array"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "object"
+            }
+          ],
+          "title": "Do"
         },
         "description": {
           "default": "",
@@ -709,9 +739,19 @@
           "title": "Where"
         },
         "do": {
-          "items": {},
-          "title": "Do",
-          "type": "array"
+          "anyOf": [
+            {
+              "items": {},
+              "type": "array"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "object"
+            }
+          ],
+          "title": "Do"
         },
         "say": {
           "anyOf": [
@@ -2762,22 +2802,52 @@
           "type": "boolean"
         },
         "on_idle": {
+          "anyOf": [
+            {
+              "items": {},
+              "type": "array"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "object"
+            }
+          ],
           "description": "Effects for each agent that ends its turn without acting ($actor): a forfeit, a default move.",
-          "items": {},
-          "title": "On Idle",
-          "type": "array"
+          "title": "On Idle"
         },
         "on_wake": {
+          "anyOf": [
+            {
+              "items": {},
+              "type": "array"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "object"
+            }
+          ],
           "description": "Effects for each agent just before its turn ($actor), so what it reads reflects them: an upkeep, a draw, marking news as seen.",
-          "items": {},
-          "title": "On Wake",
-          "type": "array"
+          "title": "On Wake"
         },
         "on_turn_end": {
+          "anyOf": [
+            {
+              "items": {},
+              "type": "array"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "object"
+            }
+          ],
           "description": "Effects for each agent after its turn ($actor), whether or not it acted (simultaneous: after choices are committed).",
-          "items": {},
-          "title": "On Turn End",
-          "type": "array"
+          "title": "On Turn End"
         },
         "auto": {
           "default": false,
@@ -2802,10 +2872,20 @@
           "title": "Time Limit"
         },
         "on_timeout": {
+          "anyOf": [
+            {
+              "items": {},
+              "type": "array"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "object"
+            }
+          ],
           "description": "Effects for each agent whose turn ran out of time ($actor), instead of `on_idle`.",
-          "items": {},
-          "title": "On Timeout",
-          "type": "array"
+          "title": "On Timeout"
         },
         "atomic": {
           "default": false,
@@ -2822,14 +2902,34 @@
           "type": "array"
         },
         "on_enter": {
-          "items": {},
-          "title": "On Enter",
-          "type": "array"
+          "anyOf": [
+            {
+              "items": {},
+              "type": "array"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "object"
+            }
+          ],
+          "title": "On Enter"
         },
         "on_exit": {
-          "items": {},
-          "title": "On Exit",
-          "type": "array"
+          "anyOf": [
+            {
+              "items": {},
+              "type": "array"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "object"
+            }
+          ],
+          "title": "On Exit"
         }
       },
       "required": [
@@ -2860,9 +2960,19 @@
           "type": "string"
         },
         "do": {
-          "items": {},
-          "title": "Do",
-          "type": "array"
+          "anyOf": [
+            {
+              "items": {},
+              "type": "array"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "object"
+            }
+          ],
+          "title": "Do"
         },
         "say": {
           "anyOf": [
@@ -2967,16 +3077,36 @@
           "title": "Inspect"
         },
         "on_create": {
+          "anyOf": [
+            {
+              "items": {},
+              "type": "array"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "object"
+            }
+          ],
           "description": "Effects run for every entity of this type (subtypes too) the moment it is created ($it), atomically with whatever created it; an ancestor's hooks run first.",
-          "items": {},
-          "title": "On Create",
-          "type": "array"
+          "title": "On Create"
         },
         "on_remove": {
+          "anyOf": [
+            {
+              "items": {},
+              "type": "array"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "object"
+            }
+          ],
           "description": "Effects run for every entity of this type (subtypes too) the moment it is removed ($it, already no longer alive), atomically with the removal.",
-          "items": {},
-          "title": "On Remove",
-          "type": "array"
+          "title": "On Remove"
         },
         "on_create_at_build": {
           "default": true,

@@ -764,8 +764,7 @@
         "$world.policy = $params.policy"
       ],
       "announce": "The platform set its misinformation policy to {$params.policy}.",
-      "outcome": "Policy is now {$params.policy}.",
-      "terminal": true
+      "outcome": "Policy is now {$params.policy}."
     },
     "research": {
       "by": "fact_checker",
@@ -859,8 +858,7 @@
           }
         }
       ],
-      "outcome": "You posted about «{$params.story.headline}».",
-      "terminal": true
+      "outcome": "You posted about «{$params.story.headline}»."
     },
     "share": {
       "by": "user",
@@ -892,8 +890,7 @@
           "is_false": "$params.post.is_false"
         }
       ],
-      "outcome": "You shared {$params.post.author_name}'s post.",
-      "terminal": true
+      "outcome": "You shared {$params.post.author_name}'s post."
     },
     "like": {
       "by": "user",
@@ -910,8 +907,7 @@
         "$params.post.likers += $actor.id",
         "$params.post.likes += 1"
       ],
-      "outcome": "You liked {$params.post.author_name}'s post.",
-      "terminal": true
+      "outcome": "You liked {$params.post.author_name}'s post."
     },
     "report": {
       "by": "user",
@@ -935,8 +931,7 @@
           ]
         }
       ],
-      "outcome": "You reported {$params.post.author_name}'s post.",
-      "terminal": true
+      "outcome": "You reported {$params.post.author_name}'s post."
     }
   },
   "events": [

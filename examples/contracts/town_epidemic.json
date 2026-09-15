@@ -473,8 +473,7 @@
         "$actor.complying = true",
         "$actor.days_complied += 1"
       ],
-      "private": true,
-      "terminal": true
+      "private": true
     },
     "defy": {
       "by": "resident",
@@ -492,8 +491,7 @@
       "do": [
         "$actor.complying = false"
       ],
-      "private": true,
-      "terminal": true
+      "private": true
     }
   },
   "policies": {
