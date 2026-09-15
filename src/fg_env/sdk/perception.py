@@ -214,9 +214,7 @@ class Perception:
         if source in self.contract.types:
             return list(self.world.entities_of(source))
         if source in self.contract.records:
-            rows = self.world.records(source)
-            actor = scope.vars.get("actor")
-            return [row for row in rows if self.entry_visible(source, row, actor)]
+            return self.world.visible_records(source, scope.vars.get("actor"))
         value = compile_expr(source)(scope)
         if value is None:
             return []

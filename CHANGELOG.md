@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Author-only record reads use a derived author index for the exact `$viewer.id == $it.author`
+  predicate (either operand order). Posting, retention and rollback maintain it; snapshot restore
+  and fast world copies rebuild it. Direct record views and `$records` avoid scanning unrelated authors' entries. Other
+  visibility rules retain normal evaluation. Work budgets charge the indexed candidates and results,
+  so cheaper private reads can fit budgets that previously expired while scanning unrelated records.
 - Record permissions that use only reader/entry roots and no function calls avoid constructing unused
   world context. Permissions are still evaluated on every read with the same expression budgets;
   rules with function calls or other roots retain full context.

@@ -16,6 +16,7 @@ from .errors import RunError
 from .expr_calls import suggest_function
 from .expr import ExprError, FUNCTIONS, Scope, Untrusted, World, compile_expr, is_expr, truthy
 from .props import finite_number as _finite_number, prop_type, shown_value as _shown_value
+from .record_index import RecordAuthors, author_only
 from .seeds import SeedTree
 from .stdlib.dates import calendar_date
 from .space import Spatial, position_of
@@ -74,6 +75,8 @@ class SdkWorld(World):
         self.records_store: Dict[str, List[Entry]] = {name: [] for name in contract.records}
         #: Retained record entries by sequence number (entries dropped by `keep` are removed).
         self.entry_by_seq: Dict[int, Entry] = {}
+        self.record_authors = RecordAuthors(
+            (name for name, spec in contract.records.items() if author_only(spec.visible)), self.records_store)
         #: Per-entity brief text rendered at build (from entities.*.brief / population.brief).
         self.entity_briefs: Dict[str, str] = {}
         self.log: List[LogEvent] = []
@@ -247,7 +250,15 @@ class SdkWorld(World):
         rows = self.records(name)
         if not isinstance(viewer, Entity):
             return rows
+        if author_only(self.contract.records[name].visible):
+            indexed = self.record_authors.for_author(name, viewer.id)
+            if indexed is not None:
+                rows = indexed
         return [row for row in rows if self.entry_visible(name, row, viewer)]
+
+    def rebuild_record_index(self) -> None:
+        self.record_authors = RecordAuthors(
+            (name for name, spec in self.contract.records.items() if author_only(spec.visible)), self.records_store)
 
     def entry_visible(self, record: str, entry: Entry, viewer: Optional[Entity]) -> bool:
         if viewer is None:
@@ -641,6 +652,7 @@ class SdkWorld(World):
                       "author": author, "to": list(to) if to is not None else None})
         rows = self.records_store[record]
         rows.append(entry)
+        self.record_authors.add(record, entry)
         self.entry_by_seq[entry["seq"]] = entry
         dropped: List[Entry] = []
         if spec.keep is not None and len(rows) > spec.keep:
@@ -648,6 +660,7 @@ class SdkWorld(World):
             del rows[: len(rows) - spec.keep]
             for old in dropped:
                 self.entry_by_seq.pop(old["seq"], None)
+                self.record_authors.remove(record, old)
 
         def undo() -> None:
             for index in range(len(rows) - 1, -1, -1):
@@ -655,9 +668,12 @@ class SdkWorld(World):
                     del rows[index]
                     break
             self.entry_by_seq.pop(entry["seq"], None)
+            self.record_authors.remove(record, entry)
             rows[:0] = dropped
             for old in dropped:
                 self.entry_by_seq[old["seq"]] = old
+            for old in reversed(dropped):
+                self.record_authors.add(record, old, first=True)
             self._record_seq -= 1
 
         self.journal.push(undo)

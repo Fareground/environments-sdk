@@ -225,6 +225,7 @@ def _restore(cls: Type[_E], contract: Contract, snapshot: Mapping[str, Any], par
             entries.append(entry)
             w.entry_by_seq[entry["seq"]] = entry
         w.records_store[name] = entries
+    w.rebuild_record_index()
     w._record_seq = snapshot["record_seq"]
     w.log = []
     for raw in snapshot["log"]:
