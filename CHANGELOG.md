@@ -52,6 +52,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read one family or mode.
 
 #### Added
+- **Validation that tells the truth** (`fg_env.validate(contract, cases, runs=, levels=(0.8, 0.95), season=, test=)`):
+  each case's `actuals` — a number, a map per key (product, category) or a list — checked against the run ensembles:
+  bias, MAPE, WAPE, RMSE and CRPS overall, per key and on held-out cases; interval coverage at each nominal level with
+  a loud warning when intervals clearly hold fewer actual values than they claim; and a comparison with the last
+  value, the earlier mean and the value one season back, with a warning when a baseline wins. Plain `report()` and
+  structured `to_dict()`. `backtest` notes the same coverage warning.
+- **Parameter uncertainty in runs**: `uncertainty=` on `experiment`, `sweep`, `backtest` and `validate` draws
+  parameters per run from a calibration's plausible points (`CalibrationResult.plausible`), a list of points or
+  priors (`normal`, `lognormal`, `uniform`, `triangular`, `values`, clipped by `min`/`max`); run *i* draws the same in
+  every arm, cell and case. Forecasting 10 quarters with p treated as known, 80% intervals held 1 of 10 actual values;
+  drawing p held at least 8.
 - **Scan lint**: `check` warns, with a fix, when work that repeats per entity or row re-reads a whole input table
   (events and `each` over a type, type hooks, population rows: use `$lookup`) or when a block that schedules itself
   again through `after` reads every entity of a type (keep a world list such as a queue of ids), defs followed. Once-per-

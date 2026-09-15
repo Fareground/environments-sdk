@@ -16,6 +16,7 @@ from ..api import ContractLike
 from ..measure import RunResult
 from ..seeds import SeedTree
 from . import runner
+from .draws import parameter_draws, with_draws
 from .stats import Estimate, estimate, fisher_interval, latin_hypercube, levels, mean, spearman
 
 __all__ = ["sweep", "SweepResult", "SweepCell", "parse_param"]
@@ -231,7 +232,7 @@ def sweep(contract: ContractLike, params: Mapping[str, ParamSpec], *, runs: int 
           outputs: Optional[Sequence[str]] = None, arms: Optional[Sequence[Optional[str]]] = None,
           inputs: Optional[Mapping[str, Any]] = None, design: str = "factorial", samples: Optional[int] = None,
           participants: Any = None, rounds: Optional[int] = None, seed: int = 0, workers: int = 1,
-          data_dir: Any = None, hosts: Any = None) -> SweepResult:
+          data_dir: Any = None, hosts: Any = None, uncertainty: Any = None) -> SweepResult:
     """Run the contract across combinations of inputs.
 
     ``params``: ``{input: [values]}`` or ``{input: {"low", "high", "steps", "log"}}`` (range
@@ -262,6 +263,8 @@ def sweep(contract: ContractLike, params: Mapping[str, ParamSpec], *, runs: int 
     cells = [({**base, **point}, arm) for arm in arm_list for point in points]
     seeds = runner.run_seeds(seed, runs)
     jobs = runner.jobs_for(cells, seeds)
+    if uncertainty is not None:
+        jobs = with_draws(jobs, parameter_draws(parsed, uncertainty, runs, seed))
     results = runner.run_jobs(parsed, jobs, participants=participants, rounds=rounds, workers=workers, hosts=hosts)
     grouped = runner.by_cell(jobs, results, len(cells))
     measures = list(outputs) if outputs else runner.numeric_measures(parsed, results)

@@ -8,6 +8,8 @@ every analysis runs its variants on common random numbers, derived exactly as
 * :func:`sensitivity` — rank inputs by influence (one-at-a-time elasticities, Morris, Sobol-lite).
 * :func:`calibrate` — fit inputs to target numbers, paths, distributions or stylized facts.
 * :func:`score` and :func:`backtest` — verify forecasts against outcomes.
+* :func:`validate` — errors, bias, interval coverage and baselines against actual values, per key and overall;
+  ``uncertainty=`` (:mod:`.draws`) carries parameter uncertainty into the runs.
 * :func:`precision` — add runs until an estimate is precise enough.
 * :func:`behavior_checks` — find broken parts of an environment by playing it.
 * :func:`highlights` and :func:`narrative` — the notable moments of one run.
@@ -28,6 +30,7 @@ from .scoring import (
 )
 from .sensitivity import SensitivityResult, sensitivity
 from .sweep import SweepResult, sweep
+from .validate import ValidationResult, validate
 
 __all__ = [
     "sweep", "SweepResult", "sensitivity", "SensitivityResult", "calibrate", "CalibrationResult",
@@ -35,5 +38,5 @@ __all__ = [
     "interval_coverage", "reliability", "ece", "murphy", "skill_score", "backtest", "BacktestResult",
     "precision", "PrecisionResult", "behavior_checks", "CheckReport", "Finding", "highlights", "narrative",
     "Highlight", "drivers", "DriversResult", "Driver", "compare", "Comparison", "chain", "ChainResult",
-    "statistic", "STATISTICS", "AnalysisError",
+    "statistic", "STATISTICS", "AnalysisError", "validate", "ValidationResult",
 ]

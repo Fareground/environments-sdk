@@ -315,6 +315,10 @@ exp = fg_env.experiment("shop.json", runs=20, arms=["control", "promo"]); print(
 exp.deltas("control")   # paired promo − control per output: mean, sd, ci95, clear (CI excludes 0)
 fg_env.sweep("shop.json", {"price": {"low": 1, "high": 5, "steps": 5}}, runs=10).table()   # also sensitivity, calibrate, backtest
 # every check, experiment and analysis reads data files beside the contract file (or data_dir=) and takes hosts=
+v = fg_env.validate("shop.json", [{"name": "Q1", "inputs": {"start": "2026-01-05"}, "actuals": {"units_by_sku": {...}}}],
+                    runs=20, season=4); print(v.report())   # bias, MAPE/WAPE per key, interval coverage, baselines
+cal = fg_env.calibrate("shop.json", cases, {"demand_scale": {"low": 0.5, "high": 2}})   # cases: {name, inputs, targets}
+fg_env.validate("shop.json", cases, uncertainty=cal)   # also experiment, sweep, backtest: draw params per run
 fg_env.behavior_checks("shop.json")   # constant outputs, inputs that change nothing, actions and stages never used
 fg_env.tournament("duel.json", {"greedy": "policy:greedy", "llm": my_agent}, games=20).summary()
 # seats rotate and share seeds; Elo with intervals, Glicko-2, Nash average, α-Rank, votes, cost per entrant

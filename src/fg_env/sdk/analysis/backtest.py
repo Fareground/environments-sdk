@@ -12,6 +12,8 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from ..api import ContractLike
 from . import runner
+from .accuracy import coverage_verdict
+from .draws import parameter_draws, with_draws
 from .holdout import Split, case_names, splits
 from .scoring import score, skill_score
 from .stats import Estimate, estimate, is_number, normal_quantile, proportion, quantile
@@ -87,7 +89,7 @@ def backtest(contract: ContractLike, cases: Sequence[Mapping[str, Any]], output:
              threshold: Optional[float] = None, climatology: Any = None, arm: Optional[str] = None,
              participants: Any = None, rounds: Optional[int] = None, seed: int = 0, workers: int = 1,
              bins: int = 10, test: Any = None, folds: Optional[int] = None, data_dir: Any = None,
-             hosts: Any = None) -> BacktestResult:
+             hosts: Any = None, uncertainty: Any = None) -> BacktestResult:
     """Score the contract's forecasts of ``output`` against each case's known ``outcome``.
 
     ``cases``: ``[{"inputs": {...}, "outcome": value, "name"?: text, "arm"?: text}]``. Outcome
@@ -116,6 +118,8 @@ def backtest(contract: ContractLike, cases: Sequence[Mapping[str, Any]], output:
     seeds = runner.run_seeds(seed, runs)
     cells = [(dict(case.get("inputs") or {}), case.get("arm", arm)) for case in cases]
     jobs = runner.jobs_for(cells, seeds)
+    if uncertainty is not None:
+        jobs = with_draws(jobs, parameter_draws(parsed, uncertainty, runs, seed))
     grouped = runner.by_cell(jobs, runner.run_jobs(parsed, jobs, participants=participants, rounds=rounds,
                                                    workers=workers, hosts=hosts), len(cases))
     forecasts, rows, notes = [], [], []
@@ -134,6 +138,10 @@ def backtest(contract: ContractLike, cases: Sequence[Mapping[str, Any]], output:
     epsilon = 1.0 / (2.0 * runs)  # a frequency from `runs` runs cannot resolve probabilities finer than this
     nominal = _ENSEMBLE_LEVEL if kind == "ensemble" else None
     scores = score(forecasts, events, kind=kind, climatology=climatology, bins=bins, epsilon=epsilon, nominal=nominal)
+    if kind == "ensemble":
+        verdict = coverage_verdict(scores["coverage"])
+        if verdict:
+            notes.append(f"WARNING: {verdict}")
     if climatology is None:
         notes.append("skill is measured against the cases' own outcome frequency (in-sample climatology)")
     held = None

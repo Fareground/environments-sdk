@@ -339,7 +339,7 @@ def experiment(source: ContractLike, *, runs: int = 10, arms: Optional[List[str]
                participants_for: Optional[Callable[[int, Optional[str]], Any]] = None,
                rounds: Optional[int] = None, workers: int = 1, data_dir: Any = None,
                branch_at: Optional[int] = None, budget: Optional[Mapping[str, Any]] = None,
-               exposures: bool = False, hosts: Any = None) -> ExperimentResult:
+               exposures: bool = False, hosts: Any = None, uncertainty: Any = None) -> ExperimentResult:
     """Run each arm ``runs`` times. Run *i* uses the same seed in every arm, so differences
     between arms come from the arm, not from luck. ``arms`` defaults to every declared arm
     (or a single baseline run set when none are declared). ``participants_for(i, arm)``
@@ -353,7 +353,9 @@ def experiment(source: ContractLike, *, runs: int = 10, arms: Optional[List[str]
     every arm's run, so they count toward each arm's budget. ``exposures=True`` records what agents saw in every run
     (``result.arms[label].runs[i].exposures``, events kept): each run is a trace to read or replay.
     ``data_dir`` is where inputs with a ``source`` are read (default: the contract file's folder); ``hosts``
-    answers the contract's host requests in every run.
+    answers the contract's host requests in every run. ``uncertainty`` (a calibration, a list of points or priors;
+    :mod:`fg_env.sdk.analysis.draws`) draws parameters per run, the same for run *i* in every arm, so the spread of
+    outcomes includes not knowing them.
 
     Problems shared by every run (an unknown arm, bad inputs, an unknown participant) raise
     before anything runs. A run that fails on its own is kept with ``status="failed"`` and its
@@ -376,6 +378,10 @@ def experiment(source: ContractLike, *, runs: int = 10, arms: Optional[List[str]
     tree = SeedTree(seed)
     seeds = [tree.derive("run", i) for i in range(runs)]
     jobs = [Job(dict(inputs or {}), arm, seeds[i], {"run": i}) for arm in labels for i in range(runs)]
+    if uncertainty is not None:
+        from .analysis.draws import parameter_draws, with_draws  # analysis runs experiments: imported when used
+
+        jobs = with_draws(jobs, parameter_draws(contract, uncertainty, runs, seed))
 
     def per_job(job: Job) -> Any:
         assert participants_for is not None
