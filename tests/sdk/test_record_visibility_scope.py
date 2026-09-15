@@ -65,3 +65,19 @@ def test_repeated_permission_evaluations_still_consume_the_shared_work_budget():
             assert _held(lambda: w.entry_visible("notes", entry, w.entities["a"]))
         with pytest.raises(RunError, match="work budget"):
             _held(lambda: w.entry_visible("notes", entry, w.entities["a"]))
+
+
+@pytest.mark.parametrize("rule", ["$viewer.id == $it.author", "$it.author == $viewer.id"])
+def test_proven_foreign_authorship_is_rejected_without_spending_expression_work(rule):
+    w, entry = world(rule)
+    with shared_budget(0, "permission probe"):
+        assert not _held(lambda: w.entry_visible("notes", entry, w.entities["b"]))
+        with pytest.raises(RunError, match="work budget"):
+            _held(lambda: w.entry_visible("notes", entry, w.entities["a"]))
+
+
+def test_additional_permission_terms_cannot_be_short_circuited_by_the_author_guard():
+    w, entry = world("$viewer.id == $it.author or $world.allow")
+    assert w.entry_visible("notes", entry, w.entities["b"])
+    w.set_world("allow", False)
+    assert not w.entry_visible("notes", entry, w.entities["b"])

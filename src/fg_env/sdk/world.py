@@ -269,6 +269,8 @@ class SdkWorld(World):
         visible = self.contract.records[record].visible
         if visible == "all":
             return True
+        if author_only(visible) and entry.get("author") != viewer.id:
+            return False  # Exact author-only predicates cannot hold for another reader.
         try:
             expr = compile_expr(visible)
             # A pure reader/entry rule needs no clock, metric, pattern or turn roots.
