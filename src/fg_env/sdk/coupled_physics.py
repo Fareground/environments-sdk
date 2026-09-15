@@ -6,7 +6,7 @@ They are restored before committing through the normal journaled write API.
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from ..physics import _CONSTS, _FUNCS
 from .entity_physics import _as_prop, _bounds
@@ -20,7 +20,8 @@ if TYPE_CHECKING:
     from .world import SdkWorld
 
 
-def integrate_coupled(world: "SdkWorld", dt: float) -> List[Dict[str, Any]]:
+def integrate_coupled(world: "SdkWorld", dt: float, substeps: Optional[int] = None,
+                      noise_key: Tuple[Any, ...] = ()) -> List[Dict[str, Any]]:
     from .world_physics import _number, _refresh_reads
 
     model = world.physics
@@ -40,7 +41,7 @@ def integrate_coupled(world: "SdkWorld", dt: float) -> List[Dict[str, Any]]:
     noises = []
     for index, name in enumerate(world_names):
         if name in model._noise:
-            noises.append((index, model._noise[name], world.seeds.rng("physics", "noise", "world", name, world.round)))
+            noises.append((index, model._noise[name], world.seeds.rng("physics", "noise", "world", name, world.round, *noise_key)))
     for step in world.entity_dynamics:
         for entity in world.entities_of(step.type_name):
             if step.where is not None and not truthy(step._eval(world, step.where, entity, f"{step.path}.where")):
@@ -55,7 +56,7 @@ def integrate_coupled(world: "SdkWorld", dt: float) -> List[Dict[str, Any]]:
             rates.extend(step.rates)
             for index, expr in step.noise:
                 noises.append((offset + index, expr, world.seeds.rng(
-                    "physics", "noise", step.type_name, entity.id, step.vars[index], world.round)))
+                    "physics", "noise", step.type_name, entity.id, step.vars[index], world.round, *noise_key)))
     before = list(y)
     # Static world reads (for example a count of occupied beds) do not change
     # during an interval with no entity dynamics. Avoid rescanning populations
@@ -135,9 +136,10 @@ def integrate_coupled(world: "SdkWorld", dt: float) -> List[Dict[str, Any]]:
                 result[index] = (expr.eval(ns)-base)/epsilon
         return result
 
-    h = dt / model.substeps
+    count = model.substeps if substeps is None else substeps
+    h = dt / count
     try:
-        for substep in range(model.substeps):
+        for substep in range(count):
             t = start + substep*h
             exact = False
             if noises and not entities and not spec.read:

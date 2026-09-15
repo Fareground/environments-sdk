@@ -292,13 +292,13 @@ class EntityVar(_Model):
 
 
 class EntityDynamics(_Model):
-    """Continuous dynamics each entity of a type (subtypes too) integrates on its own, stepped by
-    the same clock right after world physics. The variables are the type's number props, so
-    views, effects and snapshots see them like any other prop; their min/max hold at every sub-step."""
+    """Continuous dynamics of entities, jointly integrated when state is coupled.
+    Variables are number props visible to views, effects and snapshots; min/max
+    bounds apply at physical substeps."""
 
     where: Optional[str] = Field(None, description="Which entities integrate this step ($it); the others keep their values.")
     params: Dict[str, Any] = Field(default_factory=dict, description="Constants for this type (numbers or expressions over $inputs, $world).")
-    read: Dict[str, str] = Field(default_factory=dict, description="Names refreshed per entity before each step: {exposure: '$count($neighbors($it, contact), $it.sick)'}.")
+    read: Dict[str, str] = Field(default_factory=dict, description="Names read from shared intermediate entity state: {exposure: '$count($neighbors($it, contact), $it.sick)'}.")
     vars: Dict[str, EntityVar] = Field(default_factory=dict, description="{number prop: EntityVar | rate}: the props integrated.")
     write: Dict[str, str] = Field(default_factory=dict, description="After each step, other props of the entity from math: {'sick': 'viral_load > 5'}.")
 
@@ -314,9 +314,9 @@ class PhysicsSpec(_Model):
     atol: float = Field(1e-10, gt=0, allow_inf_nan=False, description="Absolute local drift error tolerance in variable units, important near zero.")
     params: Dict[str, Any] = Field(default_factory=dict, description="Constants (numbers or expressions over $inputs).")
     vars: Dict[str, PhysicsVar] = Field(default_factory=dict)
-    read: Dict[str, str] = Field(default_factory=dict, description="Names refreshed from the world before each step: {N: '$count(person)'}.")
+    read: Dict[str, str] = Field(default_factory=dict, description="Names read from the world during integration: {N: '$count(person)'}.")
     write: Dict[str, str] = Field(default_factory=dict, description="After each step: {'world.price': 'P', 'person.risk': 'I/N'}.")
-    per: Dict[str, EntityDynamics] = Field(default_factory=dict, description="{type: EntityDynamics}: dynamics every entity integrates on its own (viral load, firm capital, habit strength).")
+    per: Dict[str, EntityDynamics] = Field(default_factory=dict, description="{type: EntityDynamics}: entity dynamics, including coupling through reads (viral load, firm capital, habit strength).")
 
     @field_validator("substeps")
     @classmethod

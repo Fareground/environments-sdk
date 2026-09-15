@@ -1,9 +1,7 @@
-"""World physics: world-level variables and per-entity dynamics, built from the contract and
-stepped by the clock. World variables step first (RK4, optional noise) and write back; then every
-``per`` type's entities step, reading the world variables' new values."""
+"""Atomic physical intervals: shared equation dynamics and symmetric rigid-body coupling."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from ..physics import _CONSTS, _FUNCS, PhysicsExprError, PhysicsModel, PhysicsVariable, _CompiledExpr
 from .entity_physics import EntityDynamicsStep
@@ -21,6 +19,10 @@ def build_physics(world: "SdkWorld") -> None:
     spec = world.contract.physics
     if spec is None:
         return
+    if spec.rigid is not None:
+        from .rigid import RigidDynamics
+
+        world.rigid = RigidDynamics(world, spec.rigid)
     scope = world.scope()
     params: Dict[str, float] = {}
     for name, raw in spec.params.items():
@@ -44,13 +46,9 @@ def build_physics(world: "SdkWorld") -> None:
         constants = {name: _constant(world, raw, f"physics.per.{type_name}.params.{name}")
                      for name, raw in dynamics.params.items()}
         world.entity_dynamics.append(EntityDynamicsStep(world, type_name, dynamics, constants))
+    if world.rigid is not None and world.physics is not None:
+        world.physics.time = float(world.rigid.data.time)
     _refresh_reads(world)
-    if spec.rigid is not None:
-        if spec.vars or spec.per:
-            raise RunError("rigid and equation dynamics do not yet share a coupled solver", "physics.rigid")
-        from .rigid import RigidDynamics
-
-        world.rigid = RigidDynamics(world, spec.rigid)
 
 
 def step_physics(world: "SdkWorld", elapsed: Optional[float] = None) -> List[Dict[str, Any]]:
@@ -66,28 +64,15 @@ def step_physics(world: "SdkWorld", elapsed: Optional[float] = None) -> List[Dic
     clock_time, rng_state = world.time, world.rng.getstate()
     rigid_state = world.rigid.snapshot() if world.rigid is not None else None
     try:
-        _refresh_reads(world)
-        if world.rigid is not None:
-            world.rigid.step(world, dt)
-        if spec.vars or spec.read or any(step.reads for step in world.entity_dynamics):
-            from .coupled_physics import integrate_coupled
+        if world.rigid is not None and (spec.vars or spec.per or spec.read or spec.write):
+            from .hybrid_physics import advance_hybrid
 
-            changes = integrate_coupled(world, dt)
-        else:
-            shared = {**_FUNCS, **_CONSTS, **model.params}
-            for step in world.entity_dynamics:
-                step.step(world, shared, dt, start, model.substeps)
-            model.time = start + dt
+            advance_hybrid(world, dt)
             changes = []
-        namespace = model._namespace(model.values, model.time)
-        for target, expr in world.physics_writes:
-            value = expr.eval(namespace)
-            owner, _, prop = target.partition(".")
-            if owner == "world":
-                world.set_world(prop, value)
-            else:
-                for entity in world.entities_of(owner):
-                    world.set_prop(entity, prop, value)
+        else:
+            if world.rigid is not None:
+                world.rigid.step(world, dt)
+            changes = advance_equations(world, dt)
         world.touch()
         return changes
     except BaseException as exc:
@@ -104,6 +89,36 @@ def step_physics(world: "SdkWorld", elapsed: Optional[float] = None) -> List[Dic
         if isinstance(exc, (ArithmeticError, ValueError)):
             raise RunError(f"dynamics broke down numerically ({exc})", "physics") from None
         raise
+
+
+def advance_equations(world: "SdkWorld", dt: float, substeps: Optional[int] = None,
+                      noise_key: Tuple[Any, ...] = ()) -> List[Dict[str, Any]]:
+    """Advance the equation subsystem; the caller owns interval atomicity."""
+    spec, model = world.contract.physics, world.physics
+    assert spec is not None and model is not None
+    _refresh_reads(world)
+    count = model.substeps if substeps is None else substeps
+    if spec.vars or spec.read or any(step.reads for step in world.entity_dynamics):
+        from .coupled_physics import integrate_coupled
+
+        changes = integrate_coupled(world, dt, count, noise_key)
+    else:
+        shared = {**_FUNCS, **_CONSTS, **model.params}
+        for step in world.entity_dynamics:
+            step.step(world, shared, dt, model.time, count, noise_key)
+        model.time += dt
+        changes = []
+    namespace = model._namespace(model.values, model.time)
+    for target, expr in world.physics_writes:
+        value = expr.eval(namespace)
+        owner, _, prop = target.partition(".")
+        if owner == "world":
+            world.set_world(prop, value)
+        else:
+            for entity in world.entities_of(owner):
+                world.set_prop(entity, prop, value)
+    world.touch()
+    return changes
 
 
 def _refresh_reads(world: "SdkWorld") -> None:

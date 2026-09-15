@@ -61,7 +61,8 @@ class EntityDynamicsStep:
         self.inputs = [name for name, prop in specs.items()
                        if prop_type(prop) in ("number", "int") and name not in spec.vars and name not in MATH_NAMES]
 
-    def step(self, world: "SdkWorld", shared: Dict[str, Any], dt: float, start: float, substeps: int) -> None:
+    def step(self, world: "SdkWorld", shared: Dict[str, Any], dt: float, start: float, substeps: int,
+             noise_key: Tuple[Any, ...] = ()) -> None:
         """Advance every matching living entity by ``dt`` from time ``start``."""
         members = world.entities_of(self.type_name)
         if not members or dt <= 0:
@@ -71,7 +72,7 @@ class EntityDynamicsStep:
             if self.where is not None and not truthy(self._eval(world, self.where, entity, f"{self.path}.where")):
                 continue
             rng = {index: world.seeds.rng("physics", "noise", self.type_name, entity.id,
-                                           self.vars[index], world.round)
+                                           self.vars[index], world.round, *noise_key)
                    for index, _ in self.noise}
             ns = dict(base)
             props = entity.properties

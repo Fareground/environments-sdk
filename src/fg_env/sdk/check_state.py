@@ -138,8 +138,6 @@ def check_physics_state(checker: "_Checker", base: FrozenSet[str]) -> None:
         from .rigid import validate_model
         from .errors import RunError
 
-        if spec.vars or spec.per:
-            checker.error("physics.rigid", "rigid and equation dynamics do not yet share a coupled solver", "use one physical solver for this contract")
         try:
             validate_model(spec.rigid.model)
         except RunError as exc:
@@ -154,6 +152,17 @@ def check_physics_state(checker: "_Checker", base: FrozenSet[str]) -> None:
                 valid = parts[2] in checker.c.props_of(checker.c.entities[parts[1]].type)
             if not valid:
                 checker.error(f"physics.rigid.write.{target}", "target must name a declared world property or entity.<id>.<property>")
+            elif parts[0] == "world" and target in spec.write:
+                checker.error(f"physics.rigid.write.{target}", "this measured property is also written by equation physics")
+            elif parts[0] == "entity":
+                entity_type = checker.c.entities[parts[1]].type
+                for owner, dynamics in spec.per.items():
+                    if checker.c.is_a(entity_type, owner) and parts[2] in set(dynamics.vars) | set(dynamics.write):
+                        checker.error(f"physics.rigid.write.{target}", "this measured property is also owned by entity equation physics")
+                for output in spec.write:
+                    owner, _, prop = output.partition(".")
+                    if prop == parts[2] and checker.c.is_a(entity_type, owner):
+                        checker.error(f"physics.rigid.write.{target}", "this measured property is also written by equation physics")
     world_names = set(spec.vars) | set(spec.params) | set(spec.read)
     for name, var in spec.vars.items():
         if var.noise is None:

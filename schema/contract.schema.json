@@ -679,7 +679,7 @@
     },
     "EntityDynamics": {
       "additionalProperties": false,
-      "description": "Continuous dynamics each entity of a type (subtypes too) integrates on its own, stepped by\nthe same clock right after world physics. The variables are the type's number props, so\nviews, effects and snapshots see them like any other prop; their min/max hold at every sub-step.",
+      "description": "Continuous dynamics of entities, jointly integrated when state is coupled.\nVariables are number props visible to views, effects and snapshots; min/max\nbounds apply at physical substeps.",
       "properties": {
         "where": {
           "anyOf": [
@@ -704,7 +704,7 @@
           "additionalProperties": {
             "type": "string"
           },
-          "description": "Names refreshed per entity before each step: {exposure: '$count($neighbors($it, contact), $it.sick)'}.",
+          "description": "Names read from shared intermediate entity state: {exposure: '$count($neighbors($it, contact), $it.sick)'}.",
           "title": "Read",
           "type": "object"
         },
@@ -2247,7 +2247,7 @@
           "additionalProperties": {
             "type": "string"
           },
-          "description": "Names refreshed from the world before each step: {N: '$count(person)'}.",
+          "description": "Names read from the world during integration: {N: '$count(person)'}.",
           "title": "Read",
           "type": "object"
         },
@@ -2263,7 +2263,7 @@
           "additionalProperties": {
             "$ref": "#/$defs/EntityDynamics"
           },
-          "description": "{type: EntityDynamics}: dynamics every entity integrates on its own (viral load, firm capital, habit strength).",
+          "description": "{type: EntityDynamics}: entity dynamics, including coupling through reads (viral load, firm capital, habit strength).",
           "title": "Per",
           "type": "object"
         }
@@ -2869,7 +2869,7 @@
         },
         "control": {
           "additionalProperties": true,
-          "description": "Actuator name to a number or SDK expression, sampled at each physical interval's start.",
+          "description": "Actuator name to a number or SDK expression, evaluated at each rigid/equation coupling point.",
           "title": "Control",
           "type": "object"
         },
