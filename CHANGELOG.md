@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Behavior checks keep generated integer input variations inside fractional bounds and report inputs
+  with no alternative legal integer as unvaried, instead of failing on their own invalid test values.
 - Expression diagnostics list unknown functions and correction hints before dependent scope errors,
   in stable name order. Independent errors remain visible; validation and runtime semantics are unchanged.
 - Static checks reject impossible literal `after` delays at the authored field, with a repair hint:

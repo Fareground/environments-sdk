@@ -7,6 +7,7 @@ language what was seen and what it usually means, and carries the evidence.
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
@@ -86,6 +87,12 @@ def _variants(contract: Any, name: str, base: Any, perturb: float) -> List[Any]:
         value = max(value, spec.min) if spec.min is not None else value
         value = min(value, spec.max) if spec.max is not None else value
         coerced = int(round(value)) if spec.type == "int" else float(value)
+        # Rounding can cross fractional bounds even after the real value was clamped.
+        if spec.type == "int":
+            if spec.min is not None and coerced < spec.min:
+                coerced = math.ceil(spec.min)
+            if spec.max is not None and coerced > spec.max:
+                coerced = math.floor(spec.max)
         if spec.type == "int" and coerced == base:
             step = 1 if value >= base else -1
             coerced = base + step
