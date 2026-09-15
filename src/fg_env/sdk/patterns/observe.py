@@ -13,12 +13,13 @@ from typing import Any, Dict, Literal, Optional
 
 from pydantic import Field
 
+from .count_math import negative_binomial_quantile, poisson_quantile, probabilities
 from .base import Number, PatternConfig, kind
 from .responses import driver
 
 __all__ = ["CountsConfig", "MeasurementConfig", "CensoredConfig", "MissingConfig", "count_quantile"]
 
-#: Above this mean, counts use the normal approximation (exact sums would take too long).
+#: Above this mean, invert a stable CDF instead of summing individual probabilities.
 _EXACT_MEAN = 5_000.0
 _NORMAL = NormalDist()
 
@@ -28,24 +29,29 @@ def count_quantile(u: float, mean: float, dispersion: Optional[float]) -> int:
     ``dispersion`` k (variance mean + mean²/k)."""
     if mean <= 0:
         return 0
-    variance = mean + (mean * mean / dispersion if dispersion else 0.0)
     if mean > _EXACT_MEAN:
-        return max(0, round(mean + math.sqrt(variance) * _NORMAL.inv_cdf(u)))
-    if dispersion:
-        success = dispersion / (dispersion + mean)
-        log_p = dispersion * math.log(success)
-        ratio = mean / (dispersion + mean)
+        if dispersion is not None:
+            return negative_binomial_quantile(u, mean, dispersion)
+        return poisson_quantile(u, mean)
+    log_p = -dispersion * math.log1p(mean / dispersion) if dispersion else -mean
+    cumulative = 0.0
+    if log_p >= -500:
+        # The common small-count case does not need a generator or logarithm per step.
+        p = math.exp(log_p)
+        ratio = mean / (dispersion + mean) if dispersion else 0.0
+        for k in range(10001):
+            cumulative += p
+            if cumulative >= u:
+                return k
+            p *= (k + dispersion) / (k + 1) * ratio if dispersion else mean / (k + 1)
     else:
-        log_p, ratio = -mean, 0.0
-    p, cumulative, k = math.exp(log_p), 0.0, 0
-    limit = int(mean + 50 * math.sqrt(variance) + 50)
-    while k < limit:
-        cumulative += p
-        if cumulative >= u:
-            return k
-        p *= (k + dispersion) / (k + 1) * ratio if dispersion else mean / (k + 1)
-        k += 1
-    return k
+        for k, p in enumerate(probabilities(mean, dispersion)):
+            cumulative += p
+            if cumulative >= u:
+                return k
+            if k >= 10000:
+                break
+    return negative_binomial_quantile(u, mean, dispersion) if dispersion is not None else poisson_quantile(u, mean)
 
 
 class CountsConfig(PatternConfig):

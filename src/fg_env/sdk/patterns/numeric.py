@@ -15,6 +15,9 @@ from __future__ import annotations
 
 import math
 import operator
+from itertools import islice
+
+from .count_math import probabilities
 from dataclasses import dataclass, field
 from typing import Callable, List, Optional, Sequence, Tuple, Union
 
@@ -229,16 +232,7 @@ def _count_pmf(mean: float, k: Optional[float], upto: int) -> List[float]:
     """P(Y = 0 … upto−1) for a Poisson (k None) or negative binomial count with this mean."""
     if mean <= 0:
         return [1.0] + [0.0] * (upto - 1)
-    if k:
-        p = math.exp(k * math.log(k / (k + mean)))
-        ratio = mean / (k + mean)
-    else:
-        p, ratio = math.exp(-mean), 0.0
-    out = []
-    for y in range(upto):
-        out.append(p)
-        p *= (y + k) / (y + 1) * ratio if k else mean / (y + 1)
-    return out
+    return list(islice(probabilities(mean, k), upto))
 
 
 def truncated_mean(mean: float, k: Optional[float], floor: float) -> float:

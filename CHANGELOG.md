@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Numerical fidelity and timing
+- Demand-count sampling and stockout-conditioned fitting recover from probability underflow. Large Poisson and
+  negative-binomial counts invert their distributions instead of using a clipped normal approximation, preserving
+  skew and same-seed ordering across volume changes. Numerical searches have explicit convergence limits.
 - Expression-driven effect loops correctly shadow enclosing item types during checking.
 - Three business acceptance contracts cover perishable retail, refurbished-product returns/substitution, and
   component-constrained bundles, with demand censoring, price responses, forecasting and accounting checks.
