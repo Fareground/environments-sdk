@@ -159,7 +159,7 @@ def fit_patterns(contract: ContractLike, *, data_dir: Union[str, Path, None] = N
     covered |= {cfg.fit.noise for cfg in configs.values() if cfg.fit and cfg.fit.noise}
     reports: List[PatternFit] = []
     priors: Dict[str, Dict[str, Any]] = {}
-    for name in order:
+    for index, name in enumerate(order):
         cfg = configs[name]
         if name in covered:
             reports.append(_skipped(name, cfg, "fitted together with the product that names it"))
@@ -170,8 +170,9 @@ def fit_patterns(contract: ContractLike, *, data_dir: Union[str, Path, None] = N
             data = cfg.fit.data if cfg.fit else "data"
             priors.update(_write_back(fitted, pattern, configs[pattern], per_key, env, data))
         reports.append(report)
-        env = load(fitted, data_dir=folder, seed=0, inputs=dict(inputs or {}))
-        configs = {n: validated(n, spec)[0] or configs[n] for n, spec in fitted["patterns"].items()}
+        if index < len(order) - 1:  # later fits read the estimates written so far
+            env = load(fitted, data_dir=folder, seed=0, inputs=dict(inputs or {}))
+            configs = {n: validated(n, spec)[0] or configs[n] for n, spec in fitted["patterns"].items()}
     return FitResult(fitted, reports, priors)
 
 
@@ -279,6 +280,7 @@ def _rows(name: str, cfg: PatternConfig, env: Any) -> List[Row]:
     keep = compile_expr(fit.where) if fit.where else None
     rows: List[Row] = []
     factors = fit.x if isinstance(fit.x, dict) else ({"x": fit.x} if fit.x else {})
+    times: Dict[Any, float] = {}  # a history repeats each date once per key: parse each once
     for index, raw in enumerate(data):
         where = f"{path}.data row {index}"
         try:
@@ -293,9 +295,13 @@ def _rows(name: str, cfg: PatternConfig, env: Any) -> List[Row]:
             if value is None or value == "":
                 continue
             when = raw[fit.time] if fit.time else 0.0
-            if isinstance(when, str) and when.strip().replace(".", "", 1).lstrip("-").isdigit():
-                when = float(when)
-            t = tb.to_t(tb.calendar_of(env.world), when)
+            cacheable = isinstance(when, (str, int, float)) and not isinstance(when, bool)
+            t = times.get(when) if cacheable else None
+            if t is None:
+                moment = float(when) if isinstance(when, str) and when.strip().replace(".", "", 1).lstrip("-").isdigit() else when
+                t = tb.to_t(tb.calendar_of(env.world), moment)
+                if cacheable:
+                    times[when] = t
             x = {factor: _number(raw[spec if isinstance(spec, str) else spec.column], f"{where}, column "
                                  f"'{spec if isinstance(spec, str) else spec.column}'") for factor, spec in factors.items()}
             if fit.mean:

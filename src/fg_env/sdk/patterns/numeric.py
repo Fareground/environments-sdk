@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import math
+import operator
 from dataclasses import dataclass, field
 from typing import Callable, List, Optional, Sequence, Tuple, Union
 
@@ -52,6 +53,16 @@ class Design:
     width: int
     groups: List[int]
     count: int
+    _pairs: Optional[List[List[Tuple[int, float]]]] = field(default=None, init=False, repr=False, compare=False)
+
+    def pairs(self) -> List[List[Tuple[int, float]]]:
+        """Each row's products xᵢ·xⱼ (i ≤ j) at their place in the flattened XᵀX — fixed by the design, so a fit that
+        re-solves with new weights every iteration builds them once."""
+        if self._pairs is None:
+            p = self.width
+            self._pairs = [[(min(i, j) * p + max(i, j), vi * vj) for a, (i, vi) in enumerate(row) for j, vj in row[a:]]
+                           for row in self.rows]
+        return self._pairs
 
     @classmethod
     def of(cls, x: Union["Design", Sequence[Sequence[float]]], groups: Optional[Sequence[int]] = None) -> "Design":
@@ -91,59 +102,96 @@ class _Solution:
     scales: List[float]
 
 
-def _solve(design: Design, w: Sequence[float], y: Sequence[float]) -> _Solution:
-    """Weighted normal equations, with group intercepts eliminated block-wise (Schur complement)."""
+def _cholesky(a: Matrix) -> Optional[Matrix]:
+    """The lower factor L of a symmetric positive definite matrix (a = L·Lᵀ); None when it is singular."""
+    n = len(a)
+    scale = max((abs(v) for row in a for v in row), default=0.0) or 1.0
+    lower: Matrix = [[0.0] * n for _ in range(n)]
+    for i in range(n):
+        row, target = lower[i], a[i]
+        for j in range(i + 1):
+            other = lower[j]
+            value = target[j] - sum(map(operator.mul, row[:j], other[:j]))
+            if i == j:
+                if value <= 1e-10 * scale:
+                    return None
+                row[i] = math.sqrt(value)
+            else:
+                row[j] = value / other[j]
+    return lower
+
+
+def _cholesky_solve(lower: Matrix, b: Sequence[float]) -> List[float]:
+    """x with L·Lᵀ·x = b, by forward then back substitution."""
+    n = len(b)
+    z = [0.0] * n
+    for i in range(n):
+        row = lower[i]
+        z[i] = (b[i] - sum(map(operator.mul, row[:i], z[:i]))) / row[i]
+    x = [0.0] * n
+    for i in reversed(range(n)):
+        x[i] = (z[i] - sum(lower[k][i] * x[k] for k in range(i + 1, n))) / lower[i][i]
+    return x
+
+
+def _solve(design: Design, w: Sequence[float], y: Sequence[float], covariance: bool = True) -> _Solution:
+    """Weighted normal equations, with group intercepts eliminated block-wise (Schur complement) and the rest solved by
+    Cholesky. XᵀWX is accumulated from the design's cached products and scaled to unit columns after; the covariance
+    (a full inverse) is computed only when asked for, since iterations need only the coefficients."""
     p, g = design.width, design.count
     total = sum(w)
-    sizes = [0.0] * p
-    for row, weight in zip(design.rows, w):
-        for j, v in row:
-            sizes[j] += weight * v * v
-    scales = [math.sqrt(s / total) if total > 0 else 0.0 for s in sizes]
-    if any(s <= 0 or not math.isfinite(s) for s in scales):
-        raise ValueError(_COLLINEAR)
-    xtx = [[0.0] * p for _ in range(p)]
+    flat = [0.0] * (p * p)
     xty = [0.0] * p
     cross = [[0.0] * p for _ in range(g)]
     group_weight, group_y = [0.0] * g, [0.0] * g
-    for index, (row, weight, target) in enumerate(zip(design.rows, w, y)):
-        scaled = [(j, v / scales[j]) for j, v in row]
-        for a, (i, vi) in enumerate(scaled):
-            xty[i] += weight * vi * target
-            for j, vj in scaled[a:]:
-                xtx[i][j] += weight * vi * vj
+    groups = design.groups if g else [0] * len(design.rows)
+    for row, pairs, weight, target, group in zip(design.rows, design.pairs(), w, y, groups):
+        for place, product in pairs:
+            flat[place] += weight * product
+        weighted = weight * target
         if g:
-            group = design.groups[index]
             group_weight[group] += weight
-            group_y[group] += weight * target
-            for i, vi in scaled:
-                cross[group][i] += weight * vi
-    for i in range(p):
-        for j in range(i):
-            xtx[i][j] = xtx[j][i]
+            group_y[group] += weighted
+            line = cross[group]
+            for j, v in row:
+                xty[j] += weighted * v
+                line[j] += weight * v
+        else:
+            for j, v in row:
+                xty[j] += weighted * v
+    scales = [math.sqrt(flat[j * p + j] / total) if total > 0 else 0.0 for j in range(p)]
+    if any(s <= 0 or not math.isfinite(s) for s in scales):
+        raise ValueError(_COLLINEAR)
     if g and any(v <= 0 for v in group_weight):
         raise ValueError("a group has no weight (no rows)")
-    schur = [row[:] for row in xtx]
-    rhs = xty[:]
+    schur = [[flat[min(i, j) * p + max(i, j)] / (scales[i] * scales[j]) for j in range(p)] for i in range(p)]
+    rhs = [value / scale for value, scale in zip(xty, scales)]
+    cross = [[value / scale for value, scale in zip(line, scales)] for line in cross]
+    supports = [[i for i in range(p) if line[i]] for line in cross]
     for group in range(g):
-        b, inv_w = cross[group], 1.0 / group_weight[group]
-        nonzero = [i for i in range(p) if b[i]]
+        b, inv_w, nonzero = cross[group], 1.0 / group_weight[group], supports[group]
         for i in nonzero:
             rhs[i] -= b[i] * group_y[group] * inv_w
             for j in nonzero:
                 schur[i][j] -= b[i] * b[j] * inv_w
-    covariance = inverse(schur) if p else []
-    if covariance is None:
+    lower = _cholesky(schur) if p else []
+    if lower is None:
         raise ValueError(_COLLINEAR)
-    scaled_coef = [sum(covariance[i][j] * rhs[j] for j in range(p)) for i in range(p)]
+    scaled_coef = _cholesky_solve(lower, rhs) if p else []
+    inverted: Matrix = []
+    if covariance and p:
+        found = inverse(schur)
+        if found is None:
+            raise ValueError(_COLLINEAR)
+        inverted = found
     intercepts, intercept_var = [], []
     for group in range(g):
-        b, inv_w = cross[group], 1.0 / group_weight[group]
-        intercepts.append((group_y[group] - sum(bi * c for bi, c in zip(b, scaled_coef))) * inv_w)
-        projected = [bi * inv_w for bi in b]
-        spread = sum(projected[i] * sum(covariance[i][j] * projected[j] for j in range(p)) for i in range(p) if projected[i])
-        intercept_var.append(inv_w + spread)
-    return _Solution([c / s for c, s in zip(scaled_coef, scales)], intercepts, covariance, intercept_var, scales)
+        b, inv_w, nonzero = cross[group], 1.0 / group_weight[group], supports[group]
+        intercepts.append((group_y[group] - sum(b[i] * scaled_coef[i] for i in nonzero)) * inv_w)
+        if covariance:
+            spread = sum(b[i] * inv_w * sum(inverted[i][j] * b[j] * inv_w for j in nonzero) for i in nonzero)
+            intercept_var.append(inv_w + spread)
+    return _Solution([c / s for c, s in zip(scaled_coef, scales)], intercepts, inverted, intercept_var, scales)
 
 
 def least_squares(x: Union[Design, Sequence[Sequence[float]]], y: Sequence[float], weights: Optional[Sequence[float]] = None,
@@ -211,19 +259,32 @@ class CountFit:
 def count_regression(x: Union[Design, Sequence[Sequence[float]]], y: Sequence[float], *,
                      offset: Optional[Sequence[float]] = None, censored: Optional[Sequence[bool]] = None,
                      k: Optional[float] = None, groups: Optional[Sequence[int]] = None, iterations: int = 100,
-                     tolerance: float = 1e-6) -> CountFit:
-    """log E[y] = offset + x·β (+ the row's group intercept) for counts (see the module)."""
+                     tolerance: float = 1e-6, start: Optional[CountFit] = None, errors: bool = True) -> CountFit:
+    """log E[y] = offset + x·β (+ the row's group intercept) for counts (see the module).
+
+    ``start`` continues from an earlier fit of the same design (a refit with a new dispersion converges in a few
+    iterations instead of starting over); ``errors`` False skips the standard errors (an intermediate fit)."""
     design = Design.of(x, groups)
-    n = len(y)
+    n, p = len(y), design.width + design.count
+    if n <= p:
+        raise ValueError(f"{n} row(s) cannot estimate {p} parameter(s)")
     offs = list(offset) if offset is not None else [0.0] * n
     cens = list(censored) if censored is not None else [False] * n
-    start = least_squares(design, [math.log(max(0.0, v) + 0.5) - o for v, o in zip(y, offs)])
-    coef, intercepts = start.coef, start.intercepts
+    if start is not None:
+        coef, intercepts = list(start.coef), list(start.intercepts)
+    else:
+        first = _solve(design, [1.0] * n, [math.log(max(0.0, v) + 0.5) - o for v, o in zip(y, offs)], covariance=False)
+        coef, intercepts = first.coef, first.intercepts
 
     def means_of(c: Sequence[float], a: Sequence[float]) -> List[float]:
         return [math.exp(max(-30.0, min(30.0, o + e))) for o, e in zip(offs, design.apply(c, a))]
 
     def deviance(means: Sequence[float], values: Sequence[float]) -> float:
+        """The deviance the reweighted step minimises: Poisson, or negative binomial with the dispersion k (a step
+        judged by the Poisson deviance would be refused near the negative-binomial solution)."""
+        if k:
+            return 2 * sum((v * math.log(v / m) if v > 0 else 0.0) - (v + k) * math.log((v + k) / (m + k))
+                           for v, m in zip(values, means))
         return 2 * sum((v * math.log(v / m) if v > 0 else 0.0) - (v - m) for v, m in zip(values, means))
 
     means = means_of(coef, intercepts)
@@ -233,7 +294,7 @@ def count_regression(x: Union[Design, Sequence[Sequence[float]]], y: Sequence[fl
         filled = [truncated_mean(m, k, v) if c else float(v) for m, v, c in zip(means, y, cens)]
         weights = [m / (1 + m / k) if k else m for m in means]
         working = [math.log(m) - o + (f - m) / m for o, f, m in zip(offs, filled, means)]
-        proposal = _solve(design, weights, working)
+        proposal = _solve(design, weights, working, covariance=False)
         before, step = deviance(means, filled), 1.0
         while True:
             trial = [c + step * (q - c) for c, q in zip(coef, proposal.coef)]
@@ -247,6 +308,8 @@ def count_regression(x: Union[Design, Sequence[Sequence[float]]], y: Sequence[fl
         coef, intercepts, means = trial, trial_intercepts, trial_means
         if change < tolerance or abs(before - after) <= 1e-10 * max(1.0, abs(after)):
             break
+    if not errors:
+        return CountFit(coef, [], means, filled, done, intercepts, [])
     weights = [m / (1 + m / k) if k else m for m in means]
     solution = _solve(design, weights, [0.0] * n)
     pearson = sum((f - m) ** 2 / (m + (m * m / k if k else 0.0)) for f, m, c in zip(filled, means, cens) if not c)
