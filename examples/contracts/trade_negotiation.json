@@ -44,7 +44,7 @@
               "needs": {"importer": {"steel": "$inputs.domestic_need"}},
               "on_short": ["$it.shortfall += $short", "$it.shortage_losses += $short * $inputs.shortage_cost"]},
     "trade": {
-      "kind": "negotiation", "parties": "country", "deadline": "$inputs.deadline", "max_depth": 8, "expires": 2,
+      "kind": "agreements", "mode": "negotiation", "who": "country", "deadline": "$inputs.deadline", "max_depth": 8, "expires": 2,
       "reservation": 0, "value": "$surplus($party, $terms)",
       "issues": {
         "price": {"type": "number", "min": 1, "max": 30, "unit": "credits/t", "description": "Price per ton."},

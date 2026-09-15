@@ -57,11 +57,11 @@
                         "milk": {"value": 2, "shelf_life": 6, "on_consume": ["$actor.hunger -= $qty"]},
                         "apples": {"value": 1, "shelf_life": 10, "on_consume": ["$actor.hunger -= $qty"]}},
               "actions": ["consume"]},
-    "coffee": {"kind": "subscriptions", "subscribers": "household", "currency": "cash", "providers": "cafe",
+    "coffee": {"kind": "agreements", "mode": "subscriptions", "who": "household", "currency": "cash", "providers": "cafe",
                "price_min": 10, "price_max": 80,
                "plans": {"coffee_club": {"provider": "bean_bar", "name": "Coffee Club", "price": 30, "period": 30, "trial": 7,
                                          "description": "A daily coffee at Bean Bar."}}},
-    "dining": {"kind": "bookings", "guests": "household", "currency": "cash", "waitlist": true, "patience": 2, "refund": 0.5,
+    "dining": {"kind": "agreements", "mode": "bookings", "who": "household", "currency": "cash", "waitlist": true, "patience": 2, "refund": 0.5,
                "resources": {"tables": {"provider": "bistro", "name": "Bistro tables", "capacity": 6, "price": 18, "horizon": 3, "max_party": 4}}}
   },
   "actions": {
@@ -109,7 +109,7 @@
     {"name": "new day", "phase": "start", "each": "shop", "do": ["$it.served_today = 0"]},
     {"name": "hunger", "phase": "end", "each": "household", "do": ["$it.hunger += 1"]},
     {"name": "coffee price hike", "arms": ["price_hike"], "at": "$inputs.hike_day", "phase": "start",
-     "do": [{"set_plan_price": "coffee", "plan": "coffee_club", "price": "$inputs.hike_price"}],
+     "do": [{"agreements": "coffee", "action": "set_price", "plan": "coffee_club", "price": "$inputs.hike_price"}],
      "say": "Bean Bar announces a new Coffee Club price of {$inputs.hike_price|money} a month."}
   ],
   "stages": [
