@@ -52,6 +52,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read one family or mode.
 
 #### Added
+- **Scan lint**: `check` warns, with a fix, when work that repeats per entity or row re-reads a whole input table
+  (events and `each` over a type, type hooks, population rows: use `$lookup`) or when a block that schedules itself
+  again through `after` reads every entity of a type (keep a world list such as a queue of ids), defs followed. Once-per-
+  round scans and per-entity pairing are not reported; the shipped examples raise none.
 - **Negotiation settlement**: the `agreements` `negotiation` mode takes `transfers` (unique entities a signed deal
   hands over, `{"items": "$filter(phone, $it.owner == $proposer.id)", "count": "$terms.units", "to": "$acceptor"}`,
   listed in `<name>_deal.items`) and `on_sign` effects (`$deal`, `$proposer`, `$acceptor`, `$parties`, `$terms`). A

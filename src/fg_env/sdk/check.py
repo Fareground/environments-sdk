@@ -21,6 +21,7 @@ from ..physics import _CONSTS, _FUNCS, PhysicsExprError, _CompiledExpr
 from . import contract as C
 from .chance import check_chance
 from .check_params import check_entity_literals, check_param_bounds
+from .check_scans import check_scans
 from .check_space import check_event_order, check_space
 from .check_turns import check_spectator_view, check_stage_turns, spectator_audience_issues
 from .contract import Contract
@@ -621,6 +622,7 @@ class _Checker:
         self._arms()
         self._defs_and_blocks()
         check_game(self)
+        check_scans(self)
 
     def _inputs(self) -> None:
         for name, spec in self.c.inputs.items():
