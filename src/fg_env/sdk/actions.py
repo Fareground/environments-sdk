@@ -17,6 +17,7 @@ from .effects import EffectRunner
 from .errors import RunError
 from .expr import EVAL_BUDGET, ExprError, Untrusted, compile_expr, is_expr, nested_free, resolve, shared_budget, truthy
 from .template import compile_template, format_value
+from .tool_text import shared_description, shared_param, text_limit, usage_limits
 from .world import Abort, SdkWorld, _plain
 
 __all__ = ["ACTION_BUDGET", "TEXT_MAX_LEN", "MAX_SAFE_INT", "ToolSpec", "Outcome", "ActionBook", "stage_actions"]
@@ -241,17 +242,16 @@ class ActionBook:
         tools = [self.tool(actor, name) for name in members]
         properties: Dict[str, Any] = {"action": {
             "type": "string", "enum": [choices[t.name] for t in tools],
-            "description": "The action to take: " + " | ".join(f"{choices[t.name]} — {t.description}" for t in tools)}}
+            "description": "One of the actions listed in this tool's description."}}
         takers: Dict[str, List[Tuple[str, Dict[str, Any]]]] = {}
         for tool in tools:
             for pname, schema in tool.input_schema.get("properties", {}).items():
                 takers.setdefault(pname, []).append((choices[tool.name], schema))
         for pname, entries in takers.items():
-            properties[pname] = _shared_param(entries, len(tools))
+            properties[pname] = shared_param(entries, len(tools))
         schema = {"type": "object", "properties": properties, "required": ["action"], "additionalProperties": False}
-        description = f"{group.replace('_', ' ').capitalize()}: pick the `action`; pass only the arguments that action takes."
-        if staged:
-            description += " (Committed when everyone has chosen.)"
+        description = shared_description(group, [(choices[t.name], t.description, list(t.input_schema.get("properties", {})))
+                                                 for t in tools], staged)
         return ToolSpec(group, description, schema, "act", all(t.terminal for t in tools))
 
     def route(self, group: str, args: Any, legal: Sequence[str]) -> Tuple[str, Dict[str, Any], Optional[str]]:
@@ -296,6 +296,9 @@ class ActionBook:
             description += " Ends your turn."
         elif isinstance(spec.terminal, str):
             description += " May end your turn."
+        limits = usage_limits(spec.per_turn, spec.per_round)
+        if limits:
+            description += " " + limits
         return ToolSpec(name, description, schema, "act", spec.terminal is True)
 
     def _static(self, actor: Entity, raw: Any) -> Any:
@@ -334,6 +337,8 @@ class ActionBook:
         elif param.type == "text":
             out["type"] = "string"
             out["maxLength"] = param.max_len if param.max_len is not None else TEXT_MAX_LEN
+            if param.max_len is not None:
+                description = f"{description or ''} {text_limit(param.max_len)}".strip()
         elif param.type == "enum":
             values = self._static(actor, param.values) if isinstance(param.values, str) else param.values
             if isinstance(values, list) and values:
@@ -752,26 +757,6 @@ def _choice_names(group: str, members: Sequence[str]) -> Dict[str, str]:
     short = {name: name[len(prefix):] if name.startswith(prefix) and len(name) > len(prefix) else name for name in members}
     taken = list(short.values())
     return {name: s if taken.count(s) == 1 and (s == name or s not in members) else name for name, s in short.items()}
-
-
-def _shared_param(entries: Sequence[Tuple[str, Dict[str, Any]]], total: int) -> Dict[str, Any]:
-    """One property of a shared tool from the schemas of the actions taking it (``anyOf`` when they differ)."""
-    shapes: List[Dict[str, Any]] = []
-    for _, schema in entries:
-        bare = {key: value for key, value in schema.items() if key != "description"}
-        if bare not in shapes:
-            shapes.append(bare)
-    out: Dict[str, Any] = dict(shapes[0]) if len(shapes) == 1 else {"anyOf": shapes}
-    texts = [(who, schema["description"]) for who, schema in entries if schema.get("description")]
-    if len({text for _, text in texts}) == 1:
-        described = texts[0][1]
-    else:
-        described = "; ".join(f"{who}: {text}" for who, text in texts)
-    users = "" if len(entries) == total else f"Only for {', '.join(who for who, _ in entries)}."
-    description = " ".join(part for part in (users, described) if part)
-    if description:
-        out["description"] = description
-    return out
 
 
 def _item_spec(param: ParamSpec) -> ParamSpec:

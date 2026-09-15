@@ -15,7 +15,7 @@ __all__ = ["COST_FIELDS", "EvaluationResult", "summarize"]
 
 #: The per-agent counters summed into a side's cost.
 COST_FIELDS = ("wakes", "calls", "invalid_calls", "rejected_actions", "timeouts", "undone_turns", "forfeits",
-               "llm_calls", "input_tokens", "output_tokens")
+               "truncated", "llm_calls", "input_tokens", "output_tokens")
 
 
 @dataclass
