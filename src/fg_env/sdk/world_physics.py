@@ -45,41 +45,65 @@ def build_physics(world: "SdkWorld") -> None:
                      for name, raw in dynamics.params.items()}
         world.entity_dynamics.append(EntityDynamicsStep(world, type_name, dynamics, constants))
     _refresh_reads(world)
+    if spec.rigid is not None:
+        if spec.vars or spec.per:
+            raise RunError("rigid and equation dynamics do not yet share a coupled solver", "physics.rigid")
+        from .rigid import RigidDynamics
+
+        world.rigid = RigidDynamics(world, spec.rigid)
 
 
 def step_physics(world: "SdkWorld", elapsed: Optional[float] = None) -> List[Dict[str, Any]]:
-    """Advance physics one round, or by ``elapsed`` clock time on a continuous clock
-    (rates are then per clock unit)."""
-    spec = world.contract.physics
-    model = world.physics
+    """Advance a complete physical interval atomically, including all writebacks."""
+    spec, model = world.contract.physics, world.physics
     if spec is None or model is None:
         return []
-    _refresh_reads(world)
     dt = spec.dt if elapsed is None else spec.dt * elapsed
-    start = model.time
-    noisy = any(var.noise is not None for var in spec.vars.values())
-    changes = model.integrate(dt, rng=world.seeds.rng("physics", "noise", world.round) if noisy else None)
-    world.touch()
-    errors = [c for c in changes if c.get("type") == "physics_error"]
-    if errors:
-        raise RunError(errors[0]["narrative"], "physics")
-    values = {**model.params, **model.values}
-    namespace = model._namespace(values, model.time)
-    for target, expr in world.physics_writes:
-        value = expr.eval(namespace)
-        owner, _, prop = target.partition(".")
-        if owner == "world":
-            world.set_world(prop, value)
+    if dt <= 0:
+        return []
+    mark = world.journal.mark()
+    before, params, start = dict(model.values), dict(model.params), model.time
+    clock_time, rng_state = world.time, world.rng.getstate()
+    rigid_state = world.rigid.snapshot() if world.rigid is not None else None
+    try:
+        _refresh_reads(world)
+        if world.rigid is not None:
+            world.rigid.step(world, dt)
+        if spec.vars or spec.read or any(step.reads for step in world.entity_dynamics):
+            from .coupled_physics import integrate_coupled
+
+            changes = integrate_coupled(world, dt)
         else:
-            for entity in world.entities_of(owner):
-                world.set_prop(entity, prop, value)
-    if world.entity_dynamics:
-        shared = {**_FUNCS, **_CONSTS, **values}
-        for step in world.entity_dynamics:
-            step.step(world, shared, dt, start, model.substeps)
-    if dt > 0:
-        model.time = start + dt  # also when only per-entity variables are integrated
-    return changes
+            shared = {**_FUNCS, **_CONSTS, **model.params}
+            for step in world.entity_dynamics:
+                step.step(world, shared, dt, start, model.substeps)
+            model.time = start + dt
+            changes = []
+        namespace = model._namespace(model.values, model.time)
+        for target, expr in world.physics_writes:
+            value = expr.eval(namespace)
+            owner, _, prop = target.partition(".")
+            if owner == "world":
+                world.set_world(prop, value)
+            else:
+                for entity in world.entities_of(owner):
+                    world.set_prop(entity, prop, value)
+        world.touch()
+        return changes
+    except BaseException as exc:
+        world.journal.rollback(mark)
+        for name, value in before.items():
+            model.variables[name].value = value
+        model.params.clear()
+        model.params.update(params)
+        model.time, world.time = start, clock_time
+        world.rng.setstate(rng_state)
+        if rigid_state is not None:
+            world.rigid.restore(rigid_state)
+        world.touch()
+        if isinstance(exc, (ArithmeticError, ValueError)):
+            raise RunError(f"dynamics broke down numerically ({exc})", "physics") from None
+        raise
 
 
 def _refresh_reads(world: "SdkWorld") -> None:

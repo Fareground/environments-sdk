@@ -44,7 +44,7 @@ _ENV_FIELDS = frozenset({
     "_invariant_held", "pilot", "calibration", "build_seed", "stepper", "diagnosis", "_end_on_action", "_brief_assets"})
 _WORLD_FIELDS = frozenset({
     "contract", "inputs", "seeds", "arm", "_local", "_rng", "entities", "props", "links", "link_fields", "adjacent",
-    "records_store", "entry_by_seq", "entity_briefs", "log", "physics", "physics_writes", "entity_dynamics", "round",
+    "records_store", "entry_by_seq", "entity_briefs", "log", "rigid", "physics", "physics_writes", "entity_dynamics", "round",
     "stage", "rounds", "metrics", "series", "scheduled", "wake_requests", "reactions", "time", "horizon", "start", "wake_at",
     "_schedule_seq", "space", "buffer", "end_request", "chance_picker", "counters", "journal", "lifecycle",
     "exposures", "written", "watched_writes", "diagnosis", "_seq", "_record_seq", "_props_view", "_physics_view", "_clock_view",
@@ -176,7 +176,7 @@ def _copy_world(source: SdkWorld) -> SdkWorld:
                      for kind, fields in source.link_fields.items()},
         adjacent={kind: {key: dict(counts) for key, counts in by_id.items()} for kind, by_id in source.adjacent.items()},
         records_store=records, entry_by_seq=by_seq, entity_briefs=dict(source.entity_briefs), log=list(source.log),
-        physics=None, physics_writes=source.physics_writes, entity_dynamics=[], round=source.round, stage=source.stage,
+        rigid=None, physics=None, physics_writes=source.physics_writes, entity_dynamics=[], round=source.round, stage=source.stage,
         rounds=source.rounds, metrics=_copy(source.metrics), series=_copy(source.series),
         scheduled=list(source.scheduled), wake_requests=dict(source.wake_requests), reactions=[], time=source.time,
         horizon=source.horizon, start=source.start, wake_at=dict(source.wake_at), _schedule_seq=source._schedule_seq,

@@ -67,6 +67,16 @@ class RunRounds:
         world.round += 1
         world.stage = None
         self._used_round.clear()
+        # Continuous dynamics belong to the interval that just elapsed. Boundary
+        # effects must see its final state and affect only subsequent intervals.
+        if elapsed is not None and elapsed > 0:
+            with self._lock:
+                world.step_physics(elapsed)
+                world.journal.clear()
+            self.happenings.check_triggers("physics")
+            if self._ended():
+                self._finish()
+                return False
         self.happenings.run_scheduled()
         run_feeds(self)
         self.happenings.run_events("start")
@@ -77,10 +87,9 @@ class RunRounds:
         with self._lock:
             if elapsed is None:
                 world.step_physics()
-            elif elapsed > 0:
-                world.step_physics(elapsed)
             world.journal.clear()
-        self.happenings.check_triggers("physics")
+        if elapsed is None:
+            self.happenings.check_triggers("physics")
         if self._ended():
             self._finish()
             return False
@@ -93,12 +102,15 @@ class RunRounds:
             return 0.0
         previous = world.time
         target = previous + clock.tick
-        if clock.jump:
-            due = self._next_due()
-            if due is not None:
-                target = max(previous, due)
-        if world.horizon is not None and target > world.horizon:
+        if world.horizon is not None and previous >= world.horizon:
             return None
+        due = self._next_due()
+        if due is not None:
+            # Even a ticking clock must stop at intervening events. Jump mode
+            # may skip empty ticks, but neither mode may skip a due effect.
+            target = max(previous, due) if clock.jump else min(target, max(previous, due))
+        if world.horizon is not None:
+            target = min(target, world.horizon)
         world.time = target
         world.touch()
         return target - previous

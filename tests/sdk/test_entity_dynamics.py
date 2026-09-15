@@ -188,3 +188,22 @@ def test_thousands_of_entities_step_in_reasonable_time():
     elapsed = time.perf_counter() - started
     assert 10 * math.exp(-1.0) < result.outputs["mean"] < 10 * math.exp(-0.2)
     assert elapsed < 10  # 10,000 entity steps × 4 RK4 sub-steps; well under a second on a laptop
+
+
+def test_independent_noise_survives_unrelated_entities_and_variable_reordering():
+    contract = {
+        "name": "Independent stochastic coordinates",
+        "clock": {"rounds": 3},
+        "types": {"particle": {"props": {"x": 0.0, "y": 0.0}}},
+        "entities": {"a": {"type": "particle"}, "b": {"type": "particle"}},
+        "physics": {"per": {"particle": {"vars": {
+            "x": {"rate": "0", "noise": "1"}, "y": {"rate": "0", "noise": "2"}}}}},
+        "outputs": {"a": "$entity(a).x", "b": "$entity(b).y"},
+    }
+    expected = fg_env.load(contract, seed=42).run().outputs
+    variant = copy.deepcopy(contract)
+    variant["entities"] = {"unrelated": {"type": "particle"},
+                           **dict(reversed(list(variant["entities"].items())))}
+    variables = variant["physics"]["per"]["particle"]["vars"]
+    variant["physics"]["per"]["particle"]["vars"] = dict(reversed(list(variables.items())))
+    assert fg_env.load(variant, seed=42).run().outputs == expected

@@ -1,6 +1,8 @@
 """Continuous, event-driven time: scheduled turns, durations, timed effects, horizons."""
 import json
 
+import pytest
+
 import fg_env
 
 CLINIC = {
@@ -85,3 +87,37 @@ def test_continuous_clock_contract_errors():
     messages = [i.message for i in fg_env.check(rounds_mode)]
     assert any("scheduled turns need a continuous clock" in m for m in messages)
     assert any("duration only applies" in m for m in messages)
+
+
+@pytest.mark.parametrize("jump", [False, True])
+@pytest.mark.parametrize("switch_at", [0.25, 1.0, 1.75])
+def test_scheduled_control_changes_only_future_physics(jump, switch_at):
+    contract = {
+        "name": "Scheduled heater",
+        "clock": {"mode": "continuous", "horizon": 2.5, "tick": 1, "jump": jump},
+        "types": {"marker": {}},
+        "world": {"power": 1.0, "heat_at_switch": -1.0},
+        "physics": {"read": {"power": "$world.power"},
+                    "vars": {"heat": {"start": 0, "rate": "power"}}},
+        "events": [{"at": 1, "do": [{"after": switch_at, "do": [
+            "$world.heat_at_switch = $physics.heat", "$world.power = 0"]}]}],
+        "outputs": {"heat": "$physics.heat", "at_switch": "$world.heat_at_switch"},
+    }
+    result = fg_env.load(contract).run()
+    assert result.status == "completed"
+    assert result.time == 2.5
+    assert result.outputs["at_switch"] == pytest.approx(switch_at)
+    assert result.outputs["heat"] == pytest.approx(switch_at)
+
+
+def test_physics_integrates_final_fractional_interval_to_horizon():
+    contract = {
+        "name": "Constant velocity",
+        "clock": {"mode": "continuous", "horizon": 2.5, "tick": 1},
+        "types": {"marker": {}},
+        "physics": {"vars": {"position": {"start": 0, "rate": "3"}}},
+        "outputs": {"position": "$physics.position"},
+    }
+    result = fg_env.load(contract).run()
+    assert result.time == 2.5
+    assert result.outputs["position"] == pytest.approx(7.5)

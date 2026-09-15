@@ -134,6 +134,26 @@ def check_physics_state(checker: "_Checker", base: FrozenSet[str]) -> None:
     spec = checker.c.physics
     if spec is None:
         return
+    if spec.rigid is not None:
+        from .rigid import validate_model
+        from .errors import RunError
+
+        if spec.vars or spec.per:
+            checker.error("physics.rigid", "rigid and equation dynamics do not yet share a coupled solver", "use one physical solver for this contract")
+        try:
+            validate_model(spec.rigid.model)
+        except RunError as exc:
+            checker.error("physics.rigid.model", str(exc))
+        for field in ("control", "force"):
+            for name, value in getattr(spec.rigid, field).items():
+                checker.value(value, f"physics.rigid.{field}.{name}", base)
+        for target in spec.rigid.write:
+            parts = target.split(".")
+            valid = len(parts) == 2 and parts[0] == "world" and parts[1] in checker.c.world
+            if len(parts) == 3 and parts[0] == "entity" and parts[1] in checker.c.entities:
+                valid = parts[2] in checker.c.props_of(checker.c.entities[parts[1]].type)
+            if not valid:
+                checker.error(f"physics.rigid.write.{target}", "target must name a declared world property or entity.<id>.<property>")
     world_names = set(spec.vars) | set(spec.params) | set(spec.read)
     for name, var in spec.vars.items():
         if var.noise is None:
