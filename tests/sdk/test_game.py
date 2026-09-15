@@ -244,7 +244,7 @@ def test_rewards_add_up_to_returns_and_every_run_reports_returns_per_seat():
     result = fg_env.run(NIM, seed=2)
     assert set(result.returns) == {"a", "b"} and sum(result.returns.values()) == 0
     unfair = copy.deepcopy(NIM)
-    unfair["game"]["returns"] = "1"
+    unfair["game"]["returns"] = "1 if $world.winner != '' else 0"  # every seat wins: not zero-sum
     broken = fg_env.run(unfair, seed=2)
     assert not broken.ok and [issue["path"] for issue in broken.output_issues] == ["game.utility"]
 
@@ -283,6 +283,31 @@ def test_the_game_section_is_checked_and_mechanisms_can_fill_it_in():
     data = {"game": {"returns": "$actor.score"}}
     merge_sections(data, {"game": {"returns": "$actor.chips", "utility": "zero_sum"}})
     assert data["game"] == {"returns": "$actor.score", "utility": "zero_sum"}
+
+
+def test_tournaments_score_seats_by_their_returns_and_describe_reads_the_utility_class():
+    from fg_env.sdk.describe import describe
+    from fg_env.sdk.tournament.scoring import SeatScorer
+
+    result = fg_env.run(NIM, seed=2)
+    scorer = SeatScorer(fg_env.parse(NIM), None, ["a", "b"], {"a": "Ann", "b": "Bob"})
+    assert scorer(result) == (result.returns, "")
+    metadata = describe(NIM).metadata
+    assert metadata["utility"] == "zero_sum" and "checked" in metadata["evidence"]["utility"][0]
+    constant = copy.deepcopy(NIM)
+    constant["game"].update({"returns": "1", "utility": "general_sum"})
+    assert describe(constant).metadata["utility"] == "general_sum"
+
+
+def test_claims_in_the_game_section_are_verified_by_check():
+    claiming = copy.deepcopy(NIM)
+    claiming["game"].update({"dynamics": "simultaneous", "returns": "1", "utility": "zero_sum"})
+    found = {issue.path: issue for issue in fg_env.check(claiming)}
+    assert found["game.dynamics"].severity == "error" and "'sequential'" in found["game.dynamics"].message
+    assert found["game.utility"].severity == "error" and "'identical'" in found["game.utility"].message
+    honest = copy.deepcopy(NIM)
+    honest["game"]["dynamics"] = "sequential"
+    assert [i for i in fg_env.check(honest) if i.severity == "error"] == []
 
 
 def test_a_game_without_returns_says_what_to_declare():

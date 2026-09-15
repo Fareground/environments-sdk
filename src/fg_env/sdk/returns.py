@@ -118,3 +118,26 @@ def check_game(checker: Any) -> None:
         checker.error("game", "constant_sum needs `total` (what the returns add up to)")
     elif spec.utility != "constant_sum" and spec.total is not None:
         checker.warn("game.total", "only applies to constant_sum")
+    from .describe.claims import CLAIMS, claim_issues
+    from .describe.metadata import game_metadata
+
+    claims = {key: getattr(spec, key) for key in CLAIMS if key in spec.model_fields_set}
+    if claims and not any(issue.severity == "error" for issue in checker.issues):
+        checker.issues.extend(claim_issues(game_metadata(checker.c), claims))
+
+
+def utility_class(contract: Contract) -> Tuple[str, List[str]]:
+    """The utility class the returns have, with the evidence: derived when every seat's return is one constant,
+    otherwise the declared class, which every finished run is checked against."""
+    spec = contract.game
+    if spec is None or spec.returns is None:
+        return "unknown", ["the contract declares no per-player returns, so zero-sum or constant-sum cannot be established"]
+    try:
+        constant: Optional[float] = float(spec.returns)
+    except ValueError:
+        constant = None
+    if constant is not None:
+        holds = {"identical", "general_sum", "constant_sum"} | ({"zero_sum"} if constant == 0 else set())
+        return (spec.utility if spec.utility in holds else "identical"), [f"every seat's return is the constant {constant:g}"]
+    return spec.utility, [f"game.utility declares {spec.utility}; every finished run's returns are checked against it "
+                          "(a run that breaks it is not ok)"]

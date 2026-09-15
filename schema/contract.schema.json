@@ -856,6 +856,123 @@
           "default": null,
           "description": "constant_sum: what every finished run's returns add up to.",
           "title": "Total"
+        },
+        "dynamics": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Claim, verified by check: sequential | simultaneous | scheduled | mixed.",
+          "title": "Dynamics"
+        },
+        "chance_mode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Claim, verified by check: deterministic | sampled.",
+          "title": "Chance Mode"
+        },
+        "information": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Claim, verified by check: perfect | imperfect.",
+          "title": "Information"
+        },
+        "num_players": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Claim, verified by check: agents at the start.",
+          "title": "Num Players"
+        },
+        "min_players": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Claim, verified by check.",
+          "title": "Min Players"
+        },
+        "max_players": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Claim, verified by check.",
+          "title": "Max Players"
+        },
+        "max_rounds": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Claim, verified by check: the longest a run lasts, in rounds.",
+          "title": "Max Rounds"
+        },
+        "action_space": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Claim, verified by check: finite | parametric.",
+          "title": "Action Space"
+        },
+        "num_distinct_actions": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Claim, verified by check.",
+          "title": "Num Distinct Actions"
         }
       },
       "title": "GameSpec",

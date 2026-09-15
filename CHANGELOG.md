@@ -16,7 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `fg_env.load(..., chance=callable)` chooses outcomes (fixed deals, duplicate formats).
 - **Game section** (`game`): seats (`players`, `seat`), per-seat `returns` and optional `rewards`, and the
   `utility` class (zero_sum, constant_sum with `total`, general_sum, identical) checked on every finished run.
-  Every `RunResult` carries `returns` per seat. Mechanisms may fill the section in.
+  Every `RunResult` carries `returns` per seat. Mechanisms may fill the section in. Claims written there
+  (`dynamics`, `information`, `chance_mode`, player counts, `max_rounds`, action space) are verified by
+  `check` against `fg_env.describe`'s derivation; `describe` reports the utility class from the returns, and
+  tournaments score seats by their returns when no `score` is given.
 - **Copies of a run at any moment**: `wake.clone()` copies the run paused inside the agent's turn (fresh luck
   by default, `same_luck=True` for the real run's streams) to try calls and play forward on a `Branch`;
   `env.clone()` copies a run between rounds or stopped part-way through one. Copies are rebuilt from the

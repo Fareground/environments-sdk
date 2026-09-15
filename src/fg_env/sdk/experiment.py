@@ -290,7 +290,8 @@ def _branched(contract: Contract, jobs: Sequence[Job], branch_at: int, participa
         first = group[0]
         try:
             shared = load(contract, inputs=dict(first.inputs), seed=first.seed, data_dir=folder)
-            shared.run(participants_for(replace(first, arm=None)) if participants_for else participants, rounds=branch_at)
+            shared.run(participants_for(replace(first, arm=None)) if participants_for else
+                       (first.participants if first.participants is not None else participants), rounds=branch_at)
         except ContractError:
             raise
         except Exception as exc:  # the shared history failed: every arm of this run reports it
@@ -299,7 +300,9 @@ def _branched(contract: Contract, jobs: Sequence[Job], branch_at: int, participa
         for job in group:
             try:
                 forked = shared.fork(arm=job.arm)
-                done.append((job, forked.run(participants_for(job) if participants_for else participants, rounds=rest)))
+                who = participants_for(job) if participants_for else \
+                    (job.participants if job.participants is not None else participants)
+                done.append((job, forked.run(who, rounds=rest)))
             except ContractError:
                 raise
             except Exception as exc:
