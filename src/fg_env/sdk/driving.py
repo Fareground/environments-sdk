@@ -218,8 +218,13 @@ class Driver:
                     resume: Optional[int] = None) -> Iterator[object]:
         """:meth:`drive` as the engine's round plays it: a participant that plays its turn in steps (it has a
         ``steps(turn)`` generator) pauses the round by yielding :data:`WAITING` while it waits for a decision.
-        ``resume`` continues a copy of the run at the turn with that index, which was waiting when it was copied."""
+        ``resume`` continues a copy of the run at the turn with that index, which was waiting when it was copied.
+
+        A round discarded while a turn waits (its generator closed — by garbage collection, on whatever thread and in
+        the middle of whatever that thread evaluates) closes nothing: the run is gone, so no rule is evaluated and no
+        budget charged for it. A run that must close its waiting turns ends the round with an exception instead."""
         env = self.env
+        discarded = False
         if resume is None:
             auto = [turn for turn in turns if turn.stage.auto and not turn.staged]
             played = [turn for turn in turns if turn not in auto or not self._auto(turn)]
@@ -253,11 +258,15 @@ class Driver:
             for turn in played:
                 if not turn.staged:
                     turn.settle_at_end()
+        except GeneratorExit:
+            discarded = True
+            raise
         finally:
-            for turn in played:
-                self.finish(turn)
-            if together:
-                env.origin.staged = []
+            if not discarded:
+                for turn in played:
+                    self.finish(turn)
+                if together:
+                    env.origin.staged = []
 
     def finish(self, turn: "Turn") -> None:
         """Close a played turn: no more calls, its statistics added to the run's."""

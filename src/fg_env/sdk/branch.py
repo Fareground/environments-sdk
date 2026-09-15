@@ -53,7 +53,7 @@ class Branch:
 
     def __init__(self, pilot: Pilot):
         self._pilot = pilot
-        self._closer = weakref.finalize(self, pilot.close)
+        self._closer = weakref.finalize(self, pilot.abandon)
 
     # -- what it waits for -------------------------------------------------------------------------
 
@@ -182,8 +182,9 @@ class Branch:
         return self._pilot.read(lambda: seat_returns(env.contract, env.world))
 
     def close(self) -> None:
-        """Discard the copy (its thread stops)."""
-        self._closer()
+        """Discard the copy (its thread stops before this returns)."""
+        self._closer.detach()
+        self._pilot.close()
 
     def __enter__(self) -> "Branch":
         return self

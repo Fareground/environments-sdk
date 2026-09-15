@@ -95,6 +95,22 @@ def _driving(env: SteppedEnv) -> "Stepper":
 _SEAT = _Seat()
 
 
+class _RoundFailed(BaseException):
+    """Ends a round whose run failed while a turn waited, closing its turns as a failure raised inside them would."""
+
+
+def _end_round(env: SteppedEnv) -> None:
+    """End the round ``env`` waits in, on this thread, now: its waiting turns are closed and counted. (Closing the
+    round's generator instead discards it without closing anything, as garbage collection does.)"""
+    cursor = env._cursor
+    if cursor is None:
+        return
+    try:
+        cursor.throw(_RoundFailed())
+    except (_RoundFailed, StopIteration):
+        pass
+
+
 class _ChanceWanted(BaseException):
     """A chance node was reached with no outcome chosen: the decision stops there."""
 
@@ -312,6 +328,7 @@ class Stepper:
     def _fail(self, message: str) -> None:
         env = self._run()
         self._waiting = None
+        _end_round(env)
         env._fail(message)
         self._ended()
 
