@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Added a declarative business acceptance composition for overlapping campaign audiences, private customer
+  preferences, purchases constrained by budgets/stock, delayed fulfillment, and control-based incrementality.
 - Weighted threshold diffusion respects explicit flow direction when reciprocal links have different weights.
 - Threshold diffusion accumulates contacts instead of overwriting prior outreach exposures. Each step counts
   active informing neighbours until adoption/rejection; unique reach and the adoption threshold remain separate.
