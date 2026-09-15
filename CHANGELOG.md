@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- News skips exact author-only record notifications before entry lookup: authors already do not
+  receive their own record news, and other readers cannot see these entries. Shared/conditional
+  policies retain live evaluation; event logs and record queries are unchanged.
 - Actor-scoped `$events(record)` selects indexed author-only notification candidates before checking
   live permissions, preserving general policies, recipients, ordering and retention. Rollback removes
   indexed events; snapshots and fast copies rebuild independent candidate indexes.

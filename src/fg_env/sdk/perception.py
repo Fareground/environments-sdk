@@ -15,6 +15,7 @@ from .assets.delivery import attached_ids, entry_assets, references
 from .contract import Contract, StageSpec, ViewSpec
 from .errors import RunError
 from .expr import ExprError, compile_expr, truthy
+from .record_index import author_only
 from .template import compile_template, format_value
 from .world import Entry, LogEvent, SdkWorld
 
@@ -245,8 +246,12 @@ class Perception:
         files: List[str] = []
         lines: List[str] = []
         hidden = 0
+        # Own entries are never news; an author-only entry is invisible to everyone else.
+        silent_records = {name for name, spec in self.contract.records.items() if author_only(spec.visible)}
         for event in reversed(self._events_after(since)):
             if not event.visible_to(actor.id):
+                continue
+            if event.kind == "record" and event.data.get("record") in silent_records:
                 continue
             if limit is not None and len(lines) >= limit:
                 if self._would_show(event, actor):
