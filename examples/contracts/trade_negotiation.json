@@ -1,0 +1,132 @@
+{
+  "fg_env": "1",
+  "name": "Steel trade negotiation",
+  "description": "Two countries negotiate a steel trade deal over three issues (price, yearly quota, years) before a deadline. Each side's walk-away surplus is private. A signed deal is binding: the exporter must deliver each year's quota and the importer pays automatically; a missed delivery is a breach that ends the deal and, in the strict arm, costs a penalty. Outside the deal both can still trade on the world market at worse prices.",
+  "inputs": {
+    "years": {"type": "int", "default": 16, "min": 4, "unit": "year", "description": "Length of the run; each round is a year."},
+    "deadline": {"type": "int", "default": 6, "min": 1, "unit": "year", "description": "Last year a deal can be offered or accepted."},
+    "mill_output": {"type": "int", "default": 80, "min": 0, "unit": "t/year", "description": "Steel Arland's mills make each year."},
+    "domestic_need": {"type": "int", "default": 60, "min": 0, "unit": "t/year", "description": "Steel Borin's industry uses each year."},
+    "export_price": {"type": "number", "default": 6, "min": 0, "unit": "credits/t", "description": "What the world market pays Arland for steel."},
+    "import_price": {"type": "number", "default": 18, "min": 0, "unit": "credits/t", "description": "What Borin pays on the world market."},
+    "arland_walk_away": {"type": "number", "default": 900, "description": "Arland's private minimum surplus from a deal."},
+    "borin_walk_away": {"type": "number", "default": 700, "description": "Borin's private minimum surplus from a deal."},
+    "breach_penalty": {"type": "number", "default": 0, "min": 0, "unit": "credits", "description": "Paid to the other side for a missed delivery."},
+    "shortage_cost": {"type": "number", "default": 25, "min": 0, "unit": "credits/t", "description": "Cost to Borin of each ton its industry lacks."}
+  },
+  "brief": {
+    "situation": "Arland makes steel; Borin's industry needs it. The two governments are negotiating a binding trade agreement. Until year {$inputs.deadline} either side can put a full offer on the table (price per ton, tons per year, number of years), counter, accept or reject. A signed deal starts the next year.",
+    "rules": "Under a deal Arland must deliver the quota each year (use the fulfil tool before the year ends) and Borin pays price × quota automatically. A missed delivery is a breach: the deal ends and Arland pays a penalty of {$inputs.breach_penalty} credits. Without a deal Arland sells steel abroad at {$inputs.export_price} credits a ton and Borin buys abroad at {$inputs.import_price}; each ton Borin's industry lacks costs it {$inputs.shortage_cost} credits. What a deal is worth to you, and your walk-away value, are shown only to you.",
+    "roles": {
+      "exporter": "You negotiate for Arland. Your surplus from a deal is (price − {$inputs.export_price}) × quota × years: the gain over selling abroad.",
+      "importer": "You negotiate for Borin. Your surplus from a deal is ({$inputs.import_price} − price) × quota × years: the saving over buying abroad."
+    }
+  },
+  "clock": {"rounds": "$inputs.years", "unit": "year"},
+  "types": {
+    "country": {"agent": true, "description": "A negotiating government.", "props": {
+      "shortfall": {"type": "int", "default": 0, "min": 0, "description": "Tons of steel the industry lacked so far."},
+      "shortage_losses": {"type": "number", "default": 0, "min": 0, "private": true}}},
+    "exporter": {"extends": "country", "description": "Makes steel."},
+    "importer": {"extends": "country", "description": "Needs steel."}
+  },
+  "entities": {
+    "arland": {"type": "exporter", "name": "Arland", "props": {"credits": 2000, "trade_reservation": "$inputs.arland_walk_away"}},
+    "borin": {"type": "importer", "name": "Borin", "props": {"credits": 4000, "stock": {"steel": 60}, "trade_reservation": "$inputs.borin_walk_away"}}
+  },
+  "defs": {
+    "surplus": {"args": ["party", "terms"], "description": "A party's gain from terms over its outside option.",
+                "expr": "($terms.price - $inputs.export_price) * $terms.quota * $terms.years if $is($party, exporter) else ($inputs.import_price - $terms.price) * $terms.quota * $terms.years"}
+  },
+  "mechanisms": {
+    "money": {"kind": "ledger", "holders": "country", "currencies": {"credits": {"unit": "credits"}}},
+    "stock": {"kind": "inventory", "holders": "country", "items": {"steel": {"unit": "t", "value": 10}}, "tools": [],
+              "needs": {"importer": {"steel": "$inputs.domestic_need"}},
+              "on_short": ["$it.shortfall += $short", "$it.shortage_losses += $short * $inputs.shortage_cost"]},
+    "trade": {
+      "kind": "negotiation", "parties": "country", "deadline": "$inputs.deadline", "max_depth": 8, "expires": 2,
+      "reservation": 0, "value": "$surplus($party, $terms)",
+      "issues": {
+        "price": {"type": "number", "min": 1, "max": 30, "unit": "credits/t", "description": "Price per ton."},
+        "quota": {"type": "int", "min": 10, "max": 100, "unit": "t/year", "description": "Tons delivered each year."},
+        "years": {"type": "int", "min": 1, "max": 8, "description": "Years the deal runs."}
+      },
+      "obligations": [
+        {"label": "steel delivery", "from": "$entity(arland)", "to": "$entity(borin)", "give": "steel", "amount": "$terms.quota", "times": "$terms.years", "manual": true},
+        {"label": "payment", "from": "$entity(borin)", "to": "$entity(arland)", "pay": "credits", "amount": "$terms.price * $terms.quota", "times": "$terms.years"}
+      ],
+      "breach": {"penalty": "$inputs.breach_penalty", "currency": "credits", "terminate": true}
+    }
+  },
+  "world": {
+    "exported": {"type": "int", "default": 0, "min": 0, "description": "Tons Arland sold abroad."},
+    "imported": {"type": "int", "default": 0, "min": 0, "description": "Tons Borin bought abroad."}
+  },
+  "actions": {
+    "sell_abroad": {
+      "by": "exporter", "private": true,
+      "description": "Sell steel on the world market at the export price.",
+      "when": [{"expr": "$count_items($actor, 'steel') > 0", "why": "You have no steel in stock."}],
+      "params": {"tons": {"type": "int", "min": 1, "max": "$count_items($actor, 'steel')"}},
+      "do": [{"use_items": "steel", "from": "$actor", "qty": "$params.tons", "sink": "world market"},
+             {"mint": "credits", "to": "$actor", "amount": "$params.tons * $inputs.export_price", "source": "world market"},
+             "$world.exported += $params.tons"],
+      "outcome": "Sold {$params.tons} t abroad for {$params.tons * $inputs.export_price} credits."
+    },
+    "buy_abroad": {
+      "by": "importer", "private": true,
+      "description": "Buy steel on the world market at the import price.",
+      "when": [{"expr": "$actor.credits >= $inputs.import_price", "why": "You cannot afford a ton abroad."}],
+      "params": {"tons": {"type": "int", "min": 1, "max": "$floor($actor.credits / $inputs.import_price)"}},
+      "do": [{"burn_money": "credits", "from": "$actor", "amount": "$params.tons * $inputs.import_price", "sink": "world market"},
+             {"make_items": "steel", "to": "$actor", "qty": "$params.tons", "source": "world market"},
+             "$world.imported += $params.tons"],
+      "outcome": "Bought {$params.tons} t abroad for {$params.tons * $inputs.import_price} credits."
+    }
+  },
+  "events": [
+    {"name": "mills", "phase": "start", "do": [{"make_items": "steel", "to": "$entity(arland)", "qty": "$inputs.mill_output", "source": "mills"}]}
+  ],
+  "stages": [
+    {"name": "year", "turns": "sequential", "max_actions": 3, "max_calls": 10,
+     "brief": "Year {$round}. {$'Talks are open until year ' + $text($inputs.deadline) + '.' if not $world.trade_closed and $round <= $inputs.deadline else ''}"}
+  ],
+  "views": {
+    "economy": {"for": "country", "title": "Your economy", "bullet": false,
+                "show": "{credits} credits · {$count_items($actor, 'steel')} t steel · shortfall so far {shortfall} t"}
+  },
+  "policies": {
+    "fair": {"repeat": true, "rules": [
+      {"when": "$any(trade_duty, $it.status == open and $it.manual and $it.by == $actor.id and $it.due <= $round)",
+       "do": "trade_fulfill", "with": {"duty": "$pick(trade_duty, $it.status == open and $it.manual and $it.by == $actor.id and $it.due <= $round)"}},
+      {"when": "$any(trade_offer, $it.status == open and $actor.id in $it.recipients and $surplus($actor, $it.terms) >= $actor.trade_reservation)",
+       "do": "trade_accept", "with": {"offer": "$pick(trade_offer, $it.status == open and $actor.id in $it.recipients)"}},
+      {"when": "$is($actor, exporter) and $count(trade_offer, $it.status == open) == 0",
+       "do": "trade_propose", "with": {"to": "borin", "price": 12, "quota": 50, "years": 5}},
+      {"when": "$is($actor, importer) and $count_items($actor, 'steel') < $inputs.domestic_need", "do": "buy_abroad",
+       "with": {"tons": "$min($inputs.domestic_need - $count_items($actor, 'steel'), $floor($actor.credits / $inputs.import_price))"}},
+      {"when": "$is($actor, exporter) and $count_items($actor, 'steel') > 150", "do": "sell_abroad", "with": {"tons": 50}}
+    ]}
+  },
+  "metrics": {
+    "deal_active": {"expr": "1 if $any(trade_deal, $it.status == active) else 0"},
+    "arland_credits": {"expr": "$entity(arland).credits", "unit": "credits"},
+    "borin_credits": {"expr": "$entity(borin).credits", "unit": "credits"},
+    "borin_shortfall": {"expr": "$entity(borin).shortfall", "unit": "t"}
+  },
+  "outputs": {
+    "deal_signed": {"type": "bool", "expr": "$count(trade_deal) > 0"},
+    "deal_year": {"type": "int", "expr": "$pick(trade_deal, true).signed if $count(trade_deal) > 0 else null", "description": "Year the deal was signed, or null."},
+    "terms": {"type": "map", "expr": "$pick(trade_deal, true).terms if $count(trade_deal) > 0 else null", "description": "Signed terms, or null."},
+    "breaches": {"type": "int", "expr": "$world.trade_stats.breaches"},
+    "penalties": {"type": "number", "expr": "$world.trade_stats.penalties", "description": "Penalty credits paid for breaches."},
+    "delivered_tons": {"type": "number", "expr": "$sum($filter(trade_duty, $it.kind == give and $it.status == done), $it.amount)"},
+    "arland_net_worth": {"type": "number", "expr": "$net_worth($entity(arland))"},
+    "borin_net_worth": {"type": "number", "expr": "$net_worth($entity(borin)) - $entity(borin).shortage_losses"},
+    "offers_made": {"type": "int", "expr": "$world.trade_stats.offers"}
+  },
+  "arms": {
+    "no_penalty": {"description": "A breach only ends the deal."},
+    "strict": {"description": "A missed delivery costs Arland a 1,500-credit penalty.", "inputs": {"breach_penalty": 1500}}
+  }
+}

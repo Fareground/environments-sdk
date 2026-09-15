@@ -180,3 +180,4 @@ from . import procedure  # noqa: E402,F401
 from . import turn_order  # noqa: E402,F401
 from . import victory  # noqa: E402,F401
 from . import judging, memory  # noqa: E402,F401  (host-evaluated intelligence: judges, game masters, memory, host tools)
+from . import economy  # noqa: E402,F401  (registers the economy mechanisms)

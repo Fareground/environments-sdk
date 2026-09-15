@@ -1,0 +1,167 @@
+{
+  "fg_env": "1",
+  "name": "Corner shop town",
+  "description": "A small town economy: households live on a monthly allowance that resets, buy food at two shops with limited stock and daily capacity, may join a café's coffee subscription (free trial, monthly renewals) and book tables at a bistro with a waitlist. Shops restock at wholesale and set prices. Measures revenue, subscription churn and table utilization; the price_hike arm raises the coffee plan's price mid-run.",
+  "inputs": {
+    "days": {"type": "int", "default": 60, "min": 1, "unit": "day", "description": "Length of the run."},
+    "households": {"type": "int", "default": 12, "min": 1, "description": "Households in town."},
+    "allowance_low": {"type": "number", "default": 220, "min": 0, "unit": "$/month"},
+    "allowance_high": {"type": "number", "default": 480, "min": 0, "unit": "$/month"},
+    "hike_day": {"type": "int", "default": 20, "min": 1, "unit": "day", "description": "Day the coffee plan's price rises (price_hike arm)."},
+    "hike_price": {"type": "number", "default": 45, "min": 0, "unit": "$/month"}
+  },
+  "brief": {
+    "situation": "A small town with two food shops, a café and a bistro. Every household gets a monthly allowance; unspent money does not carry over to the next month.",
+    "rules": "Each day households get hungrier; buying and eating food brings hunger down. Shops sell until their stock or daily capacity runs out, and restock at wholesale prices. The café's Coffee Club costs a monthly fee after a free week and renews automatically until cancelled. The bistro takes table bookings up to three days ahead; when a day is full you join its waitlist and may get a place if someone cancels.",
+    "roles": {
+      "household": "You run a household: stay fed, enjoy the town, and make the monthly allowance last.",
+      "shop": "You run a food shop: keep stock, set prices and earn more than you spend at wholesale.",
+      "cafe": "You run the café's Coffee Club: set its monthly price to keep members and earn."
+    }
+  },
+  "clock": {"rounds": "$inputs.days", "unit": "day", "start": "2026-03-01"},
+  "world": {
+    "wholesale": {"type": "map", "default": {"bread": 1.5, "milk": 1.0, "apples": 0.5}, "description": "What a shop pays per unit when restocking."},
+    "sales": {"type": "int", "default": 0, "min": 0, "description": "Units sold by shops."}
+  },
+  "types": {
+    "household": {"agent": true, "props": {
+      "allowance": {"type": "number", "default": 300, "min": 0, "private": true, "description": "Monthly allowance ($)."},
+      "hunger": {"type": "int", "default": 3, "min": 0, "max": 10},
+      "outings": {"type": "int", "default": 0, "min": 0}}},
+    "shop": {"agent": true, "policy": "steady", "props": {
+      "prices": {"type": "map", "default": {"bread": 3.5, "milk": 2.5, "apples": 1.2}, "description": "Price per unit ($)."},
+      "daily_capacity": {"type": "int", "default": 20, "min": 1, "description": "Units the shop can sell per day."},
+      "served_today": {"type": "int", "default": 0, "min": 0},
+      "revenue": {"type": "number", "default": 0, "min": 0}}},
+    "cafe": {"agent": true, "policy": "hold"},
+    "bistro": {"description": "Takes table bookings."}
+  },
+  "entities": {
+    "corner": {"type": "shop", "name": "Corner Shop", "props": {"cash": 150, "goods": {"bread": 30, "milk": 20, "apples": 30}, "goods_capacity": 300}},
+    "grocer": {"type": "shop", "name": "Green Grocer", "props": {"cash": 150, "goods": {"bread": 20, "milk": 30, "apples": 60}, "goods_capacity": 300,
+                                                               "prices": {"bread": 3.8, "milk": 2.2, "apples": 0.9}, "daily_capacity": 30}},
+    "bean_bar": {"type": "cafe", "name": "Bean Bar"},
+    "bistro": {"type": "bistro", "name": "Bistro Lune"}
+  },
+  "population": [
+    {"type": "household", "count": "$inputs.households", "id": "home_{$i}", "name": "Household {$i}",
+     "props": {"allowance": "$round($uniform($inputs.allowance_low, $inputs.allowance_high))", "hunger": "$randint(0, 5)"}}
+  ],
+  "mechanisms": {
+    "money": {"kind": "ledger", "holders": ["household", "shop", "cafe", "bistro"], "currencies": {"cash": {"unit": "$"}},
+              "sources": {"allowance": {"to": "household", "amount": "$it.allowance", "every": 30, "mode": "reset",
+                                        "say": "A new month: allowances are paid."}}},
+    "goods": {"kind": "inventory", "holders": ["household", "shop"], "capacity": 20,
+              "items": {"bread": {"value": 3, "shelf_life": 4, "on_consume": ["$actor.hunger -= 3 * $qty"]},
+                        "milk": {"value": 2, "shelf_life": 6, "on_consume": ["$actor.hunger -= $qty"]},
+                        "apples": {"value": 1, "shelf_life": 10, "on_consume": ["$actor.hunger -= $qty"]}},
+              "tools": ["consume"]},
+    "coffee": {"kind": "subscriptions", "subscribers": "household", "currency": "cash", "providers": "cafe",
+               "price_min": 10, "price_max": 80,
+               "plans": {"coffee_club": {"provider": "bean_bar", "name": "Coffee Club", "price": 30, "period": 30, "trial": 7,
+                                         "description": "A daily coffee at Bean Bar."}}},
+    "dining": {"kind": "bookings", "guests": "household", "currency": "cash", "waitlist": true, "patience": 2, "refund": 0.5,
+               "resources": {"tables": {"provider": "bistro", "name": "Bistro tables", "capacity": 6, "price": 18, "horizon": 3, "max_party": 4}}}
+  },
+  "actions": {
+    "buy": {
+      "by": "household", "private": true,
+      "description": "Buy food at a shop at its posted price (up to its stock and what it can still sell today).",
+      "when": [{"expr": "$actor.cash > 0", "why": "You have no money left this month."}],
+      "params": {
+        "shop": {"type": "entity", "of": "shop", "where": "$it.served_today < $it.daily_capacity and $len($owned_items($it, 'goods')) > 0", "description": "Shop."},
+        "item": {"type": "enum", "values": "$unique($flatten($map($filter(shop, $it.served_today < $it.daily_capacity), $owned_items($it, 'goods'))))", "description": "What to buy (the shop must have it in stock)."},
+        "qty": {"type": "int", "min": 1, "default": 1, "description": "Units.",
+                "max": "$min($count_items($params.shop, $params.item), $params.shop.daily_capacity - $params.shop.served_today) if 'shop' in $params and 'item' in $params else null"}
+      },
+      "do": [
+        "$price = $get($params.shop.prices, $params.item, 0) * $params.qty",
+        {"pay": "cash", "from": "$actor", "to": "$params.shop", "amount": "$price"},
+        {"give_items": "$params.item", "from": "$params.shop", "to": "$actor", "qty": "$params.qty"},
+        "$params.shop.served_today += $params.qty",
+        "$params.shop.revenue += $price",
+        "$world.sales += $params.qty"
+      ],
+      "outcome": "Bought {$params.qty} {$params.item} at {$params.shop.name} for {$price|money}."
+    },
+    "set_price": {
+      "by": "shop", "description": "Set your price for one item.",
+      "params": {"item": {"type": "enum", "values": ["bread", "milk", "apples"]}, "price": {"type": "number", "min": 0.5, "max": 10}},
+      "do": ["$actor.prices[$params.item] = $round($params.price, 2)"],
+      "outcome": "{$params.item} now costs {$params.price|money}."
+    },
+    "restock": {
+      "by": "shop", "private": true, "description": "Buy stock at wholesale.",
+      "params": {"item": {"type": "enum", "values": ["bread", "milk", "apples"]},
+                 "qty": {"type": "int", "min": 1, "max": "$floor($actor.cash / $get($world.wholesale, $params.item, 1)) if 'item' in $params else null"}},
+      "do": [{"burn_money": "cash", "from": "$actor", "amount": "$params.qty * $get($world.wholesale, $params.item, 1)", "sink": "wholesale"},
+             {"make_items": "$params.item", "to": "$actor", "qty": "$params.qty", "source": "wholesale"}],
+      "outcome": "Restocked {$params.qty} {$params.item}."
+    },
+    "dine_out": {
+      "by": "household", "private": true, "description": "Mark a night out (after a served booking) — it lifts your mood and fills you up.",
+      "when": [{"expr": "$any(dining_booking, $it.guest == $actor.id and $it.status == served and $it.slot == $round)", "why": "You have no table tonight."}],
+      "do": ["$actor.outings += 1", "$actor.hunger -= 4"], "per_round": 1, "outcome": "A good night out."
+    }
+  },
+  "events": [
+    {"name": "new day", "phase": "start", "each": "shop", "do": ["$it.served_today = 0"]},
+    {"name": "hunger", "phase": "end", "each": "household", "do": ["$it.hunger += 1"]},
+    {"name": "coffee price hike", "arms": ["price_hike"], "at": "$inputs.hike_day", "phase": "start",
+     "do": [{"set_plan_price": "coffee", "plan": "coffee_club", "price": "$inputs.hike_price"}],
+     "say": "Bean Bar announces a new Coffee Club price of {$inputs.hike_price|money} a month."}
+  ],
+  "stages": [
+    {"name": "business", "turns": "sequential", "who": "$it.type != household", "max_actions": 4, "max_calls": 10,
+     "actions": {"shop": ["set_price", "restock"], "cafe": ["coffee_set_price"]},
+     "brief": "Open for business on {$clock.date}: adjust prices and stock."},
+    {"name": "errands", "turns": "sequential", "order": "random", "who": "$it.type == household", "max_actions": 3, "max_calls": 8,
+     "actions": {"household": ["buy", "goods_consume", "coffee_subscribe", "coffee_cancel", "coffee_resume", "dining_book", "dining_cancel", "dine_out"]},
+     "brief": "Your day ({$clock.date}): food, coffee, a table for later?"}
+  ],
+  "views": {
+    "shops": {"for": "household", "title": "Shops today", "of": "shop", "bullet": true,
+              "show": "[{id}] {name}: bread {$get($it.prices, 'bread')|money}, milk {$get($it.prices, 'milk')|money}, apples {$get($it.prices, 'apples')|money} · {$it.daily_capacity - $it.served_today} sales left today · {$items_text($it, 'goods')}"},
+    "household": {"for": "household", "title": "You", "bullet": false,
+                  "show": "Hunger {hunger}/10 · nights out {outings}"},
+    "shop_books": {"for": "shop", "title": "Your shop", "bullet": false,
+                   "show": "{cash|money} cash · revenue {revenue|money} · sold today {served_today}/{daily_capacity} · wholesale: bread {$world.wholesale.bread|money}, milk {$world.wholesale.milk|money}, apples {$world.wholesale.apples|money}"}
+  },
+  "policies": {
+    "steady": {"repeat": true, "rules": [
+      {"each": "['bread', 'milk', 'apples']", "when": "$count_items($actor, $it) < 15 and $actor.cash >= 20 * $get($world.wholesale, $it, 1)",
+       "do": "restock", "with": {"item": "$it", "qty": 20}}
+    ]},
+    "hold": {"rules": [{"do": "pass"}]},
+    "thrifty": {"repeat": true, "rules": [
+      {"when": "$actor.hunger >= 3 and $has($actor, 'bread')", "do": "goods_consume", "with": {"item": "bread", "qty": 1}},
+      {"when": "$actor.hunger >= 3 and not $has($actor, 'bread') and $actor.cash >= 4", "do": "buy",
+       "with": {"shop": "$bottom(shop, $get($it.prices, 'bread'), 1, $it.served_today < $it.daily_capacity and $count_items($it, 'bread') > 0)[0]", "item": "bread", "qty": 1}}
+    ]}
+  },
+  "metrics": {
+    "shop_revenue": {"expr": "$sum(shop, $it.revenue)", "unit": "$"},
+    "coffee_revenue": {"expr": "$world.coffee_stats.revenue", "unit": "$"},
+    "dining_revenue": {"expr": "$world.dining_stats.revenue", "unit": "$"},
+    "coffee_members": {"expr": "$count(coffee_sub, $it.status != ended)"},
+    "table_utilization": {"expr": "$pct($world.dining_stats.served, $world.dining_stats.offered)"},
+    "avg_hunger": {"expr": "$avg(household, $it.hunger)"}
+  },
+  "outputs": {
+    "revenue": {"type": "map", "expr": "{shops: $round($sum(shop, $it.revenue), 2), cafe: $round($world.coffee_stats.revenue, 2), bistro: $round($world.dining_stats.revenue, 2)}",
+                "description": "Revenue by business ($)."},
+    "total_revenue": {"type": "number", "expr": "$round($sum(shop, $it.revenue) + $world.coffee_stats.revenue + $world.dining_stats.revenue, 2)"},
+    "coffee_churn": {"type": "number", "expr": "$pct($world.coffee_stats.cancelled + $world.coffee_stats.lapsed, $world.coffee_stats.started)",
+                     "description": "Share of started subscriptions that were cancelled or lapsed."},
+    "trial_conversion": {"type": "number", "expr": "$pct($world.coffee_stats.converted, $world.coffee_stats.trials)"},
+    "table_utilization": {"type": "number", "expr": "$pct($world.dining_stats.served, $world.dining_stats.offered)", "description": "Seats served / seats offered."},
+    "waitlist_promotions": {"type": "int", "expr": "$world.dining_stats.promoted"},
+    "units_sold": {"type": "int", "expr": "$world.sales"},
+    "avg_hunger": {"type": "number", "expr": "$avg(household, $it.hunger)"}
+  },
+  "arms": {
+    "control": {"description": "Coffee Club keeps its price."},
+    "price_hike": {"description": "Coffee Club raises its price on the hike day."}
+  }
+}
