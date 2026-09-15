@@ -50,6 +50,7 @@ from .parse_errors import validation_issues
 from .returns import check_game
 from .template import FORMATS, compile_template
 from .world import prop_type
+from .world_defaults import default_order
 
 __all__ = ["parse_contract", "check_contract"]
 
@@ -377,7 +378,8 @@ class _Checker:
                 self.expr(step, path, roots, types, params)
         if local is not None:
             if local in RESERVED_ROOTS:
-                self.error(path, f"${local} cannot be reassigned", "assign to one of its fields")
+                self.error(path, f"${local} is a reserved name, so a local cannot be called that",
+                           f"rename the local (e.g. ${local}_value), or assign to one of its fields (${local}.x = …)")
             roots.add(local)
             return
         assert base is not None
@@ -732,7 +734,12 @@ class _Checker:
             ) and not any(self.c.is_a(other, name) and other != name for other in self.c.types):
                 self.warn(f"types.{name}", "agent type has no actions", "add an action with `by`")
         for prop, world_spec in self.c.world.items():
-            self._prop_spec(world_spec, f"world.{prop}", {"inputs"})
+            self._prop_spec(world_spec, f"world.{prop}", {"inputs", "world"})
+        _, cycle = default_order({prop: spec.default for prop, spec in self.c.world.items()})
+        if cycle is not None:
+            self.error(f"world.{cycle[0]}.default", "world defaults read each other in a circle: "
+                       + " → ".join(f"$world.{name}" for name in cycle),
+                       "give one of them a literal default and set it in an opening event")
 
     def _entities(self) -> None:
         for eid, spec in self.c.entities.items():

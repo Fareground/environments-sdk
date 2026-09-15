@@ -27,6 +27,7 @@ from .links import _fields as link_fields
 from .seeds import SeedTree
 from .snapshot import KEEP_ARM, decode, encode, matching_contract, recording_start, restore_state, take_snapshot
 from .world import SdkWorld, _copy
+from .world_defaults import default_order
 
 if TYPE_CHECKING:
     from .runtime import Env
@@ -299,9 +300,10 @@ def _fill(env: "Env", new: Contract) -> None:
         for prop, spec in new.props_of(entity.entity_type).items():
             if prop not in entity.properties:
                 entity.properties[prop] = _default(world, spec, f"types.{entity.entity_type}.props.{prop}", it=entity)
-    for prop, spec in new.world.items():
+    order, _ = default_order({prop: spec.default for prop, spec in new.world.items()})
+    for prop in order:
         if prop not in world.props:
-            world.props[prop] = _default(world, spec, f"world.{prop}")
+            world.props[prop] = _default(world, new.world[prop], f"world.{prop}")
     for kind, edges in world.links.items():
         declared = new.relations[kind].props
         if not declared:

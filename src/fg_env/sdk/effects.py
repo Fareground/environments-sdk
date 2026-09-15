@@ -200,7 +200,8 @@ def compile_statement(source: str) -> Statement:
     value = compile_expr(right)
     if local is not None:
         if local in RESERVED_ROOTS:
-            raise ExprError(f"${local} cannot be reassigned; assign to one of its fields instead", source)
+            raise ExprError(f"${local} is a reserved name, so a local cannot be called that; rename the local "
+                            f"(e.g. ${local}_value) or assign to one of its fields", source)
         return Statement(source, None, (), local, op, value)
     assert base is not None
     compiled = tuple((kind, compile_expr(text) if kind == "index" else text) for kind, text in steps)

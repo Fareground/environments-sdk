@@ -14,6 +14,7 @@ from .expr import ExprError, compile_expr, is_expr, resolve, truthy  # noqa: F40
 from .seeds import SeedTree
 from .template import compile_template
 from .world import Abort, SdkWorld
+from .world_defaults import default_order, world_reads
 from . import networks as _networks  # noqa: F401  (registers network and keyed-draw functions)
 
 __all__ = ["build_world"]
@@ -116,9 +117,17 @@ def _needs_entities(world: SdkWorld, raw: Any) -> bool:
 
 def _world_props(world: SdkWorld, after_entities: bool = False) -> None:
     """World defaults are evaluated before entities exist, except those that read entities
-    (`$sum(tier, ...)`, `$entity(x)`), which are evaluated once the world is populated."""
-    for name, spec in world.contract.world.items():
-        if _needs_entities(world, spec.default) != after_entities:
+    (`$sum(tier, ...)`, `$entity(x)`) or read a world property that does, which are evaluated once the world is
+    populated. A default reading other world properties (`$world.rates`) is evaluated after them."""
+    specs = world.contract.world
+    order, _ = default_order({name: spec.default for name, spec in specs.items()})
+    late: Set[str] = set()
+    for name in order:
+        if _needs_entities(world, specs[name].default) or world_reads(specs[name].default) & late:
+            late.add(name)
+    for name in order:
+        spec = specs[name]
+        if (name in late) != after_entities:
             continue
         try:
             value = _value(world, spec.default, {})

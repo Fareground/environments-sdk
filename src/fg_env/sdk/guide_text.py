@@ -111,7 +111,7 @@ ROOTS_TABLE
 MACROS = """\
 ## Macros (repeat structure from data)
 
-An object with `for` and `make` is a macro: it repeats `make` once per value, replacing `{name}`
+An object with `for` and `make` is a macro (data with only a `make` field, like a car's make, is not): it repeats `make` once per value, replacing `{name}`
 placeholders (the `as` name) in strings and keys. Expanded when the contract is read, before
 mechanisms, in every file on its own (see the result with `fg_env.expand(contract)` or `fg-env expand file.json`).
 
