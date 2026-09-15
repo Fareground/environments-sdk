@@ -3,6 +3,7 @@
     python examples/auto_parts_policies.py compare    # the lean rule against service levels, a year, many seeds
     python examples/auto_parts_policies.py optimise   # the least stock that keeps 97% of demand served, per category
     python examples/auto_parts_policies.py validate   # refit on 2023–24, forecast every quarter, check the intervals
+    python examples/auto_parts_policies.py report     # the owner's report: the policy to run, why, and how sure
 
 Every run draws the fitted parameters around their estimates (the contract's `parameter_uncertainty`), so a policy is
 judged across what the history cannot pin down, and every policy in a comparison sees the same customers.
@@ -14,6 +15,8 @@ import sys
 from pathlib import Path
 
 import fg_env
+from fg_env.sdk.analysis.optimise_result import OptimisationResult
+from fg_env.sdk.analysis.validate import ValidationResult
 
 CONTRACT = Path(__file__).parent / "contracts" / "auto_parts_store.json"
 CATEGORIES = ["brake_pads", "batteries", "wipers"]
@@ -37,13 +40,14 @@ def compare(runs: int = 20) -> None:
               f"{mean['reorder_profit']:>11,.0f}{mean['reorder_average_stock_value']:>11,.0f}{mean['reorder_total_cost']:>9,.0f}")
 
 
-def optimise() -> fg_env.OptimisationResult:
+def optimise() -> OptimisationResult:
     decisions = {"service_level_by_category": {"keys": CATEGORIES, "low": 0.5, "high": 0.99, "step": 0.05,
                                                "start": {category: 0.95 for category in CATEGORIES}}}
     result = fg_env.optimise(CONTRACT, decisions, "minimise reorder_average_stock_value", ["shop_fill_rate >= 0.97"],
                              inputs={"policy": "service", "weeks": 26}, runs=16, budget=40, holdout_seeds=32,
                              workers=WORKERS)
     print(result.summary())
+    print(fg_env.report(result, contract=CONTRACT).markdown)
     return result
 
 
@@ -76,20 +80,35 @@ def validation_cases(history: list, orders: list) -> list:
     return cases
 
 
-def validate(runs: int = 20) -> None:
+def validation(runs: int = 20, drawn_by_contract: bool = False) -> ValidationResult:
+    """Refit on 2023–24 and validate every quarter. The fitted number parameters are drawn per run from their priors
+    (``uncertainty=``) with per-key parameters at their estimates, or, with ``drawn_by_contract``, every fitted
+    parameter is drawn by the contract itself (``parameter_uncertainty`` 1)."""
     loaded = fg_env.load(CONTRACT, seed=0).inputs
     history, orders = loaded["history"], loaded["orders"]
     fitted = fg_env.fit_patterns(CONTRACT, inputs={"history": [row for row in history if row["time"] < HELD_OUT[0]],
                                                    "orders": [row for row in orders if row["time"] < HELD_OUT[0]]})
     cases = validation_cases(history, orders)
-    common = dict(runs=runs, season=4, test=HELD_OUT, rounds=13, data_dir=CONTRACT.parent, workers=WORKERS)
-    for label, uncertainty, drawn in (("fitted priors (uncertainty=), per-key parameters at their estimates", fitted.priors, 0),
-                                      ("every fitted parameter drawn by the contract (parameter_uncertainty 1)", None, 1)):
-        for case in cases:
-            case["inputs"]["parameter_uncertainty"] = drawn
-        result = fg_env.validate(fitted.contract, cases, uncertainty=uncertainty, **common)
-        print(f"\n== {label}\n{result.report()}")
+    for case in cases:
+        case["inputs"]["parameter_uncertainty"] = 1 if drawn_by_contract else 0
+    return fg_env.validate(fitted.contract, cases, uncertainty=None if drawn_by_contract else fitted.priors, runs=runs,
+                           season=4, test=HELD_OUT, rounds=13, data_dir=CONTRACT.parent, workers=WORKERS)
+
+
+def validate(runs: int = 20) -> None:
+    for label, drawn in (("fitted priors (uncertainty=), per-key parameters at their estimates", False),
+                         ("every fitted parameter drawn by the contract (parameter_uncertainty 1)", True)):
+        print(f"\n== {label}\n{validation(runs, drawn).report()}")
+
+
+def report(runs: int = 12) -> None:
+    """The owner's report: the most profitable policy that serves at least 95% of demand, what drives the difference,
+    what the model assumes and how well it forecast held-out quarters."""
+    exp = fg_env.experiment(CONTRACT, arms=["lean", "service"], runs=runs, seed=21, workers=WORKERS)
+    print(fg_env.report(exp, contract=CONTRACT, validation=validation(), objective="max:reorder_profit",
+                        require={"shop_fill_rate": ">= 0.95"}).markdown)
 
 
 if __name__ == "__main__":
-    {"compare": compare, "optimise": optimise, "validate": validate}[sys.argv[1] if len(sys.argv) > 1 else "compare"]()
+    {"compare": compare, "optimise": optimise, "validate": validate, "report": report}[
+        sys.argv[1] if len(sys.argv) > 1 else "compare"]()

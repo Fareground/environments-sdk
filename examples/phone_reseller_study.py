@@ -4,6 +4,7 @@
     python examples/phone_reseller_study.py channels   # the base plan against a clearance plan, many seeds
     python examples/phone_reseller_study.py launch     # three weeks in, fork the run: does a new iPhone launch?
     python examples/phone_reseller_study.py validate   # refit on the first nine months, forecast every four weeks
+    python examples/phone_reseller_study.py report     # the owner's report: the plan to run, why, and how sure
 
 The truth arm runs a year of daily trade with day-to-day repricing (so the markup's effect can be estimated) and the
 2026 launch, recording every item's day per channel and every lot bought — a reseller's marketplace and purchase
@@ -19,6 +20,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 import fg_env
+from fg_env.sdk.analysis.validate import ValidationResult
 
 CONTRACT = Path(__file__).parent / "contracts" / "phone_reseller.json"
 FOLDER = CONTRACT.parent / "phone_reseller"
@@ -115,17 +117,30 @@ def validation_cases(sales: list, lots: list, weeks: int = 4) -> list:
     return cases
 
 
-def validate(runs: int = 20) -> None:
+def validation(runs: int = 20) -> ValidationResult:
+    """Refit on the first nine months and forecast every four weeks, drawing the fitted parameters from their priors."""
     loaded = fg_env.load(CONTRACT, seed=0).inputs
     sales, lots = loaded["history"], loaded["orders"]
     fitted = fg_env.fit_patterns(CONTRACT, inputs={"history": [r for r in sales if r["time"] < HELD_OUT.isoformat()],
                                                    "orders": [r for r in lots if r["time"] < HELD_OUT.isoformat()]})
     cases = validation_cases(sales, lots)
     held_out = [case["name"] for case in cases if case["name"] >= HELD_OUT.isoformat()]
-    result = fg_env.validate(fitted.contract, cases, runs=runs, season=13, test=held_out, rounds=28, data_dir=FOLDER.parent,
-                             uncertainty=fitted.priors, workers=WORKERS)
-    print(result.report())
+    return fg_env.validate(fitted.contract, cases, runs=runs, season=13, test=held_out, rounds=28, data_dir=FOLDER.parent,
+                           uncertainty=fitted.priors, workers=WORKERS)
+
+
+def validate(runs: int = 20) -> None:
+    print(validation(runs).report())
+
+
+def report(runs: int = 12) -> None:
+    """The owner's report: the most profitable buying and pricing plan that serves at least 95% of demand, what drives
+    the differences, what the model assumes and how well it forecast held-out weeks."""
+    exp = fg_env.experiment(CONTRACT, arms=[None, "clearance", "service"], runs=runs, seed=13, workers=WORKERS)
+    print(fg_env.report(exp, contract=CONTRACT, validation=validation(), objective="max:buying_profit",
+                        require={"sales_fill_rate": ">= 0.95"}).markdown)
 
 
 if __name__ == "__main__":
-    {"history": history, "channels": channels, "launch": launch, "validate": validate}[sys.argv[1] if len(sys.argv) > 1 else "channels"]()
+    {"history": history, "channels": channels, "launch": launch, "validate": validate, "report": report}[
+        sys.argv[1] if len(sys.argv) > 1 else "channels"]()

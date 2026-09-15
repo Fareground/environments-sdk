@@ -218,10 +218,11 @@ def _item_props(name: str) -> Dict[str, Any]:
 
 def _outputs(name: str, demand_name: str, demand: DemandConfig) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
+    # Only the outcomes an owner acts on carry a display format (reports pick their headline measures by it): profit and
+    # the stock it ties up here, fill rate and revenue on the demand; the cost components stay plain numbers.
     for measure in ("orders", "units_ordered", "purchases", "holding_cost", "order_cost", "stockout_cost", "backorder_cost",
                     "total_cost"):
-        out[f"{name}_{measure}"] = {"expr": f"$replenishment_totals('{name}', '{measure}')", "type": "number",
-                                    **({} if measure in ("orders", "units_ordered") else {"format": "money"})}
+        out[f"{name}_{measure}"] = {"expr": f"$replenishment_totals('{name}', '{measure}')", "type": "number"}
     out[f"{name}_profit"] = {"expr": f"$round($demand_totals('{demand_name}', 'margin') - $replenishment_totals('{name}', "
                                      f"'total_cost'), 2)", "type": "number", "format": "money",
                              "description": "The demand's margin less holding, ordering, stockout and backorder costs."}

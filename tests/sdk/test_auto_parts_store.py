@@ -77,6 +77,16 @@ def test_the_service_level_policy_serves_more_demand_and_earns_more_than_the_lea
         s["shop_fill_rate_by_group"]["batteries"] >= l["shop_fill_rate_by_group"]["batteries"] for s, l in zip(service, lean))
 
 
+def test_the_owner_report_recommends_the_service_policy_when_95_percent_of_demand_must_be_served():
+    exp = fg_env.experiment(CONTRACT, arms=["lean", "service"], runs=4, seed=3, rounds=26)
+    text = fg_env.report(exp, contract=CONTRACT, objective="max:reorder_profit",
+                         require={"shop_fill_rate": ">= 0.95"}).markdown
+    recommendation = text.split("## Recommendation", 1)[1].split("##", 1)[0]
+    assert "Choose Order up to the expected demand" in recommendation
+    assert "The store's current rule" in text.split("## Risks", 1)[1].split("##", 1)[0]  # the lean rule misses 95%
+    assert "parameter(s) are estimated from the data" in text and "lead_noise_sd" in text
+
+
 def test_dearer_premium_tiers_move_sales_to_the_value_tier():
     def sold_by_tier(arm):
         env = fg_env.load(CONTRACT, arm=arm, seed=5, inputs={"parameter_uncertainty": 0})

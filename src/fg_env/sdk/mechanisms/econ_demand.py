@@ -267,7 +267,7 @@ def _world_props(name: str, config: DemandConfig) -> Dict[str, Any]:
 
 
 def _outputs(name: str, config: DemandConfig) -> Dict[str, Any]:
-    formats = {"fill_rate": "pct", "revenue": "money", "margin": "money"}
+    formats = {"fill_rate": "pct", "revenue": "money"}  # the headline outcomes reports lead with
     out: Dict[str, Any] = {}
     for measure in ("demand", "sold", "lost", "fill_rate", "revenue", "margin", "returned"):
         out[f"{name}_{measure}"] = {"expr": f"$demand_totals('{name}', '{measure}')", "type": "number",
