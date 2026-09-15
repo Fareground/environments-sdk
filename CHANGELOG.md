@@ -19,7 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   warnings), what the model assumes (its queue, inputs marked assumed, fitted parameters) and how well it matched
   the data (error, bias and interval coverage in plain words). `audience="analyst"` adds the method, every output of
   every option and the full validation and sweep reports; `Report.markdown`, `to_dict()` and `save("r.md" | "r.json")`
-  export it.
+  export it. An optimisation (`fg_env.optimise`), as the source or as `optimisation=` next to the experiment that plays
+  its decision, is told as the plan with its expected objective, how often each constraint held (with intervals), the
+  fresh-seed check, a seed-luck warning and what one step either way breaks.
 - **Service queues** (`"kind": "operations", "mode": "queue"`): a contact centre, clinic, counter or repair crew
   played natively, interval by interval — arrivals per channel from any expression (patterns, data, an outage),
   service and patience distributions, server pools with skills, shifts as staff per interval
@@ -28,6 +30,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   own, so arms with different staffing see the same customers. Per-interval records and totals give service level at
   each channel's threshold, speed of answer, abandonment, utilisation, queue length, paid hours with shrinkage and
   cost, on round and continuous clocks. A stationary M/M/c case matches Erlang C and one with patience Erlang A.
+  Callbacks can keep servers free for live customers (`reserve`); per-interval guarantees can be constrained through
+  `<name>_intervals_below_target` and `<name>_worst_interval_service_level`, and handle times are measured
+  (`<name>_aht`, and per interval in the records).
+- **Example `contact_centre`**: a day of calls at a broadband provider's contact centre on the queue mode, with a
+  bundled eight-week half-hourly history its `truth` arm generates (`examples/contact_centre_history.py`). Arrivals
+  (day-of-week and time-of-day indexes, base volume) are fitted with `fit_patterns` on six weeks; handle time, outage
+  uplift and patience (by the simulated method of moments) are estimated from the same weeks; the last two weeks
+  validate it (daily calls within 2%, service level within 2%). `examples/contact_centre_plan.py` searches a staffing
+  vector with `fg_env.optimise` under a per-half-hour constraint, keeps the result in `contact_centre/plan.json`, and
+  prints the owner report with the outage and callback arms.
 - **World patterns** (`patterns`): the world's own regularities declared once, like its physics, and read anywhere as
   values — `$pattern.winter`, `$pattern.price_effect($it.price)`, `$pattern.season($it.category)`. Kinds for time
   (trend, seasonal, calendar, cycle, lifecycle, step, series), random paths from each pattern's own seeded stream
