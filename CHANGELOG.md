@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Procedure checks warn when `all_did` is paired with actor-specific action conditions, explaining that
+  all declared actor types remain required and suggesting filtered completion for a smaller cohort.
 - Added a declarative regional-rollout acceptance composition: nested macros instantiate independent
   approval/delivery/sales workflows sharing funding and stock, with inheritance and checkpoint regressions.
 - Money totals use accurate summation across holders, and conservation tolerates floating-point roundoff

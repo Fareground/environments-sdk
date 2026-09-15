@@ -32,7 +32,7 @@ from pydantic import Field, ValidationError, model_validator
 
 from ..contract import StageSpec
 from ..errors import RunError
-from ..expr import Call, ExprError, function, truthy
+from ..expr import Call, ExprError, compile_expr, function, truthy
 from ..registry import MechanismError, family_action, mode
 from . import _common as common
 from ._common import Config, Effects, ToolsSetting, tools_field
@@ -50,7 +50,8 @@ class Transition(Config):
     when: Optional[str] = Field(None, description="An expression that must hold.")
     after: Union[int, str, None] = Field(None, description="At least this many rounds in the phase.")
     event: Optional[str] = Field(None, description="An event of this kind happened during the phase (an emit, a record, a vote).")
-    all_did: Optional[str] = Field(None, description="Every agent who may take this action took it during the phase.")
+    all_did: Optional[str] = Field(None, description="Every living entity of the action's `by` types took it during "
+                                 "the phase. Action conditions and stage filters do not narrow this group.")
     say: str = Field("", description="News when it fires (template).")
     do: Effects = Field(default_factory=list, description="Effects when it fires.")
 
@@ -329,10 +330,33 @@ def _check_rules(checker: Any, name: str, cfg: ProcedureConfig) -> None:
         checker.expr(spec.winner, f"{at}.winner", base)
         for index, transition in enumerate(spec.transitions()):
             where = f"{at}.next[{index}]"
+            _check_completion_scope(checker, transition, where)
             checker.expr(transition.when, f"{where}.when", base)
             checker.value(transition.after, f"{where}.after", base)
             checker.effects(transition.do, f"{where}.do", base, {})
             checker.template(transition.say or None, f"{where}.say", None, base)
+
+
+def _check_completion_scope(checker: Any, transition: Transition, path: str) -> None:
+    if transition.all_did is None:
+        return
+    action = checker.c.actions.get(transition.all_did)
+    if action is None:
+        return
+    for condition in action.when:
+        try:
+            roots = compile_expr(condition.expr).roots
+        except ExprError:
+            continue  # The action checker reports malformed conditions at their authored path.
+        if "actor" in roots and "params" not in roots:
+            checker.warn(
+                f"{path}.all_did",
+                f"all_did '{transition.all_did}' includes every living entity of its by types, "
+                "including actors excluded by its actor conditions",
+                "If only a cohort must act, use a transition `when` with a filtered completion condition; "
+                "keep all_did when every actor must eventually act.",
+            )
+            return
 
 
 def _runner(action: str, needs: str) -> Callable[[Any, Dict[str, Any], Dict[str, Any], str], None]:
