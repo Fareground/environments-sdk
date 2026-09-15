@@ -214,7 +214,7 @@ def check(source: ContractLike, rounds: int = 1, seed: int = 0) -> List[Issue]:
     warnings_from_smoke: List[Issue] = []
     if rounds > 0 and contract is not None and not errors:
         try:
-            result = load(contract, seed=seed).run(_smoke_participant(seed), rounds=rounds)
+            result = load(contract, seed=seed, data_dir=default_data_dir(source)).run(_smoke_participant(seed), rounds=rounds)
             if result.status == "failed":
                 errors.append(_run_issue(result.error or "the run failed"))
             for problem in result.output_issues:

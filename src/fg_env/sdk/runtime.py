@@ -496,8 +496,8 @@ class Env(Copying, RunChecks):
         """Agents woken in ``stage``, in turn order. ``ordered=False`` skips ordering (no random draws)."""
         world = self.world
         agent_types = set(self.contract.agent_types())  # includes types that inherit `agent`
-        agents = [e for e in world.entities.values() if e.alive and e.entity_type in agent_types
-                  and stage_actions(self.contract, stage, e.entity_type)]
+        acting = {kind: bool(stage_actions(self.contract, stage, kind)) for kind in agent_types}
+        agents = [e for e in world.entities.values() if e.alive and acting.get(e.entity_type)]
         path = f"stages.{stage.name}"
         try:
             if stage.who is not None:

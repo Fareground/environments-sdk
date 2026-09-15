@@ -200,6 +200,16 @@ def test_conservation_holds_over_500_rounds_of_random_traders_makers_and_noise()
     assert result.outputs["acme_trades"] > 1000 and result.outputs["acme_fees"] > 0
 
 
+@pytest.mark.parametrize("conserve, check", [(True, "action"), ("action", "action"), ("round", "round"), ("end", "end")])
+def test_conservation_can_be_checked_after_every_action_every_round_or_at_the_end(conserve, check):
+    contract = {**CROWD, "clock": {"rounds": 3}, "mechanisms": {"acme": {**CROWD["mechanisms"]["acme"], "conserve": conserve}}}
+    assert [i.check for i in fg_env.parse(contract).invariants] == [check]
+    straight = fg_env.load({**contract, "mechanisms": {"acme": {**contract["mechanisms"]["acme"], "conserve": True}}}, seed=4)
+    assert fg_env.load(contract, seed=4).run().to_dict() == straight.run().to_dict()
+    unchecked = {**contract, "mechanisms": {"acme": {**contract["mechanisms"]["acme"], "conserve": False}}}
+    assert fg_env.parse(unchecked).invariants == []
+
+
 def test_coded_traders_produce_a_stylized_facts_tape():
     crowd = {"market_maker": {"count": 3, "cash": 60000, "shares": 1200},
              "momentum": {"count": 4, "cash": 10000, "shares": 200},

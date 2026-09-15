@@ -39,8 +39,17 @@ _RULE_SECTIONS = ("actions", "stages", "events", "triggers", "blocks", "end", "f
 def diagnose(env: "Env", outputs: Dict[str, Any]) -> List[Dict[str, str]]:
     """Every likely logic problem the run so far shows, as ``{code, path, message, fix}``."""
     rules = _Rules(env)
-    return [*_actions(env), *_overwrites(env), *_idle_agents(env), *_stages(env, rules),
+    return [*_arm_inputs(env), *_actions(env), *_overwrites(env), *_idle_agents(env), *_stages(env, rules),
             *_stuck_measures(env, outputs, rules)]
+
+
+def _arm_inputs(env: "Env") -> List[Dict[str, str]]:
+    from .arm_inputs import arm_input_overrides, override_message
+
+    return [_finding("arm_input_overridden", f"arms.{env.arm}.inputs.{name}",
+                     override_message(str(env.arm), name, arm_value, given),
+                     "leave that input out when running the arm (the caller's inputs win over an arm's), or change the arm")
+            for name, arm_value, given in arm_input_overrides(env.contract, env.arm, env.inputs)]
 
 
 def _finding(code: str, path: str, message: str, fix: str) -> Dict[str, str]:
