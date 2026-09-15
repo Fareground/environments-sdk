@@ -236,10 +236,10 @@ def merge_sections(data: Dict[str, Any], fragment: Mapping[str, Any]) -> None:
                     roles = brief.setdefault(key, {})
                     for role, role_text in text.items():
                         roles.setdefault(role, role_text)
-        elif section == "clock":
-            clock = data.setdefault("clock", {})
+        elif section in ("clock", "game"):  # a mechanism (a board, a victory rule) may fill in what the author left out
+            settings = data.setdefault(section, {})
             for key, item in value.items():
-                clock.setdefault(key, copy.deepcopy(item))
+                settings.setdefault(key, copy.deepcopy(item))
         elif section == "stage_hooks":
             _hook_stages(data, value)
         elif section == "action_hooks":
@@ -249,7 +249,7 @@ def merge_sections(data: Dict[str, Any], fragment: Mapping[str, Any]) -> None:
             for use_name, use in value.items():
                 uses.setdefault(use_name, copy.deepcopy(use))
         else:
-            known = sorted({*_KEYED, *_LISTED, "types", "entities", "stages", "brief", "clock", "stage_hooks", "action_hooks", "mechanisms"})
+            known = sorted({*_KEYED, *_LISTED, "types", "entities", "stages", "brief", "clock", "game", "stage_hooks", "action_hooks", "mechanisms"})
             raise MechanismError(f"unknown contract section '{section}'", f"sections: {', '.join(known)}")
 
 

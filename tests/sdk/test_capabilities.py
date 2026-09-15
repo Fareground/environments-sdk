@@ -67,17 +67,16 @@ def test_inheritance_defs_blocks_maps_and_outer_binding():
 def test_sealed_choice_that_cannot_happen_is_refused_at_submit():
     contract = copy.deepcopy(EXCHANGE)
     contract["types"]["trader"]["props"]["cash"] = 10.0
-    notes = []
+    notes = {}
 
     def agent(wake):
         first = wake.call("bid", {"price": 20, "qty": 1})
-        notes.append((first.ok, first.data.get("error"), first.text))
         second = wake.call("bid", {"price": 5, "qty": 1})
-        notes.append((second.ok, second.text))
+        notes[wake.entity_id] = [(first.ok, first.data.get("error"), first.text), (second.ok, second.text)]
 
-    fg_env.run(contract, agent, seed=1, rounds=1)
-    assert notes[0] == (False, "rejected", "Mo has only 10 cash; 20 is needed.")
-    assert notes[1][0] is True  # the refused choice did not use up the turn
+    fg_env.run(contract, agent, seed=1, rounds=1)  # sealed turns run in threads: keep each agent's notes apart
+    assert notes["m"][0] == (False, "rejected", "Mo has only 10 cash; 20 is needed.")
+    assert notes["m"][1][0] is True  # the refused choice did not use up the turn
 
 
 def test_inspect_is_scoped_by_type_rules():

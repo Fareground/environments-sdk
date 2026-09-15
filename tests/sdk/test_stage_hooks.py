@@ -1,25 +1,22 @@
 """Mechanism stage hooks fill in turn settings the author left unset."""
 import pytest
-from pydantic import BaseModel
 
 import fg_env
-from fg_env.sdk.registry import MECHANISMS, mechanism
+from fg_env.sdk.registry import mode
 
+from family_fixtures import Nothing, scratch_family
 
-class _Empty(BaseModel):
-    pass
+FAMILY = "test_stage_settings"
 
 
 @pytest.fixture
-def hooking_mechanism():
-    kind = "test_stage_settings"
-
-    @mechanism(kind, _Empty, "Hooks turn settings onto the author's stage.")
-    def _expand(name, config, contract):
-        return {"stage_hooks": {"play": {"until": "$world.done", "passes": 5, "who": "$it.active"}}}
-
-    yield kind
-    MECHANISMS.pop(kind, None)
+def hooks():
+    with scratch_family(FAMILY):
+        mode(FAMILY, "settings", Nothing, "Hooks turn settings onto the author's stage.")(
+            lambda name, config, contract: {"stage_hooks": {"play": {"until": "$world.done", "passes": 5, "who": "$it.active"}}})
+        mode(FAMILY, "bad", Nothing, "Tries to set a field stages don't have.")(
+            lambda name, config, contract: {"stage_hooks": {"play": {"colour": "blue"}}})
+        yield
 
 
 BASE = {"name": "Hooks", "clock": {"rounds": 1}, "world": {"done": False},
@@ -27,20 +24,11 @@ BASE = {"name": "Hooks", "clock": {"rounds": 1}, "world": {"done": False},
         "stages": [{"name": "play", "turns": "sequential", "passes": 2}]}
 
 
-def test_hooks_set_what_the_author_left_unset(hooking_mechanism):
-    stage = fg_env.parse({**BASE, "mechanisms": {"m": {"kind": hooking_mechanism}}}).stages[0]
+def test_hooks_set_what_the_author_left_unset(hooks):
+    stage = fg_env.parse({**BASE, "mechanisms": {"m": {"kind": FAMILY, "mode": "settings"}}}).stages[0]
     assert stage.until == "$world.done" and stage.who == "$it.active" and stage.passes == 2
 
 
-def test_hooks_cannot_set_unknown_stage_fields():
-    kind = "test_stage_bad_setting"
-
-    @mechanism(kind, _Empty, "Tries to set a field stages don't have.")
-    def _expand(name, config, contract):
-        return {"stage_hooks": {"play": {"colour": "blue"}}}
-
-    try:
-        issues = fg_env.check({**BASE, "mechanisms": {"m": {"kind": kind}}})
-        assert any("cannot set colour" in i.message for i in issues)
-    finally:
-        MECHANISMS.pop(kind, None)
+def test_hooks_cannot_set_unknown_stage_fields(hooks):
+    issues = fg_env.check({**BASE, "mechanisms": {"m": {"kind": FAMILY, "mode": "bad"}}})
+    assert any("cannot set colour" in i.message for i in issues)

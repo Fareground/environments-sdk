@@ -86,6 +86,7 @@ class HostWake(Wake):
     def call(self, name: str, args: Optional[Dict[str, Any]] = None) -> ToolResult:
         if name not in self._extras:
             return super().call(name, args)
+        self._turn.record("call", name, dict(args) if isinstance(args, Mapping) else args)
         result = self._host_call(name, args)
         turn = self._turn
         if turn.exposure is not None:

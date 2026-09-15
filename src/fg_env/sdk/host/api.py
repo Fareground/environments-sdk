@@ -45,11 +45,14 @@ def build(env: "Env") -> None:
     names = [name for name, raw in env.contract.mechanisms.items() if use_key(raw) == KEY]
     if not names or env.world.round:
         return
+    from ..snapshot import take_snapshot
+
     with env._lock:
         for name in names:
             generate(env.world, name, f"mechanisms.{name}")
         env._check_invariants("personas")
         env.world.journal.clear()
+        env.origin.base = take_snapshot(env)  # copies of the run start from the personas, never asking for them again
 
 
 def restore(contract: Any, snapshot: Mapping[str, Any], *, hosts: HostsLike = None, parallel: int = 8) -> "Env":

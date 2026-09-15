@@ -10,6 +10,7 @@ import re
 from typing import Any, Dict, FrozenSet, Iterable, List, Mapping, Optional, Set, Tuple, Union
 
 from ..contract import Contract, ParamSpec
+from ..returns import utility_class
 from . import walk
 
 __all__ = ["game_metadata", "MAX_EVIDENCE"]
@@ -89,11 +90,12 @@ def game_metadata(contract: Contract, probe: Any = None, probe_error: Optional[s
     fixed = low if low is not None and low == high else None
     length, length_evidence = _length(contract, scan, probe, fixed)
     space, space_evidence = _action_space(contract, scan, probe)
+    utility, utility_evidence = utility_class(contract)
     evidence = {"dynamics": dynamics_evidence, "chance_mode": chance_evidence, "information": information_evidence,
-                "utility": ["the contract declares no per-player returns, so zero-sum or constant-sum cannot be established"],
+                "utility": utility_evidence,
                 "players": players_evidence, "max_game_length": length_evidence, "action_space": space_evidence}
     return {"name": contract.name, "dynamics": dynamics, "chance_mode": chance, "chance_during": during,
-            "information": information, "utility": "unknown", "num_players": count, "min_players": low,
+            "information": information, "utility": utility, "num_players": count, "min_players": low,
             "max_players": high, "players_by_type": by_type, "max_game_length": length, "action_space": space,
             "observations": _observations(contract), "concepts": _concepts(contract, scan),
             "external_data": [{"feed": name, "host": feed.host, "into": feed.into, "every": feed.every}

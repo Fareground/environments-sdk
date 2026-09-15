@@ -33,6 +33,8 @@ _LISTED_UNKNOWN = 8
 #: Significant digits kept for schema bounds and defaults (0.1 + 0.2 shows as 0.3).
 _SCHEMA_DIGITS = 12
 _LEFTOVER_EXPR = re.compile(r"\$['\"(A-Za-z_]")
+#: How far (in steps) a number may sit from a step boundary and still count as on it (float noise).
+_STEP_TOLERANCE = 1e-9
 
 _PREVIEW = reprlib.Repr()
 _PREVIEW.maxstring = 60
@@ -287,6 +289,12 @@ class ActionBook:
                 if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
                     out[key] = math.ceil(value) if (param.type == "int" and key == "minimum") else (
                         math.floor(value) if param.type == "int" else value)
+            if param.step is not None:
+                base = out.get("minimum", 0) if param.min is not None else 0
+                if param.min is None or "minimum" in out:
+                    description = f"{description} In steps of {format_value(param.step)} from {format_value(base)}.".strip()
+                if abs(base / param.step - round(base / param.step)) <= _STEP_TOLERANCE:
+                    out["multipleOf"] = _tidy(param.step)
         elif param.type == "bool":
             out["type"] = "boolean"
         elif param.type == "text":
@@ -441,6 +449,12 @@ class ActionBook:
                                    f"actions.{action}.params.{pname}")
                 if limit is not None and bad(value, limit):
                     return None, f"must be {label} {format_value(limit)} (got {format_value(value)})"
+            if param.step is not None:
+                base = compile_expr(param.min)(scope) if is_expr(param.min) else param.min
+                offset = (value - (base or 0)) / param.step
+                if abs(offset - round(offset)) > _STEP_TOLERANCE:
+                    return None, f"must go in steps of {format_value(param.step)} from {format_value(base or 0)} " \
+                                 f"(got {format_value(value)})"
             return value, None
         if kind == "bool":
             if isinstance(raw, str) and raw.strip().lower() in ("true", "false"):
@@ -607,11 +621,13 @@ class ActionBook:
         world = self.world
         mark = world.journal.mark()
         rng_state = world.rng.getstate()
+        picker, world.chance_picker = world.chance_picker, None  # a trial roll is sampled, never asked for
         try:
             outcome = self.apply(actor, name, params)
         finally:
             world.journal.rollback(mark)
             world.rng.setstate(rng_state)
+            world.chance_picker = picker
         return None if outcome.ok else outcome.text
 
     def _posted_since(self, record_mark: int) -> List[Tuple[RecordSpec, Dict[str, Any]]]:
