@@ -163,6 +163,17 @@ def cmd_sensitivity(args: argparse.Namespace) -> int:
     return 0
 
 
+def _held_out_cases(text: Optional[str]) -> Any:
+    """``--test``: a share of the cases (``0.25``) or comma-separated case names."""
+    if text is None:
+        return None
+    try:
+        share = float(text)
+    except ValueError:
+        return [name.strip() for name in text.split(",") if name.strip()]
+    return share if 0 < share < 1 else [text]
+
+
 def cmd_calibrate(args: argparse.Namespace) -> int:
     from .calibrate import calibrate
 
@@ -175,10 +186,18 @@ def cmd_calibrate(args: argparse.Namespace) -> int:
     for item in args.target or []:
         name, value = _split(item, "--target")
         targets[name] = _value(value)
+    goal: Any = targets
+    if args.cases:
+        if targets:
+            raise _UsageError("give --cases or --target/--targets-file, not both")
+        goal = _json_file(args.cases, "--cases")
+        if not isinstance(goal, list):
+            raise _UsageError("--cases must hold a JSON list of {name, inputs, targets}")
     params = {name: spec or {} for name, spec in _named_ranges(args.param, "--param").items()}
-    result = calibrate(args.file, targets, params, runs=args.runs, budget=args.budget, holdout=args.holdout,
+    result = calibrate(args.file, goal, params, runs=args.runs, budget=args.budget, holdout=args.holdout,
                        method=args.method, inputs=_inputs(args), arm=args.arm, participants=_participants(args.agent),
-                       rounds=args.rounds, seed=args.seed, workers=args.workers)
+                       rounds=args.rounds, seed=args.seed, workers=args.workers, test=_held_out_cases(args.test),
+                       folds=args.folds)
     _emit(result, args.json)
     return 0
 
@@ -190,7 +209,8 @@ def cmd_backtest(args: argparse.Namespace) -> int:
     if not isinstance(cases, list):
         raise _UsageError("--cases must hold a JSON list of {inputs, outcome, name?}")
     result = backtest(args.file, cases, args.output, runs=args.runs, threshold=args.threshold, arm=args.arm,
-                      participants=_participants(args.agent), rounds=args.rounds, seed=args.seed, workers=args.workers)
+                      participants=_participants(args.agent), rounds=args.rounds, seed=args.seed, workers=args.workers,
+                      test=_held_out_cases(args.test), folds=args.folds)
     _emit(result, args.json)
     return 0
 
@@ -238,6 +258,12 @@ def _run_options(parser: argparse.ArgumentParser, seed_default: Optional[int] = 
     parser.add_argument("--json", action="store_true", help="print the full result as JSON")
 
 
+def _holdout_options(parser: argparse.ArgumentParser) -> None:
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--test", metavar="SHARE|NAMES", help="hold out cases: a share (0.25) or comma-separated case names")
+    group.add_argument("--folds", type=int, help="k-fold cross-validation over the cases")
+
+
 def add_analysis_commands(sub: Any) -> None:
     """Register the analysis commands on an ``argparse`` sub-parser collection."""
     p = sub.add_parser("sweep", help="run a grid or Latin hypercube of inputs and show main effects")
@@ -277,6 +303,8 @@ def add_analysis_commands(sub: Any) -> None:
     p.add_argument("--holdout", type=int, help="held-out validation runs (default: --runs)")
     p.add_argument("--method", choices=("auto", "bisection", "golden", "nelder_mead", "cross_entropy"), default="auto")
     p.add_argument("--arm")
+    p.add_argument("--cases", help="JSON list of cases {name, inputs, targets} fitted together (instead of --target)")
+    _holdout_options(p)
     p.set_defaults(func=_guarded(cmd_calibrate))
 
     p = sub.add_parser("backtest", help="score the contract's forecasts against known outcomes")
@@ -286,6 +314,7 @@ def add_analysis_commands(sub: Any) -> None:
     p.add_argument("--runs", type=int, default=10)
     p.add_argument("--threshold", type=float, help="forecast the event 'output > threshold'")
     p.add_argument("--arm")
+    _holdout_options(p)
     p.set_defaults(func=_guarded(cmd_backtest))
 
     p = sub.add_parser("checks", help="play the contract with random agents and report what looks broken "

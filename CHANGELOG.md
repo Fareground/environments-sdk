@@ -59,6 +59,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Example `examples/contracts/outbreak_network.json`: per-resident viral load and immunity with noise, a
   contact network whose links carry a setting and closeness, newcomers wired in by `on_create`, a weather
   feed with a seeded fallback, and advisories that arrive a day late and are sometimes lost.
+- **Tournaments** (`fg_env.tournament(contract, entrants={name: participant})`, `fg-env tournament`): round
+  robin, all-play-all (every seat order) or Swiss pairing; entrants rotate through every seat and game *g*
+  replays the same seed at every table (duplicate deals). Games are scored by the winner, an output, an
+  expression over `$outputs` and `$seat`, or a function. Standings carry maximum-likelihood Elo with 95%
+  intervals, Glicko-2, win/draw/loss, points and score means; `evaluation` adds the margin matrix, the
+  maximum-entropy Nash average, α-Rank and a Schulze vote. The result also has head-to-head records, every
+  entrant's score in every seat, and cost per entrant (turns, calls, invalid calls, model tokens).
+- **Self-description** (`fg_env.describe(contract)`, `fg-env describe`, `fg-env info`): an ODD-protocol
+  markdown document (purpose, entities and state variables, process and scheduling, design concepts,
+  initialisation, inputs, submodels) and game metadata derived from the contract, each with its
+  evidence: dynamics (sequential, simultaneous, scheduled, mixed), chance mode and when it acts,
+  information (perfect, imperfect or unknown), utility, players at start and their bounds, longest game
+  in rounds and decisions, action-space size or parametric, observations and concepts. What the contract
+  does not settle is reported as unknown with the reason. `fg_env.sdk.describe.check_claims` turns
+  claims a contract makes about itself into errors (contradicted) or warnings (unverifiable).
+- **Held-out cases in calibration and backtests**: `calibrate` accepts a list of cases, each with its own
+  fixed inputs and targets, and fits one set of params to all of them; `test=` (a share or case names)
+  returns the fit to the other cases with its error on the held-out ones, and `folds=` adds a k-fold
+  cross-validated error to the fit on every case. `backtest(test=|folds=)` scores held-out cases against a
+  climatology built only from the other cases (out-of-sample Brier or CRPS and skill). Splits are drawn
+  from the analysis seed. CLI: `calibrate --cases --test --folds`, `backtest --test --folds`.
+- **Per-agent run statistics**: `RunResult.agent_stats` splits `stats` by agent entity id (turns, calls,
+  invalid calls, committed actions, model usage), and snapshots keep the split.
+- `Job.participants`: a job in `run_jobs` can carry its own participants; participants given by name still
+  run in worker processes.
+- **Linear algebra in expressions**: `$dot`, `$matmul`, `$transpose`, `$identity`, `$inverse`, `$det`
+  (exact for whole numbers) and `$linsolve` on nested lists, with errors that name the bad shape or a
+  singular matrix, and work charged against the evaluation budget.
+- **Correlated draws**: `$mvnormal(means, cov)` samples a multivariate normal from the run's seeded
+  generator (Cholesky; the covariance is checked to be symmetric positive semi-definite). Draw once in a
+  population list prop and read the parts through `$it` for correlated traits.
 
 #### Changed
 - Async participants are awaited instead of refused.
