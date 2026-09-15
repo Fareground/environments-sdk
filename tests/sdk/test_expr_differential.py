@@ -182,6 +182,22 @@ def test_inlined_collection_loops_evaluate_identically(both_ways, shadowed):
                 _evaluate(call.format(items=items, condition=condition), scope)
 
 
+
+@pytest.mark.parametrize("shadowed", [False, True], ids=["built-in", "shadowed by a def"])
+def test_mapped_aggregates_preserve_evaluation_order_and_scope(both_ways, shadowed):
+    contract = dict(_THINGS, defs={**_THINGS["defs"], **{
+        name: {"args": ["a", "b", "c"], "expr": "7"} for name in ("sum", "avg")
+    }}) if shadowed else _THINGS
+    world = fg_env.load(contract, seed=3).world
+    scope = world.scope(l=[1, 2, 3], it=world.entities["b"])
+    for name in ("sum", "avg"):
+        for items in ("thing", "$l", "[]", "null", "7", "{a: 1, b: 2}"):
+            for value in ("$it.cash", "$i", "$outer.cash + $i", "null", "'invalid'", "$random()",
+                          "$it / ($i - 1)", "$sum($l, $it + $outer.cash)", "$missing"):
+                _evaluate(f"${name}({items}, {value})", scope)
+                for condition in ("true", "false", "$i > 0", "$it.cash == 1", "$chance(0.5)", "$missing"):
+                    _evaluate(f"${name}({items}, {value}, {condition})", scope)
+
 def _evaluate(text, scope):
     try:
         compile_expr(text)(scope)

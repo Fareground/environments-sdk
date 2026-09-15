@@ -16,7 +16,7 @@ Semantics: a statement shape reads a value directly only where the result is cer
 plain whole numbers or text); every other case calls the same helper the language always used, so values,
 errors, work-budget charges and random draws are the ones the helper gives.
 
-Per-item loops: ``$any``, ``$all``, ``$count``, ``$filter`` and ``$pick`` with a condition (their registered
+Per-item loops: ``$any``, ``$all``, ``$count``, ``$filter``, ``$pick`` and mapped ``$sum``/``$avg`` (their registered
 implementations, not replacements) run their loop in the compiled code. The collection and the items to try come
 from the call's own :class:`~.expr_calls.Call` (so budget charges and equality guards are the same), and the
 condition reads ``$it``, ``$i`` and ``$outer`` as loop variables and every other root from the caller's roots —
@@ -97,7 +97,7 @@ def _helpers() -> Dict[str, Any]:
 
     return {
         "__builtins__": {}, "_type": type, "_len": len, "_int": int, "_str": str, "_float": float, "_list": list,
-        "_enumerate": enumerate, "_Entity": _Entity, "_PropsView": PropsView, "_Scope": Scope, "_Call": Call,
+        "_enumerate": enumerate, "_sum": sum, "_Entity": _Entity, "_PropsView": PropsView, "_Scope": Scope, "_Call": Call,
         "_attr": attr, "_index": _index, "_caller": _caller, "_root": _root, "_call_def": _call_def, "_arity": _arity,
         "_negate": _negate, "_plus": _plus, "_add": _add, "_sub": _BINARY[ast.Sub], "_mul": _mul,
         "_truediv": _BINARY[ast.Div], "_floordiv": _BINARY[ast.FloorDiv], "_mod": _BINARY[ast.Mod], "_pow": _pow,
@@ -117,7 +117,8 @@ def _inlined() -> Dict[Any, str]:
         from . import functions  # functions import the language: looked up on first compile
 
         _INLINED = {functions._any: "any", functions._all: "all", functions._count: "count",
-                    functions._filter: "filter", functions._pick: "pick"}
+                    functions._filter: "filter", functions._pick: "pick",
+                    functions._sum: "sum", functions._avg: "avg"}
     return _INLINED
 
 
@@ -516,7 +517,9 @@ class Codegen:
                    for index, arg in enumerate(node.args)]
         arguments = f"_a{len(self._arguments)}"
         self._arguments.append((arguments, members))
-        loop = _inlined().get(spec.impl) if count == 2 and self._item is None else None
+        loop = _inlined().get(spec.impl) if self._item is None else None
+        if count not in (2, 3) or (count == 3 and loop not in ("sum", "avg")):
+            loop = None
         scope = self._scope()
         self._line(f"if {scope}.world is not None and {scope}.world.defines({key}):  # the contract's own def wins")
         self._line(f"    {value} = {scope}.world.call_def({key}, [{', '.join(f'{m}({scope})' for m in members)}], {source})")
@@ -524,6 +527,8 @@ class Codegen:
         self._depth += 1
         if loop is None:
             self._line(f"{value} = {self._const(spec.impl)}(_Call({key}, {arguments}, {scope}, {source}))")
+        elif loop in ("sum", "avg"):
+            self._aggregate(loop, node.args, name, symbol, (key, arguments, value, source))
         else:
             self._loop(loop, node.args[1], name, symbol, (key, arguments, value, source))
         self._depth -= 1
@@ -552,3 +557,48 @@ class Codegen:
         for line in holds:
             self._line(line.format(test=test, value=value, item=item.item))
         self._depth -= 1
+
+
+    def _aggregate(self, kind: str, nodes: Sequence[ast.AST], name: str, symbol: Optional[str],
+                   call: Tuple[str, str, str, str]) -> None:
+        """Inline sum/avg item expressions, preserving filter-before-map evaluation.
+
+        Mapping keeps the filtered collection's indices. Numeric validation still
+        follows evaluation of every mapped value, exactly as the public helpers do.
+        """
+        from .functions import _numbers
+
+        key, arguments, value, source = call
+        runner, items, outer, mapped = (self._temp() for _ in range(4))
+        item = _Item(self._temp(), self._temp(), outer, self._temp())
+        self._fn.reads_roots = True
+        self._line(f"{runner} = _Call({key}, {arguments}, scope, {source})")
+        self._line(f"{items} = {runner}.collection(0)")
+        self._line(f"{outer} = _V.get({self._const('it')})")
+        if len(nodes) == 3:
+            selected = self._temp()
+            self._line(f"{selected} = []")
+            self._line(f"for {item.position}, {item.item} in {runner}.candidates({items}, 2):")
+            self._depth += 1
+            self._line(f"{item.scope} = None")
+            self._item = item
+            test = self._per_item(name, symbol, lambda: self.node(nodes[2]))
+            self._item = None
+            self._line(f"if {test}:")
+            self._line(f"    {selected}.append({item.item})")
+            self._depth -= 1
+            items = selected
+        self._line(f"{mapped} = []")
+        self._line(f"for {item.position}, {item.item} in _enumerate({items}):")
+        self._depth += 1
+        self._line(f"{item.scope} = None")
+        self._item = item
+        expression = self._per_item(name, symbol, lambda: self.node(nodes[1]))
+        self._item = None
+        self._line(f"{mapped}.append({expression})")
+        self._depth -= 1
+        self._line(f"{mapped} = {self._const(_numbers)}({runner}, {mapped})")
+        result = f"_sum({mapped})"
+        if kind == "avg":
+            result = f"{result} / _len({mapped}) if {mapped} else None"
+        self._line(f"{value} = {result}")

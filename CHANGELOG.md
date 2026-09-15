@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Numerical fidelity and timing
+- Mapped sums and averages use the existing compiled expression loops, preserving filtering order, indices,
+  errors, work budgets and random draws while avoiding repeated per-item scope construction.
 - Coupled world and entity dynamics share integration states, removing declaration-order dependence.
 - Drift uses bounded adaptive refinement; general stochastic dynamics reuse Brownian paths during refinement,
   with exact transitions for supported independent affine processes. Accuracy/work-limit failures stop the run.
