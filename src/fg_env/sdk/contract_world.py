@@ -6,8 +6,6 @@ from typing import Any, Dict, List, Optional, Union
 
 from pydantic import Field, field_validator, model_validator
 
-from .contract_rigid import RigidSpec
-
 from .contract_base import (
     INPUT_TYPES,
     MAX_POPULATION,
@@ -306,7 +304,6 @@ class EntityDynamics(_Model):
 class PhysicsSpec(_Model):
     """Continuous dynamics advanced every round before agents act. Deterministic."""
 
-    rigid: Optional[RigidSpec] = None
     dt: float = Field(1.0, description="Time integrated per round.")
     substeps: int = Field(4, description="Maximum drift step and noise interval: the round duration divided by this count. Drift refines further for accuracy.")
     noise_rtol: float = Field(0.01, gt=0, le=1, allow_inf_nan=False, description="Relative timestep convergence target for general noisy dynamics. Refinement reuses the same Brownian path.")

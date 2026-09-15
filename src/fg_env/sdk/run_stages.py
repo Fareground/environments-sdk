@@ -8,6 +8,7 @@ from ..entity import Entity
 from .actions import stage_actions
 from .budget import is_seconds
 from .build import whole_setting
+from .clock_math import advance_time
 from .contract import MAX_STAGE_PASSES, StageSpec
 from .errors import RunError
 from .expr import ExprError, compile_expr, truthy
@@ -158,7 +159,7 @@ class RunStages:
                 return
             reason = self._reason(actor, stage, pass_index)
             if reason is None:
-                world.set_wake_at(actor.id, now + self._interval(stage, actor))
+                world.set_wake_at(actor.id, advance_time(now, self._interval(stage, actor), f"stages.{stage.name}.interval"))
                 continue
             if not self._wake_hook(stage, actor):
                 continue
@@ -170,7 +171,7 @@ class RunStages:
             scheduled = world.wake_at.get(actor.id, now)
             if scheduled <= now:
                 step = turn.elapsed if turn.elapsed > 0 else self._interval(stage, actor)
-                world.set_wake_at(actor.id, now + step)
+                world.set_wake_at(actor.id, advance_time(now, step, f"stages.{stage.name}.interval"))
             memory = self._memory(actor.id)
             memory.cursor = world.log[-1].seq if world.log else 0
             memory.turns += 1

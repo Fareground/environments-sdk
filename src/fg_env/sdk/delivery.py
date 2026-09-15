@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional
 
+from .clock_math import advance_time
 from .errors import RunError
 
 if TYPE_CHECKING:
@@ -35,7 +36,7 @@ def send(world: "SdkWorld", delay: Any, payload: Dict[str, Any], where: str) -> 
     if world.continuous:
         if isinstance(delay, bool) or not isinstance(delay, (int, float)) or not delay >= 0:
             raise RunError(f"`delay` must be a time ≥ 0 on a continuous clock, got {delay!r}", where)
-        due: float = world.time + delay
+        due: float = advance_time(world.time, delay, where)
     else:
         if isinstance(delay, bool) or not isinstance(delay, int) or delay < 0:
             raise RunError(f"`delay` must be a whole number of rounds ≥ 0, got {delay!r}", where)

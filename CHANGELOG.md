@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Environment SDK (`fg-env`)
 
+#### Numerical fidelity and timing
+- Coupled world and entity dynamics share integration states, removing declaration-order dependence.
+- Drift uses bounded adaptive refinement; general stochastic dynamics reuse Brownian paths during refinement,
+  with exact transitions for supported independent affine processes. Accuracy/work-limit failures stop the run.
+- Noise streams are stable by entity and variable identity. Failed intervals roll back state and writebacks.
+- Continuous clocks integrate elapsed state before boundary interventions, stop at intervening scheduled events,
+  and include the final fractional interval. Decimal ticks and wake delays no longer accumulate an extra turn.
+- `physics.rtol`, `atol` and `noise_rtol` expose accuracy targets without adding a solver-selection API.
+
 #### Added
 - **Optimisation you can act on** (`fg_env.optimise`): every constraint is judged with a stated confidence
   (`confidence=0.9`, or `"sl >= 0.8 in 90% of runs with 95% confidence"`) by one-sided bounds, so a recommendation is

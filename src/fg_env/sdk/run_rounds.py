@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Dict, Generator, List, Optional
 
 from ..entity import Entity
 from .actions import ACTION_BUDGET
+from .clock_math import advance_time
 from .contract import StageSpec
 from .expr import shared_budget
 from .feeds import run_feeds
@@ -101,9 +102,9 @@ class RunRounds:
         if world.round == 0:
             return 0.0
         previous = world.time
-        target = previous + clock.tick
         if world.horizon is not None and previous >= world.horizon:
             return None
+        target = advance_time(previous, clock.tick, "clock.tick")
         due = self._next_due()
         if due is not None:
             # Even a ticking clock must stop at intervening events. Jump mode

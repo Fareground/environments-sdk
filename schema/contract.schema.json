@@ -2184,17 +2184,6 @@
       "additionalProperties": false,
       "description": "Continuous dynamics advanced every round before agents act. Deterministic.",
       "properties": {
-        "rigid": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/RigidSpec"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
         "dt": {
           "default": 1.0,
           "description": "Time integrated per round.",
@@ -2855,56 +2844,6 @@
         }
       },
       "title": "RelationSpec",
-      "type": "object"
-    },
-    "RigidSpec": {
-      "additionalProperties": false,
-      "properties": {
-        "model": {
-          "description": "Self-contained MuJoCo MJCF model: bodies, joints, contacts, actuators and sensors.",
-          "maxLength": 2000000,
-          "minLength": 1,
-          "title": "Model",
-          "type": "string"
-        },
-        "control": {
-          "additionalProperties": true,
-          "description": "Actuator name to a number or SDK expression, evaluated at each rigid/equation coupling point.",
-          "title": "Control",
-          "type": "object"
-        },
-        "force": {
-          "additionalProperties": true,
-          "description": "Body name to [fx, fy, fz, tx, ty, tz] in world coordinates (numbers or SDK expressions).",
-          "title": "Force",
-          "type": "object"
-        },
-        "write": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "description": "Observation bindings: world.<prop> or entity.<id>.<prop> to body.<name>.position, joint.<name>.position, sensor.<name>, time, contacts, or energy.",
-          "title": "Write",
-          "type": "object"
-        },
-        "keyframe": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Named MJCF keyframe for initial state; omitted uses the model's default state.",
-          "title": "Keyframe"
-        }
-      },
-      "required": [
-        "model"
-      ],
-      "title": "RigidSpec",
       "type": "object"
     },
     "Space": {

@@ -110,7 +110,6 @@ def take_snapshot(env: "Env") -> Dict[str, Any]:
         "record_seq": w._record_seq,
         "log": [encode(e.to_dict()) for e in w.log], "seq": w._seq,
         "physics": w.physics.to_dict() if w.physics else None,
-        "rigid": w.rigid.snapshot() if w.rigid is not None else None,
         "metrics": encode(w.metrics), "series": encode(w.series),
         "scheduled": [[due, order, encode(item)] for due, order, item in w.scheduled],
         "schedule_seq": w._schedule_seq,
@@ -239,8 +238,6 @@ def _restore(cls: Type[_E], contract: Contract, snapshot: Mapping[str, Any], par
         w.physics.params, w.physics.time = restored.params, restored.time
         for name, var in restored.variables.items():
             w.physics.variables[name].value = var.value
-    if w.rigid is not None:
-        w.rigid.restore(snapshot["rigid"])
     w.metrics = decode(snapshot["metrics"])
     w.series = decode(snapshot["series"])
     w.scheduled = [(due, order, decode(item)) for due, order, item in snapshot["scheduled"]]

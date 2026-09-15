@@ -77,7 +77,6 @@ class SdkWorld(World):
         #: Per-entity brief text rendered at build (from entities.*.brief / population.brief).
         self.entity_briefs: Dict[str, str] = {}
         self.log: List[LogEvent] = []
-        self.rigid: Any = None
         self.physics: Optional[PhysicsModel] = None
         self.physics_writes: List[Tuple[str, _CompiledExpr]] = []
         self.entity_dynamics: List[Any] = []

@@ -37,6 +37,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from ..entity import Entity
 from .errors import RunError
+from .clock_math import advance_time
 from .contract import MAX_CREATE
 from .delivery import dropped, send
 from .expr import MAX_INT_BITS, Expr, ExprError, attr, check_size, compile_expr, is_expr, resolve, truthy
@@ -611,7 +612,7 @@ class EffectRunner:
         if world.continuous:
             if isinstance(delay, bool) or not isinstance(delay, (int, float)) or not delay > 0:
                 raise RunError(f"`after` needs a time greater than 0 on a continuous clock, got {delay!r}", where)
-            world.schedule(world.time + delay, effect.get("do") or [], vars, f"{where}.do")
+            world.schedule(advance_time(world.time, delay, where), effect.get("do") or [], vars, f"{where}.do")
             return
         if isinstance(delay, bool) or not isinstance(delay, int) or delay < 1:
             raise RunError(f"`after` needs a whole number of rounds ≥ 1, got {delay!r}", where)
@@ -636,7 +637,7 @@ class EffectRunner:
                 continue
             world.request_wake(entity_id, why)
             if world.continuous:
-                world.set_wake_at(entity_id, world.time + delay)
+                world.set_wake_at(entity_id, advance_time(world.time, delay, where))
 
     def _op_block(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
         name = effect["block"]

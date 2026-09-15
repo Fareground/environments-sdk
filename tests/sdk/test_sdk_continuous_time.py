@@ -121,3 +121,37 @@ def test_physics_integrates_final_fractional_interval_to_horizon():
     result = fg_env.load(contract).run()
     assert result.time == 2.5
     assert result.outputs["position"] == pytest.approx(7.5)
+
+
+@pytest.mark.parametrize("jump", [False, True])
+def test_decimal_tick_does_not_grant_an_extra_turn(jump):
+    import fg_env
+
+    contract = {
+        "name": "One decision at every tenth-second boundary",
+        "clock": {"mode": "continuous", "unit": "second", "horizon": 1, "tick": 0.1, "jump": jump},
+        "types": {"pilot": {"agent": True, "policy": "p"}},
+        "entities": {"a": {"type": "pilot"}},
+        "world": {"count": 0},
+        "actions": {"act": {"by": "pilot", "do": "$world.count += 1", "terminal": True}},
+        "policies": {"p": {"rules": [{"do": "act"}]}},
+        "stages": [{"name": "s", "max_actions": 1}],
+        "outputs": {"count": "$world.count", "time": "$clock.time"},
+    }
+    result = fg_env.load(contract).run()
+    assert result.status == "completed", result.error
+    assert result.outputs == {"count": 11, "time": 1.0}
+
+
+def test_clock_arithmetic_preserves_distinct_nearby_events_and_rejects_no_progress():
+    import math
+
+    from fg_env.sdk.clock_math import advance_time
+    from fg_env.sdk.errors import RunError
+
+    assert advance_time(0.1, 0.2, "test") == 0.3
+    assert advance_time(0.3, math.ulp(0.3), "test") == math.nextafter(0.3, math.inf)
+    with pytest.raises(RunError, match="precision"):
+        advance_time(1e16, 0.1, "test")
+    with pytest.raises(RunError, match="finite"):
+        advance_time(0, math.inf, "test")

@@ -7,9 +7,10 @@ __all__ = ["MODEL", "EXPRESSIONS", "MACROS", "TEMPLATES", "EFFECTS", "EFFECT_EXA
 MODEL = """\
 ## How a run works
 
-Each round: scheduled effects → feeds → events (phase start) → physics step → each stage in order →
+On a rounds clock: scheduled effects → feeds → events (phase start) → physics step → each stage in order →
 events (phase end) → metrics sampled → invariants and end conditions checked. A run ends when
 an `end` condition holds, an effect `end`s it, or `clock.rounds` is used up.
+On a continuous clock, elapsed physics advances before scheduled effects, feeds and start events at the new boundary.
 
 A stage wakes agents (`who`, in `order`). An agent's turn is a short session: it reads its
 brief + update, calls tools (legal actions, `look`, `inspect`, `end_turn`) until it ends the
@@ -41,8 +42,9 @@ turn, uses `max_actions`, or runs out of `max_calls`.
 * Views with `"for": "spectator"` are an omniscient picture for UIs and reports: rendered at the end of
   every round into `result.frames` (the last marked `final`) and on demand by `env.spectate()`, never
   shown to an agent. They have no `$actor`; randomness they draw never changes the run.
-* Physics steps at the start of every round, including round 1, before any stage: world variables
-  first, then `physics.per` dynamics for every entity, which read the world variables' new values.
+* Physics precedes agent stages. Coupled world and entity equations share intermediate integration states.
+  Continuous time starts at zero without a fictitious initial physics interval. Failed intervals restore
+  equation state and property writebacks.
 * Lifecycle hooks: `types.X.on_create` / `on_remove` run for every entity of X (and its subtypes; an
   ancestor's hooks first) the moment it is created or removed — by an effect, a mechanism or a hook —
   inside that change, so a `fail` in a hook refuses it. Entities made at build run on_create once the
@@ -258,13 +260,15 @@ RECIPES = """\
   `props`, by assignment, or in `links` (`props` over `$from`/`$to`; `rows` columns named like a field fill it).
 * Continuous dynamics: `physics` vars with rates (math over bare names), `read` from the world,
   `write` back to props; effects adjust `$physics.x` (policy shocks). `noise` adds a random term
-  (`"noise": "sigma*price"`, Euler–Maruyama, drawn from the run's seed).
+  (`"noise": "sigma*price"`, Itô noise drawn from stable entity/variable seed paths).
+  Drift refines automatically with `rtol`/`atol`; general noise refines the same Brownian path with `noise_rtol`.
+  Supported independent affine processes use exact transitions. Convergence failure stops the run.
 * Per-entity dynamics (viral load, firm capital, habit strength): `"physics": {"per": {"person": {"vars":
   {"viral_load": {"rate": "growth*viral_load - immunity*viral_load", "noise": "0.2*viral_load"}},
   "read": {"exposure": "$count($neighbors($it, contact), $it.sick)"}, "write": {"sick": "viral_load > 5"}}}}`.
   Every person integrates its own number props; rates read its number props, the type's `params` and
   `read`s (per entity, over `$it`) and world physics names. `where` limits who integrates this step.
-  Entities couple through `read` (explicit in time): the values are fixed for the whole step.
+  Entities couple through `read`; intermediate states are shared rather than held fixed for the round.
 * Latency and lossy channels: `"delay": 2` on `post`/`emit` delivers the message 2 rounds (or clock units)
   later with its content as it was when sent; `"drop": 0.1` loses it (also on `wake`), rolled from the
   run's seed when sent. A refused action sends nothing. Entries carry the round they arrive.
