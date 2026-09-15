@@ -3,12 +3,16 @@ from __future__ import annotations
 
 import json
 import math
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+import os
+import time
+from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field, replace
+from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Sequence, Set, Tuple
 
+from . import workers as pools
 from .api import ContractLike, contract_source, default_data_dir, load, located, parse
 from .arm_inputs import arm_input_overrides, override_message
 from .budget import Budget
@@ -203,8 +207,74 @@ def run_job(source: Any, job: Job, participants: Any = None, rounds: Optional[in
     return result if events or exposures else replace(result, events=[])
 
 
-def _process_job(payload: tuple) -> RunResult:
-    return run_job(*payload)
+@dataclass(frozen=True)
+class _Batch:
+    """What every job of a batch sent to worker processes shares."""
+
+    key: str
+    data: Dict[str, Any]
+    folder: Optional[str]
+    cwd: Optional[str]
+    rounds: Optional[int]
+    events: bool
+    budget: Optional[Mapping[str, Any]]
+    exposures: bool
+
+
+def _run_chunk(batch: _Batch, chunk: Sequence[Tuple[Job, Any]]) -> Tuple[List[RunResult], float]:
+    """Runs a chunk of ``(job, participants)`` in a worker process, the contract parsed once per worker; the seconds
+    the chunk took come back with its results."""
+    start = time.perf_counter()
+    if batch.cwd is not None:
+        with suppress(OSError):  # the folder is gone: runs reading relative data files report it themselves
+            os.chdir(batch.cwd)  # a kept worker reads relative data folders where this batch started
+    try:
+        contract: Any = pools.cached_contract(batch.key, batch.data, batch.folder)
+    except Exception:  # each run reports the contract's problem, as a run reading it itself would
+        contract = batch.data
+    results = [run_job(contract, job, who, batch.rounds, batch.events, batch.folder, batch.budget, batch.exposures)
+               for job, who in chunk]
+    return results, time.perf_counter() - start
+
+
+def _cwd() -> Optional[str]:
+    try:
+        return os.getcwd()
+    except OSError:
+        return None
+
+
+def _in_workers(contract: Contract, folder: Optional[Path], jobs: Sequence[Job], assigned: Callable[[Job], Any],
+                one: Callable[[Job], RunResult], workers: pools.Workers, rounds: Optional[int], events: bool,
+                budget: Optional[Mapping[str, Any]], exposures: bool) -> List[RunResult]:
+    """Every job through worker processes, or in this process when that is measured to be sooner.
+
+    With no measure of this contract's runs and no workers running, the first job runs here and is timed; the
+    rest go to the workers only if they would finish before this process could run them. A pool whose worker died
+    (out of memory, killed) is dropped and the batch finishes here."""
+    data = contract_source(contract)
+    where = str(folder) if folder else None
+    key = pools.contract_key(data, where)
+    done: List[RunResult] = []
+    cost = pools.job_seconds(key)
+    if cost is None and not workers.started:
+        start = time.perf_counter()
+        done.append(one(jobs[0]))
+        cost = time.perf_counter() - start
+        pools.record_job_seconds(key, cost)
+    rest = jobs[len(done):]
+    chunk = pools.chunk_size(len(rest), workers.size, cost, workers.started)
+    if chunk == 0:
+        return done + [one(job) for job in rest]
+    batch = _Batch(key, data, where, _cwd(), rounds, events, budget, exposures)
+    try:
+        results, seconds = pools.run_chunks(workers.executor(), _run_chunk, batch,
+                                            [(job, assigned(job)) for job in rest], chunk)
+    except BrokenProcessPool:
+        workers.discard()
+        return done + [one(job) for job in rest]
+    pools.record_job_seconds(key, seconds / len(rest))
+    return done + results
 
 
 def _check_workers(workers: Any) -> None:
@@ -213,26 +283,31 @@ def _check_workers(workers: Any) -> None:
 
 
 @contextmanager
-def worker_pool(workers: int, participants: Any = None, hosts: Any = None) -> Iterator[Optional[ProcessPoolExecutor]]:
-    """One process pool shared by many :func:`run_jobs` calls (starting workers costs more than a small
-    batch). Yields ``None`` when runs stay in this process: one worker, participants that are callables, or hosts."""
+def worker_pool(workers: int, participants: Any = None, hosts: Any = None) -> Iterator[Optional[pools.Workers]]:
+    """Worker processes shared by many :func:`run_jobs` calls: this process's kept pool (:mod:`fg_env.sdk.workers`),
+    or with ``FG_ENV_KEEP_WORKERS=0`` a pool of its own closed when the block ends. Nothing starts until a batch needs
+    it. Yields ``None`` when runs stay in this process: one worker, participants that are callables, or hosts."""
     _check_workers(workers)
     if workers > 1 and hosts is None and _portable(participants):
-        with ProcessPoolExecutor(max_workers=workers) as pool:
-            yield pool
+        handle = pools.Workers(workers)
+        try:
+            yield handle
+        finally:
+            handle.close()
     else:
         yield None
 
 
 def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = None,
              participants_for: Optional[Callable[[Job], Any]] = None, rounds: Optional[int] = None, workers: int = 1,
-             events: bool = True, pool: Optional[ProcessPoolExecutor] = None, data_dir: Any = None,
+             events: bool = True, pool: Optional[pools.Pool] = None, data_dir: Any = None,
              budget: Optional[Mapping[str, Any]] = None, exposures: bool = False, hosts: Any = None) -> List[RunResult]:
     """Run every job, in order, returning one result per job.
 
     Problems the jobs share (bad inputs, an unknown arm, an unknown participant) raise before anything
     runs; a job that fails on its own comes back as a failed run. Participants given by name run in
-    worker processes when ``workers > 1`` or a ``pool`` is given; callables run in threads.
+    worker processes when ``workers > 1`` or a ``pool`` is given (this process's kept pool, in chunks, or right here
+    when the batch is too short to pay for workers: :mod:`fg_env.sdk.workers`); callables run in threads.
     ``participants_for(job)`` builds fresh participants per job; a job's own ``participants`` replace
     the batch's for that job; ``events=False`` drops event logs; ``budget`` caps each run on its own
     (every run has the whole budget: :mod:`fg_env.sdk.budget`); ``exposures=True`` records what agents saw in every
@@ -269,17 +344,12 @@ def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = N
     many = len(jobs) > 1
     portable = hosts is None and participants_for is None and all(_portable(assigned(job)) for job in jobs)
     if (pool is not None or workers > 1) and many and portable:
-        data = contract_source(contract)
-        payloads = [(data, job, assigned(job), rounds, events, str(folder) if folder else None, budget, exposures)
-                    for job in jobs]
-        chunk = max(1, len(jobs) // (workers * 4))
+        handle = pool if isinstance(pool, pools.Workers) else pools.Workers(workers, pool)
         try:
-            if pool is not None:
-                return list(pool.map(_process_job, payloads, chunksize=chunk))
-            with ProcessPoolExecutor(max_workers=workers) as own:
-                return list(own.map(_process_job, payloads, chunksize=chunk))
-        except BrokenProcessPool:  # a worker died (out of memory, killed): finish in this process instead
-            return [one(job) for job in jobs]
+            return _in_workers(contract, folder, jobs, assigned, one, handle, rounds, events, budget, exposures)
+        finally:
+            if handle is not pool:
+                handle.close()
     if workers > 1 and many:
         with ThreadPoolExecutor(max_workers=workers) as threads:
             return list(threads.map(one, jobs))
