@@ -17,8 +17,8 @@ _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _BORDERLINE = ("The recommendation is borderline: no requirement clearly fails, but not every one holds with the "
                "confidence asked for; more runs, or a plan with a little more room, would settle it.")
 #: A constraint's verdict, and the chosen decision's on fresh seeds, in words.
-_MET = {"feasible": "met with {confidence:.0%} confidence", "borderline": "borderline (within noise of the bound)",
-        "infeasible": "not met"}
+_MET = {"feasible": "met with {confidence:.0%} confidence",
+         "borderline": "only just: not settled with {confidence:.0%} confidence", "infeasible": "not met"}
 _FRESH = {"feasible": "every requirement held with confidence", "borderline": "no requirement clearly failed",
           "infeasible": "a requirement clearly failed"}
 _GOAL = re.compile(r"^\s*(maximi[sz]e|max|minimi[sz]e|min)\s+(?:(mean|median|p\d{1,2})\s+of\s+)?(.+?)\s*$", re.IGNORECASE)

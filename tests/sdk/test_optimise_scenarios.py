@@ -51,10 +51,13 @@ def test_a_service_level_per_category_keeps_the_fill_rate_with_less_stock_across
     priors = fg_env.fit_patterns(STORE).priors
     common = dict(data_dir=STORE.parent, uncertainty=priors, rounds=13)
     categories = ["brake_pads", "batteries", "wipers"]
-    # the store's replenishment reads its service level per category from this map input
+    # the store's replenishment reads its service level per category from this map input. Eight runs: a fill rate held
+    # with 90% confidence on four runs needs about four standard errors of room (a t-quantile on 3 degrees of freedom,
+    # with the search's margin), so a plan confident on four runs keeps 86% of the uniform stock where one on eight keeps
+    # 77% — both confident on 24 fresh seeds (lower 90% bounds 98.6% and 98.0% against 97.5%)
     result = fg_env.optimise(STORE, {"service_level_by_category": {"keys": categories, "low": 0.5, "high": 0.99, "step": 0.05,
                                                                    "start": {c: 0.95 for c in categories}}},
-                             "minimise reorder_average_stock_value", ["shop_fill_rate >= 0.975"], runs=4, budget=16,
+                             "minimise reorder_average_stock_value", ["shop_fill_rate >= 0.975"], runs=8, budget=16,
                              workers=2, inputs={"policy": "service", "parameter_uncertainty": 0}, **common)
     assert result.feasible and {"growth_rate", "promo_lift", "lead_noise_mean"} <= set(priors)
 
