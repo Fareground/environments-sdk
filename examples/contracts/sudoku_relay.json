@@ -1,0 +1,52 @@
+{
+  "fg_env": "1",
+  "name": "Sudoku relay",
+  "description": "Two solvers take turns filling a sudoku generated from the run's seed with exactly one solution; a right digit scores a point, a wrong one costs a point.",
+  "inputs": {
+    "box": {"type": "int", "default": 2, "min": 2, "max": 3, "description": "Box size: 2 plays 4×4, 3 plays 9×9."},
+    "clues": {"type": "int", "default": 6, "min": 0, "description": "The fewest clues the puzzle keeps (0 = as few as stay unique)."}
+  },
+  "brief": {
+    "situation": "Two solvers share one sudoku that has exactly one solution.",
+    "rules": "On your turn place one digit in an empty cell. Every row, column and box must hold each digit once. A digit that matches the solution stays and scores a point; a wrong digit is not placed and costs a point. The game ends when the grid is full."
+  },
+  "clock": {"rounds": 30, "unit": "turn"},
+  "world": {
+    "game": {"type": "map", "default": "$puzzle(sudoku, {box: $inputs.box, clues: $inputs.clues})", "private": true},
+    "board": {"type": "list", "default": []}
+  },
+  "types": {"solver": {"agent": true, "props": {"score": 0}}},
+  "entities": {"ana": {"type": "solver", "name": "Ana"}, "ben": {"type": "solver", "name": "Ben"}},
+  "actions": {
+    "place": {
+      "by": "solver", "description": "Place a digit in an empty cell (rows and columns count from 0).",
+      "params": {
+        "row": {"type": "int", "min": 0, "max": "$len($world.board) - 1"},
+        "col": {"type": "int", "min": 0, "max": "$len($world.board) - 1"},
+        "digit": {"type": "int", "min": 1, "max": "$len($world.board)"}
+      },
+      "do": [
+        {"if": "$world.board[$params.row][$params.col] != 0", "then": [{"fail": "That cell is already filled; pick an empty one."}]},
+        {"if": "$params.digit == $world.game.solution[$params.row][$params.col]",
+         "then": ["$world.board[$params.row][$params.col] = $params.digit", "$actor.score += 1"],
+         "else": ["$actor.score -= 1"]}
+      ],
+      "outcome": "{$'Correct: the digit stays.' if $world.board[$params.row][$params.col] == $params.digit else 'Wrong digit: it was not placed, and you lose a point.'}",
+      "terminal": true
+    }
+  },
+  "stages": [{"name": "solve", "turns": "sequential"}],
+  "events": [{"name": "deal", "at": 1, "do": ["$world.board = $world.game.puzzle"]}],
+  "views": {
+    "grid": {"title": "The grid (. is empty)", "of": "$world.board", "bullet": false,
+             "show": "{$join($map($it, $text($it) if $it else '.'), ' ')}"},
+    "scores": {"title": "Scores", "of": "solver", "show": "{name}: {score}"}
+  },
+  "end": [{"name": "solved", "when": "$len($world.board) > 0 and $solve(sudoku, $world.board, check).solved",
+           "winner": "$top(solver, $it.score, 1)[0]", "say": "The grid is full."}],
+  "outputs": {
+    "clues": {"expr": "$world.game.clues", "type": "int", "description": "Clues the puzzle started with."},
+    "filled": {"expr": "$count($flatten($world.board), $it != 0)", "type": "int"},
+    "scores": {"expr": "$map(solver, $it.name + ': ' + $text($it.score))", "type": "list"}
+  }
+}
