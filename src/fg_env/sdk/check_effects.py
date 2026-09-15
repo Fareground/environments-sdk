@@ -1,6 +1,7 @@
 """Checking effect lists: assignment statements and operation objects."""
 from __future__ import annotations
 
+import math
 import re
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Set
 
@@ -253,6 +254,20 @@ class EffectChecks:
             self.template(effect.get("say"), f"{path}.say", None, roots, types, params)
         elif op == "after":
             v("after")
+            delay = effect["after"]
+            if not is_expr(delay):
+                continuous = self.c.clock.mode == "continuous"
+                if continuous:
+                    try:
+                        valid = not isinstance(delay, bool) and isinstance(delay, (int, float)) and math.isfinite(delay) and delay > 0
+                    except OverflowError:
+                        valid = False
+                else:
+                    valid = not isinstance(delay, bool) and isinstance(delay, int) and delay >= 1
+                if not valid:
+                    required = "a finite positive time" if continuous else "a whole number of rounds ≥ 1"
+                    self.error(f"{path}.after", f"`after` needs {required}, got {delay!r}",
+                               "use a positive delay; for immediate effects, put the `do` effects here without `after`")
             self.effects(effect.get("do", []), f"{path}.do", roots, types, params)
         elif op == "block":
             block = self.c.blocks.get(effect["block"])

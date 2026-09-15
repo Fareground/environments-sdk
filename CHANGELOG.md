@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Static checks reject impossible literal `after` delays at the authored field, with a repair hint:
+  positive whole rounds, or finite positive time on a continuous clock. Expression delays remain
+  runtime-checked; valid scheduling behavior is unchanged.
 - News skips exact author-only record notifications before entry lookup: authors already do not
   receive their own record news, and other readers cannot see these entries. Shared/conditional
   policies retain live evaluation; event logs and record queries are unchanged.
