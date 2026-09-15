@@ -4,9 +4,9 @@ A run records it when asked (``fg_env.load(..., exposures=True)``) or when the c
 ``$seen`` (its rules depend on it). It is off by default: a coded crowd of thousands of agents
 would otherwise keep a record per wake that nobody reads.
 
-``result.exposures`` is JSON-safe: ``{"texts": {hash: text}, "wakes": [record, ...]}``. Every text
-an agent read — brief, update, view blocks, tool definitions, call results — is stored once under
-its content hash, so a brief read on a hundred turns costs one copy. A wake record::
+``result.exposures`` is JSON-safe: ``{"texts": {hash: text}, "wakes": [record, ...], "chance": [pick, ...]}``.
+Every text an agent read — brief, update, view blocks, tool definitions, call results — is stored once
+under its content hash, so a brief read on a hundred turns costs one copy. A wake record::
 
     {"wake": 0, "entity": "ana", "type": "seller", "round": 1, "stage": "pricing", "turn": 1,
      "kind": "turn" | "reaction", "reason": "It is your turn.", "time": 3.5, "time_limit": 30,
@@ -18,11 +18,18 @@ its content hash, so a brief read on a hundred turns costs one copy. A wake reco
      "view_events": [seq, ...],                          # log events listed inside views
      "tools": [name, ...], "tool_sets": [hash, ...],     # names offered; each distinct definition set
      "calls": [{"tool", "args", "ok", "ended", "result": hash, "error"?}],
-     "invalid": 0, "timed_out": false, "undone": 0, "usage": {...}?,
+     "invalid": 0, "timed_out": false, "undone": 0, "usage": {...}?, "late_usage": {...}?,
      "steps": [["brief"], ["update"], ["tools"], ["call", tool, args], ["usage", {...}], ["timeout"], ...]}
 
 ``steps`` is the turn's entry on the engine's tape (:mod:`fg_env.sdk.replay`): everything the participant did
 through its wake, in order — first reads, calls, reported usage, a timeout — which is what a replay plays back.
+``late_usage`` is model usage the participant reported after its turn was over (it ran out of time): counted in
+``usage`` and the run's statistics all the same, though that participant could no longer act.
+
+``chance`` lists, in order, every outcome a chooser picked (``fg_env.load(..., chance=callable)``, a game, a
+copy): ``{"chance": name, "site": path, "index": i, "label": text, "round": n}``. Sampled outcomes need no entry:
+the seed replays them. A run that continues a fork adds ``start``: the snapshot it continued from, its exposure
+log given as counts (``{"wakes": n, "chance": m}``, the first entries of this log), which a replay restores.
 
 Only what was rendered counts: a coded participant that never reads its update was shown nothing.
 """
@@ -37,11 +44,13 @@ from .world import Entry, LogEvent
 
 if TYPE_CHECKING:
     from .actions import ToolSpec
+    from .chance import ChanceNode
     from .contract import Contract
+    from .runtime import Env
     from .session import ToolResult
     from .turn import Turn
 
-__all__ = ["Shown", "Exposure", "ExposureLog", "asks_seen", "text_hash", "tokens"]
+__all__ = ["Shown", "Exposure", "ExposureLog", "asks_seen", "recording", "text_hash", "tokens"]
 
 #: Hex digits kept from a text's SHA-256: unique for any realistic run, short enough to read.
 HASH_DIGITS = 16
@@ -98,6 +107,8 @@ class Exposure:
                       tool_sets=[], calls=[])
         self.record = record
         self._deferred: List[Shown] = []
+        #: The record as appended to the log, once the turn has closed.
+        self.logged: Optional[Dict[str, Any]] = None
 
     def _text(self, text: str) -> Dict[str, Any]:
         return {"hash": self.log.keep(text), "chars": len(text), "tokens": tokens(text)}
@@ -145,11 +156,14 @@ class Exposure:
             call["error"] = error
         self.record["calls"].append(call)
 
-    def used(self, counts: Mapping[str, int]) -> None:
-        usage = self.record.setdefault("usage", {})
-        for key, value in counts.items():
-            if value:
-                usage[key] = usage.get(key, 0) + value
+    def used(self, counts: Mapping[str, int], late: bool = False) -> None:
+        """Add reported model usage; ``late`` usage came after the turn was over and its record was logged."""
+        record = self.logged if self.logged is not None else self.record
+        for field in ("usage", "late_usage") if late else ("usage",):
+            usage = record.setdefault(field, {})
+            for key, value in counts.items():
+                if value:
+                    usage[key] = usage.get(key, 0) + value
 
     def close(self, turn: "Turn") -> None:
         """Finish the record and append it to the log (called once, in the engine's turn order)."""
@@ -162,7 +176,7 @@ class Exposure:
         for shown in self._deferred:
             self.log.index(record["entity"], shown)
         self._deferred.clear()
-        self.log.append(record)
+        self.logged = self.log.append(record)
 
 
 class ExposureLog:
@@ -171,6 +185,7 @@ class ExposureLog:
     def __init__(self) -> None:
         self.texts: Dict[str, str] = {}
         self.wakes: List[Dict[str, Any]] = []
+        self.chance: List[Dict[str, Any]] = []
         self._events: Dict[str, Set[int]] = {}
         self._entries: Dict[str, Set[int]] = {}
         self._views: Dict[str, Set[str]] = {}
@@ -184,8 +199,15 @@ class ExposureLog:
     def open(self, turn: "Turn", kind: str) -> Exposure:
         return Exposure(self, turn, kind)
 
-    def append(self, record: Dict[str, Any]) -> None:
-        self.wakes.append({"wake": len(self.wakes), **record})
+    def append(self, record: Dict[str, Any]) -> Dict[str, Any]:
+        logged = {"wake": len(self.wakes), **record}
+        self.wakes.append(logged)
+        return logged
+
+    def picked(self, node: "ChanceNode", index: int, round: int) -> None:
+        """Note an outcome a chooser picked (sampled outcomes need no note: the seed replays them)."""
+        self.chance.append({"chance": node.name, "site": node.site, "index": index,
+                            "label": node.outcomes[index].label, "round": round})
 
     def index(self, entity_id: str, shown: Shown) -> None:
         self._events.setdefault(entity_id, set()).update(shown.news, shown.events)
@@ -206,12 +228,14 @@ class ExposureLog:
 
     def to_dict(self) -> Dict[str, Any]:
         # Sorted: concurrent turns store their texts in whatever order they finish.
-        return {"texts": dict(sorted(self.texts.items())), "wakes": [dict(w) for w in self.wakes]}
+        return {"texts": dict(sorted(self.texts.items())), "wakes": [_detached(w) for w in self.wakes],
+                "chance": [dict(pick) for pick in self.chance]}
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> "ExposureLog":
         log = cls()
         log.texts = dict(data.get("texts") or {})
+        log.chance = [dict(pick) for pick in data.get("chance") or []]
         for record in data.get("wakes") or []:
             log.wakes.append(dict(record))
             shown = Shown()
@@ -219,6 +243,22 @@ class ExposureLog:
             shown.views = [(view["name"], "") for view in record["views"]]
             log.index(record["entity"], shown)
         return log
+
+
+def recording(env: "Env") -> Dict[str, Any]:
+    """``result.exposures``: the exposure log and, for a run that continues a fork, the ``start`` it replays from."""
+    log = env.world.exposures
+    if log is None:
+        return {}
+    data = log.to_dict()
+    if env.origin.start is not None:
+        data["start"] = env.origin.start
+    return data
+
+
+def _detached(record: Mapping[str, Any]) -> Dict[str, Any]:
+    """A copy of a logged wake that usage reported later (added to the log's own record) leaves unchanged."""
+    return {**record, **{key: dict(record[key]) for key in ("usage", "late_usage") if key in record}}
 
 
 def _jsonable(value: Any) -> Any:

@@ -22,7 +22,7 @@ from ..expr import Untrusted
 from .hosts import hosts_for
 from .protocols import HostError
 
-__all__ = ["TAPE", "MAX_RESPONSE_CHARS", "tape_prop", "plain", "request_key", "consult", "tape_of"]
+__all__ = ["TAPE", "MAX_RESPONSE_CHARS", "tape_prop", "plain", "request_key", "consult", "discard", "tape_of"]
 
 TAPE = "host_tape"
 #: Largest host answer accepted, as JSON characters.
@@ -117,6 +117,14 @@ def consult(world: Any, *, service: str, method: str, site: str, identity: Any, 
         tape[key] = entry
         world.touch()
     return copy.deepcopy(answer)
+
+
+def discard(world: Any, key: str) -> None:
+    """Take an answer off the tape: the turn that asked for it ran out of time while the host answered, so the run
+    never used it (call under the run's lock)."""
+    tape = world.props.get(TAPE)
+    if isinstance(tape, dict) and tape.pop(key, None) is not None:
+        world.touch()
 
 
 def tape_of(source: Any) -> Dict[str, Dict[str, Any]]:

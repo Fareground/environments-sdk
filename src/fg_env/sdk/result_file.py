@@ -2,7 +2,8 @@
 
 ``result.save("run.json")`` writes ``{"fg_env_result": 1, ...result}``. ``result.save("run.jsonl")`` writes
 the same content one piece per line — a header line with everything but the event log and the exposure
-log, then ``{"event": ...}``, ``{"text": [hash, text]}`` and ``{"wake": ...}`` lines — so a run with
+log, then ``{"event": ...}``, ``{"text": [hash, text]}``, ``{"wake": ...}`` and ``{"chance": ...}`` lines (and a
+fork's ``{"start": ...}``) — so a run with
 thousands of wakes can be read line by line. ``RunResult.load(path)`` reads either, and also the plain
 JSON ``fg-env run --json`` prints.
 """
@@ -52,6 +53,10 @@ def _lines(data: Mapping[str, Any]) -> Iterator[Dict[str, Any]]:
         yield {"text": [digest, text]}
     for wake in exposures.get("wakes") or []:
         yield {"wake": wake}
+    for pick in exposures.get("chance") or []:
+        yield {"chance": pick}
+    if exposures.get("start") is not None:
+        yield {"start": exposures["start"]}
 
 
 def load_result(path: PathLike) -> "RunResult":
@@ -85,6 +90,8 @@ def _from_lines(text: str, shown: str) -> Dict[str, Any]:
     events: List[Any] = []
     texts: Dict[str, str] = {}
     wakes: List[Any] = []
+    chance: List[Any] = []
+    start: Any = None
     for number, line in lines[1:]:
         if isinstance(line, dict) and "event" in line:
             events.append(line["event"])
@@ -92,10 +99,15 @@ def _from_lines(text: str, shown: str) -> Dict[str, Any]:
             texts[line["text"][0]] = line["text"][1]
         elif isinstance(line, dict) and "wake" in line:
             wakes.append(line["wake"])
+        elif isinstance(line, dict) and "chance" in line:
+            chance.append(line["chance"])
+        elif isinstance(line, dict) and "start" in line:
+            start = line["start"]
         else:
-            raise ValueError(f"'{shown}' line {number} is not an event, text or wake line")
+            raise ValueError(f"'{shown}' line {number} is not an event, text, wake, chance or start line")
     data["events"] = events
-    data["exposures"] = {"texts": texts, "wakes": wakes} if recorded else {}
+    exposures = {"texts": texts, "wakes": wakes, "chance": chance, **({"start": start} if start is not None else {})}
+    data["exposures"] = exposures if recorded else {}
     return data
 
 

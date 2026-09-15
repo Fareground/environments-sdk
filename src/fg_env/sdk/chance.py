@@ -11,7 +11,8 @@ item to `as` and runs `do`. Every pick is logged as a `chance` event (outcome, i
 
 Outcomes are sampled from the run's random stream, so a seed replays them. Search code can instead
 choose them (explicit chance): ``world.chance_picker`` receives the :class:`ChanceNode` and returns
-the index of the outcome to take.
+the index of the outcome to take. A run that records exposures notes every chosen outcome
+(``exposures["chance"]``), so a replay reproduces it without the chooser.
 """
 from __future__ import annotations
 
@@ -122,6 +123,8 @@ def _pick(world: Any, node: ChanceNode, where: str) -> int:
     if isinstance(index, bool) or not isinstance(index, int) or not any(o.index == index for o in possible):
         choices = ", ".join(f"{o.index} ({o.label})" for o in possible)
         raise RunError(f"the chance picker chose {index!r}, which is not a possible outcome (possible: {choices})", where)
+    if world.exposures is not None:  # recorded, so a replay reproduces the pick without the chooser
+        world.exposures.picked(node, index, world.round)
     return index
 
 
