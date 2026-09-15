@@ -110,6 +110,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is now judged by its own deviance.
 
 #### Fixed
+- **Fitted uncertainty you can trust** (`fg_env.fit_patterns`, joint product fits): estimates were already unbiased
+  over 400 simulated auto-parts histories and synthetic designs with promotions tied to the trend, the season or price
+  cuts, but their errors were not. A demand scale's error was its first seasonal slot's (1.7× too wide) and a profile's
+  first slot had none; both now come from the profile rescaled to average 1, and cover the truth 94–95% of the time at
+  95%. Censored fits read each row's observed information less what the stockout leaves unknown (lift and elasticity
+  errors were 10–17% too narrow), and dispersion is estimated with the fitted parameters' degrees of freedom (it ran
+  4–9% high). The report names parameters the history can hardly tell apart — a promotion that is always a price cut
+  — with how much the overlap widens their errors and their 95% ranges.
 - **Discarded game states and copies do no work during garbage collection**: collecting a stepped state closed its
   waiting turn there — evaluating legality rules on whatever thread collected, inside whatever it was evaluating, and
   charging that evaluation's budget — and collecting a `Branch` joined its copy's thread in the middle of the
