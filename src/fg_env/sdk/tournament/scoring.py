@@ -80,8 +80,13 @@ class SeatScorer:
         return self._output(result.outputs.get(str(self.spec)))
 
     def _default(self, result: RunResult) -> Scored:
-        """How a contract scores its own seats when no ``score`` is given: today, its winner. Per-seat returns a
-        contract declares (a ``game`` section) belong here, ahead of the winner."""
+        """How a contract scores its own seats when no ``score`` is given: the per-seat returns its ``game``
+        section declares, else its winner."""
+        if result.returns:
+            missing = [seat for seat in self.seats if seat not in result.returns]
+            if missing:
+                return None, f"the game's returns have no value for seat(s) {', '.join(missing)}"
+            return {seat: float(result.returns[seat]) for seat in self.seats}, ""
         return self._winners(result.winner if result.winner is not None else result.outputs.get("winner"))
 
     def _seat(self, key: Any) -> Optional[str]:

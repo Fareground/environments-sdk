@@ -128,6 +128,9 @@ class _Flight:
 class Driver:
     """Binds participants to agents and plays their turns."""
 
+    #: Turns with a time limit run against the wall clock (copies of a run for search switch it off).
+    timed = True
+
     def __init__(self, env: "Env"):
         self.env = env
         self.spec: Dict[str, Any] = {}
@@ -206,6 +209,8 @@ class Driver:
         concurrent = sum(1 for _, p in chosen if getattr(p, "concurrent", True))
         threaded = together and env.parallel > 1 and concurrent > 1
         queue: Deque[Tuple["Turn", Participant, bool]] = deque()
+        if together:
+            env.origin.staged = list(turns)  # sealed choices still being made (read by game states)
         try:
             for turn, participant in chosen:
                 alone = not (threaded and getattr(participant, "concurrent", True))
@@ -225,12 +230,15 @@ class Driver:
         finally:
             for turn in played:
                 self.finish(turn)
+            if together:
+                env.origin.staged = []
 
     def finish(self, turn: "Turn") -> None:
         """Close a played turn: no more calls, its statistics added to the run's."""
         env = self.env
         with env._lock:
             turn.done = True
+            env.origin.tape.closed(turn.number)
             if turn.stats.actions == 0 and not turn.intents:
                 turn.stats.idle_turns += 1
             env._tally(turn.actor.id, turn.stats)
@@ -295,7 +303,8 @@ class Driver:
 
     def _launch(self, turn: "Turn", participant: Participant, alone: bool) -> _Flight:
         flight = _Flight(turn, alone)
-        turn.start_clock()
+        if self.timed:
+            turn.start_clock()
         rng = self._rng(turn)
         if is_async(participant):
             try:

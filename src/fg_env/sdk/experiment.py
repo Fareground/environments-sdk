@@ -274,14 +274,64 @@ def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = N
     return [one(job) for job in jobs]
 
 
+def _branched(contract: Contract, jobs: Sequence[Job], branch_at: int, participants: Any,
+              participants_for: Optional[Callable[[Job], Any]], rounds: Optional[int], workers: int,
+              folder: Any) -> List[RunResult]:
+    """Each run's first ``branch_at`` rounds played once without an arm, then continued under every job's arm."""
+    if isinstance(branch_at, bool) or not isinstance(branch_at, int) or branch_at < 0:
+        raise ValueError(f"branch_at must be a whole number of rounds ≥ 0, got {branch_at!r}")
+    if rounds is not None and branch_at > rounds:
+        raise ValueError(f"branch_at ({branch_at}) is after the {rounds} rounds each run plays")
+    groups: Dict[Any, List[Job]] = {}
+    for job in jobs:
+        groups.setdefault(job.tags["run"], []).append(job)
+    rest = None if rounds is None else rounds - branch_at
+
+    def one(group: List[Job]) -> List[Tuple[Job, RunResult]]:
+        first = group[0]
+        try:
+            shared = load(contract, inputs=dict(first.inputs), seed=first.seed, data_dir=folder)
+            shared.run(participants_for(replace(first, arm=None)) if participants_for else
+                       (first.participants if first.participants is not None else participants), rounds=branch_at)
+        except ContractError:
+            raise
+        except Exception as exc:  # the shared history failed: every arm of this run reports it
+            return [(job, failed_run(job, exc)) for job in group]
+        done: List[Tuple[Job, RunResult]] = []
+        for job in group:
+            try:
+                forked = shared.fork(arm=job.arm)
+                who = participants_for(job) if participants_for else \
+                    (job.participants if job.participants is not None else participants)
+                done.append((job, forked.run(who, rounds=rest)))
+            except ContractError:
+                raise
+            except Exception as exc:
+                done.append((job, failed_run(job, exc)))
+        return done
+
+    if workers > 1 and len(groups) > 1:
+        with ThreadPoolExecutor(max_workers=workers) as threads:
+            pairs = [pair for chunk in threads.map(one, groups.values()) for pair in chunk]
+    else:
+        pairs = [pair for group in groups.values() for pair in one(group)]
+    found = {id(job): result for job, result in pairs}
+    return [found[id(job)] for job in jobs]
+
+
 def experiment(source: ContractLike, *, runs: int = 10, arms: Optional[List[str]] = None, seed: int = 0,
                inputs: Optional[Mapping[str, Any]] = None, participants: Any = None,
                participants_for: Optional[Callable[[int, Optional[str]], Any]] = None,
-               rounds: Optional[int] = None, workers: int = 1, data_dir: Any = None) -> ExperimentResult:
+               rounds: Optional[int] = None, workers: int = 1, data_dir: Any = None,
+               branch_at: Optional[int] = None) -> ExperimentResult:
     """Run each arm ``runs`` times. Run *i* uses the same seed in every arm, so differences
     between arms come from the arm, not from luck. ``arms`` defaults to every declared arm
     (or a single baseline run set when none are declared). ``participants_for(i, arm)``
     builds fresh participants per run when they hold state.
+
+    ``branch_at=N`` shares history: run *i* plays its first N rounds once, without an arm, and every
+    arm continues from that same state (a fork: the arm's patch and inputs apply from round N + 1, and
+    an arm whose patch the state cannot follow raises before the experiment goes on).
 
     Problems shared by every run (an unknown arm, bad inputs, an unknown participant) raise
     before anything runs. A run that fails on its own is kept with ``status="failed"`` and its
@@ -307,8 +357,13 @@ def experiment(source: ContractLike, *, runs: int = 10, arms: Optional[List[str]
         assert participants_for is not None
         return participants_for(job.tags["run"], job.arm)
 
-    results = run_jobs(contract, jobs, participants=participants, participants_for=per_job if participants_for else None,
-                       rounds=rounds, workers=workers, data_dir=folder)
+    if branch_at is not None:
+        results = _branched(contract, jobs, branch_at, participants, per_job if participants_for else None, rounds,
+                            workers, folder)
+    else:
+        results = run_jobs(contract, jobs, participants=participants,
+                           participants_for=per_job if participants_for else None, rounds=rounds, workers=workers,
+                           data_dir=folder)
     out: Dict[str, ArmResult] = {}
     for arm in labels:
         arm_runs = [r for job, r in zip(jobs, results) if job.arm == arm]

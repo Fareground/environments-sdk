@@ -118,15 +118,17 @@ def test_timeline_search_invalid_and_agent_find_what_agents_read_and_wrote():
         recording.search("  ")
 
 
-def test_a_read_after_a_call_records_how_many_calls_came_before_it():
+def test_each_wake_keeps_the_steps_its_participant_took_in_order():
     def late_reader(wake):
         wake.tools
         wake.call("look", {"view": "board"})
         wake.update
+        wake.record_usage(input_tokens=5)
+        wake.tools  # a second read changes nothing and is not a step
 
     wake = fg_env.run(TOWN, late_reader, seed=1, exposures=True).exposures["wakes"][0]
-    assert wake["update"]["after"] == 1 and wake["brief"] is None
-    assert wake["calls"][0]["offered"] == wake["tool_sets"][0]
+    assert wake["steps"] == [["tools"], ["call", "look", {"view": "board"}], ["update"], ["usage", {"input_tokens": 5}]]
+    assert wake["brief"] is None
 
 
 def test_cli_records_a_trace_and_reads_it(tmp_path, capsys):

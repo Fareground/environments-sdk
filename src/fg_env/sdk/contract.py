@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator, model_validator
 from pydantic_core import PydanticCustomError
 
+from .game_spec import UTILITIES, GameSpec
 from .host.tape import TAPE, tape_prop
 
 __all__ = [
@@ -43,6 +44,8 @@ __all__ = [
     "OutputSpec",
     "EndSpec",
     "ArmSpec",
+    "GameSpec",
+    "UTILITIES",
     "DefSpec",
     "BlockSpec",
     "InvariantSpec",
@@ -428,6 +431,7 @@ class ParamSpec(_Model):
     values: Union[List[Any], str, None] = Field(None, description="Allowed values or an expression giving them (type enum).")
     min: Union[float, str, None] = None
     max: Union[float, str, None] = None
+    step: Optional[float] = Field(None, gt=0, description="Type number or int: values go in steps of this size from `min` (or 0), which makes the parameter enumerable for games.")
     max_len: Optional[int] = Field(None, description="Maximum length (type text).")
     items: Optional["ParamSpec"] = Field(None, description="Type list: the spec every element follows (e.g. {\"type\": \"enum\", \"values\": [...]}). Shorthand: `of` makes entity items, `values` enum items.")
     min_items: Optional[int] = Field(None, ge=0, description="Type list: fewest elements.")
@@ -720,6 +724,7 @@ class Contract(_Model):
     outputs: Dict[str, OutputSpec] = Field(default_factory=dict)
     end: List[EndSpec] = Field(default_factory=list)
     arms: Dict[str, ArmSpec] = Field(default_factory=dict)
+    game: Optional[GameSpec] = Field(None, description="Seats, returns and utility for game and learning interfaces.")
     invariants: List[InvariantSpec] = Field(default_factory=list)
     defs: Dict[str, DefSpec] = Field(default_factory=dict, description="Reusable expressions, called as $name(args).")
     blocks: Dict[str, BlockSpec] = Field(default_factory=dict, description="Reusable effect lists, run with {\"block\": name}.")

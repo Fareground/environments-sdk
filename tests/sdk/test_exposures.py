@@ -51,8 +51,7 @@ def test_each_wake_records_what_the_agent_read_offered_and_did():
     assert first["tools"] == ["say", "look", "inspect", "end_turn"]
     assert [json.loads(texts[h])[0]["name"] for h in first["tool_sets"]] == ["say"]
     look, say = first["calls"]
-    assert look == {"tool": "look", "args": {"view": "board"}, "ok": True, "ended": False, "result": look["result"],
-                    "offered": first["tool_sets"][0]}
+    assert look == {"tool": "look", "args": {"view": "board"}, "ok": True, "ended": False, "result": look["result"]}
     assert say["args"] == {"text": "hi from Ann"} and say["ok"] and say["ended"]
     assert texts[say["result"]] == "Done: say (text=«hi from Ann»)."
     assert first["invalid"] == 0 and first["timed_out"] is False and first["undone"] == 0

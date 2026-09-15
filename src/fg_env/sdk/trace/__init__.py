@@ -6,11 +6,11 @@ result, plus the host answers.
 
 * :func:`trace` — ``overview()``, ``turn()``, ``timeline()``, ``search()``, ``invalid()``, ``agent()``;
   each gives a :class:`TraceView` (``.data`` for code, ``str()`` for people).
-* :meth:`Trace.replay` — run the contract again with the recorded calls and host answers, and report
+* :meth:`Trace.replay` — run the contract again from the recorded steps and host answers, and report
   the first place the run no longer matches its recording.
 * :class:`Replayer` (``fg_env.participants.replay``) — the replaying participant on its own.
 """
 from .reader import Trace, TraceView, trace
-from .replay import ReplayDivergence, Replayer, ReplayResult
+from .rerun import ReplayDivergence, Replayer, ReplayResult
 
 __all__ = ["trace", "Trace", "TraceView", "Replayer", "ReplayResult", "ReplayDivergence"]

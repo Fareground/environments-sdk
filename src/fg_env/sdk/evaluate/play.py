@@ -28,8 +28,9 @@ def evaluate(suite: Any, *, focal: Any, background: Any = None, baseline: Any = 
     focal participant takes (``{"resident": 0.75, "visitor": 0.25}``; default ``{"all": 1.0}``); which seats is
     drawn from the seed, so every candidate evaluated with the same seed meets the same draw. ``background`` plays
     every other agent (default: its type's policy, else random); ``baseline`` plays the focal seats in the paired
-    runs (default: the background). ``score`` scores each seat as in :func:`fg_env.tournament` (the winner, an
-    output, an expression over ``$seat``, or ``fn(result, seat)``).
+    runs (default: the background). ``score`` scores each seat as in :func:`fg_env.tournament`: by default the
+    returns the contract's ``game`` section declares, else the winner; or an output, an expression over ``$seat``,
+    or ``fn(result, seat)``.
 
     Run *i* of every scenario uses the seeds of :func:`fg_env.experiment`. A focal run's score is the mean over its
     focal seats (per focal agent), and its difference is that minus the baseline run's score over the same seats.

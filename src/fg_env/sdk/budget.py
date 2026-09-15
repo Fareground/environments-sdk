@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional
 if TYPE_CHECKING:
     from .runtime import Env
 
-__all__ = ["Budget", "LIMITS", "ON_EXHAUST"]
+__all__ = ["Budget", "LIMITS", "ON_EXHAUST", "is_seconds"]
 
 #: Every limit a budget may set, in the order they are checked.
 LIMITS = ("tokens", "calls", "host_calls", "seconds")
@@ -30,17 +30,21 @@ ON_EXHAUST = ("end", "idle")
 _WHAT = {"tokens": "token", "calls": "tool call", "host_calls": "host call", "seconds": "time"}
 
 
+def is_seconds(value: Any) -> bool:
+    """Whether ``value`` is a usable span of time: a finite number of seconds above zero."""
+    return not isinstance(value, bool) and isinstance(value, (int, float)) and math.isfinite(value) and value > 0
+
+
 class Budget:
     """A run's limits, and which one ran out (set at a safe point, never undone)."""
 
-    def __init__(self, limits: Mapping[str, float], on_exhaust: str = "end", exhausted: Optional[str] = None,
-                 seconds: float = 0.0):
+    def __init__(self, limits: Mapping[str, float], on_exhaust: str = "end"):
         self.limits = dict(limits)
         self.on_exhaust = on_exhaust
-        self.exhausted = exhausted
-        #: Wall-clock seconds spent in earlier ``run`` calls (and before a snapshot).
-        self.seconds = seconds
-        self._started: Optional[float] = None
+        self.exhausted: Optional[str] = None
+        #: Wall-clock seconds spent running, up to the last safe point.
+        self.seconds = 0.0
+        self._mark: Optional[float] = None
 
     @classmethod
     def parse(cls, value: Any) -> "Budget":
@@ -56,11 +60,10 @@ class Budget:
             if key not in value:
                 continue
             limit = value[key]
-            whole = key != "seconds"
-            if isinstance(limit, bool) or not isinstance(limit, int if whole else (int, float)) \
-                    or not math.isfinite(limit) or limit <= 0:
-                kind = "a whole number" if whole else "a number of seconds"
-                raise ValueError(f"budget {key} must be {kind} > 0, got {limit!r}")
+            if key == "seconds" and not is_seconds(limit):
+                raise ValueError(f"budget seconds must be a number of seconds > 0, got {limit!r}")
+            if key != "seconds" and (isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0):
+                raise ValueError(f"budget {key} must be a whole number > 0, got {limit!r}")
             limits[key] = limit
         if not limits:
             raise ValueError(f"budget sets no limit; give at least one of {', '.join(LIMITS)}")
@@ -69,30 +72,21 @@ class Budget:
             raise ValueError(f"budget on_exhaust must be {' or '.join(map(repr, ON_EXHAUST))}, got {on_exhaust!r}")
         return cls(limits, on_exhaust)
 
-    @staticmethod
-    def begin(given: Optional["Budget"], current: Optional["Budget"]) -> Optional["Budget"]:
-        """The budget a ``run`` call plays under, its clock started: ``given`` — which takes over the time
-        ``current`` already spent — else ``current``."""
-        budget = given if given is not None else current
+    @classmethod
+    def begin(cls, given: Any, current: Optional["Budget"]) -> Optional["Budget"]:
+        """The budget a ``run`` call plays under: ``given`` (see :meth:`parse`) — keeping the seconds ``current``
+        already counted — else ``current``. Its clock starts now."""
+        budget = current if given is None else cls.parse(given)
         if budget is not None:
             if given is not None and current is not None:
-                given.seconds = current.elapsed()
-            budget.start()
+                budget.seconds = current.seconds
+            budget._mark = time.monotonic()
         return budget
 
-    # -- time -----------------------------------------------------------------------
-
-    def start(self) -> None:
-        self._started = time.monotonic()
-
-    def pause(self) -> None:
-        self.seconds = self.elapsed()
-        self._started = None
-
-    def elapsed(self) -> float:
-        return self.seconds + (time.monotonic() - self._started if self._started is not None else 0.0)
-
-    # -- use -----------------------------------------------------------------------
+    @staticmethod
+    def report(env: "Env") -> Dict[str, Any]:
+        """The run's budget as ``result.budget`` shows it (empty without one)."""
+        return env.budget.to_dict(env) if env.budget is not None else {}
 
     def used(self, env: "Env") -> Dict[str, float]:
         from .host.tape import TAPE
@@ -101,11 +95,16 @@ class Budget:
         entries = tape.values() if isinstance(tape, Mapping) else ()
         return {"tokens": env.stats.input_tokens + env.stats.output_tokens, "calls": env.stats.calls,
                 "host_calls": sum(1 for entry in entries if isinstance(entry, Mapping) and not entry.get("fallback")),
-                "seconds": round(self.elapsed(), 3)}
+                "seconds": round(self.seconds, 3)}
 
     def check(self, env: "Env") -> Optional[str]:
-        """The limit that has run out (recorded the first time one does), or None."""
+        """The limit that has run out (recorded the first time one does), or None. Called at safe points: the
+        wall-clock time since the previous one is counted."""
         if self.exhausted is None:
+            now = time.monotonic()
+            if self._mark is not None:
+                self.seconds += now - self._mark
+            self._mark = now
             used = self.used(env)
             self.exhausted = next((key for key in LIMITS if key in self.limits and used[key] >= self.limits[key]), None)
         return self.exhausted
@@ -133,10 +132,8 @@ class Budget:
         key = self.exhausted
         if key is None:
             return ""
-        used, limit = self.used(env)[key], self.limits[key]
-        spent = f"{used:g} of {limit:g} seconds" if key == "seconds" else f"{used:,} of {limit:,}"
         then = "the run ended" if self.on_exhaust == "end" else "agents take no more actions"
-        return f"The {_WHAT[key]} budget ran out ({spent}); {then}."
+        return f"The {_WHAT[key]} budget ran out ({spent(key, self.used(env)[key], self.limits[key])}); {then}."
 
     def to_dict(self, env: "Env") -> Dict[str, Any]:
         return {"limits": dict(self.limits), "on_exhaust": self.on_exhaust, "used": self.used(env),
@@ -144,8 +141,13 @@ class Budget:
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> "Budget":
-        """The budget kept in a snapshot or a result."""
+        """The budget kept in a snapshot."""
         budget = cls.parse({**data["limits"], "on_exhaust": data.get("on_exhaust", "end")})
         budget.exhausted = data.get("exhausted")
         budget.seconds = float((data.get("used") or {}).get("seconds", 0.0))
         return budget
+
+
+def spent(key: str, used: float, limit: float) -> str:
+    """How much of one limit was used, as a person reads it."""
+    return f"{used:g} of {limit:g} seconds" if key == "seconds" else f"{used:,} of {limit:,}"

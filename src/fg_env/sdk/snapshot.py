@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import TYPE_CHECKING, Any, Dict, Mapping, Type, TypeVar
+from typing import TYPE_CHECKING, Any, Dict, Mapping, Tuple, Type, TypeVar
 
 from ..entity import Entity
 from .budget import Budget
@@ -22,7 +22,8 @@ from .world import Entry, LogEvent
 if TYPE_CHECKING:
     from .runtime import Env
 
-__all__ = ["SNAPSHOT_VERSION", "contract_hash", "encode", "decode", "take_snapshot", "restore_env"]
+__all__ = ["SNAPSHOT_VERSION", "KEEP_ARM", "contract_hash", "run_identity", "encode", "decode", "take_snapshot", "restore_env",
+           "restore_state", "matching_contract", "check_snapshot"]
 
 SNAPSHOT_VERSION = 2
 
@@ -32,6 +33,23 @@ _E = TypeVar("_E", bound="Env")
 def contract_hash(contract: Contract) -> str:
     text = json.dumps(contract.model_dump(by_alias=True, exclude_defaults=True), sort_keys=True, default=str)
     return hashlib.sha256(text.encode()).hexdigest()[:16]
+
+
+def run_identity(seed: Any, arm: Any, inputs: Any) -> str:
+    """A fingerprint of what a run was started with (seed, arm, encoded inputs)."""
+    text = json.dumps([seed, arm, inputs], sort_keys=True, default=str)
+    return hashlib.sha256(text.encode()).hexdigest()[:16]
+
+
+class _KeepArm:
+    def __repr__(self) -> str:
+        return "KEEP_ARM"
+
+
+#: A fork's default arm: the one the run already has.
+KEEP_ARM: Any = _KeepArm()
+
+_FORK_HINT = "to continue it under changes, use fg_env.fork(original_contract, snapshot, arm=..., inputs=..., patch=...)"
 
 
 def encode(value: Any) -> Any:
@@ -72,10 +90,12 @@ def take_snapshot(env: "Env") -> Dict[str, Any]:
         raise SnapshotError(f"the run is stopped in the middle of round {w.round}; snapshots are taken between "
                             "rounds — finish the round with env.run(rounds=1) first")
     state = w.rng.getstate()
+    inputs = encode(env.inputs)
     return {
         "fg_env_snapshot": SNAPSHOT_VERSION,
         "contract": contract_hash(env.contract),
-        "seed": env.seed, "arm": env.arm, "inputs": encode(env.inputs),
+        "run": run_identity(env.seed, env.arm, inputs),
+        "seed": env.seed, "arm": env.arm, "inputs": inputs,
         "status": env.status, "ended_by": env.ended_by, "error": env.error,
         "round": w.round, "rounds": w.rounds,
         "entities": [{"id": e.id, "type": e.entity_type, "name": e.name, "props": encode(e.properties),
@@ -108,13 +128,15 @@ def take_snapshot(env: "Env") -> Dict[str, Any]:
     }
 
 
-def _matching_contract(contract: Any, snapshot: Mapping[str, Any]) -> Contract:
-    """The contract the snapshot was taken with: as given, or with the snapshot's arm applied."""
+def matching_contract(contract: Any, snapshot: Mapping[str, Any]) -> Tuple[Contract, Contract]:
+    """``(taken with, unarmed)``: the contract the snapshot was taken with — as given, or with the snapshot's
+    arm applied — and that contract before its arm."""
     from .api import apply_arm, parse
 
+    check_snapshot(snapshot)
     base = contract if isinstance(contract, Contract) else parse(contract)
     if snapshot.get("contract") == contract_hash(base):
-        return base
+        return base, base
     arm = snapshot.get("arm")
     if isinstance(arm, str) and arm in base.arms:
         try:
@@ -122,19 +144,38 @@ def _matching_contract(contract: Any, snapshot: Mapping[str, Any]) -> Contract:
         except ContractError:
             patched = None
         if patched is not None and snapshot.get("contract") == contract_hash(patched):
-            return patched
-    raise SnapshotError("the snapshot was taken with a different contract")
+            return patched, base
+    if arm is not None and arm not in base.arms:
+        raise SnapshotError(f"the snapshot's arm '{arm}' is not declared in this contract (arms: "
+                            f"{', '.join(base.arms) or 'none'}); restore it into the contract it was taken with")
+    raise SnapshotError("the snapshot was taken with a different contract (or this contract was changed since); "
+                        f"restore continues a run exactly under its own contract — {_FORK_HINT}")
 
 
-def restore_env(cls: Type[_E], contract: Any, snapshot: Mapping[str, Any], parallel: int = 8) -> _E:
+def check_snapshot(snapshot: Any) -> None:
+    """Refuse what is not a snapshot of this engine, or one whose seed, arm or inputs were edited."""
     if not isinstance(snapshot, Mapping):
         raise SnapshotError(f"a snapshot is a mapping (from env.snapshot()), got {type(snapshot).__name__}")
     version = snapshot.get("fg_env_snapshot")
     if version != SNAPSHOT_VERSION:
         raise SnapshotError(f"unsupported snapshot version {version!r} (this engine reads version {SNAPSHOT_VERSION})")
-    matched = _matching_contract(contract, snapshot)
+    if "run" in snapshot and snapshot["run"] != run_identity(snapshot.get("seed"), snapshot.get("arm"),
+                                                             snapshot.get("inputs")):
+        raise SnapshotError("the snapshot's seed, arm or inputs were changed after it was taken, so it no longer "
+                            f"describes one run; restore it unedited — {_FORK_HINT}")
+
+
+def restore_env(cls: Type[_E], contract: Any, snapshot: Mapping[str, Any], parallel: int = 8) -> _E:
+    matched, unarmed = matching_contract(contract, snapshot)
+    env = restore_state(cls, matched, snapshot, parallel)
+    env.origin.base, env.origin.unarmed = dict(snapshot), unarmed  # copies of the run replay from here
+    return env
+
+
+def restore_state(cls: Type[_E], contract: Contract, snapshot: Mapping[str, Any], parallel: int = 8) -> _E:
+    """A run rebuilt from a snapshot into ``contract``, which the caller has matched to it."""
     try:
-        return _restore(cls, matched, snapshot, parallel)
+        return _restore(cls, contract, snapshot, parallel)
     except SnapshotError:
         raise
     except (KeyError, TypeError, ValueError, IndexError, AttributeError) as exc:

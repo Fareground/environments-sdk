@@ -78,8 +78,11 @@ def test_without_a_fallback_the_run_fails_at_the_divergence_and_with_one_it_play
     changed = copy.deepcopy(PITCH)
     changed["actions"]["pitch"]["description"] = "Pitch your company to the panel."
     player = fg_env.participants.replay(path)
-    failed = host.load(changed, hosts=host.Hosts.replaying(result.host_tape), seed=1).run(player)
+    failed = host.load(changed, hosts=host.Hosts.replaying(result.host_tape), seed=1, exposures=True).run(player)
     assert failed.status == "failed" and failed.error == player.divergence["message"]
+    unchecked = fg_env.participants.replay(path)
+    assert "must record exposures" in host.load(PITCH, hosts=host.Hosts.replaying(result.host_tape), seed=1).run(
+        unchecked).error
     carried = fg_env.trace(path).replay(changed, fallback="idle", hosts={"judge": StubEvaluator()})
     assert not carried.ok and carried.divergence["what"] == "tools"
     assert carried.result.status == "completed" and carried.result.stats["actions"] == 0
@@ -89,23 +92,23 @@ def test_a_replay_names_recorded_turns_it_never_reached(tmp_path):
     _, path = _recording(tmp_path)
     player = fg_env.participants.replay(path)
     tape = fg_env.trace(path).result.host_tape
-    host.load(PITCH, hosts=host.Hosts.replaying(tape), seed=1).run(player, rounds=1)
+    host.load(PITCH, hosts=host.Hosts.replaying(tape), seed=1, exposures=True).run(player, rounds=1)
     assert player.divergence is None
     assert player.unplayed()["message"] == ("turn 2 (ana, round 2, stage play): the replay never reached this turn "
                                             "(1 recorded turn(s) were not played)")
 
 
-def test_a_recorded_timeout_cannot_be_replayed_and_says_so():
+def test_recorded_timeouts_replay_exactly_without_a_clock():
     def slow(wake):
         wake.update
         time.sleep(0.05)
         wake.call("say", {"text": "late"})
 
     recorded = fg_env.run(TOWN, slow, seed=1, exposures=True, time_limit=0.01)
-    assert recorded.stats["timeouts"] == 4
-    assert fg_env.trace(recorded).replay(TOWN).message == (
-        "turn 1 (ann, round 1, stage talk): this turn ran out of time when it was recorded, and a wall-clock timeout "
-        "cannot be replayed")
+    assert recorded.stats["timeouts"] == 4 and recorded.exposures["wakes"][0]["steps"] == [["update"], ["timeout"]]
+    replayed = fg_env.trace(recorded).replay(TOWN)
+    assert replayed.ok, replayed.message
+    assert replayed.result.events == recorded.events and replayed.result.stats == recorded.stats
 
 
 def test_cli_replay_exits_zero_when_it_matches_and_one_on_a_divergence(tmp_path, capsys):

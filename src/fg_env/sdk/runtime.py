@@ -6,16 +6,16 @@ turn — so a run can stop at any of them and continue exactly where it left off
 from __future__ import annotations
 
 import asyncio
-import math
 import threading
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Generator, List, Mapping, Optional, Tuple
 
 from ..entity import Entity
 from .actions import ACTION_BUDGET, ActionBook, stage_actions
-from .budget import Budget
+from .budget import Budget, is_seconds
 from .build import build_world
 from .contract import MAX_ROUNDS, Contract, StageSpec
+from .copying import Copying
 from .driving import Driver, run_on_worker
 from .effects import EffectRunner
 from .errors import InvariantViolation, RunError
@@ -23,9 +23,12 @@ from .expr import ExprError, compile_expr, shared_budget, truthy
 from .exposure import ExposureLog, asks_seen
 from .happenings import Happenings
 from .feeds import run_feeds
-from .measure import RunResult, Stats, compute_outputs, sample_metrics
+from .host.tape import tape_of
+from .measure import RunResult, Stats, sample_metrics
 from .perception import Perception
 from .previews import Previews
+from .replay import Origin
+from .returns import measured
 from .seeds import SeedTree
 from .snapshot import SNAPSHOT_VERSION, restore_env, take_snapshot
 from .template import compile_template
@@ -46,8 +49,9 @@ class _Point:
 _Steps = Generator[_Point, None, None]
 
 
-class Env:
-    """A loaded environment. Create with :func:`fg_env.load`; run with :meth:`run`."""
+class Env(Copying):
+    """A loaded environment. Create with :func:`fg_env.load`; run with :meth:`run`; copy with :meth:`clone`
+    and :meth:`fork`."""
 
     def __init__(self, contract: Contract, inputs: Dict[str, Any], seed: int, arm: Optional[str] = None,
                  parallel: int = 8, exposures: bool = False):
@@ -93,6 +97,7 @@ class Env:
         self._trigger_armed: Dict[int, bool] = {}
         self._triggers_fired: set = set()
         self._in_round = False
+        self.origin = Origin(contract)  # what copies of this run replay from (see replay.py)
         self._inspectable = any(self._inspect_rule(kind) is not False for kind in contract.types)
         self._check_invariants("build")
 
@@ -151,9 +156,8 @@ class Env:
             raise ValueError(f"rounds must be a whole number ≥ 0, got {rounds!r}")
         if rounds is not None and rounds > MAX_ROUNDS:
             raise ValueError(f"rounds must be at most {MAX_ROUNDS:,}, got {rounds:,}")
-        if time_limit is not None and not _seconds(time_limit):
+        if time_limit is not None and not is_seconds(time_limit):
             raise ValueError(f"time_limit must be a number of seconds > 0, got {time_limit!r}")
-        limits = Budget.parse(budget) if budget is not None else None
         if not self._running.acquire(blocking=False):
             raise RuntimeError("this environment is already running; run() cannot be called again until it returns")
         try:
@@ -164,7 +168,7 @@ class Env:
             self.driver.bind(participants)
             if time_limit is not None:
                 self.time_limit = float(time_limit)
-            self.budget = Budget.begin(limits, self.budget)
+            self.budget = Budget.begin(budget, self.budget)
             self.driver.loop = loop
             self._on_event = on_event
             try:
@@ -181,8 +185,6 @@ class Env:
             self._flush_events()
             return self.result()
         finally:
-            if self.budget is not None:
-                self.budget.pause()
             self._on_event = None
             self.driver.loop = None
             self._running.release()
@@ -208,12 +210,12 @@ class Env:
         return _plain(dict(self.world.props))
 
     def result(self) -> RunResult:
-        from .host.tape import tape_of
         outputs: Dict[str, Any] = {}
         issues: List[Dict[str, Any]] = []
-        if self.status != "failed":  # unfinished runs get provisional outputs
-            computed, problems = compute_outputs(self.contract, self.world)
-            outputs, issues = computed, [p.to_dict() for p in problems]
+        returns: Dict[str, float] = {}
+        if self.status != "failed":  # unfinished runs get provisional outputs and returns
+            outputs, problems, returns = measured(self.contract, self.world, self.finished)
+            issues = [p.to_dict() for p in problems]
         end = self.world.end_request or {}
         return RunResult(
             status=self.status, ended_by=self.ended_by, rounds=self.world.round, seed=self.seed, arm=self.arm,
@@ -223,9 +225,8 @@ class Env:
             agent_stats={key: self.agent_stats[key].to_dict() for key in sorted(self.agent_stats)},
             events=[e.to_dict() for e in self.world.log], time=self.world.time if self.world.continuous else None,
             exposures=self.world.exposures.to_dict() if self.world.exposures is not None else {},
-            frames=[dict(frame) for frame in self.previews.frames],
-            host_tape=tape_of(self) if self.world.exposures is not None else {},
-            budget=self.budget.to_dict(self) if self.budget is not None else {},
+            frames=[dict(frame) for frame in self.previews.frames], returns=returns,
+            host_tape=tape_of(self) if self.world.exposures is not None else {}, budget=Budget.report(self),
         )
 
     @property
@@ -275,14 +276,14 @@ class Env:
                 if stop is not None and stop(self):
                     self.status = "stopped"
                     return
+                self.origin.round_start(self)
                 self._cursor = self._round()
             elif self.status == "stopped":
                 self.status = "running"
             for _ in self._cursor:
-                if self.budget is not None and self.budget.enforce(self):
-                    return
-                if stop is not None and stop(self):
-                    self.status = "stopped"
+                self.origin.tape.points += 1
+                if (self.budget is not None and self.budget.enforce(self)) or (stop is not None and stop(self)):
+                    self.status = self.status if self.finished else "stopped"
                     return
             self._cursor = None
             completed += 1
@@ -602,7 +603,7 @@ class Env:
             raise RunError(str(exc), path) from None
         if value is None:
             return self.time_limit
-        if not _seconds(value):
+        if not is_seconds(value):
             raise RunError(f"must be a number of seconds > 0 (or null for the run's limit), got {value!r}", path)
         return float(value)
 
@@ -793,8 +794,3 @@ class Env:
             event = self.world.log[self._emitted]
             self._emitted += 1
             self._on_event(event.to_dict())
-
-
-def _seconds(value: Any) -> bool:
-    """Whether ``value`` is a usable time limit: a finite number of seconds above zero."""
-    return not isinstance(value, bool) and isinstance(value, (int, float)) and math.isfinite(value) and value > 0

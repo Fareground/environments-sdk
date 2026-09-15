@@ -288,7 +288,8 @@ def default_data_dir(source: ContractLike, data_dir: Union[str, "os.PathLike[str
 
 def load(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, seed: Optional[int] = None,
          arm: Optional[str] = None, strict: bool = False, parallel: int = 8,
-         data_dir: Union[str, "os.PathLike[str]", None] = None, hosts: Any = None, exposures: bool = False) -> Env:
+         data_dir: Union[str, "os.PathLike[str]", None] = None, hosts: Any = None, exposures: bool = False,
+         chance: Any = None) -> Env:
     """Check a contract and build a runnable :class:`Env`.
 
     Errors raise :class:`ContractError` listing every problem with a fix; ``strict=True``
@@ -297,13 +298,17 @@ def load(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, se
     ``hosts`` (a :class:`~fg_env.sdk.host.Hosts` or a mapping of host name to adapter) answers the
     judgment the contract asks of a host; build-time host work (personas) is done before round 1.
     ``exposures=True`` records what every agent was shown on every wake (``result.exposures``); a
-    contract that calls ``$seen`` records it anyway.
+    contract that calls ``$seen`` records it anyway. ``chance`` decides `chance` effects: ``"sampled"`` (the
+    default: drawn from the seeded stream) or a callable given each :class:`~fg_env.sdk.chance.ChanceNode`
+    that returns the index of the outcome to take (a fixed deal, duplicate formats); :func:`fg_env.game`
+    enumerates chance for search.
     """
     contract, issues = _check_all(source)
     blocking = [i for i in issues if i.severity == "error" or strict]
     if blocking or contract is None:
         raise ContractError(blocking or issues)
     merged: Dict[str, Any] = {}
+    unarmed = contract
     if arm is not None:
         contract = apply_arm(contract, arm)
         if contract.arms[arm].patch:
@@ -315,6 +320,11 @@ def load(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, se
     merged.update(inputs or {})
     resolved = resolve_inputs(contract, merged, default_data_dir(source, data_dir))
     env = Env(contract, resolved, mint_seed() if seed is None else seed, arm, parallel, exposures)
+    env.origin.unarmed = unarmed
+    if chance is not None:
+        from .branch import use_chance
+
+        use_chance(env, chance)
     if hosts is not None:
         from .host.api import attach
 

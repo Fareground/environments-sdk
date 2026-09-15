@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 from .actions import ToolSpec
 
 if TYPE_CHECKING:
+    from .branch import Branch
     from .turn import Turn
 
 __all__ = ["Wake", "ToolResult", "END_TURN"]
@@ -87,16 +88,22 @@ class Wake:
     @property
     def brief(self) -> str:
         """Static context: situation, rules, role. Identical across this agent's turns (cacheable)."""
+        if self._turn._brief is None:
+            self._turn.record("brief")
         return self._turn.brief
 
     @property
     def update(self) -> str:
         """Dynamic context: time, why now, what happened since the last turn, declared views."""
+        if self._turn._update is None:
+            self._turn.record("update")
         return self._turn.update
 
     @property
     def tools(self) -> List[ToolSpec]:
         """Tools legal right now. Recomputed after every call."""
+        if not self._turn._offered:
+            self._turn.record("tools")
         return self._offer(self._turn.tools())
 
     def _offer(self, tools: List[ToolSpec]) -> List[ToolSpec]:
@@ -120,29 +127,51 @@ class Wake:
 
     def call(self, name: str, args: Optional[Dict[str, Any]] = None) -> ToolResult:
         """Execute one tool call. Invalid calls cost nothing but a call and return what to fix."""
+        self._turn.record("call", name, _copy(args))
         return self._turn.call(name, args)
 
     def end(self) -> ToolResult:
         """Finish the turn."""
-        return self._turn.call(END_TURN, {})
+        return self.call(END_TURN, {})
+
+    def clone(self, *, participants: Any = None, seed: Optional[int] = None, same_luck: bool = False) -> "Branch":
+        """A private copy of the whole run, paused exactly here in this turn, to look ahead on.
+
+        Try tool calls on it (``branch.call``), let it play on (``branch.run`` or ``branch.advance``) and
+        read the outcome; the real run's state, random streams, turn numbers and log never change. The
+        copy pauses for this agent's turns; everyone else is played by ``participants`` (default: the
+        run's named participants, else each type's policy, else random). Wall-clock time limits do not
+        apply in a copy.
+
+        Its luck is fresh: draws from here on come from a stream derived from this turn (or ``seed``), so
+        looking ahead never reveals the real run's future draws, and every clone taken in this turn shares
+        that stream (compare moves under the same luck). ``same_luck=True`` keeps the real run's streams.
+        The copy holds the whole world, hidden state included: honest search in a game of hidden
+        information reads only what the agent may see.
+        """
+        from .branch import clone_turn
+
+        return clone_turn(self._turn, participants=participants, seed=seed, same_luck=same_luck)
 
     def record_usage(self, *, llm_calls: int = 0, input_tokens: int = 0, output_tokens: int = 0,
                      cache_read_tokens: int = 0, cache_write_tokens: int = 0, llm_retries: int = 0,
                      forfeits: int = 0) -> None:
         """Add a model's real usage to the run's statistics (the built-in LLM participants call this)."""
         stats = self._turn.stats
-        for name, value in (("llm_calls", llm_calls), ("input_tokens", input_tokens), ("output_tokens", output_tokens),
-                            ("cache_read_tokens", cache_read_tokens), ("cache_write_tokens", cache_write_tokens),
-                            ("llm_retries", llm_retries), ("forfeits", forfeits)):
+        counts = (("llm_calls", llm_calls), ("input_tokens", input_tokens), ("output_tokens", output_tokens),
+                  ("cache_read_tokens", cache_read_tokens), ("cache_write_tokens", cache_write_tokens),
+                  ("llm_retries", llm_retries), ("forfeits", forfeits))
+        for name, value in counts:
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
                 raise ValueError(f"{name} must be a whole number ≥ 0, got {value!r}")
+        self._turn.record("usage", {name: value for name, value in counts if value})
+        for name, value in counts:
             setattr(stats, name, getattr(stats, name) + value)
         if self._turn.exposure is not None:
             with self._turn.env._lock:
                 self._turn.exposure.used({"llm_calls": llm_calls, "input_tokens": input_tokens,
                                           "output_tokens": output_tokens, "cache_read_tokens": cache_read_tokens,
-                                          "cache_write_tokens": cache_write_tokens, "llm_retries": llm_retries,
-                                          "forfeits": forfeits})
+                                          "cache_write_tokens": cache_write_tokens})
 
     @property
     def done(self) -> bool:
@@ -168,3 +197,12 @@ class Wake:
 
     def __repr__(self) -> str:
         return f"<Wake {self.entity_id} round {self.round} stage {self.stage!r}{' done' if self.done else ''}>"
+
+
+def _copy(value: Any) -> Any:
+    """A copy of call arguments as recorded on the tape (the caller may reuse its own objects)."""
+    if isinstance(value, list):
+        return [_copy(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _copy(item) for key, item in value.items()}
+    return value

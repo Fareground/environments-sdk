@@ -10,15 +10,19 @@ its content hash, so a brief read on a hundred turns costs one copy. A wake reco
 
     {"wake": 0, "entity": "ana", "type": "seller", "round": 1, "stage": "pricing", "turn": 1,
      "kind": "turn" | "reaction", "reason": "It is your turn.", "time": 3.5, "time_limit": 30,
-     "brief": {"hash", "chars", "tokens", "after"?} | null,   # null: never read; after: calls made before it
-     "update": {"hash", "chars", "tokens", "after"?} | null,
+     "brief": {"hash", "chars", "tokens"} | null,       # null: never read
+     "update": {"hash", "chars", "tokens"} | null,
      "views": [{"name", "hash", "look": true?}],         # view blocks shown in the update or by look
      "news": [seq, ...],                                 # log events delivered as "Since your last turn"
      "entries": [entry seq, ...],                        # record entries shown (as news or in a view)
      "view_events": [seq, ...],                          # log events listed inside views
      "tools": [name, ...], "tool_sets": [hash, ...],     # names offered; each distinct definition set
-     "calls": [{"tool", "args", "ok", "ended", "result": hash, "error"?, "offered"?}],  # offered: last tool set shown
-     "invalid": 0, "timed_out": false, "undone": 0, "usage": {...}?}
+     "calls": [{"tool", "args", "ok", "ended", "result": hash, "error"?}],
+     "invalid": 0, "timed_out": false, "undone": 0, "usage": {...}?,
+     "steps": [["brief"], ["update"], ["tools"], ["call", tool, args], ["usage", {...}], ["timeout"], ...]}
+
+``steps`` is the turn's entry on the engine's tape (:mod:`fg_env.sdk.replay`): everything the participant did
+through its wake, in order — first reads, calls, reported usage, a timeout — which is what a replay plays back.
 
 Only what was rendered counts: a coded participant that never reads its update was shown nothing.
 """
@@ -37,7 +41,7 @@ if TYPE_CHECKING:
     from .session import ToolResult
     from .turn import Turn
 
-__all__ = ["Shown", "Exposure", "ExposureLog", "asks_seen", "text_hash", "tokens", "tools_text"]
+__all__ = ["Shown", "Exposure", "ExposureLog", "asks_seen", "text_hash", "tokens"]
 
 #: Hex digits kept from a text's SHA-256: unique for any realistic run, short enough to read.
 HASH_DIGITS = 16
@@ -50,11 +54,6 @@ def asks_seen(contract: "Contract") -> bool:
 
 def text_hash(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8", "surrogatepass")).hexdigest()[:HASH_DIGITS]
-
-
-def tools_text(tools: Iterable["ToolSpec"]) -> str:
-    """The text a set of tool definitions is stored under (its hash names the set)."""
-    return json.dumps([t.to_dict() for t in tools], sort_keys=True, ensure_ascii=False)
 
 
 def tokens(text: str) -> int:
@@ -101,10 +100,7 @@ class Exposure:
         self._deferred: List[Shown] = []
 
     def _text(self, text: str) -> Dict[str, Any]:
-        shown: Dict[str, Any] = {"hash": self.log.keep(text), "chars": len(text), "tokens": tokens(text)}
-        if self.record["calls"]:
-            shown["after"] = len(self.record["calls"])
-        return shown
+        return {"hash": self.log.keep(text), "chars": len(text), "tokens": tokens(text)}
 
     def read_brief(self, text: str) -> None:
         self.record["brief"] = self._text(text)
@@ -137,7 +133,7 @@ class Exposure:
         for tool in listed:
             if tool.name not in record["tools"]:
                 record["tools"].append(tool.name)
-        digest = self.log.keep(tools_text(listed))
+        digest = self.log.keep(json.dumps([t.to_dict() for t in listed], sort_keys=True, ensure_ascii=False))
         if not record["tool_sets"] or record["tool_sets"][-1] != digest:
             record["tool_sets"].append(digest)
 
@@ -147,8 +143,6 @@ class Exposure:
         error = result.data.get("error") if result.data else None
         if error:
             call["error"] = error
-        if self.record["tool_sets"]:
-            call["offered"] = self.record["tool_sets"][-1]
         self.record["calls"].append(call)
 
     def used(self, counts: Mapping[str, int]) -> None:
@@ -163,6 +157,8 @@ class Exposure:
         record["invalid"] = turn.stats.invalid_calls
         record["timed_out"] = turn.timed_out
         record["undone"] = turn.stats.undone_turns
+        taped = turn.env.origin.tape.turns.get(turn.number)
+        record["steps"] = [_jsonable(list(step)) for step in taped[1]] if taped else []
         for shown in self._deferred:
             self.log.index(record["entity"], shown)
         self._deferred.clear()

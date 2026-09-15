@@ -11,6 +11,7 @@ Built in:
 from __future__ import annotations
 
 import json
+import math
 import random
 import threading
 import time
@@ -74,6 +75,12 @@ def sample_args(schema: Mapping[str, Any], rng: random.Random) -> Dict[str, Any]
             low = prop.get("minimum", 0)
             high = prop.get("maximum", max(low, 0) + 10)
             if high < low:
+                continue
+            step = prop.get("multipleOf")
+            if step:
+                first, last = math.ceil(low / step), math.floor(high / step)
+                if last >= first:
+                    args[name] = rng.randint(first, last) * step
                 continue
             args[name] = rng.randint(int(low), int(high)) if kind == "integer" else round(rng.uniform(low, high), 2)
         elif kind == "boolean":
@@ -227,11 +234,12 @@ def resolve_participant(value: Any, contract: "Contract", seed: int) -> Particip
 
 
 def replay(recording: Any, fallback: Any = None) -> Participant:
-    """A participant that makes a recorded run's tool calls again, turn by turn, checking every wake against the
-    recording (``recording``: a result with exposures, its dict, a saved file, or a trace). On the first difference
-    the run fails with the divergence, or — given ``fallback`` — that participant plays on. Usually you want
-    ``fg_env.trace(recording).replay(contract)``, which also replays the host answers and compares the outcome."""
-    from .trace.replay import Replayer
+    """A participant that plays a recorded run's steps again, turn by turn, checking every wake against the
+    recording (``recording``: a result with exposures, its dict, a saved file, or a trace); the run it plays in must
+    record exposures. On the first difference the run fails with the divergence, or — given ``fallback`` — that
+    participant plays on. Usually you want ``fg_env.trace(recording).replay(contract)``, which also replays the host
+    answers and compares the outcome."""
+    from .trace.rerun import Replayer
 
     return Replayer(recording, fallback)
 

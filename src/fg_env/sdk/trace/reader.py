@@ -12,7 +12,7 @@ from ..result_file import load_result, result_from_dict
 from . import render
 
 if TYPE_CHECKING:
-    from .replay import ReplayResult
+    from .rerun import ReplayResult
 
 __all__ = ["Trace", "TraceView", "trace"]
 
@@ -161,9 +161,9 @@ class Trace:
 
     def replay(self, contract: Any, *, fallback: Any = None, hosts: Optional[Mapping[str, Any]] = None,
                data_dir: Any = None) -> "ReplayResult":
-        """Run ``contract`` again from the recording (its seed, inputs, arm, calls and host answers) and report the
-        first divergence; see :func:`fg_env.sdk.trace.replay.replay_run`."""
-        from .replay import replay_run
+        """Run ``contract`` again from the recording (its seed, inputs, arm, steps and host answers) and report the
+        first divergence; see :func:`fg_env.sdk.trace.rerun.replay_run`."""
+        from .rerun import replay_run
 
         return replay_run(self, contract, fallback=fallback, hosts=hosts, data_dir=data_dir)
 

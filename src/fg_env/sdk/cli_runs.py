@@ -110,7 +110,8 @@ def add_run_commands(sub: Any) -> None:
                                                              "(default: the background)")
     p.add_argument("--seat", action="append", metavar="ENTITY_ID", help="a seat the focal participant may take "
                                                                         "(default: every starting agent)")
-    p.add_argument("--score", help="output name or expression over $outputs and $seat (default: the winner)")
+    p.add_argument("--score", help="output name or expression over $outputs and $seat "
+                                   "(default: the game's returns, else the winner)")
     p.add_argument("--mode", action="append", metavar="NAME=SHARE", help="share of the seats focal takes, "
                                                                          "e.g. resident=0.75 (default: all seats)")
     p.add_argument("--runs", type=int, default=10, help="runs per scenario and mode")

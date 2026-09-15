@@ -4,12 +4,15 @@ The expected scores come from the public-goods payoff worked by hand: each of fo
 with 10, gives 0 (free ride) or 10 (cooperate), and the pot is multiplied and shared by all four.
 """
 import json
+import re
 
 import pytest
 
 import fg_env
 from fg_env.__main__ import main
 from fg_env.sdk.analysis.runner import AnalysisError
+
+from game_contracts import NIM
 
 ROUNDS = 3
 PUBLIC_GOODS = {
@@ -53,6 +56,22 @@ def test_focal_scores_and_paired_differences_match_the_hand_computed_payoffs():
         assert len(pair["seats"]) == (3 if pair["mode"] == "resident" else 1)
         assert set(pair["seat_scores"]) == set(pair["seats"])
     assert "resident" in result.summary() and "clear" in result.summary()
+
+
+def _nim_player(choose):
+    def play(wake):
+        stones = int(re.search(r"Stones left: (\d+)", wake.update).group(1))
+        wake.call("take", {"count": choose(stones)})
+
+    return play
+
+
+def test_without_a_score_seats_are_scored_by_the_games_returns():
+    optimal, one_at_a_time = _nim_player(lambda stones: stones % 4 or 1), _nim_player(lambda stones: 1)
+    # Six stones, Ann first. Leaving a multiple of four wins (return +1); taking one each lets Bob take the last (−1).
+    result = fg_env.evaluate(NIM, focal=optimal, background=one_at_a_time, seats=["a"], inputs={"stones": 6}, runs=2)
+    assert result.overall["focal"]["mean"] == 1 and result.overall["baseline"]["mean"] == -1
+    assert result.overall["difference"]["mean"] == 2
 
 
 def test_the_seats_are_drawn_from_the_seed_so_every_candidate_meets_the_same_draw():
