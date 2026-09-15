@@ -14,7 +14,13 @@ Modules:
   ``pickup_items``).
 * :mod:`.econ_inventory` — ``inventory``; :mod:`.econ_ledger` — ``ledger`` (with loans).
 * :mod:`.econ_production` — ``production`` (recipes, jobs, skills).
+* :mod:`.econ_subscriptions` — ``subscriptions``; :mod:`.econ_bookings` — ``bookings`` (slots, queues, waitlists).
+* :mod:`.econ_negotiation` — ``negotiation`` (multi-issue offers, binding deals, duties, breach).
+* :mod:`.econ_labor` — ``labor`` (postings, hiring, wages, firms); :mod:`.econ_supply_chain` — ``supply_chain``.
 """
 from __future__ import annotations
 
-from . import econ_assets, econ_inventory, econ_ledger, econ_production  # noqa: F401  (register ops, functions and kinds)
+from . import (  # noqa: F401  (register ops, functions and kinds)
+    econ_assets, econ_bookings, econ_inventory, econ_labor, econ_ledger, econ_negotiation, econ_production,
+    econ_subscriptions, econ_supply_chain,
+)

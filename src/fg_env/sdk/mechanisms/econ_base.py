@@ -9,25 +9,24 @@ from __future__ import annotations
 
 import math
 import re
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Type, TypeVar, Union, cast
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Type, Union, cast
 
 from pydantic import BaseModel, ValidationError
 
 from ...entity import Entity
 from ..errors import RunError
+from ..expr import ExprError, compile_expr
 from ..registry import MechanismError
 
 __all__ = [
-    "EPS", "CONFIG_MODELS", "register_config", "config_of", "uses_of", "type_list", "require_types",
-    "top_types", "entity_of", "maybe_entity", "whole", "amount", "bump", "choice_param", "declared_use",
-    "NAME", "to_ids", "money", "emit_to", "run_effects", "as_list", "props", "guarded", "cached", "check_names",
+    "EPS", "NAME", "CONFIG_MODELS", "register_config", "config_of", "uses_of", "cached", "type_list", "require_types",
+    "require_currency", "top_types", "declared_use", "guarded", "choice_param", "entity_of", "maybe_entity", "props",
+    "to_ids", "whole", "amount", "bump", "money", "emit_to", "compiles",
 ]
 
 #: Tolerance for money comparisons (float sums).
 EPS = 1e-9
 NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
-
-M = TypeVar("M", bound=BaseModel)
 
 #: kind → config model, registered by each economy module so runtime lookups can parse any use.
 CONFIG_MODELS: Dict[str, Type[BaseModel]] = {}
@@ -104,6 +103,14 @@ def _lineage(contract: Mapping[str, Any], name: str) -> List[str]:
     return chain
 
 
+def require_currency(contract: Mapping[str, Any], currency: str, field: str = "currency") -> None:
+    """Fail expansion unless some ledger declares ``currency``."""
+    for use in (contract.get("mechanisms") or {}).values():
+        if isinstance(use, Mapping) and use.get("kind") == "ledger" and currency in (use.get("currencies") or {}):
+            return
+    raise MechanismError(f"'{currency}' is not a declared currency", "declare a ledger with it", field)
+
+
 def top_types(contract: Mapping[str, Any], names: Sequence[str]) -> List[str]:
     """``names`` without any type whose ancestor is also listed (so no entity is counted twice)."""
     out = []
@@ -123,6 +130,15 @@ def declared_use(contract: Mapping[str, Any], name: Optional[str], kind: str, fi
                              f"declare one, e.g. \"mechanisms\": {{\"{name or kind}\": {{\"kind\": \"{kind}\", ...}}}}"
                              + (f" (declared: {', '.join(declared)})" if declared else ""), field)
     return dict(use)
+
+
+def compiles(value: Any, field: str) -> None:
+    """Fail expansion when a config value that is an expression does not compile."""
+    if isinstance(value, str) and "$" in value:
+        try:
+            compile_expr(value)
+        except ExprError as exc:
+            raise MechanismError(f"is not a valid expression: {exc.detail}", f"in `{value}`", field) from None
 
 
 def guarded(expr: str, *params: str) -> str:
@@ -177,10 +193,6 @@ def to_ids(value: Any) -> List[str]:
     return [item.id if isinstance(item, Entity) else str(item) for item in items]
 
 
-def as_list(value: Any) -> List[Any]:
-    return list(value) if isinstance(value, (list, tuple)) else [] if value is None else [value]
-
-
 def whole(value: Any, where: str, what: str = "a quantity") -> int:
     if isinstance(value, float) and value.is_integer():
         value = int(value)
@@ -209,6 +221,7 @@ def bump(world: Any, prop: str, key: str, delta: float, group: Optional[str] = N
 
 
 def money(value: Any) -> str:
+    """An amount as compact text (at most 2 decimals). Callers name the currency: money is not always dollars."""
     from ..template import format_value
 
     if isinstance(value, (int, float)) and not isinstance(value, bool):
@@ -227,15 +240,3 @@ def emit_to(world: Any, kind: str, text: str, to: Sequence[str], data: Optional[
         for entity_id in recipients:
             world.request_wake(entity_id, why)
 
-
-def run_effects(runner: Any, effects: Optional[List[Any]], vars: Dict[str, Any], path: str) -> None:
-    if effects:
-        runner.run(effects, dict(vars), path)
-
-
-def check_names(effect: Mapping[str, Any], key: str, allowed: Sequence[str], path: str, what: str) -> List[Tuple[str, str, str]]:
-    """Static check of a literal name (not an expression) against the declared names."""
-    value = effect.get(key)
-    if isinstance(value, str) and "$" not in value and value not in allowed:
-        return [(f"{path}.{key}", f"'{value}' is not a declared {what}", f"declared: {', '.join(allowed) or 'none'}")]
-    return []

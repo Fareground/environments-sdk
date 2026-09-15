@@ -41,7 +41,8 @@ class InventoryConfig(BaseModel):
     items: Dict[str, ItemSpec] = Field(..., min_length=1, description="{item: {unique, value, size, unit, shelf_life, decay, props, consumable, on_consume}}.")
     prop: Optional[str] = Field(None, description="Holder property with the stackable goods {item: qty}; default the mechanism's name.")
     capacity: Union[float, str, None] = Field(None, description="Space each holder has (number or expression); unlimited when omitted.")
-    start: Dict[str, int] = Field(default_factory=dict, description="Goods every holder starts with {item: qty} (entity props override).")
+    start: Dict[str, Union[int, str]] = Field(
+        default_factory=dict, description="Goods every holder starts with {item: qty or expression} (entity props override).")
     tools: List[Literal["give", "consume", "drop", "pickup"]] = Field(
         ["give", "consume"], description="Tools generated for agent holders: give, consume (consumable items), drop and pickup (needs a space).")
     give_to: str = Field("$it.id != $actor.id", description="Which holders an agent may give goods to ($actor, $it).")
@@ -77,6 +78,13 @@ def baseline(contract: Mapping[str, Any], holders: List[str], assets_: List[str]
             terms.append(f"$loose_total('{loose}', '{asset}')")
         parts.append(f"'{asset}': {' + '.join(terms)}")
     return "{" + ", ".join(parts) + "}"
+
+
+def _start_default(start: Dict[str, Union[int, str]]) -> Any:
+    """Starting goods: a literal map, or an expression building one when a quantity is an expression."""
+    if not any(isinstance(qty, str) for qty in start.values()):
+        return dict(start)
+    return "{" + ", ".join(f"'{item}': ({qty})" for item, qty in start.items()) + "}"
 
 
 def _other_names(contract: Mapping[str, Any], name: str) -> Dict[str, str]:
@@ -129,7 +137,7 @@ def _expand_inventory(name: str, config: InventoryConfig, contract: Mapping[str,
             if item not in config.items or config.items[item].unique:
                 raise MechanismError(f"needs: '{item}' is not a stackable item of this inventory", None, f"needs.{type_name}.{item}")
 
-    holder_props: Dict[str, Any] = {prop: {"type": "map", "default": dict(config.start),
+    holder_props: Dict[str, Any] = {prop: {"type": "map", "default": _start_default(config.start),
                                            "description": f"Goods held ({name}): {{item: quantity}}."}}
     if config.capacity is not None:
         holder_props[f"{prop}_capacity"] = {"type": "number", "default": config.capacity, "min": 0,

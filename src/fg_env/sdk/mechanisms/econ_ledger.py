@@ -11,7 +11,7 @@ from ..registry import MechanismError, effect_op, mechanism
 from ..world import Abort
 from .econ_assets import balance, move_money
 from .econ_base import (NAME, amount, props, choice_param, config_of, emit_to, entity_of, guarded, money, register_config,
-                        require_types, run_effects, type_list, whole)
+                        require_types, type_list, whole)
 from .econ_inventory import agent_types, baseline
 
 __all__ = ["LedgerConfig"]
@@ -208,6 +208,9 @@ def _loans(name: str, config: LedgerConfig, loans: LoanSpec, contract: Mapping[s
             f"{name}_lending": {"type": "bool", "default": True, "description": "Whether you take new borrowers."}}
     fragment["world"][f"{name}_loans"] = {"type": "map", "default": {}, "description": "Loan totals: made, repaid, defaulted, written_off."}
     fragment["events"].append({"name": f"{name}: loans", "phase": "end", "do": [{"ledger_tick": name}]})
+    if loans.on_default:
+        fragment["blocks"] = {f"{name}_on_default": {"args": ["loan", "lender", "borrower", "unpaid"], "do": list(loans.on_default),
+                                                  "description": "Runs when a loan defaults."}}
     lender, lender_ref = choice_param(lenders, f"$it.{name}_lending and $it.id != $actor.id", "Lender (see their posted rate).")
     lending_agents, borrowing_agents = agent_types(contract, lenders), agent_types(contract, borrowers)
     if borrowing_agents:
@@ -347,8 +350,10 @@ def _ledger_tick(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], wher
             emit_to(world, f"{name}_default", f"{borrower.name} defaulted on {money(unpaid)} owed to {lender.name}.",
                     [borrower.id, lender.id], {"loan": loan.id, "unpaid": unpaid},
                     why=f"A loan between {borrower.name} and {lender.name} defaulted.")
-            run_effects(runner, config.loans.on_default,
-                        {"loan": loan, "lender": lender, "borrower": borrower, "unpaid": unpaid}, f"mechanisms.{name}.loans.on_default")
+            if config.loans.on_default:
+                args = {"loan": loan, "lender": lender, "borrower": borrower, "unpaid": unpaid}
+                runner.run([{"block": f"{name}_on_default", "with": {k: f"${k}" for k in args}}], args,
+                           f"mechanisms.{name}.loans.on_default")
         else:
             emit_to(world, f"{name}_overdue", f"Your loan from {lender.name} is overdue: {money(unpaid)} still owed.",
                     [borrower.id], why="A loan you owe is overdue.")
