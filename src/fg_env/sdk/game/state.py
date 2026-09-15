@@ -7,21 +7,27 @@ Legal calls are listed once per position: a state remembers them, its clones inh
 game remembers them by the decisions that led there (the same decisions always reach the same
 state). A random playout can skip listing altogether: :meth:`GameState.sample_legal_action` tries
 calls in random order and dry-runs only until one is legal.
+
+The run behind a state is stepped on the caller's own thread where the contract allows it, and a clone
+copies it directly; otherwise it is piloted on a thread of its own (:mod:`.runs`). Both behave identically.
 """
 from __future__ import annotations
 
 import hashlib
 import json
 import random
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 from ..branch import Branch, outcome_index
+from ..driving import Unpausable
 from ..errors import ContractError, Issue, RunError
-from ..returns import seat_returns, seat_rewards
-from ..session import END_TURN
+from ..returns import seat_rewards
+from ..run_copy import NotCopyable
+from ..session import END_TURN, ToolResult
 from ..snapshot import encode
 from ..turn import Turn
 from .observe import digest, information_state, observation_struct, observation_text, state_key
+from .runs import Run, ThreadedRun, replayed
 from .space import Action, legal_calls, sample_call
 
 if TYPE_CHECKING:
@@ -40,12 +46,11 @@ class GameState:
     """One state of a :class:`~fg_env.sdk.game.Game`. ``apply_action`` changes it; ``child`` and ``clone``
     give new independent states. Players are seat indices (``game.players[i]`` is the entity id)."""
 
-    def __init__(self, game: "Game", branch: Branch, history: List[Dict[str, Any]],
+    def __init__(self, game: "Game", run: Union[Branch, Run], history: List[Dict[str, Any]],
                  previous: Optional[List[float]] = None, legal: Optional[Dict[int, Legal]] = None,
                  path: bytes = b""):
         self.game = game
-        self._branch = branch
-        self._pilot = branch._pilot
+        self._run: Run = ThreadedRun(run, game._prefetch) if isinstance(run, Branch) else run
         self._history = history
         self._previous = previous
         self._legal: Dict[int, Legal] = dict(legal) if legal else {}
@@ -57,14 +62,15 @@ class GameState:
     # -- whose decision -----------------------------------------------------------------------------
 
     def is_terminal(self) -> bool:
-        if self._pilot.pause is not None:
+        if self._run.pause is not None:
             return False
-        if self._pilot.env.status == "failed":
-            raise RunError(f"the game's run failed: {self._pilot.env.error}", "game")
+        status, error = self._run.read(lambda env: (env.status, env.error))
+        if status == "failed":
+            raise RunError(f"the game's run failed: {error}", "game")
         return True
 
     def is_chance_node(self) -> bool:
-        pause = self._pilot.pause
+        pause = self._run.pause
         return pause is not None and pause.kind == "chance"
 
     def is_simultaneous_node(self) -> bool:
@@ -90,13 +96,12 @@ class GameState:
             return []
         if not turn.staged or self.game.turn_based:
             return [self.game.seat(turn.actor.id)]
-        env = self._pilot.env
-        actors = self._pilot.read(lambda: [t.actor.id for t in env.origin.staged if not t.done])
+        actors = self._run.read(lambda env: [t.actor.id for t in env.origin.staged if not t.done])
         return [self.game.seat(actor) for actor in actors if actor in self.game.players]
 
     def chance_outcomes(self) -> List[Tuple[int, float]]:
         """``(outcome, probability)`` for every possible outcome of the chance node."""
-        pause = self._pilot.pause
+        pause = self._run.pause
         if pause is None or pause.kind != "chance" or pause.node is None:
             return []
         return [(outcome.index, outcome.p) for outcome in pause.node.possible]
@@ -132,13 +137,13 @@ class GameState:
         known = self._legal.get(seat) or self.game._remembered(self._path, seat)
         if known is not None:
             return rng.choice(known[0]) if known[0] else None
-        env, actor_id, game = self._pilot.env, self.game.players[seat], self.game
+        actor_id, game = self.game.players[seat], self.game
 
-        def work() -> Optional[Tuple[str, Dict[str, Any]]]:
-            turn = self._seat_turn(actor_id)
+        def work(env: Any) -> Optional[Tuple[str, Dict[str, Any]]]:
+            turn = self._seat_turn(env, actor_id)
             return sample_call(env, turn, rng, limit=game.limit, dry_run=game.dry_run) if turn is not None else None
 
-        found = self._pilot.read(work)
+        found = self._run.read(work)
         if found is None:
             return None
         action = self._with_id(*found)
@@ -147,7 +152,7 @@ class GameState:
 
     def action_to_string(self, player: int, action: ActionLike) -> str:
         if player == CHANCE:
-            pause = self._pilot.pause
+            pause = self._run.pause
             if pause is not None and pause.node is not None:
                 index = outcome_index(pause.node, action if isinstance(action, (int, str)) else -1)
                 return f"{pause.node.name}: {pause.node.outcomes[index].label}"
@@ -160,12 +165,12 @@ class GameState:
         if self.is_terminal():
             raise ValueError("the game is over")
         if self.is_chance_node():
-            pause = self._pilot.pause
+            pause = self._run.pause
             assert pause is not None and pause.node is not None
             index = outcome_index(pause.node, action.id if isinstance(action, Action) and action.id is not None
                                   else action)  # type: ignore[arg-type]
             self._before()
-            self._pilot.choose(index)
+            self._decide(lambda run: run.choose(index))
             self._record({"chance": index, "outcome": pause.node.outcomes[index].label})
             self._changed()
             return
@@ -203,27 +208,31 @@ class GameState:
         return state
 
     def clone(self) -> "GameState":
-        return GameState(self.game, self._branch.clone(), list(self._history),
+        try:
+            run = self._run.clone()
+        except NotCopyable:
+            run = replayed(self.game, self._history)
+        return GameState(self.game, run, list(self._history),
                          list(self._previous) if self._previous is not None else None, self._legal, self._path)
 
     # -- scores --------------------------------------------------------------------------------------
 
     def returns(self) -> List[float]:
         """Each seat's return so far (the contract's ``game.returns``)."""
-        contract = self.game.contract
-        if contract.game is None or contract.game.returns is None:
+        game = self.game
+        if game.contract.game is None or game.contract.game.returns is None:
             raise ContractError([Issue("game.returns", "is not declared, so the game has no returns",
                                        'declare what each seat scores, e.g. "game": {"returns": "$actor.chips"}')])
-        env = self._pilot.env
-        values = self._pilot.read(lambda: seat_returns(contract, env.world, self.game.players))
-        return [values[seat] for seat in self.game.players]
+        run = self._run
+        values = run.read_prefetched() if run.prefetch is not None else run.read(game._returns_of)
+        return [values[seat] for seat in game.players]
 
     def rewards(self) -> List[float]:
         """Each seat's reward for the last decision: the contract's ``game.rewards``, else the change in returns."""
-        contract, env = self.game.contract, self._pilot.env
-        declared = self._pilot.read(lambda: seat_rewards(contract, env.world, self.game.players))
+        contract, players = self.game.contract, self.game.players
+        declared = self._run.read(lambda env: seat_rewards(contract, env.world, players))
         if declared is not None:
-            return [declared[seat] for seat in self.game.players]
+            return [declared[seat] for seat in players]
         now = self.returns()
         if self._previous is None:
             return [0.0] * len(now)
@@ -240,21 +249,18 @@ class GameState:
         if form not in ("text", "struct"):
             raise ValueError(f"form must be 'text' or 'struct', got {form!r}")
         actor_id = self.game.players[player]
-        env = self._pilot.env
         turn = self._turn()
         actions = [{"id": a.id, "tool": a.tool, "args": dict(a.args)} for a in self.legal_tool_calls(player)] \
             if form == "struct" and player in self.acting_players() else None
-        actor = env.world.entities[actor_id]
         if form == "text":
-            return self._pilot.read(lambda: observation_text(env, actor, turn))
-        return self._pilot.read(lambda: observation_struct(env, actor, turn, actions))
+            return self._run.read(lambda env: observation_text(env, env.world.entities[actor_id], turn))
+        return self._run.read(lambda env: observation_struct(env, env.world.entities[actor_id], turn, actions))
 
     def information_state_string(self, player: int) -> str:
         """Perfect recall of what the seat was told and did, then what it sees now."""
-        env = self._pilot.env
-        actor = env.world.entities[self.game.players[player]]
+        actor_id = self.game.players[player]
         turn = self._turn()
-        return str(self._pilot.read(lambda: information_state(env, actor, turn)))
+        return str(self._run.read(lambda env: information_state(env, env.world.entities[actor_id], turn)))
 
     def information_state(self, player: int) -> str:
         """A key for the seat's information state (equal keys: the seat cannot tell the states apart)."""
@@ -262,8 +268,7 @@ class GameState:
 
     def state_key(self) -> str:
         """A key for the world and the pending decision (equal keys: the same position)."""
-        env = self._pilot.env
-        return str(self._pilot.read(lambda: state_key(env, self._pending())))
+        return str(self._run.read(lambda env: state_key(env, self._pending(env))))
 
     # -- history -------------------------------------------------------------------------------------
 
@@ -280,14 +285,14 @@ class GameState:
 
     def result(self) -> Any:
         """The run's :class:`RunResult` so far."""
-        return self._branch.result()
+        return self._run.result()
 
     def entity(self, entity_id: str) -> Optional[Dict[str, Any]]:
-        return self._branch.entity(entity_id)
+        return self._run.entity(entity_id)
 
     def close(self) -> None:
-        """Discard the state's run (its thread stops); also done when the state is garbage collected."""
-        self._branch.close()
+        """Discard the state's run (a piloted run's thread stops); also done when the state is garbage collected."""
+        self._run.close()
 
     def __str__(self) -> str:
         if self.is_terminal():
@@ -303,7 +308,7 @@ class GameState:
         return self.returns() if contract.game is not None and contract.game.returns is not None else None
 
     def _turn(self) -> Optional[Turn]:
-        pause = self._pilot.pause
+        pause = self._run.pause
         return pause.wake._turn if pause is not None and pause.kind == "turn" and pause.wake is not None else None
 
     def _seat(self, player: Optional[int]) -> int:
@@ -325,13 +330,13 @@ class GameState:
             return known
         known = self.game._remembered(self._path, seat)
         if known is None:
-            env, actor_id, game = self._pilot.env, self.game.players[seat], self.game
+            actor_id, game = self.game.players[seat], self.game
 
-            def work() -> Tuple[List[Tuple[str, Dict[str, Any]]], Dict[str, str]]:
-                turn = self._seat_turn(actor_id)
+            def work(env: Any) -> Tuple[List[Tuple[str, Dict[str, Any]]], Dict[str, str]]:
+                turn = self._seat_turn(env, actor_id)
                 return legal_calls(env, turn, limit=game.limit, dry_run=game.dry_run) if turn is not None else ([], {})
 
-            calls, unlisted = self._pilot.read(work)
+            calls, unlisted = self._run.read(work)
             actions = sorted((self._with_id(tool, args) for tool, args in calls),
                              key=lambda a: a.id if a.id is not None else -1)
             known = (actions, unlisted)
@@ -347,12 +352,12 @@ class GameState:
                            "not depend on the state, so every value has an id", f"actions.{tool}")
         return action
 
-    def _seat_turn(self, actor_id: str) -> Optional[Turn]:
+    def _seat_turn(self, env: Any, actor_id: str) -> Optional[Turn]:
         turn = self._turn()
         if turn is not None and turn.actor.id == actor_id:
             return turn
         if turn is not None and turn.staged:
-            return next((t for t in self._pilot.env.origin.staged if t.actor.id == actor_id and not t.done), None)
+            return next((t for t in env.origin.staged if t.actor.id == actor_id and not t.done), None)
         return None
 
     def _resolve(self, action: ActionLike) -> Tuple[str, Dict[str, Any]]:
@@ -386,16 +391,16 @@ class GameState:
         if match is not None:
             return match.tool, dict(match.args)  # the listed spelling, so histories compare equal
         if tool in unlisted:
-            env, actor_id = self._pilot.env, self.game.players[seat]
+            actor_id = self.game.players[seat]
 
-            def check() -> Optional[str]:
-                turn = self._seat_turn(actor_id)
+            def check(env: Any) -> Optional[str]:
+                turn = self._seat_turn(env, actor_id)
                 if turn is None:
                     return "the seat is not acting"
                 params, problem = env.actions.validate(turn.actor, tool, args)
                 return problem or env.actions.dry_run(turn.actor, tool, params)
 
-            problem = self._pilot.read(check)
+            problem = self._run.read(check)
             if problem is None:
                 return tool, args
             raise ValueError(f"{Action(action_id, tool, args).text} is not legal now: {problem}")
@@ -409,11 +414,20 @@ class GameState:
         self._changed()
 
     def _call(self, seat: int, tool: str, args: Dict[str, Any]) -> None:
-        result = self._pilot.call(tool, args)
+        result = self._decide(lambda run: run.call(tool, args))
         if result is not None and not result.ok:
             raise RunError(f"the engine refused {Action(None, tool, args).text} after it was found legal: {result.text}",
                            f"actions.{tool}")
         self._record({"player": seat, "tool": tool, "args": args})
+
+    def _decide(self, decision: Callable[[Run], Optional[ToolResult]]) -> Optional[ToolResult]:
+        """``decision`` on the state's run; a stepped run that cannot take it goes on as a piloted one."""
+        try:
+            return decision(self._run)
+        except (Unpausable, NotCopyable):
+            self._run.close()
+            self._run = replayed(self.game, self._history)
+            return decision(self._run)
 
     def _record(self, entry: Dict[str, Any]) -> None:
         self._history.append(entry)
@@ -429,8 +443,8 @@ class GameState:
         self._legal.clear()
         self._verified = None
 
-    def _pending(self) -> Dict[str, Any]:
-        pause = self._pilot.pause
+    def _pending(self, env: Any) -> Dict[str, Any]:
+        pause = self._run.pause
         if pause is None:
             return {"over": True}
         if pause.kind == "chance" and pause.node is not None:
@@ -438,7 +452,7 @@ class GameState:
                     "outcomes": [[o.label, o.p] for o in pause.node.outcomes]}
         turn = self._turn()
         assert turn is not None
-        sealed = {t.actor.id: encode(t.pending) for t in self._pilot.env.origin.staged}
+        sealed = {t.actor.id: encode(t.pending) for t in env.origin.staged}
         return {"actor": turn.actor.id, "stage": turn.stage.name, "calls_left": turn.calls_left,
                 "actions_left": turn.actions_left, "pending": encode(turn.pending), "used": dict(turn.used),
                 "sealed": sealed}
