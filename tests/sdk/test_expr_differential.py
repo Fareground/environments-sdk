@@ -154,6 +154,33 @@ def test_every_operator_on_every_kind_of_operand_evaluates_identically(both_ways
                 _evaluate(f"$a {op} $b", scope)
 
 
+_THINGS = {
+    "name": "Things",
+    "types": {"thing": {"props": {"cash": 0, "tag": {"type": "text", "default": ""}}}},
+    "entities": {"a": {"type": "thing", "props": {"cash": 1, "tag": "ab"}}, "b": {"type": "thing", "props": {"cash": 3}},
+                 "c": {"type": "thing", "props": {"cash": 0, "tag": "ab"}}},
+    "defs": {"total": {"expr": "$sum(thing, $it.cash)"}},
+}
+_LOOP_CALLS = ["$any({items}, {condition})", "$all({items}, {condition})", "$count({items}, {condition})",
+               "$filter({items}, {condition})", "$pick({items}, {condition})"]
+_LOOP_ITEMS = ["thing", "$l", "$m", "$e", "null", "7", "'nope'", "[]", "$range(4)"]
+_LOOP_CONDITIONS = ["$it.cash > 1", "$it.cash == $x", "$x == $it.cash", "$it.cash == $missing", "$it.id == $e.id",
+                    "$it == $x", "$i > 0 and $it", "$outer", "$missing", "$it.nope", "$count($l, $it > $outer)",
+                    "$chance(0.5)", "$it.cash / ($i - 1)", "$total > $i", "$it.tag == 'ab' or $random() < 0.3",
+                    "$it.cash if $it else $x", "$any($l, $it == $outer.cash)"]
+
+
+@pytest.mark.parametrize("shadowed", [False, True], ids=["built-in", "shadowed by a def"])
+def test_inlined_collection_loops_evaluate_identically(both_ways, shadowed):
+    contract = dict(_THINGS, defs={**_THINGS["defs"], "any": {"args": ["a", "b"], "expr": "7"}}) if shadowed else _THINGS
+    world = fg_env.load(contract, seed=3).world
+    scope = world.scope(x=1, l=[1, 2, 3], m={"a": 1, "b": 0}, e=world.entities["a"], it=world.entities["b"])
+    for call in _LOOP_CALLS:
+        for items in _LOOP_ITEMS:
+            for condition in _LOOP_CONDITIONS:
+                _evaluate(call.format(items=items, condition=condition), scope)
+
+
 def _evaluate(text, scope):
     try:
         compile_expr(text)(scope)

@@ -15,11 +15,18 @@ Semantics: a statement shape reads a value directly only where the result is cer
 (an entity's declared property, a ``$world`` property, an in-range list element, arithmetic and comparison on
 plain whole numbers or text); every other case calls the same helper the language always used, so values,
 errors, work-budget charges and random draws are the ones the helper gives.
+
+Per-item loops: ``$any``, ``$all``, ``$count``, ``$filter`` and ``$pick`` with a condition (their registered
+implementations, not replacements) run their loop in the compiled code. The collection and the items to try come
+from the call's own :class:`~.expr_calls.Call` (so budget charges and equality guards are the same), and the
+condition reads ``$it``, ``$i`` and ``$outer`` as loop variables and every other root from the caller's roots —
+what :meth:`~.expr_calls.Call.each` would give it — building the item's scope only for what needs one (a nested
+call, a missing root).
 """
 from __future__ import annotations
 
 import ast
-from typing import Any, Dict, FrozenSet, List, Optional, Tuple
+from typing import Any, Callable, Dict, FrozenSet, List, Optional, Tuple
 
 from .expr_base import _BUDGET, ExprError
 from .expr_calls import FUNCTIONS, Call, EqualityGuard, Evaluator
@@ -40,6 +47,15 @@ _ENTITY_ATTRIBUTES = {"id": "id", "name": "name", "type": "entity_type", "alive"
 _ORDERED = {ast.Lt: ("<", "_lt"), ast.LtE: ("<=", "_le"), ast.Gt: (">", "_gt"), ast.GtE: (">=", "_ge")}
 _INT_ARITHMETIC = {ast.Add: ("+", "_add"), ast.Sub: ("-", "_sub"), ast.FloorDiv: ("//", "_floordiv"),
                    ast.Mod: ("%", "_mod"), ast.Div: ("/", "_truediv")}
+_ITEM_ROOTS = ("it", "i", "outer")
+#: For each inlined loop: the result before any item, and what a holding condition does (``{value}``, ``{item}``).
+_LOOPS = {
+    "any": ("False", ["if {test}:", "    {value} = True", "    break"]),
+    "all": ("True", ["if not {test}:", "    {value} = False", "    break"]),
+    "count": ("0", ["if {test}:", "    {value} += 1"]),
+    "filter": ("[]", ["if {test}:", "    {value}.append({item})"]),
+    "pick": ("None", ["if {test}:", "    {value} = {item}", "    break"]),
+}
 
 
 def _root(scope: Scope, name: str, source: str) -> Any:
@@ -73,16 +89,28 @@ def _helpers() -> Dict[str, Any]:
 
     return {
         "__builtins__": {}, "_type": type, "_len": len, "_int": int, "_str": str, "_float": float, "_list": list,
-        "_Entity": _Entity, "_PropsView": PropsView, "_Call": Call, "_attr": attr, "_index": _index,
-        "_root": _root, "_call_def": _call_def, "_arity": _arity, "_negate": _negate, "_plus": _plus,
-        "_add": _add, "_sub": _BINARY[ast.Sub], "_mul": _mul, "_truediv": _BINARY[ast.Div],
-        "_floordiv": _BINARY[ast.FloorDiv], "_mod": _BINARY[ast.Mod], "_pow": _pow,
+        "_enumerate": enumerate, "_Entity": _Entity, "_PropsView": PropsView, "_Scope": Scope, "_Call": Call,
+        "_attr": attr, "_index": _index, "_root": _root, "_call_def": _call_def, "_arity": _arity,
+        "_negate": _negate, "_plus": _plus, "_add": _add, "_sub": _BINARY[ast.Sub], "_mul": _mul,
+        "_truediv": _BINARY[ast.Div], "_floordiv": _BINARY[ast.FloorDiv], "_mod": _BINARY[ast.Mod], "_pow": _pow,
         "_eq": _eq, "_in": _in, "_lt": _COMPARE[ast.Lt], "_le": _COMPARE[ast.LtE], "_gt": _COMPARE[ast.Gt],
         "_ge": _COMPARE[ast.GtE], "_SMALL": _SMALL, "_NSMALL": -_SMALL,
     }
 
 
 _HELPERS: Optional[Dict[str, Any]] = None
+_INLINED: Optional[Dict[Any, str]] = None
+
+
+def _inlined() -> Dict[Any, str]:
+    """The implementations whose per-item loop is compiled inline, by the loop they run."""
+    global _INLINED
+    if _INLINED is None:
+        from . import functions  # functions import the language: looked up on first compile
+
+        _INLINED = {functions._any: "any", functions._all: "all", functions._count: "count",
+                    functions._filter: "filter", functions._pick: "pick"}
+    return _INLINED
 
 
 class _Function:
@@ -99,6 +127,16 @@ class _Function:
     def source(self) -> str:
         head = [f"def {self.name}(scope):"] + (["    _V = scope.vars"] if self.reads_roots else [])
         return "\n".join(head + self.lines)
+
+
+class _Item:
+    """The loop variables of an inlined per-item loop: the item, its position, ``$outer`` and the item's scope
+    (None until something needs it)."""
+
+    __slots__ = ("item", "position", "outer", "scope")
+
+    def __init__(self, item: str, position: str, outer: str, scope: str):
+        self.item, self.position, self.outer, self.scope = item, position, outer, scope
 
 
 def _chain(node: ast.AST) -> Optional[Tuple[str, ...]]:
@@ -134,6 +172,7 @@ class Codegen:
         self._written: List[_Function] = []
         self._fn = _Function("")
         self._depth = 0
+        self._item: Optional[_Item] = None
         self._arguments: List[Tuple[str, List[str]]] = []
         self._guards: List[Tuple[str, str, str, FrozenSet[str]]] = []
 
@@ -174,13 +213,13 @@ class Codegen:
     def _function(self, node: ast.AST, guarded: bool) -> str:
         """Write ``node`` as a function of its own; its name. ``guarded``: the function is an evaluator a
         collection function may read an :class:`EqualityGuard` from."""
-        outer, depth = self._fn, self._depth
+        outer, depth, item = self._fn, self._depth, self._item
         fn = self._fn = _Function(f"_n{len(self._written)}")
         self._written.append(fn)
-        self._depth = 1
+        self._depth, self._item = 1, None
         result = self.node(node)
         self._line(f"return {result}")
-        self._fn, self._depth = outer, depth
+        self._fn, self._depth, self._item = outer, depth, item
         if guarded:
             guard = self._guard(node.values[0] if isinstance(node, ast.BoolOp) and isinstance(node.op, ast.And)
                                 else node)
@@ -188,14 +227,29 @@ class Codegen:
                 self._guards.append((fn.name, *guard))
         return fn.name
 
+    def _scope(self) -> str:
+        """The scope the code being written evaluates in: the function's own, or inside an inlined loop the
+        item's (built the first time it is needed for the item)."""
+        item = self._item
+        if item is None:
+            return "scope"
+        self._line(f"if {item.scope} is None:")
+        self._line(f"    {item.scope} = {self._item_scope(item)}")
+        return item.scope
+
+    def _item_scope(self, item: _Item) -> str:
+        """The item's scope, as Call.each builds it: the caller's roots, then $it, $i and $outer."""
+        it, i, outer = (self._const(name) for name in _ITEM_ROOTS)
+        return f"_Scope({{**_V, {it}: {item.item}, {i}: {item.position}, {outer}: {item.outer}}}, scope.world)"
+
     # -- nodes -----------------------------------------------------------------------------------------
 
     def node(self, node: ast.AST) -> str:
-        """Write the statements computing ``node``; an operand holding its value (a name or a keyword)."""
+        """Write the statements computing ``node``; an operand holding its value (a name)."""
         if self._depth > _MAX_NESTING:
             name = self._function(node, guarded=False)
             value = self._temp()
-            self._line(f"{value} = {name}(scope)")
+            self._line(f"{value} = {name}({self._scope()})")
             return value
         method = getattr(self, "_" + type(node).__name__)
         result: str = method(node)
@@ -212,9 +266,13 @@ class Codegen:
         if name.startswith(_ROOT_PREFIX):
             root = name[len(_ROOT_PREFIX):]
             self.roots.add(root)
+            item = self._item
+            if item is not None and root in _ITEM_ROOTS:
+                return {"it": item.item, "i": item.position, "outer": item.outer}[root]
             key, value = self._const(root), self._temp()
             self._fn.reads_roots = True
-            self._line(f"{value} = _V[{key}] if {key} in _V else _root(scope, {key}, {self._source()})")
+            missing = "scope" if item is None else self._item_scope(item)
+            self._line(f"{value} = _V[{key}] if {key} in _V else _root({missing}, {key}, {self._source()})")
             return value
         if name.startswith(_FUNC_PREFIX):
             raise ExprError(f"${name[len(_FUNC_PREFIX):]} is a function; call it with (...)", self.source)
@@ -383,6 +441,21 @@ class Codegen:
         self._depth -= 1
         return value
 
+    def _per_item(self, name: str, symbol: Optional[str], write: Callable[[], str]) -> str:
+        """``write()`` a per-item argument: its ``$it``, ``$i`` and ``$outer`` are bound by the function, not the
+        caller, so what it reads of them is recorded as the call's item paths."""
+        saved = (self.roots, self.paths, self.comparisons)
+        self.roots, self.paths, self.comparisons = set(), set(), set()
+        written = write()
+        inner_roots, inner_paths, inner_cmp = self.roots, self.paths, self.comparisons
+        self.roots, self.paths, self.comparisons = saved
+        self.roots |= inner_roots - set(_ITEM_ROOTS)
+        self.paths |= {p for p in inner_paths if p[0] not in _ITEM_ROOTS}
+        self.item_paths |= {(name, symbol, p) for p in inner_paths if p[0] == "it"}
+        self.comparisons |= {c for c in inner_cmp if c[0][0] not in _ITEM_ROOTS}
+        self.item_comparisons |= {(name, symbol, c[0], c[1]) for c in inner_cmp if c[0][0] == "it"}
+        return written
+
     def _Call(self, node: ast.Call) -> str:
         assert isinstance(node.func, ast.Name)
         name = node.func.id[len(_FUNC_PREFIX):]
@@ -414,28 +487,44 @@ class Codegen:
         first = node.args[0] if node.args else None
         symbol = first.id if isinstance(first, ast.Name) and not first.id.startswith("__") else None
         self.calls.add((name, symbol))
-        members = []
-        for index, arg in enumerate(node.args):
-            if index not in spec.lazy:
-                members.append(self._function(arg, guarded=True))
-                continue
-            # $it and $i inside a per-item argument are bound by the function, not the caller.
-            saved = (self.roots, self.paths, self.comparisons)
-            self.roots, self.paths, self.comparisons = set(), set(), set()
-            members.append(self._function(arg, guarded=True))
-            inner_roots, inner_paths, inner_cmp = self.roots, self.paths, self.comparisons
-            self.roots, self.paths, self.comparisons = saved
-            bound = ("it", "i", "outer")
-            self.roots |= inner_roots - set(bound)
-            self.paths |= {p for p in inner_paths if p[0] not in bound}
-            self.item_paths |= {(name, symbol, p) for p in inner_paths if p[0] == "it"}
-            self.comparisons |= {c for c in inner_cmp if c[0][0] not in bound}
-            self.item_comparisons |= {(name, symbol, c[0], c[1]) for c in inner_cmp if c[0][0] == "it"}
+        members = [self._function(arg, guarded=True) if index not in spec.lazy
+                   else self._per_item(name, symbol, lambda arg=arg: self._function(arg, guarded=True))  # type: ignore[misc]
+                   for index, arg in enumerate(node.args)]
         arguments = f"_a{len(self._arguments)}"
         self._arguments.append((arguments, members))
-        impl = self._const(spec.impl)
-        self._line(f"if scope.world is not None and scope.world.defines({key}):  # the contract's own def wins")
-        self._line(f"    {value} = scope.world.call_def({key}, [{', '.join(f'{m}(scope)' for m in members)}], {source})")
+        loop = _inlined().get(spec.impl) if count == 2 and self._item is None else None
+        scope = self._scope()
+        self._line(f"if {scope}.world is not None and {scope}.world.defines({key}):  # the contract's own def wins")
+        self._line(f"    {value} = {scope}.world.call_def({key}, [{', '.join(f'{m}({scope})' for m in members)}], {source})")
         self._line("else:")
-        self._line(f"    {value} = {impl}(_Call({key}, {arguments}, scope, {source}))")
+        self._depth += 1
+        if loop is None:
+            self._line(f"{value} = {self._const(spec.impl)}(_Call({key}, {arguments}, {scope}, {source}))")
+        else:
+            self._loop(loop, node.args[1], name, symbol, (key, arguments, value, source))
+        self._depth -= 1
         return value
+
+    def _loop(self, loop: str, condition: ast.AST, name: str, symbol: Optional[str],
+              call: Tuple[str, str, str, str]) -> None:
+        """The per-item loop of ``$any``/``$all``/``$count``/``$filter``/``$pick`` with ``condition`` inline, as the
+        registered implementation runs it: the collection, then the items to try (every item for ``$all``)."""
+        key, arguments, value, source = call
+        runner, items, outer = self._temp(), self._temp(), self._temp()
+        item = _Item(self._temp(), self._temp(), outer, self._temp())
+        self._fn.reads_roots = True
+        self._line(f"{runner} = _Call({key}, {arguments}, scope, {source})")
+        self._line(f"{items} = {runner}.collection(0)")
+        start, holds = _LOOPS[loop]
+        self._line(f"{value} = {start}")
+        self._line(f"{outer} = _V.get({self._const('it')})")
+        tried = f"_enumerate({items})" if loop == "all" else f"{runner}.candidates({items}, 1)"
+        self._line(f"for {item.position}, {item.item} in {tried}:")
+        self._depth += 1
+        self._line(f"{item.scope} = None")
+        self._item = item
+        test = self._per_item(name, symbol, lambda: self.node(condition))
+        self._item = None
+        for line in holds:
+            self._line(line.format(test=test, value=value, item=item.item))
+        self._depth -= 1
