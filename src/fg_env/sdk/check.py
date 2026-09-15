@@ -18,6 +18,7 @@ from pydantic import ValidationError
 
 from . import contract as C
 from .check_actions import ActionChecks
+from .check_inventory import check_inventory
 from .check_effects import EffectChecks
 from .check_roots import BASE, ENTITY_FIELDS, Types
 from .check_rules import RuleChecks
@@ -344,6 +345,7 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, RuleChecks):
         check_hooks(self, BASE)
         self._keyword_names()
         self._entities()
+        check_inventory(self)
         self._relations()
         check_relation_fields(self, BASE)
         self._physics()
