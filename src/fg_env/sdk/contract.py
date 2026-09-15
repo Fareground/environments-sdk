@@ -169,7 +169,7 @@ class Clock(_Model):
 
     rounds: Union[int, str] = Field(20, description="Round budget (number or expression over $inputs).")
     unit: str = Field("round", description="Name of one round: day, week, turn, hour …")
-    start: Optional[str] = Field(None, description="ISO date of round 1 (adds a calendar date).")
+    start: Optional[str] = Field(None, description="ISO date of round 1 (adds a calendar date), or an expression over $inputs giving one (`\"$inputs.start\"`).")
     step: int = Field(1, description="Units per round (e.g. 7 with unit 'day' = weekly rounds).")
     mode: str = Field("rounds", description="rounds (every round is one step) | continuous (time is a number: actions take `duration`, `scheduled` stages wake agents when their time comes).")
     tick: float = Field(1.0, gt=0, description="Continuous: how far time moves when nothing is due sooner.")

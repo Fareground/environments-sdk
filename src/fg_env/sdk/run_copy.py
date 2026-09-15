@@ -45,7 +45,7 @@ _ENV_FIELDS = frozenset({
 _WORLD_FIELDS = frozenset({
     "contract", "inputs", "seeds", "arm", "_local", "_rng", "entities", "props", "links", "link_fields", "adjacent",
     "records_store", "entry_by_seq", "entity_briefs", "log", "physics", "physics_writes", "entity_dynamics", "round",
-    "stage", "rounds", "metrics", "series", "scheduled", "wake_requests", "reactions", "time", "horizon", "wake_at",
+    "stage", "rounds", "metrics", "series", "scheduled", "wake_requests", "reactions", "time", "horizon", "start", "wake_at",
     "_schedule_seq", "space", "buffer", "end_request", "chance_picker", "counters", "journal", "lifecycle",
     "exposures", "written", "sealed_writes", "_seq", "_record_seq", "_props_view", "_physics_view", "_clock_view",
     "_type_props", "_def_cache", "_def_cache_state", "_def_cache_on", "_subtypes", "types"})
@@ -177,7 +177,8 @@ def _copy_world(source: SdkWorld) -> SdkWorld:
         physics=None, physics_writes=source.physics_writes, entity_dynamics=[], round=source.round, stage=source.stage,
         rounds=source.rounds, metrics=_copy(source.metrics), series=_copy(source.series),
         scheduled=list(source.scheduled), wake_requests=dict(source.wake_requests), reactions=[], time=source.time,
-        horizon=source.horizon, wake_at=dict(source.wake_at), _schedule_seq=source._schedule_seq, space=None,
+        horizon=source.horizon, start=source.start, wake_at=dict(source.wake_at), _schedule_seq=source._schedule_seq,
+        space=None,
         buffer=None, end_request=_copy(source.end_request), chance_picker=None, counters=dict(source.counters),
         journal=journal, lifecycle=None, exposures=_copy_exposures(source.exposures), written=set(source.written),
         sealed_writes=None, _seq=source._seq,

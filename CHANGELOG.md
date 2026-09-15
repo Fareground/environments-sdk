@@ -52,6 +52,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read one family or mode.
 
 #### Added
+- **Calendar functions**: `$date_add(date, n, unit?)` (day, week, month, quarter, year, hour, minute; months keep the
+  day or take the month's last), `$days_between(a, b)`, `$date_part(date, part)` (year, quarter, month, day, weekday,
+  ISO week, day of year, hour, minute, weekday and month names) and `$is_holiday(date, dates)`. `clock.start` may
+  read an input (`"$inputs.start"`), readable as `$clock.start`; `RunResult.clock` records the clock, and summaries,
+  highlights and narratives name rounds in its unit with their date (`Week 3 (2026-09-14): …`).
 - **Flagship exchange** (`examples/contracts/exchange_flagship.json`): the platform Exchange rebuilt as a contract — a
   calibrated crowd of market makers, momentum, mean-reversion, fundamental, noise and passive traders on one order book,
   one round per pass through a bar, bars, a circuit breaker on the bar's open, scheduled news, sentiment, volume and

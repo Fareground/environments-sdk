@@ -288,7 +288,10 @@ PATTERNS = """\
   entities from the inspect tool; `private` props hide single values.
 * Boards and tables in views: `"bullet": false` prints lines without "- ". View titles are templates.
 * Participants keyed by a parent type (`{"tier": ...}`) and `policy` on a parent type reach every subtype.
-* Calendars: `clock.start` with unit day, week, month, year, hour or minute adds the date to the time label.
+* Calendars: `clock.start` with unit day, week, month, year, hour or minute adds the date to the time label, and may
+  read an input (`"start": "$inputs.start"`) so each backtest case carries its own dates; `$clock.date` is today,
+  `$clock.start` round 1. `$date_add(d, 1, month)`, `$days_between(a, b)`, `$date_part(d, week)` (weekday, month,
+  quarter, …) and `$is_holiday(d, $inputs.holidays)` do the arithmetic; narratives name rounds in the clock's unit.
 * Policy rules with `each` act once per item: `{"each": "$filter(army, $it.owner == $actor.id)",
   "do": "hold", "with": {"army": "$it"}}`.
 * Coded participants: `policies` rules (first legal matching rule wins) for crowds and baselines;

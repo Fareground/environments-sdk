@@ -83,29 +83,29 @@ def move_score(index: int, changes: Sequence[float]) -> float:
     return _cap(two_sided_z(1.0 / len(changes))) if size > centre else 0.0
 
 
-def _series_candidates(name: str, values: List[float]) -> List[Highlight]:
+def _series_candidates(name: str, values: List[float], word: str) -> List[Highlight]:
     if len(values) < 3 or max(values) == min(values):
         return []
     changes = [b - a for a, b in zip(values, values[1:])]
     out: List[Highlight] = []
     top = max(range(len(changes)), key=lambda i: (abs(changes[i]), -i))
     if changes[top] != 0:
-        out += _move(name, values, changes, top)
-    out += _extremes(name, values, changes)
-    streak = _streak(name, values, changes)
+        out += _move(name, values, changes, top, word)
+    out += _extremes(name, values, changes, word)
+    streak = _streak(name, values, changes, word)
     if streak:
         out.append(streak)
     return out
 
 
-def _move(name: str, values: List[float], changes: List[float], i: int) -> List[Highlight]:
+def _move(name: str, values: List[float], changes: List[float], i: int, word: str) -> List[Highlight]:
     change, before, after, round_ = changes[i], values[i], values[i + 1], i + 2
     z = move_score(i, changes)
     typical = median([abs(c) for c in changes])
     verb = "rose" if change > 0 else "fell"
     pct = f" ({change / abs(before):+.0%})" if before else ""
     ratio = f", {abs(change) / typical:.1f}× the typical move" if typical > 0 else ""
-    text = f"{name} {verb} {_fmt(abs(change))}{pct} to {_fmt(after)} in round {round_}: the largest one-round move{ratio}"
+    text = f"{name} {verb} {_fmt(abs(change))}{pct} to {_fmt(after)} in {word} {round_}: the largest one-{word} move{ratio}"
     back, back_round = 0.0, None
     for k in range(i + 2, len(values)):
         undone = -(values[k] - after) if change > 0 else values[k] - after
@@ -117,12 +117,12 @@ def _move(name: str, values: List[float], changes: List[float], i: int) -> List[
         again = "gave back" if change > 0 else "recovered"
         amount = "all of it" if share >= 1.0 else f"{share:.0%} of it"
         return [Highlight("reversal", round_, name, _cap(z * min(1.0, share)),
-                          f"{name} {verb} {_fmt(abs(change))}{pct} in round {round_}, then {again} {amount} by round "
+                          f"{name} {verb} {_fmt(abs(change))}{pct} in {word} {round_}, then {again} {amount} by {word} "
                           f"{back_round}", {"change": change, "undone_by": back_round, "share_undone": share})]
     return [Highlight("move", round_, name, z, text, {"change": change, "from": before, "to": after})]
 
 
-def _extremes(name: str, values: List[float], changes: List[float]) -> List[Highlight]:
+def _extremes(name: str, values: List[float], changes: List[float], word: str) -> List[Highlight]:
     spread = sd(changes) * math.sqrt(len(changes))
     if spread <= 0:
         return []
@@ -142,12 +142,12 @@ def _extremes(name: str, values: List[float], changes: List[float]) -> List[High
         if prominence <= 0:
             continue
         out.append(Highlight(kind, i + 1, name, _cap(prominence / spread),
-                             f"{name} {verb} at {_fmt(values[i])} in round {i + 1} (from {_fmt(base_before)}, then "
+                             f"{name} {verb} at {_fmt(values[i])} in {word} {i + 1} (from {_fmt(base_before)}, then "
                              f"{_fmt(base_after)})", {"value": values[i], "prominence": prominence}))
     return out
 
 
-def _streak(name: str, values: List[float], changes: List[float]) -> Optional[Highlight]:
+def _streak(name: str, values: List[float], changes: List[float], word: str) -> Optional[Highlight]:
     best: Tuple[int, int, int] = (0, 0, 0)  # length, start, sign
     start = 0
     while start < len(changes):
@@ -166,12 +166,14 @@ def _streak(name: str, values: List[float], changes: List[float]) -> Optional[Hi
     chance = 1.0 - math.exp(-moving * 2.0 ** (-length))  # a run this long anywhere among coin-flip moves
     verb = "rose" if sign > 0 else "fell"
     return Highlight("streak", first + 2, name, _one_sided_z(chance),
-                     f"{name} {verb} {length} rounds in a row (rounds {first + 2}-{first + length + 1}), from "
+                     f"{name} {verb} {length} {word}s in a row ({word}s {first + 2}-{first + length + 1}), from "
                      f"{_fmt(values[first])} to {_fmt(values[first + length])}", {"length": length})
 
 
 def _event_candidates(result: RunResult) -> List[Highlight]:
     total_rounds = max(1, result.rounds)
+    word = result.unit
+    title = word[:1].upper() + word[1:]
     groups: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
     for event in result.events:
         kind = str(event.get("kind"))
@@ -196,7 +198,7 @@ def _event_candidates(result: RunResult) -> List[Highlight]:
         if kind in ("action", "record"):
             label = f"first {subject}" + (f" by {actor}" if actor else "")
             detail = f": {first['text']}" if first.get("text") else ""
-            text = f"Round {rounds_with[0]}: {label}{detail}"
+            text = f"{title} {rounds_with[0]}: {label}{detail}"
             out.append(Highlight("first", rounds_with[0], subject, z, text, {"count": len(events), "rounds": len(rounds_with)}))
             last = rounds_with[-1]
             gap = total_rounds - last
@@ -205,13 +207,13 @@ def _event_candidates(result: RunResult) -> List[Highlight]:
                 silence = _one_sided_z((1.0 - min(rate, 1.0 - 1e-9)) ** gap)
                 if silence > 0:
                     out.append(Highlight("last", last, subject, silence,
-                                         f"Round {last}: last {subject}; none in the {gap} round(s) after",
+                                         f"{title} {last}: last {subject}; none in the {gap} {word}(s) after",
                                          {"rounds": len(rounds_with)}))
         else:
             times = f" ({len(events)} times)" if len(events) > 1 else ""
             # A private event's text is written to its recipient ("your order…"): name the kind instead.
             shown = first.get("text") if first.get("text") and not first.get("to") else kind.replace("_", " ")
-            text = f"Round {rounds_with[0]}: {shown}{times}"
+            text = f"{title} {rounds_with[0]}: {shown}{times}"
             out.append(Highlight("event", rounds_with[0], subject, z, text,
                                  {"kind": kind, "count": len(events), "private": bool(first.get("to"))}))
     if result.status == "ended":
@@ -219,7 +221,7 @@ def _event_candidates(result: RunResult) -> List[Highlight]:
         text = (end or {}).get("text") or f"the run ended ({result.ended_by})"
         winner = f"; winner: {result.winner}" if result.winner is not None else ""
         out.append(Highlight("end", result.rounds, str(result.ended_by), _cap(two_sided_z(1.0 / total_rounds)),
-                             f"Round {result.rounds}: {text}{winner}", {"ended_by": result.ended_by}))
+                             f"{title} {result.rounds}: {text}{winner}", {"ended_by": result.ended_by}))
     return out
 
 
@@ -256,7 +258,7 @@ def highlights(result: RunResult, *, top: int = 5, metrics: Optional[Sequence[st
             raise ValueError(f"no series '{name}' in this run (series: {', '.join(result.series) or 'none'})")
         values = [numeric(v) for v in result.series[name]]
         if all(v is not None for v in values):
-            candidates += _series_candidates(name, [float(v) for v in values if v is not None])
+            candidates += _series_candidates(name, [float(v) for v in values if v is not None], result.unit)
     candidates = _merge_moves(candidates) + _event_candidates(result)
     candidates = [c for c in candidates if c.score > 0]
     # Equally rare moments: what everyone saw outranks one agent's private bookkeeping.
@@ -265,19 +267,22 @@ def highlights(result: RunResult, *, top: int = 5, metrics: Optional[Sequence[st
 
 
 def narrative(result: RunResult, *, limit: int = 10) -> str:
-    """A compact factual timeline: how the run went, its notable moments in order, and its results."""
+    """A compact factual timeline: how the run went, its notable moments in order, and its results. Rounds are named in
+    the clock's unit, with their date on a dated clock (``Week 7 (2026-10-12): …``)."""
     how = f"ended by {result.ended_by}" if result.ended_by else result.status
-    lines = [f"{result.status.capitalize()} after {result.rounds} round(s), {how}."]
+    title = result.unit[:1].upper() + result.unit[1:]
+    lines = [f"{result.status.capitalize()} after {result.rounds} {result.unit}(s), {how}."]
     if result.error:
         lines.append(f"Error: {result.error}")
     moments = highlights(result, top=limit) if result.series or result.events else []
     news = [(int(e.get("round", 0)), str(e["text"])) for e in result.events
             if e.get("kind") not in _ACTION_KINDS + ("record", "end") and e.get("text")]
-    entries: List[Tuple[int, int, str]] = [(h.round, 0, h.text if h.text.startswith("Round ") else f"Round {h.round}: {h.text}")
-                                           for h in moments]
+    entries: List[Tuple[int, int, str]] = [
+        (h.round, 0, f"{result.period(h.round, capital=True)}: {h.text.removeprefix(f'{title} {h.round}: ')}")
+        for h in moments]
     seen = {text for _, _, text in entries}
     for round_, text in news:
-        line = f"Round {round_}: {text}"
+        line = f"{result.period(round_, capital=True)}: {text}"
         if line not in seen and not any(text in t for _, _, t in entries):
             entries.append((round_, 1, line))
             seen.add(line)

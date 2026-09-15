@@ -12,6 +12,7 @@ from .effects import EffectRunner
 from .errors import RunError
 from .expr import ExprError, compile_expr, is_expr, resolve, truthy  # noqa: F401
 from .seeds import SeedTree
+from .stdlib.dates import parse_moment
 from .template import compile_template
 from .world import Abort, SdkWorld
 from .world_defaults import default_order, world_reads
@@ -26,6 +27,7 @@ def build_world(contract: Contract, inputs: Dict[str, Any], seeds: SeedTree, arm
     pending_briefs: List[Tuple[str, str, Dict[str, Any], str]] = []
     try:
         world.rounds = _rounds(world)
+        world.start = _clock_start(world)
         world.round = 0
         world.build_space()
         _world_props(world)
@@ -96,6 +98,21 @@ def _rounds(world: SdkWorld) -> int:
     if rounds > MAX_ROUNDS:
         raise RunError(f"{rounds:,} rounds is more than the limit of {MAX_ROUNDS:,}", "clock.rounds")
     return rounds
+
+
+def _clock_start(world: SdkWorld) -> Optional[str]:
+    """``clock.start`` as a calendar date: as written, or read from ``$inputs`` (null leaves the run without dates)."""
+    raw = world.contract.clock.start
+    if raw is None or not is_expr(raw):
+        return raw
+    value = _value(world, raw, {})
+    if value is None:
+        return None
+    try:
+        parse_moment(value if isinstance(value, str) else "")
+    except ValueError:
+        raise RunError(f"must give an ISO date like 2026-01-31, got {value!r}", "clock.start") from None
+    return value
 
 
 def _capped(count: int, path: str) -> int:

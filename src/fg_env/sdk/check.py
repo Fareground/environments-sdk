@@ -287,9 +287,9 @@ class _Checker:
             if first not in self.c.metrics:
                 self.error(path, f"$series.{first}: no such metric", self._suggest(first, self.c.metrics))
         elif root == "clock":
-            if first not in ("round", "rounds", "left", "unit", "date", "label", "time", "horizon"):
+            if first not in ("round", "rounds", "left", "unit", "date", "start", "label", "time", "horizon"):
                 self.error(path, f"$clock.{first}: no such field",
-                           "clock fields: round, rounds, left, unit, date, label, time, horizon")
+                           "clock fields: round, rounds, left, unit, date, start, label, time, horizon")
 
     def _spec_for(self, chain: Tuple[str, ...], types: Types, params: Mapping[str, C.ParamSpec]) -> Optional[Tuple[Any, str]]:
         """``(allowed values, kind)`` of the field a chain reads, when statically known."""
@@ -669,7 +669,9 @@ class _Checker:
             self.expr(clock.rounds, "clock.rounds", {"inputs"})
         elif clock.rounds < 1:
             self.error("clock.rounds", "must be at least 1")
-        if clock.start:
+        if clock.start and is_expr(clock.start):
+            self.expr(clock.start, "clock.start", {"inputs"})
+        elif clock.start:
             try:
                 _dt.date.fromisoformat(clock.start[:10])
             except ValueError:
