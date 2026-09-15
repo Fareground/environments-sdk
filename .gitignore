@@ -9,6 +9,7 @@ dist/
 wheels/
 
 .venv/
+.venv*/
 venv/
 ENV/
 env/
