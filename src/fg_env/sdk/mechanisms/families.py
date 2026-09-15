@@ -50,4 +50,4 @@ family("conditions", "Effects on entities over time: statuses, cooldowns, channe
 family("dynamics", "The world changing on its own: drift rules, random shocks and priors drawn from data.",
        {"phase": SHARED["phase"]})
 family("host", "Services the host provides during a run: an LLM judge, a game master, recaps and tools such as web search.",
-       {"who": "agent type(s) served", "max_chars": SHARED["max_chars"]})
+       {"who": "agent type(s) served", "max_chars": SHARED["max_chars"], "private": SHARED["private"]})

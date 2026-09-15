@@ -4,7 +4,7 @@
 reflections, each with an importance that fades with a half-life; ``recall(query)`` retrieves
 by relevance (lexical by default, or host-scored), recency and importance, and strengthens what
 it returns; ``$memories`` gives a compact view within a token budget. ``recap`` writes a "story
-so far" entry for a long record every N rounds. Everything lives in journaled state (private
+so far" entry for a long record every N rounds (the host family's ``recap`` mode). Everything lives in journaled state (private
 entity properties, records), so snapshots restore memory exactly.
 """
 from __future__ import annotations
@@ -21,10 +21,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from ...entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, Untrusted, function
-from ..host.common import NAME, agents_of, clip, config_of, declared_check, prop_of, type_list
+from ..host.common import NAME, agents_of, clip, config_of, prop_of, type_list
 from ..host.protocols import HostError
 from ..host.tape import consult, plain, tape_prop
-from ..registry import MechanismError, effect_op, family_action, mechanism, mode, use_key
+from ..registry import MechanismError, family_action, mode, use_key
 from ..template import format_value
 
 __all__ = ["MemoryConfig", "RecapConfig", "lexical_relevance"]
@@ -36,6 +36,7 @@ MAX_ENTRY_CHARS = 2000
 #: Most recent memories a reflection reads.
 REFLECTION_WINDOW = 20
 MEMORY = "mind.memory"
+RECAP = "host.recap"
 _STOP = frozenset("a an and are as at be but by did do for from had has have he her his i if in into is it its "
                   "me my no not of on or our she so than that the their them then there they this to was we "
                   "were what when which who will with you your".split())
@@ -247,7 +248,7 @@ def _capture(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: s
     cursor = int(world.props.get(f"{name}_cursor") or 0)
     events = [e for e in world.log if e.seq > cursor]
     perception = Perception(world.contract, world)
-    lookups = [n for n, raw in world.contract.mechanisms.items() if use_key(raw) == "host_tool"]
+    lookups = [n for n, raw in world.contract.mechanisms.items() if use_key(raw) == "host.tool"]
     tools = {config.note, config.recall, *lookups}
     for agent in agents_of(world, config.who):
         items: List[Tuple[str, str]] = []
@@ -410,10 +411,10 @@ class RecapConfig(BaseModel):
     fallback: Optional[Literal["extract"]] = Field(None, description="Without a writer: quote the latest entries (default: stop with an error).")
 
 
-@mechanism("recap", RecapConfig,
+@mode("host", "recap", RecapConfig,
            "A \"story so far\" of a long record every N rounds, written by a host writer from the entries since "
            "the last recap and posted to the record <name> (delivered as news, recorded for replay).",
-           example={"kind": "recap", "record": "board", "every": 3, "fallback": "extract"})
+           example={"record": "board", "every": 3, "fallback": "extract"}, was="recap")
 def _expand_recap(name: str, config: RecapConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     records = contract.get("records") or {}
     source = records.get(config.record)
@@ -429,17 +430,16 @@ def _expand_recap(name: str, config: RecapConfig, contract: Mapping[str, Any]) -
         "records": {name: {"fields": {"text": "text", "through": "int"}, "show": "Story so far: {text}",
                            "visible": config.visible, "description": f"Recaps of {config.record}."}},
         "events": [{"name": f"{name}_recap", "phase": "end", "when": f"$round % {config.every} == 0",
-                    "do": [{"recap": name}]}],
+                    "do": [{"host": name, "action": "write"}]}],
     }
 
 
-@effect_op("recap", keys=(), literal=("recap",),
-           example='{"recap": "story"}  (write a recap of the new entries of a declared recap\'s record now)',
-           check=declared_check("recap", "recap"))
+@family_action("host", ("recap",), "write", was=("recap",),
+               example='{"host": "story", "action": "write"}  (recap the new entries of the record now; generated every N rounds)')
 def _recap_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    name = effect["recap"]
-    config = config_of(world, name, "recap", RecapConfig, where)
+    name = effect["host"]
+    config = config_of(world, name, RECAP, RecapConfig, where)
     cursor = int(world.props.get(f"{name}_cursor") or 0)
     fields = world.contract.records[config.record].fields
     new = [e for e in world.records(config.record) if e["seq"] > cursor and e.get("to") is None]

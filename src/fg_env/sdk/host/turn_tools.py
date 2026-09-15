@@ -1,7 +1,7 @@
 """Host tools inside a turn: offered beside the agent's actions, usable in any stage, without
 using up an action.
 
-Host tools (``host_tool``) and memory tools (``recall``, ``note``) are declared as ordinary
+Host tools (``host.tool``) and memory tools (``recall``, ``note``) are declared as ordinary
 private actions, so a contract checks, previews and runs with the plain engine. Every run offers
 them (``Env.run`` passes each participant through :func:`offer`): a :class:`HostWake`
 lists them as ``look`` tools and applies them at once — in simultaneous stages too — counting
@@ -55,7 +55,7 @@ def turn_tools(contract: Any) -> Dict[str, TurnTool]:
         if key is None:
             continue
         config = config_data(raw)
-        if key == "host_tool":
+        if key == "host.tool":
             stages = HostToolConfig.model_validate(config).stages
             tools[name] = TurnTool(name, name, tuple(stages) if stages else None, prefetch)
         elif key == "mind.memory":

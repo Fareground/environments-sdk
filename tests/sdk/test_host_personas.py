@@ -84,7 +84,7 @@ BOARD = {
     "records": {"board": {"fields": {"text": "text"}, "show": "{author}: {text}"}},
     "actions": {"post": {"by": "member", "params": {"text": "text"}, "do": [{"post": "board", "text": "$params.text"}],
                          "terminal": True}},
-    "mechanisms": {"story": {"kind": "recap", "record": "board", "every": 2}},
+    "mechanisms": {"story": {"kind": "host", "mode": "recap", "record": "board", "every": 2}},
 }
 
 
