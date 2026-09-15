@@ -1,16 +1,57 @@
-"""Static checks for the state model: noise, per-entity dynamics."""
+"""Static checks for the state model: noise, per-entity dynamics, link fields."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, FrozenSet, List, Set
+import keyword
+import re
+from typing import TYPE_CHECKING, Any, Dict, FrozenSet, Iterable, List, Mapping, Optional, Set
 
-from .contract import EntityDynamics
+from .contract import EntityDynamics, ParamSpec
 from .entity_physics import MATH_NAMES
+from .links import LINK_ATTRS
 from .props import prop_type
 
 if TYPE_CHECKING:
-    from .check import _Checker
+    from .check import Types, _Checker
 
-__all__ = ["check_physics_state"]
+__all__ = ["check_physics_state", "check_relation_fields", "check_link_fields"]
+
+_FIELD_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def check_relation_fields(checker: "_Checker", base: FrozenSet[str]) -> None:
+    """Declared link fields, and the fields each `links` entry sets."""
+    every_type = set(checker.c.types)
+    for kind, spec in checker.c.relations.items():
+        for name, prop in spec.props.items():
+            path = f"relations.{kind}.props.{name}"
+            if name in LINK_ATTRS:
+                checker.error(path, f"'{name}' is built into every link", "choose another field name")
+            elif not _FIELD_NAME.match(name) or keyword.iskeyword(name):
+                checker.error(path, f"'{name}' cannot be read as $link(...).{name}", "use letters, digits and _, not a reserved word")
+            checker._prop_spec(prop, path, base - {"metrics", "series"} | {"from", "to"},
+                               {"from": every_type, "to": every_type})
+    for index, entry in enumerate(checker.c.links):
+        roots = base | {"from", "to"} | ({"row"} if entry.rows is not None else set())
+        check_link_fields(checker, entry.relation, entry.props, f"links[{index}].props", roots)
+
+
+def check_link_fields(checker: "_Checker", relation: Any, fields: Any, path: str, roots: Iterable[str],
+                      types: Optional["Types"] = None, params: Optional[Mapping[str, ParamSpec]] = None) -> None:
+    """Fields set on a `relation` link: each declared, each value a valid expression here."""
+    spec = checker.c.relations.get(relation) if isinstance(relation, str) else None
+    if spec is None:
+        return  # the unknown relation is reported where it is named
+    if not isinstance(fields, dict):
+        checker.error(path, "`props` is an object of link fields")
+        return
+    if fields and not spec.props:
+        checker.error(path, f"relation '{relation}' declares no link fields", f"declare relations.{relation}.props")
+        return
+    for name, raw in fields.items():
+        if name not in spec.props:
+            checker.error(f"{path}.{name}", f"a {relation} link has no field '{name}'",
+                          checker._suggest(name, spec.props) or f"fields: {', '.join(spec.props)}")
+        checker.value(raw, f"{path}.{name}", roots, types, params)
 
 
 def check_physics_state(checker: "_Checker", base: FrozenSet[str]) -> None:

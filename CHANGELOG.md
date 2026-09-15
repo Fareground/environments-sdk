@@ -14,6 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the same clock right after world physics; thousands of entities per step.
 - **Stochastic terms** (`noise`, Euler–Maruyama) on world physics variables and per-entity variables, drawn
   from streams derived from the run seed, so adding noise never shifts any other random draw.
+- **Link fields** (`relations.<kind>.props`): typed fields on every link (defaults may read `$from`/`$to`),
+  read with `$link(a, b, kind).field` and listed with `$links(entity, kind, where?)`; set by `link` with
+  `props`, by assignment (`"$link($actor, $it, trusts).since = $round"`), in generated `links` and from
+  `rows` columns; removed with the link, journaled, and carried by snapshots.
+
+### Changed
+- `link` without `value` keeps an existing link's value (it used to reset it to 1); a new link gets the
+  relation's `default` (previously ignored), or 1.
 
 ## [0.3.0]
 

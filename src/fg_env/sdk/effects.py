@@ -9,7 +9,8 @@ An effect list mixes assignment statements and keyed operations::
     {"create": "review", "props": {"stars": "$params.stars"}, "as": "made"}
     {"remove": "$params.target"}
     {"transfer": "cash", "from": "$actor", "to": "$params.seller", "amount": 10, "into": "cash"}
-    {"link": "follows", "from": "$actor", "to": "$params.who", "value": 1}
+    {"link": "follows", "from": "$actor", "to": "$params.who", "value": 1, "props": {"since": "$round"}}
+    "$link($actor, $params.who, follows).since = $round"
     {"unlink": "follows", "from": "$actor", "to": "$params.who"}
     {"move": "$actor", "to": "$params.place"}
     {"post": "chat", "text": "$params.text", "to": "$params.who"}
@@ -38,6 +39,7 @@ from .errors import RunError
 from .contract import MAX_CREATE
 from .expr import MAX_INT_BITS, Expr, ExprError, attr, check_size, compile_expr, is_expr, resolve, truthy
 from .template import compile_template, format_value
+from .links import Link
 from .registry import OPS, OpSpec
 from .world import Abort, SdkWorld, _Physics, _Props
 
@@ -49,7 +51,7 @@ EFFECT_OPS: Dict[str, Tuple[str, ...]] = {
     "create": ("create", "count", "id", "name", "props", "at", "as"),
     "remove": ("remove",),
     "transfer": ("transfer", "from", "to", "amount", "into"),
-    "link": ("link", "from", "to", "value"),
+    "link": ("link", "from", "to", "value", "props"),
     "unlink": ("unlink", "from", "to"),
     "move": ("move", "to"),
     "post": ("post", "to", "author"),  # plus the record's fields
@@ -278,24 +280,26 @@ class EffectRunner:
             value = self._combine(stmt.op, attr(owner, prop, source), value, source)
         if isinstance(owner, Entity):
             self.world.set_prop(owner, prop, value)
+        elif isinstance(owner, Link):
+            self.world.set_link_field(owner, prop, value, where)
         elif isinstance(owner, _Props):
             self.world.set_world(prop, value)
         else:
             self.world.set_physics(prop, value)
 
     def _owner(self, stmt: Statement, scope: Any, source: str, where: str) -> Tuple[Any, str, List[Tuple[str, Any]]]:
-        """The deepest entity / $world / $physics on the target path, the property written on it, and
+        """The deepest entity / link / $world / $physics on the target path, the property written on it, and
         the element path (resolved keys) inside that property's value."""
         current = stmt.base(scope)  # type: ignore[misc]
         found: Optional[Tuple[Any, int]] = None
         for position, (kind, step) in enumerate(stmt.steps):
-            if kind == "field" and isinstance(current, (Entity, _Props, _Physics)):
+            if kind == "field" and isinstance(current, (Entity, Link, _Props, _Physics)):
                 found = (current, position)
             if position == len(stmt.steps) - 1:
                 break
             current = attr(current, step, source) if kind == "field" else self._element(current, step(scope), source)
         if found is None:
-            raise RunError(f"can only assign to an entity's property, $world.x or $physics.x (`{source}`)", where)
+            raise RunError(f"can only assign to an entity's property, a link's field, $world.x or $physics.x (`{source}`)", where)
         owner, position = found
         prop = stmt.steps[position][1]
         rest = [(kind, step(scope) if kind == "index" else step) for kind, step in stmt.steps[position + 1:]]
@@ -482,9 +486,12 @@ class EffectRunner:
         self.world.set_prop(target, into, _amount_held(target, into, where) + amount)
 
     def _op_link(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-        value = self._eval(effect.get("value", 1), vars)
+        value = self._eval(effect["value"], vars) if "value" in effect else None
+        fields = effect.get("props") or {}
+        if not isinstance(fields, dict):
+            raise RunError(f"`props` is an object of link fields, got {fields!r}", where)
         self.world.link(effect["link"], self._eval(effect.get("from"), vars), self._eval(effect.get("to"), vars),
-                        value, where)
+                        value, where, {name: self._eval(raw, vars) for name, raw in fields.items()})
 
     def _op_unlink(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
         self.world.unlink(effect["unlink"], self._eval(effect.get("from"), vars), self._eval(effect.get("to"), vars),
@@ -592,6 +599,8 @@ def _amount_held(entity: Entity, prop: str, where: str) -> float:
 def _plain_value(value: Any) -> Any:
     if isinstance(value, Entity):
         return value.id
+    if isinstance(value, Link):
+        return _plain_value(value.as_dict())
     if isinstance(value, list):
         return [_plain_value(v) for v in value]
     if isinstance(value, dict):

@@ -195,6 +195,8 @@ Assignment text:
 * `"$total = $params.qty * 2"` — a local (`$total`) usable by later effects and the outcome.
 * `+=`/`-=` on a list prop append/remove an item.
 * Element assignment: `"$world.board[$i] = $actor.mark"`, `"$actor.scores[round_2] += 1"` (lists and maps).
+* Links: `"$link($actor, $params.who, trusts).value += 0.1"`, `"$link($actor, $params.who, trusts).since = $round"`
+  (the link must exist; its value is clamped to the relation's min/max, fields are typed like props).
 * Numeric props are clamped to their min/max; types are enforced.
 
 Operation objects (exactly one operation key each):
@@ -207,7 +209,7 @@ _EFFECT_EXAMPLES = {
     "create": '{"create": "review", "count": 1, "name": "Review {$i}", "props": {"stars": "$params.stars"}, "at": null, "as": "made"}',
     "remove": '{"remove": "$params.target"}',
     "transfer": '{"transfer": "cash", "from": "$actor", "to": "$params.seller", "amount": 10}  (fails the action if short)',
-    "link": '{"link": "follows", "from": "$actor", "to": "$params.who", "value": 1}',
+    "link": '{"link": "trusts", "from": "$actor", "to": "$params.who", "value": 0.8, "props": {"since": "$round"}}  (creates or updates: without `value` an existing link keeps its value and a new one gets the relation\'s `default`; `props` sets link fields, a new link starting from their defaults)',
     "unlink": '{"unlink": "follows", "from": "$actor", "to": "$params.who"}',
     "move": '{"move": "$actor", "to": "$params.place"}',
     "post": '{"post": "chat", "text": "$params.text", "to": "$params.who"}  (record fields as keys; to = private recipients)',
@@ -255,6 +257,10 @@ _PATTERNS = """\
   one-way relation `random` draws each direction on its own, and `p` may depend on the pair
   (`"0.1 if $to.influencer else 0.02"`) for influencers and homophily;
   `$neighbors(entity, kind)` in views, effects, contagion events.
+* Links with data: `"relations": {"trusts": {"props": {"since": {"type": "int", "default": "$round"},
+  "channel": {"type": "enum", "values": ["work", "family"], "default": "work"}}}}`. Read `$link(a, b, trusts).since`;
+  list `$links($actor, trusts)` in views (`"show": "{target.name} via {channel}"`); set fields with `link` +
+  `props`, by assignment, or in `links` (`props` over `$from`/`$to`; `rows` columns named like a field fill it).
 * Continuous dynamics: `physics` vars with rates (math over bare names), `read` from the world,
   `write` back to props; effects adjust `$physics.x` (policy shocks). `noise` adds a random term
   (`"noise": "sigma*price"`, Euler–Maruyama, drawn from the run's seed).

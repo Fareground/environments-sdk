@@ -293,12 +293,14 @@ class PopulationSpec(_Model):
 
 
 class RelationSpec(_Model):
-    """A kind of link between entities (follows, trusts, owns …)."""
+    """A kind of link between entities (follows, trusts, owns …). Every link carries a number
+    (``value``) and, with ``props``, typed fields of its own (``since``, ``channel``, ``strength``)."""
 
     symmetric: bool = False
-    default: Optional[float] = None
+    default: Optional[float] = Field(None, description="Value of a link made without one (default 1).")
     min: Optional[float] = None
     max: Optional[float] = None
+    props: Dict[str, PropSpec] = Field(default_factory=dict, description="Typed fields every link carries, read as $link(a, b, kind).field; defaults may be expressions over $from and $to.")
     description: str = ""
 
 
@@ -319,6 +321,7 @@ class LinkSpec(_Model):
     rows: Optional[str] = Field(None, description="Edges from data: an expression giving rows with `from`, `to` and optional `value`.")
     degree: Union[int, str, None] = Field(None, description="Links per member (number or expression).")
     p: Union[float, str, None] = Field(None, description="Link probability (random) or rewiring probability (small_world). For random it may depend on the pair: '0.1 if $to.influencer else 0.02'.")
+    props: Dict[str, Any] = Field(default_factory=dict, description="Link field values or expressions over $from and $to ($row too with `rows`, whose columns named like a field fill it).")
     where: Optional[str] = None
 
 

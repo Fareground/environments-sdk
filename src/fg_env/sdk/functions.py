@@ -357,6 +357,24 @@ def _linked(call: Call) -> bool:
     return call.scope.world.relation(call.arg(0), call.arg(1), str(call.arg(2))) is not None
 
 
+@function("link(a, b, kind)", "The `kind` link from a to b — its `value`, `source`, `target`, `kind` and the relation's "
+          "fields — or null when not linked. Effects assign `.value` or a field: `$link($actor, $it, trusts).since = $round`.",
+          min_args=3, max_args=3)
+def _link(call: Call) -> Any:
+    return call.scope.world.link_view(call.arg(0), call.arg(1), str(call.arg(2)))
+
+
+@function("links(entity, kind, where?)", "The `kind` links from `entity` (either direction on a symmetric relation) to living "
+          "entities, each with `value`, `source`, `target` and the relation's fields; `where` filters ($it is a link).",
+          min_args=2, max_args=3, lazy=[2])
+def _links(call: Call) -> List[Any]:
+    rows = call.scope.world.links_of(call.arg(0), str(call.arg(1)))
+    charge(len(rows), call.source)
+    if len(call) < 3:
+        return list(rows)
+    return [row for i, row in enumerate(rows) if truthy(call.each(2, row, i))]
+
+
 @function("neighbors(entity, kind)", "Entities linked to `entity` by `kind` (either direction).",
           min_args=2, max_args=2)
 def _neighbors(call: Call) -> List[Any]:

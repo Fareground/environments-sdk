@@ -81,7 +81,8 @@ def take_snapshot(env: "Env") -> Dict[str, Any]:
         "entity_briefs": encode(w.entity_briefs),
         "briefs": encode(env._briefs),
         "props": encode(w.props),
-        "links": {kind: [[a, b, v] for (a, b), v in edges.items()] for kind, edges in w.links.items()},
+        "links": {kind: [[a, b, v, encode(w.link_fields[kind][(a, b)])] if (a, b) in w.link_fields[kind] else [a, b, v]
+                         for (a, b), v in edges.items()] for kind, edges in w.links.items()},
         "records": {name: [encode(dict(row)) for row in rows] for name, rows in w.records_store.items()},
         "record_seq": w._record_seq,
         "log": [encode(e.to_dict()) for e in w.log], "seq": w._seq,
@@ -147,7 +148,9 @@ def _restore(cls: Type[_E], contract: Contract, snapshot: Mapping[str, Any], par
     w.props = decode(snapshot["props"])
     w.entity_briefs = decode(snapshot["entity_briefs"])
     env._briefs = decode(snapshot["briefs"])
-    w.links = {kind: {(a, b): v for a, b, v in edges} for kind, edges in snapshot["links"].items()}
+    w.links = {kind: {(row[0], row[1]): row[2] for row in edges} for kind, edges in snapshot["links"].items()}
+    w.link_fields = {kind: {(row[0], row[1]): decode(row[3]) for row in edges if len(row) > 3}
+                     for kind, edges in snapshot["links"].items()}
     w.rebuild_adjacency()
     w.records_store = {}
     w.entry_by_seq = {}

@@ -1068,6 +1068,12 @@
           "description": "Link probability (random) or rewiring probability (small_world). For random it may depend on the pair: '0.1 if $to.influencer else 0.02'.",
           "title": "P"
         },
+        "props": {
+          "additionalProperties": true,
+          "description": "Link field values or expressions over $from and $to ($row too with `rows`, whose columns named like a field fill it).",
+          "title": "Props",
+          "type": "object"
+        },
         "where": {
           "anyOf": [
             {
@@ -2012,7 +2018,7 @@
     },
     "RelationSpec": {
       "additionalProperties": false,
-      "description": "A kind of link between entities (follows, trusts, owns …).",
+      "description": "A kind of link between entities (follows, trusts, owns …). Every link carries a number\n(``value``) and, with ``props``, typed fields of its own (``since``, ``channel``, ``strength``).",
       "properties": {
         "symmetric": {
           "default": false,
@@ -2029,6 +2035,7 @@
             }
           ],
           "default": null,
+          "description": "Value of a link made without one (default 1).",
           "title": "Default"
         },
         "min": {
@@ -2054,6 +2061,14 @@
           ],
           "default": null,
           "title": "Max"
+        },
+        "props": {
+          "additionalProperties": {
+            "$ref": "#/$defs/PropSpec"
+          },
+          "description": "Typed fields every link carries, read as $link(a, b, kind).field; defaults may be expressions over $from and $to.",
+          "title": "Props",
+          "type": "object"
         },
         "description": {
           "default": "",

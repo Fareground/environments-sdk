@@ -17,7 +17,8 @@ from .errors import RunError
 from .expr import ExprError, FUNCTIONS, Scope, Untrusted, World, compile_expr, is_expr, truthy
 from .props import finite_number as _finite_number, prop_type, shown_value as _shown_value
 from .seeds import SeedTree
-from . import world_physics
+from . import links as _links, world_physics
+from .links import Link
 
 __all__ = ["SdkWorld", "Entry", "LogEvent", "Abort", "prop_type"]
 
@@ -175,6 +176,8 @@ class SdkWorld(World):
         self.entities: Dict[str, Entity] = {}
         self.props: Dict[str, Any] = {}
         self.links: Dict[str, Dict[Tuple[str, str], float]] = {name: {} for name in contract.relations}
+        #: relation → (a, b) → the link's fields (relations that declare props)
+        self.link_fields: Dict[str, Dict[Tuple[str, str], Dict[str, Any]]] = {name: {} for name in contract.relations}
         #: relation → entity id → {linked entity id: number of edges between them}
         self.adjacent: Dict[str, Dict[str, Dict[str, int]]] = {name: {} for name in contract.relations}
         self.records_store: Dict[str, List[Entry]] = {name: [] for name in contract.records}
@@ -267,18 +270,17 @@ class SdkWorld(World):
         return [e for e in self.log if (kind is None or e.kind == kind) and (seen is None or e.visible_to(seen))]
 
     def relation(self, a: Any, b: Any, kind: str) -> Optional[float]:
-        edges = self._edges(kind)
-        return edges.get(self._key(kind, _id(a), _id(b)))
+        return _links.relation(self, a, b, kind)
 
     def neighbors(self, entity: Any, kind: str) -> List[Entity]:
-        self._edges(kind)
-        linked = self.adjacent[kind].get(_id(entity), {})
-        out: List[Entity] = []
-        for other in linked:
-            found = self.entities.get(other)
-            if found is not None and found.alive:
-                out.append(found)
-        return out
+        return _links.neighbors(self, entity, kind)
+
+    def link_view(self, a: Any, b: Any, kind: str) -> Optional[Link]:
+        """The live ``kind`` link from a to b, or None."""
+        return _links.link_view(self, a, b, kind)
+
+    def links_of(self, entity: Any, kind: str) -> List[Link]:
+        return _links.links_of(self, entity, kind)
 
     def visible_records(self, name: str, viewer: Any) -> List[Entry]:
         rows = self.records(name)
@@ -593,65 +595,18 @@ class SdkWorld(World):
         entity.location_id = location
         self.journal.push(lambda: setattr(entity, "location_id", old))
 
-    def link(self, kind: str, a: Any, b: Any, value: Any, where: str) -> None:
-        spec = self.contract.relations.get(kind)
-        if spec is None:
-            raise RunError(f"'{kind}' is not a declared relation (relations: {', '.join(self.contract.relations) or 'none'})", where)
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            raise RunError(f"link value must be a number, got {value!r}", where)
-        value = float(value)
-        if spec.min is not None:
-            value = max(spec.min, value)
-        if spec.max is not None:
-            value = min(spec.max, value)
-        edges = self.links[kind]
-        key = self._key(kind, _id(a), _id(b))
-        missing = key not in edges
-        old = edges.get(key)
-        edges[key] = value
-        if missing:
-            self._adjust(kind, key, 1)
-
-        def undo() -> None:
-            if missing:
-                edges.pop(key, None)
-                self._adjust(kind, key, -1)
-            else:
-                edges[key] = old
-
-        self.journal.push(undo)
+    def link(self, kind: str, a: Any, b: Any, value: Any, where: str, fields: Optional[Dict[str, Any]] = None) -> None:
+        """Create or update a link (``value`` None keeps the current value; see :func:`links.link`)."""
+        _links.link(self, kind, a, b, value, where, fields)
 
     def unlink(self, kind: str, a: Any, b: Any, where: str) -> None:
-        edges = self._edges(kind, where)
-        key = self._key(kind, _id(a), _id(b))
-        if key in edges:
-            old = edges.pop(key)
-            self._adjust(kind, key, -1)
+        _links.unlink(self, kind, a, b, where)
 
-            def undo() -> None:
-                edges[key] = old
-                self._adjust(kind, key, 1)
-
-            self.journal.push(undo)
-
-    def _adjust(self, kind: str, key: Tuple[str, str], delta: int) -> None:
-        a, b = key
-        if a == b:
-            return
-        index = self.adjacent[kind]
-        for x, y in ((a, b), (b, a)):
-            row = index.setdefault(x, {})
-            count = row.get(y, 0) + delta
-            if count > 0:
-                row[y] = count
-            else:
-                row.pop(y, None)
+    def set_link_field(self, view: Link, name: str, value: Any, where: str) -> None:
+        _links.set_link_field(self, view, name, value, where)
 
     def rebuild_adjacency(self) -> None:
-        self.adjacent = {kind: {} for kind in self.links}
-        for kind, edges in self.links.items():
-            for key in edges:
-                self._adjust(kind, key, 1)
+        _links.rebuild_adjacency(self)
 
     def post(self, record: str, fields: Dict[str, Any], author: Optional[str],
              to: Optional[Tuple[str, ...]], where: str) -> Entry:
@@ -774,16 +729,8 @@ class SdkWorld(World):
 
     # -- helpers ---------------------------------------------------------------
 
-    def _edges(self, kind: str, where: Optional[str] = None) -> Dict[Tuple[str, str], float]:
-        if kind not in self.links:
-            raise ExprError(f"'{kind}' is not a declared relation (relations: {', '.join(self.links) or 'none'})", where)
-        return self.links[kind]
-
     def _key(self, kind: str, a: str, b: str) -> Tuple[str, str]:
-        spec = self.contract.relations.get(kind)
-        if spec is not None and spec.symmetric and b < a:
-            return (b, a)
-        return (a, b)
+        return _links.edge_key(self, kind, a, b)
 
     def _check_location(self, at: Any, where: str) -> Any:
         space = self.contract.space
@@ -817,14 +764,6 @@ def _short(value: Optional[float]) -> str:
     return f"{value:.10g}" if isinstance(value, float) else str(value)
 
 
-def _id(value: Any) -> str:
-    if isinstance(value, Entity):
-        return value.id
-    if isinstance(value, str):
-        return value
-    raise ExprError(f"expected an entity or id, got {value!r}")
-
-
 def _location(value: Any) -> Any:
     return value.location_id if isinstance(value, Entity) else value
 
@@ -838,9 +777,11 @@ def _copy(value: Any) -> Any:
 
 
 def _plain(value: Any) -> Any:
-    """Store entities by id: properties never hold live object references."""
+    """Store entities by id and links as data: properties never hold live object references."""
     if isinstance(value, Entity):
         return value.id
+    if isinstance(value, Link):
+        return value.as_dict()
     if isinstance(value, list):
         return [_plain(v) for v in value]
     if isinstance(value, dict) and not isinstance(value, Entry):
@@ -853,6 +794,8 @@ def _plain(value: Any) -> Any:
 def _freeze(value: Any) -> Any:
     if isinstance(value, Entity):
         return {"$entity": value.id}
+    if isinstance(value, Link):
+        return _freeze(value.as_dict())
     if isinstance(value, list):
         return [_freeze(v) for v in value]
     if isinstance(value, dict):

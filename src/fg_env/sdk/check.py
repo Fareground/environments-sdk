@@ -20,7 +20,7 @@ from pydantic import BaseModel, ValidationError
 from ..physics import _CONSTS, _FUNCS, PhysicsExprError, _CompiledExpr
 from . import contract as C
 from .contract import Contract
-from .check_state import check_physics_state
+from .check_state import check_link_fields, check_physics_state, check_relation_fields
 from .effects import (
     REPEAT_CEILING,
     RESERVED_ROOTS,
@@ -532,6 +532,7 @@ class _Checker:
                 v(key)
             if op == "link":
                 v("value")
+                check_link_fields(self, effect[op], effect.get("props", {}), f"{path}.props", roots, types, params)
         elif op == "post":
             record = effect["post"]
             spec = self.c.records.get(record)
@@ -598,6 +599,7 @@ class _Checker:
         self._keyword_names()
         self._entities()
         self._relations()
+        check_relation_fields(self, BASE)
         self._physics()
         check_physics_state(self, BASE)
         self._records()
@@ -799,7 +801,7 @@ class _Checker:
                            self._suggest(link.relation, self.c.relations) or "declare it under `relations`")
             if not is_expr(link.value) and (isinstance(link.value, bool) or not isinstance(link.value, (int, float))):
                 self.error(f"{path}.value", f"a link value must be a number, got {json.dumps(link.value, default=str)[:60]}",
-                           "one number per link; for several fields per link use an entity per link")
+                           "one number per link; declare other data as the relation's `props` and set them with `props`")
             graphs = ("complete", "ring", "random", "small_world", "scale_free", "blocks", "lattice", "star", "bipartite")
             if link.rows is not None:
                 self.expr(link.rows, f"{path}.rows", BASE)
