@@ -1,6 +1,6 @@
 """Personas written by a host once, when the world is built.
 
-``"mechanisms": {"lives": {"kind": "personas", "of": "citizen", "prompt": "A {age}-year-old …"}}``
+``"mechanisms": {"lives": {"kind": "mind", "mode": "personas", "who": "citizen", "prompt": "A {age}-year-old …"}}``
 asks the host to write one persona per citizen from the prompt template. The text is stored in
 the entity's ``persona`` property and added to its brief, so snapshots carry it and a restore
 never writes it again. ``fg_env.sdk.host.load`` writes personas before round 1; with a plain
@@ -15,13 +15,15 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..errors import RunError
 from ..expr import ExprError, Untrusted
-from ..registry import MechanismError, effect_op, mechanism
+from ..registry import MechanismError, family_action, mode
 from ..template import compile_template, format_value
-from .common import NAME, agents_of, clip, config_of, declared_check, type_list
+from .common import NAME, agents_of, clip, config_of, type_list
 from .protocols import HostError
 from .tape import consult, plain, tape_prop
 
-__all__ = ["PersonaConfig", "generate"]
+__all__ = ["PersonaConfig", "generate", "KEY"]
+
+KEY = "mind.personas"
 
 
 class PersonaConfig(BaseModel):
@@ -29,7 +31,7 @@ class PersonaConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    of: str = Field(..., description="Type whose entities get a persona.")
+    who: str = Field(..., description="Type whose entities get a persona.")
     prompt: str = Field(..., description="What to write, as a template over $it (the entity and its props).")
     host: str = Field("personas", description="Host writer name.")
     model: Optional[str] = Field(None, description="Model hint passed to the host.")
@@ -39,13 +41,13 @@ class PersonaConfig(BaseModel):
     max_chars: int = Field(2000, ge=50, le=20_000, description="Longest persona kept (longer text is cut).")
 
 
-@mechanism("personas", PersonaConfig,
+@mode("mind", "personas", PersonaConfig,
            "Personas written by a host writer from a prompt template over $it, once per entity before round 1: "
            "stored in the `prop` property and the entity's brief, carried by snapshots, recorded for replay.",
-           example={"kind": "personas", "of": "shopper", "prompt": "A {age}-year-old shopper with a budget of {budget|money}.",
-                    "fallback": "A shopper, age {age}."})
+           example={"who": "shopper", "prompt": "A {age}-year-old shopper with a budget of {budget|money}.",
+                    "fallback": "A shopper, age {age}."}, was="personas")
 def _expand_personas(name: str, config: PersonaConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
-    type_list(contract, config.of, "of")
+    type_list(contract, config.who, "who")
     if not NAME.match(config.prop):
         raise MechanismError(f"prop must be a property name, got {config.prop!r}", None, "prop")
     for key, template in (("prompt", config.prompt), ("fallback", config.fallback)):
@@ -56,17 +58,17 @@ def _expand_personas(name: str, config: PersonaConfig, contract: Mapping[str, An
         except ExprError as exc:
             raise MechanismError(str(exc), "fix the template", key) from None
     return {
-        "types": {config.of: {"props": {config.prop: {"type": "text", "default": "", "private": True}}}},
+        "types": {config.who: {"props": {config.prop: {"type": "text", "default": "", "private": True}}}},
         "world": {"host_tape": tape_prop()},
-        "events": [{"name": f"{name}_personas", "at": 1, "phase": "start", "once": True, "do": [{"personas": name}]}],
+        "events": [{"name": f"{name}_personas", "at": 1, "phase": "start", "once": True, "do": [{"mind": name, "action": "write"}]}],
     }
 
 
 def generate(world: Any, name: str, where: str) -> int:
     """Write every missing persona of the mechanism ``name``; returns how many were written."""
-    config = config_of(world, name, "personas", PersonaConfig, where)
+    config = config_of(world, name, KEY, PersonaConfig, where)
     written = 0
-    for entity in agents_of(world, config.of):
+    for entity in agents_of(world, config.who):
         if entity.properties.get(config.prop):
             continue
         prompt = _render(world, config.prompt, entity, f"mechanisms.{name}.prompt")
@@ -117,8 +119,7 @@ def _add_to_brief(world: Any, entity_id: str, line: str) -> None:
     world.journal.push(undo)
 
 
-@effect_op("personas", keys=(), literal=("personas",),
-           example='{"personas": "lives"}  (write any missing personas of a declared personas mechanism now)',
-           check=declared_check("personas", "personas"))
-def _personas_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-    generate(runner.world, effect["personas"], where)
+@family_action("mind", ("personas",), "write", was=("personas",),
+               example='{"mind": "lives", "action": "write"}  (write any missing personas now; generated for round 1)')
+def _write(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+    generate(runner.world, effect["mind"], where)

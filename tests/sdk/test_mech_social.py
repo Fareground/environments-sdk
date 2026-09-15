@@ -570,36 +570,36 @@ VILLAGE = {
                  "cy": {"type": "villager", "name": "Cy"}},
     "relations": {"trusts": {}},
     "links": [{"relation": "trusts", "from": "cy", "to": "ben", "value": 0.5}],
-    "mechanisms": {"memory": {"kind": "beliefs", "holders": "villager", "decay": 0.1, "secondhand": 0.5,
+    "mechanisms": {"memory": {"kind": "mind", "mode": "beliefs", "who": "villager", "decay": 0.1, "secondhand": 0.5,
                               "trust": "trusts", "share": True}},
 }
 
 
 def test_learn_tell_secondhand_trust_and_decay():
     env = fg_env.load(VILLAGE, seed=1)
-    assert do(env, "ana", [{"learn": "wolf", "value": "ben", "confidence": 0.8}])
+    assert do(env, "ana", [{"mind": "memory", "action": "learn", "key": "wolf", "value": "ben", "confidence": 0.8}])
     assert ev(env, "[$believes(ana, wolf), $believes(ana, wolf, ben), $believes(ana, wolf, cy)]") == [True, True, False]
-    assert do(env, "ana", [{"tell": "wolf", "to": "ben"}])
+    assert do(env, "ana", [{"mind": "memory", "action": "tell", "key": "wolf", "to": "ben"}])
     assert ev(env, "$belief(ben, wolf)") == {"value": "ben", "confidence": 0.4, "source": "told", "told_by": "ana", "round": 0}
-    assert do(env, "ben", [{"tell": "wolf", "to": "cy"}])
+    assert do(env, "ben", [{"mind": "memory", "action": "tell", "key": "wolf", "to": "cy"}])
     assert ev(env, "$confidence(cy, wolf)") == pytest.approx(0.4 * 0.5 * 0.5)  # secondhand × trust
-    assert do(env, "ben", [{"learn": "wolf", "value": "cy", "confidence": 0.3}])  # weaker and contradicting: ignored
+    assert do(env, "ben", [{"mind": "memory", "action": "learn", "key": "wolf", "value": "cy", "confidence": 0.3}])  # weaker and contradicting: ignored
     assert ev(env, "$belief(ben, wolf).value") == "ben"
-    assert not do(env, "cy", [{"tell": "stash", "to": "ben"}])  # nothing to pass on
-    assert not do(env, "ana", [{"tell": "wolf", "to": "ana"}])  # no telling yourself
+    assert not do(env, "cy", [{"mind": "memory", "action": "tell", "key": "stash", "to": "ben"}])  # nothing to pass on
+    assert not do(env, "ana", [{"mind": "memory", "action": "tell", "key": "wolf", "to": "ana"}])  # no telling yourself
     assert [e.to for e in env.world.log if e.kind == "told"] == [("ben",), ("cy",)]
     env.run("idle", rounds=1)
     assert ev(env, "$confidence(ana, wolf)") == pytest.approx(0.72)
     assert ev(env, "$confidence(cy, wolf)") == pytest.approx(0.09)
     for _ in range(6):
-        assert do(env, None, [{"decay_beliefs": "memory"}])
+        assert do(env, None, [{"mind": "memory", "action": "decay"}])
     assert ev(env, "$believes(cy, wolf)") is False  # 0.09 × 0.9⁶ < forget_below
-    assert do(env, "ana", [{"forget": "wolf"}]) and ev(env, "$beliefs_of(ana)") == []
+    assert do(env, "ana", [{"mind": "memory", "action": "forget", "key": "wolf"}]) and ev(env, "$beliefs_of(ana)") == []
 
 
 def test_an_agent_sees_only_its_own_beliefs():
     env = fg_env.load(VILLAGE, seed=1)
-    assert do(env, "ana", [{"learn": "stash", "value": "the old barn", "confidence": 0.9}])
+    assert do(env, "ana", [{"mind": "memory", "action": "learn", "key": "stash", "value": "the old barn", "confidence": 0.9}])
     script = Script(env, {}, probes={"ben": [("inspect", {"id": "ana"})]})
     env.run(script, rounds=1)
     assert "the old barn" not in script.text("ben") and "the old barn" not in json.dumps(env.preview("cy"))
@@ -610,6 +610,24 @@ def test_an_agent_sees_only_its_own_beliefs():
     assert "memory_tell" not in ben_tools  # ben held nothing to tell during the round
     straight, resumed = split_run(VILLAGE, "random")
     assert straight == resumed
+
+
+def test_beliefs_config_and_actions_say_what_to_fix():
+    def with_config(**config):
+        return {**VILLAGE, "mechanisms": {"memory": {**VILLAGE["mechanisms"]["memory"], **config}}}
+
+    assert errors(with_config(decay_curve="linear")) == []
+    assert any("`holders` is not a field of `mind` mode `beliefs`" in e for e in errors(with_config(holders="villager")))
+    assert any("'beliefs' is now kind 'mind' with mode 'beliefs'" in e
+               for e in errors({**VILLAGE, "mechanisms": {"memory": {"kind": "beliefs", "holders": "villager"}}}))
+
+    def op(*effects):
+        return errors({**VILLAGE, "events": [{"do": list(effects)}]})
+
+    assert any("`mind.tell` needs `to`" in e for e in op({"mind": "memory", "action": "tell", "key": "wolf"}))
+    assert any("'from' is not part of `mind.tell`" in e
+               for e in op({"mind": "memory", "action": "tell", "key": "wolf", "to": "ben", "from": "ana"}))
+    assert any('`learn` is now the `mind` op: {"mind": "<mechanism>", "action": "learn"' in e for e in op({"learn": "wolf"}))
 
 
 # ---------------------------------------------------------------------------

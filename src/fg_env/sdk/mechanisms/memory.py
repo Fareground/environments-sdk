@@ -24,7 +24,7 @@ from ..expr import Call, ExprError, Untrusted, function
 from ..host.common import NAME, agents_of, clip, config_of, declared_check, prop_of, type_list
 from ..host.protocols import HostError
 from ..host.tape import consult, plain, tape_prop
-from ..registry import MechanismError, effect_op, mechanism
+from ..registry import MechanismError, effect_op, family_action, mechanism, mode, use_key
 from ..template import format_value
 
 __all__ = ["MemoryConfig", "RecapConfig", "lexical_relevance"]
@@ -35,6 +35,7 @@ CHARS_PER_TOKEN = 4
 MAX_ENTRY_CHARS = 2000
 #: Most recent memories a reflection reads.
 REFLECTION_WINDOW = 20
+MEMORY = "mind.memory"
 _STOP = frozenset("a an and are as at be but by did do for from had has have he her his i if in into is it its "
                   "me my no not of on or our she so than that the their them then there they this to was we "
                   "were what when which who will with you your".split())
@@ -47,19 +48,19 @@ class MemoryConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    agents: Union[str, List[str]] = Field(..., description="Agent type(s) that remember.")
+    who: Union[str, List[str]] = Field(..., description="Agent type(s) that remember.")
     capture: List[Literal["did", "saw"]] = Field(["did", "saw"], description="What is remembered each round: did (own actions), saw (news the agent read).")
     note: Optional[str] = Field("note", description="Name of the note tool (null: no notes).")
     recall: Optional[str] = Field("recall", description="Name of the recall tool (null: no recall).")
     stages: Optional[List[str]] = Field(None, description="Stages where note and recall are offered (default: every stage whose actions include them).")
-    max_len: int = Field(500, ge=1, le=MAX_ENTRY_CHARS, description="Longest note.")
+    max_chars: int = Field(500, ge=1, le=MAX_ENTRY_CHARS, description="Longest note, in characters.")
     recall_limit: int = Field(5, ge=1, le=50, description="Memories one recall returns.")
     half_life: float = Field(10.0, gt=0, description="Rounds (or clock time) after which recency halves.")
     importance: Dict[str, float] = Field(default_factory=dict, description="Importance 0–1 per kind (did, saw, note, reflection).")
     weights: Dict[str, float] = Field(default_factory=dict, description="Recall weights of relevance, recency, importance.")
     limit: int = Field(200, ge=1, le=5000, description="Memories kept per agent; the faintest are forgotten.")
     budget: int = Field(300, ge=10, le=20_000, description="Tokens of memory shown in the memory view.")
-    view: bool = Field(True, description="Show the strongest memories in every update.")
+    views: bool = Field(True, description="Show the strongest memories in every update.")
     relevance: Literal["lexical", "host"] = Field("lexical", description="How recall scores relevance: lexical (no host) or host (a Ranker).")
     host: Optional[str] = Field(None, description="Host ranker name (relevance: host).")
     reflect_every: Optional[int] = Field(None, ge=1, description="Write a reflection with a host writer every N rounds.")
@@ -91,14 +92,14 @@ class MemoryConfig(BaseModel):
         return self.weights.get(key, DEFAULT_WEIGHTS[key])
 
 
-@mechanism("memory", MemoryConfig,
+@mode("mind", "memory", MemoryConfig,
            "Per-agent memory: each round what the agent did and read is remembered, plus `note(text)` entries "
            "and optional host reflections; importance fades with `half_life`. `recall(query)` returns the most "
            "relevant memories (lexical, or host-scored) and strengthens them; a view shows the strongest within "
            "`budget` tokens ($memories). Stored in the private property <name> of each agent.",
-           example={"kind": "memory", "agents": "panelist", "half_life": 5, "budget": 250})
+           example={"who": "panelist", "half_life": 5, "budget": 250}, was="memory")
 def _expand_memory(name: str, config: MemoryConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
-    agents = type_list(contract, config.agents, "agents")
+    agents = type_list(contract, config.who, "who")
     by: Union[str, List[str]] = agents if len(agents) > 1 else agents[0]
     for key in ("note", "recall"):
         tool = getattr(config, key)
@@ -117,13 +118,13 @@ def _expand_memory(name: str, config: MemoryConfig, contract: Mapping[str, Any])
     if config.note:
         actions[config.note] = {
             "by": by, "description": "Write a note to your future self. Only you can read it; it stays in your memory.",
-            "params": {"text": {"type": "text", "max_len": config.max_len, "description": "The note."}},
-            "private": True, "do": [{"memory_note": name, "text": "$params.text"}], "outcome": "Noted."}
+            "params": {"text": {"type": "text", "max_len": config.max_chars, "description": "The note."}},
+            "private": True, "do": [{"mind": name, "action": "note", "text": "$params.text"}], "outcome": "Noted."}
     if config.recall:
         actions[config.recall] = {
             "by": by, "description": "Search your memory for what bears on a question; returns the most relevant memories.",
             "params": {"query": {"type": "text", "max_len": 300, "description": "What you want to remember."}},
-            "private": True, "do": [{"memory_recall": name, "query": "$params.query"}],
+            "private": True, "do": [{"mind": name, "action": "recall", "query": "$params.query"}],
             "outcome": f"{{$actor.{name}_recalled}}"}
     if config.stages and actions:
         condition = {"expr": f"$stage in {json.dumps(config.stages)}", "why": "Not available now."}
@@ -131,11 +132,11 @@ def _expand_memory(name: str, config: MemoryConfig, contract: Mapping[str, Any])
             action["when"] = [condition]
         fragment["stage_hooks"] = {stage: {"actions": list(actions)} for stage in config.stages}
     if config.capture:
-        fragment["events"].append({"name": f"{name}_capture", "phase": "end", "do": [{"memory_capture": name}]})
+        fragment["events"].append({"name": f"{name}_capture", "phase": "end", "do": [{"mind": name, "action": "capture"}]})
     if config.reflect_every:
         fragment["events"].append({"name": f"{name}_reflect", "phase": "end", "when": f"$round % {config.reflect_every} == 0",
-                                   "do": [{"memory_reflect": name}]})
-    if config.view:
+                                   "do": [{"mind": name, "action": "reflect"}]})
+    if config.views:
         fragment["views"][name] = {"for": by, "title": "From your memory", "of": f"$memories($actor, '{name}')",
                                    "show": "{$it.label}: {$it.text}"}
     return fragment
@@ -225,31 +226,30 @@ def _relevance(world: Any, name: str, config: MemoryConfig, agent: Entity, query
     return ranked
 
 
-# -- ops ------------------------------------------------------------------------------
+# -- the mind op's memory actions ----------------------------------------------------------
 
 
-def _actor(vars: Dict[str, Any], op: str, where: str) -> Entity:
+def _actor(vars: Dict[str, Any], action: str, where: str) -> Entity:
     actor = vars.get("actor")
     if not isinstance(actor, Entity):
-        raise RunError(f"`{op}` runs inside an action (it needs $actor)", where)
+        raise RunError(f"`{action}` runs inside an action (it needs $actor)", where)
     return actor
 
 
-@effect_op("memory_capture", keys=(), literal=("memory_capture",),
-           example='{"memory_capture": "memory"}  (remember what each agent did and read since the last capture)',
-           check=declared_check("memory_capture", "memory"))
-def _capture_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+@family_action("mind", ("memory",), "capture", internal=True, was=("memory_capture",),
+               example='{"mind": "memory", "action": "capture"}  (remember what each agent did and read since the last capture)')
+def _capture(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     from ..perception import Perception
 
     world = runner.world
-    name = effect["memory_capture"]
-    config = config_of(world, name, "memory", MemoryConfig, where)
+    name = effect["mind"]
+    config = config_of(world, name, MEMORY, MemoryConfig, where)
     cursor = int(world.props.get(f"{name}_cursor") or 0)
     events = [e for e in world.log if e.seq > cursor]
     perception = Perception(world.contract, world)
-    lookups = [n for n, raw in world.contract.mechanisms.items() if isinstance(raw, Mapping) and raw.get("kind") == "host_tool"]
+    lookups = [n for n, raw in world.contract.mechanisms.items() if use_key(raw) == "host_tool"]
     tools = {config.note, config.recall, *lookups}
-    for agent in agents_of(world, config.agents):
+    for agent in agents_of(world, config.who):
         items: List[Tuple[str, str]] = []
         for event in events:
             if event.kind == "end" or not event.visible_to(agent.id):
@@ -280,29 +280,27 @@ def _did(event: Any) -> str:
     return f"You did: {action}" + (f" ({args})" if args else "") + failed
 
 
-@effect_op("memory_note", keys=("text",), literal=("memory_note",), required=("text",),
-           example='{"memory_note": "memory", "text": "$params.text"}  (add a note to the actor\'s memory)',
-           check=declared_check("memory_note", "memory"))
-def _note_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+@family_action("mind", ("memory",), "note", keys=("text",), required=("text",), was=("memory_note",),
+               example='{"mind": "memory", "action": "note", "text": "$params.text"}  (add a note to the actor\'s memory)')
+def _note(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    name = effect["memory_note"]
-    config = config_of(world, name, "memory", MemoryConfig, where)
-    actor = _actor(vars, "memory_note", where)
+    name = effect["mind"]
+    config = config_of(world, name, MEMORY, MemoryConfig, where)
+    actor = _actor(vars, "note", where)
     text = runner.eval(effect["text"], vars)
     if not isinstance(text, str) or not text.strip():
         raise RunError(f"a note is non-empty text, got {format_value(text)}", where)
-    _add(world, actor, name, config, [("note", clip(text, config.max_len))])
+    _add(world, actor, name, config, [("note", clip(text, config.max_chars))])
 
 
-@effect_op("memory_recall", keys=("query",), literal=("memory_recall",), required=("query",),
-           example='{"memory_recall": "memory", "query": "$params.query"}  '
-                   '(the actor\'s most relevant memories as text in $actor.memory_recalled; recalled memories strengthen)',
-           check=declared_check("memory_recall", "memory"))
-def _recall_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+@family_action("mind", ("memory",), "recall", keys=("query",), required=("query",), was=("memory_recall",),
+               example='{"mind": "memory", "action": "recall", "query": "$params.query"}  (the actor\'s most relevant '
+                       "memories as text in $actor.memory_recalled; recalled memories strengthen)")
+def _recall(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    name = effect["memory_recall"]
-    config = config_of(world, name, "memory", MemoryConfig, where)
-    actor = _actor(vars, "memory_recall", where)
+    name = effect["mind"]
+    config = config_of(world, name, MEMORY, MemoryConfig, where)
+    actor = _actor(vars, "recall", where)
     query = runner.eval(effect["query"], vars)
     if not isinstance(query, str):
         raise RunError(f"`query` must be text, got {format_value(query)}", where)
@@ -330,14 +328,13 @@ def _skip() -> None:
     return None
 
 
-@effect_op("memory_reflect", keys=(), literal=("memory_reflect",),
-           example='{"memory_reflect": "memory"}  (each agent reflects on its recent memories with the host writer)',
-           check=declared_check("memory_reflect", "memory"))
-def _reflect_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+@family_action("mind", ("memory",), "reflect", internal=True, was=("memory_reflect",),
+               example='{"mind": "memory", "action": "reflect"}  (each agent reflects on its recent memories with the host writer)')
+def _reflect(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    name = effect["memory_reflect"]
-    config = config_of(world, name, "memory", MemoryConfig, where)
-    for agent in agents_of(world, config.agents):
+    name = effect["mind"]
+    config = config_of(world, name, MEMORY, MemoryConfig, where)
+    for agent in agents_of(world, config.who):
         entries = _entries(agent, name)
         if not entries:
             continue
@@ -373,9 +370,9 @@ def _memories_function(call: Call) -> List[Memory]:
     if agent is None:
         raise ExprError(f"$memories: expected an agent, got {format_value(call.arg(0))}", call.source)
     raw = world.contract.mechanisms.get(name) if isinstance(name, str) else None
-    if not isinstance(raw, Mapping) or raw.get("kind") != "memory":
-        raise ExprError(f"$memories: '{name}' is not a declared memory mechanism", call.source)
-    config = config_of(world, name, "memory", MemoryConfig, "memories")
+    if use_key(raw) != MEMORY:
+        raise ExprError(f"$memories: '{name}' is not a declared mind (memory) mechanism", call.source)
+    config = config_of(world, name, MEMORY, MemoryConfig, "memories")
     budget = call.arg(2, config.budget)
     if isinstance(budget, bool) or not isinstance(budget, (int, float)) or budget <= 0:
         raise ExprError(f"$memories: budget must be a number of tokens > 0, got {budget!r}", call.source)
