@@ -181,6 +181,13 @@ class Pilot:
         self.stack.clear()
         self.running = False
 
+    def abandon(self) -> None:
+        """Ask a paused run's thread to stop, without waiting for it: what a copy nobody holds any more does when it
+        is garbage collected, where no thread may be joined and no rule evaluated (the thread unwinds on its own)."""
+        thread = self._thread
+        if thread is not None and thread.is_alive() and self.stack:
+            self._commands.put(("abort", None))
+
     def _expect(self, kind: str) -> Pause:
         pause = self.pause
         if pause is None:

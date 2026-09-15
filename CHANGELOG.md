@@ -110,6 +110,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is now judged by its own deviance.
 
 #### Fixed
+- **Discarded game states and copies do no work during garbage collection**: collecting a stepped state closed its
+  waiting turn there — evaluating legality rules on whatever thread collected, inside whatever it was evaluating, and
+  charging that evaluation's budget — and collecting a `Branch` joined its copy's thread in the middle of the
+  collection. A discarded round now closes nothing, and a collected copy only asks its thread to stop (it unwinds on its
+  own thread); `Branch.close()` and `GameState.close()` still wait for the thread. Running Python code inside a
+  collection is the trigger for a CPython 3.11.4 use-after-free (gh-106092), the likely cause of rare segfaults seen
+  in piloted game tests and while copying runs.
 - **Narratives a reader can follow**: rounds are named in the clock's terms everywhere — `half-hour` for a clock of 30
   minutes, `09:30–10:00` (with the weekday and date when a run spans days) on a dated sub-day clock, `Week 7
   (2026-10-12)` on a weekly one — through `fg_env.sdk.clock_words`, which `RunResult.unit`, `period` and `summary`
