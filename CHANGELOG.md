@@ -54,6 +54,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read one family or mode.
 
 #### Added
+- **Flagship exchange** (`examples/contracts/exchange_flagship.json`): the platform Exchange rebuilt as a contract — a
+  calibrated crowd of market makers, momentum, mean-reversion, fundamental, noise and passive traders on one order book,
+  one round per pass through a bar, bars, a circuit breaker on the bar's open, scheduled news, sentiment, volume and
+  volatility controllers, stop-loss liquidations, model-trader seats and a realism score against a seed history.
+- **Order book** (`market.order_book`): `passive` coded strategy; a `stop_loss` strategy parameter that liquidates at
+  market; `$book(name).flow` (last round's aggressive quantity by trader kind) and `.liquidations`; `max_short_leverage`;
+  `flow_scale` and `sentiment` expressions; `base_qty` and `volatility` may be expressions and `measure_volatility:
+  false` makes strategies assume a calibrated volatility; crowd `params` may be expressions; `value_rounds` and
+  `side_rounds` hold a fundamentalist's value estimate or a passive side for several rounds; `conserve` takes `action`,
+  `round` or `end`. Books write only the sides an order changed, without copying resting orders.
 - **`fg-env new <template> [file]` / `fg_env.new(template, path)`**: a ready-to-run contract from `blank`, `game`,
   `market`, `simulation` or `social`, each checking without errors and running with random agents.
 - **What mechanisms generate**: `fg-env check` and `fg-env preview` list, per mechanism, the actions, stages, views,

@@ -16,9 +16,10 @@ from .budget import Budget, is_seconds
 from .build import build_world
 from .contract import MAX_ROUNDS, Contract, StageSpec
 from .copying import Copying
+from .diagnostics import diagnose
 from .driving import Driver, run_on_worker
 from .effects import EffectRunner
-from .errors import InvariantViolation, RunError
+from .errors import RunError
 from .exposure import ExposureLog, asks_seen, recording
 from .expr import ExprError, compile_expr, shared_budget, truthy
 from .feeds import run_feeds
@@ -29,9 +30,10 @@ from .perception import Perception
 from .previews import Previews
 from .replay import Origin
 from .returns import measured
+from .run_checks import RunChecks
+from .run_diagnosis import Diagnosis, SealedWrites
 from .seeds import SeedTree
 from .snapshot import SNAPSHOT_VERSION, restore_env, take_snapshot
-from .template import compile_template
 from .turn import Memory, Turn, entity_dict
 from .world import Abort, _plain
 
@@ -49,7 +51,7 @@ class _Point:
 _Steps = Generator[_Point, None, None]
 
 
-class Env(Copying):
+class Env(Copying, RunChecks):
     """A loaded environment. Create with :func:`fg_env.load`; run with :meth:`run`; copy with :meth:`clone`
     and :meth:`fork`."""
 
@@ -101,6 +103,8 @@ class Env(Copying):
         self._inspectable = any(self._inspect_rule(kind) is not False for kind in contract.types)
         #: The state each invariant was last found to hold in (see _check_invariants).
         self._invariant_held: Dict[int, Any] = {}
+        self._end_on_action = any(end.check == "action" for end in contract.end)
+        self.diagnosis = Diagnosis(self.world.written)
         self._check_invariants("build", "build")
 
     # -- public API ----------------------------------------------------------------
@@ -229,6 +233,8 @@ class Env(Copying):
             exposures=recording(self),
             frames=[dict(frame) for frame in self.previews.frames], returns=returns,
             host_tape=tape_of(self) if self.world.exposures is not None else {}, budget=Budget.report(self),
+            formats={name: spec.format for name, spec in self.contract.outputs.items() if spec.format},
+            diagnostics=diagnose(self, outputs),
         )
 
     @property
@@ -439,6 +445,8 @@ class Env(Copying):
 
     def _after_commit(self, path: str) -> None:
         self._check_invariants(path)
+        if self._end_on_action:
+            self._check_end("action")
         self.world.journal.clear()
         self.happenings.check_triggers(path)
 
@@ -447,7 +455,9 @@ class Env(Copying):
     def _run_stage(self, stage: StageSpec) -> _Steps:
         world = self.world
         path = f"stages.{stage.name}"
-        if not self._stage_runs(stage):
+        runs = self._stage_runs(stage)
+        self.diagnosis.stage(stage.name, reached=1, ran=int(runs))
+        if not runs:
             return
         world.stage = stage.name
         self._atomic(stage.on_enter, {}, f"{path}.on_enter")
@@ -458,6 +468,7 @@ class Env(Copying):
             if pass_index:
                 yield _Point(stage)
             agents = self._eligible(stage)
+            self.diagnosis.stage(stage.name, woke=len(agents))
             if stage.turns == "simultaneous":
                 yield from self._simultaneous(stage, agents, pass_index)
             elif stage.turns == "scheduled":
@@ -486,8 +497,8 @@ class Env(Copying):
         """Agents woken in ``stage``, in turn order. ``ordered=False`` skips ordering (no random draws)."""
         world = self.world
         agent_types = set(self.contract.agent_types())  # includes types that inherit `agent`
-        agents = [e for e in world.entities.values() if e.alive and e.entity_type in agent_types
-                  and stage_actions(self.contract, stage, e.entity_type)]
+        acting = {kind: bool(stage_actions(self.contract, stage, kind)) for kind in agent_types}
+        agents = [e for e in world.entities.values() if e.alive and acting.get(e.entity_type)]
         path = f"stages.{stage.name}"
         try:
             if stage.who is not None:
@@ -668,21 +679,27 @@ class Env(Copying):
     def _commit_choices(self, stage: StageSpec, turns: List[Turn]) -> _Steps:
         """Commit each agent's sealed choices in turn order; atomic stages commit or undo each agent's as a whole."""
         atomic = stage.atomic or bool(stage.valid)
-        for turn in turns:
-            mark = self.world.journal.mark() if atomic else None
-            applied = 0
-            for name, args in turn.intents:
-                if self._ended() and mark is None:
-                    return
-                applied += self._commit_intent(turn, name, args, deferred=mark is not None)
-            acted = bool(turn.intents)
-            if mark is not None:
-                acted = self._settle_choices(turn, mark, applied)
-                if self._ended():
-                    return
-            if not self._timed_out(turn) and stage.on_idle and not acted and turn.actor.alive and not self._ended():
-                self._atomic(stage.on_idle, {"actor": turn.actor}, f"stages.{stage.name}.on_idle")
-            self._turn_end_hook(stage, turn.actor)
+        writes = self.world.sealed_writes = SealedWrites(stage.name, self.diagnosis)
+        try:
+            for turn in turns:
+                mark = self.world.journal.mark() if atomic else None
+                applied = 0
+                writes.writer = turn.actor.name or turn.actor.id
+                for name, args in turn.intents:
+                    if self._ended() and mark is None:
+                        return
+                    writes.action = name
+                    applied += self._commit_intent(turn, name, args, deferred=mark is not None)
+                acted = bool(turn.intents)
+                if mark is not None:
+                    acted = self._settle_choices(turn, mark, applied)
+                    if self._ended():
+                        return
+                if not self._timed_out(turn) and stage.on_idle and not acted and turn.actor.alive and not self._ended():
+                    self._atomic(stage.on_idle, {"actor": turn.actor}, f"stages.{stage.name}.on_idle")
+                self._turn_end_hook(stage, turn.actor)
+        finally:
+            self.world.sealed_writes = None
         yield from ()
 
     def _tally(self, actor_id: str, stats: Stats) -> None:
@@ -720,6 +737,7 @@ class Env(Copying):
             if problem:
                 world.emit("outcome", f"Your {verb} did not happen: {str(problem).rstrip('.')}.",
                            actor=actor.id, to=(actor.id,), data={"action": name, "ok": False})
+                self.diagnosis.refused_at_commit(name, str(problem))
                 if not deferred:
                     world.journal.clear()
                 self._tally(actor.id, Stats(rejected_actions=1))
@@ -728,6 +746,7 @@ class Env(Copying):
             text = outcome.text if outcome.ok else f"Your {verb} failed: {outcome.text}"
             world.emit("outcome", text, actor=actor.id, to=(actor.id,), data={"action": name, "ok": outcome.ok})
             if not outcome.ok:
+                self.diagnosis.refused_at_commit(name, outcome.text)
                 self._tally(actor.id, Stats(rejected_actions=1))
                 if not deferred:
                     world.journal.clear()
@@ -746,50 +765,6 @@ class Env(Copying):
             if "inspect" in self.contract.types[kind].model_fields_set:
                 return self.contract.types[kind].inspect
         return True
-
-    def _check_invariants(self, path: str, moment: str = "action") -> None:
-        """Check the invariants due at ``moment``: build, action (after a change), round or end. An
-        invariant already found to hold in exactly this state — without drawing randomness — holds again,
-        so it is not evaluated again."""
-        if not self.contract.invariants:
-            return
-        world = self.world
-        scope = world.scope()
-        for index, invariant in enumerate(self.contract.invariants):
-            if moment not in _INVARIANT_MOMENTS[invariant.check]:
-                continue
-            state = world.state_version()
-            if moment == "action" and self._invariant_held.get(index) == state:
-                continue
-            drawn = world.draws()
-            try:
-                holds = truthy(compile_expr(invariant.expr)(scope))
-            except ExprError as exc:
-                raise RunError(str(exc), f"invariants[{index}]") from None
-            if not holds:
-                why = f" ({invariant.why})" if invariant.why else ""
-                raise InvariantViolation(f"invariant `{invariant.expr}` no longer holds after {path}{why}",
-                                         f"invariants[{index}]")
-            unseen = world.exposures is None  # `$seen` reads a log that is not part of the state version
-            fresh = unseen and world.draws() == drawn and world.state_version() == state
-            self._invariant_held[index] = state if fresh else None
-
-    def _check_end(self) -> None:
-        world = self.world
-        if world.end_request is not None or world.round == 0:
-            return
-        scope = world.scope()
-        for index, end in enumerate(self.contract.end):
-            path = f"end[{index}]"
-            try:
-                if not truthy(compile_expr(end.when)(scope)):
-                    continue
-                winner = _plain(compile_expr(end.winner)(scope)) if end.winner else None
-                text = compile_template(end.say, None).render(scope) if end.say else ""
-            except ExprError as exc:
-                raise RunError(str(exc), path) from None
-            world.request_end(end.name or f"end_{index}", winner, text)
-            return
 
     # -- helpers --------------------------------------------------------------------------------
 
@@ -813,7 +788,3 @@ class Env(Copying):
             event = self.world.log[self._emitted]
             self._emitted += 1
             self._on_event(event.to_dict())
-
-
-#: The moments each `invariants[].check` setting is checked at.
-_INVARIANT_MOMENTS = {"action": ("build", "action", "round"), "round": ("build", "round"), "end": ("end",)}

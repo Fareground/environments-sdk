@@ -10,6 +10,7 @@ from .contract import Contract
 from .errors import Issue, RunError
 from .expr import ExprError, compile_expr
 from .inputs import check_value
+from .template import apply_format
 from .world import SdkWorld, _plain
 
 __all__ = ["Stats", "RunResult", "sample_metrics", "compute_outputs"]
@@ -95,6 +96,10 @@ class RunResult:
     host_tape: Dict[str, Any] = field(default_factory=dict)
     #: The run's budget: ``{limits, on_exhaust, used, exhausted}`` (empty without one).
     budget: Dict[str, Any] = field(default_factory=dict)
+    #: How :meth:`summary` shows the outputs that declare a `format`, by output name.
+    formats: Dict[str, str] = field(default_factory=dict)
+    #: Likely logic problems the run revealed: ``[{code, path, message, fix}]`` (see :mod:`fg_env.sdk.diagnostics`).
+    diagnostics: List[Dict[str, str]] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -130,9 +135,11 @@ class RunResult:
         if self.winner is not None and "winner" not in self.outputs:
             lines.append(f"winner: {self.winner}")
         for key, value in self.outputs.items():
-            lines.append(f"{key}: {_short(value)}")
+            lines.append(f"{key}: {shown(value, self.formats.get(key))}")
         for issue in self.output_issues:
             lines.append(f"output issue: {issue['path']}: {issue['message']}")
+        for found in self.diagnostics:
+            lines.append(f"diagnostic: {found['path']}: {found['message']} → {found['fix']}")
         if self.budget.get("exhausted"):
             from .budget import spent
 
@@ -141,9 +148,27 @@ class RunResult:
         return "\n".join(lines)
 
 
-def _short(value: Any) -> str:
-    text = json.dumps(value, default=str)
+def shown(value: Any, fmt: Optional[str] = None) -> str:
+    """A value as a person reads it: with its declared template format, else JSON with numbers to 4 decimals
+    (small numbers keep 3 significant digits). The stored value is never changed."""
+    if fmt and value is not None and not isinstance(value, (list, dict)):
+        return apply_format(value, fmt)
+    text = json.dumps(_readable(value), default=str)
     return text if len(text) <= 120 else text[:117] + "…"
+
+
+def _readable(value: Any) -> Any:
+    if isinstance(value, float) and math.isfinite(value) and value:
+        return round(value, max(READABLE_DECIMALS, 2 - math.floor(math.log10(abs(value)))))
+    if isinstance(value, list):
+        return [_readable(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _readable(item) for key, item in value.items()}
+    return value
+
+
+#: Decimals :func:`shown` keeps when a value declares no format.
+READABLE_DECIMALS = 4
 
 
 def sample_metrics(contract: Contract, world: SdkWorld) -> None:

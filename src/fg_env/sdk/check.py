@@ -49,7 +49,7 @@ from .inputs import DATA_SUFFIXES, check_value
 from .parse_errors import validation_issues
 from .patterns.check import check_pattern_call, check_patterns
 from .returns import check_game
-from .template import compile_template
+from .template import FORMATS, compile_template
 from .world import prop_type
 
 __all__ = ["parse_contract", "check_contract"]
@@ -1153,6 +1153,9 @@ class _Checker:
             self.expr(metric.expr, f"metrics.{name}", BASE)
         for name, output in self.c.outputs.items():
             path = f"outputs.{name}"
+            if output.format and output.format not in FORMATS:
+                self.error(f"{path}.format", f"unknown format '{output.format}'",
+                           self._suggest(output.format, FORMATS) or ", ".join(FORMATS))
             if output.type not in C.OUTPUT_TYPES:
                 self.error(f"{path}.type", f"unknown type '{output.type}'", self._suggest(output.type, C.OUTPUT_TYPES))
             self.expr(output.expr, path, BASE | {"outputs", "result"})
@@ -1160,6 +1163,9 @@ class _Checker:
             self.expr(end.when, f"end[{index}].when", BASE)
             self.expr(end.winner, f"end[{index}].winner", BASE)
             self.template(end.say, f"end[{index}].say", None, BASE)
+            if end.check not in C.END_CHECKS:
+                self.error(f"end[{index}].check", f"unknown check '{end.check}'",
+                           self._suggest(end.check, C.END_CHECKS) or ", ".join(C.END_CHECKS))
         for index, invariant in enumerate(self.c.invariants):
             self.expr(invariant.expr, f"invariants[{index}]", BASE)
             if invariant.check not in C.INVARIANT_CHECKS:

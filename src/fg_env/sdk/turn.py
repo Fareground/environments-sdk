@@ -200,6 +200,8 @@ class Turn:
         if not self._offered:
             self.stats.tools_offered += len(tools)
             self._offered = True
+            if not self.peek:
+                env.diagnosis.offered(self, any(tool.kind == "act" for tool in tools))
         self._tools = tools
         return tools
 
@@ -221,6 +223,8 @@ class Turn:
                 env._signal.notify_all()
             if self.exposure is not None:
                 self.exposure.called(name, args, result)
+            if isinstance(name, str) and not self.peek:
+                env.diagnosis.called(self, name, args, result)
             return result
 
     def refusal(self) -> Optional[ToolResult]:

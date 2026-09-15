@@ -36,6 +36,8 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Any, Callable, Dict, FrozenSet, Iterator, List, Mapping, Optional, Sequence, Tuple
 
+from .syntax_hints import syntax_message
+
 __all__ = [
     "EVAL_BUDGET",
     "MAX_INT_BITS",
@@ -762,7 +764,7 @@ def _preprocess(source: str) -> str:
         out.append(ch)
         i += 1
     if quote:
-        raise ExprError("unclosed quote", source)
+        raise ExprError(syntax_message(source, "unclosed quote"), source)
     return "".join(out)
 
 
@@ -825,14 +827,6 @@ class Expr:
         return lambda item: guard.rules_out(item, key)
 
 
-def _syntax_hint(source: str) -> str:
-    """What a syntax error most likely is: `=` for `==`, or a root written without its `$`."""
-    bare = re.sub(r"'[^']*'|\"[^\"]*\"", "''", source)
-    if re.search(r"(?<![=!<>])=(?!=)", bare):
-        return " — compare with `==` (a single `=` assigns, and only in effects)"
-    return ""
-
-
 @lru_cache(maxsize=16_384)
 def compile_expr(source: str) -> Expr:
     """Parse and validate ``source`` once. Raises :class:`ExprError` on bad syntax."""
@@ -844,7 +838,7 @@ def compile_expr(source: str) -> Expr:
     try:
         tree = ast.parse(_preprocess(source), mode="eval")
     except SyntaxError as exc:
-        raise ExprError(f"syntax error: {exc.msg}{_syntax_hint(source)}", source) from None
+        raise ExprError(syntax_message(source, str(exc.msg)), source) from None
     except (RecursionError, MemoryError):
         raise ExprError("expression is nested too deeply", source) from None
     except ValueError as exc:  # e.g. a NUL character
