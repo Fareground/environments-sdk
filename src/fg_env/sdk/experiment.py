@@ -250,22 +250,27 @@ def _in_workers(contract: Contract, folder: Optional[Path], jobs: Sequence[Job],
     """Every job through worker processes, or in this process when that is measured to be sooner.
 
     With no measure of this contract's runs and no workers running, the first job runs here and is timed; the
-    rest go to the workers only if they would finish before this process could run them. A pool whose worker died
-    (out of memory, killed) is dropped and the batch finishes here."""
+    rest go to the workers only if they would finish before this process could run them, and time a batch spends
+    here for want of running workers counts toward starting them. A pool whose worker died (out of memory, killed)
+    is dropped and the batch finishes here."""
     data = contract_source(contract)
     where = str(folder) if folder else None
     key = pools.contract_key(data, where)
     done: List[RunResult] = []
     cost = pools.job_seconds(key)
-    if cost is None and not workers.started:
-        start = time.perf_counter()
+    started = workers.started
+    clock = time.perf_counter()
+    if cost is None and not started:
         done.append(one(jobs[0]))
-        cost = time.perf_counter() - start
+        cost = time.perf_counter() - clock
         pools.record_job_seconds(key, cost)
     rest = jobs[len(done):]
-    chunk = pools.chunk_size(len(rest), workers.size, cost, workers.started)
+    chunk = pools.chunk_size(len(rest), workers.size, cost, started)
     if chunk == 0:
-        return done + [one(job) for job in rest]
+        finished = done + [one(job) for job in rest]
+        if not started:
+            pools.record_ran_here(workers.size, time.perf_counter() - clock)
+        return finished
     batch = _Batch(key, data, where, _cwd(), rounds, events, budget, exposures)
     try:
         results, seconds = pools.run_chunks(workers.executor(), _run_chunk, batch,

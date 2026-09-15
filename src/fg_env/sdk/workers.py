@@ -6,9 +6,10 @@ worker pools for the life of the process: started on first use, kept for the nex
 instead, closed when it ends.
 
 Where a batch runs is decided by what its runs are measured to cost, never by what they return: a job gets the same
-result in this process as in a worker. A batch that would finish before workers could start stays in this process;
-the rest go to workers in chunks, each carrying enough run time to be worth its round trip, and each worker parses a
-contract once however many chunks of it arrive.
+result in this process as in a worker. A batch that would finish before workers could start stays in this process
+until the time batches have spent here would have paid for starting them (many short batches then start the pool once
+instead of each staying slow); the rest go to workers in chunks, each carrying enough run time to be worth its round
+trip, and each worker parses a contract once however many chunks of it arrive.
 """
 from __future__ import annotations
 
@@ -27,7 +28,7 @@ from .api import parse
 from .contract import Contract
 
 __all__ = ["KEEP_WORKERS", "Workers", "Pool", "shutdown_workers", "chunk_size", "contract_key", "cached_contract",
-           "job_seconds", "record_job_seconds", "run_chunks"]
+           "job_seconds", "record_job_seconds", "record_ran_here", "run_chunks"]
 
 #: Environment variable: ``0`` gives every batch its own worker processes instead of keeping pools for the process.
 KEEP_WORKERS = "FG_ENV_KEEP_WORKERS"
@@ -51,10 +52,13 @@ class _Kept:
     """The pools kept for this process, by size, and what batches have been measured to cost here."""
 
     def __init__(self) -> None:
-        self.lock = threading.Lock()
+        #: Re-entrant: a pool's start is timed by callbacks that may run at once, in the thread starting it.
+        self.lock = threading.RLock()
         self.pools: Dict[int, ProcessPoolExecutor] = {}
         self.start_seconds = _ASSUMED_START_SECONDS
         self.job_seconds: Dict[str, float] = {}
+        #: Seconds batches ran here, by pool size, because that pool was not running (reset when one starts).
+        self.ran_here: Dict[int, float] = {}
 
 
 _kept = _Kept()
@@ -69,6 +73,8 @@ def _ready() -> None:
 
 
 def _new_pool(size: int) -> ProcessPoolExecutor:
+    """A started pool of ``size`` workers; the caller holds ``_kept.lock`` (its start is timed once every worker is up)."""
+    _kept.ran_here.pop(size, None)
     pool = ProcessPoolExecutor(max_workers=size)
     started = time.perf_counter()
     waiting = [pool.submit(_ready) for _ in range(size)]
@@ -113,7 +119,8 @@ class Workers:
             return self._given
         if not self._keep:
             if self._own is None:
-                self._own = _new_pool(self.size)
+                with _kept.lock:
+                    self._own = _new_pool(self.size)
             return self._own
         with _kept.lock:
             if self.size not in _kept.pools:
@@ -154,14 +161,16 @@ atexit.register(shutdown_workers)
 def chunk_size(jobs: int, workers: int, seconds_per_job: Optional[float], started: bool) -> int:
     """Jobs per chunk sent to workers, or ``0`` when the batch would finish sooner in this process.
 
-    Without a measured cost the batch goes to the workers (only ever asked of workers already running)."""
+    Starting workers is charged only what batches have not already spent here waiting for it: once runs kept in this
+    process add up to a pool's start, the next batch that can use workers starts them. Without a measured cost the
+    batch goes to the workers (only ever asked of workers already running)."""
     most = max(1, jobs // (workers * _CHUNKS_PER_WORKER))
     if seconds_per_job is None:
         return most
     chunk = max(1, min(most, math.ceil(_CHUNK_SECONDS / max(seconds_per_job, 1e-9))))
     here = jobs * seconds_per_job
     with _kept.lock:
-        start = 0.0 if started else _kept.start_seconds
+        start = 0.0 if started else max(0.0, _kept.start_seconds - _kept.ran_here.get(workers, 0.0))
     there = (here + math.ceil(jobs / chunk) * _ROUND_TRIP_SECONDS) / min(workers, jobs) + start
     return chunk if there < here else 0
 
@@ -197,6 +206,12 @@ def job_seconds(key: str) -> Optional[float]:
 def record_job_seconds(key: str, seconds: float) -> None:
     with _kept.lock:
         _kept.job_seconds[key] = _smoothed(_kept.job_seconds.get(key), seconds)
+
+
+def record_ran_here(workers: int, seconds: float) -> None:
+    """A batch that could have used a pool of ``workers`` ran here for ``seconds`` because that pool was not running."""
+    with _kept.lock:
+        _kept.ran_here[workers] = _kept.ran_here.get(workers, 0.0) + seconds
 
 
 def run_chunks(pool: ProcessPoolExecutor, work: Callable[[Any, Sequence[Any]], Tuple[List[Any], float]], shared: Any,

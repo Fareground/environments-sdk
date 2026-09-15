@@ -33,6 +33,14 @@ def always_in_workers(monkeypatch):
     monkeypatch.setattr(pools, "chunk_size", lambda jobs, workers, seconds, started: 2)
 
 
+@pytest.fixture
+def fresh_costs(monkeypatch):
+    """Nothing measured yet in this process: a pool takes a second to start and no batch has run here waiting for one."""
+    monkeypatch.setattr(pools._kept, "start_seconds", 1.0)
+    monkeypatch.setattr(pools._kept, "job_seconds", {})
+    monkeypatch.setattr(pools._kept, "ran_here", {})
+
+
 def _reference(source, jobs, **options):
     """The batch run one job at a time in this process, as the batch runner did before worker processes."""
     contract = fg_env.parse(source)
@@ -64,9 +72,8 @@ def test_a_run_that_fails_on_its_own_fails_the_same_way_in_workers_and_the_rest_
     assert [r.status == "failed" for r in in_workers] == [i % 3 == 0 for i in range(6)]
 
 
-def test_a_batch_too_short_for_workers_runs_here_without_starting_a_pool(monkeypatch):
+def test_a_batch_too_short_for_workers_runs_here_without_starting_a_pool(fresh_costs):
     pools.shutdown_workers()
-    monkeypatch.setattr(pools._kept, "job_seconds", {})
     jobs = [Job({}, None, s) for s in run_seeds(1, 12)]
     assert run_jobs(LEMONADE, jobs, participants="random", rounds=2, workers=4) == \
         _reference(LEMONADE, jobs, participants="random", rounds=2)
@@ -114,10 +121,19 @@ def test_many_short_runs_share_a_round_trip_but_every_worker_gets_several_chunks
     assert pools.chunk_size(40, 4, None, started=True) == 2
 
 
-def test_a_batch_goes_to_workers_only_when_they_would_finish_it_sooner():
+def test_a_batch_goes_to_workers_only_when_they_would_finish_it_sooner(fresh_costs):
     assert pools.chunk_size(10, 8, 0.001, started=False) == 0
     assert pools.chunk_size(2, 8, 0.0005, started=True) == 0
     assert pools.chunk_size(100, 8, 0.5, started=False) >= 1
+
+
+def test_short_batches_kept_here_start_the_workers_once_their_time_would_have_paid_for_them(fresh_costs):
+    assert pools.chunk_size(4, 4, 0.2, started=False) == 0
+    pools.record_ran_here(4, 0.3)
+    assert pools.chunk_size(4, 4, 0.2, started=False) == 0
+    pools.record_ran_here(4, 0.6)
+    assert pools.chunk_size(4, 4, 0.2, started=False) == 1
+    assert pools.chunk_size(4, 8, 0.2, started=False) == 0  # a pool of another size has not been waited for
 
 
 def test_a_worker_parses_a_contract_once_however_many_chunks_of_it_arrive(monkeypatch):
