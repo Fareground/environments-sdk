@@ -8,6 +8,7 @@ a resumed run reports exactly what a straight run does.
 from __future__ import annotations
 
 import itertools
+import json
 import re
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Set, Tuple
 
@@ -51,6 +52,8 @@ class Diagnosis:
         self.agents: Dict[str, Dict[str, Any]] = {}
         #: stage → [overwrites, first example]
         self.overwrites: Dict[str, List[Any]] = {}
+        #: `each` effect path → [overwrites, first example]
+        self.loop_overwrites: Dict[str, List[Any]] = {}
         #: Names of properties written since the world was built (shared with the world, which adds to it).
         self.written = written
         #: The turn number and actions already probed in it (not saved: snapshots fall between turns).
@@ -125,21 +128,23 @@ class Diagnosis:
                 return
         _tally(entry["reasons"], f"none of the actions of stage {turn.stage.name} was offered")
 
-    def overwrote(self, stage: str, example: str) -> None:
-        entry = self.overwrites.setdefault(stage, [0, example])
+    def overwrote(self, stage: str, example: str, loop: bool = False) -> None:
+        entry = (self.loop_overwrites if loop else self.overwrites).setdefault(stage, [0, example])
         entry[0] += 1
 
     # -- saving ----------------------------------------------------------------------
 
     def to_dict(self) -> Dict[str, Any]:
         return {"actions": _copy(self.actions), "stages": _copy(self.stages), "agents": _copy(self.agents),
-                "overwrites": _copy(self.overwrites), "written": sorted(self.written)}
+                "overwrites": _copy(self.overwrites), "loop_overwrites": _copy(self.loop_overwrites),
+                "written": sorted(self.written)}
 
     def load(self, data: Optional[Dict[str, Any]]) -> None:
         """Take the counts of :meth:`to_dict` (the written names in place: the world holds the same set)."""
         data = data or {}
         self.actions, self.stages = _copy(data.get("actions", {})), _copy(data.get("stages", {}))
         self.agents, self.overwrites = _copy(data.get("agents", {})), _copy(data.get("overwrites", {}))
+        self.loop_overwrites = _copy(data.get("loop_overwrites", {}))
         self.written.clear()
         self.written.update(data.get("written", []))
 
@@ -232,6 +237,39 @@ class SealedWrites:
         shown = f"{owner.name or owner.id}.{prop}" if isinstance(owner, Entity) else f"$world.{prop}"
         self.diagnosis.overwrote(self.stage, f"`{source}` in actions.{self.action} set {shown}, replacing the value "
                                              f"{before[0]}'s choice had set")
+
+
+class LoopWrites:
+    """While an `each` loop runs (outside sealed commits): plain `=` writes to one target — not the loop's own item —
+    from different items, when the loop reads that target nowhere else. Every item but the last is then lost."""
+
+    def __init__(self, world: Any, path: str, body: str):
+        self.world, self.path, self.body = world, path, body
+        self.item: Any = None
+        self.position = 0
+        self._last: Dict[Any, Any] = {}
+
+    @classmethod
+    def start(cls, world: Any, effect: Dict[str, Any], path: str) -> Optional["LoopWrites"]:
+        """Watch a loop's writes, unless the run keeps no diagnosis or writes are already watched."""
+        if world.diagnosis is None or world.watched_writes is not None:
+            return None
+        watch = world.watched_writes = cls(world, path, json.dumps(effect, default=str))
+        return watch
+
+    def assigned(self, owner: Any, prop: str, rest: Sequence[Any], value: Any, source: str) -> None:
+        if owner is self.item:
+            return
+        target = _ASSIGNMENT.split(source, 1)[0].strip()
+        if self.body.count(target) > 1:
+            return  # the loop reads the target too: a running best, a guard, a change built on it
+        key = (owner.id if isinstance(owner, Entity) else "$world", prop, repr(list(rest)))
+        before = self._last.get(key)
+        self._last[key] = (self.position, value)
+        if before is None or before[0] == self.position or _same(before[1], value):
+            return
+        self.world.diagnosis.overwrote(self.path, f"`{source}` ran for several items with different values, so only the "
+                                                  "last item's value is kept", loop=True)
 
 
 def _same(a: Any, b: Any) -> bool:
