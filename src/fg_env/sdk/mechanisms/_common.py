@@ -26,7 +26,7 @@ from ..registry import MechanismError, config_data, describe, use_key
 __all__ = [
     "Config", "Number", "Effects", "ModifierSpec", "NAME", "MODIFIER_SOURCES", "parsed", "uses", "config",
     "actions_by", "types_in", "suggest", "evaluate", "number", "whole", "entities_of",
-    "freeze", "thaw", "canonical", "modifier_terms", "check_names", "carriers", "raw_is_a",
+    "freeze", "thaw", "canonical", "modifier_terms", "check_names", "carriers", "raw_is_a", "is_agent_type",
 ]
 
 M = TypeVar("M", bound=BaseModel)
@@ -132,6 +132,19 @@ def raw_is_a(contract: Mapping[str, Any], type_name: str, ancestor: str) -> bool
         seen.append(current)
         spec = types.get(current)
         current = spec.get("extends") if isinstance(spec, Mapping) else None
+    return False
+
+
+def is_agent_type(contract: Mapping[str, Any], type_name: str) -> bool:
+    """``type_name`` is an agent type, or extends one (on contract data)."""
+    types = contract.get("types") or {}
+    seen: List[str] = []
+    current: Optional[str] = type_name
+    while current is not None and current not in seen and isinstance(types.get(current), Mapping):
+        if types[current].get("agent"):
+            return True
+        seen.append(current)
+        current = types[current].get("extends")
     return False
 
 

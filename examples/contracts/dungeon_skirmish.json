@@ -183,14 +183,16 @@
       }
     },
     "initiative": {
-      "kind": "turn_order",
-      "among": "unit",
+      "kind": "flow",
+      "mode": "order",
+      "who": "unit",
       "by": "$effective($it, 'speed')",
       "stage": {"actions": "all", "turns": "sequential", "max_actions": 2, "max_calls": 8, "brief": "Your turn: move a square and/or take one combat action."}
     },
     "victory": {
-      "kind": "victory",
-      "players": "unit",
+      "kind": "flow",
+      "mode": "victory",
+      "who": "unit",
       "conditions": [
         {"last_team": "$it.team", "name": "last_team_standing"},
         {"most": "$sum(unit, $it.hp, $it.team == $outer.team)", "name": "time_up", "say": "Time is up: the {$first($map($winner(unit, $sum(unit, $it.hp, $it.team == $outer.team)), $it.team))} have more health left."}

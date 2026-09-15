@@ -36,7 +36,7 @@
              "do": ["$actor.vote = $params.choice"], "outcome": "You voted {$params.choice}.", "private": true, "terminal": true}
   },
   "mechanisms": {
-    "bill": {"kind": "procedure", "phases": {
+    "bill": {"kind": "flow", "mode": "procedure", "phases": {
       "reading_{r.n}": {
         "for": [
           {"n": 1, "title": "First reading", "debate": [], "then": "reading_2"},

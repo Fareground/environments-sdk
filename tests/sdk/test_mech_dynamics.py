@@ -457,7 +457,7 @@ def test_prior_config_errors():
 
 
 # ---------------------------------------------------------------------------
-# procedure
+# flow: procedure
 # ---------------------------------------------------------------------------
 
 HEARING = {
@@ -473,7 +473,7 @@ HEARING = {
         "ring": {"by": "clerk", "do": [{"emit": "bell", "say": "The bell rings."}]},
         "rule": {"by": "clerk", "do": [{"end": "ruled", "say": "Ruled."}]},
     },
-    "mechanisms": {"hearing": {"kind": "procedure", "phases": {
+    "mechanisms": {"hearing": {"kind": "flow", "mode": "procedure", "phases": {
         "opening": {"title": "Openings", "brief": "Give your opening.",
                     "stages": [{"who": "$it.type == lawyer", "actions": ["open"]}],
                     "on_enter": ["$world.entered += opening"], "on_exit": ["$world.exits += 1"],
@@ -527,7 +527,7 @@ def test_procedure_errors():
 
 
 # ---------------------------------------------------------------------------
-# turn_order
+# flow: order
 # ---------------------------------------------------------------------------
 
 TABLE = {
@@ -538,8 +538,8 @@ TABLE = {
     "entities": {"a": {"type": "player", "props": {"speed": 1}}, "b": {"type": "player", "props": {"speed": 3}},
                  "c": {"type": "player", "props": {"speed": 2}}},
     "actions": {"act": {"by": "player", "do": ["$world.calls += $actor.id",
-                                              {"if": "$actor.lucky", "then": ["$actor.lucky = false", {"extra_turn": "$actor", "order": "seats"}]}]}},
-    "mechanisms": {"seats": {"kind": "turn_order", "among": "player", "by": "$it.speed", "skip": "$it.folded",
+                                              {"if": "$actor.lucky", "then": ["$actor.lucky = false", {"flow": "seats", "action": "extra_turn", "who": "$actor"}]}]}},
+    "mechanisms": {"seats": {"kind": "flow", "mode": "order", "who": "player", "by": "$it.speed", "skip": "$it.folded",
                              "extra_turns": True, "stage": {"actions": ["act"], "turns": "sequential"}}},
     "outputs": {"calls": "$world.calls"},
 }
@@ -610,7 +610,7 @@ def test_hooks_refuse_an_action_whose_effects_are_not_a_list():
 
 
 # ---------------------------------------------------------------------------
-# victory
+# flow: victory
 # ---------------------------------------------------------------------------
 
 def _race(conditions, **extra):
@@ -625,7 +625,7 @@ def _race(conditions, **extra):
         "actions": {"wait": {"by": "runner", "do": []}},
         "events": [{"phase": "end", "each": "runner", "do": ["$it.score += $i + 1"]},
                    {"phase": "end", "do": ["$world.heat += 1"]}],
-        "mechanisms": {"win": {"kind": "victory", "players": "runner", "alive": "$it.hp > 0", "conditions": conditions, **extra}},
+        "mechanisms": {"win": {"kind": "flow", "mode": "victory", "who": "runner", "alive": "$it.hp > 0", "conditions": conditions, **extra}},
         "outputs": {"heat": "$world.heat"},
     }
 
@@ -637,10 +637,10 @@ def test_first_to_score_and_most_after_rounds():
     assert result.rounds == 4 and result.winner == "r3" and result.ended_by == "most"
 
 
-def test_ties_share_draw_or_break():
+def test_ties_share_none_or_break():
     tied = _race([{"first_to": 1, "score": "$it.hp"}])
     assert sorted(fg_env.run(tied, seed=1).winner) == ["r1", "r2", "r3"]
-    tied["mechanisms"]["win"]["ties"] = "draw"
+    tied["mechanisms"]["win"]["ties"] = "none"
     assert fg_env.run(tied, seed=1).winner is None
     tied["mechanisms"]["win"]["tiebreak"] = ["$it.team"]
     tied["mechanisms"]["win"]["ties"] = "share"
@@ -675,6 +675,47 @@ def test_last_standing_team_cooperative_stable_eliminate_objectives():
 
     goals = _race([{"objectives": ["$it.score >= 5", "$it.team == blue"]}])
     assert fg_env.run(goals, seed=1).winner == "r3"
+
+
+def test_victory_fills_the_game_section_with_seats_and_returns():
+    race = _race([{"first_to": 6, "score": "$it.score"}])
+    game = fg_env.parse(race).game
+    assert game.players == "runner" and game.returns == "$won($actor, 'win')"
+    assert fg_env.run(race, seed=1).returns == {"r1": 0, "r2": 0, "r3": 1}
+    tied = fg_env.run(_race([{"first_to": 1, "score": "$it.hp"}]), seed=1)
+    assert tied.returns == pytest.approx({"r1": 1 / 3, "r2": 1 / 3, "r3": 1 / 3})
+    team = _race([{"last_team": "$it.team"}])
+    team["events"].append({"at": 2, "do": ["$entity(r1).hp = 0"]})
+    assert fg_env.run(team, seed=1).returns == {"r1": 0, "r2": 1, "r3": 1}
+    nobody = _race([{"lose_when": "$world.heat >= 2"}])
+    assert fg_env.run(nobody, seed=1).returns == {"r1": 0, "r2": 0, "r3": 0}
+    own = _race([{"last_standing": True}])
+    own["game"] = {"returns": "$actor.score", "utility": "general_sum"}
+    declared = fg_env.parse(own).game
+    assert declared.returns == "$actor.score" and declared.players == "runner"  # the author's entries win
+    unseated = _race([{"eliminate": "monster"}], who="monster")
+    assert fg_env.parse(unseated).game is None  # a non-agent type has no seats
+
+
+def test_flow_kinds_fields_and_actions_say_what_to_fix():
+    old = json.loads(json.dumps(TABLE))
+    old["mechanisms"]["seats"] = {"kind": "turn_order", "among": "player"}
+    issue = next(i for i in _errors(old) if i.path == "mechanisms.seats.kind")
+    assert issue.message == "'turn_order' is now kind 'flow' with mode 'order'"
+    typo = json.loads(json.dumps(TABLE))
+    typo["mechanisms"]["seats"]["among"] = "player"
+    issue = next(i for i in _errors(typo) if i.path == "mechanisms.seats.among")
+    assert issue.message == "`among` is not a field of `flow` mode `order`" and "takes: who, by" in issue.fix
+    no_extra = json.loads(json.dumps(TABLE))
+    no_extra["mechanisms"]["seats"]["extra_turns"] = False
+    no_extra["mechanisms"]["seats"]["stage"] = {"actions": ["act"], "turns": "sequential"}
+    assert any(i.message == "turn order 'seats' does not allow extra turns" and i.fix == "set mechanisms.seats.extra_turns: true"
+               for i in _errors(no_extra))
+    missing = json.loads(json.dumps(TABLE))
+    missing["actions"]["act"]["do"] = [{"flow": "seats", "action": "extra_turn"}]
+    assert [i.message for i in _errors(missing)] == ["`flow.extra_turn` needs `who`"]
+    draw = _race([{"last_standing": True}], ties="draw")
+    assert any(i.path == "mechanisms.win.ties" for i in _errors(draw))
 
 
 def test_victory_errors():
@@ -753,10 +794,12 @@ def test_guide_documents_the_new_kinds_and_functions():
     assert "| `dynamics` | drift, shocks, priors |" in text
     dynamics = fg_env.guide("dynamics")
     assert "### `dynamics.priors`" in dynamics and "- `fire`" in dynamics and "- `step`" not in dynamics
-    for kind in ("procedure", "turn_order", "victory"):
-        assert f"### `{kind}`" in text
+    assert "| `flow` | procedure, order, victory |" in text
+    flow = fg_env.guide("flow")
+    assert "### `flow.victory`" in flow and "- `extra_turn`" in flow and "- `push`" in flow
+    assert '"action": "advance"' not in flow
     functions = fg_env.guide("functions")
-    for name in ("$effective(", "$has_status(", "$ready(", "$prior(", "$winner(", "$terrain(", "$turn_rank("):
+    for name in ("$effective(", "$has_status(", "$ready(", "$prior(", "$winner(", "$won(", "$terrain(", "$turn_rank("):
         assert name in functions
 
 
@@ -782,7 +825,7 @@ def test_acceptance_examples_check_run_and_resume(name):
 def test_dungeon_skirmish_uses_every_tactical_family():
     contract = fg_env.parse(EXAMPLES / "dungeon_skirmish.json")
     uses = {m.get("mode", m["kind"]) for m in contract.mechanisms.values()}
-    assert uses >= {"status", "cooldowns", "channeling", "terrain", "victory", "turn_order"}
+    assert uses >= {"status", "cooldowns", "channeling", "terrain", "victory", "order"}
     result = fg_env.load(EXAMPLES / "dungeon_skirmish.json", seed=3).run()
     assert result.status in ("completed", "ended"), result.error
 
