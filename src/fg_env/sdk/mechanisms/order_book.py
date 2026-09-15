@@ -1,7 +1,7 @@
 """A price-time priority limit order book: native matching, reservations and settlement.
 
-State of a book named ``acme`` lives in world props (``acme_bids``, ``acme_asks`` sorted best
-first, ``acme_last``, ``acme_bar`` …) and trader props (``acme_shares``, ``acme_reserved_cash``,
+The native engine of the ``market`` family's ``order_book`` mode. State of a book named ``acme`` lives
+in world props (``acme_bids``, ``acme_asks`` sorted best first, ``acme_last``, ``acme_bar`` …) and trader props (``acme_shares``, ``acme_reserved_cash``,
 ``acme_reserved_shares`` …); the trade tape and per-round OHLCV bars are records. Every change
 goes through the world's journaled API and every value moved is a conserved :func:`~.ledger.move`,
 so a failed order rolls back completely and cash + shares are conserved exactly.
@@ -25,21 +25,23 @@ from __future__ import annotations
 
 import bisect
 import math
-from typing import Any, Dict, List, Literal, Mapping, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from ...entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, function
-from ..registry import MechanismError, effect_op
+from ..registry import family_action, uses_of
 from ..world import Abort
-from .common import config_of, entity_of, fmt, lot_floor, name_check, number, uses_of
+from ._common import ToolsSetting, tools_field
+from .common import config_of, entity_of, fmt, lot_floor, number
 from .ledger import EPS, Account, balance, clean, move
 
 __all__ = ["OrderBookConfig", "CrowdSpec", "STRATEGIES", "book_config", "place", "cancel", "cancel_all",
            "open_round", "close_round", "quote", "depth", "account", "audit", "props_for"]
 
+KEY = "market.order_book"
 STRATEGIES = ("market_maker", "momentum", "mean_reversion", "fundamentalist", "noise")
 #: Closes kept for coded strategies (the full history is in the metric series and the bars record).
 CLOSES_WINDOW = 256
@@ -61,9 +63,9 @@ class OrderBookConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    traders: str = Field(..., description="Agent type that trades (subtypes included).")
+    who: str = Field(..., description="Agent type that trades (subtypes included).")
     start_price: Union[float, str] = Field(..., description="Opening reference price (number or expression).")
-    cash: str = Field("cash", description="Trader property holding cash (added with 0 if the type lacks it).")
+    currency: str = Field("cash", description="Trader property holding money (added with 0 if the type lacks it).")
     instrument: str = Field("", description="Display name of the instrument (default: the book's name).")
     tick_size: float = Field(0.01, gt=0, description="Minimum price increment.")
     lot_size: float = Field(1, gt=0, description="Minimum quantity; orders are whole multiples of it.")
@@ -86,13 +88,11 @@ class OrderBookConfig(BaseModel):
     stage: Optional[str] = Field(None, description="Trade during this declared stage; default: a sequential stage named after the book.")
     max_actions: int = Field(4, ge=1, description="Actions per turn in the generated stage.")
     conserve: bool = Field(True, description="Declare invariants that cash and shares are conserved and reserves match the book.")
+    tools: ToolsSetting = tools_field()
 
 
 def book_config(world: Any, name: Any) -> OrderBookConfig:
-    try:
-        return config_of(world, name, "order_book", OrderBookConfig)
-    except MechanismError as exc:
-        raise RunError(str(exc), "mechanisms") from None
+    return config_of(world, name, KEY, OrderBookConfig)
 
 
 def props_for(name: str) -> Dict[str, str]:
@@ -188,7 +188,7 @@ def _num(entity: Entity, prop: str) -> float:
 def account(world: Any, name: str, trader: Entity) -> Dict[str, Any]:
     cfg = book_config(world, name)
     p = props_for(name)
-    cash = balance(world, Account(trader, cfg.cash))
+    cash = balance(world, Account(trader, cfg.currency))
     shares = balance(world, Account(trader, p["shares"]))
     reserved_cash = balance(world, Account(trader, p["reserved_cash"]))
     reserved_shares = balance(world, Account(trader, p["reserved_shares"]))
@@ -232,7 +232,7 @@ def _release(world: Any, cfg: OrderBookConfig, name: str, order: Mapping[str, An
     p = props_for(name)
     if order["side"] == "buy":
         maker, _ = _fees(cfg)
-        move(world, Account(owner, p["reserved_cash"]), Account(owner, cfg.cash), order["qty"] * order["price"] * (1 + maker),
+        move(world, Account(owner, p["reserved_cash"]), Account(owner, cfg.currency), order["qty"] * order["price"] * (1 + maker),
              what="reserved cash")
     else:
         move(world, Account(owner, p["reserved_shares"]), Account(owner, p["shares"]), order["qty"], what="reserved shares",
@@ -283,7 +283,7 @@ def place(world: Any, name: str, trader: Entity, side: str, qty: Any, price: Any
         edge = touch * (1 + cfg.collar_pct) if side == "buy" else touch * (1 - cfg.collar_pct)
         limit_t = int(math.floor(edge / cfg.tick_size + 1e-9)) if side == "buy" else int(math.ceil(edge / cfg.tick_size - 1e-9))
     limit_price = round(limit_t * cfg.tick_size, 10)
-    cash = Account(trader, cfg.cash)
+    cash = Account(trader, cfg.currency)
     shares = Account(trader, p["shares"])
     if side == "buy" and price is not None:
         need = size * limit_price * (1 + max(maker, taker))
@@ -322,10 +322,10 @@ def place(world: Any, name: str, trader: Entity, side: str, qty: Any, price: Any
         maker_entity = entity_of(world, best["owner"], f"mechanisms.{name}", "a trader")
         notional = q * px
         if side == "buy":
-            move(world, cash, Account(maker_entity, cfg.cash), notional, what="cash")
+            move(world, cash, Account(maker_entity, cfg.currency), notional, what="cash")
             move(world, Account(maker_entity, p["reserved_shares"]), shares, q, what="reserved shares")
             move(world, cash, fees, notional * taker, what="cash")
-            move(world, Account(maker_entity, cfg.cash), fees, notional * maker, what="cash")
+            move(world, Account(maker_entity, cfg.currency), fees, notional * maker, what="cash")
         else:
             move(world, Account(maker_entity, p["reserved_cash"]), cash, notional, what="reserved cash")
             move(world, Account(maker_entity, p["reserved_cash"]), fees, notional * maker, what="reserved cash")
@@ -408,7 +408,7 @@ def _trip(world: Any, cfg: OrderBookConfig, name: str, px: float, ref: float) ->
     more = f" and {cfg.halt_rounds} more round(s)" if cfg.halt_rounds else ""
     world.emit(f"{name}_halt", f"CIRCUIT BREAKER on {cfg.instrument or name}: a trade at {fmt(px, 4)} moved more than "
                                f"{cfg.halt_pct:.0%} from the reference {fmt(ref, 4)}. Trading is halted for the rest of "
-                               f"this round{more}.", data={"mechanism": "order_book", "price": px, "until": until})
+                               f"this round{more}.", data={"mechanism": KEY, "price": px, "until": until})
 
 
 def cancel(world: Any, name: str, trader: Entity, order_id: Any) -> str:
@@ -443,21 +443,21 @@ def cancel_all(world: Any, name: str, trader: Entity) -> str:
 
 def _siblings(world: Any, name: str, cfg: OrderBookConfig) -> List[str]:
     """Books sharing this book's traders and cash property (their reserves and fees hold the same cash)."""
-    return [n for n, raw in uses_of(world, "order_book").items()
-            if raw.get("traders") == cfg.traders and raw.get("cash", "cash") == cfg.cash]
+    return [n for n, raw in uses_of(world.contract.mechanisms, KEY).items()
+            if raw.get("who") == cfg.who and raw.get("currency", "cash") == cfg.currency]
 
 
 def _cash_total(world: Any, name: str, cfg: OrderBookConfig) -> float:
     reserves = [f"{book}_reserved_cash" for book in _siblings(world, name, cfg)]
     total = 0.0
-    for trader in world.entities_of(cfg.traders):
-        total += _num(trader, cfg.cash) + sum(_num(trader, prop) for prop in reserves)
+    for trader in world.entities_of(cfg.who):
+        total += _num(trader, cfg.currency) + sum(_num(trader, prop) for prop in reserves)
     return total + sum(float(world.props.get(f"{prop[:-len('_reserved_cash')]}_fees") or 0) for prop in reserves)
 
 
 def _share_total(world: Any, name: str, cfg: OrderBookConfig) -> float:
     p = props_for(name)
-    return sum(_num(t, p["shares"]) + _num(t, p["reserved_shares"]) for t in world.entities_of(cfg.traders))
+    return sum(_num(t, p["shares"]) + _num(t, p["reserved_shares"]) for t in world.entities_of(cfg.who))
 
 
 def rebase(world: Any, name: str) -> None:
@@ -474,12 +474,12 @@ def open_round(world: Any, name: str) -> None:
     last = float(world.props.get(f"{name}_last") or 0)
     if not world.props.get(f"{name}_supply"):
         rebase(world, name)
-        for trader in world.entities_of(cfg.traders):
+        for trader in world.entities_of(cfg.who):
             world.set_prop(trader, p["start_value"], account(world, name, trader)["equity"])
     if world.props.get(f"{name}_halted") and world.round > int(world.props.get(f"{name}_halt_until") or 0):
         world.set_world(f"{name}_halted", False)
         world.emit(f"{name}_resume", f"Trading in {cfg.instrument or name} resumes after the circuit-breaker halt.",
-                   data={"mechanism": "order_book"})
+                   data={"mechanism": KEY})
     if cfg.order_ttl is not None:
         for side in ("bids", "asks"):
             orders = world.props.get(f"{name}_{side}") or []
@@ -489,7 +489,7 @@ def open_round(world: Any, name: str) -> None:
                     _release(world, cfg, name, order)
                     world.emit(f"{name}_expired", f"Your {order['side']} order {order['id']} for {fmt(order['qty'], 6)} @ "
                                                   f"{fmt(order['price'], 4)} expired; its reserve was released.",
-                               to=(order["owner"],), data={"mechanism": "order_book", "order": order["id"]})
+                               to=(order["owner"],), data={"mechanism": KEY, "order": order["id"]})
                 else:
                     keep.append(dict(order))
             if len(keep) != len(orders):
@@ -535,10 +535,10 @@ def audit(world: Any, name: str) -> List[str]:
     for orders, key in ((bids, lambda o: (-o["price"], o["seq"])), (asks, lambda o: (o["price"], o["seq"]))):
         if [key(o) for o in orders] != sorted(key(o) for o in orders):
             problems.append("orders are out of price-time priority")
-    traders = world.entities_of(cfg.traders)
+    traders = world.entities_of(cfg.who)
     tolerance = 1e-6
     for trader in traders:
-        acct = {"cash": _num(trader, cfg.cash), "shares": _num(trader, p["shares"]), "rc": _num(trader, p["reserved_cash"]),
+        acct = {"cash": _num(trader, cfg.currency), "shares": _num(trader, p["shares"]), "rc": _num(trader, p["reserved_cash"]),
                 "rs": _num(trader, p["reserved_shares"])}
         if abs(acct["rc"] - reserved_cash.get(trader.id, 0.0)) > tolerance * max(1.0, acct["rc"]):
             problems.append(f"{trader.id} reserves {acct['rc']} cash but its resting buys need {reserved_cash.get(trader.id, 0.0)}")
@@ -618,42 +618,58 @@ def _ok_function(call: Call) -> bool:
     return not audit(call.scope.world, _name(call))
 
 
-BOOK_ACTIONS = ("buy", "sell", "cancel", "cancel_all", "algo", "open", "close", "rebase")
+#: action → (its keys, the required ones, generated by the mechanism itself, example keys, what it does).
+#: `who` is the trader (default $actor); receipts land in $world.<name>_receipt.
+_ACTIONS: Dict[str, Tuple[Tuple[str, ...], Tuple[str, ...], bool, str, str]] = {
+    "buy": (("who", "qty", "price"), ("qty",), False, '"qty": 10, "price": 50.5',
+            "a limit buy with a price, a market buy without"),
+    "sell": (("who", "qty", "price"), ("qty",), False, '"qty": 10', "a limit sell with a price, a market sell without"),
+    "cancel": (("who", "order"), ("order",), False, '"order": "$params.order"', "cancel one resting order by id"),
+    "cancel_all": (("who",), (), False, "", "cancel every resting order of the trader"),
+    "algo": (("who",), (), False, "", "let the trader's coded strategy act once"),
+    "rebase": ((), (), False, "", "take current cash and share totals as the supply the invariants conserve"),
+    "open": ((), (), True, "", "start a round: expire orders, resume after a halt, reset the bar"),
+    "close": ((), (), True, "", "end a round: record the bar"),
+}
 
 
-@effect_op("book", keys=("action", "trader", "qty", "price", "order"), literal=("book", "action"), required=("action",),
-           check=name_check("book", "order_book", BOOK_ACTIONS),
-           example='{"book": "acme", "action": "buy", "trader": "$actor", "qty": 10, "price": 50.5}  (order book: buy | sell '
-                   '(no price = market) | cancel (order) | cancel_all | algo | open | close | rebase; receipt in $world.acme_receipt)')
-def _book_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-    world = runner.world
-    name, action = effect["book"], effect["action"]
-    try:
-        book_config(world, name)
-        if action == "open":
-            open_round(world, name)
-            return
-        if action == "close":
-            close_round(world, name)
-            return
-        if action == "rebase":
-            rebase(world, name)
-            return
-        trader = entity_of(world, runner.eval(effect.get("trader", "$actor"), vars), where, "a trader")
-        if action in ("buy", "sell"):
-            place(world, name, trader, action, runner.eval(effect.get("qty"), vars), runner.eval(effect.get("price"), vars))
-        elif action == "cancel":
-            cancel(world, name, trader, runner.eval(effect.get("order"), vars))
-        elif action == "cancel_all":
-            cancel_all(world, name, trader)
-        elif action == "algo":
-            from .traders import run_algo
+def _runner(action: str) -> Callable[[Any, Dict[str, Any], Dict[str, Any], str], None]:
+    def run(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        world = runner.world
+        name = effect["market"]
+        try:
+            if action == "open":
+                open_round(world, name)
+            elif action == "close":
+                close_round(world, name)
+            elif action == "rebase":
+                rebase(world, name)
+            else:
+                trader = entity_of(world, runner.eval(effect.get("who", "$actor"), vars), f"{where}.who", "a trader")
+                if action in ("buy", "sell"):
+                    place(world, name, trader, action, runner.eval(effect["qty"], vars), runner.eval(effect.get("price"), vars))
+                elif action == "cancel":
+                    cancel(world, name, trader, runner.eval(effect["order"], vars))
+                elif action == "cancel_all":
+                    cancel_all(world, name, trader)
+                else:
+                    from .traders import run_algo
 
-            run_algo(world, name, trader)
-        else:
-            raise RunError(f"book action must be one of {', '.join(BOOK_ACTIONS)}, got {action!r}", where)
-    except RunError as exc:
-        raise RunError(str(exc), where) from None
+                    run_algo(world, name, trader)
+        except RunError as exc:
+            raise RunError(str(exc), where) from None
+
+    return run
+
+
+def _register_actions() -> None:
+    for action, (keys, required, internal, fields, doc) in _ACTIONS.items():
+        example = '{"market": "acme", "action": "' + action + '"' + (f", {fields}" if fields else "") + f"}}  ({doc})"
+        family_action("market", ("order_book",), action, keys=keys, required=required, internal=internal,
+                      example=example, was=("book",))(_runner(action))
+
+
+_register_actions()
 
 
 def start_price(world: Any, name: str) -> float:
