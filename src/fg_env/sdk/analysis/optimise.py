@@ -25,8 +25,9 @@ extra seeds.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+import re
+from dataclasses import dataclass, field, replace
+from typing import Any, Dict, FrozenSet, List, Mapping, Optional, Sequence, Tuple
 
 from ..api import ContractLike
 from ..measure import RunResult
@@ -60,8 +61,18 @@ _FEW_FAILURES = 2
 _PENALTY = 100.0
 _SIMPLEX_METHODS = ("local", "race", "nelder_mead", "cross_entropy")
 _PARETO_METHODS = ("grid", "random", "lhs", "frontier")
+_INPUT = re.compile(r"\$inputs\.([A-Za-z_][A-Za-z0-9_]*)")
 
 Seeds = Tuple[int, ...]
+
+
+def _inputs_read(goals: Sequence[Any]) -> Optional[FrozenSet[str]]:
+    """The inputs the objectives' and constraints' expressions read (``None``: an expression reads them otherwise, so a
+    run keeps all). A contract's data tables live in its inputs, and a search keeps every run it makes."""
+    texts = [goal.measure.text for goal in goals]
+    if any(text.count("$inputs") != len(_INPUT.findall(text)) for text in texts):
+        return None
+    return frozenset(name for text in texts for name in _INPUT.findall(text))
 
 
 @dataclass
@@ -79,6 +90,8 @@ class _Trials:
     hosts: Any
     seeds: List[int]
     draws: Optional[List[Dict[str, Any]]]
+    #: The inputs a kept run holds on to (``None``: all of them); see :func:`_inputs_read`.
+    read: Optional[FrozenSet[str]]
     count: int = 0
     _runs: Dict[Point, Dict[int, RunResult]] = field(default_factory=dict)
 
@@ -97,7 +110,9 @@ class _Trials:
         results = runner.run_jobs(self.contract, jobs, participants=self.participants, rounds=self.rounds,
                                   workers=self.workers, pool=self.pool, hosts=self.hosts)
         for job, result in zip(jobs, results):
-            self._runs[job.tags["point"]][job.tags["run"]] = result
+            kept = result if self.read is None else replace(
+                result, inputs={k: v for k, v in result.inputs.items() if k in self.read})
+            self._runs[job.tags["point"]][job.tags["run"]] = kept
         self.count += len(jobs)
 
     def results(self, point: Point, indices: Seeds) -> List[RunResult]:
@@ -214,7 +229,7 @@ def optimise(contract: ContractLike, decisions: Mapping[str, Any], objective: An
     tree = SeedTree(seed)
     with runner.worker_pool(workers, participants, hosts) as pool:
         trials = _Trials(parsed, space, fixed, arm, participants, rounds, workers, pool, hosts,
-                         runner.run_seeds(seed, total), draws)
+                         runner.run_seeds(seed, total), draws, _inputs_read([*objectives, *checks]))
         scorer = _Scorer(trials, objectives, checks, budget, runs, tree, Standard(float(confidence), SEARCH_MARGIN))
         _search(chosen, space, scorer, budget, runs, tree)
         study = _Study(parsed.name, space, objectives, checks, trials, scorer, runs, held, seed, chosen, tree,

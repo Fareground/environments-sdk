@@ -64,7 +64,7 @@ def recommendation(opt: OptimisationResult, namer: Namer, views: Sequence[QueueV
         interval = f" (95% CI {_value(namer, measure, row['low'])}–{_value(namer, measure, row['high'])})" if spread else ""
         lines.append(f"Expected {what}: {_value(namer, measure, row['value'])}{interval}, over {row['n']} runs the search "
                      "did not use.")
-    lines += [_constraint(row, namer, measures) for row in opt.estimates["constraints"]]
+    lines += [_constraint(row, namer, measures, found[0] if found else None) for row in opt.estimates["constraints"]]
     holdout = opt.holdout
     if holdout:
         fresh = holdout["best"]["objectives"][0]
@@ -75,14 +75,18 @@ def recommendation(opt: OptimisationResult, namer: Namer, views: Sequence[QueueV
     return lines
 
 
-def _constraint(row: Mapping[str, Any], namer: Namer, measures: Sequence[str]) -> str:
+def _constraint(row: Mapping[str, Any], namer: Namer, measures: Sequence[str], view: Optional[QueueView]) -> str:
     text = _named(row["constraint"], namer, measures)
     verdict = _MET[row["verdict"]].format(confidence=row["confidence"])
     if row["value"] is None:
         return f"{text.capitalize()}: no value."
     if "keys_total" in row:
+        binding = row.get("binding") or []
+        if view is not None and all(key.isdigit() for key in binding):
+            binding = [view.when(int(key), int(key)) for key in binding]
+        tightest = f"; tightest: {', '.join(binding)}" if binding else ""
         return (f"{text.capitalize()}: holds for {row['keys_holding']} of {row['keys_total']} "
-                f"({row['keys_needed']} needed) — {verdict}.")
+                f"({row['keys_needed']} needed) — {verdict}{tightest}.")
     if "share_needed" in row:
         interval = f" (95% CI {row['low']:.0%}–{row['high']:.0%})" if row.get("low") is not None else ""
         return f"{text.capitalize()}: held in {row['value']:.0%} of runs{interval} — {verdict}."

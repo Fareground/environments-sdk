@@ -209,8 +209,9 @@ def test_the_command_line_prints_the_answer_or_json_and_one_line_errors(tmp_path
     path.write_text(json.dumps(HILL))
     common = [str(path), "--decision", "x=0:10:1", "--decision", "y=0:10:1", "--objective", "minimise cost",
               "--constraint", "service >= 9", "--runs", "2"]
-    assert _cli(["optimise", *common, "--json"]) == 0
-    assert json.loads(capsys.readouterr().out)["best"] == {"x": 0, "y": 9}
+    assert _cli(["optimise", *common, "--confidence", "0.95", "--json"]) == 0
+    answer = json.loads(capsys.readouterr().out)
+    assert answer["best"] == {"x": 0, "y": 9} and answer["verdict"] == "feasible" and answer["confidence"] == 0.95
     assert _cli(["optimise", *common]) == 0
     assert 'Best decision: x=0, y=9' in capsys.readouterr().out
     assert _cli(["optimise", str(path), "--objective", "minimise cost"]) == 1

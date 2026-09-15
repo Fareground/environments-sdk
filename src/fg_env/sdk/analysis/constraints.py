@@ -17,8 +17,9 @@ Every constraint is judged three ways from its runs:
 * *clearly missed* — even the optimistic one-sided bound is on the wrong side.
 
 A decision meets its constraints with confidence when every one is confident, is infeasible when one is clearly missed,
-and borderline in between. Per key, the counts of confident and plausible keys decide the same way, and the *binding*
-keys are those not confident or whose 95% interval reaches the bound. A search may ask for more than the confidence:
+and borderline in between. Per key, the counts of confident and plausible keys decide the same way; every key reports
+its *slack* (how many standard errors it sits on the right side of the bound), and the *binding* keys are those not
+confident plus those within one standard error of the tightest — the keys that decide the plan. A search may ask for more than the confidence:
 ``margin`` multiplies the one-sided bound's distance (see :mod:`.optimise`).
 """
 from __future__ import annotations
@@ -27,11 +28,11 @@ import math
 import random
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from ..measure import RunResult
 from .goals import Measure, Stat, stat_prefix
-from .stats import is_number, normal_quantile, t_quantile, wilson
+from .stats import normal_quantile, t_quantile, wilson
 
 __all__ = ["Constraint", "Standard", "parse_constraints", "check", "VERDICTS"]
 
@@ -82,13 +83,15 @@ def _constraint(contract: Any, text: Any) -> Constraint:
     body, confidence = text, None
     match = _CONFIDENCE.match(body)
     if match:
-        body, confidence = match.group(1), _percent(match.group(2), text, "the confidence", upper_open=True) / 100
-        if confidence <= 0.5:
+        body, confidence = match.group(1), float(match.group(2)) / 100
+        if not 0.5 < confidence < 1:
             raise ValueError(f"constraint '{text}': the confidence must be above 50% and below 100%")
     share = None
     match = _SHARE.match(body)
     if match:
-        body, share = match.group(1), _percent(match.group(2), text, "the share of runs") / 100
+        body, share = match.group(1), float(match.group(2)) / 100
+        if not 0 < share <= 1:
+            raise ValueError(f"constraint '{text}': the share of runs must be above 0% and at most 100%")
     keys, count = None, 0
     match = _KEYED.match(body)
     if match:
@@ -105,14 +108,6 @@ def _constraint(contract: Any, text: Any) -> Constraint:
         raise ValueError(f"constraint '{text}': give a statistic or a share of runs, not both")
     return Constraint(text.strip(), Measure.parse(contract, rest, f"constraint '{text}'"), op, bound, stat, share,
                       confidence, keys, count)
-
-
-def _percent(raw: str, text: str, what: str, upper_open: bool = False) -> float:
-    percent = float(raw)
-    if not 0 < percent < 100 and not (percent == 100 and not upper_open):
-        top = "below 100%" if upper_open else "at most 100%"
-        raise ValueError(f"constraint '{text}': {what} must be above 0% and {top}")
-    return percent
 
 
 def _split_comparison(body: str, text: str) -> Tuple[str, str, str]:
@@ -179,10 +174,11 @@ def _judge(c: Constraint, op: str, values: List[float], level: float, margin: fl
 
     met, passes = compare(value, c.bound), se is not None and compare(bound_at(margin * z), c.bound)
     confident = se is not None and compare(bound_at(z), c.bound)
-    missed = not compare(bound_at(-z), c.bound)
+    missed = se is not None and not compare(bound_at(-z), c.bound)  # one run cannot show a miss is not luck
     reached = bound_at(margin * z) if se is not None else value
     scale = abs(c.bound) or 1.0
-    return {"stat": c.stat.name, "n": n, "value": value, "low": low, "high": high, "se": se, "met": met,
+    return {"stat": c.stat.name, "n": n, "value": value, "low": low, "high": high, "se": se,
+            "slack": _slack(toward * (value - c.bound), se), "met": met,
             "passes": passes or (se is None and met), "confident": confident, "clearly_missed": missed,
             "verdict": _verdict(confident, missed), "shortfall": 0.0 if met else abs(c.bound - value),
             "violation": 0.0 if passes else max(abs(c.bound - reached) / scale, 1e-12)}
@@ -198,10 +194,20 @@ def _judge_share(c: Constraint, compare: Any, values: List[float], level: float,
     cautious = _wilson_side(held, n, margin * z, lower=True)
     confident = _wilson_side(held, n, z, lower=True) >= c.share
     missed = _wilson_side(held, n, z, lower=False) < c.share
-    return {"share_needed": c.share, "n": n, "value": share, "low": low, "high": high, "met": share >= c.share,
+    se = math.sqrt(c.share * (1 - c.share) / n)
+    return {"share_needed": c.share, "n": n, "value": share, "low": low, "high": high,
+            "slack": _slack(share - c.share, se), "met": share >= c.share,
             "passes": cautious >= c.share, "confident": confident, "clearly_missed": missed,
             "verdict": _verdict(confident, missed), "shortfall": max(0.0, c.share - share),
             "violation": max(0.0, c.share - cautious)}
+
+
+def _slack(room: float, se: Optional[float]) -> float:
+    """How far a value is on the right side of its bound (negative: the wrong side), in standard errors; a value without
+    noise is infinitely far unless it sits exactly on the bound."""
+    if se:
+        return room / se
+    return 0.0 if room == 0 else math.copysign(math.inf, room)
 
 
 def _wilson_side(successes: int, n: int, z: float, lower: bool) -> float:
@@ -237,17 +243,12 @@ def _keyed(c: Constraint, runs: Sequence[RunResult], level: float, margin: float
     gaps = sorted(r["violation"] for r in rows if not r["passes"])
     shortfalls = sorted(r["shortfall"] for r in rows if not r["met"])
     met = sum(r["met"] for r in rows)
-    binding = [r["key"] for r in rows if not r["confident"] or _reaches(r, c.bound)]
+    tightest = min(r["slack"] for r in rows)
+    binding = [r["key"] for r in rows if not r["confident"] or r["slack"] <= tightest + 1]
     return {"n": min(r["n"] for r in rows), "value": met if c.keys != "most" else len(rows) - met,
             "keys_holding": met, "keys_needed": need, "keys_total": len(rows), "low": None, "high": None, "met": met >= need,
             "passes": passing >= need, "confident": confident, "clearly_missed": missed,
             "verdict": _verdict(confident, missed), "shortfall": math.fsum(shortfalls[:max(0, need - met)]),
             "violation": math.fsum(gaps[:max(0, need - passing)]), "binding": binding,
-            "keys": [{k: r[k] for k in ("key", "value", "low", "high", "met", "confident", "clearly_missed", "verdict")}
-                     for r in rows]}
-
-
-def _reaches(row: Mapping[str, Any], bound: float) -> bool:
-    """A share's or an estimate's 95% interval reaches the bound it is judged against."""
-    target = row.get("share_needed", bound)
-    return row["low"] is not None and is_number(row["high"]) and row["low"] <= target <= row["high"]
+            "keys": [{k: r[k] for k in ("key", "value", "low", "high", "slack", "met", "confident", "clearly_missed",
+                                        "verdict")} for r in rows]}

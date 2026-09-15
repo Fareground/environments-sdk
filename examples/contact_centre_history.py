@@ -14,9 +14,10 @@ The model is then estimated from the first six weeks only (the last two are kept
 * an outage's peak uplift — the first outage half-hour's calls over the fitted forecast, averaged over the outages;
 * patience — the simulated method of moments: the patience at which abandonment over the calibration days, each
   replayed with the agents it actually had and pooled on common seeds, equals the recorded abandonment (found by
-  bisection, since more patience always means fewer callers giving up). Pooling matters: fitting each day's rate on
-  its own weighs the quietest days' noise most (``fg_env.calibrate`` on per-day relative errors lands near 280 s here,
-  against a true 160 s).
+  bisection, since more patience always means fewer callers giving up). Weighing matters: fitting each day's rate by
+  its relative error lets the quietest days' noise count most (``fg_env.calibrate`` on per-day relative errors lands
+  near 270 s here, against a true 160 s, and its pooled check says so); giving each day's calls as the target's
+  ``count``, or ``"pool": true``, recovers 160–167 s.
 """
 from __future__ import annotations
 

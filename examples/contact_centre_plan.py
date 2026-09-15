@@ -4,24 +4,24 @@ model on the two held-out weeks of history, and print the owner report.
     python examples/contact_centre_plan.py            # searches; writes the plan into the arms and contact_centre/plan.json
     python examples/contact_centre_plan.py --report   # validates, plays every arm and prints the owner report
 
-The plan is a 24-value staffing vector searched by ``fg_env.optimise``: minimise the staffing cost subject to the day's
-service level reaching 80% in 90% of runs and, per half-hour, at most two half-hours below 80% in an average run — a
-day-level service level alone lets a search starve the quiet half-hours. The search starts from the Erlang C staffing
-of each half-hour's forecast; every candidate plays the whole day on the same seeds, with the fitted arrival parameters
-drawn per run, and the choice is checked again on seeds the search never saw (the optimiser flags a plan that only won
-by seed luck).
+The plan is a 24-value staffing vector searched by ``fg_env.optimise``: minimise the staffing cost subject to every
+half-hour's expected service level reaching 80% (``each centre_service_level_by_interval >= 0.8``) and the day's in
+90% of runs, both held with the optimiser's 90% confidence — a day-level service level alone lets a search starve the
+quiet half-hours. The search starts from the Erlang C staffing of each half-hour's forecast; every candidate plays the
+whole day on the same seeds, with the fitted arrival parameters drawn per run; the finalists are confirmed on new seeds
+and the choice checked again on seeds no search saw.
 
 Why not "the worst half-hour keeps 80% in 90% of runs"? A single day's half-hour service level is noisy (40–120 calls),
 and the worst of 24 noisy values is far below their average: the Erlang C plan gives every half-hour at least 85% on
 average yet its worst half-hour reaches 80% in 13% of runs, and two more agents in every half-hour (every half-hour at
-94% on average, about $900 more a day) still only in 57%. That constraint buys service nobody asked for; the one above
-keeps each half-hour near its target at a sane cost.
+94% on average, about $900 more a day) still only in 57%. That constraint buys service nobody asked for; an expected
+level per half-hour, held with confidence, keeps each half-hour at its target at a sane cost.
 
-What the search found (contact_centre/plan.json): a plan of about $9,600 a day that keeps the day's service level at 80%
-in every run and has 1.9 half-hours below target in an average run on the confirmation seeds — within the need of two,
-but above the 1.5 the search was held to, so the optimiser reports it as the closest decision rather than a feasible
-one. Held at 2, the search returned a $9,460 plan at 2.7 on fresh seeds: its cheapest finalists sit on whatever bound it
-is given, and seeds that flattered them do not repeat.
+What the search found (contact_centre/plan.json, 1,018 plans searched before the local search settled): a plan of $8,930
+a day, feasible with 90% confidence on its 60 confirmation seeds and again on 40 held-out ones. On 60 further fresh days
+it keeps every half-hour's average at 80% or more (23 of the 24 with 90% confidence, the tightest at 80.6%) and the
+day's service level at 80% in 98% of them, for $239 a day less than the manager's rule (which runs its tightest
+half-hour at 87%). The tightest half-hours are the opening one and 09:00.
 """
 from __future__ import annotations
 
@@ -41,11 +41,11 @@ CONTRACT = Path(__file__).parent / "contracts" / "contact_centre.json"
 PLAN = CONTRACT.parent / "contact_centre" / "plan.json"
 TARGET, THRESHOLD = 0.8, 20.0
 OBJECTIVE = "minimise centre_cost"
-#: The search asks for at most 1.5 half-hours below target where the plan needs 2: the cheapest plan found on some seeds
-#: is the one those seeds flattered, so a search held exactly at the need picks plans that miss it on fresh seeds.
-CONSTRAINTS = ["centre_service_level >= 0.8 in 90% of runs", "mean of centre_intervals_below_target <= 1.5"]
+#: Every half-hour's expected service level reaches 80%, and the day's in 90% of runs — each with the optimiser's 90%
+#: confidence, so the plan is feasible on days the search never saw, not only on the seeds that picked it.
+CONSTRAINTS = ["each centre_service_level_by_interval >= 0.8", "centre_service_level >= 0.8 in 90% of runs"]
 #: Seeds judging each plan, distinct plans searched, fresh seeds checking the choice, and processes.
-RUNS, BUDGET, HOLDOUT_SEEDS, WORKERS = 30, 300, 40, 8
+RUNS, BUDGET, HOLDOUT_SEEDS, WORKERS = 30, 1200, 40, 8
 #: Agents added to every half-hour of the Erlang C plan so the search starts from a plan that meets the constraints
 #: and works down (from an infeasible start a local search spends its budget climbing).
 START_MARGIN = 1

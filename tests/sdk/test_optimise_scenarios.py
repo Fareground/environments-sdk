@@ -24,12 +24,20 @@ def _fresh(contract, inputs, measure, runs=40):
             .arms["baseline"].runs]
 
 
-def test_a_staffing_plan_picked_on_four_seeds_misses_its_service_level_on_fresh_seeds_and_is_flagged_as_luck():
+def test_every_run_cannot_be_shown_with_confidence_so_a_plan_picked_on_four_seeds_stays_borderline_and_luck_is_flagged():
     few = fg_env.optimise(CENTRE, STAFFING, "minimise staffing_cost", ["sl >= 0.8 in 100% of runs"], runs=4, budget=24,
                           holdout_seeds=20)
+    assert few.verdict == "borderline" and not few.feasible and "Best decision, borderline" in few.summary()
+    assert few.estimates["runs"] == 16  # the confirmation grew to four times the runs trying to settle it
+    assert any("asks for every run" in note for note in few.notes)
     assert few.holdout["seed_luck"] and "clearly no longer holds" in few.summary()
-    cheapest = min((h for h in few.history if h["feasible"]), key=lambda h: h["objectives"][0])
-    assert fmean(sl >= 0.8 for sl in _fresh(CENTRE, cheapest["decision"], "sl")) < 0.8
+
+
+def test_a_plan_picked_on_four_seeds_is_confirmed_on_more_seeds_until_its_share_of_runs_holds_with_confidence():
+    few = fg_env.optimise(CENTRE, STAFFING, "minimise staffing_cost", ["sl >= 0.8 in 80% of runs"], runs=4, budget=24,
+                          holdout_seeds=20)
+    assert few.verdict == "feasible" and few.estimates["runs"] > 4
+    assert fmean(sl >= 0.8 for sl in _fresh(CENTRE, few.best, "sl")) >= 0.8
 
 
 def test_a_staffing_plan_judged_on_enough_seeds_keeps_its_service_level_on_fresh_seeds_for_no_more_than_the_rule():

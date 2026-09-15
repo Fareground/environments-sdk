@@ -1,14 +1,9 @@
 """Calibration: fit inputs so a contract's outputs and metrics match targets.
 
-Targets (``{name: spec}``; ``name`` is an output or metric, or ``series.<metric>``):
-
-* a number — the mean over runs should equal it: ``{"peak_infected": 20}``;
-* a list — a metric's per-round path: the mean simulated path should follow it (RMSE);
-* ``{"value": v, "stat": "volatility", "of": "last_price"}`` — a named statistic of a metric's
-  series (a stylized fact; see :mod:`.facts`), averaged over runs;
-* ``{"distribution": [values]}`` — the spread of the output across runs should match a sample
-  (Wasserstein distance);
-* any spec may add ``"weight"`` and ``"scale"`` (the error that counts as "one unit off").
+Targets (``{name: spec}``; see :mod:`.targets`): a number the mean over runs should equal, a metric's path, a
+statistic of a series, or a distribution across runs; any may add ``"weight"`` and ``"scale"``, and a rate recorded per
+case ``"count"`` (the trials behind it, weighing its error by its data) or ``"pool": true`` (matched over the cases
+together rather than case by case).
 
 Cases: ``targets`` may instead be a list of cases, each with its own fixed inputs and targets
 (``[{"name": "town A", "inputs": {"population": 900}, "targets": {"peak_infected": 120}}, …]``); one set
@@ -19,9 +14,12 @@ every case.
 
 The objective is the weighted root-mean-square of normalized errors, so a fit of 0.1 means
 "about 10% of each target's scale off". The search runs every candidate on the same seeds,
-which makes the objective a deterministic function of the inputs; the best fit is then re-run
+which makes the objective a deterministic function of the inputs (with cases, each case has its
+own seeds, so averaging over cases averages their noise away too); the best fit is then re-run
 on held-out seeds that played no part in the search, and that validation is what the report
-leads with.
+leads with. A number target fitted case by case is also compared with its pooled level over the cases
+(``pooled``): when the two disagree beyond noise, the per-case errors are pulling the fit away from the
+level the cases share, and the report says so.
 """
 from __future__ import annotations
 
@@ -33,123 +31,18 @@ from ..api import ContractLike
 from ..measure import RunResult
 from ..seeds import SeedTree
 from . import optimize, runner
-from .facts import statistic
 from .holdout import Split, case_names, splits
-from .stats import estimate, is_number, mean, sd, wasserstein
+from .stats import estimate, mean, sd
+from .targets import Target, count_scaled, evaluate_targets, parse_targets, pooled_checks, pooled_error
 
 __all__ = ["calibrate", "CalibrationResult", "Target", "parse_targets", "evaluate_targets"]
 
-#: The error scale when a target is 0 and no ``scale`` is given (avoids dividing by zero).
-_ZERO_SCALE = 1.0
 #: Bootstrap resamples used to measure how noisy the objective is at the best fit.
 _NOISE_RESAMPLES = 200
 #: Evaluated points within this many objective standard errors of the best are "equally good".
 _PLAUSIBLE_SE = 2.0
 #: A target making up at least this share of the misfit at the best fit, with at most half the weight, is called out.
 _DOMINANT_SHARE = 0.75
-
-
-@dataclass(frozen=True)
-class Target:
-    name: str
-    kind: str  # value | series | stat | distribution
-    measure: Tuple[str, str]
-    goal: Any
-    stat: Optional[str] = None
-    weight: float = 1.0
-    scale: Optional[float] = None
-
-
-def parse_targets(contract: Any, targets: Mapping[str, Any]) -> List[Target]:
-    if not targets:
-        raise ValueError("calibrate needs at least one target")
-    parsed = []
-    for name, spec in targets.items():
-        lookup = name[len("series."):] if name.startswith("series.") else name
-        options: Mapping[str, Any] = spec if isinstance(spec, Mapping) else {}
-        weight = float(options.get("weight", 1.0))
-        scale = options.get("scale")
-        if weight <= 0 or (scale is not None and (not is_number(scale) or scale <= 0)):
-            raise ValueError(f"target '{name}': weight and scale must be positive numbers")
-        if isinstance(spec, Mapping) and "stat" in spec:
-            of = spec.get("of", lookup)
-            measure = runner.resolve_measure(contract, f"metrics.{of}")
-            statistic(spec["stat"], [1.0, 2.0, 3.0, 4.0, 5.0])  # an unknown statistic name fails now
-            goal = spec.get("value")
-            if not is_number(goal):
-                raise ValueError(f"target '{name}': a statistic target needs a numeric 'value'")
-            parsed.append(Target(name, "stat", measure, float(goal), spec["stat"], weight, scale))
-        elif isinstance(spec, Mapping) and "distribution" in spec:
-            sample = spec["distribution"]
-            if not isinstance(sample, Sequence) or not sample or not all(is_number(v) for v in sample):
-                raise ValueError(f"target '{name}': 'distribution' must be a non-empty list of numbers")
-            parsed.append(Target(name, "distribution", runner.resolve_measure(contract, lookup),
-                                 [float(v) for v in sample], None, weight, scale))
-        else:
-            goal = spec.get("value") if isinstance(spec, Mapping) else spec
-            if isinstance(goal, Sequence) and not isinstance(goal, str):
-                if not goal or not all(is_number(v) for v in goal):
-                    raise ValueError(f"target '{name}': a series target must be a non-empty list of numbers")
-                parsed.append(Target(name, "series", runner.resolve_measure(contract, f"metrics.{lookup}"),
-                                     [float(v) for v in goal], None, weight, scale))
-            elif is_number(goal) or isinstance(goal, bool):
-                parsed.append(Target(name, "value", runner.resolve_measure(contract, lookup), float(goal), None,
-                                     weight, scale))
-            else:
-                raise ValueError(f"target '{name}': give a number, a list, or {{value|stat|distribution}}, got {spec!r}")
-    return parsed
-
-
-def _target_error(target: Target, runs: Sequence[RunResult]) -> Dict[str, Any]:
-    """The simulated counterpart of one target and its normalized error (``None`` without data)."""
-    ok = [r for r in runs if r.status != "failed"]
-    if target.kind == "value":
-        values = [v for v in (runner.value(r, target.measure) for r in ok) if v is not None]
-        if not values:
-            return {"target": target.name, "simulated": None, "error": None}
-        simulated = mean(values)
-        scale = target.scale or (abs(target.goal) if target.goal else _ZERO_SCALE)
-        return {"target": target.name, "goal": target.goal, "simulated": simulated, "sd": sd(values),
-                "error": (simulated - target.goal) / scale}
-    if target.kind == "stat":
-        values = []
-        for r in ok:
-            path = runner.series(r, target.measure[1])
-            try:
-                values.append(statistic(target.stat or "", path))
-            except (ValueError, ZeroDivisionError):
-                continue
-        if not values:
-            return {"target": target.name, "simulated": None, "error": None}
-        simulated = mean(values)
-        scale = target.scale or (abs(target.goal) if target.goal else _ZERO_SCALE)
-        return {"target": target.name, "stat": target.stat, "goal": target.goal, "simulated": simulated,
-                "error": (simulated - target.goal) / scale}
-    if target.kind == "series":
-        paths = [runner.series(r, target.measure[1]) for r in ok]
-        length = min([len(target.goal)] + [len(p) for p in paths]) if paths else 0
-        if length == 0:
-            return {"target": target.name, "simulated": None, "error": None}
-        average = [mean([p[t] for p in paths]) for t in range(length)]
-        rmse = math.sqrt(mean([(a - g) ** 2 for a, g in zip(average, target.goal[:length])]))
-        scale = target.scale or (sd(target.goal) or mean([abs(g) for g in target.goal]) or _ZERO_SCALE)
-        return {"target": target.name, "rmse": rmse, "rounds_compared": length, "simulated": average,
-                "error": rmse / scale}
-    values = [v for v in (runner.value(r, target.measure) for r in ok) if v is not None]
-    if not values:
-        return {"target": target.name, "simulated": None, "error": None}
-    distance = wasserstein(values, target.goal)
-    scale = target.scale or (sd(target.goal) or abs(mean(target.goal)) or _ZERO_SCALE)
-    return {"target": target.name, "distance": distance, "simulated_mean": mean(values), "error": distance / scale}
-
-
-def evaluate_targets(targets: Sequence[Target], runs: Sequence[RunResult]) -> Tuple[float, List[Dict[str, Any]]]:
-    """Weighted RMS of normalized errors (``inf`` when a target has no simulated value)."""
-    details = [_target_error(t, runs) for t in targets]
-    if any(d["error"] is None for d in details):
-        return math.inf, details
-    total = math.fsum(t.weight for t in targets)
-    return math.sqrt(math.fsum(t.weight * d["error"] ** 2 for t, d in zip(targets, details)) / total), details
 
 
 @dataclass
@@ -171,6 +64,10 @@ class CalibrationResult:
     #: Every evaluated point that fits as well as the best within the objective's noise (inputs together), which
     #: ``uncertainty=`` draws from so forecasts carry the parameters' uncertainty.
     plausible: List[Dict[str, Any]] = field(default_factory=list)
+    #: Every number target fitted case by case, pooled over the cases at the best fit: the recorded and simulated
+    #: pooled levels, the gap's standard error, whether they disagree, and the evaluated inputs closest to the pooled
+    #: level.
+    pooled: List[Dict[str, Any]] = field(default_factory=list)
 
     def report(self) -> str:
         v = self.validation
@@ -181,6 +78,11 @@ class CalibrationResult:
                   f"Fit on search seeds: {self.fit:.4g}   on {v['runs']} held-out seed(s): {v['fit']:.4g}"]
         for detail in v["targets"]:
             lines.append("  " + _target_text(detail))
+        for check in self.pooled:
+            verdict = "DISAGREES with" if check["disagrees"] else "agrees with"
+            lines.append(f"  pooled over {check['cases']} case(s) · {check['target']}: simulated "
+                         f"{check['simulated']:.4g} vs recorded {check['goal']:.4g} ± {check['se']:.2g} — {verdict} the "
+                         "recorded level")
         lines += _holdout_text(self.holdout)
         lines.append("Parameter uncertainty (evaluated points as good as the best, within noise):")
         for name, u in self.uncertainty.items():
@@ -193,7 +95,7 @@ class CalibrationResult:
         return {"contract": self.contract, "params": self.params, "method": self.method, "fit": self.fit,
                 "targets": self.targets, "validation": self.validation, "uncertainty": self.uncertainty,
                 "evaluations": self.evaluations, "history": self.history, "notes": self.notes, "cases": self.cases,
-                "holdout": self.holdout, "plausible": self.plausible}
+                "holdout": self.holdout, "plausible": self.plausible, "pooled": self.pooled}
 
 
 def _target_text(detail: Dict[str, Any]) -> str:
@@ -301,7 +203,8 @@ def _cases(contract: Any, targets: Any, inputs: Optional[Mapping[str, Any]], arm
         except ValueError as exc:
             raise ValueError(f"case '{name}': {exc}") from None
         out.append(_Case(name, {**dict(inputs or {}), **own}, case.get("arm", arm), goals))
-    return _spread_scaled(out), True
+    scaled = count_scaled([case.goals for case in out])
+    return _spread_scaled([replace(case, goals=goals) for case, goals in zip(out, scaled)]), True
 
 
 def _spread_scaled(cases: List[_Case]) -> List[_Case]:
@@ -311,17 +214,17 @@ def _spread_scaled(cases: List[_Case]) -> List[_Case]:
     Mixed targets are weighed against each other: an error then counts by how far off it is compared with the target's
     own spread, so a rate near 0.05 and a share near 0.85 weigh alike instead of the smaller one counting hundreds of
     times over. A single target keeps ``|goal|`` (its fit reads as a share off, and no weighting is at stake), as does a
-    target given once or one that never varies."""
+    target given once or one that never varies; a pooled target is scaled once, over the cases together."""
     goals: Dict[str, List[float]] = {}
     for case in cases:
         for goal in case.goals:
-            if goal.kind == "value" and goal.scale is None:
+            if goal.kind == "value" and goal.scale is None and not goal.pool:
                 goals.setdefault(goal.name, []).append(goal.goal)
     spreads = {name: sd(values) for name, values in goals.items() if len(values) > 1 and sd(values) > 0}
     if len(goals) < 2 or not spreads:
         return cases
-    return [replace(case, goals=[replace(goal, scale=spreads[goal.name])
-                                 if goal.kind == "value" and goal.scale is None and goal.name in spreads else goal
+    return [replace(case, goals=[replace(goal, scale=spreads[goal.name]) if goal.name in spreads and not goal.pool
+                                 and goal.kind == "value" and goal.scale is None else goal
                                  for goal in case.goals]) for case in cases]
 
 
@@ -356,35 +259,55 @@ class _Problem:
             out[n] = runner.coerce_input(self.contract, n, raw)
         return out
 
-    def run(self, values: Mapping[str, Any], seeds: Sequence[int], pool: Any) -> List[List[RunResult]]:
-        """Every case × every seed at these param values, grouped by case."""
-        jobs = runner.jobs_for([({**case.inputs, **values}, case.arm) for case in self.cases], seeds)
+    def run(self, values: Mapping[str, Any], seed: int, start: int, count: int, pool: Any) -> List[List[RunResult]]:
+        """Every case on runs ``start…start+count-1`` at these param values, grouped by case.
+
+        Given as cases, each case draws its own seeds (derived from its name, so a case keeps them in any split):
+        cases sharing seeds move together, and a fit averaged or pooled over many cases would carry the noise of
+        ``count`` runs however many cases there are. Every param value still meets the same seeds in a case (common
+        random numbers where they matter); one mapping of targets keeps the experiment's seeds."""
+        tree = SeedTree(seed)
+        jobs = []
+        for c, case in enumerate(self.cases):
+            seeds = [tree.derive("case", case.name, "run", i) for i in range(start, start + count)] if self.tagged \
+                else runner.run_seeds(seed, count, start)
+            jobs += [runner.Job({**case.inputs, **values}, case.arm, s, {"cell": c, "run": i})
+                     for i, s in enumerate(seeds)]
         results = runner.run_jobs(self.contract, jobs, participants=self.participants, rounds=self.rounds,
                                   workers=self.workers, pool=pool, hosts=self.hosts)
-        return runner.by_cell(jobs, results, len(self.cases))
+        # targets read outputs, metrics and series only; a contract's data tables live in its inputs, and a search
+        # keeps every evaluated point's runs
+        return runner.by_cell(jobs, [replace(r, inputs={}) for r in results], len(self.cases))
 
     def evaluate(self, runs: Sequence[Sequence[RunResult]]) -> Tuple[float, List[Dict[str, Any]]]:
-        """Weighted RMS of normalized errors over every case's targets (``inf`` when one has no value)."""
+        """Weighted RMS of normalized errors over every case's targets, a pooled target counted once over the cases
+        (``inf`` when one has no value). Rows: every case's targets in order, then one per pooled target."""
         details: List[Dict[str, Any]] = []
-        weighted, total, complete = 0.0, 0.0, True
+        pools: Dict[str, List[Tuple[Target, Dict[str, Any]]]] = {}
+        scored: List[Tuple[float, Optional[float]]] = []
         for case, case_runs in zip(self.cases, runs):
             _, case_details = evaluate_targets(case.goals, case_runs)
             for goal, detail in zip(case.goals, case_details):
                 details.append({**detail, "case": case.name} if self.tagged else detail)
-                total += goal.weight
-                if detail["error"] is None:
-                    complete = False
+                if goal.pool:
+                    pools.setdefault(goal.name, []).append((goal, detail))
                 else:
-                    weighted += goal.weight * detail["error"] ** 2
-        return (math.sqrt(weighted / total) if complete else math.inf), details
+                    scored.append((goal.weight, detail["error"]))
+        for pairs in pools.values():
+            row = pooled_error(pairs)
+            details.append(row)
+            scored.append((pairs[0][0].weight, row["error"]))
+        if any(error is None for _, error in scored):
+            return math.inf, details
+        total = math.fsum(weight for weight, _ in scored)
+        return math.sqrt(math.fsum(weight * (error or 0.0) ** 2 for weight, error in scored) / total), details
 
 
 def _fit(problem: _Problem, pool: Any, runs: int, held: int, budget: int, method: str, seed: int) -> CalibrationResult:
-    search_seeds = runner.run_seeds(seed, runs)
 
     def objective(unit: Tuple[float, ...]) -> Tuple[float, Any]:
         values = problem.to_inputs(unit)
-        results = problem.run(values, search_seeds, pool)
+        results = problem.run(values, seed, 0, runs, pool)
         loss, details = problem.evaluate(results)
         return loss, (values, details, results)
 
@@ -401,17 +324,37 @@ def _fit(problem: _Problem, pool: Any, runs: int, held: int, budget: int, method
     at_edge = [n for n, u in zip(problem.names, unit) if u in (0.0, 1.0)]
     if at_edge:
         notes.append(f"best value at the edge of its range for {', '.join(at_edge)}: the true fit may lie outside it")
-    validation_fit, validation_details = problem.evaluate(problem.run(values, runner.run_seeds(seed, held, start=runs), pool))
+    validation_fit, validation_details = problem.evaluate(problem.run(values, seed, runs, held, pool))
     uncertainty = _uncertainty(problem, evaluator, best_runs, fit, SeedTree(seed))
     noise = next(iter(uncertainty.values()))["objective_noise"] if uncertainty else 0.0
     plausible = [dict(d[0]) for _, loss, d in evaluator.history if loss <= fit + _PLAUSIBLE_SE * noise]
     details = problem.evaluate(best_runs)[1]
     notes += _fit_notes(problem, details, fit, validation_fit, noise, held)
+    pooled = pooled_checks([case.goals for case in problem.cases], details,
+                           [(d[0], d[1]) for _, _, d in evaluator.history]) if problem.tagged else []
+    notes += _pooled_notes(pooled, values)
     history = [{"inputs": d[0], "fit": loss} for _, loss, d in evaluator.history]
     return CalibrationResult(problem.contract.name, values, chosen, fit, details,
                              {"runs": held, "fit": validation_fit, "targets": validation_details},
                              uncertainty, len(evaluator.history), history, notes,
-                             [case.name for case in problem.cases] if problem.tagged else [], plausible=plausible)
+                             [case.name for case in problem.cases] if problem.tagged else [], plausible=plausible,
+                             pooled=pooled)
+
+
+def _pooled_notes(checks: Sequence[Dict[str, Any]], best: Mapping[str, Any]) -> List[str]:
+    notes = []
+    for check in checks:
+        if not check["disagrees"]:
+            continue
+        closest = check["closest_inputs"]
+        instead = f"; of the inputs tried, {runner.describe_inputs(closest)} comes closest to it" \
+            if closest and closest != dict(best) else ""
+        notes.append(f"fitted case by case, {check['target']} pooled over the {check['cases']} cases is "
+                     f"{check['simulated']:.4g} against {check['goal']:.4g} recorded (more than twice the gap's "
+                     f"noise of {check['se']:.2g}){instead}: per-case errors weigh noisy cases and a response that is "
+                     "not linear in each case's load unevenly, so the fit drifts from the level the cases share; give "
+                     "the target 'count' (the trials behind each rate) or 'pool': true")
+    return notes
 
 
 def _fit_notes(problem: _Problem, details: Sequence[Dict[str, Any]], fit: float, fresh: float, noise: float,
@@ -443,11 +386,10 @@ def _fit_notes(problem: _Problem, details: Sequence[Dict[str, Any]], fit: float,
 def _held_out(problem: _Problem, parts: Sequence[Split], fits: Sequence[CalibrationResult], pool: Any, runs: int,
               held: int, method: str, seed: int) -> Dict[str, Any]:
     """Each split's fit scored on its held-out cases, with fresh seeds."""
-    seeds = runner.run_seeds(seed, held, start=runs)
     rows = []
     for split, fitted in zip(parts, fits):
         scored = problem.subset(split.test)
-        loss, details = scored.evaluate(scored.run(fitted.params, seeds, pool))
+        loss, details = scored.evaluate(scored.run(fitted.params, seed, runs, held, pool))
         rows.append({"label": split.label, "train": [problem.cases[i].name for i in split.train],
                      "test": [problem.cases[i].name for i in split.test], "params": fitted.params,
                      "in_sample": fitted.validation["fit"], "out_of_sample": loss, "targets": details})
