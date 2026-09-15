@@ -128,7 +128,7 @@ def test_memory_survives_a_snapshot_exactly():
     assert restored.snapshot()["entities"] == straight.snapshot()["entities"]
 
 
-def test_without_the_wrapper_note_and_recall_are_ordinary_actions():
+def test_a_plain_run_offers_note_and_recall_as_in_turn_tools_that_use_no_action():
     def participant(wake):
         wake.call("note", {"text": "Remember the lighthouse."})
         wake.end()
@@ -136,4 +136,4 @@ def test_without_the_wrapper_note_and_recall_are_ordinary_actions():
     env = fg_env.load(_with(capture=[]), seed=1)
     result = env.run(participant, rounds=1)
     assert result.status == "running" and result.error is None
-    assert len(_memory(env)) == 1 and result.stats["actions"] == 2
+    assert len(_memory(env)) == 1 and result.stats["actions"] == 0

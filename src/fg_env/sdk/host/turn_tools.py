@@ -2,8 +2,8 @@
 using up an action.
 
 Host tools (``host_tool``) and memory tools (``recall``, ``note``) are declared as ordinary
-private actions, so a contract checks, previews and runs with the plain engine. Until the
-runtime offers them natively, :func:`wrap` gives each participant a :class:`HostWake` that
+private actions, so a contract checks, previews and runs with the plain engine. Every run offers
+them (``Env.run`` passes each participant through :func:`offer`): a :class:`HostWake`
 lists them as ``look`` tools and applies them at once — in simultaneous stages too — counting
 only a tool call. Their effects touch only the caller's own properties and the tape, and never
 write to the shared log, so concurrent turns stay deterministic. The host call itself runs
@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from ..runtime import Env
     from ..turn import Turn
 
-__all__ = ["TurnTool", "turn_tools", "HostWake", "wrap"]
+__all__ = ["TurnTool", "turn_tools", "HostWake", "offer", "wrap"]
 
 _INVALID = {"error": "invalid"}
 
@@ -164,6 +164,11 @@ class _Extended:
         return f"HostTools({self.inner!r})"
 
 
+def offer(participant: Callable[[Wake], Any], tools: Mapping[str, TurnTool]) -> Callable[[Wake], Any]:
+    """``participant``, offered ``tools`` in its wakes (unchanged if it already is)."""
+    return participant if isinstance(participant, (_Extended, _Default)) else _Extended(participant, tools)
+
+
 class _Default:
     """What the engine would use for an agent nobody named: its type's policy, else random."""
 
@@ -202,6 +207,9 @@ def wrap(env: "Env", participants: Any = None) -> Any:
     seed = env.seeds.derive("participant")
     wrapped: Dict[str, Any] = {}
     for key, value in spec.items():
+        if isinstance(value, (_Extended, _Default)):  # already offers the tools
+            wrapped[key] = value
+            continue
         inner = value if callable(value) else resolve_participant(value, env.contract, seed)
         wrapped[key] = _Extended(inner, tools)
     wrapped.setdefault("*", _Default(env, tools))

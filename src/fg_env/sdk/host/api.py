@@ -1,8 +1,8 @@
 """Loading, restoring and running an environment with its hosts.
 
-These wrap the core entry points until they take ``hosts=`` themselves (see the core hook
-spec): :func:`load` binds the hosts and writes build-time host work (personas) before round 1,
-:func:`restore` binds a restored run, :func:`run` offers in-turn host tools to participants.
+The core entry points take ``hosts=`` themselves (``fg_env.load``, ``Env.restore``, ``Env.run``)
+and offer in-turn host tools on every run; these are the same calls under the host namespace.
+:func:`load` also does build-time host work (personas) when no hosts are given.
 """
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from ..measure import RunResult
     from ..runtime import Env
 
-__all__ = ["load", "build", "restore", "run", "wrap"]
+__all__ = ["load", "attach", "build", "restore", "run", "wrap"]
 
 
 def load(source: Any, *, hosts: HostsLike = None, **kwargs: Any) -> "Env":
@@ -26,6 +26,12 @@ def load(source: Any, *, hosts: HostsLike = None, **kwargs: Any) -> "Env":
     from ..api import load as load_env
 
     env = load_env(source, **kwargs)
+    attach(env, hosts)
+    return env
+
+
+def attach(env: "Env", hosts: HostsLike) -> "Env":
+    """Bind a freshly loaded environment to ``hosts`` and do its build-time host work."""
     bind(env, hosts)
     build(env)
     return env
@@ -50,12 +56,12 @@ def restore(contract: Any, snapshot: Mapping[str, Any], *, hosts: HostsLike = No
     """``Env.restore`` bound to ``hosts``. A restored run never asks again for recorded answers."""
     from ..runtime import Env
 
-    return bind(Env.restore(contract, snapshot, parallel=parallel), hosts)
+    return Env.restore(contract, snapshot, parallel=parallel, hosts=hosts)
 
 
 def run(env: "Env", participants: Any = None, **kwargs: Any) -> "RunResult":
-    """``env.run`` with the contract's in-turn host tools offered to every participant."""
-    return env.run(wrap(env, participants), **kwargs)
+    """``env.run``, which offers the contract's in-turn host tools to every participant."""
+    return env.run(participants, **kwargs)
 
 
 def wrap(env: "Env", participants: Any = None) -> Any:

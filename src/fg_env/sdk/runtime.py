@@ -98,12 +98,13 @@ class Env:
     def run(self, participants: Any = None, *, rounds: Optional[int] = None,
             stop: Optional[Callable[["Env"], bool]] = None,
             on_event: Optional[Callable[[Dict[str, Any]], None]] = None,
-            raise_errors: bool = False) -> RunResult:
+            raise_errors: bool = False, hosts: Any = None) -> RunResult:
         """Run to the end, or for ``rounds`` more rounds, or until ``stop(env)`` is true.
 
         ``participants`` is a callable for every agent, or a mapping from entity id, type or
         ``"*"`` to a participant (a callable, ``"random"``, ``"idle"``, ``"policy:<name>"``).
-        Agents without one use their type's ``policy`` or ``"random"``.
+        Agents without one use their type's ``policy`` or ``"random"``. Every participant is offered
+        the contract's in-turn host tools; ``hosts`` binds the run to host adapters first.
 
         ``stop`` is checked before every round, stage, pass and sequential turn. A stopped run
         continues exactly where it stopped on the next call; finishing a round that was
@@ -116,6 +117,10 @@ class Env:
         if not self._running.acquire(blocking=False):
             raise RuntimeError("this environment is already running; run() cannot be called again until it returns")
         try:
+            if hosts is not None:
+                from .host.hosts import bind
+
+                bind(self, hosts)
             self._bind(participants)
             self._on_event = on_event
             try:
@@ -175,10 +180,16 @@ class Env:
         return take_snapshot(self)
 
     @classmethod
-    def restore(cls, contract: Any, snapshot: Mapping[str, Any], parallel: int = 8) -> "Env":
+    def restore(cls, contract: Any, snapshot: Mapping[str, Any], parallel: int = 8, hosts: Any = None) -> "Env":
         """Continue a run from :meth:`snapshot`. ``contract`` is the contract it was taken with
-        (a :class:`Contract`, dict, path or JSON text; the snapshot's arm is applied if needed)."""
-        return restore_env(cls, contract, snapshot, parallel)
+        (a :class:`Contract`, dict, path or JSON text; the snapshot's arm is applied if needed).
+        ``hosts`` answers host judgment; answers already recorded in the snapshot are never asked again."""
+        env = restore_env(cls, contract, snapshot, parallel)
+        if hosts is not None:
+            from .host.hosts import bind
+
+            bind(env, hosts)
+        return env
 
     def preview(self, entity_id: str, stage: Optional[str] = None) -> Dict[str, Any]:
         """What the agent would receive on its next turn: brief, update and tools. Changes nothing.
@@ -807,6 +818,15 @@ class Env:
         self._participants_spec = dict(participants)
         self._participants.clear()
 
+    def _with_turn_tools(self, participant: Participant) -> Participant:
+        """The participant, offered the contract's in-turn host tools (recall, note, host services) if it has any."""
+        from .host.turn_tools import offer, turn_tools
+
+        tools = self.__dict__.get("_turn_tools")
+        if tools is None:
+            tools = self.__dict__["_turn_tools"] = turn_tools(self.contract)
+        return offer(participant, tools) if tools else participant
+
     def _participant(self, actor: Entity) -> Participant:
         cached = self._participants.get(actor.id)
         if cached is not None:
@@ -820,6 +840,7 @@ class Env:
             value = next((self.contract.types[kind].policy for kind in lineage if self.contract.types[kind].policy),
                          None) or "random"
         participant = resolve_participant(value, self.contract, self.seeds.derive("participant"))
+        participant = self._with_turn_tools(participant)
         self._participants[actor.id] = participant
         return participant
 
