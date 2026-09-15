@@ -531,7 +531,11 @@ def _transfer(runner: Any, spec: TransferSpec, roles: Dict[str, Any], path: str)
 
 def _perform(world: Any, duty: Any, where: str) -> None:
     p = props(duty)
-    debtor, creditor = entity_of(world, p["by"], where, "the obligor"), entity_of(world, p["to"], where, "the recipient")
+    debtor, creditor = world.entities.get(p["by"]), world.entities.get(p["to"])
+    if debtor is None or not debtor.alive:
+        raise Abort("The obligor is no longer active.")
+    if creditor is None or not creditor.alive:
+        raise Abort("The recipient is no longer active.")
     if p["kind"] == "pay":
         move_money(world, p["asset"], debtor, creditor, float(p["amount"]), where, use_credit=False)
     else:
@@ -564,10 +568,9 @@ def _breach(runner: Any, name: str, config: NegotiationConfig, duty: Any, reason
     world.set_prop(duty, "status", "breached")
     world.set_prop(deal, "breaches", int(props(deal)["breaches"]) + 1)
     _stat(world, name, "breaches", 1)
-    if breacher is None or victim is None or not breacher.alive or not victim.alive:
-        return
+    parties_active = breacher is not None and victim is not None and breacher.alive and victim.alive
     vars = {"deal": deal, "duty": duty, "breacher": breacher, "victim": victim, "terms": dict(props(deal)["terms"])}
-    penalty = _eval(runner, config.breach.penalty, vars, f"mechanisms.{name}.breach.penalty")
+    penalty = _eval(runner, config.breach.penalty, vars, f"mechanisms.{name}.breach.penalty") if parties_active else 0.0
     paid = 0.0
     if isinstance(penalty, (int, float)) and not isinstance(penalty, bool) and penalty > 0:
         currency = config.breach.currency or (p["asset"] if p["kind"] == "pay" else next(iter(_currencies(world)), None))
@@ -577,7 +580,8 @@ def _breach(runner: Any, name: str, config: NegotiationConfig, duty: Any, reason
         move_money(world, currency, breacher, victim, paid, where, use_credit=False)
         world.set_prop(duty, "penalty", paid)
         _stat(world, name, "penalties", paid)
-    text = f"{breacher.name} breached {duty.id} ({reason})" + (f" and paid a penalty of {money(paid)}." if paid else ".")
+    breacher_name = breacher.name if breacher is not None else p["by"]
+    text = f"{breacher_name} breached {duty.id} ({reason})" + (f" and paid a penalty of {money(paid)}." if paid else ".")
     if config.breach.terminate:
         world.set_prop(deal, "status", "terminated")
         for other in world.entities_of(f"{name}_duty"):
@@ -585,8 +589,8 @@ def _breach(runner: Any, name: str, config: NegotiationConfig, duty: Any, reason
                 world.set_prop(other, "status", "cancelled")
         text += f" Deal {deal.id} is terminated."
     emit_to(world, f"{name}_breach", text, list(props(deal)["parties"]), {"duty": duty.id, "penalty": paid},
-            why=f"A deal was breached by {breacher.name}.")
-    if config.breach.on_breach:
+            why=f"A deal was breached by {breacher_name}.")
+    if config.breach.on_breach and breacher is not None and victim is not None:
         run_hook(runner, f"{name}_on_breach", vars, f"mechanisms.{name}.breach.on_breach")
 
 

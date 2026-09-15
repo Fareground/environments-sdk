@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Installments with inactive parties follow the configured breach/termination policy without stopping unrelated
+  deals. Breach hooks still run for retained inactive participants; automatic penalties require active parties.
 - Removing a subscription provider ends due agreements as withdrawn instead of failing the run. Unavailable
   plans are excluded from generated choices and views; custom subscription attempts abort without side effects.
 - Subscription choices and plan views account for each actor’s prior trials. Rejoining requires an affordable
