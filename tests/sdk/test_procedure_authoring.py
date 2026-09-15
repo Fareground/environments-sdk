@@ -66,3 +66,79 @@ def test_explicit_filtered_completion_is_accepted_and_advances():
 def test_invalid_action_condition_still_reports_its_own_error():
     issues = list(fg_env.check(contract(["$actor."]), rounds=0))
     assert any(i.severity == "error" and i.path.startswith("actions.approve.when") for i in issues)
+
+
+def shared_actions_contract(names=("north", "south")):
+    return {
+        "name": "Parallel approvals", "clock": {"rounds": 2},
+        "types": {"manager": {"agent": True}}, "entities": {"manager": {"type": "manager"}},
+        "actions": {"approve": {"by": "manager", "do": []}},
+        "mechanisms": {name: {"kind": "flow", "mode": "procedure", "phases": {
+            "review": {"stages": [{"actions": ["approve"]}],
+                       "next": [{"to": "done", "all_did": "approve"}]}, "done": {},
+        }} for name in names},
+    }
+
+
+def shared_warnings(c):
+    return [i for i in warnings(c) if "same action" in i.message]
+
+
+def test_shared_completion_is_explicit_without_silently_changing_global_semantics():
+    c = shared_actions_contract()
+    found = shared_warnings(c)
+    assert {i.path for i in found} == {
+        f"mechanisms.{name}.phases.review.next[0].all_did" for name in ("north", "south")}
+    assert all("any stage" in i.message and "distinct action names" in i.fix for i in found)
+    env = fg_env.load(c)
+
+    def participant(wake):
+        if wake.stage == "north_review":
+            assert wake.call("approve", {}).ok
+        wake.end()
+
+    env.run(participant, rounds=1)
+    assert env.props["north_phase"] == env.props["south_phase"] == "done"
+
+
+def test_separate_action_names_keep_approvals_independent():
+    c = shared_actions_contract()
+    c["actions"] = {f"approve_{name}": {"by": "manager", "do": []} for name in ("north", "south")}
+    for name, cfg in c["mechanisms"].items():
+        phase = cfg["phases"]["review"]
+        phase["stages"][0]["actions"] = [f"approve_{name}"]
+        phase["next"][0]["all_did"] = f"approve_{name}"
+    assert shared_warnings(c) == []
+    env = fg_env.load(c)
+
+    def participant(wake):
+        if wake.stage == "north_review":
+            assert wake.call("approve_north", {}).ok
+        wake.end()
+
+    env.run(participant, rounds=1)
+    assert env.props["north_phase"] == "done"
+    assert env.props["south_phase"] == "review"
+
+
+def test_repeated_transitions_within_one_procedure_are_not_shared_completion():
+    c = shared_actions_contract(("north",))
+    c["mechanisms"]["north"]["phases"]["done"]["next"] = [{"to": "review", "all_did": "approve"}]
+    assert shared_warnings(c) == []
+
+
+def test_shared_completion_lists_other_procedures_once_in_stable_order():
+    c = shared_actions_contract(("west", "south", "north"))
+    c["mechanisms"]["south"]["phases"]["done"]["next"] = [{"to": "review", "all_did": "approve"}]
+    found = [i for i in shared_warnings(c) if i.path.startswith("mechanisms.west.")]
+    assert len(found) == 1
+    assert "procedures north, south;" in found[0].message
+
+
+def test_shared_completion_does_not_suppress_cohort_diagnostics():
+    c = shared_actions_contract()
+    c["types"]["manager"]["props"] = {"eligible": True}
+    c["actions"]["approve"]["when"] = ["$actor.eligible"]
+    found = warnings(c)
+    assert len(shared_warnings(c)) == 2
+    assert len([i for i in found if "every living entity" in i.message]) == 2

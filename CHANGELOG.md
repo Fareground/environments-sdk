@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Procedure validation warns at `all_did` transitions shared by multiple procedures: successful actions
+  are counted across stages during each phase, so overlapping procedures can share completion evidence.
+  The warning explains independent-action and state-based alternatives without changing runtime behavior.
 - Unnamed procedure stages now use `<procedure>_<phase>` (with a position suffix for further stages),
   allowing independent workflows to reuse phase names. Explicit stage names are unchanged. Callers
   referring to an automatically generated stage by its previous bare phase name must use the scoped

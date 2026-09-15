@@ -54,7 +54,8 @@ class Transition(Config):
     after: Union[int, str, None] = Field(None, description="At least this many rounds in the phase.")
     event: Optional[str] = Field(None, description="An event of this kind happened during the phase (an emit, a record, a vote).")
     all_did: Optional[str] = Field(None, description="Every living entity of the action's `by` types took it during "
-                                 "the phase. Action conditions and stage filters do not narrow this group.")
+                                 "the phase, in any stage. Action conditions and stage filters do not narrow this group; "
+                                 "other procedures using the same action can share completion evidence.")
     say: str = Field("", description="News when it fires (template).")
     do: Effects = Field(default_factory=list, description="Effects when it fires.")
 
@@ -333,11 +334,39 @@ def _check_rules(checker: Any, name: str, cfg: ProcedureConfig) -> None:
         checker.expr(spec.winner, f"{at}.winner", base)
         for index, transition in enumerate(spec.transitions()):
             where = f"{at}.next[{index}]"
+            _check_shared_completion(checker, name, transition, where)
             _check_completion_scope(checker, transition, where)
             checker.expr(transition.when, f"{where}.when", base)
             checker.value(transition.after, f"{where}.after", base)
             checker.effects(transition.do, f"{where}.do", base, {})
             checker.template(transition.say or None, f"{where}.say", None, base)
+
+
+def _check_shared_completion(checker: Any, name: str, transition: Transition, path: str) -> None:
+    if transition.all_did is None:
+        return
+    users = checker.__dict__.get("_procedure_completion_users")
+    if users is None:
+        users = {}
+        for owner, raw in checker.c.mechanisms.items():
+            if raw.get("kind") != "flow" or raw.get("mode") != "procedure":
+                continue
+            cfg = common.parsed(raw, ProcedureConfig)
+            for phase in cfg.phases.values():
+                for step in phase.transitions():
+                    if step.all_did is not None:
+                        users.setdefault(step.all_did, set()).add(owner)
+        checker.__dict__["_procedure_completion_users"] = users
+    others = sorted(users.get(transition.all_did, set()) - {name})
+    if others:
+        checker.warn(
+            f"{path}.all_did",
+            f"all_did '{transition.all_did}' is also used by procedures {', '.join(others)}; "
+            "it counts successful actions in any stage during this phase, so overlapping procedures "
+            "can complete from the same action",
+            "For independent approvals, use distinct action names per procedure or a transition `when` "
+            "that checks procedure-specific state. Keep the shared action if shared completion is intended.",
+        )
 
 
 def _check_completion_scope(checker: Any, transition: Transition, path: str) -> None:
