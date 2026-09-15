@@ -12,7 +12,8 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from ..api import ContractLike
 from . import runner
-from .scoring import score
+from .holdout import Split, case_names, splits
+from .scoring import score, skill_score
 from .stats import Estimate, estimate, is_number, normal_quantile, proportion, quantile
 
 __all__ = ["backtest", "BacktestResult", "precision", "PrecisionResult"]
@@ -30,6 +31,8 @@ class BacktestResult:
     cases: List[Dict[str, Any]]
     scores: Dict[str, Any]
     notes: List[str] = field(default_factory=list)
+    #: Scores on held-out cases against a climatology from the other cases (``test`` or ``folds``), else ``None``.
+    holdout: Optional[Dict[str, Any]] = None
 
     def report(self) -> str:
         s = self.scores
@@ -48,12 +51,22 @@ class BacktestResult:
                          f"median abs error {s['mae_of_median']:.4g}, {cov['nominal']:.0%} interval coverage {cov['coverage']:.0%}")
         for case in self.cases:
             lines.append(f"  {case['name']}: forecast {case['forecast_text']}, outcome {case['outcome']}")
+        if self.holdout:
+            h, metric = self.holdout, self.holdout["metric"]
+            o = h["out_of_sample"]
+            how = "held-out cases" if h["method"] == "test" else f"{len(h['splits'])}-fold cross-validation"
+            lines.append(f"Out of sample ({how}, "
+                         f"climatology from the other cases): {metric} {o[metric]:.4g} (reference {o['reference']:.4g}), "
+                         f"skill {_pct(o['skill'])} over {o['n']} case(s)")
+            for row in h["splits"]:
+                lines.append(f"  {row['label']}, held out {', '.join(row['test'])}: {metric} {row['scores'][metric]:.4g}, "
+                             f"skill {_pct(row['scores']['skill'])}")
         lines += [f"note: {n}" for n in self.notes]
         return "\n".join(lines)
 
     def to_dict(self) -> Dict[str, Any]:
         return {"contract": self.contract, "output": self.output, "kind": self.kind, "runs": self.runs,
-                "cases": self.cases, "scores": self.scores, "notes": self.notes}
+                "cases": self.cases, "scores": self.scores, "notes": self.notes, "holdout": self.holdout}
 
 
 def _pct(value: Optional[float]) -> str:
@@ -73,7 +86,7 @@ def _case_kind(outcomes: Sequence[Any], threshold: Optional[float]) -> str:
 def backtest(contract: ContractLike, cases: Sequence[Mapping[str, Any]], output: str, *, runs: int = 10,
              threshold: Optional[float] = None, climatology: Any = None, arm: Optional[str] = None,
              participants: Any = None, rounds: Optional[int] = None, seed: int = 0, workers: int = 1,
-             bins: int = 10) -> BacktestResult:
+             bins: int = 10, test: Any = None, folds: Optional[int] = None) -> BacktestResult:
     """Score the contract's forecasts of ``output`` against each case's known ``outcome``.
 
     ``cases``: ``[{"inputs": {...}, "outcome": value, "name"?: text, "arm"?: text}]``. Outcome
@@ -81,6 +94,10 @@ def backtest(contract: ContractLike, cases: Sequence[Mapping[str, Any]], output:
     ``threshold`` for a numeric output); numbers → the ensemble of run values (CRPS, coverage;
     with ``threshold`` the numbers become yes/no events); text → the frequency of each output
     value. Every case uses the same seeds.
+
+    Skill compares the forecasts with a climatology, which by default comes from the same cases'
+    outcomes (in sample). ``test`` (a share, or a list of case names) or ``folds`` (k-fold) also score
+    the held-out cases against a climatology built only from the other cases: out-of-sample skill.
     """
     runner.check_positive_int("runs", runs)
     if not cases:
@@ -90,6 +107,7 @@ def backtest(contract: ContractLike, cases: Sequence[Mapping[str, Any]], output:
     for i, case in enumerate(cases):
         if not isinstance(case, Mapping) or "outcome" not in case:
             raise ValueError(f"case {i} needs an 'outcome' (and usually 'inputs')")
+    parts = splits(case_names(cases), test=test, folds=folds, seed=seed) if test is not None or folds is not None else []
     outcomes = [case["outcome"] for case in cases]
     kind = _case_kind(outcomes, threshold)
     seeds = runner.run_seeds(seed, runs)
@@ -111,11 +129,53 @@ def backtest(contract: ContractLike, cases: Sequence[Mapping[str, Any]], output:
     events = outcomes if kind != "binary" or threshold is None or all(isinstance(o, bool) for o in outcomes) \
         else [o > threshold for o in outcomes]
     epsilon = 1.0 / (2.0 * runs)  # a frequency from `runs` runs cannot resolve probabilities finer than this
-    scores = score(forecasts, events, kind=kind, climatology=climatology, bins=bins, epsilon=epsilon,
-                   nominal=_ENSEMBLE_LEVEL if kind == "ensemble" else None)
+    nominal = _ENSEMBLE_LEVEL if kind == "ensemble" else None
+    scores = score(forecasts, events, kind=kind, climatology=climatology, bins=bins, epsilon=epsilon, nominal=nominal)
     if climatology is None:
         notes.append("skill is measured against the cases' own outcome frequency (in-sample climatology)")
-    return BacktestResult(parsed.name, output, kind, runs, rows, scores, notes)
+    held = None
+    if parts:
+        names = [row["name"] for row in rows]
+        held = _held_out(kind, forecasts, events, parts, names, climatology, bins, epsilon, nominal,
+                         "test" if test is not None else "folds")
+    return BacktestResult(parsed.name, output, kind, runs, rows, scores, notes, held)
+
+
+#: The score each kind of forecast is judged by (lower is better).
+_METRIC = {"binary": "brier", "categorical": "brier", "ensemble": "crps"}
+
+
+def _climatology(kind: str, events: Sequence[Any]) -> Any:
+    """The reference forecast learned from ``events``: a base rate, a category distribution, or a sample."""
+    if kind == "binary":
+        return sum(1 for e in events if e) / len(events)
+    if kind == "categorical":
+        counts: Dict[str, int] = {}
+        for e in events:
+            counts[str(e)] = counts.get(str(e), 0) + 1
+        return {k: c / len(events) for k, c in counts.items()}
+    return [float(e) for e in events]
+
+
+def _held_out(kind: str, forecasts: Sequence[Any], events: Sequence[Any], parts: Sequence[Split], names: Sequence[str],
+              climatology: Any, bins: int, epsilon: float, nominal: Optional[float], method: str) -> Dict[str, Any]:
+    """Every split's held-out cases scored against a climatology from its training cases, pooled over splits."""
+    metric = _METRIC[kind]
+    rows, value, reference, count = [], 0.0, 0.0, 0
+    for split in parts:
+        learned = climatology if climatology is not None else _climatology(kind, [events[i] for i in split.train])
+        scores = score([forecasts[i] for i in split.test], [events[i] for i in split.test], kind=kind,
+                       climatology=learned, bins=bins, epsilon=epsilon, nominal=nominal)
+        size = len(split.test)
+        value += scores[metric] * size
+        reference += scores["climatology"][metric] * size
+        count += size
+        rows.append({"label": split.label, "train": [names[i] for i in split.train],
+                     "test": [names[i] for i in split.test], "scores": scores})
+    pooled, pooled_reference = value / count, reference / count
+    return {"method": method, "metric": metric, "splits": rows,
+            "out_of_sample": {"n": count, metric: pooled, "reference": pooled_reference,
+                              "skill": skill_score(pooled, pooled_reference)}}
 
 
 def _forecast(kind: str, raw: List[Any], threshold: Optional[float], name: str) -> tuple:

@@ -311,7 +311,9 @@ _PATTERNS = """\
   via entity params with `where`; decks as card entities with an `order` prop and `$shuffle`;
   win checks in `end`.
 * Populations from data: `inputs` of type table + `population.from/where/weight/count` +
-  per-row props; traits via `$normal`, `$beta`, `$choice`.
+  per-row props; traits via `$normal`, `$beta`, `$choice`. Correlated traits: draw them together in one list
+  prop, then read the parts (props read earlier props through `$it`): `"z": "$mvnormal([170, 70], [[100, 64],
+  [64, 64]])", "height": "$it.z[0]", "weight": "$it.z[1]"`.
 * Networks: `relations` + `links` generators (`small_world`, `random`, `ring`, `complete`). On a
   one-way relation `random` draws each direction on its own, and `p` may depend on the pair
   (`"0.1 if $to.influencer else 0.02"`) for influencers and homophily;
@@ -378,6 +380,10 @@ exp = fg_env.experiment("shop.json", runs=20, arms=["control", "promo"]); print(
 exp.deltas("control")   # paired promo − control per output: mean, sd, ci95, clear (CI excludes 0)
 fg_env.sweep("shop.json", {"price": {"low": 1, "high": 5, "steps": 5}}, runs=10).table()   # also sensitivity, calibrate, backtest
 fg_env.behavior_checks("shop.json")   # constant outputs, inputs that change nothing, actions and stages never used
+fg_env.tournament("duel.json", {"greedy": "policy:greedy", "llm": my_agent}, games=20).summary()
+# seats rotate and share seeds; Elo with intervals, Glicko-2, Nash average, α-Rank, votes, cost per entrant
+d = fg_env.describe("duel.json"); d.markdown, d.metadata   # ODD description; turns, chance, information, players, length
+
 ```
 
 A participant is any callable taking a `Wake`:
