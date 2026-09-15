@@ -4,16 +4,21 @@ from __future__ import annotations
 import json
 import os
 import re
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Set, Tuple, Union
 
 from ..api import ContractLike, load
-from ..branch import Branch, copy_pilot
+from ..branch import Branch, copy_pilot, fresh_copy
+from ..contract import Contract
+from ..driving import Unpausable
 from ..errors import ContractError, Issue
 from ..replay import Tape
-from ..returns import seat_ids
+from ..returns import seat_ids, seat_returns
+from ..run_copy import NotCopyable
 from ..runtime import Env
 from ..snapshot import contract_hash, decode, encode, run_identity
+from ..stepping import SteppedEnv, Stepper
 from .observe import digest
+from .runs import ThreadedRun, can_step
 from .space import COMBINATION_LIMIT, ActionSpace
 from .state import GameState
 
@@ -61,6 +66,16 @@ class Game:
         self._info: Optional[Dict[str, Any]] = None
         #: Steps every new state starts with (see :meth:`start_at`).
         self._prefix: List[Dict[str, Any]] = []
+        players_now = self.players
+        #: How a state reads every seat's return; also read ahead at chance nodes when no randomness is drawn.
+        self._returns_of: Callable[[Any], Dict[str, float]] = \
+            lambda env: seat_returns(self.contract, env.world, players_now)
+        spec = self.contract.game
+        declared = spec is not None and spec.returns is not None
+        self._prefetch = self._returns_of if declared and not _draws(self.contract, [spec.returns]) else None
+        #: Whether states are stepped on the caller's thread (see :mod:`.runs`), and the stepped run they copy.
+        self._stepped = can_step(self)
+        self._template: Optional[Stepper] = None
 
     def _remembered(self, history: bytes, seat: int) -> Any:
         return self._legal_by_history.get((history, seat)) if self._remembers else None
@@ -115,11 +130,34 @@ class Game:
         return state
 
     def _first_state(self) -> GameState:
+        if self._stepped:
+            try:
+                run = self._stepper().clone()
+                run.start()
+                return GameState(self, run, [])
+            except (Unpausable, NotCopyable):
+                self._stepped = False
+        return GameState(self, self._piloted_start(), [])
+
+    def _stepper(self) -> Stepper:
+        """The stepped run, not yet started, that every stepped initial state is a copy of."""
+        if self._template is None:
+            root, contract = self._root, self.contract
+            env = fresh_copy(root, root.origin.base, self._others, SteppedEnv)
+            seats = [text for text in (contract.game.returns, contract.game.seat) if text] if contract.game else []
+            measured = [spec.expr for spec in contract.outputs.values()] + seats  # what taking a result evaluates
+            self._template = Stepper(env, self.players, self.chance == "explicit", self._prefetch,
+                                     settles=_draws(contract, measured))
+            self._template.frozen = True
+        return self._template
+
+    def _piloted_start(self) -> ThreadedRun:
+        """A run piloted on its own thread, at the first decision."""
         root = self._root
         pilot = copy_pilot(root, Tape(), 0, root.origin.base, controlled=set(self.players),
                            explicit=self.chance == "explicit", participants=self._others, checkpoints=True)
         pilot.start()
-        return GameState(self, Branch(pilot), [])
+        return ThreadedRun(Branch(pilot), self._prefetch)
 
     def deserialize_state(self, text: str) -> GameState:
         """The state :meth:`GameState.serialize` wrote, rebuilt by replaying its decisions."""
@@ -169,6 +207,24 @@ class Game:
 
     def __repr__(self) -> str:
         return f"<Game {self.id}: {self.num_players()} seats, {self.num_distinct_actions()} actions>"
+
+
+def _draws(contract: Contract, texts: Sequence[str]) -> bool:
+    """Whether evaluating any of ``texts`` may draw randomness (a random function, directly or through a def): reading
+    what does not draw changes nothing, so it may be read ahead, or skipped when nobody reads it."""
+    from ..describe.walk import calls, random_functions
+
+    drawing, pending = random_functions(), list(texts)
+    seen: Set[str] = set()
+    while pending:
+        called = calls(pending.pop())
+        if called & drawing:
+            return True
+        for name in called - seen:
+            seen.add(name)
+            if name in contract.defs:
+                pending.append(contract.defs[name].expr)
+    return False
 
 
 def game(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, seed: int = 0, arm: Optional[str] = None,
