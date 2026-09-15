@@ -31,10 +31,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   what was assumed; `result.priors` gives the number estimates as normal priors for `uncertainty=`. The checker warns
   when a fitted input is also tuned by the load-time `calibration` section. `fg_env.decompose(contract, "demand",
   key=...)` shows what each factor of a product adds, and `fg_env.describe` lists every pattern in plain words.
-- **Example `auto_parts_store`**: twelve SKUs with per-category seasons, growth, price elasticity, promotions with a
-  dip after them, substitution between tiers, stockouts with lost and spilled demand, noisy lead times and
-  negative-binomial sales, fitted from a bundled three-year history that its `truth` arm generates
-  (`examples/auto_parts_history.py`); arms compare the store's lean reorder rule with a forecast-driven one.
+- **Demand** (`economy.demand`): customers' demand for stocked items drawn from patterns — `rate` × `factors` (a
+  season, trend, price elasticity with its driver, promotion, cross-price substitution, any expression) with count
+  noise — and served from stock, keeping true demand, lost sales, substitution to other items, backorders, segments
+  (bulk buyers, channels) with their own prices, items and returns, revenue into a ledger account, totals by item,
+  group and segment (`$demand_totals`), and a history record in the columns `fit_patterns` reads. Stock changes only
+  through sales, returns and the `receive`/`remove` actions (`$stock_conserved`).
+- **Replenishment** (`economy.replenishment`): inventory policies for a demand's items — (s, S), (s, Q), order-up-to
+  (base stock or periodic review), a service-level target whose safety stock comes from the forecast's error and the
+  lead time's spread, a custom expression, or agents' own orders — with lead times drawn per order from a noise
+  pattern (and recorded, to fit that pattern from purchase orders), case packs, minimum and maximum orders, capacity,
+  a budget spent most-urgent first, payment from a ledger account, and holding, ordering, stockout and backorder
+  costs (`$replenishment_totals`). Every policy parameter is an expression, so a per-category map input makes it a
+  decision `fg_env.optimise` can search.
+- **Example `auto_parts_store`**: twelve SKUs on the demand and replenishment modes — per-category seasons, growth,
+  price elasticity, promotions with a dip after them, substitution between tiers, stockouts with lost and spilled
+  demand, lead times drawn per order and negative-binomial sales — fitted from bundled three-year sales and
+  purchase-order histories that its `truth` arm generates (`examples/auto_parts_history.py`). Arms compare the store's
+  lean reorder rule with a service-level policy; `examples/auto_parts_policies.py` compares service levels, optimises
+  one per category under a fill-rate constraint and validates the forecast on held-out quarters.
+
+#### Changed
+- **Fitting is faster**: a product's joint count regression solves by Cholesky from a design built once, computes
+  standard errors only for the final fit and restarts dispersion refits from the previous fit — 35,568 SKU-weeks of
+  business history fit in 11 s instead of 92 s with every estimate the same to about 1e-6. A negative-binomial step
+  is now judged by its own deviance.
 
 #### Fixed
 - **LLM turns that ran out of words**: a reply cut off at the output limit counts in `stats["truncated"]` (per

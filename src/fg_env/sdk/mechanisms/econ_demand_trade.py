@@ -404,6 +404,8 @@ def _settle(runner: Any, name: str, config: DemandConfig, items: List[Entity], s
             "expected": tally.expected, "variance": tally.variance,
             "backlog": int(p[f"{name}_backlog"]) - tally.filled + backlog.get(item.id, 0),
             "recent": (list(p[f"{name}_recent"]) + [sold])[-config.recent:],
+            "expected_recent": (list(p[f"{name}_expected_recent"]) + [round(tally.expected, 6)])[-config.recent:],
+            "variance_recent": (list(p[f"{name}_variance_recent"]) + [round(tally.variance, 6)])[-config.recent:],
             "rounds_out": int(p[f"{name}_rounds_out"]) + (1 if tally.stockout else 0)}
         for measure, value in (("demand_total", tally.demand), ("served_total", tally.served),
                                ("substituted_total", tally.substituted), ("backordered_total", tally.backordered),

@@ -1,5 +1,5 @@
-"""The auto-parts example: its history is what its truth arm records, the demand patterns fitted from that history
-recover the truth, and its policies behave as a store would expect."""
+"""The auto-parts example: it is built on the demand and replenishment modes, its history is what its truth arm records,
+the demand patterns fitted from that history recover the truth, and its policies behave as a store would expect."""
 import csv
 import importlib.util
 import json
@@ -26,13 +26,23 @@ def _truth():
     return json.loads(CONTRACT.read_text())["arms"]["truth"]["inputs"]
 
 
-def test_the_bundled_history_is_exactly_what_the_truth_arm_records():
-    generator = _generator()
+def test_the_store_is_demand_and_replenishment_modes_reading_patterns_with_no_hand_written_rules():
+    contract = json.loads(CONTRACT.read_text())
+    assert {name: (use["kind"], use["mode"]) for name, use in contract["mechanisms"].items()} == {
+        "shop": ("economy", "demand"), "reorder": ("economy", "replenishment")}
+    assert not {"events", "metrics", "outputs", "records"} & set(contract)
+    outputs = fg_env.load(CONTRACT, seed=1, inputs={"weeks": 2}).run().outputs
+    assert {"shop_fill_rate", "shop_fill_rate_by_group", "reorder_profit", "reorder_average_stock_value"} <= set(outputs)
+
+
+def test_the_bundled_sales_and_purchase_order_histories_are_exactly_what_the_truth_arm_records():
+    history, orders = _generator().truth_records()
     with open(HISTORY, newline="") as handle:
-        bundled = list(csv.DictReader(handle))
-    assert generator.history_rows() == bundled
-    assert len(bundled) == 12 * 156
-    assert 0.05 < statistics.fmean(int(row["stockout"]) for row in bundled) < 0.2
+        assert history == list(csv.DictReader(handle))
+    with open(HISTORY.parent / "orders.csv", newline="") as handle:
+        assert orders == list(csv.DictReader(handle))
+    assert len(history) == 12 * 156 and len(orders) > 500
+    assert 0.05 < statistics.fmean(int(row["stockout"]) for row in history) < 0.2
 
 
 def test_fitting_the_bundled_history_recovers_the_truth_and_reproduces_the_shipped_estimates():
@@ -56,12 +66,15 @@ def test_fitting_the_bundled_history_recovers_the_truth_and_reproduces_the_shipp
         assert close >= 11, row["category"]
 
 
-def test_the_forecast_driven_policy_serves_more_demand_and_earns_more_than_the_lean_rule():
+def test_the_service_level_policy_serves_more_demand_and_earns_more_than_the_lean_rule():
     exp = fg_env.experiment(CONTRACT, arms=["lean", "service"], runs=4, seed=3)
     lean, service = ([run.outputs for run in exp.arms[arm].runs] for arm in ("lean", "service"))
-    assert statistics.fmean(o["fill_rate"] for o in service) > statistics.fmean(o["fill_rate"] for o in lean) + 0.05
-    assert all(s["profit"] > l["profit"] for s, l in zip(service, lean))  # the same luck in both arms, run by run
-    assert statistics.fmean(o["average_stock_value"] for o in service) > statistics.fmean(o["average_stock_value"] for o in lean)
+    assert statistics.fmean(o["shop_fill_rate"] for o in service) > statistics.fmean(o["shop_fill_rate"] for o in lean) + 0.05
+    assert all(s["reorder_profit"] > l["reorder_profit"] for s, l in zip(service, lean))  # the same luck in both arms
+    assert statistics.fmean(o["reorder_average_stock_value"] for o in service) > \
+        statistics.fmean(o["reorder_average_stock_value"] for o in lean)
+    assert [o["shop_demand"] for o in service] != [] and all(
+        s["shop_fill_rate_by_group"]["batteries"] >= l["shop_fill_rate_by_group"]["batteries"] for s, l in zip(service, lean))
 
 
 def test_dearer_premium_tiers_move_sales_to_the_value_tier():
@@ -70,7 +83,7 @@ def test_dearer_premium_tiers_move_sales_to_the_value_tier():
         env.run()
         totals = {"premium": 0, "value": 0}
         for entity in env.entities("sku"):
-            totals[entity["props"]["tier"]] += entity["props"]["units_total"]
+            totals[entity["props"]["tier"]] += entity["props"]["shop_sold_total"]
         return totals
 
     base, dearer = sold_by_tier("lean"), sold_by_tier("premium_price_up")

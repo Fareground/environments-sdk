@@ -66,7 +66,8 @@ class ReplenishmentConfig(BaseModel):
     service_level: Union[float, str] = Field(0.95, description="Chance of not running out before the next order can arrive "
                                                                "(the service policy, and $safety and $target).")
     forecast: str = Field("model", description="Demand per round the policies read: model (the demand mechanism's expected "
-                                               "demand, with its variance) | recent (the average and spread of kept sales) | "
+                                               "demand and its variance, averaged over its kept rounds, so one promotion "
+                                               "week does not swing it) | recent (the average and spread of kept sales) | "
                                                "an expression over $it.")
     forecast_sd: Union[float, str, None] = Field(None, description="Standard deviation of demand per round (default: from "
                                                                    "the forecast: the model's variance, the recent spread, "

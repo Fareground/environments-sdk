@@ -243,6 +243,8 @@ def _item_props(name: str, config: DemandConfig) -> Dict[str, Any]:
         f"{name}_stockout": {"type": "bool", "default": False, "description": "Demand went unmet from stock this round."},
         f"{name}_backlog": {**whole, "description": "Units on backorder."},
         f"{name}_recent": {"type": "list", "default": [], "description": "Units sold in the last rounds, oldest first."},
+        f"{name}_expected_recent": {"type": "list", "default": [], "description": "Expected demand in the last rounds, oldest first."},
+        f"{name}_variance_recent": {"type": "list", "default": [], "description": "Its variance in the last rounds, oldest first."},
         f"{name}_rounds_out": {**whole, "description": "Rounds with unmet demand."},
     }
     for measure, prop in _ITEM_TOTALS.items():

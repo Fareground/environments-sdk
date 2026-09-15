@@ -97,7 +97,9 @@ def _context(runner: Any, name: str, config: ReplenishmentConfig, demand: Demand
     recent = [float(v) for v in p[f"{config.demand}_recent"]]
     average = sum(recent) / len(recent) if recent else 0.0
     if config.forecast == "model":
-        forecast, sd = float(p[f"{config.demand}_expected"]), math.sqrt(max(0.0, float(p[f"{config.demand}_variance"])))
+        expected = [float(v) for v in p[f"{config.demand}_expected_recent"]] or [0.0]
+        variances = [float(v) for v in p[f"{config.demand}_variance_recent"]] or [0.0]
+        forecast, sd = sum(expected) / len(expected), math.sqrt(max(0.0, sum(variances) / len(variances)))
     elif config.forecast == "recent":
         forecast = average
         sd = math.sqrt(sum((v - average) ** 2 for v in recent) / (len(recent) - 1)) if len(recent) > 1 else math.sqrt(average)
