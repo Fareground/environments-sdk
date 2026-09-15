@@ -456,7 +456,7 @@ CAFE = {
                  "bean": {"type": "cafe", "name": "Bean Bar"}},
     "mechanisms": {
         "money": {"kind": "economy", "mode": "ledger", "who": ["household", "cafe"], "currencies": {"cash": {}}},
-        "coffee": {"kind": "subscriptions", "subscribers": "household", "currency": "cash", "providers": "cafe", "price_max": 100,
+        "coffee": {"kind": "agreements", "mode": "subscriptions", "who": "household", "currency": "cash", "providers": "cafe", "price_max": 100,
                    "plans": {"club": {"provider": "bean", "name": "Coffee Club", "price": 20, "period": 3, "trial": 2}}}},
     "outputs": {"hal_member": "$subscribed($entity(hal), bean)", "ida_member": "$subscribed($entity(ida), club)"},
     "stages": [{"name": "day", "turns": "sequential", "max_actions": 3, "max_calls": 8}],
@@ -500,7 +500,7 @@ DINING = {
                  "bistro": {"type": "bistro", "name": "Bistro", "props": {"cash": 0}}},
     "mechanisms": {
         "money": {"kind": "economy", "mode": "ledger", "who": ["guest", "bistro"], "currencies": {"cash": {"start": 100}}},
-        "dining": {"kind": "bookings", "guests": "guest", "currency": "cash", "refund": 0.5,
+        "dining": {"kind": "agreements", "mode": "bookings", "who": "guest", "currency": "cash", "refund": 0.5,
                    "resources": {"tables": {"provider": "bistro", "capacity": 4, "price": 10, "horizon": 2, "max_party": 4}}}},
     "stages": [{"name": "evening", "turns": "sequential", "max_actions": 3, "max_calls": 8}],
 }
@@ -529,7 +529,7 @@ def test_bookings_fill_slots_waitlist_promote_on_cancel_and_serve():
 
 def test_queues_serve_by_priority_and_impatient_guests_give_up():
     contract = copy.deepcopy(DINING)
-    contract["mechanisms"]["dining"].update(mode="queue", order="priority", priority="$it.vip", patience=1)
+    contract["mechanisms"]["dining"].update(format="queue", order="priority", priority="$it.vip", patience=1)
     contract["mechanisms"]["dining"]["resources"]["tables"].update(capacity=1, price=5)
     env = fg_env.load(contract, seed=1)
     assert "ahead" not in tool(env, "g1", "dining_book")
@@ -553,6 +553,35 @@ def test_subscription_and_booking_config_errors():
     assert any("priority order needs a `priority` expression" in i.message for i in errors(priority))
 
 
+def test_an_old_agreements_kind_or_a_mistyped_field_says_what_it_is_now():
+    old = copy.deepcopy(DINING)
+    old["mechanisms"]["dining"]["kind"] = "bookings"
+    issue = next(i for i in errors(old) if i.path == "mechanisms.dining.kind")
+    assert issue.message == "'bookings' is now kind 'agreements' with mode 'bookings'"
+    typo = copy.deepcopy(DINING)
+    typo["mechanisms"]["dining"]["formt"] = "queue"
+    issue = next(i for i in errors(typo) if i.path == "mechanisms.dining.formt")
+    assert issue.message == "`formt` is not a field of `agreements` mode `bookings`"
+    assert issue.fix.startswith("did you mean 'format'?")
+
+
+def test_tools_one_offers_bookings_as_a_single_tool():
+    contract = copy.deepcopy(DINING)
+    contract["mechanisms"]["dining"]["tools"] = "one"
+    env = fg_env.load(contract, seed=1)
+    offered = {}
+
+    def play(wake):
+        offered[wake.entity_id] = {t.name: t for t in wake.tools}
+        if wake.entity_id == "g1":
+            assert wake.call("dining", {"action": "book", "resource": "tables", "ahead": 1, "party": 2}).ok
+        wake.end()
+
+    env.run(play, rounds=1)
+    assert "dining_book" not in offered["g1"] and "book" in offered["g1"]["dining"].input_schema["properties"]["action"]["enum"]
+    assert [b["props"]["status"] for b in env.entities("dining_booking")] == ["booked"]
+
+
 # ---------------------------------------------------------------------------
 # negotiation
 # ---------------------------------------------------------------------------
@@ -567,7 +596,7 @@ TRADE = {
     "mechanisms": {
         "money": {"kind": "economy", "mode": "ledger", "who": "country", "currencies": {"credits": {}}},
         "stock": {"kind": "economy", "mode": "inventory", "who": "country", "items": {"steel": {"value": 5}}},
-        "trade": {"kind": "negotiation", "parties": "country", "deadline": 3, "max_depth": 2, "reservation": 10,
+        "trade": {"kind": "agreements", "mode": "negotiation", "who": "country", "deadline": 3, "max_depth": 2, "reservation": 10,
                   "value": "$terms.price * $terms.quota * (1 if $party.id == 'ar' else -1)",
                   "issues": {"price": {"min": 1, "max": 20, "unit": "credits"}, "quota": {"type": "int", "min": 0, "max": 20},
                              "years": {"type": "int", "min": 1, "max": 3}},
@@ -681,6 +710,20 @@ def test_negotiation_config_errors():
     assert any("is not a valid expression" in m for m in issues_of(value="$terms.price +"))
 
 
+def test_agreements_actions_check_their_own_keys():
+    def op(effect):
+        return [(i.path, i.message, i.fix) for i in errors({**TRADE, "events": [{"do": [effect]}]})]
+
+    accept = {"agreements": "trade", "action": "accept", "who": "$entity(ar)"}
+    assert any(m == "`agreements.accept` needs `offer`" for _, m, _ in op(accept))
+    assert any(m == "'answer' is not part of `agreements.accept`" for _, m, _ in op({**accept, "offer": "x", "answer": "yes"}))
+    path, message, fix = op({"agreements": "trade", "action": "answer"})[0]
+    assert path.endswith(".action") and message == "'answer' is not an action of trade (agreements negotiation)"
+    assert fix == "actions: propose, counter, accept, reject, withdraw, fulfill"
+    _, _, fix = op({"answer_offer": "trade", "offer": "x", "by": "$entity(ar)", "answer": "accept"})[0]
+    assert fix.startswith('`answer_offer` is now the `agreements` op: {"agreements": "<mechanism>", "action": <action>')
+
+
 # ---------------------------------------------------------------------------
 # labor
 # ---------------------------------------------------------------------------
@@ -696,7 +739,7 @@ WORK = {
         "money": {"kind": "economy", "mode": "ledger", "who": ["person", "bakery"], "currencies": {"cash": {}},
                   "taxes": {"income": {"rate": 0.1}}},
         "goods": {"kind": "economy", "mode": "inventory", "who": ["person", "bakery"], "items": {"flour": {}, "bread": {"value": 3}}},
-        "jobs": {"kind": "labor", "workers": "person", "employers": "bakery", "currency": "cash", "wage_min": 5, "wage_max": 20,
+        "jobs": {"kind": "agreements", "mode": "labor", "who": "person", "employers": "bakery", "currency": "cash", "wage_min": 5, "wage_max": 20,
                  "tax": "income", "inventory": "goods",
                  "firm": {"output": "bread", "per_worker": 2, "inputs": {"flour": 1}, "price": 3}}},
     "stages": [{"name": "day", "turns": "sequential", "max_actions": 3, "max_calls": 8}],
@@ -840,8 +883,14 @@ def test_guide_documents_every_economy_mode_function_and_op():
         assert f"- `{action}`" in economy
     assert "- `tick`" not in economy and "- `close`" not in economy  # generated bookkeeping stays out of the guide
     assert '- `economy`: {"economy": "<economy mechanism>", "action": ...}' in effects
-    for kind in ("subscriptions", "bookings", "negotiation", "labor"):
-        assert f"### `{kind}`" in mechanisms
-    assert "`propose_terms`" in effects
+    agreements = fg_env.guide("agreements")
+    for mode in ("negotiation", "labor", "subscriptions", "bookings"):
+        assert f"### `agreements.{mode}`" in agreements
+    for action in ("propose", "counter", "accept", "reject", "withdraw", "fulfill", "hire", "quit", "fire", "subscribe",
+                   "set_price", "book", "cancel"):
+        assert f"- `{action}`" in agreements
+    assert "- `payday`" not in agreements and "- `tick`" not in agreements
+    assert '- `agreements`: {"agreements": "<agreements mechanism>", "action": ...}' in effects
+    assert "| `economy` |" in mechanisms and "| `agreements` |" in mechanisms
     for fn in ("$has(", "$count_items(", "$net_worth(", "$conserved(", "$skill(", "$subscribed(", "$pipeline("):
         assert fn in everything
