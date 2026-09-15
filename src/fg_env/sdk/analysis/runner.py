@@ -9,7 +9,6 @@ experiment with the same base seed (common random numbers everywhere).
 from __future__ import annotations
 
 import json
-from concurrent.futures import ProcessPoolExecutor
 from typing import Any, List, Mapping, Optional, Sequence, Tuple
 
 from ..api import ContractLike, DataDir, located, parse
@@ -18,6 +17,7 @@ from ..experiment import Job, failed_run, run_job, worker_pool
 from ..experiment import run_jobs as _run_jobs
 from ..measure import RunResult
 from ..seeds import SeedTree
+from ..workers import Pool
 from .stats import numeric
 
 __all__ = ["Job", "AnalysisError", "run_seeds", "run_jobs", "resolve_measure", "value", "raw_value", "series",
@@ -53,7 +53,7 @@ def input_spec(contract: Contract, name: str) -> Any:
 
 
 def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = None, rounds: Optional[int] = None,
-             workers: int = 1, events: bool = False, pool: Optional[ProcessPoolExecutor] = None,
+             workers: int = 1, events: bool = False, pool: Optional[Pool] = None,
              hosts: Any = None) -> List[RunResult]:
     """:func:`fg_env.sdk.experiment.run_jobs` for analyses: event logs dropped by default, and
     :class:`AnalysisError` when every run failed (the first error is quoted)."""
