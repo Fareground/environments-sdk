@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import bisect
 import math
+from functools import lru_cache
 from typing import Annotated, Any, Dict, List, Literal, Optional, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -125,12 +126,25 @@ class OrderBookConfig(BaseModel):
     tools: ToolsSetting = tools_field()
 
 
+_CONFIGS: Dict[Tuple[int, str], Tuple[Any, OrderBookConfig]] = {}
+
+
 def book_config(world: Any, name: Any) -> OrderBookConfig:
-    return config_of(world, name, KEY, OrderBookConfig)
+    """The book's validated config, looked up once per contract object (a clone shares its contract)."""
+    contract = world.contract
+    hit = _CONFIGS.get((id(contract), name)) if isinstance(name, str) else None
+    if hit is not None and hit[0] is contract:
+        return hit[1]
+    config = config_of(world, name, KEY, OrderBookConfig)
+    if len(_CONFIGS) >= 256:
+        _CONFIGS.clear()
+    _CONFIGS[(id(contract), name)] = (contract, config)
+    return config
 
 
+@lru_cache(maxsize=256)
 def props_for(name: str) -> Dict[str, str]:
-    """Trader property names of the book."""
+    """Trader property names of the book (one shared map per name: read it, never change it)."""
     return {"shares": f"{name}_shares", "reserved_cash": f"{name}_reserved_cash",
             "reserved_shares": f"{name}_reserved_shares", "fees_paid": f"{name}_fees_paid",
             "start_value": f"{name}_start_value", "strategy": f"{name}_strategy", "algo": f"{name}_algo"}
@@ -341,8 +355,11 @@ def release(world: Any, cfg: OrderBookConfig, v: Venue, name: str, order: Dict[s
 
 
 def _insert(orders: List[Dict[str, Any]], order: Dict[str, Any], side: str) -> None:
-    keys = [(-o["price"] if side == "buy" else o["price"], o["seq"]) for o in orders]
-    orders.insert(bisect.bisect(keys, (-order["price"] if side == "buy" else order["price"], order["seq"])), order)
+    if side == "buy":
+        at = bisect.bisect(orders, (-order["price"], order["seq"]), key=lambda o: (-o["price"], o["seq"]))
+    else:
+        at = bisect.bisect(orders, (order["price"], order["seq"]), key=lambda o: (o["price"], o["seq"]))
+    orders.insert(at, order)
 
 
 def _limit_ticks(v: Venue, side: str, price: Any, last: float, opposite: List[Dict[str, Any]]) -> int:
@@ -387,7 +404,7 @@ def place(world: Any, name: str, trader: Entity, side: str, qty: Any, price: Any
     bids, asks = _book(world, name)
     own, opposite = (bids, asks) if side == "buy" else (asks, bids)
     limit_t = _limit_ticks(v, side, price, last, opposite)
-    if price is not None and sum(1 for o in own if o["owner"] == trader.id) >= v.max_orders:
+    if price is not None and len(own) >= v.max_orders and sum(1 for o in own if o["owner"] == trader.id) >= v.max_orders:
         raise Abort(f"You already have {v.max_orders} resting orders in {unit}; cancel one first.")
     limit_price = round(limit_t * v.tick, 10)
     cash = Account(trader, cfg.currency)

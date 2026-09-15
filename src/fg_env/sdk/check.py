@@ -622,6 +622,7 @@ class _Checker:
         self._policies()
         self._measure()
         self._arms()
+        self._calibration()
         self._defs_and_blocks()
         check_game(self)
         check_assets(self, BASE)
@@ -1214,6 +1215,42 @@ class _Checker:
                 if key not in Contract.model_fields:
                     self.error(f"arms.{name}.patch.{key}", f"'{key}' is not a contract section",
                                self._suggest(key, Contract.model_fields))
+
+    def _calibration(self) -> None:
+        spec = self.c.calibration
+        if spec is None:
+            return
+        for name, given in spec.params.items():
+            path = f"calibration.params.{name}"
+            declared = self.c.inputs.get(name)
+            if declared is None:
+                self.error(path, f"'{name}' is not a declared input", self._hint(name, self.c.inputs, "inputs"))
+                continue
+            if declared.type not in ("number", "int"):
+                self.error(path, f"'{name}' is a {declared.type} input; only number and int inputs can be fitted")
+                continue
+            extra = sorted(set(given) - {"low", "high", "log"})
+            if extra:
+                self.error(path, f"unknown key(s) {', '.join(extra)}", "give low, high and log")
+            low, high = given.get("low", declared.min), given.get("high", declared.max)
+            if low is None or high is None:
+                self.error(path, "has no range", f"give {{\"low\": …, \"high\": …}} or declare min and max on inputs.{name}")
+            elif not low < high:
+                self.error(path, f"low {low} must be below high {high}")
+        for name in spec.inputs:
+            if name not in self.c.inputs:
+                self.error(f"calibration.inputs.{name}", f"'{name}' is not a declared input",
+                           self._hint(name, self.c.inputs, "inputs"))
+            elif name in spec.params:
+                self.error(f"calibration.inputs.{name}", f"'{name}' is fitted; a pilot input cannot also fix it")
+        measures = {**self.c.outputs, **self.c.metrics}
+        for name, target in spec.targets.items():
+            path = f"calibration.targets.{name}"
+            measure = str(target.get("of", name)) if isinstance(target, dict) and "stat" in target else name
+            measure = measure[len("series."):] if measure.startswith("series.") else measure
+            if measure not in measures:
+                self.error(path, f"'{measure}' is not an output or metric", self._hint(measure, measures, "outputs and metrics"))
+            self.value(target.get("value") if isinstance(target, dict) else target, path, BASE)
 
 
 def _stage_action_names(stage: C.StageSpec, contract: Contract, raw: bool = False) -> List[str]:

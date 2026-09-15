@@ -5,7 +5,7 @@ reference, field by field, is generated from these models (see ``fg_env.guide()`
 """
 from __future__ import annotations
 
-from typing import Annotated, Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
 from pydantic import (BaseModel, BeforeValidator, ConfigDict, Field, PrivateAttr, WithJsonSchema, field_validator,
                       model_validator)
@@ -751,6 +751,22 @@ class InvariantSpec(_ExprShorthand):
 # ---------------------------------------------------------------------------
 
 
+class CalibrationSpec(_Model):
+    """A quick pilot calibration run whenever the contract loads: inputs are fitted so short pilot sessions hit the
+    targets, and the session runs with the fitted values (``env.inputs``, ``result.inputs``; the fit is in
+    ``env.calibration``). Deterministic given the session's seed. It costs ``budget × runs`` pilot sessions plus
+    ``holdout`` at every load that does not set a fitted input itself — setting one (or sweeping it) skips it."""
+
+    params: Dict[str, Dict[str, Any]] = Field(..., min_length=1, description="{input: {low?, high?, log?}}: number or int inputs to fit (the range defaults to the input's min and max).")
+    targets: Dict[str, Any] = Field(..., min_length=1, description="{output or metric: target} as fg_env.calibrate takes them; a number (or a stat target's `value`) may be an expression over $inputs and $world, read from the world this session builds.")
+    inputs: Dict[str, Any] = Field(default_factory=dict, description="Inputs of the pilot sessions only, e.g. fewer bars; the session's own inputs apply underneath.")
+    runs: int = Field(2, ge=1, le=20, description="Pilot sessions per evaluated point.")
+    budget: int = Field(6, ge=2, le=50, description="Distinct points evaluated.")
+    holdout: int = Field(1, ge=1, le=20, description="Pilot sessions on fresh seeds that validate the fit.")
+    method: Literal["auto", "bisection", "golden", "nelder_mead", "cross_entropy"] = Field("auto", description="Search method (see fg_env.calibrate).")
+    workers: int = Field(1, ge=1, le=64, description="Pilot sessions run in this many processes at once.")
+
+
 class Contract(_Model):
     """An environment: world, people, rules, what agents see, what is measured."""
 
@@ -782,6 +798,7 @@ class Contract(_Model):
     outputs: Dict[str, OutputSpec] = Field(default_factory=dict)
     end: List[EndSpec] = Field(default_factory=list)
     arms: Dict[str, ArmSpec] = Field(default_factory=dict)
+    calibration: Optional[CalibrationSpec] = Field(None, description="Inputs fitted by short pilot sessions whenever the contract loads.")
     game: Optional[GameSpec] = Field(None, description="Seats, returns and utility for game and learning interfaces.")
     invariants: List[InvariantSpec] = Field(default_factory=list)
     defs: Dict[str, DefSpec] = Field(default_factory=dict, description="Reusable expressions, called as $name(args).")

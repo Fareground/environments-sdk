@@ -410,6 +410,86 @@
       "title": "Brief",
       "type": "object"
     },
+    "CalibrationSpec": {
+      "additionalProperties": false,
+      "description": "A quick pilot calibration run whenever the contract loads: inputs are fitted so short pilot sessions hit the\ntargets, and the session runs with the fitted values (``env.inputs``, ``result.inputs``; the fit is in\n``env.calibration``). Deterministic given the session's seed. It costs ``budget × runs`` pilot sessions plus\n``holdout`` at every load that does not set a fitted input itself — setting one (or sweeping it) skips it.",
+      "properties": {
+        "params": {
+          "additionalProperties": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "description": "{input: {low?, high?, log?}}: number or int inputs to fit (the range defaults to the input's min and max).",
+          "minProperties": 1,
+          "title": "Params",
+          "type": "object"
+        },
+        "targets": {
+          "additionalProperties": true,
+          "description": "{output or metric: target} as fg_env.calibrate takes them; a number (or a stat target's `value`) may be an expression over $inputs and $world, read from the world this session builds.",
+          "minProperties": 1,
+          "title": "Targets",
+          "type": "object"
+        },
+        "inputs": {
+          "additionalProperties": true,
+          "description": "Inputs of the pilot sessions only, e.g. fewer bars; the session's own inputs apply underneath.",
+          "title": "Inputs",
+          "type": "object"
+        },
+        "runs": {
+          "default": 2,
+          "description": "Pilot sessions per evaluated point.",
+          "maximum": 20,
+          "minimum": 1,
+          "title": "Runs",
+          "type": "integer"
+        },
+        "budget": {
+          "default": 6,
+          "description": "Distinct points evaluated.",
+          "maximum": 50,
+          "minimum": 2,
+          "title": "Budget",
+          "type": "integer"
+        },
+        "holdout": {
+          "default": 1,
+          "description": "Pilot sessions on fresh seeds that validate the fit.",
+          "maximum": 20,
+          "minimum": 1,
+          "title": "Holdout",
+          "type": "integer"
+        },
+        "method": {
+          "default": "auto",
+          "description": "Search method (see fg_env.calibrate).",
+          "enum": [
+            "auto",
+            "bisection",
+            "golden",
+            "nelder_mead",
+            "cross_entropy"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "workers": {
+          "default": 1,
+          "description": "Pilot sessions run in this many processes at once.",
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Workers",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "params",
+        "targets"
+      ],
+      "title": "CalibrationSpec",
+      "type": "object"
+    },
     "Clock": {
       "additionalProperties": false,
       "description": "How long a run lasts and how rounds are labelled.",
@@ -3652,6 +3732,18 @@
       },
       "title": "Arms",
       "type": "object"
+    },
+    "calibration": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CalibrationSpec"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Inputs fitted by short pilot sessions whenever the contract loads."
     },
     "game": {
       "anyOf": [

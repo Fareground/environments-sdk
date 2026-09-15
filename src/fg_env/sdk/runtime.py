@@ -78,6 +78,8 @@ class Env(Copying, RunChecks):
         self.inputs = inputs
         self.seed = seed
         self.arm = arm
+        #: The load-time calibration report (None when the contract fits nothing or this session set the inputs).
+        self.calibration: Optional[Dict[str, Any]] = None
         self.parallel = max(1, parallel)
         self.seeds = SeedTree(seed)
         self.world = build_world(contract, inputs, self.seeds, arm, assets)
