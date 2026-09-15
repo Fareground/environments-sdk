@@ -26,6 +26,7 @@ from ..analysis.optimise_result import OptimisationResult
 from ..analysis.validate import ValidationResult
 from ..api import ContractLike, parse
 from . import optimisation as optimised
+from .confidence import assess
 from .evidence import Choice, Evidence, Goal, Requirement, choose, gather, parse_goal, parse_requirements
 from .queue import QueueView, queues_in
 from .sections import Section, assumptions, decision, drivers, fit, method, risks
@@ -113,13 +114,14 @@ def report(source: Any, audience: str = "owner", *, contract: Optional[ContractL
                   ev.contract, {q.name: q.unit for q in queues})
     measures = _measures(outputs, goal, requirements, queues, first.formats if first is not None else {})
     choice = choose(ev.options, goal, requirements) if goal is not None else Choice(None, None, requirements)
+    sure = assess(ev, choice, measures)
     sections: List[Section] = []
     if ev.options:
-        sections += [decision(ev, choice, namer, measures, queues), drivers(ev, choice, namer, measures, queues, owner),
-                     risks(ev, choice, namer, measures, queues, owner)]
+        sections += [decision(ev, choice, namer, measures, queues, sure),
+                     drivers(ev, choice, namer, measures, queues, owner), risks(ev, choice, namer, measures, queues, owner)]
     if optimisation is not None:
         _add_optimisation(sections, optimisation, namer, queues, measures_known, owner)
-    sections += [assumptions(ev, queues), fit(ev, namer)]
+    sections += [assumptions(ev, queues, owner), fit(ev, namer)]
     if not owner:
         sections.append(method(ev, namer, choice))
         if optimisation is not None:
@@ -131,7 +133,8 @@ def report(source: Any, audience: str = "owner", *, contract: Optional[ContractL
         recommendation = {**(recommendation or {}), "option": choice.best.label, "description": choice.best.description,
                           "inputs": choice.best.inputs,
                           "objective": (objective or f"{goal.direction}:{goal.measure}") if goal else None,
-                          "require": {r.measure: f"{r.op} {r.value:g}" for r in requirements}}
+                          "require": {r.measure: f"{r.op} {r.value:g}" for r in requirements},
+                          "confidence": sure.to_dict()}
     return Report(title, audience, ev.kind, sections, recommendation)
 
 

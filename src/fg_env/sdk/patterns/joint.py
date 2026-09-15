@@ -13,10 +13,11 @@ the way counts behave. Terms by kind:
   and retain are applied to the weeks after each promotion (assumed, not estimated);
 * any other factor — held at its declared values (an offset), and reported as assumed.
 
-Rows marked ``censored`` (sales capped by a stockout) are observed only as a lower bound: the fit replaces each by
-its expected value given it was at least what was sold and refits, until nothing changes (expectation–maximisation).
-With ``fit.noise`` naming a counts pattern, the dispersion is estimated around the fitted means — censored rows
-through their expected spread given what was sold — and the fit is repeated with it.
+Rows marked ``censored`` (demand went unmet: sales capped by a stockout) are observed only as a lower bound: the fit
+replaces each by its expected value given it was more than what was sold and refits, until nothing changes
+(expectation–maximisation). A stockout that sold nothing still says demand was at least one, which is most of what it
+tells about a slow seller. With ``fit.noise`` naming a counts pattern, the dispersion is estimated around the fitted
+means — censored rows through their expected spread given that — and the fit is repeated with it.
 """
 from __future__ import annotations
 

@@ -57,6 +57,36 @@ def test_an_owner_report_recommends_the_cheapest_staffing_that_meets_the_service
     assert "round" not in text.lower()
 
 
+def test_a_confident_pick_says_how_far_it_beats_the_next_best_option_and_how_surely_it_meets_the_target(experiment):
+    written = fg_env.report(experiment, contract=CENTRE)
+    lines = _section(written, "Recommendation").lines
+    assert any(line.startswith("How sure: its staffing cost is lower than with 16 agents all morning by $") for line in lines)
+    assert any(line.startswith("Its service level is clearly above 75%") or "only just" in line for line in lines)
+    assert written.recommendation["confidence"]["runner_up"] == "rich"
+    assert written.recommendation["confidence"]["within_noise"] is False
+
+
+def test_options_within_noise_of_each_other_are_told_as_a_tie_never_as_a_recommendation():
+    contract = json.loads(json.dumps(CENTRE))
+    nudged = [16] * 7 + [17]  # one more agent in the last half-hour: a sliver of the morning's cost
+    contract["arms"]["nudged"] = {"description": "16 agents and one more at the end", "inputs": {"staffing": nudged}}
+    written = fg_env.report(fg_env.experiment(contract, arms=["rich", "nudged"], runs=4, seed=3), contract=contract)
+    head = written.sections[0]
+    assert head.title == "What the model says" and not any(line.startswith("Choose") for line in head.lines)
+    assert any("are within noise on staffing cost" in line and "cannot pick between them" in line for line in head.lines)
+    assert any(line.startswith("Decide between them on something else") for line in head.lines)
+    assert [row[0].endswith(" ≈") for row in head.tables[0].rows] == [True, True]
+    assert written.recommendation["confidence"]["within_noise"] is True
+
+
+def test_a_swept_input_that_changes_nothing_is_said_to_make_no_clear_difference():
+    contract = {**CENTRE, "inputs": {**CENTRE["inputs"], "memo": {"type": "int", "default": 1}}}
+    swept = fg_env.sweep(contract, {"memo": [1, 2]}, runs=3)
+    causes = _section(fg_env.report(swept, contract=contract), "What drives it").lines
+    assert any(line.startswith("Memo makes no clear difference to service level") and "within noise" in line
+               for line in causes)
+
+
 def test_the_report_names_the_pattern_and_the_shock_behind_the_outcome(experiment):
     written = fg_env.report(experiment, contract=CENTRE)
     causes = _section(written, "What drives it").lines

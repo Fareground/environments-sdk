@@ -55,6 +55,18 @@ def test_retail_and_wholesale_demand_and_lead_times_fitted_from_the_histories_re
     assert sum(abs(a - b) <= 3 * max(e, 0.03) for a, b, e in zip(profile, truth["weekday_profile"], errors)) >= 6
 
 
+def test_each_channels_fitted_demand_adds_up_to_the_truth_despite_stockouts_that_sold_nothing():
+    """Stockout rows say demand was more than what sold; read as 'at least what sold', a slow line's empty-shelf days
+    added nothing back and every channel's demand came out a few percent low (the held-out forecasts ran low with it)."""
+    fitted = fg_env.fit_patterns(CONTRACT).contract["inputs"]
+    truth = _truth()
+    for table in ("retail_demand_fit", "wholesale_demand_fit"):
+        rows = fitted[table]["default"]
+        total, true = sum(row["scale"] for row in rows), sum(row["scale"] for row in truth[table])
+        error = sum(row["scale_se"] ** 2 for row in rows) ** 0.5
+        assert abs(total - true) < 2 * error and abs(total / true - 1) < 0.03, table
+
+
 def test_a_new_launch_cuts_every_older_models_value_over_three_weeks():
     env = fg_env.load(CONTRACT, seed=1, inputs={"new_launch": True, "parameter_uncertainty": 0})
     runtime = env.world.patterns
