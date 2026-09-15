@@ -10,6 +10,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Added
+- **Owner reports** (`fg_env.report(result, audience="owner")`, `fg-env report`): a run, an experiment, a sweep or a
+  validation told in short sentences and a few tables, in the clock's own terms — the recommended option (by
+  `objective="min:cost"` and `require={"service_level": ">= 0.8"}`, or a service queue's own target: the cheapest
+  staffing that meets it) with its expected outcome and 80% ranges, the staffing plan by time of day, what drives it
+  (the pattern factors behind the busiest time, clear paired differences between options, sweep effects, a typical
+  run's notable moments), risks (options and runs that miss the requirement, intervals below target, the data check's
+  warnings), what the model assumes (its queue, inputs marked assumed, fitted parameters) and how well it matched
+  the data (error, bias and interval coverage in plain words). `audience="analyst"` adds the method, every output of
+  every option and the full validation and sweep reports; `Report.markdown`, `to_dict()` and `save("r.md" | "r.json")`
+  export it. An optimisation (`fg_env.optimise`), as the source or as `optimisation=` next to the experiment that plays
+  its decision, is told as the plan with its expected objective, how often each constraint held (with intervals), the
+  fresh-seed check, a seed-luck warning and what one step either way breaks.
+- **Service queues** (`"kind": "operations", "mode": "queue"`): a contact centre, clinic, counter or repair crew
+  played natively, interval by interval — arrivals per channel from any expression (patterns, data, an outage),
+  service and patience distributions, server pools with skills, shifts as staff per interval
+  (`"$inputs.staffing[$interval]"`, a vector an optimiser can search), priorities, callbacks served when nobody waits,
+  and retries. Queue operations are heaps (O(log n)); arrivals and each customer's durations come from streams of their
+  own, so arms with different staffing see the same customers. Per-interval records and totals give service level at
+  each channel's threshold, speed of answer, abandonment, utilisation, queue length, paid hours with shrinkage and
+  cost, on round and continuous clocks. A stationary M/M/c case matches Erlang C and one with patience Erlang A.
+  Callbacks can keep servers free for live customers (`reserve`); per-interval guarantees can be constrained through
+  `<name>_intervals_below_target` and `<name>_worst_interval_service_level`, and handle times are measured
+  (`<name>_aht`, and per interval in the records).
+- **Example `contact_centre`**: a day of calls at a broadband provider's contact centre on the queue mode, with a
+  bundled eight-week half-hourly history its `truth` arm generates (`examples/contact_centre_history.py`). Arrivals
+  (day-of-week and time-of-day indexes, base volume) are fitted with `fit_patterns` on six weeks; handle time, outage
+  uplift and patience (by the simulated method of moments) are estimated from the same weeks; the last two weeks
+  validate it (daily calls within 2%, service level within 2%). `examples/contact_centre_plan.py` searches a staffing
+  vector with `fg_env.optimise` under a per-half-hour constraint, keeps the result in `contact_centre/plan.json`, and
+  prints the owner report with the outage and callback arms.
 - **World patterns** (`patterns`): the world's own regularities declared once, like its physics, and read anywhere as
   values — `$pattern.winter`, `$pattern.price_effect($it.price)`, `$pattern.season($it.category)`. Kinds for time
   (trend, seasonal, calendar, cycle, lifecycle, step, series), random paths from each pattern's own seeded stream
@@ -65,6 +95,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is now judged by its own deviance.
 
 #### Fixed
+- **Narratives a reader can follow**: rounds are named in the clock's terms everywhere — `half-hour` for a clock of 30
+  minutes, `09:30–10:00` (with the weekday and date when a run spans days) on a dated sub-day clock, `Week 7
+  (2026-10-12)` on a weekly one — through `fg_env.sdk.clock_words`, which `RunResult.unit`, `period` and `summary`
+  now use ("completed after 24 half-hours"). A narrative tells one measure's moment once (a peak is not repeated next
+  to the reversal it belongs to), leaves out moments no more unusual than the run's usual ups and downs (a short run
+  still tells its largest changes, and says why), names what happened with a move — other measures that moved in the
+  same round and the world's news in that round or the one before — and shows results in their declared formats.
 - **LLM turns that ran out of words**: a reply cut off at the output limit counts in `stats["truncated"]` (per
   wake in exposures and `agent_stats`) and, with no tool call, is asked once for a short tool call
   (`retry_truncated=False` ends the turn). The nudge names the tools offered and never asks for an `end_turn` that

@@ -80,9 +80,9 @@ def test_a_clock_start_expression_may_only_read_inputs():
 def test_narratives_and_summaries_name_rounds_in_the_clock_unit_with_dates():
     result = fg_env.run(WEEKLY, seed=1)
     story = fg_env.narrative(result)
-    assert story.startswith("Completed after 4 week(s)")
-    assert "Week 3 (2026-09-14): sold rose 70 (+700%) in week 3, then gave back all of it by week 4" in story
-    assert result.summary().startswith("completed after 4 week(s)")
+    assert story.startswith("Completed after 4 weeks")
+    assert "Week 3 (2026-09-14): sold rose 70 (+700%), then gave back all of it by week 4 (2026-09-21)" in story
+    assert result.summary().startswith("completed after 4 weeks")
     assert result.period(2) == "week 2 (2026-09-07)"
 
 
