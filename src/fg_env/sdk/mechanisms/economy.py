@@ -16,6 +16,8 @@ Modules:
 * :mod:`.econ_subscriptions` — ``subscriptions``; :mod:`.econ_bookings` — ``bookings`` (slots, queues, waitlists).
 * :mod:`.econ_negotiation` — ``negotiation`` (multi-issue offers, binding deals, duties, breach).
 * :mod:`.econ_labor` — ``labor`` (postings, hiring, wages, firms); :mod:`.econ_supply_chain` — ``supply_chain``.
+* :mod:`.econ_demand` and :mod:`.econ_demand_trade` — ``demand`` (customers' demand from patterns, served from stock);
+  :mod:`.econ_replenishment` and :mod:`.econ_replenishment_rules` — ``replenishment`` (inventory policies).
 """
 from __future__ import annotations
 
@@ -23,3 +25,4 @@ from . import (  # noqa: F401  (register ops, functions and kinds)
     econ_assets, econ_bookings, econ_inventory, econ_labor, econ_ledger, econ_negotiation, econ_production,
     econ_subscriptions, econ_supply_chain,
 )
+from . import econ_demand, econ_demand_trade, econ_replenishment, econ_replenishment_rules  # noqa: F401,E402  (listed after the others)
