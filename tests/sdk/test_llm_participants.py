@@ -134,7 +134,9 @@ def test_a_model_that_only_talks_is_nudged_once():
     agent = participants.anthropic(client, "claude-sonnet-5")
     env = fg_env.load(SHOP, seed=1, inputs={"shoppers": 1})
     env.run(agent, rounds=1)
-    assert client.requests[1]["messages"][-1] == {"role": "user", "content": participants._NUDGE}
+    assert client.requests[1]["messages"][-1] == {
+        "role": "user",
+        "content": "Act only by calling your tools (buy, inspect, end_turn). When you have nothing more to do, call end_turn."}
     assert env.world.props["revenue"] == 3
 
     silent = FakeAnthropic([])

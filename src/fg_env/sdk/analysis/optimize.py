@@ -11,7 +11,8 @@ import random
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
-__all__ = ["Evaluator", "bisection", "golden_section", "nelder_mead", "cross_entropy", "BudgetExhausted"]
+__all__ = ["Evaluator", "bisection", "golden_section", "nelder_mead", "cross_entropy", "cross_entropy_sizes",
+           "BudgetExhausted"]
 
 Point = Tuple[float, ...]
 
@@ -21,6 +22,14 @@ _INVERSE_PHI = (math.sqrt(5.0) - 1.0) / 2.0
 _REFLECT, _EXPAND, _CONTRACT, _SHRINK = 1.0, 2.0, 0.5, 0.5
 #: Initial simplex edge, as a share of the unit range.
 _SIMPLEX_STEP = 0.25
+#: Cross-entropy population per generation, per parameter, and the share kept as elite.
+_CE_POPULATION_PER_DIM, _CE_ELITE_SHARE = 6, 0.25
+
+
+def cross_entropy_sizes(dims: int, budget: int) -> Tuple[int, int, int]:
+    """``(population, elite, generations)`` for a cross-entropy search of ``dims`` parameters within ``budget``."""
+    population = _CE_POPULATION_PER_DIM * dims
+    return population, max(2, int(population * _CE_ELITE_SHARE)), max(1, budget // population)
 
 
 class BudgetExhausted(Exception):

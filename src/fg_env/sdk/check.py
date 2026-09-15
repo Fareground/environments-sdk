@@ -50,7 +50,7 @@ from .inputs import DATA_SUFFIXES, check_value
 from .parse_errors import validation_issues
 from .patterns.check import check_pattern_call, check_patterns
 from .returns import check_game
-from .template import FORMATS, compile_template
+from .template import FORMATS, compile_template, quoted_placeholders
 from .world import prop_type
 from .world_defaults import default_order
 from .assets.checks import check_assets
@@ -210,6 +210,9 @@ class _Checker:
         except ExprError as exc:
             self.error(path, exc.detail, f"template: {source}")
             return
+        for placeholder in quoted_placeholders(source):
+            self.warn(path, f"wraps {placeholder} in «»: participant text already reads inside «», so this shows ««…»», "
+                            "and other text in «» reads as written by participants", f"write {placeholder} without the «»")
         for expr in compiled.expressions:
             self._refs(expr, path, set(roots), types or {}, params or {})
 
