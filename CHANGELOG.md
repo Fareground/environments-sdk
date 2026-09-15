@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Calls made after exhausting a turn now name the stage and its action or tool-call allowance,
+  while preserving refusal codes, timeout priority and execution behavior.
 - Behavior reports identify unfinished baseline and input-variant runs, including unchecked end-only
   obligations, and avoid claiming an input has no effect based only on unfinished variants.
 - Behavior checks keep generated integer input variations inside fractional bounds and report inputs

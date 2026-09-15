@@ -266,7 +266,15 @@ class Turn:
         if self.expired():
             return ToolResult(False, "Your time for this turn ran out; nothing was done.", True, dict(_TIMEOUT))
         if self.done:
-            return ToolResult(False, "Your turn is already over; nothing was done.", True, dict(_ENDED))
+            limit = ""
+            if self.actions_left <= 0:
+                count = self.stage.max_actions
+                limit = f" The '{self.stage.name}' stage allows {count} action{'s' if count != 1 else ''} per turn; none remain."
+            elif self.calls_left <= 0:
+                count = self.stage.max_calls
+                limit = f" The '{self.stage.name}' stage allows {count} tool call{'s' if count != 1 else ''} per turn; none remain."
+            text = f"Your turn is already over.{limit} Nothing was done." if limit else "Your turn is already over; nothing was done."
+            return ToolResult(False, text, True, dict(_ENDED))
         return None
 
     def _call(self, name: Any, args: Any) -> ToolResult:
