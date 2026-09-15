@@ -27,7 +27,8 @@ SHARED = {
 }
 
 family("market", "Trading venues: continuous order books, auctions, prediction markets and posted-price shops.",
-       {"who": "agent type that trades", "currency": SHARED["currency"], "stage": SHARED["stage"]})
+       {"who": "agent type that trades (in effects: the trading agent, default $actor)", "currency": SHARED["currency"],
+        "qty": "units traded (shares, items); money is `amount`", "stage": SHARED["stage"], "tools": SHARED["tools"]})
 family("economy", "Money, goods and making things: ledgers (currencies, taxes, loans), inventories, production and supply chains.",
        {"who": "agent type(s) holding money or goods", "tools": SHARED["tools"]})
 family("agreements", "Commitments between agents over time: negotiated deals, jobs, subscriptions and bookings.",

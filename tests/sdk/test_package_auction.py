@@ -81,7 +81,7 @@ def test_package_winners_function_reads_bids_as_data_and_explains_bad_ones():
 
 
 def spectrum(**config):
-    mechanism = {"kind": "auction", "format": "combinatorial", "bidders": "bidder", "item": "spectrum licences",
+    mechanism = {"kind": "market", "mode": "auction", "format": "combinatorial", "who": "bidder", "item": "spectrum licences",
                  "items": ["north", "south", "east"], "reserve": 5, "reserves": {"east": 50}, **config}
     return {"name": "Spectrum", "clock": {"rounds": 3}, "types": {"bidder": {"agent": True, "props": {"cash": 100}}},
             "entities": {t: {"type": "bidder"} for t in "abc"}, "mechanisms": {"house": mechanism}}

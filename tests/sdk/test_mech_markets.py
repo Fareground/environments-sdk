@@ -44,7 +44,7 @@ def replies_of(replies, entity_id):
 
 
 def book(**config):
-    mechanism = {"kind": "order_book", "traders": "trader", "start_price": 50, "stage": "trade", **config}
+    mechanism = {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 50, "stage": "trade", **config}
     return {"name": "Book", "clock": {"rounds": 6},
             "types": {"trader": {"agent": True, "props": {"cash": 0}}},
             "entities": {t: {"type": "trader", "props": {"cash": 10000, "acme_shares": 100}} for t in "abcd"},
@@ -54,12 +54,10 @@ def book(**config):
 
 def test_order_book_contract_checks_clean_and_configs_are_checked_with_fixes():
     assert not [i for i in fg_env.check(book(maker_fee_bps=2, halt_pct=0.1)) if i.severity == "error"]
-    wrong = book(traders="trdr")
-    assert any("traders 'trdr' is not a declared type" in i.message for i in fg_env.check(wrong))
+    wrong = book(who="trdr")
+    assert any("who 'trdr' is not a declared type" in i.message for i in fg_env.check(wrong))
     typo = book(crowd={"noize": {"count": 1}})
     assert any(i.path.startswith("mechanisms.acme.crowd") for i in fg_env.check(typo))
-    op = {**book(), "events": [{"do": [{"book": "acmee", "action": "open"}]}]}
-    assert any("'acmee' is not a declared order_book" in i.message for i in fg_env.check(op))
 
 
 def test_price_time_priority_and_partial_fills():
@@ -188,7 +186,7 @@ def test_orders_expire_and_short_selling_is_bounded():
 CROWD = {"name": "Crowd", "clock": {"rounds": 500},
          "types": {"trader": {"agent": True, "props": {"cash": 0}}},
          "population": [{"type": "trader", "count": 3, "props": {"cash": 5000, "acme_shares": 100}}],
-         "mechanisms": {"acme": {"kind": "order_book", "traders": "trader", "start_price": 50, "maker_fee_bps": 1,
+         "mechanisms": {"acme": {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 50, "maker_fee_bps": 1,
                                  "taker_fee_bps": 3, "halt_pct": 0.15, "short_limit": 20, "order_ttl": 5,
                                  "crowd": {"market_maker": {"count": 2, "cash": 50000, "shares": 1000},
                                            "noise": {"count": 6, "cash": 10000, "shares": 200}}}}}
@@ -210,7 +208,8 @@ def test_coded_traders_produce_a_stylized_facts_tape():
              "noise": {"count": 8, "cash": 10000, "shares": 200}}
     reference = "{sigma: 0.01, kurtosis: 1, acf1: 0, acf_abs: 0.1, avg_volume: 60, vol_volume_corr: 0.3}"
     contract = {"name": "Tape", "clock": {"rounds": 250}, "types": {"trader": {"agent": True}},
-                "mechanisms": {"acme": {"kind": "order_book", "traders": "trader", "start_price": 50, "crowd": crowd}},
+                "mechanisms": {"acme": {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 50,
+                                        "crowd": crowd}},
                 "outputs": {"realism": {"expr": "$market_realism({prices: $series.acme_price, volumes: $series.acme_volume}, "
                                                 f"{reference})", "type": "map"}}}
     result = fg_env.load(contract, seed=3).run()
@@ -277,7 +276,7 @@ def test_lmsr_and_cpmm_math_invert_exactly():
 
 
 def market(maker, stage=True, **config):
-    mechanism = {"kind": "prediction_market", "traders": "trader", "outcomes": ["ada", "bo", "cy"], "maker": maker,
+    mechanism = {"kind": "market", "mode": "prediction", "who": "trader", "outcomes": ["ada", "bo", "cy"], "maker": maker,
                  "liquidity": 20, "fee_pct": 0.02, "resolve_at": 2, "outcome": "$world.truth", **config}
     contract = {"name": "PM", "clock": {"rounds": 3}, "world": {"truth": "ada"},
                 "types": {"trader": {"agent": True, "props": {"cash": 100}}},
@@ -326,7 +325,8 @@ def test_prediction_market_conserves_cash_under_random_traders(maker):
 
 
 def house(fmt, **config):
-    mechanism = {"kind": "auction", "format": fmt, "bidders": "bidder", "item": "a vase", "stock": 2, "reserve": 35, **config}
+    mechanism = {"kind": "market", "mode": "auction", "format": fmt, "who": "bidder", "item": "a vase", "stock": 2, "reserve": 35,
+                 **config}
     return {"name": "Auction", "clock": {"rounds": 6}, "types": {"bidder": {"agent": True, "props": {"cash": 100}}},
             "entities": {t: {"type": "bidder"} for t in "abc"}, "mechanisms": {"house": mechanism}}
 
@@ -425,7 +425,7 @@ def test_auctions_conserve_cash_and_units_with_random_bidders(fmt):
 
 
 def farm(stage=True, **config):
-    mechanism = {"kind": "posted_market", "buyers": "shopper", "sellers": "farmer", "sponsor_fee": 2,
+    mechanism = {"kind": "market", "mode": "posted", "who": "shopper", "sellers": "farmer", "sponsor_fee": 2,
                  "listings": {"apples": {"seller": "ana", "item": "apples", "price": 3, "stock": 10, "capacity": 4,
                                          "negotiable": True, "floor": 2.5},
                               "pears": {"seller": "ben", "item": "pears", "price": 4, "stock": 5, "rating": 4.5, "ratings": 2},
@@ -489,3 +489,96 @@ def test_ratings_are_once_per_buyer_and_the_market_conserves_cash_and_goods():
     result = crowd.run()
     assert result.status == "completed", result.error
     assert result.outputs["market_sales"] > 0 and not posted.audit(crowd.world, "market")
+
+
+# ---------------------------------------------------------------------------
+# The market family: kinds, fields, actions, tools, guide
+# ---------------------------------------------------------------------------
+
+
+def errors_of(contract):
+    return [i for i in fg_env.check(contract) if i.severity == "error"]
+
+
+@pytest.mark.parametrize("old, contract, mode", [("order_book", book(), "order_book"), ("auction", house("first_price"), "auction"),
+                                                 ("prediction_market", market("lmsr"), "prediction"),
+                                                 ("posted_market", farm(), "posted")])
+def test_an_old_market_kind_says_the_family_and_mode(old, contract, mode):
+    name, config = next(iter(contract["mechanisms"].items()))
+    config = {key: value for key, value in config.items() if key != "mode"}
+    issue = next(i for i in errors_of({**contract, "mechanisms": {name: {**config, "kind": old}}})
+                 if i.path == f"mechanisms.{name}.kind")
+    assert issue.message == f"'{old}' is now kind 'market' with mode '{mode}'"
+
+
+def test_a_market_field_typo_or_an_old_field_name_names_the_mode_and_its_fields():
+    typo = errors_of(book(tick_sise=0.05))
+    assert [(i.path, i.message) for i in typo] == [("mechanisms.acme.tick_sise", "`tick_sise` is not a field of `market` mode `order_book`")]
+    assert typo[0].fix.startswith("did you mean 'tick_size'?") and "takes: who, start_price, currency" in typo[0].fix
+    old = errors_of(house("first_price", bidders="bidder"))
+    assert [i.message for i in old] == ["`bidders` is not a field of `market` mode `auction`"]
+    foreign = errors_of(farm(outcomes=["a", "b"]))
+    assert [i.message for i in foreign] == ["`outcomes` is not a field of `market` mode `posted`"]
+
+
+def _op_issues(contract, *effects):
+    return [(i.path, i.message, i.fix) for i in errors_of({**contract, "events": [{"do": list(effects)}]})]
+
+
+def test_market_actions_check_their_own_keys():
+    assert any(m == "`market.buy` needs `qty`" for _, m, _ in _op_issues(book(), {"market": "acme", "action": "buy", "price": 50}))
+    assert any(m == "'trader' is not part of `market.cancel_all`" for _, m, _ in _op_issues(
+        book(), {"market": "acme", "action": "cancel_all", "trader": "a"}))
+    path, message, fix = _op_issues(book(), {"market": "acme", "action": "bid"})[0]
+    assert path.endswith(".action") and message == "'bid' is not an action of acme (market order_book)"
+    assert fix == "actions: buy, sell, cancel, cancel_all, algo, rebase"
+    _, _, fix = _op_issues(book(), {"market": "acmee", "action": "rebase"})[0]
+    assert fix == "did you mean 'acme'?"
+    _, _, fix = _op_issues(book(), {"book": "acme", "action": "rebase"})[0]
+    assert fix.startswith('`book` is now the `market` op: {"market": "<mechanism>", "action": <action>')
+    assert any(m == "a first_price auction takes no asks" for _, m, _ in _op_issues(
+        house("first_price"), {"market": "house", "action": "ask", "price": 10}))
+    assert any(m == "`items` belongs to a combinatorial auction, not a first_price auction" for _, m, _ in _op_issues(
+        house("first_price"), {"market": "house", "action": "bid", "price": 40, "items": ["x"]}))
+    assert any(m == "`market.bid` needs `price`" for _, m, _ in _op_issues(house("english"), {"market": "house", "action": "bid"}))
+    assert any("needs `qty` (shares), `amount` (money) or both" in m for _, m, _ in _op_issues(
+        market("lmsr"), {"market": "pm", "action": "buy", "outcome": "ada"}))
+    assert any(m == "`market.resolve` needs `outcome`" for _, m, _ in _op_issues(market("lmsr"), {"market": "pm", "action": "resolve"}))
+    assert any(m == "`market.promote` needs `rounds`" for _, m, _ in _op_issues(
+        farm(), {"market": "market", "action": "promote", "listing": "apples", "pct": 0.1}))
+    assert any(m == "'stars' is not part of `market.offer`" for _, m, _ in _op_issues(
+        farm(), {"market": "market", "action": "offer", "listing": "apples", "price": 2, "stars": 3}))
+
+
+def test_market_actions_act_for_who_they_name():
+    contract = {**book(), "events": [{"name": "quote", "phase": "start", "when": "$round == 1",
+                                      "do": [{"market": "acme", "action": "sell", "who": "a", "qty": 10, "price": 51}]}]}
+    env, _ = play(contract, {})
+    assert [(o["owner"], o["qty"], o["price"]) for o in env.props["acme_asks"]] == [("a", 10, 51)]
+    assert not order_book.audit(env.world, "acme")
+
+
+def test_tools_one_offers_a_book_as_a_single_tool():
+    env = fg_env.load(book(tools="one"), seed=1)
+    offered = {}
+
+    def trade(wake):
+        tools = {t.name: t for t in wake.tools}
+        offered[wake.entity_id] = tools
+        if wake.entity_id == "a":
+            assert wake.call("acme", {"action": "sell", "qty": 10, "price": 50}).ok
+        if wake.entity_id == "b":
+            assert wake.call("acme", {"action": "buy", "qty": 4}).ok
+        wake.end()
+
+    env.run(trade, rounds=1)
+    assert "acme_buy" not in offered["a"] and offered["a"]["acme"].input_schema["properties"]["action"]["enum"] == ["buy", "sell"]
+    assert props(env, "b")["acme_shares"] == 104 and [o["qty"] for o in env.props["acme_asks"]] == [6]
+
+
+def test_guide_documents_the_market_family():
+    page = fg_env.guide("market.auction")
+    assert page.startswith("### `market.auction`") and "`house`" in page and "- `bid`" in page and "- `tick`" not in page
+    family = fg_env.guide("market")
+    assert all(f"### `market.{mode}`" in family for mode in ("order_book", "auction", "prediction", "posted"))
+    assert "- `set_price`" in family and "- `open`" not in family
