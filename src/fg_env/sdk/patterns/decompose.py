@@ -57,16 +57,20 @@ def _fmt(value: Any, digits: int, sign: bool = False) -> str:
 
 
 def decompose(source: Union[ContractLike, Any], pattern: str, *, key: Any = None, rounds: Optional[Union[int, Sequence[int]]] = None,
-              inputs: Optional[Mapping[str, Any]] = None, seed: int = 0, data_dir: Any = None) -> Decomposition:
+              inputs: Optional[Mapping[str, Any]] = None, seed: int = 0, data_dir: Any = None,
+              estimates: bool = False) -> Decomposition:
     """Decompose a ``product`` or ``sum`` pattern into its factors (see the module).
 
     ``source`` is a contract (read over ``rounds``: a count from round 1, or a list of rounds; default every round of
-    the clock) or a run (read now). ``key`` is required when the pattern has keys."""
+    the clock) or a run (read now). ``key`` is required when the pattern has keys. ``estimates`` reads a contract's
+    fitted parameters at their estimates, without the draws their standard errors (``uncertainty``) would make."""
     from ..runtime import Env
 
     live = isinstance(source, Env)
     env: Any = source if live else load(source, inputs=dict(inputs or {}), seed=seed, data_dir=data_dir)
     runtime = env.world.patterns
+    if estimates and not live:
+        runtime.at_estimates()
     cfg = runtime.configs.get(pattern)
     where = f"decompose('{pattern}')"
     if cfg is None:

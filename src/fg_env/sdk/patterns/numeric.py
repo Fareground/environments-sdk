@@ -5,9 +5,9 @@
   SKU) by block elimination, so a design with hundreds of per-key levels solves as fast as one with a few shared terms.
 * :func:`count_regression` — a log-link regression for counts (Poisson, or negative binomial with a known
   dispersion) by iteratively reweighted least squares from a least-squares start, halving any step that makes the fit
-  worse; rows marked censored are observed only as a lower bound (sales capped by a stockout) and are fitted by
-  expectation–maximisation: each round replaces a censored count by its expected value given that it was at least what
-  was seen, then refits.
+  worse; rows marked censored are observed only as a lower bound (demand went unmet: sales capped by a stockout) and
+  are fitted by expectation–maximisation: each round replaces a censored count by its expected value given that it was
+  more than what was seen, then refits.
 * :func:`dispersion` — the negative-binomial dispersion k by the method of moments (variance = μ + μ²/k).
 * :func:`nelder_mead` — derivative-free minimisation for curves that are not linear in their parameters.
 """
@@ -291,7 +291,7 @@ def count_regression(x: Union[Design, Sequence[Sequence[float]]], y: Sequence[fl
     filled = [float(v) for v in y]
     done = 0
     for done in range(1, iterations + 1):
-        filled = [truncated_mean(m, k, v) if c else float(v) for m, v, c in zip(means, y, cens)]
+        filled = [truncated_mean(m, k, v + 1) if c else float(v) for m, v, c in zip(means, y, cens)]
         weights = [m / (1 + m / k) if k else m for m in means]
         working = [math.log(m) - o + (f - m) / m for o, f, m in zip(offs, filled, means)]
         proposal = _solve(design, weights, working, covariance=False)
@@ -339,9 +339,9 @@ def dispersion(values: Sequence[float], means: Sequence[float], censored: Option
                iterations: int = 30) -> Optional[float]:
     """The negative-binomial k matching Σ(y − μ)² = Σ(μ + μ²/k); None when the counts are not over-dispersed.
 
-    A censored row (only a lower bound was seen) counts with its expected squared distance from the mean given that
-    it was at least what was seen, so stockouts — which cut off exactly the high draws — do not make demand look
-    calmer than it is; k and those expectations are iterated to agree."""
+    A censored row (demand went unmet, so it was more than what was sold) counts with its expected squared distance
+    from the mean given that, so stockouts — which cut off exactly the high draws — do not make demand look calmer
+    than it is; k and those expectations are iterated to agree."""
     cens = list(censored) if censored is not None else [False] * len(values)
     squares = sum(m * m for m in means)
 
@@ -349,7 +349,7 @@ def dispersion(values: Sequence[float], means: Sequence[float], censored: Option
         excess = 0.0
         for v, m, c in zip(values, means, cens):
             if c:
-                first, second = truncated_moments(m, k, v)
+                first, second = truncated_moments(m, k, v + 1)
                 excess += second - 2 * m * first + m * m - m
             else:
                 excess += (v - m) ** 2 - m

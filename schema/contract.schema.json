@@ -6005,7 +6005,7 @@
             }
           ],
           "default": null,
-          "description": "Column that is 1 (or true) where the value is only a lower bound — sales capped by a stockout. Those rows are fitted as censored (expectation–maximisation), not dropped.",
+          "description": "Column that is 1 (or true) where demand went unmet — sales capped by a stockout, so the true value was more than the one recorded. Those rows are fitted as censored (expectation–maximisation), not dropped.",
           "title": "Censored"
         },
         "where": {

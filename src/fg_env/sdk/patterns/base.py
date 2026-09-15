@@ -72,9 +72,10 @@ class FitSpec(BaseModel):
                                                    "same rows, around the fitted means.")
     mean: Optional[str] = Field(None, description="Column holding the expected value of each row (counts: the spread "
                                                   "around it is what is estimated).")
-    censored: Optional[str] = Field(None, description="Column that is 1 (or true) where the value is only a lower bound — "
-                                                      "sales capped by a stockout. Those rows are fitted as censored "
-                                                      "(expectation–maximisation), not dropped.")
+    censored: Optional[str] = Field(None, description="Column that is 1 (or true) where demand went unmet — sales capped "
+                                                      "by a stockout, so the true value was more than the one recorded. "
+                                                      "Those rows are fitted as censored (expectation–maximisation), not "
+                                                      "dropped.")
     where: Optional[str] = Field(None, description="Keep only rows where this holds ($row), e.g. $row.returns == 0.")
     adjust: List[str] = Field(default_factory=list, description="Patterns already fitted that the value is divided by "
                                                                 "first (a season before a price response); for counts, "

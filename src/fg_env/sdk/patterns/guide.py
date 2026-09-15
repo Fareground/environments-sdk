@@ -119,8 +119,8 @@ MAPE and R², what was estimated and what was assumed. `fit` blocks stay in the 
   `adjust: ["trend"]` divides the value by already-fitted patterns first.
 * A `product` fits jointly — its base per key, its seasonal profiles and exponential trend, and every response named in
   `x` (a constant elasticity, an exponential promotion) — as one log-link count regression, so a promotion's lift is not
-  mistaken for price response. `censored: "stockout"` marks rows that only give a lower bound (sales capped by stock):
-  they are fitted as censored (expectation–maximisation), not dropped. `noise: "sales"` estimates that counts pattern's
+  mistaken for price response. `censored: "stockout"` marks rows where demand went unmet (sales capped by stock, so
+  demand was more than what sold): they are fitted as censored (expectation–maximisation), not dropped. `noise: "sales"` estimates that counts pattern's
   dispersion around the fitted means.
 * `fit` and `calibration` answer different questions. `fit` estimates parameters from recorded data, once, and
   writes them into the contract; the `calibration` section tunes inputs at every load so simulated outputs hit

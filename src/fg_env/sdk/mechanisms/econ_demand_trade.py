@@ -22,7 +22,7 @@ from .econ_assets import burn_money, mint_money
 from .econ_base import DEMAND, bump, cached, config_of, entity_of, props, whole
 from .econ_demand import SEGMENT_TOTALS, DemandConfig, FactorRef, SegmentSpec, segments_of
 
-__all__ = ["number_of", "binomial", "stream", "stock_in", "stock_out"]
+__all__ = ["number_of", "read_term", "plan", "binomial", "stream", "stock_in", "stock_out"]
 
 
 def number_of(runner: Any, value: Any, vars: Dict[str, Any], where: str, low: Optional[float] = None,
@@ -135,7 +135,7 @@ def plan(world: Any, name: str, config: DemandConfig) -> List[_Segment]:
     return cached(world, ("demand-plan", name), build)  # type: ignore[no-any-return]
 
 
-def _read(runner: Any, term: _Term, item: Entity, vars: Dict[str, Any], prices: Dict[str, float], where: str) -> float:
+def read_term(runner: Any, term: _Term, item: Entity, vars: Dict[str, Any], prices: Dict[str, float], where: str) -> float:
     if isinstance(term, float):
         return term
     if isinstance(term, str):
@@ -309,10 +309,10 @@ def _serve(runner: Any, name: str, config: DemandConfig, segment: _Segment, item
         if spec.price is not None:
             price = number_of(runner, spec.price, scope, f"{path}.price", low=0)
             scope["price"] = price
-        mean = _read(runner, segment.rate, item, scope, prices, f"{path}.rate")
+        mean = read_term(runner, segment.rate, item, scope, prices, f"{path}.rate")
         drivers: Dict[str, float] = {}
         for index, term in enumerate(segment.factors):
-            mean *= _read(runner, term, item, scope, prices, f"{path}.factors[{index}]")
+            mean *= read_term(runner, term, item, scope, prices, f"{path}.factors[{index}]")
             if isinstance(term, _Read) and term.driver is not None:
                 drivers[term.pattern] = number_of(runner, term.driver, scope, f"{path}.factors[{index}].driver")
         demand, variance = _draw(runner, name, segment, item, mean, f"{path}.noise")

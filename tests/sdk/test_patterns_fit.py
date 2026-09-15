@@ -289,6 +289,25 @@ def test_stockout_rows_fitted_as_censored_recover_demand_better_than_dropping_th
     assert censored < 0.12 and censored < dropped and censored < naive
 
 
+def test_a_stockout_that_sold_nothing_still_tells_a_slow_sellers_demand_was_at_least_one():
+    from fg_env.sdk.patterns.numeric import count_regression
+
+    rng = random.Random(5)
+    rows, ys, groups, censored = [], [], [], []
+    for _ in range(6000):
+        group = rng.randrange(4)
+        mean = (0.2, 0.4, 0.7, 1.0)[group]
+        demand = _negbin(rng, mean, 1.5)
+        stock = 0 if rng.random() < 0.25 else 50  # a quarter of days start with nothing on the shelf
+        rows.append([])
+        groups.append(group)
+        ys.append(min(demand, stock))
+        censored.append(demand > stock)
+    fit = count_regression(rows, ys, censored=censored, groups=groups, k=1.5)
+    for group, true in enumerate((0.2, 0.4, 0.7, 1.0)):  # read as "at least what sold", these came out 13–35% low
+        assert abs(fit.intercepts[group] - math.log(true)) < 3 * fit.intercept_se[group], group
+
+
 def test_fitted_parameters_are_written_back_as_inputs_with_errors_that_runs_draw_from():
     rng = random.Random(13)
     rows = [{"price": p, "units": 50 * (p / 20) ** -1.2 * math.exp(rng.gauss(0, 0.3))} for p in (rng.uniform(10, 30) for _ in range(60))]
