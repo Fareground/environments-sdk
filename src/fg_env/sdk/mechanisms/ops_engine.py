@@ -28,7 +28,7 @@ from typing import Any, Deque, Dict, List, Optional, Tuple
 __all__ = ["Duration", "Channel", "Pool", "Counts", "run_interval", "empty_state", "COUNT_FIELDS"]
 
 #: Per channel and arrival interval: what happened to the customers who arrived in it.
-COUNT_FIELDS = ("offered", "answered", "within", "abandoned", "waited", "callbacks", "callbacks_served",
+COUNT_FIELDS = ("offered", "answered", "within", "abandoned", "waited", "handle", "callbacks", "callbacks_served",
                 "callback_wait", "retrials")
 _NORMAL = NormalDist()
 #: Keeps a uniform draw inside (0, 1) for inverse distribution functions.
@@ -76,8 +76,8 @@ class Channel:
     patience: Optional[Duration]
     priority: float
     threshold: float
-    #: ``(offer when the expected wait exceeds, share who accept)``, or None without callbacks.
-    callback: Optional[Tuple[float, float]] = None
+    #: ``(offer when the expected wait exceeds, share who accept, servers kept free for live customers)``, or None.
+    callback: Optional[Tuple[float, float, float]] = None
     #: ``(chance an abandoned customer tries again, delay, most retries)``, or None.
     retry: Optional[Tuple[float, Duration, int]] = None
 
@@ -242,6 +242,7 @@ class _Interval:
             if self.pools[pool].staff - self.busy_count[pool] > 0:
                 cell["answered"] += 1
                 cell["within"] += 1
+                cell["handle"] += service
                 self._start(pool, service, seq)
                 return
         if spec.callback is not None and callback_u < spec.callback[1] and self._expected_wait(channel) > spec.callback[0]:
@@ -256,6 +257,11 @@ class _Interval:
         self.max_queue[channel] = max(self.max_queue[channel], self.waiting[channel])
         if deadline is not None:
             heapq.heappush(self.deadlines, (deadline, seq))
+
+    def _reserve(self, channel: str) -> float:
+        """Servers a pool keeps free for live customers before it serves one of ``channel``'s callbacks."""
+        callback = self.channels[channel].callback
+        return callback[2] if callback is not None else 0.0
 
     def _expected_wait(self, channel: str) -> float:
         """How long a new customer would wait: everyone in line ahead of them served at the channel's mean pace."""
@@ -288,17 +294,20 @@ class _Interval:
                 cell = self.counts.cell(origin, best[1])
                 cell["answered"] += 1
                 cell["waited"] += wait
+                cell["handle"] += customer[_SERVICE]
                 if wait <= threshold:
                     cell["within"] += 1
                 self._start(pool, customer[_SERVICE], int(customer[_SEQ]))
                 continue
-            oldest = min((line[0] for line in (self.callbacks[c] for c in spec.skills if c in self.callbacks) if line),
-                         key=lambda entry: (entry[0], entry[1]), default=None)
+            free = spec.staff - self.busy_count[pool]
+            oldest = min((line[0] for c in spec.skills for line in [self.callbacks.get(c)]
+                          if line and free > self._reserve(c)), key=lambda entry: (entry[0], entry[1]), default=None)
             if oldest is None:
                 return
             self.callbacks[oldest[2]].popleft()
             cell = self.counts.cell(int(oldest[4]), oldest[2])
             cell["callbacks_served"] += 1
+            cell["handle"] += oldest[3]
             cell["callback_wait"] += self.time - oldest[0]
             self._start(pool, oldest[3], int(oldest[1]))
 

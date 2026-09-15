@@ -27,6 +27,8 @@ def _rates(cell: Dict[str, Any]) -> None:
     cell["service_level"] = cell["within"] / joined if joined > 0 else None
     cell["abandon_rate"] = cell["abandoned"] / joined if joined > 0 else None
     cell["asa"] = cell["waited"] / cell["answered"] if cell["answered"] > 0 else None
+    handled = cell["answered"] + cell["callbacks_served"]
+    cell["aht"] = cell["handle"] / handled if handled > 0 else None
 
 
 def _zero_counts() -> Dict[str, Any]:

@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
+from ..analysis.accuracy import bias_verdict
 from ..analysis.highlights import highlights
 from ..clock_words import plural, unit_word
 from .evidence import Choice, Evidence, Option, summary
@@ -114,7 +116,9 @@ def drivers(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str],
         section.lines += _sweep_drivers(ev, namer, measures, owner)
     run = _representative(subject, choice, measures)
     if run is not None and (run.series or run.events):
-        moments = [_named(h.text, run.series, namer) for h in highlights(run, top=_OWNER_ITEMS) if h.score >= _NOTABLE_SCORE]
+        decided = {f"{view.name}_staff" for view in queues}  # the plan itself, not something that happened
+        moments = [_named(h.text, run.series, namer) for h in highlights(run, top=_OWNER_ITEMS)
+                   if h.score >= _NOTABLE_SCORE and h.subject not in decided]
         section.lines += [f"In a typical run, {text}." for text in moments[: _TYPICAL_MOMENTS if owner else None]]
     if not section.lines:
         section.lines.append("Nothing in these runs separates one outcome from another beyond chance.")
@@ -122,9 +126,18 @@ def drivers(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str],
 
 
 def _named(text: str, measures: Mapping[str, Any], namer: Namer) -> str:
-    """A moment's text with every measure called by its reader's name (longest names first, so none is cut)."""
+    """A moment's text with every measure called by its reader's name (longest names first, so none is cut), and a
+    share's changes in points and levels in percent (``service level fell 37 points``, not ``fell 0.3673``)."""
     for measure in sorted(measures, key=len, reverse=True):
-        text = text.replace(measure, namer.name(measure))
+        if measure not in text:
+            continue
+        name = namer.name(measure)
+        text = text.replace(measure, name)
+        if namer.is_share(measure):
+            text = re.sub(rf"({re.escape(name)} (?:rose|fell)) (\d+(?:\.\d+)?(?:e-?\d+)?) \([^)]*\)",
+                          lambda m: f"{m.group(1)} {float(m.group(2)) * 100:.0f} points", text)
+            text = re.sub(rf"({re.escape(name)} (?:peaked|bottomed out) at) (\d+(?:\.\d+)?)",
+                          lambda m: f"{m.group(1)} {float(m.group(2)):.0%}", text)
     return text
 
 
@@ -220,7 +233,7 @@ def risks(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str], q
     if ev.kind == "run":
         section.lines.append("One run shows one possible outcome; the range of outcomes is not known from it.")
     if ev.validation is not None:
-        section.lines += [f"The data check warns: {text}." for text in ev.validation.warnings]
+        section.lines += _data_risks(ev, namer, owner)
     failed = sum(option.failed for option in ev.options)
     if failed:
         section.lines.append(f"{failed} run(s) failed and are left out.")
@@ -229,6 +242,25 @@ def risks(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str], q
     if not section.lines:
         section.lines.append("No risk stands out in these runs.")
     return section
+
+
+def _data_risks(ev: Evidence, namer: Namer, owner: bool) -> List[str]:
+    """What the data check found that a plan should allow for: ranges too narrow, forecasts that run high or low. The
+    analyst reads the check's own warnings."""
+    assert ev.validation is not None
+    if not owner:
+        return [f"The data check warns: {text}." for text in ev.validation.warnings]
+    out = []
+    for measure, found in ev.validation.measures.items():
+        accuracy = found.get("held_out") or found["overall"]
+        for level, row in (accuracy.get("coverage") or {}).items():
+            if math.isclose(float(level), 0.8) and row["coverage_ci95"][1] < row["nominal"]:
+                out.append(f"Ranges for {namer.name(measure)} are too narrow: its 80% ranges held {row['coverage']:.0%} "
+                           "of actual values, so plan with a margin.")
+        if bias_verdict(accuracy) and accuracy.get("bias") is not None:
+            out.append(f"{namer.name(measure).capitalize()} forecasts run {abs(accuracy['bias']):.0%} "
+                       f"{'high' if accuracy['bias'] > 0 else 'low'}.")
+    return out
 
 
 def assumptions(ev: Evidence, queues: Sequence[QueueView]) -> Section:

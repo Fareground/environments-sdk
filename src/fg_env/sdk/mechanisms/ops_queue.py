@@ -48,6 +48,9 @@ class CallbackSpec(Config):
     when: Number = Field(0.0, description="Offer it when the expected wait is longer than this (the mode's unit): "
                                           "(customers waiting on the channel + 1) × mean service ÷ servers on the channel.")
     accept: Number = Field(1.0, description="Share of customers offered a callback who take it, from 0 to 1.")
+    reserve: Number = Field(0.0, description="Servers kept free for live customers: a callback is served only while "
+                                             "more than this many servers of the pool are free (0: whenever nobody "
+                                             "is waiting, which can take the server the next caller needed).")
 
 
 class RetrySpec(Config):
@@ -143,6 +146,7 @@ def _check(config: QueueConfig) -> None:
                 _check_duration(spec, f"{path}.{field}")
         for field, value in (("arrivals", channel.arrivals), ("callback.when", channel.callback and channel.callback.when),
                              ("callback.accept", channel.callback and channel.callback.accept),
+                             ("callback.reserve", channel.callback and channel.callback.reserve),
                              ("retry.chance", channel.retry and channel.retry.chance)):
             compiles(value, f"{path}.{field}")
     served = set()
@@ -214,6 +218,8 @@ def _expand_queue(name: str, config: QueueConfig, contract: Mapping[str, Any]) -
                                   "description": "Share of customers who joined the line answered within the threshold."},
         f"{name}_asa": {"expr": f"{totals}.asa", "type": "number", "format": "1",
                         "description": f"Average speed of answer ({config.unit}s)."},
+        f"{name}_aht": {"expr": f"{totals}.aht", "type": "number", "format": "1",
+                        "description": f"Average handle time of customers served ({config.unit}s)."},
         f"{name}_abandon_rate": {"expr": f"{totals}.abandon_rate", "type": "number", "format": "pct",
                                  "description": "Share of customers who joined the line and gave up."},
         f"{name}_utilisation": {"expr": f"{totals}.utilisation", "type": "number", "format": "pct",
@@ -226,6 +232,12 @@ def _expand_queue(name: str, config: QueueConfig, contract: Mapping[str, Any]) -
                                "description": "Server hours paid (staff on duty grossed up for shrinkage)."},
         f"{name}_intervals_below_target": {"expr": f"{totals}.intervals_below_target", "type": "int",
                                            "description": "Intervals where a channel's service level was below its target."},
+        f"{name}_worst_interval_service_level": {
+            "expr": f"$min($filter({intervals}, $it.service_level != null), $it.service_level) "
+                    f"if $count({intervals}, $it.service_level != null) > 0 else null",
+            "type": "number", "format": "pct",
+            "description": "The lowest service level of any interval with customers (a per-interval guarantee to "
+                           "constrain: >= 0.8 in 90% of runs)."},
         f"{name}_offered_by_interval": {"expr": f"$map({intervals}, $it.offered)", "type": "list"},
         f"{name}_staff_by_interval": {"expr": f"$map({intervals}, $it.staff)", "type": "list"},
         f"{name}_service_level_by_interval": {"expr": f"$map({intervals}, $it.service_level)", "type": "list"},
@@ -292,7 +304,8 @@ def resolve(world: Any, name: str, config: QueueConfig, index: int) -> Dict[str,
         callback = retry = None
         if spec.callback is not None:
             callback = [_number(world, spec.callback.when, f"{path}.callback.when", index, 0.0),
-                        _number(world, spec.callback.accept, f"{path}.callback.accept", index, 0.0, 1.0)]
+                        _number(world, spec.callback.accept, f"{path}.callback.accept", index, 0.0, 1.0),
+                        _number(world, spec.callback.reserve, f"{path}.callback.reserve", index, 0.0)]
         if spec.retry is not None:
             retry = [_number(world, spec.retry.chance, f"{path}.retry.chance", index, 0.0, 1.0),
                      _duration(world, spec.retry.delay, f"{path}.retry.delay", index), spec.retry.max]

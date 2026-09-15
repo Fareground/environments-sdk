@@ -64,7 +64,8 @@ def test_the_report_names_the_pattern_and_the_shock_behind_the_outcome(experimen
     assert any(line.startswith("An outage at 09:00: service level −") for line in causes)
     assert any(line.startswith("With an outage at 09:00: service level") for line in _section(written, "Risks").lines)
     assumed = _section(written, "What the model assumes").lines
-    assert any("give up after 180 seconds" in line for line in assumed) and any("ASSUMED" in line for line in assumed)
+    assert any("give up after waiting 180 seconds on average" in line for line in assumed)
+    assert any("ASSUMED" in line for line in assumed)
 
 
 def test_an_explicit_rule_and_the_analyst_audience_add_the_method(experiment):

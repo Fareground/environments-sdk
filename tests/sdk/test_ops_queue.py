@@ -131,6 +131,18 @@ def test_callbacks_are_taken_when_the_wait_is_long_and_served_once_nobody_is_wai
     assert run(without, seed=4).outputs["q_abandoned"] > result.outputs["q_abandoned"]
 
 
+def test_a_callback_reserve_keeps_servers_for_live_callers_so_callbacks_stop_taking_their_service():
+    def centre_with(reserve):
+        channels = {"calls": {"arrivals": 115, "service": {"mean": 180}, "patience": {"mean": 120},
+                              "callback": {"when": 30, "accept": 0.7, "reserve": reserve}}}
+        return centre(rounds=12, channels=channels, servers={"agents": {"staff": 12}})
+
+    eager, reserved = run(centre_with(0), seed=6).outputs, run(centre_with(3), seed=6).outputs
+    assert eager["q_callbacks"] > 0 and reserved["q_callbacks"] > 0
+    assert reserved["q_service_level"] > eager["q_service_level"]
+    assert reserved["q_callbacks_unserved"] >= eager["q_callbacks_unserved"]
+
+
 def test_customers_who_gave_up_come_back_as_retries():
     channels = {"calls": {"arrivals": 100, "service": {"mean": 180}, "patience": {"mean": 30},
                           "retry": {"chance": 1, "delay": {"mean": 300}, "max": 2}}}

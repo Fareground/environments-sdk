@@ -10,7 +10,8 @@ from ..template import apply_format
 __all__ = ["Namer", "QUEUE_MEASURES", "number"]
 
 #: What a service queue's generated outputs are called (the part after the queue's name).
-QUEUE_MEASURES = {"service_level": "service level", "asa": "average wait to answer", "abandon_rate": "abandonment",
+QUEUE_MEASURES = {"service_level": "service level", "asa": "average wait to answer", "aht": "average handle time",
+                  "abandon_rate": "abandonment",
                   "utilisation": "utilisation", "offered": "customers", "abandoned": "customers who gave up",
                   "cost": "staffing cost", "paid_hours": "paid hours", "intervals_below_target": "intervals below target",
                   "callbacks": "callbacks taken", "callbacks_unserved": "callbacks not served", "retrials": "retries",
