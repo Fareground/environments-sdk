@@ -552,7 +552,9 @@ def _auction(call: Call) -> str:
 
 
 @function("auction(name)", "An auction's state: {format, open, lot, price, leader, min_bid, reserve, bids, sold, revenue, stock, "
-          "items} (items: what a combinatorial lot still has for sale).", min_args=1, max_args=1)
+          "items, last}. price, leader and bids describe the open lot; items what a combinatorial lot still has for sale; "
+          "last the latest closed lot's result {lot, winner, winners, price, qty, note} (winner: the first winner's id, '' "
+          "when unsold), kept until another lot closes, null before any has.", min_args=1, max_args=1)
 def _auction_function(call: Call) -> Dict[str, Any]:
     name = _auction(call)
     world: Any = call.scope.world
@@ -562,7 +564,19 @@ def _auction_function(call: Call) -> Dict[str, Any]:
             "leader": lot.get("leader"), "min_bid": min_bid(world, name), "reserve": _reserve(world, name, cfg),
             "bids": len(lot.get("bids", [])) if lot.get("open") else 0, "sold": world.props.get(f"{name}_sold") or 0,
             "revenue": world.props.get(f"{name}_revenue") or 0, "stock": world.props.get(f"{name}_stock") or 0,
-            "items": list(world.props.get(f"{name}_items") or [])}
+            "items": list(world.props.get(f"{name}_items") or []), "last": last_result(world, name)}
+
+
+def last_result(world: Any, name: str) -> Optional[Dict[str, Any]]:
+    """The latest closed lot's result, read from its results record (one entry per winner), or None."""
+    entries = world.records_store.get(f"{name}_results") or []
+    if not entries:
+        return None
+    number = entries[-1]["lot"]
+    rows = [entry for entry in entries if entry["lot"] == number]
+    winners = [row["winner"] for row in rows if row["winner"]]
+    return {"lot": number, "winner": winners[0] if winners else "", "winners": winners, "price": rows[0]["price"],
+            "qty": sum(int(row["qty"] or 0) for row in rows), "note": rows[0]["note"]}
 
 
 @function("auction_text(name, viewer?)", "The open lot as one plain sentence (what is sold, prices, your bids).", min_args=1, max_args=2)
@@ -680,8 +694,8 @@ def _check_packages(cfg: AuctionConfig) -> None:
            "clock), double (call market at one price) or uniform (multi-unit, one price). Tools `<name>_bid` (price, qty) "
            "and, for double, `<name>_ask`. Bids escrow cash, asks escrow units; proceeds go to the `house` entity or "
            "$world.<name>_revenue. Each closed lot is posted to the `<name>_results` record (winner, price, qty, lot, note): read the "
-           "last sale as $last($records(<name>_results)).winner; $auction(name) is the open lot, reset once it closes, "
-           "and $auction_text(name, viewer) describes it.",
+           "last sale as $auction(<name>).last.winner and .price: null before the first lot closes, kept until another "
+           "closes. The other fields of $auction(name) describe the open lot; $auction_text(name, viewer) describes it.",
            example={"format": "second_price", "who": "collector", "item": "a painting", "stock": 3, "reserve": 50},
            was="auction")
 def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:

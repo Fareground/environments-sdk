@@ -62,7 +62,9 @@ names from ids; a tool is offered only while it can be used (at 0 coins `bet` ha
 ## How a round runs
 
 Start events → each stage in order → end events → metrics → `end` conditions. A run ends when an `end` condition
-holds, an `end` effect runs, or the rounds are used up.
+holds, an `end` effect runs, or the rounds are used up. `end` conditions are checked after each stage; with
+`"check": "action"` also the moment any action commits, so a winning move ends the run before anyone else moves:
+`{"when": "$world.found", "winner": "$world.finder", "check": "action"}`.
 * A stage wakes agents (`who`, in `order`). `turns: sequential` — one at a time, actions apply at once and the tool
   result is the outcome. `turns: simultaneous` — everyone chooses from the same picture, then choices commit together
   (sealed bids, votes); outcomes arrive as news.
@@ -90,8 +92,8 @@ Every section is optional except `name` and `types`. Read any one with `guide('<
 | `stages` | `[{name, actions, turns, who, order, max_actions, until, on_enter, on_exit}]` |
 | `views` | `{v: {for, title, of, where, sort, desc, limit, show}}` — `of` omitted: one line about `$actor` |
 | `events` | `[{phase: start or end, at, every, when, chance, each, do, say}]` |
-| `end` | `[{when, winner, say}]` |
-| `metrics`, `outputs` | `{name: expr}` or `{name: {expr, type}}` |
+| `end` | `[{when, winner, say, check: stage or action}]` |
+| `metrics`, `outputs` | `{name: expr}` or `{name: {expr, type}}`; an output's `format` (money, pct, 2 …) shapes how summaries show it |
 | `invariants` | `[expr]` |
 | `mechanisms` | `{name: {kind, mode, ...config}}` — see the families below |
 | `game` | `{players, returns}` — seats and scores for tournaments and game search |

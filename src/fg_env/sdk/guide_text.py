@@ -51,7 +51,9 @@ turn, uses `max_actions`, or runs out of `max_calls`.
   the end of every round (a conservation sum over a big crowd then costs one pass a round, not one per
   change); `"check": "end"` once, when the run finishes.
 * `end` conditions are checked after the start events, after each stage, and at the end of the round.
-  To end at once in the middle of a stage (a winning move), use the `end` effect inside the action.
+  `"check": "action"` also checks one the moment anything commits — an action, a sealed choice, an event or
+  hook's effects — so a winning move ends the run before the next agent moves (in any kind of stage; sealed
+  choices commit in turn order, so later ones are not applied). The `end` effect inside an action does the same.
 
 What an agent reads:
 * brief (static, cacheable): name, situation, rules, its identity and role text.
