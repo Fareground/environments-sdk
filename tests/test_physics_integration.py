@@ -5,7 +5,7 @@ in both discrete and continuous modes, via the public load_world path.
 """
 import pytest
 
-from fg_env import (
+from fg_env.legacy import (
     ContinuousTemporalModel,
     TimeMode,
     build_world_state,

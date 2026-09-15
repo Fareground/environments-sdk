@@ -16,14 +16,14 @@ SDK itself, so the docs always match the installed engine:
 
 ## Template API (legacy)
 
-Every other file in this directory documents the older **template API** (`Kernel`, `simulate`,
-`load_world`, `fg-env compile`). It remains supported for existing templates; new environments
+Every other file in this directory documents the older **template API** (`fg_env.legacy`: `Kernel`, `simulate`,
+`load_world`; commands under `fg-env legacy`, like `fg-env legacy compile`). It remains supported for existing templates; new environments
 should be written as contracts.
 
 | Document | Covers |
 | --- | --- |
 | [`template_schema.md`](template_schema.md) | Template JSON reference |
-| [`kernel_contract.json`](kernel_contract.json) | Template JSON Schema and live capabilities (`fg-env contract`) |
+| [`kernel_contract.json`](kernel_contract.json) | Template JSON Schema and live capabilities (`fg-env legacy contract`) |
 | [`effect-values.md`](effect-values.md) | Typed effect values |
 | [`conditional-effects.md`](conditional-effects.md) | Conditional effects |
 | [`property-transfers.md`](property-transfers.md) | Property transfers |

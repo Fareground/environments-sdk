@@ -25,7 +25,7 @@ from .expr import ExprError, compile_expr, is_expr
 from .inputs import resolve_inputs
 from .links import _fields as link_fields
 from .seeds import SeedTree
-from .snapshot import KEEP_ARM, decode, encode, matching_contract, restore_state, take_snapshot
+from .snapshot import KEEP_ARM, decode, encode, matching_contract, recording_start, restore_state, take_snapshot
 from .world import SdkWorld, _copy
 
 if TYPE_CHECKING:
@@ -121,6 +121,8 @@ def _fork(cls: Any, contract: ContractLike, snapshot: Mapping[str, Any], *, arm:
     env._check_invariants("fork")
     env._emitted = len(world.log)
     env.origin.base = take_snapshot(env)
+    # The fork's changes are not in its build, so a recording of it replays from here.
+    env.origin.start = recording_start(env.origin.base) if world.exposures is not None else None
     return env
 
 

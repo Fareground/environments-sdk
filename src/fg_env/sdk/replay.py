@@ -26,10 +26,13 @@ Entry = Tuple[Any, ...]
 class Origin:
     """Where copies of a run start from: its base (a snapshot; None for its build) and the tape since."""
 
-    __slots__ = ("base", "tape", "checkpoint_due", "staged", "unarmed")
+    __slots__ = ("base", "start", "tape", "checkpoint_due", "staged", "unarmed")
 
     def __init__(self, contract: Any):
         self.base: Optional[Dict[str, Any]] = None
+        #: Where the run's recording replays from when its build cannot rebuild it: the snapshot a fork continued
+        #: from, exposures given as counts (see :func:`~fg_env.sdk.snapshot.recording_start`); None otherwise.
+        self.start: Optional[Dict[str, Any]] = None
         self.tape = Tape()
         #: Take a fresh base at the next round start (the run was copied part-way through a round).
         self.checkpoint_due = False

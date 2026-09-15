@@ -4,7 +4,7 @@ import copy
 import pytest
 from pydantic import ValidationError
 
-from fg_env import compile_template, export_kernel_contract
+from fg_env.legacy import compile_template, export_kernel_contract
 from fg_env.pipeline.loader import load_world
 from fg_env.triggers import TriggerEngine
 
@@ -113,7 +113,7 @@ def test_failed_trigger_aborts_smoke_instead_of_reporting_a_healthy_world(monkey
 
 
 def test_registered_trigger_effect_is_not_rejected():
-    from fg_env import registry
+    from fg_env.legacy import registry
     name = '__test_trigger_custom'
     registry.effects.register(name, lambda ctx, spec: None)
     try:

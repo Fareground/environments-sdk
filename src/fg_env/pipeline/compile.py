@@ -26,7 +26,7 @@ After: one call returns a structured report. The agent can read
 
 ## Usage
 
-    from fg_env import compile_template
+    from fg_env.legacy import compile_template
 
     result = compile_template(raw_json)
     if not result.ok:

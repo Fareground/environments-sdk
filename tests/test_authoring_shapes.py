@@ -1,7 +1,7 @@
 import copy
 from dataclasses import fields
 
-from fg_env import compile_template, export_kernel_contract
+from fg_env.legacy import compile_template, export_kernel_contract
 from fg_env.derived_rules import DerivedRule
 from fg_env.temporal import Phase
 

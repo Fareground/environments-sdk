@@ -11,7 +11,7 @@ is the foundation for reproducible debugging.
 
 ## Usage
 
-    from fg_env import compile_template, replay
+    from fg_env.legacy import compile_template, replay
 
     raw = json.load(open("mygame.json"))
     trace = replay(raw, seed=42, rounds=20, decisions="random")

@@ -85,6 +85,8 @@ class Turn:
         self.closed = False
         #: Calls in progress; the engine waits for them to return before moving on from a closed turn.
         self.busy = 0
+        #: Its statistics are in the run's totals (the engine is done with it); usage reported later goes there.
+        self.tallied = False
         #: Atomic turns: the journal position the turn's changes are undone to, until it settles.
         self.atomic = (stage.atomic or bool(stage.valid)) and not staged and not peek
         self._mark: Optional[int] = env.world.journal.mark() if self.atomic else None

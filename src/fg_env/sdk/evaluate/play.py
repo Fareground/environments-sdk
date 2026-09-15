@@ -19,7 +19,7 @@ def evaluate(suite: Any, *, focal: Any, background: Any = None, baseline: Any = 
              score: ScoreSpec = None, modes: Optional[Mapping[str, float]] = None,
              inputs: Optional[Mapping[str, Any]] = None, arm: Optional[str] = None, runs: int = 10,
              rounds: Optional[int] = None, budget: Optional[Mapping[str, Any]] = None, seed: int = 0,
-             workers: int = 1) -> EvaluationResult:
+             workers: int = 1, exposures: bool = False) -> EvaluationResult:
     """How ``focal`` does among ``background`` agents, compared with ``baseline`` in the same seats on the same seeds.
 
     ``suite`` is a contract, a list of scenarios, or a suite file (see :mod:`fg_env.sdk.evaluate.suite`); the other
@@ -34,8 +34,10 @@ def evaluate(suite: Any, *, focal: Any, background: Any = None, baseline: Any = 
 
     Run *i* of every scenario uses the seeds of :func:`fg_env.experiment`. A focal run's score is the mean over its
     focal seats (per focal agent), and its difference is that minus the baseline run's score over the same seats.
-    ``budget`` caps each run. Callable participants are shared by all their runs; with ``workers > 1`` runs go to
-    threads, or to processes when every participant is given by name.
+    ``budget`` caps each run on its own; ``exposures=True`` records what agents saw in every run. ``results`` keeps
+    every run: pair *i* is ``results[2i]`` (focal) and ``results[2i + 1]`` (baseline). Callable participants are
+    shared by all their runs; with ``workers > 1`` runs go to threads, or to processes when every participant is
+    given by name.
     """
     check_positive_int("runs", runs)
     check_positive_int("workers", workers)
@@ -52,17 +54,19 @@ def evaluate(suite: Any, *, focal: Any, background: Any = None, baseline: Any = 
     named = {str(i): p for i, p in enumerate([focal] + [p for c in cases for p in (c.background, c.baseline)])
              if p is not None}
     pairs: List[Dict[str, Any]] = []
+    played: List[RunResult] = []
     with worker_pool(workers, named) as pool:
         for case in cases:
             jobs = _jobs(case, focal, seeds, seed)
             results = run_jobs(case.contract, jobs, rounds=rounds, workers=workers, events=False, pool=pool,
-                               data_dir=case.data_dir, budget=budget)
+                               data_dir=case.data_dir, budget=budget, exposures=exposures)
+            played.extend(results)
             for start in range(0, len(jobs), 2):
                 pairs.append(_pair(case, jobs[start], results[start], results[start + 1]))
     scored = [pair for pair in pairs if pair["difference"] is not None]
     if not scored:
         raise AnalysisError(f"no run pair could be scored; first problem: {pairs[0]['note']}")
-    return summarize(cases, pairs, focal=_label(focal), runs=runs, seed=seed)
+    return summarize(cases, pairs, focal=_label(focal), runs=runs, seed=seed, results=played)
 
 
 def _jobs(case: Scenario, focal: Any, seeds: Sequence[int], seed: int) -> List[Job]:

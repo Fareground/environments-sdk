@@ -19,7 +19,7 @@ from .copying import Copying
 from .driving import Driver, run_on_worker
 from .effects import EffectRunner
 from .errors import InvariantViolation, RunError
-from .exposure import ExposureLog, asks_seen
+from .exposure import ExposureLog, asks_seen, recording
 from .expr import ExprError, compile_expr, shared_budget, truthy
 from .feeds import run_feeds
 from .happenings import Happenings
@@ -226,7 +226,7 @@ class Env(Copying):
             error=self.error, output_issues=issues, stats=self.stats.to_dict(),
             agent_stats={key: self.agent_stats[key].to_dict() for key in sorted(self.agent_stats)},
             events=[e.to_dict() for e in self.world.log], time=self.world.time if self.world.continuous else None,
-            exposures=self.world.exposures.to_dict() if self.world.exposures is not None else {},
+            exposures=recording(self),
             frames=[dict(frame) for frame in self.previews.frames], returns=returns,
             host_tape=tape_of(self) if self.world.exposures is not None else {}, budget=Budget.report(self),
         )

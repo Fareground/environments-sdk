@@ -184,7 +184,8 @@ JSON between rounds and resume identically.
 ## Template API
 
 The earlier template-based engine API (`Kernel`, `simulate`, `load_world`, the registry decorators)
-remains available for existing templates; see [`docs/template_schema.md`](https://github.com/Fareground/env-kernel/blob/main/docs/template_schema.md).
+remains available for existing templates as `fg_env.legacy` (`from fg_env.legacy import simulate`), with its
+commands under `fg-env legacy`; see [`docs/template_schema.md`](https://github.com/Fareground/env-kernel/blob/main/docs/template_schema.md).
 New environments should use contracts.
 
 ## Contributing

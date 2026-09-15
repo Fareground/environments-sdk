@@ -8,24 +8,31 @@ compares what the agent was shown and got with the recording — the same agent 
 brief and update, was offered the same tools, got the same result from every call and ran out of time the same
 way — so after a change to the engine or the contract the first difference is reported precisely.
 
-A replay needs a run recorded from its start; the recording's turn time limits apply, without a wall clock. After
-a divergence the run fails with :class:`ReplayDivergence`, or — given a ``fallback`` participant — carries on with
-it for that turn and every later one. The replaying run must record exposures (the checks read them).
+A replay plays the run from where its recording starts — its build, or for a fork the snapshot it continued from
+(``exposures["start"]``) — with the recording's turn time limits, without a wall clock. Outcomes a chance chooser
+picked are played back from ``exposures["chance"]``, so no chooser is needed (a different chance node is a
+divergence), and usage reported after a turn was over is added as that turn ends — possibly before the safe point
+where the recording counted it (it arrived on the wall clock), so a token budget it ran out may end the replay
+earlier, as a `seconds` budget runs on this machine's clock. After a divergence the run fails
+with :class:`ReplayDivergence`, or — given a ``fallback`` participant — carries on with it for that turn and every
+later one. The replaying run must record exposures (the checks read them).
 """
 from __future__ import annotations
 
 import json
 import threading
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Optional, Tuple
 
-from ..errors import RunError
+from ..chance import ChanceNode, sample
+from ..errors import RunError, SnapshotError
 from ..measure import RunResult
 from ..participants import Participant, resolve_participant
 from ..replay import apply_step
 from ..session import Wake
 
 if TYPE_CHECKING:
+    from ..runtime import Env
     from ..turn import Turn
     from .reader import Trace
 
@@ -64,7 +71,12 @@ class Replayer:
         self.fallback = fallback
         self.divergence: Optional[Dict[str, Any]] = None
         self._recorded = {wake["turn"]: wake for wake in self.trace.wakes}
-        self._played: set = set()
+        exposures = self.trace.result.exposures
+        held = (exposures.get("start") or {}).get("exposures") or {}
+        #: Turns and chance picks the recording's start already holds (a fork's history) are never played again.
+        self._played: set = {wake["turn"] for wake in self.trace.wakes[:held.get("wakes", 0)]}
+        self._picks: List[Dict[str, Any]] = list(exposures.get("chance") or [])[held.get("chance", 0):]
+        self._picked = 0
         self._live: Optional[Participant] = None
         self._lock = threading.Lock()
 
@@ -99,6 +111,44 @@ class Replayer:
                 "message": f"{_label(left[0])}: the replay never reached this turn "
                            f"({len(left)} recorded turn(s) were not played)"}
 
+    @property
+    def picks(self) -> bool:
+        """Whether the recording holds chance outcomes a chooser picked, still to be played."""
+        return bool(self._picks)
+
+    def chooser(self, world: Any) -> Callable[[ChanceNode], int]:
+        """The replaying run's chance chooser: each outcome the recording's chooser picked, in order, checked against
+        the chance node reached now. Once the recording has no pick left, or after a divergence, outcomes are sampled
+        from the run's stream, as the recording sampled them."""
+        def choose(node: ChanceNode) -> int:
+            with self._lock:
+                recorded = self._picks.pop(0) if self._picks and self.divergence is None else None
+                if recorded is not None:
+                    self._picked += 1
+                number = self._picked
+            if recorded is None:
+                return sample(world, node)
+            found = _pick_differs(recorded, node, number)
+            if found is None:
+                return int(recorded["index"])
+            with self._lock:
+                if self.divergence is None:
+                    self.divergence = found
+            if self.fallback is None:
+                raise ReplayDivergence(found)
+            return sample(world, node)
+
+        return choose
+
+    def unpicked(self) -> Optional[Dict[str, Any]]:
+        """The first recorded chance pick the replay never reached, as a divergence (None when every one was played)."""
+        if not self._picks:
+            return None
+        first = self._picks[0]
+        return {"what": "chance", "round": first["round"], "expected": dict(first),
+                "message": f"{_pick_label(first, self._picked + 1)}: the replay never reached it "
+                           f"({len(self._picks)} recorded pick(s) were not played)"}
+
     # -- checking a turn -------------------------------------------------------------------
 
     def _check_wake(self, turn: "Turn", recorded: Optional[Mapping[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -131,6 +181,9 @@ class Replayer:
                 found = None
             if found is not None:
                 return found
+        late = recorded.get("late_usage")
+        if late:  # reported after the turn was over in the recording: counted, never acted on
+            wake.record_usage(**late)
         return self._ending_differs(turn, recorded, made)
 
     def _read_differs(self, turn: "Turn", recorded: Mapping[str, Any], kind: str) -> Optional[Dict[str, Any]]:
@@ -250,10 +303,12 @@ class ReplayResult:
 def replay_run(recording: "Trace", contract: Any, *, fallback: Any = None, hosts: Optional[Mapping[str, Any]] = None,
                data_dir: Any = None) -> ReplayResult:
     """Play ``contract`` again from ``recording``: its seed, inputs, arm, budget and turn time limits, the recorded
-    steps (:class:`Replayer`) and the recorded host answers. ``hosts`` (host name → adapter) answers host calls the
-    recording does not have — useful with a ``fallback``. The first divergence is reported: a turn, a text, the tools
-    or a call; else the first differing event; else a recorded turn never reached; else the ending."""
+    steps (:class:`Replayer`), chance picks and host answers. ``hosts`` (host name → adapter) answers host calls the
+    recording does not have — useful with a ``fallback``. A forked run is played from the snapshot it continued from,
+    restored into ``contract``. The first divergence is reported: a turn, a text, the tools, a call or a chance pick;
+    else the first differing event; else a recorded turn or pick never reached; else the ending."""
     from ..api import load
+    from ..branch import use_chance
     from ..host.hosts import Hosts
 
     recorded = recording.result
@@ -262,15 +317,48 @@ def replay_run(recording: "Trace", contract: Any, *, fallback: Any = None, hosts
     tape = recorded.host_tape
     bound = Hosts(hosts, replay=tape) if hosts else Hosts.replaying(tape) if tape else None
     player = Replayer(recording, fallback)
-    env = load(contract, inputs=recorded.inputs, seed=recorded.seed, arm=recorded.arm, hosts=bound, exposures=True,
-               data_dir=data_dir)
+    start = recorded.exposures.get("start")
+    if start is None:
+        env = load(contract, inputs=recorded.inputs, seed=recorded.seed, arm=recorded.arm, hosts=bound, exposures=True,
+                   data_dir=data_dir)
+    else:
+        env = _from_start(recording, contract, start, bound)
     env.driver.timed = False  # timeouts come from the recorded steps, never from this machine's clock
+    if player.picks:
+        use_chance(env, player.chooser(env.world))
     budget = {**recorded.budget["limits"], "on_exhaust": recorded.budget["on_exhaust"]} if recorded.budget else None
-    rounds = None if recorded.status in _FINISHED else recorded.rounds
+    rounds = None if recorded.status in _FINISHED else recorded.rounds - env.world.round
     result = env.run(player, rounds=rounds, budget=budget, time_limit=_run_time_limit(recording, env.contract))
     divergence = player.divergence or _failure(recorded, result) or _events(recorded, result) or player.unplayed() \
-        or _ending(recorded, result)
+        or player.unpicked() or _ending(recorded, result)
     return ReplayResult(result, divergence)
+
+
+def _from_start(recording: "Trace", contract: Any, start: Mapping[str, Any], hosts: Any) -> "Env":
+    """A forked run's start restored into ``contract``: the snapshot it continued from, its exposure log rebuilt from
+    the recording's first entries."""
+    from ..api import apply_arm, parse
+    from ..host.hosts import bind
+    from ..runtime import Env
+    from ..snapshot import restore_state
+
+    counts = start.get("exposures") or {"wakes": 0, "chance": 0}
+    held = {"texts": dict(recording.texts), "wakes": recording.wakes[:counts["wakes"]],
+            "chance": list(recording.result.exposures.get("chance") or [])[:counts["chance"]]}
+    snapshot = {**start, "exposures": held}
+    unarmed = parse(contract)
+    arm = start.get("arm")
+    armed = apply_arm(unarmed, arm) if arm is not None and arm in unarmed.arms else unarmed
+    try:
+        env = restore_state(Env, armed, snapshot)
+    except SnapshotError as exc:
+        raise SnapshotError(f"this recording continues a fork made after round {start.get('round')}, and the state it "
+                            f"continued from does not fit this contract ({exc}); replay it against the contract the "
+                            "fork ran under") from None
+    env.origin.base, env.origin.unarmed = dict(snapshot), unarmed
+    if hosts is not None:
+        bind(env, hosts)
+    return env
 
 
 def _run_time_limit(recording: "Trace", contract: Any) -> Optional[float]:
@@ -313,6 +401,25 @@ def _ending(recorded: RunResult, result: RunResult) -> Optional[Dict[str, Any]]:
             return {"what": "ending", "field": key, "expected": old, "got": new,
                     "message": f"{key} differs from the recording: was {_quote(old)}, now {_quote(new)}"}
     return None
+
+
+def _pick_label(pick: Mapping[str, Any], number: int) -> str:
+    return f"chance pick {number} ({pick['chance']} at {pick['site']}, round {pick['round']})"
+
+
+def _pick_differs(recorded: Mapping[str, Any], node: ChanceNode, number: int) -> Optional[Dict[str, Any]]:
+    """How chance pick ``number`` of the recording does not fit the chance node the replay reached, or None."""
+    index = recorded["index"]
+    if [recorded["chance"], recorded["site"]] != [node.name, node.site]:
+        what = f"the replay reached the chance node {node.name} at {node.site} instead"
+    elif not any(outcome.index == index for outcome in node.possible) or node.outcomes[index].label != recorded["label"]:
+        possible = ", ".join(f"{outcome.index} ({outcome.label})" for outcome in node.possible)
+        what = f"the recording chose {index} ({recorded['label']}), which is not an outcome now (possible: {possible})"
+    else:
+        return None
+    return {"what": "chance", "round": recorded["round"], "expected": dict(recorded),
+            "got": {"chance": node.name, "site": node.site, "outcomes": [o.label for o in node.outcomes]},
+            "message": f"{_pick_label(recorded, number)}: {what}"}
 
 
 def _effective(calls: List[Mapping[str, Any]]) -> List[Mapping[str, Any]]:
