@@ -76,9 +76,10 @@ def _accuracy_text(acc: Mapping[str, Any]) -> str:
 
 
 def _worse(row: Mapping[str, Any]) -> bool:
-    """The simulator's error is above the baseline's on the same values (an exact baseline beats any error)."""
+    """The simulator's error is above the baseline's on the same values, by enough to show in the report (an exact
+    baseline beats any visible error; a tie at the shown precision is not called worse)."""
     model, reference = row["model"]["wape"], row["reference"]["wape"]
-    return model is not None and reference is not None and model > reference
+    return model is not None and reference is not None and round(model, 3) > round(reference, 3)
 
 
 def _baseline_verdict(row: Mapping[str, Any]) -> str:
