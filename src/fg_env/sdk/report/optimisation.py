@@ -14,6 +14,13 @@ from .words import Namer
 __all__ = ["recommendation", "plan_table", "risks", "drivers", "summary"]
 
 _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+_BORDERLINE = ("The recommendation is borderline: no requirement clearly fails, but not every one holds with the "
+               "confidence asked for; more runs, or a plan with a little more room, would settle it.")
+#: A constraint's verdict, and the chosen decision's on fresh seeds, in words.
+_MET = {"feasible": "met with {confidence:.0%} confidence",
+         "borderline": "only just: not settled with {confidence:.0%} confidence", "infeasible": "not met"}
+_FRESH = {"feasible": "every requirement held with confidence", "borderline": "no requirement clearly failed",
+          "infeasible": "a requirement clearly failed"}
 _GOAL = re.compile(r"^\s*(maximi[sz]e|max|minimi[sz]e|min)\s+(?:(mean|median|p\d{1,2})\s+of\s+)?(.+?)\s*$", re.IGNORECASE)
 
 
@@ -44,7 +51,8 @@ def recommendation(opt: OptimisationResult, namer: Namer, views: Sequence[QueueV
     if opt.best is None or opt.estimates is None:
         return [f"The optimiser traced a trade-off between {' and '.join(_named(o, namer, measures) for o in opt.objectives)} "
                 f"({len(opt.frontier)} decisions where neither can improve without the other getting worse), not one choice."]
-    lines = [] if opt.feasible else ["No decision tried meets every constraint; the closest is below."]
+    lines = {"feasible": [], "borderline": [_BORDERLINE]}.get(
+        opt.verdict, ["No decision tried meets every constraint; the closest is below."])
     found = _plan(opt, views)
     lines.append(found[0].plan_text(found[1]) if found else
                  "Set " + ", ".join(f"{name.replace('_', ' ')} to {value}" for name, value in opt.best.items()) + ".")
@@ -56,22 +64,29 @@ def recommendation(opt: OptimisationResult, namer: Namer, views: Sequence[QueueV
         interval = f" (95% CI {_value(namer, measure, row['low'])}–{_value(namer, measure, row['high'])})" if spread else ""
         lines.append(f"Expected {what}: {_value(namer, measure, row['value'])}{interval}, over {row['n']} runs the search "
                      "did not use.")
-    lines += [_constraint(row, namer, measures) for row in opt.estimates["constraints"]]
+    lines += [_constraint(row, namer, measures, found[0] if found else None) for row in opt.estimates["constraints"]]
     holdout = opt.holdout
     if holdout:
         fresh = holdout["best"]["objectives"][0]
         measure = _measure_of(fresh["objective"], measures)
-        held = "every constraint held" if holdout["best"]["feasible"] else "not every constraint held"
+        held = _FRESH[holdout["best"]["verdict"]]
         lines.append(f"Checked again on {holdout['seeds']} fresh seeds: {namer.name(measure) if measure else 'objective'} "
                      f"{_value(namer, measure, fresh['value'])}; {held}.")
     return lines
 
 
-def _constraint(row: Mapping[str, Any], namer: Namer, measures: Sequence[str]) -> str:
+def _constraint(row: Mapping[str, Any], namer: Namer, measures: Sequence[str], view: Optional[QueueView]) -> str:
     text = _named(row["constraint"], namer, measures)
-    verdict = "met" if row["met"] else "not met"
+    verdict = _MET[row["verdict"]].format(confidence=row["confidence"])
     if row["value"] is None:
         return f"{text.capitalize()}: no value."
+    if "keys_total" in row:
+        binding = row.get("binding") or []
+        if view is not None and all(key.isdigit() for key in binding):
+            binding = [view.when(int(key), int(key)) for key in binding]
+        tightest = f"; tightest: {', '.join(binding)}" if binding else ""
+        return (f"{text.capitalize()}: holds for {row['keys_holding']} of {row['keys_total']} "
+                f"({row['keys_needed']} needed) — {verdict}{tightest}.")
     if "share_needed" in row:
         interval = f" (95% CI {row['low']:.0%}–{row['high']:.0%})" if row.get("low") is not None else ""
         return f"{text.capitalize()}: held in {row['value']:.0%} of runs{interval} — {verdict}."
@@ -98,7 +113,9 @@ def risks(opt: OptimisationResult, namer: Namer, measures: Sequence[str]) -> Lis
         out.append(f"On fresh seeds {_named(text, namer, measures)} fell short, within noise.")
     if holdout.get("runner_up") and not holdout.get("still_wins", True) and not holdout.get("seed_luck"):
         out.append("The runner-up did as well on fresh seeds: the two are close.")
-    if opt.best is not None and not opt.feasible:
+    if opt.best is not None and opt.verdict == "borderline":
+        out.append("The recommendation is borderline: a fresh set of days could put a requirement just short.")
+    elif opt.best is not None and opt.verdict == "infeasible":
         out.append("No decision tried met every constraint.")
     return out
 
@@ -110,9 +127,10 @@ def drivers(opt: OptimisationResult, namer: Namer, measures: Sequence[str]) -> L
         return out
     for row in opt.sensitivity:
         name = row["decision"].replace("_", " ")
-        broken = [c["constraint"] for c in row.get("constraints", []) if not c["met"]]
+        broken = [c["constraint"] for c in row.get("constraints", []) if c["verdict"] != "feasible"]
         if broken:
-            out.append(f"One step {row['direction']} in {name} breaks {', '.join(_named(c, namer, measures) for c in broken)}.")
+            out.append(f"One step {row['direction']} in {name} no longer meets "
+                       f"{', '.join(_named(c, namer, measures) for c in broken)} with confidence.")
     return out
 
 
@@ -123,6 +141,6 @@ def summary(opt: OptimisationResult) -> List[str]:
 
 def as_dict(opt: OptimisationResult) -> Dict[str, Any]:
     holdout = opt.holdout or {}
-    return {"decision": opt.best, "feasible": opt.feasible, "estimates": opt.estimates,
+    return {"decision": opt.best, "feasible": opt.feasible, "verdict": opt.verdict, "estimates": opt.estimates,
             "fresh_seeds": holdout.get("best"), "seed_luck": bool(holdout.get("seed_luck")),
             "reasons": holdout.get("reasons", [])}

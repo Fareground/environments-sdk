@@ -11,6 +11,13 @@ __all__ = ["OptimisationResult"]
 
 #: Searched decisions a report lists, best first.
 _HISTORY_SHOWN = 8
+#: Binding keys a per-key constraint's line names before it cuts the list short.
+_KEYS_SHOWN = 6
+#: What a verdict means for the chosen decision, on the seeds it was judged on.
+_VERDICT = {"feasible": "feasible with confidence: every constraint holds with the confidence it asks for",
+            "borderline": "borderline: no constraint clearly fails, but not every one holds with the confidence it "
+                          "asks for; more runs or a decision with more room would settle it",
+            "infeasible": "infeasible: a constraint clearly fails"}
 
 
 def _num(value: Optional[float]) -> str:
@@ -31,14 +38,29 @@ def _span(row: Dict[str, Any], share: bool = False) -> str:
     return f"{text(row['value'])}{interval}"
 
 
+def _sureness(row: Dict[str, Any], short: str) -> str:
+    """A constraint's verdict in words: met with its confidence, borderline, or not met (and by how much)."""
+    if row["verdict"] == "feasible":
+        return f"met with {row['confidence']:.0%} confidence"
+    if row["verdict"] == "borderline":
+        side = "met" if row["met"] else f"short by {short}"
+        return f"borderline: {side}, but not with {row['confidence']:.0%} confidence"
+    return f"NOT met, short by {short}" if not row["met"] else f"NOT met with {row['confidence']:.0%} confidence"
+
+
 def _constraint_text(row: Dict[str, Any]) -> str:
     if row["value"] is None:
         return f"{row['constraint']}: no value"
+    if "keys_total" in row:
+        binding = row.get("binding") or []
+        shown = ", ".join(binding[:_KEYS_SHOWN]) + ("…" if len(binding) > _KEYS_SHOWN else "")
+        tail = f"; binding: {shown}" if binding else ""
+        return (f"{row['constraint']}: {row['keys_holding']} of {row['keys_total']} keys hold, {row['keys_needed']} "
+                f"needed — {_sureness(row, _num(row['shortfall']))}{tail}")
     if "share_needed" in row:
-        verdict = "met" if row["met"] else f"NOT met, short by {row['shortfall']:.0%} of runs"
-        return f"{row['constraint']}: holds in {_span(row, share=True)} of runs — {verdict}"
-    verdict = "met" if row["met"] else f"NOT met, short by {_num(row['shortfall'])}"
-    return f"{row['constraint']}: {row.get('stat', 'mean')} {_span(row)} — {verdict}"
+        return f"{row['constraint']}: holds in {_span(row, share=True)} of runs — " \
+               f"{_sureness(row, format(row['shortfall'], '.0%') + ' of runs')}"
+    return f"{row['constraint']}: {row.get('stat', 'mean')} {_span(row)} — {_sureness(row, _num(row['shortfall']))}"
 
 
 def _difference_text(diff: Optional[Dict[str, Any]]) -> str:
@@ -63,7 +85,12 @@ class OptimisationResult:
     total_runs: int
     #: The chosen decision (``None`` for a Pareto frontier); when nothing is feasible, the closest one.
     best: Optional[Dict[str, Any]] = None
+    #: The chosen decision meets every constraint with the confidence it asks for (``verdict == "feasible"``).
     feasible: bool = False
+    #: ``feasible``, ``borderline`` or ``infeasible``, on the confirmation seeds (see :mod:`.constraints`).
+    verdict: str = "infeasible"
+    #: The confidence a constraint holds with unless it states its own.
+    confidence: float = 0.9
     #: The chosen decision's objectives and constraints with 95% intervals, on the confirmation seeds (not the search's).
     estimates: Optional[Dict[str, Any]] = None
     runner_up: Optional[Dict[str, Any]] = None
@@ -86,8 +113,12 @@ class OptimisationResult:
                          "no objective can improve without another getting worse.")
             return "\n".join(lines + [f"note: {n}" for n in self.notes])
         assert self.estimates is not None
-        head = "Best decision" if self.feasible else "No decision tried meets every constraint. Closest"
+        head = {"feasible": "Best decision", "borderline": "Best decision, borderline"}.get(
+            self.verdict, "No decision tried meets every constraint. Closest")
         lines.append(f"{head}: {_decision(self.best)}")
+        if self.constraints:
+            lines.append(f"  On {self.estimates['runs']} confirmation seed(s) it is {_VERDICT[self.verdict]} "
+                         f"({self.confidence:.0%} unless stated).")
         for row in self.estimates["objectives"]:
             lines.append(f"  {row['objective']}: {_span(row)} over {row['n']} run(s)")
         lines += [f"  {_constraint_text(row)}" for row in self.estimates["constraints"]]
@@ -101,7 +132,8 @@ class OptimisationResult:
         fresh = h["best"]["objectives"][0]
         short = f"; {', '.join(h['short_within_noise'])} falls short there, within noise" \
             if h["short_within_noise"] else ""
-        lines = [f"On {h['seeds']} fresh seed(s): {_measure(fresh['objective'])} {_span(fresh)}{short}"]
+        verdict = f"; it is {h['verdict']} there" if self.constraints and "verdict" in h else ""
+        lines = [f"On {h['seeds']} fresh seed(s): {_measure(fresh['objective'])} {_span(fresh)}{verdict}{short}"]
         if "runner_up" in h:
             diff = h["difference"]
             if h["still_wins"]:
@@ -145,7 +177,8 @@ class OptimisationResult:
         return {"contract": self.contract, "method": self.method, "decisions": self.decisions,
                 "objectives": self.objectives, "constraints": self.constraints, "runs": self.runs, "seed": self.seed,
                 "evaluations": self.evaluations, "total_runs": self.total_runs, "best": self.best,
-                "feasible": self.feasible, "estimates": self.estimates, "runner_up": self.runner_up,
+                "feasible": self.feasible, "verdict": self.verdict, "confidence": self.confidence,
+                "estimates": self.estimates, "runner_up": self.runner_up,
                 "holdout": self.holdout, "sensitivity": self.sensitivity, "frontier": self.frontier,
                 "history": self.history, "notes": self.notes}
 

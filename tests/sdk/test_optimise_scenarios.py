@@ -24,12 +24,20 @@ def _fresh(contract, inputs, measure, runs=40):
             .arms["baseline"].runs]
 
 
-def test_a_staffing_plan_picked_on_four_seeds_misses_its_service_level_on_fresh_seeds_and_is_flagged_as_luck():
+def test_every_run_cannot_be_shown_with_confidence_so_a_plan_picked_on_four_seeds_stays_borderline_and_luck_is_flagged():
     few = fg_env.optimise(CENTRE, STAFFING, "minimise staffing_cost", ["sl >= 0.8 in 100% of runs"], runs=4, budget=24,
                           holdout_seeds=20)
+    assert few.verdict == "borderline" and not few.feasible and "Best decision, borderline" in few.summary()
+    assert few.estimates["runs"] == 16  # the confirmation grew to four times the runs trying to settle it
+    assert any("asks for every run" in note for note in few.notes)
     assert few.holdout["seed_luck"] and "clearly no longer holds" in few.summary()
-    cheapest = min((h for h in few.history if h["feasible"]), key=lambda h: h["objectives"][0])
-    assert fmean(sl >= 0.8 for sl in _fresh(CENTRE, cheapest["decision"], "sl")) < 0.8
+
+
+def test_a_plan_picked_on_four_seeds_is_confirmed_on_more_seeds_until_its_share_of_runs_holds_with_confidence():
+    few = fg_env.optimise(CENTRE, STAFFING, "minimise staffing_cost", ["sl >= 0.8 in 80% of runs"], runs=4, budget=24,
+                          holdout_seeds=20)
+    assert few.verdict == "feasible" and few.estimates["runs"] > 4
+    assert fmean(sl >= 0.8 for sl in _fresh(CENTRE, few.best, "sl")) >= 0.8
 
 
 def test_a_staffing_plan_judged_on_enough_seeds_keeps_its_service_level_on_fresh_seeds_for_no_more_than_the_rule():
@@ -43,10 +51,13 @@ def test_a_service_level_per_category_keeps_the_fill_rate_with_less_stock_across
     priors = fg_env.fit_patterns(STORE).priors
     common = dict(data_dir=STORE.parent, uncertainty=priors, rounds=13)
     categories = ["brake_pads", "batteries", "wipers"]
-    # the store's replenishment reads its service level per category from this map input
+    # the store's replenishment reads its service level per category from this map input. Eight runs: a fill rate held
+    # with 90% confidence on four runs needs about four standard errors of room (a t-quantile on 3 degrees of freedom,
+    # with the search's margin), so a plan confident on four runs keeps 86% of the uniform stock where one on eight keeps
+    # 77% — both confident on 24 fresh seeds (lower 90% bounds 98.6% and 98.0% against 97.5%)
     result = fg_env.optimise(STORE, {"service_level_by_category": {"keys": categories, "low": 0.5, "high": 0.99, "step": 0.05,
                                                                    "start": {c: 0.95 for c in categories}}},
-                             "minimise reorder_average_stock_value", ["shop_fill_rate >= 0.975"], runs=4, budget=16,
+                             "minimise reorder_average_stock_value", ["shop_fill_rate >= 0.975"], runs=8, budget=16,
                              workers=2, inputs={"policy": "service", "parameter_uncertainty": 0}, **common)
     assert result.feasible and {"growth_rate", "promo_lift", "lead_noise_mean"} <= set(priors)
 

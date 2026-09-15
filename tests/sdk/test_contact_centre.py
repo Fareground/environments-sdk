@@ -68,8 +68,18 @@ def test_the_kept_plan_is_the_one_the_arms_play_and_its_fresh_seed_check_is_reco
     for arm in ("recommended", "outage", "outage_with_callbacks", "callbacks"):
         assert arms[arm]["inputs"]["staffing"] == plan["best"]["staffing"], arm
     assert len(plan["best"]["staffing"]) == 24 and plan["holdout"]["seeds"] >= 40
-    assert plan["constraints"] == ["centre_service_level >= 0.8 in 90% of runs",
-                                   "mean of centre_intervals_below_target <= 1.5"]
+    assert plan["constraints"] == ["each centre_service_level_by_interval >= 0.8",
+                                   "centre_service_level >= 0.8 in 90% of runs"]
+    assert plan["verdict"] == "feasible" and plan["holdout"]["verdict"] == "feasible"
+
+
+def test_the_owner_report_of_the_plan_says_it_holds_with_confidence_and_names_its_tightest_half_hours():
+    from fg_env.sdk.analysis.optimise_result import OptimisationResult
+
+    kept = OptimisationResult(**json.loads((FOLDER / "plan.json").read_text()))
+    text = fg_env.report(kept, contract=CONTRACT).markdown
+    assert "met with 90% confidence" in text and "; tightest: " in text
+    assert "borderline" not in text and "No decision tried" not in text
 
 
 def test_an_outage_cuts_service_and_callbacks_that_keep_agents_free_cut_abandonment_during_it():

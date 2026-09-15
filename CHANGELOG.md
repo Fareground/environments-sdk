@@ -10,6 +10,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Added
+- **Optimisation you can act on** (`fg_env.optimise`): every constraint is judged with a stated confidence
+  (`confidence=0.9`, or `"sl >= 0.8 in 90% of runs with 95% confidence"`) by one-sided bounds, so a recommendation is
+  *feasible with confidence*, *borderline* or *infeasible* (`result.verdict`, also on the held-out seeds). The search
+  asks each constraint to clear its confidence bound by (1 + √2) times that distance, so fresh seeds agree; a borderline
+  finalist gets more confirmation seeds (doubling, up to four times `runs`) until it settles. Per-key constraints over
+  list and map outputs — `"each fill_by_category >= 0.95"`, `"at least 20 of …"`, `"at most 2 of sl_by_interval < 0.8"`
+  — report every key with its slack and the binding keys. Local search adds block moves (a run of a vector's positions
+  moved together) and smoothing moves before pair moves, and `method="frontier"` refines a Pareto frontier from the
+  neighbours of its undominated decisions. `fg-env optimise --confidence`.
+- **Calibrating rates recorded per case** (`fg_env.calibrate`): a number target may give `"count"` (the trials behind
+  a rate: its error counts in that rate's standard errors, so a quiet day's noisy rate weighs as little as its data) or
+  `"pool": true` (matched over the cases together); `result.pooled` compares every per-case target with its pooled level
+  and notes when a per-case fit drifts from it. Cases now draw their own seeds (derived from each case's name; every
+  candidate still meets the same seeds within a case): with shared seeds, 40 replayed days on 4 seeds carried the noise
+  of 4 runs, and the contact centre's patience fit moved between 166 s and 240 s with the seeds alone.
 - **Owner reports** (`fg_env.report(result, audience="owner")`, `fg-env report`): a run, an experiment, a sweep or a
   validation told in short sentences and a few tables, in the clock's own terms — the recommended option (by
   `objective="min:cost"` and `require={"service_level": ">= 0.8"}`, or a service queue's own target: the cheapest
