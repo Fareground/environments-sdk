@@ -82,8 +82,8 @@ def test_the_owner_report_recommends_the_service_policy_when_95_percent_of_deman
     text = fg_env.report(exp, contract=CONTRACT, objective="max:reorder_profit",
                          require={"shop_fill_rate": ">= 0.95"}).markdown
     recommendation = text.split("## Recommendation", 1)[1].split("##", 1)[0]
-    assert "Choose Order up to the expected demand" in recommendation
-    assert "The store's current rule" in text.split("## Risks", 1)[1].split("##", 1)[0]  # the lean rule misses 95%
+    assert "Choose order up to the expected demand" in recommendation
+    assert "the store's current rule" in text.split("## Risks", 1)[1].split("##", 1)[0]  # the lean rule misses 95%
     assert "parameter(s) are estimated from the data" in text and "lead_noise_sd" in text
 
 
