@@ -6,6 +6,7 @@ turn — so a run can stop at any of them and continue exactly where it left off
 from __future__ import annotations
 
 import heapq
+import inspect
 import json
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -751,7 +752,13 @@ class Env:
         world.use_turn_rng(self.seeds.rng("turn", world.round, turn.number))
         world.use_turn_pending(turn.pending)
         try:
-            participant(Wake(turn))
+            answer = participant(Wake(turn))
+            if inspect.isawaitable(answer):
+                close = getattr(answer, "close", None)
+                if callable(close):
+                    close()  # never awaited: close it so it does not linger
+                raise RunError(f"participant for {turn.actor.id} is async; participants are plain functions "
+                               "(wrap an async agent with asyncio.run or a thread)", f"participant:{turn.actor.id}")
         except (RunError, ExprError):
             raise
         except Exception as exc:
@@ -842,6 +849,9 @@ class Env:
                 raise ValueError(f"participants key '{key}' is not an entity id, a type, or '*'")
             if not callable(value):
                 resolve_participant(value, self.contract, 0)  # an unknown name fails now, not mid-run
+            elif inspect.iscoroutinefunction(value) or inspect.iscoroutinefunction(getattr(value, "__call__", None)):
+                raise TypeError(f"participant for '{key}' is async; participants are plain functions "
+                                "(wrap an async agent with asyncio.run or a thread)")
         self._participants_spec = dict(participants)
         self._participants.clear()
 

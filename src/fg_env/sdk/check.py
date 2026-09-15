@@ -6,22 +6,28 @@ inputs exist, and that each expression only uses roots available where it is wri
 """
 from __future__ import annotations
 
-from pathlib import PurePath
-
 import copy
-
 import datetime as _dt
-import re
+import json
 import keyword
+import re
 from difflib import get_close_matches
+from pathlib import PurePath
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
 
 from pydantic import BaseModel, ValidationError
 
-from ..physics import PhysicsExprError, _CompiledExpr, _CONSTS, _FUNCS
+from ..physics import _CONSTS, _FUNCS, PhysicsExprError, _CompiledExpr
 from . import contract as C
 from .contract import Contract
-from .effects import REPEAT_CEILING, RESERVED_ROOTS, all_ops, registered_op, select_ops, statement_parts
+from .effects import (
+    REPEAT_CEILING,
+    RESERVED_ROOTS,
+    all_ops,
+    registered_op,
+    select_ops,
+    statement_parts,
+)
 from .errors import ContractError, Issue
 from .expr import FUNCTIONS, ExprError, compile_expr, is_expr
 from .inputs import DATA_SUFFIXES, check_value
@@ -789,6 +795,9 @@ class _Checker:
             if link.relation not in self.c.relations:
                 self.error(f"{path}.relation", f"'{link.relation}' is not a declared relation",
                            self._suggest(link.relation, self.c.relations) or "declare it under `relations`")
+            if not is_expr(link.value) and (isinstance(link.value, bool) or not isinstance(link.value, (int, float))):
+                self.error(f"{path}.value", f"a link value must be a number, got {json.dumps(link.value, default=str)[:60]}",
+                           "one number per link; for several fields per link use an entity per link")
             graphs = ("complete", "ring", "random", "small_world", "scale_free", "blocks", "lattice", "star", "bipartite")
             if link.rows is not None:
                 self.expr(link.rows, f"{path}.rows", BASE)
