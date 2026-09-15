@@ -3,7 +3,7 @@ ranked feeds, trending, reputation, influence and insularity.
 
 .. code-block:: json
 
-    "mechanisms": {"net": {"kind": "social_graph", "accounts": "account", "reactions": ["like"],
+    "mechanisms": {"net": {"kind": "social", "mode": "feed", "who": "account", "reactions": ["like"],
                            "feed_size": 8, "moderators": "moderator", "labels": ["misleading"],
                            "downrank": {"labels": ["misleading"], "factor": 0.2}}}
 
@@ -22,22 +22,23 @@ accounts never appear; nor do accounts that block the viewer. Ties go to the new
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, List, Literal, Mapping, Optional, Set, Tuple
+from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Set, Tuple
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from ...entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, function
-from ..registry import MechanismError, effect_op, mechanism
+from ..registry import MechanismError, family_action, mode
 from ..world import Abort
-from ._social import props, cache, config_of, edges, eid, entity, literal_name_check, only_use, require_type, seat_order, single_use_check
+from ._common import ToolsSetting, tools_field
+from ._social import props, cache, config_of, edges, eid, entity, only_use, require_type, seat_order, single_use_check
 
-__all__ = ["SocialGraphConfig", "feed"]
+__all__ = ["FeedConfig", "feed"]
 
-KIND = "social_graph"
-_ACTS = ("post", "reply", "repost", "react", "follow", "unfollow", "befriend", "unfriend", "block", "unblock", "mute",
-         "unmute", "label")
+KIND = "social.feed"
+#: Actions that change who follows, befriends, blocks or mutes whom (they take `account`).
+_RELATING = ("follow", "unfollow", "befriend", "unfriend", "block", "unblock", "mute", "unmute")
 
 
 class FeedWeights(BaseModel):
@@ -72,12 +73,12 @@ class Reputation(BaseModel):
     label: float = Field(-0.05, description="Change when a moderator labels one of your posts.")
 
 
-class SocialGraphConfig(BaseModel):
+class FeedConfig(BaseModel):
     """A social network among agents of one type."""
 
     model_config = ConfigDict(extra="forbid")
 
-    accounts: str = Field(..., description="Agent type that has an account (subtypes included).")
+    who: str = Field(..., description="Agent type that has an account (subtypes included).")
     follows: bool = Field(True, description="Offer follow and unfollow tools.")
     friends: bool = Field(False, description="Offer friend requests (mutual friendship).")
     block: bool = Field(True, description="Offer a block tool (blocked accounts vanish from each other's feeds).")
@@ -86,7 +87,7 @@ class SocialGraphConfig(BaseModel):
     replies: bool = Field(True, description="Offer a reply tool.")
     reposts: bool = Field(True, description="Offer a repost tool.")
     reactions: List[str] = Field(default_factory=lambda: ["like"], description="Reactions accounts may give; empty for none.")
-    max_len: int = Field(280, ge=1, le=4000, description="Longest post, in characters.")
+    max_chars: int = Field(280, ge=1, le=4000, description="Longest post, in characters.")
     per_turn: Optional[int] = Field(1, ge=1, description="Posts, replies and reposts per turn (each).")
     feed_size: int = Field(8, ge=1, le=60, description="Posts in a feed.")
     window: int = Field(12, ge=1, description="Rounds a post stays eligible for feeds and trending.")
@@ -102,6 +103,7 @@ class SocialGraphConfig(BaseModel):
         description="What an account is told about: follow, reply, repost, reaction, friend, label.")
     turns: Literal["sequential", "simultaneous"] = Field("simultaneous", description="Turns of the generated stage.")
     stage: Optional[str] = Field(None, description="Offer the tools during this declared stage instead of a generated one.")
+    tools: ToolsSetting = tools_field()
 
 
 # ---------------------------------------------------------------------------
@@ -109,9 +111,9 @@ class SocialGraphConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _use(world: Any, source: Optional[str]) -> Tuple[str, SocialGraphConfig]:
+def _use(world: Any, source: Optional[str]) -> Tuple[str, FeedConfig]:
     name = only_use(world, KIND, source)
-    return name, config_of(world, name, KIND, SocialGraphConfig)
+    return name, config_of(world, name, KIND, FeedConfig)
 
 
 def _out(world: Any, relation: str, account: str) -> List[str]:
@@ -126,14 +128,14 @@ def _has(world: Any, relation: str, a: str, b: str) -> bool:
     return world.relation(a, b, relation) is not None
 
 
-def _connections(world: Any, name: str, config: SocialGraphConfig, account: str) -> Set[str]:
+def _connections(world: Any, name: str, config: FeedConfig, account: str) -> Set[str]:
     linked = set(_out(world, f"{name}_follows", account))
     if config.friends:
         linked |= set(_out(world, f"{name}_friends", account))
     return linked
 
 
-def _recent_posts(world: Any, name: str, config: SocialGraphConfig) -> List[Entity]:
+def _recent_posts(world: Any, name: str, config: FeedConfig) -> List[Entity]:
     """Alive posts born within the window, newest first (cached per state)."""
     found = cache(world, f"{name}:recent")
     if "posts" not in found:
@@ -145,7 +147,7 @@ def _recent_posts(world: Any, name: str, config: SocialGraphConfig) -> List[Enti
     return found["posts"]  # type: ignore[no-any-return]
 
 
-def _downranked(config: SocialGraphConfig, post: Entity) -> bool:
+def _downranked(config: FeedConfig, post: Entity) -> bool:
     labels = props(post).get("labels") or []
     return bool(config.downrank.labels) and any(label in config.downrank.labels for label in labels)
 
@@ -155,7 +157,7 @@ def _engagement(post: Entity) -> int:
     return int(values.get("reacts", 0)) + 2 * int(values.get("reposts", 0)) + int(values.get("replies", 0))
 
 
-def feed(world: Any, name: str, config: SocialGraphConfig, viewer: Entity, n: Optional[int] = None) -> List[Entity]:
+def feed(world: Any, name: str, config: FeedConfig, viewer: Entity, n: Optional[int] = None) -> List[Entity]:
     """The ranked feed ``viewer`` reads now."""
     size = config.feed_size if n is None else n
     found = cache(world, f"{name}:feed")
@@ -189,7 +191,7 @@ def feed(world: Any, name: str, config: SocialGraphConfig, viewer: Entity, n: Op
     return list(ranked)
 
 
-def _trending(world: Any, name: str, config: SocialGraphConfig, n: int) -> List[Entity]:
+def _trending(world: Any, name: str, config: FeedConfig, n: int) -> List[Entity]:
     order = seat_order(world)
     rows = []
     for post in _recent_posts(world, name, config):
@@ -223,7 +225,7 @@ def _size(call: Call, index: int, default: int) -> int:
     return value
 
 
-@function("feed(viewer, n?)", "The viewer's ranked feed: up to n posts (default feed_size) from the social_graph mechanism.",
+@function("feed(viewer, n?)", "The viewer's ranked feed: up to n posts (default feed_size) from the social feed mechanism.",
           min_args=1, max_args=2)
 def _feed_fn(call: Call) -> List[Entity]:
     world: Any = call.scope.world
@@ -271,12 +273,12 @@ def _insularity_fn(call: Call) -> float:
     name, config = _use(world, call.source)
     if len(call):
         return _insularity(world, name, config, eid(call.arg(0), call.source))
-    scores = [_insularity(world, name, config, a.id) for a in world.entities_of(config.accounts)
+    scores = [_insularity(world, name, config, a.id) for a in world.entities_of(config.who)
               if len(_connections(world, name, config, a.id)) >= 2]
     return sum(scores) / len(scores) if scores else 0.0
 
 
-def _insularity(world: Any, name: str, config: SocialGraphConfig, account: str) -> float:
+def _insularity(world: Any, name: str, config: FeedConfig, account: str) -> float:
     linked = _connections(world, name, config, account)
     if len(linked) < 2:
         return 0.0
@@ -303,50 +305,71 @@ def _homophily_fn(call: Call) -> Optional[float]:
 
 
 # ---------------------------------------------------------------------------
-# The social op
+# The social op's feed actions
 # ---------------------------------------------------------------------------
 
+#: action → (the keys it needs, example keys, what it does). `who`, the acting account, defaults to $actor.
+_ACTIONS: Dict[str, Tuple[Tuple[str, ...], str, str]] = {
+    "post": (("text",), '"text": "$params.text"', "publish a post to the account's followers"),
+    "reply": (("target", "text"), '"target": "$params.post", "text": "$params.text"', "reply to a post"),
+    "repost": (("target",), '"target": "$params.post"', "repost a post to the account's followers"),
+    "react": (("target", "reaction"), '"target": "$params.post", "reaction": "like"', "react to a post"),
+    "follow": (("account",), '"account": "$params.who"', "follow an account: its posts reach the feed"),
+    "unfollow": (("account",), '"account": "$params.who"', "stop following an account"),
+    "befriend": (("account",), '"account": "$params.who"', "send a friend request, or accept one"),
+    "unfriend": (("account",), '"account": "$params.who"', "end a friendship"),
+    "block": (("account",), '"account": "$params.who"', "block an account: neither sees the other, follows are removed"),
+    "unblock": (("account",), '"account": "$params.who"', "unblock an account"),
+    "mute": (("account",), '"account": "$params.who"', "mute an account: its posts leave the feed"),
+    "unmute": (("account",), '"account": "$params.who"', "unmute an account"),
+    "label": (("target", "label"), '"target": "$params.post", "label": "$params.label"',
+              "a moderator labels a post and its reposts"),
+}
 
-@effect_op("social", keys=("act", "text", "target", "who", "reaction", "label", "author"), literal=("social", "act"),
-           required=("act",), check=literal_name_check(KIND, "social"),
-           example='{"social": "net", "act": "repost", "target": "$params.post"}  (acts: post, reply, repost, react, follow, '
-                   "unfollow, befriend, unfriend, block, unblock, mute, unmute, label; `author` defaults to $actor)")
-def _social_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-    world = runner.world
-    name = effect["social"]
-    config = config_of(world, name, KIND, SocialGraphConfig)
-    act = effect["act"]
-    if act not in _ACTS:
-        raise RunError(f"act must be one of {', '.join(_ACTS)}, got {act!r}", f"{where}.act")
-    raw = runner.eval(effect["author"], vars) if "author" in effect else vars.get("actor")
-    if raw is None:
-        raise RunError("a social act needs an author: run it in an action ($actor) or give `author`", where)
-    actor = entity(world, raw, where)
 
-    def arg(key: str) -> Any:
-        if key not in effect:
-            raise RunError(f"act {act} needs `{key}`", where)
-        return runner.eval(effect[key], vars)
+def _runner(action: str) -> Callable[[Any, Dict[str, Any], Dict[str, Any], str], None]:
+    def run(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        world = runner.world
+        name = effect["social"]
+        config = config_of(world, name, KIND, FeedConfig)
+        raw = runner.eval(effect["who"], vars) if "who" in effect else vars.get("actor")
+        if raw is None:
+            raise RunError(f"`{action}` needs an account: run it in an action ($actor) or give `who`", where)
+        actor = entity(world, raw, where)
 
-    if act == "label":
-        _label(world, name, config, actor, _post(world, name, arg("target"), where), arg("label"))
-        return
-    if not world.is_a(actor.entity_type, config.accounts):
-        raise Abort(f"{actor.name} has no account here.")
-    if act == "post":
-        _create(world, name, config, actor, "post", arg("text"), None, where)
-    elif act in ("reply", "repost", "react"):
-        target = _post(world, name, arg("target"), where)
-        if _has(world, f"{name}_blocks", str(props(target).get("author")), actor.id):
-            raise Abort("You cannot interact with that account.")
-        if act == "reply":
-            _create(world, name, config, actor, "reply", arg("text"), target, where)
-        elif act == "repost":
-            _repost(world, name, config, actor, target, where)
+        def arg(key: str) -> Any:
+            return runner.eval(effect[key], vars)
+
+        if action == "label":
+            _label(world, name, config, actor, _post(world, name, arg("target"), where), arg("label"))
+            return
+        if not world.is_a(actor.entity_type, config.who):
+            raise Abort(f"{actor.name} has no account here.")
+        if action == "post":
+            _create(world, name, config, actor, "post", arg("text"), None, where)
+        elif action in _RELATING:
+            _relate(world, name, config, actor, action, entity(world, arg("account"), where, config.who), where)
         else:
-            _react(world, name, config, actor, target, arg("reaction"))
-    else:
-        _relate(world, name, config, actor, act, entity(world, arg("who"), where, config.accounts), where)
+            target = _post(world, name, arg("target"), where)
+            if _has(world, f"{name}_blocks", str(props(target).get("author")), actor.id):
+                raise Abort("You cannot interact with that account.")
+            if action == "reply":
+                _create(world, name, config, actor, "reply", arg("text"), target, where)
+            elif action == "repost":
+                _repost(world, name, config, actor, target, where)
+            else:
+                _react(world, name, config, actor, target, arg("reaction"))
+
+    return run
+
+
+def _register_actions() -> None:
+    for action, (needs, fields, doc) in _ACTIONS.items():
+        example = '{"social": "net", "action": "' + action + f'", {fields}}}  ({doc})'
+        family_action("social", ("feed",), action, keys=(*needs, "who"), required=needs, example=example)(_runner(action))
+
+
+_register_actions()
 
 
 def _post(world: Any, name: str, value: Any, where: str) -> Entity:
@@ -356,7 +379,7 @@ def _post(world: Any, name: str, value: Any, where: str) -> Entity:
     return found  # type: ignore[no-any-return]
 
 
-def _notify(world: Any, name: str, config: SocialGraphConfig, what: str, actor: Entity, target: str, text: str) -> None:
+def _notify(world: Any, name: str, config: FeedConfig, what: str, actor: Entity, target: str, text: str) -> None:
     if what in config.notify and target != actor.id:
         world.emit("social", text, actor=actor.id, to=(target,), data={"mechanism": name, "notice": what})
 
@@ -365,12 +388,12 @@ def _bump(world: Any, owner: Entity, prop: str, by: float) -> None:
     world.set_prop(owner, prop, props(owner).get(prop, 0) + by)
 
 
-def _create(world: Any, name: str, config: SocialGraphConfig, author: Entity, kind: str, text: Any,
+def _create(world: Any, name: str, config: FeedConfig, author: Entity, kind: str, text: Any,
             parent: Optional[Entity], where: str) -> Entity:
     if not isinstance(text, str) or not text.strip():
         raise Abort("A post needs some text.")
-    if len(text) > config.max_len:
-        raise Abort(f"Posts are at most {config.max_len} characters; yours has {len(text)}.")
+    if len(text) > config.max_chars:
+        raise Abort(f"Posts are at most {config.max_chars} characters; yours has {len(text)}.")
     post = _new_post(world, name, author, kind, text, parent, where)
     _bump(world, author, f"{name}_posts", 1)
     if parent is not None:
@@ -392,7 +415,7 @@ def _new_post(world: Any, name: str, author: Entity, kind: str, text: Any, paren
     return post  # type: ignore[no-any-return]
 
 
-def _repost(world: Any, name: str, config: SocialGraphConfig, actor: Entity, target: Entity, where: str) -> None:
+def _repost(world: Any, name: str, config: FeedConfig, actor: Entity, target: Entity, where: str) -> None:
     root = target
     if props(target).get("kind") == "repost":
         found = world.entities.get(props(target).get("parent"))
@@ -412,7 +435,7 @@ def _repost(world: Any, name: str, config: SocialGraphConfig, actor: Entity, tar
         _notify(world, name, config, "repost", actor, owner.id, f"{actor.name} reposted your post [{root.id}].")
 
 
-def _react(world: Any, name: str, config: SocialGraphConfig, actor: Entity, post: Entity, reaction: Any) -> None:
+def _react(world: Any, name: str, config: FeedConfig, actor: Entity, post: Entity, reaction: Any) -> None:
     if reaction not in config.reactions:
         raise Abort(f"Reactions here: {', '.join(config.reactions) or 'none'}.")
     reacted = dict(props(post).get("reacted") or {})
@@ -432,7 +455,7 @@ def _react(world: Any, name: str, config: SocialGraphConfig, actor: Entity, post
         _notify(world, name, config, "reaction", actor, owner.id, f"{actor.name} reacted {reaction} to your post [{post.id}].")
 
 
-def _label(world: Any, name: str, config: SocialGraphConfig, actor: Entity, post: Entity, label: Any) -> None:
+def _label(world: Any, name: str, config: FeedConfig, actor: Entity, post: Entity, label: Any) -> None:
     if config.moderators is None or not world.is_a(actor.entity_type, config.moderators):
         raise Abort(f"{actor.name} may not label posts.")
     if label not in config.labels:
@@ -453,7 +476,7 @@ def _label(world: Any, name: str, config: SocialGraphConfig, actor: Entity, post
         _notify(world, name, config, "label", actor, owner.id, f"Your post [{root}] was labelled {label}.")
 
 
-def _relate(world: Any, name: str, config: SocialGraphConfig, actor: Entity, act: str, who: Entity, where: str) -> None:
+def _relate(world: Any, name: str, config: FeedConfig, actor: Entity, act: str, who: Entity, where: str) -> None:
     if who.id == actor.id:
         raise Abort("That is your own account.")
     follows, friends, requests = f"{name}_follows", f"{name}_friends", f"{name}_requests"
@@ -509,24 +532,24 @@ _FEED_LINE = ("[{id}] {$entity($it.author)}{$' reposted ' + $text($entity($it.or
               "{reposts} reposts · {replies} replies{$' · labelled ' + $join($it.labels) if $len($it.labels) > 0 else ''}")
 
 
-@mechanism(KIND, SocialGraphConfig,
+@mode("social", "feed", FeedConfig,
            "A social network: posts (type `<name>_post`), replies, reposts, reactions, follows, friend requests, blocks and "
            "mutes (relations `<name>_follows`, `<name>_friends`, `<name>_blocks` …), a ranked feed view per account, "
            "trending, reputation moved by engagement, and moderator labels that downrank posts. Read it with "
            "$feed(viewer, n?), $trending(n?), $following(a), $followers(a), $influence(a), $insularity(a?), $homophily(prop).",
-           example={"kind": "social_graph", "accounts": "account", "feed_size": 6, "moderators": "moderator",
-                    "downrank": {"labels": ["misleading"], "factor": 0.2}})
-def _expand(name: str, config: SocialGraphConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
+           example={"who": "account", "feed_size": 6, "moderators": "moderator",
+                    "downrank": {"labels": ["misleading"], "factor": 0.2}}, was="social_graph")
+def _expand(name: str, config: FeedConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     single_use_check(KIND, contract)
-    require_type(contract, config.accounts, "accounts", agent=True)
+    require_type(contract, config.who, "who", agent=True)
     require_type(contract, config.moderators, "moderators", agent=True)
     if f"{name}_post" in (contract.get("types") or {}):
         raise MechanismError(f"type '{name}_post' is generated by this mechanism", "rename your type", "")
-    accounts, post_type = config.accounts, f"{name}_post"
+    accounts, post_type = config.who, f"{name}_post"
     rate: Dict[str, Any] = {"per_turn": config.per_turn} if config.per_turn else {}
     in_feed = {"type": "enum", "values": "$ids($feed($actor))", "description": "The [id] of a post in your feed."}
     feed_when = [{"expr": "$len($feed($actor)) > 0", "why": "Your feed is empty."}]
-    text = {"type": "text", "max_len": config.max_len, "description": f"At most {config.max_len} characters."}
+    text = {"type": "text", "max_len": config.max_chars, "description": f"At most {config.max_chars} characters."}
     who = {"type": "entity", "of": accounts, "description": "The account."}
 
     def act(description: str, do: Dict[str, Any], params: Dict[str, Any], when: Optional[List[Any]] = None,
@@ -536,45 +559,45 @@ def _expand(name: str, config: SocialGraphConfig, contract: Mapping[str, Any]) -
 
     actions: Dict[str, Any] = {}
     if config.posts:
-        actions[f"{name}_post"] = act("Publish a post to your followers.", {"act": "post", "text": "$params.text"},
+        actions[f"{name}_post"] = act("Publish a post to your followers.", {"action": "post", "text": "$params.text"},
                                       {"text": text}, outcome="Posted.", **rate)
     if config.replies:
-        actions[f"{name}_reply"] = act("Reply to a post in your feed.", {"act": "reply", "target": "$params.post", "text": "$params.text"},
+        actions[f"{name}_reply"] = act("Reply to a post in your feed.", {"action": "reply", "target": "$params.post", "text": "$params.text"},
                                        {"post": in_feed, "text": text}, feed_when, outcome="Replied to [{$params.post}].", **rate)
     if config.reposts:
-        actions[f"{name}_repost"] = act("Repost a post from your feed to your followers.", {"act": "repost", "target": "$params.post"},
+        actions[f"{name}_repost"] = act("Repost a post from your feed to your followers.", {"action": "repost", "target": "$params.post"},
                                         {"post": in_feed}, feed_when, outcome="Reposted [{$params.post}].", **rate)
     if len(config.reactions) == 1:
         reaction = config.reactions[0]
         actions[f"{name}_{reaction}"] = act(f"React '{reaction}' to a post in your feed.",
-                                            {"act": "react", "target": "$params.post", "reaction": reaction},
+                                            {"action": "react", "target": "$params.post", "reaction": reaction},
                                             {"post": in_feed}, feed_when, outcome=f"You reacted {reaction} to [{{$params.post}}].")
     elif config.reactions:
         actions[f"{name}_react"] = act("React to a post in your feed.",
-                                       {"act": "react", "target": "$params.post", "reaction": "$params.reaction"},
+                                       {"action": "react", "target": "$params.post", "reaction": "$params.reaction"},
                                        {"post": in_feed, "reaction": {"type": "enum", "values": list(config.reactions)}},
                                        feed_when, outcome="You reacted {$params.reaction} to [{$params.post}].")
     if config.follows:
-        actions[f"{name}_follow"] = act("Follow an account: its posts reach your feed.", {"act": "follow", "who": "$params.who"},
+        actions[f"{name}_follow"] = act("Follow an account: its posts reach your feed.", {"action": "follow", "account": "$params.who"},
                                         {"who": who}, outcome="You follow {$params.who.name}.")
-        actions[f"{name}_unfollow"] = act("Stop following an account.", {"act": "unfollow", "who": "$params.who"},
+        actions[f"{name}_unfollow"] = act("Stop following an account.", {"action": "unfollow", "account": "$params.who"},
                                           {"who": {"type": "enum", "values": "$following($actor)", "description": "An account you follow."}},
                                           [{"expr": "$len($following($actor)) > 0", "why": "You follow nobody."}],
                                           outcome="You unfollowed {$params.who}.")
     if config.friends:
-        actions[f"{name}_befriend"] = act("Send a friend request, or accept one sent to you.", {"act": "befriend", "who": "$params.who"},
+        actions[f"{name}_befriend"] = act("Send a friend request, or accept one sent to you.", {"action": "befriend", "account": "$params.who"},
                                           {"who": who}, outcome="Done: {$params.who.name}.")
     if config.block:
         actions[f"{name}_block"] = act("Block an account: neither of you sees the other, follows are removed.",
-                                       {"act": "block", "who": "$params.who"}, {"who": who}, outcome="You blocked {$params.who.name}.")
+                                       {"action": "block", "account": "$params.who"}, {"who": who}, outcome="You blocked {$params.who.name}.")
     if config.mute:
-        actions[f"{name}_mute"] = act("Mute an account: its posts leave your feed.", {"act": "mute", "who": "$params.who"},
+        actions[f"{name}_mute"] = act("Mute an account: its posts leave your feed.", {"action": "mute", "account": "$params.who"},
                                       {"who": who}, outcome="You muted {$params.who.name}.")
     if config.moderators:
         actions[f"{name}_label"] = {"by": config.moderators, "description": "Label a post (and its reposts).",
                                     "params": {"post": {"type": "entity", "of": post_type, "description": "The post id."},
                                                "label": {"type": "enum", "values": list(config.labels)}},
-                                    "do": [{"social": name, "act": "label", "target": "$params.post", "label": "$params.label"}],
+                                    "do": [{"social": name, "action": "label", "target": "$params.post", "label": "$params.label"}],
                                     "outcome": "Labelled [{$params.post.id}] {$params.label}.", "private": True}
     rep = config.reputation
     fragment: Dict[str, Any] = {

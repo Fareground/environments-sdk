@@ -83,7 +83,7 @@ CHAT = {
     "entities": {"ana": {"type": "citizen", "name": "Ana"}, "ben": {"type": "citizen", "name": "Ben"},
                  "cy": {"type": "citizen", "name": "Cy"}, "dee": {"type": "citizen", "name": "Dee"},
                  "mo": {"type": "mayor", "name": "Mo"}},
-    "mechanisms": {"chat": {"kind": "channels", "members": "citizen", "rooms": ["plaza"], "broadcast": "mayor",
+    "mechanisms": {"chat": {"kind": "social", "mode": "channels", "who": "citizen", "rooms": ["plaza"], "broadcast": "mayor",
                             "groups": {"cabal": {"members": ["ana", "ben"], "title": "Night committee"}},
                             "create_groups": True, "per_turn": 2}},
     "outputs": {"messages": {"expr": "$len($records(chat))", "type": "int"}},
@@ -142,19 +142,19 @@ def test_private_group_and_dm_never_leak_to_non_members():
 def test_unread_counts_read_marks_and_replies_stay_in_their_channel():
     env = fg_env.load(CHAT, seed=1)
     ana, ben = env.world.entities["ana"], env.world.entities["ben"]
-    assert do(env, "ana", [{"channel": "chat", "act": "say", "in": "cabal", "text": "one"},
-                           {"channel": "chat", "act": "say", "in": "cabal", "text": "two"},
-                           {"channel": "chat", "act": "dm", "to": "ben", "text": "three"}])
+    assert do(env, "ana", [{"social": "chat", "action": "say", "channel": "cabal", "text": "one"},
+                           {"social": "chat", "action": "say", "channel": "cabal", "text": "two"},
+                           {"social": "chat", "action": "dm", "to": "ben", "text": "three"}])
     assert ev(env, "$unread($it)", it=ben) == 3 and ev(env, "$unread($it, cabal)", it=ben) == 2
     assert ev(env, "$unread($it, '@ana')", it=ben) == 1 and ev(env, "$unread($it)", it=ana) == 0
-    assert do(env, "ben", [{"channel": "chat", "act": "read", "in": "cabal"}])
+    assert do(env, "ben", [{"social": "chat", "action": "read", "channel": "cabal"}])
     assert ev(env, "$unread($it, cabal)", it=ben) == 0 and ev(env, "$unread($it)", it=ben) == 1
     assert "[2] Ana: two" in ev(env, "$channel_log($it, cabal)", it=ben)
-    assert do(env, "ben", [{"channel": "chat", "act": "reply", "message": 3, "text": "four"}])
+    assert do(env, "ben", [{"social": "chat", "action": "reply", "message": 3, "text": "four"}])
     reply = env.world.records("chat")[-1]
     assert reply["kind"] == "dm" and reply["to"] == ["ana"] and reply["reply_to"] == 3
-    assert not do(env, "cy", [{"channel": "chat", "act": "reply", "message": 1, "text": "sneaky"}])  # cannot see it
-    assert not do(env, "cy", [{"channel": "chat", "act": "say", "in": "cabal", "text": "sneaky"}])
+    assert not do(env, "cy", [{"social": "chat", "action": "reply", "message": 1, "text": "sneaky"}])  # cannot see it
+    assert not do(env, "cy", [{"social": "chat", "action": "say", "channel": "cabal", "text": "sneaky"}])
 
 
 def test_participant_text_stays_untrusted_and_mentions_wake_only_the_audience():
@@ -186,28 +186,70 @@ def test_rate_and_length_limits_are_tool_rules():
 
 def test_groups_can_be_created_joined_and_left_and_only_members_read_them():
     env = fg_env.load(CHAT, seed=1)
-    assert do(env, "cy", [{"channel": "chat", "act": "create", "title": "Book club", "who": ["dee"]}])
+    assert do(env, "cy", [{"social": "chat", "action": "create_group", "title": "Book club", "invite": ["dee"]}])
     cy, dee = env.world.entities["cy"], env.world.entities["dee"]
     assert ev(env, "$groups($it)", it=cy) == ["group_2"] and ev(env, "$invites($it)", it=dee) == ["group_2"]
-    assert do(env, "cy", [{"channel": "chat", "act": "say", "in": "group_2", "text": "before you joined"}])
-    assert do(env, "dee", [{"channel": "chat", "act": "join", "group": "group_2"}])
-    assert do(env, "cy", [{"channel": "chat", "act": "say", "in": "group_2", "text": "after you joined"}])
+    assert do(env, "cy", [{"social": "chat", "action": "say", "channel": "group_2", "text": "before you joined"}])
+    assert do(env, "dee", [{"social": "chat", "action": "join", "group": "group_2"}])
+    assert do(env, "cy", [{"social": "chat", "action": "say", "channel": "group_2", "text": "after you joined"}])
     assert [e["text"] for e in env.world.visible_records("chat", dee)] == ["after you joined"]
-    assert do(env, "dee", [{"channel": "chat", "act": "leave", "group": "group_2"}])
-    assert not do(env, "dee", [{"channel": "chat", "act": "say", "in": "group_2", "text": "gone"}])
-    assert not do(env, "ana", [{"channel": "chat", "act": "join", "group": "group_2"}])  # no invitation
+    assert do(env, "dee", [{"social": "chat", "action": "leave", "group": "group_2"}])
+    assert not do(env, "dee", [{"social": "chat", "action": "say", "channel": "group_2", "text": "gone"}])
+    assert not do(env, "ana", [{"social": "chat", "action": "join", "group": "group_2"}])  # no invitation
 
 
 def test_channel_config_errors_say_what_to_fix():
     bad = json.loads(json.dumps(CHAT))
     bad["mechanisms"]["chat"]["rooms"] = ["plaza", "cabal"]
     assert any("declared twice" in e for e in errors(bad))
-    bad["mechanisms"]["chat"].update(rooms=["plaza"], members="resident")
-    assert any("members 'resident' is not a declared type" in e for e in errors(bad))
+    bad["mechanisms"]["chat"].update(rooms=["plaza"], who="resident")
+    assert any("who 'resident' is not a declared type" in e for e in errors(bad))
     twice = {**CHAT, "mechanisms": {"a": CHAT["mechanisms"]["chat"], "b": CHAT["mechanisms"]["chat"]}}
-    assert any("at most one `channels`" in e for e in errors(twice))
-    op = {**CHAT, "events": [{"do": [{"channel": "chatter", "act": "say"}]}]}
-    assert any("'chatter' is not a declared channels mechanism" in e for e in errors(op))
+    assert any("at most one `social.channels`" in e for e in errors(twice))
+    op = {**CHAT, "events": [{"do": [{"social": "chatter", "action": "say", "channel": "plaza", "text": "hi"}]}]}
+    assert any("`social` names a declared social mechanism, got 'chatter' → did you mean 'chat'?" in e for e in errors(op))
+
+
+def _event(contract, *effects):
+    return errors({**contract, "events": [{"do": list(effects)}]})
+
+
+def test_an_old_social_kind_or_a_field_typo_says_what_to_write():
+    old = {**CHAT, "mechanisms": {"chat": {"kind": "channels", "members": "citizen"}}}
+    assert any("mechanisms.chat.kind: 'channels' is now kind 'social' with mode 'channels'" in e for e in errors(old))
+    graph = {**NET, "mechanisms": {"net": {"kind": "social_graph", "accounts": "account"}}}
+    assert any("'social_graph' is now kind 'social' with mode 'feed'" in e for e in errors(graph))
+    typo = {**CHAT, "mechanisms": {"chat": {**CHAT["mechanisms"]["chat"], "room": ["plaza"]}}}
+    assert any("`room` is not a field of `social` mode `channels` → did you mean 'rooms'?" in e for e in errors(typo))
+    foreign = {**CHAT, "mechanisms": {"chat": {**CHAT["mechanisms"]["chat"], "feed_size": 3}}}
+    assert any("`feed_size` is not a field of `social` mode `channels`" in e for e in errors(foreign))
+
+
+def test_social_actions_check_their_own_keys():
+    assert any("`social.say` needs `channel`" in e for e in _event(CHAT, {"social": "chat", "action": "say", "text": "hi"}))
+    assert any("'in' is not part of `social.say`" in e
+               for e in _event(CHAT, {"social": "chat", "action": "say", "in": "plaza", "channel": "plaza", "text": "hi"}))
+    assert any("'shout' is not an action of chat (social channels)" in e
+               for e in _event(CHAT, {"social": "chat", "action": "shout"}))
+    assert any('`channel` is now the `social` op: {"social": "<mechanism>", "action": <action>' in e
+               for e in _event(CHAT, {"channel": "chat", "act": "say"}))
+    assert any("`social.follow` needs `account`" in e for e in _event(NET, {"social": "net", "action": "follow", "who": "a"}))
+    assert any("did you mean 'repost'" in e for e in _event(NET, {"social": "net", "action": "repost_it", "target": "x"}))
+    assert any("`social.adopt` needs `who`" in e for e in _event(LINE, {"social": "rumor", "action": "adopt", "item": "moon"}))
+    assert _event(LINE, {"social": "rumor", "action": "step"}) == []
+
+
+def test_tools_one_offers_the_channels_as_one_tool():
+    env = fg_env.load({**CHAT, "mechanisms": {"chat": {**CHAT["mechanisms"]["chat"], "tools": "one"}}}, seed=1)
+    script = Script(env, {"ana": [("chat", {"action": "say", "channel": "cabal", "text": "hello @ben"}),
+                                  ("chat", {"action": "dm", "to": "ben", "text": "psst"})]})
+    env.run(script, rounds=1)
+    assert [(r[2], r[3]) for r in script.results] == [("chat", True), ("chat", True)], script.results
+    assert [e["text"] for e in env.world.records("chat")] == ["hello @ben", "psst"]
+    tools = json.loads(script.seen["ana"][1])
+    assert [t["name"] for t in tools if t["kind"] == "act"] == ["chat"]
+    page = fg_env.guide("social.feed")
+    assert page.startswith("### `social.feed`") and "- `follow`" in page and "`max_chars`" in page
 
 
 # ---------------------------------------------------------------------------
@@ -379,7 +421,7 @@ NET = {
                  "m": {"type": "moderator", "name": "Mod"}},
     "links": [{"relation": "net_follows", "from": "a", "to": "b"}, {"relation": "net_follows", "from": "a", "to": "c"},
               {"relation": "net_follows", "from": "b", "to": "c"}, {"relation": "net_follows", "from": "d", "to": "c"}],
-    "mechanisms": {"net": {"kind": "social_graph", "accounts": "account", "moderators": "moderator", "mute": True,
+    "mechanisms": {"net": {"kind": "social", "mode": "feed", "who": "account", "moderators": "moderator", "mute": True,
                            "friends": True, "downrank": {"labels": ["misleading"], "factor": 0.01}}},
     "metrics": {"insularity": "$insularity()"},
 }
@@ -392,39 +434,39 @@ def _feed(env, who):
 def test_feeds_rank_followed_posts_and_moderation_downranks_labels():
     env = fg_env.load(NET, seed=1)
     for author in ("b", "c", "d"):
-        assert do(env, author, [{"social": "net", "act": "post", "text": f"hello from {author}"}])
+        assert do(env, author, [{"social": "net", "action": "post", "text": f"hello from {author}"}])
     posts = {p.properties["author"]: p.id for p in env.world.entities_of("net_post")}
     assert _feed(env, "a") == ["c", "b"]  # followed accounts only; equal scores → newer first
-    assert do(env, "d", [{"social": "net", "act": "react", "target": posts["b"], "reaction": "like"}])
+    assert do(env, "d", [{"social": "net", "action": "react", "target": posts["b"], "reaction": "like"}])
     assert _feed(env, "a") == ["b", "c"]  # engagement lifts b
-    assert not do(env, "d", [{"social": "net", "act": "react", "target": posts["b"], "reaction": "like"}])  # once
-    assert do(env, "m", [{"social": "net", "act": "label", "target": posts["b"], "label": "misleading"}])
+    assert not do(env, "d", [{"social": "net", "action": "react", "target": posts["b"], "reaction": "like"}])  # once
+    assert do(env, "m", [{"social": "net", "action": "label", "target": posts["b"], "label": "misleading"}])
     assert _feed(env, "a") == ["c", "b"]  # downranked below
     assert env.world.entities["b"].properties["net_reputation"] == pytest.approx(0.5 + 0.005 - 0.05)
-    assert do(env, "a", [{"social": "net", "act": "repost", "target": posts["c"]}])
-    assert not do(env, "a", [{"social": "net", "act": "repost", "target": posts["c"]}])
+    assert do(env, "a", [{"social": "net", "action": "repost", "target": posts["c"]}])
+    assert not do(env, "a", [{"social": "net", "action": "repost", "target": posts["c"]}])
     assert env.world.entities["c"].properties["net_reposts_received"] == 1
     assert ev(env, "$influence(c)") == 3 + 1  # followers a, b, d + one repost
     repost = [p for p in env.world.entities_of("net_post") if p.properties["kind"] == "repost"][0]
     assert repost.properties["origin"] == "c" and repost.properties["text"] == "hello from c"
-    assert not do(env, "m", [{"social": "net", "act": "post", "text": "moderators have no account"}])
+    assert not do(env, "m", [{"social": "net", "action": "post", "text": "moderators have no account"}])
 
 
 def test_blocks_mutes_friends_and_notifications():
     env = fg_env.load(NET, seed=1)
     for author in ("a", "b", "c"):
-        assert do(env, author, [{"social": "net", "act": "post", "text": f"post {author}"}])
+        assert do(env, author, [{"social": "net", "action": "post", "text": f"post {author}"}])
     posts = {p.properties["author"]: p.id for p in env.world.entities_of("net_post")}
-    assert do(env, "a", [{"social": "net", "act": "block", "who": "b"}])
+    assert do(env, "a", [{"social": "net", "action": "block", "account": "b"}])
     assert _feed(env, "a") == ["c"] and ev(env, "$linked(a, b, net_follows)") is False
-    assert not do(env, "b", [{"social": "net", "act": "reply", "target": posts["a"], "text": "hey"}])
-    assert not do(env, "b", [{"social": "net", "act": "follow", "who": "a"}])
-    assert do(env, "a", [{"social": "net", "act": "mute", "who": "c"}])
+    assert not do(env, "b", [{"social": "net", "action": "reply", "target": posts["a"], "text": "hey"}])
+    assert not do(env, "b", [{"social": "net", "action": "follow", "account": "a"}])
+    assert do(env, "a", [{"social": "net", "action": "mute", "account": "c"}])
     assert _feed(env, "a") == []
-    assert do(env, "c", [{"social": "net", "act": "befriend", "who": "d"}])
-    assert do(env, "d", [{"social": "net", "act": "befriend", "who": "c"}])
+    assert do(env, "c", [{"social": "net", "action": "befriend", "account": "d"}])
+    assert do(env, "d", [{"social": "net", "action": "befriend", "account": "c"}])
     assert ev(env, "$linked(c, d, net_friends)") and ev(env, "$relation(c, d, net_requests)") is None
-    assert do(env, "d", [{"social": "net", "act": "reply", "target": posts["c"], "text": "nice"}])
+    assert do(env, "d", [{"social": "net", "action": "reply", "target": posts["c"], "text": "nice"}])
     last = [e for e in env.world.log if e.kind == "social"][-1]
     assert (last.to, last.text) == (("c",), f"D replied to your post [{posts['c']}] with [net_post_4].")
     assert ev(env, "$following(a)") == ["c"]
@@ -457,7 +499,7 @@ LINE = {
     "population": [{"type": "person", "count": 5, "id": "p{$i}", "name": "P{$i}"}],
     "relations": {"knows": {"symmetric": True}},
     "links": [{"relation": "knows", "from": f"p{i}", "to": f"p{i + 1}"} for i in range(1, 5)],
-    "mechanisms": {"rumor": {"kind": "diffusion", "population": "person", "over": "knows", "model": "cascade", "p": 1,
+    "mechanisms": {"rumor": {"kind": "social", "mode": "diffusion", "who": "person", "over": "knows", "model": "cascade", "p": 1,
                              "seeds": {"moon": ["p1"]}, "on_adopt": ["$it.heard += 1"]}},
     "metrics": {"reach": "$reach(moon)"},
 }
@@ -476,7 +518,7 @@ def test_independent_cascade_spreads_one_hop_per_step():
     assert [e.properties["heard"] for e in env.world.entities_of("person")] == [0, 1, 1, 1, 1]
     assert ev(env, "$exposures(p2, moon)") == 1
     assert ev(env, "$heard(p2)") == [{"item": "moon", "state": "adopted", "exposures": 1}]
-    assert do(env, None, [{"spread": "rumor", "act": "reject", "item": "moon", "who": "p2"}])
+    assert do(env, None, [{"social": "rumor", "action": "reject", "item": "moon", "who": "p2"}])
     assert ev(env, "$spread_state(p2, moon)") == "rejected" and ev(env, "$adopters(moon)") == 4
     assert ev(env, "$reach(moon)") == 5
 
@@ -496,7 +538,7 @@ def test_cascade_with_no_chance_only_exposes_and_flow_follows_direction():
 
 def test_linear_threshold_adopts_when_enough_neighbours_have():
     star = {**LINE, "links": [{"relation": "knows", "from": "p1", "to": f"p{i}"} for i in range(2, 6)],
-            "mechanisms": {"rumor": {"kind": "diffusion", "population": "person", "over": "knows", "model": "threshold",
+            "mechanisms": {"rumor": {"kind": "social", "mode": "diffusion", "who": "person", "over": "knows", "model": "threshold",
                                      "threshold": 0.5, "seeds": {"moon": ["p2", "p3"]}}}}
     env = fg_env.load(star, seed=1)
     env.run("idle", rounds=1)
