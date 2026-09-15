@@ -21,7 +21,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from .expr import ExprError, Expr, Scope, Untrusted, compile_expr
 
-__all__ = ["Template", "compile_template", "render", "format_value"]
+__all__ = ["Template", "compile_template", "render", "format_value", "apply_format"]
 
 _FIELD = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*|\[\d+\])*$")
 
@@ -78,6 +78,14 @@ _FORMATS: Dict[str, Callable[[Any], str]] = {
 }
 
 FORMATS = tuple(_FORMATS)
+
+
+def apply_format(value: Any, fmt: str) -> str:
+    """``value`` shown with one of :data:`FORMATS`, as ``{value|fmt}`` renders it (plainly when it cannot be)."""
+    try:
+        return _FORMATS[fmt](value)
+    except (KeyError, ArithmeticError, ValueError, TypeError):
+        return format_value(value)
 
 
 @dataclass(frozen=True)

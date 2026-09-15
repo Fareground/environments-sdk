@@ -13,7 +13,7 @@ from . import contract as C
 from .guide_pages import (SECTIONS, effects_page, expressions_page, family_page, function_groups, functions_index,
                           functions_page, mechanisms_page, mode_page, section_page)
 from .assets.guide import ASSETS
-from .guide_text import CHECKLIST, MACROS, MODEL, PATTERNS, RUNNING, TEMPLATES
+from .guide_text import CHECKLIST, INSPECT, MACROS, MODEL, PATTERNS, RUNNING, TEMPLATES
 from .macros import MAX_MACRO_DEPTH, MAX_MACRO_ITEMS
 from .registry import FAMILIES
 from .template import FORMATS
@@ -48,7 +48,9 @@ the world's `events`, and at the end returns typed outputs. You write data, neve
 
 Workflow: `fg-env new game my_game.json` (or write one) → `fg-env check my_game.json` (static checks plus one played
 round; fix every issue) → `fg-env preview my_game.json <agent id>` (exactly what that agent reads) →
-`fg-env run my_game.json --seed 1`. In Python: `fg_env.new`, `fg_env.check`, `env.preview`, `fg_env.run`.
+`fg-env run my_game.json --seed 1`. In Python: `fg_env.new`, `fg_env.check`, `env.preview`, `fg_env.run`. A run's
+summary lists its diagnostics — logic problems it revealed, each with a fix; `guide('inspect')` shows how to look
+inside a run.
 
 ## Quickstart
 
@@ -63,7 +65,9 @@ names from ids; a tool is offered only while it can be used (at 0 coins `bet` ha
 ## How a round runs
 
 Start events → each stage in order → end events → metrics → `end` conditions. A run ends when an `end` condition
-holds, an `end` effect runs, or the rounds are used up.
+holds, an `end` effect runs, or the rounds are used up. `end` conditions are checked after each stage; with
+`"check": "action"` also the moment any action commits, so a winning move ends the run before anyone else moves:
+`{"when": "$world.found", "winner": "$world.finder", "check": "action"}`.
 * A stage wakes agents (`who`, in `order`). `turns: sequential` — one at a time, actions apply at once and the tool
   result is the outcome. `turns: simultaneous` — everyone chooses from the same picture, then choices commit together
   (sealed bids, votes); outcomes arrive as news.
@@ -92,8 +96,8 @@ Every section is optional except `name` and `types`. Read any one with `guide('<
 | `stages` | `[{name, actions, turns, who, order, max_actions, until, on_enter, on_exit}]` |
 | `views` | `{v: {for, title, of, where, sort, desc, limit, show}}` — `of` omitted: one line about `$actor` |
 | `events` | `[{phase: start or end, at, every, when, chance, each, do, say}]` |
-| `end` | `[{when, winner, say}]` |
-| `metrics`, `outputs` | `{name: expr}` or `{name: {expr, type}}` |
+| `end` | `[{when, winner, say, check: stage or action}]` |
+| `metrics`, `outputs` | `{name: expr}` or `{name: {expr, type}}`; an output's `format` (money, pct, 2 …) shapes how summaries show it |
 | `invariants` | `[expr]` |
 | `mechanisms` | `{name: {kind, mode, ...config}}` — see the families below |
 | `game` | `{players, returns}` — seats and scores for tournaments and game search |
@@ -169,6 +173,7 @@ _PARTS_MAP = [
                    "(e.g. `market`, `market.auction`)"),
     ("patterns", "recipes: data files, continuous time, markets, hidden roles, spaces, networks, physics, feeds"),
     ("macros", "repeat structure from data with `for`/`make`"),
+    ("inspect", "debugging a run in brief: summary, outputs, diagnostics, events, traces, replay"),
     ("running", "Python API: participants, runs, snapshots, experiments, traces, evaluation, games, gyms, CLI"),
     ("checklist", "what makes an environment great for LLM agents"),
 ]
@@ -197,6 +202,7 @@ _TOPICS: Dict[str, Callable[[], str]] = {
     "mechanisms": mechanisms_page,
     "patterns": lambda: PATTERNS,
     "macros": lambda: MACROS.replace("MAX_ITEMS", f"{MAX_MACRO_ITEMS:,}").replace("MAX_DEPTH", str(MAX_MACRO_DEPTH)),
+    "inspect": lambda: INSPECT,
     "running": lambda: RUNNING,
     "assets": lambda: section_page("assets") + "\n\n" + ASSETS,
     "checklist": lambda: CHECKLIST,
@@ -212,7 +218,7 @@ def guide_parts() -> List[str]:
     for name, family in FAMILIES.items():
         names += [name, *[spec.key for spec in family.modes.values()]]
     names += [f"functions.{group}" for group in function_groups() if group in FAMILIES]
-    return [*names, "running", "checklist", "all"]
+    return [*names, "inspect", "running", "checklist", "all"]
 
 
 def _render(part: str) -> Optional[str]:

@@ -9,27 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Environment SDK (`fg-env`)
 
-#### Added
-- **Files and media** (`guide('assets')`): a contract's `assets` section declares files and folders beside it —
-  images (png, jpg, webp, gif), PDFs, text and markdown, audio (wav, mp3) and other files — read once at load,
-  confined to the contract's folder (no `..`, absolute paths, hidden files or links out), checked against their
-  extension and size limits, and hashed. Properties and record fields of type `asset`, table input columns of type
-  `asset` (paths), and `$asset(ref)` (`name type media_type size hash caption alt tags text`) reference them.
-  Agents receive files only through what they may see — a view's `attach`, a record entry's asset fields, an
-  event addressed to them, `brief.attach`, their own action's `attach` and `inspect` (never another entity's
-  private asset) — as a compact reference in the text and as `wake.attachments` / `ToolResult.attachments`
-  (`read()`, `text()`). `participants.anthropic` and `participants.openai` send real image, document, file and
-  audio parts (`media=` chooses the types; `media=()` for text-only models). A `file` parameter (`kinds`,
-  `max_bytes`) takes a file from the agent (base64 `data`, `text`, or a submitted `asset` id; `wake.upload` for
-  coded participants), stored as an untrusted asset recognised from its bytes. The judge and game master take
-  `attach` (a judged entry brings its files), an asset's `describe` host writes a caption and text at build
-  (`host.Describer`, `host.stubs.StubDescriber`), and the reference host adapters send attachments as multimodal
-  content. Snapshots, clones, forks, the tape and the exposure log (`assets: [{id, hash, in}]`) hold ids and
-  hashes, never bytes; a replay checks the files each wake received; `result.save` writes the run's files to
-  `<name>.assets/` and `RunResult.load` provides them again (`fg_env.sdk.assets.provide(folder)` elsewhere).
-  Examples: `court_exhibits.json` (sealed then revealed exhibits, a judge host receiving them) and
-  `product_listing.json` (a CSV catalogue with photos, sellers relisting with a submitted photo).
-
 #### Changed
 - **A short core guide**: `fg_env.guide()` / `fg-env guide` is a ~2.8K-token core — the model, a quickstart that
   runs with defaults, the essential sections and fields, expression and effect basics, the mechanism families and a
@@ -62,6 +41,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read one family or mode.
 
 #### Added
+- **Files and media** (`guide('assets')`): a contract's `assets` section declares files and folders beside it —
+  images (png, jpg, webp, gif), PDFs, text and markdown, audio (wav, mp3) and other files — read once at load,
+  confined to the contract's folder (no `..`, absolute paths, hidden files or links out), checked against their
+  extension and size limits, and hashed. Properties and record fields of type `asset`, table input columns of type
+  `asset` (paths), and `$asset(ref)` (`name type media_type size hash caption alt tags text`) reference them.
+  Agents receive files only through what they may see — a view's `attach`, a record entry's asset fields, an
+  event addressed to them, `brief.attach`, their own action's `attach` and `inspect` (never another entity's
+  private asset) — as a compact reference in the text and as `wake.attachments` / `ToolResult.attachments`
+  (`read()`, `text()`). `participants.anthropic` and `participants.openai` send real image, document, file and
+  audio parts (`media=` chooses the types; `media=()` for text-only models). A `file` parameter (`kinds`,
+  `max_bytes`) takes a file from the agent (base64 `data`, `text`, or a submitted `asset` id; `wake.upload` for
+  coded participants), stored as an untrusted asset recognised from its bytes. The judge and game master take
+  `attach` (a judged entry brings its files), an asset's `describe` host writes a caption and text at build
+  (`host.Describer`, `host.stubs.StubDescriber`), and the reference host adapters send attachments as multimodal
+  content. Snapshots, clones, forks, the tape and the exposure log (`assets: [{id, hash, in}]`) hold ids and
+  hashes, never bytes; a replay checks the files each wake received; `result.save` writes the run's files to
+  `<name>.assets/` and `RunResult.load` provides them again (`fg_env.sdk.assets.provide(folder)` elsewhere).
+  Examples: `court_exhibits.json` (sealed then revealed exhibits, a judge host receiving them) and
+  `product_listing.json` (a CSV catalogue with photos, sellers relisting with a submitted photo).
+- **Flagship exchange** (`examples/contracts/exchange_flagship.json`): the platform Exchange rebuilt as a contract — a
+  calibrated crowd of market makers, momentum, mean-reversion, fundamental, noise and passive traders on one order book,
+  one round per pass through a bar, bars, a circuit breaker on the bar's open, scheduled news, sentiment, volume and
+  volatility controllers, stop-loss liquidations, model-trader seats and a realism score against a seed history.
+- **Order book** (`market.order_book`): `passive` coded strategy; a `stop_loss` strategy parameter that liquidates at
+  market; `$book(name).flow` (last round's aggressive quantity by trader kind) and `.liquidations`; `max_short_leverage`;
+  `flow_scale` and `sentiment` expressions; `base_qty` and `volatility` may be expressions and `measure_volatility:
+  false` makes strategies assume a calibrated volatility; crowd `params` may be expressions; `value_rounds` and
+  `side_rounds` hold a fundamentalist's value estimate or a passive side for several rounds; `conserve` takes `action`,
+  `round` or `end`. Books write only the sides an order changed, without copying resting orders.
 - **`fg-env new <template> [file]` / `fg_env.new(template, path)`**: a ready-to-run contract from `blank`, `game`,
   `market`, `simulation` or `social`, each checking without errors and running with random agents.
 - **What mechanisms generate**: `fg-env check` and `fg-env preview` list, per mechanism, the actions, stages, views,

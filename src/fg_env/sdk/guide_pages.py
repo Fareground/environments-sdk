@@ -140,7 +140,7 @@ _MODULE_GROUPS = {
     "stdlib.scoring": "stats", "space_functions": "space", "networks": "space", "stdlib.puzzles": "game",
     "mechanisms._common": "conditions", "mechanisms.card_scoring": "game", "mechanisms.cards": "game",
     "mechanisms.econ_assets": "economy", "mechanisms.market_stats": "market", "mechanisms.order_book": "market",
-    "mechanisms.package_auction": "market", "mechanisms.memory": "mind",
+    "mechanisms.package_auction": "market", "mechanisms.auction_reads": "market", "mechanisms.memory": "mind",
 }
 #: What each non-family group holds, in the order the guide lists them.
 FUNCTION_GROUPS = {

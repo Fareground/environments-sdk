@@ -54,6 +54,7 @@ __all__ = [
     "InvariantSpec",
     "INPUT_TYPES",
     "INVARIANT_CHECKS",
+    "END_CHECKS",
     "PROP_TYPES",
     "PARAM_TYPES",
     "OUTPUT_TYPES",
@@ -503,7 +504,6 @@ class Condition(_ExprShorthand):
     why: str = ""
 
 
-
 class ActionSpec(_Model):
     """Something an agent can do. Each legal action becomes one typed tool."""
 
@@ -681,14 +681,14 @@ class MetricSpec(_ExprShorthand):
     unit: str = ""
 
 
-
 class OutputSpec(_ExprShorthand):
     """A typed field of the run result. ``$metrics.x`` is a metric's final value, ``$series.x`` its history."""
 
     expr: str
     type: TypeName = Field("any", description="One of: " + ", ".join(OUTPUT_TYPES))
     description: str = ""
-
+    format: str = Field("", description="How result.summary() and the CLI show it: a template format (money, pct, pct1, "
+                                         "int, 0-4 decimals …); the stored value stays exact. Unset: numbers to 4 decimals.")
 
 
 class EndSpec(_Model):
@@ -698,6 +698,9 @@ class EndSpec(_Model):
     name: Optional[str] = None
     winner: Optional[str] = Field(None, description="Expression naming the winner(s).")
     say: Optional[str] = None
+    check: str = Field("stage", description="When it is checked: stage (after the start events, after every stage and at "
+                                            "the end of the round) | action (also the moment any action, sealed choice or "
+                                            "effect block commits: a winning move ends the run at once).")
 
 
 class DefSpec(_Model):
@@ -732,6 +735,7 @@ class ArmSpec(_Model):
 
 
 INVARIANT_CHECKS = ("action", "round", "end")
+END_CHECKS = ("stage", "action")
 
 
 class InvariantSpec(_ExprShorthand):
@@ -740,7 +744,6 @@ class InvariantSpec(_ExprShorthand):
     expr: str
     why: str = ""
     check: str = Field("action", description="When it is checked: action (after the build, every action and effect block, and every round) | round (after the build and at the end of every round: much cheaper for sums over big crowds) | end (once, when the run finishes).")
-
 
 
 # ---------------------------------------------------------------------------

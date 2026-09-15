@@ -26,6 +26,7 @@ from . import traders  # noqa: F401
 from . import amm  # noqa: F401
 from . import package_auction  # noqa: F401
 from . import auctions  # noqa: F401
+from . import auction_reads  # noqa: F401
 from . import posted  # noqa: F401
 
-__all__ = ["market_stats", "order_book", "book_mechanism", "traders", "amm", "package_auction", "auctions", "posted"]
+__all__ = ["market_stats", "order_book", "book_mechanism", "traders", "amm", "package_auction", "auctions", "auction_reads", "posted"]

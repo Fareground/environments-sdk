@@ -107,6 +107,10 @@ class SdkWorld(World):
         self.lifecycle: Optional[Callable[[str, Entity, str], None]] = None
         #: What each agent was shown (an :class:`~fg_env.sdk.exposure.ExposureLog`), when the run records it.
         self.exposures: Any = None
+        #: Names of properties written since the build (read by the run's diagnostics; see run_diagnosis.py).
+        self.written: "set[str]" = set()
+        #: While a simultaneous stage commits its choices, notes `=` assignments (a run_diagnosis.SealedWrites).
+        self.sealed_writes: Any = None
         #: The files the run knows (the contract's catalog, once loaded from its folder, and submitted files).
         self.assets = AssetStore()
         self._seq = 0
@@ -441,6 +445,7 @@ class SdkWorld(World):
         if prop not in specs:
             known = ", ".join(specs) or "none"
             raise RunError(f"'{entity.entity_type}' has no property '{prop}' (declared: {known})", where)
+        self.written.add(prop)
         new = self._coerce(specs[prop], _plain(value), where)
         if self.buffer is not None:
             self.buffer.write(("prop", entity.id, prop), new, lambda: self.set_prop(entity, prop, new), where)
@@ -449,12 +454,15 @@ class SdkWorld(World):
         entity.properties[prop] = new
         self.journal.push(lambda: entity.properties.__setitem__(prop, old))
 
-    def set_world(self, prop: str, value: Any) -> None:
+    def set_world(self, prop: str, value: Any, *, trusted: bool = False) -> None:
+        """Set a world property. ``trusted``: the caller built ``value`` from plain data and never changes it in
+        place afterwards (a mechanism's fresh list of plain maps), so the defensive copy is skipped."""
         spec = self.contract.world.get(prop)
         if spec is None:
             known = ", ".join(self.contract.world) or "none"
             raise RunError(f"world has no property '{prop}' (declared: {known})", f"world.{prop}")
-        new = self._coerce(spec, _plain(value), f"world.{prop}")
+        self.written.add(prop)
+        new = self._coerce(spec, value if trusted else _plain(value), f"world.{prop}")
         if self.buffer is not None:
             self.buffer.write(("world", prop), new, lambda: self.set_world(prop, new), f"world.{prop}")
             return
