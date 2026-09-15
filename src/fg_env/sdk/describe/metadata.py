@@ -20,8 +20,11 @@ MAX_EVIDENCE = 12
 _INPUT_REF = re.compile(r"\s*\$inputs\.([A-Za-z_][A-Za-z0-9_]*)\s*")
 _MEASURE_REF = re.compile(r"\$(?:metrics|series)\.([A-Za-z_][A-Za-z0-9_]*)")
 _RANDOM_GRAPHS = frozenset({"random", "small_world", "scale_free", "blocks"})
-_MARKETS = frozenset({"auction", "order_book", "posted_market", "prediction_market"})
-_TALK = frozenset({"channels", "deliberation"})
+_MARKETS = frozenset({"market"})
+_TALK = frozenset({"social", "decision.deliberation"})
+_BOARDS = frozenset({"game.board"})
+_CARDS = frozenset({"game.cards"})
+_ROLES = frozenset({"groups.roles"})
 
 Choices = Union[int, str, None]
 
@@ -132,7 +135,7 @@ def _chance(contract: Contract, scan: _Scan) -> Tuple[str, List[str], List[str]]
         if names and where:
             (setup if where == {"setup"} else play).append(f"{path} calls " + ", ".join(f"${n}" for n in names))
     for path, node in scan.effects:
-        for op in sorted(set(node) & ops):
+        for op in sorted(walk.ops_in(node) & ops):
             play.append(f"{path} uses the {op} op, which draws at random")
         if _lossy(node):
             play.append(f"{path} may lose the message (drop)")
@@ -358,14 +361,14 @@ def _observations(contract: Contract) -> Dict[str, Any]:
 
 
 def _concepts(contract: Contract, scan: _Scan) -> List[str]:
-    kinds = {str(config.get("kind")) for config in contract.mechanisms.values()}
+    kinds = walk.mechanism_kinds(contract)
     space = contract.space
     found = {
-        "board": (space is not None and space.grid is not None) or "board" in kinds,
+        "board": (space is not None and space.grid is not None) or bool(kinds & _BOARDS),
         "graph_space": space is not None and space.graph is not None,
         "plane": space is not None and space.plane is not None,
-        "cards": "cards" in kinds,
-        "hidden_roles": "roles" in kinds,
+        "cards": bool(kinds & _CARDS),
+        "hidden_roles": bool(kinds & _ROLES),
         "communication": bool(kinds & _TALK) or any("post" in node and path.startswith("actions.") for path, node in scan.effects),
         "markets": bool(kinds & _MARKETS),
         "networks": bool(contract.relations),

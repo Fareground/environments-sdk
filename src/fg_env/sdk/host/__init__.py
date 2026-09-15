@@ -1,8 +1,8 @@
 """Host-evaluated intelligence: judgment the engine cannot compute, supplied by the host.
 
-A contract declares what it needs — a rubric ``judge``, a ``game_master`` that resolves
-free-text attempts within an allow-list, agent ``memory`` with recall, ``host_tool`` services
-such as web search, ``personas`` written at build time, ``recap`` summaries of long records,
+A contract declares what it needs — a rubric ``host.judge``, a ``host.game_master`` that resolves
+free-text attempts within an allow-list, agent ``mind.memory`` with recall, ``host.tool`` services
+such as web search, ``mind.personas`` written at build time, ``host.recap`` summaries of long records,
 ``feeds`` of external data written into the world —
 and names the host that answers (``"host": "judge"``). The host is any object implementing the
 small protocols in :mod:`.protocols`; your own model client plugs in through :mod:`.adapters`.

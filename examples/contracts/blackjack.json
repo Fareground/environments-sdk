@@ -42,7 +42,7 @@
     "p3": {"type": "player", "name": "Cleo", "props": {"seat": 2}}
   },
   "mechanisms": {
-    "cards": {"kind": "cards", "players": "player", "deal": "never"}
+    "cards": {"kind": "game", "mode": "cards", "who": "player", "deal": "never"}
   },
   "actions": {
     "place_bet": {
@@ -59,7 +59,7 @@
       "description": "Take one more card.",
       "when": [{"expr": "$actor.wager > 0 and not $actor.done and $blackjack_value($hand($actor)) < 21", "why": "You cannot take another card."}],
       "do": [
-        {"draw": "cards", "face_up": true},
+        {"game": "cards", "action": "draw", "face_up": true},
         {"if": "$blackjack_value($hand($actor)) >= 21", "then": ["$actor.done = true"]}
       ],
       "outcome": "You drew {$card_names($world.cards_drawn)}: your total is {$blackjack_value($hand($actor))}{$' (bust)' if $blackjack_value($hand($actor)) > 21 else ''}.",
@@ -86,7 +86,7 @@
         "$actor.chips -= $actor.wager",
         "$actor.wager *= 2",
         "$actor.doubled = true",
-        {"draw": "cards", "face_up": true},
+        {"game": "cards", "action": "draw", "face_up": true},
         "$actor.done = true"
       ],
       "outcome": "You doubled to {$actor.wager} and drew {$card_names($world.cards_drawn)}: total {$blackjack_value($hand($actor))}.",
@@ -105,7 +105,7 @@
       "brief": "Place your bet for hand {$round}.",
       "on_idle": ["$actor.chips -= $inputs.min_bet", "$actor.wager = $inputs.min_bet"],
       "on_enter": [
-        {"collect": "cards"},
+        {"game": "cards", "action": "collect"},
         {"each": "player", "do": ["$it.wager = 0", "$it.done = false", "$it.doubled = false", "$it.result = ''"]}
       ]
     },
@@ -115,10 +115,10 @@
       "when": "$any(player, $it.wager > 0)",
       "on_enter": [
         "$seated = $filter(player, $it.wager > 0)",
-        {"deal": "cards", "count": 1, "to": "$seated", "face_up": true},
-        {"deal": "cards", "count": 1, "to": "$entity(dealer)", "face_up": true},
-        {"deal": "cards", "count": 1, "to": "$seated", "face_up": true},
-        {"deal": "cards", "count": 1, "to": "$entity(dealer)"},
+        {"game": "cards", "action": "deal", "qty": 1, "to": "$seated", "face_up": true},
+        {"game": "cards", "action": "deal", "qty": 1, "to": "$entity(dealer)", "face_up": true},
+        {"game": "cards", "action": "deal", "qty": 1, "to": "$seated", "face_up": true},
+        {"game": "cards", "action": "deal", "qty": 1, "to": "$entity(dealer)"},
         {"each": "$seated", "where": "$blackjack_value($hand($it)) == 21", "do": ["$it.done = true"]},
         {
           "if": "$blackjack_value($hand($entity(dealer))) == 21",
@@ -143,14 +143,14 @@
       "when": "$any(player, $it.wager > 0)",
       "on_enter": [
         "$house = $entity(dealer)",
-        {"reveal": "$filter($hand($house), not $it.face_up)", "say": "The dealer turns over the hidden card: {$card_names($hand($house))}."},
+        {"game": "cards", "action": "reveal", "cards": "$filter($hand($house), not $it.face_up)", "say": "The dealer turns over the hidden card: {$card_names($hand($house))}."},
         {
           "if": "$any(player, $it.wager > 0 and $blackjack_value($hand($it)) <= 21 and not ($len($hand($it)) == 2 and $blackjack_value($hand($it)) == 21 and not $it.doubled))",
           "then": [
             {
               "repeat": 12,
               "while": "$blackjack_value($hand($house)) < 17 or ($inputs.dealer_hits_soft_17 and $blackjack_value($hand($house)) == 17 and $blackjack_soft($hand($house)))",
-              "do": [{"draw": "cards", "to": "$house", "face_up": true}]
+              "do": [{"game": "cards", "action": "draw", "who": "$house", "face_up": true}]
             }
           ]
         },

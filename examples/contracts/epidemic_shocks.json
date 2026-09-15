@@ -869,7 +869,8 @@
   },
   "mechanisms": {
     "uncertainty": {
-      "kind": "priors",
+      "kind": "dynamics",
+      "mode": "priors",
       "priors": {
         "transmissibility": {
           "dist": "beta",
@@ -888,7 +889,8 @@
       }
     },
     "compliance": {
-      "kind": "drift",
+      "kind": "dynamics",
+      "mode": "drift",
       "phase": "end",
       "rules": {
         "fatigue": {
@@ -915,7 +917,8 @@
       }
     },
     "outbreaks": {
-      "kind": "shocks",
+      "kind": "dynamics",
+      "mode": "shocks",
       "shocks": {
         "superspreader": {
           "description": "A packed indoor event",

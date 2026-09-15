@@ -96,26 +96,18 @@ def test_experiments_read_sources_in_worker_processes(tmp_path):
 
 
 def test_mechanisms_add_rules_text_and_clock_defaults_without_overriding_the_author():
-    from pydantic import BaseModel
+    from fg_env.sdk.registry import mode
 
-    from fg_env.sdk.registry import MECHANISMS, mechanism
+    from family_fixtures import Nothing, scratch_family
 
-    class Empty(BaseModel):
-        pass
-
-    kind = "test_rulebook"
-
-    @mechanism(kind, Empty, "Adds its rules and a clock default.")
-    def _expand(name, config, contract):
-        return {"brief": {"rules": "Mechanism rules."}, "clock": {"unit": "hour", "rounds": 99}}
-
-    try:
+    with scratch_family("test_rulebook"):
+        mode("test_rulebook", "rules", Nothing, "Adds its rules and a clock default.")(
+            lambda name, config, contract: {"brief": {"rules": "Mechanism rules."}, "clock": {"unit": "hour", "rounds": 99}})
         contract = {"name": "Rules", "brief": {"rules": "Author rules."}, "clock": {"rounds": 2},
                     "types": {"p": {"agent": True}}, "entities": {"p": {"type": "p"}},
-                    "mechanisms": {"book": {"kind": kind}}, "stages": [{"name": "s", "turns": "sequential"}]}
+                    "mechanisms": {"book": {"kind": "test_rulebook", "mode": "rules"}},
+                    "stages": [{"name": "s", "turns": "sequential"}]}
         parsed = fg_env.parse(contract)
         assert parsed.brief.rules == "Author rules.\n\nMechanism rules."
         assert parsed.clock.rounds == 2 and parsed.clock.unit == "hour"
         assert fg_env.parse(json.loads(json.dumps(contract))).brief.rules.count("Mechanism rules.") == 1
-    finally:
-        MECHANISMS.pop(kind, None)

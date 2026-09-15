@@ -1,7 +1,7 @@
 {
   "fg_env": "1",
   "name": "Single-stock exchange (native order book)",
-  "description": "The order_book_exchange scenario on the native order_book mechanism: a continuous limit order book with price-time priority, partial fills, maker/taker fees, a market-order collar, order expiry, a fundamental news shock and a circuit breaker, traded by coded market makers, momentum traders and fundamentalists (and optional agent seats).",
+  "description": "The order_book_exchange scenario on the native market mechanism's order_book mode: a continuous limit order book with price-time priority, partial fills, maker/taker fees, a market-order collar, order expiry, a fundamental news shock and a circuit breaker, traded by coded market makers, momentum traders and fundamentalists (and optional agent seats).",
   "inputs": {
     "rounds": {"type": "int", "default": 15, "min": 2, "max": 500, "description": "Trading sessions in the run."},
     "start_price": {"type": "number", "default": 50, "min": 1, "unit": "$", "description": "Opening reference price."},
@@ -35,8 +35,9 @@
   ],
   "mechanisms": {
     "acme": {
-      "kind": "order_book",
-      "traders": "trader",
+      "kind": "market",
+      "mode": "order_book",
+      "who": "trader",
       "instrument": "ACME",
       "start_price": "$inputs.start_price",
       "tick_size": 0.01,

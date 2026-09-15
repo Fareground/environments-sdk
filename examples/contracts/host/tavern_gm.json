@@ -34,8 +34,9 @@
   "stages": [{"name": "act", "turns": "sequential", "must_act": true}],
   "mechanisms": {
     "gm": {
-      "kind": "game_master",
-      "by": "adventurer",
+      "kind": "host",
+      "mode": "game_master",
+      "who": "adventurer",
       "rules": "A small tavern on a rainy night. Be fair, terse and grounded: ordinary actions have ordinary results.",
       "max_effects": 5,
       "context": {
@@ -53,7 +54,7 @@
          "description": "The innkeeper here pays the actor up to 3 gold."},
         {"effect": "move", "to": "adjacent", "description": "The actor walks to a neighbouring room."},
         {"effect": "set_world", "prop": "alarm", "values": [true, false], "description": "Raise or calm the alarm."},
-        {"effect": "news", "max_len": 160, "description": "Something everyone in the tavern notices."}
+        {"effect": "news", "max_chars": 160, "description": "Something everyone in the tavern notices."}
       ]
     }
   },

@@ -1,5 +1,5 @@
-"""The ``inventory`` mechanism: typed goods held by entities, with capacity, hand-overs, the
-ground, consumption, recurring needs and spoilage."""
+"""The ``economy`` family's ``inventory`` mode: typed goods held by entities, with capacity,
+hand-overs, the ground, consumption, recurring needs and spoilage."""
 from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Mapping, Optional, Union
@@ -7,10 +7,11 @@ from typing import Any, Dict, List, Literal, Mapping, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field
 
 from ...entity import Entity
-from ..registry import MechanismError, effect_op, mechanism
+from ..registry import MechanismError, family_action, mode
+from ._common import ToolsSetting, tools_field
 from .econ_assets import assets, destroy_items, is_holder
-from .econ_base import (choice_param, props, config_of, emit_to, guarded, register_config, require_types, top_types,
-                        type_list, valid_name)
+from .econ_base import (INVENTORY, LEDGER, choice_param, props, config_of, declared_names, emit_to, guarded, register_config,
+                        require_types, top_types, type_list, valid_name)
 
 __all__ = ["InventoryConfig", "ItemSpec", "agent_types", "baseline"]
 
@@ -37,14 +38,15 @@ class InventoryConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    holders: Union[str, List[str]] = Field(..., description="Type(s) that hold goods (subtypes included).")
+    who: Union[str, List[str]] = Field(..., description="Type(s) that hold goods (subtypes included).")
     items: Dict[str, ItemSpec] = Field(..., min_length=1, description="{item: {unique, value, size, unit, shelf_life, decay, props, consumable, on_consume}}.")
     prop: Optional[str] = Field(None, description="Holder property with the stackable goods {item: qty}; default the mechanism's name.")
     capacity: Union[float, str, None] = Field(None, description="Space each holder has (number or expression); unlimited when omitted.")
     start: Dict[str, Union[int, str]] = Field(
         {}, description="Goods every holder starts with {item: qty or expression} (entity props override).")
-    tools: List[Literal["give", "consume", "drop", "pickup"]] = Field(
+    actions: List[Literal["give", "consume", "drop", "pickup"]] = Field(
         ["give", "consume"], description="Tools generated for agent holders: give, consume (consumable items), drop and pickup (needs a space).")
+    tools: ToolsSetting = tools_field()
     give_to: str = Field("$it.id != $actor.id", description="Which holders an agent may give goods to ($actor, $it).")
     needs: Dict[str, Dict[str, Union[int, str]]] = Field(
         {}, description="Goods used up every `every` rounds per type: {type: {item: qty or expression over $it}}.")
@@ -52,7 +54,7 @@ class InventoryConfig(BaseModel):
     every: int = Field(1, ge=1, description="Rounds between needs.")
 
 
-register_config("inventory", InventoryConfig)
+register_config(INVENTORY, InventoryConfig)
 
 
 def agent_types(contract: Mapping[str, Any], names: List[str]) -> List[str]:
@@ -88,29 +90,22 @@ def _start_default(start: Dict[str, Union[int, str]]) -> Any:
 
 
 def _other_names(contract: Mapping[str, Any], name: str) -> Dict[str, str]:
-    taken: Dict[str, str] = {}
-    for other, use in (contract.get("mechanisms") or {}).items():
-        if other == name or not isinstance(use, Mapping):
-            continue
-        if use.get("kind") == "inventory":
-            taken.update({item: other for item in (use.get("items") or {})})
-        elif use.get("kind") == "ledger":
-            taken.update({currency: other for currency in (use.get("currencies") or {})})
-    return taken
+    taken = {**declared_names(contract, INVENTORY, "items"), **declared_names(contract, LEDGER, "currencies")}
+    return {asset: other for asset, other in taken.items() if other != name}
 
 
-@mechanism("inventory", InventoryConfig,
-           "Goods held by entities: stackable items in a map property (`$actor.goods.bread`) and unique items as "
-           "entities with an owner. Generates `<name>_give`, `<name>_consume`, `<name>_drop` and `<name>_pickup` tools "
-           "listing only goods you hold, capacity limits, recurring needs and spoilage, and the invariant "
-           "`$conserved(<name>)`: goods change only by moves or by named sources and sinks (`make_items`, `use_items`). "
-           "Totals are in $world.<name>_supply and every named flow in $world.<name>_flows.",
-           example={"kind": "inventory", "holders": "villager", "capacity": 20,
-                    "items": {"bread": {"value": 3, "shelf_life": 4, "on_consume": ["$actor.hunger -= 2 * $qty"]},
-                              "axe": {"unique": True, "value": 20, "props": {"durability": 10}}}})
+@mode("economy", "inventory", InventoryConfig,
+      "Goods held by entities: stackable items in a map property (`$actor.goods.bread`) and unique items as "
+      "entities with an owner. Generates `<name>_give`, `<name>_consume`, `<name>_drop` and `<name>_pickup` tools "
+      "listing only goods you hold, capacity limits, recurring needs and spoilage, and the invariant "
+      "`$conserved(<name>)`: goods change only by moves or by named sources and sinks (the `make` and `use` actions). "
+      "Totals are in $world.<name>_supply and every named flow in $world.<name>_flows.",
+      example={"who": "villager", "capacity": 20,
+               "items": {"bread": {"value": 3, "shelf_life": 4, "on_consume": ["$actor.hunger -= 2 * $qty"]},
+                         "axe": {"unique": True, "value": 20, "props": {"durability": 10}}}}, was="inventory")
 def _expand_inventory(name: str, config: InventoryConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
-    holders = type_list(config.holders)
-    require_types(contract, holders, "holders")
+    holders = type_list(config.who)
+    require_types(contract, holders, "who")
     prop = config.prop or name
     if not valid_name(prop):
         raise MechanismError(f"prop '{prop}' is not a property name", "use letters, digits and _ (not a Python keyword)", "prop")
@@ -122,15 +117,15 @@ def _expand_inventory(name: str, config: InventoryConfig, contract: Mapping[str,
             raise MechanismError(f"'{item}' is already declared by '{taken[item]}'", "give every item and currency its own name",
                                  f"items.{item}")
         if spec.unique and (spec.consumable or spec.on_consume or spec.shelf_life is None and spec.decay is not None):
-            raise MechanismError(f"unique item '{item}' cannot be consumable or decay", "use a stackable item, or use_items in your own action",
+            raise MechanismError(f"unique item '{item}' cannot be consumable or decay", "use a stackable item, or `use` it in your own action",
                                  f"items.{item}")
         if spec.props and not spec.unique:
             raise MechanismError(f"item '{item}' has props but is not unique", "set \"unique\": true", f"items.{item}.props")
     for item in config.start:
         if item not in config.items or config.items[item].unique:
             raise MechanismError(f"start: '{item}' is not a stackable item of this inventory", None, f"start.{item}")
-    if ("drop" in config.tools or "pickup" in config.tools) and not contract.get("space"):
-        raise MechanismError("drop and pickup need a declared space", "declare `space`, or remove them from tools", "tools")
+    if ("drop" in config.actions or "pickup" in config.actions) and not contract.get("space"):
+        raise MechanismError("drop and pickup need a declared space", "declare `space`, or remove them from actions", "actions")
     for type_name, wants in config.needs.items():
         require_types(contract, [type_name], f"needs.{type_name}")
         for item in wants:
@@ -157,11 +152,12 @@ def _expand_inventory(name: str, config: InventoryConfig, contract: Mapping[str,
                            "description": f"Goods of {name} in existence: {{item: quantity}}."},
         f"{name}_flows": {"type": "map", "default": {}, "description": "Goods made (+) and used up (−) by each named source and sink."},
     }
-    if "drop" in config.tools or "pickup" in config.tools:
+    if "drop" in config.actions or "pickup" in config.actions:
         world[f"{name}_ground"] = {"type": "map", "default": {}, "description": "Goods lying at each place: {place: {item: qty}}."}
     fragment: Dict[str, Any] = {
         "types": types, "world": world,
-        "invariants": [{"expr": f"$conserved('{name}')", "why": f"Goods of {name} change only by moves or named sources and sinks."}],
+        "invariants": [{"expr": f"$conserved('{name}')", "check": "round",
+                        "why": f"Goods of {name} change only by moves or named sources and sinks."}],
         "actions": _actions(name, config, contract, holders, stackable),
     }
     events = _events(name, config)
@@ -188,20 +184,21 @@ def _actions(name: str, config: InventoryConfig, contract: Mapping[str, Any], ho
     qty = {"type": "int", "min": 1, "max": guarded("$count_items($actor, $params.item)", "item"), "default": 1,
            "description": "How many."}
     actions: Dict[str, Any] = {}
-    if "give" in config.tools:
+    if "give" in config.actions:
         to, ref = choice_param(holders, config.give_to, "Who receives the goods.")
         target = ref.format(name="to")
         actions[f"{name}_give"] = {
             "by": agents, "description": "Give goods you hold to someone.", "when": [have],
             "params": {"to": to, "item": {"type": "enum", "values": owned, "description": "Item you hold (a name, or the id of a unique item)."},
                        "qty": qty},
-            "do": [{"give_items": "$params.item", "from": "$actor", "to": target, "qty": "$params.qty"}],
+            "do": [{"economy": name, "action": "give", "item": "$params.item", "from": "$actor", "to": target, "qty": "$params.qty"}],
             "outcome": f"You gave {{$params.qty}} × {{$params.item}} to {{{target}}}."}
     consumables = [i for i in stackable if config.items[i].consumable or config.items[i].on_consume]
-    if "consume" in config.tools and consumables:
+    if "consume" in config.actions and consumables:
         listed = "[" + ", ".join(f"'{i}'" for i in consumables) + "]"
         choices = f"$filter({owned}, $it in {listed})"
-        effects: List[Any] = [{"use_items": "$params.item", "from": "$actor", "qty": "$params.qty", "sink": "consumed"},
+        effects: List[Any] = [{"economy": name, "action": "use", "item": "$params.item", "from": "$actor", "qty": "$params.qty",
+                               "sink": "consumed"},
                               "$qty = $params.qty"]
         for item in consumables:
             if config.items[item].on_consume:
@@ -212,15 +209,15 @@ def _actions(name: str, config: InventoryConfig, contract: Mapping[str, Any], ho
             "params": {"item": {"type": "enum", "values": choices, "description": "What to consume."}, "qty": qty},
             "do": effects, "outcome": "You consumed {$params.qty} × {$params.item}.", "private": True}
     listed_stack = "[" + ", ".join(f"'{i}'" for i in stackable) + "]"
-    if "drop" in config.tools and stackable:
+    if "drop" in config.actions and stackable:
         choices = f"$filter({owned}, $it in {listed_stack})"
         actions[f"{name}_drop"] = {
             "by": agents, "description": "Leave goods on the ground where you are.",
             "when": [{"expr": f"$actor.at != null and $len({choices}) > 0", "why": "You hold nothing you can put down here."}],
             "params": {"item": {"type": "enum", "values": choices, "description": "What to put down."}, "qty": qty},
-            "do": [{"drop_items": "$params.item", "from": "$actor", "qty": "$params.qty"}],
+            "do": [{"economy": name, "action": "drop", "item": "$params.item", "from": "$actor", "qty": "$params.qty"}],
             "outcome": "You left {$params.qty} × {$params.item} here."}
-    if "pickup" in config.tools and stackable:
+    if "pickup" in config.actions and stackable:
         here = f"$ground_items('{name}', $actor.at)"
         actions[f"{name}_pickup"] = {
             "by": agents, "description": "Pick up goods lying where you are.",
@@ -228,7 +225,7 @@ def _actions(name: str, config: InventoryConfig, contract: Mapping[str, Any], ho
             "params": {"item": {"type": "enum", "values": f"$keys({here})", "description": "What to pick up."},
                        "qty": {"type": "int", "min": 1, "max": guarded(f"$get({here}, $params.item, 0)", "item"), "default": 1,
                                "description": "How many."}},
-            "do": [{"pickup_items": "$params.item", "to": "$actor", "qty": "$params.qty"}],
+            "do": [{"economy": name, "action": "pickup", "item": "$params.item", "to": "$actor", "qty": "$params.qty"}],
             "outcome": "You picked up {$params.qty} × {$params.item}."}
     return actions
 
@@ -239,13 +236,13 @@ def _events(name: str, config: InventoryConfig) -> List[Dict[str, Any]]:
         effects: List[Any] = []
         for item, qty in wants.items():
             effects += [f"$need = {qty}", f"$got = $min($need, $count_items($it, '{item}'))",
-                        {"use_items": item, "from": "$it", "qty": "$got", "sink": "needs"}]
+                        {"economy": name, "action": "use", "item": item, "from": "$it", "qty": "$got", "sink": "needs"}]
             if config.on_short:
                 effects.append({"if": "$got < $need", "then": [f"$item = '{item}'", "$short = $need - $got", *config.on_short]})
         events.append({"name": f"{name} needs of {type_name}", "phase": "end", "every": config.every,
                        "each": type_name, "do": effects})
     if any(s.shelf_life is not None or s.decay is not None for s in config.items.values()):
-        events.append({"name": f"{name} spoilage", "phase": "end", "do": [{"inventory_tick": name}]})
+        events.append({"name": f"{name} spoilage", "phase": "end", "do": [{"economy": name, "action": "tick"}]})
     return events
 
 
@@ -257,12 +254,12 @@ def _losses(world: Any, count: int, chance: float) -> int:
     return max(0, min(count, round(rng.gauss(mean, sd))))
 
 
-@effect_op("inventory_tick", keys=(), literal=("inventory_tick",),
-           example='{"inventory_tick": "goods"}  (spoil goods past their shelf life and apply decay, now)')
+@family_action("economy", ("inventory",), "tick", internal=True, was=("inventory_tick",),
+               example='{"economy": "goods", "action": "tick"}  (spoil goods past their shelf life and apply decay, now)')
 def _inventory_tick(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    name = effect["inventory_tick"]
-    config: InventoryConfig = config_of(world, name, "inventory", where)
+    name = effect["economy"]
+    config: InventoryConfig = config_of(world, name, INVENTORY, where)
     prop = assets(world).props[name]
     for entity in [e for e in world.entities.values() if e.alive and is_holder(world, e, prop)]:
         lost: Dict[str, int] = {}

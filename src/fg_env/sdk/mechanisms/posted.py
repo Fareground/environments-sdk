@@ -1,4 +1,4 @@
-"""Posted-price markets: listings with prices, stock, per-round capacity, promotions, sponsored
+"""Posted-price markets (the ``market`` family's ``posted`` mode): listings with prices, stock, per-round capacity, promotions, sponsored
 placement, ratings, and haggling with a floor and a counter-offer (as in Fareground Market).
 
 Listings are entities of the generated type ``<name>_listing`` (declared in the mechanism config,
@@ -14,19 +14,22 @@ the buyer can accept that counter within ``counter_rounds`` rounds.
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, List, Literal, Mapping, Optional, Tuple
+from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Tuple
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from ...entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, function
-from ..registry import MechanismError, effect_op, mechanism
+from ..registry import MechanismError, family_action, mode
 from ..world import Abort
-from .common import config_of, entity_of, fmt, name_check
+from ._common import ToolsSetting, tools_field
+from .common import config_of, entity_of, fmt
 from .ledger import Account, balance, clean, move
 
 __all__ = ["ListingSpec", "PostedMarketConfig"]
+
+KEY = "market.posted"
 
 #: Keys a shelf can be ranked by.
 RankKey = Literal["sponsored", "rating", "price", "sold"]
@@ -56,9 +59,9 @@ class PostedMarketConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    buyers: str = Field(..., description="Agent type that shops (subtypes included).")
+    who: str = Field(..., description="Agent type that shops (subtypes included).")
     sellers: Optional[str] = Field(None, description="Agent type that manages its listings (sets prices, promotes, sponsors).")
-    cash: str = Field("cash", description="Property holding cash (buyers and sellers).")
+    currency: str = Field("cash", description="Property holding money (buyers and sellers).")
     listings: Dict[str, ListingSpec] = Field({}, description="Listings by id.")
     rank: List[RankKey] = Field(
         list(DEFAULT_RANK), description="Shelf order: sponsored first, higher rating, lower price, more sold.")
@@ -71,13 +74,11 @@ class PostedMarketConfig(BaseModel):
     stage: Optional[str] = Field(None, description="Trade during this declared stage; default: a sequential stage named after the market.")
     max_actions: int = Field(3, ge=1, description="Actions per turn in the generated stage.")
     conserve: bool = Field(True, description="Declare invariants that cash and goods are conserved.")
+    tools: ToolsSetting = tools_field()
 
 
 def posted_config(world: Any, name: Any) -> PostedMarketConfig:
-    try:
-        return config_of(world, name, "posted_market", PostedMarketConfig)
-    except MechanismError as exc:
-        raise RunError(str(exc), "mechanisms") from None
+    return config_of(world, name, KEY, PostedMarketConfig)
 
 
 def _prop(entity: Entity, key: str, default: Any = None) -> Any:
@@ -128,7 +129,7 @@ def _sell(world: Any, name: str, cfg: PostedMarketConfig, buyer: Entity, listing
         raise Abort(f"{listing.name} can sell only {left} more this round." if left else f"{listing.name} is sold out for this round.")
     seller = entity_of(world, _prop(listing, "seller"), f"{listing.id}.seller", "the seller")
     total = clean(unit * qty)
-    move(world, Account(buyer, cfg.cash), Account(seller, cfg.cash), total, what="cash")
+    move(world, Account(buyer, cfg.currency), Account(seller, cfg.currency), total, what="cash")
     item = str(_prop(listing, "item"))
     world.set_prop(listing, "stock", stock - qty)
     world.set_prop(listing, "sold_round", sold_now + qty)
@@ -233,10 +234,10 @@ def _manage(world: Any, name: str, cfg: PostedMarketConfig, action: str, seller:
         return f"{listing.name} is {pct:.0%} off for {length} round(s): {fmt(price_now(world, listing))}."
     if action == "sponsor":
         length = _whole(rounds, 1, 1000, "rounds")
-        move(world, Account(seller, cfg.cash), Account(None, f"{name}_ad_revenue"), cfg.sponsor_fee * length, what="cash")
+        move(world, Account(seller, cfg.currency), Account(None, f"{name}_ad_revenue"), cfg.sponsor_fee * length, what="cash")
         world.set_prop(listing, "sponsor_until", max(int(_prop(listing, "sponsor_until", 0)), world.round) + length)
         return f"{listing.name} is sponsored for {length} round(s) for {fmt(cfg.sponsor_fee * length)}."
-    raise RunError(f"posted action must be one of {', '.join(POSTED_ACTIONS)}, got {action!r}", f"mechanisms.{name}")
+    raise RunError(f"'{action}' is not an action of a posted market", f"mechanisms.{name}")
 
 
 def _open(world: Any, name: str, cfg: PostedMarketConfig) -> None:
@@ -249,7 +250,7 @@ def _open(world: Any, name: str, cfg: PostedMarketConfig) -> None:
 
 
 def _parties(world: Any, name: str, cfg: PostedMarketConfig) -> List[Entity]:
-    seen: Dict[str, Entity] = {e.id: e for e in world.entities_of(cfg.buyers)}
+    seen: Dict[str, Entity] = {e.id: e for e in world.entities_of(cfg.who)}
     for listing in world.entities_of(f"{name}_listing"):
         seller = world.entity(_prop(listing, "seller"))
         if seller is not None:
@@ -263,8 +264,8 @@ def _totals(world: Any, name: str, cfg: PostedMarketConfig) -> Tuple[float, Dict
     cash = float(world.props.get(f"{name}_ad_revenue") or 0)
     goods: Dict[str, int] = {}
     for party in _parties(world, name, cfg):
-        cash += balance(world, Account(party, cfg.cash))
-    for buyer in world.entities_of(cfg.buyers):
+        cash += balance(world, Account(party, cfg.currency))
+    for buyer in world.entities_of(cfg.who):
         for item, count in dict(_prop(buyer, f"{name}_basket", {})).items():
             goods[item] = goods.get(item, 0) + int(count)
     for listing in world.entities_of(f"{name}_listing"):
@@ -277,7 +278,7 @@ def audit(world: Any, name: str) -> List[str]:
     cfg = posted_config(world, name)
     problems: List[str] = []
     for party in _parties(world, name, cfg):
-        if balance(world, Account(party, cfg.cash)) < -1e-6:
+        if balance(world, Account(party, cfg.currency)) < -1e-6:
             problems.append(f"{party.id} has negative cash")
     for listing in world.entities_of(f"{name}_listing"):
         if int(_prop(listing, "stock", 0)) < 0:
@@ -370,49 +371,70 @@ def _ok_function(call: Call) -> bool:
     return not audit(call.scope.world, _market(call))
 
 
-POSTED_ACTIONS = ("buy", "offer", "accept", "rate", "set_price", "promote", "sponsor", "open")
+#: action → (its keys after `who` and `listing`, generated by the mechanism itself, example keys, what it does).
+#: Every key an action takes is required, except `who` (default $actor); receipts land in $world.<name>_receipt.
+_ACTIONS: Dict[str, Tuple[Tuple[str, ...], bool, str, str]] = {
+    "buy": (("qty",), False, '"qty": 2', "buy from a listing at its current price"),
+    "offer": (("price",), False, '"price": 2.5', "offer less than the asking price for one unit of a negotiable listing"),
+    "accept": ((), False, "", "buy one unit at the seller's open counter-offer"),
+    "rate": (("stars",), False, '"stars": 5', "rate a listing bought from, once"),
+    "set_price": (("price",), False, '"price": 4', "a seller changes its listing's price"),
+    "promote": (("pct", "rounds"), False, '"pct": 0.2, "rounds": 3', "a seller runs a discount"),
+    "sponsor": (("rounds",), False, '"rounds": 2', "a seller puts its listing first on the shelf"),
+    "open": ((), True, "", "start a round: reset per-round capacity"),
+}
 
 
-@effect_op("posted", keys=("action", "trader", "listing", "qty", "price", "pct", "rounds", "stars"), literal=("posted", "action"),
-           required=("action",), check=name_check("posted", "posted_market", POSTED_ACTIONS),
-           example='{"posted": "market", "action": "buy", "trader": "$actor", "listing": "$params.listing", "qty": 2}  (posted '
-                   'market: buy | offer | accept | rate | set_price | promote | sponsor | open; receipt in $world.market_receipt)')
-def _posted_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-    world = runner.world
-    name, action = effect["posted"], effect["action"]
-    if action not in POSTED_ACTIONS:
-        raise RunError(f"posted action must be one of {', '.join(POSTED_ACTIONS)}, got {action!r}", where)
-    value = {key: runner.eval(effect.get(key), vars) for key in ("listing", "qty", "price", "pct", "rounds", "stars")}
-    try:
-        if action == "open":
-            _open(world, name, posted_config(world, name))
-            return
-        trader = entity_of(world, runner.eval(effect.get("trader", "$actor"), vars), where, "a trader")
-        listing = value["listing"]
-        act(world, name, action, trader, listing.id if isinstance(listing, Entity) else listing, value["qty"], value["price"],
-            value["pct"], value["rounds"], value["stars"])
-    except RunError as exc:
-        raise RunError(str(exc), where) from None
+def _runner(action: str) -> Callable[[Any, Dict[str, Any], Dict[str, Any], str], None]:
+    def run(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        world = runner.world
+        name = effect["market"]
+        try:
+            if action == "open":
+                _open(world, name, posted_config(world, name))
+                return
+            value = {key: runner.eval(effect.get(key), vars) for key in ("listing", "qty", "price", "pct", "rounds", "stars")}
+            trader = entity_of(world, runner.eval(effect.get("who", "$actor"), vars), f"{where}.who", "a trader")
+            listing = value["listing"]
+            act(world, name, action, trader, listing.id if isinstance(listing, Entity) else listing, value["qty"], value["price"],
+                value["pct"], value["rounds"], value["stars"])
+        except RunError as exc:
+            raise RunError(str(exc), where) from None
+
+    return run
 
 
-@mechanism("posted_market", PostedMarketConfig,
+def _register_actions() -> None:
+    for action, (keys, internal, fields, doc) in _ACTIONS.items():
+        required = () if internal else ("listing", *keys)
+        taken = () if internal else ("who", *required)
+        listing = "" if internal else ', "listing": "$params.listing"'
+        example = '{"market": "market", "action": "' + action + '"' + listing + (f", {fields}" if fields else "") + f"}}  ({doc})"
+        family_action("market", ("posted",), action, keys=taken, required=required, internal=internal, example=example,
+                      was=("posted",))(_runner(action))
+
+
+_register_actions()
+
+
+@mode("market", "posted", PostedMarketConfig,
            "A market of listings at posted prices with stock, per-round capacity, promotions, sponsored placement, ratings "
            "and haggling (an offer at or above the floor is accepted, below it the seller counters at the floor). Buyer tools "
            "`<name>_buy`, `<name>_offer`, `<name>_accept`, `<name>_rate`; seller tools `<name>_set_price`, `<name>_promote`, "
            "`<name>_sponsor`. Listings are `<name>_listing` entities; goods land in the buyer's `<name>_basket` "
            "({item: count}). Read the ranked shelf with $shelf(name, item?), prices with $posted_price(name, listing).",
-           example={"kind": "posted_market", "buyers": "shopper", "sellers": "farmer",
+           example={"who": "shopper", "sellers": "farmer",
                     "listings": {"apples": {"seller": "ana", "item": "apples", "price": 3, "stock": 40, "negotiable": True,
-                                            "floor": 2.5}}})
+                                            "floor": 2.5}}}, was="posted_market")
 def _expand_posted(name: str, cfg: PostedMarketConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     types = contract.get("types") or {}
     entities = contract.get("entities") or {}
-    for field, kind in (("buyers", cfg.buyers), ("sellers", cfg.sellers)):
+    for field, kind in (("who", cfg.who), ("sellers", cfg.sellers)):
         if kind is not None and kind not in types:
             raise MechanismError(f"{field} '{kind}' is not a declared type", f"types: {', '.join(types) or 'none'}", field)
-    cash = {cfg.cash: {"type": "number", "default": 0}}
+    cash = {cfg.currency: {"type": "number", "default": 0}}
     fragment_types: Dict[str, Any] = {
-        cfg.buyers: {"props": {**cash, f"{name}_basket": {"type": "map", "default": {}, "description": "Goods bought, by item."},
+        cfg.who: {"props": {**cash, f"{name}_basket": {"type": "map", "default": {}, "description": "Goods bought, by item."},
                                f"{name}_bought": {"type": "map", "default": {}, "private": True},
                                f"{name}_counters": {"type": "map", "default": {}, "private": True},
                                f"{name}_rated": {"type": "list", "default": [], "private": True}}},
@@ -442,35 +464,35 @@ def _expand_posted(name: str, cfg: PostedMarketConfig, contract: Mapping[str, An
     receipt = f"{{$world.{name}_receipt}}"
     listing = f"{name}_listing"
     buy_actions: Dict[str, Any] = {
-        f"{name}_buy": {"by": cfg.buyers, "description": f"Buy from a listing at its current price (up to {cfg.max_qty} units).",
+        f"{name}_buy": {"by": cfg.who, "description": f"Buy from a listing at its current price (up to {cfg.max_qty} units).",
                         "params": {"listing": {"type": "entity", "of": listing, "where": "$it.stock > 0", "description": "Listing id."},
                                    "qty": {"type": "int", "min": 1, "max": cfg.max_qty, "default": 1, "description": "Units."}},
-                        "do": [{"posted": name, "action": "buy", "trader": "$actor", "listing": "$params.listing", "qty": "$params.qty"}],
+                        "do": [{"market": name, "action": "buy", "listing": "$params.listing", "qty": "$params.qty"}],
                         "outcome": receipt, "private": True},
-        f"{name}_offer": {"by": cfg.buyers, "description": "Offer less than the asking price for one unit of a listing open to offers. "
+        f"{name}_offer": {"by": cfg.who, "description": "Offer less than the asking price for one unit of a listing open to offers. "
                                                          "The seller accepts or counters.",
                           "params": {"listing": {"type": "entity", "of": listing, "where": "$it.negotiable and $it.stock > 0",
                                                  "description": "Listing id."},
-                                     "price": {"type": "number", "min": 0.01, "max": f"$actor.{cfg.cash}", "description": "Your offer."}},
-                          "do": [{"posted": name, "action": "offer", "trader": "$actor", "listing": "$params.listing",
+                                     "price": {"type": "number", "min": 0.01, "max": f"$actor.{cfg.currency}", "description": "Your offer."}},
+                          "do": [{"market": name, "action": "offer", "listing": "$params.listing",
                                   "price": "$params.price"}],
                           "outcome": receipt, "private": True},
-        f"{name}_accept": {"by": cfg.buyers, "description": "Accept a seller's counter-offer and buy one unit at that price.",
+        f"{name}_accept": {"by": cfg.who, "description": "Accept a seller's counter-offer and buy one unit at that price.",
                            "params": {"listing": {"type": "enum", "values": f"$posted_counters({name}, $actor)",
                                                   "description": "Listing with a counter-offer."}},
                            "when": [{"expr": f"$len($posted_counters({name}, $actor)) > 0", "why": "You have no open counter-offers."}],
-                           "do": [{"posted": name, "action": "accept", "trader": "$actor", "listing": "$params.listing"}],
+                           "do": [{"market": name, "action": "accept", "listing": "$params.listing"}],
                            "outcome": receipt, "private": True},
     }
     if cfg.ratings:
         buy_actions[f"{name}_rate"] = {
-            "by": cfg.buyers, "description": "Rate a listing you bought from (1-5 stars, once).",
+            "by": cfg.who, "description": "Rate a listing you bought from (1-5 stars, once).",
             "params": {"listing": {"type": "enum", "values": f"$filter($keys($actor.{name}_bought), not ($it in $actor.{name}_rated))",
                                    "description": "Listing you bought from."},
                        "stars": {"type": "int", "min": 1, "max": 5, "description": "1 (bad) to 5 (great)."}},
             "when": [{"expr": f"$len($filter($keys($actor.{name}_bought), not ($it in $actor.{name}_rated))) > 0",
                       "why": "There is nothing you bought and have not rated."}],
-            "do": [{"posted": name, "action": "rate", "trader": "$actor", "listing": "$params.listing", "stars": "$params.stars"}],
+            "do": [{"market": name, "action": "rate", "listing": "$params.listing", "stars": "$params.stars"}],
             "outcome": receipt}
     actions = dict(buy_actions)
     if cfg.sellers:
@@ -478,20 +500,20 @@ def _expand_posted(name: str, cfg: PostedMarketConfig, contract: Mapping[str, An
         actions.update({
             f"{name}_set_price": {"by": cfg.sellers, "description": "Change a listing's asking price.",
                                   "params": {"listing": mine, "price": {"type": "number", "min": 0.01, "description": "New price."}},
-                                  "do": [{"posted": name, "action": "set_price", "trader": "$actor", "listing": "$params.listing",
+                                  "do": [{"market": name, "action": "set_price", "listing": "$params.listing",
                                           "price": "$params.price"}], "outcome": receipt},
             f"{name}_promote": {"by": cfg.sellers, "description": f"Run a discount on a listing for some rounds (at most {cfg.max_promo:.0%}).",
                                 "params": {"listing": mine, "pct": {"type": "number", "min": 0.01, "max": cfg.max_promo,
                                                                     "description": "Discount as a fraction (0.2 = 20% off)."},
                                            "rounds": {"type": "int", "min": 1, "max": 20, "description": "Rounds it runs."}},
-                                "do": [{"posted": name, "action": "promote", "trader": "$actor", "listing": "$params.listing",
+                                "do": [{"market": name, "action": "promote", "listing": "$params.listing",
                                         "pct": "$params.pct", "rounds": "$params.rounds"}], "outcome": receipt},
             f"{name}_sponsor": {"by": cfg.sellers, "description": f"Put a listing first on the shelf for some rounds ({fmt(cfg.sponsor_fee)} per round).",
                                 "params": {"listing": mine, "rounds": {"type": "int", "min": 1, "max": 20, "description": "Rounds."}},
-                                "do": [{"posted": name, "action": "sponsor", "trader": "$actor", "listing": "$params.listing",
+                                "do": [{"market": name, "action": "sponsor", "listing": "$params.listing",
                                         "rounds": "$params.rounds"}], "outcome": receipt, "private": True},
         })
-    viewers = sorted({cfg.buyers, cfg.sellers} - {None})  # type: ignore[type-var]
+    viewers = sorted({cfg.who, cfg.sellers} - {None})  # type: ignore[type-var]
     fragment: Dict[str, Any] = {
         "types": fragment_types,
         "entities": generated,
@@ -503,11 +525,11 @@ def _expand_posted(name: str, cfg: PostedMarketConfig, contract: Mapping[str, An
                                        "show": "{author} bought {qty} × {item} at {unit_price|money}", "notify": True,
                                        "description": "Sales, visible to the buyer and the seller."}},
         "actions": actions,
-        "events": [{"name": f"{name}_open", "phase": "start", "do": [{"posted": name, "action": "open"}]}],
+        "events": [{"name": f"{name}_open", "phase": "start", "do": [{"market": name, "action": "open"}]}],
         "views": {f"{name}_shelf": {"for": viewers, "title": "On the shelf", "of": f"$shelf({name})", "limit": cfg.shelf,
                                     "show": f"{{$posted_line({name}, $it, $actor)}}", "empty": "Nothing is for sale."},
-                  f"{name}_basket": {"for": cfg.buyers, "title": "Your basket",
-                                     "show": (f"Cash {{$actor.{cfg.cash}|money}} · basket: {{$join($map($keys($actor.{name}_basket), $it + ' × ' + "
+                  f"{name}_basket": {"for": cfg.who, "title": "Your basket",
+                                     "show": (f"Cash {{$actor.{cfg.currency}|money}} · basket: {{$join($map($keys($actor.{name}_basket), $it + ' × ' + "
                                               f"$text($get($actor.{name}_basket, $it))), ', ') or 'empty'}}")}},
         "metrics": {f"{name}_sales": f"$world.{name}_sales", f"{name}_turnover": f"$world.{name}_turnover",
                     f"{name}_avg_price": f"$avg({listing}, $posted_price({name}, $it))"},

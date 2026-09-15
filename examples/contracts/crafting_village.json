@@ -33,15 +33,15 @@
               "props": {"coin": 400, "goods_capacity": 1000, "goods": {"bread": 10, "grain": 20, "wood": 10}}}
   },
   "mechanisms": {
-    "money": {"kind": "ledger", "holders": ["villager", "store"], "currencies": {"coin": {"start": "$inputs.starting_coin"}}},
-    "goods": {"kind": "inventory", "holders": ["villager", "store"], "capacity": 30,
+    "money": {"kind": "economy", "mode": "ledger", "who": ["villager", "store"], "currencies": {"coin": {"start": "$inputs.starting_coin"}}},
+    "goods": {"kind": "economy", "mode": "inventory", "who": ["villager", "store"], "capacity": 30,
               "items": {
                 "wood": {"value": 1}, "grain": {"value": 1, "on_consume": ["$actor.hunger -= $qty"]}, "ore": {"value": 2},
                 "flour": {"value": 3}, "bread": {"value": 4, "shelf_life": 6, "on_consume": ["$actor.hunger -= 3 * $qty"]},
                 "iron": {"value": 9}, "pickaxe": {"unique": true, "value": 20, "size": 2}
               },
-              "tools": ["consume"]},
-    "craft": {"kind": "production", "producers": "villager", "inventory": "goods", "slots": 2,
+              "actions": ["consume"]},
+    "craft": {"kind": "economy", "mode": "production", "who": "villager", "inventory": "goods", "slots": 2,
               "skills": {"woodcraft": {"xp_per_level": 3, "max_level": 5}, "farming": {"xp_per_level": 3, "max_level": 5},
                          "mining": {"xp_per_level": 3, "max_level": 5}, "cooking": {"xp_per_level": 4, "max_level": 5},
                          "smithing": {"xp_per_level": 5, "max_level": 5}},
@@ -69,8 +69,8 @@
       "params": {"item": {"type": "enum", "values": "$filter($owned_items($actor, 'goods'), $it in $keys($world.store_buys))"},
                  "qty": {"type": "int", "min": 1, "default": 1, "max": "$count_items($actor, $params.item) if 'item' in $params else null"}},
       "do": ["$price = $get($world.store_buys, $params.item) * $params.qty",
-             {"give_items": "$params.item", "from": "$actor", "to": "$entity(store)", "qty": "$params.qty"},
-             {"pay": "coin", "from": "$entity(store)", "to": "$actor", "amount": "$price"},
+             {"economy": "goods", "action": "give", "item": "$params.item", "from": "$actor", "to": "$entity(store)", "qty": "$params.qty"},
+             {"economy": "money", "action": "pay", "from": "$entity(store)", "to": "$actor", "amount": "$price"},
              "$world.turnover += $price"],
       "outcome": "Sold {$params.qty} {$params.item} for {$price} coin."
     },
@@ -81,14 +81,14 @@
                  "qty": {"type": "int", "min": 1, "default": 1,
                          "max": "$min($count_items($entity(store), $params.item), $floor($actor.coin / $get($world.store_sells, $params.item))) if 'item' in $params else null"}},
       "do": ["$price = $get($world.store_sells, $params.item) * $params.qty",
-             {"pay": "coin", "from": "$actor", "to": "$entity(store)", "amount": "$price"},
-             {"give_items": "$params.item", "from": "$entity(store)", "to": "$actor", "qty": "$params.qty"},
+             {"economy": "money", "action": "pay", "from": "$actor", "to": "$entity(store)", "amount": "$price"},
+             {"economy": "goods", "action": "give", "item": "$params.item", "from": "$entity(store)", "to": "$actor", "qty": "$params.qty"},
              "$world.turnover += $price"],
       "outcome": "Bought {$params.qty} {$params.item} for {$price} coin."
     }
   },
   "events": [
-    {"name": "heirloom pickaxe", "at": 1, "phase": "start", "do": [{"make_items": "pickaxe", "to": "$entity(bram)", "source": "heirloom"}]},
+    {"name": "heirloom pickaxe", "at": 1, "phase": "start", "do": [{"economy": "goods", "action": "make", "item": "pickaxe", "to": "$entity(bram)", "source": "heirloom"}]},
     {"name": "hunger", "phase": "end", "each": "villager", "do": ["$it.hunger += 1", {"if": "$it.hunger >= 8", "then": ["$it.health -= 1"]}]}
   ],
   "stages": [

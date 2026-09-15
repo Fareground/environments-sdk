@@ -51,7 +51,7 @@ class Rule:
     high: Optional[float] = None
     delta: Optional[float] = None
     values: Optional[List[Any]] = None
-    max_len: int = 200
+    max_chars: int = 200
     amount: Optional[float] = None
     description: str = ""
 
@@ -87,7 +87,7 @@ def resolve_rules(runner: Any, allow: Sequence[Any], vars: Dict[str, Any], where
     for index, spec in enumerate(allow):
         path = f"{where}.allow[{index}]"
         rule = Rule(index, spec.effect, spec.prop, low=spec.min, high=spec.max, delta=spec.delta,
-                    values=list(spec.values) if spec.values is not None else None, max_len=spec.max_len,
+                    values=list(spec.values) if spec.values is not None else None, max_chars=spec.max_chars,
                     amount=spec.amount, description=spec.description)
         if spec.effect in ("set", "move"):
             rule.targets = _entity_ids(runner, spec.target, vars, path)
@@ -164,7 +164,7 @@ def describe(rules: Sequence[Rule]) -> List[Dict[str, Any]]:
             if value is not None:
                 item[key] = value
         if rule.effect == "news" or rule.values is None:
-            item["max_len"] = rule.max_len
+            item["max_chars"] = rule.max_chars
         out.append(item)
     return out
 
@@ -328,8 +328,8 @@ def _check_news(world: Any, rule: Rule, raw: Mapping[str, Any], used: Dict[Tuple
     key: Tuple[Any, ...] = ("news",)
     if key in used:
         return None, "only one news item is allowed per attempt", key, True
-    if not isinstance(text, str) or not text.strip() or len(text) > rule.max_len:
-        return None, f"news must be text of 1 to {rule.max_len} characters", key, True
+    if not isinstance(text, str) or not text.strip() or len(text) > rule.max_chars:
+        return None, f"news must be text of 1 to {rule.max_chars} characters", key, True
     return Change("news", rule.index, "news was spread", text=Untrusted(text.strip())), "", key, True
 
 
@@ -365,8 +365,8 @@ def _value(spec: Any, rule: Rule, current: Any, value: Any, label: str) -> Tuple
             return None, f"{label} must be one of {', '.join(format_value(v) for v in spec.values or [])}"
         return value, ""
     if kind == "text":
-        if not isinstance(value, str) or len(value) > rule.max_len:
-            return None, f"{label} must be text of at most {rule.max_len} characters"
+        if not isinstance(value, str) or len(value) > rule.max_chars:
+            return None, f"{label} must be text of at most {rule.max_chars} characters"
         return (value if rule.values is not None else Untrusted(value)), ""
     if rule.values is None:
         return None, f"{label} can only be set to one of the rule's declared `values`"

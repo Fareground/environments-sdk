@@ -1,4 +1,4 @@
-"""The board-game grammar: the ``board`` mechanism's config, and its compilation into fast rule tables.
+"""The board-game grammar: the ``game.board`` mode's config, and its compilation into fast rule tables.
 
 Config is validated by pydantic (field errors name the field); compilation checks every cross
 reference — directions, cells, zones, kinds, sides — and raises :class:`MechanismError` with a fix.
@@ -13,6 +13,7 @@ from typing import Any, Dict, FrozenSet, List, Literal, Mapping, Optional, Tuple
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..registry import MechanismError
+from ._common import ToolsSetting, tools_field
 from .board_geometry import Geometry, GeometryError, graph, grid, hex_board, ring
 
 __all__ = ["BoardConfig", "Rules", "Pattern", "Promotion", "Castle", "CaptureRule", "compile_rules"]
@@ -119,7 +120,7 @@ class BoardConfig(_Strict):
     cells: Dict[str, Dict[str, Any]] = Field(default_factory=dict, description="Cell properties: {cell: {color: dark, terrain: …}}; zones can select them (\"color=dark\").")
     zones: Dict[str, Zone] = Field(default_factory=dict, description="Named cell sets: a list, \"rank 8\", \"file a\", \"far\", \"near\", \"prop=value\", another zone, or {side: zone}.")
     sides: List[Union[str, SideSpec]] = Field(..., min_length=1, description="Player entity ids in seat order; the first moves first.")
-    players: str = Field("player", description="Agent type of the players (declared for you when missing).")
+    who: str = Field("player", description="Agent type of the players (declared for you when missing).")
     piece_type: str = Field("piece", description="Entity type of the pieces (props owner, kind, cell, moved).")
     pieces: Dict[str, PieceSpec] = Field(..., min_length=1, description="Piece kinds: {kind: {name, symbol, moves, royal, promote, irreversible}}.")
     setup: Union[str, Dict[str, Dict[str, List[str]]]] = Field("", description="Start position: grid rows top to bottom as board symbols (\"rnbqkbnr/pppppppp/8/…\"), or {side: {kind: [cells]}}.")
@@ -140,6 +141,7 @@ class BoardConfig(_Strict):
     score: Literal["none", "pieces", "area"] = Field("none", description="Winner when the game ends by passes or when nobody can move: pieces on the board, or area (pieces + surrounded empty cells).")
     komi: Dict[str, float] = Field(default_factory=dict, description="Points added to a side's score: {white: 6.5}.")
     stage: Optional[str] = Field(None, description="Play during this declared stage instead of a generated one.")
+    tools: ToolsSetting = tools_field()
 
 
 # ---------------------------------------------------------------------------

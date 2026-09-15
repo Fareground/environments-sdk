@@ -12,7 +12,8 @@
   },
   "mechanisms": {
     "othello": {
-      "kind": "board",
+      "kind": "game",
+      "mode": "board",
       "sides": [
         {
           "id": "black",

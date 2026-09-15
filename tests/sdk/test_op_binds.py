@@ -1,19 +1,26 @@
 """Native effect ops that bind locals for later effects and templates."""
 import fg_env
-from fg_env.sdk.registry import OPS, effect_op
+from fg_env.sdk.registry import family_action, mode
+
+from family_fixtures import Nothing, scratch_family
 
 
 def test_a_native_op_can_bind_a_local_that_later_effects_and_outcomes_read():
-    name = "test_pick_number"
+    with scratch_family("test_picker"):
+        mode("test_picker", "numbers", Nothing, "Picks numbers.")(lambda name, config, contract: {})
 
-    @effect_op(name, keys=(), literal=(name,), binds=("as",), example='{"test_pick_number": "x", "as": "picked"}')
-    def _pick(runner, effect, vars, where):
-        vars[effect["as"]] = 42
+        @family_action("test_picker", ("numbers",), "pick", binds=("as",),
+                       example='{"test_picker": "x", "action": "pick", "as": "picked"}')
+        def _pick(runner, effect, vars, where):
+            vars[effect["as"]] = 42
 
-    try:
+        def pick(bound):
+            return {"test_picker": "x", "action": "pick", "as": bound}
+
         contract = {"name": "Binds", "clock": {"rounds": 1}, "world": {"n": 0},
                     "types": {"p": {"agent": True}}, "entities": {"p": {"type": "p"}},
-                    "actions": {"go": {"by": "p", "do": [{name: "x", "as": "picked"}, "$world.n = $picked"],
+                    "mechanisms": {"x": {"kind": "test_picker", "mode": "numbers"}},
+                    "actions": {"go": {"by": "p", "do": [pick("picked"), "$world.n = $picked"],
                                        "outcome": "Picked {$picked}.", "terminal": True}},
                     "stages": [{"name": "s", "turns": "sequential"}]}
         assert not [i for i in fg_env.check(contract) if i.severity == "error"]
@@ -26,9 +33,7 @@ def test_a_native_op_can_bind_a_local_that_later_effects_and_outcomes_read():
 
         env.run(play)
         assert env.props["n"] == 42 and told == ["Picked 42."]
-        bad = {**contract, "actions": {"go": {"by": "p", "do": [{name: "x", "as": "not a name"}], "terminal": True}}}
+        bad = {**contract, "actions": {"go": {"by": "p", "do": [pick("not a name")], "terminal": True}}}
         assert any("names a local" in i.message for i in fg_env.check(bad) if i.severity == "error")
-        reserved = {**contract, "actions": {"go": {"by": "p", "do": [{name: "x", "as": "actor"}], "terminal": True}}}
+        reserved = {**contract, "actions": {"go": {"by": "p", "do": [pick("actor")], "terminal": True}}}
         assert any("built-in root" in i.message for i in fg_env.check(reserved) if i.severity == "error")
-    finally:
-        OPS.pop(name, None)
