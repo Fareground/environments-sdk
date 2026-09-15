@@ -162,20 +162,23 @@ def chain(first: ContractLike, second: ContractLike, bind: Mapping[str, str], *,
           uncertainty: bool = True, first_inputs: Optional[Mapping[str, Any]] = None,
           second_inputs: Optional[Mapping[str, Any]] = None, participants: Any = None,
           second_participants: Any = None, rounds: Optional[int] = None, second_rounds: Optional[int] = None,
-          seed: int = 0, workers: int = 1) -> ChainResult:
+          seed: int = 0, workers: int = 1, data_dir: Any = None, second_data_dir: Any = None,
+          hosts: Any = None) -> ChainResult:
     """Run ``first``, bind its outputs into ``second``'s inputs (``{second_input: first_output}``), run ``second``.
 
     Each bound output is summarised by its mean (point) and the central ``level`` range of its
     run values (lower, upper); yes/no outputs become the share of runs. ``second`` runs at the
     point estimates and, with ``uncertainty``, at all-lower and all-upper bindings too. Values
-    outside a bound input's declared range are clamped, with a note.
+    outside a bound input's declared range are clamped, with a note. ``data_dir`` / ``second_data_dir`` are where
+    each contract's inputs with a ``source`` are read (default: each contract file's folder); ``hosts`` answers host
+    requests in the runs of both.
     """
     runner.check_positive_int("runs", runs)
     if not bind:
         raise ValueError("chain needs at least one binding {second_input: first_output}")
     if not 0 < level < 1:
         raise ValueError(f"level must be between 0 and 1, got {level}")
-    one, two = runner.as_contract(first), runner.as_contract(second)
+    one, two = runner.as_contract(first, data_dir), runner.as_contract(second, second_data_dir)
     seeds = runner.run_seeds(seed, runs)
     measures = {target: runner.resolve_measure(one, source) for target, source in bind.items()}
     for target in bind:
@@ -183,7 +186,7 @@ def chain(first: ContractLike, second: ContractLike, bind: Mapping[str, str], *,
         if spec.type not in ("number", "int", "bool"):
             raise ValueError(f"input '{target}' of the second contract is {spec.type}; only number, int and bool can be bound")
     first_runs = runner.run_jobs(one, [runner.Job(dict(first_inputs or {}), None, s) for s in seeds],
-                                 participants=participants, rounds=rounds, workers=workers)
+                                 participants=participants, rounds=rounds, workers=workers, hosts=hosts)
     tail = (1.0 - level) / 2.0
     bindings: Dict[str, Dict[str, Any]] = {}
     for target, measure in measures.items():
@@ -198,7 +201,7 @@ def chain(first: ContractLike, second: ContractLike, bind: Mapping[str, str], *,
              for label in labels]
     jobs = runner.jobs_for(cells, seeds)
     grouped = runner.by_cell(jobs, runner.run_jobs(two, jobs, participants=second_participants, rounds=second_rounds,
-                                                   workers=workers), len(cells))
+                                                   workers=workers, hosts=hosts), len(cells))
     measured = runner.numeric_measures(two, [r for cell in grouped for r in cell])
     scenarios: Dict[str, Dict[str, Any]] = {}
     for label, (inputs, _), cell in zip(labels, cells, grouped):

@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Sequence, Set, Tuple
 
-from .api import ContractLike, contract_source, default_data_dir, load, parse
+from .api import ContractLike, contract_source, default_data_dir, load, located, parse
 from .arm_inputs import arm_input_overrides, override_message
 from .budget import Budget
 from .contract import Contract
@@ -191,12 +191,13 @@ def failed_run(job: Job, error: BaseException) -> RunResult:
 
 
 def run_job(source: Any, job: Job, participants: Any = None, rounds: Optional[int] = None, events: bool = True,
-            data_dir: Any = None, budget: Optional[Mapping[str, Any]] = None, exposures: bool = False) -> RunResult:
+            data_dir: Any = None, budget: Optional[Mapping[str, Any]] = None, exposures: bool = False,
+            hosts: Any = None) -> RunResult:
     """Run one job; a failure comes back as a failed run, never raised. A run that records exposures keeps its
     events whatever ``events`` says: a recording is replayed against them."""
     try:
         result = load(source, inputs=dict(job.inputs), seed=job.seed, arm=job.arm, data_dir=data_dir,
-                      exposures=exposures).run(participants, rounds=rounds, budget=budget)
+                      exposures=exposures, hosts=hosts).run(participants, rounds=rounds, budget=budget)
     except Exception as exc:  # reported per run, never fatal to the batch
         return failed_run(job, exc)
     return result if events or exposures else replace(result, events=[])
@@ -212,11 +213,11 @@ def _check_workers(workers: Any) -> None:
 
 
 @contextmanager
-def worker_pool(workers: int, participants: Any = None) -> Iterator[Optional[ProcessPoolExecutor]]:
+def worker_pool(workers: int, participants: Any = None, hosts: Any = None) -> Iterator[Optional[ProcessPoolExecutor]]:
     """One process pool shared by many :func:`run_jobs` calls (starting workers costs more than a small
-    batch). Yields ``None`` when runs stay in this process: one worker, or participants that are callables."""
+    batch). Yields ``None`` when runs stay in this process: one worker, participants that are callables, or hosts."""
     _check_workers(workers)
-    if workers > 1 and _portable(participants):
+    if workers > 1 and hosts is None and _portable(participants):
         with ProcessPoolExecutor(max_workers=workers) as pool:
             yield pool
     else:
@@ -226,7 +227,7 @@ def worker_pool(workers: int, participants: Any = None) -> Iterator[Optional[Pro
 def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = None,
              participants_for: Optional[Callable[[Job], Any]] = None, rounds: Optional[int] = None, workers: int = 1,
              events: bool = True, pool: Optional[ProcessPoolExecutor] = None, data_dir: Any = None,
-             budget: Optional[Mapping[str, Any]] = None, exposures: bool = False) -> List[RunResult]:
+             budget: Optional[Mapping[str, Any]] = None, exposures: bool = False, hosts: Any = None) -> List[RunResult]:
     """Run every job, in order, returning one result per job.
 
     Problems the jobs share (bad inputs, an unknown arm, an unknown participant) raise before anything
@@ -236,10 +237,12 @@ def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = N
     the batch's for that job; ``events=False`` drops event logs; ``budget`` caps each run on its own
     (every run has the whole budget: :mod:`fg_env.sdk.budget`); ``exposures=True`` records what agents saw in every
     run's ``exposures``, events kept, so each run is a trace to read or replay (:func:`fg_env.trace`).
+    Inputs with a ``source`` read their files from ``data_dir`` (default: the contract file's folder); ``hosts``
+    answers the contract's host requests (feeds, judges) and keeps runs in this process (threads).
     """
     _check_workers(workers)
-    folder = default_data_dir(source, data_dir)
-    contract = source if isinstance(source, Contract) else parse(source)
+    contract = located(source, data_dir) if isinstance(source, Contract) else parse(source, data_dir)
+    folder = default_data_dir(contract)
     if not jobs:
         return []
 
@@ -252,7 +255,7 @@ def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = N
         if key in probed:
             continue
         probed.add(key)
-        env = load(contract, inputs=dict(job.inputs), seed=0, arm=job.arm, data_dir=folder)
+        env = load(contract, inputs=dict(job.inputs), seed=0, arm=job.arm, hosts=hosts)
         if participants_for is None and len(probed) == 1:
             env.driver.bind(assigned(job))
 
@@ -261,10 +264,10 @@ def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = N
             who = participants_for(job) if participants_for is not None else assigned(job)
         except Exception as exc:
             return failed_run(job, exc)
-        return run_job(contract, job, who, rounds, events, folder, budget, exposures)
+        return run_job(contract, job, who, rounds, events, folder, budget, exposures, hosts)
 
     many = len(jobs) > 1
-    portable = participants_for is None and all(_portable(assigned(job)) for job in jobs)
+    portable = hosts is None and participants_for is None and all(_portable(assigned(job)) for job in jobs)
     if (pool is not None or workers > 1) and many and portable:
         data = contract_source(contract)
         payloads = [(data, job, assigned(job), rounds, events, str(folder) if folder else None, budget, exposures)
@@ -285,7 +288,7 @@ def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = N
 
 def _branched(contract: Contract, jobs: Sequence[Job], branch_at: int, participants: Any,
               participants_for: Optional[Callable[[Job], Any]], rounds: Optional[int], workers: int,
-              folder: Any, budget: Optional[Mapping[str, Any]], exposures: bool) -> List[RunResult]:
+              folder: Any, budget: Optional[Mapping[str, Any]], exposures: bool, hosts: Any = None) -> List[RunResult]:
     """Each run's first ``branch_at`` rounds played once without an arm, then continued under every job's arm. The
     budget starts with the shared rounds and every continuation carries what they used (a fork keeps the budget)."""
     if isinstance(branch_at, bool) or not isinstance(branch_at, int) or branch_at < 0:
@@ -300,7 +303,8 @@ def _branched(contract: Contract, jobs: Sequence[Job], branch_at: int, participa
     def one(group: List[Job]) -> List[Tuple[Job, RunResult]]:
         first = group[0]
         try:
-            shared = load(contract, inputs=dict(first.inputs), seed=first.seed, data_dir=folder, exposures=exposures)
+            shared = load(contract, inputs=dict(first.inputs), seed=first.seed, data_dir=folder, exposures=exposures,
+                          hosts=hosts)
             shared.run(participants_for(replace(first, arm=None)) if participants_for else
                        (first.participants if first.participants is not None else participants), rounds=branch_at,
                        budget=budget)
@@ -335,7 +339,7 @@ def experiment(source: ContractLike, *, runs: int = 10, arms: Optional[List[str]
                participants_for: Optional[Callable[[int, Optional[str]], Any]] = None,
                rounds: Optional[int] = None, workers: int = 1, data_dir: Any = None,
                branch_at: Optional[int] = None, budget: Optional[Mapping[str, Any]] = None,
-               exposures: bool = False) -> ExperimentResult:
+               exposures: bool = False, hosts: Any = None, uncertainty: Any = None) -> ExperimentResult:
     """Run each arm ``runs`` times. Run *i* uses the same seed in every arm, so differences
     between arms come from the arm, not from luck. ``arms`` defaults to every declared arm
     (or a single baseline run set when none are declared). ``participants_for(i, arm)``
@@ -348,6 +352,10 @@ def experiment(source: ContractLike, *, runs: int = 10, arms: Optional[List[str]
     ``budget`` caps each run on its own (:mod:`fg_env.sdk.budget`); with ``branch_at`` the shared rounds are part of
     every arm's run, so they count toward each arm's budget. ``exposures=True`` records what agents saw in every run
     (``result.arms[label].runs[i].exposures``, events kept): each run is a trace to read or replay.
+    ``data_dir`` is where inputs with a ``source`` are read (default: the contract file's folder); ``hosts``
+    answers the contract's host requests in every run. ``uncertainty`` (a calibration, a list of points or priors;
+    :mod:`fg_env.sdk.analysis.draws`) draws parameters per run, the same for run *i* in every arm, so the spread of
+    outcomes includes not knowing them.
 
     Problems shared by every run (an unknown arm, bad inputs, an unknown participant) raise
     before anything runs. A run that fails on its own is kept with ``status="failed"`` and its
@@ -358,8 +366,8 @@ def experiment(source: ContractLike, *, runs: int = 10, arms: Optional[List[str]
             raise ValueError(f"{name} must be a whole number ≥ 1, got {value!r}")
     if budget is not None:
         Budget.parse(budget)  # a mistake in the budget raises before anything runs
-    folder = default_data_dir(source, data_dir)
-    contract = parse(source)
+    contract = parse(source, data_dir)
+    folder = default_data_dir(contract)
     labels: List[Optional[str]] = list(arms) if arms is not None else (list(contract.arms) or [None])
     unknown = [a for a in labels if a is not None and a not in contract.arms]
     if unknown:
@@ -370,6 +378,10 @@ def experiment(source: ContractLike, *, runs: int = 10, arms: Optional[List[str]
     tree = SeedTree(seed)
     seeds = [tree.derive("run", i) for i in range(runs)]
     jobs = [Job(dict(inputs or {}), arm, seeds[i], {"run": i}) for arm in labels for i in range(runs)]
+    if uncertainty is not None:
+        from .analysis.draws import parameter_draws, with_draws  # analysis runs experiments: imported when used
+
+        jobs = with_draws(jobs, parameter_draws(contract, uncertainty, runs, seed))
 
     def per_job(job: Job) -> Any:
         assert participants_for is not None
@@ -377,11 +389,11 @@ def experiment(source: ContractLike, *, runs: int = 10, arms: Optional[List[str]
 
     if branch_at is not None:
         results = _branched(contract, jobs, branch_at, participants, per_job if participants_for else None, rounds,
-                            workers, folder, budget, exposures)
+                            workers, folder, budget, exposures, hosts)
     else:
         results = run_jobs(contract, jobs, participants=participants,
                            participants_for=per_job if participants_for else None, rounds=rounds, workers=workers,
-                           data_dir=folder, budget=budget, exposures=exposures)
+                           data_dir=folder, budget=budget, exposures=exposures, hosts=hosts)
     out: Dict[str, ArmResult] = {}
     for arm in labels:
         arm_runs = [r for job, r in zip(jobs, results) if job.arm == arm]

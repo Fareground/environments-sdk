@@ -18,13 +18,15 @@ from .econ_base import (INVENTORY, LEDGER, NEGOTIATION, bump, choice_param, comp
                         entity_of, money, props, register_config, require_types, run_hook, to_ids, type_list, valid_name, whole)
 from .econ_inventory import agent_types
 
-__all__ = ["NegotiationConfig", "IssueSpec", "ObligationSpec", "BreachSpec"]
+__all__ = ["NegotiationConfig", "IssueSpec", "ObligationSpec", "TransferSpec", "BreachSpec"]
 
 #: Most installments one obligation may schedule.
 MAX_DUTIES = 1000
 STATS = {"offers": 0, "counters": 0, "rejected": 0, "withdrawn": 0, "expired": 0, "deals": 0, "duties_done": 0,
          "breaches": 0, "penalties": 0}
 RESERVED_PARAMS = ("to", "recipients", "offer", "note", "duty")
+#: What `transfers`, `obligations` and `on_sign` read about a signed deal.
+SIGN_ROLES = ("deal", "proposer", "acceptor", "parties", "terms")
 
 
 class IssueSpec(BaseModel):
@@ -63,6 +65,20 @@ class ObligationSpec(BaseModel):
         return self
 
 
+class TransferSpec(BaseModel):
+    """Unique entities a signed deal hands over (a lot of phones, a house): each one's `field` is set to the recipient."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    label: str = Field("", description="What moves, in words (\"phones\").")
+    items: str = Field(..., description="The entities on offer, in order: expression over $proposer, $acceptor, $parties "
+                                        "and $terms, e.g. `$filter(phone, $it.owner == $proposer.id)`.")
+    count: Union[int, str, None] = Field(None, description="How many of them move: number or expression over $terms "
+                                                          "(default all). Fewer on offer refuses the signing.")
+    to: str = Field(..., description="Who receives them (same roots).")
+    field: str = Field("owner", description="The property of each item set to the recipient's id.")
+
+
 class BreachSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -87,6 +103,10 @@ class NegotiationConfig(BaseModel):
     value: Optional[str] = Field(None, description="Worth of terms to a party, shown only to that party: expression over $party and $terms.")
     once: bool = Field(True, description="The first signed deal closes the negotiation.")
     obligations: List[ObligationSpec] = Field([], description="What a signed deal makes parties pay or deliver.")
+    transfers: List[TransferSpec] = Field([], description="Unique entities a signed deal hands over at once "
+                                                          "(`<name>_deal.items` lists them).")
+    on_sign: List[Any] = Field([], description="Effects when a deal is signed, after its transfers and duties ($deal, "
+                                               "$proposer, $acceptor, $parties, $terms); a `fail` refuses the signing.")
     breach: BreachSpec = Field(None, validate_default=True,
                                description="What a breach costs: {penalty, currency, terminate, on_breach}; nothing by default.")
     actions: List[Literal["propose", "counter", "accept", "reject", "withdraw", "fulfill"]] = Field(
@@ -108,7 +128,9 @@ register_config(NEGOTIATION, NegotiationConfig)
            "bounds, an optional deadline and expiry. Walk-away values stay private (`<name>_reservation`) and `value` "
            "shows each party what terms are worth to it alone. A signed deal (`<name>_deal`) schedules `obligations` as "
            "duties (`<name>_duty`) executed as conserved payments or deliveries; a duty not met by its due round is a "
-           "breach with a penalty, optional termination and `on_breach` effects. Totals in $world.<name>_stats.",
+           "breach with a penalty, optional termination and `on_breach` effects. `transfers` hand unique entities (a lot "
+           "of phones) to a party at signing and `on_sign` effects settle the rest; a settlement that cannot happen "
+           "refuses the acceptance. Totals in $world.<name>_stats.",
            example={"who": "country", "deadline": 8,
                     "issues": {"tariff": {"min": 0, "max": 30, "unit": "%"}, "quota": {"type": "int", "min": 0, "max": 500}},
                     "reservation": 40, "value": "$party.weight * $terms.quota - $terms.tariff",
@@ -140,6 +162,12 @@ def _expand_negotiation(name: str, config: NegotiationConfig, contract: Mapping[
             raise MechanismError(f"'{duty.pay}' is not a declared currency", "declare a ledger with it", f"{path}.pay")
         if duty.give is not None and "$" not in duty.give and duty.give not in items:
             raise MechanismError(f"'{duty.give}' is not a declared item", "declare an inventory with it", f"{path}.give")
+    for index, transfer in enumerate(config.transfers):
+        path = f"transfers[{index}]"
+        for field in ("items", "count", "to"):
+            compiles(getattr(transfer, field), f"{path}.{field}")
+        if not valid_name(transfer.field):
+            raise MechanismError(f"'{transfer.field}' cannot be a property name", "use letters, digits and _", f"{path}.field")
     for field in ("deadline", "reservation", "value"):
         compiles(getattr(config, field), field)
     compiles(config.breach.penalty, "breach.penalty")
@@ -170,7 +198,8 @@ def _fragment(name: str, config: NegotiationConfig, parties: List[str], agents: 
                 "parties": {"type": "list", "default": []}, "proposer": text, "acceptors": {"type": "list", "default": []},
                 "terms": {"type": "map", "default": {}}, "signed": {"type": "int", "default": 0},
                 "status": {"type": "enum", "values": ["active", "completed", "terminated"], "default": "active"},
-                "breaches": {"type": "int", "default": 0, "min": 0}, "offer": text}},
+                "breaches": {"type": "int", "default": 0, "min": 0}, "offer": text,
+                "items": {"type": "list", "default": [], "description": "Ids of the entities the deal handed over."}}},
             duty: {"description": "One installment a deal makes someone pay or deliver.", "props": {
                 "deal": text, "label": text, "by": text, "to": text,
                 "kind": {"type": "enum", "values": ["pay", "give"], "default": "pay"}, "asset": text,
@@ -192,9 +221,13 @@ def _fragment(name: str, config: NegotiationConfig, parties: List[str], agents: 
         fragment["defs"][f"{name}_value"] = {"args": ["party", "terms"], "expr": config.value,
                                              "description": "What terms are worth to a party."}
         worth = f"{{$' · worth ' + $text($round(${name}_value($actor, $it.terms), 1)) + ' to you'}}"
+    fragment["blocks"] = {}
     if config.breach.on_breach:
-        fragment["blocks"] = {f"{name}_on_breach": {"args": ["deal", "duty", "breacher", "victim", "terms"],
-                                                    "do": list(config.breach.on_breach), "description": "Runs when a duty is breached."}}
+        fragment["blocks"][f"{name}_on_breach"] = {"args": ["deal", "duty", "breacher", "victim", "terms"],
+                                                   "do": list(config.breach.on_breach), "description": "Runs when a duty is breached."}
+    if config.on_sign:
+        fragment["blocks"][f"{name}_on_sign"] = {"args": list(SIGN_ROLES), "do": list(config.on_sign),
+                                                 "description": "Runs when a deal is signed."}
     _actions(name, config, parties, agents, fragment)
     table = "$it.status == open and ($it.sender == $actor.id or $actor.id in $it.recipients)"
     fragment["views"].update({
@@ -443,6 +476,10 @@ def _sign(runner: Any, name: str, config: NegotiationConfig, offer: Any, where: 
                          "signed": world.round, "offer": offer.id}, None, world.scope(), where)
     roles = {"proposer": world.entities[p["sender"]], "acceptor": world.entities[p["recipients"][0]],
              "parties": [world.entities[i] for i in parties], "terms": dict(p["terms"]), "deal": deal}
+    moved = [item for index, spec in enumerate(config.transfers)
+             for item in _transfer(runner, spec, roles, f"mechanisms.{name}.transfers[{index}]")]
+    if moved:
+        world.set_prop(deal, "items", moved)
     count = 0
     for index, spec in enumerate(config.obligations):
         path = f"mechanisms.{name}.obligations[{index}]"
@@ -464,6 +501,9 @@ def _sign(runner: Any, name: str, config: NegotiationConfig, offer: Any, where: 
             count += 1
     if not count:
         world.set_prop(deal, "status", "completed")
+    if config.on_sign:
+        runner.run([{"block": f"{name}_on_sign", "with": {role: f"${role}" for role in SIGN_ROLES}}], dict(roles),
+                   f"mechanisms.{name}.on_sign")
     _stat(world, name, "deals", 1)
     if config.once:
         world.set_world(f"{name}_closed", True)
@@ -472,6 +512,21 @@ def _sign(runner: Any, name: str, config: NegotiationConfig, offer: Any, where: 
                 world.set_prop(other, "status", "expired")
     emit_to(world, f"{name}_deal", f"Deal signed ({deal.id}): {terms_text(config, p['terms'])}.", parties, {"deal": deal.id},
             why="A deal was signed.")
+
+
+def _transfer(runner: Any, spec: TransferSpec, roles: Dict[str, Any], path: str) -> List[str]:
+    """Hand a signed deal's entities to their recipient; fewer on offer than it takes refuses the signing."""
+    world = runner.world
+    offered = list(dict.fromkeys(to_ids(_eval(runner, spec.items, roles, f"{path}.items"))))
+    items = [entity_of(world, item, f"{path}.items", "an entity") for item in offered]
+    wanted = len(items) if spec.count is None else whole(_eval(runner, spec.count, roles, f"{path}.count"), f"{path}.count", "count")
+    what = spec.label or "items"
+    if len(items) < wanted:
+        raise Abort(f"Only {len(items)} of the {wanted} {what} are available, so the deal cannot be signed.")
+    recipient = entity_of(world, _eval(runner, spec.to, roles, f"{path}.to"), f"{path}.to", "a recipient")
+    for item in items[:wanted]:
+        world.set_prop(item, spec.field, recipient.id)
+    return [item.id for item in items[:wanted]]
 
 
 def _perform(world: Any, duty: Any, where: str) -> None:

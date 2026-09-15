@@ -2,7 +2,6 @@
 physics and space — every mutation journaled so an action commits atomically or not at all."""
 from __future__ import annotations
 
-import datetime as _dt
 import heapq
 import threading
 from contextlib import contextmanager
@@ -18,6 +17,7 @@ from .errors import RunError
 from .expr import ExprError, FUNCTIONS, Scope, Untrusted, World, compile_expr, is_expr, truthy
 from .props import finite_number as _finite_number, prop_type, shown_value as _shown_value
 from .seeds import SeedTree
+from .stdlib.dates import calendar_date
 from .space import Spatial, position_of
 from .type_index import TypeIndex
 from . import links as _links, world_physics
@@ -91,6 +91,8 @@ class SdkWorld(World):
         #: Continuous clock: the current time, when the run completes, and each agent's next wake time.
         self.time = 0.0
         self.horizon: Optional[float] = None
+        #: The calendar date of round 1: ``clock.start`` as written or read from ``$inputs`` at build (None without one).
+        self.start: Optional[str] = None
         self.wake_at: Dict[str, float] = {}
         #: Tie-break for scheduled effects due in the same round: the order they were scheduled.
         self._schedule_seq = 0
@@ -377,26 +379,8 @@ class SdkWorld(World):
 
     def date(self) -> Optional[str]:
         clock = self.contract.clock
-        if not clock.start:
-            return None
         elapsed = self.time if self.continuous else max(0, max(1, self.round) - 1)
-        n = clock.step * elapsed
-        unit = clock.unit.lower().rstrip("s")
-        if unit in ("hour", "minute"):
-            moment = _dt.datetime.fromisoformat(clock.start)
-            delta = _dt.timedelta(hours=n) if unit == "hour" else _dt.timedelta(minutes=n)
-            return (moment + delta).isoformat(timespec="minutes")
-        start = _dt.date.fromisoformat(clock.start[:10])
-        if unit in ("day", "week"):
-            return (start + _dt.timedelta(days=(7 if unit == "week" else 1) * n)).isoformat()
-        whole = int(n)
-        if unit == "month":
-            months = start.month - 1 + whole
-            year, month = start.year + months // 12, months % 12 + 1
-            return _dt.date(year, month, min(start.day, 28)).isoformat()
-        if unit == "year":
-            return str(start.year + whole)
-        return None
+        return calendar_date(self.start, clock.unit, clock.step, elapsed)
 
     def clock_label(self) -> str:
         unit = self.contract.clock.unit

@@ -67,22 +67,25 @@ def _ranges(contract: Any, inputs: InputRanges) -> Dict[str, Optional[Mapping[st
 def sensitivity(contract: ContractLike, inputs: InputRanges, output: str, *, method: str = "oat", runs: int = 5,
                 baseline: Optional[Mapping[str, Any]] = None, delta: float = 0.1, trajectories: int = 6,
                 levels: int = 4, samples: int = 20, arm: Optional[str] = None, participants: Any = None,
-                rounds: Optional[int] = None, seed: int = 0, workers: int = 1, level: float = 0.95) -> SensitivityResult:
+                rounds: Optional[int] = None, seed: int = 0, workers: int = 1, level: float = 0.95,
+                data_dir: Any = None, hosts: Any = None) -> SensitivityResult:
     """Rank ``inputs`` by their influence on ``output`` (an output or a metric's final value).
 
     ``inputs``: names, or ``{name: {"low", "high"}}`` (ranges default to declared min/max; OAT
     only needs them to keep perturbations inside the allowed range). ``baseline`` overrides the
-    contract defaults as the OAT centre and the fixed values for the other inputs.
+    contract defaults as the OAT centre and the fixed values for the other inputs. ``data_dir`` is where
+    inputs with a ``source`` are read (default: the contract file's folder); ``hosts`` answers host requests.
     """
     runner.check_positive_int("runs", runs)
-    parsed = runner.as_contract(contract)
+    parsed = runner.as_contract(contract, data_dir)
     measure = runner.resolve_measure(parsed, output)
     ranges = _ranges(parsed, inputs)
     for name in ranges:
         spec = runner.input_spec(parsed, name)
         if spec.type not in ("number", "int"):
             raise ValueError(f"input '{name}' is {spec.type}; sensitivity needs number or int inputs")
-    common = dict(arm=arm, participants=participants, rounds=rounds, seed=seed, workers=workers, level=level)
+    common = dict(arm=arm, participants=participants, rounds=rounds, seed=seed, workers=workers, level=level,
+                  hosts=hosts)
     fixed = dict(baseline or {})
     if method == "oat":
         if not 0 < delta < 1:
@@ -101,12 +104,12 @@ def sensitivity(contract: ContractLike, inputs: InputRanges, output: str, *, met
 
 
 def _run_points(contract: Any, points: Sequence[Mapping[str, Any]], measure: Tuple[str, str], runs: int, *,
-                arm: Optional[str], participants: Any, rounds: Optional[int], seed: int, workers: int
+                arm: Optional[str], participants: Any, rounds: Optional[int], seed: int, workers: int, hosts: Any
                 ) -> List[List[Optional[float]]]:
     """Output values per point (outer) per seed (inner), common seeds across points."""
     seeds = runner.run_seeds(seed, runs)
     jobs = runner.jobs_for([(p, arm) for p in points], seeds)
-    results = runner.run_jobs(contract, jobs, participants=participants, rounds=rounds, workers=workers)
+    results = runner.run_jobs(contract, jobs, participants=participants, rounds=rounds, workers=workers, hosts=hosts)
     return [[runner.value(r, measure) for r in cell] for cell in runner.by_cell(jobs, results, len(points))]
 
 

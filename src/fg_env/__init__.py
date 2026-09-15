@@ -41,7 +41,7 @@ from .sdk.session import ToolResult, Wake
 from .sdk import participants
 from .sdk import analysis
 from .sdk.analysis import (backtest, behavior_checks, calibrate, chain, compare, drivers, highlights, narrative,
-                           precision, score, sensitivity, sweep)
+                           precision, score, sensitivity, sweep, validate)
 from .sdk.tournament import tournament
 from .sdk.describe import describe
 from .sdk.trace import trace
@@ -84,6 +84,7 @@ __all__ = [
     "calibrate",
     "score",
     "backtest",
+    "validate",
     "precision",
     "behavior_checks",
     "highlights",

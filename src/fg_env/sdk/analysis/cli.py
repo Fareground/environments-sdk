@@ -146,7 +146,8 @@ def cmd_sweep(args: argparse.Namespace) -> int:
 
     result = sweep(args.file, _sweep_params(args.param), runs=args.runs, outputs=args.output or None,
                    arms=args.arm or None, inputs=_inputs(args), design=args.design, samples=args.samples,
-                   participants=_participants(args.agent), rounds=args.rounds, seed=args.seed, workers=args.workers)
+                   participants=_participants(args.agent), rounds=args.rounds, seed=args.seed, workers=args.workers,
+                   data_dir=args.data_dir)
     _emit(result, args.json)
     return 0
 
@@ -158,7 +159,7 @@ def cmd_sensitivity(args: argparse.Namespace) -> int:
                          runs=args.runs, baseline=_inputs(args), delta=args.delta, trajectories=args.trajectories,
                          levels=args.levels, samples=args.samples, arm=args.arm,
                          participants=_participants(args.agent), rounds=args.rounds, seed=args.seed,
-                         workers=args.workers)
+                         workers=args.workers, data_dir=args.data_dir)
     _emit(result, args.json)
     return 0
 
@@ -197,7 +198,7 @@ def cmd_calibrate(args: argparse.Namespace) -> int:
     result = calibrate(args.file, goal, params, runs=args.runs, budget=args.budget, holdout=args.holdout,
                        method=args.method, inputs=_inputs(args), arm=args.arm, participants=_participants(args.agent),
                        rounds=args.rounds, seed=args.seed, workers=args.workers, test=_held_out_cases(args.test),
-                       folds=args.folds)
+                       folds=args.folds, data_dir=args.data_dir)
     _emit(result, args.json)
     return 0
 
@@ -210,7 +211,7 @@ def cmd_backtest(args: argparse.Namespace) -> int:
         raise _UsageError("--cases must hold a JSON list of {inputs, outcome, name?}")
     result = backtest(args.file, cases, args.output, runs=args.runs, threshold=args.threshold, arm=args.arm,
                       participants=_participants(args.agent), rounds=args.rounds, seed=args.seed, workers=args.workers,
-                      test=_held_out_cases(args.test), folds=args.folds)
+                      test=_held_out_cases(args.test), folds=args.folds, data_dir=args.data_dir)
     _emit(result, args.json)
     return 0
 
@@ -220,7 +221,7 @@ def cmd_checks(args: argparse.Namespace) -> int:
 
     report = behavior_checks(args.file, runs=args.runs, rounds=args.rounds, seed=args.seed,
                              participants=_participants(args.agent) or "random", inputs=_inputs(args),
-                             workers=args.workers)
+                             workers=args.workers, data_dir=args.data_dir)
     _emit(report, args.json)
     return 0 if report.ok else 1
 
@@ -229,7 +230,7 @@ def cmd_highlights(args: argparse.Namespace) -> int:
     from ..api import load
     from .highlights import highlights, narrative
 
-    env = load(args.file, inputs=_inputs(args), seed=args.seed, arm=args.arm)
+    env = load(args.file, inputs=_inputs(args), seed=args.seed, arm=args.arm, data_dir=args.data_dir)
     result = env.run(_participants(args.agent), rounds=args.rounds)
     moments = highlights(result, top=args.top)
     if args.json:
@@ -253,6 +254,7 @@ def _run_options(parser: argparse.ArgumentParser, seed_default: Optional[int] = 
     parser.add_argument("--agent", action="append", metavar="[TYPE_OR_ID=]PARTICIPANT",
                         help="random | idle | policy:<name>, optionally for one type or entity")
     parser.add_argument("--rounds", type=int, help="stop each run after this many rounds")
+    parser.add_argument("--data-dir", help="folder input data files are read from (default: the contract's folder)")
     if workers:
         parser.add_argument("--workers", type=int, default=1, help="parallel processes")
     parser.add_argument("--json", action="store_true", help="print the full result as JSON")
