@@ -5,9 +5,10 @@ reference, field by field, is generated from these models (see ``fg_env.guide()`
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator, model_validator
+from pydantic import (BaseModel, BeforeValidator, ConfigDict, Field, PrivateAttr, WithJsonSchema, field_validator,
+                      model_validator)
 from pydantic_core import PydanticCustomError
 
 from .game_spec import UTILITIES, GameSpec
@@ -72,7 +73,27 @@ PARAM_TYPES = ("number", "int", "bool", "text", "enum", "entity", "list")
 MAX_LIST_ITEMS = 1_000
 OUTPUT_TYPES = ("number", "int", "bool", "text", "list", "map", "any")
 
-Effects = List[Any]
+
+
+def one_or_many(value: Any) -> Any:
+    """One effect or condition written where a list goes: `"do": "$actor.coins += 1"` means `["$actor.coins += 1"]`."""
+    return [value] if isinstance(value, (str, dict)) else value
+
+
+#: A list of effects, or one effect (an assignment text or an operation object) on its own.
+Effects = Annotated[List[Any], BeforeValidator(one_or_many),
+                    WithJsonSchema({"anyOf": [{"type": "array", "items": {}}, {"type": "string"}, {"type": "object"}]})]
+
+#: Common spellings of the type names, read as the names the contract uses.
+TYPE_SYNONYMS = {"integer": "int", "string": "text", "boolean": "bool", "float": "number"}
+
+
+def _type_name(value: Any) -> Any:
+    return TYPE_SYNONYMS.get(value, value) if isinstance(value, str) else value
+
+
+#: A type name; `integer`, `string`, `boolean` and `float` are read as int, text, bool and number.
+TypeName = Annotated[str, BeforeValidator(_type_name)]
 
 # Ceilings: generous for any real environment, low enough that a typo cannot make a run
 # effectively infinite or exhaust memory.
@@ -122,7 +143,7 @@ class _ExprShorthand(_Model):
 class InputSpec(_Model):
     """A typed value supplied when the environment is loaded (``fg_env.load(..., inputs=)``)."""
 
-    type: str = Field("number", description="One of: " + ", ".join(INPUT_TYPES))
+    type: TypeName = Field("number", description="One of: " + ", ".join(INPUT_TYPES))
     default: Any = Field(None, description="Used when the caller supplies nothing.")
     required: bool = Field(False, description="The caller must supply it (no default).")
     min: Optional[float] = None
@@ -191,7 +212,7 @@ class LayerSpec(_Model):
     """A value on every cell (grid) or place (graph) without an entity per cell: sugar, pheromone, alive.
     Read with ``$layer(name, position)``; changed by the ``layer`` effect."""
 
-    type: str = Field("number", description="One of: " + ", ".join(LAYER_TYPES))
+    type: TypeName = Field("number", description="One of: " + ", ".join(LAYER_TYPES))
     default: Any = Field(0, description="Every cell's starting value: a literal, or an expression over $cell (its position) and $inputs.")
     min: Optional[float] = None
     max: Optional[float] = None
@@ -222,7 +243,7 @@ class PropSpec(_Model):
     field: only the fields written here change (a bare value changes only the default), so the
     parent's ``private``, ``type``, ``min``, ``max`` and ``values`` still apply."""
 
-    type: Optional[str] = Field(None, description="One of: " + ", ".join(PROP_TYPES) + " (inferred from default).")
+    type: Optional[TypeName] = Field(None, description="One of: " + ", ".join(PROP_TYPES) + " (inferred from default).")
     default: Any = Field(None, description="Literal or expression (evaluated when the entity is created).")
     min: Optional[float] = None
     max: Optional[float] = None
@@ -433,7 +454,7 @@ class FeedSpec(_Model):
 class RecordSpec(_Model):
     """An append-only log (chat, reviews, bids, transcript). New entries reach agents as news."""
 
-    fields: Dict[str, str] = Field(default_factory=lambda: {"text": "text"}, description="{field: type}; text fields written by agents are marked untrusted.")
+    fields: Dict[str, TypeName] = Field(default_factory=lambda: {"text": "text"}, description="{field: type}; text fields written by agents are marked untrusted.")
     show: Optional[str] = Field(None, description="How one entry reads: '{author}: {text}'.")
     visible: str = Field("all", description="'all' or an expression over $viewer and $it (the entry).")
     keep: Optional[int] = Field(None, description="Keep only the latest N entries.")
@@ -444,7 +465,7 @@ class RecordSpec(_Model):
 class ParamSpec(_Model):
     """A tool argument. Shorthand: ``"qty": "int"``."""
 
-    type: str = Field("number", description="One of: " + ", ".join(PARAM_TYPES))
+    type: TypeName = Field("number", description="One of: " + ", ".join(PARAM_TYPES))
     of: Optional[str] = Field(None, description="Entity type (type entity).")
     where: Optional[str] = Field(None, description="Which entities qualify ($it, $actor, $params for earlier params, $pending).")
     values: Union[List[Any], str, None] = Field(None, description="Allowed values or an expression giving them (type enum).")
@@ -484,7 +505,7 @@ class ActionSpec(_Model):
     by: Union[str, List[str]] = Field(..., description="Agent type(s) allowed to take it.")
     description: str = Field("", description="Tool description the agent reads.")
     params: Dict[str, ParamSpec] = Field(default_factory=dict)
-    when: List[Condition] = Field(default_factory=list, description="Requirements; the tool is offered only when all hold.")
+    when: Annotated[List[Condition], BeforeValidator(one_or_many)] = Field(default_factory=list, description="Requirements (one or a list). Those over $actor decide whether the tool is offered; those that read $params refuse a call that breaks them, with their `why`.")
     chance: Union[float, str, None] = Field(None, description="Probability of success; `do` on success, `otherwise` on failure.")
     do: Effects = Field(default_factory=list, description="Effects applied atomically.")
     otherwise: Effects = Field(default_factory=list, description="Effects when the chance roll fails.")
@@ -530,7 +551,7 @@ class StageSpec(_Model):
     time_limit: Union[float, str, None] = Field(None, description="Wall-clock seconds each agent has for its turn (number, or expression over $actor; null uses the run's `time_limit`). Past it the turn ends, later calls are refused and `on_timeout` runs.")
     on_timeout: Effects = Field(default_factory=list, description="Effects for each agent whose turn ran out of time ($actor), instead of `on_idle`.")
     atomic: bool = Field(False, description="The turn's actions apply together or not at all: triggers, reactions and invariants wait until the turn ends, and a turn that breaks `valid` is undone.")
-    valid: List[Condition] = Field(default_factory=list, description="Conditions the whole turn must meet when it ends ($actor, $pending); if one fails, every action of the turn is undone and the agent is told `why` and plays the turn again. Makes the stage atomic.")
+    valid: Annotated[List[Condition], BeforeValidator(one_or_many)] = Field(default_factory=list, description="Conditions the whole turn must meet when it ends ($actor, $pending); if one fails, every action of the turn is undone and the agent is told `why` and plays the turn again. Makes the stage atomic.")
     on_enter: Effects = Field(default_factory=list)
     on_exit: Effects = Field(default_factory=list)
 
@@ -658,7 +679,7 @@ class OutputSpec(_ExprShorthand):
     """A typed field of the run result. ``$metrics.x`` is a metric's final value, ``$series.x`` its history."""
 
     expr: str
-    type: str = Field("any", description="One of: " + ", ".join(OUTPUT_TYPES))
+    type: TypeName = Field("any", description="One of: " + ", ".join(OUTPUT_TYPES))
     description: str = ""
 
 

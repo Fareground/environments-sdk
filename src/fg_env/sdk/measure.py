@@ -164,7 +164,9 @@ def sample_metrics(contract: Contract, world: SdkWorld) -> None:
 
 
 def compute_outputs(contract: Contract, world: SdkWorld) -> tuple[Dict[str, Any], List[Issue]]:
-    scope = world.scope()
+    from .returns import run_result
+
+    scope = world.scope(result=run_result(world))
     outputs: Dict[str, Any] = {}
     issues: List[Issue] = []
     for name, spec in contract.outputs.items():

@@ -44,6 +44,10 @@ _HOOK_KEYS = frozenset({"actions", *_HOOK_EFFECTS, *_HOOK_SETTINGS})
 _LISTED = ("population", "links", "events", "triggers", "end", "invariants")
 #: What an action hook may add to a declared action.
 _ACTION_HOOK_KEYS = ("when", "do", "otherwise")
+#: Words authors use for the agent type a mechanism involves; every family calls it `who`.
+_ACTOR_WORDS = frozenset({"by", "of", "among", "voter", "voters", "bidder", "bidders", "player", "players",
+                          "member", "members", "trader", "traders", "holder", "holders", "guest", "guests",
+                          "party", "parties", "agent", "agents", "participants"})
 #: Most mechanism uses one contract may expand, generated ones included.
 MAX_MECHANISMS = 256
 
@@ -134,12 +138,14 @@ def _config_issue(path: str, label: str, model: Any, error: Mapping[str, Any]) -
     if error["type"] == "extra_forbidden":
         field = str(loc[-1])
         fields = _fields_at(model, loc[:-1])
-        hint = get_close_matches(field, fields, n=1)
+        hint = get_close_matches(field, fields, n=1) or (["who"] if "who" in fields and field in _ACTOR_WORDS else [])
         owner = label if len(loc) == 1 else f"`{'.'.join(str(p) for p in loc[:-1])}`"
         fix = (f"did you mean '{hint[0]}'? " if hint else "") + (f"{owner} takes: {', '.join(fields)}" if fields else "")
         return Issue(at, f"`{field}` is not a field of {owner}", fix.strip() or None)
     if error["type"] == "missing":
-        return Issue(at, "is required", f"{label} takes: {', '.join(model.model_fields)}")
+        info = model.model_fields.get(str(loc[0])) if len(loc) == 1 else None
+        about = f"`{loc[0]}`: {info.description.rstrip('.')}. " if info is not None and info.description else ""
+        return Issue(at, "is required", f"{about}{label} takes: {', '.join(model.model_fields)}")
     return Issue(at, str(error["msg"]), None)
 
 
@@ -283,7 +289,8 @@ def _hook_stages(data: Dict[str, Any], hooks: Mapping[str, Mapping[str, Any]]) -
             if key in hook:
                 stage.setdefault(key, copy.deepcopy(hook[key]))
         for key in _HOOK_EFFECTS:
-            effects = stage.setdefault(key, [])
+            written = stage.get(key, [])
+            effects = stage[key] = [written] if isinstance(written, (str, Mapping)) else written
             seen = {_canonical(e) for e in effects}
             effects.extend(copy.deepcopy(e) for e in hook.get(key) or [] if _canonical(e) not in seen)
 
@@ -309,7 +316,7 @@ def _hook_actions(data: Dict[str, Any], hooks: Mapping[str, Mapping[str, Any]]) 
             if not extra:
                 continue
             current = action.get(key)
-            if key == "when" and isinstance(current, (str, Mapping)):
+            if isinstance(current, (str, Mapping)):
                 current = [current]
             if current is not None and not isinstance(current, list):
                 raise MechanismError(f"actions.{name}.{key} must be a list, got {type(current).__name__}",

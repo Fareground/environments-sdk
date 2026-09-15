@@ -13,13 +13,14 @@ import keyword
 import re
 from difflib import get_close_matches
 from pathlib import PurePath
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Set, Tuple
 
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 
 from ..physics import _CONSTS, _FUNCS, PhysicsExprError, _CompiledExpr
 from . import contract as C
 from .chance import check_chance
+from .check_params import check_entity_literals, check_param_bounds
 from .check_space import check_event_order, check_space
 from .check_turns import check_spectator_view, check_stage_turns, spectator_audience_issues
 from .contract import Contract
@@ -45,6 +46,7 @@ from .perception import SPECTATOR
 from .registry import renamed_op_hint
 from .expr import FUNCTIONS, ExprError, compile_expr, is_expr
 from .inputs import DATA_SUFFIXES, check_value
+from .parse_errors import validation_issues
 from .returns import check_game
 from .template import compile_template
 from .world import prop_type
@@ -72,30 +74,6 @@ Types = Dict[str, Set[str]]
 _NULL_WORDS = frozenset({"none", "None", "nil", "undefined", "Null", "NULL", "empty"})
 
 
-def _all_field_names() -> List[str]:
-    names: Set[str] = set()
-    for obj in vars(C).values():
-        if isinstance(obj, type) and issubclass(obj, BaseModel):
-            for name, info in obj.model_fields.items():
-                names.add(info.alias or name)
-    return sorted(names)
-
-
-_FIELD_NAMES = _all_field_names()
-
-
-def _path(loc: Sequence[Any]) -> str:
-    out = ""
-    for part in loc:
-        if isinstance(part, int):
-            out += f"[{part}]"
-        elif part in ("function-after", "function-before", "function-wrap") or str(part).startswith("function-"):
-            continue
-        else:
-            out += ("." if out else "") + str(part)
-    return out or "(contract)"
-
-
 def parse_contract(data: Any) -> Contract:
     """Validate structure. Raises :class:`ContractError` with every structural problem."""
     if isinstance(data, Contract):
@@ -113,27 +91,7 @@ def parse_contract(data: Any) -> Contract:
         contract._source = source
         return contract
     except ValidationError as exc:
-        issues = []
-        for error in exc.errors():
-            loc = [p for p in error["loc"] if not (isinstance(p, str) and ("[" in p or p.startswith("function")))]
-            path = _path(loc)
-            kind = error["type"]
-            fix = None
-            if kind == "extra_forbidden":
-                key = str(loc[-1]) if loc else ""
-                hint = get_close_matches(key, _FIELD_NAMES, n=1, cutoff=0.7)
-                message = f"'{key}' is not a field here"
-                if hint and hint[0] == key:
-                    fix = f"'{key}' belongs to another part of the contract; remove it here"
-                else:
-                    fix = f"did you mean '{hint[0]}'?" if hint else "remove it"
-            elif kind == "missing":
-                message = "is required"
-            else:
-                message = error["msg"]
-                fix = (error.get("ctx") or {}).get("fix")
-            issues.append(Issue(path, message, fix))
-        raise ContractError(_dedupe(issues)) from None
+        raise ContractError(_dedupe(validation_issues(exc))) from None
 
 
 def _dedupe(issues: Iterable[Issue]) -> List[Issue]:
@@ -186,6 +144,11 @@ class _Checker:
     def _suggest(self, name: str, options: Iterable[str]) -> Optional[str]:
         hint = get_close_matches(name, list(options), n=1)
         return f"did you mean '{hint[0]}'?" if hint else None
+
+    def _hint(self, name: str, options: Iterable[str], what: str) -> str:
+        """Did-you-mean when a name is close, otherwise the names there are to choose from."""
+        listed = list(options)
+        return self._suggest(name, listed) or (f"{what}: {', '.join(listed)}" if listed else f"no {what} declared")
 
     def _type(self, name: Optional[str], path: str, agent: bool = False) -> bool:
         if name is None:
@@ -386,8 +349,10 @@ class _Checker:
                 params: Optional[Mapping[str, C.ParamSpec]] = None) -> Set[str]:
         """Check an effect list; returns the roots available after it (locals included)."""
         roots = set(roots)
+        if isinstance(effects, (str, dict)):
+            effects = [effects]
         if not isinstance(effects, list):
-            self.error(path, "effects must be a list")
+            self.error(path, "must be a list of effects, or one effect", 'e.g. ["$actor.coins += 1"]')
             return roots
         for index, effect in enumerate(effects):
             where = f"{path}[{index}]"
@@ -494,6 +459,7 @@ class _Checker:
                 if key not in allowed:
                     self.error(f"{path}.{key}", f"'{key}' is not part of `{op}`",
                                self._suggest(key, allowed) or f"`{op}` takes: {', '.join(sorted(allowed))}")
+        check_entity_literals(self, op, effect, path)
         v = lambda key, r=roots: self.value(effect.get(key), f"{path}.{key}", r, types, params)
         if op == "if":
             self.expr(effect["if"], f"{path}.if", roots, types, params)
@@ -955,8 +921,9 @@ class _Checker:
                     self.error(ppath, "min/max apply to number and int parameters")
                 if param.step is not None and param.type not in ("number", "int"):
                     self.error(f"{ppath}.step", "step applies to number and int parameters")
+            check_param_bounds(self, path, spec)
             for index, condition in enumerate(spec.when):
-                self.expr(condition.expr, f"{path}.when[{index}]", BASE | {"actor"}, types)
+                self.expr(condition.expr, f"{path}.when[{index}]", BASE | {"actor", "params"}, types, spec.params)
             roots = set(BASE | {"actor", "params"})
             self.value(spec.chance, f"{path}.chance", roots, types, spec.params)
             self.value(spec.duration, f"{path}.duration", roots, types, spec.params)
@@ -1030,7 +997,7 @@ class _Checker:
             for action in names:
                 if action not in self.c.actions:
                     self.error(f"{path}.actions", f"'{action}' is not a declared action",
-                               self._suggest(action, self.c.actions))
+                               self._hint(action, self.c.actions, "actions"))
             if isinstance(stage.actions, dict):
                 for type_name in stage.actions:
                     self._type(type_name, f"{path}.actions.{type_name}", agent=True)
@@ -1076,7 +1043,7 @@ class _Checker:
             types: Types = {"actor": actor_types}
             for stage in view.stages or []:
                 if stage not in self.stage_names:
-                    self.error(f"{path}.stages", f"'{stage}' is not a stage", self._suggest(stage, self.stage_names))
+                    self.error(f"{path}.stages", f"'{stage}' is not a stage", self._hint(stage, self.stage_names, "stages"))
             self.expr(view.when, f"{path}.when", BASE | {"actor"}, types)
             if view.of is None:
                 self.template(view.show, f"{path}.show", "actor", BASE | {"actor"}, types)
@@ -1116,7 +1083,7 @@ class _Checker:
                 self.error(f"{path}.phase", f"unknown phase '{event.phase}'", "start or end")
             for arm in event.arms or []:
                 if arm not in self.c.arms:
-                    self.error(f"{path}.arms", f"'{arm}' is not a declared arm", self._suggest(arm, self.c.arms))
+                    self.error(f"{path}.arms", f"'{arm}' is not a declared arm", self._hint(arm, self.c.arms, "arms"))
             self.value(event.at, f"{path}.at", BASE)
             self.expr(event.when, f"{path}.when", BASE)
             self.value(event.chance, f"{path}.chance", BASE)
@@ -1141,7 +1108,7 @@ class _Checker:
             path = f"triggers[{index}]"
             for arm in trigger.arms or []:
                 if arm not in self.c.arms:
-                    self.error(f"{path}.arms", f"'{arm}' is not a declared arm", self._suggest(arm, self.c.arms))
+                    self.error(f"{path}.arms", f"'{arm}' is not a declared arm", self._hint(arm, self.c.arms, "arms"))
             self.expr(trigger.when, f"{path}.when", BASE)
             self.effects(trigger.do, f"{path}.do", set(BASE), {})
             self.template(trigger.say, f"{path}.say", None, BASE)
@@ -1154,7 +1121,7 @@ class _Checker:
                 path = f"policies.{name}.rules[{index}]"
                 action = self.c.actions.get(rule.do)
                 if rule.do != "pass" and action is None:
-                    self.error(f"{path}.do", f"'{rule.do}' is not a declared action", self._suggest(rule.do, self.c.actions))
+                    self.error(f"{path}.do", f"'{rule.do}' is not a declared action", self._hint(rule.do, self.c.actions, "actions"))
                 actor_types: Types = {"actor": set(self.agents)}
                 if action is not None:
                     actor_types = {"actor": set([action.by] if isinstance(action.by, str) else action.by)}
@@ -1180,7 +1147,7 @@ class _Checker:
             path = f"outputs.{name}"
             if output.type not in C.OUTPUT_TYPES:
                 self.error(f"{path}.type", f"unknown type '{output.type}'", self._suggest(output.type, C.OUTPUT_TYPES))
-            self.expr(output.expr, path, BASE | {"outputs"})
+            self.expr(output.expr, path, BASE | {"outputs", "result"})
         for index, end in enumerate(self.c.end):
             self.expr(end.when, f"end[{index}].when", BASE)
             self.expr(end.winner, f"end[{index}].winner", BASE)
@@ -1224,7 +1191,7 @@ class _Checker:
         for name, arm in self.c.arms.items():
             for key in arm.inputs:
                 if key not in self.c.inputs:
-                    self.error(f"arms.{name}.inputs.{key}", f"'{key}' is not a declared input", self._suggest(key, self.c.inputs))
+                    self.error(f"arms.{name}.inputs.{key}", f"'{key}' is not a declared input", self._hint(key, self.c.inputs, "inputs"))
             for key in arm.patch:
                 if key not in Contract.model_fields:
                     self.error(f"arms.{name}.patch.{key}", f"'{key}' is not a contract section",

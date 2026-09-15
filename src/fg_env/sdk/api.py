@@ -202,12 +202,12 @@ def _check_all(source: ContractLike) -> tuple[Optional[Contract], List[Issue]]:
     return contract, check_contract(contract)
 
 
-def check(source: ContractLike, rounds: int = 0, seed: int = 0) -> List[Issue]:
+def check(source: ContractLike, rounds: int = 1, seed: int = 0) -> List[Issue]:
     """Every problem in a contract, errors first then warnings. Never raises for contract problems.
 
-    With ``rounds > 0`` a clean contract is also built and played for that many rounds with
-    default participants, so problems that only appear with real values (sampling, first
-    turns, views) are reported the same way.
+    A contract without errors is also built and played for ``rounds`` rounds (default 1; 0 checks statically only)
+    with random agents that read everything they are shown, so problems that only appear with real values (sampling,
+    first turns, views, outputs) are reported the same way.
     """
     contract, issues = _check_all(source)
     errors = [i for i in issues if i.severity == "error"]

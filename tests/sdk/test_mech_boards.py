@@ -408,4 +408,4 @@ def test_an_authors_game_section_or_a_second_scoring_mechanism_leaves_the_game_s
 def test_guide_documents_the_board_grammar():
     page = fg_env.guide("game.board")
     assert page.startswith("### `game.board`") and "`castling`" in page and "- `setup`" in page and "- `move`" in page
-    assert "$board_moves(" in fg_env.guide()
+    assert "$board_moves(" in fg_env.guide("game") and "$board_moves(" in fg_env.guide("all")

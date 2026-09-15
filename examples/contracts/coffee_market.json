@@ -898,7 +898,7 @@
             "$params.cafe.turned_away_today += 1",
             "$params.cafe.week_turned_away += 1",
             "$actor.turned_away += 1",
-            "$result = 'turned away: ' + $params.cafe.name + ' was full'"
+            "$report = 'turned away: ' + $params.cafe.name + ' was full'"
           ],
           "else": [
             "$paid = $unit * $params.cups",
@@ -916,7 +916,7 @@
             "$actor.cups += $params.cups",
             "$actor.streak = $actor.streak + 1 if $actor.last_cafe == $params.cafe.id else 1",
             "$actor.last_cafe = $params.cafe.id",
-            "$result = 'served ' + $text($params.cups) + ' cup(s) at ' + $params.cafe.name + ' for $' + $text($round($paid, 2))",
+            "$report = 'served ' + $text($params.cups) + ' cup(s) at ' + $params.cafe.name + ' for $' + $text($round($paid, 2))",
             {
               "if": "$chance($inputs.review_rate)",
               "then": [
@@ -936,7 +936,7 @@
           ]
         }
       ],
-      "outcome": "{$result}",
+      "outcome": "{$report}",
       "private": true,
       "terminal": true
     },

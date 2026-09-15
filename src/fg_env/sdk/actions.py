@@ -138,19 +138,43 @@ class ActionBook:
             return f"{name} can be used {spec.per_turn} time(s) per turn"
         if spec.per_round is not None and used_round.get(name, 0) >= spec.per_round:
             return f"{name} can be used {spec.per_round} time(s) per round"
-        scope = self.world.scope(actor=actor)
-        for index, condition in enumerate(spec.when):
+        refused = self._unmet(actor, name, self.world.scope(actor=actor), with_params=False)
+        if refused is not None:
+            return refused
+        for pname, param in spec.params.items():
+            if not self._required(param) or self._depends_on_params(param):
+                continue
+            if param.type == "entity" and not self._choices(actor, name, pname, param, first=True):
+                return f"there is no {param.of or 'target'} you can choose for {pname} right now"
+            if param.type in ("number", "int"):
+                empty = self._empty_range(actor, param)
+                if empty is not None:
+                    return f"there is no valid {pname} right now ({empty})"
+            if param.type == "enum" and isinstance(param.values, str) and self._static(actor, param.values) == []:
+                return f"there is no value you can choose for {pname} right now"
+        return None
+
+    def _unmet(self, actor: Entity, name: str, scope: Any, with_params: bool) -> Optional[str]:
+        """The `why` of the first requirement that does not hold: those over $actor alone, or those that read $params."""
+        for index, condition in enumerate(self.contract.actions[name].when):
+            compiled = compile_expr(condition.expr)
+            if ("params" in compiled.roots) is not with_params:
+                continue
             try:
-                ok = truthy(compile_expr(condition.expr)(scope))
+                ok = truthy(compiled(scope))
             except ExprError as exc:
                 raise RunError(str(exc), f"actions.{name}.when[{index}]") from None
             if not ok:
                 return (condition.why or "its requirements are not met").rstrip(". ")
-        for pname, param in spec.params.items():
-            if param.type == "entity" and self._required(param) and not self._depends_on_params(param) \
-                    and not self._choices(actor, name, pname, param, first=True):
-                return f"there is no {param.of or 'target'} you can choose for {pname} right now"
         return None
+
+    def _empty_range(self, actor: Entity, param: ParamSpec) -> Optional[str]:
+        """The bounds, when no value lies between them right now (min above max)."""
+        low, high = _tidy(self._static(actor, param.min)), _tidy(self._static(actor, param.max))
+        if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in (low, high)):
+            return None
+        least, most = (math.ceil(low), math.floor(high)) if param.type == "int" else (low, high)
+        return f"at least {format_value(low)} and at most {format_value(high)}" if least > most else None
 
     @staticmethod
     def _required(param: ParamSpec) -> bool:
@@ -422,6 +446,9 @@ class ActionBook:
                 params[pname] = value
         if problems:
             return {}, "; ".join(problems)
+        refused = self._unmet(actor, name, self.world.scope(actor=actor, params=params), with_params=True)
+        if refused is not None:
+            return {}, refused
         return params, None
 
     def _value(self, actor: Entity, action: str, pname: str, param: ParamSpec, raw: Any,

@@ -197,9 +197,11 @@ def test_guide_documents_mechanisms_and_native_ops():
     page = fg_env.guide("decision.ballot")
     assert page.startswith("### `decision.ballot`") and "`quorum`" in page and "- `tally`" in page
     family = fg_env.guide("decision")
-    assert "### `decision.deliberation`" in family and "- `speak`" in family and "- `open`" not in family
+    assert "- `deliberation`:" in family and "### `decision.deliberation`" not in family  # modes are their own parts
+    deliberation = fg_env.guide("decision.deliberation")
+    assert "- `speak`" in deliberation and "- `open`" not in deliberation
     assert '- `decision`: {"decision": "<decision mechanism>", "action": ...}' in fg_env.guide("effects")
-    assert "$tally_votes(" in fg_env.guide()
+    assert "$tally_votes(" in family and "$tally_votes(" in fg_env.guide("functions.decision")
     with pytest.raises(KeyError):
         fg_env.guide("decision.nope")
 

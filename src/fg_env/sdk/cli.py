@@ -102,8 +102,23 @@ def cmd_check(args: argparse.Namespace) -> int:
             print(("error: " if issue.severity == "error" else "warning: ") + f"{issue.path}: {issue.message}"
                   + (f" → {issue.fix}" if issue.fix else ""))
         errors = sum(1 for i in issues if i.severity == "error")
-        print("contract OK" if not errors else f"{errors} error(s)", file=sys.stderr if errors else sys.stdout)
+        if errors:
+            print(f"{errors} error(s)", file=sys.stderr)
+        else:
+            print(_checked(args.file, args.rounds))
     return 1 if any(i.severity == "error" for i in issues) else 0
+
+
+def _checked(path: str, rounds: int) -> str:
+    """What a clean check covered, and a default the author may not know is at work."""
+    from .api import parse
+
+    contract = parse(path)
+    played = f" and played {rounds} round(s) with random agents" if rounds > 0 else " (static checks only)"
+    clock = contract.clock
+    note = "" if clock.mode == "continuous" or "rounds" in clock.model_fields_set else \
+        f"; clock.rounds is not set, so a run lasts {clock.rounds} rounds"
+    return f"contract OK: checked every section{played}{note}"
 
 
 def cmd_run(args: argparse.Namespace) -> int:
