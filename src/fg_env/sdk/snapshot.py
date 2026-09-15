@@ -233,6 +233,7 @@ def _restore(cls: Type[_E], contract: Contract, snapshot: Mapping[str, Any], par
         w.log.append(LogEvent(e["seq"], e["round"], e["kind"], e.get("text", ""), e.get("actor"),
                               tuple(e["to"]) if e.get("to") is not None else None, e.get("data", {}), e.get("stage"),
                               e.get("time")))
+    w.rebuild_event_index()
     w._seq = snapshot["seq"]
     if snapshot.get("physics") and w.physics is not None:
         restored = PhysicsModel.from_dict(snapshot["physics"])

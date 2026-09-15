@@ -17,6 +17,7 @@ from .expr_calls import suggest_function
 from .expr import ExprError, FUNCTIONS, Scope, Untrusted, World, compile_expr, is_expr, truthy
 from .props import finite_number as _finite_number, prop_type, shown_value as _shown_value
 from .record_index import RecordAuthors, author_only
+from .record_events import RecordEvents
 from .seeds import SeedTree
 from .stdlib.dates import calendar_date
 from .space import Spatial, position_of
@@ -80,6 +81,7 @@ class SdkWorld(World):
         #: Per-entity brief text rendered at build (from entities.*.brief / population.brief).
         self.entity_briefs: Dict[str, str] = {}
         self.log: List[LogEvent] = []
+        self.record_events = RecordEvents((), self.entry_by_seq)
         self.physics: Optional[PhysicsModel] = None
         self.physics_writes: List[Tuple[str, _CompiledExpr]] = []
         self.entity_dynamics: List[Any] = []
@@ -220,8 +222,12 @@ class SdkWorld(World):
     def events(self, kind: Optional[str], viewer: Any = None) -> List[LogEvent]:
         """Events so far; with a ``viewer`` (views, record visibility) only those it may know about."""
         seen = viewer if isinstance(viewer, Entity) else None
-        return [e for e in self.log if (kind is None or e.kind == kind)
+        candidates = self.record_events.candidates(self.contract, seen.id) if kind == "record" and seen else self.log
+        return [e for e in candidates if (kind is None or e.kind == kind)
                 and (seen is None or self.event_visible(e, seen))]
+
+    def rebuild_event_index(self) -> None:
+        self.record_events = RecordEvents(self.log, self.entry_by_seq)
 
     def event_visible(self, event: LogEvent, viewer: Entity) -> bool:
         """Record notifications carry the same visibility as their retained source entry."""
@@ -691,11 +697,14 @@ class SdkWorld(World):
                          tuple(to) if to is not None else None, dict(data or {}), self.stage,
                          self.time if self.continuous else None)
         self.log.append(event)
+        record_key = self.record_events.add(event, self.entry_by_seq) if kind == "record" else None
 
         def undo() -> None:
             for index in range(len(self.log) - 1, -1, -1):  # rolled-back events sit near the end
                 if self.log[index] is event:
                     del self.log[index]
+                    if record_key is not None:
+                        self.record_events.remove(event, record_key)
                     self._seq -= 1
                     break
 

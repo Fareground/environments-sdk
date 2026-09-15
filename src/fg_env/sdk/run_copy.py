@@ -44,7 +44,7 @@ _ENV_FIELDS = frozenset({
     "_invariant_held", "pilot", "calibration", "build_seed", "stepper", "diagnosis", "_end_on_action", "_brief_assets", "_inspect_cache"})
 _WORLD_FIELDS = frozenset({
     "contract", "inputs", "seeds", "arm", "_local", "_rng", "entities", "props", "links", "link_fields", "adjacent",
-    "records_store", "entry_by_seq", "record_authors", "entity_briefs", "log", "physics", "physics_writes", "entity_dynamics", "round",
+    "records_store", "entry_by_seq", "record_authors", "record_events", "entity_briefs", "log", "physics", "physics_writes", "entity_dynamics", "round",
     "stage", "rounds", "metrics", "series", "scheduled", "wake_requests", "reactions", "time", "horizon", "start", "wake_at",
     "_schedule_seq", "space", "buffer", "end_request", "chance_picker", "counters", "journal", "lifecycle",
     "exposures", "written", "watched_writes", "diagnosis", "_seq", "_record_seq", "_props_view", "_physics_view", "_clock_view",
@@ -188,6 +188,7 @@ def _copy_world(source: SdkWorld) -> SdkWorld:
         _def_cache_on=source._def_cache_on, _subtypes=source._subtypes, types=types, assets=source.assets.copy())
     world._props_view, world._physics_view, world._clock_view = PropsView(world), PhysicsView(world), ClockView(world)
     world.rebuild_record_index()
+    world.rebuild_event_index()
     world.patterns = source.patterns.bound_to(world)
     return world
 

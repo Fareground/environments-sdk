@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Actor-scoped `$events(record)` selects indexed author-only notification candidates before checking
+  live permissions, preserving general policies, recipients, ordering and retention. Rollback removes
+  indexed events; snapshots and fast copies rebuild independent candidate indexes.
 - Behavior checks retain actual failures from all-failed baseline and input-variant runs instead of
   rerunning participants or replacing the cause with a generic message. Batch construction-time
   runtime failures are recorded per job; invalid contracts and input shapes still fail fast.
