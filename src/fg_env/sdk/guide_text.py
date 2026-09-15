@@ -314,6 +314,9 @@ result.outputs, result.metrics, result.series, result.stats, result.events, resu
 snap = env.snapshot(); env2 = fg_env.Env.restore("shop.json", snap)   # between rounds; JSON-safe
 exp = fg_env.experiment("shop.json", runs=20, arms=["control", "promo"]); print(exp.table())
 exp.deltas("control")   # paired promo − control per output: mean, sd, ci95, clear (CI excludes 0)
+print(fg_env.report(exp, contract="shop.json", objective="max:profit", require={"fill_rate": ">= 0.95"}))
+# plain words for an owner: the choice and its outcome with 80% ranges, drivers, risks, assumptions, fit to data
+# (audience="analyst" adds the method; validation=, a run, a sweep or a validation also work; fg-env report file.json)
 fg_env.sweep("shop.json", {"price": {"low": 1, "high": 5, "steps": 5}}, runs=10).table()   # also sensitivity, calibrate, backtest
 # every check, experiment and analysis reads data files beside the contract file (or data_dir=) and takes hosts=
 v = fg_env.validate("shop.json", [{"name": "Q1", "inputs": {"start": "2026-01-05"}, "actuals": {"units_by_sku": {...}}}],
