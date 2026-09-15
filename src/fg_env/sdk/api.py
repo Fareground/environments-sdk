@@ -11,11 +11,12 @@ from .check import check_contract, parse_contract
 from .contract import Contract
 from .errors import ContractError, Issue, RunError
 from .inputs import resolve_inputs
+from .macros import expand_macros
 from .measure import RunResult
 from .runtime import Env
 from .seeds import mint_seed
 
-__all__ = ["ContractLike", "parse", "check", "load", "run", "apply_arm"]
+__all__ = ["ContractLike", "parse", "check", "load", "run", "apply_arm", "expand"]
 
 ContractLike = Union[Contract, Mapping[str, Any], str, "os.PathLike[str]"]
 
@@ -48,7 +49,8 @@ MAX_IMPORTS = 64
 
 
 def _with_imports(data: Any, folder: Path, stack: Tuple[Path, ...]) -> Any:
-    """``data`` with its ``imports`` merged in (unchanged when it has none)."""
+    """``data`` with its macros expanded and its ``imports`` merged in (unchanged when it has neither)."""
+    data = expand_macros(data)
     if not isinstance(data, Mapping) or "imports" not in data:
         return data
     return _resolve_imports(data, folder, folder.resolve(), stack, [0], "imports")
@@ -56,6 +58,8 @@ def _with_imports(data: Any, folder: Path, stack: Tuple[Path, ...]) -> Any:
 
 def _resolve_imports(data: Mapping[str, Any], folder: Path, root: Path, stack: Tuple[Path, ...], count: List[int],
                      where: str) -> Dict[str, Any]:
+    """``data`` (macros already expanded) with its imports merged in. Each file's macros are expanded
+    before it is merged, so the importing contract's own entries, generated or written, win."""
     from .mechanisms import merge_sections
     from .registry import MechanismError
 
@@ -83,7 +87,7 @@ def _resolve_imports(data: Mapping[str, Any], folder: Path, root: Path, stack: T
         fragment = _json(_file_text(target), _shown(str(target)))
         if not isinstance(fragment, dict):
             raise ContractError([Issue(path, f"'{_shown(relative)}' must hold a JSON object of contract sections")])
-        fragment = _resolve_imports(fragment, target.parent, root, (*stack, target), count, f"{path}.imports")
+        fragment = _resolve_imports(expand_macros(fragment), target.parent, root, (*stack, target), count, f"{path}.imports")
         for key in ("fg_env", "name", "description"):
             fragment.pop(key, None)
         try:
@@ -141,6 +145,24 @@ def _json(text: str, where: str) -> Any:
 def parse(source: ContractLike) -> Contract:
     """Read and structurally validate a contract (dict, path, JSON text or :class:`Contract`)."""
     return parse_contract(_read(source))
+
+
+def expand(source: ContractLike, *, mechanisms: bool = False) -> Dict[str, Any]:
+    """The contract data the engine reads: imports merged and macros expanded (and, with
+    ``mechanisms=True``, every mechanism expanded into ordinary sections too).
+
+    Raises :class:`ContractError` for problems found while expanding; ``check`` reports the rest."""
+    from .mechanisms import expand_mechanisms
+
+    data = contract_source(source) if isinstance(source, Contract) else _read(source)
+    if not isinstance(data, Mapping):
+        raise ContractError([Issue("(contract)", f"a contract is a JSON object, got {type(data).__name__}")])
+    if not mechanisms:
+        return copy.deepcopy(dict(data))
+    expanded, issues = expand_mechanisms(data)
+    if issues:
+        raise ContractError(issues, title="mechanisms cannot be expanded")
+    return expanded
 
 
 def _without_unknown_fields(data: Any, issues: List[Issue]) -> Any:

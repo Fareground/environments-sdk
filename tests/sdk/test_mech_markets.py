@@ -406,7 +406,8 @@ def test_double_auction_clears_bids_and_asks_at_one_price():
 @pytest.mark.parametrize("fmt", auctions.FORMATS)
 def test_auctions_conserve_cash_and_units_with_random_bidders(fmt):
     multi = fmt in ("uniform", "double")
-    contract = house(fmt, start_price=90, decrement=10, units=2 if multi else 1, stock=4)
+    packages = {"items": ["north", "south", "east"], "reserves": {"east": 20}} if fmt == "combinatorial" else {}
+    contract = house(fmt, start_price=90, decrement=10, units=2 if multi else 1, stock=4, **packages)
     if fmt == "double":
         contract = dealers(contract)
         contract["mechanisms"]["house"]["sellers"] = "dealer"
