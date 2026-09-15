@@ -14,7 +14,7 @@ from ..entity import Entity
 from ..physics import PhysicsExprError, PhysicsModel, PhysicsVariable, _CompiledExpr
 from .contract import Contract, PropSpec
 from .errors import RunError
-from .expr import FUNCTIONS, ExprError, Scope, World, compile_expr, is_expr, truthy
+from .expr import ExprError, FUNCTIONS, Scope, Untrusted, World, compile_expr, is_expr, truthy
 from .seeds import SeedTree
 
 __all__ = ["SdkWorld", "Entry", "LogEvent", "Abort", "prop_type"]
@@ -555,7 +555,10 @@ class SdkWorld(World):
         return candidate
 
     def create(self, type_name: str, entity_id: Optional[str], name: Optional[str],
-               props: Dict[str, Any], at: Any, scope: Scope, where: str) -> Entity:
+               props: Dict[str, Any], at: Any, scope: Scope, where: str, evaluate: bool = True) -> Entity:
+        """Create an entity. ``props`` values that are expressions are evaluated when ``evaluate`` is
+        true (contract text); runtime values from native ops pass ``evaluate=False``. Participant text
+        is never evaluated, whatever it looks like."""
         spec = self.contract.types.get(type_name)
         if spec is None:
             raise RunError(f"'{type_name}' is not a declared type", where)
@@ -571,7 +574,10 @@ class SdkWorld(World):
         for prop, prop_spec in declared.items():
             raw = props[prop] if prop in props else prop_spec.default
             try:
-                value = compile_expr(raw)(own) if is_expr(raw) else _copy(raw)
+                expression = evaluate and prop in props and is_expr(raw) and not isinstance(raw, Untrusted)
+                if prop not in props and is_expr(raw):  # a type default is contract text
+                    expression = True
+                value = compile_expr(raw)(own) if expression else _copy(raw)
             except ExprError as exc:
                 raise RunError(str(exc), f"{where}.props.{prop}") from None
             entity.properties[prop] = self._coerce(prop_spec, _plain(value), f"{where}.props.{prop}")
