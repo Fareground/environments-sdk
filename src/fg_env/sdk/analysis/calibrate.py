@@ -225,7 +225,7 @@ def calibrate(contract: ContractLike, targets: Any, params: Mapping[str, Mapping
               runs: int = 5, budget: int = 30, holdout: Optional[int] = None, method: str = "auto",
               inputs: Optional[Mapping[str, Any]] = None, arm: Optional[str] = None, participants: Any = None,
               rounds: Optional[int] = None, seed: int = 0, workers: int = 1, test: Any = None,
-              folds: Optional[int] = None) -> CalibrationResult:
+              folds: Optional[int] = None, data_dir: Any = None, hosts: Any = None) -> CalibrationResult:
     """Search ``params`` (``{input: {"low", "high", "log"?}}``) so the contract matches ``targets``.
 
     ``targets``: a mapping of targets, or a list of cases ``{name?, inputs?, arm?, targets}`` (see the
@@ -236,11 +236,13 @@ def calibrate(contract: ContractLike, targets: Any, params: Mapping[str, Mapping
     ``runs`` runs per case; ``holdout`` (default ``runs``) fresh seeds validate the best point.
     With cases, ``test`` returns the fit to the other cases with its error on the held-out ones, and
     ``folds`` adds a cross-validated error to the fit on every case (one extra search per fold).
+    ``data_dir`` is where inputs with a ``source`` are read (default: the contract file's folder); ``hosts`` answers
+    host requests (feeds, judges) in every run.
     """
     runner.check_positive_int("runs", runs)
     runner.check_positive_int("budget", budget, 2)
     held = runner.check_positive_int("holdout", holdout if holdout is not None else runs)
-    parsed = runner.as_contract(contract)
+    parsed = runner.as_contract(contract, data_dir)
     if not params:
         raise ValueError("calibrate needs at least one param to fit")
     names = list(params)
@@ -253,8 +255,8 @@ def calibrate(contract: ContractLike, targets: Any, params: Mapping[str, Mapping
     if not tagged and (test is not None or folds is not None):
         raise ValueError("test and folds hold out cases: pass targets as a list of cases {name, inputs, targets}")
     parts = splits([case.name for case in cases], test=test, folds=folds, seed=seed)
-    problem = _Problem(parsed, cases, tagged, names, ranges, logs, participants, rounds, workers)
-    with runner.worker_pool(workers, participants) as pool:
+    problem = _Problem(parsed, cases, tagged, names, ranges, logs, participants, rounds, workers, hosts)
+    with runner.worker_pool(workers, participants, hosts) as pool:
         if test is not None:
             fitted = _fit(problem.subset(parts[0].train), pool, runs, held, budget, method, seed)
             return replace(fitted, holdout=_held_out(problem, parts, [fitted], pool, runs, held, "test", seed))
@@ -312,6 +314,7 @@ class _Problem:
     participants: Any
     rounds: Optional[int]
     workers: int
+    hosts: Any = None
 
     @property
     def goals(self) -> List[Target]:
@@ -333,7 +336,7 @@ class _Problem:
         """Every case × every seed at these param values, grouped by case."""
         jobs = runner.jobs_for([({**case.inputs, **values}, case.arm) for case in self.cases], seeds)
         results = runner.run_jobs(self.contract, jobs, participants=self.participants, rounds=self.rounds,
-                                  workers=self.workers, pool=pool)
+                                  workers=self.workers, pool=pool, hosts=self.hosts)
         return runner.by_cell(jobs, results, len(self.cases))
 
     def evaluate(self, runs: Sequence[Sequence[RunResult]]) -> Tuple[float, List[Dict[str, Any]]]:

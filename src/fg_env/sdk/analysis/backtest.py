@@ -86,7 +86,8 @@ def _case_kind(outcomes: Sequence[Any], threshold: Optional[float]) -> str:
 def backtest(contract: ContractLike, cases: Sequence[Mapping[str, Any]], output: str, *, runs: int = 10,
              threshold: Optional[float] = None, climatology: Any = None, arm: Optional[str] = None,
              participants: Any = None, rounds: Optional[int] = None, seed: int = 0, workers: int = 1,
-             bins: int = 10, test: Any = None, folds: Optional[int] = None) -> BacktestResult:
+             bins: int = 10, test: Any = None, folds: Optional[int] = None, data_dir: Any = None,
+             hosts: Any = None) -> BacktestResult:
     """Score the contract's forecasts of ``output`` against each case's known ``outcome``.
 
     ``cases``: ``[{"inputs": {...}, "outcome": value, "name"?: text, "arm"?: text}]``. Outcome
@@ -98,11 +99,13 @@ def backtest(contract: ContractLike, cases: Sequence[Mapping[str, Any]], output:
     Skill compares the forecasts with a climatology, which by default comes from the same cases'
     outcomes (in sample). ``test`` (a share, or a list of case names) or ``folds`` (k-fold) also score
     the held-out cases against a climatology built only from the other cases: out-of-sample skill.
+    ``data_dir`` is where inputs with a ``source`` are read (default: the contract file's folder); ``hosts``
+    answers host requests (feeds, judges) in every run.
     """
     runner.check_positive_int("runs", runs)
     if not cases:
         raise ValueError("backtest needs at least one case")
-    parsed = runner.as_contract(contract)
+    parsed = runner.as_contract(contract, data_dir)
     measure = runner.resolve_measure(parsed, output)
     for i, case in enumerate(cases):
         if not isinstance(case, Mapping) or "outcome" not in case:
@@ -114,7 +117,7 @@ def backtest(contract: ContractLike, cases: Sequence[Mapping[str, Any]], output:
     cells = [(dict(case.get("inputs") or {}), case.get("arm", arm)) for case in cases]
     jobs = runner.jobs_for(cells, seeds)
     grouped = runner.by_cell(jobs, runner.run_jobs(parsed, jobs, participants=participants, rounds=rounds,
-                                                   workers=workers), len(cases))
+                                                   workers=workers, hosts=hosts), len(cases))
     forecasts, rows, notes = [], [], []
     for index, (case, case_runs) in enumerate(zip(cases, grouped)):
         raw = [runner.raw_value(r, measure) for r in case_runs if r.status != "failed"]
@@ -233,7 +236,8 @@ class PrecisionResult:
 def precision(contract: ContractLike, output: str, *, target_se: Optional[float] = None,
               relative_se: Optional[float] = None, max_runs: int = 100, batch: int = 5, min_runs: Optional[int] = None,
               inputs: Optional[Mapping[str, Any]] = None, arm: Optional[str] = None, participants: Any = None,
-              rounds: Optional[int] = None, seed: int = 0, workers: int = 1, level: float = 0.95) -> PrecisionResult:
+              rounds: Optional[int] = None, seed: int = 0, workers: int = 1, level: float = 0.95,
+              data_dir: Any = None, hosts: Any = None) -> PrecisionResult:
     """Add runs ``batch`` at a time until the standard error of ``output``'s mean is small enough.
 
     Give ``target_se`` (in output units) or ``relative_se`` (a share of |mean|). A yes/no output
@@ -249,7 +253,7 @@ def precision(contract: ContractLike, output: str, *, target_se: Optional[float]
     runner.check_positive_int("batch", batch)
     runner.check_positive_int("max_runs", max_runs)
     floor = runner.check_positive_int("min_runs", min_runs if min_runs is not None else min(max_runs, 2 * batch))
-    parsed = runner.as_contract(contract)
+    parsed = runner.as_contract(contract, data_dir)
     measure = runner.resolve_measure(parsed, output)
     z = normal_quantile(1.0 - (1.0 - level) / 2.0)
     values: List[Any] = []
@@ -257,11 +261,12 @@ def precision(contract: ContractLike, output: str, *, target_se: Optional[float]
     done = 0
     current = estimate([], level)
     required = float(goal)
-    with runner.worker_pool(workers, participants) as pool:
+    with runner.worker_pool(workers, participants, hosts) as pool:
         while done < max_runs:
             size = min(batch, max_runs - done)
             jobs = [runner.Job(dict(inputs or {}), arm, s) for s in runner.run_seeds(seed, size, start=done)]
-            results = runner.run_jobs(parsed, jobs, participants=participants, rounds=rounds, workers=workers, pool=pool)
+            results = runner.run_jobs(parsed, jobs, participants=participants, rounds=rounds, workers=workers, pool=pool,
+                                      hosts=hosts)
             values += [runner.raw_value(r, measure) for r in results if r.status != "failed"]
             done += size
             current = _estimate(values, level, z)

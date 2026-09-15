@@ -101,7 +101,7 @@ def _guarded(command: Callable[[argparse.Namespace], int]) -> Callable[[argparse
 def cmd_check(args: argparse.Namespace) -> int:
     from .api import check
 
-    issues = check(args.file, rounds=args.rounds)
+    issues = check(args.file, rounds=args.rounds, data_dir=args.data_dir)
     if args.json:
         print(json.dumps([i.to_dict() for i in issues], indent=2, ensure_ascii=False))
     else:
@@ -326,6 +326,7 @@ def add_commands(sub: Any) -> None:
     p.add_argument("file", help="contract JSON file")
     p.add_argument("--rounds", type=int, default=1,
                    help="also build and play this many rounds with default participants (0 = static check only)")
+    p.add_argument("--data-dir", help="folder input data files are read from (default: the contract's folder)")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=_guarded(cmd_check))
 

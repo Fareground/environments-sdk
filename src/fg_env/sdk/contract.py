@@ -784,6 +784,8 @@ class Contract(_Model):
 
     #: The contract as written, before mechanisms were expanded (re-parse this, not a dump).
     _source: Optional[Dict[str, Any]] = PrivateAttr(default=None)
+    #: The folder input data files are read from (the contract file's folder, or ``data_dir=``); ``None`` when unknown.
+    _folder: Optional[str] = PrivateAttr(default=None)
 
     @model_validator(mode="before")
     @classmethod

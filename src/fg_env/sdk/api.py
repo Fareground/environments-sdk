@@ -16,7 +16,7 @@ from .measure import RunResult
 from .runtime import Env
 from .seeds import mint_seed
 
-__all__ = ["ContractLike", "parse", "check", "load", "run", "apply_arm", "expand"]
+__all__ = ["ContractLike", "DataDir", "parse", "located", "check", "load", "run", "apply_arm", "expand"]
 
 ContractLike = Union[Contract, Mapping[str, Any], str, "os.PathLike[str]"]
 
@@ -142,9 +142,24 @@ def _json(text: str, where: str) -> Any:
         raise ContractError([Issue(where, f"cannot read this JSON: {str(exc)[:_SHOWN] or 'nested too deeply'}")]) from None
 
 
-def parse(source: ContractLike) -> Contract:
-    """Read and structurally validate a contract (dict, path, JSON text or :class:`Contract`)."""
-    return parse_contract(_read(source))
+DataDir = Union[str, "os.PathLike[str]", None]
+
+
+def parse(source: ContractLike, data_dir: DataDir = None) -> Contract:
+    """Read and structurally validate a contract (dict, path, JSON text or :class:`Contract`).
+
+    The contract remembers where its input data files are read from: ``data_dir`` when given, else the
+    contract file's folder, so every run, check and analysis of it finds them."""
+    return located(parse_contract(_read(source)), default_data_dir(source, data_dir))
+
+
+def located(contract: Contract, folder: DataDir) -> Contract:
+    """``contract`` reading its data files from ``folder`` (a copy when that changes; the original is untouched)."""
+    if folder is None or contract._folder == str(folder):
+        return contract
+    moved = contract.model_copy()
+    moved._folder = str(folder)
+    return moved
 
 
 def expand(source: ContractLike, *, mechanisms: bool = False) -> Dict[str, Any]:
@@ -184,10 +199,10 @@ def _without_unknown_fields(data: Any, issues: List[Issue]) -> Any:
     return data
 
 
-def _check_all(source: ContractLike) -> tuple[Optional[Contract], List[Issue]]:
+def _check_all(source: ContractLike, data_dir: DataDir = None) -> tuple[Optional[Contract], List[Issue]]:
     data = _read(source)
     try:
-        contract = parse_contract(data)
+        contract = located(parse_contract(data), default_data_dir(source, data_dir))
     except ContractError as exc:
         structural = exc.issues + exc.warnings
         cleaned = _without_unknown_fields(data, exc.issues) if isinstance(data, Mapping) else None
@@ -202,19 +217,21 @@ def _check_all(source: ContractLike) -> tuple[Optional[Contract], List[Issue]]:
     return contract, check_contract(contract)
 
 
-def check(source: ContractLike, rounds: int = 1, seed: int = 0) -> List[Issue]:
+def check(source: ContractLike, rounds: int = 1, seed: int = 0, *, data_dir: DataDir = None,
+          hosts: Any = None) -> List[Issue]:
     """Every problem in a contract, errors first then warnings. Never raises for contract problems.
 
     A contract without errors is also built and played for ``rounds`` rounds (default 1; 0 checks statically only)
     with random agents that read everything they are shown, so problems that only appear with real values (sampling,
-    first turns, views, outputs) are reported the same way.
+    first turns, views, outputs) are reported the same way. Inputs with a ``source`` are read from ``data_dir``
+    (default: the contract file's folder); ``hosts`` answers what the contract asks of a host during that play.
     """
-    contract, issues = _check_all(source)
+    contract, issues = _check_all(source, data_dir)
     errors = [i for i in issues if i.severity == "error"]
     warnings_from_smoke: List[Issue] = []
     if rounds > 0 and contract is not None and not errors:
         try:
-            result = load(contract, seed=seed, data_dir=default_data_dir(source)).run(_smoke_participant(seed), rounds=rounds)
+            result = load(contract, seed=seed, hosts=hosts).run(_smoke_participant(seed), rounds=rounds)
             if result.status == "failed":
                 errors.append(_run_issue(result.error or "the run failed"))
             for problem in result.output_issues:
@@ -261,7 +278,7 @@ def apply_arm(contract: Contract, arm: str) -> Contract:
     patch = contract.arms[arm].patch
     if not patch:
         return contract
-    return parse_contract(_merge(contract_source(contract), patch))
+    return located(parse_contract(_merge(contract_source(contract), patch)), contract._folder)
 
 
 def contract_source(contract: Contract) -> Dict[str, Any]:
@@ -280,10 +297,13 @@ def _merge(base: Any, patch: Any) -> Any:
     return copy.deepcopy(patch)
 
 
-def default_data_dir(source: ContractLike, data_dir: Union[str, "os.PathLike[str]", None] = None) -> Optional[Path]:
-    """Where input data files are read from: ``data_dir`` when given, else the contract file's folder."""
+def default_data_dir(source: ContractLike, data_dir: DataDir = None) -> Optional[Path]:
+    """Where input data files are read from: ``data_dir`` when given, else the contract file's folder (a parsed
+    contract remembers the folder it was read with)."""
     if data_dir is not None:
         return Path(data_dir)
+    if isinstance(source, Contract):
+        return Path(source._folder) if source._folder is not None else None
     if isinstance(source, os.PathLike) or (isinstance(source, str) and not source.lstrip().startswith(("{", "["))):
         return Path(source).parent
     return None
@@ -291,8 +311,7 @@ def default_data_dir(source: ContractLike, data_dir: Union[str, "os.PathLike[str
 
 def load(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, seed: Optional[int] = None,
          arm: Optional[str] = None, strict: bool = False, parallel: int = 8,
-         data_dir: Union[str, "os.PathLike[str]", None] = None, hosts: Any = None, exposures: bool = False,
-         chance: Any = None) -> Env:
+         data_dir: DataDir = None, hosts: Any = None, exposures: bool = False, chance: Any = None) -> Env:
     """Check a contract and build a runnable :class:`Env`.
 
     Errors raise :class:`ContractError` listing every problem with a fix; ``strict=True``
@@ -306,7 +325,7 @@ def load(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, se
     that returns the index of the outcome to take (a fixed deal, duplicate formats); :func:`fg_env.game`
     enumerates chance for search.
     """
-    contract, issues = _check_all(source)
+    contract, issues = _check_all(source, data_dir)
     blocking = [i for i in issues if i.severity == "error" or strict]
     if blocking or contract is None:
         raise ContractError(blocking or issues)
@@ -321,7 +340,7 @@ def load(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, se
                 raise ContractError(errors, title=f"arm '{arm}' makes the contract invalid")
         merged.update(contract.arms[arm].inputs)
     merged.update(inputs or {})
-    resolved = resolve_inputs(contract, merged, default_data_dir(source, data_dir))
+    resolved = resolve_inputs(contract, merged, default_data_dir(contract))
     env = Env(contract, resolved, mint_seed() if seed is None else seed, arm, parallel, exposures)
     env.origin.unarmed = unarmed
     if chance is not None:
@@ -337,7 +356,7 @@ def load(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, se
 
 def run(source: ContractLike, participants: Any = None, *, inputs: Optional[Mapping[str, Any]] = None,
         seed: Optional[int] = None, arm: Optional[str] = None, rounds: Optional[int] = None,
-        on_event: Any = None, strict: bool = False, data_dir: Union[str, "os.PathLike[str]", None] = None,
+        on_event: Any = None, strict: bool = False, data_dir: DataDir = None,
         hosts: Any = None, time_limit: Optional[float] = None, exposures: bool = False,
         budget: Optional[Mapping[str, Any]] = None) -> RunResult:
     """Load and run in one call: ``fg_env.run("shop.json", {"buyer": "policy:thrifty"}, seed=1)``."""

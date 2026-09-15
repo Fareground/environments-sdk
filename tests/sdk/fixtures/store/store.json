@@ -1,0 +1,32 @@
+{
+  "fg_env": "1",
+  "name": "Corner parts store",
+  "description": "A small store selling six parts a week from stock read from CSV files: demand per part, lost sales when stock runs out, a weekly delivery.",
+  "inputs": {
+    "skus": {"type": "table", "source": "data/skus.csv", "columns": {"base": "number", "stock": "int"}},
+    "demand_scale": {"type": "number", "default": 1.0, "min": 0.2, "max": 3.0},
+    "delivery": {"type": "int", "default": 12, "min": 0, "max": 100},
+    "weeks": {"type": "int", "default": 8, "min": 1, "max": 26}
+  },
+  "clock": {"rounds": "$inputs.weeks", "unit": "week"},
+  "types": {"sku": {"props": {"category": "", "base": 0.0, "on_hand": 0, "sold": 0, "lost": 0}}},
+  "population": [
+    {"type": "sku", "from": "$inputs.skus", "id": "{$row.sku}", "name": "{$row.sku}",
+     "props": {"category": "$row.category", "base": "$row.base", "on_hand": "$row.stock"}}
+  ],
+  "events": [
+    {"name": "sell", "phase": "start", "each": "sku", "do": [
+      "$demand = $poisson($it.base * $inputs.demand_scale)",
+      "$sold = $min($demand, $it.on_hand)",
+      "$it.sold += $sold",
+      "$it.lost += $demand - $sold",
+      "$it.on_hand += $inputs.delivery - $sold"
+    ]}
+  ],
+  "metrics": {"on_hand": "$sum(sku, $it.on_hand)"},
+  "outputs": {
+    "units": {"type": "number", "expr": "$sum(sku, $it.sold)"},
+    "lost": {"type": "number", "expr": "$sum(sku, $it.lost)"},
+    "units_by_sku": {"type": "map", "expr": "$dict(sku, $it.id, $it.sold)"}
+  }
+}

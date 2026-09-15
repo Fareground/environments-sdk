@@ -308,6 +308,7 @@ snap = env.snapshot(); env2 = fg_env.Env.restore("shop.json", snap)   # between 
 exp = fg_env.experiment("shop.json", runs=20, arms=["control", "promo"]); print(exp.table())
 exp.deltas("control")   # paired promo − control per output: mean, sd, ci95, clear (CI excludes 0)
 fg_env.sweep("shop.json", {"price": {"low": 1, "high": 5, "steps": 5}}, runs=10).table()   # also sensitivity, calibrate, backtest
+# every check, experiment and analysis reads data files beside the contract file (or data_dir=) and takes hosts=
 fg_env.behavior_checks("shop.json")   # constant outputs, inputs that change nothing, actions and stages never used
 fg_env.tournament("duel.json", {"greedy": "policy:greedy", "llm": my_agent}, games=20).summary()
 # seats rotate and share seeds; Elo with intervals, Glicko-2, Nash average, α-Rank, votes, cost per entrant
