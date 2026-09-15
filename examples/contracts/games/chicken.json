@@ -1,0 +1,39 @@
+{
+  "fg_env": "1",
+  "name": "Chicken",
+  "description": "The one-shot anti-coordination game. The pure equilibria have exactly one player go straight; the mixed equilibrium goes straight with probability 1/10.",
+  "brief": {
+    "situation": "Two drivers head at each other; each chooses to swerve or go straight, at the same time.",
+    "rules": "Both swerve: 0 each. One goes straight: that driver scores 1 and the swerver -1. Both go straight: -10 each."
+  },
+  "clock": {"rounds": 1},
+  "world": {
+    "payoff": {"type": "map", "default": {
+      "swerve": {"swerve": 0, "straight": -1},
+      "straight": {"swerve": 1, "straight": -10}
+    }}
+  },
+  "types": {"player": {"agent": true, "props": {
+    "seat": 0,
+    "move": {"type": "text", "default": "", "private": true},
+    "score": 0
+  }}},
+  "entities": {
+    "a": {"type": "player", "name": "A", "props": {"seat": 0}},
+    "b": {"type": "player", "name": "B", "props": {"seat": 1}}
+  },
+  "actions": {"drive": {
+    "by": "player", "description": "Swerve or go straight.", "private": true, "terminal": true,
+    "params": {"move": {"type": "enum", "values": ["swerve", "straight"]}},
+    "do": ["$actor.move = $params.move"]
+  }},
+  "stages": [{"name": "drive", "turns": "simultaneous", "must_act": true}],
+  "events": [{"phase": "end", "do": [
+    "$a = $entity('a')", "$b = $entity('b')",
+    "$a.score = $world.payoff[$a.move][$b.move]", "$b.score = $world.payoff[$b.move][$a.move]",
+    {"emit": "shown", "say": "A chose {$a.move}; B chose {$b.move}."}
+  ]}],
+  "game": {"players": "player", "seat": "$it.seat", "returns": "$actor.score", "utility": "general_sum",
+           "min_return": -10, "max_return": 1},
+  "outputs": {"a_score": {"expr": "$entity('a').score", "type": "number"}}
+}

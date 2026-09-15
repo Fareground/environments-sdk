@@ -1,0 +1,39 @@
+{
+  "fg_env": "1",
+  "name": "Stag hunt",
+  "description": "The one-shot coordination game. Both pure profiles (stag, stag) and (hare, hare) are equilibria; the mixed equilibrium hunts stag with probability 3/4.",
+  "brief": {
+    "situation": "Two hunters each choose to hunt stag or hare, at the same time.",
+    "rules": "A stag needs both hunters: both hunting stag score 4 each. A hare hunter always scores 3. A lone stag hunter scores 0."
+  },
+  "clock": {"rounds": 1},
+  "world": {
+    "payoff": {"type": "map", "default": {
+      "stag": {"stag": 4, "hare": 0},
+      "hare": {"stag": 3, "hare": 3}
+    }}
+  },
+  "types": {"player": {"agent": true, "props": {
+    "seat": 0,
+    "move": {"type": "text", "default": "", "private": true},
+    "score": 0
+  }}},
+  "entities": {
+    "a": {"type": "player", "name": "A", "props": {"seat": 0}},
+    "b": {"type": "player", "name": "B", "props": {"seat": 1}}
+  },
+  "actions": {"hunt": {
+    "by": "player", "description": "Hunt stag or hare.", "private": true, "terminal": true,
+    "params": {"move": {"type": "enum", "values": ["stag", "hare"]}},
+    "do": ["$actor.move = $params.move"]
+  }},
+  "stages": [{"name": "hunt", "turns": "simultaneous", "must_act": true}],
+  "events": [{"phase": "end", "do": [
+    "$a = $entity('a')", "$b = $entity('b')",
+    "$a.score = $world.payoff[$a.move][$b.move]", "$b.score = $world.payoff[$b.move][$a.move]",
+    {"emit": "shown", "say": "A hunted {$a.move}; B hunted {$b.move}."}
+  ]}],
+  "game": {"players": "player", "seat": "$it.seat", "returns": "$actor.score", "utility": "general_sum",
+           "min_return": 0, "max_return": 4},
+  "outputs": {"a_score": {"expr": "$entity('a').score", "type": "number"}}
+}

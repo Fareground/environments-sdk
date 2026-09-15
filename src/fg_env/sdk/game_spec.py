@@ -21,9 +21,11 @@ class GameSpec(BaseModel):
     rewards: Optional[str] = Field(None, description="A seat's reward for its latest step: an expression over $actor (default: the change in `returns` since that seat's previous step).")
     utility: str = Field("general_sum", description="One of: " + ", ".join(UTILITIES) + " — checked on every finished run.")
     total: Optional[float] = Field(None, description="constant_sum: what every finished run's returns add up to.")
+    min_return: Optional[float] = Field(None, description="The lowest return any seat can finish with — checked on every finished run.")
+    max_return: Optional[float] = Field(None, description="The highest return any seat can finish with — checked on every finished run.")
     # Claims: what the contract asserts about itself; `check` verifies each against what fg_env derives.
     dynamics: Optional[str] = Field(None, description="Claim, verified by check: sequential | simultaneous | scheduled | mixed.")
-    chance_mode: Optional[str] = Field(None, description="Claim, verified by check: deterministic | sampled.")
+    chance_mode: Optional[str] = Field(None, description="Claim, verified by check: deterministic | explicit (only `chance` effects, whose outcomes are listed) | sampled.")
     information: Optional[str] = Field(None, description="Claim, verified by check: perfect | imperfect.")
     num_players: Optional[int] = Field(None, description="Claim, verified by check: agents at the start.")
     min_players: Optional[int] = Field(None, description="Claim, verified by check.")

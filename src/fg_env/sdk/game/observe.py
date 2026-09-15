@@ -102,9 +102,31 @@ def information_state(env: "Env", actor: Entity, turn: Optional[Turn]) -> str:
 
 
 def state_key(env: "Env", pending: Dict[str, Any]) -> str:
+    rows = [[e.id, e.entity_type, e.alive, e.location_id, encode(e.properties)] for e in env.world.entities.values()]
+    return digest(json.dumps(_world_data(env, rows, pending), sort_keys=True, default=str))
+
+
+def visible_key(env: "Env", actor: Entity, pending: Dict[str, Any]) -> str:
+    """A key for the state with what ``actor`` cannot see left out: other entities' private properties and events not
+    addressed to it. Two states with equal keys differ at most in what the rules hide from ``actor``."""
+    world, contract = env.world, env.contract
+    rows = []
+    for entity in world.entities.values():
+        props = entity.properties
+        if entity is not actor:
+            specs = contract.props_of(entity.entity_type)
+            props = {key: value for key, value in props.items() if not (specs.get(key) is not None and specs[key].private)}
+        rows.append([entity.id, entity.entity_type, entity.alive, entity.location_id, encode(props)])
+    data = _world_data(env, rows, pending)
+    data["log"] = [[event.round, event.kind, event.text, event.actor, encode(event.data)]
+                   for event in world.log if event.visible_to(actor.id)]
+    return digest(json.dumps(data, sort_keys=True, default=str))
+
+
+def _world_data(env: "Env", entities: List[Any], pending: Dict[str, Any]) -> Dict[str, Any]:
     world = env.world
-    data = {
-        "entities": [[e.id, e.entity_type, e.alive, e.location_id, encode(e.properties)] for e in world.entities.values()],
+    return {
+        "entities": entities,
         "props": encode(world.props), "round": world.round, "stage": world.stage, "time": world.time,
         "links": {kind: sorted([a, b, v, encode(world.link_fields.get(kind, {}).get((a, b)))]
                                for (a, b), v in edges.items()) for kind, edges in world.links.items()},
@@ -116,7 +138,6 @@ def state_key(env: "Env", pending: Dict[str, Any]) -> str:
         "triggers": [sorted(env._trigger_armed.items()), sorted(env._triggers_fired)],
         "used": encode(env._used_round), "pending": pending,
     }
-    return digest(json.dumps(data, sort_keys=True, default=str))
 
 
 def digest(text: str) -> str:

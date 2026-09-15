@@ -15,8 +15,10 @@ from __future__ import annotations
 
 import bisect
 import math
+import random
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple
 
 from ...entity import Entity
@@ -31,7 +33,7 @@ if TYPE_CHECKING:
     from ..runtime import Env
     from ..turn import Turn
 
-__all__ = ["Action", "ActionSpace", "legal_calls", "COMBINATION_LIMIT"]
+__all__ = ["Action", "ActionSpace", "legal_calls", "sample_call", "COMBINATION_LIMIT"]
 
 #: Most parameter combinations listed for one action (in the action space, and legal in one turn).
 COMBINATION_LIMIT = 10_000
@@ -138,7 +140,7 @@ class ActionSpace:
         return block.tool, dict(reversed(list(args.items())))
 
     def action(self, tool: str, args: Mapping[str, Any]) -> Action:
-        return Action(self.encode(tool, args), tool, dict(args))
+        return Action(self.encode(tool, args), tool, MappingProxyType(dict(args)))
 
 
 def _universe(env: "Env", param: ParamSpec, actors: Sequence[Entity], limit: int) -> Tuple[Optional[List[Any]], str]:
@@ -224,6 +226,28 @@ def _position(universe: Sequence[Any], value: Any) -> Optional[int]:
 
 class _Unlisted(Exception):
     pass
+
+
+def sample_call(env: "Env", turn: "Turn", rng: random.Random, *, limit: int = COMBINATION_LIMIT,
+                dry_run: bool = True) -> Optional[Tuple[str, Dict[str, Any]]]:
+    """A uniformly random legal listed call of ``turn`` (None when there is none), found by trying the calls that
+    validate in random order and dry-running only until one is not refused — the same choice as picking at
+    random from :func:`legal_calls`, for a fraction of the work. Runs on the run's thread."""
+    candidates, _ = legal_calls(env, turn, limit=limit, dry_run=False)
+    order = list(range(len(candidates)))
+    rng.shuffle(order)
+    if not dry_run:
+        return candidates[order[0]] if order else None
+    book, actor = env.actions, turn.actor
+    with env._lock, as_turn(env, turn):
+        for index in order:
+            tool, args = candidates[index]
+            if tool == END_TURN:
+                return tool, args
+            params, problem = book.validate(actor, tool, args)
+            if problem is None and book.dry_run(actor, tool, params) is None:
+                return tool, args
+    return None
 
 
 def legal_calls(env: "Env", turn: "Turn", *, limit: int = COMBINATION_LIMIT,

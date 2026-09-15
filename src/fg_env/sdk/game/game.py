@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 from ..api import ContractLike, load
 from ..branch import Branch, copy_pilot
@@ -13,10 +13,14 @@ from ..replay import Tape
 from ..returns import seat_ids
 from ..runtime import Env
 from ..snapshot import contract_hash, decode, encode, run_identity
+from .observe import digest
 from .space import COMBINATION_LIMIT, ActionSpace
 from .state import GameState
 
-__all__ = ["Game", "game"]
+__all__ = ["Game", "game", "LEGAL_MEMORY"]
+
+#: Most (history, seat) legal-call listings a game remembers before it starts over.
+LEGAL_MEMORY = 200_000
 
 
 class Game:
@@ -49,6 +53,24 @@ class Game:
         self.space = ActionSpace(root, limit)
         slug = re.sub(r"[^a-z0-9]+", "_", self.contract.name.lower()).strip("_") or "game"
         self.id = f"{slug}@{contract_hash(self.contract)[:8]}:{run_identity(root.seed, root.arm, encode(root.inputs))[:8]}"
+        # The same decisions from the initial state always reach the same state (the engine is deterministic under
+        # the game's seed), so legal calls are remembered by history — unless `others` may decide differently.
+        self._remembers = others is None or isinstance(others, str) or (
+            isinstance(others, Mapping) and all(isinstance(value, str) for value in others.values()))
+        self._legal_by_history: Dict[Tuple[bytes, int], Any] = {}
+        self._info: Optional[Dict[str, Any]] = None
+        #: Steps every new state starts with (see :meth:`start_at`).
+        self._prefix: List[Dict[str, Any]] = []
+
+    def _remembered(self, history: bytes, seat: int) -> Any:
+        return self._legal_by_history.get((history, seat)) if self._remembers else None
+
+    def _remember(self, history: bytes, seat: int, legal: Any) -> None:
+        if not self._remembers:
+            return
+        if len(self._legal_by_history) >= LEGAL_MEMORY:
+            self._legal_by_history.clear()
+        self._legal_by_history[(history, seat)] = legal
 
     def num_players(self) -> int:
         return len(self.players)
@@ -56,6 +78,16 @@ class Game:
     def num_distinct_actions(self) -> int:
         """The size of the action space (ids run from 0 to this minus 1)."""
         return self.space.size
+
+    @property
+    def info(self) -> Dict[str, Any]:
+        """The game's derived metadata (dynamics, chance, information, players, length, action space; see
+        ``fg-env info``), computed once."""
+        if self._info is None:
+            from ..describe.metadata import game_metadata
+
+            self._info = game_metadata(self.contract)
+        return self._info
 
     @property
     def utility(self) -> str:
@@ -69,6 +101,20 @@ class Game:
         return self._seats[entity_id]
 
     def new_initial_state(self) -> GameState:
+        """The state the game starts in (after the steps of :meth:`start_at`, when it was started part-way)."""
+        state = self._first_state()
+        if self._prefix:
+            from .steps import apply_step
+
+            try:
+                for step in self._prefix:
+                    apply_step(state, step)
+            except BaseException:
+                state.close()
+                raise
+        return state
+
+    def _first_state(self) -> GameState:
         root = self._root
         pilot = copy_pilot(root, Tape(), 0, root.origin.base, controlled=set(self.players),
                            explicit=self.chance == "explicit", participants=self._others, checkpoints=True)
@@ -85,7 +131,7 @@ class Game:
             raise ValueError("not a serialized game state (from GameState.serialize())")
         if data.get("game") != self.id:
             raise ValueError(f"the state belongs to game {data.get('game')!r}, not {self.id!r}")
-        state = self.new_initial_state()
+        state = self._first_state()
         for entry in decode(data["history"]):
             if "chance" in entry:
                 state.apply_action(entry["chance"])
@@ -93,11 +139,33 @@ class Game:
                 state._apply(entry["player"], {"tool": entry["tool"], "args": entry["args"]})
         return state
 
+    def rebuilt(self) -> "Game":
+        """The same game built again from its contract, inputs, arm and seed (a determinism check compares the two)."""
+        root = self._root
+        fresh = load(root.origin.unarmed, inputs=root.inputs, seed=root.seed, arm=root.arm)
+        return self._like(Game(fresh, players=self.players, others=self._others, chance=self.chance,
+                               turn_based=self.turn_based, dry_run=self.dry_run, limit=self.limit))
+
+    def start_at(self, steps: Sequence[Mapping[str, Any]]) -> "Game":
+        """The same game starting where ``steps`` lead from its initial state (see :mod:`fg_env.sdk.game.steps`;
+        a playthrough's steps work). Its states' histories begin with those steps."""
+        started = self._like(Game(self._root, players=self.players, others=self._others, chance=self.chance,
+                                  turn_based=self.turn_based, dry_run=self.dry_run, limit=self.limit))
+        started._prefix = started._prefix + [dict(step) for step in steps]
+        started.id = f"{self.id}+{digest(json.dumps(encode(list(steps)), sort_keys=True))[:8]}"
+        started.new_initial_state().close()  # the steps must be playable: fail here, not later
+        return started
+
+    def _like(self, other: "Game") -> "Game":
+        other._prefix = list(self._prefix)
+        other.id = self.id
+        return other
+
     def as_turn_based(self) -> "Game":
         """The same game with sealed simultaneous turns played one seat at a time (later seats cannot see
         earlier seats' sealed choices)."""
-        return Game(self._root, players=self.players, others=self._others, chance=self.chance, turn_based=True,
-                    dry_run=self.dry_run, limit=self.limit)
+        return self._like(Game(self._root, players=self.players, others=self._others, chance=self.chance,
+                               turn_based=True, dry_run=self.dry_run, limit=self.limit))
 
     def __repr__(self) -> str:
         return f"<Game {self.id}: {self.num_players()} seats, {self.num_distinct_actions()} actions>"

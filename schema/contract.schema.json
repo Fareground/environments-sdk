@@ -929,6 +929,32 @@
           "description": "constant_sum: what every finished run's returns add up to.",
           "title": "Total"
         },
+        "min_return": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The lowest return any seat can finish with — checked on every finished run.",
+          "title": "Min Return"
+        },
+        "max_return": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The highest return any seat can finish with — checked on every finished run.",
+          "title": "Max Return"
+        },
         "dynamics": {
           "anyOf": [
             {
@@ -952,7 +978,7 @@
             }
           ],
           "default": null,
-          "description": "Claim, verified by check: deterministic | sampled.",
+          "description": "Claim, verified by check: deterministic | explicit (only `chance` effects, whose outcomes are listed) | sampled.",
           "title": "Chance Mode"
         },
         "information": {

@@ -1,0 +1,1171 @@
+# fg-env playthrough: Pig
+Game: pig@839a3d0d:5fef52b6
+Seed: 1
+Seats: 0 a, 1 b
+Dynamics: sequential; chance: explicit; information: unknown; utility: zero_sum
+Action space: 3 ids
+Returns between: -1 and 1
+
+## Brief of seat 0 (a)
+  | # Pig
+  | Two players race to 20 points with one six-sided die.
+  | 
+  | ## Rules
+  | On your turn roll as often as you like: each roll adds its face to your turn total, but a 1 loses the turn total and ends your turn. Stop to bank the turn total. The first to reach the target wins (1); the other loses (-1).
+  | 
+  | ## You
+  | You are A (player, id a).
+  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+
+## Brief of seat 1 (b)
+  | # Pig
+  | Two players race to 20 points with one six-sided die.
+  | 
+  | ## Rules
+  | On your turn roll as often as you like: each roll adds its face to your turn total, but a 1 loses the turn total and ends your turn. Stop to bank the turn total. The first to reach the target wins (1); the other loses (-1).
+  | 
+  | ## You
+  | You are B (player, id b).
+  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+
+# State 0
+Current player: 0
+Legal calls of seat 0: [1] roll
+Seat 0 (a) reads:
+  | Round 1 of 200 · turns
+  | Now: It is your turn.
+  | 
+  | Target: 20. Your score: 0, turn total 0. Opponent's score: 0.
+Seat 0 information state: d4d1585c49274fb5
+Seat 1 (b) reads:
+  | Round 1 of 200 · turns
+  | 
+  | Target: 20. Your score: 0, turn total 0. Opponent's score: 0.
+Seat 1 information state: 4183f17ab5785d94
+Returns: [0, 0]
+Chosen: seat 0: roll
+Step: {"args": {}, "seat": 0, "tool": "roll"}
+
+# State 1
+Current player: chance
+Chance outcomes: die: 1 (p=0.166667), die: 2 (p=0.166667), die: 3 (p=0.166667), die: 4 (p=0.166667), die: 5 (p=0.166667), die: 6 (p=0.166667)
+Seat 0 (a) reads:
+  | Round 1 of 200 · turns
+  | 
+  | Target: 20. Your score: 0, turn total 0. Opponent's score: 0.
+Seat 0 information state: d4d1585c49274fb5
+Seat 1 (b) reads:
+  | Round 1 of 200 · turns
+  | 
+  | Target: 20. Your score: 0, turn total 0. Opponent's score: 0.
+Seat 1 information state: 4183f17ab5785d94
+Returns: [0, 0]
+Chosen: die: 2
+Step: {"chance": 1}
+
+# State 2
+Current player: 0
+Legal calls of seat 0: [0] end_turn; [1] roll; [2] stop
+Seat 0 (a) reads:
+  | Round 1 of 200 · turns
+  | Now: It is your turn.
+  | 
+  | Since your last turn:
+  | - A rolls 2.
+  | 
+  | Target: 20. Your score: 0, turn total 2. Opponent's score: 0.
+Seat 0 information state: 2d3011f6f4977d21
+Seat 1 (b) reads:
+  | Round 1 of 200 · turns
+  | 
+  | Since your last turn:
+  | - A: roll.
+  | - A rolls 2.
+  | 
+  | Target: 20. Your score: 0, turn total 0. Opponent's score: 0.
+Seat 1 information state: dee5257f5d837646
+Returns: [0, 0]
+Chosen: seat 0: end_turn
+Step: {"args": {}, "seat": 0, "tool": "end_turn"}
+
+# State 3
+Current player: 1
+Legal calls of seat 1: [1] roll
+Seat 0 (a) reads:
+  | Round 1 of 200 · turns
+  | 
+  | Target: 20. Your score: 0, turn total 2. Opponent's score: 0.
+Seat 0 information state: 2d3011f6f4977d21
+Seat 1 (b) reads:
+  | Round 1 of 200 · turns
+  | Now: It is your turn.
+  | 
+  | Since your last turn:
+  | - A: roll.
+  | - A rolls 2.
+  | 
+  | Target: 20. Your score: 0, turn total 0. Opponent's score: 0.
+Seat 1 information state: dee5257f5d837646
+Returns: [0, 0]
+Chosen: seat 1: roll
+Step: {"args": {}, "seat": 1, "tool": "roll"}
+
+# State 4
+Current player: chance
+Chance outcomes: die: 1 (p=0.166667), die: 2 (p=0.166667), die: 3 (p=0.166667), die: 4 (p=0.166667), die: 5 (p=0.166667), die: 6 (p=0.166667)
+Seat 0 (a) reads:
+  | Round 1 of 200 · turns
+  | 
+  | Target: 20. Your score: 0, turn total 2. Opponent's score: 0.
+Seat 0 information state: 2d3011f6f4977d21
+Seat 1 (b) reads:
+  | Round 1 of 200 · turns
+  | 
+  | Since your last turn:
+  | - A: roll.
+  | - A rolls 2.
+  | 
+  | Target: 20. Your score: 0, turn total 0. Opponent's score: 0.
+Seat 1 information state: dee5257f5d837646
+Returns: [0, 0]
+Chosen: die: 5
+Step: {"chance": 4}
+
+# State 5
+Current player: 1
+Legal calls of seat 1: [0] end_turn; [1] roll; [2] stop
+Seat 0 (a) reads:
+  | Round 1 of 200 · turns
+  | 
+  | Since your last turn:
+  | - B: roll.
+  | - B rolls 5.
+  | 
+  | Target: 20. Your score: 0, turn total 2. Opponent's score: 0.
+Seat 0 information state: ddcf0ae692fea64f
+Seat 1 (b) reads:
+  | Round 1 of 200 · turns
+  | Now: It is your turn.
+  | 
+  | Since your last turn:
+  | - A: roll.
+  | - A rolls 2.
+  | - B rolls 5.
+  | 
+  | Target: 20. Your score: 0, turn total 5. Opponent's score: 0.
+Seat 1 information state: 723532fefdb2c643
+Returns: [0, 0]
+Chosen: seat 1: stop
+Step: {"args": {}, "seat": 1, "tool": "stop"}
+
+# State 6
+Current player: 0
+Legal calls of seat 0: [1] roll; [2] stop
+Seat 0 (a) reads:
+  | Round 2 of 200 · turns
+  | Now: It is your turn.
+  | 
+  | Since your last turn:
+  | - B: roll.
+  | - B rolls 5.
+  | - B: stop.
+  | 
+  | Target: 20. Your score: 0, turn total 2. Opponent's score: 5.
+Seat 0 information state: 80941d8a7f779784
+Seat 1 (b) reads:
+  | Round 2 of 200 · turns
+  | 
+  | Target: 20. Your score: 5, turn total 0. Opponent's score: 0.
+Seat 1 information state: 3f13f8263b15373e
+Returns: [0, 0]
+Chosen: seat 0: stop
+Step: {"args": {}, "seat": 0, "tool": "stop"}
+
+# State 7
+Current player: 1
+Legal calls of seat 1: [1] roll
+Seat 0 (a) reads:
+  | Round 2 of 200 · turns
+  | 
+  | Target: 20. Your score: 2, turn total 0. Opponent's score: 5.
+Seat 0 information state: febcec03b4db975d
+Seat 1 (b) reads:
+  | Round 2 of 200 · turns
+  | Now: It is your turn.
+  | 
+  | Since your last turn:
+  | - A: stop.
+  | 
+  | Target: 20. Your score: 5, turn total 0. Opponent's score: 2.
+Seat 1 information state: 5fc395e600925bb6
+Returns: [0, 0]
+Chosen: seat 1: roll
+Step: {"args": {}, "seat": 1, "tool": "roll"}
+
+# State 8
+Current player: chance
+Chance outcomes: die: 1 (p=0.166667), die: 2 (p=0.166667), die: 3 (p=0.166667), die: 4 (p=0.166667), die: 5 (p=0.166667), die: 6 (p=0.166667)
+Seat 0 (a) reads:
+  | Round 2 of 200 · turns
+  | 
+  | Target: 20. Your score: 2, turn total 0. Opponent's score: 5.
+Seat 0 information state: febcec03b4db975d
+Seat 1 (b) reads:
+  | Round 2 of 200 · turns
+  | 
+  | Since your last turn:
+  | - A: stop.
+  | 
+  | Target: 20. Your score: 5, turn total 0. Opponent's score: 2.
+Seat 1 information state: 5fc395e600925bb6
+Returns: [0, 0]
+Chosen: die: 3
+Step: {"chance": 2}
+
+# State 9
+Current player: 1
+Legal calls of seat 1: [0] end_turn; [1] roll; [2] stop
+Seat 0 (a) reads:
+  | Round 2 of 200 · turns
+  | 
+  | Since your last turn:
+  | - B: roll.
+  | - B rolls 3.
+  | 
+  | Target: 20. Your score: 2, turn total 0. Opponent's score: 5.
+Seat 0 information state: 686148b54d9561a5
+Seat 1 (b) reads:
+  | Round 2 of 200 · turns
+  | Now: It is your turn.
+  | 
+  | Since your last turn:
+  | - A: stop.
+  | - B rolls 3.
+  | 
+  | Target: 20. Your score: 5, turn total 3. Opponent's score: 2.
+Seat 1 information state: c5ffee67aa234cfd
+Returns: [0, 0]
+Chosen: seat 1: stop
+Step: {"args": {}, "seat": 1, "tool": "stop"}
+
+# State 10
+Current player: 0
+Legal calls of seat 0: [1] roll
+Seat 0 (a) reads:
+  | Round 3 of 200 · turns
+  | Now: It is your turn.
+  | 
+  | Since your last turn:
+  | - B: roll.
+  | - B rolls 3.
+  | - B: stop.
+  | 
+  | Target: 20. Your score: 2, turn total 0. Opponent's score: 8.
+Seat 0 information state: e73f42b42e4ddb4e
+Seat 1 (b) reads:
+  | Round 3 of 200 · turns
+  | 
+  | Target: 20. Your score: 8, turn total 0. Opponent's score: 2.
+Seat 1 information state: fcdf88dd3b10f65e
+Returns: [0, 0]
+Chosen: seat 0: roll
+Step: {"args": {}, "seat": 0, "tool": "roll"}
+
+# State 11
+Current player: chance
+Chance outcomes: die: 1 (p=0.166667), die: 2 (p=0.166667), die: 3 (p=0.166667), die: 4 (p=0.166667), die: 5 (p=0.166667), die: 6 (p=0.166667)
+Seat 0 (a) reads:
+  | Round 3 of 200 · turns
+  | 
+  | Since your last turn:
+  | - B: roll.
+  | - B rolls 3.
+  | - B: stop.
+  | 
+  | Target: 20. Your score: 2, turn total 0. Opponent's score: 8.
+Seat 0 information state: e73f42b42e4ddb4e
+Seat 1 (b) reads:
+  | Round 3 of 200 · turns
+  | 
+  | Target: 20. Your score: 8, turn total 0. Opponent's score: 2.
+Seat 1 information state: fcdf88dd3b10f65e
+Returns: [0, 0]
+Chosen: die: 6
+Step: {"chance": 5}
+
+# State 12
+Current player: 0
+Legal calls of seat 0: [0] end_turn; [1] roll; [2] stop
+Seat 0 (a) reads:
+  | Round 3 of 200 · turns
+  | Now: It is your turn.
+  | 
+  | Since your last turn:
+  | - B: roll.
+  | - B rolls 3.
+  | - B: stop.
+  | - A rolls 6.
+  | 
+  | Target: 20. Your score: 2, turn total 6. Opponent's score: 8.
+Seat 0 information state: 7f1cf2ca45d33d60
+Seat 1 (b) reads:
+  | Round 3 of 200 · turns
+  | 
+  | Since your last turn:
+  | - A: roll.
+  | - A rolls 6.
+  | 
+  | Target: 20. Your score: 8, turn total 0. Opponent's score: 2.
+Seat 1 information state: 4781217fab0fd05e
+Returns: [0, 0]
+Chosen: seat 0: stop
+Step: {"args": {}, "seat": 0, "tool": "stop"}
+
+# State 13
+Current player: 1
+Legal calls of seat 1: [1] roll
+Seat 0 (a) reads:
+  | Round 3 of 200 · turns
+  | 
+  | Target: 20. Your score: 8, turn total 0. Opponent's score: 8.
+Seat 0 information state: 4d757ae65cfaf627
+Seat 1 (b) reads:
+  | Round 3 of 200 · turns
+  | Now: It is your turn.
+  | 
+  | Since your last turn:
+  | - A: roll.
+  | - A rolls 6.
+  | - A: stop.
+  | 
+  | Target: 20. Your score: 8, turn total 0. Opponent's score: 8.
+Seat 1 information state: c83010ce96ad9ada
+Returns: [0, 0]
+Chosen: seat 1: roll
+Step: {"args": {}, "seat": 1, "tool": "roll"}
+
+# State 14
+Current player: chance
+Chance outcomes: die: 1 (p=0.166667), die: 2 (p=0.166667), die: 3 (p=0.166667), die: 4 (p=0.166667), die: 5 (p=0.166667), die: 6 (p=0.166667)
+Seat 0 (a) reads:
+  | Round 3 of 200 · turns
+  | 
+  | Target: 20. Your score: 8, turn total 0. Opponent's score: 8.
+Seat 0 information state: 4d757ae65cfaf627
+Seat 1 (b) reads:
+  | Round 3 of 200 · turns
+  | 
+  | Since your last turn:
+  | - A: roll.
+  | - A rolls 6.
+  | - A: stop.
+  | 
+  | Target: 20. Your score: 8, turn total 0. Opponent's score: 8.
+Seat 1 information state: c83010ce96ad9ada
+Returns: [0, 0]
+Chosen: die: 2
+Step: {"chance": 1}
+
+# State 15
+Current player: 1
+Legal calls of seat 1: [0] end_turn; [1] roll; [2] stop
+Seat 0 (a) reads:
+  | Round 3 of 200 · turns
+  | 
+  | Since your last turn:
+  | - B: roll.
+  | - B rolls 2.
+  | 
+  | Target: 20. Your score: 8, turn total 0. Opponent's score: 8.
+Seat 0 information state: c241b242f9749180
+Seat 1 (b) reads:
+  | Round 3 of 200 · turns
+  | Now: It is your turn.
+  | 
+  | Since your last turn:
+  | - A: roll.
+  | - A rolls 6.
+  | - A: stop.
+  | - B rolls 2.
+  | 
+  | Target: 20. Your score: 8, turn total 2. Opponent's score: 8.
+Seat 1 information state: d8a167256fbfc903
+Returns: [0, 0]
+Chosen: seat 1: stop
+Step: {"args": {}, "seat": 1, "tool": "stop"}
+
+# State 16
+Current player: 0
+Legal calls of seat 0: [1] roll
+Seat 0 (a) reads:
+  | Round 4 of 200 · turns
+  | Now: It is your turn.
+  | 
+  | Since your last turn:
+  | - B: roll.
+  | - B rolls 2.
+  | - B: stop.
+  | 
+  | Target: 20. Your score: 8, turn total 0. Opponent's score: 10.
+Seat 0 information state: 3cbdeff2611e82d7
+Seat 1 (b) reads:
+  | Round 4 of 200 · turns
+  | 
+  | Target: 20. Your score: 10, turn total 0. Opponent's score: 8.
+Seat 1 information state: e1ea8f3968048b7c
+Returns: [0, 0]
+Chosen: seat 0: roll
+Step: {"args": {}, "seat": 0, "tool": "roll"}
+
+# State 17
+Current player: chance
+Chance outcomes: die: 1 (p=0.166667), die: 2 (p=0.166667), die: 3 (p=0.166667), die: 4 (p=0.166667), die: 5 (p=0.166667), die: 6 (p=0.166667)
+Seat 0 (a) reads:
+  | Round 4 of 200 · turns
+  | 
+  | Since your last turn:
+  | - B: roll.
+  | - B rolls 2.
+  | - B: stop.
+  | 
+  | Target: 20. Your score: 8, turn total 0. Opponent's score: 10.
+Seat 0 information state: 3cbdeff2611e82d7
+Seat 1 (b) reads:
+  | Round 4 of 200 · turns
+  | 
+  | Target: 20. Your score: 10, turn total 0. Opponent's score: 8.
+Seat 1 information state: e1ea8f3968048b7c
+Returns: [0, 0]
+Chosen: die: 1
+Step: {"chance": 0}
+
+# State 18
+Current player: 1
+Legal calls of seat 1: [1] roll
+Seat 0 (a) reads:
+  | Round 4 of 200 · turns
+  | 
+  | Target: 20. Your score: 8, turn total 0. Opponent's score: 10.
+Seat 0 information state: 369162ab8ed42c55
+Seat 1 (b) reads:
+  | Round 4 of 200 · turns
+  | Now: It is your turn.
+  | 
+  | Since your last turn:
+  | - A: roll.
+  | - A rolls a 1 and loses the turn total.
+  | 
+  | Target: 20. Your score: 10, turn total 0. Opponent's score: 8.
+Seat 1 information state: 4b6542ac7cf4eb1e
+Returns: [0, 0]
+Chosen: seat 1: roll
+Step: {"args": {}, "seat": 1, "tool": "roll"}
+
+# State 19
+Current player: chance
+Chance outcomes: die: 1 (p=0.166667), die: 2 (p=0.166667), die: 3 (p=0.166667), die: 4 (p=0.166667), die: 5 (p=0.166667), die: 6 (p=0.166667)
+Seat 0 (a) reads:
+  | Round 4 of 200 · turns
+  | 
+  | Target: 20. Your score: 8, turn total 0. Opponent's score: 10.
+Seat 0 information state: 369162ab8ed42c55
+Seat 1 (b) reads:
+  | Round 4 of 200 · turns
+  | 
+  | Since your last turn:
+  | - A: roll.
+  | - A rolls a 1 and loses the turn total.
+  | 
+  | Target: 20. Your score: 10, turn total 0. Opponent's score: 8.
+Seat 1 information state: 4b6542ac7cf4eb1e
+Returns: [0, 0]
+Chosen: die: 3
+Step: {"chance": 2}
+
+# State 20
+Current player: 1
+Legal calls of seat 1: [0] end_turn; [1] roll; [2] stop
+Seat 0 (a) reads:
+  | Round 4 of 200 · turns
+  | 
+  | Since your last turn:
+  | - B: roll.
+  | - B rolls 3.
+  | 
+  | Target: 20. Your score: 8, turn total 0. Opponent's score: 10.
+Seat 0 information state: 198295f9318011f0
+Seat 1 (b) reads:
+  | Round 4 of 200 · turns
+  | Now: It is your turn.
+  | 
+  | Since your last turn:
+  | - A: roll.
+  | - A rolls a 1 and loses the turn total.
+  | - B rolls 3.
+  | 
+  | Target: 20. Your score: 10, turn total 3. Opponent's score: 8.
+Seat 1 information state: 8f611138d96a1765
+Returns: [0, 0]
+Chosen: seat 1: stop
+Step: {"args": {}, "seat": 1, "tool": "stop"}
+
+# State 21
+Current player: 0
+Legal calls of seat 0: [1] roll
+Seat 0 (a) reads:
+  | Round 5 of 200 · turns
+  | Now: It is your turn.
+  | 
+  | Since your last turn:
+  | - B: roll.
+  | - B rolls 3.
+  | - B: stop.
+  | 
+  | Target: 20. Your score: 8, turn total 0. Opponent's score: 13.
+Seat 0 information state: 65d7856aa5ffdfed
+Seat 1 (b) reads:
+  | Round 5 of 200 · turns
+  | 
+  | Target: 20. Your score: 13, turn total 0. Opponent's score: 8.
+Seat 1 information state: fa7503ea1f65a8c2
+Returns: [0, 0]
+Chosen: seat 0: roll
+Step: {"args": {}, "seat": 0, "tool": "roll"}
+
+# State 22
+Current player: chance
+Chance outcomes: die: 1 (p=0.166667), die: 2 (p=0.166667), die: 3 (p=0.166667), die: 4 (p=0.166667), die: 5 (p=0.166667), die: 6 (p=0.166667)
+Seat 0 (a) reads:
+  | Round 5 of 200 · turns
+  | 
+  | Since your last turn:
+  | - B: roll.
+  | - B rolls 3.
+  | - B: stop.
+  | 
+  | Target: 20. Your score: 8, turn total 0. Opponent's score: 13.
+Seat 0 information state: 65d7856aa5ffdfed
+Seat 1 (b) reads:
+  | Round 5 of 200 · turns
+  | 
+  | Target: 20. Your score: 13, turn total 0. Opponent's score: 8.
+Seat 1 information state: fa7503ea1f65a8c2
+Returns: [0, 0]
+Chosen: die: 4
+Step: {"chance": 3}
+
+# State 23
+Current player: 0
+Legal calls of seat 0: [0] end_turn; [1] roll; [2] stop
+Seat 0 (a) reads:
+  | Round 5 of 200 · turns
+  | Now: It is your turn.
+  | 
+  | Since your last turn:
+  | - B: roll.
+  | - B rolls 3.
+  | - B: stop.
+  | - A rolls 4.
+  | 
+  | Target: 20. Your score: 8, turn total 4. Opponent's score: 13.
+Seat 0 information state: d267433f311f3171
+Seat 1 (b) reads:
+  | Round 5 of 200 · turns
+  | 
+  | Since your last turn:
+  | - A: roll.
+  | - A rolls 4.
+  | 
+  | Target: 20. Your score: 13, turn total 0. Opponent's score: 8.
+Seat 1 information state: 025ea187982194db
+Returns: [0, 0]
+Chosen: seat 0: end_turn
+Step: {"args": {}, "seat": 0, "tool": "end_turn"}
+
+# State 24
+Current player: 1
+Legal calls of seat 1: [1] roll
+Seat 0 (a) reads:
+  | Round 5 of 200 · turns
+  | 
+  | Target: 20. Your score: 8, turn total 4. Opponent's score: 13.
+Seat 0 information state: d267433f311f3171
+Seat 1 (b) reads:
+  | Round 5 of 200 · turns
+  | Now: It is your turn.
+  | 
+  | Since your last turn:
+  | - A: roll.
+  | - A rolls 4.
+  | 
+  | Target: 20. Your score: 13, turn total 0. Opponent's score: 8.
+Seat 1 information state: 025ea187982194db
+Returns: [0, 0]
+Chosen: seat 1: roll
+Step: {"args": {}, "seat": 1, "tool": "roll"}
+
+# State 25
+Current player: chance
+Chance outcomes: die: 1 (p=0.166667), die: 2 (p=0.166667), die: 3 (p=0.166667), die: 4 (p=0.166667), die: 5 (p=0.166667), die: 6 (p=0.166667)
+Seat 0 (a) reads:
+  | Round 5 of 200 · turns
+  | 
+  | Target: 20. Your score: 8, turn total 4. Opponent's score: 13.
+Seat 0 information state: d267433f311f3171
+Seat 1 (b) reads:
+  | Round 5 of 200 · turns
+  | 
+  | Since your last turn:
+  | - A: roll.
+  | - A rolls 4.
+  | 
+  | Target: 20. Your score: 13, turn total 0. Opponent's score: 8.
+Seat 1 information state: 025ea187982194db
+Returns: [0, 0]
+Chosen: die: 1
+Step: {"chance": 0}
+
+# State 26
+Current player: 0
+Legal calls of seat 0: [1] roll; [2] stop
+Seat 0 (a) reads:
+  | Round 6 of 200 · turns
+  | Now: It is your turn.
+  | 
+  | Since your last turn:
+  | - B: roll.
+  | - B rolls a 1 and loses the turn total.
+  | 
+  | Target: 20. Your score: 8, turn total 4. Opponent's score: 13.
+Seat 0 information state: af59dc498c1033ed
+Seat 1 (b) reads:
+  | Round 6 of 200 · turns
+  | 
+  | Target: 20. Your score: 13, turn total 0. Opponent's score: 8.
+Seat 1 information state: 2bd9b78c521aa6a1
+Returns: [0, 0]
+Chosen: seat 0: stop
+Step: {"args": {}, "seat": 0, "tool": "stop"}
+
+# State 27
+Current player: 1
+Legal calls of seat 1: [1] roll
+Seat 0 (a) reads:
+  | Round 6 of 200 · turns
+  | 
+  | Target: 20. Your score: 12, turn total 0. Opponent's score: 13.
+Seat 0 information state: 7d52fdf17ce02988
+Seat 1 (b) reads:
+  | Round 6 of 200 · turns
+  | Now: It is your turn.
+  | 
+  | Since your last turn:
+  | - A: stop.
+  | 
+  | Target: 20. Your score: 13, turn total 0. Opponent's score: 12.
+Seat 1 information state: 5fbb2a5e3a948588
+Returns: [0, 0]
+Chosen: seat 1: roll
+Step: {"args": {}, "seat": 1, "tool": "roll"}
+
+# State 28
+Current player: chance
+Chance outcomes: die: 1 (p=0.166667), die: 2 (p=0.166667), die: 3 (p=0.166667), die: 4 (p=0.166667), die: 5 (p=0.166667), die: 6 (p=0.166667)
+Seat 0 (a) reads:
+  | Round 6 of 200 · turns
+  | 
+  | Target: 20. Your score: 12, turn total 0. Opponent's score: 13.
+Seat 0 information state: 7d52fdf17ce02988
+Seat 1 (b) reads:
+  | Round 6 of 200 · turns
+  | 
+  | Since your last turn:
+  | - A: stop.
+  | 
+  | Target: 20. Your score: 13, turn total 0. Opponent's score: 12.
+Seat 1 information state: 5fbb2a5e3a948588
+Returns: [0, 0]
+Chosen: die: 2
+Step: {"chance": 1}
+
+# State 29
+Current player: 1
+Legal calls of seat 1: [0] end_turn; [1] roll; [2] stop
+Seat 0 (a) reads:
+  | Round 6 of 200 · turns
+  | 
+  | Since your last turn:
+  | - B: roll.
+  | - B rolls 2.
+  | 
+  | Target: 20. Your score: 12, turn total 0. Opponent's score: 13.
+Seat 0 information state: 5b9d0cbc3dd5df65
+Seat 1 (b) reads:
+  | Round 6 of 200 · turns
+  | Now: It is your turn.
+  | 
+  | Since your last turn:
+  | - A: stop.
+  | - B rolls 2.
+  | 
+  | Target: 20. Your score: 13, turn total 2. Opponent's score: 12.
+Seat 1 information state: fd448069a82601a0
+Returns: [0, 0]
+Chosen: seat 1: stop
+Step: {"args": {}, "seat": 1, "tool": "stop"}
+
+# State 30
+Current player: 0
+Legal calls of seat 0: [1] roll
+Seat 0 (a) reads:
+  | Round 7 of 200 · turns
+  | Now: It is your turn.
+  | 
+  | Since your last turn:
+  | - B: roll.
+  | - B rolls 2.
+  | - B: stop.
+  | 
+  | Target: 20. Your score: 12, turn total 0. Opponent's score: 15.
+Seat 0 information state: 23e2826586667bc4
+Seat 1 (b) reads:
+  | Round 7 of 200 · turns
+  | 
+  | Target: 20. Your score: 15, turn total 0. Opponent's score: 12.
+Seat 1 information state: 3b4daeefbe67b09a
+Returns: [0, 0]
+Chosen: seat 0: roll
+Step: {"args": {}, "seat": 0, "tool": "roll"}
+
+# State 31
+Current player: chance
+Chance outcomes: die: 1 (p=0.166667), die: 2 (p=0.166667), die: 3 (p=0.166667), die: 4 (p=0.166667), die: 5 (p=0.166667), die: 6 (p=0.166667)
+Seat 0 (a) reads:
+  | Round 7 of 200 · turns
+  | 
+  | Since your last turn:
+  | - B: roll.
+  | - B rolls 2.
+  | - B: stop.
+  | 
+  | Target: 20. Your score: 12, turn total 0. Opponent's score: 15.
+Seat 0 information state: 23e2826586667bc4
+Seat 1 (b) reads:
+  | Round 7 of 200 · turns
+  | 
+  | Target: 20. Your score: 15, turn total 0. Opponent's score: 12.
+Seat 1 information state: 3b4daeefbe67b09a
+Returns: [0, 0]
+Chosen: die: 3
+Step: {"chance": 2}
+
+# State 32
+Current player: 0
+Legal calls of seat 0: [0] end_turn; [1] roll; [2] stop
+Seat 0 (a) reads:
+  | Round 7 of 200 · turns
+  | Now: It is your turn.
+  | 
+  | Since your last turn:
+  | - B: roll.
+  | - B rolls 2.
+  | - B: stop.
+  | - A rolls 3.
+  | 
+  | Target: 20. Your score: 12, turn total 3. Opponent's score: 15.
+Seat 0 information state: c898cf5eba32c290
+Seat 1 (b) reads:
+  | Round 7 of 200 · turns
+  | 
+  | Since your last turn:
+  | - A: roll.
+  | - A rolls 3.
+  | 
+  | Target: 20. Your score: 15, turn total 0. Opponent's score: 12.
+Seat 1 information state: 7fce99af988c7c35
+Returns: [0, 0]
+Chosen: seat 0: roll
+Step: {"args": {}, "seat": 0, "tool": "roll"}
+
+# State 33
+Current player: chance
+Chance outcomes: die: 1 (p=0.166667), die: 2 (p=0.166667), die: 3 (p=0.166667), die: 4 (p=0.166667), die: 5 (p=0.166667), die: 6 (p=0.166667)
+Seat 0 (a) reads:
+  | Round 7 of 200 · turns
+  | 
+  | Since your last turn:
+  | - B: roll.
+  | - B rolls 2.
+  | - B: stop.
+  | - A rolls 3.
+  | 
+  | Target: 20. Your score: 12, turn total 3. Opponent's score: 15.
+Seat 0 information state: c898cf5eba32c290
+Seat 1 (b) reads:
+  | Round 7 of 200 · turns
+  | 
+  | Since your last turn:
+  | - A: roll.
+  | - A rolls 3.
+  | 
+  | Target: 20. Your score: 15, turn total 0. Opponent's score: 12.
+Seat 1 information state: 7fce99af988c7c35
+Returns: [0, 0]
+Chosen: die: 3
+Step: {"chance": 2}
+
+# State 34
+Current player: 0
+Legal calls of seat 0: [0] end_turn; [1] roll; [2] stop
+Seat 0 (a) reads:
+  | Round 7 of 200 · turns
+  | Now: It is your turn.
+  | 
+  | Since your last turn:
+  | - B: roll.
+  | - B rolls 2.
+  | - B: stop.
+  | - A rolls 3.
+  | - A rolls 3.
+  | 
+  | Target: 20. Your score: 12, turn total 6. Opponent's score: 15.
+Seat 0 information state: 61b35575d92a1592
+Seat 1 (b) reads:
+  | Round 7 of 200 · turns
+  | 
+  | Since your last turn:
+  | - A: roll.
+  | - A rolls 3.
+  | - A: roll.
+  | - A rolls 3.
+  | 
+  | Target: 20. Your score: 15, turn total 0. Opponent's score: 12.
+Seat 1 information state: 313c0669e3d72e74
+Returns: [0, 0]
+Chosen: seat 0: roll
+Step: {"args": {}, "seat": 0, "tool": "roll"}
+
+# State 35
+Current player: chance
+Chance outcomes: die: 1 (p=0.166667), die: 2 (p=0.166667), die: 3 (p=0.166667), die: 4 (p=0.166667), die: 5 (p=0.166667), die: 6 (p=0.166667)
+Seat 0 (a) reads:
+  | Round 7 of 200 · turns
+  | 
+  | Since your last turn:
+  | - B: roll.
+  | - B rolls 2.
+  | - B: stop.
+  | - A rolls 3.
+  | - A rolls 3.
+  | 
+  | Target: 20. Your score: 12, turn total 6. Opponent's score: 15.
+Seat 0 information state: 61b35575d92a1592
+Seat 1 (b) reads:
+  | Round 7 of 200 · turns
+  | 
+  | Since your last turn:
+  | - A: roll.
+  | - A rolls 3.
+  | - A: roll.
+  | - A rolls 3.
+  | 
+  | Target: 20. Your score: 15, turn total 0. Opponent's score: 12.
+Seat 1 information state: 313c0669e3d72e74
+Returns: [0, 0]
+Chosen: die: 5
+Step: {"chance": 4}
+
+# State 36
+Current player: 0
+Legal calls of seat 0: [0] end_turn; [1] roll; [2] stop
+Seat 0 (a) reads:
+  | Round 7 of 200 · turns
+  | Now: It is your turn.
+  | 
+  | Since your last turn:
+  | - B: roll.
+  | - B rolls 2.
+  | - B: stop.
+  | - A rolls 3.
+  | - A rolls 3.
+  | - A rolls 5.
+  | 
+  | Target: 20. Your score: 12, turn total 11. Opponent's score: 15.
+Seat 0 information state: 23a6c548be0d74b2
+Seat 1 (b) reads:
+  | Round 7 of 200 · turns
+  | 
+  | Since your last turn:
+  | - A: roll.
+  | - A rolls 3.
+  | - A: roll.
+  | - A rolls 3.
+  | - A: roll.
+  | - A rolls 5.
+  | 
+  | Target: 20. Your score: 15, turn total 0. Opponent's score: 12.
+Seat 1 information state: 75233051fcd27113
+Returns: [0, 0]
+Chosen: seat 0: roll
+Step: {"args": {}, "seat": 0, "tool": "roll"}
+
+# State 37
+Current player: chance
+Chance outcomes: die: 1 (p=0.166667), die: 2 (p=0.166667), die: 3 (p=0.166667), die: 4 (p=0.166667), die: 5 (p=0.166667), die: 6 (p=0.166667)
+Seat 0 (a) reads:
+  | Round 7 of 200 · turns
+  | 
+  | Since your last turn:
+  | - B: roll.
+  | - B rolls 2.
+  | - B: stop.
+  | - A rolls 3.
+  | - A rolls 3.
+  | - A rolls 5.
+  | 
+  | Target: 20. Your score: 12, turn total 11. Opponent's score: 15.
+Seat 0 information state: 23a6c548be0d74b2
+Seat 1 (b) reads:
+  | Round 7 of 200 · turns
+  | 
+  | Since your last turn:
+  | - A: roll.
+  | - A rolls 3.
+  | - A: roll.
+  | - A rolls 3.
+  | - A: roll.
+  | - A rolls 5.
+  | 
+  | Target: 20. Your score: 15, turn total 0. Opponent's score: 12.
+Seat 1 information state: 75233051fcd27113
+Returns: [0, 0]
+Chosen: die: 1
+Step: {"chance": 0}
+
+# State 38
+Current player: 1
+Legal calls of seat 1: [1] roll
+Seat 0 (a) reads:
+  | Round 7 of 200 · turns
+  | 
+  | Target: 20. Your score: 12, turn total 0. Opponent's score: 15.
+Seat 0 information state: f7ee6b48b822e9f3
+Seat 1 (b) reads:
+  | Round 7 of 200 · turns
+  | Now: It is your turn.
+  | 
+  | Since your last turn:
+  | - A: roll.
+  | - A rolls 3.
+  | - A: roll.
+  | - A rolls 3.
+  | - A: roll.
+  | - A rolls 5.
+  | - A: roll.
+  | - A rolls a 1 and loses the turn total.
+  | 
+  | Target: 20. Your score: 15, turn total 0. Opponent's score: 12.
+Seat 1 information state: 364f7330e38a6f78
+Returns: [0, 0]
+Chosen: seat 1: roll
+Step: {"args": {}, "seat": 1, "tool": "roll"}
+
+# State 39
+Current player: chance
+Chance outcomes: die: 1 (p=0.166667), die: 2 (p=0.166667), die: 3 (p=0.166667), die: 4 (p=0.166667), die: 5 (p=0.166667), die: 6 (p=0.166667)
+Seat 0 (a) reads:
+  | Round 7 of 200 · turns
+  | 
+  | Target: 20. Your score: 12, turn total 0. Opponent's score: 15.
+Seat 0 information state: f7ee6b48b822e9f3
+Seat 1 (b) reads:
+  | Round 7 of 200 · turns
+  | 
+  | Since your last turn:
+  | - A: roll.
+  | - A rolls 3.
+  | - A: roll.
+  | - A rolls 3.
+  | - A: roll.
+  | - A rolls 5.
+  | - A: roll.
+  | - A rolls a 1 and loses the turn total.
+  | 
+  | Target: 20. Your score: 15, turn total 0. Opponent's score: 12.
+Seat 1 information state: 364f7330e38a6f78
+Returns: [0, 0]
+Chosen: die: 1
+Step: {"chance": 0}
+
+# State 40
+Current player: 0
+Legal calls of seat 0: [1] roll
+Seat 0 (a) reads:
+  | Round 8 of 200 · turns
+  | Now: It is your turn.
+  | 
+  | Since your last turn:
+  | - B: roll.
+  | - B rolls a 1 and loses the turn total.
+  | 
+  | Target: 20. Your score: 12, turn total 0. Opponent's score: 15.
+Seat 0 information state: 936955d3f50147ef
+Seat 1 (b) reads:
+  | Round 8 of 200 · turns
+  | 
+  | Target: 20. Your score: 15, turn total 0. Opponent's score: 12.
+Seat 1 information state: 962be510bc4507cd
+Returns: [0, 0]
+Chosen: seat 0: roll
+Step: {"args": {}, "seat": 0, "tool": "roll"}
+
+# State 41
+Current player: chance
+Chance outcomes: die: 1 (p=0.166667), die: 2 (p=0.166667), die: 3 (p=0.166667), die: 4 (p=0.166667), die: 5 (p=0.166667), die: 6 (p=0.166667)
+Seat 0 (a) reads:
+  | Round 8 of 200 · turns
+  | 
+  | Since your last turn:
+  | - B: roll.
+  | - B rolls a 1 and loses the turn total.
+  | 
+  | Target: 20. Your score: 12, turn total 0. Opponent's score: 15.
+Seat 0 information state: 936955d3f50147ef
+Seat 1 (b) reads:
+  | Round 8 of 200 · turns
+  | 
+  | Target: 20. Your score: 15, turn total 0. Opponent's score: 12.
+Seat 1 information state: 962be510bc4507cd
+Returns: [0, 0]
+Chosen: die: 1
+Step: {"chance": 0}
+
+# State 42
+Current player: 1
+Legal calls of seat 1: [1] roll
+Seat 0 (a) reads:
+  | Round 8 of 200 · turns
+  | 
+  | Target: 20. Your score: 12, turn total 0. Opponent's score: 15.
+Seat 0 information state: 8ce4de528fadb86a
+Seat 1 (b) reads:
+  | Round 8 of 200 · turns
+  | Now: It is your turn.
+  | 
+  | Since your last turn:
+  | - A: roll.
+  | - A rolls a 1 and loses the turn total.
+  | 
+  | Target: 20. Your score: 15, turn total 0. Opponent's score: 12.
+Seat 1 information state: 5fe6a7baa682babe
+Returns: [0, 0]
+Chosen: seat 1: roll
+Step: {"args": {}, "seat": 1, "tool": "roll"}
+
+# State 43
+Current player: chance
+Chance outcomes: die: 1 (p=0.166667), die: 2 (p=0.166667), die: 3 (p=0.166667), die: 4 (p=0.166667), die: 5 (p=0.166667), die: 6 (p=0.166667)
+Seat 0 (a) reads:
+  | Round 8 of 200 · turns
+  | 
+  | Target: 20. Your score: 12, turn total 0. Opponent's score: 15.
+Seat 0 information state: 8ce4de528fadb86a
+Seat 1 (b) reads:
+  | Round 8 of 200 · turns
+  | 
+  | Since your last turn:
+  | - A: roll.
+  | - A rolls a 1 and loses the turn total.
+  | 
+  | Target: 20. Your score: 15, turn total 0. Opponent's score: 12.
+Seat 1 information state: 5fe6a7baa682babe
+Returns: [0, 0]
+Chosen: die: 6
+Step: {"chance": 5}
+
+# State 44
+Current player: 1
+Legal calls of seat 1: [0] end_turn; [1] roll; [2] stop
+Seat 0 (a) reads:
+  | Round 8 of 200 · turns
+  | 
+  | Since your last turn:
+  | - B: roll.
+  | - B rolls 6.
+  | 
+  | Target: 20. Your score: 12, turn total 0. Opponent's score: 15.
+Seat 0 information state: 7238b91ef9fd923d
+Seat 1 (b) reads:
+  | Round 8 of 200 · turns
+  | Now: It is your turn.
+  | 
+  | Since your last turn:
+  | - A: roll.
+  | - A rolls a 1 and loses the turn total.
+  | - B rolls 6.
+  | 
+  | Target: 20. Your score: 15, turn total 6. Opponent's score: 12.
+Seat 1 information state: 46545c226358abf1
+Returns: [0, 0]
+Chosen: seat 1: roll
+Step: {"args": {}, "seat": 1, "tool": "roll"}
+
+# State 45
+Current player: chance
+Chance outcomes: die: 1 (p=0.166667), die: 2 (p=0.166667), die: 3 (p=0.166667), die: 4 (p=0.166667), die: 5 (p=0.166667), die: 6 (p=0.166667)
+Seat 0 (a) reads:
+  | Round 8 of 200 · turns
+  | 
+  | Since your last turn:
+  | - B: roll.
+  | - B rolls 6.
+  | 
+  | Target: 20. Your score: 12, turn total 0. Opponent's score: 15.
+Seat 0 information state: 7238b91ef9fd923d
+Seat 1 (b) reads:
+  | Round 8 of 200 · turns
+  | 
+  | Since your last turn:
+  | - A: roll.
+  | - A rolls a 1 and loses the turn total.
+  | - B rolls 6.
+  | 
+  | Target: 20. Your score: 15, turn total 6. Opponent's score: 12.
+Seat 1 information state: 46545c226358abf1
+Returns: [0, 0]
+Chosen: die: 4
+Step: {"chance": 3}
+
+# State 46
+Current player: 1
+Legal calls of seat 1: [0] end_turn; [1] roll; [2] stop
+Seat 0 (a) reads:
+  | Round 8 of 200 · turns
+  | 
+  | Since your last turn:
+  | - B: roll.
+  | - B rolls 6.
+  | - B: roll.
+  | - B rolls 4.
+  | 
+  | Target: 20. Your score: 12, turn total 0. Opponent's score: 15.
+Seat 0 information state: b282c1a1e5558458
+Seat 1 (b) reads:
+  | Round 8 of 200 · turns
+  | Now: It is your turn.
+  | 
+  | Since your last turn:
+  | - A: roll.
+  | - A rolls a 1 and loses the turn total.
+  | - B rolls 6.
+  | - B rolls 4.
+  | 
+  | Target: 20. Your score: 15, turn total 10. Opponent's score: 12.
+Seat 1 information state: 9d2fd7c4421927cf
+Returns: [0, 0]
+Chosen: seat 1: stop
+Step: {"args": {}, "seat": 1, "tool": "stop"}
+
+# State 47
+Terminal
+Returns: [-1, 1]

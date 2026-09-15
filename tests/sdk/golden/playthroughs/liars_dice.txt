@@ -1,0 +1,127 @@
+# fg-env playthrough: Liar's dice
+Game: liar_s_dice@b6c5a55a:7a5c786a
+Seed: 1
+Seats: 0 p0, 1 p1
+Dynamics: sequential; chance: explicit; information: imperfect; utility: zero_sum
+Action space: 14 ids
+Returns between: -1 and 1
+
+## Brief of seat 0 (p0)
+  | # Liar's dice
+  | Two players each roll one die with faces 1 to 6 and look at it in secret.
+  | 
+  | ## Rules
+  | P0 bids first. A bid says at least a quantity (1 or 2) of the two dice show a face. Each bid must raise the quantity, or keep it and raise the face. Instead of bidding you may call the last bid a lie: the dice are shown, and the bidder wins if the bid holds, otherwise the caller wins. The winner scores 1 and the loser -1.
+  | 
+  | ## You
+  | You are P0 (player, id p0).
+  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+
+## Brief of seat 1 (p1)
+  | # Liar's dice
+  | Two players each roll one die with faces 1 to 6 and look at it in secret.
+  | 
+  | ## Rules
+  | P0 bids first. A bid says at least a quantity (1 or 2) of the two dice show a face. Each bid must raise the quantity, or keep it and raise the face. Instead of bidding you may call the last bid a lie: the dice are shown, and the bidder wins if the bid holds, otherwise the caller wins. The winner scores 1 and the loser -1.
+  | 
+  | ## You
+  | You are P1 (player, id p1).
+  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+
+# State 0
+Current player: chance
+Chance outcomes: roll p0: 1 (p=0.166667), roll p0: 2 (p=0.166667), roll p0: 3 (p=0.166667), roll p0: 4 (p=0.166667), roll p0: 5 (p=0.166667), roll p0: 6 (p=0.166667)
+Seat 0 (p0) reads:
+  | Round 1 of 1 · bidding
+  | 
+  | Your die: 0. Last bid: none.
+Seat 0 information state: 3a929d0107179751
+Seat 1 (p1) reads:
+  | Round 1 of 1 · bidding
+  | 
+  | Your die: 0. Last bid: none.
+Seat 1 information state: 89c695b71d87ea92
+Returns: [0, 0]
+Chosen: roll p0: 4
+Step: {"chance": 3}
+
+# State 1
+Current player: chance
+Chance outcomes: roll p1: 1 (p=0.166667), roll p1: 2 (p=0.166667), roll p1: 3 (p=0.166667), roll p1: 4 (p=0.166667), roll p1: 5 (p=0.166667), roll p1: 6 (p=0.166667)
+Seat 0 (p0) reads:
+  | Round 1 of 1 · bidding
+  | 
+  | Your die: 4. Last bid: none.
+Seat 0 information state: 0cd84f6ee11238cf
+Seat 1 (p1) reads:
+  | Round 1 of 1 · bidding
+  | 
+  | Your die: 0. Last bid: none.
+Seat 1 information state: 89c695b71d87ea92
+Returns: [0, 0]
+Chosen: roll p1: 6
+Step: {"chance": 5}
+
+# State 2
+Current player: 0
+Legal calls of seat 0: [1] bid(quantity=1, face=1); [2] bid(quantity=1, face=2); [3] bid(quantity=1, face=3); [4] bid(quantity=1, face=4); [5] bid(quantity=1, face=5); [6] bid(quantity=1, face=6); [7] bid(quantity=2, face=1); [8] bid(quantity=2, face=2); [9] bid(quantity=2, face=3); [10] bid(quantity=2, face=4); [11] bid(quantity=2, face=5); [12] bid(quantity=2, face=6)
+Seat 0 (p0) reads:
+  | Round 1 of 1 · bidding
+  | Now: It is your turn.
+  | 
+  | Your die: 4. Last bid: none.
+Seat 0 information state: 0cd84f6ee11238cf
+Seat 1 (p1) reads:
+  | Round 1 of 1 · bidding
+  | 
+  | Your die: 6. Last bid: none.
+Seat 1 information state: 504097acd6706c24
+Returns: [0, 0]
+Chosen: seat 0: bid(quantity=1, face=5)
+Step: {"args": {"face": 5, "quantity": 1}, "seat": 0, "tool": "bid"}
+
+# State 3
+Current player: 1
+Legal calls of seat 1: [6] bid(quantity=1, face=6); [7] bid(quantity=2, face=1); [8] bid(quantity=2, face=2); [9] bid(quantity=2, face=3); [10] bid(quantity=2, face=4); [11] bid(quantity=2, face=5); [12] bid(quantity=2, face=6); [13] liar
+Seat 0 (p0) reads:
+  | Round 1 of 1 · bidding
+  | 
+  | Your die: 4. Last bid: 1 x 5.
+Seat 0 information state: c4278c8fffa86c88
+Seat 1 (p1) reads:
+  | Round 1 of 1 · bidding
+  | Now: Your turn again.
+  | 
+  | Since your last turn:
+  | - P0 bids 1 x 5.
+  | 
+  | Your die: 6. Last bid: 1 x 5.
+Seat 1 information state: 4609c97b09342af8
+Returns: [0, 0]
+Chosen: seat 1: bid(quantity=2, face=6)
+Step: {"args": {"face": 6, "quantity": 2}, "seat": 1, "tool": "bid"}
+
+# State 4
+Current player: 0
+Legal calls of seat 0: [13] liar
+Seat 0 (p0) reads:
+  | Round 1 of 1 · bidding
+  | Now: Your turn again.
+  | 
+  | Since your last turn:
+  | - P1 bids 2 x 6.
+  | 
+  | Your die: 4. Last bid: 2 x 6.
+Seat 0 information state: a630d9cec7c07254
+Seat 1 (p1) reads:
+  | Round 1 of 1 · bidding
+  | 
+  | Your die: 6. Last bid: 2 x 6.
+Seat 1 information state: 8f2c919bb316eef2
+Returns: [0, 0]
+Chosen: seat 0: liar
+Step: {"args": {}, "seat": 0, "tool": "liar"}
+
+# State 5
+Terminal
+Returns: [1, -1]

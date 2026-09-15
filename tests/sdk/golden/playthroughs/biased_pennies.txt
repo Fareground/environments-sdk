@@ -1,0 +1,48 @@
+# fg-env playthrough: Biased pennies
+Game: biased_pennies@c4fbd08e:4642e142
+Seed: 1
+Seats: 0 a, 1 b
+Dynamics: simultaneous; chance: deterministic; information: imperfect; utility: zero_sum
+Action space: 3 ids
+Returns between: -3 and 3
+
+## Brief of seat 0 (a)
+  | # Biased pennies
+  | The row player (A) and the column player (B) show a coin at the same time.
+  | 
+  | ## Rules
+  | Both heads: A wins 3. Both tails: A wins 1. Different sides: B wins 1. What one wins the other loses.
+  | 
+  | ## You
+  | You are A (player, id a).
+  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+
+## Brief of seat 1 (b)
+  | # Biased pennies
+  | The row player (A) and the column player (B) show a coin at the same time.
+  | 
+  | ## Rules
+  | Both heads: A wins 3. Both tails: A wins 1. Different sides: B wins 1. What one wins the other loses.
+  | 
+  | ## You
+  | You are B (player, id b).
+  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+
+# State 0
+Current player: simultaneous 0, 1
+Legal calls of seat 0: [1] show(side=heads); [2] show(side=tails)
+Legal calls of seat 1: [1] show(side=heads); [2] show(side=tails)
+Seat 0 (a) reads:
+  | Round 1 of 1 · show
+  | Now: Everyone chooses at the same time.
+Seat 0 information state: dcc5b98b9e0cd92c
+Seat 1 (b) reads:
+  | Round 1 of 1 · show
+Seat 1 information state: 5e4d094f92dd1e7a
+Returns: [0, 0]
+Chosen: seat 0: show(side=heads); seat 1: show(side=tails)
+Step: {"joint": {"0": {"args": {"side": "heads"}, "tool": "show"}, "1": {"args": {"side": "tails"}, "tool": "show"}}}
+
+# State 1
+Terminal
+Returns: [-1, 1]

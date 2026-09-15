@@ -257,6 +257,14 @@ def cmd_info(args: argparse.Namespace) -> int:
 def cmd_bench(args: argparse.Namespace) -> int:
     from .bench import bench, bench_table
 
+    if args.game:
+        from .game.bench import bench_game
+
+        if not args.files:
+            raise _UsageError("fg-env bench --game needs contract files")
+        games = [bench_game(path, playouts=args.playouts, seed=args.seed, inputs=_inputs(args)) for path in args.files]
+        print(json.dumps([g.to_dict() for g in games], indent=2) if args.json else "\n".join(g.summary() for g in games))
+        return 0
     results = bench(args.files, rounds=args.rounds, seed=args.seed, inputs=_inputs(args))
     print(json.dumps([r.to_dict() for r in results], indent=2) if args.json else bench_table(results))
     return 0 if all(r.status != "failed" for r in results) else 2
@@ -387,10 +395,15 @@ def add_commands(sub: Any) -> None:
     p.add_argument("--input", action="append", metavar="NAME=VALUE", help="set an input wherever it is declared")
     p.add_argument("--inputs-file", help="JSON file of inputs")
     p.add_argument("--json", action="store_true", help="print JSON")
+    p.add_argument("--game", action="store_true", help="measure the contracts as games: random playouts, sampled "
+                                                       "rollouts and clone+apply per second, as search code uses them")
+    p.add_argument("--playouts", type=int, default=50, help="--game: random playouts to time")
     p.set_defaults(func=_guarded(cmd_bench))
+    from .cli_games import add_game_commands
     from .cli_runs import add_run_commands
 
     add_run_commands(sub)
+    add_game_commands(sub)
 
     from .cli_new import add_new_command
 

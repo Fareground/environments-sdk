@@ -1,0 +1,48 @@
+# fg-env playthrough: Rock paper scissors
+Game: rock_paper_scissors@4f1238dd:4642e142
+Seed: 1
+Seats: 0 a, 1 b
+Dynamics: simultaneous; chance: deterministic; information: imperfect; utility: zero_sum
+Action space: 4 ids
+Returns between: -1 and 1
+
+## Brief of seat 0 (a)
+  | # Rock paper scissors
+  | Two players show rock, paper or scissors at the same time.
+  | 
+  | ## Rules
+  | Rock beats scissors, scissors beats paper and paper beats rock. A win scores 1, a loss -1 and a tie 0.
+  | 
+  | ## You
+  | You are A (player, id a).
+  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+
+## Brief of seat 1 (b)
+  | # Rock paper scissors
+  | Two players show rock, paper or scissors at the same time.
+  | 
+  | ## Rules
+  | Rock beats scissors, scissors beats paper and paper beats rock. A win scores 1, a loss -1 and a tie 0.
+  | 
+  | ## You
+  | You are B (player, id b).
+  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+
+# State 0
+Current player: simultaneous 0, 1
+Legal calls of seat 0: [1] throw(move=rock); [2] throw(move=paper); [3] throw(move=scissors)
+Legal calls of seat 1: [1] throw(move=rock); [2] throw(move=paper); [3] throw(move=scissors)
+Seat 0 (a) reads:
+  | Round 1 of 1 · throw
+  | Now: Everyone chooses at the same time.
+Seat 0 information state: 22a3998077e2f485
+Seat 1 (b) reads:
+  | Round 1 of 1 · throw
+Seat 1 information state: d7e94a05e5ffe943
+Returns: [0, 0]
+Chosen: seat 0: throw(move=scissors); seat 1: throw(move=scissors)
+Step: {"joint": {"0": {"args": {"move": "scissors"}, "tool": "throw"}, "1": {"args": {"move": "scissors"}, "tool": "throw"}}}
+
+# State 1
+Terminal
+Returns: [0, 0]

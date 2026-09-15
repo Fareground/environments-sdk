@@ -233,16 +233,22 @@ def copy_pilot(source: Env, tape: Tape, turn_count: int, base: Optional[Mapping[
 
 
 def clone_turn(turn: "Turn", *, participants: Any = None, seed: Optional[int] = None,
-               same_luck: bool = False) -> Branch:
-    """A copy of ``turn``'s run paused in that turn (see :meth:`Wake.clone`)."""
+               same_luck: bool = False, controlled: Optional[Set[str]] = None, explicit: bool = False) -> Branch:
+    """A copy of ``turn``'s run paused in that turn (see :meth:`Wake.clone`). ``controlled`` names every agent
+    the copy pauses for from this turn on (default: the turn's own agent); ``explicit`` makes chance nodes from this
+    turn on wait for :meth:`Branch.choose` (the copy's past plays back as it happened)."""
     source = turn.env
     if turn.peek or turn.done:
         raise RuntimeError("this turn is over; clone the run while the turn is in progress")
     with source._lock:
         tape, count, base = source.origin.tape.copy(), source._turn_count, source.origin.base
     source.origin.checkpoint_due = True  # later copies of this run replay from its next round, not from its base
-    pilot = copy_pilot(source, tape, count, base, controlled={turn.actor.id}, explicit=False, participants=participants)
+    pilot = copy_pilot(source, tape, count, base, controlled={turn.actor.id} | set(controlled or ()), explicit=False,
+                       participants=participants)
     pilot.start()
+    if explicit:
+        pilot.explicit = True
+        pilot.env.world.chance_picker = pilot._pick
     branch = Branch(pilot)
     pending = branch.pending
     if pending is None or pending.kind != "turn" or pending.actor != turn.actor.id:
