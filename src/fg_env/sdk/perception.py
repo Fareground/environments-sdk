@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from ..entity import Entity
+from .assets.delivery import attached_ids, entry_assets, references
 from .contract import Contract, StageSpec, ViewSpec
 from .errors import RunError
 from .expr import ExprError, compile_expr, truthy
@@ -52,7 +53,8 @@ class Perception:
 
     # -- brief -------------------------------------------------------------------
 
-    def brief(self, actor: Entity) -> str:
+    def brief(self, actor: Entity, attached: Optional[List[str]] = None) -> str:
+        """``actor``'s brief; the assets it attaches are added to ``attached``."""
         c = self.contract
         scope = self.world.scope(actor=actor, viewer=actor)
 
@@ -78,6 +80,12 @@ class Perception:
         own = self.world.entity_briefs.get(actor.id)
         if own:
             lines.append(own)
+        if c.brief.attach is not None:
+            ids = attached_ids(self.world, c.brief.attach, scope, "brief.attach")
+            if ids:
+                lines.append("Attached: " + references(self.world.assets, ids))
+                if attached is not None:
+                    attached.extend(ids)
         lines.append("Act only through your tools. Your turn ends when you take a final action or call end_turn.")
         if self._takes_text:
             lines.append(_UNTRUSTED_NOTE)
@@ -86,7 +94,9 @@ class Perception:
     # -- update ---------------------------------------------------------------------
 
     def update(self, actor: Entity, stage: StageSpec, reason: str, since: int,
-               memory: Dict[str, str], time_limit: Optional[float] = None, shown: Optional["Shown"] = None) -> str:
+               memory: Dict[str, str], time_limit: Optional[float] = None, shown: Optional["Shown"] = None,
+               attached: Optional[List[str]] = None) -> str:
+        """``actor``'s update; the assets it delivers (news and views) are added to ``attached``."""
         lines: List[str] = [f"{self.world.clock_label()} · {stage.name}"]
         if stage.brief:
             lines.append(self._render(stage.brief, actor, f"stages.{stage.name}.brief"))
@@ -94,7 +104,7 @@ class Perception:
             lines.append(f"Now: {reason}")
         if time_limit is not None:
             lines.append(f"You have {format_value(time_limit)} seconds for this turn; after that it ends.")
-        news, hidden = self.news(actor, since, DELTA_LIMIT, shown)
+        news, hidden = self.news(actor, since, DELTA_LIMIT, shown, attached)
         if news or hidden:
             lines += ["", "Since your last turn:"]
             if hidden:
@@ -104,13 +114,16 @@ class Perception:
             if view.look or not self._applies(view, actor, stage):
                 continue
             listed: Optional["Shown"] = type(shown)() if shown is not None else None
-            block = self.render_view(name, view, actor, listed)
+            files: List[str] = []
+            block = self.render_view(name, view, actor, listed, files)
             if block is None:
                 continue
             if view.only_changes:
                 if memory.get(name) == block:
                     continue
                 memory[name] = block
+            if attached is not None:
+                attached.extend(key for key in files if key not in attached)
             if shown is not None and listed is not None:
                 shown.views.append((name, block))
                 shown.events.extend(listed.events)
@@ -128,9 +141,11 @@ class Perception:
     def look_views(self, actor: Entity, stage: StageSpec) -> List[str]:
         return [n for n, v in self.contract.views.items() if v.look and self._applies(v, actor, stage)]
 
-    def render_view(self, name: str, view: ViewSpec, actor: Optional[Entity], shown: Optional["Shown"] = None) -> Optional[str]:
+    def render_view(self, name: str, view: ViewSpec, actor: Optional[Entity], shown: Optional["Shown"] = None,
+                    attached: Optional[List[str]] = None) -> Optional[str]:
         """One view as text for ``actor`` (None for a spectator view), or None when it shows nothing.
-        ``shown`` collects the events and record entries it listed."""
+        ``shown`` collects the events and record entries it listed, ``attached`` the assets it delivers."""
+        files: List[str] = []
         path = f"views.{name}"
         scope = self.world.scope(actor=actor, viewer=actor) if actor is not None else self.world.scope()
         try:
@@ -138,7 +153,10 @@ class Perception:
                 return None
             if view.of is None:
                 body = compile_template(view.show, "actor" if actor is not None else None).render(scope)
+                body = self._attach(view, scope, None, body, files, path)
                 title = self._title(view.title, scope, path)
+                if attached is not None:
+                    attached.extend(files)
                 return f"{title}: {body}" if title else body
             items = self._items(view, scope)
             if view.where is not None:
@@ -153,7 +171,8 @@ class Perception:
                 items = items[: view.limit]
             template = compile_template(view.show, "it")
             marker = "- " if view.bullet else ""
-            rendered = [marker + template.render(scope.child(it=it, i=i + 1)) for i, it in enumerate(items)]
+            rendered = [self._attach(view, scope.child(it=it, i=i + 1), it, marker + template.render(scope.child(it=it, i=i + 1)),
+                                     files, path) for i, it in enumerate(items)]
         except ExprError as exc:
             raise RunError(str(exc), path) from None
         if shown is not None:
@@ -164,7 +183,19 @@ class Perception:
                 return None
             rendered = [view.empty]
         title = self._title(view.title, scope, path) or name.replace("_", " ").capitalize()
+        if attached is not None:
+            attached.extend(files)
         return f"{title}:\n" + "\n".join(rendered)
+
+    def _attach(self, view: ViewSpec, scope: Any, item: Any, line: str, files: List[str], path: str) -> str:
+        """``line`` with the references of the assets it delivers (its `attach`, a listed record entry's files)."""
+        ids = attached_ids(self.world, view.attach, scope, f"{path}.attach") if view.attach is not None else []
+        if item is not None and view.of in self.contract.records:
+            ids += [key for key in entry_assets(self.world, view.of, item) if key not in ids]
+        if not ids:
+            return line
+        files.extend(key for key in ids if key not in files)
+        return f"{line} {references(self.world.assets, ids)}"
 
     def _title(self, title: str, scope: Any, path: str) -> str:
         if "{" not in title:
@@ -201,14 +232,15 @@ class Perception:
         return self.world.entry_visible(record, entry, viewer)
 
     def news(self, actor: Entity, since: int, limit: Optional[int] = None,
-             shown: Optional["Shown"] = None) -> Tuple[List[str], int]:
+             shown: Optional["Shown"] = None, attached: Optional[List[str]] = None) -> Tuple[List[str], int]:
         """News lines for ``actor`` after log position ``since``, newest ``limit`` rendered.
 
         Returns ``(lines, hidden)`` where ``hidden`` counts older items beyond the limit.
         Only the lines that will be shown are rendered, so a busy world stays cheap. ``shown``
-        collects the events (and record entries) the lines deliver.
+        collects the events (and record entries) the lines deliver, ``attached`` the assets they carry.
         """
         delivered: List[LogEvent] = []
+        files: List[str] = []
         lines: List[str] = []
         hidden = 0
         for event in reversed(self._events_after(since)):
@@ -220,15 +252,27 @@ class Perception:
                 continue
             line = self._event_line(event, actor)
             if line:
-                lines.append(line)
+                ids = self._event_assets(event)
+                lines.append(f"{line} {references(self.world.assets, ids)}" if ids else line)
                 delivered.append(event)
+                files[:0] = [key for key in ids if key not in files]
         lines.reverse()
+        if attached is not None:
+            attached.extend(key for key in files if key not in attached)
         if shown is not None:
             for event in reversed(delivered):
                 shown.news.append(event.seq)
                 if event.kind == "record" and isinstance(event.data.get("entry"), int):
                     shown.entries.append(event.data["entry"])
         return lines, hidden
+
+    def _event_assets(self, event: LogEvent) -> List[str]:
+        """The assets an event delivers: a record entry's files, or those an outcome carries."""
+        if event.kind == "record":
+            entry = self.world.entry_by_seq.get(event.data.get("entry"))
+            record = event.data.get("record")
+            return entry_assets(self.world, record, entry) if entry is not None and record in self.contract.records else []
+        return [key for key in event.data.get("assets") or () if self.world.assets.has(key)]
 
     def _would_show(self, event: LogEvent, actor: Entity) -> bool:
         if event.kind == "record":

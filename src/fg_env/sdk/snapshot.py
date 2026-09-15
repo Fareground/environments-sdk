@@ -11,6 +11,7 @@ import json
 from typing import TYPE_CHECKING, Any, Dict, Mapping, Tuple, Type, TypeVar
 
 from ..entity import Entity
+from .assets.store import AssetStore
 from .budget import Budget
 from .contract import Contract
 from .errors import ContractError, SnapshotError
@@ -128,6 +129,7 @@ def take_snapshot(env: "Env") -> Dict[str, Any]:
         "budget": env.budget.to_dict(env) if env.budget is not None else None,
         "start": env.origin.start,
         "diagnosis": env.diagnosis.to_dict(),
+        **({"assets": {**w.assets.to_dict(), "briefs": dict(env._brief_assets)}} if len(w.assets) else {}),
     }
 
 
@@ -268,6 +270,9 @@ def _restore(cls: Type[_E], contract: Contract, snapshot: Mapping[str, Any], par
         w.exposures = ExposureLog.from_dict(snapshot["exposures"])
     env.previews.frames = decode(snapshot.get("frames") or [])
     env.origin.start = snapshot.get("start")
+    if snapshot.get("assets"):
+        w.assets = AssetStore.from_dict(snapshot["assets"])
+        env._brief_assets = {key: list(ids) for key, ids in (snapshot["assets"].get("briefs") or {}).items()}
     if snapshot.get("budget") is not None:
         env.budget = Budget.from_dict(snapshot["budget"])
     env.diagnosis.load(snapshot.get("diagnosis"))

@@ -3,7 +3,7 @@
 A contract declares what it needs — a rubric ``host.judge``, a ``host.game_master`` that resolves
 free-text attempts within an allow-list, agent ``mind.memory`` with recall, ``host.tool`` services
 such as web search, ``mind.personas`` written at build time, ``host.recap`` summaries of long records,
-``feeds`` of external data written into the world —
+``feeds`` of external data written into the world, descriptions of an asset's file (``describe``) —
 and names the host that answers (``"host": "judge"``). The host is any object implementing the
 small protocols in :mod:`.protocols`; your own model client plugs in through :mod:`.adapters`.
 
@@ -20,11 +20,11 @@ previews and replays without the host are identical::
 from . import adapters, stubs
 from .api import load, restore, run, wrap
 from .hosts import Hosts, bind, hosts_for
-from .protocols import Evaluator, Feed, GameMaster, HostError, Ranker, Tools, Writer
+from .protocols import Describer, Evaluator, Feed, GameMaster, HostError, Ranker, Tools, Writer
 from .tape import TAPE, consult, tape_of
 
 __all__ = [
-    "Hosts", "HostError", "Evaluator", "GameMaster", "Tools", "Writer", "Ranker", "Feed",
+    "Hosts", "HostError", "Evaluator", "GameMaster", "Tools", "Writer", "Ranker", "Feed", "Describer",
     "load", "restore", "run", "wrap", "bind", "hosts_for", "tape_of", "consult", "TAPE",
     "adapters", "stubs",
 ]
