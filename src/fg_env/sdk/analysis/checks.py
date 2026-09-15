@@ -137,6 +137,7 @@ def behavior_checks(contract: ContractLike, *, runs: int = 4, rounds: Optional[i
         return CheckReport(parsed.name, runs, rounds, findings, [], list(parsed.inputs))
     completed = [r for r in baseline if r.status != "failed"]
     findings += _failures(baseline)
+    findings += _incomplete(baseline)
     findings += _output_findings(parsed, completed, rounds)
     findings += _metric_findings(parsed, completed)
     findings += _action_findings(parsed, completed, rounds)
@@ -155,6 +156,17 @@ def _failures(results: Sequence[RunResult]) -> List[Finding]:
         return []
     return [Finding("runs_fail", "error", "(run)", f"{len(failed)} of {len(results)} run(s) failed. First error: "
                     f"{failed[0].error}", {"seeds": [r.seed for r in failed], "error": failed[0].error})]
+
+
+def _incomplete(results: Sequence[RunResult], subject: str = "(run)") -> List[Finding]:
+    unfinished = [r for r in results if r.status not in ("completed", "ended", "failed")]
+    if not unfinished:
+        return []
+    return [Finding("runs_incomplete", "warning", subject,
+                    f"{len(unfinished)} run(s) stopped before termination. End-only invariants and later effects "
+                    "may remain unchecked. Increase the round limit or inspect why the runs stopped.",
+                    {"seeds": [r.seed for r in unfinished], "rounds": [r.rounds for r in unfinished],
+                     "statuses": [r.status for r in unfinished]})]
 
 
 def _rounds_note(rounds: Optional[int]) -> str:
@@ -281,8 +293,11 @@ def _input_findings(contract: Any, base_inputs: Mapping[str, Any], baseline: Seq
     base_prints = [_fingerprint(r) if r.status != "failed" else None for r in baseline]
     changed: Dict[str, List[Any]] = {}
     broke: Dict[str, List[Tuple[Any, str]]] = {}
+    unfinished: Dict[str, List[RunResult]] = {}
     for (name, v), cell in zip(plan, grouped):
         for base_print, result in zip(base_prints, cell):
+            if result.status not in ("completed", "ended", "failed"):
+                unfinished.setdefault(name, []).append(result)
             if result.status == "failed":
                 broke.setdefault(name, []).append((v, result.error or "failed"))
             elif base_print is not None and _fingerprint(result) != base_print:
@@ -294,9 +309,10 @@ def _input_findings(contract: Any, base_inputs: Mapping[str, Any], baseline: Seq
             value, error = broke[name][0]
             findings.append(Finding("input_breaks_runs", "warning", f"inputs.{name}",
                                     f"Setting it to {value!r} made runs fail: {error}.", {"value": value, "error": error}))
-        elif name not in changed:
+        elif name not in changed and name not in unfinished:
             findings.append(Finding("input_has_no_effect", "warning", f"inputs.{name}",
                                     f"Changing it (tried {', '.join(repr(v) for v in tried)}) changed no output and "
                                     f"no metric in {len(seeds)} seeded run(s){_rounds_note(rounds)}. It may be unused, "
                                     "or only matter in situations these runs never reached.", {"tried": tried}))
+        findings += _incomplete(unfinished.get(name, []), f"inputs.{name}")
     return tested, untested, findings

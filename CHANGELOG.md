@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Behavior reports identify unfinished baseline and input-variant runs, including unchecked end-only
+  obligations, and avoid claiming an input has no effect based only on unfinished variants.
 - Behavior checks keep generated integer input variations inside fractional bounds and report inputs
   with no alternative legal integer as unvaried, instead of failing on their own invalid test values.
 - Expression diagnostics list unknown functions and correction hints before dependent scope errors,
