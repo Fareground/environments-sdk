@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Waiting procedure response windows now settle items whose remaining responders have departed.
+  Living responders still block resolution; generated/custom windows, snapshots and rollback retain
+  their existing semantics. No new authoring setting is required.
 - Exact author-only record permissions reject another reader before constructing an expression context,
   reducing event/news observation cost. Matching authors still use the evaluator; additional conditions
   and function-based rules keep normal evaluation. Proven mismatches consume no expression work.

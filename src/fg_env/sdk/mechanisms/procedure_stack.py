@@ -283,6 +283,8 @@ def _counter(runner: Any, name: str, cfg: StackConfig, target: Any) -> None:
 def _close(runner: Any, name: str, cfg: StackConfig, where: str) -> None:
     world = runner.world
     if cfg.unanswered == "wait":
+        # Departed responders no longer owe an answer; settle without passing for living ones.
+        _settle(runner, name, cfg, where)
         return
     for _ in range(4 * cfg.max_depth + 4):
         items = _items(world, name)
