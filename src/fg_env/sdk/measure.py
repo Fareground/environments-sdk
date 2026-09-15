@@ -91,6 +91,10 @@ class RunResult:
     exposures: Dict[str, Any] = field(default_factory=dict)
     #: Spectator views rendered at the end of every round: ``[{round, views: {name: text}, final?}]``.
     frames: List[Dict[str, Any]] = field(default_factory=list)
+    #: The host answers of a run that recorded exposures (with ``exposures``, everything a replay needs).
+    host_tape: Dict[str, Any] = field(default_factory=dict)
+    #: The run's budget: ``{limits, on_exhaust, used, exhausted}`` (empty without one).
+    budget: Dict[str, Any] = field(default_factory=dict)
 
     @property
     def ok(self) -> bool:
@@ -105,6 +109,19 @@ class RunResult:
     def to_json(self, events: bool = True, indent: Optional[int] = 2) -> str:
         return json.dumps(self.to_dict(events), indent=indent, default=str, ensure_ascii=False)
 
+    def save(self, path: Any) -> None:
+        """Write the result to ``path``: JSON, or JSON lines when the name ends in ``.jsonl``."""
+        from .result_file import save_result
+
+        save_result(self, path)
+
+    @classmethod
+    def load(cls, path: Any) -> "RunResult":
+        """A result written by :meth:`save` (or printed by ``fg-env run --json``)."""
+        from .result_file import load_result
+
+        return load_result(path)
+
     def summary(self) -> str:
         how = f"ended by {self.ended_by}" if self.ended_by else self.status
         lines = [f"{self.status} after {self.rounds} round(s) — {how} (seed {self.seed}{', arm ' + self.arm if self.arm else ''})"]
@@ -116,6 +133,11 @@ class RunResult:
             lines.append(f"{key}: {_short(value)}")
         for issue in self.output_issues:
             lines.append(f"output issue: {issue['path']}: {issue['message']}")
+        if self.budget.get("exhausted"):
+            from .budget import spent
+
+            key = self.budget["exhausted"]
+            lines.append(f"budget: {key} ran out ({spent(key, self.budget['used'][key], self.budget['limits'][key])})")
         return "\n".join(lines)
 
 

@@ -11,6 +11,7 @@ import json
 from typing import TYPE_CHECKING, Any, Dict, Mapping, Tuple, Type, TypeVar
 
 from ..entity import Entity
+from .budget import Budget
 from .contract import Contract
 from .errors import ContractError, SnapshotError
 from .expr import Untrusted
@@ -124,6 +125,7 @@ def take_snapshot(env: "Env") -> Dict[str, Any]:
         "exposures": w.exposures.to_dict() if w.exposures is not None else None,
         "layers": w.space.state() if w.space is not None else {},
         "frames": encode(env.previews.frames),
+        "budget": env.budget.to_dict(env) if env.budget is not None else None,
     }
 
 
@@ -255,6 +257,8 @@ def _restore(cls: Type[_E], contract: Contract, snapshot: Mapping[str, Any], par
     if snapshot.get("exposures") is not None:
         w.exposures = ExposureLog.from_dict(snapshot["exposures"])
     env.previews.frames = decode(snapshot.get("frames") or [])
+    if snapshot.get("budget") is not None:
+        env.budget = Budget.from_dict(snapshot["budget"])
     w.journal.clear()
     w.touch()  # the state was replaced wholesale: nothing cached before holds
     env._emitted = len(w.log)
