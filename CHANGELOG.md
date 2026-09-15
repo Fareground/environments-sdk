@@ -152,6 +152,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   population list prop and read the parts through `$it` for correlated traits.
 
 #### Changed
+- **BREAKING (template API):** the template-based kernel API moved off the top level: import it from
+  `fg_env.legacy` (`from fg_env.legacy import simulate, Kernel, compile_template, registry`) and run its commands
+  as `fg-env legacy <command>` (`fg-env legacy compile template.json`). `fg_env` and `fg-env --help` now show only
+  the Environment SDK (46 names, 20 commands; were 120 and 31).
 - `Env.restore` refuses a snapshot whose seed, arm or inputs were edited, and explains a contract mismatch,
   pointing to `fg_env.fork` (an edited arm used to be ignored silently).
 - Async participants are awaited instead of refused.

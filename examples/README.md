@@ -35,7 +35,7 @@ fg-env experiment contracts/town_epidemic.json --runs 5
 ## Template API scripts
 
 `00_simulate.py`, `quickstart.py` and `tic_tac_toe/template.json` use the earlier template-based API
-(`simulate`, `Kernel`), which remains available for existing templates:
+(`fg_env.legacy`: `simulate`, `Kernel`), which remains available for existing templates:
 
 ```bash
 PYTHONPATH=src python3 examples/00_simulate.py

@@ -1,7 +1,7 @@
 """A model's selected action is untrusted, even if its menu was correct."""
 import pytest
 
-from fg_env import compile_template
+from fg_env.legacy import compile_template
 from fg_env.action import ActionInstance
 from fg_env.domain.base import DomainModule, DomainModuleManager
 from fg_env.status_effects import StatusEffectDefinition

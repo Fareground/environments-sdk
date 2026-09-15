@@ -9,7 +9,7 @@ Covers:
 
 import pytest
 
-from fg_env import termination as term
+from fg_env.legacy import termination as term
 from fg_env.registry import termination as term_decorator
 from fg_env.entity import Entity, EntityType
 from fg_env.engine import SimulationEngine, TerminationCondition

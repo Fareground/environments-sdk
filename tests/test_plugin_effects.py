@@ -7,7 +7,7 @@ calling ``@effect("my_op")`` from outside the kernel package.
 """
 import pytest
 
-from fg_env import EffectContext, effect, registry
+from fg_env.legacy import EffectContext, effect, registry
 from fg_env.action import (
     Effect,
     EffectOperation,

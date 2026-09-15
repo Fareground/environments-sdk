@@ -281,3 +281,7 @@ __all__ = [
     "module",
     "target_selector",
 ]
+
+
+# The built-in composition primitives register with the process-global registry as soon as it exists.
+from . import composition  # noqa: E402, F401  (side-effect import)

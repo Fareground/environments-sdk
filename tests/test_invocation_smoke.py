@@ -3,7 +3,7 @@ from decimal import Decimal
 
 import pytest
 
-from fg_env import compile_template
+from fg_env.legacy import compile_template
 from fg_env.pipeline.smoke import smoke_test
 
 

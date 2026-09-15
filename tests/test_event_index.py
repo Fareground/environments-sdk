@@ -10,7 +10,7 @@ import copy
 
 import pytest
 
-from fg_env import termination as term
+from fg_env.legacy import termination as term
 from fg_env.engine import TerminationCondition
 from fg_env.event import EventLog, SimEvent
 from fg_env.state import WorldState

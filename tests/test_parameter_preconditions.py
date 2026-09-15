@@ -1,5 +1,5 @@
 import pytest
-from fg_env import compile_template
+from fg_env.legacy import compile_template
 from fg_env.action import ActionInstance
 
 
