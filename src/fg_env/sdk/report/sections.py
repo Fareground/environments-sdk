@@ -70,7 +70,14 @@ def decision(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str]
     subject = choice.best or (ev.options[0] if len(ev.options) == 1 else None)
     if choice.goal is not None and choice.best is None and ev.options:
         wanted = "; ".join(f"{namer.name(r.measure)} {r.op} {namer.value(r.measure, r.value)}" for r in choice.requirements)
-        section.lines.append(f"No option meets {wanted or 'the goal'}; the table shows how close each came.")
+        if choice.excluded:
+            section.lines.append("No option has complete valid evidence meeting the decision rule.")
+        else:
+            section.lines.append(f"No option meets {wanted or 'the goal'}; the table shows how close each came.")
+    for option in ev.options:
+        if option.label in choice.excluded:
+            section.lines.append(f"{label(option, start=True)} is excluded from recommendations: "
+                                 f"{choice.excluded[option.label]}. Its available outcomes are descriptive only.")
     if subject is not None:
         if choice.best is not None and len(ev.options) > 1:
             section.lines += confidence_lines(ev, choice, sure, namer)

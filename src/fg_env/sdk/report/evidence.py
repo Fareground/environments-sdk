@@ -31,6 +31,7 @@ class Option:
     runs: List[RunResult]
     inputs: Dict[str, Any] = field(default_factory=dict)
     failed: int = 0
+    rounds: Optional[int] = None
 
     def values(self, measure: str) -> List[float]:
         return [float(v) for r in self.runs for v in [r.outputs.get(measure)]
@@ -153,7 +154,7 @@ def gather(source: Any, contract: Optional[ContractLike], validation: Optional[V
         for label, arm in source.arms.items():
             kept, failed = _split(arm.runs)
             inputs = dict(parsed.arms[arm.arm].inputs) if parsed is not None and arm.arm in parsed.arms else {}
-            options.append(Option(label, _described(parsed, arm.arm), kept, inputs, failed))
+            options.append(Option(label, _described(parsed, arm.arm), kept, inputs, failed, source.rounds))
         chosen = control if control is not None else (options[0].label if options else None)
         if chosen is not None and chosen not in source.arms:
             raise ValueError(f"control {chosen!r} is not an arm of the experiment (arms: {', '.join(source.arms)})")
@@ -163,7 +164,7 @@ def gather(source: Any, contract: Optional[ContractLike], validation: Optional[V
         options = []
         for cell in source.cells:
             kept, failed = _split(cell.runs)
-            options.append(Option(cell.label(), "", kept, dict(cell.inputs), failed))
+            options.append(Option(cell.label(), "", kept, dict(cell.inputs), failed, source.rounds))
         return Evidence("sweep", options, sweep=source, validation=validation, contract=parsed, name=source.contract)
     if isinstance(source, Sequence) and source and all(isinstance(r, RunResult) for r in source):
         kept, failed = _split(list(source))
@@ -183,6 +184,7 @@ class Choice:
     #: ``{label: {requirement measure: share of runs meeting it}}``.
     meeting: Dict[str, Dict[str, float]] = field(default_factory=dict)
     feasible: List[str] = field(default_factory=list)
+    excluded: Dict[str, str] = field(default_factory=dict)
 
 
 def choose(options: Sequence[Option], goal: Optional[Goal], requirements: Sequence[Requirement]) -> Choice:
@@ -190,8 +192,27 @@ def choose(options: Sequence[Option], goal: Optional[Goal], requirements: Sequen
     option)."""
     meeting: Dict[str, Dict[str, float]] = {}
     feasible: List[Option] = []
+    excluded: Dict[str, str] = {}
     for option in options:
-        shares, ok = {}, bool(option.runs)
+        reasons = []
+        if option.failed:
+            reasons.append(f"{option.failed} run(s) failed")
+        unfinished = sum(
+            r.status not in ("completed", "ended") and not
+            (r.status == "running" and option.rounds is not None and r.rounds == option.rounds)
+            for r in option.runs)
+        exhausted = sum(bool(r.budget.get("exhausted")) for r in option.runs)
+        if exhausted:
+            reasons.append(f"{exhausted} run(s) exhausted their budget")
+        if unfinished:
+            reasons.append(f"{unfinished} run(s) are unfinished")
+        measures = {r.measure for r in requirements} | ({goal.measure} if goal else set())
+        missing = sorted(m for m in measures if len(option.values(m)) != len(option.runs))
+        if missing:
+            reasons.append("missing finite values for " + ", ".join(missing))
+        if reasons:
+            excluded[option.label] = "; ".join(reasons)
+        shares, ok = {}, bool(option.runs) and not reasons
         for requirement in requirements:
             values = option.values(requirement.measure)
             shares[requirement.measure] = sum(requirement.met(v) for v in values) / len(values) if values else 0.0
@@ -207,4 +228,4 @@ def choose(options: Sequence[Option], goal: Optional[Goal], requirements: Sequen
             kept = summary(best.values(goal.measure)) if best is not None else None
             if mine is not None and (kept is None or goal.better(mine.mean, kept.mean)):
                 best = option
-    return Choice(best, goal, list(requirements), meeting, [o.label for o in feasible])
+    return Choice(best, goal, list(requirements), meeting, [o.label for o in feasible], excluded)

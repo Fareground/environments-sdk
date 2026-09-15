@@ -79,3 +79,26 @@ def test_a_world_default_naming_an_undeclared_world_property_is_an_error():
                 "world": {"a": {"type": "number", "default": "$world.missing + 1"}}}
     [issue] = _errors(contract)
     assert issue.path == "world.a.default" and "no such world property" in issue.message
+
+
+@pytest.mark.parametrize("binding", ["it", "item"])
+def test_expression_loop_shadows_the_enclosing_item_type(binding):
+    contract = {
+        "name": "Merchants update a cached product list", "clock": {"rounds": 1},
+        "types": {"merchant": {"props": {"cash": 10}}, "product": {"props": {"stock": 2}}},
+        "entities": {"seller": {"type": "merchant"}, "sku": {"type": "product"}},
+        "events": [{"each": "merchant", "as": binding, "do": [
+            "$products = $filter(product, true)",
+            {"each": "$products", "as": binding, "do": [f"${binding}.stock += 1"]},
+            f"${binding}.cash += 1"]}],
+        "outputs": {"stock": "$entity(sku).stock", "cash": "$entity(seller).cash"},
+    }
+    assert _errors(contract) == []
+    assert fg_env.run(contract).outputs == {"stock": 3, "cash": 11}
+
+
+def test_literal_loop_still_checks_its_known_item_type():
+    contract = {"name": "Known product loop", "types": {"merchant": {"props": {"cash": 10}},
+                 "product": {"props": {"stock": 2}}},
+                "events": [{"each": "merchant", "do": [{"each": "product", "do": ["$it.cash += 1"]}]}]}
+    assert any("product has no property 'cash'" in i.message for i in _errors(contract))

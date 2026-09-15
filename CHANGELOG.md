@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Numerical fidelity and timing
+- Expression-driven effect loops correctly shadow enclosing item types during checking.
+- Three business acceptance contracts cover perishable retail, refurbished-product returns/substitution, and
+  component-constrained bundles, with demand censoring, price responses, forecasting and accounting checks.
+- Recommendations exclude options with failed, unfinished or budget-exhausted runs, or missing decision measurements,
+  and explain the exclusion beside the decision. Explicit experiment/sweep windows remain eligible once reached;
+  successful-only results remain available as descriptive evidence.
 - Mapped sums and averages use the existing compiled expression loops, preserving filtering order, indices,
   errors, work budgets and random draws while avoiding repeated per-item scope construction.
 - Coupled world and entity dynamics share integration states, removing declaration-order dependence.

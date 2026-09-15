@@ -51,6 +51,7 @@ class SweepResult:
     measures: List[str]
     seeds: List[int]
     cells: List[SweepCell]
+    rounds: Optional[int] = None
     _effects: Dict[str, Dict[str, Dict[str, Any]]] = field(default_factory=dict, repr=False)
 
     @property
@@ -163,7 +164,7 @@ class SweepResult:
     def to_dict(self) -> Dict[str, Any]:
         return {
             "contract": self.contract, "design": self.design, "params": self.params, "arms": self.arms,
-            "seeds": self.seeds, "measures": self.measures,
+            "seeds": self.seeds, "measures": self.measures, "rounds": self.rounds,
             "cells": [{"inputs": c.inputs, "arm": c.arm, "summary": {k: v.to_dict() for k, v in c.summary.items()},
                        "failed": sum(1 for r in c.runs if r.status == "failed"),
                        "outputs": [r.outputs for r in c.runs]} for c in self.cells],
@@ -277,7 +278,7 @@ def sweep(contract: ContractLike, params: Mapping[str, ParamSpec], *, runs: int 
         summary = {m: estimate([v for v in (runner.value(r, ("outputs", m)) for r in cell_runs) if v is not None])
                    for m in measures}
         sweep_cells.append(SweepCell(index, swept, arm, cell_runs, summary))
-    return SweepResult(parsed.name, design, grid, arm_list, measures, seeds, sweep_cells)
+    return SweepResult(parsed.name, design, grid, arm_list, measures, seeds, sweep_cells, rounds=rounds)
 
 
 def _lhs_points(contract: Any, params: Mapping[str, ParamSpec], count: int, seed: int) -> tuple:

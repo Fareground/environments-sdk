@@ -160,6 +160,9 @@ class EffectChecks:
             name = effect.get("as") or "it"
             inner = roots | {name, "i"}
             inner_types = dict(types)
+            # The loop shadows its binding even when the collection's item type
+            # cannot be inferred. Never reuse the enclosing entity's type.
+            inner_types.pop(name, None)
             source = effect["each"]
             if isinstance(source, str) and not is_expr(source):
                 if self._type(source, f"{path}.each"):

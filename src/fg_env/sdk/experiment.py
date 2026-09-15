@@ -86,6 +86,7 @@ class ArmResult:
 class ExperimentResult:
     arms: Dict[str, ArmResult]
     seeds: List[int]
+    rounds: Optional[int] = None  # explicitly requested experiment window
 
     def deltas(self, control: Optional[str] = None) -> Dict[str, Dict[str, Dict[str, Any]]]:
         """Paired differences (arm − control) for every numeric or yes/no output.
@@ -164,7 +165,7 @@ class ExperimentResult:
         return "\n".join(lines)
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"seeds": self.seeds, "deltas": self.deltas() if len(self.arms) > 1 else {}, "arms": {
+        return {"seeds": self.seeds, "rounds": self.rounds, "deltas": self.deltas() if len(self.arms) > 1 else {}, "arms": {
             label: {"outputs": arm.outputs, "runs": [r.to_dict(events=bool(r.exposures)) for r in arm.runs]}
             for label, arm in self.arms.items()}}
 
@@ -477,4 +478,4 @@ def experiment(source: ContractLike, *, runs: int = 10, arms: Optional[List[str]
         overridden = [override_message(arm, name, arm_value, given)
                       for name, arm_value, given in arm_input_overrides(contract, arm, inputs or {})] if arm else []
         out[arm or "baseline"] = ArmResult(arm, arm_runs, summary, overridden)
-    return ExperimentResult(out, seeds)
+    return ExperimentResult(out, seeds, rounds=rounds)
