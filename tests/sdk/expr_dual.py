@@ -21,6 +21,7 @@ from expr_oracle import compile_oracle
 from fg_env.sdk import expr_compile
 from fg_env.sdk.expr_base import _BUDGET, ExprError
 from fg_env.sdk.mechanisms import turn_order
+from fg_env.sdk.stdlib import tables
 
 #: Every difference found: ``(expression, what differed)``.
 MISMATCHES: List[Tuple[str, str]] = []
@@ -68,11 +69,13 @@ def _capture(world: Any) -> Dict[str, Any]:
         local = world._here()
         state["counters"] = (local, getattr(local, "draws", _UNSET), getattr(local, "depth", _UNSET))
         state["defs"] = (dict(world._def_cache), world._def_cache_state)
-        # Caches that evaluate expressions when they miss: both evaluators start from the same ones.
+        # Caches that evaluate expressions or charge work when they miss: both evaluators start from the same ones.
         orders = turn_order._ORDERS.get(world)
         social = world.__dict__.get("_social_cache")
         state["caches"] = (None if orders is None else dict(orders),
                            None if social is None else {k: dict(v) if isinstance(v, dict) else v for k, v in social.items()})
+        indexes = tables._INDEXES.get(world)
+        state["indexes"] = None if indexes is None else dict(indexes)
         patterns = world.__dict__.get("patterns")
         state["patterns"] = None if patterns is None else (patterns, {
             name: {k: list(v) if isinstance(v, list) else v for k, v in getattr(patterns, name).items()}
@@ -105,6 +108,10 @@ def _restore(world: Any, state: Dict[str, Any]) -> None:
             world.__dict__.pop("_social_cache", None)
         else:
             world.__dict__["_social_cache"] = {k: dict(v) if isinstance(v, dict) else v for k, v in social.items()}
+        if state["indexes"] is None:
+            tables._INDEXES.pop(world, None)
+        else:
+            tables._INDEXES[world] = dict(state["indexes"])
         if state["patterns"] is not None:
             patterns, saved = state["patterns"]
             for name, entries in saved.items():
