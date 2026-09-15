@@ -442,7 +442,7 @@ Stored values stay exact.
 
 `result.events` is the log in order: `{seq, round, stage, kind, actor, text, data}`. Its kinds are `action`,
 `outcome` (a sealed choice's result), `record`, `news`, `refused`, `timeout` and `end`. For example:
-`[e["text"] for e in result.events if e["round"] == 3]`.
+`[e.get("text") for e in result.events if e["round"] == 3]` (keys without a value are left out).
 
 What agents saw:
 * `env.preview("ann")` shows the next turn exactly as ann will get it.
