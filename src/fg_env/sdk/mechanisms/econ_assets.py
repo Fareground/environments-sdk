@@ -15,6 +15,7 @@ property (``$actor.goods.bread``), unique items are entities of a type named aft
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import math
 from typing import Any, Dict, List, Optional, Tuple
 
 from ...entity import Entity
@@ -406,7 +407,15 @@ def conserved(world: Any, name: str, where: str) -> Tuple[bool, str]:
                 limit = _number_or_zero(values.get(f"{currency}_credit")) if entity.entity_type in credited else 0.0
                 if value < -max(0.0, limit) - 1e-6:
                     return False, f"{entity.name} is below its {currency} credit limit"
-            expected = float(supply.get(currency, 0))
+            if not math.isfinite(total):
+                return False, f"{currency} held has a non-finite total; reduce the monetary scale"
+            raw_expected = supply.get(currency, 0)
+            try:
+                expected = float(raw_expected)
+            except (TypeError, ValueError, OverflowError):
+                return False, f"{currency} supply must be a finite number"
+            if isinstance(raw_expected, bool) or not isinstance(raw_expected, (int, float)) or not math.isfinite(expected):
+                return False, f"{currency} supply must be a finite number"
             if abs(total - expected) > 1e-6 * max(1.0, abs(expected), abs(total)):
                 return False, f"{currency} held is {money(total)} but the supply is {money(expected)}"
         return True, ""

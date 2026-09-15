@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Ledger conservation rejects non-finite aggregate holdings and non-finite or non-numeric supply values,
+  preventing floating-point overflow from falsely certifying an accounting balance.
 - Static checks identify invalid inventory literals at their authored holder/property/item path, including
   defaults and generated populations. Nested expression strings suggest an expression for the whole map.
 - Added a declarative business acceptance composition for overlapping campaign audiences, private customer
