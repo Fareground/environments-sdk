@@ -8,6 +8,7 @@ import pytest
 
 import fg_env
 from fg_env.__main__ import main
+from fg_env.sdk import workers
 from fg_env.sdk.experiment import Job, run_jobs
 from fg_env.sdk.host.stubs import StubFeed
 
@@ -50,7 +51,8 @@ def test_parsing_with_data_dir_leaves_the_original_contract_untouched(tmp_path):
     assert plain._folder is None and moved._folder == str(folder)
 
 
-def test_experiment_workers_read_data_files_in_other_processes(tmp_path):
+def test_experiment_workers_read_data_files_in_other_processes(tmp_path, monkeypatch):
+    monkeypatch.setattr(workers, "chunk_size", lambda jobs, size, seconds, started: 1)  # however short the runs
     contract, folder = _elsewhere(tmp_path)
     result = fg_env.experiment(contract, runs=3, workers=2, data_dir=folder)
     assert not result.arms["baseline"].failed and result.arms["baseline"].outputs["units"]["n"] == 3
