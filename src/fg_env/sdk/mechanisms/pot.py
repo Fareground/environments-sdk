@@ -24,6 +24,7 @@ from ..expr import Call, ExprError, compile_expr, function, is_expr
 from ..registry import MechanismError, family_action, mode
 from ..world import Abort
 from ._common import ToolsSetting, tools_field
+from ._game import game_section
 from .contract_cache import parse_kind, per_contract
 
 __all__ = ["PotConfig", "side_pots"]
@@ -584,6 +585,7 @@ def _expand_pot(name: str, config: PotConfig, contract: Mapping[str, Any]) -> Di
     fragment: Dict[str, Any] = {
         "types": {players: {"props": {
             "stack": {"type": "int", "default": config.stack, "min": 0, "description": "Chips behind."},
+            "buy_in": {"type": "int", "default": "$it.stack", "min": 0, "description": "Chips brought to the table."},
             "bet": {"type": "int", "default": 0, "min": 0, "description": "Chips bet in this betting round."},
             "committed": {"type": "int", "default": 0, "min": 0, "description": "Chips put in the pot this hand."},
             "in_hand": {"type": "bool", "default": True},
@@ -601,6 +603,12 @@ def _expand_pot(name: str, config: PotConfig, contract: Mapping[str, Any]) -> Di
                                         "description": "Chips at the table (never changes)."}
         fragment["invariants"] = [{"expr": f"$sum({players}, $it.stack + $it.committed) == $world.{name}_chips",
                                    "why": "Chips are never created or destroyed."}]
+    game: Dict[str, Any] = {"players": players, "returns": "$actor.stack + $actor.committed - $actor.buy_in"}
+    if config.seat is not None:
+        game["seat"] = config.seat
+    if config.conserve:  # the chips invariant holds, so what one player wins another has lost
+        game["utility"] = "zero_sum"
+    fragment.update(game_section(contract, game))
     if config.views:
         fragment["views"] = {f"{name}_table": {"for": players, "title": "Table", "of": f"$pot_table('{name}', $actor)",
                                                "show": "{$it}", "bullet": False}}

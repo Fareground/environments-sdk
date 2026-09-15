@@ -16,6 +16,7 @@ from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..registry import MechanismError, config_data, family_action, mode, use_key
 from ..world import Abort
+from ._game import game_section
 from .board_engine import Move, Pos, has_line, in_check, legal, make, position_key, render, score
 from .board_rules import BoardConfig, Rules, compile_rules, parse_setup
 
@@ -627,6 +628,7 @@ def _expand_board(name: str, config: BoardConfig, contract: Mapping[str, Any]) -
         "outputs": {f"{name}_result": {"expr": f"$world.{name}_result", "type": "map",
                                        "description": "{winner, reason, score} once the game has ended."}},
     }
+    fragment.update(game_section(contract, _game(name, rules, players)))
     names = list(actions)
     if config.stage is None:
         fragment["stages"] = [{"name": name, "turns": "sequential", "who": f"$it.id == {turn}", "actions": names,
@@ -635,6 +637,15 @@ def _expand_board(name: str, config: BoardConfig, contract: Mapping[str, Any]) -
     else:
         fragment["stage_hooks"] = {config.stage: {"actions": names}}
     return fragment
+
+
+def _game(name: str, rules: Rules, players: str) -> Dict[str, Any]:
+    """Seats in side order; the winner scores one point from every other side, so the returns always add up to zero."""
+    sides = "[" + ", ".join(f"'{side}'" for side in rules.sides) + "]"
+    winner = f"$get($world.{name}_result, 'winner', null)"
+    return {"players": players, "seat": f"$index({sides}, $it.id)", "utility": "zero_sum",
+            "returns": f"0 if {winner} == null or not ($actor.id in {sides}) "
+                       f"else ({len(rules.sides) - 1} if {winner} == $actor.id else -1)"}
 
 
 def _prop_type(value: Any) -> str:
