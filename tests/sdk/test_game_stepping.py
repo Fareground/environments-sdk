@@ -141,6 +141,17 @@ def test_clones_at_a_chance_node_inside_a_call_take_each_outcome_like_piloted_cl
     assert _signature(here) == _signature(there)  # the node itself is untouched by its children
 
 
+def test_a_turn_that_ends_after_a_chosen_outcome_ends_the_game_like_a_piloted_one():
+    stepped, piloted = _pair(GAMES / "pig.json", inputs={"target": 3})
+    steps = [{"seat": 0, "tool": "roll", "args": {}}, {"chance": 3}, {"seat": 0, "tool": "stop", "args": {}}]
+    here, there = stepped.new_initial_state(), piloted.new_initial_state()
+    for step in steps:
+        apply_step(here, step)
+        apply_step(there, step)
+        assert _signature(here) == _signature(there)
+    assert here.is_terminal() and here.returns() == [1, -1]
+
+
 def test_a_seat_woken_to_react_inside_a_call_goes_on_as_a_piloted_run():
     stepped, piloted = _pair(PING, seed=1)
     state, reference = stepped.new_initial_state(), piloted.new_initial_state()

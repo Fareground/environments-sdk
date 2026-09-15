@@ -7,12 +7,14 @@ and no hand-off. A run waiting in a turn is copied directly (:mod:`.run_copy`), 
 world, not a replay. (:mod:`.pilot` pauses a run on a thread of its own instead: for participants that need
 one, for copies taken where a direct copy is not possible, and for runs stopped at a safe point.)
 
-A chance node waits inside effects, where a generator cannot pause. With explicit chance, every decision starts
-from a copy of the run as it was just before it; when the decision's effects reach a chance node whose outcome
-is not chosen yet, it is abandoned there. Choosing the outcome plays the decision again on a fresh copy with
-the outcomes chosen so far: the engine is deterministic, so it plays exactly as before up to the node and on
-from there exactly as a run paused at the node would. What is read at such a node — beyond the value asked for
-in advance (``prefetch``, a game's returns) — is read from a copy replayed on a thread and paused there.
+A chance node waits inside effects, where a generator cannot pause. With explicit chance, a stepper remembers a
+copy of the run it was never played on (its base) and the decisions it has taken since, with the outcomes chosen
+inside them. When a decision's effects reach a chance node whose outcome is not chosen yet, the decision is
+abandoned there and the run as it was just before it is rebuilt from the base and those decisions. Choosing the
+outcome plays the decision again on a copy of that run with the outcomes chosen so far: the engine is
+deterministic, so it plays exactly as before up to the node and on from there exactly as a run paused at the node
+would. What is read at such a node — beyond the value asked for in advance (``prefetch``, a game's returns) — is
+read from a copy replayed on a thread and paused there.
 """
 from __future__ import annotations
 
@@ -73,15 +75,21 @@ class _Seat:
     concurrent = False
 
     def steps(self, turn: "Turn") -> Iterator[object]:
-        stepper: Stepper = turn.env.stepper  # type: ignore[attr-defined]
-        env = stepper._run()
-        waiting = stepper._waiting
+        env: SteppedEnv = turn.env  # type: ignore[assignment]
+        waiting = _driving(env)._waiting
         if waiting is None or waiting.wake._turn is not turn:  # a new turn (else a copy resumes its waiting turn)
             waiting = Waiting(env.wake_for(Wake(turn)), env.driver._rng(turn))
         while not waiting.wake.done:
-            stepper._waiting = waiting
+            # Looked up on every step: a stepper that plays a chosen outcome on a copy hands the copy's run over.
+            _driving(env)._waiting = waiting
             yield WAITING
-        stepper._waiting = None
+        _driving(env)._waiting = None
+
+
+def _driving(env: SteppedEnv) -> "Stepper":
+    """The stepper driving ``env`` now."""
+    assert env.stepper is not None
+    return env.stepper
 
 
 _SEAT = _Seat()
@@ -97,11 +105,20 @@ class _ChanceWanted(BaseException):
 
 @dataclass(frozen=True)
 class _Decision:
-    """What a run was doing when a chance node stopped it: starting, or a tool call of the waiting turn."""
+    """A step a run takes: starting, or a tool call of the waiting turn."""
 
     kind: str
     name: str = ""
     args: Any = None
+
+
+@dataclass(frozen=True)
+class _Played:
+    """A decision a run took since its base, with the chance outcomes chosen inside it (the one before it first)."""
+
+    previous: Optional["_Played"]
+    decision: _Decision
+    chosen: Tuple[int, ...]
 
 
 @dataclass(frozen=True)
@@ -117,26 +134,27 @@ class _AtChance:
     turn_count: int
     prefetched: Tuple[Any, Optional[BaseException]]
 
-    @property
-    def pause(self) -> Pause:
-        return Pause("chance", node=self.node)
-
 
 class Stepper:
     """Steps ``env`` for the agents in ``controlled``, pausing for their decisions and, when ``explicit``, for chance
-    nodes. ``prefetch(env)`` is evaluated at every chance node, for :meth:`read_prefetched`."""
+    nodes. ``prefetch(env)`` is evaluated at every chance node, for :meth:`read_prefetched`. ``settles``: a run that
+    ends takes its result, as ``Env.run`` does — needed only when taking it draws randomness, since it changes nothing
+    else."""
 
     def __init__(self, env: SteppedEnv, controlled: Sequence[str], explicit: bool,
-                 prefetch: Optional[Callable[[Any], Any]] = None):
+                 prefetch: Optional[Callable[[Any], Any]] = None, settles: bool = True):
         self.controlled: FrozenSet[str] = frozenset(controlled)
-        self.explicit = explicit
-        self.prefetch = prefetch
+        self.explicit, self.prefetch, self.settles = explicit, prefetch, settles
         self._env: Optional[SteppedEnv] = None
         self._waiting: Optional[Waiting] = None
         self._at_chance: Optional[_AtChance] = None
+        self._chance_pause: Optional[Pause] = None
         self._chosen: List[int] = []
         self._reader: Optional["Branch"] = None
-        self._chance_pause: Optional[Pause] = None
+        #: Never played on: copies of it start from it (the base of their decisions).
+        self.frozen = False
+        self._base: Optional[Stepper] = None
+        self._played: Optional[_Played] = None
         self.attach(env, None)
 
     def attach(self, env: SteppedEnv, waiting: Optional[Waiting]) -> None:
@@ -145,20 +163,13 @@ class Stepper:
         env.stepper = self
         env.world.chance_picker = self._pick if self.explicit else None
 
-    def _twin(self) -> "Stepper":
-        twin = Stepper.__new__(Stepper)
-        twin.controlled, twin.explicit, twin.prefetch = self.controlled, self.explicit, self.prefetch
-        twin._env, twin._waiting, twin._at_chance, twin._chosen = None, None, None, []
-        twin._reader, twin._chance_pause = None, None
-        return twin
-
     # -- what it waits for ----------------------------------------------------------------------------
 
     @property
     def pause(self) -> Optional[Pause]:
         if self._at_chance is not None:
             if self._chance_pause is None:
-                self._chance_pause = self._at_chance.pause
+                self._chance_pause = Pause("chance", node=self._at_chance.node)
             return self._chance_pause
         return self._waiting.pause if self._waiting is not None else None
 
@@ -175,9 +186,11 @@ class Stepper:
             return fn(env)
 
     def read_prefetched(self) -> Any:
-        """``prefetch(env)`` now: evaluated at the chance node this run waits at, else directly."""
-        if self._at_chance is None or self.prefetch is None:
-            return self.read(self.prefetch) if self.prefetch is not None else None
+        """``prefetch(env)`` now: as evaluated at the chance node this run waits at, else directly."""
+        if self.prefetch is None:
+            return None
+        if self._at_chance is None:
+            return self.read(self.prefetch)
         value, error = self._at_chance.prefetched
         if error is not None:
             raise error
@@ -187,13 +200,13 @@ class Stepper:
 
     def start(self) -> None:
         """Run until the first decision or the end."""
-        self._decide(_Decision("start"))
+        self._play(_Decision("start"), ())
 
     def call(self, name: str, args: Any) -> Optional[ToolResult]:
         """A tool call in the waiting turn; None when it stopped at a chance node."""
         if self._waiting is None:
             raise RuntimeError(self._not_waiting("a tool call in a turn"))
-        return self._decide(_Decision("call", name, args))
+        return self._play(_Decision("call", name, args), ())
 
     def choose(self, index: int) -> Optional[ToolResult]:
         """The outcome of the chance node the run waits at; the result of the call it completes, if any."""
@@ -201,27 +214,43 @@ class Stepper:
         if at is None:
             raise RuntimeError(self._not_waiting("a chance outcome"))
         twin = at.before.clone()
-        result = twin._play(at.decision, at.before, at.chosen + (index,))
+        result = twin._play(at.decision, at.chosen + (index,))
         self._take(twin)
         return result
 
-    def _decide(self, decision: _Decision) -> Optional[ToolResult]:
-        before = self.clone() if self.explicit else None
-        return self._play(decision, before, ())
-
-    def _play(self, decision: _Decision, before: Optional["Stepper"], chosen: Tuple[int, ...]) -> Optional[ToolResult]:
+    def _play(self, decision: _Decision, chosen: Tuple[int, ...]) -> Optional[ToolResult]:
+        if self.frozen:
+            raise RuntimeError("a frozen run is only copied, never played on")
         self._chosen = list(chosen)
+        result: Optional[ToolResult] = None
         try:
             if decision.kind == "start":
                 self._advance()
-                return None
-            return self._call_now(decision.name, decision.args)
+            else:
+                result = self._call_now(decision.name, decision.args)
         except _ChanceWanted as wanted:
-            assert before is not None
             self._env, self._waiting = None, None
-            self._at_chance = _AtChance(before, decision, chosen, wanted.node, wanted.tape, wanted.turn_count,
+            self._at_chance = _AtChance(self._before(), decision, chosen, wanted.node, wanted.tape, wanted.turn_count,
                                         wanted.prefetched)
             return None
+        if self.explicit:
+            self._played = _Played(self._played, decision, chosen)
+        return result
+
+    def _before(self) -> "Stepper":
+        """The run as it was before its latest decision, rebuilt from its base, frozen."""
+        assert self._base is not None
+        played: List[_Played] = []
+        step = self._played
+        while step is not None:
+            played.append(step)
+            step = step.previous
+        run = self._base.clone()
+        for step in reversed(played):
+            run._play(step.decision, step.chosen)
+            assert run._at_chance is None, "a decision played again with its chosen outcomes stopped at a chance node"
+        run.frozen = True
+        return run
 
     def _call_now(self, name: str, args: Any) -> ToolResult:
         env, waiting = self._run(), self._waiting
@@ -260,10 +289,11 @@ class Stepper:
         self._ended()
 
     def _ended(self) -> None:
-        """What a run's session does when it ends (its result is taken, as ``Env.run`` returns it)."""
+        """What a run's session does when it ends."""
         env = self._run()
         env._flush_events()
-        env.result()
+        if self.settles:
+            env.result()
 
     def _pick(self, node: ChanceNode) -> int:
         env = self._run()
@@ -287,10 +317,13 @@ class Stepper:
         """An independent copy at this same moment."""
         from .run_copy import copy_run
 
-        twin = self._twin()
+        twin = Stepper.__new__(Stepper)
+        twin.__dict__.update(self.__dict__)
+        twin._reader, twin._chance_pause, twin._chosen, twin.frozen = None, None, [], False
+        if self.frozen:
+            twin._base, twin._played = self, None
         if self._at_chance is not None:
-            twin._at_chance = self._at_chance  # never played on, so shared
-            return twin
+            return twin  # the run it rebuilds from is never played on, so it is shared
         env, waiting = copy_run(self._run(), self._waiting)
         twin.attach(env, waiting)
         return twin
@@ -298,6 +331,7 @@ class Stepper:
     def _take(self, other: "Stepper") -> None:
         self.close()
         self._at_chance, self._chance_pause = other._at_chance, None
+        self._base, self._played = other._base, other._played
         if other._env is not None:
             self.attach(other._env, other._waiting)
         else:

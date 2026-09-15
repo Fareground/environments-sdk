@@ -70,7 +70,9 @@ class Game:
         #: How a state reads every seat's return; also read ahead at chance nodes when no randomness is drawn.
         self._returns_of: Callable[[Any], Dict[str, float]] = \
             lambda env: seat_returns(self.contract, env.world, players_now)
-        self._prefetch = self._returns_of if _returns_are_fixed(self.contract) else None
+        spec = self.contract.game
+        declared = spec is not None and spec.returns is not None
+        self._prefetch = self._returns_of if declared and not _draws(self.contract, [spec.returns]) else None
         #: Whether states are stepped on the caller's thread (see :mod:`.runs`), and the stepped run they copy.
         self._stepped = can_step(self)
         self._template: Optional[Stepper] = None
@@ -140,9 +142,13 @@ class Game:
     def _stepper(self) -> Stepper:
         """The stepped run, not yet started, that every stepped initial state is a copy of."""
         if self._template is None:
-            root = self._root
+            root, contract = self._root, self.contract
             env = fresh_copy(root, root.origin.base, self._others, SteppedEnv)
-            self._template = Stepper(env, self.players, self.chance == "explicit", self._prefetch)
+            seats = [text for text in (contract.game.returns, contract.game.seat) if text] if contract.game else []
+            measured = [spec.expr for spec in contract.outputs.values()] + seats  # what taking a result evaluates
+            self._template = Stepper(env, self.players, self.chance == "explicit", self._prefetch,
+                                     settles=_draws(contract, measured))
+            self._template.frozen = True
         return self._template
 
     def _piloted_start(self) -> ThreadedRun:
@@ -203,24 +209,22 @@ class Game:
         return f"<Game {self.id}: {self.num_players()} seats, {self.num_distinct_actions()} actions>"
 
 
-def _returns_are_fixed(contract: Contract) -> bool:
-    """Whether the declared returns can be read without drawing randomness (so reading them ahead changes nothing)."""
+def _draws(contract: Contract, texts: Sequence[str]) -> bool:
+    """Whether evaluating any of ``texts`` may draw randomness (a random function, directly or through a def): reading
+    what does not draw changes nothing, so it may be read ahead, or skipped when nobody reads it."""
     from ..describe.walk import calls, random_functions
 
-    spec = contract.game
-    if spec is None or spec.returns is None:
-        return False
-    drawing, texts = random_functions(), [spec.returns]
+    drawing, pending = random_functions(), list(texts)
     seen: Set[str] = set()
-    while texts:
-        called = calls(texts.pop())
+    while pending:
+        called = calls(pending.pop())
         if called & drawing:
-            return False
+            return True
         for name in called - seen:
             seen.add(name)
             if name in contract.defs:
-                texts.append(contract.defs[name].expr)
-    return True
+                pending.append(contract.defs[name].expr)
+    return False
 
 
 def game(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, seed: int = 0, arm: Optional[str] = None,
