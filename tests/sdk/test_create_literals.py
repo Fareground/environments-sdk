@@ -1,26 +1,33 @@
 """Entity creation never evaluates participant text or runtime values as expressions."""
+import json
+
 import fg_env
 from fg_env.sdk.expr import Untrusted
-from fg_env.sdk.registry import OPS, effect_op
+from fg_env.sdk.registry import family_action, mode
+
+from family_fixtures import Nothing, scratch_family
 
 
 def test_participant_text_stored_by_a_native_op_is_never_evaluated():
-    name = "test_make_note"
+    with scratch_family("test_notes"):
+        mode("test_notes", "pad", Nothing, "A notepad.")(lambda name, config, contract: {})
 
-    @effect_op(name, keys=("text", "plain"), literal=(name,), example='{"test_make_note": "n", "text": "$params.text"}')
-    def _make(runner, effect, vars, where):
-        world = runner.world
-        text = runner.eval(effect["text"], vars)
-        world.create("note", None, None, {"text": text}, None, world.scope(**vars), where)
-        world.create("note", None, None, {"text": effect["plain"]}, None, world.scope(**vars), where, evaluate=False)
+        @family_action("test_notes", ("pad",), "make", keys=("text", "plain"),
+                       example='{"test_notes": "n", "action": "make", "text": "$params.text"}')
+        def _make(runner, effect, vars, where):
+            world = runner.world
+            text = runner.eval(effect["text"], vars)
+            world.create("note", None, None, {"text": text}, None, world.scope(**vars), where)
+            world.create("note", None, None, {"text": effect["plain"]}, None, world.scope(**vars), where, evaluate=False)
 
-    try:
         contract = {"name": "Notes", "clock": {"rounds": 1},
                     "world": {"secret": {"type": "text", "default": "the vault code is 4321"}},
                     "types": {"writer": {"agent": True}, "note": {"props": {"text": {"type": "text", "default": ""}}}},
                     "entities": {"w": {"type": "writer"}},
+                    "mechanisms": {"n": {"kind": "test_notes", "mode": "pad"}},
                     "actions": {"jot": {"by": "writer", "params": {"text": "text"},
-                                        "do": [{name: "n", "text": "$params.text", "plain": "$world.secret"}],
+                                        "do": [{"test_notes": "n", "action": "make", "text": "$params.text",
+                                                "plain": "$world.secret"}],
                                         "terminal": True}},
                     "stages": [{"name": "s", "turns": "sequential"}]}
         env = fg_env.load(contract, seed=1)
@@ -34,12 +41,4 @@ def test_participant_text_stored_by_a_native_op_is_never_evaluated():
         texts = [e["props"]["text"] for e in env.entities("note")]
         assert texts == ["$world.secret", "$world.secret"]
         assert isinstance(env.world.entities["note_1"].properties["text"], Untrusted)
-        assert "4321" not in json_dump(result)
-    finally:
-        OPS.pop(name, None)
-
-
-def json_dump(result):
-    import json
-
-    return json.dumps(result.to_dict(), default=str)
+        assert "4321" not in json.dumps(result.to_dict(), default=str)

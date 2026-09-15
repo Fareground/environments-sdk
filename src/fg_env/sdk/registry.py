@@ -308,11 +308,32 @@ def _family_op(spec: FamilySpec) -> OpSpec:
         assert chosen is not None
         missing = [key for key in chosen.required if key not in effect]
         if missing:
-            raise RunError(f"`{name}` action '{effect['action']}' needs {', '.join(f'`{k}`' for k in missing)}", where)
-        chosen.run(runner, effect, vars, where)
+            raise RunError(f"`{chosen.name}` needs {', '.join(f'`{k}`' for k in missing)}", where)
+        try:
+            chosen.run(runner, effect, vars, where)
+        except _engine_errors():
+            raise
+        except Exception as exc:  # the action crashed: its fault at this path, never the participant's
+            raise RunError(f"`{chosen.name}` failed: {type(exc).__name__}: {exc}", where) from exc
 
     example = f'{{"{name}": "<mechanism>", "action": "<action>", ...}}  (see guide("{name}"))'
     return replace(OpSpec(name, tuple(keys), run, example), literal=(name, "action"), select=select)
+
+
+_ENGINE_ERRORS: Tuple[Type[BaseException], ...] = ()
+
+
+def _engine_errors() -> Tuple[Type[BaseException], ...]:
+    """Errors an action raises on purpose (a refusal, a contract error), passed on unchanged; resolved once, late,
+    because the modules defining them import this registry."""
+    global _ENGINE_ERRORS
+    if not _ENGINE_ERRORS:
+        from .errors import RunError
+        from .expr import ExprError
+        from .world import Abort
+
+        _ENGINE_ERRORS = (Abort, RunError, ExprError, ArithmeticError)
+    return _ENGINE_ERRORS
 
 
 def renamed_op_hint(keys: Any) -> Optional[str]:
