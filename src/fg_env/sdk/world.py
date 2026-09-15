@@ -227,11 +227,11 @@ class SdkWorld(World):
         self._physics_view = _Physics(self)
         self._clock_view = _Clock(self)
         self._type_props = {t: contract.props_of(t) for t in contract.types}
-        #: Results of pure defs for the current world state (see :meth:`call_def`).
+        #: Def results for the current world state (see :meth:`call_def`).
         self._def_cache: Dict[Any, Any] = {}
         self._def_cache_state: Any = None
+        self._def_cache_on = False
         #: Empty while the world is being built (build writes state outside the journal).
-        self._pure_defs: frozenset = frozenset()
         self._subtypes = {t: set(contract.subtypes(t)) for t in contract.types}
 
     # -- randomness --------------------------------------------------------------
@@ -240,11 +240,16 @@ class SdkWorld(World):
     def rng(self) -> Any:
         """The random stream for the current context: a turn's own stream while an agent's turn
         runs (so concurrent turns never race for draws), otherwise the run's main stream."""
+        self._local.draws = getattr(self._local, "draws", 0) + 1
         return getattr(self._local, "rng", None) or self._rng
 
     @rng.setter
     def rng(self, value: Any) -> None:
         self._rng = value
+
+    def draws(self) -> int:
+        """How many times this thread has used a random stream: equal counts mean nothing random was drawn."""
+        return getattr(self._local, "draws", 0)
 
     def use_turn_rng(self, rng: Any) -> None:
         self._local.rng = rng
@@ -329,7 +334,7 @@ class SdkWorld(World):
             raise ExprError(f"${name} takes {len(spec.args)} argument(s) ({', '.join(spec.args) or 'none'}), got {len(args)}", source)
         key = self._def_key(name, args)
         if key is not None:
-            state = self._state_version()
+            state = self.state_version()
             if state != self._def_cache_state:
                 self._def_cache, self._def_cache_state = {}, state
             elif key in self._def_cache:
@@ -338,30 +343,34 @@ class SdkWorld(World):
         if depth >= 32:
             raise ExprError(f"${name}: defs call each other too deeply (recursion?)", source)
         self._local.depth = depth + 1
+        drawn = self.draws()
         try:
             value = compile_expr(spec.expr)(self.scope(**dict(zip(spec.args, args))))
         finally:
             self._local.depth = depth
-        if key is not None and self._state_version() == state and isinstance(value, _CACHEABLE):
+        # A call that drew a random number is never reused; with the same state and arguments a call that
+        # drew nothing takes the same path again, so its value is exactly what a fresh call would return.
+        if key is not None and self.draws() == drawn and self.state_version() == state and isinstance(value, _CACHEABLE):
             self._def_cache[key] = value
         return value
 
     def enable_def_cache(self) -> None:
-        """Start caching pure def results; called once the world is built."""
-        self._pure_defs = _pure_defs(self.contract)
+        """Start caching def results; called once the world is built."""
+        self._def_cache_on = True
         self.touch()
 
     def touch(self) -> None:
         """Record a change made outside the journal (metrics sampling, physics), so cached reads refresh."""
         self.journal.version += 1
 
-    def _state_version(self) -> Any:
+    def state_version(self) -> Any:
+        """Equal values mean nothing a read could see has changed (for caches of derived values)."""
         pending = getattr(self._local, "pending", None)
-        return (self.journal.version, self.round, self.stage, id(pending), len(pending or ()))
+        return (self.journal.version, self.round, self.stage, self.time, id(pending), len(pending or ()))
 
     def _def_key(self, name: str, args: List[Any]) -> Optional[Tuple[Any, ...]]:
-        """A cache key for a pure def call, or None when the call cannot be cached."""
-        if name not in self._pure_defs:
+        """A cache key for a def call, or None when the call cannot be cached."""
+        if not self._def_cache_on:
             return None
         parts: List[Any] = [name]
         for arg in args:
@@ -867,31 +876,8 @@ class SdkWorld(World):
 # ---------------------------------------------------------------------------
 
 
-#: Functions that draw random numbers: a def using one (directly or through another def) is never cached.
-_RANDOM_FUNCTIONS = frozenset({"random", "chance", "uniform", "randint", "normal", "lognormal", "beta",
-                               "exponential", "poisson", "choice", "sample", "shuffle"})
-
 #: Def results that are immutable, so a cached value can be handed out again safely.
 _CACHEABLE = (int, float, bool, str, type(None), Entity)
-
-
-def _pure_defs(contract: Contract) -> frozenset:
-    """Defs whose value depends only on their arguments and the world state (no random draws)."""
-    uses: Dict[str, frozenset] = {}
-    for name, spec in contract.defs.items():
-        try:
-            uses[name] = compile_expr(spec.expr).functions
-        except ExprError:
-            uses[name] = frozenset(_RANDOM_FUNCTIONS)  # reported by the checker; never cached
-    impure = {name for name, fns in uses.items() if fns & _RANDOM_FUNCTIONS}
-    changed = True
-    while changed:
-        changed = False
-        for name, fns in uses.items():
-            if name not in impure and fns & impure:
-                impure.add(name)
-                changed = True
-    return frozenset(uses) - impure
 
 
 def _short(value: Optional[float]) -> str:
