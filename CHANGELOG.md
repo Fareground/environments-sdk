@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Tournaments** (`fg_env.tournament(contract, entrants={name: participant})`, `fg-env tournament`): round
+  robin, all-play-all (every seat order) or Swiss pairing; entrants rotate through every seat and game *g*
+  replays the same seed at every table (duplicate deals). Games are scored by the winner, an output, an
+  expression over `$outputs` and `$seat`, or a function. Standings carry maximum-likelihood Elo with 95%
+  intervals, Glicko-2, win/draw/loss, points and score means; `evaluation` adds the margin matrix, the
+  maximum-entropy Nash average, α-Rank and a Schulze vote. The result also has head-to-head records, every
+  entrant's score in every seat, and cost per entrant (turns, calls, invalid calls, model tokens).
+- **Per-agent run statistics**: `RunResult.agent_stats` splits `stats` by agent entity id (turns, calls,
+  invalid calls, committed actions, model usage), and snapshots keep the split.
+- `Job.participants`: a job in `run_jobs` can carry its own participants; participants given by name still
+  run in worker processes.
 - **Linear algebra in expressions**: `$dot`, `$matmul`, `$transpose`, `$identity`, `$inverse`, `$det`
   (exact for whole numbers) and `$solve` on nested lists, with errors that name the bad shape or a
   singular matrix, and work charged against the evaluation budget.
