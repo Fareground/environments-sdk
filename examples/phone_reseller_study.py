@@ -9,6 +9,22 @@
 The truth arm runs a year of daily trade with day-to-day repricing (so the markup's effect can be estimated) and the
 2026 launch, recording every item's day per channel and every lot bought — a reseller's marketplace and purchase
 exports. The retail and wholesale demand, the markup elasticity and the lead-time spread are fitted from them.
+
+Why the held-out forecasts run low. Refit on the first nine months, the model forecast the last three held-out
+four-week periods about 10% low, and its per-channel 80% ranges held 2 of 6 values. Three causes, measured against
+the truth arm's own parameters on the same cases:
+
+* Fitting (fixed). A stockout row means demand went unmet, so demand was more than what sold; the fit read it as "at
+  least what sold", so a slow line's empty-shelf days added nothing back and each channel's fitted demand came out
+  2–4% low. Now read as "more than", the channel totals sit within their standard errors of the truth.
+* Ranges (fixed here). Validating with the fitted priors draws only the number parameters, leaving every item's
+  demand scale at its estimate, so a channel's total carried none of the sixteen scales' uncertainty. The cases now
+  draw every fitted parameter per run (``parameter_uncertainty`` 1): held-out channel ranges hold 5 of 6 values, and
+  92% over every case.
+* The held-out months themselves (not a defect). Forecast with the truth's own parameters, the thirteen cases are
+  unbiased (+0.3%), yet the three held-out periods sold about 6% more than even the truth expects — retail 796 against
+  738 — which is chance in the generated history. Three periods are thin evidence either way, and the report says so
+  as a bias the owner should allow for rather than hide.
 """
 from __future__ import annotations
 
@@ -111,14 +127,15 @@ def validation_cases(sales: list, lots: list, weeks: int = 4) -> list:
             by_channel[row["segment"]] = by_channel.get(row["segment"], 0) + row["units"]
         cases.append({"name": first, "inputs": {"start": first, "days": 7 * weeks, "opening_stock": opening,
                                                 "opening_orders": on_the_way, "markup_wiggle": 0.1,
-                                                "new_launch": True, "parameter_uncertainty": 0},
+                                                "new_launch": True, "parameter_uncertainty": 1},
                       "actuals": {"sales_sold_by_group": by_model, "sales_sold_by_segment": by_channel}})
         start += timedelta(weeks=weeks)
     return cases
 
 
 def validation(runs: int = 20) -> ValidationResult:
-    """Refit on the first nine months and forecast every four weeks, drawing the fitted parameters from their priors."""
+    """Refit on the first nine months and forecast every four weeks, every fitted parameter (item demand scales
+    included) drawn per run by the contract, so a channel's range carries what the history cannot pin down."""
     loaded = fg_env.load(CONTRACT, seed=0).inputs
     sales, lots = loaded["history"], loaded["orders"]
     fitted = fg_env.fit_patterns(CONTRACT, inputs={"history": [r for r in sales if r["time"] < HELD_OUT.isoformat()],
@@ -126,7 +143,7 @@ def validation(runs: int = 20) -> ValidationResult:
     cases = validation_cases(sales, lots)
     held_out = [case["name"] for case in cases if case["name"] >= HELD_OUT.isoformat()]
     return fg_env.validate(fitted.contract, cases, runs=runs, season=13, test=held_out, rounds=28, data_dir=FOLDER.parent,
-                           uncertainty=fitted.priors, workers=WORKERS)
+                           workers=WORKERS)
 
 
 def validate(runs: int = 20) -> None:

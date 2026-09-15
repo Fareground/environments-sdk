@@ -163,6 +163,8 @@ class PatternRuntime:
         self.world = world
         self.configs = parsed_patterns(world.contract.patterns)
         self.view = PatternsView(self)
+        #: Read every parameter at its estimate: no draws from its standard error (see :meth:`at_estimates`).
+        self.estimates = False
         self._params: Dict[Tuple[str, Optional[str], str], Any] = {}
         self._rows: Dict[str, Dict[str, Mapping[str, Any]]] = {}
         self._keys: Dict[str, List[str]] = {}
@@ -235,6 +237,12 @@ class PatternRuntime:
 
     # -- parameters, keys and rows ---------------------------------------------------------
 
+    def at_estimates(self) -> None:
+        """From now on read every parameter at its estimate, forgetting any draw already made — to tell what a fitted
+        pattern does, not what one run's draw of it did."""
+        self.estimates = True
+        self._params.clear()
+
     def param(self, name: str, key: Optional[str], field: str, source: str, depth: int = 0) -> Any:
         cache = (name, key, field)
         if cache in self._params:
@@ -249,7 +257,7 @@ class PatternRuntime:
                 value = resolve(raw, Scope(roots, self.world))
             except ExprError as exc:
                 raise ExprError(f"patterns.{name}.{field}: {exc.detail}", source) from None
-        if field in self.configs[name].uncertainty:
+        if field in self.configs[name].uncertainty and not self.estimates:
             value = self._uncertain(name, key, field, value, source, depth)
         self._params[cache] = value
         return value

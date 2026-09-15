@@ -186,7 +186,48 @@ class QueueView:
                     f"customers: of the {row['total']:,.0f} expected, " + ", ".join(told) + ".")
         return None
 
-    def assumptions(self) -> List[str]:
+    def horizon_driver(self, option: Option, contract: Any) -> Optional[str]:
+        """What each factor of the product patterns its arrivals read adds over the whole run: the day of the week, and
+        time of day at its busiest and quietest (see :mod:`.pattern_effects`)."""
+        run = option.runs[0] if option.runs else None
+        if contract is None or run is None or self.clock.get("mode", "rounds") != "rounds":
+            return None
+        from ..patterns.decompose import decompose
+        from .pattern_effects import Effects, clauses, factor_of
+
+        for channel, spec in (self.config.get("channels") or {}).items():
+            for pattern in dict.fromkeys(_PATTERN.findall(str(spec.get("arrivals", "")) if isinstance(spec, Mapping) else "")):
+                raw = contract.patterns.get(pattern) or {}
+                if raw.get("kind") != "product" or raw.get("keys") or raw.get("table"):
+                    continue
+                rows = decompose(contract, pattern, rounds=list(range(1, self.rounds + 1)), inputs=run.inputs,
+                                 seed=run.seed, estimates=True).rows
+                factors = {name: factor_of(contract, name) for name in rows[0]["factors"]} if rows else {}
+                effects = Effects()
+                for index, row in enumerate(rows):
+                    slots = {name: self._slot(name, contract, row, index) for name, f in factors.items() if f.how == "calendar"}
+                    effects.add(index + 1, float(row["total"]), {n: float(v) for n, v in row["factors"].items()}, slots)
+                told = clauses(effects, factors, unit_word(self.clock), f"{self.rounds} {plural(unit_word(self.clock), 2)}")
+                if told:
+                    return (f"Over the day, of about {effects.amount:,.0f} expected {channel.replace('_', ' ')}: "
+                            + "; ".join(told.values()) + ".")
+        return None
+
+    def _slot(self, pattern: str, contract: Any, row: Mapping[str, Any], index: int) -> Tuple[str, str]:
+        if (contract.patterns.get(pattern) or {}).get("period") == "week" and row.get("date"):
+            import datetime as _dt
+
+            day = _dt.date.fromisoformat(str(row["date"])[:10]).strftime("%A")
+            return day, f"on {day}s"
+        label = self.when(index, index)
+        return label, f"at {label}"
+
+    def assumptions(self, owner: bool = False) -> List[str]:
+        """How the queue behaves, in the reader's words; the analyst also reads each duration's distribution."""
+        return [re.sub(r" \((?:exponential|lognormal|gamma|normal|uniform|erlang)\)", "", text) if owner else text
+                for text in self._assumed()]
+
+    def _assumed(self) -> List[str]:
         out = []
         for name, channel in (self.config.get("channels") or {}).items():
             if not isinstance(channel, Mapping):
