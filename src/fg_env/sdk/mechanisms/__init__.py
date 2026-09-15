@@ -138,3 +138,4 @@ def _canonical(value: Any) -> str:
 
 
 from . import voting  # noqa: E402,F401  (registers the built-in mechanisms)
+from . import judging, memory  # noqa: E402,F401  (host-evaluated intelligence: judges, game masters, memory, host tools)
