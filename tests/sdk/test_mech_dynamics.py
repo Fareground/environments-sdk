@@ -817,7 +817,7 @@ def test_guide_documents_the_new_kinds_and_functions():
 # Acceptance examples
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("name", ["dungeon_skirmish", "civil_trial_procedure", "epidemic_shocks"])
+@pytest.mark.parametrize("name", ["dungeon_skirmish", "civil_trial", "epidemic_shocks"])
 def test_acceptance_examples_check_run_and_resume(name):
     path = EXAMPLES / f"{name}.json"
     assert _errors(path) == []
@@ -840,14 +840,8 @@ def test_dungeon_skirmish_uses_every_tactical_family():
     assert result.status in ("completed", "ended"), result.error
 
 
-def _content_size(path):
-    """Bytes of the contract as data (minified), so nesting depth does not count as size."""
-    return len(json.dumps(json.loads(path.read_text()), separators=(",", ":"), ensure_ascii=False))
-
-
-def test_civil_trial_procedure_reaches_a_verdict_and_is_smaller():
-    procedure = EXAMPLES / "civil_trial_procedure.json"
-    assert _content_size(procedure) < _content_size(EXAMPLES / "civil_trial.json")
+def test_civil_trial_procedure_reaches_a_verdict():
+    procedure = EXAMPLES / "civil_trial.json"
     result = fg_env.load(procedure, seed=2).run()
     assert result.status == "ended", result.error
     assert result.outputs["verdict"] in ("liable", "not_liable", "hung")

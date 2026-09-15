@@ -61,6 +61,13 @@ def test_an_unknown_part_suggests_the_closest_one():
         guide("action")
 
 
+def test_cli_guide_prints_a_part_and_suggests_one_for_a_typo(capsys):
+    assert main(["guide", "actions"]) == 0
+    assert capsys.readouterr().out.startswith("## `actions`:")
+    assert main(["guide", "actoins"]) == 1
+    assert "did you mean 'actions'" in capsys.readouterr().err
+
+
 def test_section_pages_list_the_roots_available_there():
     actions = guide("actions")
     assert actions.startswith("## `actions`:") and "| params.*.where | $actor $it $i $params" in actions

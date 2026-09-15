@@ -208,13 +208,15 @@ PATTERNS = """\
 * Markets / order books: orders as entities (`create` with side, price, qty, owner); an end-phase
   event matches with `repeat` while best bid ≥ best ask using `$top`/`$bottom`; trades update
   holdings and `remove` filled orders.
-* Voting / ballots: a simultaneous stage with a `vote` action writing `$actor.vote`; an
-  `on_exit` effect tallies with `$mode($map(voter, $it.vote))` or `$count(voter, $it.vote == yes)`.
+* Voting: the `decision` family — `{"kind": "decision", "mode": "ballot", "who": "voter", "options": [...]}` adds
+  the vote tools, a sealed stage and the tally (`$world.<name>_result.winner`); `mode: deliberation` adds motions
+  and debate (guide('decision.ballot')).
 * Deliberation: records (`chat`) + a sequential stage with `until: "$all(member, $it.ready)"`
   and `quiet: skip`; a `say` action posts and clears readiness.
-* Hidden roles: a world prop `deck` defaulting to `$shuffle([wolf, wolf, seer, villager, ...])`, then
-  `population` props `{"role": "$world.deck[$i - 1]"}` and a private per-entity
-  `brief: "You are a {$actor.role}."`; gate actions with `when: "$actor.role == wolf"`.
+* Hidden roles: the `groups` family — `{"kind": "groups", "mode": "roles", "who": "player", "deck": {"werewolf": 2,
+  "villager": "rest"}, "teams": {...}, "know": [...]}` deals private roles, tells teammates, gates role actions and
+  eliminates and reveals players (guide('groups.roles')). An entity's built-in `alive` turns false only when it is
+  removed; a player the mechanism eliminates stays in the world with its `living` prop false.
 * Hidden information: `private` props (hidden from others' inspect), per-type views, record
   `visible` rules, `to` on posts/emits, `private: true` actions (no announcement).
 * Spaces (agent-based models): `"space": {"grid": {"rows": "$inputs.size", "cols": "$inputs.size",

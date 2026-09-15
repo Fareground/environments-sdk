@@ -20,14 +20,14 @@ import json
 import re
 import typing
 from difflib import get_close_matches
-from typing import Any, Dict, List, Mapping, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 from pydantic import BaseModel, ValidationError
 
 from ..errors import Issue
 from ..registry import FAMILIES, RENAMED_KINDS, MechanismError, config_data
 
-__all__ = ["expand_mechanisms", "merge_sections", "FAMILIES"]
+__all__ = ["expand_mechanisms", "merge_sections", "generated_summary", "FAMILIES"]
 
 _NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
 
@@ -52,8 +52,11 @@ _ACTOR_WORDS = frozenset({"by", "of", "among", "voter", "voters", "bidder", "bid
 MAX_MECHANISMS = 256
 
 
-def expand_mechanisms(data: Mapping[str, Any]) -> Tuple[Dict[str, Any], List[Issue]]:
-    """The contract with every declared mechanism expanded, plus any problems with their configs."""
+def expand_mechanisms(data: Mapping[str, Any], generated: Optional[Dict[str, Dict[str, List[str]]]] = None
+                      ) -> Tuple[Dict[str, Any], List[Issue]]:
+    """The contract with every declared mechanism expanded, plus any problems with their configs.
+
+    With ``generated``, each use's entry lists the names it added, by section (see :func:`_added`)."""
     uses = data.get("mechanisms")
     if not uses:
         return dict(data), []
@@ -71,8 +74,60 @@ def expand_mechanisms(data: Mapping[str, Any]) -> Tuple[Dict[str, Any], List[Iss
             break
         for name, use in todo:
             expanded.append(name)
+            before = _names(out) if generated is not None else {}
             issues.extend(_expand_one(out, name, use))
+            if generated is not None:
+                generated[str(name)] = _added(before, _names(out))
     return out, issues
+
+
+#: Sections whose entries have names (``stages`` by each stage's name).
+_NAMED = ("actions", "stages", "views", "records", "world", "metrics", "outputs", "defs", "blocks", "types", "entities")
+#: Sections of unnamed items, reported by how many were added.
+_COUNTED = ("events", "triggers", "end", "invariants", "population", "links")
+
+
+def _names(data: Mapping[str, Any]) -> Dict[str, List[str]]:
+    out: Dict[str, List[str]] = {}
+    for section in _NAMED:
+        value = data.get(section)
+        if section == "stages" and isinstance(value, list):
+            out[section] = [str(s.get("name")) for s in value if isinstance(s, Mapping)]
+        elif isinstance(value, Mapping):
+            out[section] = [str(key) for key in value]
+    for section in _COUNTED:
+        value = data.get(section)
+        out[section] = [""] * len(value) if isinstance(value, list) else []
+    return out
+
+
+def _added(before: Mapping[str, List[str]], after: Mapping[str, List[str]]) -> Dict[str, List[str]]:
+    """Names new in ``after``, by section; unnamed sections give one empty name per added item."""
+    added: Dict[str, List[str]] = {}
+    for section, names in after.items():
+        old = before.get(section, [])
+        new = names[len(old):] if section in _COUNTED else [n for n in names if n not in set(old)]
+        if new:
+            added[section] = new
+    return added
+
+
+def generated_summary(data: Mapping[str, Any]) -> List[str]:
+    """One compact line per declared mechanism naming what it generated, e.g.
+    ``sale (market.auction): actions sale_bid · stages sale · outputs sale_sold, sale_revenue · 2 events``."""
+    uses = data.get("mechanisms")
+    if not isinstance(uses, Mapping) or not uses:
+        return []
+    generated: Dict[str, Dict[str, List[str]]] = {}
+    expand_mechanisms(data, generated)
+    lines = []
+    for name, parts in generated.items():
+        use = (data.get("mechanisms") or {}).get(name)
+        label = f"{use.get('kind')}.{use.get('mode')}" if isinstance(use, Mapping) and use.get("mode") else "generated"
+        shown = [f"{section} {', '.join(names)}" if section in _NAMED else f"{len(names)} {section}"
+                 for section, names in parts.items()]
+        lines.append(f"{name} ({label}): {' · '.join(shown) or 'extends declared parts only'}")
+    return lines
 
 
 def _expand_one(out: Dict[str, Any], name: Any, use: Any) -> List[Issue]:

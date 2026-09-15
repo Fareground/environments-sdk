@@ -625,7 +625,7 @@ def test_no_player_ever_sees_another_players_hidden_cards(seed):
 
 @pytest.mark.parametrize("seed", range(1, 5))
 def test_no_player_learns_a_hidden_role_before_it_is_revealed(seed):
-    env = fg_env.load(EXAMPLES / "werewolf_roles.json", seed=seed)
+    env = fg_env.load(EXAMPLES / "werewolf.json", seed=seed)
     spy = Spy(env, seed, _hidden_roles)
     result = env.run(spy)
     assert result.status in ("completed", "ended"), result.error

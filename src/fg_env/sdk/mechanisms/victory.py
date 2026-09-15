@@ -84,7 +84,8 @@ class VictoryConfig(Config):
     """How players win, lose or end with no winner."""
 
     who: str = Field(..., description="The type whose members can win (subtypes included).")
-    alive: str = Field("true", description="Who is still in ($it), e.g. $it.hp > 0.")
+    alive: str = Field("true", description="Who is still in ($it), e.g. $it.hp > 0 — any condition, not only the "
+                                           "built-in `alive` (false once an entity is removed).")
     conditions: List[VictoryCondition] = Field(
         ..., min_length=1,
         description="Tried in order; each one of {first_to + score}, {most, at}, {last_standing: true}, {last_team}, "

@@ -1,7 +1,7 @@
 {
-  "actions": 15,
-  "events": 19,
-  "events_sha256": "82c3fc24cd09ae81e14dc0733680d1d35c4af8e7bcdfe08ee20ad088193cbc57",
+  "actions": 14,
+  "events": 18,
+  "events_sha256": "68a5819996d4023a14769473b5a3225482f7301ad929b84c474bd981c3fccfc5",
   "metrics": {
     "admitted": 3,
     "excluded": 1,
@@ -9,5 +9,5 @@
   },
   "rounds": 4,
   "status": "running",
-  "wakes": 15
+  "wakes": 14
 }

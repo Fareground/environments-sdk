@@ -112,8 +112,21 @@ def cmd_check(args: argparse.Namespace) -> int:
         if errors:
             print(f"{errors} error(s)", file=sys.stderr)
         else:
+            _print_generated(args.file)
             print(_checked(args.file, args.rounds))
     return 1 if any(i.severity == "error" for i in issues) else 0
+
+
+def _print_generated(path: str) -> None:
+    """What each mechanism added to the contract, one line each (``fg-env expand --mechanisms`` shows all of it)."""
+    from .api import expand
+    from .mechanisms import generated_summary
+
+    lines = generated_summary(expand(path))
+    if lines:
+        print("mechanisms generated (fg-env expand --mechanisms shows them in full):")
+        for line in lines:
+            print(f"  {line}")
 
 
 def _checked(path: str, rounds: int) -> str:
@@ -183,6 +196,7 @@ def cmd_preview(args: argparse.Namespace) -> int:
     if args.json:
         print(json.dumps(view, indent=2, ensure_ascii=False))
         return 0
+    _print_generated(args.file)
     print("=== brief ===\n" + view["brief"])
     print("\n=== update ===\n" + view["update"])
     print("\n=== tools ===")
@@ -415,9 +429,9 @@ def add_commands(sub: Any) -> None:
     p.set_defaults(func=_guarded(cmd_expand))
 
     p = sub.add_parser("guide", help="print the core authoring guide, or one part of it (the core guide maps them)")
-    p.add_argument("part", nargs="?", help="one part: overview, model, reference, expressions, macros, functions, "
-                                           "templates, effects, patterns, mechanisms, running, checklist")
-    p.set_defaults(func=cmd_guide)
+    p.add_argument("part", nargs="?", help="a section (actions), topic (expressions), function group (functions.stats), "
+                                           "family (market) or mode (market.auction); all for everything")
+    p.set_defaults(func=_guarded(cmd_guide))
 
     p = sub.add_parser("schema", help="print the contract JSON Schema")
     p.set_defaults(func=cmd_schema)

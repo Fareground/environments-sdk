@@ -60,40 +60,39 @@ Python ≥ 3.11. The only runtime dependency is `pydantic`.
 
 ## Quickstart
 
+A whole environment — two players betting coins for 20 rounds:
+
 ```python
 import fg_env
 
 contract = {
-    "name": "Lemonade stand",
-    "brief": {"situation": "Two kids sell lemonade on a hot day.",
-              "rules": "Set your price each hour. Cheaper stands get more customers."},
-    "clock": {"rounds": 5, "unit": "hour"},
-    "types": {"seller": {"agent": True, "props": {"price": 1.0, "earned": 0}}},
-    "entities": {"ana": {"type": "seller", "name": "Ana"}, "ben": {"type": "seller", "name": "Ben"}},
-    "actions": {
-        "set_price": {"by": "seller", "description": "Set your price for this hour.",
-                      "params": {"price": {"type": "number", "min": 0.25, "max": 5}},
-                      "do": ["$actor.price = $params.price"], "terminal": True},
-    },
-    "stages": [{"name": "pricing", "turns": "simultaneous"}],
-    "events": [{"phase": "end", "each": "seller", "do": [
-        "$share = (1 / $it.price) / $sum(seller, 1 / $it.price)",
-        "$it.earned += $round(40 * $share) * $it.price"]}],
-    "views": {"market": {"for": "seller", "title": "Stands", "of": "seller",
-                         "show": "{name}: price {price|money}, earned {earned|money}"}},
-    "outputs": {"winner": {"expr": "$top(seller, $it.earned, 1)[0].name", "type": "text"}},
+    "name": "Coin flip",
+    "brief": {"rules": "Bet some coins each round. Heads you win that much, tails you lose it."},
+    "types": {"player": {"agent": True, "props": {"coins": 10}}},
+    "entities": {"ann": {"type": "player"}, "bob": {"type": "player"}},
+    "actions": {"bet": {"by": "player", "params": {"amount": {"type": "int", "min": 1, "max": "$actor.coins"}},
+                        "do": "$actor.coins += $params.amount if $chance(0.5) else -$params.amount"}},
+    "outputs": {"richest": "$best(player, $it.coins, 'random').name"},
 }
 
-result = fg_env.run(contract, seed=1)          # random agents; same seed, same run
-print(result.summary())
-print(result.outputs)                          # {'winner': 'Ben'} — typed, per the contract
+print(fg_env.check(contract))        # [] — every problem would come with its path and a fix
+result = fg_env.run(contract, seed=1)  # random agents; same seed, same run
+print(result.outputs)                  # typed, per the contract
+```
+
+Or start from a template and read the short core guide:
+
+```bash
+fg-env new game my_game.json    # blank, game, market, simulation or social — checks clean and runs
+fg-env check my_game.json       # static checks plus one played round
+fg-env guide                    # the core guide; it maps every other part: fg-env guide actions, fg-env guide market.auction
 ```
 
 What an agent receives on its turn:
 
 ```python
 env = fg_env.load(contract, seed=1)
-print(env.preview("ana"))    # {'brief': ..., 'update': ..., 'tools': [...], 'tokens': {...}}
+print(env.preview("ann"))    # {'brief': ..., 'update': ..., 'tools': [...], 'tokens': {...}}
 ```
 
 Run it with an LLM — pass your own client:
@@ -101,7 +100,7 @@ Run it with an LLM — pass your own client:
 ```python
 import anthropic
 claude = fg_env.participants.anthropic(anthropic.Anthropic(), "claude-sonnet-5")
-result = fg_env.run(contract, {"seller": claude}, seed=1)
+result = fg_env.run(contract, {"player": claude}, seed=1)
 ```
 
 Or with your own code. A participant is any function that takes a `Wake`:
@@ -109,11 +108,11 @@ Or with your own code. A participant is any function that takes a `Wake`:
 ```python
 def cautious(wake):
     print(wake.update)                                   # the same picture an LLM reads
-    result = wake.call("set_price", {"price": 9})        # out of range
-    print(result.text)                                   # "set_price was not done: price must be at most 5 (got 9). ..."
-    wake.call("set_price", {"price": max(0.25, wake.me["price"] - 0.25)})
+    result = wake.call("bet", {"amount": 99})            # out of range
+    print(result.text)                                   # "bet was not done: amount must be at most 10 (got 99). ..."
+    wake.call("bet", {"amount": 1})
 
-fg_env.run(contract, {"ana": cautious, "ben": claude}, seed=1)
+fg_env.run(contract, {"ann": cautious, "bob": claude}, seed=1)
 ```
 
 ## The contract
@@ -141,16 +140,20 @@ One small, strict expression language is used everywhere:
 `$top(offer, [$it.rating, -$it.price], 5)`. Unknown properties and type errors are reported with
 the fix; nothing silently evaluates to zero.
 
-The complete authoring guide is generated from the SDK itself, so it always matches the engine:
+The authoring guide is generated from the SDK itself, so it always matches the engine. `fg-env guide` prints the
+short core guide (enough for a first environment) with a map of every other part; `fg-env guide all` prints everything:
 
 ```bash
-fg-env guide            # or: python -c "import fg_env; print(fg_env.guide())"
+fg-env guide              # or: python -c "import fg_env; print(fg_env.guide())"
+fg-env guide stages       # one section's fields and the $roots available there
+fg-env guide market       # a mechanism family; fg-env guide market.auction for one mode
 ```
 
 ## Tooling
 
 ```bash
 fg-env check shop.json                    # every problem with its path and a fix, plus a smoke round
+fg-env expand shop.json --mechanisms       # the contract with every mechanism expanded into plain sections
 fg-env preview shop.json shopper_1        # exactly what that agent reads, its tools, token estimates
 fg-env preview shop.json shopper_1 --rounds 5 --agent shopper=policy:thrifty
 fg-env run shop.json --seed 1 --input budget=50 --agent shopper=policy:thrifty --json

@@ -40,7 +40,8 @@ class RolesConfig(BaseModel):
         ..., description="{role: count}; a count may be an expression, and one role may be \"rest\" (everyone left).")
     teams: Dict[str, List[str]] = Field(default_factory=dict, description="{team: [roles]}; a role in no team is its own team.")
     know: List[str] = Field(default_factory=list, description="Teams (or roles) whose members know each other from the start.")
-    alive: str = Field("living", description="Bool player property that says a player is still in the game.")
+    alive: str = Field("living", description="Bool player property that says a player is still in the game (not the "
+                                             "built-in `alive`, which turns false only when an entity is removed).")
     reveal: Literal["elimination", "never"] = Field("elimination", description="Reveal a role when its player is eliminated.")
     actions: Dict[str, Dict[str, Any]] = Field(
         default_factory=dict, description="Role-gated tools: {name: {...action, \"roles\": [roles]}}; private unless said otherwise.")

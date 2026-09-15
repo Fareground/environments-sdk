@@ -10,6 +10,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Changed
+- **A short core guide**: `fg_env.guide()` / `fg-env guide` is a ~2.8K-token core — the model, a quickstart that
+  runs with defaults, the essential sections and fields, expression and effect basics, the mechanism families and a
+  map of every other part. Each contract section (`guide("actions")`, with the `$` roots available there), function
+  group (`guide("functions.stats")`), topic, family and mode is its own small part; `guide("all")` is everything; an
+  unknown part suggests the closest. The `reference` part is replaced by the section parts; a family's page lists its
+  modes and functions, and each mode is read on its own.
+- **The run's winner**: outputs and `game.returns` read `$result.winner` (the winner an `end` gave, as an entity) and
+  `$result.ended_by`. The ranking helper `$winner(items, by, ties)` is renamed `$best`. `result` is a reserved root.
+- **Actions**: a `when` requirement may read `$params`; it refuses a call that breaks it, with its `why`. A tool whose
+  required number has no valid value right now (min above max) or whose enum has no values is not offered.
+- **Shorter contracts**: `do`, `otherwise`, `then`, `else`, stage hooks and `when` accept one item where a list of one
+  is meant; the types `integer`, `string`, `boolean` and `float` read as `int`, `text`, `bool` and `number`.
+- **Errors**: structural errors say what a field must be, what it got and how to write it (no library wording);
+  syntax errors hint `==` for `=`; a call or root written without `$` says what to write; parameter bounds that are
+  not numbers, literal bounds no value meets and plain entity ids that cannot exist are static errors; a failed name
+  lookup suggests the closest name or lists the choices; a missing mechanism field says what it is for.
+- **`fg_env.check` plays one smoke round by default** (`rounds=0` for static checks only); `fg-env check` says what
+  it checked, when `clock.rounds` was left at its default, and what each mechanism generated.
+- **Examples**: one per mechanic. The mechanism versions of the duplicate pairs keep the plain names (`beer_game`,
+  `checkers`, `connect_four`, `civil_trial`, `werewolf`); redundant `terminal: true` flags are gone (golden runs
+  unchanged).
+
 - **Mechanism families**: mechanisms are declared as `"kind": <family>, "mode": <variant>` (`market`,
   `economy`, `agreements`, `decision`, `game`, `flow`, `groups`, `social`, `mind`, `conditions`,
   `dynamics`, `host`). Each mode keeps its own strict config: a field that does not belong to it is an
@@ -19,6 +41,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read one family or mode.
 
 #### Added
+- **`fg-env new <template> [file]` / `fg_env.new(template, path)`**: a ready-to-run contract from `blank`, `game`,
+  `market`, `simulation` or `social`, each checking without errors and running with random agents.
+- **What mechanisms generate**: `fg-env check` and `fg-env preview` list, per mechanism, the actions, stages, views,
+  outputs and other parts it added (`fg-env expand --mechanisms` shows them in full).
 - **Shared tools** (`actions.<name>.tool`): actions naming the same tool are offered as one flat tool whose
   required `action` argument lists the actions legal now; each call is routed to its action, whose own
   arguments, conditions and limits apply, and the log keeps the action's own name. Mechanisms that generate

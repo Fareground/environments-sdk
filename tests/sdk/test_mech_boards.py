@@ -266,7 +266,7 @@ def test_othello_flips_passes_when_stuck_and_counts_discs():
     assert env.props["othello_result"] == {"winner": "black", "reason": "no_moves", "score": {"black": 6, "white": 0}}
 
 
-CONNECT = _example("connect_four_native.json")
+CONNECT = _example("connect_four.json")
 
 
 def test_connect_four_drops_by_gravity_and_wins_with_four_in_a_row():
@@ -281,12 +281,9 @@ def test_connect_four_drops_by_gravity_and_wins_with_four_in_a_row():
     assert seen["moves"] == ["a1", "b1", "c1", "d1", "e1", "f1", "g1"]
     env, result = _replay(CONNECT, "connect4", ["d1", "e1", "d2", "e2", "d3", "e3", "d4"])
     assert env.ended_by == "line" and result.outputs["connect4_result"]["winner"] == "red"
-    native = (EXAMPLES / "connect_four_native.json").read_text().count("\n")
-    hand_written = (EXAMPLES / "connect_four.json").read_text().count("\n")
-    assert native < hand_written / 3, (native, hand_written)
 
 
-CHECKERS = _example("checkers_native.json")
+CHECKERS = _example("checkers.json")
 
 
 def test_checkers_mandatory_multi_jump_with_crowning():
@@ -298,7 +295,6 @@ def test_checkers_mandatory_multi_jump_with_crowning():
     board = _pieces(env)
     assert board["h8"] == ("black", "K") and set(board) == {"h8", "a7", "g1"}
     assert env.props["checkers_turn"] == "white" and env.props["checkers_chain"] == ""
-    assert len(json.dumps(CHECKERS)) < len(json.dumps(_example("checkers.json"))) / 2
 
 
 # ---------------------------------------------------------------------------
