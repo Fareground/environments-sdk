@@ -25,9 +25,9 @@ from typing import Any, Dict, List, Mapping, Tuple
 from pydantic import BaseModel, ValidationError
 
 from ..errors import Issue
-from ..registry import FAMILIES, MECHANISMS, RENAMED_KINDS, MechanismError, config_data
+from ..registry import FAMILIES, RENAMED_KINDS, MechanismError, config_data
 
-__all__ = ["expand_mechanisms", "merge_sections", "FAMILIES", "MECHANISMS"]
+__all__ = ["expand_mechanisms", "merge_sections", "FAMILIES"]
 
 _NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
 
@@ -99,7 +99,7 @@ def _expand_one(out: Dict[str, Any], name: Any, use: Any) -> List[Issue]:
 
 
 def _kinds() -> List[str]:
-    return sorted({*FAMILIES, *MECHANISMS})
+    return sorted(FAMILIES)
 
 
 def _spec(use: Mapping[str, Any], path: str) -> Any:
@@ -121,9 +121,6 @@ def _spec(use: Mapping[str, Any], path: str) -> Any:
         new_kind, mode = RENAMED_KINDS[kind]
         return Issue(f"{path}.kind", f"'{kind}' is now kind '{new_kind}' with mode '{mode}'",
                      f"write \"kind\": \"{new_kind}\", \"mode\": \"{mode}\" (guide('{new_kind}.{mode}') lists its fields)")
-    legacy = MECHANISMS.get(kind) if isinstance(kind, str) else None
-    if legacy is not None:
-        return legacy, f"`{kind}`"
     hint = get_close_matches(str(kind), _kinds(), n=1)
     return Issue(f"{path}.kind", f"'{kind}' is not a mechanism family",
                  f"did you mean '{hint[0]}'?" if hint else f"families: {', '.join(_kinds())}")

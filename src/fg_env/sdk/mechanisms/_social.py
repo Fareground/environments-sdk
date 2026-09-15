@@ -16,7 +16,7 @@ from ..expr import ExprError, compile_expr
 from ..registry import MechanismError, config_data, describe, use_key
 
 __all__ = ["NAME", "props", "cache", "config_of", "uses_of", "only_use", "single_use_check", "eid", "ids", "entity",
-           "require_type", "check_expr", "edges", "seat_order", "literal_name_check"]
+           "require_type", "check_expr", "edges", "seat_order"]
 
 #: A generated identifier (room, group, faction, item): letters, digits and _, starting with a letter.
 NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
@@ -166,17 +166,3 @@ def seat_order(world: Any) -> Dict[str, int]:
     if not found:
         found.update({entity_id: i for i, entity_id in enumerate(world.entities)})
     return found
-
-
-def literal_name_check(kind: str, op: str) -> Any:
-    """A static check for an op whose main key names a mechanism of ``kind``."""
-
-    def check(checker: Any, effect: Mapping[str, Any], path: str) -> list:
-        name = effect.get(op)
-        names = uses_of(checker.c.mechanisms, kind)
-        if name not in names:
-            return [(f"{path}.{op}", f"'{name}' is not a declared {kind} mechanism",
-                     f"{kind} mechanisms: {', '.join(names) or 'none declared'}")]
-        return []
-
-    return check

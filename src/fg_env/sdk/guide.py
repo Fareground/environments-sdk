@@ -16,7 +16,7 @@ from pydantic_core import PydanticUndefined
 from . import contract as C
 from .effects import EFFECT_OPS
 from .macros import MAX_MACRO_DEPTH, MAX_MACRO_ITEMS
-from .registry import FAMILIES, MECHANISMS, OPS, FamilySpec, ModeSpec
+from .registry import FAMILIES, FamilySpec, ModeSpec
 from .expr import FUNCTIONS
 from .template import FORMATS
 
@@ -545,9 +545,8 @@ def _functions() -> str:
 
 def _effects() -> str:
     lines = [f"- `{op}`: {_EFFECT_EXAMPLES[op]}" for op in EFFECT_OPS]
-    lines += [f"- `{name}`: {spec.example}" for name, spec in OPS.items() if spec.select is None]
     for name, family in FAMILIES.items():
-        if name in OPS:
+        if family.actions and any(family.actions.values()):
             lines.append(f"- `{name}`: {{\"{name}\": \"<{name} mechanism>\", \"action\": ...}} — actions: "
                          + "; ".join(f"{mode} {' '.join(_public(family, mode)) or '—'}" for mode in family.modes)
                          + f" (guide(\"{name}\"))")
@@ -591,8 +590,6 @@ def _mechanisms() -> str:
     lines += [f"| `{name}` | {', '.join(family.modes) or '—'} | {family.doc} |" for name, family in FAMILIES.items()]
     lines += ["", "Every family names these the same way:"]
     lines += [f"- `{key}`: {meaning}" for key, meaning in SHARED.items()]
-    if MECHANISMS:
-        lines += ["", "Kinds not yet in a family (`\"kind\": <kind>`, no mode):", "", _legacy_pages()]
     return "\n".join(lines)
 
 
@@ -627,23 +624,6 @@ def _mode_page(spec: ModeSpec) -> str:
             lines.append(f"- `{action}`{takes}{required}: {op.example}")
     lines += ["", "```json", json.dumps({"mechanisms": {f"my_{spec.mode}": spec.example}}, ensure_ascii=False), "```"]
     return "\n".join(lines)
-
-
-def _legacy_pages() -> str:
-    pages = []
-    for kind, spec in sorted(MECHANISMS.items()):
-        lines = [f"### `{kind}`", spec.doc, "", "Config:"]
-        for field_name, info in spec.config.model_fields.items():
-            default = "required" if info.is_required() else \
-                f"default {json.dumps(info.get_default(call_default_factory=True), default=str)}"
-            lines.append(f"- `{field_name}` ({default}): {info.description or ''}")
-        nested = _nested_models(spec.config)
-        if nested:
-            lines += ["", "Nested config:"] + [_fields(model) for model in nested]
-        if spec.example:
-            lines += ["", "```json", json.dumps({"mechanisms": {"my_" + kind: spec.example}}, ensure_ascii=False), "```"]
-        pages.append("\n".join(lines))
-    return "\n\n".join(pages)
 
 
 GUIDE_PARTS: Dict[str, Any] = {

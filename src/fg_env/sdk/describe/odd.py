@@ -8,7 +8,7 @@ import json
 from typing import Any, Dict, List, Mapping
 
 from .. import contract as C
-from ..registry import FAMILIES, MECHANISMS, use_key
+from ..registry import FAMILIES, use_key
 
 __all__ = ["odd_markdown"]
 
@@ -269,7 +269,7 @@ def _submodels(contract: C.Contract, metadata: Mapping[str, Any]) -> List[str]:
     for name, config in contract.mechanisms.items():
         key = use_key(config) or ""
         family, _, mode = key.partition(".")
-        found: Any = FAMILIES[family].modes.get(mode) if family in FAMILIES else MECHANISMS.get(key)
+        found: Any = FAMILIES[family].modes.get(mode) if family in FAMILIES else None
         doc = found.doc.strip().splitlines()[0] if found is not None else ""
         lines += [f"### Mechanism `{name}` ({f'{family} {mode}' if mode else key})", "", doc, ""]
     invariants = [f"`{i.expr}`" + (f" — {i.why}" if i.why else "") for i in contract.invariants]

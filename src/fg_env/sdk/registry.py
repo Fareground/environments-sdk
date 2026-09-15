@@ -24,8 +24,8 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, Type
 from pydantic import BaseModel
 
 __all__ = [
-    "OpSpec", "ModeSpec", "FamilySpec", "MechanismSpec", "MechanismError", "OPS", "FAMILIES", "MECHANISMS",
-    "RENAMED_KINDS", "RENAMED_OPS", "effect_op", "family", "mode", "mechanism", "family_action", "use_key", "config_data",
+    "OpSpec", "ModeSpec", "FamilySpec", "MechanismError", "OPS", "FAMILIES",
+    "RENAMED_KINDS", "RENAMED_OPS", "family", "mode", "family_action", "use_key", "config_data",
     "uses_of", "describe", "renamed_op_hint", "Issue3",
 ]
 
@@ -89,17 +89,6 @@ class FamilySpec:
     actions: Dict[str, Dict[str, OpSpec]] = field(default_factory=dict)
 
 
-@dataclass(frozen=True)
-class MechanismSpec:
-    """A mechanism kind registered outside the families (being moved into a family)."""
-
-    kind: str
-    doc: str
-    config: Type[BaseModel]
-    expand: Callable[[str, Any, Mapping[str, Any]], Dict[str, Any]]
-    example: Dict[str, Any] = field(default_factory=dict)
-
-
 class MechanismError(Exception):
     """A mechanism's config cannot be expanded; the message says what to fix."""
 
@@ -111,7 +100,6 @@ class MechanismError(Exception):
 
 OPS: Dict[str, OpSpec] = {}
 FAMILIES: Dict[str, FamilySpec] = {}
-MECHANISMS: Dict[str, MechanismSpec] = {}
 #: A kind name that became a family mode → (family, mode), for a clear error.
 RENAMED_KINDS: Dict[str, Tuple[str, str]] = {}
 #: An effect op that became a family action → (family, action), for a clear error.
@@ -127,22 +115,16 @@ _SWITCH = ("kind", "mode")
 
 
 def use_key(raw: Any) -> Optional[str]:
-    """What a declared mechanism is: ``family.mode`` (or a kind still outside the families); None if unreadable."""
+    """What a declared mechanism is: ``family.mode``; None when it names no registered family or no mode."""
     if not isinstance(raw, Mapping):
         return None
-    kind = raw.get("kind")
-    if not isinstance(kind, str):
-        return None
-    if kind in FAMILIES:
-        mode = raw.get("mode")
-        return f"{kind}.{mode}" if isinstance(mode, str) else None
-    return kind
+    kind, mode = raw.get("kind"), raw.get("mode")
+    return f"{kind}.{mode}" if isinstance(kind, str) and kind in FAMILIES and isinstance(mode, str) else None
 
 
 def config_data(raw: Mapping[str, Any]) -> Dict[str, Any]:
-    """A declared mechanism's config fields, without ``kind`` (and ``mode`` for a family's mechanism)."""
-    drop = _SWITCH if raw.get("kind") in FAMILIES else ("kind",)
-    return {key: value for key, value in raw.items() if key not in drop}
+    """A declared mechanism's config fields, without ``kind`` and ``mode``."""
+    return {key: value for key, value in raw.items() if key not in _SWITCH}
 
 
 def uses_of(mechanisms: Optional[Mapping[str, Any]], key: str) -> Dict[str, Mapping[str, Any]]:
@@ -166,22 +148,6 @@ def describe(key: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def effect_op(name: str, keys: Tuple[str, ...], example: str, *, required: Tuple[str, ...] = (),
-              literal: Tuple[str, ...] = (), templates: Tuple[str, ...] = (),
-              check: Optional[Callable[[Any, Dict[str, Any], str], list]] = None,
-              binds: Tuple[str, ...] = ()) -> Callable[[Callable[..., None]], Callable[..., None]]:
-    """Register a native effect operation outside the families (being moved into a family)."""
-
-    def register(run: Callable[..., None]) -> Callable[..., None]:
-        if name in OPS:
-            raise ValueError(f"effect op '{name}' is registered twice")
-        declared = (name, *keys, *[key for key in binds if key not in keys])
-        OPS[name] = OpSpec(name, declared, run, example, required, literal, templates, check, tuple(binds))
-        return run
-
-    return register
-
-
 def family(name: str, doc: str, shared: Optional[Mapping[str, str]] = None) -> FamilySpec:
     """Register a family of mechanisms (once, before its modes)."""
     if name in FAMILIES:
@@ -189,19 +155,6 @@ def family(name: str, doc: str, shared: Optional[Mapping[str, str]] = None) -> F
     spec = FamilySpec(name, doc, dict(shared or {}))
     FAMILIES[name] = spec
     return spec
-
-
-def mechanism(kind: str, config: Type[BaseModel], doc: str,
-              example: Optional[Dict[str, Any]] = None) -> Callable[[Callable[..., Dict[str, Any]]], Callable[..., Dict[str, Any]]]:
-    """Register a mechanism kind outside the families (while the remaining kinds move into theirs)."""
-
-    def register(expand: Callable[..., Dict[str, Any]]) -> Callable[..., Dict[str, Any]]:
-        if kind in MECHANISMS or kind in FAMILIES:
-            raise ValueError(f"mechanism kind '{kind}' is registered twice")
-        MECHANISMS[kind] = MechanismSpec(kind, doc, config, expand, dict(example or {}))
-        return expand
-
-    return register
 
 
 def mode(family_name: str, mode: str, config: Type[BaseModel], doc: str, example: Optional[Dict[str, Any]] = None, *,
@@ -258,8 +211,6 @@ def family_action(family_name: str, modes: Tuple[str, ...], action: str, *, exam
         for old in was:  # an old op split into several actions keeps no single action to suggest
             known = RENAMED_OPS.get(old)
             RENAMED_OPS[old] = (family_name, action if known in (None, (family_name, action)) else "")
-        if family_name in OPS and OPS[family_name].select is None:
-            raise ValueError(f"effect op '{family_name}' is registered outside its family; register it as a family action")
         OPS[family_name] = _family_op(spec)
         return run
 

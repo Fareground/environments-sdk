@@ -21,10 +21,10 @@ _INPUT_REF = re.compile(r"\s*\$inputs\.([A-Za-z_][A-Za-z0-9_]*)\s*")
 _MEASURE_REF = re.compile(r"\$(?:metrics|series)\.([A-Za-z_][A-Za-z0-9_]*)")
 _RANDOM_GRAPHS = frozenset({"random", "small_world", "scale_free", "blocks"})
 _MARKETS = frozenset({"market"})
-_TALK = frozenset({"social.channels", "decision.deliberation", "channels", "deliberation"})
-_BOARDS = frozenset({"game.board", "board"})
-_CARDS = frozenset({"game.cards", "cards"})
-_ROLES = frozenset({"groups.roles", "roles"})
+_TALK = frozenset({"social", "decision.deliberation"})
+_BOARDS = frozenset({"game.board"})
+_CARDS = frozenset({"game.cards"})
+_ROLES = frozenset({"groups.roles"})
 
 Choices = Union[int, str, None]
 

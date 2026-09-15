@@ -134,7 +134,7 @@ def ops_in(node: Mapping[str, Any]) -> Set[str]:
 
 
 def mechanism_kinds(contract: Contract) -> Set[str]:
-    """What the contract's mechanisms are: each ``family.mode`` with its family (or a kind outside the families)."""
+    """What the contract's mechanisms are: each ``family.mode`` and its family."""
     out: Set[str] = set()
     for raw in contract.mechanisms.values():
         key = use_key(raw)

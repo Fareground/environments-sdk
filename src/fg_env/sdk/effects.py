@@ -664,8 +664,7 @@ def select_ops(effect: Dict[str, Any]) -> List[str]:
 
     * A ``post``'s other keys are record fields, whatever they are called (a field may be named
       like a native op, e.g. ``deal``).
-    * A single native op wins over core-op-named keys it declares itself
-      (``{"board_move": ..., "move": ...}`` when ``move`` is one of its keys).
+    * A single family op wins over keys named like core ops that its actions declare themselves.
     * Otherwise every key that names an operation counts.
     """
     core = [key for key in EFFECT_OPS if key in effect]
