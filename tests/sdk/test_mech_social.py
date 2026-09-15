@@ -298,7 +298,7 @@ def test_motion_amendment_and_vote_with_floor_control():
     decision = env.props["hall"]["decisions"][0]
     assert decision["text"] == "Build it by July" and decision["passed"] and decision["counts"]["yes"] == 3
     news = [e["text"] for e in result.events if e["kind"] == "hall"]
-    assert any("amendment to motion [1] [2]" in t and "passes" in t for t in news)
+    assert any("amendment 2 to motion 1" in t and "passes" in t for t in news)
     assert "R1 raised a hand" in script.text("mod")
     assert result.outputs["decided"] == 1
 

@@ -1,5 +1,5 @@
 # fg-env playthrough: Tic-tac-toe
-Game: tic_tac_toe@e72a7e37:4642e142
+Game: tic_tac_toe@24063d4d:4642e142
 Seed: 1
 Seats: 0 x, 1 o
 Dynamics: sequential; chance: deterministic; information: unknown; utility: zero_sum
@@ -34,13 +34,19 @@ Seat 0 (x) reads:
   | Move 1 of 9 · move
   | Now: It is your turn.
   | 
-  | Board: .......... You play x.
-Seat 0 information state: b6caea513b05b0bc
+  | You play x. Board, row by row (an empty cell shows its number):
+  | 0 1 2
+  | 3 4 5
+  | 6 7 8
+Seat 0 information state: 0bd796edc94a1cd0
 Seat 1 (o) reads:
   | Move 1 of 9 · move
   | 
-  | Board: .......... You play o.
-Seat 1 information state: fb914c83600b0ec9
+  | You play o. Board, row by row (an empty cell shows its number):
+  | 0 1 2
+  | 3 4 5
+  | 6 7 8
+Seat 1 information state: 853b9481d1d17f2d
 Returns: [0, 0]
 Chosen: seat 0: mark(cell=8)
 Step: {"args": {"cell": 8}, "seat": 0, "tool": "mark"}
@@ -51,8 +57,11 @@ Legal calls of seat 1: [1] mark(cell=0); [2] mark(cell=1); [3] mark(cell=2); [4]
 Seat 0 (x) reads:
   | Move 2 of 9 · move
   | 
-  | Board: ........x. You play x.
-Seat 0 information state: e3ae35499b945740
+  | You play x. Board, row by row (an empty cell shows its number):
+  | 0 1 2
+  | 3 4 5
+  | 6 7 x
+Seat 0 information state: e0220d6f91236c69
 Seat 1 (o) reads:
   | Move 2 of 9 · move
   | Now: It is your turn.
@@ -60,8 +69,11 @@ Seat 1 (o) reads:
   | Since your last turn:
   | - x: mark (cell=8).
   | 
-  | Board: ........x. You play o.
-Seat 1 information state: 2f7c01e95dfba625
+  | You play o. Board, row by row (an empty cell shows its number):
+  | 0 1 2
+  | 3 4 5
+  | 6 7 x
+Seat 1 information state: 6e7022449aea651b
 Returns: [0, 0]
 Chosen: seat 1: mark(cell=0)
 Step: {"args": {"cell": 0}, "seat": 1, "tool": "mark"}
@@ -76,13 +88,19 @@ Seat 0 (x) reads:
   | Since your last turn:
   | - o: mark (cell=0).
   | 
-  | Board: o.......x. You play x.
-Seat 0 information state: 36d7d63123388deb
+  | You play x. Board, row by row (an empty cell shows its number):
+  | o 1 2
+  | 3 4 5
+  | 6 7 x
+Seat 0 information state: 2be8c5d546029c99
 Seat 1 (o) reads:
   | Move 3 of 9 · move
   | 
-  | Board: o.......x. You play o.
-Seat 1 information state: 4d2e6e66c6a7ac5d
+  | You play o. Board, row by row (an empty cell shows its number):
+  | o 1 2
+  | 3 4 5
+  | 6 7 x
+Seat 1 information state: ea9e6a968b32680b
 Returns: [0, 0]
 Chosen: seat 0: mark(cell=3)
 Step: {"args": {"cell": 3}, "seat": 0, "tool": "mark"}
@@ -93,8 +111,11 @@ Legal calls of seat 1: [2] mark(cell=1); [3] mark(cell=2); [5] mark(cell=4); [6]
 Seat 0 (x) reads:
   | Move 4 of 9 · move
   | 
-  | Board: o..x....x. You play x.
-Seat 0 information state: 3f51825d5d8d0d24
+  | You play x. Board, row by row (an empty cell shows its number):
+  | o 1 2
+  | x 4 5
+  | 6 7 x
+Seat 0 information state: ae7e863c096b9869
 Seat 1 (o) reads:
   | Move 4 of 9 · move
   | Now: It is your turn.
@@ -102,8 +123,11 @@ Seat 1 (o) reads:
   | Since your last turn:
   | - x: mark (cell=3).
   | 
-  | Board: o..x....x. You play o.
-Seat 1 information state: d76f366b26617987
+  | You play o. Board, row by row (an empty cell shows its number):
+  | o 1 2
+  | x 4 5
+  | 6 7 x
+Seat 1 information state: e778c0b56bc40c46
 Returns: [0, 0]
 Chosen: seat 1: mark(cell=5)
 Step: {"args": {"cell": 5}, "seat": 1, "tool": "mark"}
@@ -118,13 +142,19 @@ Seat 0 (x) reads:
   | Since your last turn:
   | - o: mark (cell=5).
   | 
-  | Board: o..x.o..x. You play x.
-Seat 0 information state: 32a737d7d4bb10e8
+  | You play x. Board, row by row (an empty cell shows its number):
+  | o 1 2
+  | x 4 o
+  | 6 7 x
+Seat 0 information state: dbb3a6311eed9121
 Seat 1 (o) reads:
   | Move 5 of 9 · move
   | 
-  | Board: o..x.o..x. You play o.
-Seat 1 information state: 27ba93a657be9a6e
+  | You play o. Board, row by row (an empty cell shows its number):
+  | o 1 2
+  | x 4 o
+  | 6 7 x
+Seat 1 information state: 83829b55af4119df
 Returns: [0, 0]
 Chosen: seat 0: mark(cell=1)
 Step: {"args": {"cell": 1}, "seat": 0, "tool": "mark"}
@@ -135,8 +165,11 @@ Legal calls of seat 1: [3] mark(cell=2); [5] mark(cell=4); [7] mark(cell=6); [8]
 Seat 0 (x) reads:
   | Move 6 of 9 · move
   | 
-  | Board: ox.x.o..x. You play x.
-Seat 0 information state: b1ca9d300a734e8a
+  | You play x. Board, row by row (an empty cell shows its number):
+  | o x 2
+  | x 4 o
+  | 6 7 x
+Seat 0 information state: a96d6afcc7a63c80
 Seat 1 (o) reads:
   | Move 6 of 9 · move
   | Now: It is your turn.
@@ -144,8 +177,11 @@ Seat 1 (o) reads:
   | Since your last turn:
   | - x: mark (cell=1).
   | 
-  | Board: ox.x.o..x. You play o.
-Seat 1 information state: ac147e6727e4cfd2
+  | You play o. Board, row by row (an empty cell shows its number):
+  | o x 2
+  | x 4 o
+  | 6 7 x
+Seat 1 information state: 0d4575d70650146f
 Returns: [0, 0]
 Chosen: seat 1: mark(cell=4)
 Step: {"args": {"cell": 4}, "seat": 1, "tool": "mark"}
@@ -160,13 +196,19 @@ Seat 0 (x) reads:
   | Since your last turn:
   | - o: mark (cell=4).
   | 
-  | Board: ox.xoo..x. You play x.
-Seat 0 information state: 2726fe4a5a32f008
+  | You play x. Board, row by row (an empty cell shows its number):
+  | o x 2
+  | x o o
+  | 6 7 x
+Seat 0 information state: 25ddd4653b33c12b
 Seat 1 (o) reads:
   | Move 7 of 9 · move
   | 
-  | Board: ox.xoo..x. You play o.
-Seat 1 information state: 6e11b5abbdc63ee5
+  | You play o. Board, row by row (an empty cell shows its number):
+  | o x 2
+  | x o o
+  | 6 7 x
+Seat 1 information state: 0c7b64085991b8c7
 Returns: [0, 0]
 Chosen: seat 0: mark(cell=7)
 Step: {"args": {"cell": 7}, "seat": 0, "tool": "mark"}
@@ -177,8 +219,11 @@ Legal calls of seat 1: [3] mark(cell=2); [7] mark(cell=6)
 Seat 0 (x) reads:
   | Move 8 of 9 · move
   | 
-  | Board: ox.xoo.xx. You play x.
-Seat 0 information state: 5847a559aedf02bb
+  | You play x. Board, row by row (an empty cell shows its number):
+  | o x 2
+  | x o o
+  | 6 x x
+Seat 0 information state: f275a481c6e082cd
 Seat 1 (o) reads:
   | Move 8 of 9 · move
   | Now: It is your turn.
@@ -186,8 +231,11 @@ Seat 1 (o) reads:
   | Since your last turn:
   | - x: mark (cell=7).
   | 
-  | Board: ox.xoo.xx. You play o.
-Seat 1 information state: 73b4344ca7f4454d
+  | You play o. Board, row by row (an empty cell shows its number):
+  | o x 2
+  | x o o
+  | 6 x x
+Seat 1 information state: 362b60af7290dc5a
 Returns: [0, 0]
 Chosen: seat 1: mark(cell=6)
 Step: {"args": {"cell": 6}, "seat": 1, "tool": "mark"}
@@ -202,13 +250,19 @@ Seat 0 (x) reads:
   | Since your last turn:
   | - o: mark (cell=6).
   | 
-  | Board: ox.xoooxx. You play x.
-Seat 0 information state: 612e0a91ecd1b87d
+  | You play x. Board, row by row (an empty cell shows its number):
+  | o x 2
+  | x o o
+  | o x x
+Seat 0 information state: b2b0b561d321ae36
 Seat 1 (o) reads:
   | Move 9 of 9 · move
   | 
-  | Board: ox.xoooxx. You play o.
-Seat 1 information state: 1cae2027f154a202
+  | You play o. Board, row by row (an empty cell shows its number):
+  | o x 2
+  | x o o
+  | o x x
+Seat 1 information state: 9b607796066f39c6
 Returns: [0, 0]
 Chosen: seat 0: mark(cell=2)
 Step: {"args": {"cell": 2}, "seat": 0, "tool": "mark"}

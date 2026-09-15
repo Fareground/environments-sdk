@@ -53,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dip after them, substitution between tiers, stockouts with lost and spilled demand, noisy lead times and
   negative-binomial sales, fitted from a bundled three-year history that its `truth` arm generates
   (`examples/auto_parts_history.py`); arms compare the store's lean reorder rule with a forecast-driven one.
+
 #### Fixed
 - **Narratives a reader can follow**: rounds are named in the clock's terms everywhere — `half-hour` for a clock of 30
   minutes, `09:30–10:00` (with the weekday and date when a run spans days) on a dated sub-day clock, `Week 7
@@ -61,6 +62,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to the reversal it belongs to), leaves out moments no more unusual than the run's usual ups and downs (a short run
   still tells its largest changes, and says why), names what happened with a move — other measures that moved in the
   same round and the world's news in that round or the one before — and shows results in their declared formats.
+- **LLM turns that ran out of words**: a reply cut off at the output limit counts in `stats["truncated"]` (per
+  wake in exposures and `agent_stats`) and, with no tool call, is asked once for a short tool call
+  (`retry_truncated=False` ends the turn). The nudge names the tools offered and never asks for an `end_turn` that
+  is not offered; in a must-act stage the participant no longer calls a refused `end_turn` (no fake invalid call) and
+  the engine logs `Ben did not act.` (the pot says what the timeout did: `Ben folds.`). `openai(...)` takes
+  `max_tokens` and `reasoning_effort`.
+- **Calls after the turn ended**: LLM participants stop running a reply's tool calls once one ends the turn; the
+  leftovers are answered without reaching the engine. `look` and `inspect` are free reads (up to `max_calls` per
+  turn), so reading never spends the calls needed to act; a stage allowing fewer calls than the default states the
+  budget in the update, and tool results count down the calls once they barely cover the actions left
+  (`(Calls left: 2.)`).
+- **Inspect ids**: `inspect.id` offers the ids it accepts (an enum, or a compact listing like `u1–u150`), finds a
+  unique name, and a refusal suggests the closest id. Entities an agent may inspect read `Moderator [chair]` in its
+  update and views; deliberation motions are numbered (`motion 1`), not bracketed.
+- **Limits stated up front**: text parameters say `Up to 400 characters (about 60 words).`; `per_turn` / `per_round`
+  caps are in the tool description (`Once per turn.`). `tools: one` keeps each action's constraints (one merged
+  schema of the common type, enums joined, per-action ranges and choices in the description), lists every action on
+  its own line with its arguments, and says only those actions are available now.
+- **Example and mechanism wording**: `$poker_hand(hole, board)` says whether a hand uses the hole cards or is on
+  the board (Hold'em's view uses it); the town hall floor refusals say what to do (and that a raised hand waits);
+  the ballot count shows only while the vote is open; social replies, reposts and reactions accept trending posts;
+  posted-market sellers see their cash and can sponsor only the rounds they can pay for; Kuhn poker spells out the
+  betting (`pass, bet`) and tic-tac-toe shows a 3-row board with cell numbers; werewolf chat is quoted once, and
+  `check` warns when a template wraps a placeholder in «» itself.
 - **Data files everywhere**: a parsed contract remembers its data folder (the contract file's folder, or `data_dir=`),
   so `check`, `experiment`, `run_jobs` workers, `calibrate`, `backtest`, `precision`, `sweep`, `sensitivity`,
   `behavior_checks` and `chain` read `source` inputs instead of failing. Each takes `data_dir=` and `hosts=` (runs
@@ -77,9 +102,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the same property); a shock becomes a `shocks` pattern an event reads; a prior becomes a `draw` pattern. Declaring a
   `dynamics` mechanism (or `drift`, `shocks`, `priors`) says which pattern replaces it. `epidemic_shocks` and the
   flagship exchange's calibration are migrated; their golden runs changed because the draws now come from pattern
-  streams, while their behaviour did not (200 seeds of `epidemic_shocks` and 24 of the flagship: no output mean
-  differs by more than 1.3 standard errors). The flagship's stylized-facts test pins its experiment seed, with the
-  measured pass rates beside it.
+  streams, while their behaviour did not (200 seeds of `epidemic_shocks`: no output mean differs by more than 1.3
+  standard errors; 40 seeds of the flagship before and after: no stylized fact's distribution differs, Mann-Whitney
+  p 0.2–0.9, and one session meets every bound in 24 of 40 against 22 of 40).
+- **The flagship's stylized-facts test is statistical, not a pinned seed.** Its tape is bimodal across seeds —
+  sessions where stop-loss cascades start are volatile and fat-tailed, the rest calm — so one session proves
+  nothing. The default test holds each fact's median over 6 sessions inside its bound and needs one session meeting
+  every bound; `FG_ENV_SLOW=1` adds 24 sessions with strict medians and at least 8 meeting every bound. Thresholds
+  come from the measured distribution (a healthy set fails 2.6% and 0.3% of the time).
 - **A short core guide**: `fg_env.guide()` / `fg-env guide` is a ~2.8K-token core — the model, a quickstart that
   runs with defaults, the essential sections and fields, expression and effect basics, the mechanism families and a
   map of every other part. Each contract section (`guide("actions")`, with the `$` roots available there), function

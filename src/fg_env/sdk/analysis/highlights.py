@@ -328,10 +328,12 @@ def highlights(result: RunResult, *, top: int = 5, metrics: Optional[Sequence[st
 
 
 def _world_happenings(result: RunResult) -> Dict[int, List[str]]:
-    """What the world announced each round (news and emitted happenings everyone saw), for naming causes."""
+    """What the world announced each round (news and emitted happenings everyone saw, not an agent's own doings such as
+    "Ben did not act."), for naming causes."""
     out: Dict[int, List[str]] = {}
     for event in result.events:
-        if event.get("kind") in _ACTION_KINDS + ("record", "end") or event.get("to") or not event.get("text"):
+        if (event.get("kind") in _ACTION_KINDS + ("record", "end") or event.get("to") or event.get("actor")
+                or not event.get("text")):
             continue
         texts = out.setdefault(int(event.get("round", 0)), [])
         if event["text"] not in texts:

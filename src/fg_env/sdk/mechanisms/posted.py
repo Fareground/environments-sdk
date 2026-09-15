@@ -30,6 +30,8 @@ from .ledger import Account, balance, clean, move
 __all__ = ["ListingSpec", "PostedMarketConfig"]
 
 KEY = "market.posted"
+#: Longest promotion or sponsorship a seller may buy at once.
+_MAX_ROUNDS = 20
 
 #: Keys a shelf can be ranked by.
 RankKey = Literal["sponsored", "rating", "price", "sold"]
@@ -505,11 +507,18 @@ def _expand_posted(name: str, cfg: PostedMarketConfig, contract: Mapping[str, An
             f"{name}_promote": {"by": cfg.sellers, "description": f"Run a discount on a listing for some rounds (at most {cfg.max_promo:.0%}).",
                                 "params": {"listing": mine, "pct": {"type": "number", "min": 0.01, "max": cfg.max_promo,
                                                                     "description": "Discount as a fraction (0.2 = 20% off)."},
-                                           "rounds": {"type": "int", "min": 1, "max": 20, "description": "Rounds it runs."}},
+                                           "rounds": {"type": "int", "min": 1, "max": _MAX_ROUNDS,
+                                                      "description": "Rounds the discount runs."}},
                                 "do": [{"market": name, "action": "promote", "listing": "$params.listing",
                                         "pct": "$params.pct", "rounds": "$params.rounds"}], "outcome": receipt},
-            f"{name}_sponsor": {"by": cfg.sellers, "description": f"Put a listing first on the shelf for some rounds ({fmt(cfg.sponsor_fee)} per round).",
-                                "params": {"listing": mine, "rounds": {"type": "int", "min": 1, "max": 20, "description": "Rounds."}},
+            f"{name}_sponsor": {"by": cfg.sellers,
+                                "description": f"Put a listing first on the shelf for some rounds ({fmt(cfg.sponsor_fee)} per round, "
+                                               "paid now from your cash).",
+                                "params": {"listing": mine, "rounds": {
+                                    "type": "int", "min": 1, "description": "Rounds the listing stays first.",
+                                    # at most what the seller can pay for: no rounds affordable hides the tool
+                                    "max": f"$min({_MAX_ROUNDS}, $actor.{cfg.currency} / {cfg.sponsor_fee})"
+                                    if cfg.sponsor_fee > 0 else _MAX_ROUNDS}},
                                 "do": [{"market": name, "action": "sponsor", "listing": "$params.listing",
                                         "rounds": "$params.rounds"}], "outcome": receipt, "private": True},
         })
@@ -537,7 +546,8 @@ def _expand_posted(name: str, cfg: PostedMarketConfig, contract: Mapping[str, An
                     f"{name}_turnover": {"expr": f"$round($world.{name}_turnover, 2)", "type": "number", "description": "Money spent."}},
     }
     if cfg.sellers:
-        fragment["views"][f"{name}_mine"] = {"for": cfg.sellers, "title": "Your listings", "of": f"$filter({listing}, $it.seller == $actor.id)",
+        fragment["views"][f"{name}_mine"] = {"for": cfg.sellers, "title": f"Your listings (your cash: {{$actor.{cfg.currency}|money}})",
+                                             "of": f"$filter({listing}, $it.seller == $actor.id)",
                                              "show": f"{{$posted_line({name}, $it)}} · sold {{sold}} for {{revenue|money}}"}
     names = list(actions)
     if cfg.stage is None:

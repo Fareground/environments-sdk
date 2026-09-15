@@ -34,11 +34,12 @@ def test_a_narrative_names_the_time_the_happenings_around_a_move_and_leaves_ordi
     service = [0.9, 0.88, 0.91, 0.2, 0.25, 0.86, 0.9, 0.89, 0.9, 0.91]
     offered = [60, 61, 59, 190, 170, 64, 60, 62, 61, 60]
     run = _run({"service_level": service, "offered": offered},
-               events=[{"round": 4, "kind": "news", "text": "The network went down.", "data": {"event": "outage"}}])
+               events=[{"round": 4, "kind": "news", "text": "The network went down.", "data": {"event": "outage"}},
+                       {"round": 4, "kind": "idle", "text": "Ben did not act.", "actor": "ben"}])
     story = narrative(run)
     assert story.startswith("Completed after 10 half-hours, to the end of its clock.")
     line = next(text for text in story.splitlines() if text.startswith("09:30–10:00:"))
-    assert "then" in line and "while" in line and "around then: The network went down." in line
+    assert "then" in line and "while" in line and line.endswith("around then: The network went down.")
     assert story.count("The network went down.") == 1
     assert "sl 82%" in story
     assert all("round" not in h.text for h in highlights(run, top=5))

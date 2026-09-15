@@ -235,10 +235,13 @@ class TestCost:
             for etype in ("goal",) + ("move",) * 9:
                 state.event_log.emit(_event(etype, rnd))
             if rnd in (100, 2000):
-                start = time.perf_counter()
-                for _ in range(200):
-                    term.evaluate(state, condition)
-                samples[rnd] = time.perf_counter() - start
+                timings = []
+                for _ in range(7):  # the fastest repeat: load spikes only ever make a run slower
+                    start = time.perf_counter()
+                    for _ in range(200):
+                        term.evaluate(state, condition)
+                    timings.append(time.perf_counter() - start)
+                samples[rnd] = min(timings)
         # 20x the history; a history scan would be ~400x slower. Allow a
         # generous margin for timer noise.
         assert samples[2000] < samples[100] * 5 + 0.01

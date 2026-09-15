@@ -181,13 +181,14 @@ class Wake:
 
     def record_usage(self, *, llm_calls: int = 0, input_tokens: int = 0, output_tokens: int = 0,
                      cache_read_tokens: int = 0, cache_write_tokens: int = 0, llm_retries: int = 0,
-                     forfeits: int = 0) -> None:
+                     forfeits: int = 0, truncated: int = 0) -> None:
         """Add a model's real usage to the run's statistics (the built-in LLM participants call this). Usage reported
-        after the turn is over (it ran out of time) still counts toward the statistics and the budget."""
+        after the turn is over (it ran out of time) still counts toward the statistics and the budget. ``truncated``
+        counts replies cut off at the model's output limit."""
         stats = self._turn.stats
         counts = (("llm_calls", llm_calls), ("input_tokens", input_tokens), ("output_tokens", output_tokens),
                   ("cache_read_tokens", cache_read_tokens), ("cache_write_tokens", cache_write_tokens),
-                  ("llm_retries", llm_retries), ("forfeits", forfeits))
+                  ("llm_retries", llm_retries), ("forfeits", forfeits), ("truncated", truncated))
         for name, value in counts:
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
                 raise ValueError(f"{name} must be a whole number ≥ 0, got {value!r}")
@@ -233,7 +234,7 @@ class Wake:
 
 
 #: The reported usage an exposure record shows.
-_SHOWN_USAGE = ("llm_calls", "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens")
+_SHOWN_USAGE = ("llm_calls", "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "truncated")
 
 
 def _copy(value: Any) -> Any:
