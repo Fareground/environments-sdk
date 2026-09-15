@@ -52,6 +52,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read one family or mode.
 
 #### Added
+- **Negotiation settlement**: the `agreements` `negotiation` mode takes `transfers` (unique entities a signed deal
+  hands over, `{"items": "$filter(phone, $it.owner == $proposer.id)", "count": "$terms.units", "to": "$acceptor"}`,
+  listed in `<name>_deal.items`) and `on_sign` effects (`$deal`, `$proposer`, `$acceptor`, `$parties`, `$terms`). A
+  settlement that cannot happen (too few items, a `fail`) refuses the acceptance, so one lot is never sold twice.
 - **Keyed table lookups**: `$lookup(table, field, key)` gives the rows whose field equals the key and
   `$lookup_one(table, field, key, default?)` the first; an input table is indexed once per run (other lists per call),
   fields and keys may be lists. Deriving each of 228 SKUs' base demand from a 35,568-row sales history at load went
