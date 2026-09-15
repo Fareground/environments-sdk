@@ -12,6 +12,7 @@ Differences are collected, not raised inside the engine (code under test may cat
 """
 from __future__ import annotations
 
+import gc
 import threading
 from contextlib import contextmanager
 from typing import Any, Callable, Dict, Iterator, List, Tuple
@@ -162,6 +163,10 @@ def _dual_call(self: Any, scope: Any) -> Any:
     if mode == "old":
         return _oracle(self.source)(scope)
     world = getattr(scope, "world", None)
+    # A garbage collection between or inside the two evaluations may run finalizers (a game state closing its run)
+    # that evaluate and charge this thread's budget: it would leave the two evaluations different states to start from.
+    collecting = gc.isenabled()
+    gc.disable()
     before = _capture(world)
     try:
         _MODE.mode = "old"
@@ -173,11 +178,15 @@ def _dual_call(self: Any, scope: Any) -> Any:
         new_after = _capture(world)
     finally:
         _MODE.mode = None
+        if collecting:
+            gc.enable()
     if not _same_outcome(old, new):
         MISMATCHES.append((self.source, f"outcome: oracle {old!r}, compiled {new!r}"))
     elif _left_behind(old_after) != _left_behind(new_after):
-        MISMATCHES.append((self.source, f"state left behind: oracle {_left_behind(old_after)!r}, "
-                                        f"compiled {_left_behind(new_after)!r}"))
+        differ = [(part, a, b) for part, a, b in zip(("budget", "streams", "counters", "defs"),
+                                                     _left_behind(old_after), _left_behind(new_after)) if a != b]
+        MISMATCHES.append((self.source, "state left behind differs in " + "; ".join(
+            f"{part}: oracle {str(a)[:300]}, compiled {str(b)[:300]}" for part, a, b in differ)))
     if new[0] == "error":
         raise new[1]
     return new[1]
