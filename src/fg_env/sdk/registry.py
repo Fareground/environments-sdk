@@ -25,7 +25,7 @@ from pydantic import BaseModel
 
 __all__ = [
     "OpSpec", "ModeSpec", "FamilySpec", "MechanismError", "OPS", "FAMILIES",
-    "RENAMED_KINDS", "RENAMED_OPS", "family", "mode", "family_action", "use_key", "config_data",
+    "RENAMED_KINDS", "RENAMED_OPS", "effect_op", "family", "mode", "family_action", "use_key", "config_data",
     "uses_of", "describe", "renamed_op_hint", "Issue3",
 ]
 
@@ -146,6 +146,24 @@ def describe(key: str) -> str:
 # ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
+
+
+def effect_op(name: str, keys: Tuple[str, ...], example: str, *, required: Tuple[str, ...] = (),
+              literal: Tuple[str, ...] = (), templates: Tuple[str, ...] = (),
+              check: Optional[Callable[[Any, Dict[str, Any], str], list]] = None,
+              binds: Tuple[str, ...] = ()) -> Callable[[Callable[..., None]], Callable[..., None]]:
+    """Register a core effect that belongs to no mechanism (like ``layer`` for space layers).
+
+    Anything a mechanism does is a family action instead (:func:`family_action`)."""
+
+    def register(run: Callable[..., None]) -> Callable[..., None]:
+        if name in OPS or name in FAMILIES:
+            raise ValueError(f"effect op '{name}' is registered twice or names a mechanism family")
+        declared = (name, *keys, *[key for key in binds if key not in keys])
+        OPS[name] = OpSpec(name, declared, run, example, required, literal, templates, check, tuple(binds))
+        return run
+
+    return register
 
 
 def family(name: str, doc: str, shared: Optional[Mapping[str, str]] = None) -> FamilySpec:

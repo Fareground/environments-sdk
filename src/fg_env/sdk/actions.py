@@ -13,7 +13,7 @@ from ..entity import Entity
 from .contract import MAX_LIST_ITEMS, ActionSpec, Contract, ParamSpec, RecordSpec, StageSpec
 from .effects import EffectRunner
 from .errors import RunError
-from .expr import EVAL_BUDGET, ExprError, Untrusted, compile_expr, is_expr, resolve, shared_budget, truthy
+from .expr import EVAL_BUDGET, ExprError, Untrusted, compile_expr, is_expr, nested_free, resolve, shared_budget, truthy
 from .template import compile_template, format_value
 from .world import Abort, SdkWorld, _plain
 
@@ -175,7 +175,10 @@ class ActionBook:
             return items
         out = []
         base = self.world.scope(actor=actor, params=params or {})
+        ruled_out = expr.rules_out(base)
         for position, item in enumerate(items):
+            if ruled_out is not None and ruled_out(item):
+                continue
             try:
                 if truthy(expr(base.child(it=item, i=position))):
                     out.append(item)
@@ -493,6 +496,9 @@ class ActionBook:
         if kind == "list":
             return self._list_value(actor, action, pname, param, raw, params)
         if kind == "entity":
+            chosen = self._chosen(actor, param, raw, params)
+            if chosen is not None:
+                return chosen, None
             choices = self._choices(actor, action, pname, param, params)
             if isinstance(raw, dict) and isinstance(raw.get("id"), str):
                 raw = raw["id"]
@@ -509,6 +515,34 @@ class ActionBook:
             shown = f"'{raw}'" if len(raw) <= 60 else _preview(raw)
             return None, f"{shown} is not a valid {param.of} here (valid: {listing or 'none'})"
         raise RunError(f"unknown parameter type '{kind}'", f"actions.{action}.params.{pname}")
+
+    def _chosen(self, actor: Entity, param: ParamSpec, raw: Any, params: Dict[str, Any]) -> Optional[Entity]:
+        """The entity an argument names by id when it plainly qualifies — found without listing every
+        choice, which coded crowds would otherwise pay on every call. None sends the argument through the
+        full listing, which decides every other case (names, refusals, errors) exactly as before."""
+        key = raw["id"] if isinstance(raw, dict) and isinstance(raw.get("id"), str) else raw
+        if param.of is None or param.of not in self.contract.types or not isinstance(key, str):
+            return None
+        entity = self.world.entities.get(key.strip())
+        if entity is None or not entity.alive or not self.world.is_a(entity.entity_type, param.of):
+            return None
+        if param.where is None:
+            return entity
+        expr = compile_expr(param.where)
+        if "i" in expr.roots or not nested_free():  # $i needs the full listing; nested work charges a budget
+            return None
+        world = self.world
+        rng = world.rng
+        state = rng.getstate()
+        drawn = world.draws()
+        try:
+            holds = truthy(expr(world.scope(actor=actor, params=params).child(it=entity)))
+        except ExprError:
+            holds = False  # the full listing reports it
+        if world.draws() != drawn:
+            rng.setstate(state)  # the full listing makes every draw, in its own order
+            return None
+        return entity if holds else None
 
     def _list_value(self, actor: Entity, action: str, pname: str, param: ParamSpec, raw: Any,
                     params: Dict[str, Any]) -> Tuple[Any, Optional[str]]:

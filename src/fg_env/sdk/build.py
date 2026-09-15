@@ -13,7 +13,7 @@ from .errors import RunError
 from .expr import ExprError, compile_expr, is_expr, resolve, truthy  # noqa: F401
 from .seeds import SeedTree
 from .template import compile_template
-from .world import SdkWorld
+from .world import Abort, SdkWorld
 from . import networks as _networks  # noqa: F401  (registers network and keyed-draw functions)
 
 __all__ = ["build_world"]
@@ -26,6 +26,7 @@ def build_world(contract: Contract, inputs: Dict[str, Any], seeds: SeedTree, arm
     try:
         world.rounds = _rounds(world)
         world.round = 0
+        world.build_space()
         _world_props(world)
         for entity_id, named in contract.entities.items():
             world.create(named.type, entity_id, named.name or entity_id, named.props, _value(world, named.at, {}),
@@ -51,6 +52,8 @@ def build_world(contract: Contract, inputs: Dict[str, Any], seeds: SeedTree, arm
         _build_hooks(world)
     except ExprError as exc:
         raise RunError(str(exc), "build") from None
+    except Abort as refusal:  # nothing to roll back to while building: a full cell is a contract error
+        raise RunError(refusal.reason, "build") from None
     world.journal.clear()
     world.rng = seeds.rng("run")
     return world

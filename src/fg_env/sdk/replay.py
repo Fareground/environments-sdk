@@ -18,7 +18,7 @@ from .seeds import SeedTree
 if TYPE_CHECKING:
     from .session import Wake
 
-__all__ = ["Origin", "Tape", "Playback", "reseed"]
+__all__ = ["Origin", "Tape", "Playback", "apply_step", "reseed"]
 
 Entry = Tuple[Any, ...]
 
@@ -127,11 +127,12 @@ class Playback:
             if wake.done:
                 raise RunError(f"the copy diverged from the run it was taken from: turn {turn.number} ended after "
                                f"{position} of its {len(entries)} recorded steps", f"replay:turn {turn.number}")
-            _apply(wake, entry)
+            apply_step(wake, entry)
         return True
 
 
-def _apply(wake: "Wake", entry: Entry) -> None:
+def apply_step(wake: "Wake", entry: Entry) -> None:
+    """Do one recorded step in ``wake``: a read, a call, reported usage, a reseed or a timeout."""
     kind = entry[0]
     if kind == "brief":
         wake.brief

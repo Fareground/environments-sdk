@@ -126,26 +126,14 @@ def _entity_ids(runner: Any, raw: str, vars: Dict[str, Any], path: str) -> Tuple
 
 def _places(runner: Any, entity: Entity, raw: Optional[str], vars: Dict[str, Any], path: str) -> List[Any]:
     world = runner.world
-    space = world.contract.space
+    space = world.space
     if raw == "adjacent":
         here: Any = entity.location_id
         if space is None or here is None:
             return []
-        if space.graph is not None:
-            out: List[Any] = []
-            for edge in space.graph.edges:
-                a, b = (edge["from"], edge["to"]) if isinstance(edge, dict) else (edge[0], edge[1])
-                other = b if a == here else a if b == here else None
-                if other is not None and other not in out:
-                    out.append(other)
-            return out
-        if space.grid is not None:
-            steps = [(-1, 0), (1, 0), (0, -1), (0, 1)]
-            if space.grid.diagonal:
-                steps += [(-1, -1), (-1, 1), (1, -1), (1, 1)]
-            return [[here[0] + dr, here[1] + dc] for dr, dc in steps
-                    if 0 <= here[0] + dr < space.grid.rows and 0 <= here[1] + dc < space.grid.cols]
-        raise RunError("`adjacent` needs a graph or grid space", path)
+        if space.geometry.kind == "plane":
+            raise RunError("`adjacent` needs a graph or grid space", path)
+        return space.geometry.adjacent(here)
     try:
         value = runner.eval(raw, {**vars, "it": entity})
     except ExprError as exc:

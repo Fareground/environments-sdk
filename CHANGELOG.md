@@ -24,6 +24,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   arguments, conditions and limits apply, and the log keeps the action's own name. Mechanisms that generate
   several tools take `tools: each | one | auto` (`each` by default; `auto` shares one tool only when every
   action takes the same arguments).
+- **Spaces for agent-based models**: grid `neighborhood` (`von_neumann`, `moore`, `hex` in axial
+  coordinates) and `torus`; plane `torus`; sizes and graph nodes/edges may be expressions over `$inputs`;
+  `space.capacity` (per cell, or per type) refuses a `move` or `create` into a full cell. Positions are
+  indexed (kept current under rollback and restore): `$at`, `$near`, `$nearest`, `$cells`, `$empty`,
+  `$random_empty`. `diagonal` is replaced by `neighborhood: moore`.
+- **Layers** (`space.layers`): values on every cell or place, read with `$layer(name, position)` and changed
+  by the `layer` effect — one cell (`at`), every cell reading the old values (`set` with `$cell`/`$value`),
+  `diffuse` and `decay`; kept in snapshots.
+- **Synchronous and ordered events**: `events[].sync` (every item reads the state before the event and all
+  property and layer-cell writes land together; conflicting writes are an error) and `events[].order`
+  (`random` or an expression).
+- **`fg-env bench`** (`fg_env.sdk.bench.bench`): build time, ms per round, rounds per second and exclusive
+  time per phase, for given contracts or the reference models; new examples `schelling`,
+  `boltzmann_wealth`, `game_of_life`, `forest_fire`, `wolf_sheep`, `sugarscape_lite` with checks of their
+  known results.
+- **Crowd scale**: `invariants[].check` (`action` default, `round`, `end`); an invariant already found to
+  hold in the same state is not evaluated again. Type members are indexed (no world scan per
+  `$choice(type)`/`$count(type)`/`each`), a condition opening with `$it.field == value` skips entities whose
+  field differs without evaluating them, and a coded policy's entity argument is validated without listing
+  every candidate. Boltzmann 20 000 agents: 11.8 s → 0.48 s per round.
+- **Traces** (`fg_env.trace(result_or_file)`, `fg-env run --trace run.jsonl`, `fg-env trace FILE ...`): read a run
+  recorded with `exposures=True` — `overview()` per agent (turns, calls, invalid rate, timeouts, tokens), `turn()` in
+  full (what the agent read, the tools offered, every call with its result), `timeline()`, `search()`, `invalid()`
+  (refused calls with their corrections), `agent()`. `result.save(path)` / `RunResult.load(path)` write and read JSON
+  or JSON lines; each exposure wake keeps its turn's `steps` from the engine tape, and a recorded result carries
+  `host_tape`.
+- **Replay** (`trace.replay(contract)`, `fg_env.participants.replay(trace)`, `fg-env trace FILE replay CONTRACT`): a
+  recorded LLM and host run plays again offline from its steps (timeouts included) and host answers, checked turn by
+  turn; the first
+  divergence (turn, brief or update text, tools offered, call result, event, ending) is reported precisely, and a
+  `fallback` participant can play on after it.
+- **Evaluation** (`fg_env.evaluate(suite, focal=..., background=..., baseline=..., seats=..., score=..., modes=...)`,
+  `fg-env evaluate`): a focal participant in a seeded share of a scenario's seats among background agents, paired
+  with a baseline in the same seats on the same seeds; focal score per focal seat, paired difference with a 95%
+  interval and cost, per scenario, mode, tag, held-out split and overall.
+- **Run budgets** (`env.run(..., budget={"tokens", "calls", "host_calls", "seconds", "on_exhaust": "end" | "idle"})`):
+  checked at every safe point; a run that runs out ends with `ended_by: "budget"` or idles its agents;
+  `result.budget` and snapshots record it.
 - **Chance nodes** (`chance` effect): `{"chance": [{"p": 0.5, "label": "heads", "do": [...]}, ...], "as": "coin"}`
   or `{"chance": "deal", "outcomes": "$world.deck", "weight": "...", "as": "card", "do": [...]}` picks one
   outcome from a listed distribution and logs it as a `chance` event. Sampled from the seed by default;

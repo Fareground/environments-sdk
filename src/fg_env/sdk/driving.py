@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, Any, Callable, Deque, Dict, List, Mapping, Opt
 from ..entity import Entity
 from .errors import RunError
 from .expr import ExprError
-from .participants import Participant, resolve_participant
+from .participants import Idle, Participant, resolve_participant
 from .session import END_TURN, Wake
 
 if TYPE_CHECKING:
@@ -37,6 +37,7 @@ if TYPE_CHECKING:
 __all__ = ["Driver", "is_async", "background_loop", "run_on_worker"]
 
 _LOOP_LOCK = threading.Lock()
+_IDLE = Idle()
 _LOOPS: Dict[int, asyncio.AbstractEventLoop] = {}
 
 
@@ -160,6 +161,9 @@ class Driver:
         self._resolved.clear()
 
     def participant(self, actor: Entity) -> Participant:
+        budget = self.env.budget
+        if budget is not None and budget.exhausted is not None and budget.on_exhaust == "idle":
+            return _IDLE  # the run's budget ran out: agents take no more actions
         cached = self._resolved.get(actor.id)
         if cached is not None:
             return cached

@@ -335,8 +335,9 @@ def load(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, se
 def run(source: ContractLike, participants: Any = None, *, inputs: Optional[Mapping[str, Any]] = None,
         seed: Optional[int] = None, arm: Optional[str] = None, rounds: Optional[int] = None,
         on_event: Any = None, strict: bool = False, data_dir: Union[str, "os.PathLike[str]", None] = None,
-        hosts: Any = None, time_limit: Optional[float] = None, exposures: bool = False) -> RunResult:
+        hosts: Any = None, time_limit: Optional[float] = None, exposures: bool = False,
+        budget: Optional[Mapping[str, Any]] = None) -> RunResult:
     """Load and run in one call: ``fg_env.run("shop.json", {"buyer": "policy:thrifty"}, seed=1)``."""
     env = load(source, inputs=inputs, seed=seed, arm=arm, strict=strict, data_dir=data_dir, hosts=hosts,
                exposures=exposures)
-    return env.run(participants, rounds=rounds, on_event=on_event, time_limit=time_limit)
+    return env.run(participants, rounds=rounds, on_event=on_event, time_limit=time_limit, budget=budget)

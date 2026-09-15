@@ -18,7 +18,11 @@ its content hash, so a brief read on a hundred turns costs one copy. A wake reco
      "view_events": [seq, ...],                          # log events listed inside views
      "tools": [name, ...], "tool_sets": [hash, ...],     # names offered; each distinct definition set
      "calls": [{"tool", "args", "ok", "ended", "result": hash, "error"?}],
-     "invalid": 0, "timed_out": false, "undone": 0, "usage": {...}?}
+     "invalid": 0, "timed_out": false, "undone": 0, "usage": {...}?,
+     "steps": [["brief"], ["update"], ["tools"], ["call", tool, args], ["usage", {...}], ["timeout"], ...]}
+
+``steps`` is the turn's entry on the engine's tape (:mod:`fg_env.sdk.replay`): everything the participant did
+through its wake, in order — first reads, calls, reported usage, a timeout — which is what a replay plays back.
 
 Only what was rendered counts: a coded participant that never reads its update was shown nothing.
 """
@@ -153,6 +157,8 @@ class Exposure:
         record["invalid"] = turn.stats.invalid_calls
         record["timed_out"] = turn.timed_out
         record["undone"] = turn.stats.undone_turns
+        taped = turn.env.origin.tape.turns.get(turn.number)
+        record["steps"] = [_jsonable(list(step)) for step in taped[1]] if taped else []
         for shown in self._deferred:
             self.log.index(record["entity"], shown)
         self._deferred.clear()

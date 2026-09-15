@@ -6,23 +6,24 @@ turn — so a run can stop at any of them and continue exactly where it left off
 from __future__ import annotations
 
 import asyncio
-import math
 import threading
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Generator, List, Mapping, Optional, Tuple
 
 from ..entity import Entity
 from .actions import ACTION_BUDGET, ActionBook, stage_actions
+from .budget import Budget, is_seconds
 from .build import build_world
 from .contract import MAX_ROUNDS, Contract, StageSpec
 from .copying import Copying
 from .driving import Driver, run_on_worker
 from .effects import EffectRunner
 from .errors import InvariantViolation, RunError
-from .expr import ExprError, compile_expr, shared_budget, truthy
 from .exposure import ExposureLog, asks_seen
-from .happenings import Happenings
+from .expr import ExprError, compile_expr, shared_budget, truthy
 from .feeds import run_feeds
+from .happenings import Happenings
+from .host.tape import tape_of
 from .measure import RunResult, Stats, sample_metrics
 from .perception import Perception
 from .previews import Previews
@@ -82,6 +83,7 @@ class Env(Copying):
         self.driver = Driver(self)
         #: Wall-clock seconds per turn for stages that set no `time_limit` (None: no limit).
         self.time_limit: Optional[float] = None
+        self.budget: Optional[Budget] = None
         #: Recorded when asked, or when the contract's rules ask `$seen`.
         self.world.exposures = ExposureLog() if exposures or asks_seen(contract) else None
         self.happenings = Happenings(self)
@@ -97,7 +99,9 @@ class Env(Copying):
         self._in_round = False
         self.origin = Origin(contract)  # what copies of this run replay from (see replay.py)
         self._inspectable = any(self._inspect_rule(kind) is not False for kind in contract.types)
-        self._check_invariants("build")
+        #: The state each invariant was last found to hold in (see _check_invariants).
+        self._invariant_held: Dict[int, Any] = {}
+        self._check_invariants("build", "build")
 
     # -- public API ----------------------------------------------------------------
 
@@ -112,7 +116,8 @@ class Env(Copying):
     def run(self, participants: Any = None, *, rounds: Optional[int] = None,
             stop: Optional[Callable[["Env"], bool]] = None,
             on_event: Optional[Callable[[Dict[str, Any]], None]] = None,
-            raise_errors: bool = False, hosts: Any = None, time_limit: Optional[float] = None) -> RunResult:
+            raise_errors: bool = False, hosts: Any = None, time_limit: Optional[float] = None,
+            budget: Optional[Mapping[str, Any]] = None) -> RunResult:
         """Run to the end, or for ``rounds`` more rounds, or until ``stop(env)`` is true.
 
         ``participants`` is a callable for every agent, or a mapping from entity id, type or
@@ -120,18 +125,19 @@ class Env(Copying):
         ``"policy:<name>"``). Agents without one use their type's ``policy`` or ``"random"``. Every
         participant is offered the contract's in-turn host tools; ``hosts`` binds the run to host
         adapters first. ``time_limit`` sets :attr:`time_limit`, the wall-clock seconds per turn for
-        stages that set none. Inside a running event loop, use :meth:`arun`.
+        stages that set none; ``budget`` caps the run (:mod:`fg_env.sdk.budget`). In an event loop, use :meth:`arun`.
 
         ``stop`` is checked before every round, stage, pass and sequential turn. A stopped run
         continues exactly where it stopped on the next call; finishing a round that was
         stopped part-way counts as one of ``rounds``.
         """
-        return self._run(participants, rounds, stop, on_event, raise_errors, hosts, time_limit, None)
+        return self._run(participants, rounds, stop, on_event, raise_errors, hosts, time_limit, budget, None)
 
     async def arun(self, participants: Any = None, *, rounds: Optional[int] = None,
                    stop: Optional[Callable[["Env"], bool]] = None,
                    on_event: Optional[Callable[[Dict[str, Any]], None]] = None,
-                   raise_errors: bool = False, hosts: Any = None, time_limit: Optional[float] = None) -> RunResult:
+                   raise_errors: bool = False, hosts: Any = None, time_limit: Optional[float] = None,
+                   budget: Optional[Mapping[str, Any]] = None) -> RunResult:
         """:meth:`run` as a coroutine, for use inside a running event loop.
 
         Async participants run on this loop — so clients bound to it work — and a simultaneous
@@ -140,19 +146,19 @@ class Env(Copying):
         Cancelling the call stops the run at its next safe point.
         """
         def play(loop: asyncio.AbstractEventLoop, halt: Callable[["Env"], bool]) -> RunResult:
-            return self._run(participants, rounds, halt, on_event, raise_errors, hosts, time_limit, loop)
+            return self._run(participants, rounds, halt, on_event, raise_errors, hosts, time_limit, budget, loop)
 
         result: RunResult = await run_on_worker(play, stop)
         return result
 
     def _run(self, participants: Any, rounds: Optional[int], stop: Optional[Callable[["Env"], bool]],
              on_event: Optional[Callable[[Dict[str, Any]], None]], raise_errors: bool, hosts: Any,
-             time_limit: Optional[float], loop: Optional[asyncio.AbstractEventLoop]) -> RunResult:
+             time_limit: Optional[float], budget: Any, loop: Optional[asyncio.AbstractEventLoop]) -> RunResult:
         if rounds is not None and (isinstance(rounds, bool) or not isinstance(rounds, int) or rounds < 0):
             raise ValueError(f"rounds must be a whole number ≥ 0, got {rounds!r}")
         if rounds is not None and rounds > MAX_ROUNDS:
             raise ValueError(f"rounds must be at most {MAX_ROUNDS:,}, got {rounds:,}")
-        if time_limit is not None and not _seconds(time_limit):
+        if time_limit is not None and not is_seconds(time_limit):
             raise ValueError(f"time_limit must be a number of seconds > 0, got {time_limit!r}")
         if not self._running.acquire(blocking=False):
             raise RuntimeError("this environment is already running; run() cannot be called again until it returns")
@@ -164,6 +170,7 @@ class Env(Copying):
             self.driver.bind(participants)
             if time_limit is not None:
                 self.time_limit = float(time_limit)
+            self.budget = Budget.begin(budget, self.budget)
             self.driver.loop = loop
             self._on_event = on_event
             try:
@@ -221,6 +228,7 @@ class Env(Copying):
             events=[e.to_dict() for e in self.world.log], time=self.world.time if self.world.continuous else None,
             exposures=self.world.exposures.to_dict() if self.world.exposures is not None else {},
             frames=[dict(frame) for frame in self.previews.frames], returns=returns,
+            host_tape=tape_of(self) if self.world.exposures is not None else {}, budget=Budget.report(self),
         )
 
     @property
@@ -265,7 +273,7 @@ class Env(Copying):
         completed = 0
         while not self.finished:
             if self._cursor is None:
-                if rounds is not None and completed >= rounds:
+                if (rounds is not None and completed >= rounds) or (self.budget is not None and self.budget.enforce(self)):
                     return
                 if stop is not None and stop(self):
                     self.status = "stopped"
@@ -276,8 +284,8 @@ class Env(Copying):
                 self.status = "running"
             for _ in self._cursor:
                 self.origin.tape.points += 1
-                if stop is not None and stop(self):
-                    self.status = "stopped"
+                if (self.budget is not None and self.budget.enforce(self)) or (stop is not None and stop(self)):
+                    self.status = self.status if self.finished else "stopped"
                     return
             self._cursor = None
             completed += 1
@@ -367,7 +375,7 @@ class Env(Copying):
         self.happenings.run_events("end")
         sample_metrics(self.contract, world)
         self.happenings.check_triggers("round end")
-        self._check_invariants("round")
+        self._check_invariants("round", "round")
         self._check_end()
         self._flush_events()
         if self._ended():
@@ -396,6 +404,7 @@ class Env(Copying):
         self._final_event()
 
     def _final_event(self) -> None:
+        self._check_invariants("the run", "end")
         end = self.world.end_request or {}
         text = end.get("text") or (f"The run ended: {self.ended_by}." if self.ended_by != "rounds" else "Time is up.")
         self.world.emit("end", text, data={"ended_by": self.ended_by, "winner": end.get("winner")})
@@ -597,7 +606,7 @@ class Env(Copying):
             raise RunError(str(exc), path) from None
         if value is None:
             return self.time_limit
-        if not _seconds(value):
+        if not is_seconds(value):
             raise RunError(f"must be a number of seconds > 0 (or null for the run's limit), got {value!r}", path)
         return float(value)
 
@@ -737,9 +746,21 @@ class Env(Copying):
                 return self.contract.types[kind].inspect
         return True
 
-    def _check_invariants(self, path: str) -> None:
-        scope = self.world.scope()
+    def _check_invariants(self, path: str, moment: str = "action") -> None:
+        """Check the invariants due at ``moment``: build, action (after a change), round or end. An
+        invariant already found to hold in exactly this state — without drawing randomness — holds again,
+        so it is not evaluated again."""
+        if not self.contract.invariants:
+            return
+        world = self.world
+        scope = world.scope()
         for index, invariant in enumerate(self.contract.invariants):
+            if moment not in _INVARIANT_MOMENTS[invariant.check]:
+                continue
+            state = world.state_version()
+            if moment == "action" and self._invariant_held.get(index) == state:
+                continue
+            drawn = world.draws()
             try:
                 holds = truthy(compile_expr(invariant.expr)(scope))
             except ExprError as exc:
@@ -748,6 +769,9 @@ class Env(Copying):
                 why = f" ({invariant.why})" if invariant.why else ""
                 raise InvariantViolation(f"invariant `{invariant.expr}` no longer holds after {path}{why}",
                                          f"invariants[{index}]")
+            unseen = world.exposures is None  # `$seen` reads a log that is not part of the state version
+            fresh = unseen and world.draws() == drawn and world.state_version() == state
+            self._invariant_held[index] = state if fresh else None
 
     def _check_end(self) -> None:
         world = self.world
@@ -790,6 +814,5 @@ class Env(Copying):
             self._on_event(event.to_dict())
 
 
-def _seconds(value: Any) -> bool:
-    """Whether ``value`` is a usable time limit: a finite number of seconds above zero."""
-    return not isinstance(value, bool) and isinstance(value, (int, float)) and math.isfinite(value) and value > 0
+#: The moments each `invariants[].check` setting is checked at.
+_INVARIANT_MOMENTS = {"action": ("build", "action", "round"), "round": ("build", "round"), "end": ("end",)}

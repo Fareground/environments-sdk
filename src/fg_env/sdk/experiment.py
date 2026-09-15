@@ -186,11 +186,11 @@ def failed_run(job: Job, error: BaseException) -> RunResult:
 
 
 def run_job(source: Any, job: Job, participants: Any = None, rounds: Optional[int] = None, events: bool = True,
-            data_dir: Any = None) -> RunResult:
+            data_dir: Any = None, budget: Optional[Mapping[str, Any]] = None) -> RunResult:
     """Run one job; a failure comes back as a failed run, never raised."""
     try:
         result = load(source, inputs=dict(job.inputs), seed=job.seed, arm=job.arm, data_dir=data_dir).run(
-            participants, rounds=rounds)
+            participants, rounds=rounds, budget=budget)
     except Exception as exc:  # reported per run, never fatal to the batch
         return failed_run(job, exc)
     return result if events else replace(result, events=[])
@@ -219,14 +219,15 @@ def worker_pool(workers: int, participants: Any = None) -> Iterator[Optional[Pro
 
 def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = None,
              participants_for: Optional[Callable[[Job], Any]] = None, rounds: Optional[int] = None, workers: int = 1,
-             events: bool = True, pool: Optional[ProcessPoolExecutor] = None, data_dir: Any = None) -> List[RunResult]:
+             events: bool = True, pool: Optional[ProcessPoolExecutor] = None, data_dir: Any = None,
+             budget: Optional[Mapping[str, Any]] = None) -> List[RunResult]:
     """Run every job, in order, returning one result per job.
 
     Problems the jobs share (bad inputs, an unknown arm, an unknown participant) raise before anything
     runs; a job that fails on its own comes back as a failed run. Participants given by name run in
     worker processes when ``workers > 1`` or a ``pool`` is given; callables run in threads.
     ``participants_for(job)`` builds fresh participants per job; a job's own ``participants`` replace
-    the batch's for that job; ``events=False`` drops event logs.
+    the batch's for that job; ``events=False`` drops event logs; ``budget`` caps every run.
     """
     _check_workers(workers)
     folder = default_data_dir(source, data_dir)
@@ -252,13 +253,13 @@ def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = N
             who = participants_for(job) if participants_for is not None else assigned(job)
         except Exception as exc:
             return failed_run(job, exc)
-        return run_job(contract, job, who, rounds, events, folder)
+        return run_job(contract, job, who, rounds, events, folder, budget)
 
     many = len(jobs) > 1
     portable = participants_for is None and all(_portable(assigned(job)) for job in jobs)
     if (pool is not None or workers > 1) and many and portable:
         data = contract_source(contract)
-        payloads = [(data, job, assigned(job), rounds, events, str(folder) if folder else None) for job in jobs]
+        payloads = [(data, job, assigned(job), rounds, events, str(folder) if folder else None, budget) for job in jobs]
         chunk = max(1, len(jobs) // (workers * 4))
         try:
             if pool is not None:
