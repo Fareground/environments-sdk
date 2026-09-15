@@ -266,6 +266,7 @@ def _submodels(contract: C.Contract, metadata: Mapping[str, Any]) -> List[str]:
             if getattr(type_spec, hook):
                 lines += [f"### Lifecycle hook `{kind}.{hook}`", ""] + _code(getattr(type_spec, hook))
     lines += _dynamics(contract)
+    lines += _patterns(contract)
     for name, formula in contract.defs.items():
         lines += [f"### Formula `${name}({', '.join(formula.args)})`", ""] \
             + ([formula.description, ""] if formula.description else []) + _code([formula.expr])
@@ -307,6 +308,16 @@ def _dynamics(contract: C.Contract) -> List[str]:
         if dynamics.write:
             lines += ["Then sets:", ""] + _bullets([f"`{prop}` = `{expr}`" for prop, expr in dynamics.write.items()], "")
     return lines
+
+
+def _patterns(contract: C.Contract) -> List[str]:
+    from ..patterns.describe import pattern_rows  # imported late: patterns read the contract models
+
+    rows = pattern_rows(contract)
+    if not rows:
+        return []
+    return ["### World patterns", "", "Regularities the world follows on its own, each read as a value wherever the rules "
+            "need it:", ""] + _table(["pattern", "what it is", "kind", "per", "read as", "notes"], rows)
 
 
 def _summary(metadata: Mapping[str, Any]) -> List[str]:

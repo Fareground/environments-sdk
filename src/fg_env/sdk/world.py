@@ -21,6 +21,7 @@ from .stdlib.dates import calendar_date
 from .space import Spatial, position_of
 from .type_index import TypeIndex
 from . import links as _links, world_physics
+from .patterns.runtime import PatternRuntime
 from .links import Link
 from .world_parts import ClockView, Entry, Journal, LogEvent, PhysicsView, PropsView
 
@@ -122,6 +123,7 @@ class SdkWorld(World):
         self._props_view = PropsView(self)
         self._physics_view = PhysicsView(self)
         self._clock_view = ClockView(self)
+        self.patterns = PatternRuntime(self)
         self._type_props = {t: contract.props_of(t) for t in contract.types}
         #: Def results for the current world state (see :meth:`call_def`).
         self._def_cache: Dict[Any, Any] = {}
@@ -344,6 +346,7 @@ class SdkWorld(World):
             "world": self._props_view,
             "physics": self._physics_view,
             "clock": self._clock_view,
+            "pattern": self.patterns.view,
             "round": self.round,
             "stage": self.stage,
             "metrics": self.metrics,

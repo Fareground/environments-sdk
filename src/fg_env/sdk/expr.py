@@ -792,6 +792,8 @@ class Expr:
     #: ``(function, signature)`` — built-in calls with the wrong number of arguments. Valid when the
     #: contract defines its own function of that name (a def shadows a built-in); reported otherwise.
     arity_errors: FrozenSet[Tuple[str, str]] = frozenset()
+    #: ``(root, name, argument count)`` — calls of a root's member, e.g. ``$pattern.season($it.sku)``.
+    methods: FrozenSet[Tuple[str, str, int]] = frozenset()
 
     def __call__(self, scope: Scope) -> Any:
         budget = _BUDGET
@@ -849,7 +851,7 @@ def compile_expr(source: str) -> Expr:
         if not isinstance(node, _ALLOWED):
             raise ExprError(f"unsupported syntax ({type(node).__name__})", source)
         if isinstance(node, ast.Call) and (node.keywords or not (
-            isinstance(node.func, ast.Name) and node.func.id.startswith(_FUNC_PREFIX)
+            isinstance(node.func, ast.Name) and node.func.id.startswith(_FUNC_PREFIX) or _root_method(node.func)
         )):
             called = node.func.id if isinstance(node.func, ast.Name) and not node.keywords else None
             raise ExprError("only $functions can be called, with positional arguments"
@@ -868,7 +870,12 @@ def compile_expr(source: str) -> Expr:
     return Expr(source, run, frozenset(compiler.roots), frozenset(compiler.functions),
                 frozenset(compiler.symbols), frozenset(compiler.paths), frozenset(compiler.calls),
                 frozenset(compiler.item_paths), frozenset(compiler.comparisons),
-                frozenset(compiler.item_comparisons), frozenset(compiler.arity_errors))
+                frozenset(compiler.item_comparisons), frozenset(compiler.arity_errors), frozenset(compiler.methods))
+
+
+def _root_method(func: ast.AST) -> bool:
+    """``func`` is ``$root.name`` — a member of a root, which may be called like a function."""
+    return isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id.startswith(_ROOT_PREFIX)
 
 
 def _chain(node: ast.AST) -> Optional[Tuple[str, ...]]:
@@ -894,6 +901,7 @@ class _Compiler:
         self.item_paths: set = set()
         self.comparisons: set = set()
         self.item_comparisons: set = set()
+        self.methods: set = set()
 
     def node(self, node: ast.AST) -> Evaluator:
         method = getattr(self, "_" + type(node).__name__)
@@ -1053,7 +1061,27 @@ class _Compiler:
         test, body, orelse = self.node(node.test), self.node(node.body), self.node(node.orelse)
         return lambda scope: body(scope) if truthy(test(scope)) else orelse(scope)
 
+    def _method(self, func: ast.Attribute, nodes: Sequence[ast.AST]) -> Evaluator:
+        """``$root.name(args)``: the root's value answers the call (``expr_call``), e.g. ``$pattern.season($it.sku)``."""
+        assert isinstance(func.value, ast.Name)
+        root, name, source = func.value.id[len(_ROOT_PREFIX):], func.attr, self.source
+        self.roots.add(root)
+        self.paths.add((root, name))
+        self.methods.add((root, name, len(nodes)))
+        args = [self.node(arg) for arg in nodes]
+
+        def run(scope: Scope) -> Any:
+            target = scope.root(root, source)
+            caller = getattr(target, "expr_call", None)
+            if caller is None:
+                raise ExprError(f"${root}.{name} cannot be called; read it as ${root}.{name}", source)
+            return caller(name, [arg(scope) for arg in args], source)
+
+        return run
+
     def _Call(self, node: ast.Call) -> Evaluator:
+        if isinstance(node.func, ast.Attribute):
+            return self._method(node.func, node.args)
         assert isinstance(node.func, ast.Name)
         name = node.func.id[len(_FUNC_PREFIX):]
         spec = FUNCTIONS.get(name)

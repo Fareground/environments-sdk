@@ -78,7 +78,7 @@ REPEAT_CEILING = 100_000
 
 RESERVED_ROOTS = frozenset({
     "actor", "params", "it", "i", "row", "inputs", "world", "physics", "clock", "round",
-    "stage", "metrics", "series", "arm", "viewer", "event", "outer", "pending", "result",
+    "stage", "metrics", "series", "arm", "viewer", "event", "outer", "pending", "result", "pattern",
 })
 
 _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*$")

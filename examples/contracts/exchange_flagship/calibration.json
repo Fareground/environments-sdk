@@ -23,18 +23,10 @@
     "volume_ema": {"type": "number", "default": "$seed_stats().avg_volume"},
     "flow_scale": {"type": "number", "default": "$inputs.flow_scale", "description": "Volatility controller: multiplies speculative order sizes."}
   },
-  "mechanisms": {
-    "fundamental_walk": {
-      "kind": "dynamics", "mode": "drift",
-      "rules": {"fundamental": {"target": "world.fundamental", "model": "geometric", "rate": "$inputs.drift_pct_per_bar / 100 / $inputs.substeps",
-                                "sd": "$world.target_sigma * 0.7 / $sqrt($inputs.substeps)", "min": 0.01,
-                                "description": "The latent value moves less than the tape."}}
-    },
-    "fundamental_jumps": {
-      "kind": "dynamics", "mode": "shocks",
-      "shocks": {"jump": {"chance": "$inputs.jump_prob_bar / $inputs.substeps", "do": ["$world.fundamental = $max(0.01, $world.fundamental * $exp($normal(0, $inputs.jump_sigma)))"],
-                          "description": "Unannounced jumps in the latent value."}}
-    }
+  "patterns": {
+    "fundamental_shock": {"kind": "noise", "sd": 1, "description": "The latent value's unit shock each pass (scaled by the event that moves it)."},
+    "jump": {"kind": "shocks", "chance": "$inputs.jump_prob_bar / $inputs.substeps", "description": "An unannounced jump in the latent value starts (1 on its pass)."},
+    "jump_size": {"kind": "noise", "sd": "$inputs.jump_sigma", "description": "A jump's size, as a log change of the latent value."}
   },
   "events": [
     {"name": "scheduled_news", "phase": "start", "every": "$inputs.substeps", "each": "$filter($inputs.events, $it.bar == $bar())", "as": "story",
@@ -52,6 +44,10 @@
     {"name": "news_fades", "phase": "end",
      "do": ["$world.sentiment = $world.sentiment * $exp(-1 / ($max([5] + $map($world.news, $it.duration)) * $inputs.substeps))",
             "$world.sentiment = 0 if $abs($world.sentiment) < 0.001 else $world.sentiment",
-            "$world.news = $filter($world.news, $it.until > $round // $inputs.substeps + 1)"]}
+            "$world.news = $filter($world.news, $it.until > $round // $inputs.substeps + 1)"]},
+    {"name": "fundamental_walk", "phase": "start",
+     "do": "$world.fundamental = $max(0.01, $world.fundamental * $exp($inputs.drift_pct_per_bar / 100 / $inputs.substeps + $world.target_sigma * 0.7 / $sqrt($inputs.substeps) * $pattern.fundamental_shock))"},
+    {"name": "fundamental_jumps", "phase": "start", "when": "$pattern.jump > 0",
+     "do": "$world.fundamental = $max(0.01, $world.fundamental * $exp($pattern.jump_size))"}
   ]
 }
