@@ -17,7 +17,7 @@ from .effects import EffectRunner
 from .errors import RunError
 from .expr import EVAL_BUDGET, ExprError, Scope, Untrusted, compile_expr, is_expr, nested_free, resolve, shared_budget, truthy
 from .template import compile_template, format_value
-from .tool_text import shared_description, shared_param, text_limit, usage_limits
+from .tool_text import compact_ids, shared_description, shared_param, text_limit, usage_limits
 from .world import Abort, SdkWorld, _plain
 
 __all__ = ["ACTION_BUDGET", "TEXT_MAX_LEN", "MAX_SAFE_INT", "ToolSpec", "Outcome", "ActionBook", "TrialStream",
@@ -343,7 +343,7 @@ class ActionBook:
             out["type"] = "string"
             out["maxLength"] = param.max_len if param.max_len is not None else TEXT_MAX_LEN
             if param.max_len is not None:
-                description = f"{description or ''} {text_limit(param.max_len)}".strip()
+                description = f"{description or ''} {text_limit(param.max_len, param.overflow)}".strip()
         elif param.type == "enum":
             values = self._static(actor, param.values) if isinstance(param.values, str) else param.values
             if isinstance(values, list) and values:
@@ -378,6 +378,8 @@ class ActionBook:
                     description = f"{description} Options: {listing}.".strip()
             else:
                 description = (description or f"Id of a {param.of}.").strip()
+                if "enum" not in out and not self._depends_on_params(param):
+                    description += f" One of: {compact_ids([c.id for c in choices])}."
         if description:
             out["description"] = description
         default = self._schema_default(actor, param)

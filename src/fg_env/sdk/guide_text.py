@@ -21,11 +21,12 @@ turn, uses `max_actions`, or runs out of `max_calls`.
 * `until` repeats passes within the round (deliberation until everyone is ready).
 * `quiet: skip` skips agents with nothing new since their last turn (from the second pass on;
   the first pass always wakes everyone).
-* `look` and `inspect` are free reads: up to `max_calls` of them per turn do not use a call.
+* `look` and `inspect` are free reads: up to `max_calls` of them per turn use no call, and one past that is refused
+  without spending a call, so an agent can always still act. The same read twice in a turn answers "Unchanged".
 * A stage with `actions: []` wakes nobody: use it as a pure resolution step (`on_enter`/`on_exit`).
 * `must_act: true` removes `end_turn` while an action is available; `on_idle` effects run for each agent
-  that ends a turn without acting (`$actor`) — a forfeit or a default move. An agent that could act and did not is
-  reported as an `idle` event ("Ben did not act.").
+  that ends a turn without acting (`$actor`) — a forfeit or a default move. An agent that could act and did not — in
+  a `must_act` stage, or any stage once its calls ran out — is reported as an `idle` event ("Ben did not act.").
 * `terminal` may be an expression checked after the action applies (`"$world.jump_finished"`), so a
   move can end the turn only sometimes (multi-jumps).
 * `time_limit` gives each agent wall-clock seconds for its turn (a number, or an expression over `$actor`;
@@ -421,6 +422,9 @@ LLM participants: `fg_env.participants.anthropic(anthropic.Anthropic(), "claude-
 limits, timeouts and server errors (`retries=4`), then fail the run or, with `on_error="end_turn"`,
 forfeit the turn. Both take `max_tokens` (openai also `reasoning_effort`); a reply cut off at the limit
 counts in `truncated` and, when it called no tool, is asked once for a short tool call (`retry_truncated`).
+Every truncated reply wastes its whole output: for frequent decisions use `reasoning_effort="low"` (in a Hold'em
+evaluation it cut cost by 38% with no visible loss in play), or keep the default effort with a larger `max_tokens`
+(6,000 was cut off 9 times in 96 turns).
 Their real token usage is in `result.stats` (`llm_calls`, `input_tokens`, `output_tokens`,
 `cache_read_tokens`, `cache_write_tokens`, `llm_retries`, `forfeits`, `truncated`); your own
 participants can add theirs with `wake.record_usage(...)`.
