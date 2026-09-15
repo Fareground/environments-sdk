@@ -232,13 +232,13 @@
     "weekday_profile": {
       "type": "list",
       "default": [
-        0.8520205136524426,
-        0.8785608798543039,
-        1.013870718246206,
-        1.0964668207985215,
-        1.0605276115071733,
-        1.0714943771978245,
-        1.0270590787435294
+        0.8540168312759183,
+        0.8758101161598946,
+        1.0122331849938595,
+        1.0959403350155061,
+        1.0595101822266286,
+        1.0770692198970253,
+        1.0254201304311672
       ],
       "description": "Pattern 'weekday', profile: fitted by fg_env.fit_patterns from $inputs.history (joint count regression)."
     },
@@ -246,23 +246,23 @@
       "type": "list",
       "default": [
         0.0,
-        0.06772065758711732,
-        0.0760339516194238,
-        0.08132365153658781,
-        0.07915034180003439,
-        0.07985326653732303,
-        0.0768945841871913
+        0.06683986100556313,
+        0.07512511449276192,
+        0.08041921136828747,
+        0.0782420980565673,
+        0.07933115910597442,
+        0.07597558995181478
       ],
       "description": "Standard error of weekday_profile."
     },
     "retail_price_effect_elasticity": {
       "type": "number",
-      "default": -2.43727612381002,
+      "default": -2.4170263565750103,
       "description": "Pattern 'retail_price_effect', elasticity: fitted by fg_env.fit_patterns from $inputs.history (joint count regression)."
     },
     "retail_price_effect_elasticity_se": {
       "type": "number",
-      "default": 0.19571676992499604,
+      "default": 0.19369271643453134,
       "description": "Standard error of retail_price_effect_elasticity."
     },
     "retail_demand_fit": {
@@ -277,8 +277,8 @@
           "retail_return": 0.05,
           "retail_rate": 0.72,
           "wholesale_rate": 0.24,
-          "scale": 0.6566920444720638,
-          "scale_se": 0.05716949368492594
+          "scale": 0.6788610894987919,
+          "scale_se": 0.05817853290189575
         },
         {
           "item": "14-B",
@@ -289,8 +289,8 @@
           "retail_return": 0.06,
           "retail_rate": 0.88,
           "wholesale_rate": 0.48,
-          "scale": 0.8485683350398946,
-          "scale_se": 0.06903077978236129
+          "scale": 0.8574472147916703,
+          "scale_se": 0.06906384576751827
         },
         {
           "item": "14-C",
@@ -301,8 +301,8 @@
           "retail_return": 0.11,
           "retail_rate": 0.4,
           "wholesale_rate": 0.64,
-          "scale": 0.32535488335918694,
-          "scale_se": 0.03522134953413726
+          "scale": 0.3397058942889159,
+          "scale_se": 0.03604709908159584
         },
         {
           "item": "14-D",
@@ -313,8 +313,8 @@
           "retail_return": 0.13,
           "retail_rate": 0.12,
           "wholesale_rate": 0.8,
-          "scale": 0.1350071435056859,
-          "scale_se": 0.020768486020515932
+          "scale": 0.1350667209174079,
+          "scale_se": 0.020707842619367266
         },
         {
           "item": "15-A",
@@ -325,8 +325,8 @@
           "retail_return": 0.05,
           "retail_rate": 0.9,
           "wholesale_rate": 0.3,
-          "scale": 0.9638054298132254,
-          "scale_se": 0.07633012525520039
+          "scale": 0.9831123594029416,
+          "scale_se": 0.07691094280492874
         },
         {
           "item": "15-B",
@@ -337,8 +337,8 @@
           "retail_return": 0.06,
           "retail_rate": 1.1,
           "wholesale_rate": 0.6,
-          "scale": 1.1958026745724224,
-          "scale_se": 0.09020157062843971
+          "scale": 1.2202920584036037,
+          "scale_se": 0.09091244635082833
         },
         {
           "item": "15-C",
@@ -349,8 +349,8 @@
           "retail_return": 0.11,
           "retail_rate": 0.5,
           "wholesale_rate": 0.8,
-          "scale": 0.5120451914470467,
-          "scale_se": 0.04781841414685622
+          "scale": 0.5145196360409522,
+          "scale_se": 0.04769118603717602
         },
         {
           "item": "15-D",
@@ -361,8 +361,8 @@
           "retail_return": 0.13,
           "retail_rate": 0.15,
           "wholesale_rate": 1.0,
-          "scale": 0.12565303683961423,
-          "scale_se": 0.01993225243961438
+          "scale": 0.1335367911066239,
+          "scale_se": 0.020573158464218807
         },
         {
           "item": "16P-A",
@@ -373,8 +373,8 @@
           "retail_return": 0.05,
           "retail_rate": 0.81,
           "wholesale_rate": 0.27,
-          "scale": 0.7946139599127132,
-          "scale_se": 0.06585281722678894
+          "scale": 0.8054385256395264,
+          "scale_se": 0.0660447882081993
         },
         {
           "item": "16P-B",
@@ -385,8 +385,8 @@
           "retail_return": 0.06,
           "retail_rate": 0.99,
           "wholesale_rate": 0.54,
-          "scale": 0.9631365099314373,
-          "scale_se": 0.07607183485555574
+          "scale": 0.9637156024536379,
+          "scale_se": 0.07551930935620887
         },
         {
           "item": "16P-C",
@@ -397,8 +397,8 @@
           "retail_return": 0.11,
           "retail_rate": 0.45,
           "wholesale_rate": 0.72,
-          "scale": 0.45313213547208636,
-          "scale_se": 0.043935683444599756
+          "scale": 0.4557067952537329,
+          "scale_se": 0.04385555243119685
         },
         {
           "item": "16P-D",
@@ -409,8 +409,8 @@
           "retail_return": 0.13,
           "retail_rate": 0.135,
           "wholesale_rate": 0.9,
-          "scale": 0.14676531579592947,
-          "scale_se": 0.02179418867665593
+          "scale": 0.14679154296030278,
+          "scale_se": 0.021724566056860767
         },
         {
           "item": "17-A",
@@ -421,8 +421,8 @@
           "retail_return": 0.05,
           "retail_rate": 0.54,
           "wholesale_rate": 0.18,
-          "scale": 0.5216118731462587,
-          "scale_se": 0.04847505997688777
+          "scale": 0.524119646520537,
+          "scale_se": 0.04834320934458546
         },
         {
           "item": "17-B",
@@ -433,8 +433,8 @@
           "retail_return": 0.06,
           "retail_rate": 0.66,
           "wholesale_rate": 0.36,
-          "scale": 0.5782089776422539,
-          "scale_se": 0.052050788068711155
+          "scale": 0.5853095836670549,
+          "scale_se": 0.05217319507839428
         },
         {
           "item": "17-C",
@@ -445,8 +445,8 @@
           "retail_return": 0.11,
           "retail_rate": 0.3,
           "wholesale_rate": 0.48,
-          "scale": 0.28743324717700264,
-          "scale_se": 0.0325225964774126
+          "scale": 0.2875548519542205,
+          "scale_se": 0.03238317258680522
         },
         {
           "item": "17-D",
@@ -457,25 +457,25 @@
           "retail_return": 0.13,
           "retail_rate": 0.09,
           "wholesale_rate": 0.6,
-          "scale": 0.08386357909092217,
-          "scale_se": 0.015898927366413462
+          "scale": 0.08389366969286624,
+          "scale_se": 0.01586096504340977
         }
       ],
       "description": "Pattern 'retail_demand', one row per key: scale fitted by fg_env.fit_patterns from $inputs.history (joint count regression)."
     },
     "sales_dispersion": {
       "type": "number",
-      "default": 3.4186633453522317,
+      "default": 3.5368309369376694,
       "description": "Pattern 'sales', dispersion: fitted by fg_env.fit_patterns from $inputs.history (method of moments around the fitted means)."
     },
     "wholesale_trend_rate": {
       "type": "number",
-      "default": 0.0001785892731418228,
+      "default": 0.00019483045678602012,
       "description": "Pattern 'wholesale_trend', rate: fitted by fg_env.fit_patterns from $inputs.history (joint count regression)."
     },
     "wholesale_trend_rate_se": {
       "type": "number",
-      "default": 0.00019885389172693662,
+      "default": 0.0001970255282777445,
       "description": "Standard error of wholesale_trend_rate."
     },
     "wholesale_demand_fit": {
@@ -490,8 +490,8 @@
           "retail_return": 0.05,
           "retail_rate": 0.72,
           "wholesale_rate": 0.24,
-          "scale": 0.2334586602158681,
-          "scale_se": 0.02720601443449547
+          "scale": 0.23823443733289518,
+          "scale_se": 0.027470690112183394
         },
         {
           "item": "14-B",
@@ -502,8 +502,8 @@
           "retail_return": 0.06,
           "retail_rate": 0.88,
           "wholesale_rate": 0.48,
-          "scale": 0.43941109823491675,
-          "scale_se": 0.03968524092813487
+          "scale": 0.4488284675200164,
+          "scale_se": 0.04010392897839958
         },
         {
           "item": "14-C",
@@ -514,8 +514,8 @@
           "retail_return": 0.11,
           "retail_rate": 0.4,
           "wholesale_rate": 0.64,
-          "scale": 0.6450324871014026,
-          "scale_se": 0.050774719493071115
+          "scale": 0.6588303954565571,
+          "scale_se": 0.05131954697229161
         },
         {
           "item": "14-D",
@@ -526,8 +526,8 @@
           "retail_return": 0.13,
           "retail_rate": 0.12,
           "wholesale_rate": 0.8,
-          "scale": 0.7642502404112342,
-          "scale_se": 0.056897311397966645
+          "scale": 0.7802417480279523,
+          "scale_se": 0.057495562552991965
         },
         {
           "item": "15-A",
@@ -538,8 +538,8 @@
           "retail_return": 0.05,
           "retail_rate": 0.9,
           "wholesale_rate": 0.3,
-          "scale": 0.32389553002165944,
-          "scale_se": 0.03295075376113178
+          "scale": 0.33101141082359303,
+          "scale_se": 0.033304217642703894
         },
         {
           "item": "15-B",
@@ -550,8 +550,8 @@
           "retail_return": 0.06,
           "retail_rate": 1.1,
           "wholesale_rate": 0.6,
-          "scale": 0.5260213350926525,
-          "scale_se": 0.04446116367894472
+          "scale": 0.5424869328408163,
+          "scale_se": 0.045212440317836396
         },
         {
           "item": "15-C",
@@ -562,8 +562,8 @@
           "retail_return": 0.11,
           "retail_rate": 0.5,
           "wholesale_rate": 0.8,
-          "scale": 0.8786626004838132,
-          "scale_se": 0.06263788913310708
+          "scale": 0.891732716371554,
+          "scale_se": 0.06303946264084553
         },
         {
           "item": "15-D",
@@ -574,8 +574,8 @@
           "retail_return": 0.13,
           "retail_rate": 0.15,
           "wholesale_rate": 1.0,
-          "scale": 0.9673547358518233,
-          "scale_se": 0.06701878443779784
+          "scale": 0.9969018029666846,
+          "scale_se": 0.06818463673087476
         },
         {
           "item": "16P-A",
@@ -586,8 +586,8 @@
           "retail_return": 0.05,
           "retail_rate": 0.81,
           "wholesale_rate": 0.27,
-          "scale": 0.26350005744648614,
-          "scale_se": 0.029177405053587048
+          "scale": 0.26822942541927725,
+          "scale_se": 0.029420129003170568
         },
         {
           "item": "16P-B",
@@ -598,8 +598,8 @@
           "retail_return": 0.06,
           "retail_rate": 0.99,
           "wholesale_rate": 0.54,
-          "scale": 0.4539431592681553,
-          "scale_se": 0.04049996931891375
+          "scale": 0.4532510056963113,
+          "scale_se": 0.040350065025941434
         },
         {
           "item": "16P-C",
@@ -610,8 +610,8 @@
           "retail_return": 0.11,
           "retail_rate": 0.45,
           "wholesale_rate": 0.72,
-          "scale": 0.736265906173109,
-          "scale_se": 0.05547473206675015
+          "scale": 0.7451555911285253,
+          "scale_se": 0.055727613310023676
         },
         {
           "item": "16P-D",
@@ -622,8 +622,8 @@
           "retail_return": 0.13,
           "retail_rate": 0.135,
           "wholesale_rate": 0.9,
-          "scale": 0.8952028146547938,
-          "scale_se": 0.06345899813561656
+          "scale": 0.9054858870889769,
+          "scale_se": 0.06371651366162241
         },
         {
           "item": "17-A",
@@ -634,8 +634,8 @@
           "retail_return": 0.05,
           "retail_rate": 0.54,
           "wholesale_rate": 0.18,
-          "scale": 0.11612065328721474,
-          "scale_se": 0.018459589608407555
+          "scale": 0.1159379468678751,
+          "scale_se": 0.01841809932776451
         },
         {
           "item": "17-B",
@@ -646,8 +646,8 @@
           "retail_return": 0.06,
           "retail_rate": 0.66,
           "wholesale_rate": 0.36,
-          "scale": 0.38852570020436134,
-          "scale_se": 0.03678095980509149
+          "scale": 0.400756135656582,
+          "scale_se": 0.03739047303664155
         },
         {
           "item": "17-C",
@@ -658,8 +658,8 @@
           "retail_return": 0.11,
           "retail_rate": 0.3,
           "wholesale_rate": 0.48,
-          "scale": 0.4062964222314127,
-          "scale_se": 0.03780496476299554
+          "scale": 0.40815874662807106,
+          "scale_se": 0.03781315203142495
         },
         {
           "item": "17-D",
@@ -670,15 +670,15 @@
           "retail_return": 0.13,
           "retail_rate": 0.09,
           "wholesale_rate": 0.6,
-          "scale": 0.4995375051250657,
-          "scale_se": 0.043019943126839856
+          "scale": 0.50380436114116,
+          "scale_se": 0.04312731559412956
         }
       ],
       "description": "Pattern 'wholesale_demand', one row per key: scale fitted by fg_env.fit_patterns from $inputs.history (joint count regression)."
     },
     "bulk_dispersion": {
       "type": "number",
-      "default": 1.6700513245316804,
+      "default": 1.6999284439405644,
       "description": "Pattern 'bulk', dispersion: fitted by fg_env.fit_patterns from $inputs.history (method of moments around the fitted means)."
     },
     "lead_noise_mean": {
