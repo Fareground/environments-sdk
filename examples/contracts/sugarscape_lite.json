@@ -1,0 +1,52 @@
+{
+  "fg_env": "1",
+  "name": "Sugarscape (lite)",
+  "description": "Sugarscape with sugar only: sugar grows back to each cell's capacity on two peaks. Ants with random vision and metabolism look along their row and column, move to the richest empty cell they can see (nearest on ties), eat its sugar and burn their metabolism; ants that run out starve. The population falls to what the land can carry, and ants with low metabolism survive.",
+  "inputs": {
+    "size": {"type": "int", "default": 25, "min": 5},
+    "ants": {"type": "int", "default": 60, "min": 1},
+    "max_sugar": {"type": "int", "default": 4, "min": 1}
+  },
+  "clock": {"rounds": 50, "unit": "step"},
+  "defs": {
+    "peaks": {"args": ["cell"], "description": "Sugar capacity of a cell: two hills.",
+              "expr": "$min($inputs.max_sugar, $round($inputs.max_sugar * ($exp(-(($cell[0] - 0.32 * $inputs.size) ** 2 + ($cell[1] - 0.32 * $inputs.size) ** 2) / (0.065 * $inputs.size ** 2)) + $exp(-(($cell[0] - 0.68 * $inputs.size) ** 2 + ($cell[1] - 0.68 * $inputs.size) ** 2) / (0.065 * $inputs.size ** 2)))))"}
+  },
+  "space": {
+    "grid": {"rows": "$inputs.size", "cols": "$inputs.size"},
+    "capacity": {"ant": 1},
+    "layers": {
+      "capacity": {"type": "int", "default": "$peaks($cell)", "min": 0},
+      "sugar": {"type": "int", "default": "$peaks($cell)", "min": 0}
+    }
+  },
+  "types": {"ant": {"props": {
+    "wealth": 5.0,
+    "metabolism": {"type": "int", "default": 1, "min": 1},
+    "vision": {"type": "int", "default": 1, "min": 1}}}},
+  "population": [
+    {"type": "ant", "count": "$inputs.ants", "at": "$random_empty(ant)",
+     "props": {"wealth": "$uniform(5, 25)", "metabolism": "$randint(1, 4)", "vision": "$randint(1, 6)"}}
+  ],
+  "events": [
+    {"name": "forage", "each": "ant", "as": "a", "order": "random", "do": [
+      "$seen = $filter($cells($a, $a.vision), ($it[0] == $a.at[0] or $it[1] == $a.at[1]) and $len($at($it, ant)) == 0)",
+      "$best = $top($seen + [$a.at], [$layer(sugar, $it), -$distance($it, $a)], 1)[0]",
+      {"if": "$best != $a.at", "then": [{"move": "$a", "to": "$best"}]},
+      "$a.wealth += $layer(sugar, $a) - $a.metabolism",
+      {"layer": "sugar", "at": "$a", "set": 0},
+      {"if": "$a.wealth <= 0", "then": [{"remove": "$a"}]}
+    ]},
+    {"name": "regrow", "phase": "end", "do": [{"layer": "sugar", "set": "$min($value + 1, $layer(capacity, $cell))"}]}
+  ],
+  "metrics": {
+    "population": "$count(ant)",
+    "gini": {"expr": "$gini(ant, $it.wealth)", "description": "Inequality of wealth among living ants."},
+    "metabolism": {"expr": "$avg(ant, $it.metabolism)", "description": "Mean metabolism of living ants."}
+  },
+  "outputs": {
+    "population": {"expr": "$metrics.population", "type": "int"},
+    "gini": {"expr": "$metrics.gini", "type": "number"},
+    "metabolism": {"expr": "$metrics.metabolism", "type": "number"}
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "fg_env": "1",
+  "name": "Forest fire",
+  "description": "Trees fill a grid at some density; the left column is set alight. Each step every burning tree ignites its fine neighbours (up, down, left, right) and burns out. Above a critical density near 0.59 the fire crosses the whole forest; below it, it dies out early.",
+  "inputs": {
+    "size": {"type": "int", "default": 30, "min": 3},
+    "density": {"type": "number", "default": 0.65, "min": 0, "max": 1}
+  },
+  "clock": {"rounds": 200, "unit": "step"},
+  "space": {"grid": {"rows": "$inputs.size", "cols": "$inputs.size"}},
+  "types": {"tree": {"props": {"condition": {"type": "enum", "values": ["fine", "burning", "burnt"], "default": "fine"}}}},
+  "population": [
+    {"type": "tree", "from": "$range($inputs.size ** 2)", "where": "$chance($inputs.density)",
+     "at": "[$row // $inputs.size, $row % $inputs.size]",
+     "props": {"condition": "'burning' if $row % $inputs.size == 0 else 'fine'"}}
+  ],
+  "events": [
+    {"name": "spread", "each": "tree", "as": "fire", "where": "$fire.condition == burning", "sync": true, "do": [
+      {"each": "$near($fire, 1, tree)", "where": "$it.condition == fine", "do": ["$it.condition = burning"]},
+      "$fire.condition = burnt"
+    ]}
+  ],
+  "metrics": {
+    "fine": "$count(tree, $it.condition == fine)",
+    "burning": "$count(tree, $it.condition == burning)",
+    "burnt": "$count(tree, $it.condition == burnt)"
+  },
+  "end": [{"when": "$metrics.burning == 0 and $round > 1", "name": "fire out"}],
+  "outputs": {"burnt_share": {"expr": "$pct($count(tree, $it.condition == burnt), $count(tree))", "type": "number"}}
+}

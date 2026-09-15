@@ -5,12 +5,13 @@ Every change still goes through the run's atomic blocks (:meth:`Env._atomic`).
 from __future__ import annotations
 
 import heapq
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, List, Optional
 
 from .delivery import run_delivery
 from .contract import StageSpec
 from .errors import RunError
 from .expr import ExprError, compile_expr, truthy
+from .sync_events import run_sync
 from .template import compile_template
 from .turn import Turn
 
@@ -60,7 +61,11 @@ class Happenings:
                 try:
                     items = world.entities_of(event.each) if event.each in env.contract.types else \
                         compile_expr(event.each)(world.scope())
-                    for position, item in enumerate(items or []):
+                    items = self._ordered(event, list(items or []), item_name, path)
+                    if event.sync:
+                        run_sync(env, event, items, item_name, path)
+                        items = []
+                    for position, item in enumerate(items):
                         inner = {item_name: item, "i": position}
                         if event.where is not None and not truthy(compile_expr(event.where)(world.scope(**inner))):
                             continue
@@ -79,6 +84,22 @@ class Happenings:
                 world.journal.clear()
             if env._ended():
                 return
+
+    def _ordered(self, event: Any, items: List[Any], name: str, path: str) -> List[Any]:
+        """An `each` event's items in its `order`: shuffled from the run's seed, or by a key (lowest first)."""
+        world = self.env.world
+        if event.order is None:
+            return items
+        if event.order == "random":
+            world.rng.shuffle(items)
+            return items
+        key = compile_expr(event.order)
+        keyed = [(key(world.scope(**{name: item, "i": position})), position, item) for position, item in enumerate(items)]
+        try:
+            keyed.sort(key=lambda entry: (entry[0], entry[1]))
+        except TypeError:
+            raise RunError("`order` must give comparable values (numbers or text)", f"{path}.order") from None
+        return [item for _, _, item in keyed]
 
     def _due(self, event: Any, path: str) -> bool:
         world = self.env.world

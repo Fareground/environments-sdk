@@ -19,6 +19,7 @@ from pydantic import BaseModel, ValidationError
 
 from ..physics import _CONSTS, _FUNCS, PhysicsExprError, _CompiledExpr
 from . import contract as C
+from .check_space import check_event_order, check_space
 from .check_turns import check_spectator_view, check_stage_turns, spectator_audience_issues
 from .contract import Contract
 from .check_state import (
@@ -249,6 +250,14 @@ class _Checker:
                     continue
                 self.error(path, f"${name}({symbol}, …): '{symbol}' is not a declared type",
                            self._suggest(symbol, self.c.types) or f"types: {', '.join(self.c.types)}")
+            if name in ("empty", "random_empty") and symbol is not None and symbol not in self.c.types:
+                self.error(path, f"${name}({symbol}): '{symbol}' is not a declared type",
+                           self._suggest(symbol, self.c.types) or f"types: {', '.join(self.c.types)}")
+            if name == "layer" and symbol is not None:
+                layers = self.c.space.layers if self.c.space is not None else {}
+                if symbol not in layers:
+                    self.error(path, f"$layer({symbol}, …): '{symbol}' is not a declared layer",
+                               self._suggest(symbol, layers) or "declare it under space.layers")
             if name == "records" and symbol is not None and symbol not in self.c.records:
                 self.error(path, f"$records({symbol}): '{symbol}' is not a declared record",
                            self._suggest(symbol, self.c.records))
@@ -698,9 +707,8 @@ class _Checker:
         if clock.start and clock.unit.lower().rstrip("s") not in ("day", "week", "month", "year", "hour", "minute"):
             self.warn("clock.start", f"a calendar date is not shown for unit '{clock.unit}'",
                       "use day, week, month, year, hour or minute")
-        space = self.c.space
-        if space is not None and sum(x is not None for x in (space.grid, space.graph, space.plane)) != 1:
-            self.error("space", "declare exactly one of grid, graph, plane")
+        if self.c.space is not None:
+            check_space(self, self.c.space)
 
     def _prop_spec(self, spec: C.PropSpec, path: str, roots: Iterable[str], types: Optional[Types] = None) -> None:
         if spec.type is not None and spec.type not in C.PROP_TYPES:
@@ -1092,6 +1100,7 @@ class _Checker:
                     self.expr(event.each, f"{path}.each", BASE)
             self.expr(event.where, f"{path}.where", roots, types)
             self.effects(event.do, f"{path}.do", roots, types)
+            check_event_order(self, event, path, frozenset(roots), types)
             self.template(event.say, f"{path}.say", None, BASE)
             if not event.do and not event.say:
                 self.warn(path, "does nothing", "add `do` or `say`")

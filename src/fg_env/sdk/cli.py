@@ -219,6 +219,14 @@ def cmd_info(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_bench(args: argparse.Namespace) -> int:
+    from .bench import bench, bench_table
+
+    results = bench(args.files, rounds=args.rounds, seed=args.seed, inputs=_inputs(args))
+    print(json.dumps([r.to_dict() for r in results], indent=2) if args.json else bench_table(results))
+    return 0 if all(r.status != "failed" for r in results) else 2
+
+
 def cmd_expand(args: argparse.Namespace) -> int:
     from .api import expand
 
@@ -318,6 +326,16 @@ def add_commands(sub: Any) -> None:
         p.add_argument("--data-dir", help="folder input data files are read from (default: the contract's folder)")
         p.add_argument("--json", action="store_true", help="print JSON")
         p.set_defaults(func=_guarded(command))
+
+    p = sub.add_parser("bench", help="time contracts (default: the reference models): ms per round, rounds per "
+                                     "second and time per phase")
+    p.add_argument("files", nargs="*", help="contract JSON files (default: the reference models in examples/contracts)")
+    p.add_argument("--rounds", type=int, help="rounds to time (default: each contract's own length)")
+    p.add_argument("--seed", type=int, default=1)
+    p.add_argument("--input", action="append", metavar="NAME=VALUE", help="set an input wherever it is declared")
+    p.add_argument("--inputs-file", help="JSON file of inputs")
+    p.add_argument("--json", action="store_true", help="print JSON")
+    p.set_defaults(func=_guarded(cmd_bench))
 
     p = sub.add_parser("expand", help="print the contract as the engine reads it: imports merged, macros expanded")
     p.add_argument("file", help="contract JSON file")

@@ -736,6 +736,8 @@ class Env:
         """Check the invariants due at ``moment``: build, action (after a change), round or end. An
         invariant already found to hold in exactly this state — without drawing randomness — holds again,
         so it is not evaluated again."""
+        if not self.contract.invariants:
+            return
         world = self.world
         scope = world.scope()
         for index, invariant in enumerate(self.contract.invariants):

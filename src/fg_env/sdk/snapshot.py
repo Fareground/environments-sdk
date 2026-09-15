@@ -102,6 +102,7 @@ def take_snapshot(env: "Env") -> Dict[str, Any]:
         "stats": env.stats.to_dict(),
         "agent_stats": {key: env.agent_stats[key].to_dict() for key in sorted(env.agent_stats)},
         "exposures": w.exposures.to_dict() if w.exposures is not None else None,
+        "layers": w.space.state() if w.space is not None else {},
         "frames": encode(env.previews.frames),
     }
 
@@ -150,6 +151,8 @@ def _restore(cls: Type[_E], contract: Contract, snapshot: Mapping[str, Any], par
                                        properties=decode(row["props"]), location_id=row.get("at"),
                                        alive=row["alive"])
     w.rebuild_index()
+    if w.space is not None:
+        w.space.restore(snapshot.get("layers") or {})
     w.props = decode(snapshot["props"])
     w.entity_briefs = decode(snapshot["entity_briefs"])
     env._briefs = decode(snapshot["briefs"])

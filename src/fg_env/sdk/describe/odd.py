@@ -115,6 +115,11 @@ def _entities(contract: C.Contract, metadata: Mapping[str, Any]) -> List[str]:
     if contract.space is not None:
         kind = next(k for k in ("grid", "graph", "plane") if getattr(contract.space, k) is not None)
         lines.append(f"Space: {kind} {json.dumps(getattr(contract.space, kind).model_dump(), default=str)}.")
+        if contract.space.capacity is not None:
+            lines.append(f"At most {json.dumps(contract.space.capacity)} entities per cell.")
+        if contract.space.layers:
+            lines.append("Cell layers: " + ", ".join(f"`{name}` ({layer.type}{', ' + layer.description if layer.description else ''})"
+                                                     for name, layer in contract.space.layers.items()) + ".")
     if contract.physics is not None:
         lines.append(f"Continuous variables integrated each round (RK4, dt {contract.physics.dt}): "
                      + ", ".join(f"`{name}`" for name in contract.physics.vars) + ".")
@@ -135,7 +140,7 @@ def _process(contract: C.Contract, metadata: Mapping[str, Any]) -> List[str]:
         for i, s in enumerate(contract.stage_list())])
     if contract.events:
         lines += ["Events:", ""] + _table(["event", "phase", "fires", "for each", "headline"], [
-            [e.name or f"event {i + 1}", e.phase, _fires(e), e.each or "", e.say or ""] for i, e in enumerate(contract.events)])
+            [e.name or f"event {i + 1}", e.phase, _fires(e), _each(e), e.say or ""] for i, e in enumerate(contract.events)])
     if contract.triggers:
         lines += ["Triggers:", ""] + _table(["trigger", "when", "once"], [
             [t.name or f"trigger {i + 1}", f"`{t.when}`", "yes" if t.once else "no"] for i, t in enumerate(contract.triggers)])
@@ -270,10 +275,21 @@ def _submodels(contract: C.Contract, metadata: Mapping[str, Any]) -> List[str]:
         kind = str(config.get("kind", ""))
         doc = MECHANISMS[kind].doc.strip().splitlines()[0] if kind in MECHANISMS else ""
         lines += [f"### Mechanism `{name}` ({kind})", "", doc, ""]
-    invariants = [f"`{i.expr}`" + (f" — {i.why}" if i.why else "") for i in contract.invariants]
+    when = {"action": "after every change", "round": "at the end of every round", "end": "when the run finishes"}
+    invariants = [f"`{i.expr}` ({when.get(i.check, i.check)})" + (f" — {i.why}" if i.why else "") for i in contract.invariants]
     if invariants:
-        lines += ["### Invariants (checked after every change)", ""] + _bullets(invariants, "")
+        lines += ["### Invariants", ""] + _bullets(invariants, "")
     return lines
+
+
+def _each(event: C.EventSpec) -> str:
+    """What an event runs over, and how: in which order, and whether every item reads the state before the event."""
+    if event.each is None:
+        return ""
+    how = [f"order {event.order}"] if event.order else []
+    if event.sync:
+        how.append("synchronous: all read the state before the event")
+    return event.each + (f" ({'; '.join(how)})" if how else "")
 
 
 def _dynamics(contract: C.Contract) -> List[str]:

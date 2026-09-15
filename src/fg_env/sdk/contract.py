@@ -157,26 +157,42 @@ class Clock(_Model):
         return _ceiling(value, MAX_ROUNDS, "a run that long is almost certainly a typo; use fewer rounds")
 
 
-class GridSpace(_Model):
-    """A rows × cols board; positions are [row, col]. Distance is steps (diagonal: king moves)."""
+LAYER_TYPES = ("number", "int", "bool")
 
-    rows: int
-    cols: int
-    diagonal: bool = False
+
+class GridSpace(_Model):
+    """A rows × cols board; positions are [row, col]."""
+
+    rows: Union[int, str] = Field(..., description="Number of rows (number or expression over $inputs).")
+    cols: Union[int, str] = Field(..., description="Number of columns (number or expression over $inputs).")
+    neighborhood: str = Field("von_neumann", description="von_neumann (4 neighbours; distance counts steps along rows and columns) | moore (8 neighbours; distance counts king moves) | hex (6 neighbours: a rhombus of hexagons in axial coordinates [r, q], whose neighbours are [r, q±1], [r±1, q], [r-1, q+1] and [r+1, q-1]).")
+    torus: bool = Field(False, description="The edges wrap around: a position off one side comes back on the other, and distances take the short way.")
 
 
 class GraphSpace(_Model):
     """Named places joined by edges; positions are place names. Distance is the shortest path."""
 
-    nodes: List[str]
-    edges: List[Any] = Field(default_factory=list, description="[a, b] or {from, to, weight}.")
+    nodes: Union[List[str], str] = Field(..., description="Place names, or an expression over $inputs giving them.")
+    edges: Union[List[Any], str] = Field(default_factory=list, description="[a, b] or {from, to, weight}; or an expression over $inputs giving them.")
 
 
 class PlaneSpace(_Model):
     """A width × height area; positions are [x, y]. Distance is straight-line."""
 
-    width: float
-    height: float
+    width: Union[float, str] = Field(..., description="Number or expression over $inputs.")
+    height: Union[float, str] = Field(..., description="Number or expression over $inputs.")
+    torus: bool = Field(False, description="The edges wrap around (positions and distances, as on a grid).")
+
+
+class LayerSpec(_Model):
+    """A value on every cell (grid) or place (graph) without an entity per cell: sugar, pheromone, alive.
+    Read with ``$layer(name, position)``; changed by the ``layer`` effect."""
+
+    type: str = Field("number", description="One of: " + ", ".join(LAYER_TYPES))
+    default: Any = Field(0, description="Every cell's starting value: a literal, or an expression over $cell (its position) and $inputs.")
+    min: Optional[float] = None
+    max: Optional[float] = None
+    description: str = ""
 
 
 class Space(_Model):
@@ -185,6 +201,8 @@ class Space(_Model):
     grid: Optional[GridSpace] = None
     graph: Optional[GraphSpace] = None
     plane: Optional[PlaneSpace] = None
+    capacity: Union[int, str, Dict[str, Union[int, str]], None] = Field(None, description="Most entities one cell (grid) or place (graph) holds: a number for every entity, or {type: number} (subtypes count). Creating or moving an entity into a full cell is refused. Numbers or expressions over $inputs.")
+    layers: Dict[str, LayerSpec] = Field(default_factory=dict, description="{name: LayerSpec}: values stored on every cell (grid) or place (graph).")
 
 
 # ---------------------------------------------------------------------------
@@ -564,6 +582,8 @@ class EventSpec(_Model):
     phase: str = Field("start", description="start (before stages) | end (after stages).")
     each: Optional[str] = Field(None, description="Run `do` once per item ($it): a type or expression.")
     as_: Optional[str] = Field(None, alias="as", description="Name for the item instead of $it.")
+    order: Optional[str] = Field(None, description="With `each`: random (shuffled from the run's seed) or an expression over the item (lowest first); default the order `each` gives.")
+    sync: bool = Field(False, description="With `each`: every item's rules read the world as it was before the event and all their writes land together (cellular automata, simultaneous updates). Only property and layer-cell assignments are allowed; two items writing different values to one property is an error.")
     where: Optional[str] = None
     do: Effects = Field(default_factory=list)
     say: Optional[str] = Field(None, description="Headline agents receive as news.")

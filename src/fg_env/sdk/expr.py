@@ -275,6 +275,10 @@ class World:
     def is_a(self, type_name: str, ancestor: str) -> bool:
         return type_name == ancestor
 
+    def subtypes_of(self, type_name: str) -> Any:
+        """``type_name`` and every type that extends it."""
+        return {type_name}
+
     def has_def(self, name: str) -> bool:
         return False
 

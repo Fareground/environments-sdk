@@ -305,6 +305,21 @@ _PATTERNS = """\
   `brief: "You are a {$actor.role}."`; gate actions with `when: "$actor.role == wolf"`.
 * Hidden information: `private` props (hidden from others' inspect), per-type views, record
   `visible` rules, `to` on posts/emits, `private: true` actions (no announcement).
+* Spaces (agent-based models): `"space": {"grid": {"rows": "$inputs.size", "cols": "$inputs.size",
+  "neighborhood": "moore", "torus": true}, "capacity": 1}` — `von_neumann` (4 neighbours), `moore` (8) or `hex`
+  (6, axial [r, q]); sizes may read `$inputs` so they can be swept. Entities with `at` are indexed: `$at(pos, type?)`,
+  `$near($it, radius, type?)`, `$nearest($it, type, where?)`, `$cells($it, radius?)`, `$empty(type?)`,
+  `$random_empty(type?)` read a few cells, never every entity. `move` and `create` into a full cell are refused
+  like a `fail`; on a torus positions wrap (`[$it.at[0] + 1, $it.at[1]]` steps off the edge and back on).
+  Graphs measure path length; planes (`$near`, `$nearest`) straight lines.
+* Values on cells (sugar, pheromone, fire): `"space": {..., "layers": {"sugar": {"type": "int", "default":
+  "$peak($cell)", "max": 4}}}`; read `$layer(sugar, $it)`; change with `{"layer": "sugar", "at": "$it", "set": 0}`,
+  a whole layer with `{"layer": "sugar", "set": "$min($value + 1, 4)"}` (every cell reads the old values),
+  `{"layer": "scent", "diffuse": 0.1}` and `{"layer": "scent", "decay": 0.05}`. Layers are kept in snapshots.
+* Cellular automata and simultaneous updates: an `each` event with `"sync": true` — every item's rules read the
+  world as it was before the event and all writes land together (Game of Life is one event:
+  `"$n = $count($near($it, 1), $it.on)", "$it.on = $n == 3 or ($it.on and $n == 2)"`). `"order": "random"` (or an
+  expression, lowest first) orders the items of any `each` event.
 * Board and card games: `space.grid` + piece entities with `at`, or cell entities; legal moves
   via entity params with `where`; decks as card entities with an `order` prop and `$shuffle`;
   win checks in `end`.
@@ -425,7 +440,8 @@ Built-ins: `"random"`, `"idle"`, `"policy:<name>"`.
 
 CLI: `fg-env check file.json` (static check plus one played round; `--rounds 0` for static only),
 `fg-env preview file.json agent_id --rounds 5 --agent trader=policy:quote` (see a mid-run turn),
-`fg-env check|run|preview|experiment|guide|schema` (`fg-env run file.json --seed 1
+`fg-env bench [files] --rounds 20` (ms per round, rounds per second and time per phase; no files: the
+reference agent-based models), `fg-env check|run|preview|experiment|guide|schema` (`fg-env run file.json --seed 1
 --input budget=50 --agent shopper=policy:thrifty --json`).
 """
 

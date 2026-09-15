@@ -653,3 +653,4 @@ def _flatten(call: Call) -> List[Any]:
 
 
 from . import stdlib as _stdlib  # noqa: E402,F401  (registers the standard library)
+from . import space_functions as _space_functions  # noqa: E402,F401  (registers the space functions)
