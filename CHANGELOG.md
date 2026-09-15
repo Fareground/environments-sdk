@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Repeating seasonal profiles select slots using the reduced time before division, preventing exact
+  cycle boundaries from slipping into the previous slot; fitting and runtime share the same selection.
+  Regenerated the affected contact-centre example fit and saved staffing plan.
 - Backtests reject missing, non-finite or incorrectly typed forecast outputs instead of turning them into
   negative events, synthetic categories or silently reduced ensembles; threshold arguments are validated.
 - Procedure checks warn when `all_did` is paired with actor-specific action conditions, explaining that

@@ -141,8 +141,7 @@ def _seasonal(ctx: Any) -> float:
         profile = ctx.numbers("profile")
         if not profile:
             raise ctx.fail("`profile` needs at least one value")
-        base = profile[tb.slot(ctx.clock, ctx.t, cfg.period, len(profile))] if cfg.period in ("year", "week", "day") \
-            else profile[min(len(profile) - 1, int(_position(ctx, ctx.t, cfg.period) * len(profile)))]
+        base = profile[tb.slot(ctx.clock, ctx.t, cfg.period, len(profile))]
     shape = wave(_position(ctx, ctx.t, cfg.period), ctx.number("amplitude"), ctx.number("peak"), _harmonics(ctx)) \
         if cfg.amplitude or cfg.harmonics is not None else 0.0
     return base * (1 + shape) if cfg.form == "multiply" else base + shape

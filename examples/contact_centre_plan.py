@@ -11,17 +11,10 @@ quiet half-hours. The search starts from the Erlang C staffing of each half-hour
 whole day on the same seeds, with the fitted arrival parameters drawn per run; the finalists are confirmed on new seeds
 and the choice checked again on seeds no search saw.
 
-Why not "the worst half-hour keeps 80% in 90% of runs"? A single day's half-hour service level is noisy (40–120 calls),
-and the worst of 24 noisy values is far below their average: the Erlang C plan gives every half-hour at least 85% on
-average yet its worst half-hour reaches 80% in 13% of runs, and two more agents in every half-hour (every half-hour at
-94% on average, about $900 more a day) still only in 57%. That constraint buys service nobody asked for; an expected
-level per half-hour, held with confidence, keeps each half-hour at its target at a sane cost.
-
-What the search found (contact_centre/plan.json, 1,018 plans searched before the local search settled): a plan of $8,930
-a day, feasible with 90% confidence on its 60 confirmation seeds and again on 40 held-out ones. On 60 further fresh days
-it keeps every half-hour's average at 80% or more (23 of the 24 with 90% confidence, the tightest at 80.6%) and the
-day's service level at 80% in 98% of them, for $239 a day less than the manager's rule (which runs its tightest
-half-hour at 87%). The tightest half-hours are the opening one and 09:00.
+The constraints target each half-hour's expected service level rather than the minimum observed across a noisy day.
+The saved result in contact_centre/plan.json records the selected staffing, costs, constraints and seed checks.
+After correcting recurring time-slot boundaries, the regenerated search evaluated 1,001 plans across 30,470 runs.
+The selected plan passed the constraints on 60 confirmation seeds and again on 40 held-out seeds.
 """
 from __future__ import annotations
 

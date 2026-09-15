@@ -107,7 +107,7 @@ def to_t(clock: Any, when: Any) -> float:
 def position(clock: Any, t: float, period: Any) -> float:
     """Where ``t`` falls in ``period`` (a named period or a number of clock units), from 0 up to 1."""
     if isinstance(period, (int, float)) and not isinstance(period, bool):
-        return (t / period) % 1.0
+        return (t % period) / period
     when = moment(clock, t)
     if when is not None and period in ("year", "week", "day"):
         if period == "day":
@@ -120,11 +120,16 @@ def position(clock: Any, t: float, period: Any) -> float:
     if days is None:
         raise ValueError(f"a '{period}' period needs a calendar clock.unit (day, week, month …), not '{clock.unit}'; "
                          "give the period as a number of rounds instead")
-    return (t * days / PERIODS[str(period)]) % 1.0
+    span = PERIODS[str(period)]
+    return ((t * days) % span) / span
 
 
 def slot(clock: Any, t: float, period: Any, slots: int) -> int:
     """The profile slot ``t`` falls in: calendar months for 12 slots over a year, weekdays for 7 over a week."""
+    if isinstance(period, (int, float)) and not isinstance(period, bool):
+        # Reduce before dividing; division then multiplication can put an exact
+        # boundary just below its slot (e.g. round 42 of a five-round cycle).
+        return min(slots - 1, int((t % period) * slots / period))
     when = moment(clock, t)
     if when is not None and period == "year" and slots == 12:
         return when.month - 1
