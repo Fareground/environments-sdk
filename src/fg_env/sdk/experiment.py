@@ -1,13 +1,16 @@
 """Experiments: every arm × N seeded runs, with common random numbers across arms."""
 from __future__ import annotations
 
+import json
 import math
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Mapping, Optional
+from contextlib import contextmanager
+from dataclasses import dataclass, field, replace
+from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Sequence, Set, Tuple
 
 from .api import ContractLike, contract_source, default_data_dir, load, parse
+from .contract import Contract
 from .errors import ContractError, Issue
 from .measure import RunResult
 from .seeds import SeedTree
@@ -164,18 +167,102 @@ def _portable(participants: Any) -> bool:
     return isinstance(participants, Mapping) and all(isinstance(v, str) for v in participants.values())
 
 
-def _failed(seed: int, arm: Optional[str], inputs: Optional[Mapping[str, Any]], error: BaseException) -> RunResult:
+@dataclass(frozen=True)
+class Job:
+    """One run: inputs over the contract defaults, an optional arm, a seed, and free-form tags."""
+
+    inputs: Mapping[str, Any]
+    arm: Optional[str]
+    seed: int
+    tags: Mapping[str, Any] = field(default_factory=dict)
+
+
+def failed_run(job: Job, error: BaseException) -> RunResult:
     """A run that could not complete, kept in the results so the other runs are never lost."""
-    return RunResult(status="failed", ended_by=None, rounds=0, seed=seed, arm=arm, inputs=dict(inputs or {}),
+    return RunResult(status="failed", ended_by=None, rounds=0, seed=job.seed, arm=job.arm, inputs=dict(job.inputs),
                      outputs={}, metrics={}, series={}, error=f"{type(error).__name__}: {error}")
 
 
-def _run_job(payload: tuple) -> RunResult:
-    data, inputs, seed, arm, participants, rounds, data_dir = payload
+def run_job(source: Any, job: Job, participants: Any = None, rounds: Optional[int] = None, events: bool = True,
+            data_dir: Any = None) -> RunResult:
+    """Run one job; a failure comes back as a failed run, never raised."""
     try:
-        return load(data, inputs=inputs, seed=seed, arm=arm, data_dir=data_dir).run(participants, rounds=rounds)
-    except Exception as exc:  # reported per run, never fatal to the experiment
-        return _failed(seed, arm, inputs, exc)
+        result = load(source, inputs=dict(job.inputs), seed=job.seed, arm=job.arm, data_dir=data_dir).run(
+            participants, rounds=rounds)
+    except Exception as exc:  # reported per run, never fatal to the batch
+        return failed_run(job, exc)
+    return result if events else replace(result, events=[])
+
+
+def _process_job(payload: tuple) -> RunResult:
+    return run_job(*payload)
+
+
+def _check_workers(workers: Any) -> None:
+    if isinstance(workers, bool) or not isinstance(workers, int) or workers < 1:
+        raise ValueError(f"workers must be a whole number ≥ 1, got {workers!r}")
+
+
+@contextmanager
+def worker_pool(workers: int, participants: Any = None) -> Iterator[Optional[ProcessPoolExecutor]]:
+    """One process pool shared by many :func:`run_jobs` calls (starting workers costs more than a small
+    batch). Yields ``None`` when runs stay in this process: one worker, or participants that are callables."""
+    _check_workers(workers)
+    if workers > 1 and _portable(participants):
+        with ProcessPoolExecutor(max_workers=workers) as pool:
+            yield pool
+    else:
+        yield None
+
+
+def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = None,
+             participants_for: Optional[Callable[[Job], Any]] = None, rounds: Optional[int] = None, workers: int = 1,
+             events: bool = True, pool: Optional[ProcessPoolExecutor] = None, data_dir: Any = None) -> List[RunResult]:
+    """Run every job, in order, returning one result per job.
+
+    Problems the jobs share (bad inputs, an unknown arm, an unknown participant) raise before anything
+    runs; a job that fails on its own comes back as a failed run. Participants given by name run in
+    worker processes when ``workers > 1`` or a ``pool`` is given; callables run in threads.
+    ``participants_for(job)`` builds fresh participants per job; ``events=False`` drops event logs.
+    """
+    _check_workers(workers)
+    folder = default_data_dir(source, data_dir)
+    contract = source if isinstance(source, Contract) else parse(source)
+    if not jobs:
+        return []
+    probed: Set[Tuple[str, Optional[str]]] = set()
+    for job in jobs:  # fail fast on what the jobs share
+        key = (json.dumps(dict(job.inputs), sort_keys=True, default=str), job.arm)
+        if key in probed:
+            continue
+        probed.add(key)
+        env = load(contract, inputs=dict(job.inputs), seed=0, arm=job.arm, data_dir=folder)
+        if participants_for is None and len(probed) == 1:
+            env._bind(participants)
+
+    def one(job: Job) -> RunResult:
+        try:
+            who = participants_for(job) if participants_for is not None else participants
+        except Exception as exc:
+            return failed_run(job, exc)
+        return run_job(contract, job, who, rounds, events, folder)
+
+    many = len(jobs) > 1
+    if (pool is not None or workers > 1) and many and participants_for is None and _portable(participants):
+        data = contract_source(contract)
+        payloads = [(data, job, participants, rounds, events, str(folder) if folder else None) for job in jobs]
+        chunk = max(1, len(jobs) // (workers * 4))
+        try:
+            if pool is not None:
+                return list(pool.map(_process_job, payloads, chunksize=chunk))
+            with ProcessPoolExecutor(max_workers=workers) as own:
+                return list(own.map(_process_job, payloads, chunksize=chunk))
+        except BrokenProcessPool:  # a worker died (out of memory, killed): finish in this process instead
+            return [one(job) for job in jobs]
+    if workers > 1 and many:
+        with ThreadPoolExecutor(max_workers=workers) as threads:
+            return list(threads.map(one, jobs))
+    return [one(job) for job in jobs]
 
 
 def experiment(source: ContractLike, *, runs: int = 10, arms: Optional[List[str]] = None, seed: int = 0,
@@ -203,41 +290,19 @@ def experiment(source: ContractLike, *, runs: int = 10, arms: Optional[List[str]
                                    f"declared arms: {', '.join(contract.arms) or 'none'}")])
     if len(set(labels)) != len(labels):
         raise ValueError(f"arms are listed more than once: {labels}")
-    for arm in labels:  # fail fast on what every run shares
-        probe = load(contract, inputs=inputs, seed=0, arm=arm, data_dir=folder)
-        if participants_for is None:
-            probe._bind(participants)
     tree = SeedTree(seed)
     seeds = [tree.derive("run", i) for i in range(runs)]
+    jobs = [Job(dict(inputs or {}), arm, seeds[i], {"run": i}) for arm in labels for i in range(runs)]
 
-    def one(job: tuple) -> RunResult:
-        arm, index = job
-        try:
-            env = load(contract, inputs=inputs, seed=seeds[index], arm=arm, data_dir=folder)
-            who = participants_for(index, arm) if participants_for is not None else participants
-            return env.run(who, rounds=rounds)
-        except Exception as exc:
-            return _failed(seeds[index], arm, inputs, exc)
+    def per_job(job: Job) -> Any:
+        assert participants_for is not None
+        return participants_for(job.tags["run"], job.arm)
 
-    jobs = [(arm, i) for arm in labels for i in range(runs)]
-    if workers > 1 and participants_for is None and _portable(participants):
-        # Runs are CPU-bound: separate processes use every core.
-        data = contract_source(contract)
-        payloads = [(data, inputs, seeds[i], arm, participants, rounds, str(folder) if folder else None)
-                    for arm, i in jobs]
-        try:
-            with ProcessPoolExecutor(max_workers=workers) as processes:
-                results = list(processes.map(_run_job, payloads))
-        except BrokenProcessPool:  # a worker died (out of memory, killed): finish in this process instead
-            results = [one(job) for job in jobs]
-    elif workers > 1:
-        with ThreadPoolExecutor(max_workers=workers) as pool:
-            results = list(pool.map(one, jobs))
-    else:
-        results = [one(job) for job in jobs]
+    results = run_jobs(contract, jobs, participants=participants, participants_for=per_job if participants_for else None,
+                       rounds=rounds, workers=workers, data_dir=folder)
     out: Dict[str, ArmResult] = {}
     for arm in labels:
-        arm_runs = [r for (a, _), r in zip(jobs, results) if a == arm]
+        arm_runs = [r for job, r in zip(jobs, results) if job.arm == arm]
         summary = {name: _describe([r.outputs.get(name) for r in arm_runs if r.status != "failed"])
                    for name in contract.outputs}
         out[arm or "baseline"] = ArmResult(arm, arm_runs, summary)

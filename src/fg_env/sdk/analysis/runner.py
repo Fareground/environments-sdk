@@ -9,14 +9,13 @@ experiment with the same base seed (common random numbers everywhere).
 from __future__ import annotations
 
 import json
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from concurrent.futures.process import BrokenProcessPool
-from contextlib import contextmanager
-from dataclasses import dataclass, field, replace
-from typing import Any, Iterator, List, Mapping, Optional, Sequence, Tuple
+from concurrent.futures import ProcessPoolExecutor
+from typing import Any, List, Mapping, Optional, Sequence, Tuple
 
-from ..api import ContractLike, contract_source, load, parse
+from ..api import ContractLike, parse
 from ..contract import Contract
+from ..experiment import Job, failed_run, run_job, worker_pool
+from ..experiment import run_jobs as _run_jobs
 from ..measure import RunResult
 from ..seeds import SeedTree
 from .stats import numeric
@@ -28,16 +27,6 @@ __all__ = ["Job", "AnalysisError", "run_seeds", "run_jobs", "resolve_measure", "
 
 class AnalysisError(ValueError):
     """An analysis cannot produce a result: every run failed, or a request is impossible."""
-
-
-@dataclass(frozen=True)
-class Job:
-    """One run: inputs over the contract defaults, an optional arm, and a seed."""
-
-    inputs: Mapping[str, Any]
-    arm: Optional[str]
-    seed: int
-    tags: Mapping[str, Any] = field(default_factory=dict)
 
 
 def check_positive_int(name: str, value: Any, minimum: int = 1) -> int:
@@ -62,92 +51,22 @@ def input_spec(contract: Contract, name: str) -> Any:
     return contract.inputs[name]
 
 
-def _portable(participants: Any) -> bool:
-    if participants is None or isinstance(participants, str):
-        return True
-    return isinstance(participants, Mapping) and all(isinstance(v, str) for v in participants.values())
-
-
-def failed_result(job: Job, error: BaseException) -> RunResult:
-    return RunResult(status="failed", ended_by=None, rounds=0, seed=job.seed, arm=job.arm, inputs=dict(job.inputs),
-                     outputs={}, metrics={}, series={}, error=f"{type(error).__name__}: {error}")
-
-
-def execute_job(data: Any, job: Job, participants: Any, rounds: Optional[int], events: bool) -> RunResult:
-    try:
-        result = load(data, inputs=dict(job.inputs), seed=job.seed, arm=job.arm).run(participants, rounds=rounds)
-    except Exception as exc:  # reported per run, never fatal to the analysis
-        return failed_result(job, exc)
-    return result if events else replace(result, events=[])
-
-
-def _process_job(payload: Tuple[Any, Job, Any, Optional[int], bool]) -> RunResult:
-    return execute_job(*payload)
-
-
-def _probe(contract: Contract, jobs: Sequence[Job], participants: Any) -> None:
-    """Fail before running anything on what jobs share: bad inputs, unknown arms, unknown participants."""
-    seen = set()
-    for job in jobs:
-        key = (json.dumps(dict(job.inputs), sort_keys=True, default=str), job.arm)
-        if key in seen:
-            continue
-        seen.add(key)
-        env = load(contract, inputs=dict(job.inputs), seed=0, arm=job.arm)
-        if len(seen) == 1:
-            env.run(participants, rounds=0)  # binds participants: an unknown name raises here
-
-
-@contextmanager
-def worker_pool(workers: int, participants: Any) -> Iterator[Optional[ProcessPoolExecutor]]:
-    """One process pool shared by every ``run_jobs`` call of an iterative analysis.
-
-    Starting worker processes costs far more than a small batch of runs, so searches that call
-    ``run_jobs`` many times pass this pool along. Yields ``None`` when runs stay in this process.
-    """
-    check_positive_int("workers", workers)
-    if workers > 1 and _portable(participants):
-        with ProcessPoolExecutor(max_workers=workers) as pool:
-            yield pool
-    else:
-        yield None
-
-
 def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = None, rounds: Optional[int] = None,
              workers: int = 1, events: bool = False, pool: Optional[ProcessPoolExecutor] = None) -> List[RunResult]:
-    """Run every job, in order. ``events=False`` drops event logs to keep large analyses light.
-
-    ``pool`` (from :func:`worker_pool`) reuses running worker processes instead of starting new ones.
-    Raises before running when inputs, arms or participants are invalid, and
-    :class:`AnalysisError` when every run failed (the first error is quoted).
-    """
+    """:func:`fg_env.sdk.experiment.run_jobs` for analyses: event logs dropped by default, and
+    :class:`AnalysisError` when every run failed (the first error is quoted)."""
     check_positive_int("workers", workers)
     if rounds is not None:
         check_positive_int("rounds", rounds)
-    contract = as_contract(source)
-    if not jobs:
-        return []
-    _probe(contract, jobs, participants)
-    if (pool is not None or workers > 1) and len(jobs) > 1 and _portable(participants):
-        data = contract_source(contract)
-        payloads = [(data, job, participants, rounds, events) for job in jobs]
-        chunk = max(1, len(jobs) // (workers * 4))
-        try:
-            if pool is not None:
-                results = list(pool.map(_process_job, payloads, chunksize=chunk))
-            else:
-                with ProcessPoolExecutor(max_workers=workers) as own:
-                    results = list(own.map(_process_job, payloads, chunksize=chunk))
-        except BrokenProcessPool:  # a worker died (out of memory, killed): finish here instead
-            results = [execute_job(contract, job, participants, rounds, events) for job in jobs]
-    elif workers > 1 and len(jobs) > 1:
-        with ThreadPoolExecutor(max_workers=workers) as threads:
-            results = list(threads.map(lambda job: execute_job(contract, job, participants, rounds, events), jobs))
-    else:
-        results = [execute_job(contract, job, participants, rounds, events) for job in jobs]
-    if all(r.status == "failed" for r in results):
+    results = _run_jobs(as_contract(source), jobs, participants=participants, rounds=rounds, workers=workers,
+                        events=events, pool=pool)
+    if results and all(r.status == "failed" for r in results):
         raise AnalysisError(f"all {len(results)} run(s) failed; first error: {results[0].error}")
     return results
+
+#: Names analyses already use.
+execute_job = run_job
+failed_result = failed_run
 
 
 def resolve_measure(contract: Contract, name: str) -> Tuple[str, str]:
