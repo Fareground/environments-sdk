@@ -41,7 +41,8 @@ family("game", "Game equipment: boards with enforced rules, cards, betting pots 
 family("flow", "Who acts when and how it ends: turn order, procedures with phases, victory conditions.",
        {"who": "agent type whose turns or victory it governs", "views": SHARED["views"]})
 family("groups", "Who belongs with whom: hidden roles and teams, factions and alliances, relationships.",
-       {"who": "agent type that belongs to groups", "views": SHARED["views"]})
+       {"who": "agent type that belongs to groups", "views": SHARED["views"], "phase": SHARED["phase"],
+        "tools": SHARED["tools"]})
 family("social", "Talking and spreading: channels (rooms, direct messages), a social feed, diffusion over a network.",
        {"who": "agent type that communicates", "max_chars": SHARED["max_chars"], "tools": SHARED["tools"]})
 family("mind", "What agents know and remember: beliefs with confidence, memory with recall, generated personas.",

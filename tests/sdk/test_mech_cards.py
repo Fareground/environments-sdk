@@ -366,10 +366,10 @@ VILLAGE = {
     "name": "Village", "clock": {"rounds": 2},
     "types": {"player": {"agent": True, "props": {"seat": 0}}},
     "entities": _seats(6),
-    "mechanisms": {"roles": {"kind": "roles", "players": "player", "deck": {"wolf": 2, "seer": 1, "villager": "rest"},
+    "mechanisms": {"roles": {"kind": "groups", "mode": "roles", "who": "player", "deck": {"wolf": 2, "seer": 1, "villager": "rest"},
                              "teams": {"pack": ["wolf"], "town": ["seer", "villager"]}, "know": ["pack"],
                              "actions": {"bite": {"roles": ["wolf"], "do": [], "terminal": True}}}},
-    "events": [{"at": 2, "do": [{"eliminate": "$pick(player, $it.role == wolf)"}]}],
+    "events": [{"at": 2, "do": [{"groups": "roles", "action": "eliminate", "who": "$pick(player, $it.role == wolf)"}]}],
     "stages": [{"name": "night", "turns": "sequential"}],
     "outputs": {"roles": {"expr": "$dict(player, $it.id, $it.role)", "type": "map"}},
 }
@@ -460,6 +460,15 @@ def test_config_mistakes_are_reported_with_what_to_fix():
     crowded = json.loads(json.dumps(VILLAGE))
     crowded["mechanisms"]["roles"]["deck"] = {"wolf": 5, "seer": 2, "villager": 0}
     assert "role deck holds 7 roles for 6 players" in (fg_env.load(crowded, seed=1).run("idle").error or "")
+    old = json.loads(json.dumps(VILLAGE))
+    old["mechanisms"]["roles"] = {**{k: v for k, v in old["mechanisms"]["roles"].items() if k not in ("mode", "who")},
+                                  "kind": "roles", "players": "player"}
+    assert any(i.message == "'roles' is now kind 'groups' with mode 'roles'" for i in _errors(old))
+    unnamed = {**VILLAGE, "events": [{"do": [{"groups": "roles", "action": "eliminate", "say": "Gone."}]}]}
+    assert any(i.message == "`groups.eliminate` needs `who`" for i in _errors(unnamed))
+    seated = {**VILLAGE, "types": {**VILLAGE["types"], "ghost": {"agent": True}}, "entities": {**VILLAGE["entities"],
+              "g1": {"type": "ghost"}}, "events": [{"at": 1, "do": [{"groups": "roles", "action": "reveal", "who": "$entity(g1)"}]}]}
+    assert "g1 is a ghost, not a player holding a role of roles" in (fg_env.load(seated, seed=1).run("idle").error or "")
 
 
 def test_a_pot_fills_the_game_section_with_the_chips_each_player_won_or_lost():
@@ -540,15 +549,16 @@ def test_tools_one_offers_every_betting_move_as_one_tool():
 
 def test_guide_documents_the_card_mechanisms_ops_and_functions():
     mechanisms = fg_env.guide("mechanisms")
-    assert "| `game` | board, cards, pot, slots |" in mechanisms and "### `roles`" in mechanisms
+    assert "| `game` | board, cards, pot, slots |" in mechanisms and "| `groups` | roles, relationships, factions |" in mechanisms
     game = fg_env.guide("game")
     for key in ("game.cards", "game.pot", "game.slots"):
         assert f"### `{key}`" in game
     for action in ("deal", "draw", "reveal", "peek", "give", "fold", "raise", "place"):
         assert f"- `{action}`" in game
     assert "- `setup`" not in fg_env.guide("game.cards") and "- `timeout`" not in game
-    effects, functions = fg_env.guide("effects"), fg_env.guide("functions")
-    assert "`eliminate`" in effects
+    roles = fg_env.guide("groups.roles")
+    assert "- `eliminate`" in roles and "- `reveal`" in roles and "- `deal`" not in roles
+    functions = fg_env.guide("functions")
     for name in ("poker_rank", "blackjack_value", "trick_winner", "follow_suit", "hand", "zone", "top_card", "pot_options"):
         assert f"${name}(" in functions
 
