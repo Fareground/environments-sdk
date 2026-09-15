@@ -93,8 +93,9 @@
       }
     },
     "exile": {
-      "kind": "ballot",
-      "voters": "player",
+      "kind": "decision",
+      "mode": "ballot",
+      "who": "player",
       "options": "$map($filter(player, $it.living), $it.id)",
       "stage": "day_vote",
       "when": "$actor.living",

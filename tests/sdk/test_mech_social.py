@@ -220,8 +220,8 @@ HALL = {
     "types": {"resident": {"agent": True}, "moderator": {"agent": True}},
     "population": [{"type": "resident", "count": 4, "id": "r{$i}", "name": "R{$i}"}],
     "entities": {"mod": {"type": "moderator", "name": "Mod"}},
-    "mechanisms": {"hall": {"kind": "deliberation", "members": "resident", "chair": "moderator", "floor": True,
-                            "speaker_limit": 2, "passes": 8, "question": "Build a skate park?"}},
+    "mechanisms": {"hall": {"kind": "decision", "mode": "deliberation", "who": "resident", "chair": "moderator",
+                            "floor": True, "speaker_limit": 2, "passes": 8, "question": "Build a skate park?"}},
     "outputs": {"decided": {"expr": "$len($decisions())", "type": "int"}},
 }
 
@@ -308,8 +308,8 @@ def test_an_endless_debate_hits_the_backstop_and_forces_readiness():
 
 def test_member_calls_need_debate_and_sealed_ballots_stay_private():
     contract = {**HALL, "entities": {}, "types": {"resident": {"agent": True}},
-                "mechanisms": {"hall": {"kind": "deliberation", "members": "resident", "second": False, "min_debate": 1,
-                                        "ballot": "sealed", "end": "never"}}}
+                "mechanisms": {"hall": {"kind": "decision", "mode": "deliberation", "who": "resident", "second": False,
+                                        "min_debate": 1, "private": True, "end": "never"}}}
     env = fg_env.load(contract, seed=1)
     script = Script(env, {
         "r1": [("hall_propose", {"text": "Adopt"}), ("hall_vote", {"choice": "yes"})],
@@ -336,11 +336,35 @@ def test_member_calls_need_debate_and_sealed_ballots_stay_private():
 
 
 def test_deliberation_config_errors_and_resume():
-    bad = {**HALL, "mechanisms": {"hall": {"kind": "deliberation", "members": "resident", "floor": True}}}
+    bad = _hall(chair=None, floor=True)
     assert any("floor control needs a chair" in e for e in errors(bad))
     assert errors(HALL) == []
     straight, resumed = split_run(HALL, "random", seed=4)
     assert straight == resumed
+
+
+def test_deliberation_actions_check_their_own_keys():
+    def op(**effect):
+        return errors({**HALL, "stages": [{"name": "s", "actions": [], "on_enter": [{"decision": "hall", **effect}]}]})
+
+    assert any("`decision.speak` needs `text`" in e for e in op(action="speak"))
+    assert any("'text' is not part of `decision.vote`" in e for e in op(action="vote", choice="yes", text="hi"))
+    assert any("did you mean 'raise_hand'" in e for e in op(action="raise_hnd"))
+
+
+def test_tools_one_offers_the_whole_body_as_one_tool():
+    env = fg_env.load(_hall(floor=False, tools="one"), seed=1)
+    script = Script(env, {"r1": [("hall", {"action": "propose", "text": "Adopt the plan"})],
+                          "r2": [("hall", {"action": "second"}, _top_status("proposed"))]})
+    env.run(script, rounds=1)
+    assert [(r[2], r[3]) for r in script.results] == [("hall", True), ("hall", True)], script.results
+    assert [d["text"] for d in env.props["hall"]["decisions"]] == ["Adopt the plan"]  # seconded, debated, put and counted
+    tools = json.loads(script.seen["r1"][1])
+    assert [t["name"] for t in tools if t["kind"] == "act"] == ["hall"]
+
+
+def _top_status(status):
+    return lambda env: bool(env.props["hall"]["stack"]) and env.props["hall"]["stack"][-1]["status"] == status
 
 
 # ---------------------------------------------------------------------------

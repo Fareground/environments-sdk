@@ -255,8 +255,9 @@ def family_action(family_name: str, modes: Tuple[str, ...], action: str, *, exam
             if action in table:
                 raise ValueError(f"action '{action}' of {family_name}.{mode} is registered twice")
             table[action] = op
-        for old in was:
-            RENAMED_OPS[old] = (family_name, action)
+        for old in was:  # an old op split into several actions keeps no single action to suggest
+            known = RENAMED_OPS.get(old)
+            RENAMED_OPS[old] = (family_name, action if known in (None, (family_name, action)) else "")
         if family_name in OPS and OPS[family_name].select is None:
             raise ValueError(f"effect op '{family_name}' is registered outside its family; register it as a family action")
         OPS[family_name] = _family_op(spec)
@@ -320,6 +321,7 @@ def renamed_op_hint(keys: Any) -> Optional[str]:
         found = RENAMED_OPS.get(key)
         if found is not None:
             family_name, action = found
+            chosen = f"\"{action}\"" if action else "<action>"
             return (f"`{key}` is now the `{family_name}` op: {{\"{family_name}\": \"<mechanism>\", "
-                    f"\"action\": \"{action}\", ...}}")
+                    f"\"action\": {chosen}, ...}} (guide(\"{family_name}\") lists the actions)")
     return None

@@ -441,6 +441,8 @@ class _Checker:
             if problem is not None:
                 self.error(f"{path}{problem[0]}", problem[1], problem[2])
                 return
+            assert native is not None
+            op = native.name
         if native is not None:
             allowed = set(native.keys)
             for key in effect:

@@ -41,7 +41,7 @@ COUNCIL = {
     "inputs": {"bar": {"type": "number", "default": 0.5}},
     "types": {"member": {"agent": True, "props": {"mood": 0}}},
     "population": [{"type": "member", "count": 5}],
-    "mechanisms": {"budget": {"kind": "ballot", "voters": "member", "options": ["approve", "reject"],
+    "mechanisms": {"budget": {"kind": "decision", "mode": "ballot", "who": "member", "options": ["approve", "reject"],
                               "method": "majority", "quorum": 0.6, "question": "Adopt the budget?"}},
     "outputs": {"decision": {"expr": "$world.budget_result.winner", "type": "text"}},
 }
@@ -122,24 +122,86 @@ def test_mechanism_runs_snapshot_and_resume_identically():
     assert restored.run().to_dict() == straight
 
 
+def _budget(**config):
+    return {**COUNCIL, "mechanisms": {"budget": config}}
+
+
+def _issues(contract):
+    return [i for i in fg_env.check(contract) if i.severity == "error"]
+
+
 def test_mechanism_config_errors_say_what_to_fix():
-    bad = {**COUNCIL, "mechanisms": {"budget": {"kind": "balot", "voters": "member"}}}
     with pytest.raises(ContractError, match="did you mean 'ballot'"):
-        fg_env.parse(bad)
-    wrong = {**COUNCIL, "mechanisms": {"budget": {"kind": "ballot", "voters": "citizen", "options": ["a"]}}}
-    issues = fg_env.check(wrong)
-    assert any("voters 'citizen' is not a declared type" in i.message for i in issues)
-    extra = {**COUNCIL, "mechanisms": {"budget": {"kind": "ballot", "voters": "member", "options": ["a"], "colour": 1}}}
-    assert any(i.path == "mechanisms.budget.colour" for i in fg_env.check(extra))
-    op = {**COUNCIL, "events": [{"do": [{"tally": "budget", "loudly": True}]}]}
-    assert any("'loudly' is not part of `tally`" in i.message for i in fg_env.check(op))
+        fg_env.parse(_budget(kind="decision", mode="balot", who="member"))
+    assert any("did you mean 'decision'" in (i.fix or "") for i in _issues(_budget(kind="decisions", mode="ballot")))
+    missing_mode = _issues(_budget(kind="decision", who="member"))
+    assert any("needs a `mode`" in i.message and "ballot, deliberation" in (i.fix or "") for i in missing_mode)
+    wrong = _issues(_budget(kind="decision", mode="ballot", who="citizen", options=["a"]))
+    assert any("who 'citizen' is not a declared type" in i.message for i in wrong)
+
+
+def test_an_old_kind_name_says_the_new_kind_and_mode():
+    old = next(i for i in _issues(_budget(kind="ballot", voters="member", options=["a"])) if i.path == "mechanisms.budget.kind")
+    assert old.message == "'ballot' is now kind 'decision' with mode 'ballot'"
+    assert '"kind": "decision", "mode": "ballot"' in old.fix
+
+
+def test_a_field_of_another_mode_or_a_typo_names_the_mode_and_its_fields():
+    typo = _issues(_budget(kind="decision", mode="ballot", who="member", options=["a"], quorom=0.5))[0]
+    assert typo.path == "mechanisms.budget.quorom"
+    assert typo.message == "`quorom` is not a field of `decision` mode `ballot`"
+    assert typo.fix.startswith("did you mean 'quorum'?") and "takes: who, options, method" in typo.fix
+    foreign = _issues(_budget(kind="decision", mode="ballot", who="member", options=["a"], chair="member"))
+    assert [i.message for i in foreign] == ["`chair` is not a field of `decision` mode `ballot`"]
+
+
+def test_family_ops_are_checked_against_the_action_they_name():
+    def op_issues(*effects):
+        return [(i.path, i.message, i.fix) for i in _issues({**COUNCIL, "events": [{"do": list(effects)}]})]
+
+    assert any("'loudly' is not part of `decision.tally`" in m for _, m, _ in op_issues(
+        {"decision": "budget", "action": "tally", "loudly": True}))
+    path, message, fix = op_issues({"decision": "budget", "action": "count"})[0]
+    assert path.endswith(".action") and message == "'count' is not an action of budget (decision ballot)"
+    assert fix == "actions: tally"
+    path, message, _ = op_issues({"decision": "budget"})[0]
+    assert path.endswith(".action") and message == "needs an `action`"
+    path, _, fix = op_issues({"decision": "budgett", "action": "tally"})[0]
+    assert path.endswith(".decision") and fix == "did you mean 'budget'?"
+    _, _, fix = op_issues({"tally": "budget"})[0]
+    assert fix.startswith('`tally` is now the `decision` op: {"decision": "<mechanism>", "action": "tally"')
+
+
+def test_tools_one_offers_a_ballot_as_a_single_tool_and_auto_keeps_different_shapes_apart():
+    offered = []
+
+    def vote(wake):
+        tools = {t.name: t for t in wake.tools}
+        offered.append(tools)
+        if "budget" in tools:
+            assert wake.call("budget", {"action": "vote", "choice": "approve"}).ok
+        wake.end()
+
+    env = fg_env.load(_budget(**COUNCIL["mechanisms"]["budget"], tools="one"), seed=1)
+    env.run(vote, rounds=1)
+    assert "budget_vote" not in offered[0]
+    assert offered[0]["budget"].input_schema["properties"]["action"]["enum"] == ["vote", "abstain"]
+    assert env.props["budget_result"]["winner"] == "approve"
+    auto = fg_env.parse(_budget(**COUNCIL["mechanisms"]["budget"], tools="auto"))
+    assert auto.actions["budget_vote"].tool is None and auto.actions["budget_abstain"].tool is None
 
 
 def test_guide_documents_mechanisms_and_native_ops():
     text = fg_env.guide("mechanisms")
-    assert "### `ballot`" in text and "`quorum`" in text
-    assert '`tally`' in fg_env.guide("effects")
+    assert "| `decision` | ballot, deliberation |" in text
+    page = fg_env.guide("decision.ballot")
+    assert page.startswith("### `decision.ballot`") and "`quorum`" in page and "- `tally`" in page
+    family = fg_env.guide("decision")
+    assert "### `decision.deliberation`" in family and "- `speak`" in family and "- `open`" not in family
+    assert '- `decision`: {"decision": "<decision mechanism>", "action": ...}' in fg_env.guide("effects")
     assert "$tally_votes(" in fg_env.guide()
+    with pytest.raises(KeyError):
+        fg_env.guide("decision.nope")
 
 
 def test_a_def_shadows_a_built_in_function_of_the_same_name():
@@ -202,7 +264,8 @@ def test_list_parameter_contract_errors():
 
 
 def test_ranked_ballot_runs_instant_runoff():
-    contract = {**COUNCIL, "mechanisms": {"budget": {"kind": "ballot", "voters": "member", "options": ["a", "b", "c"],
+    contract = {**COUNCIL, "mechanisms": {"budget": {"kind": "decision", "mode": "ballot", "who": "member",
+                                                     "options": ["a", "b", "c"],
                                                      "method": "ranked", "question": "Pick a plan"}}}
     rankings = {"member_1": ["a"], "member_2": ["a"], "member_3": ["b"], "member_4": ["b"], "member_5": ["c", "b"]}
 
@@ -329,7 +392,8 @@ def test_crashing_extensions_are_reported_against_their_use_never_raised_or_blam
                 "entities": {"p": {"type": "p"}}, "stages": [{"name": "s", "turns": "sequential"}]}
         issues = fg_env.check({**base, "mechanisms": {"m": {"kind": kind}}})
         assert any("failed to expand: KeyError" in i.message for i in issues)
-        hooked = {**base, "mechanisms": {"vote": {"kind": "ballot", "voters": "p", "options": ["a"], "stage": "nowhere"}}}
+        hooked = {**base, "mechanisms": {"vote": {"kind": "decision", "mode": "ballot", "who": "p", "options": ["a"],
+                                                  "stage": "nowhere"}}}
         assert any("there is no stage 'nowhere'" in i.message for i in fg_env.check(hooked))
         issues = fg_env.check({**base, "actions": {"go": {"by": "p", "do": [{op_check: "x"}], "terminal": True}}})
         assert any("check failed: ValueError" in i.message for i in issues)
