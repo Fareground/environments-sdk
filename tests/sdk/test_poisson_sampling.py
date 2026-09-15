@@ -39,7 +39,7 @@ def test_large_poisson_preserves_skewness_not_just_mean_and_variance():
     assert abs(skewness - 1 / math.sqrt(mean)) < 5 * math.sqrt(6 / n)
 
 
-@pytest.mark.parametrize('mean', [0, 4, 100, 500])
+@pytest.mark.parametrize('mean', [0, 4, 10, 20])
 def test_small_means_preserve_legacy_samples_and_rng_state(mean):
     rng, legacy = random.Random(17), random.Random(17)
     for _ in range(20):
@@ -51,7 +51,7 @@ def test_small_means_preserve_legacy_samples_and_rng_state(mean):
     assert rng.getstate() == legacy.getstate()
 
 
-@pytest.mark.parametrize('mean', [501, 5000, 10**6, 10**12, 2**52])
+@pytest.mark.parametrize('mean', [20.001, 21, 30, 50, 100, 250, 500, 501, 5000, 10**6, 10**12, 2**52])
 def test_mean_and_variance_across_supported_scales(mean):
     rng = random.Random(43)
     n = 20000
@@ -98,3 +98,15 @@ def test_large_mean_failure_has_public_authored_context(pattern):
     assert result.status == 'failed'
     assert 'Poisson mean must be' in result.error
     assert 'events[0]' in result.error or 'patterns.population' in result.error
+
+
+@pytest.mark.parametrize('mean,cuts', [(21, [12, 20, 30]), (100, [80, 99, 120])])
+def test_medium_count_tails_match_independent_probability_sums(mean, cuts):
+    rng = random.Random(710)
+    n = 80000
+    samples = [sample_poisson(rng, mean) for _ in range(n)]
+    for cut in cuts:
+        probability = math.fsum(math.exp(-mean) * mean**k / math.factorial(k) for k in range(cut + 1))
+        observed = sum(value <= cut for value in samples) / n
+        tolerance = 5 * math.sqrt(probability * (1 - probability) / n)
+        assert abs(observed - probability) < tolerance

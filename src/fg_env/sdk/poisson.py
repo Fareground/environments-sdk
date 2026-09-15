@@ -40,8 +40,8 @@ def _log_mass(count: int, mean: float) -> float:
 def sample_poisson(rng: Any, mean: float) -> int:
     if not 0 <= mean <= _MAX_MEAN or not math.isfinite(mean):
         raise ValueError(f"Poisson mean must be finite and between 0 and {_MAX_MEAN}, got {mean!r}")
-    if mean <= 500:
-        # Preserve the existing small-mean algorithm and its seeded draw sequence, including zero.
+    if mean <= 20:
+        # The product loop is cheaper for small counts; rejection avoids work proportional to larger means.
         threshold, count, product = math.exp(-mean), 0, rng.random()
         while product > threshold:
             count += 1
