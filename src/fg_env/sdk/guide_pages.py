@@ -38,7 +38,7 @@ ROOTS: List[Tuple[str, str, str]] = [
     ("views", "where/sort/show", "$actor $it $i"),
     ("views", "with for: spectator", "no $actor ($it $i in lists)"),
     ("records", "visible", "$viewer $it (entry)"),
-    ("records", "show", "$it (entry: author, round, fields)"),
+    ("records", "show", "$it (entry: its fields directly, $it.text, plus author, round, seq, stage, to)"),
     ("events", "where/do (with each)", "$it $i (or the `as` name)"),
     ("triggers", "when/do/say", "—"),
     ("population", "where/weight", "$row"),
