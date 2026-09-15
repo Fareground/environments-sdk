@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Expression and population Poisson draws now share a Poisson rejection sampler above mean 500,
+  replacing rounded normal approximations. Small-mean seeded sequences are unchanged; larger-mean
+  samples and subsequent shared-stream draws change. Means above 2**52 fail explicitly instead of
+  silently producing counts beyond the sampler's supported precision. Keyed count patterns are unchanged.
 - Calls made after exhausting a turn now name the stage and its action or tool-call allowance,
   while preserving refusal codes, timeout priority and execution behavior.
 - Behavior reports identify unfinished baseline and input-variant runs, including unchecked end-only

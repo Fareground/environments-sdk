@@ -4,6 +4,8 @@ from __future__ import annotations
 import math
 from typing import Any, Dict, Iterable, List, Tuple
 
+from .poisson import sample_poisson
+
 from .expr import (
     MAX_LIST_LEN, MAX_RANGE, Call, ExprError, Untrusted, _describe, _entity_id, _held, _number, attr, charge,
     check_size, derived, function, truthy,
@@ -505,14 +507,10 @@ def _poisson(call: Call) -> int:
     mean = call.number(0)
     if mean < 0:
         raise ExprError("$poisson mean must be ≥ 0", call.source)
-    if mean > 500:
-        return max(0, round(call.rng.gauss(mean, math.sqrt(mean))))
-    limit, k, p = math.exp(-mean), 0, 1.0
-    while True:
-        p *= call.rng.random()
-        if p <= limit:
-            return k
-        k += 1
+    try:
+        return sample_poisson(call.rng, mean)
+    except ValueError as exc:
+        raise ExprError(str(exc), call.source) from None
 
 
 @function("choice(items, weight?)", "One item picked at random; `weight` is a per-item expression ($it), e.g. $choice([a, b], $it == a and 3 or 1).",

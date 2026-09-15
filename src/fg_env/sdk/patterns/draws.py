@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ..stdlib.linalg import cholesky
+from ..poisson import sample_poisson
 from .base import Number, PatternConfig, kind
 from .signals import when
 
@@ -68,16 +69,6 @@ def _draw_words(cfg: DrawConfig) -> str:
     return f"drawn once per run{who} from a {cfg.dist} distribution" + (f" ({params})" if params else "")
 
 
-def _poisson(rng: Any, mean: float) -> int:
-    if mean > 500:
-        return max(0, round(rng.gauss(mean, math.sqrt(mean))))
-    limit, k, product = math.exp(-mean), 0, rng.random()
-    while product > limit:
-        k += 1
-        product *= rng.random()
-    return k
-
-
 @kind("draw", "population", "draw", DrawConfig,
       "A value drawn once per run — a prior on an uncertain quantity — or once per key: heterogeneous traits per "
       "entity, correlated with mvnormal. Parameters of other patterns may read it.",
@@ -113,7 +104,10 @@ def _draw(ctx: Any) -> Any:
     elif dist == "triangular":
         value = rng.triangular(ctx.number("low"), ctx.number("high"), ctx.number("mode"))
     else:
-        value = _poisson(rng, ctx.number("mean", 0))
+        try:
+            value = sample_poisson(rng, ctx.number("mean", 0))
+        except ValueError as exc:
+            raise ctx.fail(str(exc)) from None
     return int(round(value)) if cfg.integer or dist == "poisson" else value
 
 
