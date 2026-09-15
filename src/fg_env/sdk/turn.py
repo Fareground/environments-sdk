@@ -94,6 +94,7 @@ class Turn:
         else:
             env._turn_count += 1
             self.number = env._turn_count  # assigned in deterministic order, before any concurrency
+            env.origin.tape.opened(self.number)
         exposures = env.world.exposures
         self.exposure: Optional["Exposure"] = exposures.open(self, kind) if exposures is not None and not peek else None
 
@@ -111,6 +112,7 @@ class Turn:
     def expired(self, now: Optional[float] = None) -> bool:
         """True once the deadline has passed; the first time, the turn is closed as timed out (call under the lock)."""
         if not self.timed_out and self.deadline is not None and (time.monotonic() if now is None else now) >= self.deadline:
+            self.record("timeout")
             self.timed_out = True
             self.stats.timeouts = 1
             self.close()
@@ -118,6 +120,12 @@ class Turn:
 
     def close(self) -> None:
         self.done = self.closed = True
+
+    def record(self, *entry: Any) -> None:
+        """Note on the run's tape something the participant did (so a copy can replay it); previews and
+        finished turns change nothing, so they are not recorded."""
+        if not self.peek and not self.done:
+            self.env.origin.tape.record(self.number, self.actor.id, entry)
 
     # Brief and update render on first read, so coded participants that never read them cost nothing.
 
