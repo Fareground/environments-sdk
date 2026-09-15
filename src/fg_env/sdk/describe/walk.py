@@ -4,14 +4,14 @@ from __future__ import annotations
 import inspect
 import re
 from functools import lru_cache
-from typing import Any, Dict, FrozenSet, Iterator, List, Set, Tuple
+from typing import Any, Dict, FrozenSet, Iterator, List, Mapping, Set, Tuple
 
 from ..contract import Contract
 from ..expr import FUNCTIONS
-from ..registry import OPS
+from ..registry import FAMILIES, OPS, use_key
 
 __all__ = ["dumped", "texts", "effect_nodes", "in_effects", "roles", "calls", "world_reads", "random_functions",
-           "random_ops"]
+           "random_ops", "ops_in", "mechanism_kinds"]
 
 _CALL = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)\s*\(")
 _WORLD = re.compile(r"\$world\.([A-Za-z_][A-Za-z0-9_]*)")
@@ -115,5 +115,29 @@ def random_functions() -> FrozenSet[str]:
 
 @lru_cache(maxsize=1)
 def random_ops() -> FrozenSet[str]:
-    """Native effect ops whose implementation draws from the run's random generator (or whose source is unavailable)."""
-    return frozenset(name for name, spec in OPS.items() if _uses_rng(spec.run))
+    """Native effect ops — family actions as ``family.action`` — whose implementation draws from the run's random
+    generator (or whose source is unavailable)."""
+    plain = {name for name, spec in OPS.items() if spec.select is None and _uses_rng(spec.run)}
+    actions = {op.name for family in FAMILIES.values() for table in family.actions.values() for op in table.values()
+               if _uses_rng(op.run)}
+    return frozenset(plain | actions)
+
+
+def ops_in(node: Mapping[str, Any]) -> Set[str]:
+    """The native ops an effect object names, a family op as ``family.action``."""
+    names = {key for key in node if key in OPS}
+    for family in FAMILIES:
+        if family in names:
+            names.discard(family)
+            names.add(f"{family}.{node.get('action')}")
+    return names
+
+
+def mechanism_kinds(contract: Contract) -> Set[str]:
+    """What the contract's mechanisms are: each ``family.mode`` and its family."""
+    out: Set[str] = set()
+    for raw in contract.mechanisms.values():
+        key = use_key(raw)
+        if key is not None:
+            out |= {key, key.split(".", 1)[0]}
+    return out

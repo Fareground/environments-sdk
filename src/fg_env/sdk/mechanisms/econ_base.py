@@ -17,13 +17,14 @@ from pydantic import BaseModel, ValidationError
 from ...entity import Entity
 from ..errors import RunError
 from ..expr import ExprError, compile_expr
-from ..registry import MechanismError
+from ..registry import MechanismError, config_data, describe, use_key
 from ..world import Abort
 
 __all__ = [
     "EPS", "NAME", "valid_name", "CONFIG_MODELS", "register_config", "config_of", "uses_of", "cached", "type_list", "require_types",
     "require_currency", "lineage", "common_ancestor", "top_types", "declared_use", "guarded", "choice_param", "entity_of",
-    "maybe_entity", "props",
+    "maybe_entity", "props", "checked_config", "declared_names",
+    "LEDGER", "INVENTORY", "PRODUCTION", "SUPPLY_CHAIN", "NEGOTIATION", "LABOR", "SUBSCRIPTIONS", "BOOKINGS",
     "to_ids", "whole", "amount", "bump", "money", "emit_to", "compiles", "run_hook",
 ]
 
@@ -31,7 +32,12 @@ __all__ = [
 EPS = 1e-9
 NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
 
-#: kind → config model, registered by each economy module so runtime lookups can parse any use.
+#: ``family.mode`` of every economy and agreements mode.
+LEDGER, INVENTORY, PRODUCTION, SUPPLY_CHAIN = "economy.ledger", "economy.inventory", "economy.production", "economy.supply_chain"
+NEGOTIATION, LABOR, SUBSCRIPTIONS, BOOKINGS = ("agreements.negotiation", "agreements.labor", "agreements.subscriptions",
+                                               "agreements.bookings")
+
+#: ``family.mode`` → config model, registered by each module so runtime lookups can parse any use.
 CONFIG_MODELS: Dict[str, Type[BaseModel]] = {}
 
 
@@ -58,11 +64,11 @@ def config_of(world: Any, name: str, kind: str, where: str = "") -> Any:
     key = ("use", name)
     if key not in cache:
         raw = world.contract.mechanisms.get(name) if isinstance(name, str) else None
-        if not isinstance(raw, Mapping) or raw.get("kind") != kind:
-            declared = [n for n, u in world.contract.mechanisms.items() if isinstance(u, Mapping) and u.get("kind") == kind]
-            raise RunError(f"'{name}' is not a declared {kind} (declared: {', '.join(declared) or 'none'})", where)
+        if not isinstance(raw, Mapping) or use_key(raw) != kind:
+            declared = [n for n, u in world.contract.mechanisms.items() if use_key(u) == kind]
+            raise RunError(f"'{name}' is not a declared {describe(kind)} (declared: {', '.join(declared) or 'none'})", where)
         try:
-            cache[key] = CONFIG_MODELS[kind].model_validate({k: v for k, v in raw.items() if k != "kind"})
+            cache[key] = CONFIG_MODELS[kind].model_validate(config_data(raw))
         except ValidationError as exc:  # expansion validated it already; only a patched contract lands here
             raise RunError(f"mechanism '{name}' has an invalid config: {exc.errors()[0]['msg']}", where) from None
     return cache[key]
@@ -74,8 +80,21 @@ def uses_of(world: Any, kind: str) -> Dict[str, Any]:
     key = ("kind", kind)
     if key not in cache:
         cache[key] = {name: config_of(world, name, kind) for name, use in world.contract.mechanisms.items()
-                      if isinstance(use, Mapping) and use.get("kind") == kind}
+                      if use_key(use) == kind}
     return dict(cache[key])
+
+
+def checked_config(checker: Any, effect: Mapping[str, Any], family: str) -> Any:
+    """At check time, the parsed config of the mechanism a family op names (None when its config is invalid,
+    which the mechanism's expansion reports already)."""
+    raw = (checker.c.mechanisms or {}).get(effect.get(family))
+    model = CONFIG_MODELS.get(use_key(raw) or "")
+    if model is None:
+        return None
+    try:
+        return model.model_validate(config_data(raw))  # type: ignore[arg-type]
+    except ValidationError:
+        return None
 
 
 def cached(world: Any, key: Any, build: Any) -> Any:
@@ -120,12 +139,16 @@ def lineage(contract: Mapping[str, Any], name: str) -> List[str]:
     return chain
 
 
+def declared_names(contract: Mapping[str, Any], key: str, field: str) -> Dict[str, str]:
+    """Every name under ``field`` (``currencies``, ``items``) of the declared ``key`` mechanisms: {name: mechanism}."""
+    return {name: other for other, use in (contract.get("mechanisms") or {}).items() if use_key(use) == key
+            for name in (use.get(field) or {})}
+
+
 def require_currency(contract: Mapping[str, Any], currency: str, field: str = "currency") -> None:
     """Fail expansion unless some ledger declares ``currency``."""
-    for use in (contract.get("mechanisms") or {}).values():
-        if isinstance(use, Mapping) and use.get("kind") == "ledger" and currency in (use.get("currencies") or {}):
-            return
-    raise MechanismError(f"'{currency}' is not a declared currency", "declare a ledger with it", field)
+    if currency not in declared_names(contract, LEDGER, "currencies"):
+        raise MechanismError(f"'{currency}' is not a declared currency", "declare a ledger with it", field)
 
 
 def top_types(contract: Mapping[str, Any], names: Sequence[str]) -> List[str]:
@@ -141,10 +164,11 @@ def declared_use(contract: Mapping[str, Any], name: Optional[str], kind: str, fi
     """The raw config of another mechanism this one refers to (declared earlier or later)."""
     uses = contract.get("mechanisms") or {}
     use = uses.get(name) if isinstance(name, str) else None
-    if not isinstance(use, Mapping) or use.get("kind") != kind:
-        declared = [n for n, u in uses.items() if isinstance(u, Mapping) and u.get("kind") == kind]
-        raise MechanismError(f"'{name}' is not a declared {kind} mechanism",
-                             f"declare one, e.g. \"mechanisms\": {{\"{name or kind}\": {{\"kind\": \"{kind}\", ...}}}}"
+    if not isinstance(use, Mapping) or use_key(use) != kind:
+        declared = [n for n, u in uses.items() if use_key(u) == kind]
+        family, _, mode = kind.partition(".")
+        raise MechanismError(f"'{name}' is not a declared {describe(kind)} mechanism",
+                             f"declare one, e.g. \"mechanisms\": {{\"{name or mode}\": {{\"kind\": \"{family}\", \"mode\": \"{mode}\", ...}}}}"
                              + (f" (declared: {', '.join(declared)})" if declared else ""), field)
     return dict(use)
 

@@ -42,12 +42,12 @@ DUEL = {
     "types": {"wizard": {"agent": True, "props": {"hp": 20, "mana": 3}}},
     "entities": {"ann": {"type": "wizard", "name": "Ann"}, "bob": {"type": "wizard", "name": "Bob"}},
     "stages": [{"name": "main", "actions": ["spells_bolt"]}],
-    "mechanisms": {"spells": {"kind": "procedure", "stack": {"players": "wizard", "kinds": {
+    "mechanisms": {"spells": {"kind": "flow", "mode": "procedure", "stack": {"who": "wizard", "kinds": {
         "bolt": {"params": {"target": {"type": "entity", "of": "wizard", "where": "$it.id != $actor.id"}},
                  "when": "$actor.mana >= 1", "why": "You need 1 mana.", "on_push": ["$actor.mana -= 1"],
                  "resolve": ["$params.target.hp -= 3"], "show": "at {$params.target.name}"},
         "counterspell": {"starts": False, "on": ["bolt", "counterspell"], "when": "$actor.mana >= 2", "why": "You need 2 mana.",
-                         "on_push": ["$actor.mana -= 2"], "resolve": [{"procedure": "spells", "step": "counter"}]}}}}},
+                         "on_push": ["$actor.mana -= 2"], "resolve": [{"flow": "spells", "action": "counter"}]}}}}},
     "outputs": {"hp": "$map(wizard, $it.hp)"},
 }
 
@@ -115,7 +115,7 @@ def test_waiting_windows_carry_the_stack_across_rounds_and_snapshots():
 
 def test_a_refused_push_rolls_the_action_back_and_says_why():
     contract = json.loads(json.dumps(DUEL))
-    contract["actions"] = {"force_counter": {"by": "wizard", "do": [{"procedure": "spells", "step": "push", "kind": "counterspell"}]}}
+    contract["actions"] = {"force_counter": {"by": "wizard", "do": [{"flow": "spells", "action": "push", "item": "counterspell"}]}}
     contract["stages"] = [{"name": "main", "actions": ["force_counter"]}]
     env = fg_env.load(contract, seed=1)
     script = Script({"ann": [("force_counter", {})]})
@@ -132,24 +132,25 @@ COURT = {
     "entities": {"pat": {"type": "attorney", "name": "Pat"}, "dana": {"type": "attorney", "name": "Dana"},
                  "ito": {"type": "judge", "name": "Judge Ito"}},
     "actions": {"offer": {"by": "attorney", "params": {"exhibit": {"type": "text", "max_len": 40}},
-                          "do": [{"procedure": "trial", "step": "push", "kind": "exhibit", "params": {"name": "$params.exhibit"}}],
+                          "do": [{"flow": "trial", "action": "push", "item": "exhibit", "params": {"name": "$params.exhibit"}}],
                           "terminal": True}},
     "mechanisms": {"trial": {
-        "kind": "procedure",
+        "kind": "flow",
+        "mode": "procedure",
         "phases": {
             "evidence": {"stages": [{"name": "direct", "actions": ["offer"], "who": "$is($it, attorney)"}],
                          "next": [{"to": "verdict", "when": "$len($world.admitted) + $len($world.excluded) >= 2 and $stack(trial, top) == null"}]},
             "verdict": {"terminal": True}},
-        "stack": {"players": ["attorney", "judge"], "reopen": False, "kinds": {
+        "stack": {"who": ["attorney", "judge"], "reopen": False, "kinds": {
             "exhibit": {"tool": False, "params": {"name": "text"}, "show": "{$params.name}",
                         "responders": "$is($it, attorney) and $it.id != $item.by",
                         "resolve": ["$world.admitted += $params.name"], "countered": ["$world.excluded += $params.name"]},
-            "objection": {"starts": False, "on": ["exhibit"], "by": "attorney",
+            "objection": {"starts": False, "on": ["exhibit"], "who": "attorney",
                           "params": {"ground": {"type": "enum", "values": ["hearsay", "relevance"]}},
                           "responders": "$is($it, judge)",
-                          "resolve": [{"if": "$world.sustained", "then": [{"procedure": "trial", "step": "counter"}]},
+                          "resolve": [{"if": "$world.sustained", "then": [{"flow": "trial", "action": "counter"}]},
                                       "$world.sustained = false"]},
-            "ruling": {"starts": False, "on": ["objection"], "by": "judge", "responders": "false",
+            "ruling": {"starts": False, "on": ["objection"], "who": "judge", "responders": "false",
                        "params": {"decision": {"type": "enum", "values": ["sustained", "overruled"]}},
                        "resolve": ["$world.sustained = $params.decision == sustained"]}}}}},
     "outputs": {"admitted": "$world.admitted", "excluded": "$world.excluded", "phases": "$world.trial_history"},
@@ -198,13 +199,13 @@ def test_stack_runs_with_random_agents_resume_exactly_from_a_snapshot():
 @pytest.mark.parametrize("stack, message", [
     ({"kinds": {"bolt": {"on": ["fireball"]}}}, "'fireball' in `on` is not a kind"),
     ({"kinds": {"counter": {"starts": False}}}, "no kind `starts` a stack"),
-    ({"players": "sorcerer"}, "stack.players 'sorcerer' is not a declared type"),
+    ({"who": "sorcerer"}, "stack.who 'sorcerer' is not a declared type"),
     ({"kinds": {"bolt": {"responders": "$actor.hp > 0"}}}, "$actor is not available here"),
     ({"stage": "nowhere"}, "no stage 'nowhere'"),
 ])
 def test_stack_config_errors_say_what_to_fix(stack, message):
     contract = json.loads(json.dumps(DUEL))
-    contract["mechanisms"]["spells"] = {"kind": "procedure", "stack": {"players": "wizard", "kinds": {"bolt": {}}, **stack}}
+    contract["mechanisms"]["spells"] = {"kind": "flow", "mode": "procedure", "stack": {"who": "wizard", "kinds": {"bolt": {}}, **stack}}
     with pytest.raises(ContractError) as excinfo:
         fg_env.load(contract)
     assert message in str(excinfo.value)
@@ -212,10 +213,57 @@ def test_stack_config_errors_say_what_to_fix(stack, message):
 
 def test_procedure_steps_are_checked_against_what_the_procedure_declares():
     contract = json.loads(json.dumps(DUEL))
-    contract["actions"] = {"cast": {"by": "wizard", "do": [{"procedure": "spells", "step": "push", "kind": "fireball"},
-                                                           {"procedure": "spells", "step": "end"}]}}
+    contract["actions"] = {"cast": {"by": "wizard", "do": [{"flow": "spells", "action": "push", "item": "fireball"},
+                                                           {"flow": "spells", "action": "advance"}]}}
     issues = {(i.path, i.message) for i in fg_env.check(contract) if i.severity == "error"}
-    assert ("actions.cast.do[0].kind", "'fireball' is not a kind of the spells stack") in issues
-    assert ("actions.cast.do[1].step", "the spells procedure has no phases") in issues
+    assert ("actions.cast.do[0].item", "'fireball' is not a kind of the spells stack") in issues
+    assert ("actions.cast.do[1].action", "the spells procedure has no phases") in issues
     with pytest.raises(ContractError, match="a procedure needs phases, a stack, or both"):
-        fg_env.load({**DUEL, "mechanisms": {"spells": {"kind": "procedure"}}})
+        fg_env.load({**DUEL, "mechanisms": {"spells": {"kind": "flow", "mode": "procedure"}}})
+
+
+def test_an_old_procedure_kind_or_field_names_the_new_one():
+    old = json.loads(json.dumps(DUEL))
+    old["mechanisms"]["spells"] = {"kind": "procedure", "stack": {"players": "wizard", "kinds": {"bolt": {}}}}
+    issue = next(i for i in fg_env.check(old) if i.path == "mechanisms.spells.kind")
+    assert issue.message == "'procedure' is now kind 'flow' with mode 'procedure'"
+    typo = json.loads(json.dumps(DUEL))
+    typo["mechanisms"]["spells"]["stack"]["players"] = typo["mechanisms"]["spells"]["stack"].pop("who")
+    issue = next(i for i in fg_env.check(typo) if i.path == "mechanisms.spells.stack.players")
+    assert issue.message == "`players` is not a field of `stack`" and "who, kinds" in issue.fix
+
+
+def test_procedure_actions_check_their_own_keys():
+    def issues(*effects):
+        contract = json.loads(json.dumps(DUEL))
+        contract["actions"] = {"cast": {"by": "wizard", "do": list(effects)}}
+        contract["stages"] = [{"name": "main", "actions": ["cast"]}]
+        return [(i.path, i.message, i.fix) for i in fg_env.check(contract) if i.severity == "error"]
+
+    assert issues({"flow": "spells", "action": "push"})[0][1] == "`flow.push` needs `item`"
+    assert issues({"flow": "spells", "action": "pass", "kind": "bolt"})[0][1] == "'kind' is not part of `flow.pass`"
+    path, _, fix = issues({"flow": "spells", "action": "psh", "item": "bolt"})[0]
+    assert path.endswith(".action") and fix == "did you mean 'push'?"
+    _, _, fix = issues({"procedure": "spells", "step": "pass"})[0]
+    assert fix.startswith('`procedure` is now the `flow` op: {"flow": "<mechanism>", "action": <action>')
+
+
+def test_tools_one_offers_the_stack_as_one_tool():
+    contract = json.loads(json.dumps(DUEL))
+    contract["mechanisms"]["spells"]["tools"] = "one"
+    env = fg_env.load(contract, seed=1)
+    offered = {}
+
+    def play(wake):
+        tools = {tool.name: tool for tool in wake.tools}
+        offered.setdefault((wake.entity_id, wake.stage), tools)
+        if wake.entity_id == "ann" and wake.stage == "main":
+            assert wake.call("spells", {"action": "bolt", "target": "bob"}).ok
+        if not wake.done:
+            wake.end()
+
+    env.run(play, rounds=1)
+    main = offered[("ann", "main")]
+    assert "spells" in main and "spells_bolt" not in main
+    assert "bolt" in main["spells"].input_schema["properties"]["action"]["enum"]
+    assert _props(env, "bob")["hp"] == 17  # Bob's silence passed, so the bolt resolved

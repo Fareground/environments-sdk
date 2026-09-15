@@ -58,11 +58,11 @@ GOODS = {
     "types": {"person": {"agent": True, "props": {"hunger": 0}}},
     "entities": {"ana": {"type": "person", "name": "Ana", "at": "square", "props": {"goods": {"bread": 3, "apple": 2}}},
                  "ben": {"type": "person", "name": "Ben", "at": "square", "props": {"goods": {"apple": 3}}}},
-    "mechanisms": {"goods": {"kind": "inventory", "holders": "person", "capacity": 4,
+    "mechanisms": {"goods": {"kind": "economy", "mode": "inventory", "who": "person", "capacity": 4,
                              "items": {"bread": {"value": 2, "on_consume": ["$actor.hunger -= $qty"]},
                                        "apple": {"value": 1},
                                        "sword": {"unique": True, "value": 30, "props": {"sharp": 1}}},
-                             "tools": ["give", "consume", "drop", "pickup"]}},
+                             "actions": ["give", "consume", "drop", "pickup"]}},
     "stages": [{"name": "act", "turns": "sequential", "max_actions": 4, "max_calls": 10}],
 }
 
@@ -93,8 +93,8 @@ def test_inventory_tools_offer_only_goods_you_hold_and_moves_conserve_them():
 
 def test_unique_items_are_entities_that_change_owner():
     contract = copy.deepcopy(GOODS)
-    contract["events"] = [{"at": 1, "do": [{"make_items": "sword", "to": "$entity(ben)", "source": "forge",
-                                            "props": {"sharp": 3}}]}]
+    contract["events"] = [{"at": 1, "do": [{"economy": "goods", "action": "make", "item": "sword", "to": "$entity(ben)",
+                                            "source": "forge", "props": {"sharp": 3}}]}]
     env = fg_env.load(contract, seed=1)
     play = scripted({("ben", 1): [("goods_give", {"to": "ana", "item": "sword_1", "qty": 1}),
                                   ("goods_give", {"to": "ana", "item": "sword_9", "qty": 1})],
@@ -126,7 +126,7 @@ PANTRY = {
     "clock": {"rounds": 4},
     "types": {"person": {"agent": True, "props": {"hunger": 0}}},
     "entities": {"cy": {"type": "person", "props": {"food": {"bread": 4}}}},
-    "mechanisms": {"food": {"kind": "inventory", "holders": "person", "items": {"bread": {"shelf_life": 2}},
+    "mechanisms": {"food": {"kind": "economy", "mode": "inventory", "who": "person", "items": {"bread": {"shelf_life": 2}},
                             "needs": {"person": {"bread": 1}}, "on_short": ["$it.hunger += $short"]}},
 }
 
@@ -146,8 +146,8 @@ CHEAT = {
     "clock": {"rounds": 1},
     "types": {"person": {"agent": True}},
     "entities": {"ana": {"type": "person"}},
-    "mechanisms": {"money": {"kind": "ledger", "holders": "person", "currencies": {"cash": {"start": 10}}},
-                   "goods": {"kind": "inventory", "holders": "person", "items": {"bread": {}}}},
+    "mechanisms": {"money": {"kind": "economy", "mode": "ledger", "who": "person", "currencies": {"cash": {"start": 10}}},
+                   "goods": {"kind": "economy", "mode": "inventory", "who": "person", "items": {"bread": {}}}},
     "actions": {"print_money": {"by": "person", "do": ["$actor.cash += 5"], "terminal": True},
                 "conjure": {"by": "person", "do": ["$actor.goods = {bread: 9}"], "terminal": True}},
 }
@@ -167,14 +167,76 @@ def test_inventory_config_errors_say_what_to_fix():
     both["mechanisms"]["goods"]["items"] = {"cash": {}}
     assert any("'cash' is already declared by 'money'" in i.message for i in errors(both))
     ground = copy.deepcopy(CHEAT)
-    ground["mechanisms"]["goods"]["tools"] = ["drop"]
+    ground["mechanisms"]["goods"]["actions"] = ["drop"]
     assert any("drop and pickup need a declared space" in i.message for i in errors(ground))
     unique = copy.deepcopy(CHEAT)
     unique["mechanisms"]["goods"]["items"] = {"ring": {"unique": True, "consumable": True}}
     assert any("cannot be consumable" in i.message for i in errors(unique))
     holders = copy.deepcopy(CHEAT)
-    holders["mechanisms"]["goods"]["holders"] = "robot"
-    assert any(i.path == "mechanisms.goods.holders" for i in errors(holders))
+    holders["mechanisms"]["goods"]["who"] = "robot"
+    assert any(i.path == "mechanisms.goods.who" for i in errors(holders))
+
+
+def test_an_old_economy_kind_says_its_family_and_mode():
+    old = copy.deepcopy(CHEAT)
+    old["mechanisms"]["money"] = {"kind": "ledger", "holders": "person", "currencies": {"cash": {}}}
+    issue = next(i for i in errors(old) if i.path == "mechanisms.money.kind")
+    assert issue.message == "'ledger' is now kind 'economy' with mode 'ledger'"
+    assert '"kind": "economy", "mode": "ledger"' in issue.fix
+
+
+def test_a_typo_or_an_old_field_name_names_the_economy_mode_and_its_fields():
+    typo = copy.deepcopy(CHEAT)
+    typo["mechanisms"]["goods"]["capacty"] = 3
+    issue = next(i for i in errors(typo) if i.path == "mechanisms.goods.capacty")
+    assert issue.message == "`capacty` is not a field of `economy` mode `inventory`"
+    assert issue.fix.startswith("did you mean 'capacity'?")
+    renamed = copy.deepcopy(CHEAT)
+    renamed["mechanisms"]["money"]["tools"] = ["pay"]
+    assert any(i.path.startswith("mechanisms.money.tools") for i in errors(renamed))  # the tool list is `actions` now
+
+
+def test_economy_actions_check_their_own_keys():
+    def op(effect):
+        return [(i.path, i.message, i.fix) for i in errors({**CHEAT, "events": [{"do": [effect]}]})]
+
+    pay = {"economy": "money", "action": "pay", "from": "$entity(ana)", "to": "$entity(ana)", "amount": 1}
+    assert op(pay) == []
+    assert any(m == "'qty' is not part of `economy.pay`" for _, m, _ in op({**pay, "qty": 2}))
+    assert any(m == "`economy.give` needs `item`" for _, m, _ in op({"economy": "goods", "action": "give", "from": "$entity(ana)",
+                                                                     "to": "$entity(ana)"}))
+    path, message, fix = op({"economy": "money", "action": "count"})[0]
+    assert path.endswith(".action") and message == "'count' is not an action of money (economy ledger)"
+    assert fix == "actions: pay, mint, burn, lend, repay"
+    path, message, fix = op({"economy": "money", "action": "mint", "currency": "csh", "to": "$entity(ana)", "amount": 1,
+                             "source": "gift"})[0]
+    assert (path.endswith(".currency"), message, fix) == (True, "'csh' is not a currency of money", "did you mean 'cash'?")
+    path, message, fix = op({"economy": "goods", "action": "make", "item": "bred", "to": "$entity(ana)", "source": "oven"})[0]
+    assert (path.endswith(".item"), message, fix) == (True, "'bred' is not an item of goods", "did you mean 'bread'?")
+    assert any("declares no loans" in m for _, m, _ in op({"economy": "money", "action": "repay", "loan": "x", "amount": 1}))
+    assert any("has no ground" in m for _, m, _ in op({"economy": "goods", "action": "drop", "item": "bread", "from": "$entity(ana)"}))
+    _, _, fix = op({"pay": "cash", "from": "$entity(ana)", "to": "$entity(ana)", "amount": 1})[0]
+    assert fix.startswith('`pay` is now the `economy` op: {"economy": "<mechanism>", "action": "pay"')
+
+
+def test_tools_one_offers_an_inventory_as_a_single_tool():
+    contract = copy.deepcopy(GOODS)
+    contract["mechanisms"]["goods"]["tools"] = "one"
+    env = fg_env.load(contract, seed=1)
+    offered = []
+
+    def play(wake):
+        tools = {t.name: t for t in wake.tools}
+        offered.append((wake.entity_id, tools))
+        if wake.entity_id == "ana":
+            assert wake.call("goods", {"action": "give", "to": "ben", "item": "bread", "qty": 1}).ok
+        wake.end()
+
+    env.run(play, rounds=1)
+    entity_id, tools = offered[0]
+    assert entity_id == "ana" and "goods_give" not in tools
+    assert {"give", "consume", "drop"} <= set(tools["goods"].input_schema["properties"]["action"]["enum"])
+    assert env.entity("ben")["props"]["goods"] == {"apple": 3, "bread": 1}
 
 
 # ---------------------------------------------------------------------------
@@ -188,15 +250,17 @@ BANKING = {
     "entities": {"ana": {"type": "person", "name": "Ana"}, "ben": {"type": "person", "name": "Ben", "props": {"cash": 0}},
                  "vault": {"type": "bank", "name": "Vault", "props": {"cash": 500}}},
     "mechanisms": {"money": {
-        "kind": "ledger", "holders": ["person", "bank"], "currencies": {"cash": {"start": 50, "credit": 10}},
+        "kind": "economy", "mode": "ledger", "who": ["person", "bank"], "currencies": {"cash": {"start": 50, "credit": 10}},
         "sources": {"ubi": {"to": "person", "amount": 5, "every": 2, "start": 2}},
         "taxes": {"vat": {"rate": 0.1, "on": "payer"}, "levy": {"rate": 0.2}},
         "loans": {"lenders": "bank", "borrowers": "person", "rate_min": 0.1, "rate_max": 0.1, "max_term": 3,
                   "on_default": ["$borrower.defaults += 1"]},
-        "tools": ["pay"]}},
+        "actions": ["pay"]}},
     "actions": {"shop": {"by": "person", "params": {"amount": "number"},
-                         "do": [{"pay": "cash", "from": "$actor", "to": "$entity(vault)", "amount": "$params.amount", "tax": "vat"}]},
-                "earn": {"by": "person", "do": [{"pay": "cash", "from": "$entity(vault)", "to": "$actor", "amount": 10, "tax": "levy"}]}},
+                         "do": [{"economy": "money", "action": "pay", "from": "$actor", "to": "$entity(vault)", "amount": "$params.amount",
+                                  "tax": "vat"}]},
+                "earn": {"by": "person", "do": [{"economy": "money", "action": "pay", "currency": "cash", "from": "$entity(vault)",
+                                                 "to": "$actor", "amount": 10, "tax": "levy"}]}},
     "stages": [{"name": "act", "turns": "sequential", "max_actions": 4, "max_calls": 10}],
 }
 
@@ -269,7 +333,7 @@ def test_a_refused_on_default_hook_never_undoes_the_rest_of_the_loans_tick():
 
 def test_net_worth_counts_money_goods_and_loans():
     contract = copy.deepcopy(BANKING)
-    contract["mechanisms"]["goods"] = {"kind": "inventory", "holders": "person", "items": {"bread": {"value": 2}},
+    contract["mechanisms"]["goods"] = {"kind": "economy", "mode": "inventory", "who": "person", "items": {"bread": {"value": 2}},
                                        "start": {"bread": 3}}
     contract["world"] = {"worth": 0, "priced": 0}
     contract["events"] = [{"phase": "end", "do": ["$world.worth = $net_worth($entity(ana))",
@@ -293,10 +357,10 @@ CRAFT = {
                  "joe": {"type": "villager", "name": "Joe", "at": "mill"},
                  "kim": {"type": "villager", "name": "Kim", "at": "forest", "props": {"goods": {"wood": 3}}}},
     "mechanisms": {
-        "goods": {"kind": "inventory", "holders": "villager", "capacity": 12,
+        "goods": {"kind": "economy", "mode": "inventory", "who": "villager", "capacity": 12,
                   "items": {"grain": {}, "flour": {}, "wood": {}, "axe": {"unique": True}}},
-        "money": {"kind": "ledger", "holders": "villager", "currencies": {"coin": {"start": 3}}},
-        "craft": {"kind": "production", "producers": "villager", "inventory": "goods",
+        "money": {"kind": "economy", "mode": "ledger", "who": "villager", "currencies": {"coin": {"start": 3}}},
+        "craft": {"kind": "economy", "mode": "production", "who": "villager", "inventory": "goods",
                   "skills": {"milling": {"xp_per_level": 2, "max_level": 3}},
                   "recipes": {
                       "chop": {"outputs": {"wood": "1 + $skill($actor, milling)"}, "at": "forest"},
@@ -313,14 +377,14 @@ def test_production_lists_makeable_recipes_runs_jobs_in_slots_and_levels_skills(
     env = fg_env.load(CRAFT, seed=1)
     assert tool(env, "ivy", "craft_start")["recipe"]["enum"] == ["chop", "mill"]
     assert blocked(env, "joe", "craft_start").startswith("You cannot make anything now")
-    play = scripted({("ivy", 1): [("craft_start", {"recipe": "chop"}), ("craft_start", {"recipe": "mill", "times": 3}),
-                                  ("craft_start", {"recipe": "mill", "times": 2}), ("craft_start", {"recipe": "mill"})],
+    play = scripted({("ivy", 1): [("craft_start", {"recipe": "chop"}), ("craft_start", {"recipe": "mill", "qty": 3}),
+                                  ("craft_start", {"recipe": "mill", "qty": 2}), ("craft_start", {"recipe": "mill"})],
                      ("ivy", 2): [("craft_start", {"recipe": "fine_mill"})]})
     result = env.run(play, rounds=2)
     assert result.status != "failed", result.error
     chop, too_many, milling, busy, fine = ok(play.results)
     assert chop.ok and "done at once" in chop.text
-    assert not too_many.ok and "times must be at most 2" in too_many.text
+    assert not too_many.ok and "qty must be at most 2" in too_many.text
     assert milling.ok and "2 × mill: ready in 1 round" in milling.text
     assert not busy.ok and "must be one of chop" in busy.text  # the only slot is taken
     assert fine.ok, fine.text
@@ -348,10 +412,12 @@ def test_unique_outputs_and_tools_in_hand():
 def test_a_finished_job_waits_while_its_output_does_not_fit():
     contract = copy.deepcopy(CRAFT)
     contract["entities"]["ivy"]["props"]["goods_capacity"] = 5
-    contract["events"] = [{"at": 2, "do": [{"make_items": "wood", "to": "$entity(ivy)", "qty": 4, "source": "gift"}]},
-                          {"at": 3, "do": [{"use_items": "wood", "from": "$entity(ivy)", "qty": 4, "sink": "fire"}]}]
+    contract["events"] = [{"at": 2, "do": [{"economy": "goods", "action": "make", "item": "wood", "to": "$entity(ivy)", "qty": 4,
+                                         "source": "gift"}]},
+                          {"at": 3, "do": [{"economy": "goods", "action": "use", "item": "wood", "from": "$entity(ivy)", "qty": 4,
+                                         "sink": "fire"}]}]
     env = fg_env.load(contract, seed=1)
-    result = env.run(scripted({("ivy", 1): [("craft_start", {"recipe": "mill", "times": 2})]}), rounds=2)
+    result = env.run(scripted({("ivy", 1): [("craft_start", {"recipe": "mill", "qty": 2})]}), rounds=2)
     assert [j["props"]["status"] for j in env.entities("craft_job")] == ["waiting"]
     assert any(e["kind"] == "craft_waiting" and "has room for only" in e["text"] for e in result.events)
     env.run("idle", rounds=1)
@@ -374,7 +440,7 @@ def test_production_config_errors_say_what_to_fix():
     assert any("`at` needs a declared space" in i.message for i in errors(no_space))
     missing = copy.deepcopy(CRAFT)
     missing["mechanisms"]["craft"]["inventory"] = "stock"
-    assert any("'stock' is not a declared inventory mechanism" in i.message for i in errors(missing))
+    assert any("'stock' is not a declared economy (inventory) mechanism" in i.message for i in errors(missing))
 
 
 # ---------------------------------------------------------------------------
@@ -389,8 +455,8 @@ CAFE = {
                  "ida": {"type": "household", "name": "Ida", "props": {"cash": 25}},
                  "bean": {"type": "cafe", "name": "Bean Bar"}},
     "mechanisms": {
-        "money": {"kind": "ledger", "holders": ["household", "cafe"], "currencies": {"cash": {}}},
-        "coffee": {"kind": "subscriptions", "subscribers": "household", "currency": "cash", "providers": "cafe", "price_max": 100,
+        "money": {"kind": "economy", "mode": "ledger", "who": ["household", "cafe"], "currencies": {"cash": {}}},
+        "coffee": {"kind": "agreements", "mode": "subscriptions", "who": "household", "currency": "cash", "providers": "cafe", "price_max": 100,
                    "plans": {"club": {"provider": "bean", "name": "Coffee Club", "price": 20, "period": 3, "trial": 2}}}},
     "outputs": {"hal_member": "$subscribed($entity(hal), bean)", "ida_member": "$subscribed($entity(ida), club)"},
     "stages": [{"name": "day", "turns": "sequential", "max_actions": 3, "max_calls": 8}],
@@ -433,8 +499,8 @@ DINING = {
                  "g3": {"type": "guest", "name": "Gia", "props": {"vip": 1}},
                  "bistro": {"type": "bistro", "name": "Bistro", "props": {"cash": 0}}},
     "mechanisms": {
-        "money": {"kind": "ledger", "holders": ["guest", "bistro"], "currencies": {"cash": {"start": 100}}},
-        "dining": {"kind": "bookings", "guests": "guest", "currency": "cash", "refund": 0.5,
+        "money": {"kind": "economy", "mode": "ledger", "who": ["guest", "bistro"], "currencies": {"cash": {"start": 100}}},
+        "dining": {"kind": "agreements", "mode": "bookings", "who": "guest", "currency": "cash", "refund": 0.5,
                    "resources": {"tables": {"provider": "bistro", "capacity": 4, "price": 10, "horizon": 2, "max_party": 4}}}},
     "stages": [{"name": "evening", "turns": "sequential", "max_actions": 3, "max_calls": 8}],
 }
@@ -463,7 +529,7 @@ def test_bookings_fill_slots_waitlist_promote_on_cancel_and_serve():
 
 def test_queues_serve_by_priority_and_impatient_guests_give_up():
     contract = copy.deepcopy(DINING)
-    contract["mechanisms"]["dining"].update(mode="queue", order="priority", priority="$it.vip", patience=1)
+    contract["mechanisms"]["dining"].update(format="queue", order="priority", priority="$it.vip", patience=1)
     contract["mechanisms"]["dining"]["resources"]["tables"].update(capacity=1, price=5)
     env = fg_env.load(contract, seed=1)
     assert "ahead" not in tool(env, "g1", "dining_book")
@@ -487,6 +553,35 @@ def test_subscription_and_booking_config_errors():
     assert any("priority order needs a `priority` expression" in i.message for i in errors(priority))
 
 
+def test_an_old_agreements_kind_or_a_mistyped_field_says_what_it_is_now():
+    old = copy.deepcopy(DINING)
+    old["mechanisms"]["dining"]["kind"] = "bookings"
+    issue = next(i for i in errors(old) if i.path == "mechanisms.dining.kind")
+    assert issue.message == "'bookings' is now kind 'agreements' with mode 'bookings'"
+    typo = copy.deepcopy(DINING)
+    typo["mechanisms"]["dining"]["formt"] = "queue"
+    issue = next(i for i in errors(typo) if i.path == "mechanisms.dining.formt")
+    assert issue.message == "`formt` is not a field of `agreements` mode `bookings`"
+    assert issue.fix.startswith("did you mean 'format'?")
+
+
+def test_tools_one_offers_bookings_as_a_single_tool():
+    contract = copy.deepcopy(DINING)
+    contract["mechanisms"]["dining"]["tools"] = "one"
+    env = fg_env.load(contract, seed=1)
+    offered = {}
+
+    def play(wake):
+        offered[wake.entity_id] = {t.name: t for t in wake.tools}
+        if wake.entity_id == "g1":
+            assert wake.call("dining", {"action": "book", "resource": "tables", "ahead": 1, "party": 2}).ok
+        wake.end()
+
+    env.run(play, rounds=1)
+    assert "dining_book" not in offered["g1"] and "book" in offered["g1"]["dining"].input_schema["properties"]["action"]["enum"]
+    assert [b["props"]["status"] for b in env.entities("dining_booking")] == ["booked"]
+
+
 # ---------------------------------------------------------------------------
 # negotiation
 # ---------------------------------------------------------------------------
@@ -499,9 +594,9 @@ TRADE = {
                  "bo": {"type": "country", "name": "Borin", "props": {"credits": 500}},
                  "cy": {"type": "country", "name": "Cyra", "props": {"credits": 500}}},
     "mechanisms": {
-        "money": {"kind": "ledger", "holders": "country", "currencies": {"credits": {}}},
-        "stock": {"kind": "inventory", "holders": "country", "items": {"steel": {"value": 5}}},
-        "trade": {"kind": "negotiation", "parties": "country", "deadline": 3, "max_depth": 2, "reservation": 10,
+        "money": {"kind": "economy", "mode": "ledger", "who": "country", "currencies": {"credits": {}}},
+        "stock": {"kind": "economy", "mode": "inventory", "who": "country", "items": {"steel": {"value": 5}}},
+        "trade": {"kind": "agreements", "mode": "negotiation", "who": "country", "deadline": 3, "max_depth": 2, "reservation": 10,
                   "value": "$terms.price * $terms.quota * (1 if $party.id == 'ar' else -1)",
                   "issues": {"price": {"min": 1, "max": 20, "unit": "credits"}, "quota": {"type": "int", "min": 0, "max": 20},
                              "years": {"type": "int", "min": 1, "max": 3}},
@@ -615,6 +710,20 @@ def test_negotiation_config_errors():
     assert any("is not a valid expression" in m for m in issues_of(value="$terms.price +"))
 
 
+def test_agreements_actions_check_their_own_keys():
+    def op(effect):
+        return [(i.path, i.message, i.fix) for i in errors({**TRADE, "events": [{"do": [effect]}]})]
+
+    accept = {"agreements": "trade", "action": "accept", "who": "$entity(ar)"}
+    assert any(m == "`agreements.accept` needs `offer`" for _, m, _ in op(accept))
+    assert any(m == "'answer' is not part of `agreements.accept`" for _, m, _ in op({**accept, "offer": "x", "answer": "yes"}))
+    path, message, fix = op({"agreements": "trade", "action": "answer"})[0]
+    assert path.endswith(".action") and message == "'answer' is not an action of trade (agreements negotiation)"
+    assert fix == "actions: propose, counter, accept, reject, withdraw, fulfill"
+    _, _, fix = op({"answer_offer": "trade", "offer": "x", "by": "$entity(ar)", "answer": "accept"})[0]
+    assert fix.startswith('`answer_offer` is now the `agreements` op: {"agreements": "<mechanism>", "action": <action>')
+
+
 # ---------------------------------------------------------------------------
 # labor
 # ---------------------------------------------------------------------------
@@ -627,9 +736,10 @@ WORK = {
                  "quinn": {"type": "person", "name": "Quinn", "props": {"skill": 5}},
                  "baker": {"type": "bakery", "name": "Baker", "props": {"cash": 25, "goods": {"flour": 5}}}},
     "mechanisms": {
-        "money": {"kind": "ledger", "holders": ["person", "bakery"], "currencies": {"cash": {}}, "taxes": {"income": {"rate": 0.1}}},
-        "goods": {"kind": "inventory", "holders": ["person", "bakery"], "items": {"flour": {}, "bread": {"value": 3}}},
-        "jobs": {"kind": "labor", "workers": "person", "employers": "bakery", "currency": "cash", "wage_min": 5, "wage_max": 20,
+        "money": {"kind": "economy", "mode": "ledger", "who": ["person", "bakery"], "currencies": {"cash": {}},
+                  "taxes": {"income": {"rate": 0.1}}},
+        "goods": {"kind": "economy", "mode": "inventory", "who": ["person", "bakery"], "items": {"flour": {}, "bread": {"value": 3}}},
+        "jobs": {"kind": "agreements", "mode": "labor", "who": "person", "employers": "bakery", "currency": "cash", "wage_min": 5, "wage_max": 20,
                  "tax": "income", "inventory": "goods",
                  "firm": {"output": "bread", "per_worker": 2, "inputs": {"flour": 1}, "price": 3}}},
     "stages": [{"name": "day", "turns": "sequential", "max_actions": 3, "max_calls": 8}],
@@ -686,8 +796,8 @@ CHAIN = {
     "types": {"node": {"agent": True}},
     "entities": {"shop": {"type": "node", "name": "Shop"}, "plant": {"type": "node", "name": "Plant"}},
     "mechanisms": {
-        "stock": {"kind": "inventory", "holders": "node", "items": {"widget": {}}, "start": {"widget": 5}},
-        "flow": {"kind": "supply_chain", "inventory": "stock", "item": "widget", "nodes": ["shop", "plant"],
+        "stock": {"kind": "economy", "mode": "inventory", "who": "node", "items": {"widget": {}}, "start": {"widget": 5}},
+        "flow": {"kind": "economy", "mode": "supply_chain", "inventory": "stock", "item": "widget", "nodes": ["shop", "plant"],
                  "demand": "3 if $round < 3 else 6", "initial_flow": 3, "lead_time": 2, "production_delay": 1,
                  "holding_cost": 0.5, "backlog_cost": 2}},
     "stages": [{"name": "orders", "turns": "simultaneous"}],
@@ -727,7 +837,7 @@ def test_supply_chain_orders_travel_up_and_production_enters_the_producer_pipeli
 
 
 def _conserved_everywhere(env):
-    uses = [name for name, use in env.contract.mechanisms.items() if use["kind"] in ("ledger", "inventory")]
+    uses = [name for name, use in env.contract.mechanisms.items() if use.get("mode") in ("ledger", "inventory")]
     assert uses
     return {name: compile_expr(f"$conserved('{name}')")(env.world.scope()) for name in uses}
 
@@ -764,11 +874,23 @@ def test_native_beer_game_reproduces_the_hand_written_one(policy, arm):
     assert native.series["factory_order"] == original.series["factory_order"]
 
 
-def test_guide_documents_every_economy_kind_function_and_op():
+def test_guide_documents_every_economy_mode_function_and_op():
     mechanisms, effects, everything = fg_env.guide("mechanisms"), fg_env.guide("effects"), fg_env.guide()
-    for kind in ("inventory", "ledger", "production", "subscriptions", "bookings", "negotiation", "labor", "supply_chain"):
-        assert f"### `{kind}`" in mechanisms
-    for op in ("pay", "mint", "burn_money", "give_items", "make_items", "use_items", "propose_terms", "place_order"):
-        assert f"`{op}`" in effects
+    economy = fg_env.guide("economy")
+    for mode in ("ledger", "inventory", "production", "supply_chain"):
+        assert f"### `economy.{mode}`" in economy
+    for action in ("pay", "mint", "burn", "lend", "repay", "give", "make", "use", "drop", "pickup", "start", "order"):
+        assert f"- `{action}`" in economy
+    assert "- `tick`" not in economy and "- `close`" not in economy  # generated bookkeeping stays out of the guide
+    assert '- `economy`: {"economy": "<economy mechanism>", "action": ...}' in effects
+    agreements = fg_env.guide("agreements")
+    for mode in ("negotiation", "labor", "subscriptions", "bookings"):
+        assert f"### `agreements.{mode}`" in agreements
+    for action in ("propose", "counter", "accept", "reject", "withdraw", "fulfill", "hire", "quit", "fire", "subscribe",
+                   "set_price", "book", "cancel"):
+        assert f"- `{action}`" in agreements
+    assert "- `payday`" not in agreements and "- `tick`" not in agreements
+    assert '- `agreements`: {"agreements": "<agreements mechanism>", "action": ...}' in effects
+    assert "| `economy` |" in mechanisms and "| `agreements` |" in mechanisms
     for fn in ("$has(", "$count_items(", "$net_worth(", "$conserved(", "$skill(", "$subscribed(", "$pipeline("):
         assert fn in everything

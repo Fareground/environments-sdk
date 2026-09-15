@@ -1,6 +1,6 @@
-"""The ``supply_chain`` mechanism: a serial chain of stock holders (retailer … producer) with
-order and shipping pipelines, backlog, holding and backlog costs — the beer game's mechanics
-as data. Goods in a pipeline are real goods of the chain's inventory and count toward its supply."""
+"""The ``economy`` family's ``supply_chain`` mode: a serial chain of stock holders (retailer …
+producer) with order and shipping pipelines, backlog, holding and backlog costs — the beer game's
+mechanics as data. Goods in a pipeline are real goods of the chain's inventory and count toward its supply."""
 from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Mapping, Union
@@ -9,11 +9,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..errors import RunError
 from ..expr import Call, ExprError, function
-from ..registry import MechanismError, effect_op, mechanism
+from ..registry import MechanismError, family_action, mode
 from ..world import Abort
 from .econ_assets import destroy_items, held, put_items, take_items
-from .econ_base import (bump, common_ancestor, compiles, config_of, declared_use, entity_of, maybe_entity, props, register_config,
-                        whole)
+from .econ_base import (INVENTORY, SUPPLY_CHAIN, bump, common_ancestor, compiles, config_of, declared_use, entity_of, maybe_entity,
+                        props, register_config, whole)
 from .econ_inventory import agent_types
 
 __all__ = ["SupplyChainConfig"]
@@ -36,29 +36,29 @@ class SupplyChainConfig(BaseModel):
     backlog_cost: Union[float, str] = Field(0, description="Cost per unit of backlog per round.")
     max_order: Union[int, str] = Field(1000, description="Largest order in one round.")
     default_order: Union[int, str] = Field(0, description="Order placed for a node that placed none this round (expression over $it).")
-    tools: List[Literal["order"]] = Field(["order"], description="order: nodes that are agents place their orders with a tool.")
+    actions: List[Literal["order"]] = Field(["order"], description="order: nodes that are agents place their orders with a tool.")
 
 
-register_config("supply_chain", SupplyChainConfig)
+register_config(SUPPLY_CHAIN, SupplyChainConfig)
 
 
 def _filled(length: Union[int, str], flow: Union[float, str]) -> str:
     return f"$map($range({length}), {flow})"
 
 
-@mechanism("supply_chain", SupplyChainConfig,
-           "A serial supply chain (the beer game as data): each round every node receives what reached it, gets its "
-           "order (customers' demand at the first node), ships what it can toward that order plus backlog and pays "
-           "holding and backlog costs; then nodes order from the node upstream (the producer starts a batch) with "
-           "`<name>_order`, one order a round. Orders and shipments travel in pipelines ($world.<name>_pipes) with their "
-           "own delays; goods in a pipeline count toward the inventory's supply, production enters from the named source "
-           "`production` and customer sales leave through the sink `sold`. Node props: <name>_backlog, _incoming, _received, "
-           "_shipped, _last_order, _round_cost, _cost, _peak_backlog; $pipeline(agent, chain) lists goods on the way.",
-           example={"kind": "supply_chain", "inventory": "stock", "item": "beer",
-                    "nodes": ["retailer", "wholesaler", "distributor", "factory"], "demand": "4 if $round < 5 else 8",
-                    "initial_flow": 4, "holding_cost": 0.5, "backlog_cost": 1})
+@mode("economy", "supply_chain", SupplyChainConfig,
+      "A serial supply chain (the beer game as data): each round every node receives what reached it, gets its "
+      "order (customers' demand at the first node), ships what it can toward that order plus backlog and pays "
+      "holding and backlog costs; then nodes order from the node upstream (the producer starts a batch) with "
+      "`<name>_order`, one order a round. Orders and shipments travel in pipelines ($world.<name>_pipes) with their "
+      "own delays; goods in a pipeline count toward the inventory's supply, production enters from the named source "
+      "`production` and customer sales leave through the sink `sold`. Node props: <name>_backlog, _incoming, _received, "
+      "_shipped, _last_order, _round_cost, _cost, _peak_backlog; $pipeline(agent, chain) lists goods on the way.",
+      example={"inventory": "stock", "item": "beer",
+               "nodes": ["retailer", "wholesaler", "distributor", "factory"], "demand": "4 if $round < 5 else 8",
+               "initial_flow": 4, "holding_cost": 0.5, "backlog_cost": 1}, was="supply_chain")
 def _expand_supply_chain(name: str, config: SupplyChainConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
-    inventory = declared_use(contract, config.inventory, "inventory", "inventory")
+    inventory = declared_use(contract, config.inventory, INVENTORY, "inventory")
     items = inventory.get("items") or {}
     if config.item not in items or (items[config.item] or {}).get("unique"):
         raise MechanismError(f"'{config.item}' is not a stackable item of inventory '{config.inventory}'", None, "item")
@@ -101,18 +101,18 @@ def _expand_supply_chain(name: str, config: SupplyChainConfig, contract: Mapping
                                     "description": "Per node: inbound goods and orders on the way; slot 0 arrives next round."},
                   f"{name}_demand": {"type": "int", "default": 0, "min": 0, "description": "Customers' order this round."},
                   f"{name}_sold": {"type": "int", "default": 0, "min": 0, "description": "Units delivered to customers so far."}},
-        "events": [{"name": f"{name}: arrivals and shipping", "phase": "start", "do": [{"supply_chain_tick": name}]},
-                   {"name": f"{name}: default orders", "phase": "end", "do": [{"supply_chain_close": name}]}],
+        "events": [{"name": f"{name}: arrivals and shipping", "phase": "start", "do": [{"economy": name, "action": "tick"}]},
+                   {"name": f"{name}: default orders", "phase": "end", "do": [{"economy": name, "action": "close"}]}],
     }
     agents = agent_types(contract, types)
-    if agents and "order" in config.tools:
+    if agents and "order" in config.actions:
         producer = config.nodes[-1]
         fragment["actions"] = {f"{name}_order": {
             "by": agents, "private": True, "terminal": True, "per_round": 1,
             "description": "Place this round's order with the node upstream (the producer: start a batch). One order a round.",
             "when": [{"expr": f"not $actor.{name}_ordered", "why": "You already ordered this round."}],
             "params": {"qty": {"type": "int", "min": 0, "max": config.max_order, "description": "Units."}},
-            "do": [{"place_order": name, "node": "$actor", "qty": "$params.qty"}],
+            "do": [{"economy": name, "action": "order", "who": "$actor", "qty": "$params.qty"}],
             "outcome": f"{{$'You started a batch of ' if $actor.id == '{producer}' else 'You ordered '}}{{$params.qty}} units."}}
         fragment["views"] = {
             f"{name}_position": {"for": agents, "title": "Your position", "bullet": False,
@@ -172,12 +172,12 @@ def _push(pipe: List[int], qty: int) -> List[int]:
     return pipe[:-1] + [pipe[-1] + qty] if pipe else [qty]
 
 
-@effect_op("supply_chain_tick", keys=(), literal=("supply_chain_tick",),
-           example='{"supply_chain_tick": "beer"}  (demand, arrivals, orders received, shipping and costs for every node)')
+@family_action("economy", ("supply_chain",), "tick", internal=True, was=("supply_chain_tick",),
+               example='{"economy": "beer", "action": "tick"}  (demand, arrivals, orders received, shipping and costs for every node)')
 def _supply_chain_tick(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    name = effect["supply_chain_tick"]
-    config: SupplyChainConfig = config_of(world, name, "supply_chain", where)
+    name = effect["economy"]
+    config: SupplyChainConfig = config_of(world, name, SUPPLY_CHAIN, where)
     base = f"mechanisms.{name}"
     demand = int(_number(runner, config.demand, {}, f"{base}.demand", integer=True))
     world.set_world(f"{name}_demand", demand)
@@ -248,22 +248,23 @@ def _place(runner: Any, name: str, config: SupplyChainConfig, node: Any, qty: in
     world.set_prop(node, f"{name}_ordered", True)
 
 
-@effect_op("place_order", keys=("node", "qty"), required=("node", "qty"), literal=("place_order",),
-           example='{"place_order": "beer", "node": "$actor", "qty": 8}  (order from upstream; the producer starts a batch)')
+@family_action("economy", ("supply_chain",), "order", keys=("who", "qty"), required=("who", "qty"), was=("place_order",),
+               example='{"economy": "beer", "action": "order", "who": "$actor", "qty": 8}  '
+                       '(a node orders from upstream; the producer starts a batch)')
 def _place_order(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    name = effect["place_order"]
-    config: SupplyChainConfig = config_of(world, name, "supply_chain", where)
-    node = entity_of(world, runner.eval(effect["node"], vars), where, "a chain node")
+    name = effect["economy"]
+    config: SupplyChainConfig = config_of(world, name, SUPPLY_CHAIN, where)
+    node = entity_of(world, runner.eval(effect["who"], vars), where, "a chain node")
     _place(runner, name, config, node, whole(runner.eval(effect["qty"], vars), where, "qty"), where)
 
 
-@effect_op("supply_chain_close", keys=(), literal=("supply_chain_close",),
-           example='{"supply_chain_close": "beer"}  (place the default order for every node that placed none)')
+@family_action("economy", ("supply_chain",), "close", internal=True, was=("supply_chain_close",),
+               example='{"economy": "beer", "action": "close"}  (place the default order for every node that placed none)')
 def _supply_chain_close(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    name = effect["supply_chain_close"]
-    config: SupplyChainConfig = config_of(world, name, "supply_chain", where)
+    name = effect["economy"]
+    config: SupplyChainConfig = config_of(world, name, SUPPLY_CHAIN, where)
     for node_id in config.nodes:
         node = entity_of(world, node_id, where, "a chain node")
         if not props(node)[f"{name}_ordered"]:

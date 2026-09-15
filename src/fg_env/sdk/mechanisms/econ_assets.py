@@ -1,27 +1,29 @@
 """Assets: money and goods that are only ever moved, never silently created or destroyed.
 
-Money is a numeric property per currency on every holder (``$actor.cash``), declared by a
-``ledger``. Goods are declared by an ``inventory``: stackable items live in a map property
-(``$actor.goods.bread``), unique items are entities of a type named after the item with an
-``owner``. Every change goes through these primitives:
+Money is a numeric property per currency on every holder (``$actor.cash``), declared by an
+``economy`` ledger. Goods are declared by an ``economy`` inventory: stackable items live in a map
+property (``$actor.goods.bread``), unique items are entities of a type named after the item with an
+``owner``. Every change goes through these primitives, offered as actions of the ``economy`` op:
 
-* moves (``pay``, ``give_items``, ``drop_items``, ``pickup_items``) conserve value exactly and
-  refuse — never clamp — when the giver is short or the receiver is full;
-* creation and destruction (``mint``/``burn``, ``make_items``/``use_items``) name a source or a
-  sink and update ``$world.<use>_supply`` and ``$world.<use>_flows``, so ``$conserved(<use>)``
-  can prove after every action that holdings equal the supply.
+* moves (``pay``; ``give``, ``drop``, ``pickup``) conserve value exactly and refuse — never clamp —
+  when the giver is short or the receiver is full;
+* creation and destruction (``mint``/``burn``; ``make``/``use``) name a source or a sink and update
+  ``$world.<use>_supply`` and ``$world.<use>_flows``, so ``$conserved(<use>)`` can prove after every
+  action that holdings equal the supply.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from difflib import get_close_matches
 from typing import Any, Dict, List, Optional, Tuple
 
 from ...entity import Entity
 from ..errors import RunError
-from ..expr import Call, ExprError, function
-from ..registry import effect_op
+from ..expr import Call, ExprError, function, is_expr
+from ..registry import family_action
 from ..world import Abort
-from .econ_base import EPS, amount, props, bump, cached, entity_of, maybe_entity, money, uses_of, whole
+from .econ_base import (EPS, INVENTORY, LEDGER, SUPPLY_CHAIN, amount, bump, cached, checked_config, entity_of, maybe_entity,
+                        money, props, uses_of, whole)
 
 __all__ = ["Assets", "assets", "move_money", "mint_money", "burn_money", "held", "put_items", "take_items",
            "make_items", "destroy_items", "place_key", "is_holder", "inventory_prop", "balance", "credit_of"]
@@ -45,7 +47,7 @@ def inventory_prop(name: str, config: Any) -> str:
 
 def assets(world: Any) -> Assets:
     def build() -> Assets:
-        out = Assets(ledgers=uses_of(world, "ledger"), inventories=uses_of(world, "inventory"))
+        out = Assets(ledgers=uses_of(world, LEDGER), inventories=uses_of(world, INVENTORY))
         for name, ledger in out.ledgers.items():
             for currency in ledger.currencies:
                 out.currencies[currency] = name
@@ -53,7 +55,7 @@ def assets(world: Any) -> Assets:
             out.props[name] = inventory_prop(name, inventory)
             for item in inventory.items:
                 out.items[item] = name
-        for name, chain in uses_of(world, "supply_chain").items():
+        for name, chain in uses_of(world, SUPPLY_CHAIN).items():
             out.pipes.setdefault(chain.item, []).append(f"{name}_pipes")
         return out
 
@@ -198,8 +200,8 @@ def space_left(world: Any, entity: Entity, inventory: str) -> Optional[float]:
 def _require_holder(world: Any, entity: Entity, inventory: str, where: str) -> str:
     prop = assets(world).props[inventory]
     if not is_holder(world, entity, prop):
-        holders = assets(world).inventories[inventory].holders
-        raise RunError(f"{entity.name} ({entity.entity_type}) cannot hold {inventory} (holders: {holders})", where)
+        holders = assets(world).inventories[inventory].who
+        raise RunError(f"{entity.name} ({entity.entity_type}) cannot hold {inventory} (who: {holders})", where)
     return prop
 
 
@@ -580,7 +582,7 @@ def _ground_items(call: Call) -> Dict[str, int]:
     world: Any = call.scope.world
     inventory = call.arg(0)
     if f"{inventory}_ground" not in world.props:
-        raise ExprError(f"$ground_items: inventory '{inventory}' has no ground (add drop or pickup to its tools)", call.source)
+        raise ExprError(f"$ground_items: inventory '{inventory}' has no ground (add drop or pickup to its actions)", call.source)
     return dict((world.props[f"{inventory}_ground"] or {}).get(place_key(call.arg(1))) or {})
 
 
@@ -594,7 +596,7 @@ def _conserved(call: Call) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Effect operations
+# The economy op's money and goods actions
 # ---------------------------------------------------------------------------
 
 
@@ -609,16 +611,86 @@ def _named(effect: Dict[str, Any], key: str, where: str) -> str:
     return value
 
 
-def _currency(runner: Any, effect: Dict[str, Any], op: str, vars: Dict[str, Any]) -> str:
-    return str(runner.eval(effect[op], vars))
+def _currency(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> str:
+    """The currency an action names, which must be one of its ledger's; a ledger with one currency needs none named."""
+    name = effect["economy"]
+    ledger = assets(runner.world).ledgers[name]
+    if "currency" not in effect:
+        if len(ledger.currencies) != 1:
+            raise RunError(f"ledger '{name}' has several currencies: name one with `currency` "
+                           f"({', '.join(ledger.currencies)})", where)
+        return str(next(iter(ledger.currencies)))
+    currency = runner.eval(effect["currency"], vars)
+    if not isinstance(currency, str) or currency not in ledger.currencies:
+        raise RunError(f"'{currency}' is not a currency of ledger '{name}' (currencies: {', '.join(ledger.currencies)})",
+                       f"{where}.currency")
+    return currency
 
 
-@effect_op("pay", keys=("from", "to", "amount", "tax"), required=("from", "to", "amount"), literal=("tax",),
-           example='{"pay": "cash", "from": "$actor", "to": "$params.shop", "amount": 12, "tax": "sales_tax"}  '
-                   '(moves money, using credit; a declared ledger tax is withheld; fails the action if short)')
+def _goods(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> Any:
+    """The item (a name, or a unique item's instance) an action names, which must be one of its inventory's."""
+    item = runner.eval(effect["item"], vars)
+    name, inventory, _ = _item(runner.world, item, f"{where}.item")
+    if inventory != effect["economy"]:
+        raise RunError(f"'{name}' is an item of inventory '{inventory}', not of '{effect['economy']}'", f"{where}.item")
+    return item
+
+
+def _check_currency(checker: Any, effect: Dict[str, Any], path: str) -> list:
+    config = checked_config(checker, effect, "economy")
+    if config is None:
+        return []
+    listed = ", ".join(config.currencies)
+    currency = effect.get("currency")
+    if currency is None:
+        if len(config.currencies) != 1:
+            return [(path, f"`{effect['economy']}` has several currencies: name one with `currency`", f"currencies: {listed}")]
+        return []
+    if isinstance(currency, str) and not is_expr(currency) and currency not in config.currencies:
+        hint = get_close_matches(currency, list(config.currencies), n=1)
+        return [(f"{path}.currency", f"'{currency}' is not a currency of {effect['economy']}",
+                 f"did you mean '{hint[0]}'?" if hint else f"currencies: {listed}")]
+    return []
+
+
+def _check_pay(checker: Any, effect: Dict[str, Any], path: str) -> list:
+    issues = _check_currency(checker, effect, path)
+    config = checked_config(checker, effect, "economy")
+    tax = effect.get("tax")
+    if config is not None and tax is not None and tax not in config.taxes:
+        issues.append((f"{path}.tax", f"'{tax}' is not a tax of {effect['economy']}",
+                       f"taxes: {', '.join(config.taxes) or 'none declared'}"))
+    return issues
+
+
+def _check_item(checker: Any, effect: Dict[str, Any], path: str) -> list:
+    config = checked_config(checker, effect, "economy")
+    item = effect.get("item")
+    if config is None or not isinstance(item, str) or is_expr(item) or item in config.items:
+        return []
+    if item in (checker.c.entities or {}):  # a unique item's instance, named by its id
+        return []
+    hint = get_close_matches(item, list(config.items), n=1)
+    return [(f"{path}.item", f"'{item}' is not an item of {effect['economy']}",
+             f"did you mean '{hint[0]}'?" if hint else f"items: {', '.join(config.items)}")]
+
+
+def _check_ground(checker: Any, effect: Dict[str, Any], path: str) -> list:
+    issues = _check_item(checker, effect, path)
+    config = checked_config(checker, effect, "economy")
+    if config is not None and not {"drop", "pickup"} & set(config.actions):
+        issues.append((path, f"inventory {effect['economy']} has no ground", "add drop or pickup to its `actions`"))
+    return issues
+
+
+@family_action("economy", ("ledger",), "pay", keys=("currency", "from", "to", "amount", "tax"),
+               required=("from", "to", "amount"), literal=("tax",), check=_check_pay, was=("pay",),
+               example='{"economy": "money", "action": "pay", "from": "$actor", "to": "$params.shop", "amount": 12, '
+                       '"tax": "sales_tax"}  (moves money, using credit; a declared tax is withheld; fails the action if '
+                       'short; `currency` only when the ledger has several)')
 def _pay(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    currency = _currency(runner, effect, "pay", vars)
+    currency = _currency(runner, effect, vars, where)
     source = entity_of(world, runner.eval(effect["from"], vars), where, "a `from` entity")
     target = entity_of(world, runner.eval(effect["to"], vars), where, "a `to` entity")
     value = amount(runner.eval(effect["amount"], vars), where)
@@ -645,69 +717,82 @@ def _pay(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) 
         burn_money(world, currency, source, levy, tax_name, where)
 
 
-@effect_op("mint", keys=("to", "amount", "source"), required=("to", "amount", "source"), literal=("source",),
-           example='{"mint": "cash", "to": "$it", "amount": 50, "source": "subsidy"}  (new money from a named source)')
+@family_action("economy", ("ledger",), "mint", keys=("currency", "to", "amount", "source"), required=("to", "amount", "source"),
+               literal=("source",), check=_check_currency, was=("mint",),
+               example='{"economy": "money", "action": "mint", "to": "$it", "amount": 50, "source": "subsidy"}  '
+                       '(new money from a named source)')
 def _mint(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
     target = entity_of(world, runner.eval(effect["to"], vars), where, "a `to` entity")
-    mint_money(world, _currency(runner, effect, "mint", vars), target, runner.eval(effect["amount"], vars),
+    mint_money(world, _currency(runner, effect, vars, where), target, runner.eval(effect["amount"], vars),
                _named(effect, "source", where), where)
 
 
-@effect_op("burn_money", keys=("from", "amount", "sink"), required=("from", "amount", "sink"), literal=("sink",),
-           example='{"burn_money": "cash", "from": "$actor", "amount": 3, "sink": "fees"}  (money leaves the economy to a named sink; fails if short)')
+@family_action("economy", ("ledger",), "burn", keys=("currency", "from", "amount", "sink"), required=("from", "amount", "sink"),
+               literal=("sink",), check=_check_currency, was=("burn_money",),
+               example='{"economy": "money", "action": "burn", "from": "$actor", "amount": 3, "sink": "fees"}  '
+                       '(money leaves the economy to a named sink; fails if short)')
 def _burn(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
     holder = entity_of(world, runner.eval(effect["from"], vars), where, "a `from` entity")
-    burn_money(world, _currency(runner, effect, "burn_money", vars), holder, runner.eval(effect["amount"], vars),
+    burn_money(world, _currency(runner, effect, vars, where), holder, runner.eval(effect["amount"], vars),
                _named(effect, "sink", where), where)
 
 
-@effect_op("give_items", keys=("from", "to", "qty"), required=("from", "to"),
-           example='{"give_items": "$params.item", "from": "$actor", "to": "$params.to", "qty": 2}  '
-                   '(moves goods; a unique item by kind or instance id; fails if short or the receiver is full)')
-def _give_items(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+@family_action("economy", ("inventory",), "give", keys=("item", "from", "to", "qty"), required=("item", "from", "to"),
+               check=_check_item, was=("give_items",),
+               example='{"economy": "goods", "action": "give", "item": "$params.item", "from": "$actor", "to": "$params.to", '
+                       '"qty": 2}  (moves goods; a unique item by kind or instance id; fails if short or the receiver is full)')
+def _give(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
+    item = _goods(runner, effect, vars, where)
     source = entity_of(world, runner.eval(effect["from"], vars), where, "a `from` entity")
     target = entity_of(world, runner.eval(effect["to"], vars), where, "a `to` entity")
-    move_items(world, runner.eval(effect["give_items"], vars), source, target, _qty(runner, effect, vars, where), where)
+    move_items(world, item, source, target, _qty(runner, effect, vars, where), where)
 
 
-@effect_op("make_items", keys=("to", "qty", "source", "props"), required=("to", "source"), literal=("source",),
-           example='{"make_items": "bread", "to": "$actor", "qty": 3, "source": "baking"}  (new goods from a named source; unique items take props)')
-def _make_items(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+@family_action("economy", ("inventory",), "make", keys=("item", "to", "qty", "source", "props"), required=("item", "to", "source"),
+               literal=("source",), check=_check_item, was=("make_items",),
+               example='{"economy": "goods", "action": "make", "item": "bread", "to": "$actor", "qty": 3, "source": "baking"}  '
+                       '(new goods from a named source; unique items take props)')
+def _make(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
+    item = _goods(runner, effect, vars, where)
     target = entity_of(world, runner.eval(effect["to"], vars), where, "a `to` entity")
-    props = runner.eval(effect.get("props") or {}, vars)
-    make_items(world, runner.eval(effect["make_items"], vars), target, _qty(runner, effect, vars, where),
-               _named(effect, "source", where), where, props, world.scope(**vars))
+    values = runner.eval(effect.get("props") or {}, vars)
+    make_items(world, item, target, _qty(runner, effect, vars, where), _named(effect, "source", where), where, values,
+               world.scope(**vars))
 
 
-@effect_op("use_items", keys=("from", "qty", "sink"), required=("from", "sink"), literal=("sink",),
-           example='{"use_items": "flour", "from": "$actor", "qty": 2, "sink": "baking"}  (goods used up into a named sink; fails if short)')
-def _use_items(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+@family_action("economy", ("inventory",), "use", keys=("item", "from", "qty", "sink"), required=("item", "from", "sink"),
+               literal=("sink",), check=_check_item, was=("use_items",),
+               example='{"economy": "goods", "action": "use", "item": "flour", "from": "$actor", "qty": 2, "sink": "baking"}  '
+                       '(goods used up into a named sink; fails if short)')
+def _use(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
+    item = _goods(runner, effect, vars, where)
     holder = entity_of(world, runner.eval(effect["from"], vars), where, "a `from` entity")
-    destroy_items(world, runner.eval(effect["use_items"], vars), holder, _qty(runner, effect, vars, where),
-                  _named(effect, "sink", where), where)
+    destroy_items(world, item, holder, _qty(runner, effect, vars, where), _named(effect, "sink", where), where)
 
 
 def _ground(world: Any, item: Any, where: str) -> Tuple[str, str, Dict[str, Any]]:
     name, inventory, spec = _item(world, item, where)
     if spec.unique:
-        raise RunError(f"unique items ({name}) change hands with give_items; only stackable goods lie on the ground", where)
+        raise RunError(f"unique items ({name}) change hands with `give`; only stackable goods lie on the ground", where)
     prop = f"{inventory}_ground"
     if prop not in world.props:
-        raise RunError(f"inventory '{inventory}' has no ground (add drop or pickup to its tools)", where)
+        raise RunError(f"inventory '{inventory}' has no ground (add drop or pickup to its actions)", where)
     return name, prop, dict(world.props[prop] or {})
 
 
-@effect_op("drop_items", keys=("from", "qty"), required=("from",),
-           example='{"drop_items": "$params.item", "from": "$actor", "qty": 1}  (leave goods on the ground where the holder stands)')
-def _drop_items(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+@family_action("economy", ("inventory",), "drop", keys=("item", "from", "qty"), required=("item", "from"),
+               check=_check_ground, was=("drop_items",),
+               example='{"economy": "goods", "action": "drop", "item": "$params.item", "from": "$actor", "qty": 1}  '
+                       '(leave goods on the ground where the holder stands)')
+def _drop(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
     holder = entity_of(world, runner.eval(effect["from"], vars), where, "a `from` entity")
-    name, prop, ground = _ground(world, runner.eval(effect["drop_items"], vars), where)
+    name, prop, ground = _ground(world, _goods(runner, effect, vars, where), where)
     qty = _qty(runner, effect, vars, where)
     take_items(world, holder, name, qty, where)
     key = place_key(holder.location_id)
@@ -717,12 +802,14 @@ def _drop_items(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where
     world.set_world(prop, ground)
 
 
-@effect_op("pickup_items", keys=("to", "qty"), required=("to",),
-           example='{"pickup_items": "$params.item", "to": "$actor", "qty": 1}  (take goods lying where the holder stands)')
-def _pickup_items(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+@family_action("economy", ("inventory",), "pickup", keys=("item", "to", "qty"), required=("item", "to"),
+               check=_check_ground, was=("pickup_items",),
+               example='{"economy": "goods", "action": "pickup", "item": "$params.item", "to": "$actor", "qty": 1}  '
+                       '(take goods lying where the holder stands)')
+def _pickup(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
     holder = entity_of(world, runner.eval(effect["to"], vars), where, "a `to` entity")
-    name, prop, ground = _ground(world, runner.eval(effect["pickup_items"], vars), where)
+    name, prop, ground = _ground(world, _goods(runner, effect, vars, where), where)
     qty = _qty(runner, effect, vars, where)
     key = place_key(holder.location_id)
     spot = dict(ground.get(key) or {})

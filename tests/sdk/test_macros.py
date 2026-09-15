@@ -142,9 +142,9 @@ def test_expand_with_mechanisms_and_the_cli(tmp_path, capsys):
 
 def test_texas_holdem_streets_are_one_macro_that_expands_to_the_explicit_streets():
     streets = fg_env.expand(EXAMPLES / "texas_holdem.json")["mechanisms"]["table"]["streets"]
-    deal = [{"burn": "cards"}, {"deal": "cards", "count": 3, "zone": "board"}]
-    assert streets == {"preflop": [], "flop": deal, "turn": [deal[0], {**deal[1], "count": 1}],
-                       "river": [deal[0], {**deal[1], "count": 1}]}
+    deal = [{"game": "cards", "action": "burn"}, {"game": "cards", "action": "deal", "qty": 3, "zone": "board"}]
+    assert streets == {"preflop": [], "flop": deal, "turn": [deal[0], {**deal[1], "qty": 1}],
+                       "river": [deal[0], {**deal[1], "qty": 1}]}
 
 
 def test_parliament_readings_written_once_run_every_reading_in_order():

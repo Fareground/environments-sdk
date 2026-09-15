@@ -1,6 +1,6 @@
 """Automated market makers for prediction markets: LMSR and constant-product (CPMM).
 
-A ``prediction_market`` sells shares in each outcome; a share of the winning outcome pays 1 at
+The ``market`` family's ``prediction`` mode sells shares in each outcome; a share of the winning outcome pays 1 at
 resolution. The market maker always quotes, so traders buy or sell by quantity (``shares``) or by
 money (``spend`` / ``receive``), and prices move with every trade.
 
@@ -20,17 +20,20 @@ from __future__ import annotations
 
 import math
 import re
-from typing import Any, Dict, List, Literal, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Sequence, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from ...entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function
-from ..registry import MechanismError, effect_op, mechanism
+from ..registry import MechanismError, family_action, mode
 from ..world import Abort
-from .common import config_of, entity_of, fmt, name_check
+from ._common import ToolsSetting, tools_field
+from .common import config_of, entity_of, fmt
 from .ledger import EPS, Account, balance, clean, move
+
+KEY = "market.prediction"
 
 __all__ = ["lmsr_cost", "lmsr_prices", "lmsr_shares_for_cost", "lmsr_shares_for_refund", "cpmm_prices", "cpmm_buy",
            "cpmm_sell", "cpmm_cost_for_shares", "cpmm_shares_for_refund", "PredictionMarketConfig"]
@@ -139,11 +142,11 @@ class PredictionMarketConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    traders: str = Field(..., description="Agent type that trades (subtypes included).")
+    who: str = Field(..., description="Agent type that trades (subtypes included).")
     outcomes: List[str] = Field(..., min_length=2, description="The possible outcomes; exactly one wins.")
     maker: Literal["lmsr", "cpmm"] = Field("lmsr", description="lmsr (logarithmic scoring rule) | cpmm (constant product).")
     liquidity: float = Field(100, gt=0, description="LMSR b (higher = prices move less; the market is seeded with b·ln n) or CPMM starting pool per outcome.")
-    cash: str = Field("cash", description="Trader property holding cash.")
+    currency: str = Field("cash", description="Trader property holding money.")
     fee_pct: float = Field(0, ge=0, le=0.2, description="Fee on each trade's value, to $world.<name>_fees.")
     question: str = Field("", description="What the market is about, shown with prices.")
     resolve_at: Optional[Union[int, str]] = Field(None, description="Round at whose end the market resolves (number or expression).")
@@ -152,13 +155,11 @@ class PredictionMarketConfig(BaseModel):
     stage: Optional[str] = Field(None, description="Trade during this declared stage; default: a sequential stage named after the market.")
     max_actions: int = Field(2, ge=1, description="Trades per turn in the generated stage.")
     conserve: bool = Field(True, description="Declare invariants that cash is conserved and the vault covers every share.")
+    tools: ToolsSetting = tools_field()
 
 
 def market_config(world: Any, name: Any) -> PredictionMarketConfig:
-    try:
-        return config_of(world, name, "prediction_market", PredictionMarketConfig)
-    except MechanismError as exc:
-        raise RunError(str(exc), "mechanisms") from None
+    return config_of(world, name, KEY, PredictionMarketConfig)
 
 
 def _state(world: Any, name: str, cfg: PredictionMarketConfig) -> List[float]:
@@ -204,7 +205,7 @@ def trade(world: Any, name: str, trader: Entity, side: str, outcome: Any, shares
     state = _state(world, name, cfg)
     b, fee = cfg.liquidity, cfg.fee_pct
     held = _holdings(trader, name)
-    cash, vault, fees = Account(trader, cfg.cash), Account(None, f"{name}_vault"), Account(None, f"{name}_fees")
+    cash, vault, fees = Account(trader, cfg.currency), Account(None, f"{name}_vault"), Account(None, f"{name}_fees")
     if side == "buy":
         if n is None:
             assert money is not None
@@ -272,11 +273,11 @@ def resolve(world: Any, name: str, winner: Any) -> None:
     if winner not in cfg.outcomes:
         raise RunError(f"the winning outcome must be one of {', '.join(cfg.outcomes)}, got {winner!r}", f"mechanisms.{name}.outcome")
     paid = 0.0
-    for trader in world.entities_of(cfg.traders):
+    for trader in world.entities_of(cfg.who):
         held = _holdings(trader, name)
         owed = held.get(winner, 0.0)
         if owed > 0:
-            move(world, Account(None, f"{name}_vault"), Account(trader, cfg.cash), owed, what="vault money")
+            move(world, Account(None, f"{name}_vault"), Account(trader, cfg.currency), owed, what="vault money")
             paid += owed
         if held:
             world.set_prop(trader, f"{name}_shares", {})
@@ -284,13 +285,13 @@ def resolve(world: Any, name: str, winner: Any) -> None:
     world.set_world(f"{name}_payout", clean(paid))
     subject = cfg.question or "The market"
     world.emit(name, f"{subject}: {winner} won. Each {winner} share paid 1 ({fmt(paid, 2)} in total).",
-               data={"mechanism": "prediction_market", "winner": winner, "paid": paid})
+               data={"mechanism": KEY, "winner": winner, "paid": paid})
 
 
 def open_market(world: Any, name: str) -> None:
     cfg = market_config(world, name)
     if not world.props.get(f"{name}_supply"):
-        total = sum(balance(world, Account(t, cfg.cash)) for t in world.entities_of(cfg.traders))
+        total = sum(balance(world, Account(t, cfg.currency)) for t in world.entities_of(cfg.who))
         world.set_world(f"{name}_supply", {"cash": clean(total + float(world.props.get(f"{name}_vault") or 0)
                                                         + float(world.props.get(f"{name}_fees") or 0))})
 
@@ -298,14 +299,14 @@ def open_market(world: Any, name: str) -> None:
 def audit(world: Any, name: str) -> List[str]:
     cfg = market_config(world, name)
     problems: List[str] = []
-    traders = world.entities_of(cfg.traders)
+    traders = world.entities_of(cfg.who)
     vault = float(world.props.get(f"{name}_vault") or 0)
     supply = world.props.get(f"{name}_supply") or {}
     if supply:
-        cash = sum(balance(world, Account(t, cfg.cash)) for t in traders) + vault + float(world.props.get(f"{name}_fees") or 0)
+        cash = sum(balance(world, Account(t, cfg.currency)) for t in traders) + vault + float(world.props.get(f"{name}_fees") or 0)
         if abs(cash - supply["cash"]) > 1e-4 + 1e-9 * abs(supply["cash"]):
             problems.append(f"cash is not conserved: {cash} now vs {supply['cash']} supplied")
-    if any(balance(world, Account(t, cfg.cash)) < -1e-6 for t in traders) or vault < -1e-6:
+    if any(balance(world, Account(t, cfg.currency)) < -1e-6 for t in traders) or vault < -1e-6:
         problems.append("a balance is negative")
     if world.props.get(f"{name}_resolved"):
         return problems
@@ -403,47 +404,71 @@ def _ok_function(call: Call) -> bool:
     return not audit(call.scope.world, _market(call))
 
 
-AMM_ACTIONS = ("buy", "sell", "resolve", "open")
+def _size_check(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[str, str, Optional[str]]]:
+    """Check-time: a trade says how much, in shares, in money or both."""
+    if "qty" in effect or "amount" in effect:
+        return []
+    return [(path, f"`market.{effect.get('action')}` needs `qty` (shares), `amount` (money) or both",
+             "with both, the amount is the limit")]
 
 
-@effect_op("amm", keys=("action", "trader", "outcome", "shares", "amount"), literal=("amm", "action"), required=("action",),
-           check=name_check("amm", "prediction_market", AMM_ACTIONS),
-           example='{"amm": "election", "action": "buy", "trader": "$actor", "outcome": "yes", "amount": 20}  (prediction '
-                   'market: buy | sell by shares or amount | resolve (outcome) | open; receipt in $world.election_receipt)')
-def _amm_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-    world = runner.world
-    name, action = effect["amm"], effect["action"]
-    try:
-        if action == "open":
-            open_market(world, name)
-        elif action == "resolve":
-            resolve(world, name, runner.eval(effect.get("outcome"), vars))
-        elif action in ("buy", "sell"):
-            trader = entity_of(world, runner.eval(effect.get("trader", "$actor"), vars), where, "a trader")
-            trade(world, name, trader, action, runner.eval(effect.get("outcome"), vars), runner.eval(effect.get("shares"), vars),
-                  runner.eval(effect.get("amount"), vars))
-        else:
-            raise RunError(f"amm action must be one of {', '.join(AMM_ACTIONS)}, got {action!r}", where)
-    except RunError as exc:
-        raise RunError(str(exc), where) from None
+#: action → (its keys, the required ones, generated by the mechanism itself, example keys, what it does).
+#: `who` is the trader (default $actor); receipts land in $world.<name>_receipt.
+_ACTIONS: Dict[str, Tuple[Tuple[str, ...], Tuple[str, ...], bool, str, str]] = {
+    "buy": (("who", "outcome", "qty", "amount"), ("outcome",), False, '"outcome": "yes", "amount": 20',
+            "buy one outcome by shares (`qty`) or money (`amount`, the most paid when both are given)"),
+    "sell": (("who", "outcome", "qty", "amount"), ("outcome",), False, '"outcome": "yes", "qty": 5',
+             "sell one outcome by shares (`qty`) or money (`amount`, the least accepted when both are given)"),
+    "resolve": (("outcome",), ("outcome",), False, '"outcome": "$world.truth"', "pay 1 per winning share and close trading"),
+    "open": ((), (), True, "", "take the starting cash supply the invariants conserve"),
+}
+
+
+def _runner(action: str) -> Callable[[Any, Dict[str, Any], Dict[str, Any], str], None]:
+    def run(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        world = runner.world
+        name = effect["market"]
+        try:
+            if action == "open":
+                open_market(world, name)
+            elif action == "resolve":
+                resolve(world, name, runner.eval(effect["outcome"], vars))
+            else:
+                trader = entity_of(world, runner.eval(effect.get("who", "$actor"), vars), f"{where}.who", "a trader")
+                trade(world, name, trader, action, runner.eval(effect["outcome"], vars), runner.eval(effect.get("qty"), vars),
+                      runner.eval(effect.get("amount"), vars))
+        except RunError as exc:
+            raise RunError(str(exc), where) from None
+
+    return run
+
+
+def _register_actions() -> None:
+    for action, (keys, required, internal, fields, doc) in _ACTIONS.items():
+        example = '{"market": "election", "action": "' + action + '"' + (f", {fields}" if fields else "") + f"}}  ({doc})"
+        family_action("market", ("prediction",), action, keys=keys, required=required, internal=internal, example=example,
+                      check=_size_check if action in ("buy", "sell") else None, was=("amm",))(_runner(action))
+
+
+_register_actions()
 
 
 def _metric_key(outcome: str) -> str:
     return re.sub(r"[^A-Za-z0-9_]", "_", outcome)
 
 
-@mechanism("prediction_market", PredictionMarketConfig,
+@mode("market", "prediction", PredictionMarketConfig,
            "A market on which of several outcomes happens, priced by an automated market maker (lmsr or cpmm). Tools "
            "`<name>_buy` and `<name>_sell` trade one outcome by shares or by money; each winning share pays 1 when the market "
-           "resolves (at `resolve_at`, when `resolve_when` holds, or with the op {\"amm\": name, \"action\": \"resolve\", "
+           "resolves (at `resolve_at`, when `resolve_when` holds, or with the op {\"market\": name, \"action\": \"resolve\", "
            "\"outcome\": ...}). Read it with $amm(name), $amm_outcomes(name, viewer) and $amm_cost(name, outcome, shares); "
            "metrics <name>_p_<outcome> track prices.",
-           example={"kind": "prediction_market", "traders": "forecaster", "outcomes": ["yes", "no"], "maker": "lmsr",
-                    "liquidity": 50, "question": "Will the bill pass?", "resolve_at": 5, "outcome": "$world.truth"})
+           example={"who": "forecaster", "outcomes": ["yes", "no"], "maker": "lmsr", "liquidity": 50,
+                    "question": "Will the bill pass?", "resolve_at": 5, "outcome": "$world.truth"}, was="prediction_market")
 def _expand_market(name: str, cfg: PredictionMarketConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     types = contract.get("types") or {}
-    if cfg.traders not in types:
-        raise MechanismError(f"traders '{cfg.traders}' is not a declared type", f"types: {', '.join(types) or 'none'}", "traders")
+    if cfg.who not in types:
+        raise MechanismError(f"who '{cfg.who}' is not a declared type", f"types: {', '.join(types) or 'none'}", "who")
     if len(set(cfg.outcomes)) != len(cfg.outcomes):
         raise MechanismError("outcomes must be distinct", None, "outcomes")
     if (cfg.resolve_at is not None or cfg.resolve_when is not None) and cfg.outcome is None:
@@ -460,30 +485,30 @@ def _expand_market(name: str, cfg: PredictionMarketConfig, contract: Mapping[str
     fee = f" Fee {cfg.fee_pct:.1%} of the trade's value." if cfg.fee_pct else ""
     actions = {
         f"{name}_buy": {
-            "by": cfg.traders, "description": f"Buy shares of one outcome{question}. Give shares (how many), spend (how much money), or both (then spend is the most you pay). {pricing}{fee}",
+            "by": cfg.who, "description": f"Buy shares of one outcome{question}. Give shares (how many), spend (how much money), or both (then spend is the most you pay). {pricing}{fee}",
             "params": {"outcome": {"type": "enum", "values": list(cfg.outcomes), "description": "Outcome to buy."},
                        "shares": {"type": "number", "min": 0.0001, "required": False, "description": "Shares to buy."},
-                       "spend": {"type": "number", "min": 0.0001, "max": f"$actor.{cfg.cash}", "required": False,
+                       "spend": {"type": "number", "min": 0.0001, "max": f"$actor.{cfg.currency}", "required": False,
                                  "description": "Money to spend, fees included."}},
-            "when": [open_now, {"expr": f"$actor.{cfg.cash} > 0", "why": "You have no cash."}],
-            "do": [{"amm": name, "action": "buy", "trader": "$actor", "outcome": "$params.outcome", "shares": "$params.shares",
+            "when": [open_now, {"expr": f"$actor.{cfg.currency} > 0", "why": "You have no cash."}],
+            "do": [{"market": name, "action": "buy", "outcome": "$params.outcome", "qty": "$params.shares",
                     "amount": "$params.spend"}],
             "outcome": receipt, "private": True,
         },
         f"{name}_sell": {
-            "by": cfg.traders, "description": f"Sell shares you hold{question}. Give shares (how many), receive (how much money you want back), or both (then receive is the least you accept).{fee}",
+            "by": cfg.who, "description": f"Sell shares you hold{question}. Give shares (how many), receive (how much money you want back), or both (then receive is the least you accept).{fee}",
             "params": {"outcome": {"type": "enum", "values": f"$map($filter($amm_outcomes({name}, $actor), $it.held > 0), $it.outcome)",
                                    "description": "Outcome to sell."},
                        "shares": {"type": "number", "min": 0.0001, "required": False, "description": "Shares to sell."},
                        "receive": {"type": "number", "min": 0.0001, "required": False, "description": "Money to receive after fees."}},
             "when": [open_now, {"expr": f"$any($amm_outcomes({name}, $actor), $it.held > 0)", "why": "You hold no shares."}],
-            "do": [{"amm": name, "action": "sell", "trader": "$actor", "outcome": "$params.outcome", "shares": "$params.shares",
+            "do": [{"market": name, "action": "sell", "outcome": "$params.outcome", "qty": "$params.shares",
                     "amount": "$params.receive"}],
             "outcome": receipt, "private": True,
         },
     }
     fragment: Dict[str, Any] = {
-        "types": {cfg.traders: {"props": {cfg.cash: {"type": "number", "default": 0},
+        "types": {cfg.who: {"props": {cfg.currency: {"type": "number", "default": 0},
                                           f"{name}_shares": {"type": "map", "default": {}, "private": True}}}},
         "world": {f"{name}_q": {"type": "map", "default": start_q},
                   f"{name}_vault": {"type": "number", "default": subsidy, "description": "Collateral held by the market maker."},
@@ -491,11 +516,11 @@ def _expand_market(name: str, cfg: PredictionMarketConfig, contract: Mapping[str
                   f"{name}_resolved": {"type": "text", "default": ""}, f"{name}_payout": {"type": "number", "default": 0},
                   f"{name}_supply": {"type": "map", "default": {}}, f"{name}_receipt": {"type": "text", "default": ""}},
         "actions": actions,
-        "events": [{"name": f"{name}_open", "phase": "start", "do": [{"amm": name, "action": "open"}]}],
+        "events": [{"name": f"{name}_open", "phase": "start", "do": [{"market": name, "action": "open"}]}],
         "views": {
-            f"{name}_prices": {"for": cfg.traders, "title": cfg.question or f"{name} market", "of": f"$amm_outcomes({name}, $actor)",
+            f"{name}_prices": {"for": cfg.who, "title": cfg.question or f"{name} market", "of": f"$amm_outcomes({name}, $actor)",
                                "show": "{outcome}: {price|pct1}{$' · you hold ' + $text($round($it.held, 2)) if $it.held > 0 else ''}"},
-            f"{name}_status": {"for": cfg.traders, "when": f"$world.{name}_resolved != ''",
+            f"{name}_status": {"for": cfg.who, "when": f"$world.{name}_resolved != ''",
                                "show": f"Resolved: {{$world.{name}_resolved}} won."},
         },
         "metrics": {f"{name}_p_{_metric_key(o)}": f"$get($amm({name}).prices, '{o}')" for o in cfg.outcomes},
@@ -507,7 +532,7 @@ def _expand_market(name: str, cfg: PredictionMarketConfig, contract: Mapping[str
     }
     if cfg.resolve_at is not None or cfg.resolve_when is not None:
         event: Dict[str, Any] = {"name": f"{name}_resolve", "phase": "end", "once": True,
-                                 "do": [{"amm": name, "action": "resolve", "outcome": cfg.outcome}]}
+                                 "do": [{"market": name, "action": "resolve", "outcome": cfg.outcome}]}
         if cfg.resolve_at is not None:
             event["at"] = cfg.resolve_at
         else:

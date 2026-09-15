@@ -1,5 +1,5 @@
 """Hidden roles: a role deck dealt at random, teams that may know each other, role-gated tools and
-reveal on elimination — the ``roles`` mechanism.
+reveal on elimination — the ``groups.roles`` mode.
 
 ``role`` and ``team`` are private player props, so nobody else can inspect them; the generated
 views show a player only their own role and the teammates their team is allowed to know
@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ...entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, is_expr
-from ..registry import MechanismError, effect_op, mechanism
+from ..registry import MechanismError, family_action, mode
 from .contract_cache import parse_kind, per_contract
 
 __all__ = ["RolesConfig", "known_role"]
@@ -27,6 +27,7 @@ def _props(entity: Entity) -> Dict[str, Any]:
 
 _NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
 REST = "rest"
+KEY = "groups.roles"
 
 
 class RolesConfig(BaseModel):
@@ -34,7 +35,7 @@ class RolesConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    players: str = Field(..., description="Agent type that receives roles.")
+    who: str = Field(..., description="Agent type that receives roles.")
     deck: Dict[str, Union[int, str]] = Field(
         ..., description="{role: count}; a count may be an expression, and one role may be \"rest\" (everyone left).")
     teams: Dict[str, List[str]] = Field(default_factory=dict, description="{team: [roles]}; a role in no team is its own team.")
@@ -47,11 +48,11 @@ class RolesConfig(BaseModel):
 
 
 def _configs(world: Any) -> Dict[str, RolesConfig]:
-    return per_contract(world, "roles", lambda contract: parse_kind(contract, "roles", RolesConfig), {})
+    return per_contract(world, KEY, lambda contract: parse_kind(contract, KEY, RolesConfig), {})
 
 
 def _config_for(world: Any, entity: Entity) -> Optional[RolesConfig]:
-    return next((c for c in _configs(world).values() if world.is_a(entity.entity_type, c.players)), None)
+    return next((c for c in _configs(world).values() if world.is_a(entity.entity_type, c.who)), None)
 
 
 def team_of(config: RolesConfig, role: str) -> str:
@@ -80,7 +81,7 @@ def known_role(world: Any, viewer: Any, player: Any) -> str:
 
 
 def deal_roles(world: Any, config: RolesConfig, where: str) -> None:
-    players = list(world.entities_of(config.players))
+    players = list(world.entities_of(config.who))
     pool: List[str] = []
     rest: Optional[str] = None
     for role, raw in config.deck.items():
@@ -121,31 +122,31 @@ def _reveal(world: Any, player: Entity) -> None:
     world.set_prop(player, "revealed_role", _props(player).get("role") or "")
 
 
-def _roles_check(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[str, str, Optional[str]]]:
-    if not any(isinstance(use, Mapping) and use.get("kind") == "roles" for use in checker.c.mechanisms.values()):
-        op = next(k for k in ("deal_roles", "eliminate", "reveal_roles") if k in effect)
-        return [(f"{path}.{op}", "no roles mechanism is declared", "declare mechanisms.<name> with kind roles")]
-    return []
+def _holders(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> Tuple[RolesConfig, List[Entity]]:
+    """The named roles mechanism's config and the players `who` names, each one of its players."""
+    name = effect["groups"]
+    config = _configs(runner.world)[name]
+    players = _players(runner, effect["who"], vars, f"{where}.who")
+    for player in players:
+        if not runner.world.is_a(player.entity_type, config.who):
+            raise RunError(f"{player.id} is a {player.entity_type}, not a {config.who} holding a role of {name}", f"{where}.who")
+    return config, players
 
 
-@effect_op("deal_roles", keys=(), check=_roles_check,
-           example='{"deal_roles": "roles"}  (shuffle the role deck and deal it; generated for round 1)')
-def _deal_roles_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-    configs = _configs(runner.world)
-    name = effect["deal_roles"]
-    if name not in configs:
-        raise RunError(f"'{name}' is not a declared roles mechanism (roles: {', '.join(configs) or 'none'})", where)
-    deal_roles(runner.world, configs[name], where)
+@family_action("groups", ("roles",), "deal", internal=True, was=("deal_roles",),
+               example='{"groups": "roles", "action": "deal"}  (shuffle the role deck and deal it; generated for round 1)')
+def _deal_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+    deal_roles(runner.world, _configs(runner.world)[effect["groups"]], where)
 
 
-@effect_op("eliminate", keys=("say",), templates=("say",), check=_roles_check,
-           example='{"eliminate": "$out", "say": "{$out.name} is exiled."}  (out of the game; the role is revealed unless reveal: never)')
+@family_action("groups", ("roles",), "eliminate", keys=("who", "say"), required=("who",), templates=("say",),
+               was=("eliminate",),
+               example='{"groups": "roles", "action": "eliminate", "who": "$out", "say": "{$out.name} is exiled."}  (out of '
+                       'the game; the role is revealed unless reveal: never)')
 def _eliminate_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    for player in _players(runner, effect["eliminate"], vars, where):
-        config = _config_for(world, player)
-        if config is None:
-            raise RunError(f"{player.id} has no role", where)
+    config, players = _holders(runner, effect, vars, where)
+    for player in players:
         if not _props(player).get(config.alive):
             continue
         world.set_prop(player, config.alive, False)
@@ -156,11 +157,12 @@ def _eliminate_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], whe
         world.emit("eliminated", text, data={"player": player.id})
 
 
-@effect_op("reveal_roles", keys=(), check=_roles_check,
-           example='{"reveal_roles": "$filter(player, true)"}  (make these players\' roles public)')
-def _reveal_roles_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+@family_action("groups", ("roles",), "reveal", keys=("who",), required=("who",), was=("reveal_roles",),
+               example='{"groups": "roles", "action": "reveal", "who": "$filter(player, true)"}  (make these players\' '
+                       'roles public)')
+def _reveal_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    players = [p for p in _players(runner, effect["reveal_roles"], vars, where) if not _props(p).get("revealed_role")]
+    players = [p for p in _holders(runner, effect, vars, where)[1] if not _props(p).get("revealed_role")]
     for player in players:
         _reveal(world, player)
     if players:
@@ -184,7 +186,7 @@ def _teammates_function(call: Call) -> List[Entity]:
     config = _config_for(world, player)
     if config is None:
         return []
-    return [q for q in world.entities_of(config.players)
+    return [q for q in world.entities_of(config.who)
             if q.id != player.id and _props(q).get("team") == _props(player).get("team") and known_role(world, player, q)]
 
 
@@ -194,24 +196,25 @@ def _team_alive_function(call: Call) -> int:
     world: Any = call.scope.world
     total = 0
     for config in _configs(world).values():
-        total += sum(1 for p in world.entities_of(config.players) if _props(p).get(config.alive)
+        total += sum(1 for p in world.entities_of(config.who) if _props(p).get(config.alive)
                      and team in (_props(p).get("team"), _props(p).get("role")))
     return total
 
 
-@mechanism("roles", RolesConfig,
-           "Secret roles: deals a shuffled role deck in round 1 into private `role` and `team` props, lets listed teams "
-           "know each other, generates role-gated private tools, and reveals a role (public `revealed_role`) when "
-           "`{\"eliminate\": player}` takes its player out. Views show only your own role and known teammates. "
-           "Functions: $known_role, $teammates, $team_alive.",
-           example={"kind": "roles", "players": "player", "deck": {"werewolf": 2, "seer": 1, "villager": "rest"},
-                    "teams": {"wolves": ["werewolf"], "village": ["seer", "villager"]}, "know": ["wolves"],
-                    "actions": {"inspect_player": {"roles": ["seer"], "params": {"target": {"type": "entity", "of": "player"}},
-                                                   "do": [], "outcome": "{$params.target.name} is {$params.target.role}."}}})
+@mode("groups", "roles", RolesConfig,
+      "Secret roles: deals a shuffled role deck in round 1 into private `role` and `team` props, lets listed teams "
+      "know each other, generates role-gated private tools, and reveals a role (public `revealed_role`) when the "
+      "`eliminate` action takes its player out. Views show only your own role and known teammates. "
+      "Functions: $known_role, $teammates, $team_alive.",
+      example={"who": "player", "deck": {"werewolf": 2, "seer": 1, "villager": "rest"},
+               "teams": {"wolves": ["werewolf"], "village": ["seer", "villager"]}, "know": ["wolves"],
+               "actions": {"inspect_player": {"roles": ["seer"], "params": {"target": {"type": "entity", "of": "player"}},
+                                              "do": [], "outcome": "{$params.target.name} is {$params.target.role}."}}},
+      was="roles")
 def _expand_roles(name: str, config: RolesConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     types = contract.get("types") or {}
-    if config.players not in types:
-        raise MechanismError(f"players '{config.players}' is not a declared type", f"types: {', '.join(types) or 'none'}", "players")
+    if config.who not in types:
+        raise MechanismError(f"who '{config.who}' is not a declared type", f"types: {', '.join(types) or 'none'}", "who")
     roles = list(config.deck)
     for role in roles:
         if not _NAME.match(role):
@@ -239,29 +242,29 @@ def _expand_roles(name: str, config: RolesConfig, contract: Mapping[str, Any]) -
             raise MechanismError(f"a role-gated tool needs `roles` from the deck (got {gate!r})", f"roles: {', '.join(roles)}",
                                  f"actions.{action_name}.roles")
         who = " or ".join(allowed)
-        spec["by"] = config.players
+        spec["by"] = config.who
         spec["when"] = [{"expr": f"$actor.{alive}", "why": "You are out of the game."},
                         {"expr": f"$actor.role in [{', '.join(allowed)}]", "why": f"Only {_article(who)} can do this."}] + list(spec.get("when") or [])
         spec.setdefault("private", True)
         actions[action_name] = spec
     fragment: Dict[str, Any] = {
-        "types": {config.players: {"props": {
+        "types": {config.who: {"props": {
             "role": {"type": "enum", "values": [""] + roles, "default": "", "private": True},
             "team": {"type": "enum", "values": [""] + teams, "default": "", "private": True},
             alive: {"type": "bool", "default": True},
             "revealed_role": {"type": "text", "default": "", "description": "The role, once revealed to everyone."},
         }}},
-        "events": [{"name": f"{name}_deal", "at": 1, "do": [{"deal_roles": name}]}],
+        "events": [{"name": f"{name}_deal", "at": 1, "do": [{"groups": name, "action": "deal"}]}],
         "actions": actions,
     }
     if config.views:
         out = f"{{$'. You are out of the game' if not $actor.{alive} else ''}}"
         fragment["views"] = {
-            f"{name}_you": {"for": config.players, "title": "Your role",
+            f"{name}_you": {"for": config.who, "title": "Your role",
                             "show": f"You are {{$actor.role|upper}}{{$' (team ' + $actor.team + ')' if $actor.team != $actor.role else ''}}{out}."},
-            f"{name}_team": {"for": config.players, "title": "Your team", "of": "$teammates($actor)",
+            f"{name}_team": {"for": config.who, "title": "Your team", "of": "$teammates($actor)",
                              "show": f"[{{id}}] {{name}} — {{$known_role($actor, $it)}}{{$'' if $it.{alive} else ' (out)'}}"},
-            f"{name}_players": {"for": config.players, "title": "Players", "of": config.players,
+            f"{name}_players": {"for": config.who, "title": "Players", "of": config.who,
                                 "show": f"[{{id}}] {{name}} — {{$'in' if $it.{alive} else 'out'}}"
                                         "{$' (was ' + $it.revealed_role + ')' if $it.revealed_role != '' else ''}"},
         }

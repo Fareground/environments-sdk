@@ -34,8 +34,9 @@
   ],
   "mechanisms": {
     "market": {
-      "kind": "posted_market",
-      "buyers": "shopper",
+      "kind": "market",
+      "mode": "posted",
+      "who": "shopper",
       "sellers": "farmer",
       "sponsor_fee": 1,
       "max_qty": 3,

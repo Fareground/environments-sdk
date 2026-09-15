@@ -1,4 +1,5 @@
-"""Cards as world state: decks, zones and engine-enforced visibility, with native card ops and functions.
+"""Cards as world state: the ``game.cards`` mode's decks, zones and engine-enforced visibility, its ``game`` op
+actions and card functions.
 
 A card is an entity of its deck's card type. Its journaled props say where it is:
 
@@ -18,19 +19,22 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Any, cast, Dict, List, Literal, Mapping, Optional, Tuple, Union
+from typing import Any, Callable, cast, Dict, List, Literal, Mapping, Optional, Tuple, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ...entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, function, is_expr
-from ..registry import effect_op
+from ..registry import config_data, family_action
+from ._common import ToolsSetting, tools_field
 from .contract_cache import parse_kind, per_contract
 from .card_scoring import RANK_LABELS, SUIT_LETTERS, SUIT_SYMBOLS, SUITS
 
 __all__ = ["CardsConfig", "CardEntry", "ZoneConfig", "CardActionConfig", "Deck", "Zone", "decks", "zones_for",
-           "deck_cards", "cards_in", "card_visible", "card_names", "place", "shuffle", "deal", "collect"]
+           "deck_cards", "cards_in", "card_visible", "card_names", "place", "shuffle", "deal", "collect", "KEY"]
+
+KEY = "game.cards"
 
 def _props(entity: Entity) -> Dict[str, Any]:
     """An entity's properties, typed loosely: values are whatever the contract declared."""
@@ -76,12 +80,12 @@ class CardActionConfig(_Strict):
     """A generated card tool. ``true`` takes every default."""
 
     description: str = ""
-    to: Optional[str] = Field(None, description="Zone the card goes to (play_card: default discard).")
+    to: Optional[str] = Field(None, description="Zone the card goes to (play: default discard).")
     where: Optional[str] = Field(None, description="Which cards of your hand qualify ($it the card, $actor): only these are offered.")
     when: List[Any] = Field(default_factory=list, description="Extra requirements for the tool, as in actions.")
     params: Dict[str, Any] = Field(default_factory=dict, description="Extra tool arguments.")
     do: List[Any] = Field(default_factory=list, description="Effects after the card moves ($params.card is the card).")
-    count: Union[int, str] = Field(1, description="Cards drawn (draw).")
+    qty: Union[int, str] = Field(1, description="Cards drawn (draw).")
     terminal: Union[bool, str] = True
     announce: Optional[str] = None
     outcome: Optional[str] = None
@@ -90,7 +94,7 @@ class CardActionConfig(_Strict):
 class CardsConfig(_Strict):
     """A deck of cards played by agents of one type."""
 
-    players: str = Field(..., description="Agent type holding hands (subtypes included).")
+    who: str = Field(..., description="Agent type holding hands (subtypes included).")
     type: str = Field("card", description="Entity type of the cards.")
     deck: Union[Literal["standard"], List[CardEntry]] = Field(
         "standard", description="'standard' (52 cards, ids like AS 10H, ranks 2–14, suits spades hearts diamonds clubs) or a list of card entries.")
@@ -106,11 +110,12 @@ class CardsConfig(_Strict):
     after_deal: List[Any] = Field(default_factory=list, description="Effects right after each deal (flip a starting card …).")
     reshuffle: bool = Field(True, description="An empty draw pile is refilled by shuffling the discard pile.")
     keep_top: bool = Field(False, description="The discard pile's top card stays when it is reshuffled.")
-    play_card: Optional[Union[bool, CardActionConfig]] = Field(None, description="Generate `play_card` (a card from your hand to a zone).")
-    discard: Optional[Union[bool, CardActionConfig]] = Field(None, description="Generate `discard`.")
-    draw: Optional[Union[bool, CardActionConfig]] = Field(None, description="Generate `draw`.")
-    pass_card: Optional[Union[bool, CardActionConfig]] = Field(None, description="Generate `pass_card` (give a card to another player, privately).")
+    play: Optional[Union[bool, CardActionConfig]] = Field(None, description="Generate `<name>_play` (a card from your hand to a zone).")
+    discard: Optional[Union[bool, CardActionConfig]] = Field(None, description="Generate `<name>_discard`.")
+    draw: Optional[Union[bool, CardActionConfig]] = Field(None, description="Generate `<name>_draw`.")
+    give: Optional[Union[bool, CardActionConfig]] = Field(None, description="Generate `<name>_give` (give a card to another player, privately).")
     views: bool = Field(True, description="Generate the hand and table views.")
+    tools: ToolsSetting = tools_field()
 
 
 @dataclass(frozen=True)
@@ -126,7 +131,7 @@ class Zone:
 class Deck:
     name: str
     type: str
-    players: str
+    who: str
     zones: Mapping[str, Zone]
     config: CardsConfig
 
@@ -177,8 +182,8 @@ def slug(text: str) -> str:
 # ---------------------------------------------------------------------------
 
 def _build_decks(contract: Any) -> Tuple[Dict[str, Deck], Dict[str, Deck]]:
-    by_name = {name: Deck(name, config.type, config.players, zones_for(config), config)
-               for name, config in parse_kind(contract, "cards", CardsConfig).items()}
+    by_name = {name: Deck(name, config.type, config.who, zones_for(config), config)
+               for name, config in parse_kind(contract, KEY, CardsConfig).items()}
     return by_name, {deck.type: deck for deck in by_name.values()}
 
 
@@ -193,14 +198,6 @@ def deck_named(world: Any, name: Any, where: str) -> Deck:
     if not isinstance(name, str) or name not in by_name:
         raise RunError(f"'{name}' is not a declared cards mechanism (decks: {', '.join(by_name) or 'none'})", where)
     return by_name[name]
-
-
-def deck_of(world: Any, card: Any, where: str) -> Deck:
-    _, by_type = decks(world)
-    deck = by_type.get(getattr(card, "entity_type", None))
-    if deck is None:
-        raise RunError(f"expected a card, got {getattr(card, 'id', card)!r}", where)
-    return deck
 
 
 def _zone(deck: Deck, name: Any, where: str) -> Zone:
@@ -337,7 +334,7 @@ def deal(world: Any, deck: Deck, count: int, recipients: Optional[List[Entity]],
     Without recipients the cards go to the (shared) zone. Stops when the pile runs out."""
     target = _zone(deck, zone_name, where)
     if recipients is None and target.owned:
-        recipients = list(world.entities_of(deck.players))
+        recipients = list(world.entities_of(deck.who))
     seats: List[Optional[Entity]] = list(recipients) if recipients is not None else [None]
     dealt: List[Entity] = []
     exhausted = False
@@ -376,7 +373,7 @@ def collect(world: Any, deck: Deck, zones: Optional[List[str]], where: str) -> N
 def create_personal_cards(world: Any, deck: Deck, where: str) -> None:
     """Create every player's own copies of per-player card entries (once)."""
     entries = deck.config.deck if isinstance(deck.config.deck, list) else []
-    players = list(world.entities_of(deck.players))
+    players = list(world.entities_of(deck.who))
     scope = world.scope()
     for entry in (e for e in entries if e.per_player):
         for player in players:
@@ -392,7 +389,7 @@ def create_personal_cards(world: Any, deck: Deck, where: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Effect operations
+# The game op's cards actions (the effect names the deck: {"game": <deck>, "action": ...})
 # ---------------------------------------------------------------------------
 
 
@@ -407,10 +404,19 @@ def _entities(world: Any, value: Any, where: str, what: str = "cards") -> List[E
     return out
 
 
-def _count(runner: Any, raw: Any, vars: Dict[str, Any], where: str) -> int:
+def _cards(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], deck: Deck, where: str) -> List[Entity]:
+    """The cards an action moves or shows: every one a card of the deck the action names."""
+    cards = _entities(runner.world, runner.eval(effect["cards"], vars), f"{where}.cards")
+    for card in cards:
+        if card.entity_type != deck.type:
+            raise RunError(f"{card.id} is not a card of {deck.name} (its cards are {deck.type} entities)", f"{where}.cards")
+    return cards
+
+
+def _qty(runner: Any, raw: Any, vars: Dict[str, Any], where: str) -> int:
     value = runner.eval(raw, vars)
     if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0 or float(value) != int(value):
-        raise RunError(f"count must be a whole number ≥ 0, got {value!r}", where)
+        raise RunError(f"qty must be a whole number ≥ 0, got {value!r}", where)
     return int(value)
 
 
@@ -431,137 +437,139 @@ def _owner(runner: Any, raw: Any, vars: Dict[str, Any], where: str) -> Optional[
     return entity.id
 
 
-def _grouped(world: Any, cards: List[Entity], where: str) -> List[Tuple[Deck, List[Entity]]]:
-    groups: Dict[str, Tuple[Deck, List[Entity]]] = {}
-    for card in cards:
-        deck = deck_of(world, card, where)
-        groups.setdefault(deck.name, (deck, []))[1].append(card)
-    return list(groups.values())
+def _zone_check(*zone_keys: str) -> Callable[[Any, Dict[str, Any], str], List[Tuple[str, str, Optional[str]]]]:
+    """A static check that the literal zone names in ``zone_keys`` are zones of the deck the effect names."""
 
-
-def _deck_check(key: str, zone_keys: Tuple[str, ...] = ()) -> Any:
     def check(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[str, str, Optional[str]]]:
-        mechanisms = checker.c.mechanisms
-        names = [n for n, use in mechanisms.items() if isinstance(use, Mapping) and use.get("kind") == "cards"]
-        issues: List[Tuple[str, str, Optional[str]]] = []
-        deck = effect.get(key) if key else (names[0] if len(names) == 1 else None)
-        if key and not is_expr(deck) and deck not in names:
-            issues.append((f"{path}.{key}", f"'{deck}' is not a declared cards mechanism", f"decks: {', '.join(names) or 'none'}"))
-            return issues
-        if isinstance(deck, str) and deck in names:
-            zones = zones_for(CardsConfig.model_validate({k: v for k, v in mechanisms[deck].items() if k != "kind"}))
-            for zone_key in zone_keys:
-                zone = effect.get(zone_key)
-                if isinstance(zone, str) and not is_expr(zone) and zone not in zones:
-                    issues.append((f"{path}.{zone_key}", f"'{zone}' is not a zone of {deck}", f"zones: {', '.join(zones)}"))
-        return issues
+        deck = effect["game"]
+        try:
+            zones = zones_for(CardsConfig.model_validate(config_data(checker.c.mechanisms[deck])))
+        except ValidationError:  # the config's own errors are reported against the mechanism
+            return []
+        return [(f"{path}.{key}", f"'{effect[key]}' is not a zone of {deck}", f"zones: {', '.join(zones)}")
+                for key in zone_keys
+                if isinstance(effect.get(key), str) and not is_expr(effect[key]) and effect[key] not in zones]
+
     return check
 
 
-@effect_op("shuffle", keys=("zone", "owner"), check=_deck_check("shuffle", ("zone",)),
-           example='{"shuffle": "cards", "zone": "deck"}  (random order, face down; an owned zone shuffles each pile, or only `owner`\'s)')
+@family_action("game", ("cards",), "shuffle", keys=("zone", "owner"), check=_zone_check("zone"), was=("shuffle",),
+               example='{"game": "cards", "action": "shuffle", "zone": "deck"}  (random order, face down; an owned zone '
+                       'shuffles each pile, or only `owner`\'s)')
 def _shuffle_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-    deck = deck_named(runner.world, effect["shuffle"], where)
+    deck = deck_named(runner.world, effect["game"], where)
     shuffle(runner.world, deck, _name(runner, effect.get("zone", "deck"), vars, where, "zone"),
             _owner(runner, effect.get("owner"), vars, where), where)
 
 
-@effect_op("collect", keys=("zones",), check=_deck_check("collect"),
-           example='{"collect": "cards"}  (every card back into the draw pile, face down, shuffled; `zones` limits which)')
+@family_action("game", ("cards",), "collect", keys=("zones",), was=("collect",),
+               example='{"game": "cards", "action": "collect"}  (every card back into the draw pile, face down, shuffled; '
+                       '`zones` limits which)')
 def _collect_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-    deck = deck_named(runner.world, effect["collect"], where)
+    deck = deck_named(runner.world, effect["game"], where)
     zones = runner.eval(effect["zones"], vars) if "zones" in effect else None
     if zones is not None and not isinstance(zones, list):
         raise RunError(f"zones must be a list of zone names, got {zones!r}", where)
     collect(runner.world, deck, zones, where)
 
 
-@effect_op("deal", keys=("count", "to", "zone", "face_up", "from"), check=_deck_check("deal", ("zone", "from")),
-           example='{"deal": "cards", "count": 2, "to": "$filter(player, $it.chips > 0)"}  (round-robin from the top; '
-                   'no `to`: every player, or the zone itself when it is shared: {"deal": "cards", "count": 3, "zone": "board"})')
+@family_action("game", ("cards",), "deal", keys=("qty", "to", "zone", "face_up", "from"), check=_zone_check("zone", "from"),
+               was=("deal",),
+               example='{"game": "cards", "action": "deal", "qty": 2, "to": "$filter(player, $it.chips > 0)"}  (round-robin '
+                       'from the top; no `to`: every player, or the zone itself when it is shared: '
+                       '{"game": "cards", "action": "deal", "qty": 3, "zone": "board"})')
 def _deal_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    deck = deck_named(world, effect["deal"], where)
+    deck = deck_named(world, effect["game"], where)
     recipients = _entities(world, runner.eval(effect["to"], vars), where, "players") if "to" in effect else None
-    deal(world, deck, _count(runner, effect.get("count", 1), vars, where), recipients,
+    deal(world, deck, _qty(runner, effect.get("qty", 1), vars, where), recipients,
          _name(runner, effect.get("zone", "hand"), vars, where, "zone"), bool(runner.eval(effect.get("face_up", False), vars)),
          _name(runner, effect.get("from", "deck"), vars, where, "from"), where)
 
 
-@effect_op("draw", keys=("count", "to", "zone", "face_up"), check=_deck_check("draw", ("zone",)),
-           example='{"draw": "cards", "count": 1}  (to $actor, or `to`; an empty draw pile is refilled from the discard pile; '
-                   'the cards are in $world.<deck>_drawn)')
+@family_action("game", ("cards",), "draw", keys=("qty", "who", "zone", "face_up"), check=_zone_check("zone"), was=("draw",),
+               example='{"game": "cards", "action": "draw", "qty": 1}  (for $actor, or `who`; an empty draw pile is refilled '
+                       'from the discard pile; the cards are in $world.<deck>_drawn)')
 def _draw_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    deck = deck_named(world, effect["draw"], where)
-    who = runner.eval(effect["to"], vars) if "to" in effect else vars.get("actor")
+    deck = deck_named(world, effect["game"], where)
+    who = runner.eval(effect["who"], vars) if "who" in effect else vars.get("actor")
     recipients = _entities(world, who, where, "a player")
     if len(recipients) != 1:
-        raise RunError("draw needs one player (`to`, default $actor)", where)
-    deal(world, deck, _count(runner, effect.get("count", 1), vars, where), recipients,
+        raise RunError("`draw` needs one player (`who`, default $actor)", where)
+    deal(world, deck, _qty(runner, effect.get("qty", 1), vars, where), recipients,
          _name(runner, effect.get("zone", "hand"), vars, where, "zone"), bool(runner.eval(effect.get("face_up", False), vars)),
          "deck", where)
 
 
-@effect_op("burn", keys=("count",), check=_deck_check("burn"),
-           example='{"burn": "cards", "count": 1}  (top cards of the draw pile to the hidden burn zone)')
+@family_action("game", ("cards",), "burn", keys=("qty",), was=("burn",),
+               example='{"game": "cards", "action": "burn", "qty": 1}  (top cards of the draw pile to the hidden burn zone)')
 def _burn_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-    deck = deck_named(runner.world, effect["burn"], where)
-    deal(runner.world, deck, _count(runner, effect.get("count", 1), vars, where), None, "burn", False, "deck", where)
+    deck = deck_named(runner.world, effect["game"], where)
+    deal(runner.world, deck, _qty(runner, effect.get("qty", 1), vars, where), None, "burn", False, "deck", where)
 
 
-@effect_op("move_cards", keys=("to", "owner", "face_up", "bottom"), required=("to",), check=_deck_check("", ("to",)),
-           example='{"move_cards": "$params.card", "to": "tableau", "owner": "$actor", "face_up": true}  (onto the top, or the bottom)')
-def _move_cards_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+@family_action("game", ("cards",), "move", keys=("cards", "to", "owner", "face_up", "bottom"), required=("cards", "to"),
+               check=_zone_check("to"), was=("move_cards",),
+               example='{"game": "cards", "action": "move", "cards": "$params.card", "to": "tableau", "owner": "$actor", '
+                       '"face_up": true}  (onto the top, or the bottom)')
+def _move_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    zone = _name(runner, effect["to"], vars, where, "to")
-    owner = _owner(runner, effect.get("owner"), vars, where)
-    for deck, cards in _grouped(world, _entities(world, runner.eval(effect["move_cards"], vars), where), where):
-        place(world, deck, cards, zone, owner, where, bool(runner.eval(effect.get("face_up", False), vars)),
-              bool(runner.eval(effect.get("bottom", False), vars)))
+    deck = deck_named(world, effect["game"], where)
+    place(world, deck, _cards(runner, effect, vars, deck, where), _name(runner, effect["to"], vars, where, "to"),
+          _owner(runner, effect.get("owner"), vars, where), where, bool(runner.eval(effect.get("face_up", False), vars)),
+          bool(runner.eval(effect.get("bottom", False), vars)))
 
 
-@effect_op("play_cards", keys=("to",), check=_deck_check("", ("to",)),
-           example='{"play_cards": "$params.card", "to": "trick"}  (face up onto a zone; default the discard pile)')
-def _play_cards_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+@family_action("game", ("cards",), "play", keys=("cards", "to"), required=("cards",), check=_zone_check("to"),
+               was=("play_cards",),
+               example='{"game": "cards", "action": "play", "cards": "$params.card", "to": "trick"}  (face up onto a zone; '
+                       'default the discard pile)')
+def _play_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    zone = _name(runner, effect.get("to", "discard"), vars, where, "to")
-    for deck, cards in _grouped(world, _entities(world, runner.eval(effect["play_cards"], vars), where), where):
-        owners = {_props(c).get("owner") for c in cards}
-        place(world, deck, cards, zone, next(iter(owners)) if len(owners) == 1 else None, where, face_up=True)
+    deck = deck_named(world, effect["game"], where)
+    cards = _cards(runner, effect, vars, deck, where)
+    owners = {_props(c).get("owner") for c in cards}
+    place(world, deck, cards, _name(runner, effect.get("to", "discard"), vars, where, "to"),
+          next(iter(owners)) if len(owners) == 1 else None, where, face_up=True)
 
 
-@effect_op("discard", keys=(), example='{"discard": "$params.card"}  (onto the discard pile; its owner\'s pile with personal decks)')
+@family_action("game", ("cards",), "discard", keys=("cards",), required=("cards",), was=("discard",),
+               example='{"game": "cards", "action": "discard", "cards": "$params.card"}  (onto the discard pile; its '
+                       'owner\'s pile with personal decks)')
 def _discard_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    for deck, cards in _grouped(world, _entities(world, runner.eval(effect["discard"], vars), where), where):
-        for card in cards:
-            place(world, deck, [card], "discard", _props(card).get("owner") or None, where)
+    deck = deck_named(world, effect["game"], where)
+    for card in _cards(runner, effect, vars, deck, where):
+        place(world, deck, [card], "discard", _props(card).get("owner") or None, where)
 
 
-@effect_op("pass_cards", keys=("to", "zone"), required=("to",),
-           example='{"pass_cards": "$params.cards", "to": "$params.player"}  (into another player\'s hand; only the two of them see which)')
-def _pass_cards_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+@family_action("game", ("cards",), "give", keys=("cards", "to", "zone"), required=("cards", "to"), check=_zone_check("zone"),
+               was=("pass_cards",),
+               example='{"game": "cards", "action": "give", "cards": "$params.card", "to": "$params.to"}  (into another '
+                       'player\'s hand; only the two of them see which)')
+def _give_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
+    deck = deck_named(world, effect["game"], where)
     receiver = _owner(runner, effect["to"], vars, where)
     if receiver is None:
-        raise RunError("pass_cards needs a player in `to`", where)
+        raise RunError("`give` needs a player in `to`", where)
     zone = _name(runner, effect.get("zone", "hand"), vars, where, "zone")
-    for deck, cards in _grouped(world, _entities(world, runner.eval(effect["pass_cards"], vars), where), where):
-        givers = {_props(c).get("owner") for c in cards if _props(c).get("owner")}
-        for card in cards:
-            seen = list(_props(card).get("seen_by") or [])
-            giver = _props(card).get("owner")
-            if giver and giver != receiver and giver not in seen:
-                _set(world, card, {"seen_by": seen + [giver]})
-        place(world, deck, cards, zone, receiver, where)
-        names = ", ".join(world.entities[g].name for g in sorted(givers) if g in world.entities) or "Someone"
-        world.emit("cards", f"{names} passed you {card_names(cards)}.", to=(receiver,), data={"deck": deck.name})
+    cards = _cards(runner, effect, vars, deck, where)
+    givers = {_props(c).get("owner") for c in cards if _props(c).get("owner")}
+    for card in cards:
+        seen = list(_props(card).get("seen_by") or [])
+        giver = _props(card).get("owner")
+        if giver and giver != receiver and giver not in seen:
+            _set(world, card, {"seen_by": seen + [giver]})
+    place(world, deck, cards, zone, receiver, where)
+    names = ", ".join(world.entities[g].name for g in sorted(givers) if g in world.entities) or "Someone"
+    world.emit("cards", f"{names} passed you {card_names(cards)}.", to=(receiver,), data={"deck": deck.name})
 
 
-def _reveal(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str, key: str, viewers: Any) -> None:
+def _reveal(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str, viewers: Any) -> None:
     world = runner.world
-    cards = _entities(world, runner.eval(effect[key], vars), where)
+    cards = _cards(runner, effect, vars, deck_named(world, effect["game"], where), where)
     if not cards:
         return
     say = runner.text(effect["say"], vars) if effect.get("say") else ""
@@ -582,25 +590,30 @@ def _reveal(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: st
     world.emit("cards", say or f"You see: {card_names(cards)}.", to=tuple(ids))
 
 
-@effect_op("reveal", keys=("to", "say"), templates=("say",),
-           example='{"reveal": "$hand($it)"}  (face up for everyone; with `to`, shown only to those players)')
+@family_action("game", ("cards",), "reveal", keys=("cards", "to", "say"), required=("cards",), templates=("say",),
+               was=("reveal",),
+               example='{"game": "cards", "action": "reveal", "cards": "$hand($it)"}  (face up for everyone; with `to`, '
+                       'shown only to those players)')
 def _reveal_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-    _reveal(runner, effect, vars, where, "reveal", runner.eval(effect["to"], vars) if "to" in effect else None)
+    _reveal(runner, effect, vars, where, runner.eval(effect["to"], vars) if "to" in effect else None)
 
 
-@effect_op("peek", keys=("to", "say"), templates=("say",),
-           example='{"peek": "$top_cards(deck, 3)", "to": "$actor"}  (only `to` (default $actor) sees the cards, from now on)')
+@family_action("game", ("cards",), "peek", keys=("cards", "to", "say"), required=("cards",), templates=("say",),
+               was=("peek",),
+               example='{"game": "cards", "action": "peek", "cards": "$top_cards(deck, 3)", "to": "$actor"}  (only `to` '
+                       '(default $actor) sees the cards, from now on)')
 def _peek_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     viewers = runner.eval(effect["to"], vars) if "to" in effect else vars.get("actor")
     if viewers is None:
-        raise RunError("peek needs a player in `to` (default $actor)", where)
-    _reveal(runner, effect, vars, where, "peek", viewers)
+        raise RunError("`peek` needs a player in `to` (default $actor)", where)
+    _reveal(runner, effect, vars, where, viewers)
 
 
-@effect_op("setup_cards", keys=(), check=_deck_check("setup_cards"),
-           example='{"setup_cards": "cards"}  (create per-player cards and shuffle every draw pile; generated for round 1)')
-def _setup_cards_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-    deck = deck_named(runner.world, effect["setup_cards"], where)
+@family_action("game", ("cards",), "setup", internal=True, was=("setup_cards",),
+               example='{"game": "cards", "action": "setup"}  (create per-player cards and shuffle every draw pile; '
+                       'generated for round 1)')
+def _setup_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+    deck = deck_named(runner.world, effect["game"], where)
     create_personal_cards(runner.world, deck, where)
     shuffle(runner.world, deck, "deck", None, where)
 

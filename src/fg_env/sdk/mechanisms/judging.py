@@ -1,8 +1,8 @@
 """Judgment the engine cannot compute, answered by a host: rubric judges and game masters.
 
-``judge`` scores text — an action's words, a record entry, with a transcript window — against a
+``host.judge`` scores text — an action's words, a record entry, with a transcript window — against a
 weighted rubric, with one evaluator or a panel, optionally blind; scores, total and rationale
-are recorded as typed state the moment they are produced. ``game_master`` gives agents a
+are recorded as typed state the moment they are produced. ``host.game_master`` gives agents a
 free-text ``attempt`` tool whose resolution a host proposes and the engine validates against
 the contract's allow-list before applying it atomically.
 """
@@ -20,16 +20,18 @@ from ...entity import Entity
 from ..errors import RunError
 from ..expr import Untrusted
 from ..host import allowlist
-from ..host.common import NAME, clip, config_of, declared_check, prop_of, type_list
+from ..host.common import NAME, clip, config_of, prop_of, type_list
 from ..host.protocols import HostError
 from ..host.tape import consult, plain, tape_prop
-from ..registry import MechanismError, effect_op, mechanism
+from ..registry import MechanismError, family_action, mode
 from ..template import format_value
 from ..world import Abort, _plain
 
 __all__ = ["JudgeConfig", "GameMasterConfig", "total_score"]
 
 RATIONALE_MAX = 2000
+JUDGE = "host.judge"
+GAME_MASTER = "host.game_master"
 
 
 # ---------------------------------------------------------------------------
@@ -75,8 +77,8 @@ class JudgeConfig(BaseModel):
     panel: List[Seat] = Field(default_factory=list, description="Several judges; scores are aggregated per criterion.")
     aggregate: Literal["mean", "median", "trimmed_mean"] = Field("mean", description="How a panel's scores combine (trimmed_mean drops the highest and lowest with 3+ judges).")
     out_of: float = Field(10, gt=0, description="The total is the weighted rubric score on a 0..out_of scale.")
-    of: Optional[str] = Field(None, description="Type of the entities judged (for `into` and blind aliases).")
-    into: Optional[str] = Field(None, description="Number property on `of` that accumulates each total.")
+    who: Optional[str] = Field(None, description="Type of the entities judged (for `into` and blind aliases).")
+    into: Optional[str] = Field(None, description="Number property on `who` that accumulates each total.")
     record: Optional[str] = Field(None, description="Judge every new entry of this record automatically.")
     field: str = Field("text", description="The judged field of `record` entries.")
     stage: Optional[str] = Field(None, description="Judge new `record` entries at the end of this stage (default: at the end of every round).")
@@ -95,20 +97,20 @@ class _Item:
     context: List[Dict[str, str]] = field(default_factory=list)
 
 
-@mechanism("judge", JudgeConfig,
-           "A rubric judge answered by a host evaluator: `{\"judge\": name, \"text\": ..., \"subject\": ...}` in any "
+@mode("host", "judge", JudgeConfig,
+           "A rubric judge answered by a host evaluator: the `judge` action (`text` and `subject`) in any "
            "effect list (or every new entry of `record`) scores the text per criterion, alone or as a panel, "
            "optionally blind. Each verdict is posted to the record <name> (subject, scores, total, rationale "
            "«quoted») and added to $world.<name>_totals and the `into` property, recorded for replay.",
-           example={"kind": "judge", "record": "speeches", "of": "debater", "into": "score",
+           example={"record": "speeches", "who": "debater", "into": "score",
                     "criteria": {"logic": {"weight": 2}, "evidence": {"scale": [1, 5]}},
-                    "instructions": "Judge each debate speech on its merits."})
+                    "instructions": "Judge each debate speech on its merits."}, was="judge")
 def _expand_judge(name: str, config: JudgeConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     records = contract.get("records") or {}
-    if config.of is not None:
-        type_list(contract, config.of, "of")
-    if config.into is not None and (config.of is None or not NAME.match(config.into)):
-        raise MechanismError("`into` names a property of the `of` type", "set `of` to the judged type", "into")
+    if config.who is not None:
+        type_list(contract, config.who, "who")
+    if config.into is not None and (config.who is None or not NAME.match(config.into)):
+        raise MechanismError("`into` names a property of the `who` type", "set `who` to the judged type", "into")
     if name in records:
         raise MechanismError(f"a record named '{name}' already exists; the judge posts its verdicts there",
                              "rename the judge or the record")
@@ -121,7 +123,7 @@ def _expand_judge(name: str, config: JudgeConfig, contract: Mapping[str, Any]) -
             "visible": config.visible, "notify": config.notify, "description": f"Verdicts of the judge '{name}'."}},
     }
     if config.into is not None:
-        fragment["types"] = {config.of: {"props": {config.into: {"type": "number", "default": 0}}}}
+        fragment["types"] = {config.who: {"props": {config.into: {"type": "number", "default": 0}}}}
     if config.record is None:
         if config.stage is not None:
             raise MechanismError("`stage` judges new entries of `record`, and no record is set", "set `record`", "stage")
@@ -134,20 +136,20 @@ def _expand_judge(name: str, config: JudgeConfig, contract: Mapping[str, Any]) -
         raise MechanismError(f"record '{config.record}' has no field '{config.field}'", None, "field")
     fragment["world"][f"{name}_cursor"] = {"type": "int", "default": 0}
     if config.stage is not None:
-        fragment["stage_hooks"] = {config.stage: {"on_exit": [{"judge": name}]}}
+        fragment["stage_hooks"] = {config.stage: {"on_exit": [{"host": name, "action": "judge"}]}}
     else:
-        fragment["events"] = [{"name": f"{name}_judging", "phase": "end", "do": [{"judge": name}]}]
+        fragment["events"] = [{"name": f"{name}_judging", "phase": "end", "do": [{"host": name, "action": "judge"}]}]
     return fragment
 
 
-@effect_op("judge", keys=("text", "subject", "entry", "context"), literal=("judge",),
-           example='{"judge": "speeches", "text": "$params.text", "subject": "$actor"}  '
-                   '(score text with a declared judge; the verdict goes to the record speeches and its totals)',
-           check=declared_check("judge", "judge"))
+@family_action("host", ("judge",), "judge", keys=("text", "subject", "entry", "context"), was=("judge",),
+               example='{"host": "speeches", "action": "judge", "text": "$params.text", "subject": "$actor"}  '
+                       '(score `text`, or a record `entry`, with the judge; the verdict goes to the record speeches and '
+                       'its totals; without either, judge the new entries of its `record`)')
 def _judge_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    name = effect["judge"]
-    config = config_of(world, name, "judge", JudgeConfig, where)
+    name = effect["host"]
+    config = config_of(world, name, JUDGE, JudgeConfig, where)
     if "text" in effect and "entry" in effect:
         raise RunError("give `text` or `entry`, not both", where)
     if "text" in effect or "entry" in effect:
@@ -300,8 +302,8 @@ def _aggregate(values: List[float], how: str) -> float:
 
 
 def _aliases(world: Any, config: JudgeConfig) -> Dict[str, str]:
-    if config.of is not None:
-        pool = [e for e in world.entities.values() if world.is_a(e.entity_type, config.of)]
+    if config.who is not None:
+        pool = [e for e in world.entities.values() if world.is_a(e.entity_type, config.who)]
     else:
         pool = [e for e in world.entities.values() if world.contract.is_agent(e.entity_type)]
     return {e.id: f"Participant {_letters(i)}" for i, e in enumerate(pool)}
@@ -343,7 +345,7 @@ class AllowRule(BaseModel):
     max: Optional[float] = Field(None, description="Highest value a number may become.")
     delta: Optional[float] = Field(None, ge=0, description="Largest change of a number in one attempt.")
     values: Optional[List[Any]] = Field(None, description="The only values it may set.")
-    max_len: int = Field(200, ge=1, le=4000, description="Longest text it may set or spread as news.")
+    max_chars: int = Field(200, ge=1, le=4000, description="Longest text it may set or spread as news.")
     giver: str = Field("actor", alias="from", description="transfer: 'actor' or an expression giving who may give.")
     to: Optional[str] = Field(None, description="transfer: expression giving who may receive ('actor' works); move: 'adjacent' or an expression over $actor and $it giving places.")
     amount: Optional[float] = Field(None, gt=0, description="transfer: most that may move from one giver in one attempt.")
@@ -366,13 +368,13 @@ class GameMasterConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    by: Union[str, List[str]] = Field(..., description="Agent type(s) that may attempt things.")
+    who: Union[str, List[str]] = Field(..., description="Agent type(s) that may attempt things.")
     allow: List[AllowRule] = Field(..., min_length=1, description="Every change the game master may make.")
     host: str = Field("game_master", description="Host game master name.")
     model: Optional[str] = Field(None, description="Model hint passed to the host.")
     tool: str = Field("attempt", description="Name of the free-text tool.")
     description: str = Field("", description="Tool description (default explains the tool).")
-    max_len: int = Field(500, ge=1, le=4000, description="Longest attempt text.")
+    max_chars: int = Field(500, ge=1, le=4000, description="Longest attempt text, in characters.")
     rules: str = Field("", description="How the world works, for the game master (plain text).")
     context: Dict[str, str] = Field(default_factory=dict, description="{name: expression over $actor} values shown to the game master.")
     max_effects: int = Field(4, ge=1, le=20, description="Most changes one attempt may cause.")
@@ -382,19 +384,20 @@ class GameMasterConfig(BaseModel):
     fallback: Optional[Literal["refuse"]] = Field(None, description="Without a host: refuse every attempt (default: stop with an error).")
 
 
-@mechanism("game_master", GameMasterConfig,
+@mode("host", "game_master", GameMasterConfig,
            "Free-text attempts resolved by a host game master: agents get an `attempt(text)` tool; the host "
            "proposes effects and the engine applies them only when every one fits `allow` (kinds, targets, "
            "properties, bounds, amounts, destinations) — atomically, or refuses with the reason. Attempts, "
            "narration and changes go to the record <name>; the actor is told the result; answers are recorded "
            "for replay.",
-           example={"kind": "game_master", "by": "adventurer", "rules": "A small tavern. Be fair and terse.",
+           example={"who": "adventurer", "rules": "A small tavern. Be fair and terse.",
                     "allow": [{"effect": "set", "prop": "health", "min": 0, "max": 10, "delta": 3},
                               {"effect": "transfer", "prop": "gold", "to": "$filter(adventurer, $it.id != $actor.id)",
                                "amount": 5},
-                              {"effect": "move", "to": "adjacent"}, {"effect": "news", "max_len": 160}]})
+                              {"effect": "move", "to": "adjacent"}, {"effect": "news", "max_chars": 160}]},
+           was="game_master")
 def _expand_game_master(name: str, config: GameMasterConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
-    by = type_list(contract, config.by, "by")
+    by = type_list(contract, config.who, "who")
     if not NAME.match(config.tool):
         raise MechanismError(f"tool must be a tool name, got {config.tool!r}", None, "tool")
     types = contract.get("types") or {}
@@ -412,8 +415,8 @@ def _expand_game_master(name: str, config: GameMasterConfig, contract: Mapping[s
                                          "what happens, within the rules of this world.")
     action: Dict[str, Any] = {
         "by": by if len(by) > 1 else by[0], "description": description, "terminal": config.terminal,
-        "params": {"text": {"type": "text", "max_len": config.max_len, "description": "What you try to do."}},
-        "do": [{"resolve": name, "text": "$params.text"}], "outcome": f"{{$actor.{name}_told}}",
+        "params": {"text": {"type": "text", "max_len": config.max_chars, "description": "What you try to do."}},
+        "do": [{"host": name, "action": "resolve", "text": "$params.text"}], "outcome": f"{{$actor.{name}_told}}",
     }
     if config.per_turn is not None:
         action["per_turn"] = config.per_turn
@@ -432,14 +435,13 @@ def _absent() -> Dict[str, Any]:
     return {"refuse": "No game master is present."}
 
 
-@effect_op("resolve", keys=("text",), literal=("resolve",), required=("text",),
-           example='{"resolve": "gm", "text": "$params.text"}  (ask a declared game master to resolve an attempt; '
-                   'changes apply only within its allow-list, and $actor.gm_told says what happened)',
-           check=declared_check("resolve", "game_master"))
+@family_action("host", ("game_master",), "resolve", keys=("text",), required=("text",), was=("resolve",),
+               example='{"host": "gm", "action": "resolve", "text": "$params.text"}  (the game master resolves the actor\'s '
+                       'attempt; changes apply only within its allow-list, and $actor.gm_told says what happened)')
 def _resolve_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    name = effect["resolve"]
-    config = config_of(world, name, "game_master", GameMasterConfig, where)
+    name = effect["host"]
+    config = config_of(world, name, GAME_MASTER, GameMasterConfig, where)
     actor = vars.get("actor")
     if not isinstance(actor, Entity):
         raise RunError("`resolve` runs inside an action (it needs $actor)", where)

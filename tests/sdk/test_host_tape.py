@@ -17,8 +17,9 @@ PITCH = {
     "types": {"founder": {"agent": True, "props": {"points": 0}}},
     "entities": {"ana": {"type": "founder", "name": "Ana"}},
     "actions": {"pitch": {"by": "founder", "params": {"text": "text"},
-                          "do": [{"judge": "panel", "text": "$params.text", "subject": "$actor"}], "terminal": True}},
-    "mechanisms": {"panel": {"kind": "judge", "of": "founder", "into": "points", "criteria": {"quality": {}}}},
+                          "do": [{"host": "panel", "action": "judge", "text": "$params.text", "subject": "$actor"}],
+                          "terminal": True}},
+    "mechanisms": {"panel": {"kind": "host", "mode": "judge", "who": "founder", "into": "points", "criteria": {"quality": {}}}},
     "outputs": {"points": "$entity(ana).points"},
 }
 
@@ -95,11 +96,23 @@ def test_hosts_validate_what_they_are_given():
 
 
 def test_an_undeclared_host_op_is_a_check_error():
-    contract = {**PITCH, "actions": {"pitch": {**PITCH["actions"]["pitch"], "do": [{"judge": "nope", "text": "$params.text"}]}}}
-    issues = fg_env.check(contract)
-    assert any("'nope' is not a declared judge mechanism" in str(i) for i in issues)
+    def pitch_does(*effects):
+        return [str(i) for i in fg_env.check({**PITCH, "actions": {"pitch": {**PITCH["actions"]["pitch"], "do": list(effects)}}})]
+
+    assert any("`host` names a declared host mechanism, got 'nope'" in i
+               for i in pitch_does({"host": "nope", "action": "judge", "text": "$params.text"}))
+    assert any("'score' is not an action of panel (host judge) → actions: judge" in i
+               for i in pitch_does({"host": "panel", "action": "score", "text": "$params.text"}))
+    assert any("'rubric' is not part of `host.judge`" in i
+               for i in pitch_does({"host": "panel", "action": "judge", "text": "$params.text", "rubric": "x"}))
+    assert any('`judge` is now the `host` op: {"host": "<mechanism>", "action": "judge"' in i
+               for i in pitch_does({"judge": "panel", "text": "$params.text"}))
     with pytest.raises(fg_env.ContractError, match="into"):
-        fg_env.load(_with(of=None))
+        fg_env.load(_with(who=None))
+    with pytest.raises(fg_env.ContractError, match="'judge' is now kind 'host' with mode 'judge'"):
+        fg_env.load({**PITCH, "mechanisms": {"panel": {"kind": "judge", "of": "founder", "criteria": {"quality": {}}}}})
+    with pytest.raises(fg_env.ContractError, match="`of` is not a field of `host` mode `judge`"):
+        fg_env.load(_with(of="founder"))
 
 
 # -- reference adapters --------------------------------------------------------------

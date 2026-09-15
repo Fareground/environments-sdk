@@ -1,13 +1,15 @@
-"""World dynamics that are not agents: drift, shocks and uncertainty priors.
+"""World dynamics that are not agents: the ``dynamics`` family's ``drift``, ``shocks`` and ``priors`` modes.
 
 .. code-block:: json
 
-    "trends": {"kind": "drift", "rules": {
+    "trends": {"kind": "dynamics", "mode": "drift", "rules": {
         "fatigue": {"target": "resident.propensity", "model": "mean_reversion", "rate": 0.05, "mean": 0.7, "sd": 0.01}}},
-    "events": {"kind": "shocks", "shocks": {
+    "events": {"kind": "dynamics", "mode": "shocks", "shocks": {
         "superspreader": {"chance": 0.08, "window": [5, 90], "when": "not $world.lockdown", "do": ["..."],
                           "then": [{"shock": "alarm", "after": 2, "chance": 0.5}]}}},
-    "uncertainty": {"kind": "priors", "priors": {"transmissibility": {"dist": "beta", "a": 9, "b": 91}}}
+    "uncertainty": {"kind": "dynamics", "mode": "priors", "priors": {"transmissibility": {"dist": "beta", "a": 9, "b": 91}}}
+
+    {"dynamics": "events", "action": "fire", "shock": "superspreader"}
 
 Randomness comes from streams derived from the run seed and the rule's name and round, never from
 the shared stream: adding a drift rule or a shock never shifts any other draw, and every arm of an
@@ -22,14 +24,14 @@ from pydantic import Field, model_validator
 
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, is_expr, truthy
-from ..registry import MechanismError, effect_op, mechanism
+from ..registry import MechanismError, family_action, mode
 from ..world import prop_type
 from . import _common as common
 from ._common import Config, Effects, Number
 
 __all__ = ["DriftRule", "DriftConfig", "ShockDef", "ShockConfig", "PriorDef", "PriorsConfig", "sample_prior"]
 
-DRIFT, SHOCKS, PRIORS = "drift", "shocks", "priors"
+DRIFT, SHOCKS, PRIORS = "dynamics.drift", "dynamics.shocks", "dynamics.priors"
 _PROP_KEYS = frozenset({"type", "default", "min", "max", "values", "private", "description", "unit"})
 
 
@@ -93,11 +95,11 @@ class DriftConfig(Config):
     phase: Literal["start", "end"] = Field("start", description="When rules apply: start (before agents act) or end of the round.")
 
 
-@mechanism(DRIFT, DriftConfig,
-           "Property drift: linear trends, mean reversion, random walks, geometric growth and waves on world props or "
-           "on every entity of a type, bounded by min/max, gated by when/every/arms. Noise is seeded per rule and round.",
-           example={"kind": DRIFT, "rules": {"sentiment": {"target": "voter.mood", "model": "mean_reversion", "rate": 0.1,
-                                                          "mean": 0, "sd": 0.02, "min": -1, "max": 1}}})
+@mode("dynamics", "drift", DriftConfig,
+      "Property drift: linear trends, mean reversion, random walks, geometric growth and waves on world props or "
+      "on every entity of a type, bounded by min/max, gated by when/every/arms. Noise is seeded per rule and round.",
+      example={"rules": {"sentiment": {"target": "voter.mood", "model": "mean_reversion", "rate": 0.1,
+                                       "mean": 0, "sd": 0.02, "min": -1, "max": 1}}}, was="drift")
 def _expand_drift(name: str, cfg: DriftConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     for rule_name, rule in cfg.rules.items():
         field = f"rules.{rule_name}"
@@ -105,7 +107,7 @@ def _expand_drift(name: str, cfg: DriftConfig, contract: Mapping[str, Any]) -> D
         _arms(contract, rule.arms, f"{field}.arms")
         if rule.where is not None and rule.target.startswith("world."):
             raise MechanismError("`where` picks entities; a world target has none", "remove `where`", f"{field}.where")
-    return {"events": [{"name": name, "phase": cfg.phase, "do": [{"drift": name}]}]}
+    return {"events": [{"name": name, "phase": cfg.phase, "do": [{"dynamics": name, "action": "step"}]}]}
 
 
 def _numeric_target(contract: Mapping[str, Any], target: str, field: str) -> None:
@@ -145,12 +147,9 @@ def _raw_props(contract: Mapping[str, Any], type_name: str) -> Dict[str, List[An
 
 
 def _check_drift(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[str, str, Optional[str]]]:
-    name = effect.get("drift")
-    raw = checker.c.mechanisms.get(name)
-    if not isinstance(raw, Mapping) or raw.get("kind") != DRIFT:
-        return [(f"{path}.drift", f"'{name}' is not a declared {DRIFT} mechanism", None)]
+    name = effect["dynamics"]
     base = set(common.base_roots())
-    for rule_name, rule in common.parsed(raw, DriftConfig).rules.items():
+    for rule_name, rule in common.parsed(checker.c.mechanisms[name], DriftConfig).rules.items():
         at = f"mechanisms.{name}.rules.{rule_name}"
         owner = rule.target.partition(".")[0]
         roots, types = (base, {}) if owner == "world" else (base | {"it"}, {"it": {owner}})
@@ -161,11 +160,11 @@ def _check_drift(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[
     return []
 
 
-@effect_op("drift", keys=(), literal=("drift",), check=_check_drift,
-           example='{"drift": "trends"}  (apply a drift mechanism\'s rules now; generated every round)')
+@family_action("dynamics", ("drift",), "step", check=_check_drift, internal=True, was=("drift",),
+               example='{"dynamics": "trends", "action": "step"}  (apply the drift rules now; generated every round)')
 def _drift_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    mech = effect["drift"]
+    mech = effect["dynamics"]
     cfg = common.config(world, mech, DRIFT, DriftConfig, where)
     now = world.round
     for rule_name, rule in cfg.rules.items():
@@ -271,7 +270,7 @@ class ShockDef(Config):
 
     @property
     def scheduled(self) -> bool:
-        """Fires by itself; otherwise only through cascades or fire_shock."""
+        """Fires by itself; otherwise only through cascades or the fire action."""
         return any(v is not None for v in (self.at, self.every, self.chance, self.window, self.when))
 
 
@@ -280,25 +279,23 @@ class ShockConfig(Config):
 
     shocks: Dict[str, ShockDef] = Field(
         ..., description="{name: {at, every, chance, window, when, limit, gap, arms, do, say, lasts, undo, end_say, then}}. "
-                         "With none of at/every/chance/window/when a shock fires only through a cascade or fire_shock.")
+                         "With none of at/every/chance/window/when a shock fires only through a cascade or the fire action.")
     phase: Literal["start", "end"] = Field("start", description="When shocks are rolled each round.")
 
 
-@mechanism(SHOCKS, ShockConfig,
-           "Exogenous shocks: one-time (at), recurring (chance per round, every, window), state-gated (when), per arm, "
-           "limited and spaced (limit, gap), lasting (lasts + undo) and cascading ({shock, after, chance, when}). "
-           "$world.<name>.<shock> is {count, rounds}. Fire one now with {\"fire_shock\": shock}. Rolls use their own "
-           "seeded stream, so arms share shock timing.",
-           example={"kind": SHOCKS, "shocks": {"strike": {"chance": 0.1, "window": [3, 20], "do": ["$world.supply *= 0.5"],
-                                                          "say": "Dock workers strike.", "lasts": 2, "undo": ["$world.supply *= 2"]}}})
+@mode("dynamics", "shocks", ShockConfig,
+      "Exogenous shocks: one-time (at), recurring (chance per round, every, window), state-gated (when), per arm, "
+      "limited and spaced (limit, gap), lasting (lasts + undo) and cascading ({shock, after, chance, when}). "
+      "$world.<name>.<shock> is {count, rounds}. Fire one now with the `fire` action. Rolls use their own "
+      "seeded stream, so arms share shock timing.",
+      example={"shocks": {"strike": {"chance": 0.1, "window": [3, 20], "do": ["$world.supply *= 0.5"],
+                                     "say": "Dock workers strike.", "lasts": 2, "undo": ["$world.supply *= 2"]}}},
+      was="shocks")
 def _expand_shocks(name: str, cfg: ShockConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
-    others = {s for other, raw in common.uses(contract, SHOCKS) if other != name for s in (raw.get("shocks") or {})}
     for shock, spec in cfg.shocks.items():
         field = f"shocks.{shock}"
         if not common.NAME.match(shock):
             raise MechanismError(f"shock name '{shock}' must start with a letter and use letters, digits and _", None, field)
-        if shock in others:
-            raise MechanismError(f"shock '{shock}' is also declared by another shocks mechanism", "rename one", field)
         _arms(contract, spec.arms, f"{field}.arms")
         for index, cascade in enumerate(spec.then):
             if cascade.shock not in cfg.shocks:
@@ -306,16 +303,7 @@ def _expand_shocks(name: str, cfg: ShockConfig, contract: Mapping[str, Any]) -> 
                                      f"{field}.then[{index}].shock")
     state = {shock: {"count": 0, "rounds": []} for shock in cfg.shocks}
     return {"world": {name: {"type": "map", "default": state, "description": "Shock history: {shock: {count, rounds}}."}},
-            "events": [{"name": name, "phase": cfg.phase, "do": [{"shocks_step": name}]}]}
-
-
-def _shock_index(contract: Any) -> Dict[str, Tuple[str, ShockConfig]]:
-    out: Dict[str, Tuple[str, ShockConfig]] = {}
-    for mech, raw in common.uses(contract, SHOCKS):
-        cfg = common.parsed(raw, ShockConfig)
-        for shock in cfg.shocks:
-            out.setdefault(shock, (mech, cfg))
-    return out
+            "events": [{"name": name, "phase": cfg.phase, "do": [{"dynamics": name, "action": "step"}]}]}
 
 
 def fire_shock(runner: Any, mech: str, cfg: ShockConfig, shock: str, depth: int = 0) -> None:
@@ -348,7 +336,7 @@ def fire_shock(runner: Any, mech: str, cfg: ShockConfig, shock: str, depth: int 
             if cascade.when is None or truthy(common.evaluate(world, cascade.when, f"{at}.then[{index}].when")):
                 fire_shock(runner, mech, cfg, cascade.shock, depth + 1)
             continue
-        follow: List[Any] = [{"fire_shock": cascade.shock}]
+        follow: List[Any] = [{"dynamics": mech, "action": "fire", "shock": cascade.shock}]
         if cascade.when is not None:
             follow = [{"if": cascade.when, "then": follow}]
         world.schedule(world.round + cascade.after, follow, {}, f"{at}.then[{index}]")
@@ -383,12 +371,9 @@ def _due(world: Any, mech: str, shock: str, spec: ShockDef, at: str) -> bool:
 
 
 def _check_shocks(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[str, str, Optional[str]]]:
-    name = effect.get("shocks_step")
-    raw = checker.c.mechanisms.get(name)
-    if not isinstance(raw, Mapping) or raw.get("kind") != SHOCKS:
-        return [(f"{path}.shocks_step", f"'{name}' is not a declared {SHOCKS} mechanism", None)]
+    name = effect["dynamics"]
     base = set(common.base_roots())
-    for shock, spec in common.parsed(raw, ShockConfig).shocks.items():
+    for shock, spec in common.parsed(checker.c.mechanisms[name], ShockConfig).shocks.items():
         at = f"mechanisms.{name}.shocks.{shock}"
         for key in ("do", "undo"):
             checker.effects(getattr(spec, key), f"{at}.{key}", base, {})
@@ -404,11 +389,11 @@ def _check_shocks(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple
     return []
 
 
-@effect_op("shocks_step", keys=(), literal=("shocks_step",), check=_check_shocks,
-           example='{"shocks_step": "events"}  (roll every scheduled shock now; generated every round)')
+@family_action("dynamics", ("shocks",), "step", check=_check_shocks, internal=True, was=("shocks_step",),
+               example='{"dynamics": "events", "action": "step"}  (roll every scheduled shock now; generated every round)')
 def _step_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    mech = effect["shocks_step"]
+    mech = effect["dynamics"]
     cfg = common.config(world, mech, SHOCKS, ShockConfig, where)
     for shock, spec in cfg.shocks.items():
         if _due(world, mech, shock, spec, f"mechanisms.{mech}.shocks.{shock}"):
@@ -416,19 +401,24 @@ def _step_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: s
 
 
 def _check_fire(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[str, str, Optional[str]]]:
-    index = _shock_index(checker.c)
-    shock = effect.get("fire_shock")
-    return [] if shock in index else [(f"{path}.fire_shock", f"'{shock}' is not a declared shock", common.suggest(str(shock), index))]
+    name = effect["dynamics"]
+    shocks = common.parsed(checker.c.mechanisms[name], ShockConfig).shocks
+    shock = effect.get("shock")
+    if shock in shocks:
+        return []
+    return [(f"{path}.shock", f"'{shock}' is not a shock of {name}", common.suggest(str(shock), shocks))]
 
 
-@effect_op("fire_shock", keys=(), literal=("fire_shock",), check=_check_fire,
-           example='{"fire_shock": "strike"}  (fire a declared shock now, whatever its schedule: effects, news, cascades)')
+@family_action("dynamics", ("shocks",), "fire", keys=("shock",), required=("shock",), literal=("shock",),
+               check=_check_fire, was=("fire_shock",),
+               example='{"dynamics": "events", "action": "fire", "shock": "strike"}  (fire a shock now, whatever its '
+                       'schedule: effects, news, cascades)')
 def _fire_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-    index = _shock_index(runner.world.contract)
-    shock = effect["fire_shock"]
-    if shock not in index:
-        raise RunError(f"'{shock}' is not a declared shock", where)
-    mech, cfg = index[shock]
+    mech = effect["dynamics"]
+    cfg = common.config(runner.world, mech, SHOCKS, ShockConfig, where)
+    shock = effect["shock"]
+    if shock not in cfg.shocks:
+        raise RunError(f"'{shock}' is not a shock of {mech} ({common.suggest(str(shock), cfg.shocks)})", f"{where}.shock")
     fire_shock(runner, mech, cfg, shock)
 
 
@@ -496,11 +486,11 @@ class PriorsConfig(Config):
                          "Parameters are numbers or expressions over $inputs.")
 
 
-@mechanism(PRIORS, PriorsConfig,
-           "Uncertainty priors: quantities sampled once per run from uniform, normal, beta, lognormal, triangular or "
-           "weighted-choice distributions, stored as world props and recorded as outputs for analysis. Samples come "
-           "from a seeded stream per prior, so every arm of an experiment draws the same value for the same run.",
-           example={"kind": PRIORS, "priors": {"elasticity": {"dist": "normal", "mean": -1.2, "sd": 0.3, "max": 0}}})
+@mode("dynamics", "priors", PriorsConfig,
+      "Uncertainty priors: quantities sampled once per run from uniform, normal, beta, lognormal, triangular or "
+      "weighted-choice distributions, stored as world props and recorded as outputs for analysis. Samples come "
+      "from a seeded stream per prior, so every arm of an experiment draws the same value for the same run.",
+      example={"priors": {"elasticity": {"dist": "normal", "mean": -1.2, "sd": 0.3, "max": 0}}}, was="priors")
 def _expand_priors(name: str, cfg: PriorsConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     world: Dict[str, Any] = {}
     outputs: Dict[str, Any] = {}

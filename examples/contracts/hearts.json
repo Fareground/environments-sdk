@@ -40,14 +40,15 @@
   },
   "mechanisms": {
     "cards": {
-      "kind": "cards",
-      "players": "player",
+      "kind": "game",
+      "mode": "cards",
+      "who": "player",
       "deal": "never",
       "zones": {
         "trick": "public",
         "taken": {"visible": "hidden", "owned": true, "show": "count", "title": "Tricks taken"}
       },
-      "play_card": {
+      "play": {
         "to": "trick",
         "where": "$legal($actor, $it)",
         "do": [{"block": "after_play", "with": {"card": "$params.card"}}]
@@ -74,7 +75,7 @@
     {
       "name": "trick",
       "turns": "sequential",
-      "actions": ["play_card"],
+      "actions": ["cards_play"],
       "order": "($it.seat - $entity($world.leader).seat + 4) % 4",
       "must_act": true,
       "max_calls": 6,
@@ -82,7 +83,7 @@
       "on_enter": ["$world.lead_suit = ''"],
       "on_idle": [
         "$card = $bottom($filter($hand($actor), $legal($actor, $it)), $it.rank, 1)[0]",
-        {"play_cards": "$card", "to": "trick"},
+        {"game": "cards", "action": "play", "cards": "$card", "to": "trick"},
         {"block": "after_play", "with": {"card": "$card"}},
         {"emit": "timeout", "say": "{$actor.name} ran out of time and plays {$card.name}."}
       ],
@@ -93,7 +94,7 @@
         "$taker.points += $taken",
         "$taker.tricks += 1",
         {"emit": "trick", "say": "{$taker.name} takes the trick ({$card_names($zone(trick))}) with {$winning.name}{$': ' + $text($taken) + ' points' if $taken > 0 else ''}."},
-        {"move_cards": "$zone(trick)", "to": "taken", "owner": "$taker"},
+        {"game": "cards", "action": "move", "cards": "$zone(trick)", "to": "taken", "owner": "$taker"},
         "$world.leader = $taker.id",
         "$world.trick += 1"
       ]
@@ -105,8 +106,8 @@
       "phase": "start",
       "when": "$world.trick == 0",
       "do": [
-        {"collect": "cards"},
-        {"deal": "cards", "count": 13},
+        {"game": "cards", "action": "collect"},
+        {"game": "cards", "action": "deal", "qty": 13},
         "$world.leader = $entity('2C').owner",
         "$world.hearts_broken = false",
         "$world.hand += 1",
@@ -139,7 +140,7 @@
   "policies": {
     "duck": {
       "rules": [
-        {"do": "play_card", "with": {"card": "$bottom($filter($hand($actor), $legal($actor, $it)), $it.rank, 1)[0]"}}
+        {"do": "cards_play", "with": {"card": "$bottom($filter($hand($actor), $legal($actor, $it)), $it.rank, 1)[0]"}}
       ]
     }
   },

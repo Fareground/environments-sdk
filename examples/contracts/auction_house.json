@@ -31,9 +31,10 @@
   ],
   "mechanisms": {
     "house": {
-      "kind": "auction",
+      "kind": "market",
+      "mode": "auction",
       "format": "first_price",
-      "bidders": "collector",
+      "who": "collector",
       "item": "an antique vase",
       "stock": 3,
       "reserve": 30,

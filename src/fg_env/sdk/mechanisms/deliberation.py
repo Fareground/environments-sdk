@@ -2,7 +2,7 @@
 
 .. code-block:: json
 
-    "mechanisms": {"hall": {"kind": "deliberation", "members": "resident", "chair": "moderator",
+    "mechanisms": {"hall": {"kind": "decision", "mode": "deliberation", "who": "resident", "chair": "moderator",
                             "floor": true, "speaker_limit": 2, "question": "Should the town build a skate park?"}}
 
 Each round a sequential discussion stage (``<name>``) repeats passes until every member is ready
@@ -18,7 +18,7 @@ Motions: ``propose`` (needs a ``second`` unless ``second`` is false), ``amend`` 
 (an amendment is voted first), ``withdraw``, and ``call_question`` — by the chair when there is
 one, else by any member once the motion has been debated ``min_debate`` speeches. The discussion
 also puts an open question to a vote when everyone is ready (``vote_when_ready``). Votes run in a
-simultaneous stage ``<name>_vote`` and are counted with the ballot mechanism's :func:`tally`.
+simultaneous stage ``<name>_vote`` and are counted with the ballot mode's :func:`tally`.
 
 State: the world prop ``<name>`` ({phase, stack, floor, hands, floor_used, ballots, decisions,
 next, last}) and each member's ``<name>_ready``. Speeches, motions and seconds are entries of the
@@ -26,24 +26,23 @@ public record ``<name>``; results are announced as ``<name>`` events.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Mapping, Optional
+from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Tuple
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from ...entity import Entity
 from ..errors import RunError
 from ..expr import Call, function
-from ..registry import MechanismError, effect_op, mechanism
+from ..registry import MechanismError, family_action, mode
 from ..template import format_value
 from ..world import Abort
-from ._social import props, check_expr, config_of, entity, literal_name_check, only_use, require_type, single_use_check
+from ._common import ToolsSetting, tools_field
+from ._social import props, check_expr, config_of, entity, only_use, require_type, single_use_check
 from .voting import tally
 
 __all__ = ["DeliberationConfig"]
 
-KIND = "deliberation"
-_ACTS = ("open", "close", "idle", "speak", "ready", "hand", "recognize", "yield", "propose", "second", "amend",
-         "withdraw", "call", "vote", "tally")
+KIND = "decision.deliberation"
 _RECENT_DECISIONS = 3
 
 
@@ -52,13 +51,13 @@ class DeliberationConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    members: str = Field(..., description="Agent type that deliberates and votes.")
+    who: str = Field(..., description="Agent type that deliberates and votes.")
     chair: Optional[str] = Field(None, description="Agent type of the chair: recognizes speakers and calls the question.")
     question: str = Field("", description="What the body is deliberating, shown every turn.")
     floor: bool = Field(False, description="Floor control (needs a chair): members raise hands and speak only when recognized.")
     speaker_limit: Optional[int] = Field(2, ge=1, description="Speeches per recognition before the floor returns to the chair.")
     passes: int = Field(6, ge=1, le=100, description="Most passes of discussion per round (the backstop).")
-    max_len: int = Field(600, ge=1, le=4000, description="Longest speech or motion, in characters.")
+    max_chars: int = Field(600, ge=1, le=4000, description="Longest speech or motion, in characters.")
     motions: bool = Field(True, description="Members may propose motions.")
     second: bool = Field(True, description="A motion or amendment needs a second before debate.")
     amendments: bool = Field(True, description="Members may amend the open motion.")
@@ -66,12 +65,13 @@ class DeliberationConfig(BaseModel):
     method: Literal["majority", "supermajority"] = Field("majority", description="majority (more than half of votes cast) | supermajority (threshold, default 2/3).")
     threshold: Optional[float] = Field(None, ge=0, le=1, description="Share of votes needed to pass.")
     quorum: Optional[float] = Field(None, ge=0, le=1, description="Share of members who must vote (abstentions count).")
-    ballot: Literal["open", "sealed"] = Field("open", description="open: each vote is announced; sealed: only the result.")
+    private: bool = Field(False, description="Votes stay secret and only the result is announced; otherwise each vote is announced.")
     ready_when_silent: bool = Field(True, description="Ending a discussion turn without acting marks the member ready.")
     vote_when_ready: bool = Field(True, description="When every member is ready, an open question goes to a vote.")
     backstop: Literal["adjourn", "vote"] = Field("adjourn", description="When the pass cap is hit: adjourn to the next round, or vote on the open question.")
     end: Literal["decision", "adoption", "never"] = Field("decision", description="End the run once a main motion is decided, only once one passes, or never.")
     when: Optional[str] = Field(None, description="Hold the discussion only when true (e.g. \"$round <= 5\").")
+    tools: ToolsSetting = tools_field()
 
 
 # ---------------------------------------------------------------------------
@@ -91,7 +91,7 @@ def _state(world: Any, name: str) -> Dict[str, Any]:
 
 
 def _members(world: Any, config: DeliberationConfig) -> List[Entity]:
-    return list(world.entities_of(config.members))
+    return list(world.entities_of(config.who))
 
 
 def _all_ready(world: Any, name: str, config: DeliberationConfig, state: Optional[Mapping[str, Any]] = None) -> bool:
@@ -176,7 +176,7 @@ def _house(world: Any, name: str, config: DeliberationConfig, viewer: Optional[E
         members = _members(world, config)
         ready = sum(1 for m in members if props(m).get(f"{name}_ready"))
         mine = ""
-        if viewer is not None and world.is_a(viewer.entity_type, config.members):
+        if viewer is not None and world.is_a(viewer.entity_type, config.who):
             mine = " (you: ready)" if props(viewer).get(f"{name}_ready") else " (you: not ready)"
         lines.append(f"Ready to conclude: {ready} of {len(members)}{mine}")
     for decision in state["decisions"][-_RECENT_DECISIONS:]:
@@ -187,35 +187,60 @@ def _house(world: Any, name: str, config: DeliberationConfig, viewer: Optional[E
 
 
 # ---------------------------------------------------------------------------
-# The op
+# The decision op's deliberation actions
 # ---------------------------------------------------------------------------
 
+#: action → (its keys, all required; generated by the mechanism itself; example keys; what it does). The actor is $actor.
+_ACTIONS: Dict[str, Tuple[Tuple[str, ...], bool, str, str]] = {
+    "speak": (("text",), False, '"text": "$params.text"', "a speech; under floor control only by the member holding the floor"),
+    "ready": ((), False, "", "nothing more to add this round"),
+    "raise_hand": ((), False, "", "ask the chair for the floor"),
+    "recognize": (("who",), False, '"who": "$params.who"', "the chair gives the floor to a member whose hand is raised"),
+    "yield": ((), False, "", "give the floor back to the chair"),
+    "propose": (("text",), False, '"text": "$params.text"', "move a motion"),
+    "second": ((), False, "", "second the proposal waiting for a second"),
+    "amend": (("text",), False, '"text": "$params.text"', "new wording for the open motion, voted on before it"),
+    "withdraw": ((), False, "", "withdraw your pending motion or amendment"),
+    "call_question": ((), False, "", "end debate and put the open question to a vote"),
+    "vote": (("choice",), False, '"choice": "$params.choice"', "yes, no or abstain on the question put"),
+    "open": ((), True, "", "start a round's discussion"),
+    "close": ((), True, "", "end the discussion, putting a ready question to a vote"),
+    "idle": ((), True, "", "the actor ended a discussion turn without acting"),
+    "tally": ((), True, "", "count the vote"),
+}
 
-@effect_op("deliberate", keys=("act", "text", "who", "choice"), literal=("deliberate", "act"), required=("act",),
-           check=literal_name_check(KIND, "deliberate"),
-           example='{"deliberate": "hall", "act": "speak", "text": "$params.text"}  (acts: speak, ready, hand, recognize, '
-                   "yield, propose, second, amend, withdraw, call, vote, tally, open, close, idle; the actor is $actor)")
-def _deliberate_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-    world = runner.world
-    name = effect["deliberate"]
-    config = config_of(world, name, KIND, DeliberationConfig)
-    act = effect["act"]
-    if act not in _ACTS:
-        raise RunError(f"act must be one of {', '.join(_ACTS)}, got {act!r}", f"{where}.act")
-    state = _state(world, name)
-    if act == "open":
-        _open(world, name, config, state)
-    elif act == "close":
-        _close(world, name, config, state)
-    elif act == "tally":
-        _tally(world, name, config, state)
-    else:
-        actor = vars.get("actor")
-        if not isinstance(actor, Entity):
-            raise RunError(f"act {act} runs inside an action or on_idle ($actor)", where)
-        value: Dict[str, Any] = {key: runner.eval(effect[key], vars) for key in ("text", "who", "choice") if key in effect}
-        _member_act(world, name, config, state, actor, act, value, where)
-    world.set_world(name, state)
+
+def _runner(action: str) -> Callable[[Any, Dict[str, Any], Dict[str, Any], str], None]:
+    def run(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        world = runner.world
+        name = effect["decision"]
+        config = config_of(world, name, KIND, DeliberationConfig)
+        state = _state(world, name)
+        if action == "open":
+            _open(world, name, config, state)
+        elif action == "close":
+            _close(world, name, config, state)
+        elif action == "tally":
+            _tally(world, name, config, state)
+        else:
+            actor = vars.get("actor")
+            if not isinstance(actor, Entity):
+                raise RunError(f"`{action}` runs inside an action or on_idle ($actor)", where)
+            value: Dict[str, Any] = {key: runner.eval(effect[key], vars) for key in ("text", "who", "choice") if key in effect}
+            _member_act(world, name, config, state, actor, action, value, where)
+        world.set_world(name, state)
+
+    return run
+
+
+def _register_actions() -> None:
+    for action, (keys, internal, fields, doc) in _ACTIONS.items():
+        example = '{"decision": "hall", "action": "' + action + '"' + (f", {fields}" if fields else "") + f"}}  ({doc})"
+        family_action("decision", ("deliberation",), action, keys=keys, required=keys, internal=internal,
+                      example=example, was=("deliberate",))(_runner(action))
+
+
+_register_actions()
 
 
 def _set_ready(world: Any, name: str, member: Entity, ready: bool) -> None:
@@ -253,16 +278,16 @@ def _put_question(world: Any, name: str, state: Dict[str, Any], item: Mapping[st
 def _member_act(world: Any, name: str, config: DeliberationConfig, state: Dict[str, Any], actor: Entity, act: str,
                 value: Dict[str, Any], where: str) -> None:
     is_chair = config.chair is not None and world.is_a(actor.entity_type, config.chair)
-    is_member = world.is_a(actor.entity_type, config.members)
+    is_member = world.is_a(actor.entity_type, config.who)
     if act == "idle":
         if is_member and config.ready_when_silent and state["phase"] == "debate":
             _set_ready(world, name, actor, True)
         return
     if act in ("recognize",) and not is_chair:
         raise Abort("Only the chair can do that.")
-    if act == "call" and config.chair is not None and not is_chair:
+    if act == "call_question" and config.chair is not None and not is_chair:
         raise Abort("Only the chair can call the question.")
-    if act not in ("recognize", "call") and not is_member:
+    if act not in ("recognize", "call_question") and not is_member:
         raise Abort(f"{actor.name} is not a member of this body.")
     if act == "vote":
         _vote(state, actor, value.get("choice"))
@@ -272,7 +297,7 @@ def _member_act(world: Any, name: str, config: DeliberationConfig, state: Dict[s
     top = state["stack"][-1] if state["stack"] else None
     if act == "ready":
         _set_ready(world, name, actor, True)
-    elif act == "hand":
+    elif act == "raise_hand":
         _hand(world, name, config, state, actor)
     elif act == "recognize":
         _recognize(world, name, config, state, entity(world, value.get("who"), where))
@@ -299,7 +324,7 @@ def _member_act(world: Any, name: str, config: DeliberationConfig, state: Dict[s
         state["stack"].pop()
         _record(world, name, actor, f"withdraws {_describe(world, top)}", "", top["id"], where)
         _spoke(world, name, config, state, actor)
-    elif act == "call":
+    elif act == "call_question":
         _call(world, name, config, state, actor, top, is_chair, where)
 
 
@@ -335,8 +360,8 @@ def _needs_floor(config: DeliberationConfig, state: Dict[str, Any], actor: Entit
 def _text(config: DeliberationConfig, text: Any) -> Any:
     if not isinstance(text, str) or not text.strip():
         raise Abort("Say something.")
-    if len(text) > config.max_len:
-        raise Abort(f"At most {config.max_len} characters; yours has {len(text)}.")
+    if len(text) > config.max_chars:
+        raise Abort(f"At most {config.max_chars} characters; yours has {len(text)}.")
     return text
 
 
@@ -426,7 +451,7 @@ def _tally(world: Any, name: str, config: DeliberationConfig, state: Dict[str, A
     counts = {"yes": result["counts"].get("yes", 0), "no": result["counts"].get("no", 0),
               "abstain": result["cast"] - result["votes"]}
     detail = ", ".join(f"{k} {v}" for k, v in counts.items())
-    if config.ballot == "open" and state["ballots"]:
+    if not config.private and state["ballots"]:
         detail += "; " + ", ".join(f"{_person(world, voter)} {vote}" for voter, vote in state["ballots"].items())
     reason = " (no quorum)" if result.get("reason") == "no quorum" else ""
     verdict = "passes" if passed else "fails"
@@ -454,68 +479,68 @@ def _record(world: Any, name: str, actor: Entity, says: str, text: Any, motion: 
 # ---------------------------------------------------------------------------
 
 
-@mechanism(KIND, DeliberationConfig,
+@mode("decision", "deliberation", DeliberationConfig,
            "A deliberating body: a discussion stage `<name>` that repeats passes until every member is ready (or the pass "
            "cap), optional chair with floor control (raise hand, recognize, speaker limits), motions with seconds, "
            "amendments, calling the question, and a vote stage `<name>_vote` counted by majority or supermajority. "
            "Read state with $pending_motion(), $decisions(), $discussion_over(), $house(viewer).",
-           example={"kind": "deliberation", "members": "resident", "chair": "moderator", "floor": True,
-                    "question": "Should the town build a skate park?", "passes": 8})
+           example={"who": "resident", "chair": "moderator", "floor": True,
+                    "question": "Should the town build a skate park?", "passes": 8}, was="deliberation")
 def _expand(name: str, config: DeliberationConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     single_use_check(KIND, contract)
-    require_type(contract, config.members, "members", agent=True)
+    require_type(contract, config.who, "who", agent=True)
     require_type(contract, config.chair, "chair", agent=True)
     if config.floor and config.chair is None:
         raise MechanismError("floor control needs a chair", "set `chair` to the chair's agent type, or floor: false", "floor")
-    if config.chair is not None and config.chair == config.members:
+    if config.chair is not None and config.chair == config.who:
         raise MechanismError("the chair must be its own agent type", "declare e.g. types.moderator", "chair")
     check_expr(config.when, "when", ())
     debate = f"$world.{name}.phase == 'debate'"
-    members, chair = config.members, config.chair
+    members, chair = config.who, config.chair
     floor = [{"expr": f"$world.{name}.floor == $actor.id", "why": "You do not hold the floor; raise your hand."}] if config.floor else []
     open_debate = [{"expr": debate, "why": "A vote is under way."}]
-    text = {"type": "text", "max_len": config.max_len}
+    text = {"type": "text", "max_len": config.max_chars}
 
     def act(by: str, description: str, do: Dict[str, Any], when: List[Any], params: Optional[Dict[str, Any]] = None,
             **extra: Any) -> Dict[str, Any]:
         return {"by": by, "description": description, "params": params or {}, "when": when,
-                "do": [{"deliberate": name, **do}], **extra}
+                "do": [{"decision": name, **do}], **extra}
 
     top = "$pending_motion()"
     actions: Dict[str, Any] = {
-        f"{name}_speak": act(members, "Speak to the body.", {"act": "speak", "text": "$params.text"}, open_debate + floor,
+        f"{name}_speak": act(members, "Speak to the body.", {"action": "speak", "text": "$params.text"}, open_debate + floor,
                              {"text": {**text, "description": "Your speech."}}, outcome="You spoke."),
-        f"{name}_ready": act(members, "Say you have nothing more to add this round.", {"act": "ready"},
+        f"{name}_ready": act(members, "Say you have nothing more to add this round.", {"action": "ready"},
                              open_debate + [{"expr": f"not $actor.{name}_ready", "why": "You are already ready."}],
                              outcome="You are ready to conclude.", private=True, terminal=True),
     }
     if config.floor:
-        actions[f"{name}_raise_hand"] = act(members, "Ask the chair for the floor.", {"act": "hand"}, open_debate + [
+        actions[f"{name}_raise_hand"] = act(members, "Ask the chair for the floor.", {"action": "raise_hand"}, open_debate + [
             {"expr": f"$world.{name}.floor != $actor.id and not ($actor.id in $world.{name}.hands)",
              "why": "You hold the floor or your hand is already up."}], outcome="Your hand is raised.", private=True)
-        actions[f"{name}_yield"] = act(members, "Give the floor back to the chair.", {"act": "yield"}, open_debate + floor,
+        actions[f"{name}_yield"] = act(members, "Give the floor back to the chair.", {"action": "yield"}, open_debate + floor,
                                        outcome="You yielded the floor.", private=True)
         actions[f"{name}_recognize"] = act(chair or members, "Give the floor to a member whose hand is raised.",
-                                           {"act": "recognize", "who": "$params.who"},
+                                           {"action": "recognize", "who": "$params.who"},
                                            open_debate + [{"expr": f"$len($world.{name}.hands) > 0", "why": "No hands are raised."}],
                                            {"who": {"type": "entity", "of": members, "where": f"$it.id in $world.{name}.hands"}},
                                            private=True, outcome="You recognized {$params.who.name}.")
     if config.motions:
-        actions[f"{name}_propose"] = act(members, "Move a motion for the body to decide.", {"act": "propose", "text": "$params.text"},
+        actions[f"{name}_propose"] = act(members, "Move a motion for the body to decide.", {"action": "propose", "text": "$params.text"},
                                          open_debate + floor + [{"expr": f"$len($world.{name}.stack) == 0",
                                                                  "why": "A motion is already before the body."}],
                                          {"text": {**text, "description": "The motion, worded as the decision."}},
                                          outcome="You moved a motion.")
-        actions[f"{name}_withdraw"] = act(members, "Withdraw your pending motion or amendment.", {"act": "withdraw"},
+        actions[f"{name}_withdraw"] = act(members, "Withdraw your pending motion or amendment.", {"action": "withdraw"},
                                           open_debate + [{"expr": f"{top} != null and {top}.mover == $actor.id",
                                                           "why": "You have nothing pending to withdraw."}], outcome="Withdrawn.")
         if config.second:
-            actions[f"{name}_second"] = act(members, "Second the proposal waiting for a second.", {"act": "second"},
+            actions[f"{name}_second"] = act(members, "Second the proposal waiting for a second.", {"action": "second"},
                                             open_debate + [{"expr": f"{top} != null and {top}.status == 'proposed' and {top}.mover != $actor.id",
                                                             "why": "Nothing you can second is waiting."}], outcome="Seconded.")
         if config.amendments:
             actions[f"{name}_amend"] = act(members, "Propose new wording for the open motion (voted on before the motion).",
-                                           {"act": "amend", "text": "$params.text"},
+                                           {"action": "amend", "text": "$params.text"},
                                            open_debate + floor + [{"expr": f"{top} != null and {top}.kind == 'motion' and {top}.status == 'open'",
                                                                    "why": "There is no open motion to amend."}],
                                            {"text": {**text, "description": "The full motion as you would amend it."}},
@@ -524,11 +549,11 @@ def _expand(name: str, config: DeliberationConfig, contract: Mapping[str, Any]) 
                                             + ("" if chair else f" and {top}.speeches >= {config.min_debate}"),
                                     "why": "There is no open question ready to be called."}]
         actions[f"{name}_call_question"] = act(chair or members, "End debate and put the open question to a vote.",
-                                               {"act": "call"}, call_when, outcome="You called the question.", terminal=True)
+                                               {"action": "call_question"}, call_when, outcome="You called the question.", terminal=True)
     vote_open = [{"expr": f"$world.{name}.phase == 'voting' and not ($actor.id in $world.{name}.ballots)",
                   "why": "There is no vote for you to cast."}]
-    sealed = config.ballot == "sealed"
-    actions[f"{name}_vote"] = act(members, "Vote on the question before the body.", {"act": "vote", "choice": "$params.choice"},
+    sealed = config.private
+    actions[f"{name}_vote"] = act(members, "Vote on the question before the body.", {"action": "vote", "choice": "$params.choice"},
                                   vote_open, {"choice": {"type": "enum", "values": ["yes", "no", "abstain"]}},
                                   outcome="You voted {$params.choice}.", terminal=True, private=True,
                                   **({} if sealed else {"announce": "{$actor.name} votes {$params.choice}."}))
@@ -541,11 +566,11 @@ def _expand(name: str, config: DeliberationConfig, contract: Mapping[str, Any]) 
         "until": "$discussion_over()", "max_actions": 2,
         "brief": "Discuss. Anything said clears everyone's readiness; end your turn (or say you are ready) when you have "
                  "nothing to add.",
-        "on_enter": [{"deliberate": name, "act": "open"}], "on_exit": [{"deliberate": name, "act": "close"}]}
+        "on_enter": [{"decision": name, "action": "open"}], "on_exit": [{"decision": name, "action": "close"}]}
     if chair:
         discussion["order"] = f"0 if $is($it, {chair}) else 1"
     if config.ready_when_silent:
-        discussion["on_idle"] = [{"deliberate": name, "act": "idle"}]
+        discussion["on_idle"] = [{"decision": name, "action": "idle"}]
     if config.when:
         discussion["when"] = config.when
     viewers = [members] + ([chair] if chair else [])
@@ -560,6 +585,6 @@ def _expand(name: str, config: DeliberationConfig, contract: Mapping[str, Any]) 
         "stages": [discussion,
                    {"name": f"{name}_vote", "turns": "simultaneous", "actions": vote_names,
                     "when": f"$world.{name}.phase == 'voting'", "brief": "Vote yes, no or abstain on the question before the body.",
-                    "on_exit": [{"deliberate": name, "act": "tally"}]}],
+                    "on_exit": [{"decision": name, "action": "tally"}]}],
         "views": {f"{name}_house": {"for": viewers, "title": "The floor", "show": "{$house($actor)}"}},
     }

@@ -15,7 +15,8 @@
   },
   "mechanisms": {
     "checkers": {
-      "kind": "board",
+      "kind": "game",
+      "mode": "board",
       "sides": [
         "black",
         "white"

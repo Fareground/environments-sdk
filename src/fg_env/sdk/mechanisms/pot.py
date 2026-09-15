@@ -1,5 +1,5 @@
 """Betting and pots: no-limit betting rounds with blinds, antes and minimum-raise rules, all-ins, side
-pots and showdown distribution — the ``pot`` mechanism and its native ops.
+pots and showdown distribution — the ``game.pot`` mode and its ``game`` op actions.
 
 Chips live on the players (``stack``, ``bet`` this betting round, ``committed`` this hand) and the
 table state in world props ``<pot>_*``, so every wager is journaled, atomic and snapshotted.
@@ -14,15 +14,17 @@ Not implemented: pot-limit and fixed-limit sizing, and reopening by several shor
 """
 from __future__ import annotations
 
-from typing import Any, cast, Dict, List, Mapping, Optional, Tuple, Union
+from typing import Any, Callable, cast, Dict, List, Mapping, Optional, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from ...entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, is_expr
-from ..registry import MechanismError, effect_op, mechanism
+from ..registry import MechanismError, family_action, mode
 from ..world import Abort
+from ._common import ToolsSetting, tools_field
+from ._game import game_section
 from .contract_cache import parse_kind, per_contract
 
 __all__ = ["PotConfig", "side_pots"]
@@ -32,7 +34,8 @@ def _props(entity: Entity) -> Dict[str, Any]:
     return cast(Dict[str, Any], entity.properties)
 
 
-MOVES = ("fold", "check", "call", "bet", "raise", "all_in", "timeout")
+KEY = "game.pot"
+#: The betting moves an agent makes, each a generated `<name>_<move>` tool and a `game` op action.
 ACTIONS = ("fold", "check", "call", "bet", "raise", "all_in")
 
 
@@ -41,7 +44,7 @@ class PotConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    players: str = Field(..., description="Agent type that bets (subtypes included).")
+    who: str = Field(..., description="Agent type that bets (subtypes included).")
     stack: Union[int, str] = Field(1000, description="Starting chips (number or expression).")
     seat: Optional[str] = Field(None, description="Seat order: an expression over $it, lowest first (default: declaration order).")
     blinds: Optional[List[Union[int, str]]] = Field(None, description="[small, big] blinds posted each hand (numbers or expressions).")
@@ -58,6 +61,7 @@ class PotConfig(BaseModel):
     max_calls: int = Field(6, ge=1, description="Tool calls per betting turn.")
     conserve: bool = Field(True, description="Add the invariant that chips are never created or destroyed.")
     views: bool = Field(True, description="Generate the table view.")
+    tools: ToolsSetting = tools_field()
 
 
 # ---------------------------------------------------------------------------
@@ -65,7 +69,7 @@ class PotConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 def _tables(world: Any) -> Dict[str, PotConfig]:
-    return per_contract(world, "pot", lambda contract: parse_kind(contract, "pot", PotConfig), {})
+    return per_contract(world, KEY, lambda contract: parse_kind(contract, KEY, PotConfig), {})
 
 
 def _table(world: Any, name: Any, where: str) -> PotConfig:
@@ -76,7 +80,7 @@ def _table(world: Any, name: Any, where: str) -> PotConfig:
 
 
 def _seats(world: Any, config: PotConfig, where: str) -> List[Entity]:
-    players = list(world.entities_of(config.players))
+    players = list(world.entities_of(config.who))
     if config.seat is None:
         return players
     key = compile_expr(config.seat)
@@ -152,7 +156,7 @@ def options(world: Any, config: PotConfig, name: str, player: Entity) -> Dict[st
     stack, bet = props["stack"], props["bet"]
     to_call = max(0, current - bet)
     turn = world.props[f"{name}_to_act"] == player.id and _live(player)
-    contested = any(_live(q) and _p(q, "stack") > 0 for q in world.entities_of(config.players) if q.id != player.id)
+    contested = any(_live(q) and _p(q, "stack") > 0 for q in world.entities_of(config.who) if q.id != player.id)
     room = config.max_raises is None or world.props[f"{name}_raises"] < config.max_raises
     min_bet = _min_bet(world, config, f"mechanisms.{name}.min_bet")
     can_bet = turn and current == 0 and stack > 0 and contested and room
@@ -162,7 +166,7 @@ def options(world: Any, config: PotConfig, name: str, player: Entity) -> Dict[st
             "can_bet": can_bet, "min_bet": min(min_bet, stack),
             "can_raise": can_raise, "min_raise_to": min(current + world.props[f"{name}_min_raise"], bet + stack),
             "max_to": bet + stack, "can_all_in": (can_raise or can_bet) and stack > to_call,
-            "pot": sum(_p(p, "committed") for p in world.entities_of(config.players))}
+            "pot": sum(_p(p, "committed") for p in world.entities_of(config.who))}
 
 
 # ---------------------------------------------------------------------------
@@ -222,9 +226,8 @@ def open_betting(world: Any, config: PotConfig, name: str, where: str) -> None:
 
 
 def wager(world: Any, config: PotConfig, name: str, player: Entity, move: str, amount: Any, where: str) -> int:
-    """Apply one betting move for ``player``; returns the chips added. Illegal moves abort the action."""
-    if move not in MOVES:
-        raise RunError(f"action must be one of {', '.join(MOVES)}, got {move!r}", where)
+    """Apply one betting move (an action, or ``timeout``) for ``player``; returns the chips added. Illegal moves
+    abort the action."""
     if world.props[f"{name}_to_act"] != player.id or not _live(player):
         raise Abort("It is not your turn to bet.")
     opts = options(world, config, name, player)
@@ -251,7 +254,7 @@ def wager(world: Any, config: PotConfig, name: str, player: Entity, move: str, a
         size = target - current
         if size >= world.props[f"{name}_min_raise"]:
             world.set_world(f"{name}_min_raise", size)
-            for other in world.entities_of(config.players):
+            for other in world.entities_of(config.who):
                 if other is not player and _live(other) and _p(other, "stack") > 0:
                     world.set_prop(other, "acted", False)
         world.set_world(f"{name}_current_bet", target)
@@ -360,50 +363,71 @@ def _showdown_text(world: Any, pots: List[Dict[str, Any]], labels: Mapping[str, 
 
 
 # ---------------------------------------------------------------------------
-# Ops and functions
+# The game op's pot actions and the functions
 # ---------------------------------------------------------------------------
 
-
-def _pot_check(key: str) -> Any:
-    def check(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[str, str, Optional[str]]]:
-        names = [n for n, use in checker.c.mechanisms.items() if isinstance(use, Mapping) and use.get("kind") == "pot"]
-        if effect.get(key) not in names:
-            return [(f"{path}.{key}", f"'{effect.get(key)}' is not a declared pot", f"pots: {', '.join(names) or 'none'}")]
-        move = effect.get("action")
-        if key == "wager" and isinstance(move, str) and not is_expr(move) and move not in MOVES:
-            return [(f"{path}.action", f"'{move}' is not a betting action", f"actions: {', '.join(MOVES)}")]
-        return []
-    return check
+#: A betting move → (the keys it needs, what it does). The bettor is $actor, or `who`.
+_MOVES: Dict[str, Tuple[Tuple[str, ...], str]] = {
+    "fold": ((), "give up the hand"),
+    "check": ((), "stay in without adding chips"),
+    "call": ((), "match the highest bet (all-in when short)"),
+    "bet": (("amount",), "open the betting with `amount` chips"),
+    "raise": (("to",), "raise to a total bet of `to` chips this betting round"),
+    "all_in": ((), "put every chip in"),
+}
 
 
-def _simple_op(op: str, run: Any, example: str) -> None:
-    @effect_op(op, keys=(), check=_pot_check(op), example=example)
-    def _op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-        run(runner.world, _table(runner.world, effect[op], where), effect[op], where)
-
-
-_simple_op("new_hand", new_hand, '{"new_hand": "table"}  (start a hand: reset bets and folds, move the button; generated)')
-_simple_op("post_blinds", post_blinds, '{"post_blinds": "table"}  (antes and blinds, first player to act; generated)')
-_simple_op("open_betting", open_betting, '{"open_betting": "table"}  (a new betting round from the button\'s left; generated)')
-
-
-@effect_op("wager", keys=("action", "amount", "player"), required=("action",), check=_pot_check("wager"),
-           example='{"wager": "table", "action": "raise", "amount": "$params.to"}  (fold check call bet raise all_in timeout; '
-                   'for $actor or `player`; an illegal move fails the action)')
-def _wager_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-    world = runner.world
-    config = _table(world, effect["wager"], where)
-    player = world.entity(runner.eval(effect["player"], vars) if "player" in effect else vars.get("actor"))
+def _bettor(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> Entity:
+    player = runner.world.entity(runner.eval(effect["who"], vars) if "who" in effect else vars.get("actor"))
     if player is None:
-        raise RunError("wager needs a player (`player`, default $actor)", where)
-    move = runner.eval(effect["action"], vars) if is_expr(effect["action"]) else effect["action"]
-    wager(world, config, effect["wager"], player, str(move), runner.eval(effect.get("amount"), vars), where)
+        raise RunError("a betting action needs a player (`who`, default $actor)", where)
+    return player  # type: ignore[no-any-return]
 
 
-@effect_op("showdown", keys=(), check=_pot_check("showdown"),
-           example='{"showdown": "table"}  (pay every pot and side pot to its best eligible score; generated)')
+def _move_runner(move: str) -> Callable[[Any, Dict[str, Any], Dict[str, Any], str], None]:
+    def run(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        world, name = runner.world, effect["game"]
+        config = _table(world, name, where)
+        size = effect.get("amount", effect.get("to"))
+        wager(world, config, name, _bettor(runner, effect, vars, where), move, runner.eval(size, vars), where)
+
+    return run
+
+
+def _step_runner(step: Callable[[Any, PotConfig, str, str], None]) -> Callable[[Any, Dict[str, Any], Dict[str, Any], str], None]:
+    def run(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        step(runner.world, _table(runner.world, effect["game"], where), effect["game"], where)
+
+    return run
+
+
 def _showdown_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-    showdown(runner, _table(runner.world, effect["showdown"], where), effect["showdown"], vars, where)
+    showdown(runner, _table(runner.world, effect["game"], where), effect["game"], vars, where)
+
+
+def _register_actions() -> None:
+    for move, (keys, doc) in _MOVES.items():
+        fields = "".join(f', "{key}": "$params.{key}"' for key in keys)
+        family_action("game", ("pot",), move, keys=("who", *keys), required=keys, was=("wager",),
+                      example=f'{{"game": "table", "action": "{move}"{fields}}}  ({doc}; for $actor or `who`; '
+                              "an illegal move fails the action)")(_move_runner(move))
+    family_action("game", ("pot",), "timeout", keys=("who",), internal=True, was=("wager",),
+                  example='{"game": "table", "action": "timeout"}  (check when nothing is owed, else fold; generated)'
+                  )(_move_runner("timeout"))
+    steps: Dict[str, Tuple[Callable[[Any, PotConfig, str, str], None], str]] = {
+        "new_hand": (new_hand, "start a hand: reset bets and folds, move the button"),
+        "post_blinds": (post_blinds, "antes and blinds, first player to act"),
+        "open_betting": (open_betting, "a new betting round from the button's left"),
+    }
+    for step, (run, doc) in steps.items():
+        family_action("game", ("pot",), step, internal=True, was=(step,),
+                      example=f'{{"game": "table", "action": "{step}"}}  ({doc}; generated)')(_step_runner(run))
+    family_action("game", ("pot",), "showdown", internal=True, was=("showdown",),
+                  example='{"game": "table", "action": "showdown"}  (pay every pot and side pot to its best eligible '
+                          'score; generated)')(_showdown_op)
+
+
+_register_actions()
 
 
 def _function_table(call: Call) -> Tuple[str, PotConfig]:
@@ -434,7 +458,7 @@ def _pot_live_function(call: Call) -> List[Entity]:
 @function("pot_total(pot)", "Chips in the pot this hand (every player's committed chips).", min_args=1, max_args=1)
 def _pot_total_function(call: Call) -> int:
     _, config = _function_table(call)
-    return sum(_p(p, "committed") for p in call.scope.world.entities_of(config.players))
+    return sum(_p(p, "committed") for p in call.scope.world.entities_of(config.who))
 
 
 @function("pot_table(pot, viewer)", "Lines describing the table (pot, bets, stacks, who is to act) for the table view.",
@@ -470,7 +494,7 @@ def _pot_table_function(call: Call) -> List[str]:
 
 
 # ---------------------------------------------------------------------------
-# The pot mechanism
+# The pot mode
 # ---------------------------------------------------------------------------
 
 
@@ -480,74 +504,72 @@ def _actions(name: str, config: PotConfig) -> Dict[str, Any]:
     all_in = "{$' (all-in)' if $actor.stack == 0 else ''}"
 
     def act(description: str, rule: str, why: str, move: str, announce: str, outcome: str,
-            params: Optional[Dict[str, Any]] = None, amount: Optional[str] = None) -> Dict[str, Any]:
-        do: Dict[str, Any] = {"wager": name, "action": move}
-        if amount:
-            do["amount"] = amount
-        return {"by": config.players, "description": description, "params": params or {},
+            params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        do: Dict[str, Any] = {"game": name, "action": move, **({key: f"$params.{key}" for key in params or {}})}
+        return {"by": config.who, "description": description, "params": params or {},
                 "when": [turn, {"expr": f"{opts}.{rule}", "why": why}], "do": [do],
                 "announce": announce, "outcome": outcome, "terminal": True}
 
     pot = f"The pot is {{$pot_total('{name}')}}."
     return {
-        "fold": act("Give up this hand and the chips you have put in.", "to_call > 0",
+        f"{name}_fold": act("Give up this hand and the chips you have put in.", "to_call > 0",
                     "Nothing to call: check instead of folding.", "fold", "{$actor.name} folds.", "You folded."),
-        "check": act("Stay in without adding chips (nothing to call).", "can_check",
+        f"{name}_check": act("Stay in without adding chips (nothing to call).", "can_check",
                      "There is a bet to match: call, raise or fold.", "check", "{$actor.name} checks.", "You checked."),
-        "call": act("Match the highest bet (all-in if you have fewer chips).", "can_call", "Nothing to call: check instead.",
+        f"{name}_call": act("Match the highest bet (all-in if you have fewer chips).", "can_call", "Nothing to call: check instead.",
                     "call", f"{{$actor.name}} calls {{$world.{name}_last.amount}}{all_in}.",
                     f"You called {{$world.{name}_last.amount}}{all_in}. {pot}"),
-        "bet": act("Open the betting: `amount` chips, at least the minimum bet (or all you have).", "can_bet",
+        f"{name}_bet": act("Open the betting: `amount` chips, at least the minimum bet (or all you have).", "can_bet",
                    "You cannot bet now (there is a bet already, or nobody left to bet against).", "bet",
                    f"{{$actor.name}} bets {{$params.amount}}{all_in}.", f"You bet {{$params.amount}}{all_in}. {pot}",
-                   {"amount": {"type": "int", "min": f"{opts}.min_bet", "max": "$actor.stack", "description": "Chips to bet."}},
-                   "$params.amount"),
-        "raise": act("Raise: `to` is your new TOTAL bet for this betting round — at least the highest bet plus the last "
+                   {"amount": {"type": "int", "min": f"{opts}.min_bet", "max": "$actor.stack", "description": "Chips to bet."}}),
+        f"{name}_raise": act("Raise: `to` is your new TOTAL bet for this betting round — at least the highest bet plus the last "
                      "raise size, at most everything you have.", "can_raise",
                      "You cannot raise now: nobody has made a full raise since you acted, or you lack the chips.", "raise",
                      f"{{$actor.name}} raises to {{$params.to}}{all_in}.", f"You raised to {{$params.to}}{all_in}. {pot}",
                      {"to": {"type": "int", "min": f"{opts}.min_raise_to", "max": f"{opts}.max_to",
-                             "description": "Your total bet after raising."}}, "$params.to"),
-        "all_in": act("Put all your chips in.", "can_all_in", "Going all-in would not be a legal raise now: call or fold.",
+                             "description": "Your total bet after raising."}}),
+        f"{name}_all_in": act("Put all your chips in.", "can_all_in", "Going all-in would not be a legal raise now: call or fold.",
                       "all_in", "{$actor.name} goes all-in (bet {$actor.bet}).", f"You are all-in. {pot}"),
     }
 
 
-@mechanism("pot", PotConfig,
-           "Poker-style betting: every round is one hand. Generates player chips (stack, bet, committed, folded, "
-           "in_hand), fold/check/call/bet/raise/all_in tools with legal amounts in their schemas, one sequential "
-           "stage per street that wakes exactly the player to act, blinds and antes, side pots and a showdown paying "
-           "each pot to its best `score`. State: $world.<name>_to_act, _current_bet, _min_raise, _button, _result. "
-           "Functions: $pot_options, $pot_live, $pot_total. An `end` condition about stacks must also require "
-           "$pot_total(<name>) == 0, or it fires while the chips of an all-in hand are still in the pot.",
-           example={"kind": "pot", "players": "player", "stack": 500, "blinds": [5, 10], "seat": "$it.seat",
-                    "streets": {"preflop": [], "flop": [{"deal": "cards", "count": 3, "zone": "board"}]},
-                    "setup": [{"collect": "cards"}, {"deal": "cards", "count": 2, "to": "$filter(player, $it.in_hand)"}],
-                    "score": "$poker_rank($hand($it) + $zone(board)).score"})
+@mode("game", "pot", PotConfig,
+      "Poker-style betting: every round is one hand. Generates player chips (stack, bet, committed, folded, "
+      "in_hand), `<name>_fold` / `_check` / `_call` / `_bet` / `_raise` / `_all_in` tools with legal amounts in their "
+      "schemas, one sequential stage per street that wakes exactly the player to act, blinds and antes, side pots and a "
+      "showdown paying each pot to its best `score`. State: $world.<name>_to_act, _current_bet, _min_raise, _button, "
+      "_result. Functions: $pot_options, $pot_live, $pot_total. An `end` condition about stacks must also require "
+      "$pot_total(<name>) == 0, or it fires while the chips of an all-in hand are still in the pot.",
+      example={"who": "player", "stack": 500, "blinds": [5, 10], "seat": "$it.seat",
+               "streets": {"preflop": [], "flop": [{"game": "cards", "action": "deal", "qty": 3, "zone": "board"}]},
+               "setup": [{"game": "cards", "action": "collect"},
+                         {"game": "cards", "action": "deal", "qty": 2, "to": "$filter(player, $it.in_hand)"}],
+               "score": "$poker_rank($hand($it) + $zone(board)).score"}, was="pot")
 def _expand_pot(name: str, config: PotConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     types = contract.get("types") or {}
-    if config.players not in types:
-        raise MechanismError(f"players '{config.players}' is not a declared type", f"types: {', '.join(types) or 'none'}", "players")
+    if config.who not in types:
+        raise MechanismError(f"who '{config.who}' is not a declared type", f"types: {', '.join(types) or 'none'}", "who")
     if config.blinds is not None and len(config.blinds) != 2:
         raise MechanismError("blinds are [small, big]", "e.g. [5, 10]", "blinds")
     if not config.streets:
         raise MechanismError("at least one street (betting round) is needed", '{"betting": []}', "streets")
     live = f"$len($pot_live('{name}')) > 1"
-    players = config.players
+    players = config.who
     stages = []
     for index, (street, effects) in enumerate(config.streets.items()):
-        opening = [] if index == 0 and config.blinds else [{"open_betting": name}]
+        opening = [] if index == 0 and config.blinds else [{"game": name, "action": "open_betting"}]
         stages.append({
-            "name": street, "when": live, "turns": "sequential", "actions": list(ACTIONS),
+            "name": street, "when": live, "turns": "sequential", "actions": [f"{name}_{move}" for move in ACTIONS],
             "who": f"$it.id == $world.{name}_to_act", "until": f"$world.{name}_to_act == ''", "passes": 1000,
             "max_actions": 1, "max_calls": config.max_calls, "must_act": True,
-            "on_idle": [{"wager": name, "action": "timeout"}], "on_enter": list(effects) + opening,
+            "on_idle": [{"game": name, "action": "timeout"}], "on_enter": list(effects) + opening,
             "brief": f"{street.replace('_', ' ').capitalize()} betting. The pot is {{$pot_total('{name}')}}; "
                      f"you need {{$pot_options('{name}', $actor).call_amount}} more chips to call.",
         })
-    start = [{"new_hand": name}, *config.setup]
+    start = [{"game": name, "action": "new_hand"}, *config.setup]
     if config.blinds or config.ante not in (0, "0"):
-        start.append({"post_blinds": name})
+        start.append({"game": name, "action": "post_blinds"})
     showdown_effects: List[Any] = [{"if": live, "then": list(config.before_showdown)}] if config.before_showdown else []
     world_props = {
         f"{name}_to_act": {"type": "text", "default": "", "description": "Id of the player to act."},
@@ -563,6 +585,7 @@ def _expand_pot(name: str, config: PotConfig, contract: Mapping[str, Any]) -> Di
     fragment: Dict[str, Any] = {
         "types": {players: {"props": {
             "stack": {"type": "int", "default": config.stack, "min": 0, "description": "Chips behind."},
+            "buy_in": {"type": "int", "default": "$it.stack", "min": 0, "description": "Chips brought to the table."},
             "bet": {"type": "int", "default": 0, "min": 0, "description": "Chips bet in this betting round."},
             "committed": {"type": "int", "default": 0, "min": 0, "description": "Chips put in the pot this hand."},
             "in_hand": {"type": "bool", "default": True},
@@ -573,13 +596,19 @@ def _expand_pot(name: str, config: PotConfig, contract: Mapping[str, Any]) -> Di
         "actions": _actions(name, config),
         "stages": stages,
         "events": [{"name": f"{name}_hand", "phase": "start", "do": start},
-                   {"name": f"{name}_showdown", "phase": "end", "do": showdown_effects + [{"showdown": name}]}],
+                   {"name": f"{name}_showdown", "phase": "end", "do": showdown_effects + [{"game": name, "action": "showdown"}]}],
     }
     if config.conserve:
         world_props[f"{name}_chips"] = {"type": "int", "default": f"$sum({players}, $it.stack)",
                                         "description": "Chips at the table (never changes)."}
         fragment["invariants"] = [{"expr": f"$sum({players}, $it.stack + $it.committed) == $world.{name}_chips",
                                    "why": "Chips are never created or destroyed."}]
+    game: Dict[str, Any] = {"players": players, "returns": "$actor.stack + $actor.committed - $actor.buy_in"}
+    if config.seat is not None:
+        game["seat"] = config.seat
+    if config.conserve:  # the chips invariant holds, so what one player wins another has lost
+        game["utility"] = "zero_sum"
+    fragment.update(game_section(contract, game))
     if config.views:
         fragment["views"] = {f"{name}_table": {"for": players, "title": "Table", "of": f"$pot_table('{name}', $actor)",
                                                "show": "{$it}", "bullet": False}}

@@ -495,6 +495,7 @@ class ActionSpec(_Model):
     per_turn: Optional[int] = Field(None, description="Max uses per turn.")
     per_round: Optional[int] = Field(None, description="Max uses per round.")
     duration: Union[float, str, None] = Field(None, description="Continuous clock: how long it takes (number or expression over $actor, $params); the actor's next scheduled turn comes that much later.")
+    tool: Optional[str] = Field(None, description="Offer this action inside one tool of this name, shared by every action naming it: the agent picks the action with the tool's `action` argument, which lists the ones legal now.")
 
     @model_validator(mode="before")
     @classmethod
