@@ -33,7 +33,7 @@ _NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
 
 #: Sections merged by key: the author's entry wins over a generated one of the same name.
 _KEYED = ("inputs", "world", "relations", "records", "actions", "views", "policies", "metrics",
-          "outputs", "defs", "blocks", "arms")
+          "outputs", "defs", "blocks", "arms", "patterns")
 #: Stage settings a mechanism may fill in on a stage the author declared (never overriding the author).
 _HOOK_SETTINGS = ("turns", "order", "who", "until", "passes", "quiet", "max_actions", "max_calls", "must_act", "auto",
                   "brief")
@@ -157,6 +157,16 @@ def _expand_one(out: Dict[str, Any], name: Any, use: Any) -> List[Issue]:
     return []
 
 
+#: The former `dynamics` family and its old kind names, and what replaced each.
+_FOLDED_INTO_PATTERNS = {
+    "dynamics": "drift → trend, seasonal, random_walk or mean_reversion patterns (an event applies them to state); "
+                "shocks → a shocks pattern an event reads; priors → draw patterns",
+    "drift": "use trend, seasonal, random_walk or mean_reversion patterns, applied to state by an event when agents change it too",
+    "shocks": "use a shocks pattern, and an event with when: $pattern.<name> > 0 for what it does",
+    "priors": "use draw patterns: $pattern.<name>",
+}
+
+
 def _kinds() -> List[str]:
     return sorted(FAMILIES)
 
@@ -176,6 +186,9 @@ def _spec(use: Mapping[str, Any], path: str) -> Any:
             return Issue(f"{path}.mode", f"'{mode}' is not a mode of `{kind}`",
                          f"did you mean '{hint[0]}'?" if hint else f"{kind} modes: {modes}")
         return spec, f"`{kind}` mode `{mode}`"
+    if isinstance(kind, str) and kind in _FOLDED_INTO_PATTERNS:
+        return Issue(f"{path}.kind", f"'{kind}' is no longer a mechanism: the world's own changes are `patterns`",
+                     _FOLDED_INTO_PATTERNS[kind] + " (guide('patterns'))")
     if isinstance(kind, str) and kind in RENAMED_KINDS:
         new_kind, mode = RENAMED_KINDS[kind]
         return Issue(f"{path}.kind", f"'{kind}' is now kind '{new_kind}' with mode '{mode}'",
@@ -398,7 +411,6 @@ from . import social  # noqa: E402,F401  (registers the social mechanism family)
 from . import status  # noqa: E402,F401
 from . import abilities  # noqa: E402,F401
 from . import locations  # noqa: E402,F401
-from . import dynamics  # noqa: E402,F401
 from . import procedure  # noqa: E402,F401
 from . import turn_order  # noqa: E402,F401
 from . import victory  # noqa: E402,F401

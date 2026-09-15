@@ -44,6 +44,16 @@ GROUPS: Dict[str, str] = {
 }
 
 
+class FitFactor(BaseModel):
+    """A response fitted together with a product, and the column its driver is in."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    column: str = Field(..., description="Column holding the driver (price, promotion depth).")
+    key: Optional[str] = Field(None, description="Its key, as an expression over $key and $row (the product's table row): "
+                                                 "$row.category.")
+
+
 class FitSpec(BaseModel):
     """Where a pattern's parameters are estimated from: rows of a data input and the columns to read."""
 
@@ -54,9 +64,12 @@ class FitSpec(BaseModel):
     time: Optional[str] = Field(None, description="Column holding when each row happened: an ISO date, or clock units "
                                                   "from round 1 (0, 1, 2 …). Needed by time patterns.")
     key: Optional[str] = Field(None, description="Column holding each row's key (keyed patterns fit one set of parameters per key).")
-    x: Union[str, Dict[str, str], None] = Field(
+    x: Union[str, Dict[str, Union[str, "FitFactor"]], None] = Field(
         None, description="Column holding the driver a response answers (price, spend, exposure); for a product, "
-                          "{pattern: column} for every factor called with a driver.")
+                          "{pattern: column or {column, key}} for every response that multiplies it in the data "
+                          "(its price response, its promotion), fitted together with it.")
+    noise: Optional[str] = Field(None, description="A product's counts pattern: its dispersion is estimated from the "
+                                                   "same rows, around the fitted means.")
     mean: Optional[str] = Field(None, description="Column holding the expected value of each row (counts: the spread "
                                                   "around it is what is estimated).")
     censored: Optional[str] = Field(None, description="Column that is 1 (or true) where the value is only a lower bound — "

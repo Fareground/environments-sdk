@@ -27,6 +27,13 @@ def test_the_dynamics_names_point_to_the_pattern_kinds_that_replaced_them():
     assert path == "patterns.p.kind" and fix == "use kind draw"
 
 
+def test_a_dynamics_mechanism_says_that_patterns_replaced_it():
+    contract = world({}, mechanisms={"trends": {"kind": "dynamics", "mode": "drift", "rules": {}}})
+    (issue,) = errors(contract)
+    assert issue.path == "mechanisms.trends.kind" and "no longer a mechanism" in issue.message
+    assert "trend" in issue.fix and "draw patterns" in issue.fix
+
+
 def test_a_parameter_that_reads_run_state_or_shared_randomness_is_refused_with_why():
     issues = _messages({"t": {"kind": "trend", "slope": "$world.x"}}, world={"x": 1})
     assert issues[0][0] == "patterns.t.slope" and "$world is not available in a pattern parameter" in issues[0][1]

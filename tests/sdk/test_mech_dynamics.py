@@ -1,5 +1,4 @@
-"""Native mechanism families: statuses, cooldowns, channeling, drift, shocks, priors, procedures,
-turn order, victory and terrain."""
+"""Native mechanism families: statuses, cooldowns, channeling, procedures, turn order, victory and terrain."""
 import json
 import math
 from pathlib import Path
@@ -279,181 +278,6 @@ def test_condition_actions_check_their_own_keys():
     assert path.endswith(".ability") and message == "'zapp' is not an action of abilities" and fix == "did you mean 'zap'?"
     _, _, fix = issues({"start_cooldown": "zap"})[0]
     assert fix.startswith('`start_cooldown` is now the `conditions` op: {"conditions": "<mechanism>", "action": "start"')
-
-
-# ---------------------------------------------------------------------------
-# drift, shocks, priors
-# ---------------------------------------------------------------------------
-
-MARKET = {
-    "name": "Drifting market",
-    "clock": {"rounds": 40},
-    "world": {"price": 100.0, "level": {"default": 0, "min": -5, "max": 5}, "wave": 10.0, "noise": 0.0, "stock": {"type": "int", "default": 50}},
-    "types": {"trader": {"agent": True, "props": {"mood": 0.0, "vip": False}}},
-    "population": [{"type": "trader", "count": 4, "props": {"vip": "$i == 1"}}],
-    "actions": {"wait": {"by": "trader", "do": []}},
-    "mechanisms": {"weather": {"kind": "dynamics", "mode": "drift", "rules": {
-        "climb": {"target": "world.level", "model": "linear", "rate": 0.5},
-        "revert": {"target": "world.price", "model": "mean_reversion", "rate": 0.3, "mean": 50},
-        "wave": {"target": "world.wave", "model": "sinusoidal", "amplitude": 4, "period": 8},
-        "walk": {"target": "world.noise", "model": "random_walk", "sd": 1, "min": -3, "max": 3},
-        "shrink": {"target": "world.stock", "model": "linear", "rate": -1.4},
-        "cheer": {"target": "trader.mood", "model": "linear", "rate": 0.1, "where": "$it.vip", "when": "$round > 2"},
-    }}},
-    "outputs": {"price": "$world.price"},
-}
-
-
-def test_drift_models_move_props_every_round():
-    env = fg_env.load(MARKET, seed=1)
-    env.run("idle", rounds=8)
-    props = env.props
-    assert props["level"] == 4 and props["price"] == pytest.approx(50 + 50 * 0.7 ** 8)
-    assert props["wave"] == pytest.approx(10.0, abs=1e-9)  # a full period returns to the start
-    assert -3 <= props["noise"] <= 3 and props["noise"] != 0
-    assert props["stock"] == 42  # an int prop moves in whole steps: -1.4 rounds to -1 each round
-    moods = [e["props"]["mood"] for e in env.entities("trader")]
-    assert moods[0] == pytest.approx(0.6) and moods[1:] == [0, 0, 0]
-    env.run("idle", rounds=10)
-    assert env.props["level"] == 5  # the prop's own max bounds it
-
-
-def test_random_drift_is_seeded():
-    values = []
-    for seed in (1, 1, 2):
-        env = fg_env.load(MARKET, seed=seed)
-        env.run("idle", rounds=5)
-        values.append(env.props["noise"])
-    assert values[0] == values[1] != values[2]
-
-
-OUTBREAK = {
-    "name": "Shocks",
-    "clock": {"rounds": 30},
-    "world": {"cases": 0, "alarm": False, "closed": False, "bonus": 0},
-    "types": {"mayor": {"agent": True}},
-    "entities": {"mayor": {"type": "mayor"}},
-    "actions": {"wait": {"by": "mayor", "do": []}},
-    "arms": {"calm": {"patch": {"world": {"bonus": 1}}}},
-    "mechanisms": {"shocks": {"kind": "dynamics", "mode": "shocks", "shocks": {
-        "arrival": {"at": 2, "do": ["$world.cases += 10"], "say": "Ten cases arrive.",
-                    "then": [{"shock": "alarm", "after": 2}]},
-        "alarm": {"do": ["$world.alarm = true"], "then": [{"shock": "closure", "after": 0, "chance": 1, "when": "$world.cases > 5"}]},
-        "closure": {"do": ["$world.closed = true"], "lasts": 3, "undo": ["$world.closed = false"], "end_say": "Reopened."},
-        "spreader": {"chance": 0.5, "window": [5, 25], "when": "not $world.closed", "gap": 2, "limit": 4,
-                     "do": ["$world.cases += 1"]},
-    }}},
-    "outputs": {"cases": "$world.cases", "spreaders": "$world.shocks.spreader.count"},
-}
-
-
-def test_shocks_fire_on_schedule_with_cascades_and_durations():
-    env = fg_env.load(OUTBREAK, seed=3)
-    env.run("idle", rounds=4)
-    state = env.props["shocks"]
-    assert state["arrival"]["rounds"] == [2] and state["alarm"]["rounds"] == [4] and state["closure"]["rounds"] == [4]
-    assert env.props["closed"] is True
-    env.run("idle", rounds=3)
-    assert env.props["closed"] is False
-    assert any(e.get("text") == "Reopened." for e in env.result().events)
-    env.run("idle")
-    spreads = env.props["shocks"]["spreader"]["rounds"]
-    assert 0 < len(spreads) <= 4 and all(5 <= r <= 25 for r in spreads)
-    assert all(b - a >= 3 for a, b in zip(spreads, spreads[1:]))
-    assert not set(spreads) & {4, 5, 6}  # closed while the closure lasts
-
-
-def test_shock_rolls_use_their_own_stream_so_arms_share_them():
-    base = fg_env.load(OUTBREAK, seed=9)
-    base.run("idle")
-    calm = fg_env.load(OUTBREAK, seed=9, arm="calm")
-    calm.run("idle")
-    assert base.props["shocks"]["spreader"]["rounds"] == calm.props["shocks"]["spreader"]["rounds"]
-    other = [fg_env.load(OUTBREAK, seed=s) for s in range(4, 9)]
-    for env in other:
-        env.run("idle")
-    assert len({tuple(e.props["shocks"]["spreader"]["rounds"]) for e in other}) > 1
-
-
-def test_manual_shock_and_errors():
-    env = fg_env.load(OUTBREAK, seed=1)
-    env.run("idle", rounds=1)
-    env.effects.run([{"dynamics": "shocks", "action": "fire", "shock": "alarm"}], {}, "t")
-    assert env.props["alarm"] is True and env.props["shocks"]["alarm"]["count"] == 1
-    bad = json.loads(json.dumps(OUTBREAK))
-    bad["mechanisms"]["shocks"]["shocks"]["alarm"]["then"] = [{"shock": "alarms"}]
-    with pytest.raises(ContractError, match="alarms"):
-        fg_env.parse(bad)
-
-
-def test_dynamics_kinds_fields_and_actions_say_what_to_fix():
-    old = json.loads(json.dumps(OUTBREAK))
-    old["mechanisms"]["shocks"] = {"kind": "shocks", "shocks": {}}
-    issue = next(i for i in _errors(old) if i.path == "mechanisms.shocks.kind")
-    assert issue.message == "'shocks' is now kind 'dynamics' with mode 'shocks'"
-    typo = json.loads(json.dumps(MARKET))
-    typo["mechanisms"]["weather"]["phse"] = "end"
-    issue = _errors(typo)[0]
-    assert issue.message == "`phse` is not a field of `dynamics` mode `drift`" and issue.fix.startswith("did you mean 'phase'?")
-
-    def issues(effect):
-        contract = json.loads(json.dumps(OUTBREAK))
-        contract["actions"]["wait"]["do"] = [effect]
-        return [(i.path, i.message, i.fix) for i in _errors(contract)]
-
-    assert issues({"dynamics": "shocks", "action": "fire"})[0][1] == "`dynamics.fire` needs `shock`"
-    path, message, fix = issues({"dynamics": "shocks", "action": "fire", "shock": "alarn"})[0]
-    assert path.endswith(".shock") and message == "'alarn' is not a shock of shocks" and fix == "did you mean 'alarm'?"
-    assert issues({"dynamics": "shocks", "action": "fire", "shock": "alarm", "at": 3})[0][1] == "'at' is not part of `dynamics.fire`"
-    path, message, fix = issues({"dynamics": "shocks", "action": "roll"})[0]
-    assert path.endswith(".action") and message == "'roll' is not an action of shocks (dynamics shocks)" and fix == "actions: fire"
-    _, _, fix = issues({"fire_shock": "alarm"})[0]
-    assert fix.startswith('`fire_shock` is now the `dynamics` op: {"dynamics": "<mechanism>", "action": "fire"')
-
-
-PRIORS = {
-    "name": "Uncertain",
-    "clock": {"rounds": 2},
-    "inputs": {"centre": {"type": "number", "default": 0.3}},
-    "types": {"analyst": {"agent": True}},
-    "entities": {"a": {"type": "analyst"}},
-    "actions": {"wait": {"by": "analyst", "do": []}},
-    "mechanisms": {"uncertainty": {"kind": "dynamics", "mode": "priors", "priors": {
-        "beta_p": {"dist": "beta", "a": 9, "b": 21},
-        "norm": {"dist": "normal", "mean": "$inputs.centre", "sd": 0.1, "min": 0, "max": 1},
-        "uni": {"dist": "uniform", "low": 2, "high": 4},
-        "logn": {"dist": "lognormal", "mu": 0, "sigma": 0.25},
-        "tri": {"dist": "triangular", "low": 0, "mode": 1, "high": 3},
-        "count": {"dist": "uniform", "low": 1, "high": 6, "integer": True},
-        "regime": {"dist": "choice", "values": ["calm", "stormy"], "weights": [3, 1]},
-    }}},
-    "outputs": {"double": "$world.uni * 2"},
-}
-
-
-def test_priors_are_sampled_per_run_and_recorded_in_outputs():
-    results = [fg_env.load(PRIORS, seed=s).run("idle") for s in range(12)]
-    first = results[0].outputs
-    assert set(first) >= {"beta_p", "norm", "uni", "logn", "tri", "count", "regime", "double"}
-    assert first["double"] == pytest.approx(first["uni"] * 2)
-    for result in results:
-        o = result.outputs
-        assert 0 <= o["beta_p"] <= 1 and 0 <= o["norm"] <= 1 and 2 <= o["uni"] <= 4 and o["logn"] > 0
-        assert 0 <= o["tri"] <= 3 and o["count"] in range(1, 7) and o["regime"] in ("calm", "stormy")
-    assert len({r.outputs["uni"] for r in results}) == 12
-    assert fg_env.load(PRIORS, seed=5).run("idle").outputs == results[5].outputs
-    assert abs(sum(r.outputs["norm"] for r in results) / 12 - 0.3) < 0.1
-
-
-def test_prior_config_errors():
-    bad = json.loads(json.dumps(PRIORS))
-    bad["mechanisms"]["uncertainty"]["priors"]["beta_p"] = {"dist": "beta", "a": 9}
-    with pytest.raises(ContractError, match="needs `b`"):
-        fg_env.parse(bad)
-    backwards = json.loads(json.dumps(PRIORS))
-    backwards["mechanisms"]["uncertainty"]["priors"]["uni"] = {"dist": "uniform", "low": 5, "high": 1}
-    with pytest.raises(ContractError, match="low"):
-        fg_env.parse(backwards)
 
 
 # ---------------------------------------------------------------------------
@@ -802,14 +626,12 @@ def test_guide_documents_the_new_kinds_and_functions():
     for mode in ("status", "cooldowns", "channeling", "terrain"):
         assert f"### `conditions.{mode}`" in conditions and f"- `{mode}`:" in fg_env.guide("conditions")
     assert "- `apply`" in conditions and "- `interrupt`" in conditions and '"action": "tick"' not in conditions
-    assert "| `dynamics` | drift, shocks, priors |" in text
-    dynamics = "\n".join(fg_env.guide(f"dynamics.{mode}") for mode in ("drift", "shocks", "priors"))
-    assert "### `dynamics.priors`" in dynamics and "- `fire`" in dynamics and "- `step`" not in dynamics
+    assert "`dynamics`" not in text
     assert "| `flow` | procedure, order, victory |" in text
     flow = "\n".join(fg_env.guide(f"flow.{mode}") for mode in ("procedure", "order", "victory"))
     assert "### `flow.victory`" in flow and "- `extra_turn`" in flow and "- `push`" in flow
     assert '"action": "advance"' not in flow
-    for name in ("$effective(", "$has_status(", "$ready(", "$prior(", "$best(", "$won(", "$terrain(", "$turn_rank("):
+    for name in ("$effective(", "$has_status(", "$ready(", "$best(", "$won(", "$terrain(", "$turn_rank("):
         assert name in fg_env.guide("all")
 
 
@@ -849,7 +671,7 @@ def test_civil_trial_procedure_reaches_a_verdict():
     assert phases[:2] == ["opening", "direct"] and "cross" in phases and "deliberation" in phases
 
 
-def test_epidemic_shocks_exposes_priors_and_varies_by_seed():
+def test_epidemic_shocks_draws_its_uncertain_quantities_per_run_and_reports_them():
     path = EXAMPLES / "epidemic_shocks.json"
     outputs = [fg_env.load(path, seed=s, inputs={"residents": 60}).run(rounds=20).outputs for s in range(3)]
     assert len({o["transmissibility"] for o in outputs}) == 3

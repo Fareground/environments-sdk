@@ -44,6 +44,8 @@ from .sdk.analysis import (backtest, behavior_checks, calibrate, chain, compare,
                            precision, score, sensitivity, sweep)
 from .sdk.tournament import tournament
 from .sdk.describe import describe
+from .sdk.patterns.fit import FitResult, fit_patterns
+from .sdk.patterns.decompose import Decomposition, decompose
 from .sdk.trace import trace
 from .sdk.evaluate import evaluate
 
@@ -82,6 +84,10 @@ __all__ = [
     "sweep",
     "sensitivity",
     "calibrate",
+    "fit_patterns",
+    "FitResult",
+    "decompose",
+    "Decomposition",
     "score",
     "backtest",
     "precision",

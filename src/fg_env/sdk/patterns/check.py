@@ -177,16 +177,25 @@ def _fit(checker: "_Checker", declared: Dict[str, PatternConfig], name: str, cfg
     assert fit is not None
     checker.expr(fit.data, f"{path}.fit.data", {"inputs"})
     checker.expr(fit.where, f"{path}.fit.where", {"inputs", "row"})
-    for index, other in enumerate(fit.adjust):
-        if other not in declared or other == name:
-            checker.error(f"{path}.fit.adjust[{index}]", f"'{other}' is not another declared pattern",
-                          checker._suggest(other, declared))
+    for index, adjusted in enumerate(fit.adjust):
+        if adjusted not in declared or adjusted == name:
+            checker.error(f"{path}.fit.adjust[{index}]", f"'{adjusted}' is not another declared pattern",
+                          checker._suggest(adjusted, declared))
     if isinstance(fit.x, dict):
-        names = operand_names(cfg) if KINDS[cfg.kind].shape == "composite" else []
-        for factor in fit.x:
-            if factor not in names:
-                checker.error(f"{path}.fit.x.{factor}", f"'{factor}' is not a factor of '{name}'",
-                              f"factors: {', '.join(names) or 'none'}")
+        if cfg.kind != "product":
+            checker.error(f"{path}.fit.x", "only a product fit names responses by pattern", "give the driver's column: \"x\": \"price\"")
+        for factor, spec in fit.x.items():
+            other = declared.get(factor)
+            if other is None or factor == name:
+                checker.error(f"{path}.fit.x.{factor}", f"'{factor}' is not another declared pattern", checker._suggest(factor, declared))
+            elif not KINDS[other.kind].arg_names(other) and KINDS[other.kind].shape != "memory":
+                checker.error(f"{path}.fit.x.{factor}", f"'{factor}' is not called with a driver",
+                              "name it in `of` instead")
+            key = getattr(spec, "key", None)
+            if key is not None:
+                checker.expr(key, f"{path}.fit.x.{factor}.key", {"inputs", "key"} | ({"row"} if cfg.table is not None else set()))
+    if fit.noise is not None and (fit.noise not in declared or declared[fit.noise].kind != "counts"):
+        checker.error(f"{path}.fit.noise", f"'{fit.noise}' is not a declared counts pattern", checker._suggest(fit.noise, declared))
 
 
 def _cycles(checker: "_Checker", declared: Dict[str, PatternConfig]) -> None:

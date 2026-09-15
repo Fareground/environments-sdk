@@ -5874,6 +5874,35 @@
       "title": "ElasticityConfig",
       "type": "object"
     },
+    "FitFactor": {
+      "additionalProperties": false,
+      "description": "A response fitted together with a product, and the column its driver is in.",
+      "properties": {
+        "column": {
+          "description": "Column holding the driver (price, promotion depth).",
+          "title": "Column",
+          "type": "string"
+        },
+        "key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Its key, as an expression over $key and $row (the product's table row): $row.category.",
+          "title": "Key"
+        }
+      },
+      "required": [
+        "column"
+      ],
+      "title": "FitFactor",
+      "type": "object"
+    },
     "FitSpec": {
       "additionalProperties": false,
       "description": "Where a pattern's parameters are estimated from: rows of a data input and the columns to read.",
@@ -5921,7 +5950,14 @@
             },
             {
               "additionalProperties": {
-                "type": "string"
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "$ref": "#/$defs/FitFactor"
+                  }
+                ]
               },
               "type": "object"
             },
@@ -5930,8 +5966,21 @@
             }
           ],
           "default": null,
-          "description": "Column holding the driver a response answers (price, spend, exposure); for a product, {pattern: column} for every factor called with a driver.",
+          "description": "Column holding the driver a response answers (price, spend, exposure); for a product, {pattern: column or {column, key}} for every response that multiplies it in the data (its price response, its promotion), fitted together with it.",
           "title": "X"
+        },
+        "noise": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A product's counts pattern: its dispersion is estimated from the same rows, around the fitted means.",
+          "title": "Noise"
         },
         "mean": {
           "anyOf": [

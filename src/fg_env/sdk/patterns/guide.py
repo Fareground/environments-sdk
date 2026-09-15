@@ -102,8 +102,32 @@ def _call(spec: Any) -> str:
     return f"`$pattern.<name>({', '.join(args)}[, key])`" if args else "`$pattern.<name>` (keyed: `$pattern.<name>(key)`)"
 
 
+_FITTING = """\
+### Fitting and explaining
+
+Add `fit` to a pattern — `{data, value, time, key, x, mean, censored, where, adjust, noise}` — and run
+`fg_env.fit_patterns(contract, data_dir=...)`. Each fit reads its rows, estimates, and returns `result.contract` with
+the estimates written back as inputs (`<pattern>_<parameter>`, or a `<pattern>_fit` table per key) plus their standard
+errors, which become the pattern's `uncertainty` scaled by the input `parameter_uncertainty` (1 draws each run's
+parameters around the estimates, 0 uses the estimates). `result.report()` says, per pattern, the method, rows, RMSE,
+MAPE and R², what was estimated and what was assumed. `fit` blocks stay in the contract, so a refit is one call.
+
+* One pattern at a time: trend (least squares; log-linear for exponential), seasonal (slot means over the overall
+  mean; harmonic regression), calendar (regression on the share of days each effect matches), elasticity (log-log),
+  promotion lift, counts dispersion (method of moments), random walk, mean reversion (AR(1)), autoregression, weather,
+  draws (moments), carry-over (grid search), saturation, diffusion and hazards (search / maximum likelihood).
+  `adjust: ["trend"]` divides the value by already-fitted patterns first.
+* A `product` fits jointly — its base per key, its seasonal profiles and exponential trend, and every response named in
+  `x` (a constant elasticity, an exponential promotion) — as one log-link count regression, so a promotion's lift is not
+  mistaken for price response. `censored: "stockout"` marks rows that only give a lower bound (sales capped by stock):
+  they are fitted as censored (expectation–maximisation), not dropped. `noise: "sales"` estimates that counts pattern's
+  dispersion around the fitted means.
+* `fg_env.decompose(contract, "demand", key="BRP-TOY-V")` shows every factor of a product or sum and what it adds,
+  round by round; `fg_env.describe(contract)` lists every pattern in plain words."""
+
+
 def patterns_page() -> str:
-    lines = [_INTRO, "", "### Groups", ""]
+    lines = [_INTRO, "", _FITTING, "", "### Groups", ""]
     for group, about in GROUPS.items():
         kinds = [name for name, spec in KINDS.items() if spec.group == group]
         example = json.dumps(_EXAMPLES[group], ensure_ascii=False)
