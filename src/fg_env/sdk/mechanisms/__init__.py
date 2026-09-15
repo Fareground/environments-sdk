@@ -29,7 +29,7 @@ __all__ = ["expand_mechanisms", "MECHANISMS"]
 _NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
 
 #: Sections merged by key: the author's entry wins over a generated one of the same name.
-_KEYED = ("inputs", "world", "entities", "relations", "records", "actions", "views", "policies", "metrics",
+_KEYED = ("inputs", "world", "relations", "records", "actions", "views", "policies", "metrics",
           "outputs", "defs", "blocks", "arms")
 #: Stage settings a mechanism may fill in on a stage the author declared (never overriding the author).
 _HOOK_SETTINGS = ("turns", "order", "who", "until", "passes", "quiet", "max_actions", "max_calls", "must_act", "auto",
@@ -95,9 +95,14 @@ def _merge(data: Dict[str, Any], fragment: Mapping[str, Any]) -> None:
                 if type_name not in types:
                     types[type_name] = copy.deepcopy(spec)
                     continue
-                props = types[type_name].setdefault("props", {})
-                for prop, prop_spec in (spec.get("props") or {}).items():
-                    props.setdefault(prop, copy.deepcopy(prop_spec))
+                _fill(types[type_name], spec)
+        elif section == "entities":
+            entities = data.setdefault("entities", {})
+            for entity_id, spec in value.items():
+                if entity_id in entities and isinstance(entities[entity_id], dict):
+                    _fill(entities[entity_id], spec)
+                else:
+                    entities.setdefault(entity_id, copy.deepcopy(spec))
         elif section in _KEYED:
             target = data.setdefault(section, {})
             for key, item in value.items():
@@ -133,6 +138,16 @@ def _merge(data: Dict[str, Any], fragment: Mapping[str, Any]) -> None:
             _hook_stages(data, value)
         else:
             raise MechanismError(f"a mechanism produced an unknown section '{section}'")
+
+
+def _fill(declared: Dict[str, Any], generated: Mapping[str, Any]) -> None:
+    """Give a type or entity the author declared the generated props and fields it lacks; the author's win."""
+    props = declared.setdefault("props", {})
+    for prop, prop_value in (generated.get("props") or {}).items():
+        props.setdefault(prop, copy.deepcopy(prop_value))
+    for key, item in generated.items():
+        if key != "props":
+            declared.setdefault(key, copy.deepcopy(item))
 
 
 def _hook_stages(data: Dict[str, Any], hooks: Mapping[str, Mapping[str, Any]]) -> None:
