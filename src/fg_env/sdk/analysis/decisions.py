@@ -245,26 +245,59 @@ class DecisionSpace:
                        for j in range(a, b) if j != i for sign in (1, -1)]
             else:
                 raw = [_with(point, {i: point[i] + step}), _with(point, {i: point[i] - step})]
-        seen: Dict[Point, None] = {}
-        for candidate in raw:
-            snapped = self.snap(candidate)
-            if snapped != point:
-                seen.setdefault(snapped, None)
-        return list(seen)
+        return self._distinct(point, raw)
 
     def pair_moves(self, point: Point, i: int, steps: Sequence[float]) -> List[Point]:
         """``point`` with coordinate ``i`` a step up and each later numeric coordinate a step down, or the reverse:
         the shifts single moves cannot make along a constraint (an agent moved from one half hour to another)."""
         if self.axes[i].choice:
             return []
+        return self._distinct(point, [_with(point, {i: point[i] + sign * steps[i], j: point[j] - sign * steps[j]})
+                                      for j in range(i + 1, self.dims) if not self.axes[j].choice for sign in (1, -1)])
+
+    def block_moves(self, point: Point, i: int, steps: Sequence[float]) -> List[Point]:
+        """``point`` with a block of a vector's positions from ``i`` moved a step up or down together: 2, 4, 8…
+        positions, and the run of equal values ``i`` starts. A monotone profile cannot move one position past its
+        neighbour, and a smooth one improves by shifting a stretch, not a point."""
+        owner, a, b = self._span_of(i)
+        if not owner.vector:
+            return []
+        ends = set()
+        width = 2
+        while i + width <= b:
+            ends.add(i + width)
+            width *= 2
+        if i == a or point[i - 1] != point[i]:
+            run = i + 1
+            while run < b and point[run] == point[i]:
+                run += 1
+            if run > i + 1:
+                ends.add(run)
+        return self._distinct(point, [_with(point, {j: point[j] + sign * steps[j] for j in range(i, end)})
+                                      for end in sorted(ends) for sign in (1, -1)])
+
+    def smoothing_moves(self, point: Point, i: int, steps: Sequence[float]) -> List[Point]:
+        """``point`` with an inner position of a vector set to the middle of its two neighbours (onto its step from
+        below and from above): the move that irons a lone spike or dip out of a near-monotone or smooth profile."""
+        owner, a, b = self._span_of(i)
+        if not owner.vector or not a < i < b - 1:
+            return []
+        middle, axis = (point[i - 1] + point[i + 1]) / 2, self.axes[i]
+        if axis.step is None:
+            return self._distinct(point, [_with(point, {i: middle})])
+        below = axis.low + math.floor((middle - axis.low) / axis.step + 1e-9) * axis.step
+        return self._distinct(point, [_with(point, {i: below}), _with(point, {i: below + axis.step})])
+
+    def _span_of(self, i: int) -> Tuple[Decision, int, int]:
+        return next(span for span in self._spans() if span[1] <= i < span[2])
+
+    def _distinct(self, point: Point, raw: Sequence[Sequence[float]]) -> List[Point]:
+        """``raw`` snapped into the space, without repeats or ``point`` itself."""
         seen: Dict[Point, None] = {}
-        for j in range(i + 1, self.dims):
-            if self.axes[j].choice:
-                continue
-            for sign in (1, -1):
-                snapped = self.snap(_with(point, {i: point[i] + sign * steps[i], j: point[j] - sign * steps[j]}))
-                if snapped != point:
-                    seen.setdefault(snapped, None)
+        for candidate in raw:
+            snapped = self.snap(candidate)
+            if snapped != point:
+                seen.setdefault(snapped, None)
         return list(seen)
 
     def shifted(self, point: Point, name: str, direction: int) -> Optional[Point]:

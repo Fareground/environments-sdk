@@ -238,7 +238,7 @@ def cmd_optimise(args: argparse.Namespace) -> int:
     objective = args.objective[0] if len(args.objective) == 1 else args.objective
     result = optimise(args.file, _decisions(args.decision, args.decisions_file), objective, args.constraint or [],
                       runs=args.runs, seed=args.seed, method=args.method, budget=args.budget, workers=args.workers,
-                      uncertainty=uncertainty, holdout_seeds=args.holdout_seeds, inputs=_inputs(args), arm=args.arm,
+                      confidence=args.confidence, uncertainty=uncertainty, holdout_seeds=args.holdout_seeds, inputs=_inputs(args), arm=args.arm,
                       participants=_participants(args.agent), rounds=args.rounds, data_dir=args.data_dir)
     _emit(result, args.json)
     return 0
@@ -360,7 +360,10 @@ def add_analysis_commands(sub: Any) -> None:
     p.add_argument("--decisions-file", help="JSON object of input → decision spec")
     p.add_argument("--objective", action="append", required=True, metavar="'maximise [STAT of] MEASURE'",
                    help="repeat for a Pareto frontier of two or three objectives")
-    p.add_argument("--constraint", action="append", metavar="'MEASURE >= NUMBER [in 90%% of runs]'")
+    p.add_argument("--constraint", action="append",
+                   metavar="'[each|at most K of] MEASURE >= NUMBER [in 90%% of runs] [with 95%% confidence]'")
+    p.add_argument("--confidence", type=float, default=0.9,
+                   help="how sure each constraint must be, unless it states its own (default 0.9)")
     p.add_argument("--runs", type=int, default=10, help="shared seeds each decision is judged on")
     p.add_argument("--budget", type=int, default=50, help="most distinct decisions to search")
     p.add_argument("--method", choices=("auto", *METHODS), default="auto")
