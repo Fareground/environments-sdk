@@ -266,7 +266,7 @@ def _tally_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: 
     world = runner.world
     config = _common.config(world, name, KEY, BallotConfig, where)
     ballots = dict(world.props.get(f"{name}_ballots") or {})
-    eligible = len(world.entities_of(config.who))
+    eligible = _voters_in_game(world, config.who)
     try:
         result = tally(config.method, ballots, _options(runner, config, vars), config.threshold, config.ties,
                        world.rng, eligible, config.quorum)
@@ -275,25 +275,39 @@ def _tally_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: 
     result["round"] = world.round
     world.set_world(f"{name}_result", result)
     world.set_world(f"{name}_ballots", {})
-    text = runner.text(config.announce, {**vars, "result": result}) if config.announce else _announcement(config, result)
+    text = runner.text(config.announce, {**vars, "result": result}) if config.announce else _announcement(world, config, result)
     world.emit(name, text, data={"mechanism": "ballot", "result": result})
 
 
-def _announcement(config: BallotConfig, result: Dict[str, Any]) -> str:
+def _voters_in_game(world: Any, who: str) -> int:
+    """Voters still in the game: every living `who`, less those a roles mechanism on the same type has put out."""
+    out_props = [raw.get("alive") or "living" for _, raw in _common.uses(world.contract, "groups.roles")
+                 if raw.get("who") == who]
+    return sum(1 for voter in world.entities_of(who) if all(voter.properties.get(prop, True) for prop in out_props))
+
+
+def _announcement(world: Any, config: BallotConfig, result: Dict[str, Any]) -> str:
+    """The result in words, options that are entity ids shown by name."""
+    def label(option: Any) -> str:
+        entity = world.entity(option) if isinstance(option, str) else None
+        return str(entity.name or entity.id) if entity is not None else str(option)
+
     subject = config.question or "The vote"
-    counts = ", ".join(f"{k} {v}" for k, v in result["counts"].items())
+    counts = ", ".join(f"{label(k)} {v}" for k, v in result["counts"].items())
     if result.get("reason") == "no quorum":
         return f"{subject}: no quorum ({result['cast']} ballot(s) cast)."
     if result["winner"] is None:
         return f"{subject}: no decision ({result.get('reason') or 'tie'}; {counts})."
     tie = " after a tie" if result["tie"] else ""
-    return f"{subject}: {result['winner']} wins{tie} ({counts})."
+    return f"{subject}: {label(result['winner'])} wins{tie} ({counts})."
 
 
 @mode("decision", "ballot", BallotConfig,
-           "A vote among agents: a `<name>_vote` tool (and `<name>_abstain`), counted at the end of the vote's "
-           "stage by plurality, majority or supermajority with an optional quorum. The result is in "
-           "$world.<name>_result ({winner, passed, counts, ranking, votes, turnout, tie}) and is announced.",
+           "A vote among agents: a `<name>_vote` tool (and `<name>_abstain`), counted by plurality, majority or "
+           "supermajority with an optional quorum when the vote's stage ends — after that stage's own on_exit effects, so "
+           "read the result in a later stage, event or on_enter, not in the vote stage's on_exit. The result is in "
+           "$world.<name>_result ({winner, passed, counts, ranking, votes, turnout, tie}; an empty map until the first "
+           "count) and is announced, options that are entity ids named. Turnout counts the voters still in the game.",
            example={"who": "member", "options": ["approve", "reject"], "method": "majority", "quorum": 0.5,
                     "question": "Adopt the budget?"}, was="ballot")
 def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:

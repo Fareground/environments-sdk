@@ -108,8 +108,10 @@ class SdkWorld(World):
         self.exposures: Any = None
         #: Names of properties written since the build (read by the run's diagnostics; see run_diagnosis.py).
         self.written: "set[str]" = set()
-        #: While a simultaneous stage commits its choices, notes `=` assignments (a run_diagnosis.SealedWrites).
-        self.sealed_writes: Any = None
+        #: While sealed choices commit or an `each` loop runs, notes `=` assignments (see run_diagnosis.py).
+        self.watched_writes: Any = None
+        #: The run's diagnosis counts (a run_diagnosis.Diagnosis), set by the run.
+        self.diagnosis: Any = None
         self._seq = 0
         self._record_seq = 0
         self._props_view = PropsView(self)

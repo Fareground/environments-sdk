@@ -104,7 +104,7 @@ class Env(Copying, RunChecks):
         #: The state each invariant was last found to hold in (see _check_invariants).
         self._invariant_held: Dict[int, Any] = {}
         self._end_on_action = any(end.check == "action" for end in contract.end)
-        self.diagnosis = Diagnosis(self.world.written)
+        self.diagnosis = self.world.diagnosis = Diagnosis(self.world.written)
         self._check_invariants("build", "build")
 
     # -- public API ----------------------------------------------------------------
@@ -678,7 +678,7 @@ class Env(Copying, RunChecks):
     def _commit_choices(self, stage: StageSpec, turns: List[Turn]) -> _Steps:
         """Commit each agent's sealed choices in turn order; atomic stages commit or undo each agent's as a whole."""
         atomic = stage.atomic or bool(stage.valid)
-        writes = self.world.sealed_writes = SealedWrites(stage.name, self.diagnosis)
+        writes = self.world.watched_writes = SealedWrites(stage.name, self.diagnosis)
         try:
             for turn in turns:
                 mark = self.world.journal.mark() if atomic else None
@@ -698,7 +698,7 @@ class Env(Copying, RunChecks):
                     self._atomic(stage.on_idle, {"actor": turn.actor}, f"stages.{stage.name}.on_idle")
                 self._turn_end_hook(stage, turn.actor)
         finally:
-            self.world.sealed_writes = None
+            self.world.watched_writes = None
         yield from ()
 
     def _tally(self, actor_id: str, stats: Stats) -> None:

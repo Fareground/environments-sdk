@@ -85,7 +85,11 @@ def _overwrites(env: "Env") -> List[Dict[str, str]]:
                      f"sealed choices overwrote each other {count} time(s): {example}",
                      "give each agent its own value (a prop on $actor, or a map keyed by $actor.id) and combine them in "
                      "the stage's on_exit, or make the stage sequential")
-            for stage, (count, example) in env.diagnosis.overwrites.items()]
+            for stage, (count, example) in env.diagnosis.overwrites.items()] + [
+        _finding("loop_overwrites", path, f"an `each` loop overwrote one value {count} time(s): {example}",
+                 "collect the values instead (a list with +=, or a map keyed by $it.id) and choose one after the loop "
+                 "($mode, $best)")
+        for path, (count, example) in env.diagnosis.loop_overwrites.items()]
 
 
 def _idle_agents(env: "Env") -> List[Dict[str, str]]:
@@ -184,7 +188,7 @@ class _Rules:
             contract = self.env.contract
             names: Set[str] = set()
             winner = [False]
-            data = contract.model_dump(by_alias=True)
+            data = contract.model_dump(by_alias=True, warnings=False)  # reading only: loose values are fine here
             for section in _RULE_SECTIONS:
                 _walk(data.get(section), names, winner)
             for spec in data.get("types", {}).values():

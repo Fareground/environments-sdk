@@ -919,6 +919,16 @@
         }
       },
       "private": true,
+      "when": [
+        {
+          "expr": "$stage != retreats or $count(army, $it.owner == $actor.id and $it.dislodged) > 0",
+          "why": "You have no dislodged army to disband."
+        },
+        {
+          "expr": "$stage == retreats or $actor.delta < 0",
+          "why": "You have no armies to disband: you own at least as many centers as armies."
+        }
+      ],
       "do": [
         {
           "if": "$stage == retreats",
@@ -934,14 +944,6 @@
             "$params.army.retreat_to = disband"
           ],
           "else": [
-            {
-              "if": "$actor.delta >= 0",
-              "then": [
-                {
-                  "fail": "You have no armies to disband: you own at least as many centers as armies."
-                }
-              ]
-            },
             {
               "remove": "$params.army"
             },

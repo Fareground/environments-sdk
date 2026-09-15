@@ -372,6 +372,10 @@ class _Checker:
             self.error(path, exc.detail, "write `$actor.cash -= 5`, `$world.board[$i][$j] = x` or `$total = 3`")
             return
         self.expr(right, path, roots, types, params)
+        if re.search(r"'[^']*\{\$[^']*'|\"[^\"]*\{\$[^\"]*\"", right):
+            self.warn(path, "stores `{$...}` literally: placeholders fill in only in templates (outcome, say, show, text)",
+                      "build the text as an expression, e.g. `$text($params.n) + ': ' + $hint`, or store the values and "
+                      "format them in a view's show")
         for kind, step in steps:
             if kind == "index":
                 self.expr(step, path, roots, types, params)
