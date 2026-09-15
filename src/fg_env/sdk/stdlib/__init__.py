@@ -3,4 +3,4 @@
 Importing the package registers every function; ``fg_env.sdk.functions`` imports it, so the
 functions are available wherever expressions are.
 """
-from . import dists, lists, mathx, scoring, sets, stats, strings, words  # noqa: F401  (register on import)
+from . import dists, linalg, lists, mathx, scoring, sets, stats, strings, words  # noqa: F401  (register on import)

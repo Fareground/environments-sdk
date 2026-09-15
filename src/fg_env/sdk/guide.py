@@ -249,7 +249,9 @@ _PATTERNS = """\
   via entity params with `where`; decks as card entities with an `order` prop and `$shuffle`;
   win checks in `end`.
 * Populations from data: `inputs` of type table + `population.from/where/weight/count` +
-  per-row props; traits via `$normal`, `$beta`, `$choice`.
+  per-row props; traits via `$normal`, `$beta`, `$choice`. Correlated traits: draw them together in one list
+  prop, then read the parts (props read earlier props through `$it`): `"z": "$mvnormal([170, 70], [[100, 64],
+  [64, 64]])", "height": "$it.z[0]", "weight": "$it.z[1]"`.
 * Networks: `relations` + `links` generators (`small_world`, `random`, `ring`, `complete`). On a
   one-way relation `random` draws each direction on its own, and `p` may depend on the pair
   (`"0.1 if $to.influencer else 0.02"`) for influencers and homophily;

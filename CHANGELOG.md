@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Linear algebra in expressions**: `$dot`, `$matmul`, `$transpose`, `$identity`, `$inverse`, `$det`
+  (exact for whole numbers) and `$solve` on nested lists, with errors that name the bad shape or a
+  singular matrix, and work charged against the evaluation budget.
+- **Correlated draws**: `$mvnormal(means, cov)` samples a multivariate normal from the run's seeded
+  generator (Cholesky; the covariance is checked to be symmetric positive semi-definite). Draw once in a
+  population list prop and read the parts through `$it` for correlated traits.
+
 ## [0.3.0]
 
 ### Environment SDK (`fg-env`)
