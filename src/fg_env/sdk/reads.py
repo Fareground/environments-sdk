@@ -50,7 +50,10 @@ def inspect_rule(contract: Any, type_name: str) -> Any:
 
 def may_inspect(env: "Env", viewer: Entity, target: Entity) -> bool:
     """Whether ``viewer`` may inspect ``target`` (itself always)."""
-    rule = inspect_rule(env.contract, target.entity_type)
+    return _may_inspect_rule(env, viewer, target, inspect_rule(env.contract, target.entity_type))
+
+
+def _may_inspect_rule(env: "Env", viewer: Entity, target: Entity, rule: Any) -> bool:
     if isinstance(rule, bool):
         return rule or target.id == viewer.id
     try:
@@ -66,8 +69,25 @@ def inspectable(env: "Env", viewer: Entity) -> List[Entity]:
 
 def _offered(env: "Env", viewer: Entity) -> List[Entity]:
     """The inspectable entities worth offering: inspecting them shows more than their name."""
-    return [entity for entity in inspectable(env, viewer)
-            if entity.location_id is not None or _details(env, viewer, entity)]
+    # Type metadata is identical for every instance, but permissions and values
+    # are live state: cache only metadata, and only for this listing.
+    metadata: Dict[str, Tuple[Any, set[str]]] = {}
+    offered: List[Entity] = []
+    for entity in env.world.entities.values():
+        if not entity.alive:
+            continue
+        kind = entity.entity_type
+        if kind not in metadata:
+            metadata[kind] = (inspect_rule(env.contract, kind),
+                              {key for key, spec in env.contract.props_of(kind).items() if spec.private})
+        rule, private = metadata[kind]
+        if not _may_inspect_rule(env, viewer, entity, rule):
+            continue
+        own = entity.id == viewer.id
+        if entity.location_id is not None or any(
+                (own or key not in private) and not _empty(value) for key, value in entity.properties.items()):
+            offered.append(entity)
+    return offered
 
 
 def _details(env: "Env", viewer: Entity, target: Entity) -> List[Tuple[str, Any]]:

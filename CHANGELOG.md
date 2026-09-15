@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Inspect choices reuse inherited type metadata within each listing and short-circuit visible-value checks,
+  reducing actor-turn overhead while retaining current permissions, private-field rules and entity order.
 - Guest exit abandons pending bookings without counting service or leaving permanent queue entries. Freed
   reservations promote eligible waiters after expired waits are cleared. Departure retains payments; explicit
   cancellation still applies the configured refund once.
