@@ -28,7 +28,7 @@ from . import timebase as tb
 from .base import KINDS
 from .compose import operand_names
 from .fit import Estimate, PatternFit, Problem, Row, factor_spec, quality
-from .numeric import count_regression, dispersion
+from .numeric import Design, count_regression, dispersion
 from .runtime import key_text
 
 __all__ = ["fit_product"]
@@ -41,10 +41,11 @@ class _Term:
 
     def __init__(self, pattern: str, field: str, keys: List[Optional[str]], width: int):
         self.pattern, self.field, self.keys, self.width = pattern, field, keys, width
+        self.positions = {key: position for position, key in enumerate(keys)}
         self.start = 0
 
     def index(self, key: Optional[str], slot: int = 0) -> int:
-        return self.start + self.keys.index(key) * self.width + slot
+        return self.start + self.positions[key] * self.width + slot
 
 
 def fit_product(problem: Problem, configs: Dict[str, Any]) -> Tuple[Dict[str, Dict[Optional[str], Estimate]], PatternFit]:
@@ -57,15 +58,19 @@ def fit_product(problem: Problem, configs: Dict[str, Any]) -> Tuple[Dict[str, Di
         raise problem.fail("a keyed product fits from rows with a key: set `fit.key`")
     factor_keys: Dict[str, List[Optional[str]]] = {}
     row_keys: List[Dict[str, Optional[str]]] = []
+    by_key: Dict[Optional[str], Dict[str, Optional[str]]] = {}  # factor keys read only the row's key and table row
     for row in rows:
-        mapping = {name: _factor_key(problem, configs, index, name, row) for index, name in enumerate(operand_names(cfg))}
-        for factor in (fit.x or {}) if isinstance(fit.x, dict) else {}:
-            mapping[factor] = _response_key(problem, configs, factor, row)
+        mapping = by_key.get(row.key)
+        if mapping is None:
+            mapping = by_key[row.key] = {name: _factor_key(problem, configs, index, name, row)
+                                         for index, name in enumerate(operand_names(cfg))}
+            for factor in (fit.x or {}) if isinstance(fit.x, dict) else {}:
+                mapping[factor] = _response_key(problem, configs, factor, row)
+            for name, key in mapping.items():
+                factor_keys.setdefault(name, [])
+                if key not in factor_keys[name]:
+                    factor_keys[name].append(key)
         row_keys.append(mapping)
-        for name, key in mapping.items():
-            factor_keys.setdefault(name, [])
-            if key not in factor_keys[name]:
-                factor_keys[name].append(key)
     base_keys = _term_keys(cfg, "scale", keys)
     terms: List[_Term] = []
     assumed: List[str] = []
@@ -95,24 +100,30 @@ def fit_product(problem: Problem, configs: Dict[str, Any]) -> Tuple[Dict[str, Di
         term.start = width
         width += term.width * len(term.keys)
     dips = _promotion_dips(problem, configs, responses, rows, row_keys)
-    design: List[List[float]] = []
+    sparse: List[List[Tuple[int, float]]] = []
     offsets: List[float] = []
     groups: List[int] = []
+    base_index = {key: position for position, key in enumerate(base_keys)}
+    origins = {term.pattern: tb.to_t(problem.clock, problem.env.world.patterns.param(term.pattern, None, "origin", term.pattern))
+               for term in terms if term.field == "rate"}
+    slot_at: Dict[Tuple[str, float], int] = {}
     for row, mapping in zip(rows, row_keys):
-        columns = [0.0] * width
+        columns: Dict[int, float] = {}
         offset = 0.0
-        groups.append(base_keys.index(row.key if base_keys != [None] else None))
+        groups.append(base_index[row.key if base_keys != [None] else None])
         for name in operand_names(cfg):
             term = next((t for t in terms if t.pattern == name), None)
             other = configs[name]
             if term is None:
                 offset += math.log(_positive(problem, name, problem.pattern(name, mapping[name], row.t)))
             elif term.field == "profile":
-                slot = tb.slot(problem.clock, row.t, other.period, term.width + 1)
+                slot = slot_at.get((name, row.t))
+                if slot is None:
+                    slot = slot_at[(name, row.t)] = tb.slot(problem.clock, row.t, other.period, term.width + 1)
                 if slot:
                     columns[term.index(_at(term, mapping[name]), slot - 1)] = 1.0
             else:
-                columns[term.index(None)] = row.t - tb.to_t(problem.clock, problem.env.world.patterns.param(name, None, "origin", name))
+                columns[term.index(None)] = row.t - origins[name]
         for name in responses:
             term = next((t for t in terms if t.pattern == name), None)
             driver = row.x[name]
@@ -125,20 +136,22 @@ def fit_product(problem: Problem, configs: Dict[str, Any]) -> Tuple[Dict[str, Di
                 columns[term.index(_at(term, mapping[name]))] = math.log(driver / reference)
             else:
                 columns[term.index(_at(term, mapping[name]))] = driver
-        offset += dips[len(design)]
-        design.append(columns)
+        offset += dips[len(sparse)]
+        sparse.append([(j, v) for j, v in sorted(columns.items()) if v])
         offsets.append(offset)
+    design = Design(sparse, width, groups, max(groups) + 1 if groups else 0)
     ys = [row.y for row in rows]
     censored = [row.censored for row in rows]
     k: Optional[float] = None
     try:
-        result = count_regression(design, ys, offset=offsets, censored=censored, groups=groups)
+        result = count_regression(design, ys, offset=offsets, censored=censored, errors=not fit.noise)
     except ValueError as exc:
-        raise problem.fail(_confounded(terms, design, groups, str(exc))) from None
+        raise problem.fail(_confounded(terms, design, str(exc))) from None
     if fit.noise:
-        for _ in range(_REFITS):
+        for refit in range(_REFITS):
             k = dispersion(ys, result.means, censored)
-            result = count_regression(design, ys, offset=offsets, censored=censored, k=k, groups=groups)
+            result = count_regression(design, ys, offset=offsets, censored=censored, k=k, start=result,
+                                      errors=refit == _REFITS - 1)
     updates, estimates = _estimates(problem, terms, base_keys, result, rows, row_keys)
     if fit.noise:
         noise = Estimate({"dispersion": k if k is not None else 1e6}, {}, "method of moments around the fitted means", ["dist"])
@@ -189,16 +202,18 @@ def _estimates(problem: Problem, terms: List[_Term], base_keys: List[Optional[st
     return updates, [f"{problem.name}.scale", *names]
 
 
-def _confounded(terms: List[_Term], design: List[List[float]], groups: List[int], reason: str) -> str:
+def _confounded(terms: List[_Term], design: Design, reason: str) -> str:
     """Which factors the data cannot tell apart: each whose removal makes the design solvable is named."""
     from .numeric import least_squares
 
     culprits = []
     for term in terms:
         drop = set(range(term.start, term.start + term.width * len(term.keys)))
-        kept = [j for j in range(len(design[0]) if design else 0) if j not in drop]
+        kept = {j: position for position, j in enumerate(j for j in range(design.width) if j not in drop)}
+        reduced = Design([[(kept[j], v) for j, v in row if j in kept] for row in design.rows], len(kept), design.groups,
+                         design.count)
         try:
-            least_squares([[row[j] for j in kept] for row in design], [0.0] * len(design), groups=groups)
+            least_squares(reduced, [0.0] * len(design.rows))
         except ValueError:
             continue
         culprits.append(f"{term.pattern}.{term.field}")
