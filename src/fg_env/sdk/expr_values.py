@@ -56,6 +56,19 @@ def attr(obj: Any, name: str, source: Optional[str] = None) -> Any:
     raise ExprError(f"cannot read '.{name}' of {type(obj).__name__} {obj!r}", source)
 
 
+def _index(container: Any, index: Any, source: str) -> Any:
+    """``container[index]``: a list element, or a field of a map or entity."""
+    if isinstance(container, (list, tuple)):
+        if isinstance(index, bool) or not isinstance(index, int):
+            raise ExprError(f"list index must be a whole number, got {_describe(index)}", source)
+        if not -len(container) <= index < len(container):
+            raise ExprError(f"index {index} is out of range (length {len(container)})", source)
+        return container[index]
+    if isinstance(container, Mapping) or hasattr(container, "entity_type"):
+        return attr(container, str(index), source)
+    raise ExprError(f"cannot index {_describe(container)}", source)
+
+
 def _entity_id(value: Any) -> Any:
     if hasattr(value, "entity_type") and hasattr(value, "id"):
         return value.id

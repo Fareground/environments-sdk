@@ -1,8 +1,7 @@
 """What an expression reads: the :class:`World` it queries and the :class:`Scope` of named roots it runs in."""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from typing import Any, List, Mapping, Optional, Sequence
 
 from .expr_base import ExprError, _held
 
@@ -82,41 +81,19 @@ class World:
 _EMPTY_WORLD = World()
 
 
-class _Layer(Mapping):
-    """Roots of a child scope: a few new names over the parent's roots, without copying them."""
-
-    __slots__ = ("own", "parent")
-
-    def __init__(self, own: Dict[str, Any], parent: Mapping[str, Any]):
-        self.own = own
-        self.parent = parent
-
-    def __getitem__(self, name: str) -> Any:
-        if name in self.own:
-            return self.own[name]
-        return self.parent[name]
-
-    def __contains__(self, name: object) -> bool:
-        return name in self.own or name in self.parent
-
-    def __iter__(self) -> Any:
-        seen = set(self.own)
-        yield from self.own
-        yield from (name for name in self.parent if name not in seen)
-
-    def __len__(self) -> int:
-        return len(set(self.own) | set(self.parent))
-
-
-@dataclass(frozen=True)
 class Scope:
-    """Values visible to an expression: named roots plus the world to query."""
+    """Values visible to an expression: named roots plus the world to query.
 
-    vars: Mapping[str, Any] = field(default_factory=dict)
-    world: World = _EMPTY_WORLD
+    ``vars`` is read, never changed: a child scope is a new mapping holding the parent's roots and its own."""
+
+    __slots__ = ("vars", "world")
+
+    def __init__(self, vars: Optional[Mapping[str, Any]] = None, world: World = _EMPTY_WORLD):
+        self.vars: Mapping[str, Any] = {} if vars is None else vars
+        self.world = world
 
     def child(self, **values: Any) -> "Scope":
-        return Scope(_Layer(values, self.vars), self.world)
+        return Scope({**self.vars, **values}, self.world)
 
     def root(self, name: str, source: str) -> Any:
         try:
