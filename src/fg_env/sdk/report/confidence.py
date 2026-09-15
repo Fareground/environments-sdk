@@ -20,7 +20,7 @@ _SIDE = {">=": "above", ">": "above", "<=": "below", "<": "below"}
 def label(option: Option, start: bool = False) -> str:
     """An option as a sentence names it: its description (lower-cased mid-sentence unless it starts with an acronym)
     or its arm label."""
-    text = option.description or option.label
+    text = option.description or ("the baseline" if option.label == "baseline" else option.label)
     if start:
         return text[:1].upper() + text[1:]
     return text[:1].lower() + text[1:] if text[1:2].islower() else text
@@ -96,19 +96,22 @@ def lines(ev: Evidence, choice: Choice, sure: Confidence, namer: Namer) -> List[
         out.append(f"How sure: its {namer.name(goal.measure)} is {better} than with {label(runner)} by "
                    f"{namer.value(goal.measure, abs(margin.mean))} ({interval(namer, goal.measure, margin.low, margin.high)}, "
                    f"{margin.n} paired runs).")
-    out += [text for r in choice.requirements for text in [_requirement(best, r, namer)] if text]
+    out += [text for r in choice.requirements for text in [_requirement(best, r, namer, sure.tied)] if text]
     return out
 
 
-def _requirement(option: Option, requirement: Requirement, namer: Namer) -> Optional[str]:
-    """Whether the pick's mean meets a requirement with room, or only just (its 95% interval crosses the bound)."""
+def _requirement(option: Option, requirement: Requirement, namer: Namer, named: bool) -> Optional[str]:
+    """Whether the pick's mean meets a requirement with room, or only just (its 95% interval crosses the bound). After a
+    tie, which option it is about is said outright."""
     found = estimate(option.values(requirement.measure))
     if found.mean is None or found.low is None or found.high is None:
         return None
     name, bound = namer.name(requirement.measure), namer.value(requirement.measure, requirement.value)
     side = _SIDE[requirement.op]
+    low, high = (max(0.0, found.low), min(1.0, found.high)) if namer.is_share(requirement.measure) else (found.low, found.high)
     spread = f"mean {namer.value(requirement.measure, found.mean)}, 95% CI " \
-             f"{namer.value(requirement.measure, found.low)}–{namer.value(requirement.measure, found.high)}"
+             f"{namer.value(requirement.measure, low)}–{namer.value(requirement.measure, high)}"
+    subject = f"With {label(option)}, {name}" if named else f"Its {name}"
     if requirement.met(found.low) and requirement.met(found.high):
-        return f"Its {name} is clearly {side} {bound} ({spread})."
-    return f"Its {name} is {side} {bound} only just: the interval crosses it ({spread})."
+        return f"{subject} is clearly {side} {bound} ({spread})."
+    return f"{subject} is {side} {bound} only just: the interval crosses it ({spread})."

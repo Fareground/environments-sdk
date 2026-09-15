@@ -11,6 +11,7 @@ from ..analysis.highlights import highlights
 from ..clock_words import plural, unit_word
 from .confidence import Confidence, interval, label
 from .confidence import lines as confidence_lines
+from .demand import demand_lines
 from .evidence import Choice, Evidence, Option, summary
 from .noise import MEANINGFUL_SHARE
 from .queue import QueueView
@@ -110,15 +111,15 @@ def drivers(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str],
             owner: bool) -> Section:
     section = Section("What drives it")
     subject = choice.best or (ev.options[0] if ev.options else None)
+    run = _representative(subject, choice, measures)
     for view in queues:
         if subject is not None:
-            peak = view.peak_driver(subject, ev.contract)
-            if peak:
-                section.lines.append(peak)
+            section.lines += [text for text in (view.peak_driver(subject, ev.contract),
+                                                view.horizon_driver(subject, ev.contract)) if text]
+    section.lines += demand_lines(ev.contract, run, _OWNER_ITEMS if owner else None)
     section.lines += _differences(ev, choice, namer, measures, owner)
     if ev.sweep is not None:
         section.lines += _sweep_drivers(ev, namer, measures, owner)
-    run = _representative(subject, choice, measures)
     if run is not None and (run.series or run.events):
         decided = {f"{view.name}_staff" for view in queues}  # the plan itself, not something that happened
         moments = [_named(h.text, run.series, namer) for h in highlights(run, top=_OWNER_ITEMS)
@@ -142,7 +143,10 @@ def _named(text: str, measures: Mapping[str, Any], namer: Namer) -> str:
                           lambda m: f"{m.group(1)} {float(m.group(2)) * 100:.0f} points", text)
             text = re.sub(rf"({re.escape(name)} (?:peaked|bottomed out) at) (\d+(?:\.\d+)?)",
                           lambda m: f"{m.group(1)} {float(m.group(2)):.0%}", text)
-    return text
+        elif namer.is_money(measure):
+            text = re.sub(rf"({re.escape(name)} (?:rose|fell|peaked at|bottomed out at)) (\d+(?:\.\d+)?)",
+                          lambda m: f"{m.group(1)} {namer.value(measure, float(m.group(2)))}", text)
+    return re.sub(r"\bin day (\d+)", r"on day \1", text)
 
 
 def _differences(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str], owner: bool) -> List[str]:
@@ -277,22 +281,26 @@ def _data_risks(ev: Evidence, namer: Namer, owner: bool) -> List[str]:
     return out
 
 
-def assumptions(ev: Evidence, queues: Sequence[QueueView]) -> Section:
+def assumptions(ev: Evidence, queues: Sequence[QueueView], owner: bool) -> Section:
+    """What the model takes as given: the queue's behaviour, inputs described as assumed, and how many parameters the
+    data estimated. An owner reads values in words; the analyst also reads the inputs' names."""
     section = Section("What the model assumes")
     contract = ev.contract
     if contract is None:
         section.lines.append("The contract was not given, so its assumptions are not listed (pass contract=).")
         return section
     for view in queues:
-        section.lines += view.assumptions()
+        section.lines += view.assumptions(owner)
     assumed = [(name, spec) for name, spec in contract.inputs.items() if "assum" in spec.description.lower()]
     for name, spec in assumed:
         value = spec.default
         shown = f"{value:g}" if isinstance(value, (int, float)) and not isinstance(value, bool) else str(value)
-        section.lines.append(f"{spec.description.rstrip('.')} — {name.replace('_', ' ')} = {shown}.")
+        section.lines.append(f"{spec.description.rstrip('.')}, set to {shown}." if owner else
+                             f"{spec.description.rstrip('.')} — {name.replace('_', ' ')} = {shown}.")
     fitted = [name for name, spec in contract.inputs.items() if "fitted by fg_env.fit_patterns" in spec.description]
     if fitted:
-        section.lines.append(f"{len(fitted)} parameter(s) are estimated from the data: {', '.join(fitted)}.")
+        count = f"{len(fitted)} {plural('parameter', len(fitted))} {'is' if len(fitted) == 1 else 'are'} estimated from the data"
+        section.lines.append(f"{count}; the analyst report lists them." if owner else f"{count}: {', '.join(fitted)}.")
     if contract.description and not section.lines:
         section.lines.append(contract.description)
     return section

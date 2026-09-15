@@ -84,7 +84,7 @@ def test_the_owner_report_recommends_the_service_policy_when_95_percent_of_deman
     recommendation = text.split("## Recommendation", 1)[1].split("##", 1)[0]
     assert "Choose order up to the expected demand" in recommendation
     assert "the store's current rule" in text.split("## Risks", 1)[1].split("##", 1)[0]  # the lean rule misses 95%
-    assert "parameter(s) are estimated from the data" in text and "lead_noise_sd" in text
+    assert "parameters are estimated from the data; the analyst report lists them" in text and "lead_noise_sd" not in text
 
 
 def test_dearer_premium_tiers_move_sales_to_the_value_tier():

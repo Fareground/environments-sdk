@@ -121,7 +121,7 @@ def report(source: Any, audience: str = "owner", *, contract: Optional[ContractL
                      drivers(ev, choice, namer, measures, queues, owner), risks(ev, choice, namer, measures, queues, owner)]
     if optimisation is not None:
         _add_optimisation(sections, optimisation, namer, queues, measures_known, owner)
-    sections += [assumptions(ev, queues), fit(ev, namer)]
+    sections += [assumptions(ev, queues, owner), fit(ev, namer)]
     if not owner:
         sections.append(method(ev, namer, choice))
         if optimisation is not None:
