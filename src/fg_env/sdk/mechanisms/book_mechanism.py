@@ -16,7 +16,7 @@ from .common import fmt
 from .order_book import OrderBookConfig, props_for
 
 _LABELS = {"market_maker": "Market maker", "momentum": "Momentum trader", "mean_reversion": "Mean reverter",
-           "fundamentalist": "Fundamentalist", "noise": "Noise trader"}
+           "fundamentalist": "Fundamentalist", "noise": "Noise trader", "passive": "Passive flow"}
 
 
 def _actions(name: str, cfg: OrderBookConfig, qty_type: str) -> Dict[str, Any]:
@@ -125,8 +125,10 @@ def _views(name: str, cfg: OrderBookConfig) -> Dict[str, Any]:
            "and fees go to $world.<name>_fees. Read the book with $book(name), $book_depth(name, levels, viewer), "
            "$book_orders(name, trader), $book_account(name, trader); trades are in the `<name>_tape` record and per-round "
            "OHLCV bars in `<name>_bars`. `crowd` adds coded traders (market_maker, momentum, mean_reversion, fundamentalist, "
-           "noise) as subtypes `<name>_<strategy>`; any trader whose `<name>_strategy` prop names a strategy trades only "
-           "through `<name>_algo` (the `<name>_algo` policy calls it). Metrics <name>_price, _volume, _spread, _orders feed $market_realism.",
+           "noise, passive) as subtypes `<name>_<strategy>`; any trader whose `<name>_strategy` prop names a strategy trades only "
+           "through `<name>_algo` (the `<name>_algo` policy calls it). A strategy with a `stop_loss` param (in multiples of the "
+           "per-round volatility) liquidates a losing position at market. $book(name).flow is the last round's aggressive "
+           "quantity by trader kind. Metrics <name>_price, _volume, _spread, _orders feed $market_realism.",
            example={"who": "trader", "start_price": 50, "tick_size": 0.01, "taker_fee_bps": 5,
                     "halt_pct": 0.1, "crowd": {"market_maker": {"count": 2, "cash": 20000, "shares": 400},
                                                "noise": {"count": 6, "cash": 5000, "shares": 100}}}, was="order_book")
@@ -161,6 +163,8 @@ def _expand_order_book(name: str, cfg: OrderBookConfig, contract: Mapping[str, A
             f"{name}_bar": {"type": "map", "default": {}}, f"{name}_volume": {"type": "number", "default": 0},
             f"{name}_notional": {"type": "number", "default": 0}, f"{name}_trades": {"type": "int", "default": 0},
             f"{name}_closes": {"type": "list", "default": []}, f"{name}_supply": {"type": "map", "default": {}},
+            f"{name}_flow": {"type": "map", "default": {}, "description": "Last round's aggressive quantity by trader kind."},
+            f"{name}_liquidations": {"type": "int", "default": 0, "description": "Stop-loss liquidations so far."},
             f"{name}_receipt": {"type": "text", "default": ""},
         },
         "records": {
@@ -199,7 +203,7 @@ def _expand_order_book(name: str, cfg: OrderBookConfig, contract: Mapping[str, A
     else:
         fragment["stage_hooks"] = {cfg.stage: {"actions": names}}
     if cfg.conserve:
-        fragment["invariants"] = [{"expr": f"$book_ok({name})",
+        fragment["invariants"] = [{"expr": f"$book_ok({name})", "check": "action" if cfg.conserve is True else cfg.conserve,
                                    "why": f"The {unit} book conserves cash and shares, reserves match resting orders, "
                                           "balances stay within limits and the book is never crossed."}]
     if cfg.crowd:
