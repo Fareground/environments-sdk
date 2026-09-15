@@ -424,6 +424,25 @@ def _effects() -> str:
     return _EFFECTS.replace("OPS", ops)
 
 
+def _nested_models(model: Type[BaseModel]) -> List[Type[BaseModel]]:
+    """Models used inside ``model``'s fields (in lists, maps and optionals too), each once, depth first."""
+    found: List[Type[BaseModel]] = []
+
+    def visit(annotation: Any) -> None:
+        if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+            if annotation is not model and annotation not in found:
+                found.append(annotation)
+                for info in annotation.model_fields.values():
+                    visit(info.annotation)
+            return
+        for arg in typing.get_args(annotation):
+            visit(arg)
+
+    for info in model.model_fields.values():
+        visit(info.annotation)
+    return found
+
+
 def _mechanisms() -> str:
     lines = ["## Mechanisms (native building blocks)", "",
              "Declare `\"mechanisms\": {name: {\"kind\": ..., ...config}}`. Each expands into ordinary actions,",
@@ -435,6 +454,9 @@ def _mechanisms() -> str:
             default = "required" if info.is_required() else \
                 f"default {json.dumps(info.get_default(call_default_factory=True), default=str)}"
             lines.append(f"- `{field_name}` ({default}): {info.description or ''}")
+        nested = _nested_models(spec.config)
+        if nested:
+            lines += ["", "Nested config:"] + [_fields(model) for model in nested]
         if spec.example:
             lines += ["", "```json", json.dumps({"mechanisms": {"my_" + kind: spec.example}}, ensure_ascii=False), "```"]
     return "\n".join(lines)

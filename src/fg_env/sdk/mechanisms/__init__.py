@@ -9,7 +9,8 @@ A mechanism expands into ordinary contract sections — actions, stages, world p
 views, defs — backed by native functions and effect ops. Everything the engine does (checking,
 preview, atomic actions, snapshots, determinism) therefore applies to it unchanged. Anything
 the author declares under a generated name wins, so generated parts can be overridden; types
-the author declares gain the mechanism's properties without losing their own.
+the author declares gain the mechanism's properties without losing their own. A mechanism may
+extend declared actions (``action_hooks``) and stages (``stage_hooks``), and generate other mechanisms.
 """
 from __future__ import annotations
 
@@ -37,6 +38,10 @@ _HOOK_SETTINGS = ("turns", "order", "who", "until", "passes", "quiet", "max_acti
 _HOOK_KEYS = frozenset({"actions", "on_enter", "on_exit", *_HOOK_SETTINGS})
 #: Sections merged by appending generated items (an identical item is never added twice).
 _LISTED = ("population", "links", "events", "end", "invariants")
+#: What an action hook may add to a declared action.
+_ACTION_HOOK_KEYS = ("when", "do", "otherwise")
+#: Most mechanism uses one contract may expand, generated ones included.
+MAX_MECHANISMS = 256
 
 
 def expand_mechanisms(data: Mapping[str, Any]) -> Tuple[Dict[str, Any], List[Issue]]:
@@ -48,42 +53,51 @@ def expand_mechanisms(data: Mapping[str, Any]) -> Tuple[Dict[str, Any], List[Iss
         return dict(data), [Issue("mechanisms", "must be an object of {name: {kind, ...config}}")]
     out: Dict[str, Any] = copy.deepcopy(dict(data))
     issues: List[Issue] = []
-    for name, use in uses.items():
-        path = f"mechanisms.{name}"
-        if not isinstance(name, str) or not _NAME.match(name):
-            issues.append(Issue(path, "a mechanism name starts with a letter and uses letters, digits and _",
-                                "rename it, e.g. 'election'"))
-            continue
-        if not isinstance(use, Mapping) or "kind" not in use:
-            issues.append(Issue(path, "needs a `kind`", f"kinds: {', '.join(sorted(MECHANISMS))}"))
-            continue
-        kind = use["kind"]
-        spec = MECHANISMS.get(kind) if isinstance(kind, str) else None
-        if spec is None:
-            hint = get_close_matches(str(kind), list(MECHANISMS), n=1)
-            issues.append(Issue(f"{path}.kind", f"'{kind}' is not a mechanism kind",
-                                f"did you mean '{hint[0]}'?" if hint else f"kinds: {', '.join(sorted(MECHANISMS))}"))
-            continue
-        try:
-            config = spec.config.model_validate({k: v for k, v in use.items() if k != "kind"})
-        except ValidationError as exc:
-            for error in exc.errors():
-                where = ".".join(str(p) for p in error["loc"])
-                message = "is not a field here" if error["type"] == "extra_forbidden" else (
-                    "is required" if error["type"] == "missing" else error["msg"])
-                fields = ", ".join(spec.config.model_fields)
-                issues.append(Issue(f"{path}.{where}" if where else path, message, f"`{kind}` takes: {fields}"))
-            continue
-        try:
-            fragment = spec.expand(name, config, out)
-            _merge(out, fragment)
-        except MechanismError as exc:
-            issues.append(Issue(f"{path}.{exc.path}" if exc.path else path, str(exc), exc.fix))
-            continue
-        except Exception as exc:  # a broken mechanism must not crash parsing: report it against its use
-            issues.append(Issue(path, f"the `{kind}` mechanism failed to expand: {type(exc).__name__}: {exc}",
-                                "this is a bug in the mechanism; report it with the contract"))
-            continue
+    expanded: List[str] = []
+    while True:  # generated mechanisms are expanded too, until nothing new appears
+        todo = [(name, use) for name, use in out["mechanisms"].items() if name not in expanded]
+        if not todo:
+            break
+        if len(expanded) + len(todo) > MAX_MECHANISMS:
+            issues.append(Issue("mechanisms", f"more than {MAX_MECHANISMS} mechanisms: do generated mechanisms generate each other without end?"))
+            break
+        for name, use in todo:
+            expanded.append(name)
+            path = f"mechanisms.{name}"
+            if not isinstance(name, str) or not _NAME.match(name):
+                issues.append(Issue(path, "a mechanism name starts with a letter and uses letters, digits and _",
+                                    "rename it, e.g. 'election'"))
+                continue
+            if not isinstance(use, Mapping) or "kind" not in use:
+                issues.append(Issue(path, "needs a `kind`", f"kinds: {', '.join(sorted(MECHANISMS))}"))
+                continue
+            kind = use["kind"]
+            spec = MECHANISMS.get(kind) if isinstance(kind, str) else None
+            if spec is None:
+                hint = get_close_matches(str(kind), list(MECHANISMS), n=1)
+                issues.append(Issue(f"{path}.kind", f"'{kind}' is not a mechanism kind",
+                                    f"did you mean '{hint[0]}'?" if hint else f"kinds: {', '.join(sorted(MECHANISMS))}"))
+                continue
+            try:
+                config = spec.config.model_validate({k: v for k, v in use.items() if k != "kind"})
+            except ValidationError as exc:
+                for error in exc.errors():
+                    where = ".".join(str(p) for p in error["loc"])
+                    message = "is not a field here" if error["type"] == "extra_forbidden" else (
+                        "is required" if error["type"] == "missing" else error["msg"])
+                    fields = ", ".join(spec.config.model_fields)
+                    issues.append(Issue(f"{path}.{where}" if where else path, message, f"`{kind}` takes: {fields}"))
+                continue
+            try:
+                fragment = spec.expand(name, config, out)
+                _merge(out, fragment)
+            except MechanismError as exc:
+                issues.append(Issue(f"{path}.{exc.path}" if exc.path else path, str(exc), exc.fix))
+                continue
+            except Exception as exc:  # a broken mechanism must not crash parsing: report it against its use
+                issues.append(Issue(path, f"the `{kind}` mechanism failed to expand: {type(exc).__name__}: {exc}",
+                                    "this is a bug in the mechanism; report it with the contract"))
+                continue
     return out, issues
 
 
@@ -136,6 +150,12 @@ def _merge(data: Dict[str, Any], fragment: Mapping[str, Any]) -> None:
                 clock.setdefault(key, copy.deepcopy(item))
         elif section == "stage_hooks":
             _hook_stages(data, value)
+        elif section == "action_hooks":
+            _hook_actions(data, value)
+        elif section == "mechanisms":
+            uses = data.setdefault("mechanisms", {})
+            for use_name, use in value.items():
+                uses.setdefault(use_name, copy.deepcopy(use))
         else:
             raise MechanismError(f"a mechanism produced an unknown section '{section}'")
 
@@ -176,6 +196,41 @@ def _hook_stages(data: Dict[str, Any], hooks: Mapping[str, Mapping[str, Any]]) -
             effects = stage.setdefault(key, [])
             seen = {_canonical(e) for e in effects}
             effects.extend(copy.deepcopy(e) for e in hook.get(key) or [] if _canonical(e) not in seen)
+
+
+def _hook_actions(data: Dict[str, Any], hooks: Mapping[str, Mapping[str, Any]]) -> None:
+    """Append ``when`` conditions and ``do``/``otherwise`` effects to actions the author declared.
+
+    The action stays the author's: nothing it declares is replaced, and an identical item is added once."""
+    actions = data.get("actions") or {}
+    for name, hook in hooks.items():
+        action = actions.get(name)
+        if not isinstance(action, dict):
+            hint = get_close_matches(str(name), list(actions), n=1)
+            raise MechanismError(f"there is no action '{name}' to attach to",
+                                 f"did you mean '{hint[0]}'?" if hint else f"actions: {', '.join(actions) or 'none declared'}",
+                                 "actions")
+        unknown = set(hook) - set(_ACTION_HOOK_KEYS)
+        if unknown:
+            raise MechanismError(f"an action hook cannot set {', '.join(sorted(unknown))}",
+                                 f"hooks set: {', '.join(_ACTION_HOOK_KEYS)}", "actions")
+        for key in _ACTION_HOOK_KEYS:
+            extra = list(hook.get(key) or [])
+            if not extra:
+                continue
+            current = action.get(key)
+            if key == "when" and isinstance(current, (str, Mapping)):
+                current = [current]
+            if current is not None and not isinstance(current, list):
+                raise MechanismError(f"actions.{name}.{key} must be a list, got {type(current).__name__}",
+                                     f"write actions.{name}.{key} as a list", "actions")
+            merged = list(current or [])
+            seen = {_canonical(item) for item in merged}
+            for item in extra:
+                if _canonical(item) not in seen:
+                    merged.append(copy.deepcopy(item))
+                    seen.add(_canonical(item))
+            action[key] = merged
 
 
 def _canonical(value: Any) -> str:

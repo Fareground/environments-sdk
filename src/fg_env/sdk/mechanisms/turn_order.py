@@ -89,7 +89,7 @@ def _expand(name: str, cfg: TurnOrderConfig, contract: Mapping[str, Any]) -> Dic
         stages.append(_validated(extra, "stage"))
         spend = {"if": f"$stage == '{counter}'", "then": [f"$actor.{counter} -= 1"]}
         names = _stage_action_names(contract, stage)
-        common.hook_actions(contract, {a: {"do": [spend]} for a in names if _only_among(contract, a, cfg.among)}, "stage.actions")
+        fragment["action_hooks"] = {a: {"do": [spend]} for a in names if _only_among(contract, a, cfg.among)}
     fragment["stages"] = stages
     return fragment
 

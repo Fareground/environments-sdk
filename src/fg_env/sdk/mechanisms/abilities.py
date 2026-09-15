@@ -88,9 +88,8 @@ def _expand_cooldowns(name: str, cfg: CooldownConfig, contract: Mapping[str, Any
         if raw.get("chance") is not None:
             hook["otherwise"] = [{"start_cooldown": action}]
         hooks[action] = hook
-    common.hook_actions(contract, hooks, "actions")
     types = common.types_in(contract, agents, "actions")
-    fragment: Dict[str, Any] = {"types": {t: {"props": {name: {"type": "map", "default": {}, "description": f"Cooldowns ({name})."}}}
+    fragment: Dict[str, Any] = {"action_hooks": hooks, "types": {t: {"props": {name: {"type": "map", "default": {}, "description": f"Cooldowns ({name})."}}}
                                           for t in types}}
     if cfg.view:
         fragment["views"] = {name: {"for": types, "title": "Abilities", "show": f"{{$ability_text($actor, '{name}')}}"}}
@@ -332,8 +331,8 @@ def _expand_channeling(name: str, cfg: ChannelConfig, contract: Mapping[str, Any
         hooks[action] = {"when": [free]}
     for action in cfg.actions:
         hooks[action]["do"] = [{"start_channel": action}]
-    common.hook_actions(contract, hooks, "actions")
     fragment: Dict[str, Any] = {
+        "action_hooks": hooks,
         "types": {t: {"props": {name: {"type": "map", "default": {}, "description": f"Channel in progress ({name})."}}} for t in casters},
         "events": [{"name": name, "phase": "start", "do": [{"channel_step": name}]}],
     }

@@ -1,21 +1,20 @@
 """Shared plumbing for the native mechanism families.
 
 * Config lookup: a mechanism's validated config, parsed once per contract.
-* Action hooks: extra ``when`` conditions and effects attached to actions the contract already
-  declares (a status that blocks ``attack``, a cooldown on ``fireball``). The spine's merge adds
-  sections but cannot extend an existing action, so :func:`hook_actions` does that one job.
+* Action hooks: families attach extra ``when`` conditions and effects to actions the contract
+  already declares (a status that blocks ``attack``, a cooldown on ``fireball``) by returning an
+  ``action_hooks`` section, which the spine's merge applies.
 * Modifiers: ``$effective(entity, prop)`` — a property with every active modifier applied. Status
   and terrain families register modifier sources here.
 * Small value helpers shared by the families (numbers, entity lists, frozen params, checks).
 """
 from __future__ import annotations
 
-import copy
 import json
 import math
 import re
 from difflib import get_close_matches
-from typing import Any, Callable, Dict, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Tuple, Type, TypeVar, Union
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Type, TypeVar, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -26,7 +25,7 @@ from ..registry import MechanismError
 
 __all__ = [
     "Config", "Number", "Effects", "ModifierSpec", "NAME", "MODIFIER_SOURCES", "parsed", "uses", "config",
-    "hook_actions", "actions_by", "types_in", "suggest", "evaluate", "number", "whole", "entities_of",
+    "actions_by", "types_in", "suggest", "evaluate", "number", "whole", "entities_of",
     "freeze", "thaw", "canonical", "modifier_terms", "check_names", "carriers", "raw_is_a",
 ]
 
@@ -149,38 +148,6 @@ def check_names(contract: Mapping[str, Any], names: Union[str, Sequence[str]], f
         if name not in declared:
             raise MechanismError(f"there is no action '{name}'", suggest(name, declared), field)
     return listed
-
-
-def hook_actions(contract: Mapping[str, Any], hooks: Mapping[str, Mapping[str, Sequence[Any]]], field: str) -> None:
-    """Append ``when`` conditions and ``do``/``otherwise`` effects to declared actions.
-
-    The action stays the author's: nothing it declares is replaced, and an identical condition or
-    effect is added once. Stands in for a core ``action_hooks`` section (see the module doc)."""
-    if not isinstance(contract, MutableMapping):
-        raise MechanismError("mechanism expansion needs the contract as data")
-    actions = contract.get("actions") or {}
-    for name, hook in hooks.items():
-        action = actions.get(name)
-        if not isinstance(action, MutableMapping):
-            raise MechanismError(f"there is no action '{name}' to attach to", suggest(name, actions), field)
-        for key in ("when", "do", "otherwise"):
-            extra = list(hook.get(key) or [])
-            if not extra:
-                continue
-            current = action.get(key)
-            if key == "when" and isinstance(current, (str, Mapping)):
-                current = [current]
-            if current is not None and not isinstance(current, list):
-                raise MechanismError(f"actions.{name}.{key} must be a list, got {type(current).__name__}",
-                                     f"write actions.{name}.{key} as a list, e.g. [{json.dumps(current, default=str)}]",
-                                     field)
-            merged = list(current or [])
-            seen = {canonical(item) for item in merged}
-            for item in extra:
-                if canonical(item) not in seen:
-                    merged.append(copy.deepcopy(item))
-                    seen.add(canonical(item))
-            action[key] = merged
 
 
 def canonical(value: Any) -> str:

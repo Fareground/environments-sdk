@@ -101,12 +101,11 @@ def _expand(name: str, cfg: StatusConfig, contract: Mapping[str, Any]) -> Dict[s
         for action in common.check_names(contract, spec.blocks, f"statuses.{status}.blocks", on):
             hooks.setdefault(action, {"when": []})["when"].append(
                 {"expr": f"not $has_status($actor, '{status}')", "why": why})
-    common.hook_actions(contract, hooks, "statuses")
     prop = {"type": "map", "default": {}, "description": f"Active statuses ({name})."}
     events = [{"name": f"{name}_expire", "phase": "end", "do": [{"status_expire": name}]}]
     if any(spec.tick for spec in cfg.statuses.values()):
         events.insert(0, {"name": f"{name}_tick", "phase": cfg.tick_phase, "do": [{"status_tick": name}]})
-    fragment: Dict[str, Any] = {"types": {t: {"props": {name: prop}} for t in on}, "events": events}
+    fragment: Dict[str, Any] = {"action_hooks": hooks, "types": {t: {"props": {name: prop}} for t in on}, "events": events}
     if cfg.view:
         views = {}
         for t in on:
