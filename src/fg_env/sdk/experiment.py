@@ -169,12 +169,14 @@ def _portable(participants: Any) -> bool:
 
 @dataclass(frozen=True)
 class Job:
-    """One run: inputs over the contract defaults, an optional arm, a seed, and free-form tags."""
+    """One run: inputs over the contract defaults, an optional arm, a seed, free-form tags, and optionally
+    its own participants (used instead of the batch's for this run: a tournament seats different entrants)."""
 
     inputs: Mapping[str, Any]
     arm: Optional[str]
     seed: int
     tags: Mapping[str, Any] = field(default_factory=dict)
+    participants: Any = None
 
 
 def failed_run(job: Job, error: BaseException) -> RunResult:
@@ -223,13 +225,18 @@ def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = N
     Problems the jobs share (bad inputs, an unknown arm, an unknown participant) raise before anything
     runs; a job that fails on its own comes back as a failed run. Participants given by name run in
     worker processes when ``workers > 1`` or a ``pool`` is given; callables run in threads.
-    ``participants_for(job)`` builds fresh participants per job; ``events=False`` drops event logs.
+    ``participants_for(job)`` builds fresh participants per job; a job's own ``participants`` replace
+    the batch's for that job; ``events=False`` drops event logs.
     """
     _check_workers(workers)
     folder = default_data_dir(source, data_dir)
     contract = source if isinstance(source, Contract) else parse(source)
     if not jobs:
         return []
+
+    def assigned(job: Job) -> Any:
+        return job.participants if job.participants is not None else participants
+
     probed: Set[Tuple[str, Optional[str]]] = set()
     for job in jobs:  # fail fast on what the jobs share
         key = (json.dumps(dict(job.inputs), sort_keys=True, default=str), job.arm)
@@ -238,19 +245,20 @@ def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = N
         probed.add(key)
         env = load(contract, inputs=dict(job.inputs), seed=0, arm=job.arm, data_dir=folder)
         if participants_for is None and len(probed) == 1:
-            env._bind(participants)
+            env._bind(assigned(job))
 
     def one(job: Job) -> RunResult:
         try:
-            who = participants_for(job) if participants_for is not None else participants
+            who = participants_for(job) if participants_for is not None else assigned(job)
         except Exception as exc:
             return failed_run(job, exc)
         return run_job(contract, job, who, rounds, events, folder)
 
     many = len(jobs) > 1
-    if (pool is not None or workers > 1) and many and participants_for is None and _portable(participants):
+    portable = participants_for is None and all(_portable(assigned(job)) for job in jobs)
+    if (pool is not None or workers > 1) and many and portable:
         data = contract_source(contract)
-        payloads = [(data, job, participants, rounds, events, str(folder) if folder else None) for job in jobs]
+        payloads = [(data, job, assigned(job), rounds, events, str(folder) if folder else None) for job in jobs]
         chunk = max(1, len(jobs) // (workers * 4))
         try:
             if pool is not None:

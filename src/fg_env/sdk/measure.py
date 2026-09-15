@@ -78,6 +78,8 @@ class RunResult:
     time: Optional[float] = None
     output_issues: List[Dict[str, Any]] = field(default_factory=list)
     stats: Dict[str, Any] = field(default_factory=dict)
+    #: ``stats`` per agent entity id: its turns, calls, invalid calls, actions and model usage.
+    agent_stats: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     events: List[Dict[str, Any]] = field(default_factory=list)
 
     @property

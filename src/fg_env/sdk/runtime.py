@@ -61,6 +61,8 @@ class Env:
         self.actions = ActionBook(contract, self.world, self.effects)
         self.perception = Perception(contract, self.world)
         self.stats = Stats()
+        #: The same numbers per agent entity id (a tournament bills each entrant for its own turns).
+        self.agent_stats: Dict[str, Stats] = {}
         self.status = "ready"
         self.ended_by: Optional[str] = None
         self.error: Optional[str] = None
@@ -173,6 +175,7 @@ class Env:
             inputs=self.inputs, outputs=outputs, metrics=dict(self.world.metrics),
             series={k: list(v) for k, v in self.world.series.items()}, winner=end.get("winner"),
             error=self.error, output_issues=issues, stats=self.stats.to_dict(),
+            agent_stats={key: self.agent_stats[key].to_dict() for key in sorted(self.agent_stats)},
             events=[e.to_dict() for e in self.world.log], time=self.world.time if self.world.continuous else None,
         )
 
@@ -721,6 +724,11 @@ class Env:
             self._turn_end_hook(stage, turn.actor)
         self._flush_events()
 
+    def _tally(self, actor_id: str, stats: Stats) -> None:
+        """Add numbers to the run's totals and to the agent's own (callers hold the lock)."""
+        self.stats.add(stats)
+        self.agent_stats.setdefault(actor_id, Stats()).add(stats)
+
     def _commit_intent(self, turn: Turn, name: str, args: Dict[str, Any]) -> None:
         actor, world = turn.actor, self.world
         blocked = self.actions.blocked(actor, name, {}, {}) if actor.alive else "you are no longer active"
@@ -731,17 +739,17 @@ class Env:
                 world.emit("outcome", f"Your {verb} did not happen: {str(problem).rstrip('.')}.",
                            actor=actor.id, to=(actor.id,), data={"action": name, "ok": False})
                 world.journal.clear()
-                self.stats.rejected_actions += 1
+                self._tally(actor.id, Stats(rejected_actions=1))
                 return
             outcome = self.actions.apply(actor, name, params)
             text = outcome.text if outcome.ok else f"Your {verb} failed: {outcome.text}"
             world.emit("outcome", text, actor=actor.id, to=(actor.id,), data={"action": name, "ok": outcome.ok})
             if outcome.ok:
-                self.stats.actions += 1
+                self._tally(actor.id, Stats(actions=1))
                 self._after_commit(f"actions.{name}")
                 self._react(turn.stage)
             else:
-                self.stats.rejected_actions += 1
+                self._tally(actor.id, Stats(rejected_actions=1))
                 world.journal.clear()
 
     def _drive(self, turn: Turn) -> None:
@@ -771,7 +779,7 @@ class Env:
             if turn.stats.actions == 0 and not turn.intents:
                 turn.stats.idle_turns += 1
             with self._lock:
-                self.stats.add(turn.stats)
+                self._tally(turn.actor.id, turn.stats)
 
     def _auto_turn(self, turn: Turn) -> bool:
         """Play a trivial turn without the agent: the only legal action when it takes no arguments,
@@ -796,7 +804,7 @@ class Env:
             if turn.stats.actions == 0 and not turn.intents:
                 turn.stats.idle_turns += 1
             with self._lock:
-                self.stats.add(turn.stats)
+                self._tally(turn.actor.id, turn.stats)
         return True
 
     # -- preview ---------------------------------------------------------------------------

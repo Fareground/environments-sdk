@@ -7,7 +7,7 @@ Whole-number determinants are exact (fraction-free elimination); everything else
 from __future__ import annotations
 
 import math
-from typing import Any, List, Tuple
+from typing import Any, List, Optional, Sequence, Tuple
 
 from ..expr import MAX_INT_BITS, MAX_LIST_LEN, Call, _describe, charge, function
 from ._args import check_len, fail, int_arg, list_arg
@@ -130,17 +130,16 @@ def _identity(call: Call) -> Matrix:
     return [[1 if r == c else 0 for c in range(n)] for r in range(n)]
 
 
-def _eliminate(call: Call, matrix: Matrix, extra: Matrix, what: str) -> Matrix:
-    """Gauss–Jordan elimination with partial pivoting on ``matrix`` augmented by ``extra``; returns the solved
-    ``extra`` columns. Raises when ``matrix`` is singular."""
+def eliminate(matrix: Sequence[Sequence[float]], extra: Sequence[Sequence[float]]) -> Optional[List[List[float]]]:
+    """Solve ``matrix`` × X = ``extra`` (square ``matrix``, ``extra`` with one row per row of it) by Gauss–Jordan
+    elimination with partial pivoting. ``None`` when ``matrix`` is singular. No budget: callers charge the work."""
     n = len(matrix)
-    charge(n * n * (n + len(extra[0])), call.source)
-    tolerance = SINGULAR_TOLERANCE * n * _scale(matrix)
+    tolerance = SINGULAR_TOLERANCE * n * max((abs(v) for row in matrix for v in row), default=0.0)
     rows = [[float(v) for v in matrix[r]] + [float(v) for v in extra[r]] for r in range(n)]
     for col in range(n):
         pivot = max(range(col, n), key=lambda r: abs(rows[r][col]))
         if abs(rows[pivot][col]) <= tolerance:
-            raise fail(call, f"{what} is singular (its rows are linearly dependent), so there is no unique answer")
+            return None
         rows[col], rows[pivot] = rows[pivot], rows[col]
         lead = rows[col][col]
         rows[col] = [v / lead for v in rows[col]]
@@ -149,6 +148,14 @@ def _eliminate(call: Call, matrix: Matrix, extra: Matrix, what: str) -> Matrix:
             if r != col and factor != 0.0:
                 rows[r] = [v - factor * p for v, p in zip(rows[r], rows[col])]
     return [row[n:] for row in rows]
+
+
+def _eliminate(call: Call, matrix: Matrix, extra: Matrix, what: str) -> List[List[float]]:
+    charge(len(matrix) ** 2 * (len(matrix) + len(extra[0])), call.source)
+    solved = eliminate(matrix, extra)
+    if solved is None:
+        raise fail(call, f"{what} is singular (its rows are linearly dependent), so there is no unique answer")
+    return solved
 
 
 @function("inverse(matrix)", "The inverse of a square matrix (error when it is singular).", min_args=1, max_args=1)
