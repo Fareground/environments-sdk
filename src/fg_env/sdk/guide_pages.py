@@ -138,7 +138,8 @@ _MODULE_GROUPS = {
     "stdlib.words": "text", "stdlib.lists": "lists", "stdlib.sets": "lists", "stdlib.stats": "stats",
     "stdlib.scoring": "stats", "space_functions": "space", "networks": "space", "stdlib.puzzles": "game",
     "mechanisms._common": "conditions", "mechanisms.card_scoring": "game", "mechanisms.cards": "game",
-    "mechanisms.econ_assets": "economy", "mechanisms.market_stats": "market", "mechanisms.order_book": "market",
+    "mechanisms.econ_assets": "economy", "mechanisms.market_stats": "market", "mechanisms.book_functions": "market",
+    "mechanisms.book_rules": "market",
     "mechanisms.package_auction": "market", "mechanisms.auction_reads": "market", "mechanisms.memory": "mind",
 }
 #: What each non-family group holds, in the order the guide lists them.

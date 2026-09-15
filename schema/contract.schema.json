@@ -645,11 +645,14 @@
               "type": "integer"
             },
             {
+              "type": "string"
+            },
+            {
               "type": "null"
             }
           ],
           "default": null,
-          "description": "Fires every N rounds.",
+          "description": "Fires every N rounds, from round 1: a number or an expression over $inputs.",
           "title": "Every"
         },
         "when": {
@@ -2776,11 +2779,14 @@
               "type": "integer"
             },
             {
+              "type": "string"
+            },
+            {
               "type": "null"
             }
           ],
           "default": null,
-          "description": "Max passes through the agents (default 1, or 10 with until).",
+          "description": "Max passes through the agents (default 1, or 10 with until): a number or an expression over $inputs.",
           "title": "Passes"
         },
         "quiet": {

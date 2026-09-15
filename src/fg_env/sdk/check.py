@@ -1022,6 +1022,8 @@ class _Checker:
             self.expr(stage.who, f"{path}.who", BASE | {"it", "i"}, agent_types)
             self.expr(stage.until, f"{path}.until", BASE)
             self.expr(stage.when, f"{path}.when", BASE)
+            if isinstance(stage.passes, str):
+                self.expr(stage.passes, f"{path}.passes", {"inputs"})
             self.template(stage.brief or None, f"{path}.brief", "actor", BASE | {"actor"}, {"actor": set(self.agents)})
             self.effects(stage.on_enter, f"{path}.on_enter", set(BASE), {})
             self.effects(stage.on_exit, f"{path}.on_exit", set(BASE), {})
@@ -1086,6 +1088,10 @@ class _Checker:
                     self.error(f"{path}.arms", f"'{arm}' is not a declared arm", self._hint(arm, self.c.arms, "arms"))
             self.value(event.at, f"{path}.at", BASE)
             self.expr(event.when, f"{path}.when", BASE)
+            if isinstance(event.every, str):
+                self.expr(event.every, f"{path}.every", {"inputs"})
+            elif event.every is not None and event.every < 1:
+                self.error(f"{path}.every", "must be at least 1")
             self.value(event.chance, f"{path}.chance", BASE)
             types: Types = {}
             roots = set(BASE)

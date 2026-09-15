@@ -38,15 +38,7 @@
     "decision_every_bars": {"type": "int", "default": 1, "min": 1, "max": 50}
   },
   "world": {
-    "bar_open": {"type": "number", "default": 0}, "bar_high": {"type": "number", "default": 0}, "bar_low": {"type": "number", "default": 0},
-    "bar_volume": {"type": "number", "default": 0}, "bar_trades": {"type": "int", "default": 0}, "bar_halted": {"type": "bool", "default": false},
-    "bar_flow": {"type": "map", "default": {}, "description": "Aggressive flow by trader kind so far this bar."},
-    "last_bar_flow": {"type": "map", "default": {}, "description": "Aggressive flow by trader kind in the last full bar."},
     "value_gap": {"type": "number", "default": 0, "private": true, "description": "How far the mid is from the fundamental this pass, as a fraction."}
-  },
-  "records": {
-    "bars": {"fields": {"bar": "int", "open": "number", "high": "number", "low": "number", "close": "number", "volume": "number", "trades": "int", "halted": "bool"},
-             "notify": false, "show": "bar {bar}: O {open|money} H {high|money} L {low|money} C {close|money} V {volume|int}", "description": "DEMO OHLCV per bar."}
   },
   "types": {
     "trader": {"agent": true, "description": "An account on the exchange.",
@@ -66,9 +58,12 @@
   "mechanisms": {
     "demo": {
       "kind": "market", "mode": "order_book", "who": "trader", "instrument": "DEMO",
-      "start_price": "$last($seed_bars()).close", "tick_size": 0.01, "lot_size": 1,
+      "start_price": "$last($seed_bars()).close",
+      "tick_size": "10 ** ($floor($log_base($last($seed_bars()).close, 10)) - 4)", "lot_size": 1,
       "maker_fee_bps": 0, "taker_fee_bps": 0.5, "collar_pct": 0.005, "price_band_pct": 0.25,
       "short_limit": 10000000, "max_short_leverage": 2, "max_orders": 20, "depth_levels": 5,
+      "bar_rounds": "$inputs.substeps", "halt_pct": "$inputs.circuit_breaker_pct / 100",
+      "halt_reference": "bar_open", "halt_check": "round_end", "halt_until": "bar_end",
       "base_qty": "$world.base_qty * $world.size_scale", "flow_scale": "$world.flow_scale", "sentiment": "$world.sentiment",
       "fair_value": "$world.fundamental", "volatility": "$world.target_sigma / $sqrt($inputs.substeps)", "measure_volatility": false,
       "stage": "session", "conserve": "round",
@@ -100,36 +95,20 @@
     "bar_ends": {"expr": "$round % $inputs.substeps == 0"},
     "acting_chance": {"args": ["trader"], "expr": "($trader.activity if ($round - 1) % $inputs.substeps >= 0.75 * $inputs.substeps else 0) if $trader.demo_strategy == passive else $min(1, $trader.activity * (1 + 0.5 * $world.value_gap / $world.target_sigma)) if $trader.demo_strategy == fundamentalist else $trader.activity",
                       "description": "Passive flow works its side only in the last quarter of the bar; fundamentalists act more often the further price is from value."},
-    "bar_closes": {"expr": "$map($records(bars), $it.close)"},
-    "bar_volumes": {"expr": "$map($records(bars), $it.volume)"},
-    "add_flow": {"args": ["total", "more"], "expr": "$dict($union($keys($total), $keys($more)), $it, {buy: $get($get($total, $it, {}), buy, 0) + $get($get($more, $it, {}), buy, 0), sell: $get($get($total, $it, {}), sell, 0) + $get($get($more, $it, {}), sell, 0)})",
-                 "description": "Two flow maps added kind by kind."}
+    "bar_closes": {"expr": "$map($records(demo_bars), $it.close)"},
+    "bar_volumes": {"expr": "$map($records(demo_bars), $it.volume)"}
   },
   "events": [
     {"name": "open_the_book", "phase": "start", "at": 1, "each": "$range(15)", "as": "level",
-     "do": ["$tick_sigma = $world.target_sigma / $sqrt($inputs.substeps) * $world.start_price / 0.01",
+     "do": ["$tick = $book(demo).tick",
+            "$tick_sigma = $world.target_sigma / $sqrt($inputs.substeps) * $world.start_price / $tick",
             "$half = $round(0.6 * $tick_sigma) + 1",
             "$step = $max(1, $round(0.4 * $tick_sigma))",
             "$size = $max(1, $round($world.base_qty * $uniform(0.2, 0.5) * (1 + 0.1 * $level)))",
-            {"market": "demo", "action": "buy", "who": "$entity(seed)", "qty": "$size", "price": "$round($world.start_price - ($half + $level * $step) * 0.01, 2)"},
-            {"market": "demo", "action": "sell", "who": "$entity(seed)", "qty": "$size", "price": "$round($world.start_price + ($half + $level * $step) * 0.01, 2)"}]},
-    {"name": "flow_so_far", "phase": "start", "when": "$round > 1", "do": "$world.bar_flow = $add_flow($world.bar_flow, $book(demo).flow)"},
-    {"name": "bar_opens", "phase": "start", "when": "$bar_starts()",
-     "do": ["$world.last_bar_flow = $world.bar_flow", "$world.bar_flow = {}",
-            "$world.bar_open = $book(demo).last", "$world.bar_high = $book(demo).last", "$world.bar_low = $book(demo).last",
-            "$world.bar_volume = 0", "$world.bar_trades = 0", "$world.bar_halted = false"]},
+            {"market": "demo", "action": "buy", "who": "$entity(seed)", "qty": "$size", "price": "$round(($world.start_price - ($half + $level * $step) * $tick) / $tick) * $tick"},
+            {"market": "demo", "action": "sell", "who": "$entity(seed)", "qty": "$size", "price": "$round(($world.start_price + ($half + $level * $step) * $tick) / $tick) * $tick"}]},
     {"name": "value_gap", "phase": "start", "do": "$world.value_gap = $abs($world.fundamental / $book(demo).mid - 1)"},
-    {"name": "bar_tracks", "phase": "end",
-     "do": ["$world.bar_high = $max($world.bar_high, $book(demo).high)", "$world.bar_low = $min($world.bar_low, $book(demo).low)",
-            "$world.bar_volume += $book(demo).round_volume", "$world.bar_trades += $book(demo).round_trades"]},
-    {"name": "circuit_breaker", "phase": "end",
-     "when": "$inputs.circuit_breaker_pct > 0 and not $world.demo_halted and 100 * $abs($book(demo).mid / $world.bar_open - 1) >= $inputs.circuit_breaker_pct",
-     "do": ["$world.demo_halted = true", "$world.demo_halt_until = $round + $inputs.substeps - 1 - ($round - 1) % $inputs.substeps",
-            "$world.demo_halts += 1", "$world.bar_halted = true",
-            {"emit": "demo_halt", "say": "CIRCUIT BREAKER on DEMO: the price moved {$inputs.circuit_breaker_pct}% from the bar's open {$world.bar_open|money}. Trading halts for the rest of the bar."}]},
-    {"name": "bar_closes", "phase": "end", "when": "$bar_ends()",
-     "do": {"post": "bars", "bar": "$bar()", "open": "$world.bar_open", "high": "$world.bar_high", "low": "$world.bar_low",
-            "close": "$book(demo).last", "volume": "$world.bar_volume", "trades": "$world.bar_trades", "halted": "$world.bar_halted"}}
+    {"name": "pass_closes_before_the_controllers_read_the_bar", "phase": "end", "do": {"market": "demo", "action": "close"}}
   ],
   "metrics": {
     "fundamental": "$world.fundamental",
@@ -143,10 +122,10 @@
     "final_price": {"expr": "$book(demo).last", "type": "number"},
     "final_fundamental": {"expr": "$round($world.fundamental, 4)", "type": "number"},
     "return_pct": {"expr": "$round(100 * ($book(demo).last / $world.start_price - 1), 3)", "type": "number"},
-    "high": {"expr": "$max($map($records(bars), $it.high))", "type": "number"},
-    "low": {"expr": "$min($map($records(bars), $it.low))", "type": "number"},
-    "worst_bar_drop": {"expr": "$round($min($map($records(bars), $it.low / $it.open - 1)), 5)", "type": "number", "description": "Deepest fall within one bar from its open."},
-    "halted_bars": {"expr": "$count($records(bars), $it.halted)", "type": "int"},
+    "high": {"expr": "$max($map($records(demo_bars), $it.high))", "type": "number"},
+    "low": {"expr": "$min($map($records(demo_bars), $it.low))", "type": "number"},
+    "worst_bar_drop": {"expr": "$round($min($map($records(demo_bars), $it.low / $it.open - 1)), 5)", "type": "number", "description": "Deepest fall within one bar from its open."},
+    "halted_bars": {"expr": "$count($records(demo_bars), $it.halted)", "type": "int"},
     "liquidations": {"expr": "$book(demo).liquidations", "type": "int"},
     "spread_bps_avg": {"expr": "$round($avg($series.spread_bps), 3)", "type": "number"},
     "depth_avg": {"expr": "$round($avg($series.depth), 1)", "type": "number"},

@@ -538,7 +538,7 @@ class StageSpec(_Model):
     order: str = Field("seat", description="seat | random | expression over $it (lowest first).")
     who: Optional[str] = Field(None, description="Which agents are woken ($it); e.g. $it.alive && $chance(0.3).")
     until: Optional[str] = Field(None, description="Repeat turns within the round until true.")
-    passes: Optional[int] = Field(None, description="Max passes through the agents (default 1, or 10 with until).")
+    passes: Union[int, str, None] = Field(None, description="Max passes through the agents (default 1, or 10 with until): a number or an expression over $inputs.")
     quiet: str = Field("wake", description="wake | skip — skip agents with nothing new since their last turn.")
     max_actions: int = Field(1, description="Actions an agent may take per turn.")
     max_calls: int = Field(8, description="Tool calls (including looks) per turn.")
@@ -564,7 +564,7 @@ class StageSpec(_Model):
 
     @field_validator("passes")
     @classmethod
-    def _passes_ceiling(cls, value: Optional[int]) -> Optional[int]:
+    def _passes_ceiling(cls, value: Any) -> Any:
         return _ceiling(value, MAX_STAGE_PASSES, "use fewer passes; a stage that needs this many never settles")
 
     @field_validator("max_calls")
@@ -602,7 +602,7 @@ class EventSpec(_Model):
 
     name: Optional[str] = None
     at: Union[int, List[int], str, None] = Field(None, description="Round(s) it fires.")
-    every: Optional[int] = Field(None, description="Fires every N rounds.")
+    every: Union[int, str, None] = Field(None, description="Fires every N rounds, from round 1: a number or an expression over $inputs.")
     when: Optional[str] = Field(None, description="Fires when true.")
     chance: Union[float, str, None] = Field(None, description="Probability of firing when otherwise due.")
     phase: str = Field("start", description="start (before stages) | end (after stages).")

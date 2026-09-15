@@ -13,8 +13,8 @@ from typing import Any, Callable, Dict, Generator, List, Mapping, Optional, Tupl
 from ..entity import Entity
 from .actions import ACTION_BUDGET, ActionBook, stage_actions
 from .budget import Budget, is_seconds
-from .build import build_world
-from .contract import MAX_ROUNDS, Contract, StageSpec
+from .build import build_world, whole_setting
+from .contract import MAX_ROUNDS, MAX_STAGE_PASSES, Contract, StageSpec
 from .copying import Copying
 from .diagnostics import diagnose
 from .driving import WAITING, Driver, run_on_worker
@@ -494,7 +494,7 @@ class Env(Copying, RunChecks):
             if self._ended():
                 return
             where.pass_index = 0
-        passes = stage.passes or (10 if stage.until else 1)
+        passes = whole_setting(world, stage.passes, f"{path}.passes", MAX_STAGE_PASSES) or (10 if stage.until else 1)
         for pass_index in range(where.pass_index, passes):
             if resumed:
                 agents = where.agents
