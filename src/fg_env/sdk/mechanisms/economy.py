@@ -1,7 +1,7 @@
-"""Economy mechanisms: money, goods, production, subscriptions, bookings, negotiation,
-labor and supply chains as native building blocks.
+"""The ``economy`` family (money, goods, production and supply chains) and the modes that the
+``agreements`` family builds on it (subscriptions, bookings, negotiation, labor).
 
-Every kind expands into ordinary contract sections and keeps its state in journaled world
+Every mode expands into ordinary contract sections and keeps its state in journaled world
 props and entities, so checking, previews, atomic actions, snapshots and determinism apply
 unchanged. Value is conserved: money and goods only move, except through named sources and
 sinks that update ``$world.<use>_supply`` and ``$world.<use>_flows``; each ledger and
@@ -9,9 +9,8 @@ inventory adds the invariant ``$conserved(<use>)``.
 
 Modules:
 
-* :mod:`.econ_assets` — the asset primitives, expression functions and effect ops
-  (``pay``, ``mint``, ``burn``, ``give_items``, ``make_items``, ``use_items``, ``drop_items``,
-  ``pickup_items``).
+* :mod:`.econ_assets` — the asset primitives, expression functions and the ``economy`` op's
+  money and goods actions (``pay``, ``mint``, ``burn``; ``give``, ``make``, ``use``, ``drop``, ``pickup``).
 * :mod:`.econ_inventory` — ``inventory``; :mod:`.econ_ledger` — ``ledger`` (with loans).
 * :mod:`.econ_production` — ``production`` (recipes, jobs, skills).
 * :mod:`.econ_subscriptions` — ``subscriptions``; :mod:`.econ_bookings` — ``bookings`` (slots, queues, waitlists).

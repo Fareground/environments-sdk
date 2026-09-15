@@ -1,5 +1,5 @@
-"""The ``ledger`` mechanism: currencies with credit limits, named sources (UBI, allowances,
-subsidies), taxes and fees, and loans with interest, due dates and default."""
+"""The ``economy`` family's ``ledger`` mode: currencies with credit limits, named sources (UBI,
+allowances, subsidies), taxes and fees, and loans with interest, due dates and default."""
 from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Mapping, Optional, Union
@@ -7,11 +7,12 @@ from typing import Any, Dict, List, Literal, Mapping, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..errors import RunError
-from ..registry import MechanismError, effect_op, mechanism
+from ..registry import MechanismError, family_action, mode
 from ..world import Abort
+from ._common import ToolsSetting, tools_field
 from .econ_assets import balance, move_money
-from .econ_base import (amount, props, choice_param, config_of, emit_to, entity_of, guarded, money, register_config, run_hook,
-                        require_types, type_list, valid_name, whole)
+from .econ_base import (INVENTORY, LEDGER, amount, checked_config, props, choice_param, config_of, declared_names, emit_to,
+                        entity_of, guarded, money, register_config, run_hook, require_types, type_list, valid_name, whole)
 from .econ_inventory import agent_types, baseline
 
 __all__ = ["LedgerConfig"]
@@ -43,7 +44,7 @@ class SourceSpec(BaseModel):
 
 
 class TaxSpec(BaseModel):
-    """A levy on payments that name it: {\"pay\": ..., \"tax\": name}."""
+    """A levy on payments that name it: {\"economy\": <ledger>, \"action\": \"pay\", ..., \"tax\": name}."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -72,15 +73,16 @@ class LedgerConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    holders: Union[str, List[str]] = Field(..., description="Type(s) holding money (subtypes included).")
+    who: Union[str, List[str]] = Field(..., description="Type(s) holding money (subtypes included).")
     currencies: Dict[str, CurrencySpec] = Field(..., min_length=1, description="{currency: {start, credit, unit, value}}; each is a holder property ($actor.cash).")
     sources: Dict[str, SourceSpec] = Field({}, description="Scheduled money creation: {name: {to, amount, every, mode}}.")
     taxes: Dict[str, TaxSpec] = Field({}, description="Levies payments can name: {name: {rate, on, to}}.")
     loans: Optional[LoanSpec] = Field(None, description="Loans at posted rates with interest, due dates and default.")
-    tools: List[Literal["pay"]] = Field([], description="pay: agents may pay any holder.")
+    actions: List[Literal["pay"]] = Field([], description="Tools generated for agent holders: pay (pay any holder). Loans generate their own.")
+    tools: ToolsSetting = tools_field()
 
 
-register_config("ledger", LedgerConfig)
+register_config(LEDGER, LedgerConfig)
 
 
 def _currency(config: LedgerConfig, given: Optional[str], field: str) -> str:
@@ -97,25 +99,23 @@ def _money_left(currency: str, spec: CurrencySpec) -> str:
     return f"$actor.{currency} + $actor.{currency}_credit" if spec.credit is not None else f"$actor.{currency}"
 
 
-@mechanism("ledger", LedgerConfig,
-           "Money: each currency is a number property of every holder (`$actor.cash`) with an optional credit limit. "
-           "`pay` moves money (never creating it), `mint`/`burn` name their source or sink, scheduled `sources` pay UBI or "
-           "allowances, `taxes` withhold a share of payments that name them, and `loans` add `<name>_borrow`, `<name>_repay` "
-           "and `<name>_set_rate` with per-round interest, due dates and default. The invariant `$conserved(<name>)` "
-           "proves balances equal $world.<name>_supply; $world.<name>_flows totals every source and sink.",
-           example={"kind": "ledger", "holders": ["household", "shop"], "currencies": {"cash": {"start": 100, "credit": 20}},
-                    "sources": {"allowance": {"to": "household", "amount": 300, "every": 30, "mode": "reset"}},
-                    "taxes": {"sales_tax": {"rate": 0.08, "on": "payer"}}})
+@mode("economy", "ledger", LedgerConfig,
+      "Money: each currency is a number property of every holder (`$actor.cash`) with an optional credit limit. "
+      "`pay` moves money (never creating it), `mint`/`burn` name their source or sink, scheduled `sources` pay UBI or "
+      "allowances, `taxes` withhold a share of payments that name them, and `loans` add `<name>_borrow`, `<name>_repay` "
+      "and `<name>_set_rate` with per-round interest, due dates and default. The invariant `$conserved(<name>)` "
+      "proves balances equal $world.<name>_supply; $world.<name>_flows totals every source and sink.",
+      example={"who": ["household", "shop"], "currencies": {"cash": {"start": 100, "credit": 20}},
+               "sources": {"allowance": {"to": "household", "amount": 300, "every": 30, "mode": "reset"}},
+               "taxes": {"sales_tax": {"rate": 0.08, "on": "payer"}}}, was="ledger")
 def _expand_ledger(name: str, config: LedgerConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
-    holders = type_list(config.holders)
-    require_types(contract, holders, "holders")
-    for other, use in (contract.get("mechanisms") or {}).items():
-        if other != name and isinstance(use, Mapping) and use.get("kind") in ("ledger", "inventory"):
-            names = use.get("currencies") if use.get("kind") == "ledger" else use.get("items")
-            for currency in config.currencies:
-                if currency in (names or {}):
-                    raise MechanismError(f"'{currency}' is already declared by '{other}'",
-                                         "give every currency and item its own name", f"currencies.{currency}")
+    holders = type_list(config.who)
+    require_types(contract, holders, "who")
+    taken = {**declared_names(contract, LEDGER, "currencies"), **declared_names(contract, INVENTORY, "items")}
+    for currency in config.currencies:
+        if taken.get(currency, name) != name:
+            raise MechanismError(f"'{currency}' is already declared by '{taken[currency]}'",
+                                 "give every currency and item its own name", f"currencies.{currency}")
     holder_props: Dict[str, Any] = {}
     for currency, spec in config.currencies.items():
         if not valid_name(currency):
@@ -135,8 +135,8 @@ def _expand_ledger(name: str, config: LedgerConfig, contract: Mapping[str, Any])
         "actions": {},
     }
     agents = agent_types(contract, holders)
-    if "pay" in config.tools and agents:
-        fragment["actions"][f"{name}_pay"] = _pay_action(config, holders, agents)
+    if "pay" in config.actions and agents:
+        fragment["actions"][f"{name}_pay"] = _pay_action(name, config, holders, agents)
     if config.loans is not None:
         _loans(name, config, config.loans, contract, fragment)
     if agents:
@@ -149,14 +149,15 @@ def _source_event(name: str, config: LedgerConfig, source: str, spec: SourceSpec
     require_types(contract, [spec.to], f"sources.{source}.to")
     currency = _currency(config, spec.currency, f"sources.{source}.currency")
     effects: List[Any]
+    mint = {"economy": name, "action": "mint", "currency": currency, "to": "$it", "source": source}
     if spec.mode == "add":
-        effects = [{"mint": currency, "to": "$it", "amount": spec.amount, "source": source}]
+        effects = [{**mint, "amount": spec.amount}]
     elif spec.mode == "top_up":
-        effects = [{"mint": currency, "to": "$it", "amount": f"$max(0, ({spec.amount}) - $it.{currency})", "source": source}]
+        effects = [{**mint, "amount": f"$max(0, ({spec.amount}) - $it.{currency})"}]
     else:
-        effects = [{"if": f"$it.{currency} > 0", "then": [{"burn_money": currency, "from": "$it", "amount": f"$it.{currency}",
-                                                             "sink": f"{source} expired"}]},
-                   {"mint": currency, "to": "$it", "amount": spec.amount, "source": source}]
+        effects = [{"if": f"$it.{currency} > 0", "then": [{"economy": name, "action": "burn", "currency": currency, "from": "$it",
+                                                             "amount": f"$it.{currency}", "sink": f"{source} expired"}]},
+                   {**mint, "amount": spec.amount}]
     event: Dict[str, Any] = {"name": f"{name}: {source}", "phase": "start", "each": spec.to, "do": effects}
     if spec.start > 1:
         event["when"] = f"$round >= {spec.start} and ($round - {spec.start}) % {spec.every} == 0"
@@ -169,7 +170,7 @@ def _source_event(name: str, config: LedgerConfig, source: str, spec: SourceSpec
     return event
 
 
-def _pay_action(config: LedgerConfig, holders: List[str], agents: List[str]) -> Dict[str, Any]:
+def _pay_action(name: str, config: LedgerConfig, holders: List[str], agents: List[str]) -> Dict[str, Any]:
     to, ref = choice_param(holders, "$it.id != $actor.id", "Who you pay.")
     params: Dict[str, Any] = {"to": to}
     if len(config.currencies) == 1:
@@ -181,7 +182,8 @@ def _pay_action(config: LedgerConfig, holders: List[str], agents: List[str]) -> 
         params["amount"] = {"type": "number", "min": 0.01, "description": "Amount."}
         which = "$params.currency"
     return {"by": agents, "description": "Pay money to someone.", "params": params,
-            "do": [{"pay": which, "from": "$actor", "to": ref.format(name="to"), "amount": "$params.amount"}],
+            "do": [{"economy": name, "action": "pay", "currency": which, "from": "$actor", "to": ref.format(name="to"),
+                    "amount": "$params.amount"}],
             "outcome": f"You paid {{$params.amount|money}} to {{{ref.format(name='to')}}}."}
 
 
@@ -207,7 +209,7 @@ def _loans(name: str, config: LedgerConfig, loans: LoanSpec, contract: Mapping[s
                              "description": "Interest per round you charge on new loans."},
             f"{name}_lending": {"type": "bool", "default": True, "description": "Whether you take new borrowers."}}
     fragment["world"][f"{name}_loans"] = {"type": "map", "default": {}, "description": "Loan totals: made, repaid, defaulted, written_off."}
-    fragment["events"].append({"name": f"{name}: loans", "phase": "end", "do": [{"ledger_tick": name}]})
+    fragment["events"].append({"name": f"{name}: loans", "phase": "end", "do": [{"economy": name, "action": "tick"}]})
     if loans.on_default:
         fragment["blocks"] = {f"{name}_on_default": {"args": ["loan", "lender", "borrower", "unpaid"], "do": list(loans.on_default),
                                                   "description": "Runs when a loan defaults."}}
@@ -219,8 +221,8 @@ def _loans(name: str, config: LedgerConfig, loans: LoanSpec, contract: Mapping[s
             "params": {"lender": lender,
                        "amount": {"type": "number", "min": 1, "max": loans.max_amount, "description": f"Amount of {currency}."},
                        "term": {"type": "int", "min": 1, "max": loans.max_term, "description": "Rounds until due."}},
-            "do": [{"lend": name, "from": lender_ref.format(name="lender"), "to": "$actor", "amount": "$params.amount",
-                    "term": "$params.term"}],
+            "do": [{"economy": name, "action": "lend", "from": lender_ref.format(name="lender"), "to": "$actor",
+                    "amount": "$params.amount", "term": "$params.term"}],
             "outcome": "You borrowed {$params.amount|money}, due with interest in round {$round + $params.term}."}
         fragment["actions"][f"{name}_repay"] = {
             "by": borrowing_agents, "description": "Repay part or all of a loan you owe.",
@@ -228,7 +230,7 @@ def _loans(name: str, config: LedgerConfig, loans: LoanSpec, contract: Mapping[s
                                 "description": "A loan you owe."},
                        "amount": {"type": "number", "min": 0.01, "max": guarded("$params.loan.owed", "loan"),
                                   "description": "Amount to repay."}},
-            "do": [{"repay": name, "loan": "$params.loan", "amount": "$params.amount"}],
+            "do": [{"economy": name, "action": "repay", "loan": "$params.loan", "amount": "$params.amount"}],
             "outcome": "You repaid {$params.amount|money}; {$params.loan.owed|money} still owed."}
     if lending_agents:
         fragment["actions"][f"{name}_set_rate"] = {
@@ -255,13 +257,21 @@ def _loans(name: str, config: LedgerConfig, loans: LoanSpec, contract: Mapping[s
 # ---------------------------------------------------------------------------
 
 
-@effect_op("lend", keys=("from", "to", "amount", "rate", "term"), required=("from", "to", "amount", "term"), literal=("lend",),
-           example='{"lend": "money", "from": "$params.bank", "to": "$actor", "amount": 100, "term": 6}  '
-                   '(a loan: pays the principal now; rate defaults to the lender\'s posted rate)')
+def _check_loans(checker: Any, effect: Dict[str, Any], path: str) -> list:
+    config = checked_config(checker, effect, "economy")
+    if config is not None and config.loans is None:
+        return [(path, f"ledger {effect['economy']} declares no loans", "add `loans` to the ledger")]
+    return []
+
+
+@family_action("economy", ("ledger",), "lend", keys=("from", "to", "amount", "rate", "term"), required=("from", "to", "amount", "term"),
+               check=_check_loans, was=("lend",),
+               example='{"economy": "money", "action": "lend", "from": "$params.bank", "to": "$actor", "amount": 100, "term": 6}  '
+                       '(a loan: pays the principal now; rate defaults to the lender\'s posted rate)')
 def _lend(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    name = effect["lend"]
-    config: LedgerConfig = config_of(world, name, "ledger", where)
+    name = effect["economy"]
+    config: LedgerConfig = config_of(world, name, LEDGER, where)
     if config.loans is None:
         raise RunError(f"ledger '{name}' declares no loans", where)
     lender = entity_of(world, runner.eval(effect["from"], vars), where, "a lender")
@@ -284,11 +294,13 @@ def _lend(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str)
             [lender.id, borrower.id], {"loan": loan.id})
 
 
-@effect_op("repay", keys=("loan", "amount"), required=("loan", "amount"), literal=("repay",),
-           example='{"repay": "money", "loan": "$params.loan", "amount": 50}  (pays a loan down; the borrower pays, never on credit)')
+@family_action("economy", ("ledger",), "repay", keys=("loan", "amount"), required=("loan", "amount"), check=_check_loans,
+               was=("repay",),
+               example='{"economy": "money", "action": "repay", "loan": "$params.loan", "amount": 50}  '
+                       '(pays a loan down; the borrower pays, never on credit)')
 def _repay(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    name = effect["repay"]
+    name = effect["economy"]
     loan = entity_of(world, runner.eval(effect["loan"], vars), where, "a loan")
     if loan.entity_type != f"{name}_loan" or props(loan).get("status") != "active":
         raise Abort("That loan is not open.")
@@ -316,12 +328,12 @@ def _count(world: Any, name: str, key: str, value: float) -> None:
     world.set_world(f"{name}_loans", totals)
 
 
-@effect_op("ledger_tick", keys=(), literal=("ledger_tick",),
-           example='{"ledger_tick": "money"}  (accrue loan interest, collect loans that are due, default unpaid ones)')
+@family_action("economy", ("ledger",), "tick", internal=True, was=("ledger_tick",),
+               example='{"economy": "money", "action": "tick"}  (accrue loan interest, collect loans that are due, default unpaid ones)')
 def _ledger_tick(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    name = effect["ledger_tick"]
-    config: LedgerConfig = config_of(world, name, "ledger", where)
+    name = effect["economy"]
+    config: LedgerConfig = config_of(world, name, LEDGER, where)
     if config.loans is None:
         return
     for loan in [e for e in world.entities_of(f"{name}_loan") if props(e).get("status") == "active"]:

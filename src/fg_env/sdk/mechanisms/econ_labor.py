@@ -11,9 +11,9 @@ from ..errors import RunError
 from ..expr import ExprError, compile_expr
 from ..registry import MechanismError, effect_op, mechanism
 from ..world import Abort
-from .econ_assets import destroy_items, held, make_items
-from .econ_base import (bump, compiles, config_of, declared_use, emit_to, entity_of, money, props, register_config, require_currency,
-                        require_types, type_list, whole)
+from .econ_assets import assets, destroy_items, held, make_items
+from .econ_base import (INVENTORY, bump, compiles, config_of, declared_use, emit_to, entity_of, money, props, register_config,
+                        require_currency, require_types, type_list, whole)
 from .econ_inventory import agent_types
 
 __all__ = ["LaborConfig", "FirmSpec"]
@@ -79,7 +79,7 @@ def _expand_labor(name: str, config: LaborConfig, contract: Mapping[str, Any]) -
     if config.hiring == "rule" and config.rank is not None:
         compiles(config.rank, "rank")
     if config.firm is not None:
-        items = declared_use(contract, config.inventory, "inventory", "inventory").get("items") or {}
+        items = declared_use(contract, config.inventory, INVENTORY, "inventory").get("items") or {}
         for item in [config.firm.output, *config.firm.inputs]:
             if item not in items:
                 raise MechanismError(f"'{item}' is not an item of inventory '{config.inventory}'", f"items: {', '.join(items)}", "firm")
@@ -321,7 +321,8 @@ def _labor_payday(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], whe
             continue
         rounds = min(config.pay_every, world.round - int(p["since"]) + 1)
         due = round(float(p["wage"]) * rounds + float(p["owed"]), 9)
-        payment: Dict[str, Any] = {"pay": config.currency, "from": "$employer", "to": "$worker", "amount": due}
+        payment: Dict[str, Any] = {"economy": assets(world).currencies[config.currency], "action": "pay",
+                                   "currency": config.currency, "from": "$employer", "to": "$worker", "amount": due}
         if config.tax:
             payment["tax"] = config.tax
         mark = world.journal.mark()

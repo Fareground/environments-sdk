@@ -49,14 +49,14 @@
      "props": {"allowance": "$round($uniform($inputs.allowance_low, $inputs.allowance_high))", "hunger": "$randint(0, 5)"}}
   ],
   "mechanisms": {
-    "money": {"kind": "ledger", "holders": ["household", "shop", "cafe", "bistro"], "currencies": {"cash": {"unit": "$"}},
+    "money": {"kind": "economy", "mode": "ledger", "who": ["household", "shop", "cafe", "bistro"], "currencies": {"cash": {"unit": "$"}},
               "sources": {"allowance": {"to": "household", "amount": "$it.allowance", "every": 30, "mode": "reset",
                                         "say": "A new month: allowances are paid."}}},
-    "goods": {"kind": "inventory", "holders": ["household", "shop"], "capacity": 20,
+    "goods": {"kind": "economy", "mode": "inventory", "who": ["household", "shop"], "capacity": 20,
               "items": {"bread": {"value": 3, "shelf_life": 4, "on_consume": ["$actor.hunger -= 3 * $qty"]},
                         "milk": {"value": 2, "shelf_life": 6, "on_consume": ["$actor.hunger -= $qty"]},
                         "apples": {"value": 1, "shelf_life": 10, "on_consume": ["$actor.hunger -= $qty"]}},
-              "tools": ["consume"]},
+              "actions": ["consume"]},
     "coffee": {"kind": "subscriptions", "subscribers": "household", "currency": "cash", "providers": "cafe",
                "price_min": 10, "price_max": 80,
                "plans": {"coffee_club": {"provider": "bean_bar", "name": "Coffee Club", "price": 30, "period": 30, "trial": 7,
@@ -77,8 +77,8 @@
       },
       "do": [
         "$price = $get($params.shop.prices, $params.item, 0) * $params.qty",
-        {"pay": "cash", "from": "$actor", "to": "$params.shop", "amount": "$price"},
-        {"give_items": "$params.item", "from": "$params.shop", "to": "$actor", "qty": "$params.qty"},
+        {"economy": "money", "action": "pay", "from": "$actor", "to": "$params.shop", "amount": "$price"},
+        {"economy": "goods", "action": "give", "item": "$params.item", "from": "$params.shop", "to": "$actor", "qty": "$params.qty"},
         "$params.shop.served_today += $params.qty",
         "$params.shop.revenue += $price",
         "$world.sales += $params.qty"
@@ -95,8 +95,8 @@
       "by": "shop", "private": true, "description": "Buy stock at wholesale.",
       "params": {"item": {"type": "enum", "values": ["bread", "milk", "apples"]},
                  "qty": {"type": "int", "min": 1, "max": "$floor($actor.cash / $get($world.wholesale, $params.item, 1)) if 'item' in $params else null"}},
-      "do": [{"burn_money": "cash", "from": "$actor", "amount": "$params.qty * $get($world.wholesale, $params.item, 1)", "sink": "wholesale"},
-             {"make_items": "$params.item", "to": "$actor", "qty": "$params.qty", "source": "wholesale"}],
+      "do": [{"economy": "money", "action": "burn", "from": "$actor", "amount": "$params.qty * $get($world.wholesale, $params.item, 1)", "sink": "wholesale"},
+             {"economy": "goods", "action": "make", "item": "$params.item", "to": "$actor", "qty": "$params.qty", "source": "wholesale"}],
       "outcome": "Restocked {$params.qty} {$params.item}."
     },
     "dine_out": {
