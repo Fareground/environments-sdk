@@ -19,7 +19,8 @@ from .expr import EVAL_BUDGET, ExprError, Scope, Untrusted, compile_expr, is_exp
 from .template import compile_template, format_value
 from .world import Abort, SdkWorld, _plain
 
-__all__ = ["ACTION_BUDGET", "TEXT_MAX_LEN", "MAX_SAFE_INT", "ToolSpec", "Outcome", "ActionBook", "stage_actions"]
+__all__ = ["ACTION_BUDGET", "TEXT_MAX_LEN", "MAX_SAFE_INT", "ToolSpec", "Outcome", "ActionBook", "TrialStream",
+           "stage_actions"]
 
 #: Work one action application may do in total (all its conditions, effects and templates).
 ACTION_BUDGET = 5 * EVAL_BUDGET
@@ -703,20 +704,21 @@ class ActionBook:
         except ExprError as exc:
             raise RunError(str(exc), f"actions.{name}.terminal") from None
 
-    def dry_run(self, actor: Entity, name: str, params: Dict[str, Any]) -> Optional[str]:
-        """Apply and roll back, to catch a doomed sealed choice at submit. Returns the refusal, or None."""
+    def dry_run(self, actor: Entity, name: str, params: Dict[str, Any],
+                stream: Optional["TrialStream"] = None) -> Optional[str]:
+        """Apply and roll back, to catch a doomed sealed choice at submit. Returns the refusal, or None.
+        ``stream``: the random stream saved for a series of dry runs (see :class:`TrialStream`)."""
         world = self.world
         mark = world.journal.mark()
-        rng_state = world.rng.getstate()
-        drawn = world.draws()
+        stream = stream or TrialStream(world)
+        stream.save()
         picker, world.chance_picker = world.chance_picker, None  # a trial roll is sampled, never asked for
         try:
             with shared_budget(ACTION_BUDGET, f"actions.{name}"):
                 outcome = self._apply(actor, name, params, trial=True)
         finally:
             world.journal.rollback(mark)
-            if world.draws() != drawn:  # every draw goes through world.rng: an unchanged count means an unchanged stream
-                world.rng.setstate(rng_state)
+            stream.restore()
             world.chance_picker = picker
         return None if outcome.ok else outcome.text
 
@@ -763,6 +765,29 @@ class ActionBook:
         verb = name.replace("_", " ")
         suffix = "" if success else " — it did not succeed"
         return f"{actor.name}: {verb}{self._args_text(params)}{suffix}."
+
+
+class TrialStream:
+    """The random stream as dry runs must leave it. Its state is saved once and saved again only after something drew
+    from it; a dry run that drew puts it back. Every draw goes through ``world.rng``, which counts them, so an unchanged
+    count means an unchanged stream — a listing of many calls saves the stream once, not once per call."""
+
+    __slots__ = ("world", "state", "drawn")
+
+    def __init__(self, world: SdkWorld):
+        self.world = world
+        self.state: Any = None
+        self.drawn = -1
+
+    def save(self) -> None:
+        if self.state is None or self.world.draws() != self.drawn:
+            self.state = self.world.rng.getstate()
+            self.drawn = self.world.draws()
+
+    def restore(self) -> None:
+        if self.world.draws() != self.drawn:
+            self.world.rng.setstate(self.state)
+            self.drawn = self.world.draws()
 
 
 def _choice_names(group: str, members: Sequence[str]) -> Dict[str, str]:

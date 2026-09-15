@@ -82,6 +82,9 @@ RESERVED_ROOTS = frozenset({
 })
 
 _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*$")
+_NOT_ASSIGNABLE = "can only assign to an entity's property, a link's field, $world.x or $physics.x (`{source}`)"
+#: Exactly these types take the numeric path of `+=`, `-=`, `*=`, `/=` (a bool is not a number there).
+_NUMBERS = (int, float)
 
 
 def split_statement(source: str) -> Optional[Tuple[str, str, str]]:
@@ -283,22 +286,21 @@ class EffectRunner:
 
     def run(self, effects: List[Any], vars: Dict[str, Any], path: str) -> None:
         for index, effect in enumerate(one_or_many(effects) or []):
-            where = f"{path}[{index}]"
             try:
                 if isinstance(effect, str):
-                    self._statement(effect, vars, where)
+                    self._statement(effect, vars, path, index)  # its path is spelled out only if it is reported
                 elif isinstance(effect, dict):
-                    self._keyed(effect, vars, where)
+                    self._keyed(effect, vars, f"{path}[{index}]")
                 else:
-                    raise RunError(f"an effect is text or an object, got {effect!r}", where)
+                    raise RunError(f"an effect is text or an object, got {effect!r}", f"{path}[{index}]")
             except ExprError as exc:
-                raise RunError(str(exc), where) from None
+                raise RunError(str(exc), f"{path}[{index}]") from None
             except ArithmeticError as exc:  # a contract rule's arithmetic failed: the rule's fault, never the participant's
-                raise RunError(f"arithmetic failed: {exc}", where) from None
+                raise RunError(f"arithmetic failed: {exc}", f"{path}[{index}]") from None
 
     # -- statements ------------------------------------------------------------
 
-    def _statement(self, source: str, vars: Dict[str, Any], where: str) -> None:
+    def _statement(self, source: str, vars: Dict[str, Any], path: str, index: int) -> None:
         stmt = compile_statement(source)
         scope = self.world.scope(**vars)
         value = stmt.value(scope)
@@ -308,7 +310,14 @@ class EffectRunner:
             vars[stmt.local] = value
             return
         assert stmt.base is not None
-        owner, prop, rest = self._owner(stmt, scope, source, where)
+        if len(stmt.steps) == 1:  # `$x.prop op value`, the common shape: the base itself owns the property
+            owner = stmt.base(scope)
+            if not isinstance(owner, (Entity, Link, PropsView, PhysicsView)):
+                raise RunError(_NOT_ASSIGNABLE.format(source=source), f"{path}[{index}]")
+            prop = stmt.steps[0][1]
+            rest: List[Tuple[str, Any]] = []
+        else:
+            owner, prop, rest = self._owner(stmt, scope, source, f"{path}[{index}]")
         if rest:
             value = self._set_in(attr(owner, prop, source), rest, stmt.op, value, source, prop)
         elif stmt.op != "=":
@@ -318,7 +327,7 @@ class EffectRunner:
         if isinstance(owner, Entity):
             self.world.set_prop(owner, prop, value)
         elif isinstance(owner, Link):
-            self.world.set_link_field(owner, prop, value, where)
+            self.world.set_link_field(owner, prop, value, f"{path}[{index}]")
         elif isinstance(owner, PropsView):
             self.world.set_world(prop, value)
         else:
@@ -336,7 +345,7 @@ class EffectRunner:
                 break
             current = attr(current, step, source) if kind == "field" else self._element(current, step(scope), source)
         if found is None:
-            raise RunError(f"can only assign to an entity's property, a link's field, $world.x or $physics.x (`{source}`)", where)
+            raise RunError(_NOT_ASSIGNABLE.format(source=source), where)
         owner, position = found
         prop = stmt.steps[position][1]
         rest = [(kind, step(scope) if kind == "index" else step) for kind, step in stmt.steps[position + 1:]]
@@ -401,6 +410,16 @@ class EffectRunner:
 
     @staticmethod
     def _combine_raw(op: str, current: Any, value: Any, source: str) -> Any:
+        if type(current) in _NUMBERS and type(value) in _NUMBERS:  # plain numbers, the common case, first
+            if op == "+=":
+                return current + value
+            if op == "-=":
+                return current - value
+            if op == "*=":
+                return current * value
+            if value == 0:
+                raise ExprError("division by zero", source)
+            return current / value
         if op == "+=" and isinstance(current, list):
             return current + (list(value) if isinstance(value, list) else [value])
         if op == "-=" and isinstance(current, list):

@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import re
 import threading
-from contextlib import contextmanager
-from typing import Any, Callable, Iterator, Mapping, Optional
+from typing import Any, Callable, Mapping, Optional
 
 __all__ = [
     "EVAL_BUDGET", "MAX_INT_BITS", "MAX_LIST_LEN", "MAX_RANGE", "MAX_TEXT_LEN", "Untrusted", "tainted", "derived",
@@ -121,24 +120,32 @@ def check_size(value: Any, source: Optional[str]) -> Any:
     return value
 
 
-@contextmanager
-def shared_budget(limit: int = EVAL_BUDGET, label: str = "") -> Iterator[None]:
+class shared_budget:
     """Make every evaluation inside the block share one budget of ``limit`` steps.
 
     Code that loops over expressions outside the language (an action's effects, a view's
     items) wraps the loop so the loop as a whole is bounded, not only each evaluation.
-    Nested blocks keep the outermost budget."""
-    budget = _BUDGET
-    if budget.hold:
-        yield
-        return
-    budget.hold, budget.shared, budget.used, budget.limit, budget.label = 1, True, 0, limit, label
-    budget.cap = limit
-    try:
-        yield
-    finally:
-        budget.hold, budget.shared, budget.used, budget.limit, budget.label = 0, False, 0, EVAL_BUDGET, ""
-        budget.cap = EVAL_BUDGET
+    Nested blocks keep the outermost budget. (A class rather than a generator: every action and
+    effect block opens one.)"""
+
+    __slots__ = ("limit", "label", "opened")
+
+    def __init__(self, limit: int = EVAL_BUDGET, label: str = ""):
+        self.limit, self.label, self.opened = limit, label, False
+
+    def __enter__(self) -> None:
+        budget = _BUDGET
+        if budget.hold:
+            return
+        budget.hold, budget.shared, budget.used, budget.limit, budget.label = 1, True, 0, self.limit, self.label
+        budget.cap = self.limit
+        self.opened = True
+
+    def __exit__(self, *exc: Any) -> None:
+        if self.opened:
+            budget = _BUDGET
+            budget.hold, budget.shared, budget.used, budget.limit, budget.label = 0, False, 0, EVAL_BUDGET, ""
+            budget.cap = EVAL_BUDGET
 
 
 def nested_free() -> bool:
