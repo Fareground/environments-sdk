@@ -21,10 +21,11 @@ turn, uses `max_actions`, or runs out of `max_calls`.
 * `until` repeats passes within the round (deliberation until everyone is ready).
 * `quiet: skip` skips agents with nothing new since their last turn (from the second pass on;
   the first pass always wakes everyone).
-* `look` and `inspect` calls count toward `max_calls`.
+* `look` and `inspect` are free reads: up to `max_calls` of them per turn do not use a call.
 * A stage with `actions: []` wakes nobody: use it as a pure resolution step (`on_enter`/`on_exit`).
 * `must_act: true` removes `end_turn` while an action is available; `on_idle` effects run for each agent
-  that ends a turn without acting (`$actor`) — a forfeit or a default move.
+  that ends a turn without acting (`$actor`) — a forfeit or a default move. An agent that could act and did not is
+  reported as an `idle` event ("Ben did not act.").
 * `terminal` may be an expression checked after the action applies (`"$world.jump_finished"`), so a
   move can end the turn only sometimes (multi-jumps).
 * `time_limit` gives each agent wall-clock seconds for its turn (a number, or an expression over `$actor`;
@@ -414,8 +415,10 @@ parametric: apply them as `{"tool", "args"}`). `fg_env.load(..., chance=callable
 LLM participants: `fg_env.participants.anthropic(anthropic.Anthropic(), "claude-sonnet-5")` or
 `fg_env.participants.openai(client, model)`; they cache the brief and loop over tool calls, retry rate
 limits, timeouts and server errors (`retries=4`), then fail the run or, with `on_error="end_turn"`,
-forfeit the turn. Their real token usage is in `result.stats` (`llm_calls`, `input_tokens`,
-`output_tokens`, `cache_read_tokens`, `cache_write_tokens`, `llm_retries`, `forfeits`); your own
+forfeit the turn. Both take `max_tokens` (openai also `reasoning_effort`); a reply cut off at the limit
+counts in `truncated` and, when it called no tool, is asked once for a short tool call (`retry_truncated`).
+Their real token usage is in `result.stats` (`llm_calls`, `input_tokens`, `output_tokens`,
+`cache_read_tokens`, `cache_write_tokens`, `llm_retries`, `forfeits`, `truncated`); your own
 participants can add theirs with `wake.record_usage(...)`.
 Built-ins: `"random"`, `"idle"`, `"policy:<name>"`, and game algorithms `"mcts:N"`, `"ismcts:N"`, `"minimax[:depth]"`, `"cfr:<policy.json|iterations>"`.
 

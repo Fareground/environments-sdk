@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from ..expr import Call, ExprError, function
 
-__all__ = ["RANK_LABELS", "SUITS", "SUIT_SYMBOLS", "parse_card", "poker_rank", "blackjack", "sets", "runs",
+__all__ = ["RANK_LABELS", "SUITS", "SUIT_SYMBOLS", "parse_card", "poker_rank", "poker_hand", "blackjack", "sets", "runs",
            "trick_winner", "follow_suit"]
 
 SUITS = ("spades", "hearts", "diamonds", "clubs")
@@ -134,6 +134,17 @@ def poker_rank(values: Any) -> Dict[str, Any]:
     cards = _cards(values)
     if not cards:
         return {"score": 0, "category": CATEGORIES[0], "level": 0, "name": "no cards", "ranks": [], "best": []}
+    (category, order), best_cards = _best(cards)
+    padded = list(order) + [0] * (5 - len(order))
+    score = category
+    for rank in padded[:5]:
+        score = score * _BASE + rank
+    return {"score": score, "category": CATEGORIES[category], "level": category, "name": _hand_name(category, order),
+            "ranks": list(order), "best": [c[2] for c in best_cards]}
+
+
+def _best(cards: Sequence[Card]) -> Tuple[Tuple[int, Tuple[int, ...]], Sequence[Card]]:
+    """``((category, tiebreak ranks), the five cards)`` of the best hand in ``cards`` (not empty)."""
     groups = combinations(cards, 5) if len(cards) > 5 else [tuple(cards)]
     best_key: Optional[Tuple[int, Tuple[int, ...]]] = None
     best_cards: Sequence[Card] = ()
@@ -142,13 +153,32 @@ def poker_rank(values: Any) -> Dict[str, Any]:
         if best_key is None or key > best_key:
             best_key, best_cards = key, group
     assert best_key is not None
-    category, order = best_key
-    padded = list(order) + [0] * (5 - len(order))
-    score = category
-    for rank in padded[:5]:
-        score = score * _BASE + rank
-    return {"score": score, "category": CATEGORIES[category], "level": category, "name": _hand_name(category, order),
-            "ranks": list(order), "best": [c[2] for c in best_cards]}
+    return best_key, best_cards
+
+
+#: Leading tiebreak ranks that make each hand what it is (the rest are kickers): two pair and a full house take two.
+_MADE_RANKS = {0: 1, 1: 1, 2: 2, 3: 1, 6: 2, 7: 1}
+
+
+def poker_hand(hole: Any, board: Any) -> str:
+    """What a player's private cards make with the shared board, in words a player reads: ``"pair of nines on the
+    board — shared by everyone"``, ``"two pair, kings and sevens, using both hole cards"``. The board alone making
+    the same hand means the player holds nothing better than everyone still in."""
+    mine, shared = _cards(hole), _cards(board)
+    if not mine:
+        return "no cards"
+    (category, order), best = _best(mine + shared)
+    name = _hand_name(category, order)
+    if not shared:
+        return name
+    made = _MADE_RANKS.get(category, len(order))
+    board_category, board_order = _best(shared)[0]
+    if board_category == category and board_order[:made] == order[:made]:
+        return f"{name} on the board — shared by everyone"
+    used = sum(1 for card in best if any(card is own for own in mine))
+    if used == len(mine) and used > 1:
+        return f"{name}, using {'both' if used == 2 else 'all your'} hole cards"
+    return f"{name}, using {'one hole card' if used == 1 else f'{used} of your hole cards'}"
 
 
 # ---------------------------------------------------------------------------
@@ -266,6 +296,14 @@ def _size(call: Call, index: int) -> int:
           min_args=1, max_args=1)
 def _poker_rank_function(call: Call) -> Dict[str, Any]:
     return _guard(call, lambda: poker_rank(call.arg(0)))
+
+
+@function("poker_hand(hole, board)",
+          "What a player's hole cards make with the board, in words: the hand, and whether it uses the hole cards "
+          "(\"two pair, kings and sevens, using both hole cards\") or is on the board, shared by everyone.",
+          min_args=2, max_args=2)
+def _poker_hand_function(call: Call) -> str:
+    return str(_guard(call, lambda: poker_hand(call.arg(0), call.arg(1))))
 
 
 @function("blackjack_value(cards)", "Blackjack total of the cards: aces 11 unless that busts, faces 10.",

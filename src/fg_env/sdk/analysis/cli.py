@@ -1,4 +1,4 @@
-"""Command line for analysis: sweep, sensitivity, calibrate, backtest, checks, highlights.
+"""Command line for analysis: sweep, sensitivity, calibrate, optimise, backtest, checks, highlights.
 
 Wire into the ``fg-env`` parser with ``add_analysis_commands(sub)``. Every command prints a
 plain-text report, or JSON with ``--json``; mistakes a user can make become one-line errors
@@ -203,6 +203,47 @@ def cmd_calibrate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _decisions(items: Optional[List[str]], path: Optional[str]) -> Dict[str, Any]:
+    """``--decision NAME=LOW:HIGH[:STEP]``, ``NAME=V1,V2,…`` or ``NAME={json spec}``, over ``--decisions-file``."""
+    decisions: Dict[str, Any] = {}
+    if path:
+        loaded = _json_file(path, "--decisions-file")
+        if not isinstance(loaded, dict):
+            raise _UsageError("--decisions-file must hold a JSON object of input → decision spec")
+        decisions.update(loaded)
+    for item in items or []:
+        name, value = _split(item, "--decision")
+        if value[:1] in "{[":
+            decisions[name] = _value(value)
+        elif ":" in value and "," not in value:
+            parts = value.split(":")
+            try:
+                numbers = [float(p) for p in parts]
+            except ValueError:
+                raise _UsageError(f"--decision range must be LOW:HIGH[:STEP] numbers, got {value!r}") from None
+            if len(numbers) not in (2, 3):
+                raise _UsageError(f"--decision range must be LOW:HIGH[:STEP], got {value!r}")
+            decisions[name] = dict(zip(("low", "high", "step"), numbers))
+        else:
+            decisions[name] = [_value(v) for v in value.split(",")]
+    if not decisions:
+        raise _UsageError("give at least one --decision NAME=LOW:HIGH[:STEP], NAME=V1,V2,… or NAME={json}")
+    return decisions
+
+
+def cmd_optimise(args: argparse.Namespace) -> int:
+    from .optimise import optimise
+
+    uncertainty = _json_file(args.uncertainty_file, "--uncertainty-file") if args.uncertainty_file else None
+    objective = args.objective[0] if len(args.objective) == 1 else args.objective
+    result = optimise(args.file, _decisions(args.decision, args.decisions_file), objective, args.constraint or [],
+                      runs=args.runs, seed=args.seed, method=args.method, budget=args.budget, workers=args.workers,
+                      uncertainty=uncertainty, holdout_seeds=args.holdout_seeds, inputs=_inputs(args), arm=args.arm,
+                      participants=_participants(args.agent), rounds=args.rounds, data_dir=args.data_dir)
+    _emit(result, args.json)
+    return 0
+
+
 def cmd_backtest(args: argparse.Namespace) -> int:
     from .backtest import backtest
 
@@ -308,6 +349,25 @@ def add_analysis_commands(sub: Any) -> None:
     p.add_argument("--cases", help="JSON list of cases {name, inputs, targets} fitted together (instead of --target)")
     _holdout_options(p)
     p.set_defaults(func=_guarded(cmd_calibrate))
+
+    from .search import METHODS
+
+    p = sub.add_parser("optimise", aliases=["optimize"],
+                       help="search decisions for the best objective under constraints, checked on fresh seeds")
+    _run_options(p)
+    p.add_argument("--decision", action="append", metavar="NAME=LOW:HIGH[:STEP]|NAME=V1,V2|NAME={json}",
+                   help="an input to decide (JSON for vectors: {\"length\": 24, \"low\": 3, \"high\": 40, \"step\": 1})")
+    p.add_argument("--decisions-file", help="JSON object of input → decision spec")
+    p.add_argument("--objective", action="append", required=True, metavar="'maximise [STAT of] MEASURE'",
+                   help="repeat for a Pareto frontier of two or three objectives")
+    p.add_argument("--constraint", action="append", metavar="'MEASURE >= NUMBER [in 90%% of runs]'")
+    p.add_argument("--runs", type=int, default=10, help="shared seeds each decision is judged on")
+    p.add_argument("--budget", type=int, default=50, help="most distinct decisions to search")
+    p.add_argument("--method", choices=("auto", *METHODS), default="auto")
+    p.add_argument("--holdout-seeds", type=int, help="fresh seeds that check the choice (default: --runs; 0 skips)")
+    p.add_argument("--uncertainty-file", help="JSON priors or points to draw parameters from per run")
+    p.add_argument("--arm")
+    p.set_defaults(func=_guarded(cmd_optimise))
 
     p = sub.add_parser("backtest", help="score the contract's forecasts against known outcomes")
     _run_options(p)

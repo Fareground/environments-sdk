@@ -267,6 +267,7 @@ class Driver:
             env.origin.tape.closed(turn.number)
             if turn.stats.actions == 0 and not turn.intents:
                 turn.stats.idle_turns += 1
+                turn.did_not_act = turn.stage.must_act and not turn.timed_out and turn.actor.alive and bool(turn._legal())
             env._tally(turn.actor.id, turn.stats)
             turn.tallied = True
             if turn.exposure is not None and not turn.staged:  # simultaneous turns close once their choices commit

@@ -252,10 +252,10 @@ def test_rewards_add_up_to_returns_and_every_run_reports_returns_per_seat():
 def test_observations_are_what_the_seat_reads_and_what_it_may_see():
     state = fg_env.game(TIC_TAC_TOE).new_initial_state()
     text = state.observation_string(0)
-    assert "Board: ........." in text and "Now: It is your turn." in text
+    assert "0 1 2\n3 4 5\n6 7 8" in text and "Now: It is your turn." in text
     acting, waiting = state.observation(0, "struct"), state.observation(1, "struct")
     assert len(acting["actions"]) == 9 and waiting["actions"] is None
-    assert acting["views"]["board"].startswith("Board:") and acting["me"]["id"] == "x"
+    assert acting["views"]["board"].startswith("You play x. Board") and acting["me"]["id"] == "x"
     kuhn = fg_env.game(KUHN).new_initial_state()
     kuhn.apply_action(0)
     kuhn.apply_action(0)

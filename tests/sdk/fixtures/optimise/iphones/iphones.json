@@ -1,0 +1,48 @@
+{
+  "fg_env": "1",
+  "name": "Used-iPhone retail pricing",
+  "description": "A lot of 32 used iPhone 14 128GB phones from the business study's reseller, eight per grade, listed on eBay for 30 days. Each grade's wholesale value comes from the study's fitted depreciation model; a listing sells each day with a chance that falls as its price rises above the fair retail price (the study's assumed speed elasticity), at that price with the model's noise, less eBay's fee. Phones unsold after 30 days go to wholesale at the fitted negotiated share of value. Money tied up in unsold phones costs a daily capital rate.",
+  "inputs": {
+    "phones": {"type": "table", "source": "phones.csv", "columns": {"value_usd": "number", "basis_usd": "number"}},
+    "days": {"type": "int", "default": 30, "min": 7, "max": 90},
+    "price": {"type": "map", "default": {"A": 300, "B": 255, "C": 205, "D": 125}, "description": "Retail listing price per grade (USD)."},
+    "retail_uplift": {"type": "number", "default": 1.31, "description": "Fitted eBay price over wholesale value (exp of the channel coefficient)."},
+    "daily_sale_chance": {"type": "number", "default": 0.083, "description": "A fairly priced listing's chance to sell each day (1 / (median - minimum days to sell))."},
+    "speed_elasticity": {"type": "number", "default": 2.5, "min": 0, "max": 8, "description": "ASSUMED in the study: how fast a higher price slows sales."},
+    "fee_share": {"type": "number", "default": 0.1325},
+    "price_noise_sd_log": {"type": "number", "default": 0.0609},
+    "wholesale_share": {"type": "number", "default": 0.84},
+    "capital_rate_daily": {"type": "number", "default": 0.0004}
+  },
+  "clock": {"rounds": "$inputs.days", "unit": "day"},
+  "world": {"capital_cost": 0.0},
+  "types": {
+    "phone": {"props": {"grade": "", "value_usd": 0.0, "basis_usd": 0.0, "sold": false, "net": 0.0, "sold_day": 0}}
+  },
+  "population": [{
+    "type": "phone", "from": "$inputs.phones", "id": "{$row.phone}", "name": "{$row.phone}",
+    "props": {"grade": "$row.grade", "value_usd": "$row.value_usd", "basis_usd": "$row.basis_usd"}
+  }],
+  "defs": {
+    "fair": {"args": ["p"], "expr": "$p.value_usd * $inputs.retail_uplift"},
+    "listed_at": {"args": ["p"], "expr": "$get($inputs.price, $p.grade)"}
+  },
+  "events": [
+    {"name": "retail day", "phase": "start", "each": "phone", "where": "not $it.sold", "do": [
+      {"if": "$chance($min(1, $inputs.daily_sale_chance * ($listed_at($it) / $fair($it)) ** (-$inputs.speed_elasticity)))", "then": [
+        "$it.sold = true",
+        "$it.sold_day = $round",
+        "$it.net = $listed_at($it) * $lognormal(0, $inputs.price_noise_sd_log) * (1 - $inputs.fee_share)"
+      ]}
+    ]},
+    {"name": "capital", "phase": "end", "do": [
+      "$world.capital_cost += $sum($filter(phone, not $it.sold), $it.basis_usd) * $inputs.capital_rate_daily"
+    ]}
+  ],
+  "outputs": {
+    "revenue": {"type": "number", "expr": "$round($sum(phone, $it.net) + $sum($filter(phone, not $it.sold), $it.value_usd * $inputs.wholesale_share), 0)", "description": "Retail net of fees plus unsold phones sold to wholesale."},
+    "profit": {"type": "number", "expr": "$round($outputs.revenue - $sum(phone, $it.basis_usd) - $world.capital_cost, 0)"},
+    "sold_share": {"type": "number", "expr": "$round($pct($count(phone, $it.sold), $count(phone)), 3)"},
+    "avg_days_to_sell": {"type": "number", "expr": "$round($avg($filter(phone, $it.sold), $it.sold_day), 1) if $count(phone, $it.sold) > 0 else $inputs.days"}
+  }
+}

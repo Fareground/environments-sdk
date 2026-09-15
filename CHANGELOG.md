@@ -35,7 +35,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dip after them, substitution between tiers, stockouts with lost and spilled demand, noisy lead times and
   negative-binomial sales, fitted from a bundled three-year history that its `truth` arm generates
   (`examples/auto_parts_history.py`); arms compare the store's lean reorder rule with a forecast-driven one.
+
 #### Fixed
+- **LLM turns that ran out of words**: a reply cut off at the output limit counts in `stats["truncated"]` (per
+  wake in exposures and `agent_stats`) and, with no tool call, is asked once for a short tool call
+  (`retry_truncated=False` ends the turn). The nudge names the tools offered and never asks for an `end_turn` that
+  is not offered; in a must-act stage the participant no longer calls a refused `end_turn` (no fake invalid call) and
+  the engine logs `Ben did not act.` (the pot says what the timeout did: `Ben folds.`). `openai(...)` takes
+  `max_tokens` and `reasoning_effort`.
+- **Calls after the turn ended**: LLM participants stop running a reply's tool calls once one ends the turn; the
+  leftovers are answered without reaching the engine. `look` and `inspect` are free reads (up to `max_calls` per
+  turn), so reading never spends the calls needed to act; a stage allowing fewer calls than the default states the
+  budget in the update, and tool results count down the calls once they barely cover the actions left
+  (`(Calls left: 2.)`).
+- **Inspect ids**: `inspect.id` offers the ids it accepts (an enum, or a compact listing like `u1–u150`), finds a
+  unique name, and a refusal suggests the closest id. Entities an agent may inspect read `Moderator [chair]` in its
+  update and views; deliberation motions are numbered (`motion 1`), not bracketed.
+- **Limits stated up front**: text parameters say `Up to 400 characters (about 60 words).`; `per_turn` / `per_round`
+  caps are in the tool description (`Once per turn.`). `tools: one` keeps each action's constraints (one merged
+  schema of the common type, enums joined, per-action ranges and choices in the description), lists every action on
+  its own line with its arguments, and says only those actions are available now.
+- **Example and mechanism wording**: `$poker_hand(hole, board)` says whether a hand uses the hole cards or is on
+  the board (Hold'em's view uses it); the town hall floor refusals say what to do (and that a raised hand waits);
+  the ballot count shows only while the vote is open; social replies, reposts and reactions accept trending posts;
+  posted-market sellers see their cash and can sponsor only the rounds they can pay for; Kuhn poker spells out the
+  betting (`pass, bet`) and tic-tac-toe shows a 3-row board with cell numbers; werewolf chat is quoted once, and
+  `check` warns when a template wraps a placeholder in «» itself.
 - **Data files everywhere**: a parsed contract remembers its data folder (the contract file's folder, or `data_dir=`),
   so `check`, `experiment`, `run_jobs` workers, `calibrate`, `backtest`, `precision`, `sweep`, `sensitivity`,
   `behavior_checks` and `chain` read `source` inputs instead of failing. Each takes `data_dir=` and `hosts=` (runs
@@ -52,9 +77,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the same property); a shock becomes a `shocks` pattern an event reads; a prior becomes a `draw` pattern. Declaring a
   `dynamics` mechanism (or `drift`, `shocks`, `priors`) says which pattern replaces it. `epidemic_shocks` and the
   flagship exchange's calibration are migrated; their golden runs changed because the draws now come from pattern
-  streams, while their behaviour did not (200 seeds of `epidemic_shocks` and 24 of the flagship: no output mean
-  differs by more than 1.3 standard errors). The flagship's stylized-facts test pins its experiment seed, with the
-  measured pass rates beside it.
+  streams, while their behaviour did not (200 seeds of `epidemic_shocks`: no output mean differs by more than 1.3
+  standard errors; 40 seeds of the flagship before and after: no stylized fact's distribution differs, Mann-Whitney
+  p 0.2–0.9, and one session meets every bound in 24 of 40 against 22 of 40).
+- **The flagship's stylized-facts test is statistical, not a pinned seed.** Its tape is bimodal across seeds —
+  sessions where stop-loss cascades start are volatile and fat-tailed, the rest calm — so one session proves
+  nothing. The default test holds each fact's median over 6 sessions inside its bound and needs one session meeting
+  every bound; `FG_ENV_SLOW=1` adds 24 sessions with strict medians and at least 8 meeting every bound. Thresholds
+  come from the measured distribution (a healthy set fails 2.6% and 0.3% of the time).
 - **A short core guide**: `fg_env.guide()` / `fg-env guide` is a ~2.8K-token core — the model, a quickstart that
   runs with defaults, the essential sections and fields, expression and effect basics, the mechanism families and a
   map of every other part. Each contract section (`guide("actions")`, with the `$` roots available there), function
@@ -86,6 +116,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read one family or mode.
 
 #### Added
+- **An optimiser** (`fg_env.optimise(contract, decisions, objective, constraints, runs=, budget=, method=, workers=,
+  holdout_seeds=, uncertainty=)`, `fg-env optimise`): searches decisions — ranges (stepped or continuous), choices and
+  vectors (a list or map input per half hour or category, with per-position bounds, a monotone order or a sum) — for
+  `"maximise margin"` / `"minimise p90 of cost"` (or an expression over `$outputs`) under constraints such as
+  `"fill_rate >= 0.95"` or `"sl >= 0.8 in 90% of runs"`. Methods: grid, random, Latin hypercube, local (coordinate
+  descent with step halving, then paired moves along constraints), race (successive halving) and calibration's
+  Nelder–Mead and cross-entropy; `auto` picks one. Every decision runs on common seeds; the search's best are
+  confirmed on new seeds, where the choice is made and reported; the choice and the runner-up then run on fresh seeds
+  with a paired difference and a plain seed-luck flag. When nothing meets the constraints, the closest decision and
+  each shortfall; sensitivity one step around the best; two or three objectives trace a Pareto frontier checked on
+  fresh seeds. `guide("optimise")`. On a copy of the business study's contact centre ("service level 80% in 90% of
+  runs"), the cheapest plan that passed on four seeds met it in 55% of 60 fresh runs; the optimiser's plan, judged on
+  30 seeds, in 87% (within noise of 90%), for 4% less than the manager's rule.
 - **Validation that tells the truth** (`fg_env.validate(contract, cases, runs=, levels=(0.8, 0.95), season=, test=)`):
   each case's `actuals` — a number, a map per key (product, category) or a list — checked against the run ensembles:
   bias, MAPE, WAPE, RMSE and CRPS overall, per key and on held-out cases; interval coverage at each nominal level with
