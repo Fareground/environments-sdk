@@ -105,7 +105,7 @@ def _expand_subscriptions(name: str, config: SubscriptionsConfig, contract: Mapp
             actions[f"{name}_subscribe"] = {
                 "by": agents, "description": "Subscribe to a plan: its price is charged now and every period (a free trial on your first subscription to a plan that offers one).",
                 "params": {"plan": {"type": "entity", "of": plan,
-                                    "where": f"not $subscribed($actor, $it.id) and (({trial_available}) or $has($actor, '{config.currency}', $it.price))",
+                                    "where": f"$exists($it.provider) and not $subscribed($actor, $it.id) and (({trial_available}) or $has($actor, '{config.currency}', $it.price))",
                                     "description": "Plan."}},
                 "do": [{"agreements": name, "action": "subscribe", "who": "$actor", "plan": "$params.plan"}],
                 "outcome": "You subscribed to {$params.plan.name}.", "private": True}
@@ -121,7 +121,7 @@ def _expand_subscriptions(name: str, config: SubscriptionsConfig, contract: Mapp
                 "params": {"subscription": {"type": "entity", "of": sub, "where": f"{mine} and $it.cancelling"}},
                 "do": ["$params.subscription.cancelling = false"],
                 "outcome": "It renews again in round {$params.subscription.renews}.", "private": True}
-        views[f"{name}_plans"] = {"for": agents, "title": "Plans", "of": plan, "look": True,
+        views[f"{name}_plans"] = {"for": agents, "title": "Plans", "of": plan, "where": "$exists($it.provider)", "look": True,
                                   "show": "[{id}] {name}: {price|money} every {period} rounds{$' · ' + $text($it.trial) + ' rounds free' if " + trial_available + " else ''}"}
         views[f"{name}_mine"] = {"for": agents, "title": "Your subscriptions", "of": sub, "where": mine,
                                  "show": "[{id}] {$entity($it.plan).name}: {status}, next charge round {renews} at {$entity($it.plan).price|money}{$' (cancelled, ends then)' if $it.cancelling else ''}"}
@@ -203,6 +203,9 @@ def _subscribe(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where:
     plan = entity_of(world, runner.eval(effect["plan"], vars), where, "a plan")
     if plan.entity_type != f"{name}_plan":
         raise RunError(f"{plan.id} is not a plan of {name}", where)
+    provider = maybe_entity(world, props(plan)["provider"])
+    if provider is None or not provider.alive:
+        raise Abort(f"{plan.name} is no longer available.")
     history = [s for s in _subscriptions(world, name, subscriber.id) if props(s)["plan"] == plan.id]
     if any(props(s)["status"] != "ended" for s in history):
         raise Abort(f"You already subscribe to {plan.name}.")
@@ -261,7 +264,8 @@ def _subscriptions_tick(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any
         if subscriber is None or not subscriber.alive:
             _end(world, name, sub, plan, "subscriber gone", None)
             continue
-        if plan is None or not plan.alive or maybe_entity(world, props(plan)["provider"]) is None:
+        provider = maybe_entity(world, props(plan)["provider"]) if plan is not None else None
+        if plan is None or not plan.alive or provider is None or not provider.alive:
             _end(world, name, sub, plan, "plan withdrawn", None)
             emit_to(world, f"{name}_ended", "A plan you subscribed to was withdrawn.", [subscriber.id])
             continue
