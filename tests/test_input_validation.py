@@ -1,6 +1,6 @@
 import copy
 import pytest
-from fg_env import compile_template
+from fg_env.legacy import compile_template
 from fg_env.action import Precondition, Operator
 from fg_env.physics import PhysicsModel, PhysicsExprError
 

@@ -9,7 +9,7 @@ import logging
 
 import pytest
 
-from fg_env import Kernel, TemplateError, simulate
+from fg_env.legacy import Kernel, TemplateError, simulate
 
 
 def _valid_template():
@@ -90,7 +90,7 @@ class TestWarnings:
 
 class TestCustomRegistryNoFalsePositive:
     def test_forked_registry_effect_passes_lint(self):
-        from fg_env import registry
+        from fg_env.legacy import registry
 
         mine = registry.fork()
 

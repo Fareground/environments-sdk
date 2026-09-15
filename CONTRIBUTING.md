@@ -30,7 +30,8 @@ repo root discovers everything. Narrow a run with `pytest tests/<file>.py -k <ex
 
 The contract SDK lives in `src/fg_env/sdk/`. The older template API (`Kernel`,
 `simulate`, `pipeline/`, `domain/`, `runtime/`) lives in the rest of `src/fg_env/`
-and is kept for existing templates.
+and is kept for existing templates. Its public names are exported from `fg_env.legacy`
+and its commands run as `fg-env legacy <command>`.
 
 | Module | Responsibility |
 | --- | --- |

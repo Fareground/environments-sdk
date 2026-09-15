@@ -166,6 +166,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   population list prop and read the parts through `$it` for correlated traits.
 
 #### Changed
+- **BREAKING (template API):** the template-based kernel API moved off the top level: import it from
+  `fg_env.legacy` (`from fg_env.legacy import simulate, Kernel, compile_template, registry`) and run its commands
+  as `fg-env legacy <command>` (`fg-env legacy compile template.json`). `fg_env` and `fg-env --help` now show only
+  the Environment SDK (46 names, 20 commands; were 120 and 31).
+- **Replays of chosen chance and forks**: outcomes a `chance=` chooser picked are recorded (`exposures.chance`) and
+  replayed without the chooser (a changed chance node is a divergence); a forked run records the snapshot it
+  continued from (`exposures.start`, its exposure log as counts) and replays from there. `.jsonl` results keep both.
+- **Budgets and recordings in every batch**: `experiment(..., budget=, exposures=)` (with `branch_at` the shared
+  rounds count toward every arm), `tournament(..., budget=, exposures=)`, `evaluate(..., exposures=)` (every run in
+  `result.results`) and `run_jobs(..., exposures=)`; each run has the whole budget, and a recorded run keeps its
+  events. CLI: `fg-env run --exposures --frames FILE`, `fg-env experiment|tournament --budget --exposures`,
+  `fg-env evaluate --exposures` (`--exposures` needs `--json`).
+- A host-tool answer that lands after its turn timed out is taken off the host tape, and a call made after the
+  deadline is no step on the engine tape, so replays of timed-out turns stay exact.
+- Model usage reported after a turn's deadline counts toward `stats`, `agent_stats` and the budget (the wake records it
+  as `late_usage`); the late participant still cannot act.
 - `Env.restore` refuses a snapshot whose seed, arm or inputs were edited, and explains a contract mismatch,
   pointing to `fg_env.fork` (an edited arm used to be ignored silently).
 - Async participants are awaited instead of refused.

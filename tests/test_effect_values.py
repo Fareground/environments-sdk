@@ -3,7 +3,7 @@ import random
 
 import pytest
 
-from fg_env import compile_template, smoke_test
+from fg_env.legacy import compile_template, smoke_test
 from fg_env.action import ActionInstance
 from fg_env.effect_values import EffectValueError, resolve_value
 from fg_env.pipeline.loader import load_world

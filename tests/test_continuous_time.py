@@ -1,6 +1,6 @@
 """Unit tests for the continuous-time model's scheduling + serialization,
 focused on the recurring environment-tick clock that drives physics."""
-from fg_env import ContinuousTemporalModel
+from fg_env.legacy import ContinuousTemporalModel
 
 
 def test_is_empty_then_not():

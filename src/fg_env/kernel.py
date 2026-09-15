@@ -2,14 +2,14 @@
 
 One line (built-in random agent, deterministic given the seed):
 
-    from fg_env import simulate
+    from fg_env.legacy import simulate
 
     world = simulate(template)
     print(world.summary())
 
 Two objects, full control:
 
-    from fg_env import Kernel
+    from fg_env.legacy import Kernel
 
     kernel = Kernel(seed=42)
     world = kernel.load(template_dict, decision_fn=my_agent)
@@ -260,7 +260,7 @@ class Kernel:
                   fork sees all built-ins but keeps its own
                   registrations private to this kernel::
 
-                      from fg_env import Kernel, registry
+                      from fg_env.legacy import Kernel, registry
 
                       mine = registry.fork()
 
@@ -327,7 +327,7 @@ def simulate(
     """One-shot simulation: load a template, run to completion, return
     the finished ``World``.
 
-        from fg_env import simulate
+        from fg_env.legacy import simulate
 
         world = simulate(template)
         print(world.summary())

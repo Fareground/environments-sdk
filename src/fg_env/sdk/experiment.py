@@ -10,6 +10,7 @@ from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Sequence, Set, Tuple
 
 from .api import ContractLike, contract_source, default_data_dir, load, parse
+from .budget import Budget
 from .contract import Contract
 from .errors import ContractError, Issue
 from .measure import RunResult
@@ -156,7 +157,7 @@ class ExperimentResult:
 
     def to_dict(self) -> Dict[str, Any]:
         return {"seeds": self.seeds, "deltas": self.deltas() if len(self.arms) > 1 else {}, "arms": {
-            label: {"outputs": arm.outputs, "runs": [r.to_dict(events=False) for r in arm.runs]}
+            label: {"outputs": arm.outputs, "runs": [r.to_dict(events=bool(r.exposures)) for r in arm.runs]}
             for label, arm in self.arms.items()}}
 
 
@@ -186,14 +187,15 @@ def failed_run(job: Job, error: BaseException) -> RunResult:
 
 
 def run_job(source: Any, job: Job, participants: Any = None, rounds: Optional[int] = None, events: bool = True,
-            data_dir: Any = None, budget: Optional[Mapping[str, Any]] = None) -> RunResult:
-    """Run one job; a failure comes back as a failed run, never raised."""
+            data_dir: Any = None, budget: Optional[Mapping[str, Any]] = None, exposures: bool = False) -> RunResult:
+    """Run one job; a failure comes back as a failed run, never raised. A run that records exposures keeps its
+    events whatever ``events`` says: a recording is replayed against them."""
     try:
-        result = load(source, inputs=dict(job.inputs), seed=job.seed, arm=job.arm, data_dir=data_dir).run(
-            participants, rounds=rounds, budget=budget)
+        result = load(source, inputs=dict(job.inputs), seed=job.seed, arm=job.arm, data_dir=data_dir,
+                      exposures=exposures).run(participants, rounds=rounds, budget=budget)
     except Exception as exc:  # reported per run, never fatal to the batch
         return failed_run(job, exc)
-    return result if events else replace(result, events=[])
+    return result if events or exposures else replace(result, events=[])
 
 
 def _process_job(payload: tuple) -> RunResult:
@@ -220,14 +222,16 @@ def worker_pool(workers: int, participants: Any = None) -> Iterator[Optional[Pro
 def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = None,
              participants_for: Optional[Callable[[Job], Any]] = None, rounds: Optional[int] = None, workers: int = 1,
              events: bool = True, pool: Optional[ProcessPoolExecutor] = None, data_dir: Any = None,
-             budget: Optional[Mapping[str, Any]] = None) -> List[RunResult]:
+             budget: Optional[Mapping[str, Any]] = None, exposures: bool = False) -> List[RunResult]:
     """Run every job, in order, returning one result per job.
 
     Problems the jobs share (bad inputs, an unknown arm, an unknown participant) raise before anything
     runs; a job that fails on its own comes back as a failed run. Participants given by name run in
     worker processes when ``workers > 1`` or a ``pool`` is given; callables run in threads.
     ``participants_for(job)`` builds fresh participants per job; a job's own ``participants`` replace
-    the batch's for that job; ``events=False`` drops event logs; ``budget`` caps every run.
+    the batch's for that job; ``events=False`` drops event logs; ``budget`` caps each run on its own
+    (every run has the whole budget: :mod:`fg_env.sdk.budget`); ``exposures=True`` records what agents saw in every
+    run's ``exposures``, events kept, so each run is a trace to read or replay (:func:`fg_env.trace`).
     """
     _check_workers(workers)
     folder = default_data_dir(source, data_dir)
@@ -253,13 +257,14 @@ def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = N
             who = participants_for(job) if participants_for is not None else assigned(job)
         except Exception as exc:
             return failed_run(job, exc)
-        return run_job(contract, job, who, rounds, events, folder, budget)
+        return run_job(contract, job, who, rounds, events, folder, budget, exposures)
 
     many = len(jobs) > 1
     portable = participants_for is None and all(_portable(assigned(job)) for job in jobs)
     if (pool is not None or workers > 1) and many and portable:
         data = contract_source(contract)
-        payloads = [(data, job, assigned(job), rounds, events, str(folder) if folder else None, budget) for job in jobs]
+        payloads = [(data, job, assigned(job), rounds, events, str(folder) if folder else None, budget, exposures)
+                    for job in jobs]
         chunk = max(1, len(jobs) // (workers * 4))
         try:
             if pool is not None:
@@ -276,8 +281,9 @@ def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = N
 
 def _branched(contract: Contract, jobs: Sequence[Job], branch_at: int, participants: Any,
               participants_for: Optional[Callable[[Job], Any]], rounds: Optional[int], workers: int,
-              folder: Any) -> List[RunResult]:
-    """Each run's first ``branch_at`` rounds played once without an arm, then continued under every job's arm."""
+              folder: Any, budget: Optional[Mapping[str, Any]], exposures: bool) -> List[RunResult]:
+    """Each run's first ``branch_at`` rounds played once without an arm, then continued under every job's arm. The
+    budget starts with the shared rounds and every continuation carries what they used (a fork keeps the budget)."""
     if isinstance(branch_at, bool) or not isinstance(branch_at, int) or branch_at < 0:
         raise ValueError(f"branch_at must be a whole number of rounds ≥ 0, got {branch_at!r}")
     if rounds is not None and branch_at > rounds:
@@ -290,9 +296,10 @@ def _branched(contract: Contract, jobs: Sequence[Job], branch_at: int, participa
     def one(group: List[Job]) -> List[Tuple[Job, RunResult]]:
         first = group[0]
         try:
-            shared = load(contract, inputs=dict(first.inputs), seed=first.seed, data_dir=folder)
+            shared = load(contract, inputs=dict(first.inputs), seed=first.seed, data_dir=folder, exposures=exposures)
             shared.run(participants_for(replace(first, arm=None)) if participants_for else
-                       (first.participants if first.participants is not None else participants), rounds=branch_at)
+                       (first.participants if first.participants is not None else participants), rounds=branch_at,
+                       budget=budget)
         except ContractError:
             raise
         except Exception as exc:  # the shared history failed: every arm of this run reports it
@@ -323,7 +330,8 @@ def experiment(source: ContractLike, *, runs: int = 10, arms: Optional[List[str]
                inputs: Optional[Mapping[str, Any]] = None, participants: Any = None,
                participants_for: Optional[Callable[[int, Optional[str]], Any]] = None,
                rounds: Optional[int] = None, workers: int = 1, data_dir: Any = None,
-               branch_at: Optional[int] = None) -> ExperimentResult:
+               branch_at: Optional[int] = None, budget: Optional[Mapping[str, Any]] = None,
+               exposures: bool = False) -> ExperimentResult:
     """Run each arm ``runs`` times. Run *i* uses the same seed in every arm, so differences
     between arms come from the arm, not from luck. ``arms`` defaults to every declared arm
     (or a single baseline run set when none are declared). ``participants_for(i, arm)``
@@ -333,6 +341,10 @@ def experiment(source: ContractLike, *, runs: int = 10, arms: Optional[List[str]
     arm continues from that same state (a fork: the arm's patch and inputs apply from round N + 1, and
     an arm whose patch the state cannot follow raises before the experiment goes on).
 
+    ``budget`` caps each run on its own (:mod:`fg_env.sdk.budget`); with ``branch_at`` the shared rounds are part of
+    every arm's run, so they count toward each arm's budget. ``exposures=True`` records what agents saw in every run
+    (``result.arms[label].runs[i].exposures``, events kept): each run is a trace to read or replay.
+
     Problems shared by every run (an unknown arm, bad inputs, an unknown participant) raise
     before anything runs. A run that fails on its own is kept with ``status="failed"`` and its
     error, and the rest of the experiment carries on.
@@ -340,6 +352,8 @@ def experiment(source: ContractLike, *, runs: int = 10, arms: Optional[List[str]
     for name, value in (("runs", runs), ("workers", workers)):
         if isinstance(value, bool) or not isinstance(value, int) or value < 1:
             raise ValueError(f"{name} must be a whole number ≥ 1, got {value!r}")
+    if budget is not None:
+        Budget.parse(budget)  # a mistake in the budget raises before anything runs
     folder = default_data_dir(source, data_dir)
     contract = parse(source)
     labels: List[Optional[str]] = list(arms) if arms is not None else (list(contract.arms) or [None])
@@ -359,11 +373,11 @@ def experiment(source: ContractLike, *, runs: int = 10, arms: Optional[List[str]
 
     if branch_at is not None:
         results = _branched(contract, jobs, branch_at, participants, per_job if participants_for else None, rounds,
-                            workers, folder)
+                            workers, folder, budget, exposures)
     else:
         results = run_jobs(contract, jobs, participants=participants,
                            participants_for=per_job if participants_for else None, rounds=rounds, workers=workers,
-                           data_dir=folder)
+                           data_dir=folder, budget=budget, exposures=exposures)
     out: Dict[str, ArmResult] = {}
     for arm in labels:
         arm_runs = [r for job, r in zip(jobs, results) if job.arm == arm]

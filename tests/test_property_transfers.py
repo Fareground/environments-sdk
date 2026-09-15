@@ -2,7 +2,7 @@ import copy
 
 import pytest
 
-from fg_env import compile_template, export_kernel_contract
+from fg_env.legacy import compile_template, export_kernel_contract
 from fg_env.action import ActionInstance
 from fg_env.resolution import ResolutionResult
 from fg_env.transfers import TransferError, apply_action_effects, settle_transfers

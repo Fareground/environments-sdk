@@ -121,7 +121,7 @@ def test_parallel_experiment_in_processes_matches_sequential():
 def test_legacy_lint_points_to_check(tmp_path, capsys):
     path = tmp_path / "c.json"
     path.write_text(json.dumps(CHAIN))
-    assert main(["lint", str(path)]) == 1
+    assert main(["legacy", "lint", str(path)]) == 1
     assert "use `fg-env check" in capsys.readouterr().err
 
 

@@ -3,11 +3,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from typing import Any, Dict, List, Optional
 
-from .cli import _guarded, _inputs, _pairs, _UsageError
+from .cli import _check_exposures, _guarded, _inputs, _pairs, _UsageError
 
-__all__ = ["add_run_commands", "budget_arg"]
+__all__ = ["add_run_commands", "budget_arg", "save_frames"]
 
 TRACE_VIEWS = ("overview", "turn", "timeline", "search", "invalid", "agent", "replay")
 
@@ -15,6 +16,16 @@ TRACE_VIEWS = ("overview", "turn", "timeline", "search", "invalid", "agent", "re
 def budget_arg(items: Optional[List[str]]) -> Optional[Dict[str, Any]]:
     """``--budget tokens=100000 --budget on_exhaust=idle`` as a budget mapping (None when not given)."""
     return _pairs(items, "--budget") or None
+
+
+def save_frames(path: str, result: Any) -> None:
+    """``--frames FILE``: the run's spectator frames as JSON."""
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(result.frames, handle, indent=2, ensure_ascii=False, default=str)
+        handle.write("\n")
+    if not result.frames:
+        print(f"note: {path} holds no frames: frames render the contract's spectator views (\"for\": \"spectator\") "
+              "at the end of every round", file=sys.stderr)
 
 
 def cmd_trace(args: argparse.Namespace) -> int:
@@ -70,11 +81,12 @@ def _replay(recording: Any, contract: str, args: argparse.Namespace) -> int:
 def cmd_evaluate(args: argparse.Namespace) -> int:
     from .evaluate import evaluate
 
+    _check_exposures(args)
     modes = {name: _share(name, value) for name, value in _pairs(args.mode, "--mode").items()} or None
     result = evaluate(args.file, focal=args.focal, background=args.background, baseline=args.baseline,
                       seats=args.seat, score=args.score, modes=modes, inputs=_inputs(args) or None, arm=args.arm,
                       runs=args.runs, rounds=args.rounds, budget=budget_arg(args.budget), seed=args.seed,
-                      workers=args.workers)
+                      workers=args.workers, exposures=args.exposures)
     print(json.dumps(result.to_dict(), indent=2, default=str, ensure_ascii=False) if args.json else result.summary())
     return 0
 
@@ -119,5 +131,7 @@ def add_run_commands(sub: Any) -> None:
     p.add_argument("--budget", action="append", metavar="NAME=VALUE", help="per-run budget: tokens, calls, "
                                                                            "host_calls, seconds, on_exhaust")
     p.add_argument("--workers", type=int, default=1)
+    p.add_argument("--exposures", action="store_true", help="record what every agent saw in each run (in the "
+                                                            "--json output)")
     p.add_argument("--json", action="store_true", help="print the full result as JSON")
     p.set_defaults(func=_guarded(cmd_evaluate))

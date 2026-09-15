@@ -20,10 +20,10 @@ visible via ``export_kernel_contract()``.
 
 Each primitive lives in its own .py file (one primitive per file is
 the canonical style, but multiple are allowed). The template that
-``python -m fg_env new-primitive`` writes follows this convention:
+``fg-env legacy new-primitive`` writes follows this convention:
 
     \"\"\"<one-line summary>\"\"\"
-    from fg_env import effect, EffectContext
+    from fg_env.legacy import effect, EffectContext
 
     @effect("my_op_name")
     def _my_op(ctx: EffectContext, spec: dict):
@@ -132,7 +132,7 @@ def _load_dir(directory: Path) -> List[str]:
 
 def list_loaded_primitives() -> dict:
     """Inspect the live registry and return what's registered, grouped
-    by namespace. Used by ``python -m fg_env primitives``."""
+    by namespace. Used by ``fg-env legacy primitives``."""
     from .registry import registry
 
     return {
@@ -147,14 +147,14 @@ def list_loaded_primitives() -> dict:
     }
 
 
-# Templates for each primitive kind — used by `python -m fg_env new-primitive`
+# Templates for each primitive kind — used by `fg-env legacy new-primitive`
 PRIMITIVE_TEMPLATES = {
     "effect": '''"""{description}
 
 Effect handler — fires as part of an action's effects_on_success /
 effects_on_failure / effects_on_partial.
 """
-from fg_env import effect, EffectContext
+from fg_env.legacy import effect, EffectContext
 
 
 @effect("{name}")

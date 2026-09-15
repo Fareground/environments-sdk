@@ -20,7 +20,7 @@ from ..template import format_value
 from ..world import Abort
 from .common import agents_of, clip, config_of, prop_of, type_list
 from .protocols import HostError
-from .tape import consult, plain, tape_prop
+from .tape import TAPE, consult, plain, request_key, tape_prop
 
 __all__ = ["HostToolConfig", "fetch", "prefetch"]
 
@@ -99,13 +99,21 @@ def fetch(world: Any, name: str, config: HostToolConfig, actor_id: str, args: Ma
     return result
 
 
-def prefetch(env: Any, name: str, actor: Entity, params: Mapping[str, Any]) -> None:
-    """Ask the host before the tool applies, outside the run's lock; the answer lands on the tape under it."""
+def prefetch(env: Any, name: str, actor: Entity, params: Mapping[str, Any]) -> Optional[str]:
+    """Ask the host before the tool applies, outside the run's lock; the answer lands on the tape under it.
+
+    Returns the tape key of an answer this call added (None when it was on the tape already, or the host was not
+    asked), so a turn that ran out of time while the host answered can take it off again."""
     config = config_of(env.world, name, KEY, HostToolConfig, f"mechanisms.{name}")
+    arguments = plain({key: value for key, value in params.items() if value is not None})
     with env._lock:
         calls = prop_of(actor, f"{name}_calls", 0)
-    if config.max_calls_per_run is None or calls < config.max_calls_per_run:
-        fetch(env.world, name, config, actor.id, params, lock=env._lock)
+        key = request_key(env.world, config.host, f"mechanisms.{name}", actor.id, {"args": arguments})
+        known = key in (env.world.props.get(TAPE) or {})
+    if config.max_calls_per_run is not None and calls >= config.max_calls_per_run:
+        return None
+    fetch(env.world, name, config, actor.id, arguments, lock=env._lock)
+    return None if known else key
 
 
 def _result(answer: Any, limit: int) -> str:

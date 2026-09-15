@@ -12,6 +12,12 @@ every replay (``seconds`` is wall-clock time, so it is the one limit that is not
 limit is reached, ``on_exhaust: "end"`` ends the run there (``ended_by: "budget"``, outputs computed as
 for any ended run) and ``"idle"`` keeps the world running while every agent's later turns are idle.
 ``result.budget`` reports the limits, what was used and which limit ran out; snapshots carry it.
+
+Usage a participant reports after its turn is over (it ran out of time) still counts: it is added to the run's
+statistics when it arrives and the next safe point sees it, though that participant takes no further action
+(when it arrives depends on the clock, as ``seconds`` does). Batches — ``experiment`` (with ``branch_at`` the
+shared rounds count toward every arm), ``tournament``, ``evaluate`` and ``run_jobs`` — give every run the whole
+budget to itself.
 """
 from __future__ import annotations
 

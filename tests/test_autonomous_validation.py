@@ -1,6 +1,6 @@
 import copy
 import pytest
-from fg_env import compile_template
+from fg_env.legacy import compile_template
 
 WORLD = {'name': 'Autonomous counter', 'entity_types': [{'name': 'Counter', 'role': 'object', 'properties': [{'name': 'count', 'type': 'int', 'default': 0}]}], 'entities': [{'id': 'counter', 'entity_type': 'Counter', 'properties': {}}], 'derived_rules': [{'name': 'increment', 'when': True, 'for_each': '$alive_of(Counter)', 'then': [{'operation': 'add', 'target': 'actor', 'field': 'count', 'value': 1}]}], 'termination_conditions': [{'name': 'end', 'check_type': 'round_limit', 'params': {'max_rounds': 3}}]}
 
