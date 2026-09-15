@@ -42,7 +42,10 @@ family("game", "Game equipment: boards with enforced rules, cards, betting pots 
 family("flow", "Who acts when and how it ends: turn order, procedures with phases, victory conditions.",
        {"who": "agent type whose turns or victory it governs", "views": SHARED["views"], "ties": SHARED["ties"],
         "tools": SHARED["tools"]})
-family("groups", "Who belongs with whom: hidden roles and teams, factions and alliances, relationships.",
+family("operations", "Service operations: customers arriving on channels and served by staffed server pools — contact "
+                     "centres, clinics, counters, repair crews — with queues, patience, callbacks and service levels.",
+       {"unit": "the time unit of every duration and threshold (second, minute, hour)"})
+family("groups","Who belongs with whom: hidden roles and teams, factions and alliances, relationships.",
        {"who": "agent type that belongs to groups", "views": SHARED["views"], "phase": SHARED["phase"],
         "tools": SHARED["tools"]})
 family("social", "Talking and spreading: channels (rooms, direct messages), a social feed, diffusion over a network.",

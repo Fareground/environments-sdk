@@ -10,6 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Added
+- **Service queues** (`"kind": "operations", "mode": "queue"`): a contact centre, clinic, counter or repair crew
+  played natively, interval by interval — arrivals per channel from any expression (patterns, data, an outage),
+  service and patience distributions, server pools with skills, shifts as staff per interval
+  (`"$inputs.staffing[$interval]"`, a vector an optimiser can search), priorities, callbacks served when nobody waits,
+  and retries. Queue operations are heaps (O(log n)); arrivals and each customer's durations come from streams of their
+  own, so arms with different staffing see the same customers. Per-interval records and totals give service level at
+  each channel's threshold, speed of answer, abandonment, utilisation, queue length, paid hours with shrinkage and
+  cost, on round and continuous clocks. A stationary M/M/c case matches Erlang C and one with patience Erlang A.
 - **World patterns** (`patterns`): the world's own regularities declared once, like its physics, and read anywhere as
   values — `$pattern.winter`, `$pattern.price_effect($it.price)`, `$pattern.season($it.category)`. Kinds for time
   (trend, seasonal, calendar, cycle, lifecycle, step, series), random paths from each pattern's own seeded stream
