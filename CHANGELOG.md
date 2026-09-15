@@ -52,9 +52,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the same property); a shock becomes a `shocks` pattern an event reads; a prior becomes a `draw` pattern. Declaring a
   `dynamics` mechanism (or `drift`, `shocks`, `priors`) says which pattern replaces it. `epidemic_shocks` and the
   flagship exchange's calibration are migrated; their golden runs changed because the draws now come from pattern
-  streams, while their behaviour did not (200 seeds of `epidemic_shocks` and 24 of the flagship: no output mean
-  differs by more than 1.3 standard errors). The flagship's stylized-facts test pins its experiment seed, with the
-  measured pass rates beside it.
+  streams, while their behaviour did not (200 seeds of `epidemic_shocks`: no output mean differs by more than 1.3
+  standard errors; 40 seeds of the flagship before and after: no stylized fact's distribution differs, Mann-Whitney
+  p 0.2–0.9, and one session meets every bound in 24 of 40 against 22 of 40).
+- **The flagship's stylized-facts test is statistical, not a pinned seed.** Its tape is bimodal across seeds —
+  sessions where stop-loss cascades start are volatile and fat-tailed, the rest calm — so one session proves
+  nothing. The default test holds each fact's median over 6 sessions inside its bound and needs one session meeting
+  every bound; `FG_ENV_SLOW=1` adds 24 sessions with strict medians and at least 8 meeting every bound. Thresholds
+  come from the measured distribution (a healthy set fails 2.6% and 0.3% of the time).
 - **A short core guide**: `fg_env.guide()` / `fg-env guide` is a ~2.8K-token core — the model, a quickstart that
   runs with defaults, the essential sections and fields, expression and effect basics, the mechanism families and a
   map of every other part. Each contract section (`guide("actions")`, with the `$` roots available there), function
