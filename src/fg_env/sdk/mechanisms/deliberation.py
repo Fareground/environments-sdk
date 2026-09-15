@@ -527,9 +527,12 @@ def _expand(name: str, config: DeliberationConfig, contract: Mapping[str, Any]) 
                              outcome="You are ready to conclude.", private=True, terminal=True),
     }
     if config.floor:
-        actions[f"{name}_raise_hand"] = act(members, "Ask the chair for the floor.", {"action": "raise_hand"}, open_debate + [
-            {"expr": f"not ({holds})", "why": _HOLDING}, {"expr": f"not ({raised})", "why": _RAISED}],
-            outcome="Your hand is raised.", private=True)
+        actions[f"{name}_raise_hand"] = act(
+            members, "Ask the chair for the floor, then end your turn: you are woken when you hold the floor.",
+            {"action": "raise_hand"}, open_debate + [
+                {"expr": f"not ({holds})", "why": _HOLDING}, {"expr": f"not ({raised})", "why": _RAISED}],
+            outcome="Your hand is raised. The chair gives the floor between turns: end your turn now; you will be woken "
+                    "when you hold the floor.", private=True)
         actions[f"{name}_yield"] = act(members, "Give the floor back to the chair.", {"action": "yield"}, open_debate + floor,
                                        outcome="You yielded the floor.", private=True)
         actions[f"{name}_recognize"] = act(chair or members, "Give the floor to a member whose hand is raised.",

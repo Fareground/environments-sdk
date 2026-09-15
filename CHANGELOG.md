@@ -118,6 +118,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   errors were 10–17% too narrow), and dispersion is estimated with the fitted parameters' degrees of freedom (it ran
   4–9% high). The report names parameters the history can hardly tell apart — a promotion that is always a price cut
   — with how much the overlap widens their errors and their 95% ranges.
+- **Reading never costs the action**: `look` and `inspect` have their own free allowance (`max_calls` per turn, said in
+  the update and both tool descriptions); a read past it is refused without spending a call ("You have used your 4
+  free reads this turn; nothing was read. Act or end your turn."), and only a participant that keeps reading after
+  more refusals than the turn has calls has its turn ended. In the second evaluation reads past the allowance used up
+  calls: the werewolf seer read eight times and never voted, and 14 social-network turns ended with no action. The
+  same read twice in a turn answers "Unchanged since you read it earlier this turn."; `inspect` offers only entities
+  with something to show (the fact desk and the town-hall chair showed a name and nothing else) and leaves out
+  properties without a value. A turn that ends with its calls used up while an action was still open is reported as
+  `Ben did not act.` in any stage, not only a `must_act` one.
+- **Text limits models keep to**: a limit's word hint is characters ÷ 8 ("Up to 400 characters (about 50 words).")
+  — at ÷ 6.5, 44% of werewolf speeches were over on the first try. A text parameter may set `"overflow": "truncate"`:
+  longer text is cut after the last full sentence that fits and the result says so ("(Your text was cut to 380 of 450
+  characters; the rest was not said.)"). Werewolf `say` uses it: 11 of its 31 refused speeches were never said,
+  because the speaker gave up and ended its turn.
+- **Refusals in the form the tools take**: with `tools: one`, an unknown tool name points to the shared tool ("Use
+  hall with action: speak, yield or amend.") instead of action names that are not tools there; with nothing open,
+  "No actions are available now — call end_turn." An entity parameter with too many choices for an enum lists their
+  ids compactly ("One of: u1–u150."); the social network's brief says the fact desk is not an account and cannot be
+  followed (16 refused follows). The town hall's `raise_hand` says to end the turn and wait to be woken with the floor
+  (17 same-reply speeches were refused). The participants guide recommends `reasoning_effort="low"` for frequent
+  decisions, or a larger `max_tokens` at the default effort.
 - **Discarded game states and copies do no work during garbage collection**: collecting a stepped state closed its
   waiting turn there — evaluating legality rules on whatever thread collected, inside whatever it was evaluating, and
   charging that evaluation's budget — and collecting a `Branch` joined its copy's thread in the middle of the

@@ -106,7 +106,8 @@ class Perception:
         if time_limit is not None:
             lines.append(f"You have {format_value(time_limit)} seconds for this turn; after that it ends.")
         if calls is not None:
-            lines.append(f"You have {calls} tool calls this turn (looking at views and inspecting are free).")
+            lines.append(f"You have {calls} tool calls this turn, and up to {calls} free reads (look and inspect) that do "
+                         "not use them.")
         news, hidden = self.news(actor, since, DELTA_LIMIT, shown, attached)
         if news or hidden:
             lines += ["", "Since your last turn:"]

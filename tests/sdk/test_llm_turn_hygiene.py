@@ -1,9 +1,12 @@
 """What real models trip over in a turn: truncated replies, calls after the turn ended, the call budget, reads."""
 import json
+from pathlib import Path
 from types import SimpleNamespace as NS
 
 import fg_env
 from fg_env import participants
+
+EXAMPLES = Path(__file__).parents[2] / "examples" / "contracts"
 
 DUEL = {
     "name": "Duel",
@@ -99,30 +102,96 @@ def test_calls_left_in_a_reply_after_the_turn_ended_are_not_made_or_counted():
     assert result.agent_stats["ann"]["calls"] == 1 and result.agent_stats["ann"]["invalid_calls"] == 0
 
 
+LOOKED = {**DUEL, "views": {"table": {**DUEL["views"]["table"], "look": True}}}
+
+
 def test_reads_do_not_spend_the_calls_an_agent_needs_to_act():
-    contract = {**DUEL, "stages": [{"name": "play", "max_calls": 2}]}
+    contract = {**LOOKED, "stages": [{"name": "play", "max_calls": 2}]}
     outcome = {}
 
     def reader(wake):
         outcome["update"] = wake.update
-        outcome["reads"] = [wake.call("inspect", {"id": "ben"}).ok for _ in range(2)]
+        outcome["tools"] = {tool.name: tool.description for tool in wake.tools}
+        outcome["reads"] = [wake.call("look", {"view": "table"}).ok, wake.call("inspect", {"id": "ben"}).ok]
         outcome["move"] = wake.call("move", {"to": 2})
 
     fg_env.run(contract, {"ann": reader, "ben": "idle"}, seed=1)
     assert outcome["reads"] == [True, True] and outcome["move"].ok
-    assert "You have 2 tool calls this turn (looking at views and inspecting are free)." in outcome["update"]
+    assert "You have 2 tool calls this turn, and up to 2 free reads (look and inspect) that do not use them." \
+        in outcome["update"]
+    assert outcome["tools"]["inspect"].endswith("Free: up to 2 reads (looks and inspects) per turn do not use a tool call.")
+    assert outcome["tools"]["look"] == ("Show one of these views: table (Players). What happened since your last turn is "
+                                        "already in your update. Free: up to 2 reads (looks and inspects) per turn do "
+                                        "not use a tool call.")
 
 
-def test_a_read_past_the_free_allowance_uses_a_call_and_the_last_calls_are_counted_down():
+def test_reads_past_the_free_allowance_are_refused_without_spending_the_call_needed_to_act():
+    contract = {**DUEL, "stages": [{"name": "play", "max_calls": 2}]}
+    seen = {}
+
+    def reader(wake):
+        seen["reads"] = [wake.call("inspect", {"id": who}) for who in ("ben", "ann", "ben", "ann")]
+        seen["move"] = wake.call("move", {"to": 2})
+
+    result = fg_env.run(contract, {"ann": reader, "ben": "idle"}, seed=1)
+    texts = [read.text for read in seen["reads"]]
+    assert texts[1].endswith("(That was your last free read this turn.)")
+    assert texts[2] == texts[3] == "You have used your 2 free reads this turn; nothing was read. Act or end your turn."
+    assert seen["move"].ok and not any(read.ended for read in seen["reads"])
+    assert result.agent_stats["ann"]["actions"] == 1 and not any(e["kind"] == "idle" for e in result.events)
+
+
+def test_the_werewolf_seer_can_still_vote_after_reading_everyone():
+    contract = json.loads((EXAMPLES / "werewolf.json").read_text())
+    votes = []
+
+    def seer(wake):
+        if wake.stage != "day_vote":
+            return None
+        wake.call("look", {"view": "chat_history"})
+        for target in [f"p{i}" for i in range(2, 9)]:  # the evaluation's seer: a look and 7 inspects
+            wake.call("inspect", {"id": target})
+        vote = next(t for t in wake.tools if t.name == "exile_vote")
+        votes.append(wake.call("exile_vote", {"choice": vote.input_schema["properties"]["choice"]["enum"][-1]}))
+
+    fg_env.run(contract, {"*": seer}, seed=2, rounds=1)  # nobody acts at night, so everyone reaches the vote
+    assert len(votes) == 9 and all(vote.ok for vote in votes), [vote.text for vote in votes]
+
+
+def test_an_agent_that_only_reads_is_stopped_and_reported_as_not_acting():
     contract = {**DUEL, "stages": [{"name": "play", "max_calls": 2}]}
     texts = []
 
     def reader(wake):
-        texts.extend(wake.call("inspect", {"id": "ben"}).text for _ in range(3))
-        texts.append(wake.call("inspect", {"id": "ben"}).text)
+        while not wake.done:
+            texts.append(wake.call("inspect", {"id": "ben"}).text)
 
-    fg_env.run(contract, {"ann": reader, "ben": "idle"}, seed=1)
-    assert "(Calls left: 1.)" in texts[2] and "your turn is over" in texts[3]
+    result = fg_env.run(contract, {"ann": reader, "ben": "idle"}, seed=1)
+    assert len(texts) == 5 and texts[-1].endswith("You kept reading, so your turn is over.")
+    assert any(event["text"] == "Ann did not act." for event in result.events)
+
+
+def test_a_turn_that_runs_out_of_calls_with_an_action_open_is_reported_even_when_acting_is_optional():
+    contract = {**DUEL, "stages": [{"name": "play", "max_calls": 2}]}
+
+    def fumbler(wake):
+        wake.call("move", {"to": 9})
+        wake.call("move", {"to": 9})
+
+    result = fg_env.run(contract, {"ann": fumbler, "ben": "idle"}, seed=1)
+    assert any(event["text"] == "Ann did not act." for event in result.events)
+    assert not any(event["text"] == "Ben did not act." for event in result.events)  # Ben ended his turn himself
+
+
+def test_the_same_read_twice_in_a_turn_says_it_is_unchanged():
+    texts = []
+
+    def reader(wake):
+        texts.extend(wake.call("look", {"view": "table"}).text for _ in range(2))
+        wake.call("move", {"to": 1})
+
+    fg_env.run(LOOKED, {"ann": reader, "ben": "idle"}, seed=1)
+    assert texts[0].startswith("Players") and texts[1] == "Unchanged since you read it earlier this turn."
 
 
 def test_inspect_offers_its_ids_finds_a_name_and_suggests_the_closest_id():
@@ -141,6 +210,22 @@ def test_inspect_offers_its_ids_finds_a_name_and_suggests_the_closest_id():
     assert seen["by_name"].startswith("Ben [ben] (player)")
     assert seen["typo"] == "No entity with that id is available to inspect. Did you mean 'ben'?"
     assert "Ben [ben]: 0" in seen["update"] and "Ann: 0" in seen["update"]  # no handle for yourself
+
+
+def test_inspect_offers_only_entities_with_something_to_show_and_skips_empty_values():
+    contract = {**DUEL, "types": {"player": {"agent": True, "props": {"score": 0, "note": {"type": "text", "default": ""}}},
+                                  "desk": {}},
+                "entities": {**DUEL["entities"], "desk": {"type": "desk", "name": "Fact desk"}}}
+    seen = {}
+
+    def agent(wake):
+        seen["enum"] = next(t for t in wake.tools if t.name == "inspect").input_schema["properties"]["id"]["enum"]
+        seen["ben"] = wake.call("inspect", {"id": "ben"}).text
+        wake.call("move", {"to": 1})
+
+    fg_env.run(contract, {"ann": agent, "ben": "idle"}, seed=1)
+    assert seen["enum"] == ["ann", "ben"]
+    assert seen["ben"] == "Ben [ben] (player)\nscore: 0"
 
 
 def test_many_ids_are_listed_compactly_and_uninspectable_entities_get_no_handle():

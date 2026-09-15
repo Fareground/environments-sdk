@@ -1,37 +1,43 @@
 """What an agent reads during a turn without acting: views by `look`, entities by `inspect`, and their [id] handles.
 
-Reads do not spend the turn's tool calls: each turn has as many free reads as it has calls (the stage's `max_calls`),
-so reading never uses up the calls an agent needs to act. Past that allowance a read uses a call like any other — the
-backstop for a participant that only reads. The rule depends on nothing but the calls made, so runs stay deterministic.
+Reads never spend the turn's tool calls. Each turn has as many free reads as it has calls (the stage's `max_calls`);
+past that allowance a read is refused without spending anything, so an agent that still has an action open can always
+take it. A participant that keeps reading after more refusals than the turn has calls has its turn ended — the backstop
+for a loop that only reads. The same read twice in a turn answers that it is unchanged instead of repeating the text.
+The rules depend on nothing but the calls made, so runs stay deterministic.
 
-`inspect` offers the ids it accepts (an enum when they are few, a compact listing otherwise), finds an entity by its
-name as well as its id, and a refusal suggests the closest id. Entities an agent may inspect show their id next to
+`inspect` offers the ids of entities with something to show (a property with a value, or a place), as an enum when
+they are few and a compact listing otherwise; it finds an entity by its name as well as its id, and a refusal suggests
+the closest id. Its result leaves out properties without a value. Entities an agent may inspect show their id next to
 their name in what that agent reads (``Moderator [chair]``), so the handle to pass is always in view.
 """
 from __future__ import annotations
 
-import re
 from difflib import get_close_matches
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from ..entity import Entity
 from .actions import ToolSpec
+from .assets.delivery import references
 from .errors import RunError
 from .expr import ExprError, compile_expr, truthy
+from .template import format_value
+from .tool_text import compact_ids, free_reads
 
 if TYPE_CHECKING:
     from .runtime import Env
 
-__all__ = ["READS", "inspect_rule", "may_inspect", "inspectable", "look_tool", "inspect_tool", "find_target",
-           "handle_filter", "compact_ids"]
+__all__ = ["READS", "UNCHANGED", "inspect_rule", "may_inspect", "inspectable", "look_tool", "inspect_tool",
+           "inspect_text", "find_target", "handle_filter", "compact_ids", "reads_refused"]
 
 #: The read tools.
 READS = ("look", "inspect")
+#: What a read repeated within a turn returns instead of the same text.
+UNCHANGED = "Unchanged since you read it earlier this turn."
 #: Ids an inspect schema offers as an enum up to this many (the entity parameters' limit); more are listed compactly.
 _ENUM_IDS = 60
 #: How close a mistyped id must be to a valid one to be suggested (difflib ratio).
 _SUGGEST_CUTOFF = 0.6
-_NUMBERED = re.compile(r"^(.*?)(\d+)$")
 
 
 def inspect_rule(contract: Any, type_name: str) -> Any:
@@ -58,22 +64,65 @@ def inspectable(env: "Env", viewer: Entity) -> List[Entity]:
     return [entity for entity in env.world.entities.values() if entity.alive and may_inspect(env, viewer, entity)]
 
 
-def look_tool(looks: Sequence[str]) -> ToolSpec:
-    return ToolSpec("look", "Show one of these views: " + ", ".join(looks) + ". Free: does not use a tool call.", {
-        "type": "object", "properties": {"view": {"type": "string", "enum": list(looks)}},
+def _offered(env: "Env", viewer: Entity) -> List[Entity]:
+    """The inspectable entities worth offering: inspecting them shows more than their name."""
+    return [entity for entity in inspectable(env, viewer)
+            if entity.location_id is not None or _details(env, viewer, entity)]
+
+
+def _details(env: "Env", viewer: Entity, target: Entity) -> List[Tuple[str, Any]]:
+    """The properties an inspect of ``target`` shows ``viewer``: its own private ones too, none without a value."""
+    specs = env.contract.props_of(target.entity_type)
+    own = target.id == viewer.id
+    return [(key, value) for key, value in target.properties.items()
+            if (own or not specs.get(key) or not specs[key].private) and not _empty(value)]
+
+
+def _empty(value: Any) -> bool:
+    return value is None or isinstance(value, (str, list, tuple, dict)) and len(value) == 0
+
+
+def look_tool(looks: Sequence[Tuple[str, str]], allowance: int) -> ToolSpec:
+    """The look tool over ``looks`` (view name, title)."""
+    listed = ", ".join(f"{name} ({title})" if title else name for name, title in looks)
+    description = (f"Show one of these views: {listed}. What happened since your last turn is already in your update. "
+                   f"{free_reads(allowance)}")
+    return ToolSpec("look", description, {
+        "type": "object", "properties": {"view": {"type": "string", "enum": [name for name, _ in looks]}},
         "required": ["view"], "additionalProperties": False}, "look")
 
 
-def inspect_tool(env: "Env", viewer: Entity) -> ToolSpec:
-    ids = [entity.id for entity in inspectable(env, viewer)]
+def inspect_tool(env: "Env", viewer: Entity, allowance: int) -> Optional[ToolSpec]:
+    """The inspect tool, or None when nothing is worth inspecting."""
+    ids = [entity.id for entity in _offered(env, viewer)]
+    if not ids:
+        return None
     prop: Dict[str, Any] = {"type": "string"}
-    description = "Details of one entity by its id (shown in [brackets] after names). Free: does not use a tool call."
+    description = "Details of one entity by its id (shown in [brackets] after names)."
     if len(ids) <= _ENUM_IDS:
         prop["enum"] = ids
     else:
         description += f" Ids: {compact_ids(ids)}."
-    return ToolSpec("inspect", description, {"type": "object", "properties": {"id": prop}, "required": ["id"],
-                                             "additionalProperties": False}, "look")
+    return ToolSpec("inspect", f"{description} {free_reads(allowance)}", {
+        "type": "object", "properties": {"id": prop}, "required": ["id"], "additionalProperties": False}, "look")
+
+
+def inspect_text(env: "Env", viewer: Entity, target: Entity) -> Tuple[str, List[str]]:
+    """What inspecting ``target`` shows ``viewer``, and the ids of the files it references."""
+    specs = env.contract.props_of(target.entity_type)
+    details = _details(env, viewer, target)
+    files = [str(v) for k, v in details if specs.get(k) is not None and specs[k].type == "asset" and env.world.assets.has(v)]
+    shown = [f"{k}: {references(env.world.assets, [v]) if v in files else format_value(v)}" for k, v in details]
+    where = f" at {format_value(target.location_id)}" if target.location_id is not None else ""
+    return f"{target.name} [{target.id}] ({target.entity_type}){where}" + ("\n" + "\n".join(shown) if shown else ""), files
+
+
+def reads_refused(allowance: int, must_act: bool, stopped: bool) -> str:
+    """The refusal of a read past the free allowance; ``stopped`` when the participant kept reading and its turn ends."""
+    text = f"You have used your {allowance} free reads this turn; nothing was read."
+    if stopped:
+        return f"{text} You kept reading, so your turn is over."
+    return f"{text} {'Take an action now.' if must_act else 'Act or end your turn.'}"
 
 
 def find_target(env: "Env", viewer: Entity, wanted: Any) -> Tuple[Optional[Entity], str]:
@@ -92,7 +141,7 @@ def find_target(env: "Env", viewer: Entity, wanted: Any) -> Tuple[Optional[Entit
     hint = _closest(key, choices) if key else None
     if hint is not None:
         return None, f"{text} Did you mean '{hint}'?"
-    listed = compact_ids([entity.id for entity in choices])
+    listed = compact_ids([entity.id for entity in _offered(env, viewer)])
     return None, f"{text} You can inspect: {listed or 'nothing'}."
 
 
@@ -120,31 +169,3 @@ def handle_filter(env: "Env", viewer: Entity) -> Optional[Callable[[Any], bool]]
         return seen
 
     return show
-
-
-def compact_ids(ids: Sequence[str]) -> str:
-    """Ids as short text: runs of numbered ids become ranges (``u1–u150``); a very long listing is cut with a count."""
-    parts: List[str] = []
-    run: List[Tuple[str, int, str]] = []
-
-    def flush() -> None:
-        if len(run) > 2:
-            parts.append(f"{run[0][2]}–{run[-1][2]}")
-        else:
-            parts.extend(item[2] for item in run)
-        run.clear()
-
-    for key in ids:
-        match = _NUMBERED.match(key)
-        if match is None or match.group(2).startswith("0") and match.group(2) != "0":
-            flush()
-            parts.append(key)
-            continue
-        prefix, number = match.group(1), int(match.group(2))
-        if run and not (run[-1][0] == prefix and run[-1][1] + 1 == number):
-            flush()
-        run.append((prefix, number, key))
-    flush()
-    if len(parts) > _ENUM_IDS:
-        return ", ".join(parts[:_ENUM_IDS]) + f" and {len(parts) - _ENUM_IDS} more"
-    return ", ".join(parts)

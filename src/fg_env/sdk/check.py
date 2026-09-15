@@ -967,6 +967,9 @@ class _Checker:
             if isinstance(spec.terminal, str):
                 self.expr(spec.terminal, f"{path}.terminal", after, types, spec.params)
             for pname, param in spec.params.items():
+                if param.overflow == "truncate" and (param.type != "text" or param.max_len is None):
+                    self.error(f"{path}.params.{pname}.overflow", "`truncate` cuts text to `max_len`",
+                               "use it on a parameter of type text with a max_len")
                 self.template(param.invalid, f"{path}.params.{pname}.invalid", None,
                               BASE | {"actor", "params", "value"}, types, spec.params)
             if not any(name in _stage_action_names(s, self.c) for s in self.c.stage_list()):

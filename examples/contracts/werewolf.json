@@ -114,7 +114,7 @@
       "by": "player",
       "description": "Day only: speak in the public village chat. Everyone living reads it.",
       "when": [{"expr": "$actor.living", "why": "The dead cannot speak."}],
-      "params": {"text": {"type": "text", "max_len": 400, "description": "What you say to the village."}},
+      "params": {"text": {"type": "text", "max_len": 400, "overflow": "truncate", "description": "What you say to the village."}},
       "do": [{"post": "chat", "text": "$params.text"}, {"each": "player", "where": "$it.living and $it.id != $actor.id", "do": ["$it.ready = false"]}],
       "outcome": "You said it to the village.",
       "private": true,
