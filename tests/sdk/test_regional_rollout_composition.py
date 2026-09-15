@@ -117,3 +117,15 @@ def test_funding_size_and_timing_preserve_resource_and_delivery_constraints(fund
     assert out["sales_north"] == 3
     assert out["sales_south"] == (3 if second_launch and second_launch + 3 <= 8 else 0)
     assert out["cash"] == 100 + funding - 70 * (1 + bool(second_launch))
+
+
+def test_nested_workflows_need_no_explicit_global_stage_names():
+    c = contract()
+    for mechanism in c["mechanisms"].values():
+        if mechanism.get("kind") == "flow" and mechanism.get("mode") == "procedure":
+            for phase in mechanism["phases"].values():
+                for stage in phase.get("stages", []):
+                    stage.pop("name", None)
+    _, expected = run()
+    _, actual = run(c)
+    assert actual == expected

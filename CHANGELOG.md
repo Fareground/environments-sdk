@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Unnamed procedure stages now use `<procedure>_<phase>` (with a position suffix for further stages),
+  allowing independent workflows to reuse phase names. Explicit stage names are unchanged. Callers
+  referring to an automatically generated stage by its previous bare phase name must use the scoped
+  name or declare that old stage name explicitly.
 - Repeating seasonal profiles select slots using the reduced time before division, preventing exact
   cycle boundaries from slipping into the previous slot; fitting and runtime share the same selection.
   Regenerated the affected contact-centre example fit and saved staffing plan.

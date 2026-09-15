@@ -153,7 +153,7 @@ def test_parliament_readings_written_once_run_every_reading_in_order():
     assert list(phases)[:3] == ["reading_1", "reading_2", "reading_3"]
     assert phases["reading_2"]["next"][0]["to"] == "committee" and phases["reading_1"]["stages"][0]["actions"] == []
     everyone_aye = {"mp": lambda wake: wake.call("vote", {"choice": "aye"}) if wake.stage.startswith("division")
-                    else wake.call("amend", {"text": "Exempt small workshops."}) if wake.stage == "committee" else wake.end()}
+                    else wake.call("amend", {"text": "Exempt small workshops."}) if wake.stage == "bill_committee" else wake.end()}
     result = fg_env.run(EXAMPLES / "parliament_bill.json", everyone_aye, seed=3)
     assert result.status == "ended", result.error
     assert result.outputs["phases"] == ["reading_1", "reading_2", "committee", "reading_3", "assent"]

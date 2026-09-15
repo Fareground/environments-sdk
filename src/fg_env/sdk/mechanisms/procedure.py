@@ -10,6 +10,9 @@ an optional response stack (the ``flow`` family's ``procedure`` mode).
         "closing": {"stages": [...], "next": "deliberation"},
         "verdict": {"stages": [...], "terminal": true}}}
 
+Unnamed stages are named ``<procedure>_<phase>`` (subsequent stages append their position), so
+independent procedures can reuse phase names. Explicit stage names are preserved.
+
 Each phase's stages run only while ``$world.<name>_phase`` is that phase (the stage's own ``when``
 still applies), so tools, previews and checks follow the procedure. Transitions are checked at the
 end of every round, in order; the first whose conditions all hold fires: its ``do``, the phase's
@@ -173,7 +176,7 @@ def _stages(name: str, phase: str, spec: PhaseDef, taken: set) -> List[Dict[str,
             raise MechanismError("a stage is an object of stage fields", None, field)
         stage = copy.deepcopy(dict(raw))
         if "name" not in stage:
-            stage["name"] = phase if unnamed == 0 else f"{phase}_{index + 1}"
+            stage["name"] = f"{name}_{phase}" if unnamed == 0 else f"{name}_{phase}_{index + 1}"
             unnamed += 1
         if stage["name"] in taken:
             raise MechanismError(f"a stage named '{stage['name']}' already exists", "give this stage its own `name`", f"{field}.name")

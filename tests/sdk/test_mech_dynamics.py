@@ -314,7 +314,7 @@ HEARING = {
 def test_procedure_compiles_to_stages_that_follow_the_phase():
     contract = fg_env.parse(HEARING)
     names = [s.name for s in contract.stages]
-    assert names == ["opening", "argument", "bell", "ruling"]
+    assert names == ["hearing_opening", "hearing_argument", "bell", "hearing_ruling"]
     assert "hearing_phase" in contract.stages[0].when and contract.stages[0].brief == "Give your opening."
     assert _errors(HEARING) == []
     env = fg_env.load(HEARING, seed=1)
