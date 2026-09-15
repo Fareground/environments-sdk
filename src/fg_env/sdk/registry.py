@@ -33,6 +33,8 @@ class OpSpec:
     templates: Tuple[str, ...] = ()
     #: Extra static checks: ``check(checker, effect, path)`` returning ``[(path, message, fix), ...]``.
     check: Optional[Callable[[Any, Dict[str, Any], str], list]] = None
+    #: Keys whose values name locals the op sets (like ``as``); later effects and templates can read them.
+    binds: Tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -62,13 +64,15 @@ MECHANISMS: Dict[str, MechanismSpec] = {}
 
 def effect_op(name: str, keys: Tuple[str, ...], example: str, *, required: Tuple[str, ...] = (),
               literal: Tuple[str, ...] = (), templates: Tuple[str, ...] = (),
-              check: Optional[Callable[[Any, Dict[str, Any], str], list]] = None) -> Callable[[Callable[..., None]], Callable[..., None]]:
+              check: Optional[Callable[[Any, Dict[str, Any], str], list]] = None,
+              binds: Tuple[str, ...] = ()) -> Callable[[Callable[..., None]], Callable[..., None]]:
     """Register a native effect operation."""
 
     def register(run: Callable[..., None]) -> Callable[..., None]:
         if name in OPS:
             raise ValueError(f"effect op '{name}' is registered twice")
-        OPS[name] = OpSpec(name, (name, *keys), run, example, required, literal, templates, check)
+        declared = (name, *keys, *[key for key in binds if key not in keys])
+        OPS[name] = OpSpec(name, declared, run, example, required, literal, templates, check, tuple(binds))
         return run
 
     return register

@@ -417,12 +417,22 @@ class _Checker:
                 if key not in effect:
                     self.error(path, f"`{op}` needs `{key}`")
             for key, raw in effect.items():
-                if key in native.literal:
+                if key in native.literal or key in native.binds:
                     continue
                 if key in native.templates:
                     self.template(raw, f"{path}.{key}", None, roots, types, params)
                 else:
                     self.value(raw, f"{path}.{key}", roots, types, params)
+            for key in native.binds:
+                if key not in effect:
+                    continue
+                bound = effect[key]
+                if not isinstance(bound, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", bound):
+                    self.error(f"{path}.{key}", f"`{key}` names a local, like \"picked\"", "use a plain name")
+                elif bound in RESERVED_ROOTS:
+                    self.error(f"{path}.{key}", f"'{bound}' is a built-in root", "choose another name")
+                else:
+                    roots.add(bound)
             if native.check is not None:
                 try:
                     findings = list(native.check(self, effect, path))
