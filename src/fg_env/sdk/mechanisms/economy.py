@@ -9,8 +9,8 @@ inventory adds the invariant ``$conserved(<use>)``.
 
 Modules:
 
-* :mod:`.econ_assets` — the asset primitives, expression functions and the ``economy`` op's
-  money and goods actions (``pay``, ``mint``, ``burn``; ``give``, ``make``, ``use``, ``drop``, ``pickup``).
+* :mod:`.econ_assets` — the asset primitives and expression functions; :mod:`.econ_asset_actions` — the
+  ``economy`` op's money and goods actions (``pay``, ``mint``, ``burn``; ``give``, ``make``, ``use``, ``drop``, ``pickup``).
 * :mod:`.econ_inventory` — ``inventory``; :mod:`.econ_ledger` — ``ledger`` (with loans).
 * :mod:`.econ_production` — ``production`` (recipes, jobs, skills).
 * :mod:`.econ_subscriptions` — ``subscriptions``; :mod:`.econ_bookings` — ``bookings`` (slots, queues, waitlists).
@@ -22,7 +22,7 @@ Modules:
 from __future__ import annotations
 
 from . import (  # noqa: F401  (register ops, functions and kinds)
-    econ_assets, econ_bookings, econ_inventory, econ_labor, econ_ledger, econ_negotiation, econ_production,
+    econ_asset_actions, econ_assets, econ_bookings, econ_inventory, econ_labor, econ_ledger, econ_negotiation, econ_production,
     econ_subscriptions, econ_supply_chain,
 )
 from . import econ_demand, econ_demand_trade, econ_replenishment, econ_replenishment_rules  # noqa: F401,E402  (listed after the others)

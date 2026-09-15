@@ -10,7 +10,8 @@ import time
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Tuple
 
 from ..entity import Entity
-from .actions import ACTION_BUDGET, ToolSpec, _choice_names, stage_actions
+from .action_schemas import _choice_names
+from .actions import ACTION_BUDGET, ToolSpec, stage_actions
 from .assets.delivery import Attachment
 from .contract import StageSpec
 from .errors import RunError

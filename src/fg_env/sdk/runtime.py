@@ -2,76 +2,65 @@
 
 A round advances through safe points — before each stage, each pass and each sequential
 turn — so a run can stop at any of them and continue exactly where it left off.
+
+The round loop lives in :mod:`.run_rounds` and stage and turn running in :mod:`.run_stages`.
 """
 from __future__ import annotations
 
 import asyncio
 import threading
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Generator, List, Mapping, Optional, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional
 
 from ..entity import Entity
-from .actions import ACTION_BUDGET, ActionBook, stage_actions
+from .actions import ActionBook
 from .assets.store import AssetStore
 from .budget import Budget, is_seconds
-from .build import build_world, whole_setting
-from .contract import MAX_ROUNDS, MAX_STAGE_PASSES, Contract, StageSpec
+from .build import build_world
+from .contract import MAX_ROUNDS, Contract
 from .copying import Copying
 from .diagnostics import diagnose
 from .driving import WAITING, Driver, run_on_worker
 from .effects import EffectRunner
 from .errors import RunError
 from .exposure import ExposureLog, asks_seen, recording
-from .expr import ExprError, compile_expr, shared_budget, truthy
-from .feeds import run_feeds
+from .expr import ExprError
 from .happenings import Happenings
 from .host.tape import tape_of
-from .measure import RunResult, Stats, sample_metrics
+from .measure import RunResult, Stats
 from .perception import Perception
 from .previews import Previews
 from .reads import inspect_rule
 from .replay import Origin
 from .returns import measured
 from .run_checks import RunChecks
-from .run_diagnosis import Diagnosis, SealedWrites
+from .run_diagnosis import Diagnosis
+from .run_rounds import RunRounds, _Steps, _Where
+from .run_stages import RunStages
 from .seeds import SeedTree
 from .snapshot import SNAPSHOT_VERSION, restore_env, take_snapshot
-from .turn import Memory, Turn, entity_dict
-from .world import Abort, _plain
+from .turn import Memory, entity_dict
+from .world import _plain
 
 __all__ = ["Env", "SNAPSHOT_VERSION"]
 
 
-@dataclass
-class _Point:
-    """A safe point in a round. ``reasons`` names the agents about to be woken, and why."""
-
-    stage: Optional[StageSpec] = None
-    reasons: Dict[str, str] = field(default_factory=dict)
-
-
-@dataclass
-class _Where:
-    """Where the round in progress is, kept current as it plays, so a copy of the run taken while a turn waits for a
-    decision continues that round from the same place (see :mod:`fg_env.sdk.stepping`)."""
-
-    stage: int = 0
-    pass_index: int = 0
-    #: The agents of the pass being played, in turn order.
-    agents: List[Entity] = field(default_factory=list)
-    #: The waiting turn's place: in ``agents`` (sequential), or among the stage's sealed turns (simultaneous).
-    position: int = 0
-    #: The waiting turn itself (set on a copy only).
-    turn: Optional[Turn] = None
-
-
-#: A round's steps: its safe points (:class:`_Point`), and ``WAITING`` while a turn waits for a decision.
-_Steps = Generator[Any, None, None]
-
-
-class Env(Copying, RunChecks):
+class Env(Copying, RunChecks, RunRounds, RunStages):
     """A loaded environment. Create with :func:`fg_env.load`; run with :meth:`run`; copy with :meth:`clone`
     and :meth:`fork`."""
+
+    #: Declared here because the round and stage mixins are type-checked before ``__init__`` is.
+    status: str
+    origin: Origin
+    diagnosis: Diagnosis
+    happenings: Happenings
+    driver: Driver
+    previews: Previews
+    _lock: threading.RLock
+    _signal: threading.Condition
+    _turn_count: int
+    _emitted: int
+    _inspectable: bool
+    _end_on_action: bool
 
     def __init__(self, contract: Contract, inputs: Dict[str, Any], seed: int, arm: Optional[str] = None,
                  parallel: int = 8, exposures: bool = False, assets: Optional[AssetStore] = None):
@@ -335,502 +324,6 @@ class Env(Copying, RunChecks):
             self._cursor.close()
             self._cursor = None
         self.status, self.error = "failed", message
-
-    # -- round -----------------------------------------------------------------------
-
-    def _begin_round(self) -> bool:
-        """Start the next round: scheduled effects, feeds, start events, physics. False if the run ended."""
-        world = self.world
-        self._in_round = True
-        if self.status in ("ready", "stopped"):
-            self.status = "running"
-        elapsed: Optional[float] = None
-        if world.continuous:
-            elapsed = self._advance_time()
-            if elapsed is None:  # the next moment is past the horizon
-                self._in_round = False
-                self.ended_by, self.status = "horizon", "completed"
-                self._final_event()
-                return False
-        world.round += 1
-        world.stage = None
-        self._used_round.clear()
-        self.happenings.run_scheduled()
-        run_feeds(self)
-        self.happenings.run_events("start")
-        self._check_end()
-        if self._ended():
-            self._finish()
-            return False
-        with self._lock:
-            if elapsed is None:
-                world.step_physics()
-            elif elapsed > 0:
-                world.step_physics(elapsed)
-            world.journal.clear()
-        self.happenings.check_triggers("physics")
-        if self._ended():
-            self._finish()
-            return False
-        return True
-
-    def _advance_time(self) -> Optional[float]:
-        """Move a continuous clock to the next round's moment; the time elapsed, or None past the horizon."""
-        world, clock = self.world, self.contract.clock
-        if world.round == 0:
-            return 0.0
-        previous = world.time
-        target = previous + clock.tick
-        if clock.jump:
-            due = self._next_due()
-            if due is not None:
-                target = max(previous, due)
-        if world.horizon is not None and target > world.horizon:
-            return None
-        world.time = target
-        world.touch()
-        return target - previous
-
-    def _next_due(self) -> Optional[float]:
-        """The earliest moment something is due: a living agent's wake time or a scheduled effect."""
-        world = self.world
-        times = [at for entity_id, at in world.wake_at.items()
-                 if (entity := world.entities.get(entity_id)) is not None and entity.alive]
-        if world.scheduled:
-            times.append(world.scheduled[0][0])
-        return min(times) if times else None
-
-    def _round(self, resumed: bool = False) -> _Steps:
-        """A round, from its start — or, ``resumed``, from the waiting turn a copy of the run was taken in (see
-        :class:`_Where`)."""
-        world = self.world
-        if not resumed:
-            if not self._begin_round():
-                return
-            self._where = _Where()
-        stages = self.contract.stage_list()
-        for index in range(self._where.stage, len(stages)):
-            stage = stages[index]
-            if resumed:
-                resumed = False
-                yield from self._run_stage(stage, resumed=True)
-            else:
-                self._where.stage = index
-                yield _Point(stage)
-                yield from self._run_stage(stage)
-            self._check_end()
-            if self._ended():
-                self._finish()
-                return
-        world.stage = None
-        self.happenings.run_events("end")
-        world.patterns.commit()
-        sample_metrics(self.contract, world)
-        self.happenings.check_triggers("round end")
-        self._check_invariants("round", "round")
-        self._check_end()
-        self._flush_events()
-        if self._ended():
-            self._finish()
-            return
-        self._in_round = False
-        if world.round >= world.rounds:
-            self.ended_by = "rounds"
-            self.status = "completed"
-            self._final_event()
-        else:
-            self.previews.frame(final=False)
-
-    def _ended(self) -> bool:
-        return self.world.end_request is not None
-
-    def _finish(self) -> None:
-        world = self.world
-        world.stage = None
-        if not world.series or len(next(iter(world.series.values()), [])) < world.round:
-            sample_metrics(self.contract, world)
-        end = world.end_request or {}
-        self.ended_by = end.get("name") or "end"
-        self.status = "ended"
-        self._in_round = False
-        self._final_event()
-
-    def _final_event(self) -> None:
-        self._check_invariants("the run", "end")
-        end = self.world.end_request or {}
-        text = end.get("text") or (f"The run ended: {self.ended_by}." if self.ended_by != "rounds" else "Time is up.")
-        self.world.emit("end", text, data={"ended_by": self.ended_by, "winner": end.get("winner")})
-        self.world.journal.clear()
-        self.previews.frame(final=True)
-        self._flush_events()
-
-    def _atomic(self, effects: List[Any], vars: Dict[str, Any], path: str) -> bool:
-        if not effects:
-            return True
-        with self._lock:
-            mark = self.world.journal.mark()
-            try:
-                with shared_budget(ACTION_BUDGET, path):
-                    self.effects.run(effects, dict(vars), path)
-            except Abort as refusal:
-                self.world.journal.rollback(mark)
-                self.world.emit("refused", f"{path} was refused: {refusal.reason}", to=[],
-                                data={"path": path, "reason": refusal.reason})
-                return False
-            except BaseException:
-                self.world.journal.rollback(mark)
-                raise
-            self._after_commit(path)
-            self.happenings.react(self._stage_spec())
-        return True
-
-    def _stage_spec(self) -> Optional[StageSpec]:
-        name = self.world.stage
-        return next((s for s in self.contract.stage_list() if s.name == name), None) if name else None
-
-    def _after_commit(self, path: str) -> None:
-        self._check_invariants(path)
-        if self._end_on_action:
-            self._check_end("action")
-        self.world.journal.clear()
-        self.happenings.check_triggers(path)
-
-    # -- stages & turns ------------------------------------------------------------------
-
-    def _run_stage(self, stage: StageSpec, resumed: bool = False) -> _Steps:
-        world, where = self.world, self._where
-        path = f"stages.{stage.name}"
-        if not resumed:
-            runs = self._stage_runs(stage)
-            self.diagnosis.stage(stage.name, reached=1, ran=int(runs))
-            if not runs:
-                return
-            world.stage = stage.name
-            self._atomic(stage.on_enter, {}, f"{path}.on_enter")
-            if self._ended():
-                return
-            where.pass_index = 0
-        passes = whole_setting(world, stage.passes, f"{path}.passes", MAX_STAGE_PASSES) or (10 if stage.until else 1)
-        for pass_index in range(where.pass_index, passes):
-            if resumed:
-                agents = where.agents
-            else:
-                if pass_index:
-                    yield _Point(stage)
-                agents = self._eligible(stage)
-                where.pass_index, where.agents = pass_index, agents
-                self.diagnosis.stage(stage.name, woke=len(agents))
-            if stage.turns == "simultaneous":
-                yield from self._simultaneous(stage, agents, pass_index, resumed)
-            elif stage.turns == "scheduled":  # never resumed: copies are not taken in scheduled stages
-                yield from self._scheduled(stage, agents, pass_index)
-            else:
-                yield from self._sequential(stage, agents, pass_index, resumed)
-            resumed = False
-            if self._ended():
-                return
-            if stage.until is not None:
-                try:
-                    if truthy(compile_expr(stage.until)(world.scope())):
-                        break
-                except ExprError as exc:
-                    raise RunError(str(exc), f"{path}.until") from None
-        self._atomic(stage.on_exit, {}, f"{path}.on_exit")
-
-    def _stage_runs(self, stage: StageSpec) -> bool:
-        if stage.when is None:
-            return True
-        try:
-            return truthy(compile_expr(stage.when)(self.world.scope()))
-        except ExprError as exc:
-            raise RunError(str(exc), f"stages.{stage.name}.when") from None
-
-    def _eligible(self, stage: StageSpec, ordered: bool = True) -> List[Entity]:
-        """Agents woken in ``stage``, in turn order. ``ordered=False`` skips ordering (no random draws)."""
-        world = self.world
-        agent_types = set(self.contract.agent_types())  # includes types that inherit `agent`
-        acting = {kind: bool(stage_actions(self.contract, stage, kind)) for kind in agent_types}
-        agents = [e for e in world.entities.values() if e.alive and acting.get(e.entity_type)]
-        path = f"stages.{stage.name}"
-        try:
-            if stage.who is not None:
-                who = compile_expr(stage.who)
-                agents = [a for i, a in enumerate(agents) if truthy(who(world.scope(it=a, i=i)))]
-            if not ordered:
-                return agents
-            if stage.order == "random":
-                world.rng.shuffle(agents)
-            elif stage.order != "seat":
-                key = compile_expr(stage.order)
-                keyed = [(key(world.scope(it=a, i=i)), i, a) for i, a in enumerate(agents)]
-                keyed.sort(key=lambda t: (t[0], t[1]))
-                agents = [a for _, _, a in keyed]
-        except ExprError as exc:
-            raise RunError(str(exc), path) from None
-        except TypeError:
-            raise RunError("`order` must give comparable values (numbers or text)", f"{path}.order") from None
-        return agents
-
-    def _reason(self, actor: Entity, stage: StageSpec, pass_index: int) -> Optional[str]:
-        requested = self.world.wake_requests.pop(actor.id, None)
-        memory = self._memory(actor.id)
-        if stage.quiet == "skip" and requested is None and pass_index > 0:
-            if not self.perception.news(actor, memory.cursor, 1)[0]:
-                return None
-        if requested:
-            return requested
-        if stage.turns == "simultaneous":
-            return "Everyone chooses at the same time."
-        return "It is your turn." if pass_index == 0 else "Your turn again."
-
-    def _sequential(self, stage: StageSpec, agents: List[Entity], pass_index: int, resumed: bool = False) -> _Steps:
-        where = self._where
-        for position in range(where.position if resumed else 0, len(agents)):
-            actor = agents[position]
-            if resumed:
-                resumed, turn, where.turn = False, where.turn, None
-                assert turn is not None
-                yield from self.driver.drive_steps([turn], resume=0)
-            else:
-                if not actor.alive or self._ended():
-                    return
-                reason = self._reason(actor, stage, pass_index)
-                if reason is None:
-                    continue
-                if not self._wake_hook(stage, actor):
-                    continue
-                where.position = position
-                yield _Point(stage, {actor.id: reason})
-                turn = Turn(self, actor, stage, reason, staged=False)
-                yield from self.driver.drive_steps([turn])
-            self._after_turn(stage, turn, turn.stats.actions > 0)
-            self._turn_end_hook(stage, actor)
-            memory = self._memory(actor.id)
-            memory.cursor = self.world.log[-1].seq if self.world.log else 0
-            memory.turns += 1
-            self._flush_events()
-
-    def _scheduled(self, stage: StageSpec, agents: List[Entity], pass_index: int) -> _Steps:
-        """Continuous clock: every agent whose wake time has come takes a turn, earliest first. Its
-        next wake is now plus the duration of what it did, or the stage interval if it did nothing
-        timed — unless something during the turn already scheduled it later."""
-        world = self.world
-        now = world.time
-        due: List[Tuple[float, int, Entity]] = []
-        for position, actor in enumerate(agents):
-            at = world.wake_at.get(actor.id)
-            if at is None:
-                at = self._stage_time(stage.first_wake, 0.0, f"stages.{stage.name}.first_wake", it=actor, i=position)
-                world.set_wake_at(actor.id, at)
-            if at <= now:
-                due.append((at, position, actor))
-        due.sort(key=lambda item: (item[0], item[1]))
-        for _, _, actor in due:
-            if not actor.alive or self._ended():
-                return
-            reason = self._reason(actor, stage, pass_index)
-            if reason is None:
-                world.set_wake_at(actor.id, now + self._interval(stage, actor))
-                continue
-            if not self._wake_hook(stage, actor):
-                continue
-            yield _Point(stage, {actor.id: reason})
-            turn = Turn(self, actor, stage, reason, staged=False)
-            yield from self.driver.drive_steps([turn])
-            self._after_turn(stage, turn, turn.stats.actions > 0)
-            self._turn_end_hook(stage, actor)
-            scheduled = world.wake_at.get(actor.id, now)
-            if scheduled <= now:
-                step = turn.elapsed if turn.elapsed > 0 else self._interval(stage, actor)
-                world.set_wake_at(actor.id, now + step)
-            memory = self._memory(actor.id)
-            memory.cursor = world.log[-1].seq if world.log else 0
-            memory.turns += 1
-            self._flush_events()
-
-    def _after_turn(self, stage: StageSpec, turn: Turn, acted: bool, stop_when_ended: bool = False) -> None:
-        """A played turn is over: record a timeout (running `on_timeout`), or — for a living agent that took no
-        action — report one that had to act and did not, then run the stage's `on_idle`."""
-        actor = turn.actor
-        if self._timed_out(turn) or acted or not actor.alive or (stop_when_ended and self._ended()):
-            return
-        if turn.did_not_act:
-            with self._lock:
-                self.world.emit("idle", f"{actor.name} did not act.", actor=actor.id, data={"stage": stage.name})
-                self.world.journal.clear()
-        if stage.on_idle:
-            self._atomic(stage.on_idle, {"actor": actor}, f"stages.{stage.name}.on_idle")
-
-    def _timed_out(self, turn: Turn) -> bool:
-        """Record a turn that ran out of time (a `timeout` event) and run the stage's `on_timeout`.
-        True when `on_timeout` took the place of `on_idle`."""
-        if not turn.timed_out:
-            return False
-        stage, actor, world = turn.stage, turn.actor, self.world
-        with self._lock:
-            world.emit("timeout", f"{actor.name} ran out of time.", actor=actor.id,
-                       data={"stage": stage.name, "limit": turn.time_limit})
-            world.journal.clear()
-        if not stage.on_timeout:
-            return False
-        if actor.alive and not self._ended():
-            self._atomic(stage.on_timeout, {"actor": actor}, f"stages.{stage.name}.on_timeout")
-        return True
-
-    def _time_limit(self, stage: StageSpec, actor: Entity) -> Optional[float]:
-        """Wall-clock seconds ``actor`` has for a turn in ``stage``: the stage's `time_limit`, else the run's."""
-        raw = stage.time_limit
-        if raw is None:
-            return self.time_limit
-        path = f"stages.{stage.name}.time_limit"
-        try:
-            value = compile_expr(raw)(self.world.scope(actor=actor)) if isinstance(raw, str) else raw
-        except ExprError as exc:
-            raise RunError(str(exc), path) from None
-        if value is None:
-            return self.time_limit
-        if not is_seconds(value):
-            raise RunError(f"must be a number of seconds > 0 (or null for the run's limit), got {value!r}", path)
-        return float(value)
-
-    def _wake_hook(self, stage: StageSpec, actor: Entity) -> bool:
-        """Run the stage's ``on_wake`` for ``actor`` before its turn; False when it no longer takes the turn."""
-        if stage.on_wake:
-            self._atomic(stage.on_wake, {"actor": actor}, f"stages.{stage.name}.on_wake")
-        return actor.alive and not self._ended()
-
-    def _turn_end_hook(self, stage: StageSpec, actor: Entity) -> None:
-        """Run the stage's ``on_turn_end`` for ``actor`` after its turn (and its actions) are done."""
-        if stage.on_turn_end and actor.alive and not self._ended():
-            self._atomic(stage.on_turn_end, {"actor": actor}, f"stages.{stage.name}.on_turn_end")
-
-    def _interval(self, stage: StageSpec, actor: Entity) -> float:
-        value = self._stage_time(stage.interval, self.contract.clock.tick, f"stages.{stage.name}.interval", actor=actor)
-        if value <= 0:
-            raise RunError(f"interval must be greater than 0, got {value}", f"stages.{stage.name}.interval")
-        return value
-
-    def _stage_time(self, raw: Any, default: float, path: str, **vars: Any) -> float:
-        if raw is None:
-            return default
-        try:
-            value = compile_expr(raw)(self.world.scope(**vars)) if isinstance(raw, str) else raw
-        except ExprError as exc:
-            raise RunError(str(exc), path) from None
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or value != value or value < 0:
-            raise RunError(f"must be a time ≥ 0, got {value!r}", path)
-        return float(value)
-
-    def _simultaneous(self, stage: StageSpec, agents: List[Entity], pass_index: int, resumed: bool = False) -> _Steps:
-        if resumed:
-            turns = list(self.origin.staged)
-            yield from self.driver.drive_steps(turns, together=True, resume=self._where.position)
-        else:
-            reasons: Dict[str, str] = {}
-            for actor in agents:
-                reason = self._reason(actor, stage, pass_index)
-                if reason is not None:
-                    reasons[actor.id] = reason
-            for actor in agents:
-                if actor.id in reasons and not self._wake_hook(stage, actor):
-                    del reasons[actor.id]
-            if reasons:
-                yield _Point(stage, dict(reasons))
-            turns = [Turn(self, actor, stage, reasons[actor.id], staged=True) for actor in agents if actor.id in reasons]
-            cursor = self.world.log[-1].seq if self.world.log else 0
-            for turn in turns:
-                memory = self._memory(turn.actor.id)
-                memory.cursor = cursor
-                memory.turns += 1
-            yield from self.driver.drive_steps(turns, together=True)
-        try:
-            yield from self._commit_choices(stage, turns)
-        finally:
-            for turn in turns:  # in turn order, so `$seen` indexes the same way every run
-                if turn.exposure is not None:
-                    turn.exposure.close(turn)
-        self._flush_events()
-
-    def _commit_choices(self, stage: StageSpec, turns: List[Turn]) -> _Steps:
-        """Commit each agent's sealed choices in turn order; atomic stages commit or undo each agent's as a whole."""
-        atomic = stage.atomic or bool(stage.valid)
-        writes = self.world.watched_writes = SealedWrites(stage.name, self.diagnosis)
-        try:
-            for turn in turns:
-                mark = self.world.journal.mark() if atomic else None
-                applied = 0
-                writes.writer = turn.actor.name or turn.actor.id
-                for name, args in turn.intents:
-                    if self._ended() and mark is None:
-                        return
-                    writes.action = name
-                    applied += self._commit_intent(turn, name, args, deferred=mark is not None)
-                acted = bool(turn.intents)
-                if mark is not None:
-                    acted = self._settle_choices(turn, mark, applied)
-                    if self._ended():
-                        return
-                self._after_turn(stage, turn, acted, stop_when_ended=True)
-                self._turn_end_hook(stage, turn.actor)
-        finally:
-            self.world.watched_writes = None
-        yield from ()
-
-    def _tally(self, actor_id: str, stats: Stats) -> None:
-        """Add numbers to the run's totals and to the agent's own (callers hold the lock)."""
-        self.stats.add(stats)
-        self.agent_stats.setdefault(actor_id, Stats()).add(stats)
-
-    def _settle_choices(self, turn: Turn, mark: int, applied: int) -> bool:
-        """An atomic simultaneous stage: keep one agent's committed choices when they meet `valid`, else undo
-        them all and tell the agent why. True when the agent's choices stand."""
-        world, stage = self.world, turn.stage
-        with self._lock:
-            with world.turn_context(None, turn.pending):
-                why = turn.invalid() if applied else None
-            if why is None:
-                self._after_commit(f"stages.{stage.name}")
-                self.happenings.react(stage)
-                return bool(turn.intents)
-            world.journal.rollback(mark)
-            world.emit("outcome", f"Your choices were undone: {why}.", actor=turn.actor.id, to=(turn.actor.id,),
-                       data={"ok": False, "undone": True})
-            world.journal.clear()
-            self._tally(turn.actor.id, Stats(actions=-applied, rejected_actions=applied, undone_turns=1))
-            turn.stats.undone_turns = 1
-        return False
-
-    def _commit_intent(self, turn: Turn, name: str, args: Dict[str, Any], deferred: bool = False) -> int:
-        """Apply one sealed choice; 1 when it applied. ``deferred`` (atomic stages) leaves the commit to the
-        whole turn's settling."""
-        actor, world = turn.actor, self.world
-        blocked = self.actions.blocked(actor, name, {}, {}) if actor.alive else "you are no longer active"
-        params, problem = ({}, blocked) if blocked else self.actions.validate(actor, name, args)
-        verb = name.replace("_", " ")
-        with self._lock:
-            if problem:
-                world.emit("outcome", f"Your {verb} did not happen: {str(problem).rstrip('.')}.",
-                           actor=actor.id, to=(actor.id,), data={"action": name, "ok": False})
-                self.diagnosis.refused_at_commit(name, str(problem))
-                if not deferred:
-                    world.journal.clear()
-                self._tally(actor.id, Stats(rejected_actions=1))
-                return 0
-            outcome = self.actions.apply(actor, name, params)
-            text = outcome.text if outcome.ok else f"Your {verb} failed: {outcome.text}"
-            data = {"action": name, "ok": outcome.ok, **({"assets": outcome.assets} if outcome.assets else {})}
-            world.emit("outcome", text, actor=actor.id, to=(actor.id,), data=data)
-            if not outcome.ok:
-                self.diagnosis.refused_at_commit(name, outcome.text)
-                self._tally(actor.id, Stats(rejected_actions=1))
-                if not deferred:
-                    world.journal.clear()
-                return 0
-            self._tally(actor.id, Stats(actions=1))
-            if not deferred:
-                self._after_commit(f"actions.{name}")
-                self.happenings.react(turn.stage)
-            return 1
 
     # -- checks --------------------------------------------------------------------------------
 

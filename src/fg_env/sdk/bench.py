@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Sequence
 
-from . import runtime as _runtime
+from . import run_rounds as _run_rounds
 from .api import load, parse
 
 __all__ = ["REFERENCE_MODELS", "PHASES", "BenchResult", "bench", "bench_table"]
@@ -133,8 +133,8 @@ def _measure(contract: Any, rounds: Optional[int], seed: int, inputs: Dict[str, 
     env._check_invariants = watch.wrap("invariants", env._check_invariants)  # type: ignore[method-assign]
     env._run_stage = watch.wrap_steps("stages", env._run_stage)  # type: ignore[method-assign, assignment]
     env.world.step_physics = watch.wrap("physics", env.world.step_physics)  # type: ignore[method-assign]
-    sampler = _runtime.sample_metrics
-    _runtime.sample_metrics = watch.wrap("metrics", sampler)  # type: ignore[assignment]
+    sampler = _run_rounds.sample_metrics
+    _run_rounds.sample_metrics = watch.wrap("metrics", sampler)  # type: ignore[assignment]
     try:
         watch.enter("other")
         started = time.perf_counter()
@@ -142,7 +142,7 @@ def _measure(contract: Any, rounds: Optional[int], seed: int, inputs: Dict[str, 
         run_ms = (time.perf_counter() - started) * 1000
         watch.leave()
     finally:
-        _runtime.sample_metrics = sampler  # type: ignore[assignment]
+        _run_rounds.sample_metrics = sampler  # type: ignore[assignment]
     played = max(1, result.rounds)
     name = Path(contract).stem if isinstance(contract, (str, Path)) else env.contract.name
     return BenchResult(name, result.rounds, result.status, build_ms, run_ms,
