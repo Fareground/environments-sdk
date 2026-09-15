@@ -1,5 +1,7 @@
-"""The optimiser on small copies of the business study's scenarios: staffing per half hour under a service level and
-retail prices per grade — every choice checked on seeds no search saw, against the rule of thumb it would replace."""
+"""The optimiser on the business study's scenarios: staffing per half hour under a service level, a safety margin per
+category under a fill rate (the auto-parts example, across its fitted patterns' uncertainty) and retail prices per
+grade — every choice checked on seeds no search saw, against the rule of thumb it would replace."""
+import json
 from pathlib import Path
 from statistics import fmean
 
@@ -8,6 +10,7 @@ import fg_env
 FIXTURES = Path(__file__).parent / "fixtures" / "optimise"
 CENTRE = str(FIXTURES / "contact_centre" / "contact_centre.json")
 PHONES = str(FIXTURES / "iphones" / "iphones.json")
+STORE = Path(__file__).parents[2] / "examples" / "contracts" / "auto_parts_store.json"
 
 #: The contact centre manager's rule for the four peak hours (agents per half hour), and its cost.
 MANAGER_PLAN, MANAGER_COST = [8, 9, 9, 9, 8, 7, 8, 9], 1210
@@ -35,6 +38,37 @@ def test_a_staffing_plan_judged_on_enough_seeds_keeps_its_service_level_on_fresh
                              budget=24, workers=2)
     assert chosen.feasible and chosen.estimates["objectives"][0]["value"] <= MANAGER_COST
     assert fmean(sl >= 0.8 for sl in _fresh(CENTRE, chosen.best, "sl")) >= 0.8
+
+
+def _store_with_a_margin_per_category():
+    """The example store with its service policy's safety margin set per category (a map input)."""
+    contract = json.loads(STORE.read_text())
+    contract["inputs"]["service_z_by_category"] = {"type": "map", "default": {}}
+    events = json.dumps(contract["events"])
+    assert events.count("$inputs.service_z *") == 1
+    contract["events"] = json.loads(events.replace(
+        "$inputs.service_z *", "$get($inputs.service_z_by_category, $s.category, $inputs.service_z) *"))
+    return contract
+
+
+def test_a_safety_margin_per_category_keeps_the_fill_rate_with_less_stock_across_the_fitted_uncertainty():
+    store, priors = _store_with_a_margin_per_category(), fg_env.fit_patterns(STORE).priors
+    common = dict(inputs={"policy": "service"}, data_dir=STORE.parent, uncertainty=priors, rounds=13)
+    categories = ["brake_pads", "batteries", "wipers"]
+    result = fg_env.optimise(store, {"service_z_by_category": {"keys": categories, "low": 0, "high": 3, "step": 0.5,
+                                                               "start": {c: 1.5 for c in categories}}},
+                             "minimise average_stock_value", ["fill_rate >= 0.97"], runs=4, budget=16, workers=2,
+                             **common)
+    assert result.feasible and set(priors) == {"growth_rate", "promo_lift"}
+
+    def fresh(margins):
+        runs = fg_env.experiment(store, runs=24, seed=9090, arms=[None], data_dir=STORE.parent, uncertainty=priors,
+                                 rounds=13, inputs={"policy": "service", **margins}).arms["baseline"].runs
+        return fmean(r.outputs["fill_rate"] for r in runs), fmean(r.outputs["average_stock_value"] for r in runs)
+
+    fill, stock = fresh(result.best)
+    _, uniform_stock = fresh({})  # the example's service arm: 1.65 in every category
+    assert fill >= 0.97 and stock < 0.9 * uniform_stock
 
 
 def test_prices_per_grade_stay_in_grade_order_and_beat_listing_at_the_fair_price_on_fresh_seeds():
