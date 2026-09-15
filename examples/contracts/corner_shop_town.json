@@ -124,7 +124,7 @@
     "shops": {"for": "household", "title": "Shops today", "of": "shop", "bullet": true,
               "show": "[{id}] {name}: bread {$get($it.prices, 'bread')|money}, milk {$get($it.prices, 'milk')|money}, apples {$get($it.prices, 'apples')|money} · {$it.daily_capacity - $it.served_today} sales left today · {$items_text($it, 'goods')}"},
     "household": {"for": "household", "title": "You", "bullet": false,
-                  "show": "Hunger {hunger}/10 · {cash|money} left this month · nights out {outings}"},
+                  "show": "Hunger {hunger}/10 · nights out {outings}"},
     "shop_books": {"for": "shop", "title": "Your shop", "bullet": false,
                    "show": "{cash|money} cash · revenue {revenue|money} · sold today {served_today}/{daily_capacity} · wholesale: bread {$world.wholesale.bread|money}, milk {$world.wholesale.milk|money}, apples {$world.wholesale.apples|money}"}
   },

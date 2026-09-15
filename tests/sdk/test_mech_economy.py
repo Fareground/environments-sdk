@@ -253,6 +253,20 @@ def test_loans_accrue_interest_collect_when_due_and_default_when_unpaid():
     assert env.props["money_loans"]["repaid_count"] == 1 and env.props["money_loans"]["defaulted_count"] == 1
 
 
+def test_a_refused_on_default_hook_never_undoes_the_rest_of_the_loans_tick():
+    contract = copy.deepcopy(BANKING)
+    contract["mechanisms"]["money"]["loans"]["on_default"] = [{"fail": "The bailiffs found nothing."}]
+    contract["entities"]["ana"]["props"] = {"cash": 0}
+    env = fg_env.load(contract, seed=1)
+    borrow = [("money_borrow", {"lender": "vault", "amount": 10, "term": 1}), ("money_pay", {"to": "vault", "amount": 10})]
+    result = env.run(scripted({("ana", 1): borrow, ("ben", 1): borrow}), rounds=2)
+    assert result.status != "failed", result.error
+    assert [loan["props"]["status"] for loan in env.entities("money_loan")] == ["defaulted", "defaulted"]
+    assert env.props["money_loans"]["defaulted_count"] == 2
+    refused = [e for e in result.events if e["kind"] == "mechanism_refused"]
+    assert len(refused) == 2 and "The bailiffs found nothing." in refused[0]["text"]
+
+
 def test_net_worth_counts_money_goods_and_loans():
     contract = copy.deepcopy(BANKING)
     contract["mechanisms"]["goods"] = {"kind": "inventory", "holders": "person", "items": {"bread": {"value": 2}},
@@ -539,6 +553,22 @@ def test_offers_show_private_worth_and_walk_away_only_to_their_owner():
     assert "worth 50" not in bo  # the other side's worth is never shown
     assert tool(env, "bo", "trade_accept")["offer"]["enum"] == ["trade_offer_1"]
     assert tool(env, "ar", "trade_accept")["offer"]["enum"] == []  # nothing is open to Arland
+
+
+def test_a_refused_on_breach_hook_never_undoes_the_rest_of_the_negotiation_tick():
+    contract = copy.deepcopy(TRADE)
+    contract["mechanisms"]["trade"].update(expires=1, once=False)
+    contract["mechanisms"]["trade"]["breach"]["on_breach"] = [{"fail": "No one to blame."}]
+    env = fg_env.load(contract, seed=1)
+    play = scripted({("ar", 1): [("trade_propose", {"to": "bo", "price": 10, "quota": 5, "years": 1})],
+                     ("bo", 1): [("trade_accept", {"offer": "trade_offer_1"})],
+                     ("cy", 1): [("trade_propose", {"to": "ar", "price": 3, "quota": 1, "years": 1})]})
+    result = env.run(play, rounds=2)
+    assert result.status != "failed", result.error
+    assert env.entity("trade_offer_2")["props"]["status"] == "expired"  # unrelated work in the same tick stands
+    assert [d["props"]["status"] for d in env.entities("trade_duty")] == ["breached", "cancelled"]
+    assert env.props["trade_stats"]["breaches"] == 1 and env.entity("ar")["props"]["standing"] == 1
+    assert any(e["kind"] == "mechanism_refused" and "No one to blame." in e["text"] for e in result.events)
 
 
 def test_counter_depth_and_the_deadline_expire_talks_without_a_deal():

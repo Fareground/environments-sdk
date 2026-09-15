@@ -12,8 +12,8 @@ from ..expr import Call, ExprError, compile_expr, function, truthy
 from ..registry import MechanismError, effect_op, mechanism
 from ..world import Abort
 from .econ_assets import balance, burn_money, credit_of, destroy_items, held, is_holder, make_items
-from .econ_base import (NAME, config_of, declared_use, emit_to, entity_of, guarded, maybe_entity, money, props,
-                        register_config, require_types, type_list, uses_of, whole)
+from .econ_base import (config_of, declared_use, emit_to, entity_of, guarded, maybe_entity, money, props,
+                        register_config, require_types, type_list, uses_of, valid_name, whole)
 from .econ_inventory import agent_types
 
 __all__ = ["ProductionConfig", "RecipeSpec", "SkillSpec", "skill_level"]
@@ -27,16 +27,16 @@ class RecipeSpec(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    inputs: Dict[str, int] = Field(default_factory=dict, description="Goods used up per batch {item: qty}; none for gathering.")
+    inputs: Dict[str, int] = Field({}, description="Goods used up per batch {item: qty}; none for gathering.")
     outputs: Dict[str, Union[int, str]] = Field(..., min_length=1, description="Goods made per batch {item: qty or expression over $actor}.")
     rounds: int = Field(0, ge=0, description="Rounds until a batch is ready (0 = at once).")
     skill: Optional[str] = Field(None, description="Skill used; gains `xp` per batch.")
     level: int = Field(0, ge=0, description="Skill level needed.")
     xp: float = Field(0, ge=0, description="Experience per batch.")
-    tools: Dict[str, int] = Field(default_factory=dict, description="Goods that must be held but are not used up {item: qty}.")
+    tools: Dict[str, int] = Field({}, description="Goods that must be held but are not used up {item: qty}.")
     at: Union[str, List[str], None] = Field(None, description="Place(s) where it can be made.")
     when: Optional[str] = Field(None, description="Extra requirement over $actor.")
-    cost: Dict[str, Union[float, str]] = Field(default_factory=dict, description="Money per batch {currency: amount}, leaving to the recipe's sink.")
+    cost: Dict[str, Union[float, str]] = Field({}, description="Money per batch {currency: amount}, leaving to the recipe's sink.")
     description: str = ""
 
 
@@ -56,8 +56,9 @@ class ProductionConfig(BaseModel):
 
     producers: Union[str, List[str]] = Field(..., description="Type(s) that make goods; they must hold the inventory's goods.")
     inventory: str = Field(..., description="The inventory mechanism whose goods are used and made.")
-    recipes: Dict[str, RecipeSpec] = Field(..., min_length=1)
-    skills: Dict[str, SkillSpec] = Field(default_factory=dict, description="{skill: {start, max_level, xp_per_level, growth}}.")
+    recipes: Dict[str, RecipeSpec] = Field(..., min_length=1,
+                                           description="{recipe: {inputs, outputs, rounds, skill, level, xp, tools, at, when, cost}}.")
+    skills: Dict[str, SkillSpec] = Field({}, description="{skill: {start, max_level, xp_per_level, growth}}.")
     slots: Union[int, str] = Field(1, description="Jobs a producer can have running at once (number or expression).")
 
 
@@ -71,10 +72,10 @@ register_config("production", ProductionConfig)
            "their due round (waiting while there is no room for the output). Skills gain experience and level up "
            "($skill(agent, skill)). Inputs leave through the recipe as a sink and outputs arrive from it as a source.",
            example={"kind": "production", "producers": "villager", "inventory": "goods",
-                    "skills": {"baking": {"xp_per_level": 5}},
+                    "skills": {"baking": {"xp_per_level": 5}, "foraging": {}},
                     "recipes": {"bake": {"inputs": {"flour": 2}, "outputs": {"bread": 3}, "rounds": 1, "skill": "baking", "xp": 2,
                                          "at": "bakery"},
-                                "forage": {"outputs": {"berries": "1 + $skill($actor, foraging)"}, "at": "forest"}}})
+                                "forage": {"outputs": {"berries": "1 + $skill($actor, foraging)"}, "at": "forest", "skill": "foraging", "xp": 1}}})
 def _expand_production(name: str, config: ProductionConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     producers = type_list(config.producers)
     require_types(contract, producers, "producers")
@@ -84,8 +85,8 @@ def _expand_production(name: str, config: ProductionConfig, contract: Mapping[st
                   if isinstance(use, Mapping) and use.get("kind") == "ledger" for c in (use.get("currencies") or {})}
     for recipe, spec in config.recipes.items():
         path = f"recipes.{recipe}"
-        if not NAME.match(recipe):
-            raise MechanismError(f"recipe '{recipe}' is not a valid name", "use letters, digits and _", path)
+        if not valid_name(recipe):
+            raise MechanismError(f"recipe '{recipe}' is not a valid name", "use letters, digits and _ (not a Python keyword)", path)
         for field, goods in (("inputs", spec.inputs), ("outputs", spec.outputs), ("tools", spec.tools)):
             for item in goods:
                 if item not in items:

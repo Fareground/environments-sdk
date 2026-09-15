@@ -10,8 +10,8 @@ from ..errors import RunError
 from ..registry import MechanismError, effect_op, mechanism
 from ..world import Abort
 from .econ_assets import balance, move_money
-from .econ_base import (NAME, amount, props, choice_param, config_of, emit_to, entity_of, guarded, money, register_config,
-                        require_types, type_list, whole)
+from .econ_base import (amount, props, choice_param, config_of, emit_to, entity_of, guarded, money, register_config, run_hook,
+                        require_types, type_list, valid_name, whole)
 from .econ_inventory import agent_types, baseline
 
 __all__ = ["LedgerConfig"]
@@ -64,7 +64,7 @@ class LoanSpec(BaseModel):
     max_amount: Union[float, str] = Field(1000, description="Largest loan (number or expression over $actor).")
     max_term: int = Field(12, ge=1, description="Longest term in rounds.")
     grace: int = Field(0, ge=0, description="Rounds after the due date before an unpaid loan defaults.")
-    on_default: List[Any] = Field(default_factory=list, description="Effects when a loan defaults ($loan, $lender, $borrower, $unpaid).")
+    on_default: List[Any] = Field([], description="Effects when a loan defaults ($loan, $lender, $borrower, $unpaid).")
 
 
 class LedgerConfig(BaseModel):
@@ -74,10 +74,10 @@ class LedgerConfig(BaseModel):
 
     holders: Union[str, List[str]] = Field(..., description="Type(s) holding money (subtypes included).")
     currencies: Dict[str, CurrencySpec] = Field(..., min_length=1, description="{currency: {start, credit, unit, value}}; each is a holder property ($actor.cash).")
-    sources: Dict[str, SourceSpec] = Field(default_factory=dict, description="Scheduled money creation: {name: {to, amount, every, mode}}.")
-    taxes: Dict[str, TaxSpec] = Field(default_factory=dict, description="Levies payments can name: {name: {rate, on, to}}.")
+    sources: Dict[str, SourceSpec] = Field({}, description="Scheduled money creation: {name: {to, amount, every, mode}}.")
+    taxes: Dict[str, TaxSpec] = Field({}, description="Levies payments can name: {name: {rate, on, to}}.")
     loans: Optional[LoanSpec] = Field(None, description="Loans at posted rates with interest, due dates and default.")
-    tools: List[Literal["pay"]] = Field(default_factory=list, description="pay: agents may pay any holder.")
+    tools: List[Literal["pay"]] = Field([], description="pay: agents may pay any holder.")
 
 
 register_config("ledger", LedgerConfig)
@@ -118,8 +118,8 @@ def _expand_ledger(name: str, config: LedgerConfig, contract: Mapping[str, Any])
                                          "give every currency and item its own name", f"currencies.{currency}")
     holder_props: Dict[str, Any] = {}
     for currency, spec in config.currencies.items():
-        if not NAME.match(currency):
-            raise MechanismError(f"currency '{currency}' is not a valid name", "use letters, digits and _", f"currencies.{currency}")
+        if not valid_name(currency):
+            raise MechanismError(f"currency '{currency}' is not a valid name", "use letters, digits and _ (not a Python keyword)", f"currencies.{currency}")
         holder_props[currency] = {"type": "number", "default": spec.start, "unit": spec.unit,
                                   "description": spec.description or f"Money held ({currency})."}
         if spec.credit is not None:
@@ -140,7 +140,7 @@ def _expand_ledger(name: str, config: LedgerConfig, contract: Mapping[str, Any])
     if config.loans is not None:
         _loans(name, config, config.loans, contract, fragment)
     if agents:
-        shown = " · ".join(f"{c} {{{c}|money}}" for c in config.currencies)
+        shown = " · ".join(f"{{{c}}} {c}" for c in config.currencies)  # money is not always dollars
         fragment["views"] = {f"{name}_balance": {"for": agents, "title": "Your money", "bullet": False, "show": shown}}
     return fragment
 
@@ -351,9 +351,8 @@ def _ledger_tick(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], wher
                     [borrower.id, lender.id], {"loan": loan.id, "unpaid": unpaid},
                     why=f"A loan between {borrower.name} and {lender.name} defaulted.")
             if config.loans.on_default:
-                args = {"loan": loan, "lender": lender, "borrower": borrower, "unpaid": unpaid}
-                runner.run([{"block": f"{name}_on_default", "with": {k: f"${k}" for k in args}}], args,
-                           f"mechanisms.{name}.loans.on_default")
+                run_hook(runner, f"{name}_on_default", {"loan": loan, "lender": lender, "borrower": borrower, "unpaid": unpaid},
+                         f"mechanisms.{name}.loans.on_default")
         else:
             emit_to(world, f"{name}_overdue", f"Your loan from {lender.name} is overdue: {money(unpaid)} still owed.",
                     [borrower.id], why="A loan you owe is overdue.")

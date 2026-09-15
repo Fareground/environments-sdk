@@ -11,8 +11,8 @@ from ..expr import Call, ExprError, compile_expr, function
 from ..registry import MechanismError, effect_op, mechanism
 from ..world import Abort
 from .econ_assets import move_money
-from .econ_base import (NAME, bump, config_of, emit_to, entity_of, guarded, maybe_entity, money, props, register_config,
-                        require_currency, require_types, type_list, whole)
+from .econ_base import (bump, config_of, emit_to, entity_of, guarded, maybe_entity, money, props, register_config,
+                        require_currency, require_types, type_list, valid_name, whole)
 from .econ_inventory import agent_types
 
 __all__ = ["BookingsConfig", "ResourceSpec"]
@@ -42,7 +42,7 @@ class BookingsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     guests: Union[str, List[str]] = Field(..., description="Type(s) that book.")
-    resources: Dict[str, ResourceSpec] = Field(default_factory=dict, description="{resource id: {provider, capacity, price, horizon, max_party}}.")
+    resources: Dict[str, ResourceSpec] = Field({}, description="{resource id: {provider, capacity, price, horizon, max_party}}.")
     mode: Literal["slots", "queue"] = Field("slots", description="slots: book a future round; queue: wait in line, served as places free up.")
     currency: Optional[str] = Field(None, description="Ledger currency for prices.")
     waitlist: bool = Field(True, description="Slots mode: a full round puts the guest on its waitlist instead of refusing.")
@@ -75,8 +75,8 @@ def _expand_bookings(name: str, config: BookingsConfig, contract: Mapping[str, A
     resource, booking = f"{name}_resource", f"{name}_booking"
     entities: Dict[str, Any] = {}
     for rid, spec in config.resources.items():
-        if not NAME.match(rid):
-            raise MechanismError(f"resource id '{rid}' is not a valid id", "use letters, digits and _", f"resources.{rid}")
+        if not valid_name(rid):
+            raise MechanismError(f"resource id '{rid}' is not a valid id", "use letters, digits and _ (not a Python keyword)", f"resources.{rid}")
         if spec.price > 0 and (config.currency is None or spec.provider is None):
             raise MechanismError(f"resource '{rid}' has a price but no currency or provider",
                                  "set the mechanism's `currency` and the resource's `provider`", f"resources.{rid}")
@@ -119,7 +119,7 @@ def _expand_bookings(name: str, config: BookingsConfig, contract: Mapping[str, A
     if "book" in config.tools:
         fragment["actions"][f"{name}_book"] = {
             "by": agents, "private": True, "params": params, "do": [do],
-            "description": ("Book places for a future round (paid now; a full round puts you on its waitlist)." if config.mode == "slots"
+            "description": ("Book places for a future round: 1 = next round, up to the place's booking horizon (look at the places view for free places). Paid now; a full round puts you on its waitlist." if config.mode == "slots"
                             else "Join the line; you are served, and pay, when a place is free."),
             "outcome": f"{{$booking_text($actor, '{name}')}}"}
     if "cancel" in config.tools:

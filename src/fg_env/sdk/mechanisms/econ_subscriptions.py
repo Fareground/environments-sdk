@@ -11,8 +11,8 @@ from ..expr import Call, ExprError, function
 from ..registry import MechanismError, effect_op, mechanism
 from ..world import Abort
 from .econ_assets import move_money
-from .econ_base import (NAME, amount, bump, config_of, emit_to, entity_of, maybe_entity, money, props, register_config,
-                        require_currency, require_types, type_list, uses_of)
+from .econ_base import (amount, bump, config_of, emit_to, entity_of, maybe_entity, money, props, register_config,
+                        require_currency, require_types, type_list, uses_of, valid_name)
 from .econ_inventory import agent_types
 
 __all__ = ["SubscriptionsConfig", "PlanSpec"]
@@ -40,7 +40,7 @@ class SubscriptionsConfig(BaseModel):
 
     subscribers: Union[str, List[str]] = Field(..., description="Type(s) that may subscribe.")
     currency: str = Field(..., description="Ledger currency plans are paid in.")
-    plans: Dict[str, PlanSpec] = Field(default_factory=dict, description="{plan id: {provider, name, price, period, trial}}.")
+    plans: Dict[str, PlanSpec] = Field({}, description="{plan id: {provider, name, price, period, trial}}.")
     providers: Union[str, List[str], None] = Field(None, description="Agent type(s) that may reprice their own plans.")
     price_min: float = Field(0, ge=0, description="Lowest price a provider may set.")
     price_max: Optional[float] = Field(None, ge=0, description="Highest price a provider may set.")
@@ -71,8 +71,8 @@ def _expand_subscriptions(name: str, config: SubscriptionsConfig, contract: Mapp
     plan, sub = f"{name}_plan", f"{name}_sub"
     entities: Dict[str, Any] = {}
     for plan_id, spec in config.plans.items():
-        if not NAME.match(plan_id):
-            raise MechanismError(f"plan id '{plan_id}' is not a valid id", "use letters, digits and _", f"plans.{plan_id}")
+        if not valid_name(plan_id):
+            raise MechanismError(f"plan id '{plan_id}' is not a valid id", "use letters, digits and _ (not a Python keyword)", f"plans.{plan_id}")
         entities[plan_id] = {"type": plan, "name": spec.name or plan_id.replace("_", " ").title(), "props": {
             "provider": spec.provider, "price": spec.price, "period": spec.period, "trial": spec.trial,
             "description": spec.description}}

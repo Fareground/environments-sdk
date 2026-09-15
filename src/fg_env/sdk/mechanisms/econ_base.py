@@ -7,6 +7,7 @@ props and entities and changes only through the world's journaled API.
 """
 from __future__ import annotations
 
+import keyword
 import math
 import re
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Type, Union, cast
@@ -17,12 +18,13 @@ from ...entity import Entity
 from ..errors import RunError
 from ..expr import ExprError, compile_expr
 from ..registry import MechanismError
+from ..world import Abort
 
 __all__ = [
-    "EPS", "NAME", "CONFIG_MODELS", "register_config", "config_of", "uses_of", "cached", "type_list", "require_types",
+    "EPS", "NAME", "valid_name", "CONFIG_MODELS", "register_config", "config_of", "uses_of", "cached", "type_list", "require_types",
     "require_currency", "lineage", "common_ancestor", "top_types", "declared_use", "guarded", "choice_param", "entity_of",
     "maybe_entity", "props",
-    "to_ids", "whole", "amount", "bump", "money", "emit_to", "compiles",
+    "to_ids", "whole", "amount", "bump", "money", "emit_to", "compiles", "run_hook",
 ]
 
 #: Tolerance for money comparisons (float sums).
@@ -31,6 +33,11 @@ NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
 
 #: kind → config model, registered by each economy module so runtime lookups can parse any use.
 CONFIG_MODELS: Dict[str, Type[BaseModel]] = {}
+
+
+def valid_name(name: str) -> bool:
+    """Letters, digits and _, starting with a letter, and not a Python keyword: expressions read names as attributes."""
+    return bool(NAME.match(name)) and not keyword.iskeyword(name)
 
 
 def register_config(kind: str, model: Type[BaseModel]) -> None:
@@ -250,3 +257,17 @@ def emit_to(world: Any, kind: str, text: str, to: Sequence[str], data: Optional[
         for entity_id in recipients:
             world.request_wake(entity_id, why)
 
+
+def run_hook(runner: Any, block: str, args: Dict[str, Any], path: str) -> None:
+    """Run an author's effect block (``on_default``, ``on_breach``) for one item on its own.
+
+    The mechanism has already recorded what happened. A refusal inside the block (``fail``, a short
+    transfer) undoes only the block's own changes and is logged as a ``mechanism_refused`` event that no
+    agent is shown, instead of escaping into the tick and silently rolling back everything else it did."""
+    world = runner.world
+    mark = world.journal.mark()
+    try:
+        runner.run([{"block": block, "with": {key: f"${key}" for key in args}}], dict(args), path)
+    except Abort as exc:
+        world.journal.rollback(mark)
+        world.emit("mechanism_refused", f"{block} was refused: {exc.reason}", to=[], data={"block": block, "reason": exc.reason})

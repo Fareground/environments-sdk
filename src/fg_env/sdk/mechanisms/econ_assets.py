@@ -377,32 +377,58 @@ def loose_total(world: Any, inventory: str, item: str, where: str) -> int:
     return ground
 
 
+def _holder_types(world: Any, prop: str) -> frozenset:
+    """Entity types that declare ``prop`` (cached per contract)."""
+    return cached(world, ("holders", prop),  # type: ignore[no-any-return]
+                  lambda: frozenset(t for t, specs in world._type_props.items() if prop in specs))
+
+
+def _number_or_zero(value: Any) -> float:
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else 0.0
+
+
 def conserved(world: Any, name: str, where: str) -> Tuple[bool, str]:
-    """Whether holdings of a ledger or inventory match its supply; a reason when they do not."""
+    """Whether holdings of a ledger or inventory match its supply; a reason when they do not.
+
+    It is an invariant, checked after every action, so it makes one pass over the entities."""
     index = assets(world)
     supply = world.props.get(f"{name}_supply") or {}
-    everyone = [e for e in world.entities.values() if e.alive]
     if name in index.ledgers:
         for currency in index.ledgers[name].currencies:
-            holders = [e for e in everyone if is_holder(world, e, currency)]
-            total = sum(balance(world, e, currency, where) for e in holders)
+            holders, credited = _holder_types(world, currency), _holder_types(world, f"{currency}_credit")
+            total = 0.0
+            for entity in world.entities.values():
+                if not entity.alive or entity.entity_type not in holders:
+                    continue
+                values = props(entity)
+                value = _number_or_zero(values.get(currency))
+                total += value
+                limit = _number_or_zero(values.get(f"{currency}_credit")) if entity.entity_type in credited else 0.0
+                if value < -max(0.0, limit) - 1e-6:
+                    return False, f"{entity.name} is below its {currency} credit limit"
             expected = float(supply.get(currency, 0))
             if abs(total - expected) > 1e-6 * max(1.0, abs(expected), abs(total)):
                 return False, f"{currency} held is {money(total)} but the supply is {money(expected)}"
-            for e in holders:
-                if balance(world, e, currency, where) < -credit_of(world, e, currency) - 1e-6:
-                    return False, f"{e.name} is below its {currency} credit limit"
         return True, ""
     if name in index.inventories:
+        config = index.inventories[name]
         prop = index.props[name]
-        for item, spec in index.inventories[name].items.items():
+        holders = _holder_types(world, prop)
+        totals: Dict[str, int] = {}
+        for entity in world.entities.values():
+            if not entity.alive or entity.entity_type not in holders:
+                continue
+            for item, qty in (props(entity).get(prop) or {}).items():
+                if item not in config.items or config.items[item].unique:
+                    return False, f"{entity.name} holds '{item}', which is not a stackable item of {name}"
+                if isinstance(qty, bool) or not isinstance(qty, int) or qty < 0:
+                    return False, f"{entity.name} holds {qty!r} {item}; quantities are whole numbers ≥ 0"
+                totals[item] = totals.get(item, 0) + qty
+        for item, spec in config.items.items():
             if spec.unique:
                 total = len(_instances(world, item))
             else:
-                counts = [int((props(e).get(prop) or {}).get(item, 0)) for e in everyone if is_holder(world, e, prop)]
-                if any(c < 0 for c in counts):
-                    return False, f"someone holds a negative amount of {item}"
-                total = sum(counts) + loose_total(world, name, item, where) + _in_transit(world, item, None)
+                total = totals.get(item, 0) + loose_total(world, name, item, where) + _in_transit(world, item, None)
             if total != supply.get(item, 0):
                 return False, f"{total} {item} exist but the supply is {supply.get(item, 0)}"
         return True, ""

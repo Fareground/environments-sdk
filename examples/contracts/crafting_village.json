@@ -97,7 +97,7 @@
   ],
   "views": {
     "you": {"for": "villager", "title": "You", "bullet": false,
-            "show": "At the {at} · hunger {hunger}/10 · health {health}/10 · {coin} coin"},
+            "show": "At the {at} · hunger {hunger}/10 · health {health}/10"},
     "store": {"for": "villager", "title": "Store prices (buys / sells)", "bullet": false, "look": true,
               "show": "{$join($map($keys($world.store_sells), $it + ' ' + $text($get($world.store_buys, $it)) + '/' + $text($get($world.store_sells, $it))), ', ')}"}
   },

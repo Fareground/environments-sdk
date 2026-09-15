@@ -28,10 +28,10 @@ class FirmSpec(BaseModel):
 
     output: str = Field(..., description="Item made.")
     per_worker: Union[float, str] = Field(1, description="Units per worker per round (number or expression over $firm and $workers).")
-    inputs: Dict[str, int] = Field(default_factory=dict, description="Goods used up per unit {item: qty}.")
+    inputs: Dict[str, int] = Field({}, description="Goods used up per unit {item: qty}.")
     price: Union[float, str] = Field(1, description="Starting posted price (prop `<name>_price`).")
-    price_min: float = Field(0, ge=0)
-    price_max: Optional[float] = Field(None, ge=0)
+    price_min: float = Field(0, ge=0, description="Lowest price a firm may post.")
+    price_max: Optional[float] = Field(None, ge=0, description="Highest price a firm may post.")
 
 
 class LaborConfig(BaseModel):
@@ -44,15 +44,15 @@ class LaborConfig(BaseModel):
     currency: str = Field(..., description="Ledger currency wages are paid in.")
     hiring: Literal["choice", "rule"] = Field("choice", description="choice: employers hire applicants with a tool; rule: applicants are hired automatically each round.")
     rank: Optional[str] = Field(None, description="Rule hiring order: expression over $it (the worker), higher first; default first come.")
-    wage_min: float = Field(0, ge=0)
-    wage_max: Optional[float] = Field(None, ge=0)
+    wage_min: float = Field(0, ge=0, description="Lowest wage a posting may offer.")
+    wage_max: Optional[float] = Field(None, ge=0, description="Highest wage a posting may offer.")
     pay_every: int = Field(1, ge=1, description="Rounds between paydays; each pays the per-round wage for every round since the last.")
     tax: Optional[str] = Field(None, description="A ledger tax withheld from wages.")
     max_jobs: int = Field(1, ge=1, description="Jobs one worker may hold.")
     max_openings: int = Field(10, ge=1, description="Most openings one posting may have.")
     on_unpaid: Literal["quit", "owe"] = Field("quit", description="An unpaid wage ends the job (quit) or is owed and paid first next payday (owe).")
     inventory: Optional[str] = Field(None, description="Inventory of a firm's goods (needed with `firm`).")
-    firm: Optional[FirmSpec] = None
+    firm: Optional[FirmSpec] = Field(None, description="Employers are firms: {output, per_worker, inputs, price, price_min, price_max}.")
     tools: List[Literal["post", "close", "hire", "reject", "fire", "apply", "withdraw", "quit", "set_price"]] = Field(
         ["post", "close", "hire", "reject", "fire", "apply", "withdraw", "quit", "set_price"], description="Tools generated for agents.")
 

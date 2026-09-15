@@ -9,8 +9,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from ...entity import Entity
 from ..registry import MechanismError, effect_op, mechanism
 from .econ_assets import assets, destroy_items, is_holder
-from .econ_base import (NAME, choice_param, props, config_of, emit_to, guarded, register_config, require_types, top_types,
-                        type_list)
+from .econ_base import (choice_param, props, config_of, emit_to, guarded, register_config, require_types, top_types,
+                        type_list, valid_name)
 
 __all__ = ["InventoryConfig", "ItemSpec", "agent_types", "baseline"]
 
@@ -27,9 +27,9 @@ class ItemSpec(BaseModel):
     description: str = ""
     shelf_life: Optional[int] = Field(None, ge=1, description="Rounds until a unit spoils (oldest units first).")
     decay: Optional[float] = Field(None, ge=0, le=1, description="Chance each unit is lost every round (seeded).")
-    props: Dict[str, Any] = Field(default_factory=dict, description="Unique items: properties of each instance.")
+    props: Dict[str, Any] = Field({}, description="Unique items: properties of each instance.")
     consumable: bool = Field(False, description="Holders may consume it (a `<name>_consume` tool).")
-    on_consume: List[Any] = Field(default_factory=list, description="Effects when consumed ($actor, $qty); implies consumable.")
+    on_consume: List[Any] = Field([], description="Effects when consumed ($actor, $qty); implies consumable.")
 
 
 class InventoryConfig(BaseModel):
@@ -42,13 +42,13 @@ class InventoryConfig(BaseModel):
     prop: Optional[str] = Field(None, description="Holder property with the stackable goods {item: qty}; default the mechanism's name.")
     capacity: Union[float, str, None] = Field(None, description="Space each holder has (number or expression); unlimited when omitted.")
     start: Dict[str, Union[int, str]] = Field(
-        default_factory=dict, description="Goods every holder starts with {item: qty or expression} (entity props override).")
+        {}, description="Goods every holder starts with {item: qty or expression} (entity props override).")
     tools: List[Literal["give", "consume", "drop", "pickup"]] = Field(
         ["give", "consume"], description="Tools generated for agent holders: give, consume (consumable items), drop and pickup (needs a space).")
     give_to: str = Field("$it.id != $actor.id", description="Which holders an agent may give goods to ($actor, $it).")
     needs: Dict[str, Dict[str, Union[int, str]]] = Field(
-        default_factory=dict, description="Goods used up every `every` rounds per type: {type: {item: qty or expression over $it}}.")
-    on_short: List[Any] = Field(default_factory=list, description="Effects when a need is not met ($it, $item, $short).")
+        {}, description="Goods used up every `every` rounds per type: {type: {item: qty or expression over $it}}.")
+    on_short: List[Any] = Field([], description="Effects when a need is not met ($it, $item, $short).")
     every: int = Field(1, ge=1, description="Rounds between needs.")
 
 
@@ -112,12 +112,12 @@ def _expand_inventory(name: str, config: InventoryConfig, contract: Mapping[str,
     holders = type_list(config.holders)
     require_types(contract, holders, "holders")
     prop = config.prop or name
-    if not NAME.match(prop):
-        raise MechanismError(f"prop '{prop}' is not a property name", "use letters, digits and _", "prop")
+    if not valid_name(prop):
+        raise MechanismError(f"prop '{prop}' is not a property name", "use letters, digits and _ (not a Python keyword)", "prop")
     taken = _other_names(contract, name)
     for item, spec in config.items.items():
-        if not NAME.match(item):
-            raise MechanismError(f"item '{item}' is not a valid name", "use letters, digits and _", f"items.{item}")
+        if not valid_name(item):
+            raise MechanismError(f"item '{item}' is not a valid name", "use letters, digits and _ (not a Python keyword)", f"items.{item}")
         if item in taken:
             raise MechanismError(f"'{item}' is already declared by '{taken[item]}'", "give every item and currency its own name",
                                  f"items.{item}")

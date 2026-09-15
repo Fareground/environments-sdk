@@ -6,15 +6,15 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Mapping, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..registry import MechanismError, effect_op, mechanism
 from ..world import Abort
 from .econ_assets import assets, balance, move_items, move_money
-from .econ_base import (NAME, bump, choice_param, compiles, config_of, emit_to, entity_of, money, props, register_config, require_types,
-                        to_ids, type_list, whole)
+from .econ_base import (bump, choice_param, compiles, config_of, emit_to, entity_of, money, props, register_config, require_types, run_hook,
+                        to_ids, type_list, valid_name, whole)
 from .econ_inventory import agent_types
 
 __all__ = ["NegotiationConfig", "IssueSpec", "ObligationSpec", "BreachSpec"]
@@ -68,7 +68,7 @@ class BreachSpec(BaseModel):
     penalty: Union[float, str] = Field(0, description="Owed to the other side on each breach: number or expression over $terms and $duty.")
     currency: Optional[str] = Field(None, description="Currency of the penalty (default: the breached payment's, or the first ledger's).")
     terminate: bool = Field(False, description="A breach ends the deal: remaining installments are cancelled.")
-    on_breach: List[Any] = Field(default_factory=list, description="Effects on a breach ($deal, $duty, $breacher, $victim, $terms).")
+    on_breach: List[Any] = Field([], description="Effects on a breach ($deal, $duty, $breacher, $victim, $terms).")
 
 
 class NegotiationConfig(BaseModel):
@@ -85,10 +85,16 @@ class NegotiationConfig(BaseModel):
     reservation: Union[float, str, None] = Field(None, description="Private walk-away value of each party (prop `<name>_reservation`).")
     value: Optional[str] = Field(None, description="Worth of terms to a party, shown only to that party: expression over $party and $terms.")
     once: bool = Field(True, description="The first signed deal closes the negotiation.")
-    obligations: List[ObligationSpec] = Field(default_factory=list, description="What a signed deal makes parties pay or deliver.")
-    breach: BreachSpec = Field(default_factory=BreachSpec)
+    obligations: List[ObligationSpec] = Field([], description="What a signed deal makes parties pay or deliver.")
+    breach: BreachSpec = Field(None, validate_default=True,
+                               description="What a breach costs: {penalty, currency, terminate, on_breach}; nothing by default.")
     tools: List[Literal["propose", "counter", "accept", "reject", "withdraw", "fulfill"]] = Field(
         ["propose", "counter", "accept", "reject", "withdraw", "fulfill"], description="Tools generated for the parties.")
+
+    @field_validator("breach", mode="before")
+    @classmethod
+    def _breach_terms(cls, value: Any) -> Any:
+        return {} if value is None else value
 
 
 register_config("negotiation", NegotiationConfig)
@@ -116,7 +122,7 @@ def _expand_negotiation(name: str, config: NegotiationConfig, contract: Mapping[
     if config.coalition and len(parties) != 1:
         raise MechanismError("coalition offers need one party type", "give the parties a common parent type", "parties")
     for issue, spec in config.issues.items():
-        if not NAME.match(issue) or issue in RESERVED_PARAMS:
+        if not valid_name(issue) or issue in RESERVED_PARAMS:
             raise MechanismError(f"issue '{issue}' cannot be used as a name", f"avoid {', '.join(RESERVED_PARAMS)}", f"issues.{issue}")
         if spec.type == "enum" and not spec.values:
             raise MechanismError("an enum issue needs `values`", None, f"issues.{issue}.values")
@@ -508,8 +514,7 @@ def _breach(runner: Any, name: str, config: NegotiationConfig, duty: Any, reason
     emit_to(world, f"{name}_breach", text, list(props(deal)["parties"]), {"duty": duty.id, "penalty": paid},
             why=f"A deal was breached by {breacher.name}.")
     if config.breach.on_breach:
-        runner.run([{"block": f"{name}_on_breach", "with": {k: f"${k}" for k in vars}}], dict(vars),
-                   f"mechanisms.{name}.breach.on_breach")
+        run_hook(runner, f"{name}_on_breach", vars, f"mechanisms.{name}.breach.on_breach")
 
 
 def _currencies(world: Any) -> List[str]:

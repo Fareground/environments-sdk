@@ -49,7 +49,7 @@
       "issues": {
         "price": {"type": "number", "min": 1, "max": 30, "unit": "credits/t", "description": "Price per ton."},
         "quota": {"type": "int", "min": 10, "max": 100, "unit": "t/year", "description": "Tons delivered each year."},
-        "years": {"type": "int", "min": 1, "max": 8, "unit": "years", "description": "Years the deal runs."}
+        "years": {"type": "int", "min": 1, "max": 8, "description": "Years the deal runs."}
       },
       "obligations": [
         {"label": "steel delivery", "from": "$entity(arland)", "to": "$entity(borin)", "give": "steel", "amount": "$terms.quota", "times": "$terms.years", "manual": true},
