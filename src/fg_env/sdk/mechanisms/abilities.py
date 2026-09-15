@@ -1,14 +1,17 @@
-"""Abilities over time: per-action cooldowns and charges, and channeled actions that complete later.
+"""Abilities over time: per-action cooldowns and charges, and channeled actions that complete later (the
+``conditions`` family's ``cooldowns`` and ``channeling`` modes).
 
 .. code-block:: json
 
-    "abilities": {"kind": "cooldowns", "actions": {"fireball": {"cooldown": 2}, "heal": {"charges": 2, "recharge": 3}}},
-    "spells": {"kind": "channeling", "actions": {"meteor": {"rounds": 2, "resolve": ["$params.target.hp -= 10"],
-                                                            "interrupt": "$has_status($actor, 'stun')"}}}
+    "abilities": {"kind": "conditions", "mode": "cooldowns", "actions": {"fireball": {"cooldown": 2},
+                                                                        "heal": {"charges": 2, "recharge": 3}}},
+    "spells": {"kind": "conditions", "mode": "channeling", "actions": {"meteor": {"rounds": 2,
+               "resolve": ["$params.target.hp -= 10"], "interrupt": "$has_status($actor, 'stun')"}}}
 
 Both attach to actions the contract declares: a cooldown adds a readiness condition and starts the
 cooldown when the action succeeds; a channeled action stores its arguments when taken and runs
-``resolve`` with the same ``$actor`` and ``$params`` when the channel completes.
+``resolve`` with the same ``$actor`` and ``$params`` when the channel completes. In effects the
+limited or channeled action is named by ``ability`` (``action`` is the family op's sub-command).
 
 Cooldown state is the map property ``<name>`` on each agent: ``{action: {ready, charges, since}}``.
 Charges regenerate lazily from ``since``, so nothing ticks and a snapshot holds everything.
@@ -22,7 +25,7 @@ from pydantic import Field, model_validator
 from ...entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, function, truthy
-from ..registry import MechanismError, effect_op, mechanism
+from ..registry import MechanismError, family_action, mode, use_key
 from ..template import compile_template
 from ..world import Abort
 from . import _common as common
@@ -30,8 +33,8 @@ from ._common import Config, Effects
 
 __all__ = ["CooldownDef", "CooldownConfig", "ChannelDef", "ChannelConfig"]
 
-COOLDOWNS = "cooldowns"
-CHANNELING = "channeling"
+COOLDOWNS = "conditions.cooldowns"
+CHANNELING = "conditions.channeling"
 
 
 # ---------------------------------------------------------------------------
@@ -65,14 +68,14 @@ class CooldownConfig(Config):
     actions: Dict[str, CooldownDef] = Field(
         ..., description="{action: {cooldown, charges, recharge, start, why}}. cooldown N: after a use the action is "
                          "unavailable for the next N rounds; charges: uses stored, one regained every `recharge` rounds.")
-    view: bool = Field(True, description="Show each agent the state of its limited actions.")
+    views: bool = Field(True, description="Show each agent the state of its limited actions.")
 
 
-@mechanism(COOLDOWNS, CooldownConfig,
-           "Per-action cooldowns and charges with regeneration. Each listed action is offered only when ready, and "
-           "starts its cooldown (spends a charge) when taken. Read with $ready(entity, action), $charges(entity, action), "
-           "$cooldown_left(entity, action); {\"reset_cooldown\": action | \"all\", \"for\": entity} makes it ready again.",
-           example={"kind": COOLDOWNS, "actions": {"fireball": {"cooldown": 2}, "heal": {"charges": 2, "recharge": 3}}})
+@mode("conditions", "cooldowns", CooldownConfig,
+      "Per-action cooldowns and charges with regeneration. Each listed action is offered only when ready, and "
+      "starts its cooldown (spends a charge) when taken. Read with $ready(entity, action), $charges(entity, action), "
+      "$cooldown_left(entity, action); the `reset` action makes one ready again.",
+      example={"actions": {"fireball": {"cooldown": 2}, "heal": {"charges": 2, "recharge": 3}}}, was="cooldowns")
 def _expand_cooldowns(name: str, cfg: CooldownConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     _unique_actions(name, COOLDOWNS, cfg.actions, contract)
     declared = contract.get("actions") or {}
@@ -83,30 +86,30 @@ def _expand_cooldowns(name: str, cfg: CooldownConfig, contract: Mapping[str, Any
         raw = declared[action]
         agents += [t for t in common.by_types(raw) if t not in agents]
         why = spec.why or f"{action.replace('_', ' ')} is not ready yet"
-        hook: Dict[str, List[Any]] = {"when": [{"expr": f"$ready($actor, '{action}')", "why": why}],
-                                      "do": [{"start_cooldown": action}]}
+        start = {"conditions": name, "action": "start", "ability": action}
+        hook: Dict[str, List[Any]] = {"when": [{"expr": f"$ready($actor, '{action}')", "why": why}], "do": [start]}
         if raw.get("chance") is not None:
-            hook["otherwise"] = [{"start_cooldown": action}]
+            hook["otherwise"] = [start]
         hooks[action] = hook
     types = common.types_in(contract, agents, "actions")
     fragment: Dict[str, Any] = {"action_hooks": hooks, "types": {t: {"props": {name: {"type": "map", "default": {}, "description": f"Cooldowns ({name})."}}}
                                           for t in types}}
-    if cfg.view:
+    if cfg.views:
         fragment["views"] = {name: {"for": types, "title": "Abilities", "show": f"{{$ability_text($actor, '{name}')}}"}}
     return fragment
 
 
-def _unique_actions(name: str, kind: str, actions: Mapping[str, Any], contract: Mapping[str, Any]) -> None:
-    for other, raw in common.uses(contract, kind):
+def _unique_actions(name: str, key: str, actions: Mapping[str, Any], contract: Mapping[str, Any]) -> None:
+    for other, raw in common.uses(contract, key):
         if other != name and isinstance(raw.get("actions"), Mapping):
             clash = sorted(set(raw["actions"]) & set(actions))
             if clash:
                 raise MechanismError(f"action '{clash[0]}' is also listed by '{other}'", "list each action once", f"actions.{clash[0]}")
 
 
-def _index(contract: Any, kind: str, model: Any) -> Dict[str, Tuple[str, Any]]:
+def _index(contract: Any, key: str, model: Any) -> Dict[str, Tuple[str, Any]]:
     out: Dict[str, Tuple[str, Any]] = {}
-    for mech, raw in common.uses(contract, kind):
+    for mech, raw in common.uses(contract, key):
         cfg = common.parsed(raw, model)
         for action in cfg.actions:
             out.setdefault(action, (mech, cfg))
@@ -197,8 +200,8 @@ def _ability_text(call: Call) -> str:
     if entity is None:
         raise ExprError(f"$ability_text: expected an entity, got {call.arg(0)!r}", call.source)
     raw = world.contract.mechanisms.get(call.arg(1))
-    if not isinstance(raw, Mapping) or raw.get("kind") != COOLDOWNS:
-        raise ExprError(f"$ability_text: '{call.arg(1)}' is not a declared cooldowns mechanism", call.source)
+    if use_key(raw) != COOLDOWNS:
+        raise ExprError(f"$ability_text: '{call.arg(1)}' is not a declared conditions (cooldowns) mechanism", call.source)
     cfg = common.parsed(raw, CooldownConfig)
     parts = []
     for action, spec in cfg.actions.items():
@@ -220,29 +223,52 @@ def _ability_text(call: Call) -> str:
     return "; ".join(parts) or "none"
 
 
-def _for(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> List[Entity]:
-    value = runner.eval(effect["for"], vars) if "for" in effect else vars.get("actor")
+def _who(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> List[Entity]:
+    value = runner.eval(effect["who"], vars) if "who" in effect else vars.get("actor")
     if value is None:
-        raise RunError("needs `for` (the entity) outside an action", where)
-    return common.entities_of(runner.world, value, f"{where}.for")
+        raise RunError("needs `who` (the entity) outside an action", where)
+    return common.entities_of(runner.world, value, f"{where}.who")
 
 
-def _check_limited(checker: Any, effect: Dict[str, Any], path: str, op: str) -> List[Tuple[str, str, Optional[str]]]:
-    index = _index(checker.c, COOLDOWNS, CooldownConfig)
-    names = effect.get(op)
-    listed = [] if names == "all" else ([names] if isinstance(names, str) else list(names or []))
-    return [(f"{path}.{op}", f"'{n}' has no cooldown", common.suggest(n, index)) for n in listed if n not in index]
+def _abilities(effect: Mapping[str, Any]) -> List[str]:
+    value = effect.get("ability")
+    return [] if value == "all" else ([value] if isinstance(value, str) else list(value or []))
 
 
-@effect_op("start_cooldown", keys=("for",), literal=("start_cooldown",),
-           check=lambda c, e, p: _check_limited(c, e, p, "start_cooldown"),
-           example='{"start_cooldown": "fireball", "for": "$actor"}  (added to each limited action automatically)')
+def _check_abilities(key: str, model: Any, allow_all: bool) -> Any:
+    """A check that every action ``ability`` names is listed by the op's mechanism."""
+
+    def check(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[str, str, Optional[str]]]:
+        mech = effect[key.split(".")[0]]
+        listed = common.parsed(checker.c.mechanisms[mech], model).actions
+        value = effect.get("ability")
+        if not allow_all and not isinstance(value, str):
+            return [(f"{path}.ability", "`ability` names one action", None)]
+        return [(f"{path}.ability", f"'{n}' is not an action of {mech}", common.suggest(n, listed))
+                for n in _abilities(effect) if n not in listed]
+
+    return check
+
+
+def _listed(world: Any, mech: str, cfg: Any, names: List[str], where: str) -> None:
+    for name in names:
+        if name not in cfg.actions:
+            raise RunError(f"'{name}' is not an action of {mech} ({common.suggest(name, cfg.actions)})", f"{where}.ability")
+
+
+@family_action("conditions", ("cooldowns",), "start", keys=("ability", "who"), required=("ability",), literal=("ability",),
+               check=_check_abilities(COOLDOWNS, CooldownConfig, False), internal=True, was=("start_cooldown",),
+               example='{"conditions": "abilities", "action": "start", "ability": "fireball", "who": "$actor"}  '
+                       '(start the cooldown; added to each limited action)')
 def _start_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    action = effect["start_cooldown"]
-    mech, _, spec = _limited(world, action, where)
+    mech = effect["conditions"]
+    cfg = common.config(world, mech, COOLDOWNS, CooldownConfig, where)
+    action = effect["ability"]
+    _listed(world, mech, cfg, [action], where)
+    spec = cfg.actions[action]
     now = world.round
-    for entity in _for(runner, effect, vars, where):
+    for entity in _who(runner, effect, vars, where):
         entry = dict(_entry(entity, mech, action))
         cooldown = common.whole(runner.eval(spec.cooldown, vars), f"mechanisms.{mech}.actions.{action}.cooldown", low=0)
         if cooldown > 0:
@@ -255,24 +281,23 @@ def _start_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: 
         world.set_prop(entity, mech, {**current, action: entry})
 
 
-@effect_op("reset_cooldown", keys=("for",), literal=("reset_cooldown",),
-           check=lambda c, e, p: _check_limited(c, e, p, "reset_cooldown"),
-           example='{"reset_cooldown": "all", "for": "$params.ally"}  (an action, a list, or all: ready with full charges)')
+@family_action("conditions", ("cooldowns",), "reset", keys=("ability", "who"), required=("ability",), literal=("ability",),
+               check=_check_abilities(COOLDOWNS, CooldownConfig, True), was=("reset_cooldown",),
+               example='{"conditions": "abilities", "action": "reset", "ability": "all", "who": "$params.ally"}  '
+                       '(an action, a list, or all: ready with full charges; who defaults to $actor)')
 def _reset_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    wanted = effect["reset_cooldown"]
-    names = None if wanted == "all" else ([wanted] if isinstance(wanted, str) else list(wanted))
-    index = _index(world.contract, COOLDOWNS, CooldownConfig)
-    for name in names or []:
-        _limited(world, name, where)
-    for entity in _for(runner, effect, vars, where):
-        for mech in {m for m, _ in index.values()}:
-            state = entity.properties.get(mech)
-            if not isinstance(state, Mapping) or not state:
-                continue
-            keep = {} if names is None else {a: e for a, e in state.items() if a not in names}
-            if keep != state:
-                world.set_prop(entity, mech, keep)
+    mech = effect["conditions"]
+    cfg = common.config(world, mech, COOLDOWNS, CooldownConfig, where)
+    names = None if effect["ability"] == "all" else _abilities(effect)
+    _listed(world, mech, cfg, names or [], where)
+    for entity in _who(runner, effect, vars, where):
+        state = entity.properties.get(mech)
+        if not isinstance(state, Mapping) or not state:
+            continue
+        keep = {} if names is None else {a: e for a, e in state.items() if a not in names}
+        if keep != state:
+            world.set_prop(entity, mech, keep)
 
 
 # ---------------------------------------------------------------------------
@@ -306,16 +331,16 @@ class ChannelConfig(Config):
                          "`rounds` later with the same $actor and $params.")
     busy: Union[Literal["all"], List[str]] = Field(
         "all", description="Actions the channeler cannot take meanwhile: all (every action of its type declared so far) or a list.")
-    view: bool = Field(True, description="Show a channeling agent what it is channeling and when it completes.")
+    views: bool = Field(True, description="Show a channeling agent what it is channeling and when it completes.")
 
 
-@mechanism(CHANNELING, ChannelConfig,
-           "Multi-round actions: taking a listed action starts a channel that resolves `rounds` later with the original "
-           "arguments, keeps the channeler busy, and breaks when `interrupt` holds (or on {\"interrupt_channel\": entity}). "
-           "A `fail` in resolve fizzles it with every change rolled back. $channeling(entity) is the channel in progress "
-           "({action, params, started, completes}) or null.",
-           example={"kind": CHANNELING, "actions": {"meteor": {"rounds": 2, "resolve": ["$params.target.hp -= 12"],
-                                                              "interrupt": "$actor.hp < 5", "say": "A meteor strikes!"}}})
+@mode("conditions", "channeling", ChannelConfig,
+      "Multi-round actions: taking a listed action starts a channel that resolves `rounds` later with the original "
+      "arguments, keeps the channeler busy, and breaks when `interrupt` holds (or with the `interrupt` action). "
+      "A `fail` in resolve fizzles it with every change rolled back. $channeling(entity) is the channel in progress "
+      "({action, params, started, completes}) or null.",
+      example={"actions": {"meteor": {"rounds": 2, "resolve": ["$params.target.hp -= 12"], "interrupt": "$actor.hp < 5",
+                                      "say": "A meteor strikes!"}}}, was="channeling")
 def _expand_channeling(name: str, cfg: ChannelConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     _unique_actions(name, CHANNELING, cfg.actions, contract)
     declared = contract.get("actions") or {}
@@ -330,13 +355,13 @@ def _expand_channeling(name: str, cfg: ChannelConfig, contract: Mapping[str, Any
     for action in dict.fromkeys([*busy, *cfg.actions]):
         hooks[action] = {"when": [free]}
     for action in cfg.actions:
-        hooks[action]["do"] = [{"start_channel": action}]
+        hooks[action]["do"] = [{"conditions": name, "action": "start", "ability": action}]
     fragment: Dict[str, Any] = {
         "action_hooks": hooks,
         "types": {t: {"props": {name: {"type": "map", "default": {}, "description": f"Channel in progress ({name})."}}} for t in casters},
-        "events": [{"name": name, "phase": "start", "do": [{"channel_step": name}]}],
+        "events": [{"name": name, "phase": "start", "do": [{"conditions": name, "action": "step"}]}],
     }
-    if cfg.view:
+    if cfg.views:
         fragment["views"] = {name: {"for": casters, "title": "Channeling", "when": f"$len($keys($actor.{name})) > 0",
                                     "show": f"You are channeling {{$actor.{name}.action}}; it completes at the start of "
                                             f"round {{$actor.{name}.completes}}."}}
@@ -363,24 +388,19 @@ def _channeling(call: Call) -> Optional[Dict[str, Any]]:
     return dict(_channel_entry(world, entity)[1] or {}) or None
 
 
-def _check_channel(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[str, str, Optional[str]]]:
-    index = _index(checker.c, CHANNELING, ChannelConfig)
-    action = effect.get("start_channel")
-    return [] if action in index else [(f"{path}.start_channel", f"'{action}' is not a channeled action", common.suggest(str(action), index))]
-
-
-@effect_op("start_channel", keys=(), literal=("start_channel",), check=_check_channel,
-           example='{"start_channel": "meteor"}  (start channeling with this action\'s $actor and $params; added automatically)')
+@family_action("conditions", ("channeling",), "start", keys=("ability",), required=("ability",), literal=("ability",),
+               check=_check_abilities(CHANNELING, ChannelConfig, False), internal=True, was=("start_channel",),
+               example='{"conditions": "spells", "action": "start", "ability": "meteor"}  (start channeling with this '
+                       'action\'s $actor and $params; added to each channeled action)')
 def _channel_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    action = effect["start_channel"]
-    index = _index(world.contract, CHANNELING, ChannelConfig)
-    if action not in index:
-        raise RunError(f"'{action}' is not a channeled action", where)
-    mech, cfg = index[action]
+    mech = effect["conditions"]
+    cfg = common.config(world, mech, CHANNELING, ChannelConfig, where)
+    action = effect["ability"]
+    _listed(world, mech, cfg, [action], where)
     actor = vars.get("actor")
     if not isinstance(actor, Entity):
-        raise RunError("`start_channel` runs inside an action ($actor)", where)
+        raise RunError("`start` runs inside an action ($actor)", where)
     if _channel_entry(world, actor)[1]:
         raise Abort("You are already channeling.")
     rounds = common.whole(runner.eval(cfg.actions[action].rounds, vars), f"mechanisms.{mech}.actions.{action}.rounds")
@@ -388,16 +408,17 @@ def _channel_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where
                                  "started": world.round, "completes": world.round + rounds})
 
 
-@effect_op("interrupt_channel", keys=(), check=None,
-           example='{"interrupt_channel": "$params.target"}  (break the entity\'s channel now: on_interrupt runs)')
+@family_action("conditions", ("channeling",), "interrupt", keys=("who",), required=("who",), was=("interrupt_channel",),
+               example='{"conditions": "spells", "action": "interrupt", "who": "$params.target"}  (break the entity\'s '
+                       'channel now: on_interrupt runs)')
 def _interrupt_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    for entity in common.entities_of(world, runner.eval(effect["interrupt_channel"], vars), where):
-        mech, state = _channel_entry(world, entity)
-        if mech is None or state is None:
-            continue
-        cfg = common.config(world, mech, CHANNELING, ChannelConfig, where)
-        _break(runner, mech, cfg, entity, state)
+    mech = effect["conditions"]
+    cfg = common.config(world, mech, CHANNELING, ChannelConfig, where)
+    for entity in common.entities_of(world, runner.eval(effect["who"], vars), f"{where}.who"):
+        state = entity.properties.get(mech)
+        if isinstance(state, Mapping) and state:
+            _break(runner, mech, cfg, entity, state)
 
 
 def _break(runner: Any, mech: str, cfg: ChannelConfig, entity: Entity, state: Mapping[str, Any]) -> None:
@@ -426,11 +447,8 @@ def _news(runner: Any, mech: str, template: str, vars: Dict[str, Any], where: st
 
 
 def _check_step(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[str, str, Optional[str]]]:
-    name = effect.get("channel_step")
-    raw = checker.c.mechanisms.get(name)
-    if not isinstance(raw, Mapping) or raw.get("kind") != CHANNELING:
-        return [(f"{path}.channel_step", f"'{name}' is not a declared {CHANNELING} mechanism", None)]
-    cfg = common.parsed(raw, ChannelConfig)
+    name = effect["conditions"]
+    cfg = common.parsed(checker.c.mechanisms[name], ChannelConfig)
     base = set(common.base_roots())
     for action, spec in cfg.actions.items():
         declared = checker.c.actions.get(action)
@@ -448,11 +466,12 @@ def _check_step(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[s
     return []
 
 
-@effect_op("channel_step", keys=(), literal=("channel_step",), check=_check_step,
-           example='{"channel_step": "spells"}  (break or complete channels now; generated at the start of each round)')
+@family_action("conditions", ("channeling",), "step", check=_check_step, internal=True, was=("channel_step",),
+               example='{"conditions": "spells", "action": "step"}  (break or complete channels now; generated at the '
+                       'start of each round)')
 def _step_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    mech = effect["channel_step"]
+    mech = effect["conditions"]
     cfg = common.config(world, mech, CHANNELING, ChannelConfig, where)
     casters = sorted({t for a in cfg.actions if a in world.contract.actions
                       for t in common.by_types(world.contract.actions[a])})

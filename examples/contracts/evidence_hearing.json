@@ -30,30 +30,31 @@
       "by": "attorney", "description": "Offer an exhibit into evidence.",
       "params": {"exhibit": {"type": "text", "max_len": 80, "description": "The exhibit, e.g. 'the signed supply agreement'."}},
       "when": [{"expr": "$stack(hearing, top) == null", "why": "Wait until the pending exhibit has been dealt with."}],
-      "do": [{"procedure": "hearing", "step": "push", "kind": "exhibit", "params": {"name": "$params.exhibit", "side": "$actor.side"}}],
+      "do": [{"flow": "hearing", "action": "push", "item": "exhibit", "params": {"name": "$params.exhibit", "side": "$actor.side"}}],
       "outcome": "You offered {$params.exhibit}.", "terminal": true
     }
   },
   "mechanisms": {
     "hearing": {
-      "kind": "procedure",
+      "kind": "flow",
+      "mode": "procedure",
       "phases": {
         "evidence": {"title": "Evidence", "stages": [{"name": "offers", "actions": ["offer_exhibit"], "who": "$is($it, attorney)"}],
                      "next": [{"to": "closed", "after": 4, "say": "The court closes the evidence."}]},
         "closed": {"title": "Evidence closed", "terminal": true}
       },
       "stack": {
-        "players": ["attorney", "judge"],
+        "who": ["attorney", "judge"],
         "reopen": false,
         "kinds": {
           "exhibit": {"tool": false, "params": {"name": "text", "side": "text"}, "show": "{$params.name} ({$params.side})",
                       "responders": "$is($it, attorney) and $it.id != $item.by",
                       "resolve": ["$world.admitted += $params.name"], "countered": ["$world.excluded += $params.name"]},
-          "objection": {"starts": false, "on": ["exhibit"], "by": "attorney", "description": "Object to the exhibit on top of the stack.",
+          "objection": {"starts": false, "on": ["exhibit"], "who": "attorney", "description": "Object to the exhibit on top of the stack.",
                         "params": {"ground": {"type": "enum", "values": ["hearsay", "relevance", "foundation"]}},
                         "show": "{$params.ground}", "responders": "$is($it, judge)",
-                        "resolve": [{"if": "$world.sustained", "then": [{"procedure": "hearing", "step": "counter"}]}, "$world.sustained = false"]},
-          "ruling": {"starts": false, "on": ["objection"], "by": "judge", "description": "Rule on the objection on top of the stack.",
+                        "resolve": [{"if": "$world.sustained", "then": [{"flow": "hearing", "action": "counter"}]}, "$world.sustained = false"]},
+          "ruling": {"starts": false, "on": ["objection"], "who": "judge", "description": "Rule on the objection on top of the stack.",
                      "params": {"decision": {"type": "enum", "values": ["sustained", "overruled"]}},
                      "show": "{$params.decision}", "responders": "false",
                      "resolve": ["$world.sustained = $params.decision == sustained"]}

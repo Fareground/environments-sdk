@@ -1,14 +1,16 @@
-"""Locations: terrain on the declared space — properties, modifiers to occupants, entry rules, ticks.
+"""Terrain on the declared space — properties, modifiers to occupants, entry rules, ticks (the ``conditions``
+family's ``terrain`` mode).
 
 .. code-block:: json
 
-    "terrain": {"kind": "locations", "occupants": "unit", "places": {
+    "terrain": {"kind": "conditions", "mode": "terrain", "who": "unit", "places": {
         "forest": {"area": [[0, 1], [1, 2]], "props": {"cover": 2}, "modifiers": {"stealth": 2}},
         "lava": {"at": [[2, 2]], "enter": [{"expr": "$it.boots", "why": "You need fire boots."}], "tick": ["$it.hp -= 3"]}}}
 
 A place covers positions of the contract's space: grid cells (``at`` cells, ``area`` corners), graph
 nodes (``at`` names) or plane points and rectangles. Where places overlap the first declared wins.
-Move with ``{"enter": entity, "to": position}`` so entry rules and ``on_enter`` apply; ``move`` ignores them.
+Move with ``{"conditions": "terrain", "action": "enter", "who": entity, "to": position}`` so the entry rules
+and ``on_enter`` of every terrain apply; ``move`` ignores them.
 """
 from __future__ import annotations
 
@@ -20,14 +22,14 @@ from ...entity import Entity
 from ..contract import Condition
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, truthy
-from ..registry import MechanismError, effect_op, mechanism
+from ..registry import MechanismError, family_action, mode
 from ..world import Abort
 from . import _common as common
 from ._common import Config, Effects, ModifierSpec, Number
 
-__all__ = ["PlaceDef", "LocationsConfig"]
+__all__ = ["PlaceDef", "TerrainConfig"]
 
-KIND = "locations"
+KEY = "conditions.terrain"
 
 
 class PlaceDef(Config):
@@ -40,7 +42,7 @@ class PlaceDef(Config):
     modifiers: Dict[str, Union[Number, ModifierSpec]] = Field(default_factory=dict, description="{prop: add | {add, mul}} for occupants, read with $effective.")
     enter: List[Condition] = Field(default_factory=list, description="Requirements to enter ($it): text or {expr, why}.")
     tick: Effects = Field(default_factory=list, description="Effects on each occupant at the start of every round ($it).")
-    on_enter: Effects = Field(default_factory=list, description="Effects when an entity enters with the enter effect ($it).")
+    on_enter: Effects = Field(default_factory=list, description="Effects when an entity enters with the enter action ($it).")
 
     @model_validator(mode="after")
     def _shape(self) -> "PlaceDef":
@@ -51,14 +53,18 @@ class PlaceDef(Config):
         return self
 
 
-class LocationsConfig(Config):
+class TerrainConfig(Config):
     """Terrain for occupants of some types."""
 
-    occupants: Union[str, List[str]] = Field(..., description="Type(s) affected by the terrain (subtypes included).")
+    who: Union[str, List[str]] = Field(..., description="Type(s) affected by the terrain (subtypes included).")
     places: Dict[str, PlaceDef] = Field(
         ..., description="{name: {at | area, description, props, modifiers, enter, tick, on_enter}}. Modifiers and "
-                         "ticks apply to occupants standing there; `enter` rules guard the enter effect.")
-    view: bool = Field(True, description="Tell agents which terrain they stand on.")
+                         "ticks apply to occupants standing there; `enter` rules guard the enter action.")
+    views: bool = Field(True, description="Tell agents which terrain they stand on.")
+
+
+def _occupant_types(cfg: TerrainConfig) -> List[str]:
+    return [cfg.who] if isinstance(cfg.who, str) else list(cfg.who)
 
 
 # ---------------------------------------------------------------------------
@@ -66,18 +72,19 @@ class LocationsConfig(Config):
 # ---------------------------------------------------------------------------
 
 
-@mechanism(KIND, LocationsConfig,
-           "Terrain on the space: places with static props ($terrain(position)), modifiers to occupants ($effective), "
-           "entry requirements checked by {\"enter\": entity, \"to\": position} (and $can_enter), on_enter effects, "
-           "and tick effects on occupants each round.",
-           example={"kind": KIND, "occupants": "unit", "places": {
-               "forest": {"area": [[0, 0], [1, 1]], "modifiers": {"armor": 1}},
-               "lava": {"at": [[2, 2]], "tick": ["$it.hp -= 3"], "enter": [{"expr": "$it.fireproof", "why": "Too hot."}]}}})
-def _expand(name: str, cfg: LocationsConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
-    occupants = common.types_in(contract, cfg.occupants, "occupants")
+@mode("conditions", "terrain", TerrainConfig,
+      "Terrain on the space: places with static props ($terrain(position)), modifiers to occupants ($effective), "
+      "entry requirements checked by the `enter` action (and $can_enter), on_enter effects, and tick effects on "
+      "occupants each round.",
+      example={"who": "unit", "places": {
+          "forest": {"area": [[0, 0], [1, 1]], "modifiers": {"armor": 1}},
+          "lava": {"at": [[2, 2]], "tick": ["$it.hp -= 3"], "enter": [{"expr": "$it.fireproof", "why": "Too hot."}]}}},
+      was="locations")
+def _expand(name: str, cfg: TerrainConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
+    occupants = common.types_in(contract, cfg.who, "who")
     space = contract.get("space")
     if not isinstance(space, Mapping):
-        raise MechanismError("locations need a `space` (grid, graph or plane)", "declare `space`", "places")
+        raise MechanismError("terrain needs a `space` (grid, graph or plane)", "declare `space`", "places")
     for place, spec in cfg.places.items():
         if not common.NAME.match(place):
             raise MechanismError(f"place name '{place}' must start with a letter and use letters, digits and _", None,
@@ -89,10 +96,11 @@ def _expand(name: str, cfg: LocationsConfig, contract: Mapping[str, Any]) -> Dic
                 raise MechanismError("a graph has no areas; list its nodes in `at`", None, f"places.{place}.area")
             for index, corner in enumerate(spec.area):
                 _valid(space, corner, f"places.{place}.area[{index}]")
-    # Always generated: the tick op also carries the static check of every place's rules and effects.
-    fragment: Dict[str, Any] = {"events": [{"name": f"{name}_tick", "phase": "start", "do": [{"terrain_tick": name}]}]}
+    # Always generated: the tick action also carries the static check of every place's rules and effects.
+    fragment: Dict[str, Any] = {"events": [{"name": f"{name}_tick", "phase": "start",
+                                            "do": [{"conditions": name, "action": "tick"}]}]}
     agents = [t for t in occupants if _is_agent(contract, t)]
-    if cfg.view and agents:
+    if cfg.views and agents:
         here = f"$terrain($actor, '{name}')"
         fragment["views"] = {name: {"for": agents, "title": "Terrain", "when": f"{here} != null",
                                     "show": f"You are on {{{here}.name}}{{$': ' + {here}.description if {here}.description else ''}}."}}
@@ -134,14 +142,14 @@ def _valid(space: Mapping[str, Any], position: Any, field: str) -> None:
 # Run time
 # ---------------------------------------------------------------------------
 
-_LAYOUTS: Dict[int, Tuple[LocationsConfig, List[Tuple[str, FrozenSet[Any], Optional[Tuple[float, float, float, float]]]]]] = {}
+_LAYOUTS: Dict[int, Tuple[TerrainConfig, List[Tuple[str, FrozenSet[Any], Optional[Tuple[float, float, float, float]]]]]] = {}
 
 
 def _key(position: Any) -> Any:
     return tuple(position) if isinstance(position, list) else position
 
 
-def _layout(cfg: LocationsConfig) -> List[Tuple[str, FrozenSet[Any], Optional[Tuple[float, float, float, float]]]]:
+def _layout(cfg: TerrainConfig) -> List[Tuple[str, FrozenSet[Any], Optional[Tuple[float, float, float, float]]]]:
     hit = _LAYOUTS.get(id(cfg))
     if hit is not None and hit[0] is cfg:
         return hit[1]
@@ -158,7 +166,7 @@ def _layout(cfg: LocationsConfig) -> List[Tuple[str, FrozenSet[Any], Optional[Tu
     return layout
 
 
-def place_at(cfg: LocationsConfig, position: Any) -> Optional[str]:
+def place_at(cfg: TerrainConfig, position: Any) -> Optional[str]:
     """The first place covering ``position``, or None."""
     if position is None:
         return None
@@ -172,14 +180,12 @@ def place_at(cfg: LocationsConfig, position: Any) -> Optional[str]:
     return None
 
 
-def _layers(world: Any, entity: Optional[Entity] = None) -> Iterable[Tuple[str, LocationsConfig]]:
-    """Locations mechanisms (only those whose occupants include ``entity``'s type when given)."""
-    for mech, raw in common.uses(world.contract, KIND):
-        cfg = common.parsed(raw, LocationsConfig)
-        if entity is not None:
-            occupants = [cfg.occupants] if isinstance(cfg.occupants, str) else cfg.occupants
-            if not any(world.is_a(entity.entity_type, t) for t in occupants):
-                continue
+def _layers(world: Any, entity: Optional[Entity] = None) -> Iterable[Tuple[str, TerrainConfig]]:
+    """Terrain mechanisms (only those whose occupants include ``entity``'s type when given)."""
+    for mech, raw in common.uses(world.contract, KEY):
+        cfg = common.parsed(raw, TerrainConfig)
+        if entity is not None and not any(world.is_a(entity.entity_type, t) for t in _occupant_types(cfg)):
+            continue
         yield mech, cfg
 
 
@@ -199,12 +205,13 @@ def _refusal(world: Any, entity: Entity, position: Any, where: str) -> Optional[
     return None
 
 
-@effect_op("enter", keys=("to",), required=("to",),
-           example='{"enter": "$actor", "to": "$params.cell"}  (move there if the terrain\'s entry rules allow; runs on_enter)')
+@family_action("conditions", ("terrain",), "enter", keys=("who", "to"), required=("who", "to"), was=("enter",),
+               example='{"conditions": "terrain", "action": "enter", "who": "$actor", "to": "$params.cell"}  (move there '
+                       'if every terrain\'s entry rules allow; runs on_enter)')
 def _enter_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
     position = runner.eval(effect["to"], vars)
-    for entity in common.entities_of(world, runner.eval(effect["enter"], vars), f"{where}.enter"):
+    for entity in common.entities_of(world, runner.eval(effect["who"], vars), f"{where}.who"):
         why = _refusal(world, entity, position, where)
         if why is not None:
             raise Abort(why)
@@ -216,16 +223,9 @@ def _enter_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: 
 
 
 def _check_tick(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[str, str, Optional[str]]]:
-    name = effect.get("terrain_tick")
-    raw = checker.c.mechanisms.get(name)
-    if not isinstance(raw, Mapping) or raw.get("kind") != KIND:
-        return [(f"{path}.terrain_tick", f"'{name}' is not a declared {KIND} mechanism", None)]
-    _check_config(checker, str(name), common.parsed(raw, LocationsConfig))
-    return []
-
-
-def _check_config(checker: Any, name: str, cfg: LocationsConfig) -> None:
-    occupants = {t for t in ([cfg.occupants] if isinstance(cfg.occupants, str) else cfg.occupants) if t in checker.c.types}
+    name = effect["conditions"]
+    cfg = common.parsed(checker.c.mechanisms[name], TerrainConfig)
+    occupants = {t for t in _occupant_types(cfg) if t in checker.c.types}
     base = set(common.base_roots())
     roots, types = base | {"it"}, {"it": occupants}
     for place, spec in cfg.places.items():
@@ -239,18 +239,19 @@ def _check_config(checker: Any, name: str, cfg: LocationsConfig) -> None:
                 checker.error(f"{at}.modifiers.{prop}", f"{'/'.join(sorted(occupants))} has no property '{prop}'")
             for term in ([modifier.add, modifier.mul] if isinstance(modifier, ModifierSpec) else [modifier]):
                 checker.value(term, f"{at}.modifiers.{prop}", roots, types)
+    return []
 
 
-@effect_op("terrain_tick", keys=(), literal=("terrain_tick",), check=_check_tick,
-           example='{"terrain_tick": "terrain"}  (run tick effects on every occupant; generated at the start of each round)')
+@family_action("conditions", ("terrain",), "tick", check=_check_tick, internal=True, was=("terrain_tick",),
+               example='{"conditions": "terrain", "action": "tick"}  (run tick effects on every occupant; generated at '
+                       'the start of each round)')
 def _tick_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    mech = effect["terrain_tick"]
-    cfg = common.config(world, mech, KIND, LocationsConfig, where)
+    mech = effect["conditions"]
+    cfg = common.config(world, mech, KEY, TerrainConfig, where)
     if not any(spec.tick for spec in cfg.places.values()):
         return
-    occupants = [cfg.occupants] if isinstance(cfg.occupants, str) else cfg.occupants
-    for entity in common.carriers(world, occupants):
+    for entity in common.carriers(world, _occupant_types(cfg)):
         place = place_at(cfg, entity.location_id)
         if place is not None and cfg.places[place].tick and entity.alive:
             runner.run(cfg.places[place].tick, {"it": entity}, f"mechanisms.{mech}.places.{place}.tick")

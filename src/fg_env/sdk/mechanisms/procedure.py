@@ -1,9 +1,9 @@
 """Procedures: rules of order — a state machine of named phases that compiles to ordinary stages, and
-an optional response stack.
+an optional response stack (the ``flow`` family's ``procedure`` mode).
 
 .. code-block:: json
 
-    "trial": {"kind": "procedure", "phases": {
+    "trial": {"kind": "flow", "mode": "procedure", "phases": {
         "opening": {"stages": [{"who": "$it.type == attorney", "actions": ["opening_statement"]}],
                     "next": [{"to": "evidence", "all_did": "opening_statement"}]},
         "evidence": {"stages": [...], "next": [{"to": "closing", "after": "$inputs.days"}]},
@@ -19,28 +19,28 @@ end of every round, in order; the first whose conditions all hold fires: its ``d
 
 With ``"stack": {...}`` the procedure also keeps a response stack (motions, objections, spells) whose
 items are answered in response windows and resolve last in, first out — see
-:mod:`.procedure_stack`. A procedure has phases, a stack, or both; every step runs through the one
-``procedure`` op, and ``$stack(procedure, read, ...)`` reads the stack.
+:mod:`.procedure_stack`. A procedure has phases, a stack, or both; every step runs through an action
+of the ``flow`` op (``{"flow": "trial", "action": "push", "item": "exhibit", ...}``), and
+``$stack(procedure, read, ...)`` reads the stack.
 """
 from __future__ import annotations
 
 import copy
-from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, Union
 
 from pydantic import Field, ValidationError, model_validator
 
 from ..contract import StageSpec
 from ..errors import RunError
 from ..expr import Call, ExprError, function, truthy
-from ..registry import MechanismError, effect_op, mechanism
+from ..registry import MechanismError, family_action, mode
 from . import _common as common
-from ._common import Config, Effects
-from .procedure_stack import STACK_STEPS, StackConfig, check_stack, expand_stack, read_stack, run_step
+from ._common import Config, Effects, ToolsSetting, tools_field
+from .procedure_stack import StackConfig, check_push, check_stack_rules, expand_stack, read_stack, run_step
 
 __all__ = ["Transition", "PhaseDef", "ProcedureConfig"]
 
-KIND = "procedure"
-STEPS = ("start", "end", *STACK_STEPS)
+KEY = "flow.procedure"
 
 
 class Transition(Config):
@@ -61,8 +61,8 @@ class PhaseDef(Config):
     title: str = Field("", description="Name shown to agents.")
     brief: str = Field("", description="Stage brief for this phase's stages that give none (template).")
     stages: List[Dict[str, Any]] = Field(default_factory=list, description="Stages (ordinary stage fields) that run during the phase.")
-    on_enter: Effects = Field(default_factory=list)
-    on_exit: Effects = Field(default_factory=list)
+    on_enter: Effects = Field(default_factory=list, description="Effects when the phase begins.")
+    on_exit: Effects = Field(default_factory=list, description="Effects when the phase ends.")
     say: str = Field("", description="News when the phase begins (template).")
     next: Union[str, List[Transition]] = Field(default_factory=list, description="A phase name, or transitions tried in order.")
     terminal: bool = Field(False, description="The run ends at the end of the phase's first round (at once if it has no stages).")
@@ -89,21 +89,23 @@ class ProcedureConfig(Config):
                     "`next` is a phase name or [{to, when, after, event, all_did, say, do}] tried in order at the end "
                     "of each round.")
     start: Optional[str] = Field(None, description="The first phase (default: the first listed).")
-    view: bool = Field(True, description="Show every agent the current phase.")
+    views: bool = Field(True, description="Show every agent the current phase.")
     stack: Optional[StackConfig] = Field(
-        None, description="A response stack: items pushed by `<name>_<kind>` tools or the `push` step, answered in the "
+        None, description="A response stack: items pushed by `<name>_<kind>` tools or the `push` action, answered in the "
                           "window stage `<name>_stack` (push an answer or `<name>_pass`) and resolved last in, first out.")
+    tools: ToolsSetting = tools_field()
 
 
-@mechanism(KIND, ProcedureConfig,
-           "Rules of order. Phases: a state machine of named phases, each with its own stages, entry/exit effects, news "
-           "and transitions by condition, rounds in phase, an event, or everyone having acted; terminal phases end the "
-           "run; compiles to stages gated on $world.<name>_phase. Stack: items (motions, objections, spells) pushed by "
-           "`<name>_<kind>` tools, answered in response windows by the players each kind names, resolved last in, first "
-           "out with each kind's effects (the `counter` step removes one unresolved); read it with $stack(name, read).",
-           example={"kind": KIND, "phases": {
-               "debate": {"stages": [{"actions": ["speak"]}], "next": [{"to": "vote", "after": 2}]},
-               "vote": {"stages": [{"actions": ["vote"], "turns": "simultaneous"}], "terminal": True}}})
+@mode("flow", "procedure", ProcedureConfig,
+      "Rules of order. Phases: a state machine of named phases, each with its own stages, entry/exit effects, news "
+      "and transitions by condition, rounds in phase, an event, or everyone having acted; terminal phases end the "
+      "run; compiles to stages gated on $world.<name>_phase. Stack: items (motions, objections, spells) pushed by "
+      "`<name>_<kind>` tools, answered in response windows by the agents each kind names, resolved last in, first "
+      "out with each kind's effects (the `counter` action removes one unresolved); read it with $stack(name, read).",
+      example={"phases": {
+          "debate": {"stages": [{"actions": ["speak"]}], "next": [{"to": "vote", "after": 2}]},
+          "vote": {"stages": [{"actions": ["vote"], "turns": "simultaneous"}], "terminal": True}}},
+      was="procedure")
 def _expand(name: str, cfg: ProcedureConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     if not cfg.phases and cfg.stack is None:
         raise MechanismError("a procedure needs phases, a stack, or both", 'e.g. "phases": {"debate": {...}} or "stack": {...}',
@@ -144,10 +146,10 @@ def _phases(name: str, cfg: ProcedureConfig, contract: Mapping[str, Any]) -> Dic
             f"{name}_history": {"type": "list", "default": [], "description": "Phases entered, in order."},
         },
         "stages": stages,
-        "events": [{"name": f"{name}_start", "phase": "start", "do": [{"procedure": name, "step": "start"}]},
-                   {"name": f"{name}_advance", "phase": "end", "do": [{"procedure": name, "step": "end"}]}],
+        "events": [{"name": f"{name}_start", "phase": "start", "do": [{"flow": name, "action": "start"}]},
+                   {"name": f"{name}_advance", "phase": "end", "do": [{"flow": name, "action": "advance"}]}],
     }
-    if cfg.view:
+    if cfg.views:
         titles = ", ".join(f"{_quote(p)}: {_quote(s.title or p.replace('_', ' '))}" for p, s in cfg.phases.items())
         fragment["defs"] = {f"{name}_title": {"expr": f"$get({{{titles}}}, $world.{name}_phase)",
                                               "description": "The current phase's title."}}
@@ -225,11 +227,11 @@ def _since(world: Any, since: int) -> List[Any]:
     return out
 
 
-def _news(runner: Any, mech: str, template: str, where: str) -> None:
+def _news(runner: Any, mech: str, template: str) -> None:
     if template:
         text = runner.text(template, {})
         if text.strip():
-            runner.world.emit(mech, text, data={"mechanism": KIND})
+            runner.world.emit(mech, text, data={"mechanism": KEY})
 
 
 def _enter(runner: Any, mech: str, cfg: ProcedureConfig, phase: str, begins: int) -> None:
@@ -239,42 +241,85 @@ def _enter(runner: Any, mech: str, cfg: ProcedureConfig, phase: str, begins: int
     world.set_world(f"{mech}_round", 1 if begins == world.round else 0)
     world.set_world(f"{mech}_history", [*world.props[f"{mech}_history"], phase])
     spec = cfg.phases[phase]
-    at = f"mechanisms.{mech}.phases.{phase}"
-    runner.run(spec.on_enter, {}, f"{at}.on_enter")
-    _news(runner, mech, spec.say, f"{at}.say")
+    runner.run(spec.on_enter, {}, f"mechanisms.{mech}.phases.{phase}.on_enter")
+    _news(runner, mech, spec.say)
     if spec.terminal and not spec.stages:
-        _finish(runner, mech, phase, spec)
+        _finish(runner, phase, spec)
 
 
-def _finish(runner: Any, mech: str, phase: str, spec: PhaseDef) -> None:
+def _finish(runner: Any, phase: str, spec: PhaseDef) -> None:
     winner = runner.eval(spec.winner, {}) if spec.winner is not None else None
     runner.world.request_end(phase, common.plain(winner), "")
 
 
-def _check(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[str, str, Optional[str]]]:
-    name = effect.get("procedure")
-    raw = checker.c.mechanisms.get(name)
-    step = effect.get("step")
-    problems: List[Tuple[str, str, Optional[str]]] = []
-    if step not in STEPS:
-        problems.append((f"{path}.step", f"step is one of {', '.join(STEPS)}", None))
-    if not isinstance(raw, Mapping) or raw.get("kind") != KIND:
-        return problems + [(f"{path}.procedure", f"'{name}' is not a declared {KIND} mechanism", None)]
-    cfg = common.parsed(raw, ProcedureConfig)
-    if step in ("start", "end") and not cfg.phases:
-        problems.append((f"{path}.step", f"the {name} procedure has no phases", None))
-    checked = checker.__dict__.setdefault("_procedures_checked", set())
-    rules = name not in checked  # the rules hold procedure ops themselves: check them once per procedure
-    checked.add(name)
-    if step in STACK_STEPS:
-        if cfg.stack is None:
-            problems.append((f"{path}.step", f"the {name} procedure has no stack", 'declare "stack": {"players": ..., "kinds": {...}}'))
-        else:
-            problems += check_stack(checker, name, cfg.stack, effect, path, False)
-    if not rules:
+def _start(runner: Any, mech: str, cfg: ProcedureConfig) -> None:
+    world = runner.world
+    if not world.props[f"{mech}_history"]:
+        _enter(runner, mech, cfg, world.props[f"{mech}_phase"], world.round)
+    else:
+        world.set_world(f"{mech}_round", world.props[f"{mech}_round"] + 1)
+
+
+def _advance(runner: Any, mech: str, cfg: ProcedureConfig) -> None:
+    world = runner.world
+    phase = world.props[f"{mech}_phase"]
+    spec = cfg.phases[phase]
+    if spec.terminal:
+        _finish(runner, phase, spec)
+        return
+    for index, transition in enumerate(spec.transitions()):
+        if not _holds(runner, mech, phase, index, transition):
+            continue
+        at = f"mechanisms.{mech}.phases.{phase}.next[{index}]"
+        runner.run(transition.do, {}, f"{at}.do")
+        runner.run(spec.on_exit, {}, f"mechanisms.{mech}.phases.{phase}.on_exit")
+        _news(runner, mech, transition.say)
+        _enter(runner, mech, cfg, transition.to, world.round + 1)
+        return
+
+
+# ---------------------------------------------------------------------------
+# The flow op's procedure actions
+# ---------------------------------------------------------------------------
+
+#: action → (its keys, required keys, generated by the mechanism itself, what it needs: phases | stack, example keys, what it does).
+_ACTIONS: Dict[str, Tuple[Tuple[str, ...], Tuple[str, ...], bool, str, str, str]] = {
+    "start": ((), (), True, "phases", "", "enter or count the phase; generated at the start of each round"),
+    "advance": ((), (), True, "phases", "", "try the phase's transitions; generated at the end of each round"),
+    "push": (("item", "params", "who"), ("item",), False, "stack", '"item": "exhibit", "params": {"name": "$params.name"}',
+             "push an item of a declared kind with its params; who pushes defaults to $actor"),
+    "pass": (("who",), (), False, "stack", "", "let the item on top of the stack stand; who defaults to $actor"),
+    "counter": (("target",), (), False, "stack", "",
+                "remove an item without resolving it: target is an item id, default the item below the one resolving, "
+                "else the top"),
+    "idle": (("who",), (), True, "stack", "", "the actor ended a window turn without acting"),
+    "close": ((), (), True, "stack", "", "the window stage ended: answers still owed pass"),
+}
+
+
+def _check(action: str, needs: str) -> Callable[[Any, Dict[str, Any], str], List[Tuple[str, str, Optional[str]]]]:
+    def check(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[str, str, Optional[str]]]:
+        name = effect["flow"]
+        cfg = common.parsed(checker.c.mechanisms[name], ProcedureConfig)
+        problems: List[Tuple[str, str, Optional[str]]] = []
+        if needs == "phases" and not cfg.phases:
+            problems.append((f"{path}.action", f"the {name} procedure has no phases", None))
+        elif needs == "stack" and cfg.stack is None:
+            problems.append((f"{path}.action", f"the {name} procedure has no stack", 'declare "stack": {"who": ..., "kinds": {...}}'))
+        elif action == "push" and cfg.stack is not None:
+            problems += check_push(name, cfg.stack, effect, path)
+        checked = checker.__dict__.setdefault("_procedures_checked", set())
+        if name not in checked:  # the rules hold procedure actions themselves: check them once per procedure
+            checked.add(name)
+            _check_rules(checker, name, cfg)
         return problems
+
+    return check
+
+
+def _check_rules(checker: Any, name: str, cfg: ProcedureConfig) -> None:
     if cfg.stack is not None:
-        check_stack(checker, name, cfg.stack, {}, path, True)
+        check_stack_rules(checker, name, cfg.stack)
     base = set(common.base_roots())
     for phase, spec in cfg.phases.items():
         at = f"mechanisms.{name}.phases.{phase}"
@@ -288,48 +333,35 @@ def _check(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[str, s
             checker.value(transition.after, f"{where}.after", base)
             checker.effects(transition.do, f"{where}.do", base, {})
             checker.template(transition.say or None, f"{where}.say", None, base)
-    return problems
 
 
-@effect_op("procedure", keys=("step", "kind", "params", "by", "target"), required=("step",), literal=("procedure", "step", "kind"),
-           check=_check,
-           example='{"procedure": "trial", "step": "push", "kind": "exhibit", "params": {"name": "$params.name"}}  (steps: '
-                   'start and end (generated: enter or count the phase, try transitions); stack steps push (kind, params, '
-                   'by: who pushes, default $actor), pass, idle, counter (target: an item id, default the item below the '
-                   'one resolving, else the top) and close (answers still owed pass))')
-def _procedure_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-    world = runner.world
-    mech = effect["procedure"]
-    cfg = common.config(world, mech, KIND, ProcedureConfig, where)
-    step = effect["step"]
-    if step in STACK_STEPS:
-        if cfg.stack is None:
-            raise RunError(f"the {mech} procedure has no stack", f"{where}.step")
-        run_step(runner, mech, cfg.stack, effect, vars, where)
-        return
-    if step not in ("start", "end") or not cfg.phases:
-        raise RunError(f"step is one of {', '.join(STEPS)}" if step not in ("start", "end") else f"the {mech} procedure has no phases",
-                       f"{where}.step")
-    phase = world.props[f"{mech}_phase"]
-    if step == "start":
-        if not world.props[f"{mech}_history"]:
-            _enter(runner, mech, cfg, phase, world.round)
+def _runner(action: str, needs: str) -> Callable[[Any, Dict[str, Any], Dict[str, Any], str], None]:
+    def run(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        mech = effect["flow"]
+        cfg = common.config(runner.world, mech, KEY, ProcedureConfig, where)
+        if needs == "stack":
+            if cfg.stack is None:
+                raise RunError(f"the {mech} procedure has no stack", f"{where}.action")
+            run_step(runner, mech, cfg.stack, action, effect, vars, where)
+        elif not cfg.phases:
+            raise RunError(f"the {mech} procedure has no phases", f"{where}.action")
+        elif action == "start":
+            _start(runner, mech, cfg)
         else:
-            world.set_world(f"{mech}_round", world.props[f"{mech}_round"] + 1)
-        return
-    spec = cfg.phases[phase]
-    if spec.terminal:
-        _finish(runner, mech, phase, spec)
-        return
-    for index, transition in enumerate(spec.transitions()):
-        if not _holds(runner, mech, phase, index, transition):
-            continue
-        at = f"mechanisms.{mech}.phases.{phase}.next[{index}]"
-        runner.run(transition.do, {}, f"{at}.do")
-        runner.run(spec.on_exit, {}, f"mechanisms.{mech}.phases.{phase}.on_exit")
-        _news(runner, mech, transition.say, f"{at}.say")
-        _enter(runner, mech, cfg, transition.to, world.round + 1)
-        return
+            _advance(runner, mech, cfg)
+
+    return run
+
+
+def _register_actions() -> None:
+    for action, (keys, required, internal, needs, fields, doc) in _ACTIONS.items():
+        example = '{"flow": "trial", "action": "' + action + '"' + (f", {fields}" if fields else "") + f"}}  ({doc})"
+        family_action("flow", ("procedure",), action, keys=keys, required=required, literal=("item",) if "item" in keys else (),
+                      check=_check(action, needs), internal=internal, example=example,
+                      was=("procedure",))(_runner(action, needs))
+
+
+_register_actions()
 
 
 @function("stack(procedure, read?, ...)",
@@ -344,7 +376,7 @@ def _stack_function(call: Call) -> Any:
     if not isinstance(name, str):
         raise ExprError(f"$stack: the first argument is a procedure's name, got {name!r}", call.source)
     try:
-        cfg = common.config(world, name, KIND, ProcedureConfig, "mechanisms")
+        cfg = common.config(world, name, KEY, ProcedureConfig, "mechanisms")
     except RunError as exc:
         raise ExprError(f"$stack: {exc}", call.source) from None
     if cfg.stack is None:

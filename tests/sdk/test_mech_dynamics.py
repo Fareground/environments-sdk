@@ -47,7 +47,7 @@ def _props(env, entity_id):
 
 
 # ---------------------------------------------------------------------------
-# status_effects
+# conditions: status
 # ---------------------------------------------------------------------------
 
 ARENA = {
@@ -57,15 +57,15 @@ ARENA = {
     "entities": {"ann": {"type": "fighter"}, "bob": {"type": "fighter"}},
     "actions": {
         "poison": {"by": "fighter", "params": {"target": {"type": "entity", "of": "fighter"}},
-                   "do": [{"apply": "poison", "to": "$params.target"}]},
+                   "do": [{"conditions": "conditions", "action": "apply", "status": "poison", "who": "$params.target"}]},
         "bash": {"by": "fighter", "params": {"target": {"type": "entity", "of": "fighter"}},
-                 "do": [{"apply": "stun", "to": "$params.target"}]},
-        "guard": {"by": "fighter", "do": [{"apply": "shield", "to": "$actor"}]},
-        "purge": {"by": "fighter", "do": [{"cleanse": "all", "from": "$actor"}]},
+                 "do": [{"conditions": "conditions", "action": "apply", "status": "stun", "who": "$params.target"}]},
+        "guard": {"by": "fighter", "do": [{"conditions": "conditions", "action": "apply", "status": "shield", "who": "$actor"}]},
+        "purge": {"by": "fighter", "do": [{"conditions": "conditions", "action": "cleanse", "status": "all", "who": "$actor"}]},
         "wait": {"by": "fighter", "do": []},
     },
     "stages": [{"name": "fight", "turns": "sequential", "max_actions": 1}],
-    "mechanisms": {"conditions": {"kind": "status_effects", "on": "fighter", "statuses": {
+    "mechanisms": {"conditions": {"kind": "conditions", "mode": "status", "who": "fighter", "statuses": {
         "poison": {"duration": 3, "stacking": "refresh", "max_stacks": 3, "tick": ["$it.hp -= 2 * $stacks"],
                    "expire_say": "{$it.name} is no longer poisoned."},
         "stun": {"duration": 1, "blocks": ["poison", "bash", "guard"], "blocked_why": "you are stunned"},
@@ -115,20 +115,20 @@ def test_modifiers_immunity_unless_and_cleanse():
     env.run(play, rounds=1)
     assert "poison" not in _props(env, "ann")["conditions"]  # the shield grants immunity
     runner = env.effects
-    runner.run([{"apply": "curse", "to": "$entity(ann)"}], {}, "test")
+    runner.run([{"conditions": "conditions", "action": "apply", "status": "curse", "who": "$entity(ann)"}], {}, "test")
     assert "curse" in _props(env, "ann")["conditions"]
     env.run(play, rounds=1)  # ann purges: shield goes, the curse cannot be cleansed
     assert set(_props(env, "ann")["conditions"]) == {"curse"}
-    assert contract.mechanisms["conditions"]["kind"] == "status_effects"
+    assert contract.mechanisms["conditions"]["mode"] == "status"
 
 
 def test_independent_stacks_keep_their_own_timers():
     env = fg_env.load(ARENA, seed=1)
     runner = env.effects
     env.run("idle", rounds=1)
-    runner.run([{"apply": "bleed", "to": "$entity(bob)", "stacks": 2}], {}, "test")
+    runner.run([{"conditions": "conditions", "action": "apply", "status": "bleed", "who": "$entity(bob)", "stacks": 2}], {}, "test")
     env.run("idle", rounds=1)
-    runner.run([{"apply": "bleed", "to": "$entity(bob)", "rounds": 3}], {}, "test")
+    runner.run([{"conditions": "conditions", "action": "apply", "status": "bleed", "who": "$entity(bob)", "rounds": 3}], {}, "test")
     entry = _props(env, "bob")["conditions"]["bleed"]
     assert entry["stacks"] == 3 and len(entry["timers"]) == 3
     env.run("idle", rounds=2)  # round 3: 3 stacks tick and the first two timers end; round 4: 1 stack ticks
@@ -142,7 +142,7 @@ def test_status_config_errors_name_the_path():
     with pytest.raises(ContractError, match="kick"):
         fg_env.parse(bad)
     wrong = json.loads(json.dumps(ARENA))
-    wrong["actions"]["wait"]["do"] = [{"apply": "posion", "to": "$actor"}]
+    wrong["actions"]["wait"]["do"] = [{"conditions": "conditions", "action": "apply", "status": "posion", "who": "$actor"}]
     issues = _errors(wrong)
     assert any("posion" in i.message and "did you mean 'poison'" in (i.fix or "") for i in issues)
     typo = json.loads(json.dumps(ARENA))
@@ -151,7 +151,7 @@ def test_status_config_errors_name_the_path():
 
 
 # ---------------------------------------------------------------------------
-# cooldowns and channeling
+# conditions: cooldowns and channeling
 # ---------------------------------------------------------------------------
 
 MAGES = {
@@ -168,8 +168,8 @@ MAGES = {
     },
     "stages": [{"name": "act", "turns": "sequential", "max_actions": 3}],
     "mechanisms": {
-        "abilities": {"kind": "cooldowns", "actions": {"zap": {"cooldown": 2}, "heal": {"charges": 2, "recharge": 3}}},
-        "spells": {"kind": "channeling", "busy": ["zap", "heal"], "actions": {"meteor": {
+        "abilities": {"kind": "conditions", "mode": "cooldowns", "actions": {"zap": {"cooldown": 2}, "heal": {"charges": 2, "recharge": 3}}},
+        "spells": {"kind": "conditions", "mode": "channeling", "busy": ["zap", "heal"], "actions": {"meteor": {
             "rounds": 2, "resolve": ["$params.target.hp -= 10 * $params.power"], "interrupt": "$actor.stunned",
             "say": "{$actor.name}'s meteor lands.", "interrupt_say": "{$actor.name} loses the spell."}}},
     },
@@ -205,7 +205,8 @@ def test_charges_regenerate_lazily():
     assert charges(world.scope()) == 1
     env.run("idle", rounds=3)  # round 7: full again
     assert charges(world.scope()) == 2
-    env.effects.run([{"start_cooldown": "heal", "for": "$entity(ann)"}, {"reset_cooldown": "all", "for": "$entity(ann)"}], {}, "t")
+    env.effects.run([{"conditions": "abilities", "action": "start", "ability": "heal", "who": "$entity(ann)"},
+                     {"conditions": "abilities", "action": "reset", "ability": "all", "who": "$entity(ann)"}], {}, "t")
     assert charges(world.scope()) == 2
 
 
@@ -248,6 +249,38 @@ def test_abilities_snapshot_and_resume_identically():
     assert restored.run(play, rounds=4).to_dict() == straight
 
 
+def test_an_old_condition_kind_says_the_new_kind_and_mode():
+    old = json.loads(json.dumps(ARENA))
+    old["mechanisms"]["conditions"] = {"kind": "status_effects", "on": "fighter", "statuses": {}}
+    issue = next(i for i in _errors(old) if i.path == "mechanisms.conditions.kind")
+    assert issue.message == "'status_effects' is now kind 'conditions' with mode 'status'"
+    renamed = json.loads(json.dumps(ARENA))
+    renamed["mechanisms"]["conditions"]["on"] = renamed["mechanisms"]["conditions"].pop("who")
+    typo = next(i for i in _errors(renamed) if i.path == "mechanisms.conditions.on")
+    assert typo.message == "`on` is not a field of `conditions` mode `status`" and "who, statuses, phase, views" in typo.fix
+
+
+def test_condition_actions_check_their_own_keys():
+    def issues(*effects):
+        contract = json.loads(json.dumps(ARENA))
+        contract["types"]["mage"] = MAGES["types"]["mage"]
+        contract["actions"].update({name: MAGES["actions"][name] for name in ("zap", "heal", "meteor")})
+        contract["mechanisms"].update(MAGES["mechanisms"])
+        contract["actions"]["wait"]["do"] = list(effects)
+        return [(i.path, i.message, i.fix) for i in _errors(contract)]
+
+    assert issues({"conditions": "conditions", "action": "apply", "who": "$actor"})[0][1] == "`conditions.apply` needs `status`"
+    assert issues({"conditions": "conditions", "action": "cleanse", "status": "all", "who": "$actor", "to": "$actor"})[0][1] \
+        == "'to' is not part of `conditions.cleanse`"
+    path, message, fix = issues({"conditions": "spells", "action": "interupt", "who": "$actor"})[0]
+    assert path.endswith(".action") and "is not an action of spells (conditions channeling)" in message
+    assert fix == "did you mean 'interrupt'?"
+    path, message, fix = issues({"conditions": "abilities", "action": "reset", "ability": "zapp"})[0]
+    assert path.endswith(".ability") and message == "'zapp' is not an action of abilities" and fix == "did you mean 'zap'?"
+    _, _, fix = issues({"start_cooldown": "zap"})[0]
+    assert fix.startswith('`start_cooldown` is now the `conditions` op: {"conditions": "<mechanism>", "action": "start"')
+
+
 # ---------------------------------------------------------------------------
 # drift, shocks, priors
 # ---------------------------------------------------------------------------
@@ -259,7 +292,7 @@ MARKET = {
     "types": {"trader": {"agent": True, "props": {"mood": 0.0, "vip": False}}},
     "population": [{"type": "trader", "count": 4, "props": {"vip": "$i == 1"}}],
     "actions": {"wait": {"by": "trader", "do": []}},
-    "mechanisms": {"weather": {"kind": "drift", "rules": {
+    "mechanisms": {"weather": {"kind": "dynamics", "mode": "drift", "rules": {
         "climb": {"target": "world.level", "model": "linear", "rate": 0.5},
         "revert": {"target": "world.price", "model": "mean_reversion", "rate": 0.3, "mean": 50},
         "wave": {"target": "world.wave", "model": "sinusoidal", "amplitude": 4, "period": 8},
@@ -302,7 +335,7 @@ OUTBREAK = {
     "entities": {"mayor": {"type": "mayor"}},
     "actions": {"wait": {"by": "mayor", "do": []}},
     "arms": {"calm": {"patch": {"world": {"bonus": 1}}}},
-    "mechanisms": {"shocks": {"kind": "shocks", "shocks": {
+    "mechanisms": {"shocks": {"kind": "dynamics", "mode": "shocks", "shocks": {
         "arrival": {"at": 2, "do": ["$world.cases += 10"], "say": "Ten cases arrive.",
                     "then": [{"shock": "alarm", "after": 2}]},
         "alarm": {"do": ["$world.alarm = true"], "then": [{"shock": "closure", "after": 0, "chance": 1, "when": "$world.cases > 5"}]},
@@ -345,12 +378,37 @@ def test_shock_rolls_use_their_own_stream_so_arms_share_them():
 def test_manual_shock_and_errors():
     env = fg_env.load(OUTBREAK, seed=1)
     env.run("idle", rounds=1)
-    env.effects.run([{"fire_shock": "alarm"}], {}, "t")
+    env.effects.run([{"dynamics": "shocks", "action": "fire", "shock": "alarm"}], {}, "t")
     assert env.props["alarm"] is True and env.props["shocks"]["alarm"]["count"] == 1
     bad = json.loads(json.dumps(OUTBREAK))
     bad["mechanisms"]["shocks"]["shocks"]["alarm"]["then"] = [{"shock": "alarms"}]
     with pytest.raises(ContractError, match="alarms"):
         fg_env.parse(bad)
+
+
+def test_dynamics_kinds_fields_and_actions_say_what_to_fix():
+    old = json.loads(json.dumps(OUTBREAK))
+    old["mechanisms"]["shocks"] = {"kind": "shocks", "shocks": {}}
+    issue = next(i for i in _errors(old) if i.path == "mechanisms.shocks.kind")
+    assert issue.message == "'shocks' is now kind 'dynamics' with mode 'shocks'"
+    typo = json.loads(json.dumps(MARKET))
+    typo["mechanisms"]["weather"]["phse"] = "end"
+    issue = _errors(typo)[0]
+    assert issue.message == "`phse` is not a field of `dynamics` mode `drift`" and issue.fix.startswith("did you mean 'phase'?")
+
+    def issues(effect):
+        contract = json.loads(json.dumps(OUTBREAK))
+        contract["actions"]["wait"]["do"] = [effect]
+        return [(i.path, i.message, i.fix) for i in _errors(contract)]
+
+    assert issues({"dynamics": "shocks", "action": "fire"})[0][1] == "`dynamics.fire` needs `shock`"
+    path, message, fix = issues({"dynamics": "shocks", "action": "fire", "shock": "alarn"})[0]
+    assert path.endswith(".shock") and message == "'alarn' is not a shock of shocks" and fix == "did you mean 'alarm'?"
+    assert issues({"dynamics": "shocks", "action": "fire", "shock": "alarm", "at": 3})[0][1] == "'at' is not part of `dynamics.fire`"
+    path, message, fix = issues({"dynamics": "shocks", "action": "roll"})[0]
+    assert path.endswith(".action") and message == "'roll' is not an action of shocks (dynamics shocks)" and fix == "actions: fire"
+    _, _, fix = issues({"fire_shock": "alarm"})[0]
+    assert fix.startswith('`fire_shock` is now the `dynamics` op: {"dynamics": "<mechanism>", "action": "fire"')
 
 
 PRIORS = {
@@ -360,7 +418,7 @@ PRIORS = {
     "types": {"analyst": {"agent": True}},
     "entities": {"a": {"type": "analyst"}},
     "actions": {"wait": {"by": "analyst", "do": []}},
-    "mechanisms": {"uncertainty": {"kind": "priors", "priors": {
+    "mechanisms": {"uncertainty": {"kind": "dynamics", "mode": "priors", "priors": {
         "beta_p": {"dist": "beta", "a": 9, "b": 21},
         "norm": {"dist": "normal", "mean": "$inputs.centre", "sd": 0.1, "min": 0, "max": 1},
         "uni": {"dist": "uniform", "low": 2, "high": 4},
@@ -399,7 +457,7 @@ def test_prior_config_errors():
 
 
 # ---------------------------------------------------------------------------
-# procedure
+# flow: procedure
 # ---------------------------------------------------------------------------
 
 HEARING = {
@@ -415,7 +473,7 @@ HEARING = {
         "ring": {"by": "clerk", "do": [{"emit": "bell", "say": "The bell rings."}]},
         "rule": {"by": "clerk", "do": [{"end": "ruled", "say": "Ruled."}]},
     },
-    "mechanisms": {"hearing": {"kind": "procedure", "phases": {
+    "mechanisms": {"hearing": {"kind": "flow", "mode": "procedure", "phases": {
         "opening": {"title": "Openings", "brief": "Give your opening.",
                     "stages": [{"who": "$it.type == lawyer", "actions": ["open"]}],
                     "on_enter": ["$world.entered += opening"], "on_exit": ["$world.exits += 1"],
@@ -469,7 +527,7 @@ def test_procedure_errors():
 
 
 # ---------------------------------------------------------------------------
-# turn_order
+# flow: order
 # ---------------------------------------------------------------------------
 
 TABLE = {
@@ -480,8 +538,8 @@ TABLE = {
     "entities": {"a": {"type": "player", "props": {"speed": 1}}, "b": {"type": "player", "props": {"speed": 3}},
                  "c": {"type": "player", "props": {"speed": 2}}},
     "actions": {"act": {"by": "player", "do": ["$world.calls += $actor.id",
-                                              {"if": "$actor.lucky", "then": ["$actor.lucky = false", {"extra_turn": "$actor", "order": "seats"}]}]}},
-    "mechanisms": {"seats": {"kind": "turn_order", "among": "player", "by": "$it.speed", "skip": "$it.folded",
+                                              {"if": "$actor.lucky", "then": ["$actor.lucky = false", {"flow": "seats", "action": "extra_turn", "who": "$actor"}]}]}},
+    "mechanisms": {"seats": {"kind": "flow", "mode": "order", "who": "player", "by": "$it.speed", "skip": "$it.folded",
                              "extra_turns": True, "stage": {"actions": ["act"], "turns": "sequential"}}},
     "outputs": {"calls": "$world.calls"},
 }
@@ -540,19 +598,19 @@ def test_rotation_advances_by_seat_when_a_member_is_skipped_mid_run():
 
 def test_hooks_refuse_an_action_whose_effects_are_not_a_list():
     bad = json.loads(json.dumps(ARENA))
-    bad["actions"]["bash"]["do"] = {"apply": "stun", "to": "$params.target"}
-    bad["mechanisms"]["abilities"] = {"kind": "cooldowns", "actions": {"bash": {"cooldown": 1}}}
+    bad["actions"]["bash"]["do"] = {"conditions": "conditions", "action": "apply", "status": "stun", "who": "$params.target"}
+    bad["mechanisms"]["abilities"] = {"kind": "conditions", "mode": "cooldowns", "actions": {"bash": {"cooldown": 1}}}
     with pytest.raises(ContractError, match=r"actions\.bash\.do must be a list"):
         fg_env.parse(bad)
     otherwise = json.loads(json.dumps(ARENA))
     otherwise["actions"]["bash"].update(chance=0.5, otherwise="$actor.hp -= 1")
-    otherwise["mechanisms"]["abilities"] = {"kind": "cooldowns", "actions": {"bash": {"cooldown": 1}}}
+    otherwise["mechanisms"]["abilities"] = {"kind": "conditions", "mode": "cooldowns", "actions": {"bash": {"cooldown": 1}}}
     with pytest.raises(ContractError, match=r"actions\.bash\.otherwise must be a list"):
         fg_env.parse(otherwise)
 
 
 # ---------------------------------------------------------------------------
-# victory
+# flow: victory
 # ---------------------------------------------------------------------------
 
 def _race(conditions, **extra):
@@ -567,7 +625,7 @@ def _race(conditions, **extra):
         "actions": {"wait": {"by": "runner", "do": []}},
         "events": [{"phase": "end", "each": "runner", "do": ["$it.score += $i + 1"]},
                    {"phase": "end", "do": ["$world.heat += 1"]}],
-        "mechanisms": {"win": {"kind": "victory", "players": "runner", "alive": "$it.hp > 0", "conditions": conditions, **extra}},
+        "mechanisms": {"win": {"kind": "flow", "mode": "victory", "who": "runner", "alive": "$it.hp > 0", "conditions": conditions, **extra}},
         "outputs": {"heat": "$world.heat"},
     }
 
@@ -579,10 +637,10 @@ def test_first_to_score_and_most_after_rounds():
     assert result.rounds == 4 and result.winner == "r3" and result.ended_by == "most"
 
 
-def test_ties_share_draw_or_break():
+def test_ties_share_none_or_break():
     tied = _race([{"first_to": 1, "score": "$it.hp"}])
     assert sorted(fg_env.run(tied, seed=1).winner) == ["r1", "r2", "r3"]
-    tied["mechanisms"]["win"]["ties"] = "draw"
+    tied["mechanisms"]["win"]["ties"] = "none"
     assert fg_env.run(tied, seed=1).winner is None
     tied["mechanisms"]["win"]["tiebreak"] = ["$it.team"]
     tied["mechanisms"]["win"]["ties"] = "share"
@@ -619,6 +677,47 @@ def test_last_standing_team_cooperative_stable_eliminate_objectives():
     assert fg_env.run(goals, seed=1).winner == "r3"
 
 
+def test_victory_fills_the_game_section_with_seats_and_returns():
+    race = _race([{"first_to": 6, "score": "$it.score"}])
+    game = fg_env.parse(race).game
+    assert game.players == "runner" and game.returns == "$won($actor, 'win')"
+    assert fg_env.run(race, seed=1).returns == {"r1": 0, "r2": 0, "r3": 1}
+    tied = fg_env.run(_race([{"first_to": 1, "score": "$it.hp"}]), seed=1)
+    assert tied.returns == pytest.approx({"r1": 1 / 3, "r2": 1 / 3, "r3": 1 / 3})
+    team = _race([{"last_team": "$it.team"}])
+    team["events"].append({"at": 2, "do": ["$entity(r1).hp = 0"]})
+    assert fg_env.run(team, seed=1).returns == {"r1": 0, "r2": 1, "r3": 1}
+    nobody = _race([{"lose_when": "$world.heat >= 2"}])
+    assert fg_env.run(nobody, seed=1).returns == {"r1": 0, "r2": 0, "r3": 0}
+    own = _race([{"last_standing": True}])
+    own["game"] = {"returns": "$actor.score", "utility": "general_sum"}
+    declared = fg_env.parse(own).game
+    assert declared.returns == "$actor.score" and declared.players == "runner"  # the author's entries win
+    unseated = _race([{"eliminate": "monster"}], who="monster")
+    assert fg_env.parse(unseated).game is None  # a non-agent type has no seats
+
+
+def test_flow_kinds_fields_and_actions_say_what_to_fix():
+    old = json.loads(json.dumps(TABLE))
+    old["mechanisms"]["seats"] = {"kind": "turn_order", "among": "player"}
+    issue = next(i for i in _errors(old) if i.path == "mechanisms.seats.kind")
+    assert issue.message == "'turn_order' is now kind 'flow' with mode 'order'"
+    typo = json.loads(json.dumps(TABLE))
+    typo["mechanisms"]["seats"]["among"] = "player"
+    issue = next(i for i in _errors(typo) if i.path == "mechanisms.seats.among")
+    assert issue.message == "`among` is not a field of `flow` mode `order`" and "takes: who, by" in issue.fix
+    no_extra = json.loads(json.dumps(TABLE))
+    no_extra["mechanisms"]["seats"]["extra_turns"] = False
+    no_extra["mechanisms"]["seats"]["stage"] = {"actions": ["act"], "turns": "sequential"}
+    assert any(i.message == "turn order 'seats' does not allow extra turns" and i.fix == "set mechanisms.seats.extra_turns: true"
+               for i in _errors(no_extra))
+    missing = json.loads(json.dumps(TABLE))
+    missing["actions"]["act"]["do"] = [{"flow": "seats", "action": "extra_turn"}]
+    assert [i.message for i in _errors(missing)] == ["`flow.extra_turn` needs `who`"]
+    draw = _race([{"last_standing": True}], ties="draw")
+    assert any(i.path == "mechanisms.win.ties" for i in _errors(draw))
+
+
 def test_victory_errors():
     with pytest.raises(ContractError, match="exactly one"):
         fg_env.parse(_race([{"first_to": 3, "most": "$it.score"}]))
@@ -627,7 +726,7 @@ def test_victory_errors():
 
 
 # ---------------------------------------------------------------------------
-# locations
+# conditions: terrain
 # ---------------------------------------------------------------------------
 
 FIELD = {
@@ -637,8 +736,8 @@ FIELD = {
     "types": {"scout": {"agent": True, "props": {"hp": 10, "stealth": 1, "boots": False}}},
     "entities": {"s": {"type": "scout", "at": [0, 0]}},
     "actions": {"go": {"by": "scout", "params": {"row": {"type": "int", "min": 0, "max": 2}, "col": {"type": "int", "min": 0, "max": 2}},
-                       "do": [{"enter": "$actor", "to": "[$params.row, $params.col]"}]}},
-    "mechanisms": {"terrain": {"kind": "locations", "occupants": "scout", "places": {
+                       "do": [{"conditions": "terrain", "action": "enter", "who": "$actor", "to": "[$params.row, $params.col]"}]}},
+    "mechanisms": {"terrain": {"kind": "conditions", "mode": "terrain", "who": "scout", "places": {
         "forest": {"area": [[0, 1], [1, 2]], "props": {"cover": 2}, "modifiers": {"stealth": 2}},
         "lava": {"at": [[2, 2]], "enter": [{"expr": "$it.boots", "why": "You need fire boots."}], "tick": ["$it.hp -= 3"],
                  "on_enter": ["$it.hp -= 1"]},
@@ -659,7 +758,7 @@ def test_terrain_modifiers_entry_rules_and_ticks():
     assert compile_expr("$terrain($entity(s)).cover")(world.scope()) == 2
     assert compile_expr("$terrain([0, 0])")(world.scope()) is None
     assert compile_expr("$can_enter($entity(s), [2, 2])")(world.scope()) is False
-    env.effects.run(["$entity(s).boots = true", {"enter": "$entity(s)", "to": [2, 2]}], {}, "t")
+    env.effects.run(["$entity(s).boots = true", {"conditions": "terrain", "action": "enter", "who": "$entity(s)", "to": [2, 2]}], {}, "t")
     assert _props(env, "s")["hp"] == 9
     env.run("idle", rounds=2)
     assert _props(env, "s")["hp"] == 3
@@ -687,11 +786,20 @@ def test_author_entries_win_and_hooks_are_visible_in_the_contract():
 
 def test_guide_documents_the_new_kinds_and_functions():
     text = fg_env.guide("mechanisms")
-    for kind in ("status_effects", "cooldowns", "channeling", "drift", "shocks", "priors", "procedure",
-                 "turn_order", "victory", "locations"):
-        assert f"### `{kind}`" in text
+    assert "| `conditions` | status, cooldowns, channeling, terrain |" in text
+    conditions = fg_env.guide("conditions")
+    for mode in ("status", "cooldowns", "channeling", "terrain"):
+        assert f"### `conditions.{mode}`" in conditions
+    assert "- `apply`" in conditions and "- `interrupt`" in conditions and '"action": "tick"' not in conditions
+    assert "| `dynamics` | drift, shocks, priors |" in text
+    dynamics = fg_env.guide("dynamics")
+    assert "### `dynamics.priors`" in dynamics and "- `fire`" in dynamics and "- `step`" not in dynamics
+    assert "| `flow` | procedure, order, victory |" in text
+    flow = fg_env.guide("flow")
+    assert "### `flow.victory`" in flow and "- `extra_turn`" in flow and "- `push`" in flow
+    assert '"action": "advance"' not in flow
     functions = fg_env.guide("functions")
-    for name in ("$effective(", "$has_status(", "$ready(", "$prior(", "$winner(", "$terrain(", "$turn_rank("):
+    for name in ("$effective(", "$has_status(", "$ready(", "$prior(", "$winner(", "$won(", "$terrain(", "$turn_rank("):
         assert name in functions
 
 
@@ -716,8 +824,8 @@ def test_acceptance_examples_check_run_and_resume(name):
 
 def test_dungeon_skirmish_uses_every_tactical_family():
     contract = fg_env.parse(EXAMPLES / "dungeon_skirmish.json")
-    kinds = {m["kind"] for m in contract.mechanisms.values()}
-    assert kinds >= {"status_effects", "cooldowns", "channeling", "locations", "victory", "turn_order"}
+    uses = {m.get("mode", m["kind"]) for m in contract.mechanisms.values()}
+    assert uses >= {"status", "cooldowns", "channeling", "terrain", "victory", "order"}
     result = fg_env.load(EXAMPLES / "dungeon_skirmish.json", seed=3).run()
     assert result.status in ("completed", "ended"), result.error
 
