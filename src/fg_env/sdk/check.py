@@ -20,6 +20,7 @@ from pydantic import BaseModel, ValidationError
 from ..physics import _CONSTS, _FUNCS, PhysicsExprError, _CompiledExpr
 from . import contract as C
 from .contract import Contract
+from .check_state import check_physics_state
 from .effects import (
     REPEAT_CEILING,
     RESERVED_ROOTS,
@@ -598,6 +599,7 @@ class _Checker:
         self._entities()
         self._relations()
         self._physics()
+        check_physics_state(self, BASE)
         self._records()
         self._actions()
         self._stages()

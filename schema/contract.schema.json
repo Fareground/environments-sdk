@@ -423,6 +423,57 @@
       "title": "EndSpec",
       "type": "object"
     },
+    "EntityDynamics": {
+      "additionalProperties": false,
+      "description": "Continuous dynamics each entity of a type (subtypes too) integrates on its own, stepped by\nthe same clock right after world physics. The variables are the type's number props, so\nviews, effects and snapshots see them like any other prop; their min/max hold at every sub-step.",
+      "properties": {
+        "where": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Which entities integrate this step ($it); the others keep their values.",
+          "title": "Where"
+        },
+        "params": {
+          "additionalProperties": true,
+          "description": "Constants for this type (numbers or expressions over $inputs, $world).",
+          "title": "Params",
+          "type": "object"
+        },
+        "read": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Names refreshed per entity before each step: {exposure: '$count($neighbors($it, contact), $it.sick)'}.",
+          "title": "Read",
+          "type": "object"
+        },
+        "vars": {
+          "additionalProperties": {
+            "$ref": "#/$defs/EntityVar"
+          },
+          "description": "{number prop: EntityVar | rate}: the props integrated.",
+          "title": "Vars",
+          "type": "object"
+        },
+        "write": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "After each step, other props of the entity from math: {'sick': 'viral_load > 5'}.",
+          "title": "Write",
+          "type": "object"
+        }
+      },
+      "title": "EntityDynamics",
+      "type": "object"
+    },
     "EntitySpec": {
       "additionalProperties": false,
       "description": "A named starting entity.",
@@ -470,6 +521,35 @@
         "type"
       ],
       "title": "EntitySpec",
+      "type": "object"
+    },
+    "EntityVar": {
+      "additionalProperties": false,
+      "description": "How one number property changes by itself on every entity. Shorthand: the rate text.",
+      "properties": {
+        "rate": {
+          "description": "d(prop)/dt as math over names: the entity's own number props, this type's params and reads, world physics variables and params, and t.",
+          "title": "Rate",
+          "type": "string"
+        },
+        "noise": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Stochastic term (Euler–Maruyama), drawn from the run's seed: d(prop) = rate·dt + noise·dW.",
+          "title": "Noise"
+        }
+      },
+      "required": [
+        "rate"
+      ],
+      "title": "EntityVar",
       "type": "object"
     },
     "EventSpec": {
@@ -1416,6 +1496,14 @@
           "description": "After each step: {'world.price': 'P', 'person.risk': 'I/N'}.",
           "title": "Write",
           "type": "object"
+        },
+        "per": {
+          "additionalProperties": {
+            "$ref": "#/$defs/EntityDynamics"
+          },
+          "description": "{type: EntityDynamics}: dynamics every entity integrates on its own (viral load, firm capital, habit strength).",
+          "title": "Per",
+          "type": "object"
         }
       },
       "title": "PhysicsSpec",
@@ -1442,6 +1530,19 @@
           "default": null,
           "description": "Math over variable/param names: 'beta*S*I/N'.",
           "title": "Rate"
+        },
+        "noise": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Stochastic term (Euler–Maruyama): d(var) = rate·dt + noise·dW, drawn from the run's seed; e.g. 'sigma*price'. Needs a rate; the var's min/max then hold at every sub-step.",
+          "title": "Noise"
         },
         "min": {
           "anyOf": [

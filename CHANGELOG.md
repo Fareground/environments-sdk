@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Per-entity dynamics** (`physics.per.<type>`): every entity of a type integrates its own ODEs over its
+  number props (viral load, firm capital, habit strength), reading its own props, per-entity `read`s, the
+  type's `params` and world physics values; `where` limits who steps, `write` sets other props. Stepped by
+  the same clock right after world physics; thousands of entities per step.
+- **Stochastic terms** (`noise`, Euler–Maruyama) on world physics variables and per-entity variables, drawn
+  from streams derived from the run seed, so adding noise never shifts any other random draw.
+
 ## [0.3.0]
 
 ### Environment SDK (`fg-env`)

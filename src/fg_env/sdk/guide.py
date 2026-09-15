@@ -91,7 +91,8 @@ turn, uses `max_actions`, or runs out of `max_calls`.
   that ends a turn without acting (`$actor`) — a forfeit or a default move.
 * `terminal` may be an expression checked after the action applies (`"$world.jump_finished"`), so a
   move can end the turn only sometimes (multi-jumps).
-* Physics steps at the start of every round, including round 1, before any stage.
+* Physics steps at the start of every round, including round 1, before any stage: world variables
+  first, then `physics.per` dynamics for every entity, which read the world variables' new values.
 * Invariants are checked after every action and effect block: write them for states that must hold
   at all times, not ones that only settle at the end of a stage.
 * `end` conditions are checked after the start events, after each stage, and at the end of the round.
@@ -255,7 +256,14 @@ _PATTERNS = """\
   (`"0.1 if $to.influencer else 0.02"`) for influencers and homophily;
   `$neighbors(entity, kind)` in views, effects, contagion events.
 * Continuous dynamics: `physics` vars with rates (math over bare names), `read` from the world,
-  `write` back to props; effects adjust `$physics.x` (policy shocks).
+  `write` back to props; effects adjust `$physics.x` (policy shocks). `noise` adds a random term
+  (`"noise": "sigma*price"`, Euler–Maruyama, drawn from the run's seed).
+* Per-entity dynamics (viral load, firm capital, habit strength): `"physics": {"per": {"person": {"vars":
+  {"viral_load": {"rate": "growth*viral_load - immunity*viral_load", "noise": "0.2*viral_load"}},
+  "read": {"exposure": "$count($neighbors($it, contact), $it.sick)"}, "write": {"sick": "viral_load > 5"}}}}`.
+  Every person integrates its own number props; rates read its number props, the type's `params` and
+  `read`s (per entity, over `$it`) and world physics names. `where` limits who integrates this step.
+  Entities couple through `read` (explicit in time): the values are fixed for the whole step.
 * Scenarios & experiments: `inputs` for scenario knobs, `arms` for variants (input overrides or
   patches), `events` with `at`/`every`/`chance`/`arms` for shocks; `fg_env.experiment` runs arms
   with shared seeds.
@@ -350,7 +358,7 @@ _SECTIONS: List[Tuple[str, List[Type[BaseModel]]]] = [
     ("imports", []), ("inputs", [C.InputSpec]), ("brief", [C.Brief]), ("clock", [C.Clock]),
     ("space", [C.Space, C.GridSpace, C.GraphSpace, C.PlaneSpace]), ("world", [C.PropSpec]),
     ("types", [C.TypeSpec, C.PropSpec]), ("entities", [C.EntitySpec]), ("population", [C.PopulationSpec]),
-    ("relations", [C.RelationSpec]), ("links", [C.LinkSpec]), ("physics", [C.PhysicsSpec, C.PhysicsVar]),
+    ("relations", [C.RelationSpec]), ("links", [C.LinkSpec]), ("physics", [C.PhysicsSpec, C.PhysicsVar, C.EntityDynamics, C.EntityVar]),
     ("records", [C.RecordSpec]), ("actions", [C.ActionSpec, C.ParamSpec, C.Condition]),
     ("stages", [C.StageSpec]), ("views", [C.ViewSpec]), ("events", [C.EventSpec]), ("triggers", [C.TriggerSpec]),
     ("policies", [C.PolicySpec, C.PolicyRule]), ("metrics", [C.MetricSpec]), ("outputs", [C.OutputSpec]),

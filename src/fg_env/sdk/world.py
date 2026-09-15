@@ -11,11 +11,13 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 from ..entity import Entity
-from ..physics import PhysicsExprError, PhysicsModel, PhysicsVariable, _CompiledExpr
+from ..physics import PhysicsModel, _CompiledExpr
 from .contract import Contract, PropSpec
 from .errors import RunError
 from .expr import ExprError, FUNCTIONS, Scope, Untrusted, World, compile_expr, is_expr, truthy
+from .props import finite_number as _finite_number, prop_type, shown_value as _shown_value
 from .seeds import SeedTree
+from . import world_physics
 
 __all__ = ["SdkWorld", "Entry", "LogEvent", "Abort", "prop_type"]
 
@@ -26,25 +28,6 @@ class Abort(Exception):
     def __init__(self, reason: str):
         self.reason = reason
         super().__init__(reason)
-
-
-def prop_type(spec: PropSpec) -> str:
-    if spec.type:
-        return spec.type
-    value = spec.default
-    if isinstance(value, bool):
-        return "bool"
-    # A numeric default means "a number": `"cash": 0` must accept 12.5 later.
-    # Whole-number enforcement is opt-in with `"type": "int"`.
-    if isinstance(value, (int, float)):
-        return "number"
-    if isinstance(value, str) and not is_expr(value):
-        return "enum" if spec.values else "text"
-    if isinstance(value, list):
-        return "list"
-    if isinstance(value, dict):
-        return "map"
-    return "any"
 
 
 class Entry(dict):
@@ -201,6 +184,8 @@ class SdkWorld(World):
         self.entity_briefs: Dict[str, str] = {}
         self.log: List[LogEvent] = []
         self.physics: Optional[PhysicsModel] = None
+        self.physics_writes: List[Tuple[str, _CompiledExpr]] = []
+        self.entity_dynamics: List[Any] = []
         self.round = 0
         self.stage: Optional[str] = None
         self.rounds = 0
@@ -778,6 +763,15 @@ class SdkWorld(World):
     def thaw(self, vars: Dict[str, Any]) -> Dict[str, Any]:
         return {k: _thaw(v, self) for k, v in vars.items()}
 
+    # -- physics (see world_physics) --------------------------------------------------
+
+    def build_physics(self) -> None:
+        world_physics.build_physics(self)
+
+    def step_physics(self, elapsed: Optional[float] = None) -> List[Dict[str, Any]]:
+        """Advance physics one round, or by ``elapsed`` clock time on a continuous clock."""
+        return world_physics.step_physics(self, elapsed)
+
     # -- helpers ---------------------------------------------------------------
 
     def _edges(self, kind: str, where: Optional[str] = None) -> Dict[Tuple[str, str], float]:
@@ -810,69 +804,6 @@ class SdkWorld(World):
                 raise RunError(f"position {at} is outside the {space.plane.width}x{space.plane.height} plane", where)
         return list(at) if isinstance(at, list) else at
 
-    # -- physics ------------------------------------------------------------------
-
-    def build_physics(self) -> None:
-        spec = self.contract.physics
-        if spec is None:
-            return
-        scope = self.scope()
-        params: Dict[str, float] = {}
-        for name, raw in spec.params.items():
-            params[name] = float(_number(compile_expr(raw)(scope) if is_expr(raw) else raw, f"physics.params.{name}"))
-        for name in spec.read:
-            if name in spec.vars or name in spec.params:
-                raise RunError(f"'{name}' is both a read name and a variable or param; give the read its own name", f"physics.read.{name}")
-            params.setdefault(name, 0.0)
-        variables = []
-        for name, var in spec.vars.items():
-            start = compile_expr(var.start)(scope) if is_expr(var.start) else var.start
-            variables.append(PhysicsVariable(name=name, value=float(_number(start, f"physics.vars.{name}.start")),
-                                             rate=var.rate, min=var.min, max=var.max))
-        try:
-            self.physics = PhysicsModel(variables=variables, params=params, substeps=spec.substeps)
-            self._writes = [(target, _CompiledExpr(src)) for target, src in spec.write.items()]
-        except PhysicsExprError as exc:
-            raise RunError(str(exc), "physics") from None
-        self._refresh_physics_reads()
-
-    def _refresh_physics_reads(self) -> None:
-        spec = self.contract.physics
-        if spec is None or self.physics is None:
-            return
-        scope = self.scope()
-        for name, src in spec.read.items():
-            try:
-                value = compile_expr(src)(scope)
-            except ExprError as exc:
-                raise RunError(str(exc), f"physics.read.{name}") from None
-            self.physics.params[name] = float(_number(value, f"physics.read.{name}"))
-
-    def step_physics(self, elapsed: Optional[float] = None) -> List[Dict[str, Any]]:
-        """Advance physics one round, or by ``elapsed`` clock time on a continuous clock
-        (rates are then per clock unit)."""
-        spec = self.contract.physics
-        if spec is None or self.physics is None:
-            return []
-        self._refresh_physics_reads()
-        changes = self.physics.integrate(spec.dt if elapsed is None else spec.dt * elapsed)
-        self.touch()
-        errors = [c for c in changes if c.get("type") == "physics_error"]
-        if errors:
-            raise RunError(errors[0]["narrative"], "physics")
-        values = {**self.physics.params, **self.physics.values}
-        namespace = self.physics._namespace(values, self.physics.time)
-        for target, expr in self._writes:
-            value = expr.eval(namespace)
-            owner, _, prop = target.partition(".")
-            if owner == "world":
-                self.set_world(prop, value)
-            else:
-                for entity in self.entities_of(owner):
-                    self.set_prop(entity, prop, value)
-        return changes
-
-
 # ---------------------------------------------------------------------------
 
 
@@ -896,31 +827,6 @@ def _id(value: Any) -> str:
 
 def _location(value: Any) -> Any:
     return value.location_id if isinstance(value, Entity) else value
-
-
-def _number(value: Any, where: str) -> float:
-    if not _finite_number(value):
-        raise RunError(f"must be a finite number that fits in a float, got {_shown_value(value)}", where)
-    return value
-
-
-def _finite_number(value: Any) -> bool:
-    """A real number that is finite and fits in a float. Never raises: a huge whole number that
-    cannot be converted to a float is simply not a storable number."""
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return False
-    try:
-        return math.isfinite(value)
-    except OverflowError:
-        return False
-
-
-def _shown_value(value: Any) -> str:
-    """A value for an error message; huge whole numbers are described, not printed digit by digit."""
-    if isinstance(value, int) and not isinstance(value, bool) and value.bit_length() > 64:
-        return f"a whole number of {value.bit_length():,} bits"
-    text = repr(value)
-    return text if len(text) <= 80 else text[:77] + "..."
 
 
 def _copy(value: Any) -> Any:

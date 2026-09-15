@@ -25,6 +25,8 @@ __all__ = [
     "LinkSpec",
     "PhysicsSpec",
     "PhysicsVar",
+    "EntityVar",
+    "EntityDynamics",
     "RecordSpec",
     "ParamSpec",
     "Condition",
@@ -330,8 +332,33 @@ class PhysicsVar(_Model):
 
     start: Any = Field(0, description="Initial value (number or expression).")
     rate: Optional[str] = Field(None, description="Math over variable/param names: 'beta*S*I/N'.")
+    noise: Optional[str] = Field(None, description="Stochastic term (Euler–Maruyama): d(var) = rate·dt + noise·dW, drawn from the run's seed; e.g. 'sigma*price'. Needs a rate; the var's min/max then hold at every sub-step.")
     min: Optional[float] = None
     max: Optional[float] = None
+
+
+class EntityVar(_Model):
+    """How one number property changes by itself on every entity. Shorthand: the rate text."""
+
+    rate: str = Field(..., description="d(prop)/dt as math over names: the entity's own number props, this type's params and reads, world physics variables and params, and t.")
+    noise: Optional[str] = Field(None, description="Stochastic term (Euler–Maruyama), drawn from the run's seed: d(prop) = rate·dt + noise·dW.")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _shorthand(cls, data: Any) -> Any:
+        return {"rate": data} if isinstance(data, str) else data
+
+
+class EntityDynamics(_Model):
+    """Continuous dynamics each entity of a type (subtypes too) integrates on its own, stepped by
+    the same clock right after world physics. The variables are the type's number props, so
+    views, effects and snapshots see them like any other prop; their min/max hold at every sub-step."""
+
+    where: Optional[str] = Field(None, description="Which entities integrate this step ($it); the others keep their values.")
+    params: Dict[str, Any] = Field(default_factory=dict, description="Constants for this type (numbers or expressions over $inputs, $world).")
+    read: Dict[str, str] = Field(default_factory=dict, description="Names refreshed per entity before each step: {exposure: '$count($neighbors($it, contact), $it.sick)'}.")
+    vars: Dict[str, EntityVar] = Field(default_factory=dict, description="{number prop: EntityVar | rate}: the props integrated.")
+    write: Dict[str, str] = Field(default_factory=dict, description="After each step, other props of the entity from math: {'sick': 'viral_load > 5'}.")
 
 
 class PhysicsSpec(_Model):
@@ -343,6 +370,7 @@ class PhysicsSpec(_Model):
     vars: Dict[str, PhysicsVar] = Field(default_factory=dict)
     read: Dict[str, str] = Field(default_factory=dict, description="Names refreshed from the world before each step: {N: '$count(person)'}.")
     write: Dict[str, str] = Field(default_factory=dict, description="After each step: {'world.price': 'P', 'person.risk': 'I/N'}.")
+    per: Dict[str, EntityDynamics] = Field(default_factory=dict, description="{type: EntityDynamics}: dynamics every entity integrates on its own (viral load, firm capital, habit strength).")
 
     @field_validator("substeps")
     @classmethod
