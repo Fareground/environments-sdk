@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from ..entity import Entity
 from .contract import MAX_POPULATION, MAX_ROUNDS, Contract, LinkSpec, PopulationSpec
+from .effects import EffectRunner
 from .errors import RunError
 from .expr import ExprError, compile_expr, is_expr, resolve, truthy  # noqa: F401
 from .seeds import SeedTree
@@ -47,11 +48,24 @@ def build_world(contract: Contract, inputs: Dict[str, Any], seeds: SeedTree, arm
                     world.scope(actor=actor, **vars)).strip()
             except ExprError as exc:
                 raise RunError(str(exc), path) from None
+        _build_hooks(world)
     except ExprError as exc:
         raise RunError(str(exc), "build") from None
     world.journal.clear()
     world.rng = seeds.rng("run")
     return world
+
+
+def _build_hooks(world: SdkWorld) -> None:
+    """on_create for every entity made at build — once the whole world exists, in creation order —
+    unless its type sets on_create_at_build false. Entities the hooks create run their own hooks."""
+    contract = world.contract
+    if not any(spec.on_create for spec in contract.types.values()):
+        return
+    runner = EffectRunner(world)
+    for entity in list(world.entities.values()):
+        if entity.alive and contract.hooks_at_build(entity.entity_type):
+            runner.lifecycle("on_create", entity, f"entities.{entity.id}")
 
 
 def _value(world: SdkWorld, raw: Any, vars: Dict[str, Any]) -> Any:

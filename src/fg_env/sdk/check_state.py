@@ -1,4 +1,4 @@
-"""Static checks for the state model: noise, per-entity dynamics, link fields."""
+"""Static checks for the state model: noise, per-entity dynamics, link fields, lifecycle hooks."""
 from __future__ import annotations
 
 import keyword
@@ -13,9 +13,20 @@ from .props import prop_type
 if TYPE_CHECKING:
     from .check import Types, _Checker
 
-__all__ = ["check_physics_state", "check_relation_fields", "check_link_fields"]
+__all__ = ["check_physics_state", "check_relation_fields", "check_link_fields", "check_hooks"]
 
 _FIELD_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def check_hooks(checker: "_Checker", base: FrozenSet[str]) -> None:
+    """Lifecycle hooks: effects over $it (every kind of the type)."""
+    for name, spec in checker.c.types.items():
+        types = {"it": set(checker.c.subtypes(name))}
+        for hook in ("on_create", "on_remove"):
+            checker.effects(getattr(spec, hook), f"types.{name}.{hook}", set(base) | {"it"}, types)
+        if "on_create_at_build" in spec.model_fields_set and not checker.c.hooks_of(name, "on_create"):
+            checker.warn(f"types.{name}.on_create_at_build", "does nothing: this type has no on_create",
+                         "add on_create, or remove on_create_at_build")
 
 
 def check_relation_fields(checker: "_Checker", base: FrozenSet[str]) -> None:

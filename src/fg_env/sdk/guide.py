@@ -93,6 +93,11 @@ turn, uses `max_actions`, or runs out of `max_calls`.
   move can end the turn only sometimes (multi-jumps).
 * Physics steps at the start of every round, including round 1, before any stage: world variables
   first, then `physics.per` dynamics for every entity, which read the world variables' new values.
+* Lifecycle hooks: `types.X.on_create` / `on_remove` run for every entity of X (and its subtypes; an
+  ancestor's hooks first) the moment it is created or removed — by an effect, a mechanism or a hook —
+  inside that change, so a `fail` in a hook refuses it. Entities made at build run on_create once the
+  whole world exists, in creation order (`on_create_at_build: false` skips them). `$it` is the entity;
+  in on_remove it is already no longer alive. Hooks setting off hooks stop at 16 levels.
 * Invariants are checked after every action and effect block: write them for states that must hold
   at all times, not ones that only settle at the end of a stage.
 * `end` conditions are checked after the start events, after each stage, and at the end of the round.
@@ -163,6 +168,7 @@ $metrics $series $arm):
 | population.*.props/id/name | $row $i ($i counts from 1) |
 | population.*.brief, entities.*.brief | $actor (+ $row $i for population) |
 | types.*.inspect | $viewer $it |
+| types.*.on_create/on_remove | $it (the entity) + locals |
 | defs.*.expr | the def's args |
 | blocks.*.do | the block's args + locals |
 | policies.*.rules.* | $actor |
@@ -275,6 +281,10 @@ _PATTERNS = """\
   with shared seeds.
 * Families of agents: `types.trader` with shared props, then `types.market_maker: {"extends": "trader"}`;
   `$count(trader)`, `by: trader`, views `for: trader` and `brief.roles.trader` cover every kind.
+* Bookkeeping on birth and death: `"types": {"firm": {"on_create": ["$world.firms_founded += 1",
+  {"link": "supplies", "from": "$it", "to": "$top(supplier, $it.capacity, 1)[0]"}], "on_remove":
+  [{"each": "$filter(job, $it.employer == $outer.id)", "do": [{"remove": "$it"}]}]}}` — every firm, however it
+  was created, is counted and connected; closing one lays off its jobs.
 * Reusable logic: `defs` for formulas (`"utility": {"args": ["side", "offer"], "expr": "..."}`) and
   `blocks` for effect lists (`{"block": "match", "with": {"order": "$made"}}`).
 * Scoping inspection: `types.X.inspect: false` (or an expression over `$viewer` and `$it`) hides
@@ -387,7 +397,7 @@ _SHAPES = {
 
 
 def _type_name(annotation: Any, field: str) -> str:
-    if field in ("do", "otherwise", "on_enter", "on_exit"):
+    if field in ("do", "otherwise", "on_enter", "on_exit", "on_create", "on_remove"):
         return "effects"
     origin = typing.get_origin(annotation)
     args = typing.get_args(annotation)

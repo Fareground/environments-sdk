@@ -209,6 +209,8 @@ class SdkWorld(World):
         self.end_request: Optional[Dict[str, Any]] = None
         self.counters: Dict[str, int] = {}
         self.journal = _Journal()
+        #: Called as ``lifecycle(hook, entity, where)`` after every creation and removal (set by the effect runner).
+        self.lifecycle: Optional[Callable[[str, Entity, str], None]] = None
         self._seq = 0
         self._record_seq = 0
         self._props_view = _Props(self)
@@ -581,13 +583,17 @@ class SdkWorld(World):
             entity.location_id = self._check_location(at, where)
         self.entities[eid] = entity
         self.journal.push(lambda: self.entities.pop(eid, None))
+        if self.lifecycle is not None:
+            self.lifecycle("on_create", entity, where)
         return entity
 
-    def remove(self, entity: Entity) -> None:
+    def remove(self, entity: Entity, where: str = "remove") -> None:
         if not entity.alive:
             return
         entity.alive = False
         self.journal.push(lambda: setattr(entity, "alive", True))
+        if self.lifecycle is not None:
+            self.lifecycle("on_remove", entity, where)
 
     def move(self, entity: Entity, at: Any, where: str) -> None:
         location = self._check_location(at, where)

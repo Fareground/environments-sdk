@@ -241,10 +241,35 @@ def _items(value: Any, world: SdkWorld, where: str) -> List[Any]:
 
 
 class EffectRunner:
-    """Applies effect lists to one world."""
+    """Applies effect lists to one world, and runs the types' lifecycle hooks when entities are
+    created or removed (inside whatever change made them, so they commit or roll back with it)."""
+
+    #: How deep lifecycle hooks may set off further hooks.
+    HOOK_DEPTH = 16
 
     def __init__(self, world: SdkWorld):
         self.world = world
+        self._hook_depth = 0
+        self._hooks: Dict[Tuple[str, str], List[Tuple[str, List[Any]]]] = {}
+        world.lifecycle = self.lifecycle
+
+    def lifecycle(self, hook: str, entity: Entity, where: str) -> None:
+        """Run ``hook`` (on_create / on_remove) of the entity's type and its ancestors, root first ($it)."""
+        key = (entity.entity_type, hook)
+        hooks = self._hooks.get(key)
+        if hooks is None:
+            hooks = self._hooks[key] = self.world.contract.hooks_of(entity.entity_type, hook)
+        if not hooks:
+            return
+        if self._hook_depth >= self.HOOK_DEPTH:
+            raise RunError(f"{hook} hooks set each other off more than {self.HOOK_DEPTH} levels deep "
+                           f"(does {entity.entity_type}'s {hook} create or remove another {entity.entity_type}?)", where)
+        self._hook_depth += 1
+        try:
+            for type_name, effects in hooks:
+                self.run(effects, {"it": entity}, f"types.{type_name}.{hook}")
+        finally:
+            self._hook_depth -= 1
 
     def run(self, effects: List[Any], vars: Dict[str, Any], path: str) -> None:
         for index, effect in enumerate(effects or []):
@@ -458,7 +483,7 @@ class EffectRunner:
     def _op_remove(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
         value = self._eval(effect["remove"], vars)
         for item in value if isinstance(value, list) else [value]:
-            self.world.remove(_entity(item, self.world, where))
+            self.world.remove(_entity(item, self.world, where), where)
 
     def _op_transfer(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
         prop = effect["transfer"]

@@ -2390,7 +2390,7 @@
     },
     "TypeSpec": {
       "additionalProperties": false,
-      "description": "A kind of entity. ``agent: true`` types take turns. ``extends`` inherits another type:\nits props, its agent flag, and membership (``$count(trader)`` counts every kind of trader).",
+      "description": "A kind of entity. ``agent: true`` types take turns. ``extends`` inherits another type:\nits props, its agent flag, its lifecycle hooks and membership (``$count(trader)`` counts\nevery kind of trader).",
       "properties": {
         "agent": {
           "default": false,
@@ -2447,6 +2447,24 @@
           "default": true,
           "description": "Whether agents may inspect these entities: true, false, or an expression over $viewer and $it.",
           "title": "Inspect"
+        },
+        "on_create": {
+          "description": "Effects run for every entity of this type (subtypes too) the moment it is created ($it), atomically with whatever created it; an ancestor's hooks run first.",
+          "items": {},
+          "title": "On Create",
+          "type": "array"
+        },
+        "on_remove": {
+          "description": "Effects run for every entity of this type (subtypes too) the moment it is removed ($it, already no longer alive), atomically with the removal.",
+          "items": {},
+          "title": "On Remove",
+          "type": "array"
+        },
+        "on_create_at_build": {
+          "default": true,
+          "description": "Also run on_create for entities made when the world is built (once the whole world exists, in creation order); false runs it only for entities created during the run. The nearest declaration in the type's lineage wins.",
+          "title": "On Create At Build",
+          "type": "boolean"
         }
       },
       "title": "TypeSpec",

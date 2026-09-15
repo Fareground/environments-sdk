@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read with `$link(a, b, kind).field` and listed with `$links(entity, kind, where?)`; set by `link` with
   `props`, by assignment (`"$link($actor, $it, trusts).since = $round"`), in generated `links` and from
   `rows` columns; removed with the link, journaled, and carried by snapshots.
+- **Entity lifecycle hooks** (`types.<type>.on_create` / `on_remove`, `$it` = the entity): run for every
+  creation and removal — effects, mechanisms, other hooks — atomically with the change that caused them,
+  inherited through `extends` (ancestors first) and guarded against endless recursion. Entities made at
+  build run `on_create` once the whole world exists; `on_create_at_build: false` opts a type out.
 
 ### Changed
 - `link` without `value` keeps an existing link's value (it used to reset it to 1); a new link gets the

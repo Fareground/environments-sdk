@@ -180,6 +180,7 @@ def _restore(cls: Type[_E], contract: Contract, snapshot: Mapping[str, Any], par
     w.scheduled = [(due, order, decode(item)) for due, order, item in snapshot["scheduled"]]
     w._schedule_seq = snapshot["schedule_seq"]
     w.wake_requests = decode(snapshot["wake_requests"])
+    w.reactions = []  # snapshots are taken between rounds, when no reaction is pending
     w.time, w.horizon = float(snapshot["time"]), snapshot.get("horizon")
     w.wake_at = {str(k): float(v) for k, v in snapshot["wake_at"].items()}
     w.counters = dict(snapshot["counters"])

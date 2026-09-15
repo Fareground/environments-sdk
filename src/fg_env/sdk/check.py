@@ -20,7 +20,7 @@ from pydantic import BaseModel, ValidationError
 from ..physics import _CONSTS, _FUNCS, PhysicsExprError, _CompiledExpr
 from . import contract as C
 from .contract import Contract
-from .check_state import check_link_fields, check_physics_state, check_relation_fields
+from .check_state import check_hooks, check_link_fields, check_physics_state, check_relation_fields
 from .effects import (
     REPEAT_CEILING,
     RESERVED_ROOTS,
@@ -596,6 +596,7 @@ class _Checker:
         self._brief()
         self._clock_space()
         self._types_and_world()
+        check_hooks(self, BASE)
         self._keyword_names()
         self._entities()
         self._relations()

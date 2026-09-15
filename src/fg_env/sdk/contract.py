@@ -218,7 +218,8 @@ class PropSpec(_Model):
 
 class TypeSpec(_Model):
     """A kind of entity. ``agent: true`` types take turns. ``extends`` inherits another type:
-    its props, its agent flag, and membership (``$count(trader)`` counts every kind of trader)."""
+    its props, its agent flag, its lifecycle hooks and membership (``$count(trader)`` counts
+    every kind of trader)."""
 
     agent: bool = False
     extends: Optional[str] = Field(None, description="Parent type whose props and role this type inherits.")
@@ -226,6 +227,9 @@ class TypeSpec(_Model):
     props: Dict[str, PropSpec] = Field(default_factory=dict)
     policy: Optional[str] = Field(None, description="Default coded policy for agents of this type.")
     inspect: Union[bool, str] = Field(True, description="Whether agents may inspect these entities: true, false, or an expression over $viewer and $it.")
+    on_create: Effects = Field(default_factory=list, description="Effects run for every entity of this type (subtypes too) the moment it is created ($it), atomically with whatever created it; an ancestor's hooks run first.")
+    on_remove: Effects = Field(default_factory=list, description="Effects run for every entity of this type (subtypes too) the moment it is removed ($it, already no longer alive), atomically with the removal.")
+    on_create_at_build: bool = Field(True, description="Also run on_create for entities made when the world is built (once the whole world exists, in creation order); false runs it only for entities created during the run. The nearest declaration in the type's lineage wins.")
 
 
 class EntitySpec(_Model):
@@ -725,6 +729,18 @@ class Contract(_Model):
                 props[prop] = spec if inherited is None else inherited.model_copy(
                     update={key: getattr(spec, key) for key in spec.model_fields_set})
         return props
+
+    def hooks_of(self, type_name: str, hook: str) -> List[Any]:
+        """``(type, effects)`` for every type in the lineage (root first) that declares lifecycle ``hook``."""
+        return [(name, getattr(self.types[name], hook)) for name in self.lineage(type_name)
+                if getattr(self.types[name], hook)]
+
+    def hooks_at_build(self, type_name: str) -> bool:
+        """Whether on_create runs for this type's entities made at build (the nearest declaration wins)."""
+        for name in reversed(self.lineage(type_name)):
+            if "on_create_at_build" in self.types[name].model_fields_set:
+                return self.types[name].on_create_at_build
+        return True
 
     def is_agent(self, type_name: str) -> bool:
         return any(self.types[name].agent for name in self.lineage(type_name))
