@@ -19,6 +19,7 @@ from pydantic import BaseModel, ValidationError
 
 from ..physics import _CONSTS, _FUNCS, PhysicsExprError, _CompiledExpr
 from . import contract as C
+from .chance import check_chance
 from .check_space import check_event_order, check_space
 from .check_turns import check_spectator_view, check_stage_turns, spectator_audience_issues
 from .contract import Contract
@@ -43,6 +44,7 @@ from .errors import ContractError, Issue
 from .perception import SPECTATOR
 from .expr import FUNCTIONS, ExprError, compile_expr, is_expr
 from .inputs import DATA_SUFFIXES, check_value
+from .returns import check_game
 from .template import compile_template
 from .world import prop_type
 
@@ -608,6 +610,8 @@ class _Checker:
                            "use a smaller limit; a loop that needs more never settles")
             self.expr(effect.get("while"), f"{path}.while", roots, types, params)
             roots |= self.effects(effect.get("do", []), f"{path}.do", roots, types, params)
+        elif op == "chance":
+            roots |= check_chance(self, effect, path, roots, types, params)
 
     # -- sections -----------------------------------------------------------------------
 
@@ -639,6 +643,7 @@ class _Checker:
         self._measure()
         self._arms()
         self._defs_and_blocks()
+        check_game(self)
 
     def _inputs(self) -> None:
         for name, spec in self.c.inputs.items():
@@ -937,6 +942,8 @@ class _Checker:
                     self.value(getattr(param, key), f"{ppath}.{key}", BASE | {"actor", "params"}, types, spec.params)
                 if param.type not in ("number", "int") and (param.min is not None or param.max is not None):
                     self.error(ppath, "min/max apply to number and int parameters")
+                if param.step is not None and param.type not in ("number", "int"):
+                    self.error(f"{ppath}.step", "step applies to number and int parameters")
             for index, condition in enumerate(spec.when):
                 self.expr(condition.expr, f"{path}.when[{index}]", BASE | {"actor"}, types)
             roots = set(BASE | {"actor", "params"})

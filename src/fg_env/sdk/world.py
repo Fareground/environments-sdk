@@ -98,6 +98,8 @@ class SdkWorld(World):
         #: While a sync event runs, where property and layer writes wait to land together.
         self.buffer: Optional["WriteBuffer"] = None
         self.end_request: Optional[Dict[str, Any]] = None
+        #: Chooses the outcome of a `chance` effect instead of the random stream (explicit chance; see chance.py).
+        self.chance_picker: Optional[Callable[[Any], int]] = None
         self.counters: Dict[str, int] = {}
         self.journal = Journal()
         #: Called as ``lifecycle(hook, entity, where)`` after every creation and removal (set by the effect runner).

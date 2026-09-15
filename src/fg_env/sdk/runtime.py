@@ -15,6 +15,7 @@ from ..entity import Entity
 from .actions import ACTION_BUDGET, ActionBook, stage_actions
 from .build import build_world
 from .contract import MAX_ROUNDS, Contract, StageSpec
+from .copying import Copying
 from .driving import Driver, run_on_worker
 from .effects import EffectRunner
 from .errors import InvariantViolation, RunError
@@ -22,9 +23,11 @@ from .expr import ExprError, compile_expr, shared_budget, truthy
 from .exposure import ExposureLog, asks_seen
 from .happenings import Happenings
 from .feeds import run_feeds
-from .measure import RunResult, Stats, compute_outputs, sample_metrics
+from .measure import RunResult, Stats, sample_metrics
 from .perception import Perception
 from .previews import Previews
+from .replay import Origin
+from .returns import measured
 from .seeds import SeedTree
 from .snapshot import SNAPSHOT_VERSION, restore_env, take_snapshot
 from .template import compile_template
@@ -45,8 +48,9 @@ class _Point:
 _Steps = Generator[_Point, None, None]
 
 
-class Env:
-    """A loaded environment. Create with :func:`fg_env.load`; run with :meth:`run`."""
+class Env(Copying):
+    """A loaded environment. Create with :func:`fg_env.load`; run with :meth:`run`; copy with :meth:`clone`
+    and :meth:`fork`."""
 
     def __init__(self, contract: Contract, inputs: Dict[str, Any], seed: int, arm: Optional[str] = None,
                  parallel: int = 8, exposures: bool = False):
@@ -91,6 +95,7 @@ class Env:
         self._trigger_armed: Dict[int, bool] = {}
         self._triggers_fired: set = set()
         self._in_round = False
+        self.origin = Origin(contract)  # what copies of this run replay from (see replay.py)
         self._inspectable = any(self._inspect_rule(kind) is not False for kind in contract.types)
         #: The state each invariant was last found to hold in (see _check_invariants).
         self._invariant_held: Dict[int, Any] = {}
@@ -204,9 +209,10 @@ class Env:
     def result(self) -> RunResult:
         outputs: Dict[str, Any] = {}
         issues: List[Dict[str, Any]] = []
-        if self.status != "failed":  # unfinished runs get provisional outputs
-            computed, problems = compute_outputs(self.contract, self.world)
-            outputs, issues = computed, [p.to_dict() for p in problems]
+        returns: Dict[str, float] = {}
+        if self.status != "failed":  # unfinished runs get provisional outputs and returns
+            outputs, problems, returns = measured(self.contract, self.world, self.finished)
+            issues = [p.to_dict() for p in problems]
         end = self.world.end_request or {}
         return RunResult(
             status=self.status, ended_by=self.ended_by, rounds=self.world.round, seed=self.seed, arm=self.arm,
@@ -216,7 +222,7 @@ class Env:
             agent_stats={key: self.agent_stats[key].to_dict() for key in sorted(self.agent_stats)},
             events=[e.to_dict() for e in self.world.log], time=self.world.time if self.world.continuous else None,
             exposures=self.world.exposures.to_dict() if self.world.exposures is not None else {},
-            frames=[dict(frame) for frame in self.previews.frames],
+            frames=[dict(frame) for frame in self.previews.frames], returns=returns,
         )
 
     @property
@@ -266,10 +272,12 @@ class Env:
                 if stop is not None and stop(self):
                     self.status = "stopped"
                     return
+                self.origin.round_start(self)
                 self._cursor = self._round()
             elif self.status == "stopped":
                 self.status = "running"
             for _ in self._cursor:
+                self.origin.tape.points += 1
                 if stop is not None and stop(self):
                     self.status = "stopped"
                     return
