@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Money totals use accurate summation across holders, and conservation tolerates floating-point roundoff
+  instead of a fraction of the total supply. Payments, minting and burning fail explicitly when a nonzero
+  change cannot move a balance in the requested direction at the chosen monetary scale.
 - Ledger conservation rejects non-finite aggregate holdings and non-finite or non-numeric supply values,
   preventing floating-point overflow from falsely certifying an accounting balance.
 - Static checks identify invalid inventory literals at their authored holder/property/item path, including

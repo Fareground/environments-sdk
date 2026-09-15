@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import math
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from ...entity import Entity
 from ..errors import RunError
@@ -106,9 +106,13 @@ def credit_of(world: Any, entity: Entity, currency: str) -> float:
     return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0 else 0.0
 
 
-def _set_balance(world: Any, entity: Entity, currency: str, value: float) -> None:
-    rounded = round(value, 9)
-    world.set_prop(entity, currency, 0.0 if abs(rounded) < EPS else rounded)
+def _next_balance(have: float, delta: float, currency: str, where: str) -> float:
+    rounded = round(have + delta, 9)
+    result = 0.0 if abs(rounded) < EPS else rounded
+    if (delta > 0 and result <= have) or (delta < 0 and result >= have):
+        raise RunError(f"{currency} change {delta!r} cannot be represented at balance {have!r}; "
+                       "rescale the currency or amounts", where)
+    return result
 
 
 def move_money(world: Any, currency: str, source: Entity, target: Entity, value: float, where: str,
@@ -119,13 +123,15 @@ def move_money(world: Any, currency: str, source: Entity, target: Entity, value:
     if value == 0 or source is target:
         return
     have = balance(world, source, currency, where)
-    balance(world, target, currency, where)
+    receiving = balance(world, target, currency, where)
     limit = credit_of(world, source, currency) if use_credit else 0.0
     if have - value < -limit - EPS:
         extra = f" (credit {money(limit)})" if limit else ""
         raise Abort(f"{source.name} has only {money(have)} {currency}{extra}; {money(value)} is needed.")
-    _set_balance(world, source, currency, have - value)
-    _set_balance(world, target, currency, balance(world, target, currency, where) + value)
+    paid = _next_balance(have, -value, currency, where)
+    received = _next_balance(receiving, value, currency, where)
+    world.set_prop(source, currency, paid)
+    world.set_prop(target, currency, received)
 
 
 def mint_money(world: Any, currency: str, target: Entity, value: float, source: str, where: str) -> None:
@@ -133,7 +139,7 @@ def mint_money(world: Any, currency: str, target: Entity, value: float, source: 
     value = amount(value, where)
     if value == 0:
         return
-    _set_balance(world, target, currency, balance(world, target, currency, where) + value)
+    world.set_prop(target, currency, _next_balance(balance(world, target, currency, where), value, currency, where))
     bump(world, f"{name}_supply", currency, value)
     bump(world, f"{name}_flows", currency, value, group=source)
 
@@ -148,7 +154,7 @@ def burn_money(world: Any, currency: str, holder: Entity, value: float, sink: st
     limit = credit_of(world, holder, currency) if use_credit else 0.0
     if have - value < -limit - EPS:
         raise Abort(f"{holder.name} has only {money(have)} {currency}; {money(value)} is needed.")
-    _set_balance(world, holder, currency, have - value)
+    world.set_prop(holder, currency, _next_balance(have, -value, currency, where))
     bump(world, f"{name}_supply", currency, -value)
     bump(world, f"{name}_flows", currency, -value, group=sink)
 
@@ -354,10 +360,18 @@ def _in_transit(world: Any, item: str, entity_ids: Optional[set]) -> int:
     return total
 
 
+def _money_sum(values: Iterable[float]) -> float:
+    """Accurate across many holders; non-finite totals are rejected by conservation."""
+    try:
+        return math.fsum(values)
+    except (OverflowError, ValueError):
+        return math.inf
+
+
 def total_of(world: Any, members: List[Entity], asset: str, where: str) -> float:
     index = assets(world)
     if asset in index.currencies:
-        return sum(balance(world, e, asset, where) for e in members if is_holder(world, e, asset))
+        return _money_sum(balance(world, e, asset, where) for e in members if is_holder(world, e, asset))
     name, inventory, spec = _item(world, asset, where)
     ids = {e.id for e in members}
     if spec.unique:
@@ -397,16 +411,17 @@ def conserved(world: Any, name: str, where: str) -> Tuple[bool, str]:
     if name in index.ledgers:
         for currency in index.ledgers[name].currencies:
             holders, credited = _holder_types(world, currency), _holder_types(world, f"{currency}_credit")
-            total = 0.0
+            balances = []
             for entity in world.entities.values():
                 if not entity.alive or entity.entity_type not in holders:
                     continue
                 values = props(entity)
                 value = _number_or_zero(values.get(currency))
-                total += value
+                balances.append(value)
                 limit = _number_or_zero(values.get(f"{currency}_credit")) if entity.entity_type in credited else 0.0
                 if value < -max(0.0, limit) - 1e-6:
                     return False, f"{entity.name} is below its {currency} credit limit"
+            total = _money_sum(balances)
             if not math.isfinite(total):
                 return False, f"{currency} held has a non-finite total; reduce the monetary scale"
             raw_expected = supply.get(currency, 0)
@@ -416,7 +431,10 @@ def conserved(world: Any, name: str, where: str) -> Tuple[bool, str]:
                 return False, f"{currency} supply must be a finite number"
             if isinstance(raw_expected, bool) or not isinstance(raw_expected, (int, float)) or not math.isfinite(expected):
                 return False, f"{currency} supply must be a finite number"
-            if abs(total - expected) > 1e-6 * max(1.0, abs(expected), abs(total)):
+            # Permit floating-point roundoff, not a fraction of a firm's entire balance.
+            scale = max(abs(total), abs(expected), max((abs(value) for value in balances), default=0.0))
+            tolerance = max(1e-6, 8 * math.ulp(scale))
+            if abs(total - expected) > tolerance:
                 return False, f"{currency} held is {money(total)} but the supply is {money(expected)}"
         return True, ""
     if name in index.inventories:
