@@ -166,7 +166,8 @@ class CalendarEffect(BaseModel):
                          "the first or last `days` of a month, or listed `months`.")
     effect: Number = Field(..., description="Multiplier on those days (form multiply) or amount added (form add).")
     dates: List[str] = Field(default_factory=list, description="ISO dates (2025-11-28) or yearly dates (12-25).")
-    days: List[int] = Field(default_factory=list, description="days_of_month: the days (1, 15); month_start/month_end: how many days (default 1).")
+    days: Union[int, List[int], None] = Field(None, description="days_of_month: the days of the month ([1, 15]); "
+                                                                 "month_start/month_end: how many days (default 1).")
     months: List[int] = Field(default_factory=list, description="months: month numbers 1–12.")
     before: int = Field(0, ge=0, description="Days before each matched date also affected (dates, days_of_month).")
     after: int = Field(0, ge=0, description="Days after each matched date also affected (dates, days_of_month).")
@@ -175,8 +176,10 @@ class CalendarEffect(BaseModel):
     def _shape(self) -> "CalendarEffect":
         if self.on == "dates" and not self.dates:
             raise ValueError("an effect on `dates` needs `dates`")
-        if self.on == "days_of_month" and not self.days:
-            raise ValueError("an effect on `days_of_month` needs `days`")
+        if self.on == "days_of_month" and (not isinstance(self.days, list) or not self.days):
+            raise ValueError("an effect on `days_of_month` needs `days`: a list of days of the month")
+        if self.on in ("month_start", "month_end") and isinstance(self.days, list):
+            raise ValueError(f"an effect on `{self.on}` takes `days` as a number of days")
         if self.on == "months" and not self.months:
             raise ValueError("an effect on `months` needs `months`")
         for text in self.dates:
@@ -206,9 +209,9 @@ def _matches(effect: Dict[str, Any], day: _dt.date) -> bool:
         return day.month in effect["months"]
     last = _calendar.monthrange(day.year, day.month)[1]
     if on == "month_start":
-        return day.day <= (effect["days"] or [1])[0]
+        return day.day <= (effect["days"] or 1)
     if on == "month_end":
-        return last - day.day < (effect["days"] or [1])[0]
+        return last - day.day < (effect["days"] or 1)
     before, after = effect["before"], effect["after"]
     for offset in range(-after, before + 1):
         near = day + _dt.timedelta(days=offset)

@@ -100,16 +100,7 @@ def expand_patterns(data: Mapping[str, Any]) -> Tuple[Dict[str, Any], List[Issue
             continue
         kind = KINDS[cfg.kind]
         memory = memory or kind.shape == "memory"
-        if cfg.record:
-            if name in (data.get("metrics") or {}):
-                issues.append(Issue(f"patterns.{name}.record", f"a metric is already named '{name}'",
-                                    "rename the metric or the pattern (a recorded pattern is a metric of its own name)"))
-                continue
-            if kind.arg_names(cfg):
-                issues.append(Issue(f"patterns.{name}.record", f"'{name}' is called with {', '.join(kind.arg_names(cfg))}, "
-                                                               "so it has no value of its own to record",
-                                    "record a metric that calls it instead"))
-                continue
+        if cfg.record and name not in (data.get("metrics") or {}) and not kind.arg_names(cfg):  # else the check says why
             expr = f"$pattern_values('{name}')" if cfg.keyed else f"$pattern.{name}"
             metrics[name] = {"expr": expr, "description": cfg.description or f"The {cfg.kind} pattern '{name}'.",
                              "unit": cfg.unit}

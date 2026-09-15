@@ -52,9 +52,22 @@ def check_patterns(checker: "_Checker", base: FrozenSet[str]) -> None:
             checker.error(path, "a cross_price pattern needs `keys` (the items whose prices it is called with)",
                           'add "keys": ["economy", "premium"] or an entity type')
         _time(checker, cfg, path)
+        if cfg.record:
+            _record(checker, name, cfg, path)
         if cfg.fit is not None:
             _fit(checker, declared, name, cfg, path)
     _cycles(checker, declared)
+
+
+def _record(checker: "_Checker", name: str, cfg: PatternConfig, path: str) -> None:
+    source = checker.c._source if isinstance(checker.c._source, dict) else {}
+    if name in (source.get("metrics") or {}):
+        checker.error(f"{path}.record", f"a metric is already named '{name}'",
+                      "rename the metric or the pattern (a recorded pattern is a metric of its own name)")
+    wanted = KINDS[cfg.kind].arg_names(cfg)
+    if wanted:
+        checker.error(f"{path}.record", f"'{name}' is called with {', '.join(wanted)}, so it has no value of its own to record",
+                      "record a metric that calls it instead")
 
 
 def _keys(checker: "_Checker", cfg: PatternConfig, path: str) -> None:

@@ -3719,12 +3719,23 @@
           "type": "array"
         },
         "days": {
-          "description": "days_of_month: the days (1, 15); month_start/month_end: how many days (default 1).",
-          "items": {
-            "type": "integer"
-          },
-          "title": "Days",
-          "type": "array"
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "days_of_month: the days of the month ([1, 15]); month_start/month_end: how many days (default 1).",
+          "title": "Days"
         },
         "months": {
           "description": "months: month numbers 1–12.",

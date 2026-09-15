@@ -413,6 +413,8 @@ def _plain(raw: Any) -> Any:
         return raw.model_dump()
     if isinstance(raw, list):
         return [_plain(item) for item in raw]
+    if isinstance(raw, dict):
+        return {key: _plain(item) for key, item in raw.items()}
     return raw
 
 
