@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Record permissions that use only reader/entry roots and no function calls avoid constructing unused
+  world context. Permissions are still evaluated on every read with the same expression budgets;
+  rules with function calls or other roots retain full context.
 - Reader-scoped `$events` enforces record visibility and retention as well as notification recipients;
   `$actor` is the reader when no `$viewer` is supplied. Omniscient analysis retains the full event log.
   Truncated news counts exclude records the reader cannot access, preventing private activity from

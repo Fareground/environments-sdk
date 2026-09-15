@@ -259,7 +259,12 @@ class SdkWorld(World):
         if visible == "all":
             return True
         try:
-            return truthy(compile_expr(visible)(self.scope(viewer=viewer, it=entry)))
+            expr = compile_expr(visible)
+            # A pure reader/entry rule needs no clock, metric, pattern or turn roots.
+            # Keep function calls on the full scope: they may read implicit context.
+            scope = Scope({"viewer": viewer, "it": entry}, self) \
+                if not expr.functions and expr.roots <= {"viewer", "it"} else self.scope(viewer=viewer, it=entry)
+            return truthy(expr(scope))
         except ExprError as exc:
             raise RunError(str(exc), f"records.{record}.visible") from None
 
