@@ -642,54 +642,91 @@ BONDS = {
     "entities": {"fr": {"type": "nation", "name": "France"}, "uk": {"type": "nation", "name": "Britain"},
                  "de": {"type": "nation", "name": "Germany"}},
     "mechanisms": {
-        "bonds": {"kind": "relationships", "relations": {"trust": {"baseline": 0, "decay": 0.5, "thresholds": [
+        "bonds": {"kind": "groups", "mode": "relationships", "relations": {"trust": {"baseline": 0, "decay": 0.5, "thresholds": [
             {"at": 0.6, "say": "{$from.name} now trusts {$to.name}.", "to": "both", "do": ["$world.fired += 1"]}]}}},
-        "blocs": {"kind": "factions", "members": "nation", "factions": {"entente": {"members": ["fr"]},
-                                                                        "central": {"members": ["de"], "open": True}}},
+        "blocs": {"kind": "groups", "mode": "factions", "who": "nation",
+                  "factions": {"entente": {"members": ["fr"]}, "central": {"members": ["de"], "open": True}}},
     },
 }
 
 
+RELATE = {"groups": "bonds", "action": "relate", "relation": "trust", "from": "fr", "to": "uk"}
+
+
 def test_relations_decay_toward_baseline_and_thresholds_rearm_after_crossing_back():
     env = fg_env.load(BONDS, seed=1)
-    assert do(env, None, [{"relate": "trust", "from": "fr", "to": "uk", "by": 0.8}])
+    assert do(env, None, [{**RELATE, "add": 0.8}])
     assert env.props["fired"] == 1 and ev(env, "$relation(fr, uk, trust)") == pytest.approx(0.8)
-    assert do(env, None, [{"relate": "trust", "from": "fr", "to": "uk", "by": 0.1}])
+    assert do(env, None, [{**RELATE, "add": 0.1}])
     assert env.props["fired"] == 1  # still above: no second event
     notice = [e for e in env.world.log if e.kind == "bonds"]
     assert [(e.text, e.to) for e in notice] == [("France now trusts Britain.", ("fr", "uk"))]
     env.run("idle", rounds=1)  # decays to 0.45: crossed back, armed again
     assert ev(env, "$relation(fr, uk, trust)") == pytest.approx(0.45)
-    assert do(env, None, [{"relate": "trust", "from": "fr", "to": "uk", "set": 0.7}])
+    assert do(env, None, [{**RELATE, "set": 0.7}])
     assert env.props["fired"] == 2
     once = json.loads(json.dumps(BONDS))
     once["mechanisms"]["bonds"]["relations"]["trust"]["thresholds"][0]["once"] = True
     env = fg_env.load(once, seed=1)
     for step in ({"set": 0.9}, {"set": 0.1}, {"set": 0.9}):
-        assert do(env, None, [{"relate": "trust", "from": "fr", "to": "uk", **step}])
+        assert do(env, None, [{**RELATE, **step}])
     assert env.props["fired"] == 1
 
 
 def test_factions_invitations_alliances_and_allies():
     env = fg_env.load(BONDS, seed=1)
     assert ev(env, "$allies(fr, de)") is False and ev(env, "$joinable(uk)") == ["central"]
-    assert not do(env, "uk", [{"faction": "blocs", "act": "join", "in": "entente"}])  # needs an invitation
-    assert do(env, "fr", [{"faction": "blocs", "act": "invite", "in": "entente", "guest": "uk"}])
-    assert do(env, "uk", [{"faction": "blocs", "act": "join", "in": "entente"}])
+    assert not do(env, "uk", [{"groups": "blocs", "action": "join", "in": "entente"}])  # needs an invitation
+    assert do(env, "fr", [{"groups": "blocs", "action": "invite", "in": "entente", "guest": "uk"}])
+    assert do(env, "uk", [{"groups": "blocs", "action": "join", "in": "entente"}])
     assert ev(env, "$allies(fr, uk)") is True and ev(env, "$faction_of(uk)") == ["entente"]
-    assert not do(env, "uk", [{"faction": "blocs", "act": "join", "in": "central"}])  # one faction at a time
-    assert do(env, "fr", [{"faction": "blocs", "act": "ally", "in": "entente", "other": "central"}])
+    assert not do(env, "uk", [{"groups": "blocs", "action": "join", "in": "central"}])  # one faction at a time
+    assert do(env, "fr", [{"groups": "blocs", "action": "ally", "in": "entente", "other": "central"}])
     assert ev(env, "$allies(uk, de)") is False  # proposed, not yet accepted
-    assert do(env, "de", [{"faction": "blocs", "act": "ally", "in": "central", "other": "entente"}])
+    assert do(env, "de", [{"groups": "blocs", "action": "ally", "in": "central", "other": "entente"}])
     assert ev(env, "$allies(uk, de)") is True
-    assert do(env, "de", [{"faction": "blocs", "act": "break", "in": "central", "other": "entente"}])
+    assert do(env, "de", [{"groups": "blocs", "action": "break_alliance", "in": "central", "other": "entente"}])
     assert ev(env, "$allies(uk, de)") is False
-    assert not do(env, "fr", [{"faction": "blocs", "act": "found", "title": "Mine"}])  # founding is off
-    assert do(env, None, [{"faction": "blocs", "act": "add", "in": "central", "who": "uk"}])  # no consent needed
+    assert not do(env, "fr", [{"groups": "blocs", "action": "found", "title": "Mine"}])  # founding is off
+    assert do(env, None, [{"groups": "blocs", "action": "add", "in": "central", "who": "uk"}])  # no consent needed
     assert ev(env, "$faction_of(uk)") == ["central"]
     assert errors(BONDS) == []
     straight, resumed = split_run(BONDS, "random")
     assert straight == resumed
+
+
+def test_relationship_and_faction_actions_check_their_own_keys():
+    def op(*effects):
+        return errors({**BONDS, "events": [{"do": list(effects)}]})
+
+    assert any("`groups.relate` takes exactly one of `add` or `set`" in e for e in op(RELATE))
+    assert any("'by' is not part of `groups.relate`" in e for e in op({**RELATE, "by": 0.2}))
+    assert any("'rivalry' is not a relation of bonds" in e for e in op({**RELATE, "relation": "rivalry", "add": 1}))
+    assert any("`groups.invite` needs `guest`" in e for e in op({"groups": "blocs", "action": "invite", "in": "entente"}))
+    assert any("did you mean 'break_alliance'" in e
+               for e in op({"groups": "blocs", "action": "break_aliance", "in": "entente", "other": "central"}))
+    assert any("`faction` is now the `groups` op" in e for e in op({"faction": "blocs", "act": "join", "in": "central"}))
+    assert any("`relate` is now the `groups` op" in e for e in op({"relate": "trust", "from": "fr", "to": "uk", "by": 1}))
+
+
+def test_old_relationships_and_factions_kinds_name_their_groups_mode():
+    old = {**BONDS, "mechanisms": {"bonds": {**BONDS["mechanisms"]["bonds"], "kind": "relationships"},
+                                   "blocs": {"kind": "factions", "members": "nation"}}}
+    found = errors(old)
+    assert any("'relationships' is now kind 'groups' with mode 'relationships'" in e for e in found)
+    assert any("'factions' is now kind 'groups' with mode 'factions'" in e for e in found)
+    renamed = errors({**BONDS, "mechanisms": {"blocs": {"kind": "groups", "mode": "factions", "members": "nation"}}})
+    assert any("`members` is not a field of `groups` mode `factions`" in e for e in renamed)
+
+
+def test_tools_one_offers_every_faction_tool_as_one():
+    contract = {**BONDS, "mechanisms": {"blocs": {**BONDS["mechanisms"]["blocs"], "tools": "one"}}}
+    env = fg_env.load(contract, seed=1)
+    script = Script(env, {"uk": [("blocs", {"action": "join", "faction": "central"})]})
+    env.run(script, rounds=1)
+    assert [(r[2], r[3]) for r in script.results] == [("blocs", True)], script.results
+    assert ev(env, "$faction_of(uk)") == ["central"]
+    assert [t["name"] for t in json.loads(script.seen["uk"][1]) if t["kind"] == "act"] == ["blocs"]
 
 
 # ---------------------------------------------------------------------------

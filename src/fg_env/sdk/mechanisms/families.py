@@ -37,12 +37,14 @@ family("decision", "Collective choice: ballots and structured deliberation with 
        {"who": "agent type that decides", "ties": SHARED["ties"], "private": SHARED["private"],
         "stage": SHARED["stage"], "when": SHARED["when"], "tools": SHARED["tools"]})
 family("game", "Game equipment: boards with enforced rules, cards, betting pots and worker-placement slots.",
-       {"who": "agent type that plays", "stage": SHARED["stage"], "views": SHARED["views"]})
+       {"who": "agent type that plays", "stage": SHARED["stage"], "views": SHARED["views"], "qty": SHARED["qty"],
+        "tools": SHARED["tools"]})
 family("flow", "Who acts when and how it ends: turn order, procedures with phases, victory conditions.",
        {"who": "agent type whose turns or victory it governs", "views": SHARED["views"], "ties": SHARED["ties"],
         "tools": SHARED["tools"]})
 family("groups", "Who belongs with whom: hidden roles and teams, factions and alliances, relationships.",
-       {"who": "agent type that belongs to groups", "views": SHARED["views"]})
+       {"who": "agent type that belongs to groups", "views": SHARED["views"], "phase": SHARED["phase"],
+        "tools": SHARED["tools"]})
 family("social", "Talking and spreading: channels (rooms, direct messages), a social feed, diffusion over a network.",
        {"who": "agent type that communicates", "max_chars": SHARED["max_chars"], "tools": SHARED["tools"]})
 family("mind", "What agents know and remember: beliefs with confidence, memory with recall, generated personas.",

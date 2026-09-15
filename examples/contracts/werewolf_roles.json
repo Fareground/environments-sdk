@@ -46,8 +46,9 @@
   },
   "mechanisms": {
     "roles": {
-      "kind": "roles",
-      "players": "player",
+      "kind": "groups",
+      "mode": "roles",
+      "who": "player",
       "deck": {"werewolf": 2, "seer": 1, "doctor": 1, "villager": "rest"},
       "teams": {"wolves": ["werewolf"], "village": ["seer", "doctor", "villager"]},
       "know": ["wolves"],
@@ -172,7 +173,7 @@
               "then": ["$world.saves += 1", "$world.last_death = 'Someone was attacked last night but survived: nobody died.'", {"emit": "dawn", "say": "Dawn of round {$round}: {$world.last_death}"}],
               "else": [
                 "$victim = $entity($victim_id)",
-                {"eliminate": "$victim", "say": "Dawn of round {$round}: {$victim.name} was killed during the night."},
+                {"groups": "roles", "action": "eliminate", "who": "$victim", "say": "Dawn of round {$round}: {$victim.name} was killed during the night."},
                 "$world.last_death = $victim.name + ' was killed during the night. They were a ' + $victim.role + '.'"
               ]
             }
@@ -200,7 +201,7 @@
       "actions": [],
       "on_enter": [
         "$out_id = $world.exile_result.winner",
-        {"if": "$out_id != null", "then": [{"eliminate": "$entity($out_id)", "say": "The village exiles {$entity($out_id).name}."}], "else": [{"emit": "verdict", "say": "The vote is tied or empty: nobody is exiled."}]},
+        {"if": "$out_id != null", "then": [{"groups": "roles", "action": "eliminate", "who": "$entity($out_id)", "say": "The village exiles {$entity($out_id).name}."}], "else": [{"emit": "verdict", "say": "The vote is tied or empty: nobody is exiled."}]},
         "$world.rounds_played = $round",
         {"block": "check_win"}
       ]

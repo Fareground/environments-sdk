@@ -1,4 +1,4 @@
-"""The board mechanism: geometry, the rules engine (perft), and whole games played through agent tools."""
+"""The game family's board mode: geometry, the rules engine (perft), and whole games played through agent tools."""
 import copy
 import json
 import time
@@ -20,7 +20,7 @@ def _example(name):
 
 
 def _rules(config, name="board"):
-    return compile_rules(name, BoardConfig.model_validate({k: v for k, v in config.items() if k != "kind"}))
+    return compile_rules(name, BoardConfig.model_validate({k: v for k, v in config.items() if k not in ("kind", "mode")}))
 
 
 def _position(rules, setup, turn=0):
@@ -46,7 +46,7 @@ def _with_setup(contract, board, position, turn=None, **config):
     """The contract with its board reset to ``position`` at the start of round 1, and config overrides."""
     out = copy.deepcopy(contract)
     out["mechanisms"][board].update(config)
-    setup = {"board_setup": board, "position": position}
+    setup = {"game": board, "action": "setup", "position": position}
     if turn:
         setup["turn"] = turn
     out["events"] = [{"at": 1, "do": [setup]}]
@@ -308,13 +308,13 @@ def test_checkers_mandatory_multi_jump_with_crowning():
 
 def test_custodial_captures_and_drops_from_a_hand():
     tablut = {"name": "Sandwich", "clock": {"rounds": 4}, "mechanisms": {"b": {
-        "kind": "board", "size": 5, "sides": [{"id": "black", "mark": "B"}, {"id": "white", "mark": "W"}],
+        "kind": "game", "mode": "board", "size": 5, "sides": [{"id": "black", "mark": "B"}, {"id": "white", "mark": "W"}],
         "pieces": {"soldier": {"moves": [{"slide": "orthogonal", "only": "move"}]}},
         "setup": "5/B4/2W2/2B2/5", "captures": [{"rule": "custodial"}]}}}
     env, _ = _replay(tablut, "b", ["a4-c4"])
     assert "c3" not in _pieces(env) and env.props["b_report"] == "Black played a4-c4, capturing 1."
     drops = {"name": "Drops", "clock": {"rounds": 4}, "mechanisms": {"b": {
-        "kind": "board", "size": 3, "sides": ["x", "o"], "pieces": {"stone": {}}, "place": {"from": "hand"},
+        "kind": "game", "mode": "board", "size": 3, "sides": ["x", "o"], "pieces": {"stone": {}}, "place": {"from": "hand"},
         "hand": {"x": {"stone": 1}, "o": {"stone": 1}}, "line": 3, "no_moves": "draw"}}}
     env, _ = _replay(drops, "b", ["b2", "a1"])
     assert env.props["b_hand"] == {"x": {"stone": 0}, "o": {"stone": 0}}
@@ -330,15 +330,82 @@ def test_config_errors_say_what_to_fix():
     assert "'diagonals' is not a direction" in issues(pieces={"B": {"moves": [{"slide": "diagonals"}]}})
     assert "'Z' is not a board symbol" in issues(setup="rnbqkbnZ/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR")
     assert "'X' is not a piece kind" in issues(pieces={"P": {"promote": {"to": ["X"]}}})
-    assert "`colour` is not a field of `board`" in issues(colour="red")
-    both = {"name": "Two", "mechanisms": {"a": {"kind": "board", "sides": ["x"], "pieces": {"s": {}}},
-                                          "b": {"kind": "board", "sides": ["y"], "pieces": {"s": {}}}}}
+    assert "`colour` is not a field of `game` mode `board`" in issues(colour="red")
+    both = {"name": "Two", "mechanisms": {"a": {"kind": "game", "mode": "board", "sides": ["x"], "pieces": {"s": {}}},
+                                          "b": {"kind": "game", "mode": "board", "sides": ["y"], "pieces": {"s": {}}}}}
     with pytest.raises(ContractError, match="give each board its own piece_type"):
         fg_env.parse(both)
-    wrong_op = {**CHESS, "events": [{"do": [{"board_pass": "nope"}]}]}
-    assert any("'nope' is not a declared board" in i.message for i in fg_env.check(wrong_op))
+    wrong_op = {**CHESS, "events": [{"do": [{"game": "nope", "action": "pass"}]}]}
+    assert any("`game` names a declared game mechanism, got 'nope'" in i.message for i in fg_env.check(wrong_op))
+
+
+def _board_issues(contract):
+    return [i for i in fg_env.check(contract) if i.severity == "error"]
+
+
+def test_an_old_board_kind_names_the_game_family_and_a_typo_names_the_field():
+    old = copy.deepcopy(CHESS)
+    old["mechanisms"]["chess"] = {k: v for k, v in old["mechanisms"]["chess"].items() if k != "mode"}
+    old["mechanisms"]["chess"]["kind"] = "board"
+    issue = next(i for i in _board_issues(old) if i.path == "mechanisms.chess.kind")
+    assert issue.message == "'board' is now kind 'game' with mode 'board'"
+    typo = copy.deepcopy(CHESS)
+    typo["mechanisms"]["chess"]["players"] = "player"
+    issue = _board_issues(typo)[0]
+    assert issue.message == "`players` is not a field of `game` mode `board`" and issue.path == "mechanisms.chess.players"
+
+
+def test_board_actions_check_their_own_keys():
+    def op(*effects):
+        return [(i.path, i.message, i.fix) for i in _board_issues({**CHESS, "events": [{"do": list(effects)}]})]
+
+    assert any(m == "`game.setup` needs `position`" for _, m, _ in op({"game": "chess", "action": "setup"}))
+    assert any(m == "'text' is not part of `game.pass`" for _, m, _ in op({"game": "chess", "action": "pass", "text": "e4"}))
+    path, message, fix = op({"game": "chess", "action": "mvoe", "text": "e2-e4"})[0]
+    assert path.endswith(".action") and message == "'mvoe' is not an action of chess (game board)" and fix == "did you mean 'move'?"
+    _, _, fix = op({"board_move": "chess", "text": "e2-e4"})[0]
+    assert fix.startswith('`board_move` is now the `game` op: {"game": "<mechanism>", "action": "move"')
+
+
+def test_tools_one_offers_moving_and_passing_as_one_tool():
+    contract = _with_setup(GO, "go", "9/9/9/9/4X4/9/9/9/9", turn="white", tools="one")
+    env = fg_env.load(contract, seed=1)
+    offered = []
+
+    def passer(wake):
+        tools = {t.name: t for t in wake.tools if t.kind == "act"}
+        offered.append(sorted(tools))
+        assert wake.call("go", {"action": "pass"}).ok
+
+    env.run(passer, rounds=3)
+    assert offered[0] == ["go"] and env.ended_by == "passes"
+
+
+def test_a_board_fills_the_game_section_so_the_winner_scores_against_the_loser():
+    game = fg_env.parse(CHESS).game
+    assert (game.players, game.utility) == ("player", "zero_sum")
+    assert _board_issues(CHESS) == []
+    _, result = _replay(CHESS, "chess", ["e2-e4", "e7-e5", "f1-c4", "b8-c6", "d1-h5", "g8-f6", "h5xf7"])
+    assert result.returns == {"white": 1.0, "black": -1.0}
+    _, drawn = _replay(_with_setup(CHESS, "chess", "7k/5Q2/8/6K1/8/8/8/8"), "chess", ["g5-g6"])
+    assert drawn.returns == {"white": 0.0, "black": 0.0}
+    three = {"name": "Three", "clock": {"rounds": 9}, "mechanisms": {"b": {
+        "kind": "game", "mode": "board", "size": 3, "sides": ["x", "o", "z"], "pieces": {"stone": {}}, "place": {},
+        "line": 3, "no_moves": "draw"}}}
+    _, result = _replay(three, "b", ["a1", "a2", "b3", "b1", "b2", "c3", "c1"])
+    assert result.returns == {"x": 2.0, "o": -1.0, "z": -1.0}
+
+
+def test_an_authors_game_section_or_a_second_scoring_mechanism_leaves_the_game_section_alone():
+    authored = fg_env.parse({**CHESS, "game": {"returns": "$actor.id == 'white'"}}).game
+    assert authored.returns == "$actor.id == 'white'" and authored.utility == "general_sum" and authored.players is None
+    two = copy.deepcopy(CHESS)
+    two["mechanisms"]["other"] = {"kind": "game", "mode": "board", "size": 3, "sides": ["red", "blue"], "piece_type": "stone",
+                                  "pieces": {"mark": {}}, "place": {}, "line": 3, "stage": "chess"}
+    assert fg_env.parse(two).game is None
 
 
 def test_guide_documents_the_board_grammar():
-    text = fg_env.guide()
-    assert "### `board`" in text and "`castling`" in text and "$board_moves(" in text and "`board_setup`" in text
+    page = fg_env.guide("game.board")
+    assert page.startswith("### `game.board`") and "`castling`" in page and "- `setup`" in page and "- `move`" in page
+    assert "$board_moves(" in fg_env.guide()

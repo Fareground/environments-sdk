@@ -15,7 +15,8 @@
   },
   "mechanisms": {
     "connect4": {
-      "kind": "board",
+      "kind": "game",
+      "mode": "board",
       "size": [
         6,
         7
