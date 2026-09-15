@@ -989,8 +989,23 @@ class _Checker:
             self.expr(view.where, f"{path}.where", item_roots, types)
             self.expr(view.sort, f"{path}.sort", item_roots, types)
             self.template(view.show, f"{path}.show", "it", item_roots, types)
+            if view.of in self.c.types and view.where is None:
+                self._private_listing(view.show, view.of, f"{path}.show")
             if view.limit is not None and view.limit < 1:
                 self.error(f"{path}.limit", "must be at least 1")
+
+    def _private_listing(self, show: str, of: str, path: str) -> None:
+        """Warn when a view lists every entity of a type with a private property: each reader sees everyone's."""
+        try:
+            compiled = compile_template(show, "it")
+        except ExprError:
+            return  # already reported by the template check
+        specs = self.c.props_of(of)
+        shown = sorted({chain[1] for expr in compiled.expressions for chain in expr.paths
+                        if len(chain) > 1 and chain[0] == "it" and chain[1] in specs and specs[chain[1]].private})
+        if shown:
+            self.warn(path, f"shows private {', '.join(shown)} of every {of} to each reader",
+                      "add a `where` choosing whose to show (e.g. `$it.id == $actor.id`), or leave the private field out")
 
     def _events(self) -> None:
         for index, event in enumerate(self.c.events):
