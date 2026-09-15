@@ -17,7 +17,7 @@ from pydantic import BaseModel, ValidationError
 from ...entity import Entity
 from ..errors import RunError
 from ..expr import ExprError, compile_expr
-from ..registry import MechanismError
+from ..registry import MechanismError, config_data, describe, use_key
 from ..world import Abort
 
 __all__ = [
@@ -58,11 +58,11 @@ def config_of(world: Any, name: str, kind: str, where: str = "") -> Any:
     key = ("use", name)
     if key not in cache:
         raw = world.contract.mechanisms.get(name) if isinstance(name, str) else None
-        if not isinstance(raw, Mapping) or raw.get("kind") != kind:
-            declared = [n for n, u in world.contract.mechanisms.items() if isinstance(u, Mapping) and u.get("kind") == kind]
-            raise RunError(f"'{name}' is not a declared {kind} (declared: {', '.join(declared) or 'none'})", where)
+        if not isinstance(raw, Mapping) or use_key(raw) != kind:
+            declared = [n for n, u in world.contract.mechanisms.items() if use_key(u) == kind]
+            raise RunError(f"'{name}' is not a declared {describe(kind)} (declared: {', '.join(declared) or 'none'})", where)
         try:
-            cache[key] = CONFIG_MODELS[kind].model_validate({k: v for k, v in raw.items() if k != "kind"})
+            cache[key] = CONFIG_MODELS[kind].model_validate(config_data(raw))
         except ValidationError as exc:  # expansion validated it already; only a patched contract lands here
             raise RunError(f"mechanism '{name}' has an invalid config: {exc.errors()[0]['msg']}", where) from None
     return cache[key]
@@ -74,7 +74,7 @@ def uses_of(world: Any, kind: str) -> Dict[str, Any]:
     key = ("kind", kind)
     if key not in cache:
         cache[key] = {name: config_of(world, name, kind) for name, use in world.contract.mechanisms.items()
-                      if isinstance(use, Mapping) and use.get("kind") == kind}
+                      if use_key(use) == kind}
     return dict(cache[key])
 
 
@@ -141,8 +141,8 @@ def declared_use(contract: Mapping[str, Any], name: Optional[str], kind: str, fi
     """The raw config of another mechanism this one refers to (declared earlier or later)."""
     uses = contract.get("mechanisms") or {}
     use = uses.get(name) if isinstance(name, str) else None
-    if not isinstance(use, Mapping) or use.get("kind") != kind:
-        declared = [n for n, u in uses.items() if isinstance(u, Mapping) and u.get("kind") == kind]
+    if not isinstance(use, Mapping) or use_key(use) != kind:
+        declared = [n for n, u in uses.items() if use_key(u) == kind]
         raise MechanismError(f"'{name}' is not a declared {kind} mechanism",
                              f"declare one, e.g. \"mechanisms\": {{\"{name or kind}\": {{\"kind\": \"{kind}\", ...}}}}"
                              + (f" (declared: {', '.join(declared)})" if declared else ""), field)

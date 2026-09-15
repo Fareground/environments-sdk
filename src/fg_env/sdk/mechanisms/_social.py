@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from ...entity import Entity
 from ..errors import RunError
 from ..expr import ExprError, compile_expr
-from ..registry import MechanismError
+from ..registry import MechanismError, config_data, describe, use_key
 
 __all__ = ["NAME", "props", "cache", "config_of", "uses_of", "only_use", "single_use_check", "eid", "ids", "entity",
            "require_type", "check_expr", "edges", "seat_order", "literal_name_check"]
@@ -50,15 +50,16 @@ def config_of(world: Any, name: str, kind: str, model: Type[_M]) -> _M:
     found = parsed.get(key)
     if found is None:
         raw = world.contract.mechanisms.get(name)
-        if not isinstance(raw, Mapping) or raw.get("kind") != kind:
+        if not isinstance(raw, Mapping) or use_key(raw) != kind:
             declared = ", ".join(uses_of(world.contract.mechanisms, kind)) or "none declared"
-            raise RunError(f"'{name}' is not a declared {kind} mechanism ({kind} mechanisms: {declared})", f"mechanisms.{name}")
-        found = parsed[key] = model.model_validate({k: v for k, v in raw.items() if k != "kind"})
+            raise RunError(f"'{name}' is not a declared {describe(kind)} mechanism ({describe(kind)} mechanisms: {declared})",
+                           f"mechanisms.{name}")
+        found = parsed[key] = model.model_validate(config_data(raw))
     return found  # type: ignore[no-any-return]
 
 
 def uses_of(mechanisms: Mapping[str, Any], kind: str) -> List[str]:
-    return [n for n, use in (mechanisms or {}).items() if isinstance(use, Mapping) and use.get("kind") == kind]
+    return [n for n, use in (mechanisms or {}).items() if use_key(use) == kind]
 
 
 def only_use(world: Any, kind: str, source: Optional[str]) -> str:

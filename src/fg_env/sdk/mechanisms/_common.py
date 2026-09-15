@@ -14,14 +14,14 @@ import json
 import math
 import re
 from difflib import get_close_matches
-from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Type, TypeVar, Union
+from typing import Any, Callable, Dict, Iterable, List, Literal, Mapping, Optional, Sequence, Tuple, Type, TypeVar, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from ...entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, is_expr
-from ..registry import MechanismError
+from ..registry import MechanismError, config_data, describe, use_key
 
 __all__ = [
     "Config", "Number", "Effects", "ModifierSpec", "NAME", "MODIFIER_SOURCES", "parsed", "uses", "config",
@@ -41,6 +41,17 @@ class Config(BaseModel):
     """Base for mechanism configs: unknown fields are errors."""
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+
+#: How a mode that generates several agent tools offers them (the spine applies it after expansion).
+ToolsSetting = Literal["each", "one", "auto"]
+
+
+def tools_field() -> Any:
+    """The ``tools`` field every mode that generates several agent tools declares, with one meaning."""
+    return Field("each", description="How the generated tools are offered: each (one tool per action) | one (one tool "
+                                     "named after the mechanism, whose `action` argument lists the actions legal now) | "
+                                     "auto (one tool only when every action takes the same arguments).")
 
 
 class ModifierSpec(Config):
@@ -64,7 +75,7 @@ def parsed(raw: Mapping[str, Any], model: Type[M]) -> M:
     hit = _CACHE.get(key)
     if hit is not None and hit[0] is raw:
         return hit[1]  # type: ignore[no-any-return]
-    value = model.model_validate({k: v for k, v in raw.items() if k != "kind"})
+    value = model.model_validate(config_data(raw))
     if len(_CACHE) >= _CACHE_LIMIT:
         _CACHE.clear()
     _CACHE[key] = (raw, value)
@@ -75,16 +86,16 @@ def uses(contract: Any, kind: str) -> List[Tuple[str, Mapping[str, Any]]]:
     """``(name, raw config)`` of every mechanism of ``kind`` in a parsed contract or contract data."""
     mechanisms = contract.get("mechanisms") if isinstance(contract, Mapping) else contract.mechanisms
     return [(name, raw) for name, raw in (mechanisms or {}).items()
-            if isinstance(raw, Mapping) and raw.get("kind") == kind]
+            if use_key(raw) == kind]
 
 
 def config(world: Any, name: str, kind: str, model: Type[M], where: str) -> M:
     """The config of the mechanism ``name`` of ``kind`` at run time."""
     raw = world.contract.mechanisms.get(name)
-    if not isinstance(raw, Mapping) or raw.get("kind") != kind:
+    if not isinstance(raw, Mapping) or use_key(raw) != kind:
         declared = [n for n, _ in uses(world.contract, kind)]
         hint = get_close_matches(str(name), declared, n=1)
-        raise RunError(f"'{name}' is not a declared {kind} mechanism"
+        raise RunError(f"'{name}' is not a declared {describe(kind)} mechanism"
                        + (f" — did you mean '{hint[0]}'?" if hint else ""), where)
     return parsed(raw, model)
 

@@ -330,7 +330,7 @@ def test_config_errors_say_what_to_fix():
     assert "'diagonals' is not a direction" in issues(pieces={"B": {"moves": [{"slide": "diagonals"}]}})
     assert "'Z' is not a board symbol" in issues(setup="rnbqkbnZ/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR")
     assert "'X' is not a piece kind" in issues(pieces={"P": {"promote": {"to": ["X"]}}})
-    assert "is not a field here" in issues(colour="red")
+    assert "`colour` is not a field of `board`" in issues(colour="red")
     both = {"name": "Two", "mechanisms": {"a": {"kind": "board", "sides": ["x"], "pieces": {"s": {}}},
                                           "b": {"kind": "board", "sides": ["y"], "pieces": {"s": {}}}}}
     with pytest.raises(ContractError, match="give each board its own piece_type"):

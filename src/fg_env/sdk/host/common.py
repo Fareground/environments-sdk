@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from ...entity import Entity
 from ..errors import RunError
 from ..expr import Untrusted
-from ..registry import MechanismError
+from ..registry import MechanismError, config_data, describe, use_key
 
 __all__ = ["NAME", "config_of", "declared_check", "type_list", "agents_of", "clip", "ellipsis"]
 
@@ -24,14 +24,14 @@ ellipsis = "…"
 def config_of(world: Any, name: str, kind: str, model: Type[M], where: str) -> M:
     """The validated config of the mechanism ``name`` of ``kind`` declared in the run's contract."""
     raw = world.contract.mechanisms.get(name)
-    if not isinstance(raw, Mapping) or raw.get("kind") != kind:
-        raise RunError(f"'{name}' is not a declared {kind} mechanism", where)
+    if not isinstance(raw, Mapping) or use_key(raw) != kind:
+        raise RunError(f"'{name}' is not a declared {describe(kind)} mechanism", where)
     return cast(M, _parse(model, _frozen(raw)))
 
 
 @lru_cache(maxsize=512)
 def _parse(model: Type[BaseModel], frozen: Tuple[Tuple[str, str], ...]) -> BaseModel:
-    return model.model_validate({key: json.loads(value) for key, value in frozen if key != "kind"})
+    return model.model_validate(config_data({key: json.loads(value) for key, value in frozen}))
 
 
 def _frozen(raw: Mapping[str, Any]) -> Tuple[Tuple[str, str], ...]:
@@ -43,12 +43,12 @@ def declared_check(op: str, kind: str) -> Callable[[Any, Dict[str, Any], str], l
 
     def check(checker: Any, effect: Dict[str, Any], path: str) -> list:
         name = effect.get(op)
-        uses = {n: u.get("kind") for n, u in checker.c.mechanisms.items() if isinstance(u, Mapping)}
+        uses = {n: use_key(u) for n, u in checker.c.mechanisms.items()}
         if uses.get(name) == kind:
             return []
         named = [n for n, k in uses.items() if k == kind]
-        return [(f"{path}.{op}", f"'{name}' is not a declared {kind} mechanism",
-                 f"{kind} mechanisms: {', '.join(named)}" if named else f"declare one under mechanisms with kind {kind}")]
+        return [(f"{path}.{op}", f"'{name}' is not a declared {describe(kind)} mechanism",
+                 f"{describe(kind)} mechanisms: {', '.join(named)}" if named else f"declare a {describe(kind)} mechanism")]
 
     return check
 

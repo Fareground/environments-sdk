@@ -168,7 +168,7 @@ class Turn:
             return self._tools
         env = self.env
         with env._lock:
-            tools = [env.actions.tool(self.actor, name, self.staged) for name in self._legal()]
+            tools = env.actions.tools(self.actor, self._legal(), self.staged)
         looks = env.perception.look_views(self.actor, self.stage)
         if looks:
             tools.append(ToolSpec("look", "Show one of these views: " + ", ".join(looks) + ".", {
@@ -253,8 +253,13 @@ class Turn:
             return self._look(args)
         if name == "inspect":
             return self._inspect(args)
-        spec = env.contract.actions.get(name)
         available = stage_actions(env.contract, self.stage, self.actor.entity_type)
+        if name not in env.contract.actions and name in env.actions.groups:  # a shared tool: its `action` picks one
+            name, args, problem = env.actions.route(name, args, self._legal())
+            if problem is not None:
+                self.stats.invalid_calls += 1
+                return self._after(ToolResult(False, problem, data=_INVALID))
+        spec = env.contract.actions.get(name)
         if spec is None or name not in available:
             self.stats.invalid_calls += 1
             legal = ", ".join(self._legal()) or "none"

@@ -119,6 +119,11 @@ class ActionBook:
         self.contract = contract
         self.world = world
         self.effects = effects
+        #: Shared tool name → the actions offered inside it, in declaration order.
+        self.groups: Dict[str, List[str]] = {}
+        for name, spec in contract.actions.items():
+            if spec.tool is not None:
+                self.groups.setdefault(spec.tool, []).append(name)
 
     # -- legality -------------------------------------------------------------
 
@@ -179,6 +184,66 @@ class ActionBook:
         return out
 
     # -- schemas ----------------------------------------------------------------
+
+    def tools(self, actor: Entity, names: Sequence[str], staged: bool = False) -> List[ToolSpec]:
+        """Tools for these legal actions: one per action, except that actions sharing a `tool` become one
+        tool, placed where the first of them would be, whose `action` argument lists the legal ones."""
+        slots: List[Any] = []
+        shared: Dict[str, List[str]] = {}
+        for name in names:
+            group = self.contract.actions[name].tool
+            if group is None:
+                slots.append(self.tool(actor, name, staged))
+            elif group in shared:
+                shared[group].append(name)
+            else:
+                shared[group] = [name]
+                slots.append(group)
+        return [self.shared_tool(actor, slot, shared[slot], staged) if isinstance(slot, str) else slot for slot in slots]
+
+    def shared_tool(self, actor: Entity, group: str, members: Sequence[str], staged: bool = False) -> ToolSpec:
+        """One flat tool for several actions: ``action`` (required) picks one; every other argument belongs to
+        the actions that take it, and the engine checks each action's own arguments when it is called."""
+        choices = _choice_names(group, self.groups.get(group) or list(members))
+        tools = [self.tool(actor, name) for name in members]
+        properties: Dict[str, Any] = {"action": {
+            "type": "string", "enum": [choices[t.name] for t in tools],
+            "description": "The action to take: " + " | ".join(f"{choices[t.name]} — {t.description}" for t in tools)}}
+        takers: Dict[str, List[Tuple[str, Dict[str, Any]]]] = {}
+        for tool in tools:
+            for pname, schema in tool.input_schema.get("properties", {}).items():
+                takers.setdefault(pname, []).append((choices[tool.name], schema))
+        for pname, entries in takers.items():
+            properties[pname] = _shared_param(entries, len(tools))
+        schema = {"type": "object", "properties": properties, "required": ["action"], "additionalProperties": False}
+        description = f"{group.replace('_', ' ').capitalize()}: pick the `action`; pass only the arguments that action takes."
+        if staged:
+            description += " (Committed when everyone has chosen.)"
+        return ToolSpec(group, description, schema, "act", all(t.terminal for t in tools))
+
+    def route(self, group: str, args: Any, legal: Sequence[str]) -> Tuple[str, Dict[str, Any], Optional[str]]:
+        """The action a call to a shared tool picks, with that action's own arguments — or a correction.
+
+        Arguments the chosen action does not take are refused unless they are null (clients in strict
+        mode send every property)."""
+        members = self.groups[group]
+        choices = _choice_names(group, members)
+        open_now = ", ".join(choices[name] for name in members if name in legal) or "none right now"
+        given = dict(args or {})
+        picked = given.pop("action", None)
+        if picked is None:
+            return group, {}, f"{group} was not done: say which `action` to take (legal now: {open_now})."
+        name = next((n for n in members if picked in (choices[n], n)), None)
+        if name is None:
+            return group, {}, f"{group} was not done: {_preview(picked)} is not one of its actions (legal now: {open_now})."
+        params = self.contract.actions[name].params
+        given = {key: value for key, value in given.items() if value is not None}
+        extra = [str(key) for key in given if key not in params]
+        if extra:
+            takes = ", ".join(params) or "no other arguments"
+            return group, {}, (f"{group} was not done: {choices[name]} does not take {', '.join(extra[:_LISTED_UNKNOWN])} "
+                               f"(it takes: {takes}). Correct the arguments and call again.")
+        return name, given, None
 
     def tool(self, actor: Entity, name: str, staged: bool = False) -> ToolSpec:
         spec = self.contract.actions[name]
@@ -592,6 +657,34 @@ class ActionBook:
         verb = name.replace("_", " ")
         suffix = "" if success else " — it did not succeed"
         return f"{actor.name}: {verb}{self._args_text(params)}{suffix}."
+
+
+def _choice_names(group: str, members: Sequence[str]) -> Dict[str, str]:
+    """How each action is named inside its shared tool: without the tool's name as a prefix when that stays unambiguous."""
+    prefix = f"{group}_"
+    short = {name: name[len(prefix):] if name.startswith(prefix) and len(name) > len(prefix) else name for name in members}
+    taken = list(short.values())
+    return {name: s if taken.count(s) == 1 and (s == name or s not in members) else name for name, s in short.items()}
+
+
+def _shared_param(entries: Sequence[Tuple[str, Dict[str, Any]]], total: int) -> Dict[str, Any]:
+    """One property of a shared tool from the schemas of the actions taking it (``anyOf`` when they differ)."""
+    shapes: List[Dict[str, Any]] = []
+    for _, schema in entries:
+        bare = {key: value for key, value in schema.items() if key != "description"}
+        if bare not in shapes:
+            shapes.append(bare)
+    out: Dict[str, Any] = dict(shapes[0]) if len(shapes) == 1 else {"anyOf": shapes}
+    texts = [(who, schema["description"]) for who, schema in entries if schema.get("description")]
+    if len({text for _, text in texts}) == 1:
+        described = texts[0][1]
+    else:
+        described = "; ".join(f"{who}: {text}" for who, text in texts)
+    users = "" if len(entries) == total else f"Only for {', '.join(who for who, _ in entries)}."
+    description = " ".join(part for part in (users, described) if part)
+    if description:
+        out["description"] = description
+    return out
 
 
 def _item_spec(param: ParamSpec) -> ParamSpec:

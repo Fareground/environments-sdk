@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from ...entity import Entity
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, is_expr
-from ..registry import MechanismError
+from ..registry import MechanismError, config_data, describe, use_key
 
 __all__ = ["config_of", "number", "entity_of", "uses_of", "name_check", "lot_floor", "fmt"]
 
@@ -28,9 +28,9 @@ _PARSED_LOCK = threading.Lock()
 def config_of(world: Any, name: Any, kind: str, model: Type[M]) -> M:
     """The validated config of the mechanism ``name`` of ``kind`` declared in the running contract."""
     raw = world.contract.mechanisms.get(name) if isinstance(name, str) else None
-    if not isinstance(raw, Mapping) or raw.get("kind") != kind:
-        declared = [n for n, u in world.contract.mechanisms.items() if isinstance(u, Mapping) and u.get("kind") == kind]
-        raise MechanismError(f"'{name}' is not a declared {kind}", f"{kind} mechanisms: {', '.join(declared) or 'none'}")
+    if not isinstance(raw, Mapping) or use_key(raw) != kind:
+        declared = [n for n, u in world.contract.mechanisms.items() if use_key(u) == kind]
+        raise MechanismError(f"'{name}' is not a declared {describe(kind)}", f"{describe(kind)} mechanisms: {', '.join(declared) or 'none'}")
     key = (id(raw), model)
     with _PARSED_LOCK:
         hit = _PARSED.get(key)
@@ -39,7 +39,7 @@ def config_of(world: Any, name: Any, kind: str, model: Type[M]) -> M:
             parsed = hit[1]
             assert isinstance(parsed, model)
             return parsed
-    fresh = model.model_validate({k: v for k, v in raw.items() if k != "kind"})
+    fresh = model.model_validate(config_data(raw))
     with _PARSED_LOCK:
         _PARSED[key] = (raw, fresh)
         while len(_PARSED) > _PARSED_LIMIT:
@@ -49,7 +49,7 @@ def config_of(world: Any, name: Any, kind: str, model: Type[M]) -> M:
 
 def uses_of(world: Any, kind: str) -> Dict[str, Mapping[str, Any]]:
     """Every declared mechanism of ``kind``: {use name: raw config}."""
-    return {n: u for n, u in world.contract.mechanisms.items() if isinstance(u, Mapping) and u.get("kind") == kind}
+    return {n: u for n, u in world.contract.mechanisms.items() if isinstance(u, Mapping) and use_key(u) == kind}
 
 
 def number(world: Any, raw: Any, where: str, **vars: Any) -> float:
@@ -94,10 +94,10 @@ def name_check(op: str, kind: str, actions: Tuple[str, ...]) -> Callable[[Any, D
         issues: List[Tuple[str, str, Optional[str]]] = []
         name = effect.get(op)
         mechanisms = getattr(checker.c, "mechanisms", {}) or {}
-        declared = [n for n, u in mechanisms.items() if isinstance(u, Mapping) and u.get("kind") == kind]
+        declared = [n for n, u in mechanisms.items() if use_key(u) == kind]
         if name not in declared:
-            issues.append((f"{path}.{op}", f"'{name}' is not a declared {kind}",
-                           f"{kind} mechanisms: {', '.join(declared) or 'none'}"))
+            issues.append((f"{path}.{op}", f"'{name}' is not a declared {describe(kind)}",
+                           f"{describe(kind)} mechanisms: {', '.join(declared) or 'none'}"))
         action = effect.get("action")
         if action not in actions:
             issues.append((f"{path}.action", f"action must be one of {', '.join(actions)}, got {action!r}", None))

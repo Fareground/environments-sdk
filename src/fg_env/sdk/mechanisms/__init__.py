@@ -2,11 +2,12 @@
 
 .. code-block:: json
 
-    "mechanisms": {"election": {"kind": "ballot", "voters": "citizen", "options": ["yes", "no"],
+    "mechanisms": {"election": {"kind": "decision", "mode": "ballot", "who": "citizen", "options": ["yes", "no"],
                                 "method": "supermajority", "quorum": 0.5}}
 
-A mechanism expands into ordinary contract sections — actions, stages, world props, events,
-views, defs — backed by native functions and effect ops. Everything the engine does (checking,
+``kind`` names a family (``market``, ``decision`` …) and ``mode`` one of its variants, whose strict
+config the rest of the entry is. A mechanism expands into ordinary contract sections — actions,
+stages, world props, events, views, defs — backed by native functions and effect ops. Everything the engine does (checking,
 preview, atomic actions, snapshots, determinism) therefore applies to it unchanged. Anything
 the author declares under a generated name wins, so generated parts can be overridden; types
 the author declares gain the mechanism's properties without losing their own. A mechanism may
@@ -17,15 +18,16 @@ from __future__ import annotations
 import copy
 import json
 import re
+import typing
 from difflib import get_close_matches
 from typing import Any, Dict, List, Mapping, Tuple
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from ..errors import Issue
-from ..registry import MECHANISMS, MechanismError
+from ..registry import FAMILIES, MECHANISMS, RENAMED_KINDS, MechanismError, config_data
 
-__all__ = ["expand_mechanisms", "merge_sections", "MECHANISMS"]
+__all__ = ["expand_mechanisms", "merge_sections", "FAMILIES", "MECHANISMS"]
 
 _NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
 
@@ -52,7 +54,7 @@ def expand_mechanisms(data: Mapping[str, Any]) -> Tuple[Dict[str, Any], List[Iss
     if not uses:
         return dict(data), []
     if not isinstance(uses, Mapping):
-        return dict(data), [Issue("mechanisms", "must be an object of {name: {kind, ...config}}")]
+        return dict(data), [Issue("mechanisms", "must be an object of {name: {kind, mode, ...config}}")]
     out: Dict[str, Any] = copy.deepcopy(dict(data))
     issues: List[Issue] = []
     expanded: List[str] = []
@@ -65,42 +67,129 @@ def expand_mechanisms(data: Mapping[str, Any]) -> Tuple[Dict[str, Any], List[Iss
             break
         for name, use in todo:
             expanded.append(name)
-            path = f"mechanisms.{name}"
-            if not isinstance(name, str) or not _NAME.match(name):
-                issues.append(Issue(path, "a mechanism name starts with a letter and uses letters, digits and _",
-                                    "rename it, e.g. 'election'"))
-                continue
-            if not isinstance(use, Mapping) or "kind" not in use:
-                issues.append(Issue(path, "needs a `kind`", f"kinds: {', '.join(sorted(MECHANISMS))}"))
-                continue
-            kind = use["kind"]
-            spec = MECHANISMS.get(kind) if isinstance(kind, str) else None
-            if spec is None:
-                hint = get_close_matches(str(kind), list(MECHANISMS), n=1)
-                issues.append(Issue(f"{path}.kind", f"'{kind}' is not a mechanism kind",
-                                    f"did you mean '{hint[0]}'?" if hint else f"kinds: {', '.join(sorted(MECHANISMS))}"))
-                continue
-            try:
-                config = spec.config.model_validate({k: v for k, v in use.items() if k != "kind"})
-            except ValidationError as exc:
-                for error in exc.errors():
-                    where = ".".join(str(p) for p in error["loc"])
-                    message = "is not a field here" if error["type"] == "extra_forbidden" else (
-                        "is required" if error["type"] == "missing" else error["msg"])
-                    fields = ", ".join(spec.config.model_fields)
-                    issues.append(Issue(f"{path}.{where}" if where else path, message, f"`{kind}` takes: {fields}"))
-                continue
-            try:
-                fragment = spec.expand(name, config, out)
-                merge_sections(out, fragment)
-            except MechanismError as exc:
-                issues.append(Issue(f"{path}.{exc.path}" if exc.path else path, str(exc), exc.fix))
-                continue
-            except Exception as exc:  # a broken mechanism must not crash parsing: report it against its use
-                issues.append(Issue(path, f"the `{kind}` mechanism failed to expand: {type(exc).__name__}: {exc}",
-                                    "this is a bug in the mechanism; report it with the contract"))
-                continue
+            issues.extend(_expand_one(out, name, use))
     return out, issues
+
+
+def _expand_one(out: Dict[str, Any], name: Any, use: Any) -> List[Issue]:
+    """Validate one declared mechanism and merge what it generates into ``out``."""
+    path = f"mechanisms.{name}"
+    if not isinstance(name, str) or not _NAME.match(name):
+        return [Issue(path, "a mechanism name starts with a letter and uses letters, digits and _",
+                      "rename it, e.g. 'election'")]
+    if not isinstance(use, Mapping) or "kind" not in use:
+        return [Issue(path, "needs a `kind` (a family) and a `mode`", f"families: {', '.join(_kinds())}")]
+    found = _spec(use, path)
+    if isinstance(found, Issue):
+        return [found]
+    spec, label = found
+    try:
+        config = spec.config.model_validate(config_data(use))
+    except ValidationError as exc:
+        return [_config_issue(path, label, spec.config, error) for error in exc.errors()]
+    try:
+        fragment = _group_tools(name, config, spec.expand(name, config, out))
+        merge_sections(out, fragment)
+    except MechanismError as exc:
+        return [Issue(f"{path}.{exc.path}" if exc.path else path, str(exc), exc.fix)]
+    except Exception as exc:  # a broken mechanism must not crash parsing: report it against its use
+        return [Issue(path, f"the {label} mechanism failed to expand: {type(exc).__name__}: {exc}",
+                      "this is a bug in the mechanism; report it with the contract")]
+    return []
+
+
+def _kinds() -> List[str]:
+    return sorted({*FAMILIES, *MECHANISMS})
+
+
+def _spec(use: Mapping[str, Any], path: str) -> Any:
+    """``(spec, label)`` for a declared mechanism's kind and mode, or the Issue saying what is wrong."""
+    kind = use["kind"]
+    family = FAMILIES.get(kind) if isinstance(kind, str) else None
+    if family is not None:
+        mode = use.get("mode")
+        modes = ", ".join(family.modes) or "none"
+        if mode is None:
+            return Issue(path, f"a `{kind}` mechanism needs a `mode`", f"{kind} modes: {modes}")
+        spec = family.modes.get(mode) if isinstance(mode, str) else None
+        if spec is None:
+            hint = get_close_matches(str(mode), list(family.modes), n=1)
+            return Issue(f"{path}.mode", f"'{mode}' is not a mode of `{kind}`",
+                         f"did you mean '{hint[0]}'?" if hint else f"{kind} modes: {modes}")
+        return spec, f"`{kind}` mode `{mode}`"
+    if isinstance(kind, str) and kind in RENAMED_KINDS:
+        new_kind, mode = RENAMED_KINDS[kind]
+        return Issue(f"{path}.kind", f"'{kind}' is now kind '{new_kind}' with mode '{mode}'",
+                     f"write \"kind\": \"{new_kind}\", \"mode\": \"{mode}\" (guide('{new_kind}.{mode}') lists its fields)")
+    legacy = MECHANISMS.get(kind) if isinstance(kind, str) else None
+    if legacy is not None:
+        return legacy, f"`{kind}`"
+    hint = get_close_matches(str(kind), _kinds(), n=1)
+    return Issue(f"{path}.kind", f"'{kind}' is not a mechanism family",
+                 f"did you mean '{hint[0]}'?" if hint else f"families: {', '.join(_kinds())}")
+
+
+def _config_issue(path: str, label: str, model: Any, error: Mapping[str, Any]) -> Issue:
+    """One validation error of a mechanism's config, with the fields that spot takes."""
+    loc = tuple(error["loc"])
+    where = ".".join(str(p) for p in loc)
+    at = f"{path}.{where}" if where else path
+    if error["type"] == "extra_forbidden":
+        field = str(loc[-1])
+        fields = _fields_at(model, loc[:-1])
+        hint = get_close_matches(field, fields, n=1)
+        owner = label if len(loc) == 1 else f"`{'.'.join(str(p) for p in loc[:-1])}`"
+        fix = (f"did you mean '{hint[0]}'? " if hint else "") + (f"{owner} takes: {', '.join(fields)}" if fields else "")
+        return Issue(at, f"`{field}` is not a field of {owner}", fix.strip() or None)
+    if error["type"] == "missing":
+        return Issue(at, "is required", f"{label} takes: {', '.join(model.model_fields)}")
+    return Issue(at, str(error["msg"]), None)
+
+
+def _fields_at(model: Any, loc: Tuple[Any, ...]) -> List[str]:
+    """Field names of the config model reached by following ``loc`` (map keys, list indexes and union tags skipped)."""
+    current: Any = model
+    for part in loc:
+        if isinstance(current, type) and issubclass(current, BaseModel) and part in current.model_fields:
+            current = _model_in(current.model_fields[part].annotation)
+    return list(current.model_fields) if isinstance(current, type) and issubclass(current, BaseModel) else []
+
+
+def _model_in(annotation: Any) -> Any:
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        return annotation
+    for arg in typing.get_args(annotation):
+        found = _model_in(arg)
+        if found is not None:
+            return found
+    return None
+
+
+def _group_tools(name: str, config: Any, fragment: Dict[str, Any]) -> Dict[str, Any]:
+    """Apply a mode's ``tools`` setting: ``one`` offers every generated action inside one tool named after
+    the mechanism; ``auto`` does so only when all of them take the same arguments; ``each`` changes nothing."""
+    setting = getattr(config, "tools", None)
+    actions = fragment.get("actions")
+    if setting not in ("one", "auto") or not isinstance(actions, Mapping):
+        return fragment
+    grouped = [key for key, action in actions.items() if isinstance(action, Mapping)]
+    if len(grouped) < 2:
+        return fragment
+    if setting == "auto" and len({_shape(actions[key]) for key in grouped}) > 1:
+        return fragment
+    return {**fragment, "actions": {key: ({**action, "tool": name} if key in grouped else action)
+                                    for key, action in actions.items()}}
+
+
+def _shape(action: Mapping[str, Any]) -> Tuple[Tuple[str, str, str], ...]:
+    """The arguments an action takes: (name, type, entity type) for each parameter."""
+    shape = []
+    for pname, param in (action.get("params") or {}).items():
+        if isinstance(param, str):
+            shape.append((str(pname), param, ""))
+        elif isinstance(param, Mapping):
+            shape.append((str(pname), str(param.get("type", "")), str(param.get("of") or "")))
+    return tuple(sorted(shape))
 
 
 def merge_sections(data: Dict[str, Any], fragment: Mapping[str, Any]) -> None:
@@ -241,6 +330,7 @@ def _canonical(value: Any) -> str:
     return json.dumps(value, sort_keys=True, default=str)
 
 
+from . import families  # noqa: E402,F401  (registers the mechanism families before their modes)
 from . import voting  # noqa: E402,F401  (registers the built-in mechanisms)
 from . import boards  # noqa: E402,F401  (registers the board-game mechanism)
 from . import markets  # noqa: E402,F401  (registers the market mechanisms)
