@@ -169,6 +169,14 @@ class PatternRuntime:
         self._paths: Dict[Tuple[str, str], List[Any]] = {}
         self._lock = threading.RLock()
 
+    def bound_to(self, world: "SdkWorld") -> "PatternRuntime":
+        """This runtime for a copy of its world (a clone of the same run: same contract, seed and inputs), sharing
+        everything derived from them — parameters, rows, keys and random paths are the same values for both."""
+        copy = PatternRuntime.__new__(PatternRuntime)
+        copy.__dict__.update(self.__dict__, world=world)
+        copy.view = PatternsView(copy)
+        return copy
+
     # -- reading ------------------------------------------------------------------------
 
     def call(self, name: str, args: List[Any], source: str) -> Any:

@@ -30,7 +30,7 @@ _WORLD_READ = re.compile(r"\$world\.([A-Za-z_]\w*)")
 _PROP_READ = re.compile(r"(?:\$it|\$actor|\))\.([A-Za-z_]\w*)")
 _ASSIGNED = re.compile(r"[.$]([A-Za-z_]\w*)\s*(?:\[[^\]]*\]\s*)*(?:[-+*/]=|(?<![<>!=])=(?!=))")
 #: Roots whose value moves on its own: a condition reading one can hold later even if nothing else changes.
-_MOVING = re.compile(r"\$(round|clock|time|stage|metrics|series|chance|random|randint|choice|shuffle|pending)\b")
+_MOVING = re.compile(r"\$(round|clock|time|stage|metrics|series|chance|random|randint|choice|shuffle|pending|pattern)\b")
 _BUILT_IN_FIELDS = {"id", "name", "type", "alive", "at"}
 #: Sections whose effects and settings can write properties, post to records or name a winner.
 _RULE_SECTIONS = ("actions", "stages", "events", "triggers", "blocks", "end", "feeds", "physics", "policies")
@@ -142,6 +142,8 @@ class _Rules:
         """Why ``expr`` cannot change, when everything it reads is frozen: records nothing posts to, properties no
         rule writes (and nothing wrote in this run), a winner no ending gives. None when anything it reads can
         change, or it reads nothing these can tell."""
+        if "$pattern" in expr:  # a pattern follows time, chance or a memory input on its own
+            return None
         env, world, written = self.env, self.env.world, self.env.diagnosis.written
         names, winner = self._scan()
         frozen: List[str] = []

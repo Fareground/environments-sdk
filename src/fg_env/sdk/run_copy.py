@@ -48,7 +48,7 @@ _WORLD_FIELDS = frozenset({
     "stage", "rounds", "metrics", "series", "scheduled", "wake_requests", "reactions", "time", "horizon", "wake_at",
     "_schedule_seq", "space", "buffer", "end_request", "chance_picker", "counters", "journal", "lifecycle",
     "exposures", "written", "sealed_writes", "_seq", "_record_seq", "_props_view", "_physics_view", "_clock_view",
-    "_type_props", "_def_cache", "_def_cache_state", "_def_cache_on", "_subtypes", "types"})
+    "_type_props", "_def_cache", "_def_cache_state", "_def_cache_on", "_subtypes", "types", "patterns"})
 #: Mechanisms keep plain data of their own on the world under these prefixes.
 _WORLD_STORES = ("_channel_visible:",)
 _TURN_FIELDS = frozenset({
@@ -184,6 +184,7 @@ def _copy_world(source: SdkWorld) -> SdkWorld:
         _record_seq=source._record_seq, _type_props=source._type_props, _def_cache={}, _def_cache_state=None,
         _def_cache_on=source._def_cache_on, _subtypes=source._subtypes, types=types)
     world._props_view, world._physics_view, world._clock_view = PropsView(world), PhysicsView(world), ClockView(world)
+    world.patterns = source.patterns.bound_to(world)
     return world
 
 
