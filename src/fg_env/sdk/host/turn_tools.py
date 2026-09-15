@@ -74,23 +74,32 @@ class HostWake(Wake):
 
     @property
     def tools(self) -> List[ToolSpec]:
-        base = [tool for tool in super().tools if tool.name not in self._extras]
         turn = self._turn
+        base = [tool for tool in turn.tools() if tool.name not in self._extras]
         if turn.done or turn.calls_left <= 0:
-            return base
+            return self._offer(base)
         extra = [self._spec(name) for name in self._extras if self._available(name) is None]
-        return [t for t in base if t.kind != "end"] + extra + [t for t in base if t.kind == "end"]
+        return self._offer([t for t in base if t.kind != "end"] + extra + [t for t in base if t.kind == "end"])
 
     def call(self, name: str, args: Optional[Dict[str, Any]] = None) -> ToolResult:
         if name not in self._extras:
             return super().call(name, args)
+        result = self._host_call(name, args)
+        turn = self._turn
+        if turn.exposure is not None:
+            with turn.env._lock:
+                turn.exposure.called(name, args, result)
+        return result
+
+    def _host_call(self, name: str, args: Optional[Dict[str, Any]]) -> ToolResult:
         turn, env = self._turn, self._turn.env
-        if turn.done:
-            return ToolResult(False, "Your turn is already over; nothing was done.", True, {"error": "ended"})
-        if turn.calls_left <= 0:
-            turn.done = True
-            return ToolResult(False, "No tool calls left this turn; your turn is over.", True)
         with env._lock:
+            refused = turn.refusal()
+            if refused is not None:
+                return refused
+            if turn.calls_left <= 0:
+                turn.done = True
+                return ToolResult(False, "No tool calls left this turn; your turn is over.", True)
             turn._tools = None
             turn.calls_left -= 1
             turn.stats.calls += 1
@@ -105,6 +114,9 @@ class HostWake(Wake):
         if tool.prefetch is not None:
             tool.prefetch(env, tool.mechanism, turn.actor, params)
         with env._lock:
+            refused = turn.refusal()  # the turn may have run out of time while the host answered
+            if refused is not None:
+                return refused
             return turn._after(self._apply(name, params))
 
     def _available(self, name: str) -> Optional[str]:
@@ -145,7 +157,7 @@ class HostWake(Wake):
             world.journal.rollback(mark)
             raise
         self._used[name] = self._used.get(name, 0) + 1
-        env._after_commit(path)
+        turn.committed(path, react=False)
         return ToolResult(True, text)
 
 
@@ -154,6 +166,7 @@ class _Extended:
 
     def __init__(self, inner: Callable[[Wake], Any], tools: Mapping[str, TurnTool]):
         self.inner = inner
+        self.__wrapped__ = inner  # an async participant is still seen as async through the wrapper
         self.tools = tools
         self.concurrent = getattr(inner, "concurrent", True)
 

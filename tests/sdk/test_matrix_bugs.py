@@ -1,6 +1,4 @@
 """Found by the capability re-verification: async participants silently did nothing; map link values passed check."""
-import pytest
-
 import fg_env
 
 BASE = {"name": "Bugs", "clock": {"rounds": 1},
@@ -10,25 +8,22 @@ BASE = {"name": "Bugs", "clock": {"rounds": 1},
         "stages": [{"name": "play", "turns": "sequential"}]}
 
 
-def test_an_async_participant_is_refused_instead_of_silently_never_acting():
+def test_an_async_participant_acts_instead_of_silently_never_acting():
     async def agent(wake):
         wake.call("pay")
-
-    with pytest.raises(TypeError, match="async"):
-        fg_env.load(BASE, seed=1).run(agent)
 
     class Agent:
         async def __call__(self, wake):
             wake.call("pay")
 
-    with pytest.raises(TypeError, match="async"):
-        fg_env.load(BASE, seed=1).run({"player": Agent()})
-
     def sneaky(wake):  # a plain function that hands back a coroutine
         return agent(wake)
 
-    result = fg_env.load(BASE, seed=1).run(sneaky)
-    assert result.status == "failed" and "async" in result.error
+    for participant in (agent, {"player": Agent()}, sneaky):
+        env = fg_env.load(BASE, seed=1)
+        result = env.run(participant)
+        assert result.ok, result.error
+        assert [e["props"]["cash"] for e in env.entities("player")] == [0, 0]
 
 
 def test_a_non_number_link_value_is_a_check_error_not_a_run_failure():

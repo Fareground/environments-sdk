@@ -12,6 +12,9 @@ A participant receives a :class:`Wake`. It reads ``wake.brief`` (static, cache i
 For an LLM, ``wake.tools_for("anthropic")`` / ``"openai"`` gives provider tool
 definitions and ``wake.call(name, args)`` executes the model's tool call; feed
 ``result.text`` back as the tool result.
+
+A participant may also be an ``async def`` (or return an awaitable): the engine awaits it, and
+runs the async participants of a simultaneous stage concurrently.
 """
 from __future__ import annotations
 
@@ -94,7 +97,14 @@ class Wake:
     @property
     def tools(self) -> List[ToolSpec]:
         """Tools legal right now. Recomputed after every call."""
-        return self._turn.tools()
+        return self._offer(self._turn.tools())
+
+    def _offer(self, tools: List[ToolSpec]) -> List[ToolSpec]:
+        exposure = self._turn.exposure
+        if exposure is not None and tools:
+            with self._turn.env._lock:
+                exposure.offered(tools)
+        return tools
 
     def tools_for(self, provider: str = "anthropic") -> List[Dict[str, Any]]:
         """Tool definitions in a provider's format: ``anthropic`` or ``openai``."""
@@ -127,10 +137,25 @@ class Wake:
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
                 raise ValueError(f"{name} must be a whole number ≥ 0, got {value!r}")
             setattr(stats, name, getattr(stats, name) + value)
+        if self._turn.exposure is not None:
+            with self._turn.env._lock:
+                self._turn.exposure.used({"llm_calls": llm_calls, "input_tokens": input_tokens,
+                                          "output_tokens": output_tokens, "cache_read_tokens": cache_read_tokens,
+                                          "cache_write_tokens": cache_write_tokens})
 
     @property
     def done(self) -> bool:
         return self._turn.done
+
+    @property
+    def time_limit(self) -> Optional[float]:
+        """Wall-clock seconds this turn may take, or None when it has no limit."""
+        return self._turn.time_limit
+
+    @property
+    def time_left(self) -> Optional[float]:
+        """Seconds left before the turn ends (None when it has no limit)."""
+        return self._turn.time_left()
 
     @property
     def calls_left(self) -> int:

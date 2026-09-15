@@ -503,8 +503,19 @@ class StageSpec(_Model):
     on_wake: Effects = Field(default_factory=list, description="Effects for each agent just before its turn ($actor), so what it reads reflects them: an upkeep, a draw, marking news as seen.")
     on_turn_end: Effects = Field(default_factory=list, description="Effects for each agent after its turn ($actor), whether or not it acted (simultaneous: after choices are committed).")
     auto: bool = Field(False, description="Play trivial turns without waking the agent: take the only legal action when it has no arguments, skip the turn when nothing is legal.")
+    time_limit: Union[float, str, None] = Field(None, description="Wall-clock seconds each agent has for its turn (number, or expression over $actor; null uses the run's `time_limit`). Past it the turn ends, later calls are refused and `on_timeout` runs.")
+    on_timeout: Effects = Field(default_factory=list, description="Effects for each agent whose turn ran out of time ($actor), instead of `on_idle`.")
+    atomic: bool = Field(False, description="The turn's actions apply together or not at all: triggers, reactions and invariants wait until the turn ends, and a turn that breaks `valid` is undone.")
+    valid: List[Condition] = Field(default_factory=list, description="Conditions the whole turn must meet when it ends ($actor, $pending); if one fails, every action of the turn is undone and the agent is told `why` and plays the turn again. Makes the stage atomic.")
     on_enter: Effects = Field(default_factory=list)
     on_exit: Effects = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _valid_list(cls, data: Any) -> Any:
+        if isinstance(data, dict) and isinstance(data.get("valid"), (str, dict)):
+            data = {**data, "valid": [data["valid"]]}
+        return data
 
     @field_validator("passes")
     @classmethod
@@ -525,7 +536,7 @@ class StageSpec(_Model):
 class ViewSpec(_Model):
     """A declared, ranked slice of the world rendered as plain lines for agents."""
 
-    for_: Union[str, List[str]] = Field("all", alias="for", description="Agent type(s) that see it.")
+    for_: Union[str, List[str]] = Field("all", alias="for", description="Agent type(s) that see it, or \"spectator\": an omniscient view for UIs and reports, rendered into `result.frames` each round and by `env.spectate()`, never shown to an agent.")
     stages: Optional[List[str]] = None
     title: str = ""
     of: Optional[str] = Field(None, description="Entity type or expression giving items; omit for a single line.")

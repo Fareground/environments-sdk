@@ -14,6 +14,7 @@ from ..entity import Entity
 from .contract import Contract
 from .errors import ContractError, SnapshotError
 from .expr import Untrusted
+from .exposure import ExposureLog
 from .measure import Stats
 from .world import Entry, LogEvent
 
@@ -99,6 +100,8 @@ def take_snapshot(env: "Env") -> Dict[str, Any]:
         "memory": {k: {"cursor": m.cursor, "views": encode(m.views), "turns": m.turns} for k, m in env._memories.items()},
         "rng": [state[0], list(state[1]), state[2]],
         "stats": env.stats.to_dict(),
+        "exposures": w.exposures.to_dict() if w.exposures is not None else None,
+        "frames": encode(env.previews.frames),
     }
 
 
@@ -201,6 +204,9 @@ def _restore(cls: Type[_E], contract: Contract, snapshot: Mapping[str, Any], par
     env.ended_by, env.error = snapshot.get("ended_by"), snapshot.get("error")
     for name in Stats.__dataclass_fields__:
         setattr(env.stats, name, snapshot["stats"].get(name, 0))
+    if snapshot.get("exposures") is not None:
+        w.exposures = ExposureLog.from_dict(snapshot["exposures"])
+    env.previews.frames = decode(snapshot.get("frames") or [])
     w.journal.clear()
     w.touch()  # the state was replaced wholesale: nothing cached before holds
     env._emitted = len(w.log)

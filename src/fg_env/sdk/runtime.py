@@ -5,28 +5,27 @@ turn — so a run can stop at any of them and continue exactly where it left off
 """
 from __future__ import annotations
 
-import heapq
-import inspect
-import json
+import asyncio
+import math
 import threading
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Generator, List, Mapping, Optional, Tuple
 
 from ..entity import Entity
 from .actions import ACTION_BUDGET, ActionBook, stage_actions
 from .build import build_world
-from .delivery import run_delivery
 from .contract import MAX_ROUNDS, Contract, StageSpec
+from .driving import Driver, run_on_worker
 from .effects import EffectRunner
 from .errors import InvariantViolation, RunError
 from .expr import ExprError, compile_expr, shared_budget, truthy
+from .exposure import ExposureLog, asks_seen
+from .happenings import Happenings
 from .feeds import run_feeds
 from .measure import RunResult, Stats, compute_outputs, sample_metrics
-from .participants import Participant, resolve_participant
 from .perception import Perception
+from .previews import Previews
 from .seeds import SeedTree
-from .session import END_TURN, Wake
 from .snapshot import SNAPSHOT_VERSION, restore_env, take_snapshot
 from .template import compile_template
 from .turn import Memory, Turn, entity_dict
@@ -50,7 +49,7 @@ class Env:
     """A loaded environment. Create with :func:`fg_env.load`; run with :meth:`run`."""
 
     def __init__(self, contract: Contract, inputs: Dict[str, Any], seed: int, arm: Optional[str] = None,
-                 parallel: int = 8):
+                 parallel: int = 8, exposures: bool = False):
         self.contract = contract
         self.inputs = inputs
         self.seed = seed
@@ -71,9 +70,16 @@ class Env:
         self._used_round: Dict[str, Dict[str, int]] = {}
         self._fired_once: set = set()
         self._lock = threading.RLock()
+        #: Signalled when a participant's turn lands or a call returns; waiting on it releases the lock.
+        self._signal = threading.Condition(self._lock)
         self._running = threading.Lock()
-        self._participants: Dict[str, Participant] = {}
-        self._participants_spec: Dict[str, Any] = {}
+        self.driver = Driver(self)
+        #: Wall-clock seconds per turn for stages that set no `time_limit` (None: no limit).
+        self.time_limit: Optional[float] = None
+        #: Recorded when asked, or when the contract's rules ask `$seen`.
+        self.world.exposures = ExposureLog() if exposures or asks_seen(contract) else None
+        self.happenings = Happenings(self)
+        self.previews = Previews(self)
         self._on_event: Optional[Callable[[Dict[str, Any]], None]] = None
         self._emitted = 0
         self._turn_count = 0
@@ -82,8 +88,6 @@ class Env:
         #: Last truth value of each trigger's condition, and triggers that fired once.
         self._trigger_armed: Dict[int, bool] = {}
         self._triggers_fired: set = set()
-        self._trigger_depth = 0
-        self._reaction_depth = 0
         self._in_round = False
         self._inspectable = any(self._inspect_rule(kind) is not False for kind in contract.types)
         self._check_invariants("build")
@@ -101,22 +105,48 @@ class Env:
     def run(self, participants: Any = None, *, rounds: Optional[int] = None,
             stop: Optional[Callable[["Env"], bool]] = None,
             on_event: Optional[Callable[[Dict[str, Any]], None]] = None,
-            raise_errors: bool = False, hosts: Any = None) -> RunResult:
+            raise_errors: bool = False, hosts: Any = None, time_limit: Optional[float] = None) -> RunResult:
         """Run to the end, or for ``rounds`` more rounds, or until ``stop(env)`` is true.
 
         ``participants`` is a callable for every agent, or a mapping from entity id, type or
-        ``"*"`` to a participant (a callable, ``"random"``, ``"idle"``, ``"policy:<name>"``).
-        Agents without one use their type's ``policy`` or ``"random"``. Every participant is offered
-        the contract's in-turn host tools; ``hosts`` binds the run to host adapters first.
+        ``"*"`` to a participant (a callable — plain or ``async def`` — ``"random"``, ``"idle"``,
+        ``"policy:<name>"``). Agents without one use their type's ``policy`` or ``"random"``. Every
+        participant is offered the contract's in-turn host tools; ``hosts`` binds the run to host
+        adapters first. ``time_limit`` sets :attr:`time_limit`, the wall-clock seconds per turn for
+        stages that set none. Inside a running event loop, use :meth:`arun`.
 
         ``stop`` is checked before every round, stage, pass and sequential turn. A stopped run
         continues exactly where it stopped on the next call; finishing a round that was
         stopped part-way counts as one of ``rounds``.
         """
+        return self._run(participants, rounds, stop, on_event, raise_errors, hosts, time_limit, None)
+
+    async def arun(self, participants: Any = None, *, rounds: Optional[int] = None,
+                   stop: Optional[Callable[["Env"], bool]] = None,
+                   on_event: Optional[Callable[[Dict[str, Any]], None]] = None,
+                   raise_errors: bool = False, hosts: Any = None, time_limit: Optional[float] = None) -> RunResult:
+        """:meth:`run` as a coroutine, for use inside a running event loop.
+
+        Async participants run on this loop — so clients bound to it work — and a simultaneous
+        stage's async participants run concurrently. The engine itself runs in a worker thread, so
+        the loop stays free while it plays; ``stop`` and ``on_event`` are called from that thread.
+        Cancelling the call stops the run at its next safe point.
+        """
+        def play(loop: asyncio.AbstractEventLoop, halt: Callable[["Env"], bool]) -> RunResult:
+            return self._run(participants, rounds, halt, on_event, raise_errors, hosts, time_limit, loop)
+
+        result: RunResult = await run_on_worker(play, stop)
+        return result
+
+    def _run(self, participants: Any, rounds: Optional[int], stop: Optional[Callable[["Env"], bool]],
+             on_event: Optional[Callable[[Dict[str, Any]], None]], raise_errors: bool, hosts: Any,
+             time_limit: Optional[float], loop: Optional[asyncio.AbstractEventLoop]) -> RunResult:
         if rounds is not None and (isinstance(rounds, bool) or not isinstance(rounds, int) or rounds < 0):
             raise ValueError(f"rounds must be a whole number ≥ 0, got {rounds!r}")
         if rounds is not None and rounds > MAX_ROUNDS:
             raise ValueError(f"rounds must be at most {MAX_ROUNDS:,}, got {rounds:,}")
+        if time_limit is not None and not _seconds(time_limit):
+            raise ValueError(f"time_limit must be a number of seconds > 0, got {time_limit!r}")
         if not self._running.acquire(blocking=False):
             raise RuntimeError("this environment is already running; run() cannot be called again until it returns")
         try:
@@ -124,7 +154,10 @@ class Env:
                 from .host.hosts import bind
 
                 bind(self, hosts)
-            self._bind(participants)
+            self.driver.bind(participants)
+            if time_limit is not None:
+                self.time_limit = float(time_limit)
+            self.driver.loop = loop
             self._on_event = on_event
             try:
                 self._play(rounds, stop)
@@ -141,6 +174,7 @@ class Env:
             return self.result()
         finally:
             self._on_event = None
+            self.driver.loop = None
             self._running.release()
 
     def step(self, participants: Any = None) -> RunResult:
@@ -176,7 +210,29 @@ class Env:
             series={k: list(v) for k, v in self.world.series.items()}, winner=end.get("winner"),
             error=self.error, output_issues=issues, stats=self.stats.to_dict(),
             events=[e.to_dict() for e in self.world.log], time=self.world.time if self.world.continuous else None,
+            exposures=self.world.exposures.to_dict() if self.world.exposures is not None else {},
+            frames=[dict(frame) for frame in self.previews.frames],
         )
+
+    @property
+    def frames(self) -> List[Dict[str, Any]]:
+        """Spectator frames so far: ``[{round, views: {name: text}, time?, final?}]``."""
+        return self.previews.frames
+
+    def spectate(self) -> Dict[str, str]:
+        """Every spectator view (``"for": "spectator"``) rendered against the world now, by name. Changes
+        nothing: views that draw randomness use a stream of their own."""
+        return self.previews.spectate()
+
+    def preview(self, entity_id: str, stage: Optional[str] = None) -> Dict[str, Any]:
+        """What the agent would receive on its next turn: brief, update, tools and time limit. Changes nothing.
+
+        Between rounds this plays the next round on a copy up to the agent's turn — scheduled
+        effects, start events, physics and the turns of agents before it (with their built-in
+        or named participants; your own callables are never called) — so the preview shows the
+        turn as the agent will get it.
+        """
+        return self.previews.preview(entity_id, stage)
 
     def snapshot(self) -> Dict[str, Any]:
         """Everything needed to continue this run later, as JSON-safe data (between rounds)."""
@@ -193,29 +249,6 @@ class Env:
 
             bind(env, hosts)
         return env
-
-    def preview(self, entity_id: str, stage: Optional[str] = None) -> Dict[str, Any]:
-        """What the agent would receive on its next turn: brief, update and tools. Changes nothing.
-
-        Between rounds this plays the next round on a copy up to the agent's turn — scheduled
-        effects, start events, physics and the turns of agents before it (with their built-in
-        or named participants; your own callables are never called) — so the preview shows the
-        turn as the agent will get it.
-        """
-        if self.world.entity(entity_id) is None:
-            raise KeyError(f"no entity '{entity_id}'")
-        if stage is not None and all(s.name != stage for s in self.contract.stage_list()):
-            raise KeyError(f"no stage '{stage}' (stages: {', '.join(s.name for s in self.contract.stage_list())})")
-        if self.finished or self._in_round:
-            return self._preview_now(entity_id, stage)
-        snapshot = self.snapshot()
-        probe = self._probe(snapshot)
-        for point in probe._round():
-            if point.stage is not None and entity_id in point.reasons and stage in (None, point.stage.name):
-                return probe._preview_turn(entity_id, point.stage, point.reasons[entity_id])
-        start = self._probe(snapshot)  # not woken this round: show the round as it opens
-        start._begin_round()
-        return start._preview_now(entity_id, stage)
 
     # -- driving -----------------------------------------------------------------------
 
@@ -244,11 +277,6 @@ class Env:
             self._cursor = None
         self.status, self.error = "failed", message
 
-    def _probe(self, snapshot: Mapping[str, Any]) -> "Env":
-        probe = restore_env(type(self), self.contract, snapshot, parallel=1)
-        probe._participants_spec = {k: v for k, v in self._participants_spec.items() if isinstance(v, str)}
-        return probe
-
     # -- round -----------------------------------------------------------------------
 
     def _begin_round(self) -> bool:
@@ -268,9 +296,9 @@ class Env:
         world.round += 1
         world.stage = None
         self._used_round.clear()
-        self._run_scheduled()
+        self.happenings.run_scheduled()
         run_feeds(self)
-        self._run_events("start")
+        self.happenings.run_events("start")
         self._check_end()
         if self._ended():
             self._finish()
@@ -281,7 +309,7 @@ class Env:
             elif elapsed > 0:
                 world.step_physics(elapsed)
             world.journal.clear()
-        self._check_triggers("physics")
+        self.happenings.check_triggers("physics")
         if self._ended():
             self._finish()
             return False
@@ -325,9 +353,9 @@ class Env:
                 self._finish()
                 return
         world.stage = None
-        self._run_events("end")
+        self.happenings.run_events("end")
         sample_metrics(self.contract, world)
-        self._check_triggers("round end")
+        self.happenings.check_triggers("round end")
         self._check_invariants("round")
         self._check_end()
         self._flush_events()
@@ -339,6 +367,8 @@ class Env:
             self.ended_by = "rounds"
             self.status = "completed"
             self._final_event()
+        else:
+            self.previews.frame(final=False)
 
     def _ended(self) -> bool:
         return self.world.end_request is not None
@@ -359,78 +389,8 @@ class Env:
         text = end.get("text") or (f"The run ended: {self.ended_by}." if self.ended_by != "rounds" else "Time is up.")
         self.world.emit("end", text, data={"ended_by": self.ended_by, "winner": end.get("winner")})
         self.world.journal.clear()
+        self.previews.frame(final=True)
         self._flush_events()
-
-    def _run_scheduled(self) -> None:
-        world = self.world
-        while world.scheduled and world.scheduled[0][0] <= world.now():
-            _, _, item = heapq.heappop(world.scheduled)
-            if "delivery" in item:
-                run_delivery(self, item)
-            else:
-                self._atomic(item["effects"], world.thaw(item["vars"]), item["path"])
-
-    def _run_events(self, phase: str) -> None:
-        world = self.world
-        for index, event in enumerate(self.contract.events):
-            if event.phase != phase:
-                continue
-            path = f"events[{index}]"
-            if event.arms is not None and self.arm not in event.arms:
-                continue
-            if event.once and index in self._fired_once:
-                continue
-            if not self._due(event, path):
-                continue
-            if event.once:
-                self._fired_once.add(index)
-            if event.each is not None:
-                item_name = event.as_ or "it"
-                try:
-                    items = world.entities_of(event.each) if event.each in self.contract.types else \
-                        compile_expr(event.each)(world.scope())
-                    for position, item in enumerate(items or []):
-                        inner = {item_name: item, "i": position}
-                        if event.where is not None and not truthy(compile_expr(event.where)(world.scope(**inner))):
-                            continue
-                        self._atomic(event.do, inner, f"{path}.do")
-                except ExprError as exc:
-                    raise RunError(str(exc), path) from None
-            else:
-                self._atomic(event.do, {}, f"{path}.do")
-            if event.say:
-                try:
-                    text = compile_template(event.say, None).render(world.scope())
-                except ExprError as exc:
-                    raise RunError(str(exc), f"{path}.say") from None
-                if text.strip():
-                    world.emit("news", text, data={"event": event.name or index})
-                world.journal.clear()
-            if self._ended():
-                return
-
-    def _due(self, event: Any, path: str) -> bool:
-        world = self.world
-        scope = world.scope()
-        try:
-            if event.at is not None:
-                at = compile_expr(event.at)(scope) if isinstance(event.at, str) else event.at
-                rounds = at if isinstance(at, list) else [at]
-                if world.round not in rounds:
-                    return False
-            if event.every is not None and (world.round - 1) % event.every != 0:
-                return False
-            if event.when is not None and not truthy(compile_expr(event.when)(scope)):
-                return False
-            if event.chance is not None:
-                p = compile_expr(event.chance)(scope) if isinstance(event.chance, str) else event.chance
-                if isinstance(p, bool) or not isinstance(p, (int, float)):
-                    raise ExprError(f"chance must be a number from 0 to 1, got {p!r}", str(event.chance))
-                if world.rng.random() >= p:
-                    return False
-        except ExprError as exc:
-            raise RunError(str(exc), path) from None
-        return True
 
     def _atomic(self, effects: List[Any], vars: Dict[str, Any], path: str) -> bool:
         if not effects:
@@ -449,7 +409,7 @@ class Env:
                 self.world.journal.rollback(mark)
                 raise
             self._after_commit(path)
-            self._react(self._stage_spec())
+            self.happenings.react(self._stage_spec())
         return True
 
     def _stage_spec(self) -> Optional[StageSpec]:
@@ -459,71 +419,7 @@ class Env:
     def _after_commit(self, path: str) -> None:
         self._check_invariants(path)
         self.world.journal.clear()
-        self._check_triggers(path)
-
-    #: How deep triggers may set off further triggers, and reactions further reactions.
-    TRIGGER_DEPTH = 8
-    REACTION_DEPTH = 4
-
-    def _check_triggers(self, path: str) -> None:
-        if not self.contract.triggers or self._ended():
-            return
-        if self._trigger_depth >= self.TRIGGER_DEPTH:
-            raise RunError(f"triggers set each other off more than {self.TRIGGER_DEPTH} levels deep (a loop?)", path)
-        world = self.world
-        self._trigger_depth += 1
-        try:
-            for index, trigger in enumerate(self.contract.triggers):
-                if trigger.arms is not None and self.arm not in trigger.arms:
-                    continue
-                if trigger.once and index in self._triggers_fired:
-                    continue
-                where = f"triggers[{index}]"
-                try:
-                    holds = truthy(compile_expr(trigger.when)(world.scope()))
-                except ExprError as exc:
-                    raise RunError(str(exc), f"{where}.when") from None
-                was = self._trigger_armed.get(index, False)
-                self._trigger_armed[index] = holds
-                if not holds or was:
-                    continue
-                if trigger.once:
-                    self._triggers_fired.add(index)
-                self._atomic(trigger.do, {}, f"{where}.do")
-                if trigger.say:
-                    try:
-                        text = compile_template(trigger.say, None).render(world.scope())
-                    except ExprError as exc:
-                        raise RunError(str(exc), f"{where}.say") from None
-                    if text.strip():
-                        world.emit("news", text, data={"trigger": trigger.name or index})
-                    world.journal.clear()
-                if self._ended():
-                    return
-        finally:
-            self._trigger_depth -= 1
-
-    def _react(self, stage: Optional[StageSpec]) -> None:
-        """Give every agent asked to react (`wake` with `now`) a turn right away, in the current stage."""
-        world = self.world
-        while world.reactions and not self._ended():
-            entity_id, why = world.reactions.pop(0)
-            actor = world.entities.get(entity_id)
-            if actor is None or not actor.alive or not self.contract.is_agent(actor.entity_type):
-                continue
-            if self._reaction_depth >= self.REACTION_DEPTH:
-                raise RunError(f"reactions set each other off more than {self.REACTION_DEPTH} levels deep", "wake.now")
-            spec = stage or next(iter(self.contract.stage_list()))
-            self._reaction_depth += 1
-            try:
-                turn = Turn(self, actor, spec, why, staged=False)
-                turn.stats.reactions = 1
-                self._drive(turn)
-            finally:
-                self._reaction_depth -= 1
-            memory = self._memory(actor.id)
-            memory.cursor = world.log[-1].seq if world.log else 0
-            memory.turns += 1
+        self.happenings.check_triggers(path)
 
     # -- stages & turns ------------------------------------------------------------------
 
@@ -614,8 +510,8 @@ class Env:
                 continue
             yield _Point(stage, {actor.id: reason})
             turn = Turn(self, actor, stage, reason, staged=False)
-            self._drive(turn)
-            if stage.on_idle and turn.stats.actions == 0 and actor.alive:
+            self.driver.drive([turn])
+            if not self._timed_out(turn) and stage.on_idle and turn.stats.actions == 0 and actor.alive:
                 self._atomic(stage.on_idle, {"actor": actor}, f"stages.{stage.name}.on_idle")
             self._turn_end_hook(stage, actor)
             memory = self._memory(actor.id)
@@ -649,8 +545,8 @@ class Env:
                 continue
             yield _Point(stage, {actor.id: reason})
             turn = Turn(self, actor, stage, reason, staged=False)
-            self._drive(turn)
-            if stage.on_idle and turn.stats.actions == 0 and actor.alive:
+            self.driver.drive([turn])
+            if not self._timed_out(turn) and stage.on_idle and turn.stats.actions == 0 and actor.alive:
                 self._atomic(stage.on_idle, {"actor": actor}, f"stages.{stage.name}.on_idle")
             self._turn_end_hook(stage, actor)
             scheduled = world.wake_at.get(actor.id, now)
@@ -661,6 +557,38 @@ class Env:
             memory.cursor = world.log[-1].seq if world.log else 0
             memory.turns += 1
             self._flush_events()
+
+    def _timed_out(self, turn: Turn) -> bool:
+        """Record a turn that ran out of time (a `timeout` event) and run the stage's `on_timeout`.
+        True when `on_timeout` took the place of `on_idle`."""
+        if not turn.timed_out:
+            return False
+        stage, actor, world = turn.stage, turn.actor, self.world
+        with self._lock:
+            world.emit("timeout", f"{actor.name} ran out of time.", actor=actor.id,
+                       data={"stage": stage.name, "limit": turn.time_limit})
+            world.journal.clear()
+        if not stage.on_timeout:
+            return False
+        if actor.alive and not self._ended():
+            self._atomic(stage.on_timeout, {"actor": actor}, f"stages.{stage.name}.on_timeout")
+        return True
+
+    def _time_limit(self, stage: StageSpec, actor: Entity) -> Optional[float]:
+        """Wall-clock seconds ``actor`` has for a turn in ``stage``: the stage's `time_limit`, else the run's."""
+        raw = stage.time_limit
+        if raw is None:
+            return self.time_limit
+        path = f"stages.{stage.name}.time_limit"
+        try:
+            value = compile_expr(raw)(self.world.scope(actor=actor)) if isinstance(raw, str) else raw
+        except ExprError as exc:
+            raise RunError(str(exc), path) from None
+        if value is None:
+            return self.time_limit
+        if not _seconds(value):
+            raise RunError(f"must be a number of seconds > 0 (or null for the run's limit), got {value!r}", path)
+        return float(value)
 
     def _wake_hook(self, stage: StageSpec, actor: Entity) -> bool:
         """Run the stage's ``on_wake`` for ``actor`` before its turn; False when it no longer takes the turn."""
@@ -707,27 +635,59 @@ class Env:
             memory = self._memory(turn.actor.id)
             memory.cursor = cursor
             memory.turns += 1
-        concurrent = [t for t in turns if getattr(self._participant(t.actor), "concurrent", True)]
-        if self.parallel > 1 and len(concurrent) > 1:
-            with ThreadPoolExecutor(max_workers=min(self.parallel, len(concurrent))) as pool:
-                list(pool.map(self._drive, concurrent))
-            for turn in turns:
-                if turn not in concurrent:
-                    self._drive(turn)
-        else:
-            for turn in turns:
-                self._drive(turn)
-        for turn in turns:
-            for name, args in turn.intents:
-                if self._ended():
-                    return
-                self._commit_intent(turn, name, args)
-            if stage.on_idle and not turn.intents and turn.actor.alive and not self._ended():
-                self._atomic(stage.on_idle, {"actor": turn.actor}, f"stages.{stage.name}.on_idle")
-            self._turn_end_hook(stage, turn.actor)
+        self.driver.drive(turns, together=True)
+        try:
+            yield from self._commit_choices(stage, turns)
+        finally:
+            for turn in turns:  # in turn order, so `$seen` indexes the same way every run
+                if turn.exposure is not None:
+                    turn.exposure.close(turn)
         self._flush_events()
 
-    def _commit_intent(self, turn: Turn, name: str, args: Dict[str, Any]) -> None:
+    def _commit_choices(self, stage: StageSpec, turns: List[Turn]) -> _Steps:
+        """Commit each agent's sealed choices in turn order; atomic stages commit or undo each agent's as a whole."""
+        atomic = stage.atomic or bool(stage.valid)
+        for turn in turns:
+            mark = self.world.journal.mark() if atomic else None
+            applied = 0
+            for name, args in turn.intents:
+                if self._ended() and mark is None:
+                    return
+                applied += self._commit_intent(turn, name, args, deferred=mark is not None)
+            acted = bool(turn.intents)
+            if mark is not None:
+                acted = self._settle_choices(turn, mark, applied)
+                if self._ended():
+                    return
+            if not self._timed_out(turn) and stage.on_idle and not acted and turn.actor.alive and not self._ended():
+                self._atomic(stage.on_idle, {"actor": turn.actor}, f"stages.{stage.name}.on_idle")
+            self._turn_end_hook(stage, turn.actor)
+        yield from ()
+
+    def _settle_choices(self, turn: Turn, mark: int, applied: int) -> bool:
+        """An atomic simultaneous stage: keep one agent's committed choices when they meet `valid`, else undo
+        them all and tell the agent why. True when the agent's choices stand."""
+        world, stage = self.world, turn.stage
+        with self._lock:
+            with world.turn_context(None, turn.pending):
+                why = turn.invalid() if applied else None
+            if why is None:
+                self._after_commit(f"stages.{stage.name}")
+                self.happenings.react(stage)
+                return bool(turn.intents)
+            world.journal.rollback(mark)
+            world.emit("outcome", f"Your choices were undone: {why}.", actor=turn.actor.id, to=(turn.actor.id,),
+                       data={"ok": False, "undone": True})
+            world.journal.clear()
+            self.stats.actions -= applied
+            self.stats.rejected_actions += applied
+            self.stats.undone_turns += 1
+            turn.stats.undone_turns = 1
+        return False
+
+    def _commit_intent(self, turn: Turn, name: str, args: Dict[str, Any], deferred: bool = False) -> int:
+        """Apply one sealed choice; 1 when it applied. ``deferred`` (atomic stages) leaves the commit to the
+        whole turn's settling."""
         actor, world = turn.actor, self.world
         blocked = self.actions.blocked(actor, name, {}, {}) if actor.alive else "you are no longer active"
         params, problem = ({}, blocked) if blocked else self.actions.validate(actor, name, args)
@@ -736,165 +696,23 @@ class Env:
             if problem:
                 world.emit("outcome", f"Your {verb} did not happen: {str(problem).rstrip('.')}.",
                            actor=actor.id, to=(actor.id,), data={"action": name, "ok": False})
-                world.journal.clear()
+                if not deferred:
+                    world.journal.clear()
                 self.stats.rejected_actions += 1
-                return
+                return 0
             outcome = self.actions.apply(actor, name, params)
             text = outcome.text if outcome.ok else f"Your {verb} failed: {outcome.text}"
             world.emit("outcome", text, actor=actor.id, to=(actor.id,), data={"action": name, "ok": outcome.ok})
-            if outcome.ok:
-                self.stats.actions += 1
-                self._after_commit(f"actions.{name}")
-                self._react(turn.stage)
-            else:
+            if not outcome.ok:
                 self.stats.rejected_actions += 1
-                world.journal.clear()
-
-    def _drive(self, turn: Turn) -> None:
-        if turn.stage.auto and not turn.staged and self._auto_turn(turn):
-            return
-        participant = self._participant(turn.actor)
-        world = self.world
-        world.use_turn_rng(self.seeds.rng("turn", world.round, turn.number))
-        world.use_turn_pending(turn.pending)
-        try:
-            answer = participant(Wake(turn))
-            if inspect.isawaitable(answer):
-                close = getattr(answer, "close", None)
-                if callable(close):
-                    close()  # never awaited: close it so it does not linger
-                raise RunError(f"participant for {turn.actor.id} is async; participants are plain functions "
-                               "(wrap an async agent with asyncio.run or a thread)", f"participant:{turn.actor.id}")
-        except (RunError, ExprError):
-            raise
-        except Exception as exc:
-            raise RunError(f"participant for {turn.actor.id} raised {type(exc).__name__}: {exc}",
-                           f"participant:{turn.actor.id}") from exc
-        finally:
-            world.use_turn_rng(None)
-            world.use_turn_pending(None)
-            turn.done = True
-            if turn.stats.actions == 0 and not turn.intents:
-                turn.stats.idle_turns += 1
-            with self._lock:
-                self.stats.add(turn.stats)
-
-    def _auto_turn(self, turn: Turn) -> bool:
-        """Play a trivial turn without the agent: the only legal action when it takes no arguments,
-        or nothing when no action is legal. False when the agent has a real choice."""
-        world = self.world
-        world.use_turn_rng(self.seeds.rng("turn", world.round, turn.number))
-        world.use_turn_pending(turn.pending)
-        try:
-            acts = [tool for tool in turn.tools() if tool.kind == "act"]
-            if len(acts) > 1 or (acts and acts[0].input_schema.get("properties")):
-                return False
-            if acts:
-                turn.call(acts[0].name, {})
-            if not turn.done:
-                turn.call(END_TURN, {})
-            turn.stats.wakes = 0
-            turn.stats.auto_turns = 1
-        finally:
-            world.use_turn_rng(None)
-            world.use_turn_pending(None)
-            turn.done = True
-            if turn.stats.actions == 0 and not turn.intents:
-                turn.stats.idle_turns += 1
-            with self._lock:
-                self.stats.add(turn.stats)
-        return True
-
-    # -- preview ---------------------------------------------------------------------------
-
-    def _preview_now(self, entity_id: str, stage: Optional[str]) -> Dict[str, Any]:
-        """The turn as it would look in the current state, without playing anything."""
-        actor = self.world.entity(entity_id)
-        assert actor is not None
-        stages = self.contract.stage_list()
-        acting = [s for s in stages if stage_actions(self.contract, s, actor.entity_type)]
-        if stage is not None:
-            spec = next(s for s in stages if s.name == stage)
-        else:
-            running = [s for s in acting if self._stage_runs(s)]
-            spec = next((s for s in running if actor in self._eligible(s, ordered=False)), None) \
-                or next(iter(running or acting or stages))
-        reason = "Everyone chooses at the same time." if spec.turns == "simultaneous" else "It is your turn."
-        if not self._stage_runs(spec):
-            reason = f"(Preview only: stage {spec.name} does not run now.)"
-        elif actor not in self._eligible(spec, ordered=False):
-            reason = f"(Preview only: {actor.name} would not be woken in {spec.name} now.)"
-        return self._preview_turn(entity_id, spec, reason)
-
-    def _preview_turn(self, entity_id: str, spec: StageSpec, reason: str) -> Dict[str, Any]:
-        actor = self.world.entities[entity_id]
-        turn = Turn(self, actor, spec, reason, spec.turns == "simultaneous", peek=True)
-        extras = self._turn_tool_specs()
-        if extras:  # what the agent will be offered, in-turn host tools included
-            from .host.turn_tools import HostWake
-
-            tools = HostWake(turn, extras).tools
-        else:
-            tools = turn.tools()
-        return {"brief": turn.brief, "update": turn.update, "tools": [t.to_dict() for t in tools],
-                "tokens": {"brief": len(turn.brief) // 4, "update": len(turn.update) // 4,
-                           "tools": len(json.dumps([t.to_anthropic() for t in tools])) // 4}}
-
-    # -- participants ----------------------------------------------------------------------
-
-    def _bind(self, participants: Any) -> None:
-        if participants is None:
-            return
-        if callable(participants) or isinstance(participants, str):
-            participants = {"*": participants}
-        if not isinstance(participants, Mapping):
-            raise TypeError("participants must be a callable, a string, or a mapping")
-        known = set(self.contract.types) | set(self.world.entities) | {"*"}
-        for key, value in participants.items():
-            if key not in known:
-                raise ValueError(f"participants key '{key}' is not an entity id, a type, or '*'")
-            if not callable(value):
-                resolve_participant(value, self.contract, 0)  # an unknown name fails now, not mid-run
-            elif inspect.iscoroutinefunction(value) or inspect.iscoroutinefunction(getattr(value, "__call__", None)):
-                raise TypeError(f"participant for '{key}' is async; participants are plain functions "
-                                "(wrap an async agent with asyncio.run or a thread)")
-        self._participants_spec = dict(participants)
-        self._participants.clear()
-
-    def _turn_tool_specs(self) -> Dict[str, Any]:
-        """The contract's in-turn host tools (recall, note, host services), by name."""
-        tools = self.__dict__.get("_turn_tools")
-        if tools is None:
-            from .host.turn_tools import turn_tools
-
-            tools = self.__dict__["_turn_tools"] = turn_tools(self.contract)
-        return tools
-
-    def _with_turn_tools(self, participant: Participant) -> Participant:
-        """The participant, offered the contract's in-turn host tools if it has any."""
-        tools = self._turn_tool_specs()
-        if not tools:
-            return participant
-        from .host.turn_tools import offer
-
-        return offer(participant, tools)
-
-    def _participant(self, actor: Entity) -> Participant:
-        cached = self._participants.get(actor.id)
-        if cached is not None:
-            return cached
-        spec = self._participants_spec
-        lineage = list(reversed(self.contract.lineage(actor.entity_type)))  # most specific type first
-        value = spec.get(actor.id)
-        if value is None:
-            value = next((spec[kind] for kind in lineage if kind in spec), spec.get("*"))
-        if value is None:
-            value = next((self.contract.types[kind].policy for kind in lineage if self.contract.types[kind].policy),
-                         None) or "random"
-        participant = resolve_participant(value, self.contract, self.seeds.derive("participant"))
-        participant = self._with_turn_tools(participant)
-        self._participants[actor.id] = participant
-        return participant
+                if not deferred:
+                    world.journal.clear()
+                return 0
+            self.stats.actions += 1
+            if not deferred:
+                self._after_commit(f"actions.{name}")
+                self.happenings.react(turn.stage)
+            return 1
 
     # -- checks --------------------------------------------------------------------------------
 
@@ -956,3 +774,8 @@ class Env:
             event = self.world.log[self._emitted]
             self._emitted += 1
             self._on_event(event.to_dict())
+
+
+def _seconds(value: Any) -> bool:
+    """Whether ``value`` is a usable time limit: a finite number of seconds above zero."""
+    return not isinstance(value, bool) and isinstance(value, (int, float)) and math.isfinite(value) and value > 0

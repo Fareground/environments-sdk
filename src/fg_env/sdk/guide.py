@@ -92,6 +92,18 @@ turn, uses `max_actions`, or runs out of `max_calls`.
   that ends a turn without acting (`$actor`) — a forfeit or a default move.
 * `terminal` may be an expression checked after the action applies (`"$world.jump_finished"`), so a
   move can end the turn only sometimes (multi-jumps).
+* `time_limit` gives each agent wall-clock seconds for its turn (a number, or an expression over `$actor`;
+  `env.run(..., time_limit=30)` covers stages that set none). Past it the turn ends, later calls are
+  refused, a `timeout` event is logged and `on_timeout` runs instead of `on_idle`. The agent's update says
+  how long it has. A participant that finishes in time plays exactly as it would without a limit.
+* `atomic: true` makes a turn's actions apply together: each applies at once (the agent sees its result),
+  but triggers, reactions and invariants wait until the turn ends. `valid` conditions (`$actor`, `$pending`)
+  are checked when a turn that acted ends; if one fails, every action of the turn is undone, the agent is
+  told `why` and plays the turn again (castling through check, a full backgammon move). `valid` makes a
+  stage atomic. In a simultaneous stage each agent's choices commit or are undone together.
+* Views with `"for": "spectator"` are an omniscient picture for UIs and reports: rendered at the end of
+  every round into `result.frames` (the last marked `final`) and on demand by `env.spectate()`, never
+  shown to an agent. They have no `$actor`; randomness they draw never changes the run.
 * Physics steps at the start of every round, including round 1, before any stage: world variables
   first, then `physics.per` dynamics for every entity, which read the world variables' new values.
 * Lifecycle hooks: `types.X.on_create` / `on_remove` run for every entity of X (and its subtypes; an
@@ -159,9 +171,11 @@ $metrics $series $arm):
 | params.*.min/max/values/default | $actor $params (earlier params) |
 | actions.*.chance/do/otherwise/outcome/announce | $actor $params + locals |
 | stages.*.who/order | $it $i |
-| stages.*.brief | $actor |
+| stages.*.brief, stages.*.time_limit, stages.*.on_timeout | $actor |
+| stages.*.valid (expr and why) | $actor $pending |
 | views.*.when/of | $actor |
 | views.*.where/sort/show | $actor $it $i |
+| views with for: spectator | no $actor ($it $i in lists) |
 | records.*.visible | $viewer $it (entry) |
 | records.*.show | $it (entry: author, round, fields) |
 | events.*.where/do (with each) | $it $i |
@@ -370,6 +384,16 @@ def my_agent(wake):
 `call(name, args)` → `ToolResult(ok, text, ended, data)` (`data.error` is `invalid` or `rejected`),
 `end()`, `done`, `calls_left`, `actions_left`. In a simultaneous stage a choice is tried at submit, so
 a choice that could not happen is refused immediately and does not use up the turn.
+Async participants: an `async def` (or an object with an async `__call__`, or a function that returns an
+awaitable) works everywhere, and a simultaneous stage runs them concurrently with the same deterministic
+result. Inside an event loop use `result = await env.arun(participants, ...)`: participants run on that loop,
+so clients bound to it work. `wake.time_limit` and `wake.time_left` give the turn's deadline.
+`fg_env.load(..., exposures=True)` records what every agent was shown on every wake in `result.exposures`,
+`{"texts": {hash: text}, "wakes": [...]}`: brief, update and view hashes and sizes, news event sequence
+numbers, tools offered, every call with its arguments and result, timeouts and undone turns — every text
+stored once. `$seen(agent, item)` asks whether an agent was shown an event, a record entry or a view by name;
+a contract that uses it records exposures automatically. `result.frames` and `env.spectate()` give the
+spectator views.
 `env.step(participants)` runs one round; `env.run(participants, rounds=N)` runs N more (an unfinished
 run returns provisional outputs). `env.run(..., stop=lambda env: ...)` is checked before every round,
 stage, pass and sequential turn; the next `run` continues exactly where it stopped (finishing that

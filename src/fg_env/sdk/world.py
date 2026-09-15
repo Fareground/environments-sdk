@@ -7,6 +7,7 @@ import heapq
 import math
 import threading
 from contextlib import contextmanager
+from contextvars import ContextVar
 from difflib import get_close_matches
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Tuple
@@ -22,6 +23,21 @@ from . import links as _links, world_physics
 from .links import Link
 
 __all__ = ["SdkWorld", "Entry", "LogEvent", "Abort", "prop_type"]
+
+
+class _TurnLocal:
+    """Per-turn state (a turn's random stream, its ``$pending``, draw and def-depth counters)."""
+
+    __slots__ = ("rng", "pending", "draws", "depth")
+    rng: Any
+    pending: Optional[List[Dict[str, Any]]]
+    draws: int
+    depth: int
+
+
+#: The turn running in this thread or asyncio task, as ``(world, state)``. A context variable rather
+#: than a thread-local, so async participants sharing one event-loop thread each keep their own.
+_TURN: ContextVar[Optional[Tuple["SdkWorld", _TurnLocal]]] = ContextVar("fg_env_turn", default=None)
 
 
 class Abort(Exception):
@@ -212,6 +228,8 @@ class SdkWorld(World):
         self.journal = _Journal()
         #: Called as ``lifecycle(hook, entity, where)`` after every creation and removal (set by the effect runner).
         self.lifecycle: Optional[Callable[[str, Entity, str], None]] = None
+        #: What each agent was shown (an :class:`~fg_env.sdk.exposure.ExposureLog`), when the run records it.
+        self.exposures: Any = None
         self._seq = 0
         self._record_seq = 0
         self._props_view = _Props(self)
@@ -231,8 +249,9 @@ class SdkWorld(World):
     def rng(self) -> Any:
         """The random stream for the current context: a turn's own stream while an agent's turn
         runs (so concurrent turns never race for draws), otherwise the run's main stream."""
-        self._local.draws = getattr(self._local, "draws", 0) + 1
-        return getattr(self._local, "rng", None) or self._rng
+        local = self._here()
+        local.draws = getattr(local, "draws", 0) + 1
+        return getattr(local, "rng", None) or self._rng
 
     @rng.setter
     def rng(self, value: Any) -> None:
@@ -240,13 +259,23 @@ class SdkWorld(World):
 
     def draws(self) -> int:
         """How many times this thread has used a random stream: equal counts mean nothing random was drawn."""
-        return getattr(self._local, "draws", 0)
+        return getattr(self._here(), "draws", 0)
 
-    def use_turn_rng(self, rng: Any) -> None:
-        self._local.rng = rng
+    @contextmanager
+    def turn_context(self, rng: Any, pending: Optional[List[Dict[str, Any]]]) -> Iterator[None]:
+        """Inside the block — in this thread or asyncio task only — random draws use ``rng`` and
+        ``$pending`` is ``pending``. Blocks nest (a reaction inside a turn) and restore on exit."""
+        local = _TurnLocal()
+        local.rng, local.pending = rng, pending
+        token = _TURN.set((self, local))
+        try:
+            yield
+        finally:
+            _TURN.reset(token)
 
-    def use_turn_pending(self, pending: Optional[List[Dict[str, Any]]]) -> None:
-        self._local.pending = pending
+    def _here(self) -> Any:
+        current = _TURN.get()
+        return current[1] if current is not None and current[0] is self else self._local
 
     @contextmanager
     def drawing_from(self, rng: Any) -> Iterator[None]:
@@ -339,15 +368,16 @@ class SdkWorld(World):
                 self._def_cache, self._def_cache_state = {}, state
             elif key in self._def_cache:
                 return self._def_cache[key]
-        depth = getattr(self._local, "depth", 0)
+        local = self._here()
+        depth = getattr(local, "depth", 0)
         if depth >= 32:
             raise ExprError(f"${name}: defs call each other too deeply (recursion?)", source)
-        self._local.depth = depth + 1
+        local.depth = depth + 1
         drawn = self.draws()
         try:
             value = compile_expr(spec.expr)(self.scope(**dict(zip(spec.args, args))))
         finally:
-            self._local.depth = depth
+            local.depth = depth
         # A call that drew a random number is never reused; with the same state and arguments a call that
         # drew nothing takes the same path again, so its value is exactly what a fresh call would return.
         if key is not None and self.draws() == drawn and self.state_version() == state and isinstance(value, _CACHEABLE):
@@ -365,7 +395,7 @@ class SdkWorld(World):
 
     def state_version(self) -> Any:
         """Equal values mean nothing a read could see has changed (for caches of derived values)."""
-        pending = getattr(self._local, "pending", None)
+        pending = getattr(self._here(), "pending", None)
         return (self.journal.version, self.round, self.stage, self.time, id(pending), len(pending or ()))
 
     def _def_key(self, name: str, args: List[Any]) -> Optional[Tuple[Any, ...]]:
@@ -415,7 +445,7 @@ class SdkWorld(World):
             "metrics": self.metrics,
             "series": self.series,
             "arm": self.arm,
-            "pending": getattr(self._local, "pending", None) or [],
+            "pending": getattr(self._here(), "pending", None) or [],
         }
         base.update(values)
         return Scope(base, self)

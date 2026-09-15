@@ -44,6 +44,10 @@ class Stats:
     reactions: int = 0
     #: Turns a participant gave up after a provider error (``on_error="end_turn"``).
     forfeits: int = 0
+    #: Turns that ran past their time limit.
+    timeouts: int = 0
+    #: Atomic turns undone because the whole turn was not `valid`.
+    undone_turns: int = 0
 
     def add(self, other: "Stats") -> None:
         for name in self.__dataclass_fields__:
@@ -79,6 +83,10 @@ class RunResult:
     output_issues: List[Dict[str, Any]] = field(default_factory=list)
     stats: Dict[str, Any] = field(default_factory=dict)
     events: List[Dict[str, Any]] = field(default_factory=list)
+    #: What each agent was shown on every wake, when recorded (see :mod:`fg_env.sdk.exposure`).
+    exposures: Dict[str, Any] = field(default_factory=dict)
+    #: Spectator views rendered at the end of every round: ``[{round, views: {name: text}, final?}]``.
+    frames: List[Dict[str, Any]] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:

@@ -65,7 +65,7 @@ def run_delivery(env: "Env", item: Mapping[str, Any]) -> None:
             world.journal.rollback(mark)
             raise
         env._after_commit(item["path"])
-        env._react(env._stage_spec())
+        env.happenings.react(env._stage_spec())
 
 
 def _ids(value: Optional[Any]) -> Optional[tuple]:
