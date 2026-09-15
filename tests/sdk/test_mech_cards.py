@@ -162,7 +162,8 @@ def test_tools_offer_only_legal_cards_and_hidden_cards_never_reach_a_player():
         text = wake.update + json.dumps([t.to_dict() for t in wake.tools])
         assert not [cid for cid in hidden if re.search(rf"(?<![\w]){re.escape(cid)}(?![\w])", text)]
         other = next(cid for cid in hidden if world.entities[cid].properties["zone"] == "hand")
-        assert wake.call("inspect", {"id": other}).text == "No entity with that id is available to inspect."
+        refused = wake.call("inspect", {"id": other}).text
+        assert refused.startswith("No entity with that id is available to inspect.") and other not in refused
         assert "rank" in wake.call("inspect", {"id": sorted(mine)[0]}).text
         checked.append(me)
         wake.end()

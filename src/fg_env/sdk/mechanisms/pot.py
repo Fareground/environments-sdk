@@ -234,6 +234,8 @@ def wager(world: Any, config: PotConfig, name: str, player: Entity, move: str, a
     stack, bet, current = _p(player, "stack"), _p(player, "bet"), opts["current_bet"]
     if move == "timeout":
         move = "check" if opts["to_call"] == 0 else "fold"
+        world.emit(name, f"{player.name} {'checks' if move == 'check' else 'folds'}.", actor=player.id,
+                   data={"mechanism": name, "move": move, "timeout": True})
     target = bet
     if move == "fold":
         world.set_prop(player, "folded", True)

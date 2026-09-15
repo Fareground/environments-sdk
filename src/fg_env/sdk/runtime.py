@@ -601,8 +601,7 @@ class Env(Copying, RunChecks):
                 yield _Point(stage, {actor.id: reason})
                 turn = Turn(self, actor, stage, reason, staged=False)
                 yield from self.driver.drive_steps([turn])
-            if not self._timed_out(turn) and stage.on_idle and turn.stats.actions == 0 and actor.alive:
-                self._atomic(stage.on_idle, {"actor": actor}, f"stages.{stage.name}.on_idle")
+            self._after_turn(stage, turn, turn.stats.actions > 0)
             self._turn_end_hook(stage, actor)
             memory = self._memory(actor.id)
             memory.cursor = self.world.log[-1].seq if self.world.log else 0
@@ -636,8 +635,7 @@ class Env(Copying, RunChecks):
             yield _Point(stage, {actor.id: reason})
             turn = Turn(self, actor, stage, reason, staged=False)
             yield from self.driver.drive_steps([turn])
-            if not self._timed_out(turn) and stage.on_idle and turn.stats.actions == 0 and actor.alive:
-                self._atomic(stage.on_idle, {"actor": actor}, f"stages.{stage.name}.on_idle")
+            self._after_turn(stage, turn, turn.stats.actions > 0)
             self._turn_end_hook(stage, actor)
             scheduled = world.wake_at.get(actor.id, now)
             if scheduled <= now:
@@ -647,6 +645,19 @@ class Env(Copying, RunChecks):
             memory.cursor = world.log[-1].seq if world.log else 0
             memory.turns += 1
             self._flush_events()
+
+    def _after_turn(self, stage: StageSpec, turn: Turn, acted: bool, stop_when_ended: bool = False) -> None:
+        """A played turn is over: record a timeout (running `on_timeout`), or — for a living agent that took no
+        action — report one that had to act and did not, then run the stage's `on_idle`."""
+        actor = turn.actor
+        if self._timed_out(turn) or acted or not actor.alive or (stop_when_ended and self._ended()):
+            return
+        if turn.did_not_act:
+            with self._lock:
+                self.world.emit("idle", f"{actor.name} did not act.", actor=actor.id, data={"stage": stage.name})
+                self.world.journal.clear()
+        if stage.on_idle:
+            self._atomic(stage.on_idle, {"actor": actor}, f"stages.{stage.name}.on_idle")
 
     def _timed_out(self, turn: Turn) -> bool:
         """Record a turn that ran out of time (a `timeout` event) and run the stage's `on_timeout`.
@@ -757,8 +768,7 @@ class Env(Copying, RunChecks):
                     acted = self._settle_choices(turn, mark, applied)
                     if self._ended():
                         return
-                if not self._timed_out(turn) and stage.on_idle and not acted and turn.actor.alive and not self._ended():
-                    self._atomic(stage.on_idle, {"actor": turn.actor}, f"stages.{stage.name}.on_idle")
+                self._after_turn(stage, turn, acted, stop_when_ended=True)
                 self._turn_end_hook(stage, turn.actor)
         finally:
             self.world.watched_writes = None
@@ -824,10 +834,9 @@ class Env(Copying, RunChecks):
 
     def _inspect_rule(self, type_name: str) -> Any:
         """The inspect rule for a type, inherited through `extends`."""
-        for kind in reversed(self.contract.lineage(type_name)):
-            if "inspect" in self.contract.types[kind].model_fields_set:
-                return self.contract.types[kind].inspect
-        return True
+        from .reads import inspect_rule
+
+        return inspect_rule(self.contract, type_name)
 
     # -- helpers --------------------------------------------------------------------------------
 

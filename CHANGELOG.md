@@ -10,6 +10,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Fixed
+- **LLM turns that ran out of words**: a reply cut off at the output limit counts in `stats["truncated"]` (per
+  wake in exposures and `agent_stats`) and, with no tool call, is asked once for a short tool call
+  (`retry_truncated=False` ends the turn). The nudge names the tools offered and never asks for an `end_turn` that
+  is not offered; in a must-act stage the participant no longer calls a refused `end_turn` (no fake invalid call) and
+  the engine logs `Ben did not act.` (the pot says what the timeout did: `Ben folds.`). `openai(...)` takes
+  `max_tokens` and `reasoning_effort`.
+- **Calls after the turn ended**: LLM participants stop running a reply's tool calls once one ends the turn; the
+  leftovers are answered without reaching the engine. `look` and `inspect` are free reads (up to `max_calls` per
+  turn), so reading never spends the calls needed to act; a stage that declares `max_calls` states the budget in the
+  update, and tool results count the last calls down (`(Calls left: 2.)`).
+- **Inspect ids**: `inspect.id` offers the ids it accepts (an enum, or a compact listing like `u1–u150`), finds a
+  unique name, and a refusal suggests the closest id. Entities an agent may inspect read `Moderator [chair]` in its
+  update and views; deliberation motions are numbered (`motion 1`), not bracketed.
+- **Limits stated up front**: text parameters say `Up to 400 characters (about 60 words).`; `per_turn` / `per_round`
+  caps are in the tool description (`Once per turn.`). `tools: one` keeps each action's constraints (one merged
+  schema of the common type, enums joined, per-action ranges and choices in the description), lists every action on
+  its own line with its arguments, and says only those actions are available now.
+- **Example and mechanism wording**: `$poker_hand(hole, board)` says whether a hand uses the hole cards or is on
+  the board (Hold'em's view uses it); the town hall floor refusals say what to do (and that a raised hand waits);
+  the ballot count shows only while the vote is open; social replies, reposts and reactions accept trending posts;
+  posted-market sellers see their cash and can sponsor only the rounds they can pay for; Kuhn poker spells out the
+  betting (`pass, bet`) and tic-tac-toe shows a 3-row board with cell numbers; werewolf chat is quoted once, and
+  `check` warns when a template wraps a placeholder in «» itself.
 - **Data files everywhere**: a parsed contract remembers its data folder (the contract file's folder, or `data_dir=`),
   so `check`, `experiment`, `run_jobs` workers, `calibrate`, `backtest`, `precision`, `sweep`, `sensitivity`,
   `behavior_checks` and `chain` read `source` inputs instead of failing. Each takes `data_dir=` and `hosts=` (runs

@@ -15,15 +15,37 @@ lists join with commas; null renders as ``—``.
 from __future__ import annotations
 
 import re
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 
 from .expr import ExprError, Expr, Scope, Untrusted, compile_expr
 
-__all__ = ["Template", "compile_template", "render", "format_value", "apply_format"]
+__all__ = ["Template", "compile_template", "render", "format_value", "apply_format", "entity_handles",
+           "quoted_placeholders"]
 
 _FIELD = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*|\[\d+\])*$")
+#: A placeholder wrapped in «» by the template itself: participant text already renders inside «».
+_REQUOTED = re.compile(r"«\s*(\{[^{}]*\})\s*»")
+#: While an agent's reading renders: which entities show their [id] handle after their name.
+_HANDLES: ContextVar[Optional[Callable[[Any], bool]]] = ContextVar("fg_env_entity_handles", default=None)
+
+
+@contextmanager
+def entity_handles(show: Optional[Callable[[Any], bool]]) -> Iterator[None]:
+    """Render entities as ``Name [id]`` when ``show(entity)`` holds (None: names only) inside the block."""
+    token = _HANDLES.set(show)
+    try:
+        yield
+    finally:
+        _HANDLES.reset(token)
+
+
+def quoted_placeholders(source: str) -> List[str]:
+    """The placeholders a template wraps in «» itself (``«{$it.text}»``)."""
+    return _REQUOTED.findall(source) if "«" in source else []
 
 
 def format_value(value: Any) -> str:
@@ -38,7 +60,9 @@ def format_value(value: Any) -> str:
             return str(int(value))
         return f"{value:.2f}".rstrip("0").rstrip(".")
     if hasattr(value, "entity_type") and hasattr(value, "name"):
-        return str(value.name or value.id)
+        name = str(value.name or value.id)
+        show = _HANDLES.get()
+        return f"{name} [{value.id}]" if show is not None and name != value.id and show(value) else name
     if isinstance(value, (list, tuple)):
         return ", ".join(format_value(v) for v in value)
     if isinstance(value, dict):

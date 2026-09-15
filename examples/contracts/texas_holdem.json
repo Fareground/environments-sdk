@@ -49,7 +49,7 @@
     "best_hand": {
       "for": "player",
       "when": "$len($hand($actor)) == 2 and not $actor.folded",
-      "show": "With the board you have {$poker_rank($hand($actor) + $zone(board)).name}."
+      "show": "Your hand: {$poker_hand($hand($actor), $zone(board))}."
     }
   },
   "policies": {
