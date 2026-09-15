@@ -214,12 +214,15 @@ def check(source: ContractLike, rounds: int = 1, seed: int = 0) -> List[Issue]:
     warnings_from_smoke: List[Issue] = []
     if rounds > 0 and contract is not None and not errors:
         try:
-            result = load(contract, seed=seed).run(_smoke_participant(seed), rounds=rounds)
+            result = load(contract, seed=seed, data_dir=default_data_dir(source)).run(_smoke_participant(seed), rounds=rounds)
             if result.status == "failed":
                 errors.append(_run_issue(result.error or "the run failed"))
             for problem in result.output_issues:
                 warnings_from_smoke.append(Issue(problem["path"], f"{problem['message']} after {rounds} smoke round(s)",
                                                  "fine if it only has a value later in a run; otherwise guard it", "warning"))
+            for found in result.diagnostics:
+                warnings_from_smoke.append(Issue(found["path"], f"{found['message']} (smoke run of {rounds} round(s), "
+                                                 "random agents)", found["fix"], "warning"))
         except ContractError as exc:
             errors.extend(exc.issues)
         except RunError as exc:

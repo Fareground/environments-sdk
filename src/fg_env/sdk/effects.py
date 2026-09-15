@@ -312,6 +312,8 @@ class EffectRunner:
             value = self._set_in(attr(owner, prop, source), rest, stmt.op, value, source, prop)
         elif stmt.op != "=":
             value = self._combine(stmt.op, attr(owner, prop, source), value, source)
+        if stmt.op == "=" and self.world.sealed_writes is not None and isinstance(owner, (Entity, PropsView)):
+            self.world.sealed_writes.assigned(owner, prop, [key for _, key in rest], value, source)
         if isinstance(owner, Entity):
             self.world.set_prop(owner, prop, value)
         elif isinstance(owner, Link):

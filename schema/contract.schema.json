@@ -458,6 +458,12 @@
           ],
           "default": null,
           "title": "Say"
+        },
+        "check": {
+          "default": "stage",
+          "description": "When it is checked: stage (after the start events, after every stage and at the end of the round) | action (also the moment any action, sealed choice or effect block commits: a winning move ends the run at once).",
+          "title": "Check",
+          "type": "string"
         }
       },
       "required": [
@@ -1717,6 +1723,12 @@
         "description": {
           "default": "",
           "title": "Description",
+          "type": "string"
+        },
+        "format": {
+          "default": "",
+          "description": "How result.summary() and the CLI show it: a template format (money, pct, pct1, int, 0-4 decimals …); the stored value stays exact. Unset: numbers to 4 decimals.",
+          "title": "Format",
           "type": "string"
         }
       },

@@ -14,13 +14,14 @@ from __future__ import annotations
 
 import random
 import threading
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from ..entity import Entity
 from .exposure import Exposure, ExposureLog
 from .host.hosts import hosts_for
 from .measure import Stats
 from .replay import Origin
+from .run_diagnosis import Diagnosis, _copy as _copy_counts
 from .runtime import _Where
 from .stepping import SteppedEnv, Waiting
 from .turn import Memory, Turn
@@ -40,14 +41,14 @@ _ENV_FIELDS = frozenset({
     "agent_stats", "status", "ended_by", "error", "_memories", "_briefs", "_used_round", "_fired_once", "_lock",
     "_signal", "_running", "driver", "time_limit", "budget", "happenings", "previews", "_on_event", "_emitted",
     "_turn_count", "_cursor", "_where", "_trigger_armed", "_triggers_fired", "_in_round", "origin", "_inspectable",
-    "_invariant_held", "pilot", "build_seed", "stepper"})
+    "_invariant_held", "pilot", "build_seed", "stepper", "diagnosis", "_end_on_action"})
 _WORLD_FIELDS = frozenset({
     "contract", "inputs", "seeds", "arm", "_local", "_rng", "entities", "props", "links", "link_fields", "adjacent",
     "records_store", "entry_by_seq", "entity_briefs", "log", "physics", "physics_writes", "entity_dynamics", "round",
     "stage", "rounds", "metrics", "series", "scheduled", "wake_requests", "reactions", "time", "horizon", "wake_at",
     "_schedule_seq", "space", "buffer", "end_request", "chance_picker", "counters", "journal", "lifecycle",
-    "exposures", "_seq", "_record_seq", "_props_view", "_physics_view", "_clock_view", "_type_props", "_def_cache",
-    "_def_cache_state", "_def_cache_on", "_subtypes", "types"})
+    "exposures", "written", "sealed_writes", "_seq", "_record_seq", "_props_view", "_physics_view", "_clock_view",
+    "_type_props", "_def_cache", "_def_cache_state", "_def_cache_on", "_subtypes", "types"})
 #: Mechanisms keep plain data of their own on the world under these prefixes.
 _WORLD_STORES = ("_channel_visible:",)
 _TURN_FIELDS = frozenset({
@@ -76,7 +77,8 @@ def copy_run(source: SteppedEnv, waiting: Optional[Waiting]) -> Tuple[SteppedEnv
         contract=source.contract, inputs=source.inputs, seed=source.seed, arm=source.arm, parallel=source.parallel,
         seeds=source.seeds, world=world, status=source.status, ended_by=source.ended_by, error=source.error,
         time_limit=source.time_limit, budget=None, _on_event=None, _emitted=source._emitted,
-        _turn_count=source._turn_count, _in_round=source._in_round, _inspectable=source._inspectable, pilot=None,
+        _turn_count=source._turn_count, _in_round=source._in_round, _inspectable=source._inspectable,
+        _end_on_action=source._end_on_action, pilot=None,
         build_seed=source.build_seed, stepper=None, _invariant_held={}, _briefs=dict(source._briefs),
         _fired_once=set(source._fired_once), _trigger_armed=dict(source._trigger_armed),
         _triggers_fired=set(source._triggers_fired),
@@ -93,6 +95,7 @@ def copy_run(source: SteppedEnv, waiting: Optional[Waiting]) -> Tuple[SteppedEnv
     env.happenings = _rebound(source.happenings, env=env)
     env.previews = _rebound(source.previews, env=env, frames=list(source.previews.frames))
     env.driver = _rebound(source.driver, env=env, spec=dict(source.driver.spec), _resolved={}, loop=None)
+    env.diagnosis = _copy_diagnosis(source.diagnosis, world.written)
     origin = Origin.__new__(Origin)
     kept = source.origin
     origin.base, origin.start, origin.tape, origin.checkpoint_due = kept.base, kept.start, kept.tape.copy(), kept.checkpoint_due
@@ -117,7 +120,7 @@ def _refuse(source: SteppedEnv, waiting: Optional[Waiting]) -> None:
         why = "the run has a budget, an event callback or a pilot"
     elif world.physics is not None or world.space is not None or world.entity_dynamics or world.buffer is not None:
         why = "the world has physics or a space, or a sync event is being applied"
-    elif world.reactions or world.journal.mark() or hosts_for(world) is not None:
+    elif world.reactions or world.journal.mark() or hosts_for(world) is not None or world.sealed_writes is not None:
         why = "the world has pending reactions, uncommitted changes or hosts"
     elif source._cursor is not None and (waiting is None or _stage_kind(source) == "scheduled"):
         why = "the run is not waiting in a sequential or simultaneous turn"
@@ -176,11 +179,24 @@ def _copy_world(source: SdkWorld) -> SdkWorld:
         scheduled=list(source.scheduled), wake_requests=dict(source.wake_requests), reactions=[], time=source.time,
         horizon=source.horizon, wake_at=dict(source.wake_at), _schedule_seq=source._schedule_seq, space=None,
         buffer=None, end_request=_copy(source.end_request), chance_picker=None, counters=dict(source.counters),
-        journal=journal, lifecycle=None, exposures=_copy_exposures(source.exposures), _seq=source._seq,
+        journal=journal, lifecycle=None, exposures=_copy_exposures(source.exposures), written=set(source.written),
+        sealed_writes=None, _seq=source._seq,
         _record_seq=source._record_seq, _type_props=source._type_props, _def_cache={}, _def_cache_state=None,
         _def_cache_on=source._def_cache_on, _subtypes=source._subtypes, types=types)
     world._props_view, world._physics_view, world._clock_view = PropsView(world), PhysicsView(world), ClockView(world)
     return world
+
+
+def _copy_diagnosis(source: Diagnosis, written: Set[str]) -> Diagnosis:
+    """The run's diagnostic counts, sharing the copied world's set of written properties as the original does."""
+    unknown = set(vars(source)) - {"actions", "stages", "agents", "overwrites", "written", "_probed"}
+    if unknown:
+        raise NotCopyable(f"the run's diagnosis has attributes a copy does not carry: {sorted(unknown)}")
+    diagnosis = Diagnosis(written)
+    diagnosis.actions, diagnosis.stages = _copy_counts(source.actions), _copy_counts(source.stages)
+    diagnosis.agents, diagnosis.overwrites = _copy_counts(source.agents), _copy_counts(source.overwrites)
+    diagnosis._probed = (source._probed[0], set(source._probed[1]))
+    return diagnosis
 
 
 def _copy_entity(source: Entity) -> Entity:
