@@ -144,10 +144,12 @@ def _vars(world: Any, cfg: StackConfig, item: Mapping[str, Any], below: Optional
     return {"actor": world.entities.get(item["by"]), "params": view["params"], "item": view, "below": _view(world, cfg, below)}
 
 
-def _describe(world: Any, cfg: StackConfig, item: Mapping[str, Any]) -> str:
+def _describe(world: Any, cfg: StackConfig, item: Mapping[str, Any], by: bool = True) -> str:
     spec = cfg.kinds[item["kind"]]
     owner = world.entities.get(item["by"])
-    text = f"{cfg.title(item['kind'])} [{item['id']}] by {owner.name if owner is not None else item['by']}"
+    text = f"{cfg.title(item['kind'])} [{item['id']}]"
+    if by:
+        text += f" by {owner.name if owner is not None else item['by']}"
     if spec.show:
         shown = compile_template(spec.show, None).render(world.scope(**_vars(world, cfg, item, None)))
     else:
@@ -217,7 +219,7 @@ def _push(runner: Any, name: str, cfg: StackConfig, kind: str, actor: Entity, pa
     runner.run(spec.on_push, _vars(world, cfg, item, below), f"{at}.on_push")
     waiting = _waiting(world, item)
     tail = f" Waiting on {_names(world, waiting)} to answer." if waiting else ""
-    _emit(world, name, f"{actor.name} pushes {_describe(world, cfg, item)}.{tail}", "push", item, actor=actor.id)
+    _emit(world, name, f"{actor.name} pushes {_describe(world, cfg, item, by=False)}.{tail}", "push", item, actor=actor.id)
     _settle(runner, name, cfg, where)
 
 

@@ -72,7 +72,7 @@ def test_counterspells_resolve_last_in_first_out_and_a_countered_counter_lets_th
     assert (_props(env, "ann")["mana"], _props(env, "bob")["mana"]) == (0, 1)
     assert _read(env, "$stack(spells)") == [] and _read(env, "$stack(spells, top)") is None
     news = [e.text for e in env.world.log if e.kind == "spells_stack"]
-    assert news[0] == "Ann pushes bolt [1] by Ann: at Bob. Waiting on Bob to answer."
+    assert news[0] == "Ann pushes bolt [1]: at Bob. Waiting on Bob to answer."
     assert "The counterspell [2] by Bob is countered." in news
 
 
