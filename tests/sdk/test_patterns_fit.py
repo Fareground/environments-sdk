@@ -83,6 +83,29 @@ def test_count_dispersion_is_recovered_by_the_method_of_moments():
     assert _param(result, "c", "dispersion") == pytest.approx(3, rel=0.15)
 
 
+def test_a_negative_binomial_refit_started_from_an_earlier_fit_converges_to_the_same_estimates():
+    from fg_env.sdk.patterns.numeric import count_regression
+
+    rng = random.Random(9)
+    rows, ys, groups, censored = [], [], [], []
+    for _ in range(3000):
+        group, x = rng.randrange(20), rng.uniform(-1, 1)
+        mean = math.exp(1 + 0.05 * group + 0.6 * x)
+        demand = _negbin(rng, mean, 4)
+        cap = rng.randrange(2, 30)
+        rows.append([x])
+        groups.append(group)
+        ys.append(min(demand, cap))
+        censored.append(demand > cap)
+    poisson = count_regression(rows, ys, censored=censored, groups=groups, errors=False)
+    assert poisson.se == [] and poisson.intercept_se == []
+    cold = count_regression(rows, ys, censored=censored, groups=groups, k=4.0)
+    warm = count_regression(rows, ys, censored=censored, groups=groups, k=4.0, start=poisson)
+    assert warm.coef[0] == pytest.approx(cold.coef[0], rel=1e-5) and warm.coef[0] == pytest.approx(0.6, abs=0.05)
+    assert warm.intercepts == pytest.approx(cold.intercepts, rel=1e-5, abs=1e-6)
+    assert warm.se == pytest.approx(cold.se, rel=1e-4)
+
+
 def test_mean_reversion_and_autoregression_are_recovered_from_simulated_paths():
     rng = random.Random(5)
     x, ou = 10.0, []

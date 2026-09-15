@@ -24,7 +24,8 @@ __all__ = [
     "EPS", "NAME", "valid_name", "CONFIG_MODELS", "register_config", "config_of", "uses_of", "cached", "type_list", "require_types",
     "require_currency", "lineage", "common_ancestor", "top_types", "declared_use", "guarded", "choice_param", "entity_of",
     "maybe_entity", "props", "checked_config", "declared_names",
-    "LEDGER", "INVENTORY", "PRODUCTION", "SUPPLY_CHAIN", "NEGOTIATION", "LABOR", "SUBSCRIPTIONS", "BOOKINGS",
+    "LEDGER", "INVENTORY", "PRODUCTION", "SUPPLY_CHAIN", "DEMAND", "REPLENISHMENT", "NEGOTIATION", "LABOR", "SUBSCRIPTIONS",
+    "BOOKINGS",
     "to_ids", "whole", "amount", "bump", "money", "emit_to", "compiles", "run_hook",
 ]
 
@@ -34,6 +35,7 @@ NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
 
 #: ``family.mode`` of every economy and agreements mode.
 LEDGER, INVENTORY, PRODUCTION, SUPPLY_CHAIN = "economy.ledger", "economy.inventory", "economy.production", "economy.supply_chain"
+DEMAND, REPLENISHMENT = "economy.demand", "economy.replenishment"
 NEGOTIATION, LABOR, SUBSCRIPTIONS, BOOKINGS = ("agreements.negotiation", "agreements.labor", "agreements.subscriptions",
                                                "agreements.bookings")
 
