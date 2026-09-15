@@ -11,6 +11,7 @@ Built in:
 from __future__ import annotations
 
 import json
+import math
 import random
 import threading
 import time
@@ -74,6 +75,12 @@ def sample_args(schema: Mapping[str, Any], rng: random.Random) -> Dict[str, Any]
             low = prop.get("minimum", 0)
             high = prop.get("maximum", max(low, 0) + 10)
             if high < low:
+                continue
+            step = prop.get("multipleOf")
+            if step:
+                first, last = math.ceil(low / step), math.floor(high / step)
+                if last >= first:
+                    args[name] = rng.randint(first, last) * step
                 continue
             args[name] = rng.randint(int(low), int(high)) if kind == "integer" else round(rng.uniform(low, high), 2)
         elif kind == "boolean":

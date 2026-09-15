@@ -224,6 +224,8 @@ class SdkWorld(World):
         #: Shortest-path distances on the (static) place graph, filled as they are asked for.
         self._graph_distances: Dict[Tuple[Any, Any], float] = {}
         self.end_request: Optional[Dict[str, Any]] = None
+        #: Chooses the outcome of a `chance` effect instead of the random stream (explicit chance; see chance.py).
+        self.chance_picker: Optional[Callable[[Any], int]] = None
         self.counters: Dict[str, int] = {}
         self.journal = _Journal()
         #: Called as ``lifecycle(hook, entity, where)`` after every creation and removal (set by the effect runner).

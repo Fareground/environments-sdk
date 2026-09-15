@@ -24,6 +24,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   arguments, conditions and limits apply, and the log keeps the action's own name. Mechanisms that generate
   several tools take `tools: each | one | auto` (`each` by default; `auto` shares one tool only when every
   action takes the same arguments).
+- **Chance nodes** (`chance` effect): `{"chance": [{"p": 0.5, "label": "heads", "do": [...]}, ...], "as": "coin"}`
+  or `{"chance": "deal", "outcomes": "$world.deck", "weight": "...", "as": "card", "do": [...]}` picks one
+  outcome from a listed distribution and logs it as a `chance` event. Sampled from the seed by default;
+  `fg_env.load(..., chance=callable)` chooses outcomes (fixed deals, duplicate formats).
+- **Game section** (`game`): seats (`players`, `seat`), per-seat `returns` and optional `rewards`, and the
+  `utility` class (zero_sum, constant_sum with `total`, general_sum, identical) checked on every finished run.
+  Every `RunResult` carries `returns` per seat. Mechanisms may fill the section in. Claims written there
+  (`dynamics`, `information`, `chance_mode`, player counts, `max_rounds`, action space) are verified by
+  `check` against `fg_env.describe`'s derivation; `describe` reports the utility class from the returns, and
+  tournaments score seats by their returns when no `score` is given.
+- **Copies of a run at any moment**: `wake.clone()` copies the run paused inside the agent's turn (fresh luck
+  by default, `same_luck=True` for the real run's streams) to try calls and play forward on a `Branch`;
+  `env.clone()` copies a run between rounds or stopped part-way through one. Copies are rebuilt from the
+  run's base and replay a tape of what participants did, so they are exact — state, streams, turn
+  numbers, log, exposures, frames, recorded host answers and timeouts — and never touch the original.
+- **Forks**: `env.fork(arm=..., inputs=..., patch=..., contract=..., seed=..., effects=[...])` and
+  `fg_env.fork(contract, snapshot, ...)` continue a run under changes; a compatibility check lists everything
+  the state cannot follow with its fix, and intervention effects are applied atomically and logged as a
+  `fork` event. `fg_env.experiment(..., branch_at=N)` plays each run's first N rounds once and continues
+  every arm from that shared state.
+- **Games** (`fg_env.game(contract)`): an OpenSpiel-style game over any contract — seats, stable integer
+  action ids with legal masks (parametric actions for free text and lists; a param `step` makes numbers
+  enumerable), chance nodes with enumerable outcomes, joint simultaneous nodes or `as_turn_based()`,
+  `clone`/`child`, returns and rewards, per-seat observation text and structure, perfect-recall
+  information states, state keys and serialization. Decisions go through the same tool calls as LLM agents.
+- **Gym** (`fg_env.gym(contract, agent, others=...)`): a Gymnasium-style `reset`/`step` over one agent's tool
+  calls with rewards from `game.returns`; a `gymnasium.Env` when gymnasium is installed.
 - **Turn time limits**: stage `time_limit` (seconds, or an expression over `$actor`) and `on_timeout`
   effects, plus a run-wide default (`env.run(..., time_limit=30)`). A participant past its deadline loses
   the turn — later calls are refused, a `timeout` event and `stats["timeouts"]` record it — and a hung one
@@ -101,6 +128,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   population list prop and read the parts through `$it` for correlated traits.
 
 #### Changed
+- `Env.restore` refuses a snapshot whose seed, arm or inputs were edited, and explains a contract mismatch,
+  pointing to `fg_env.fork` (an edited arm used to be ignored silently).
 - Async participants are awaited instead of refused.
 - `link` without `value` keeps an existing link's value (it used to reset it to 1); a new link gets the
   relation's `default` (previously ignored), or 1.

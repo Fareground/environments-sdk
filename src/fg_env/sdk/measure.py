@@ -80,6 +80,8 @@ class RunResult:
     error: Optional[str] = None
     #: The clock time reached (continuous clock), else None.
     time: Optional[float] = None
+    #: Each seat's return (the contract's `game.returns`), in seat order; empty when none is declared.
+    returns: Dict[str, float] = field(default_factory=dict)
     output_issues: List[Dict[str, Any]] = field(default_factory=list)
     stats: Dict[str, Any] = field(default_factory=dict)
     #: ``stats`` per agent entity id: its turns, calls, invalid calls, actions and model usage.

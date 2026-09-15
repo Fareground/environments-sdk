@@ -275,6 +275,10 @@ _EFFECT_EXAMPLES = {
     "wake": '{"wake": "$params.who", "why": "{$actor.name} asked you a question."}  (a turn later; "now": true — they react right away, before this turn continues; "in": 5 — continuous clock, that much later; "drop": 0.2 — the wake may be lost)',
     "repeat": '{"repeat": 1000, "while": "$count(order) > 1", "do": [...]}  (error if still true at the limit)',
     "block": '{"block": "settle", "with": {"buyer": "$actor", "qty": "$params.qty"}}  (runs a named effect list from `blocks`)',
+    "chance": '{"chance": [{"p": 0.5, "label": "heads", "do": [...]}, {"p": 0.5, "label": "tails", "do": [...]}], '
+              '"as": "coin"} or {"chance": "deal", "outcomes": "$world.deck", "weight": "1", "as": "card", "do": [...]}  '
+              '(picks one outcome from the listed distribution, logged as a `chance` event; `fg_env.game` can '
+              'enumerate and choose outcomes instead of sampling them)',
 }
 
 _PATTERNS = """\
@@ -338,7 +342,11 @@ _PATTERNS = """\
   snapshots, restores and replays never ask again, and host text reaches agents «quoted».
 * Scenarios & experiments: `inputs` for scenario knobs, `arms` for variants (input overrides or
   patches), `events` with `at`/`every`/`chance`/`arms` for shocks; `fg_env.experiment` runs arms
-  with shared seeds.
+  with shared seeds (`branch_at=N`: every arm continues from one shared history of N rounds).
+* Games: a `game` section names the seats and what each scores (`"game": {"players": "player", "seat":
+  "$it.seat", "returns": "$actor.chips - 10", "utility": "zero_sum"}`); dealt cards and dice as `chance`
+  effects (`{"chance": "deal", "outcomes": "$world.deck", "as": "card", "do": [...]}`) so solvers can
+  enumerate them; `must_act` stages so a seat cannot stall; `step` on number params so bids have ids.
 * Families of agents: `types.trader` with shared props, then `types.market_maker: {"extends": "trader"}`;
   `$count(trader)`, `by: trader`, views `for: trader` and `brief.roles.trader` cover every kind.
 * Bookkeeping on birth and death: `"types": {"firm": {"on_create": ["$world.firms_founded += 1",
@@ -408,6 +416,24 @@ the run with its entity id; experiments keep such runs as `status="failed"` and 
 `env.result()`, `env.finished`. `env.preview(id)` plays the start of the next round on a copy and shows
 exactly the turn the agent will get.
 
+Copies, forks, games and gyms:
+```python
+with wake.clone() as branch:          # inside a turn: a private copy paused right here (fresh luck; same_luck=True)
+    branch.call("buy", {"offer": "latte", "qty": 2}); outcome = branch.run("random")   # the real run never changes
+twin = env.clone()                    # between rounds or stopped mid-round: continues exactly like env
+what_if = env.fork(arm="promo", patch={...}, effects=["$world.tax = 0.2"])   # between rounds; refuses what cannot follow
+game = fg_env.game("kuhn_poker.json"); state = game.new_initial_state()    # OpenSpiel-style
+state.current_player(), state.legal_actions(), state.chance_outcomes(), state.child(action), state.returns()
+state.information_state(seat), state.observation(seat, "struct"), state.apply_actions({0: a, 1: b})
+env = fg_env.gym("nim.json", "a", others="random"); obs, info = env.reset(seed=1)
+obs, reward, terminated, truncated, info = env.step({"tool": "take", "args": {"count": 2}})
+```
+A copy is rebuilt from the run's base and replays what its participants did, so it is exact (state, random
+streams, turn numbers, log, recorded host answers) and costs a restore plus the round so far; turn time
+limits never run out in a copy. It holds the whole world, hidden state included. Game action ids are fixed
+when the game is created (one per combination of listed argument values; free text and lists are
+parametric: apply them as `{"tool", "args"}`). `fg_env.load(..., chance=callable)` chooses chance outcomes.
+
 LLM participants: `fg_env.participants.anthropic(anthropic.Anthropic(), "claude-sonnet-5")` or
 `fg_env.participants.openai(client, model)`; they cache the brief and loop over tool calls, retry rate
 limits, timeouts and server errors (`retries=4`), then fail the run or, with `on_error="end_turn"`,
@@ -452,7 +478,7 @@ _SECTIONS: List[Tuple[str, List[Type[BaseModel]]]] = [
     ("records", [C.RecordSpec]), ("actions", [C.ActionSpec, C.ParamSpec, C.Condition]),
     ("stages", [C.StageSpec]), ("views", [C.ViewSpec]), ("events", [C.EventSpec]), ("triggers", [C.TriggerSpec]),
     ("policies", [C.PolicySpec, C.PolicyRule]), ("metrics", [C.MetricSpec]), ("outputs", [C.OutputSpec]),
-    ("end", [C.EndSpec]), ("arms", [C.ArmSpec]), ("invariants", [C.InvariantSpec]),
+    ("end", [C.EndSpec]), ("arms", [C.ArmSpec]), ("game", [C.GameSpec]), ("invariants", [C.InvariantSpec]),
     ("defs", [C.DefSpec]), ("blocks", [C.BlockSpec]), ("mechanisms", []),
 ]
 
@@ -464,7 +490,7 @@ _SHAPES = {
     "records": "{record: RecordSpec}", "actions": "{action: ActionSpec}", "stages": "[StageSpec]",
     "views": "{view: ViewSpec}", "events": "[EventSpec]", "triggers": "[TriggerSpec]", "policies": "{policy: PolicySpec}",
     "metrics": "{metric: MetricSpec | expr}", "outputs": "{output: OutputSpec | expr}", "end": "[EndSpec]",
-    "arms": "{arm: ArmSpec}", "invariants": "[InvariantSpec | expr]",
+    "arms": "{arm: ArmSpec}", "game": "GameSpec", "invariants": "[InvariantSpec | expr]",
     "defs": "{name: DefSpec | expr}", "blocks": "{name: BlockSpec}",
     "mechanisms": "{name: {kind, mode, ...config}} — native building blocks by family; see the mechanisms part",
 }
