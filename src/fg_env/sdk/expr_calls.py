@@ -73,7 +73,9 @@ class Call:
     def each(self, index: int, item: Any, position: int = 0) -> Any:
         """Evaluate argument ``index`` with ``$it`` bound to ``item`` (the enclosing ``$it`` is ``$outer``)."""
         # Not charged: per-item arguments run over a collection whose length was charged.
-        return self.nodes[index](self.scope.child(it=item, i=position, outer=self.scope.vars.get("it")))
+        scope = self.scope
+        vars = scope.vars  # the child scope built in one step: every collection function runs this per item
+        return self.nodes[index](Scope({**vars, "it": item, "i": position, "outer": vars.get("it")}, scope.world))
 
     def collection(self, index: int = 0) -> List[Any]:
         return self._items(self.arg(index), copy=True)  # type: ignore[return-value]

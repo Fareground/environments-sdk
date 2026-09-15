@@ -299,20 +299,23 @@ def _choices(env: "Env", turn: "Turn", name: str, pname: str, param: ParamSpec, 
              limit: int) -> List[Any]:
     book, world, actor = env.actions, env.world, turn.actor
     head: List[Any] = [] if book._required(param) else [None]
-    scope = world.scope(actor=actor, params=resolved)
     path = f"actions.{name}.params.{pname}"
+
+    def scope() -> Any:  # built only for a domain that is an expression
+        return world.scope(actor=actor, params=resolved)
+
     try:
         if param.type == "bool":
             return head + [False, True]
         if param.type == "entity":
             return head + [choice.id for choice in book._choices(actor, name, pname, param, resolved)]
         if param.type == "enum":
-            values = compile_expr(param.values)(scope) if isinstance(param.values, str) else param.values
+            values = compile_expr(param.values)(scope()) if isinstance(param.values, str) else param.values
             return head + [_plain(value) for value in values or []]
         if param.type in ("int", "number"):
             step = param.step if param.step is not None else (1 if param.type == "int" else None)
-            low = compile_expr(param.min)(scope) if is_expr(param.min) else param.min
-            high = compile_expr(param.max)(scope) if is_expr(param.max) else param.max
+            low = compile_expr(param.min)(scope()) if is_expr(param.min) else param.min
+            high = compile_expr(param.max)(scope()) if is_expr(param.max) else param.max
             if step is not None and _is_number(low) and _is_number(high):
                 values, why = _steps(float(low), float(high), step, param.type, limit)  # type: ignore[arg-type]
                 if values is not None:
