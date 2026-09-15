@@ -48,3 +48,41 @@ def test_choices_change_with_state_and_do_not_expose_inherited_private_details()
     assert seen["b"] == ["a", "b", "empty", "g"]
     assert seen["after_close"] == ["a", "b", "empty"]
     assert seen["h"] == ["a", "b", "empty", "h"]  # itself is always inspectable
+
+
+def test_shared_listing_invalidates_on_changes_and_rollback_and_keeps_schemas_separate():
+    from fg_env.sdk.reads import inspect_tool
+
+    contract = {
+        "name": "Shared listing invalidation",
+        "types": {"person": {"props": {"zero": 0}},
+                  "blank": {"props": {"label": ""}},
+                  "private": {"props": {"secret": {"default": "private", "private": True}}},
+                  "hidden": {"inspect": False, "props": {"label": "hidden"}}},
+        "entities": {"a": {"type": "person"}, "b": {"type": "person"}, "empty": {"type": "blank"},
+                     "p": {"type": "private"}, "h": {"type": "hidden"}},
+    }
+    env = fg_env.load(contract)
+    world = env.world
+    a, b = world.entities["a"], world.entities["b"]
+
+    def listing(viewer):
+        tool = inspect_tool(env, viewer, 3)
+        assert tool is not None
+        return tool.input_schema["properties"]["id"]["enum"]
+
+    offered = listing(a)
+    assert offered == ["a", "b"]
+    offered.append("injected")
+    assert listing(b) == ["a", "b"]
+    assert listing(world.entities["p"]) == ["a", "b", "p"]
+    assert listing(world.entities["h"]) == ["a", "b", "h"]
+    assert listing(a) == ["a", "b"]  # private self choices never contaminate shared choices
+
+    mark = world.journal.mark()
+    world.set_prop(world.entities["empty"], "label", "visible")
+    world.remove(b)
+    assert listing(a) == ["a", "empty"]
+    world.journal.rollback(mark)
+    assert listing(a) == ["a", "b"]
+    assert listing(b) == ["a", "b"]

@@ -29,7 +29,7 @@ from .host.tape import tape_of
 from .measure import RunResult, Stats
 from .perception import Perception
 from .previews import Previews
-from .reads import inspect_rule
+from .reads import InspectCache, inspect_rule
 from .replay import Origin
 from .returns import measured
 from .run_checks import RunChecks
@@ -85,6 +85,7 @@ class Env(Copying, RunChecks, RunRounds, RunStages):
         self.error: Optional[str] = None
         self._memories: Dict[str, Memory] = {}
         self._briefs: Dict[str, str] = {}
+        self._inspect_cache: Optional[InspectCache] = None
         #: The assets each agent's brief attaches (fixed with the brief text).
         self._brief_assets: Dict[str, List[str]] = {}
         self._used_round: Dict[str, Dict[str, int]] = {}

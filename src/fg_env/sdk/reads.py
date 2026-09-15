@@ -13,6 +13,8 @@ their name in what that agent reads (``Moderator [chair]``), so the handle to pa
 """
 from __future__ import annotations
 
+from copy import deepcopy
+from dataclasses import dataclass
 from difflib import get_close_matches
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Tuple
 
@@ -112,7 +114,39 @@ def look_tool(looks: Sequence[Tuple[str, str]], allowance: int) -> ToolSpec:
         "required": ["view"], "additionalProperties": False}, "look")
 
 
+@dataclass
+class InspectCache:
+    version: int
+    allowance: int
+    shared_viewers: set[str]
+    ready: bool = False
+    tool: Optional[ToolSpec] = None
+
+
 def inspect_tool(env: "Env", viewer: Entity, allowance: int) -> Optional[ToolSpec]:
+    """Reuse a listing only when its visibility is independent of the viewer."""
+    cache = env._inspect_cache
+    if cache is None or cache.version != env.world.journal.version or cache.allowance != allowance:
+        shared: set[str] = set()
+        for kind in env.contract.types:
+            rule = inspect_rule(env.contract, kind)
+            if not isinstance(rule, bool):
+                shared.clear()
+                break
+            if rule and not any(spec.private for spec in env.contract.props_of(kind).values()):
+                shared.add(kind)
+        cache = env._inspect_cache = InspectCache(env.world.journal.version, allowance, shared)
+    if viewer.entity_type not in cache.shared_viewers:
+        return _build_inspect_tool(env, viewer, allowance)
+    if not cache.ready:
+        cache.tool = _build_inspect_tool(env, viewer, allowance)
+        cache.ready = True
+    # ToolSpec is frozen but its schema is mutable. Never share that schema
+    # across callers; enums have at most 60 ids, so copying stays bounded.
+    return deepcopy(cache.tool)
+
+
+def _build_inspect_tool(env: "Env", viewer: Entity, allowance: int) -> Optional[ToolSpec]:
     """The inspect tool, or None when nothing is worth inspecting."""
     ids = [entity.id for entity in _offered(env, viewer)]
     if not ids:

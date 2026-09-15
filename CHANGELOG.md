@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Inspection listings with fixed visibility can be reused across ordinary viewers until journaled state changes.
+  Dynamic permissions and private self-views keep individual evaluation; rollback and run copies invalidate reuse,
+  and returned schemas are isolated from each other.
 - Inspect choices reuse inherited type metadata within each listing and short-circuit visible-value checks,
   reducing actor-turn overhead while retaining current permissions, private-field rules and entity order.
 - Guest exit abandons pending bookings without counting service or leaving permanent queue entries. Freed
