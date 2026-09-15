@@ -117,7 +117,7 @@ def test_a_council_without_its_search_host_stops_clearly():
 
 def test_shared_evidence_is_published_in_seat_order_at_the_end_of_the_round():
     shared = copy.deepcopy(COUNCIL)
-    shared["mechanisms"]["search"]["share"] = "all"
+    shared["mechanisms"]["search"]["private"] = False
     env = host.load(shared, hosts={"web_search": StubTools()}, seed=1)
     host.run(env, researcher([]), rounds=1)
     entries = env.world.records("search")
@@ -140,3 +140,22 @@ def test_the_plain_engine_offers_search_as_an_action():
     assert result.status == "running" and result.error is None
     assert len(calls) == 6 and all(c.ok for c in calls)
     assert len(env.entity("panelist_1")["props"]["search_evidence"]) == 2
+
+
+def test_host_tool_config_and_actions_say_what_to_fix():
+    def issues(contract):
+        return [str(i) for i in fg_env.check(contract) if i.severity == "error"]
+
+    old = copy.deepcopy(COUNCIL)
+    old["mechanisms"]["search"] = {"kind": "host_tool", "host": "web_search", "by": "panelist"}
+    assert any("'host_tool' is now kind 'host' with mode 'tool'" in i for i in issues(old))
+    shared = copy.deepcopy(COUNCIL)
+    shared["mechanisms"]["search"]["share"] = "all"
+    assert any("`share` is not a field of `host` mode `tool`" in i for i in issues(shared))
+    called = copy.deepcopy(COUNCIL)
+    called["events"] = [{"do": [{"host": "search", "action": "call"}]}, {"do": [{"host": "story", "action": "call", "args": {}}]}]
+    found = issues(called)
+    assert any("`host.call` needs `args`" in i for i in found)
+    assert any("'call' is not an action of story (host recap)" in i and "actions: write" in i for i in found)
+    page = fg_env.guide("host.tool")
+    assert page.startswith("### `host.tool`") and "- `call`" in page and "- `publish`" not in page and "`private`" in page

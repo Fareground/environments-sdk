@@ -22,7 +22,7 @@ class HostError(Exception):
 
 @runtime_checkable
 class Evaluator(Protocol):
-    """Scores text against a rubric (``judge`` mechanism).
+    """Scores text against a rubric (``host.judge`` mechanism).
 
     Request: ``{"judge", "model", "instructions", "criteria": [{"name", "description", "weight",
     "min", "max"}], "subject", "text", "context": [{"speaker", "text"}], "blind", "out_of"}``.
@@ -34,7 +34,7 @@ class Evaluator(Protocol):
 
 @runtime_checkable
 class GameMaster(Protocol):
-    """Turns a free-text attempt into effects chosen from an allow-list (``game_master``).
+    """Turns a free-text attempt into effects chosen from an allow-list (``host.game_master``).
 
     Request: ``{"game_master", "model", "rules", "actor": {"id", "name", "type", "props"},
     "attempt", "context", "allowed": [rule, ...], "max_effects", "time"}``.
@@ -49,7 +49,7 @@ class GameMaster(Protocol):
 
 @runtime_checkable
 class Tools(Protocol):
-    """Services agents call inside a turn, such as web search (``host_tool``).
+    """Services agents call inside a turn, such as web search (``host.tool``).
 
     ``name`` is the host name the contract uses; ``args`` are the validated tool arguments.
     Answer: the result as text.
@@ -71,7 +71,7 @@ class Writer(Protocol):
 
 @runtime_checkable
 class Ranker(Protocol):
-    """Scores how relevant each memory is to a query (``memory`` with ``relevance: host``).
+    """Scores how relevant each memory is to a query (``mind.memory`` with ``relevance: host``).
 
     Request: ``{"query", "items": [{"id", "text"}]}``. Answer: one number in [0, 1] per item.
     """

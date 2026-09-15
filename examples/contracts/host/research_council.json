@@ -50,12 +50,12 @@
   ],
   "mechanisms": {
     "search": {
-      "kind": "host_tool", "host": "web_search", "by": "panelist",
+      "kind": "host", "mode": "tool", "host": "web_search", "who": "panelist",
       "description": "Search the web for evidence on the question.",
       "max_calls_per_turn": 2, "max_calls_per_run": 5, "stages": ["discuss", "ballot"]
     },
-    "memory": {"kind": "memory", "agents": "panelist", "half_life": 3, "budget": 200, "stages": ["discuss", "ballot"]},
-    "story": {"kind": "recap", "record": "board", "every": 2, "fallback": "extract"}
+    "memory": {"kind": "mind", "mode": "memory", "who": "panelist", "half_life": 3, "budget": 200, "stages": ["discuss", "ballot"]},
+    "story": {"kind": "host", "mode": "recap", "record": "board", "every": 2, "fallback": "extract"}
   },
   "views": {
     "panel": {"for": "panelist", "title": "The panel", "of": "panelist", "stages": ["discuss"], "show": "{name} ({lens})"}

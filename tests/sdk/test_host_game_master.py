@@ -85,7 +85,7 @@ def test_any_effect_outside_the_allow_list_refuses_the_whole_attempt(effect, rea
 
 def test_one_news_item_per_attempt_even_with_several_news_rules():
     contract = copy.deepcopy(TAVERN)
-    contract["mechanisms"]["gm"]["allow"].append({"effect": "news", "max_len": 40})
+    contract["mechanisms"]["gm"]["allow"].append({"effect": "news", "max_chars": 40})
     twice = {"effects": [{"effect": "news", "text": "A cheer."}, {"effect": "news", "text": "Another cheer."}]}
     env, result = _run(lambda request: twice, ["I sing."], contract=contract)
     entry = env.world.records("gm")[0]

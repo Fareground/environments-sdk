@@ -41,10 +41,11 @@
   ],
   "mechanisms": {
     "judge": {
-      "kind": "judge",
+      "kind": "host",
+      "mode": "judge",
       "record": "speeches",
       "stage": "speeches",
-      "of": "debater",
+      "who": "debater",
       "into": "score",
       "blind": true,
       "context_last": 2,

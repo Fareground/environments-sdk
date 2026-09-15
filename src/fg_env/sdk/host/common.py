@@ -1,10 +1,10 @@
-"""Shared plumbing for host mechanisms: config lookup at run time, static checks, agent lists."""
+"""Shared plumbing for host mechanisms: config lookup at run time, type checks, agent lists."""
 from __future__ import annotations
 
 import json
 import re
 from functools import lru_cache
-from typing import Any, Callable, Dict, List, Mapping, Sequence, Tuple, Type, TypeVar, Union, cast
+from typing import Any, List, Mapping, Sequence, Tuple, Type, TypeVar, Union, cast
 
 from pydantic import BaseModel
 
@@ -13,7 +13,7 @@ from ..errors import RunError
 from ..expr import Untrusted
 from ..registry import MechanismError, config_data, describe, use_key
 
-__all__ = ["NAME", "config_of", "declared_check", "type_list", "agents_of", "clip", "ellipsis"]
+__all__ = ["NAME", "config_of", "type_list", "agents_of", "clip", "ellipsis"]
 
 NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
 M = TypeVar("M", bound=BaseModel)
@@ -36,21 +36,6 @@ def _parse(model: Type[BaseModel], frozen: Tuple[Tuple[str, str], ...]) -> BaseM
 
 def _frozen(raw: Mapping[str, Any]) -> Tuple[Tuple[str, str], ...]:
     return tuple(sorted((key, json.dumps(value, sort_keys=True, default=str)) for key, value in raw.items()))
-
-
-def declared_check(op: str, kind: str) -> Callable[[Any, Dict[str, Any], str], list]:
-    """A static check that ``{op: name}`` names a declared mechanism of ``kind``."""
-
-    def check(checker: Any, effect: Dict[str, Any], path: str) -> list:
-        name = effect.get(op)
-        uses = {n: use_key(u) for n, u in checker.c.mechanisms.items()}
-        if uses.get(name) == kind:
-            return []
-        named = [n for n, k in uses.items() if k == kind]
-        return [(f"{path}.{op}", f"'{name}' is not a declared {describe(kind)} mechanism",
-                 f"{describe(kind)} mechanisms: {', '.join(named)}" if named else f"declare a {describe(kind)} mechanism")]
-
-    return check
 
 
 def type_list(contract: Mapping[str, Any], value: Union[str, Sequence[str]], field: str) -> List[str]:

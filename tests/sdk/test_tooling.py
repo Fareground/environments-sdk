@@ -37,8 +37,10 @@ def test_guide_covers_every_mechanism_family_mode_field_and_action():
             assert page.startswith(f"### `{name}.{mode}`") and page in whole and page in guide(name)
             for field in spec.config.model_fields:
                 assert f"- `{field}` (" in page, (name, mode, field)
+            marker = f"Actions of the `{name}` op:"
+            listed = page[page.index(marker):] if marker in page else ""
             for action, op in family.actions.get(mode, {}).items():
-                assert (f"- `{action}`" in page) is not op.internal, (name, mode, action)
+                assert (f"\n- `{action}`" in listed) is not op.internal, (name, mode, action)
 
 
 def test_guide_example_contract_is_valid_and_runs():

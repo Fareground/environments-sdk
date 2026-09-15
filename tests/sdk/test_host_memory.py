@@ -19,7 +19,7 @@ NOTEBOOK = {
     "actions": {"say": {"by": "person", "params": {"text": "text"}, "do": [{"post": "chat", "text": "$params.text"}],
                         "terminal": True}},
     "stages": [{"name": "talk", "turns": "sequential"}],
-    "mechanisms": {"memory": {"kind": "memory", "agents": "person", "half_life": 2, "limit": 12}},
+    "mechanisms": {"memory": {"kind": "mind", "mode": "memory", "who": "person", "half_life": 2, "limit": 12}},
 }
 
 
@@ -137,3 +137,27 @@ def test_a_plain_run_offers_note_and_recall_as_in_turn_tools_that_use_no_action(
     result = env.run(participant, rounds=1)
     assert result.status == "running" and result.error is None
     assert len(_memory(env)) == 1 and result.stats["actions"] == 0
+
+
+def _errors(contract):
+    return [str(i) for i in fg_env.check(contract) if i.severity == "error"]
+
+
+def test_memory_config_and_actions_say_what_to_fix():
+    old = copy.deepcopy(NOTEBOOK)
+    old["mechanisms"]["memory"] = {"kind": "memory", "agents": "person"}
+    assert any("'memory' is now kind 'mind' with mode 'memory'" in e for e in _errors(old))
+    assert any("`max_char` is not a field of `mind` mode `memory` → did you mean 'max_chars'?" in e
+               for e in _errors(_with(max_char=40)))
+
+    def op(*effects):
+        return _errors({**NOTEBOOK, "events": [{"do": list(effects)}]})
+
+    assert any("`mind.recall` needs `query`" in e for e in op({"mind": "memory", "action": "recall"}))
+    assert any("'query' is not part of `mind.note`" in e for e in op({"mind": "memory", "action": "note", "text": "a", "query": "b"}))
+    assert any("'remember' is not an action of memory (mind memory)" in e and "actions: note, recall" in e
+               for e in op({"mind": "memory", "action": "remember"}))
+    assert any('`memory_note` is now the `mind` op: {"mind": "<mechanism>", "action": "note"' in e
+               for e in op({"memory_note": "memory", "text": "a"}))
+    page = fg_env.guide("mind.memory")
+    assert page.startswith("### `mind.memory`") and "- `recall` — takes `query`" in page and "- `reflect`" not in page

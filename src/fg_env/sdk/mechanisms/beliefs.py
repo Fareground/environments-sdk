@@ -2,11 +2,11 @@
 
 .. code-block:: json
 
-    "mechanisms": {"memory": {"kind": "beliefs", "holders": "villager", "decay": 0.1,
+    "mechanisms": {"memory": {"kind": "mind", "mode": "beliefs", "who": "villager", "decay": 0.1,
                               "secondhand": 0.6, "trust": "trusts", "share": true}}
 
 Each holder keeps a private map ``<name>`` of beliefs: ``{key: {value, confidence, source, told_by,
-round}}``. ``learn`` records something observed (source ``direct``); ``tell`` passes a belief on
+round}}``. The ``mind`` op changes them: ``learn`` records something observed (source ``direct``); ``tell`` passes a belief on
 at lower confidence (× ``secondhand``, × the teller-to-listener ``trust`` link clamped to 0–1
 when a trust relation is named). A new belief replaces an existing one about the same key when
 its confidence is at least as high; the same value keeps the higher confidence. Every round
@@ -24,14 +24,14 @@ from pydantic import BaseModel, ConfigDict, Field
 from ...entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, function
-from ..registry import MechanismError, effect_op, mechanism
+from ..registry import MechanismError, family_action, mode
 from ..template import format_value
 from ..world import Abort
-from ._social import props, config_of, eid, entity, ids, literal_name_check, only_use, require_type, single_use_check
+from ._social import props, config_of, eid, entity, ids, only_use, require_type, single_use_check
 
 __all__ = ["BeliefsConfig"]
 
-KIND = "beliefs"
+KIND = "mind.beliefs"
 #: Longest belief key.
 MAX_KEY_LEN = 200
 
@@ -41,14 +41,14 @@ class BeliefsConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    holders: str = Field(..., description="Entity type that holds beliefs (subtypes included).")
+    who: str = Field(..., description="Entity type that holds beliefs (subtypes included).")
     decay: float = Field(0.1, ge=0, le=1, description="Confidence lost per round (a share with exponential, an amount with linear).")
-    mode: Literal["exponential", "linear"] = Field("exponential", description="How confidence decays.")
+    decay_curve: Literal["exponential", "linear"] = Field("exponential", description="How confidence decays: exponential (loses a share of itself) or linear (loses a fixed amount).")
     forget_below: float = Field(0.05, ge=0, le=1, description="Beliefs below this confidence are forgotten.")
     secondhand: float = Field(0.7, ge=0, le=1, description="Confidence multiplier for something one was told.")
     trust: Optional[str] = Field(None, description="Relation from listener to teller scaling told confidence (value clamped to 0–1).")
     share: bool = Field(False, description="Offer a `<name>_tell` tool: pass one of your beliefs to another holder.")
-    view: bool = Field(True, description="Show each holder its own beliefs.")
+    views: bool = Field(True, description="Show each holder its own beliefs.")
     view_limit: int = Field(12, ge=1, le=100, description="Beliefs shown, most confident first.")
     phase: Literal["start", "end"] = Field("end", description="When beliefs decay each round.")
 
@@ -74,7 +74,7 @@ def _key(value: Any, where: Optional[str]) -> str:
 
 
 def _holder(world: Any, config: BeliefsConfig, value: Any, where: str) -> Entity:
-    return entity(world, value, where, config.holders)
+    return entity(world, value, where, config.who)
 
 
 def believe(world: Any, name: str, config: BeliefsConfig, holder: Entity, key: str, value: Any, confidence: float,
@@ -148,18 +148,21 @@ def _plain(value: Any) -> Any:
 
 
 # ---------------------------------------------------------------------------
-# Ops
+# The mind op's beliefs actions
 # ---------------------------------------------------------------------------
 
 
-@effect_op("learn", keys=("who", "value", "confidence", "source", "from"),
-           example='{"learn": "wolf", "who": "$actor", "value": "$params.suspect.id", "confidence": 0.9}  '
-                   "(who comes to believe key = value; source direct unless given; `from` names who it came from)")
-def _learn_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+@family_action("mind", ("beliefs",), "learn", keys=("key", "who", "value", "confidence", "source", "from"), required=("key",),
+               was=("learn",),
+               example='{"mind": "memory", "action": "learn", "key": "wolf", "who": "$actor", "value": "$params.suspect.id", '
+                       '"confidence": 0.9}  (who, by default $actor, comes to believe key = value; source direct unless given; '
+                       "`from` names who it came from)")
+def _learn(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    name, config = _use(world, where)
+    name = effect["mind"]
+    config = config_of(world, name, KIND, BeliefsConfig)
     try:
-        key = _key(runner.eval(effect["learn"], vars), where)
+        key = _key(runner.eval(effect["key"], vars), where)
         holders = ids(runner.eval(effect.get("who", "$actor"), vars), where)
         value = _plain(runner.eval(effect.get("value", True), vars))
         confidence = runner.eval(effect.get("confidence", 1), vars)
@@ -174,16 +177,18 @@ def _learn_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: 
                 eid(teller, where) if teller is not None else None)
 
 
-@effect_op("tell", keys=("from", "to", "value", "confidence", "say"), templates=("say",),
-           example='{"tell": "wolf", "from": "$actor", "to": "$params.listener"}  (pass a belief on at secondhand '
-                   "confidence; `value` to tell something else, `say` for the listener's notice)")
-def _tell_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+@family_action("mind", ("beliefs",), "tell", keys=("key", "to", "who", "value", "confidence", "say"), required=("key", "to"),
+               templates=("say",), was=("tell",),
+               example='{"mind": "memory", "action": "tell", "key": "wolf", "to": "$params.listener"}  (who, by default $actor, '
+                       "passes a belief on at secondhand confidence; `value` to tell something else, `say` for the listener's notice)")
+def _tell(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    name, config = _use(world, where)
+    name = effect["mind"]
+    config = config_of(world, name, KIND, BeliefsConfig)
     try:
-        key = _key(runner.eval(effect["tell"], vars), where)
-        teller = _holder(world, config, runner.eval(effect.get("from", "$actor"), vars), where)
-        listeners = ids(runner.eval(effect.get("to"), vars), where)
+        key = _key(runner.eval(effect["key"], vars), where)
+        teller = _holder(world, config, runner.eval(effect.get("who", "$actor"), vars), where)
+        listeners = ids(runner.eval(effect["to"], vars), where)
     except ExprError as exc:
         raise RunError(str(exc), where) from None
     held = _map(teller, name).get(key)
@@ -217,12 +222,14 @@ def _confidence_number(value: Any, where: str) -> None:
         raise RunError(f"confidence must be a number from 0 to 1, got {value!r}", where)
 
 
-@effect_op("forget", keys=("who",), example='{"forget": "wolf", "who": "$actor"}  (drop a belief)')
-def _forget_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+@family_action("mind", ("beliefs",), "forget", keys=("key", "who"), required=("key",), was=("forget",),
+               example='{"mind": "memory", "action": "forget", "key": "wolf", "who": "$actor"}  (who, by default $actor, drops a belief)')
+def _forget(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    name, config = _use(world, where)
+    name = effect["mind"]
+    config = config_of(world, name, KIND, BeliefsConfig)
     try:
-        key = _key(runner.eval(effect["forget"], vars), where)
+        key = _key(runner.eval(effect["key"], vars), where)
         holders = ids(runner.eval(effect.get("who", "$actor"), vars), where)
     except ExprError as exc:
         raise RunError(str(exc), where) from None
@@ -233,21 +240,21 @@ def _forget_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where:
             world.set_prop(holder, name, {k: v for k, v in beliefs.items() if k != key})
 
 
-@effect_op("decay_beliefs", keys=(), literal=("decay_beliefs",), check=literal_name_check(KIND, "decay_beliefs"),
-           example='{"decay_beliefs": "memory"}  (one round of confidence decay; generated for you each round)')
-def _decay_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+@family_action("mind", ("beliefs",), "decay", internal=True, was=("decay_beliefs",),
+               example='{"mind": "memory", "action": "decay"}  (one round of confidence decay; generated each round)')
+def _decay(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    name = effect["decay_beliefs"]
+    name = effect["mind"]
     config = config_of(world, name, KIND, BeliefsConfig)
     if config.decay == 0:
         return
-    for holder in world.entities_of(config.holders):
+    for holder in world.entities_of(config.who):
         beliefs = _map(holder, name)
         if not beliefs:
             continue
         kept: Dict[str, Any] = {}
         for key, held in beliefs.items():
-            c = held["confidence"] * (1 - config.decay) if config.mode == "exponential" else held["confidence"] - config.decay
+            c = held["confidence"] * (1 - config.decay) if config.decay_curve == "exponential" else held["confidence"] - config.decay
             if c >= config.forget_below:
                 kept[key] = {**held, "confidence": round(c, 6)}
         world.set_prop(holder, name, kept)
@@ -258,33 +265,33 @@ def _decay_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: 
 # ---------------------------------------------------------------------------
 
 
-@mechanism(KIND, BeliefsConfig,
+@mode("mind", "beliefs", BeliefsConfig,
            "A private world model per agent: beliefs {key: {value, confidence, source, told_by, round}} in the private prop "
-           "`<name>`, changed by the `learn`, `tell` and `forget` ops, decaying every round. Told beliefs arrive at "
+           "`<name>`, changed by the `learn`, `tell` and `forget` actions, decaying every round. Told beliefs arrive at "
            "secondhand confidence (scaled by trust). Read with $believes(agent, key, value?), $belief(agent, key), "
            "$confidence(agent, key), $beliefs_of(agent).",
-           example={"kind": "beliefs", "holders": "villager", "decay": 0.1, "secondhand": 0.6, "share": True})
+           example={"who": "villager", "decay": 0.1, "secondhand": 0.6, "share": True}, was="beliefs")
 def _expand(name: str, config: BeliefsConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     single_use_check(KIND, contract)
-    require_type(contract, config.holders, "holders")
+    require_type(contract, config.who, "who")
     if config.trust is not None and config.trust not in (contract.get("relations") or {}):
         raise MechanismError(f"trust '{config.trust}' is not a declared relation", "declare it under relations", "trust")
     fragment: Dict[str, Any] = {
-        "types": {config.holders: {"props": {name: {"type": "map", "default": {}, "private": True,
+        "types": {config.who: {"props": {name: {"type": "map", "default": {}, "private": True,
                                                     "description": "What this agent believes."}}}},
-        "events": [{"name": f"{name}_decay", "phase": config.phase, "do": [{"decay_beliefs": name}]}],
+        "events": [{"name": f"{name}_decay", "phase": config.phase, "do": [{"mind": name, "action": "decay"}]}],
     }
-    if config.view:
-        fragment["views"] = {name: {"for": config.holders, "title": "What you believe", "of": "$beliefs_of($actor)",
+    if config.views:
+        fragment["views"] = {name: {"for": config.who, "title": "What you believe", "of": "$beliefs_of($actor)",
                                     "limit": config.view_limit, "empty": "You hold no beliefs yet.",
                                     "show": "{key}: {value} ({confidence|pct} sure, {$'seen yourself' if $it.source == 'direct' "
                                             "else 'told by ' + $text($entity($it.told_by))})"}}
     if config.share:
         fragment["actions"] = {f"{name}_tell": {
-            "by": config.holders, "description": "Tell another agent one of your beliefs; they hold it less surely than you.",
+            "by": config.who, "description": "Tell another agent one of your beliefs; they hold it less surely than you.",
             "params": {"about": {"type": "enum", "values": f"$keys($actor.{name})", "description": "Which belief."},
-                       "to": {"type": "entity", "of": config.holders, "description": "Who you tell."}},
+                       "to": {"type": "entity", "of": config.who, "description": "Who you tell."}},
             "when": [{"expr": f"$len($keys($actor.{name})) > 0", "why": "You hold no beliefs to share."}],
-            "do": [{"tell": "$params.about", "from": "$actor", "to": "$params.to"}],
+            "do": [{"mind": name, "action": "tell", "key": "$params.about", "to": "$params.to"}],
             "outcome": "You told {$params.to.name} about {$params.about}.", "private": True}}
     return fragment
