@@ -34,8 +34,16 @@ BASE = frozenset({"inputs", "world", "physics", "clock", "round", "stage", "metr
 ENTITY_FIELDS = frozenset({"id", "name", "type", "alive", "at"})
 ENTRY_FIELDS = frozenset({"seq", "round", "stage", "author", "to"})
 RECORD_FIELD_TYPES = ("text", "number", "int", "bool", "list", "map", "any")
-_COLLECTION_FUNCS = frozenset({"count", "sum", "avg", "min", "max", "top", "bottom", "filter", "map", "pick",
-                               "any", "all", "ids", "first", "last", "shuffle", "sample", "choice"})
+
+
+#: Collection functions whose first parameter is not spelled ``items``.
+_OTHER_COLLECTION_FUNCS = frozenset({"first", "last"})
+
+
+def _collection_funcs() -> Set[str]:
+    """Functions whose first argument is a collection: a bare word there must be a type or record."""
+    return {name for name, spec in FUNCTIONS.items()
+            if spec.signature.split("(", 1)[1].startswith("items")} | _OTHER_COLLECTION_FUNCS
 
 Types = Dict[str, Set[str]]
 
@@ -144,6 +152,7 @@ class _Checker:
             words |= {str(v) for v in input_spec.values or []}
         self.known_words = words
         self.stage_names = [s.name for s in contract.stage_list()]
+        self.collection_funcs = _collection_funcs()
 
     # -- reporting -----------------------------------------------------------------
 
@@ -218,7 +227,7 @@ class _Checker:
                 available = ", ".join(f"${r}" for r in sorted(roots))
                 self.error(path, f"${root} is not available here", f"available: {available} — in `{compiled.source}`")
         for name, symbol in compiled.calls:
-            if name in _COLLECTION_FUNCS and symbol is not None and symbol not in self.c.types:
+            if name in self.collection_funcs and symbol is not None and symbol not in self.c.types:
                 if symbol in self.c.records or name in ("choice", "min", "max"):
                     continue
                 self.error(path, f"${name}({symbol}, …): '{symbol}' is not a declared type",
