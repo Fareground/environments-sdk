@@ -49,7 +49,9 @@ def test_fitting_the_bundled_history_recovers_the_truth_and_reproduces_the_shipp
     fitted = fg_env.fit_patterns(CONTRACT).contract["inputs"]
     shipped = json.loads(CONTRACT.read_text())["inputs"]
     for name in ("growth_rate", "promo_lift", "sales_dispersion", "season_fit", "price_effect_fit", "demand_fit"):
-        assert fitted[name]["default"] == pytest.approx(shipped[name]["default"], rel=1e-9), name
+        # The fit is iterative and float sums differ slightly between Python versions (3.12 made sum() exact),
+        # so the refit must match the shipped estimates to a tight tolerance, not bit for bit.
+        assert _close(fitted[name]["default"], shipped[name]["default"], 1e-6), name
     truth = _truth()
     for name in ("growth_rate", "promo_lift"):
         assert abs(fitted[name]["default"] - truth[name]) < 3 * fitted[f"{name}_se"]["default"], name
@@ -109,3 +111,13 @@ def test_the_fitted_demand_can_be_decomposed_and_described():
                                                   if r["sku"] == "BAT-TOY-V"))
     text = fg_env.describe(CONTRACT).markdown
     assert "### World patterns" in text and "`$pattern.promo(key)`" in text and "fitted from $inputs.history" in text
+
+def _close(a, b, rel):
+    """Nested lists and maps equal in shape and keys, numbers within ``rel`` of each other."""
+    if isinstance(a, dict):
+        return isinstance(b, dict) and a.keys() == b.keys() and all(_close(a[k], b[k], rel) for k in a)
+    if isinstance(a, list):
+        return isinstance(b, list) and len(a) == len(b) and all(_close(x, y, rel) for x, y in zip(a, b))
+    if isinstance(a, (int, float)) and not isinstance(a, bool) and isinstance(b, (int, float)):
+        return abs(a - b) <= rel * max(abs(a), abs(b), 1e-12)
+    return a == b

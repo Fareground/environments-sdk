@@ -230,7 +230,7 @@ def scaffold_env(directory: Union[str, Path], name: str) -> EnvPackage:
     from .versioning import CONTRACT_VERSION
     import datetime
 
-    now = datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z"
+    now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(timespec="seconds") + "Z"
 
     pkg = EnvPackage(source_path=target)
     pkg.meta = {

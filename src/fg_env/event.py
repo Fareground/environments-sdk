@@ -1,7 +1,7 @@
 """Simulation event tracking."""
 from collections import Counter, deque
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Deque, Dict, List, Optional, Tuple
 
 
@@ -16,7 +16,7 @@ class SimEvent:
     action_name: Optional[str] = None
     data: Dict[str, Any] = field(default_factory=dict)
     narrative: str = ""
-    timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None).isoformat())
 
     def to_dict(self) -> dict:
         """Serialize to dictionary."""
