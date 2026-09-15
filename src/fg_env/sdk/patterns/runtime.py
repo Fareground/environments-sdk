@@ -20,7 +20,7 @@ from ..errors import RunError
 from ..expr import Call, ExprError, Scope, compile_expr, function, is_expr, resolve
 from . import catalogue  # noqa: F401 — registers every kind
 from .base import KINDS, MEMORY_STATE, KindSpec, PatternConfig
-from .timebase import moment, now, step_length
+from .timebase import calendar_of, moment, now, step_length
 
 if TYPE_CHECKING:
     from ..world import SdkWorld
@@ -71,7 +71,7 @@ class Ctx:
 
     @property
     def clock(self) -> Any:
-        return self.rt.world.contract.clock
+        return calendar_of(self.rt.world)
 
     def fail(self, message: str) -> ExprError:
         return ExprError(f"patterns.{self.name}: {message}", self.source)

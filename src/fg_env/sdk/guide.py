@@ -91,7 +91,7 @@ Every section is optional except `name` and `types`. Read any one with `guide('<
 | `brief` | `{situation, rules, roles: {type: text}}` — templates |
 | `clock` | `{rounds: 20, unit: "round"}` |
 | `inputs` | `{name: {type, default}}` — knobs set at load, read as `$inputs.name` |
-| `world` | `{prop: default}` — global props, `$world.prop` |
+| `world` | `{prop: default}` — global props, `$world.prop`; a default may read `$inputs` and other `$world` props |
 | `patterns` | `{name: {kind, …}}` — trends, seasons, responses, random paths, draws, noise; read `$pattern.name` |
 | `assets` | `{id: {file or folder, caption}}` — files agents receive via `attach`, `asset` props and fields; `guide('assets')` |
 | `types` | `{type: {agent, props: {prop: default or {type, default, min, max, values, private}}, extends}}` |

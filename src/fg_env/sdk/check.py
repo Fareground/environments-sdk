@@ -21,6 +21,7 @@ from ..physics import _CONSTS, _FUNCS, PhysicsExprError, _CompiledExpr
 from . import contract as C
 from .chance import check_chance
 from .check_params import check_entity_literals, check_param_bounds
+from .check_scans import check_scans
 from .check_space import check_event_order, check_space
 from .check_turns import check_spectator_view, check_stage_turns, spectator_audience_issues
 from .contract import Contract
@@ -51,6 +52,7 @@ from .patterns.check import check_pattern_call, check_patterns
 from .returns import check_game
 from .template import FORMATS, compile_template
 from .world import prop_type
+from .world_defaults import default_order
 from .assets.checks import check_assets
 
 __all__ = ["parse_contract", "check_contract"]
@@ -294,9 +296,9 @@ class _Checker:
             if first not in self.c.metrics:
                 self.error(path, f"$series.{first}: no such metric", self._suggest(first, self.c.metrics))
         elif root == "clock":
-            if first not in ("round", "rounds", "left", "unit", "date", "label", "time", "horizon"):
+            if first not in ("round", "rounds", "left", "unit", "date", "start", "label", "time", "horizon"):
                 self.error(path, f"$clock.{first}: no such field",
-                           "clock fields: round, rounds, left, unit, date, label, time, horizon")
+                           "clock fields: round, rounds, left, unit, date, start, label, time, horizon")
 
     def _spec_for(self, chain: Tuple[str, ...], types: Types, params: Mapping[str, C.ParamSpec]) -> Optional[Tuple[Any, str]]:
         """``(allowed values, kind)`` of the field a chain reads, when statically known."""
@@ -389,7 +391,8 @@ class _Checker:
                 self.expr(step, path, roots, types, params)
         if local is not None:
             if local in RESERVED_ROOTS:
-                self.error(path, f"${local} cannot be reassigned", "assign to one of its fields")
+                self.error(path, f"${local} is a reserved name, so a local cannot be called that",
+                           f"rename the local (e.g. ${local}_value), or assign to one of its fields (${local}.x = …)")
             roots.add(local)
             return
         assert base is not None
@@ -633,6 +636,7 @@ class _Checker:
         self._calibration()
         self._defs_and_blocks()
         check_game(self)
+        check_scans(self)
         check_assets(self, BASE)
 
     def _inputs(self) -> None:
@@ -682,7 +686,9 @@ class _Checker:
             self.expr(clock.rounds, "clock.rounds", {"inputs"})
         elif clock.rounds < 1:
             self.error("clock.rounds", "must be at least 1")
-        if clock.start:
+        if clock.start and is_expr(clock.start):
+            self.expr(clock.start, "clock.start", {"inputs"})
+        elif clock.start:
             try:
                 _dt.date.fromisoformat(clock.start[:10])
             except ValueError:
@@ -747,7 +753,12 @@ class _Checker:
             ) and not any(self.c.is_a(other, name) and other != name for other in self.c.types):
                 self.warn(f"types.{name}", "agent type has no actions", "add an action with `by`")
         for prop, world_spec in self.c.world.items():
-            self._prop_spec(world_spec, f"world.{prop}", {"inputs"})
+            self._prop_spec(world_spec, f"world.{prop}", {"inputs", "world"})
+        _, cycle = default_order({prop: spec.default for prop, spec in self.c.world.items()})
+        if cycle is not None:
+            self.error(f"world.{cycle[0]}.default", "world defaults read each other in a circle: "
+                       + " → ".join(f"$world.{name}" for name in cycle),
+                       "give one of them a literal default and set it in an opening event")
 
     def _entities(self) -> None:
         for eid, spec in self.c.entities.items():

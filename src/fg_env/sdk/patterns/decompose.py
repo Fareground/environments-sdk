@@ -112,6 +112,6 @@ def _row(runtime: Any, pattern: str, key: Optional[str], t: float, number: int, 
             adds[name] = total - total / value if value else math.nan
         else:
             adds[name] = (weights[index] if weights is not None else 1.0) * value
-    when = tb.moment(env.contract.clock, t)
+    when = tb.moment(tb.calendar_of(env.world), t)
     date = when.date().isoformat() if when is not None else None
     return {"round": number, "date": date, "total": total, "factors": factors, "adds": adds}

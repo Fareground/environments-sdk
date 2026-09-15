@@ -523,7 +523,7 @@
             }
           ],
           "default": null,
-          "description": "ISO date of round 1 (adds a calendar date).",
+          "description": "ISO date of round 1 (adds a calendar date), or an expression over $inputs giving one (`\"$inputs.start\"`).",
           "title": "Start"
         },
         "step": {

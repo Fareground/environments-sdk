@@ -111,7 +111,7 @@ class Problem:
 
     @property
     def clock(self) -> Any:
-        return self.env.contract.clock
+        return tb.calendar_of(self.env.world)
 
     def fail(self, message: str) -> ContractError:
         return ContractError([Issue(f"patterns.{self.name}.fit", message)])
@@ -288,7 +288,7 @@ def _rows(name: str, cfg: PatternConfig, env: Any) -> List[Row]:
             when = raw[fit.time] if fit.time else 0.0
             if isinstance(when, str) and when.strip().replace(".", "", 1).lstrip("-").isdigit():
                 when = float(when)
-            t = tb.to_t(env.contract.clock, when)
+            t = tb.to_t(tb.calendar_of(env.world), when)
             x = {factor: _number(raw[spec if isinstance(spec, str) else spec.column], f"{where}, column "
                                  f"'{spec if isinstance(spec, str) else spec.column}'") for factor, spec in factors.items()}
             if fit.mean:

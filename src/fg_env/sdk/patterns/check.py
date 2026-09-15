@@ -150,6 +150,8 @@ def _operands(checker: "_Checker", declared: Dict[str, PatternConfig], name: str
 
 def _time(checker: "_Checker", cfg: Any, path: str) -> None:
     clock = checker.c.clock
+    # a start read from $inputs is only known at build, so dates are checked there
+    known_start = clock.start is not None and not is_expr(clock.start)
     if cfg.kind == "calendar" and (not clock.start or tb.unit_days(clock) is None):
         checker.error(path, "calendar effects need clock.start and a calendar clock.unit (day, week, hour …)",
                       'set clock.start (e.g. "2025-01-06") and clock.unit')
@@ -164,7 +166,7 @@ def _time(checker: "_Checker", cfg: Any, path: str) -> None:
         value = getattr(cfg, field, None)
         items = value if isinstance(value, list) else [value]
         for index, item in enumerate(items):
-            if isinstance(item, str) and not is_expr(item):
+            if isinstance(item, str) and not is_expr(item) and (known_start or not clock.start):
                 at = f"{path}.{field}" + (f"[{index}]" if isinstance(value, list) else "")
                 try:
                     tb.to_t(clock, item)

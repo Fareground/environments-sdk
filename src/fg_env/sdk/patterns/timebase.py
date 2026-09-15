@@ -9,15 +9,36 @@ from __future__ import annotations
 
 import datetime as _dt
 import math
+from dataclasses import dataclass
 from typing import Any, List, Optional
 
-__all__ = ["UNIT_DAYS", "now", "step_length", "unit_days", "moment", "to_t", "position", "days_covered",
-           "parse_date", "PERIODS"]
+from ..stdlib.dates import parse_moment
+
+__all__ = ["UNIT_DAYS", "Calendar", "calendar_of", "now", "step_length", "unit_days", "moment", "to_t", "position",
+           "slot", "days_covered", "parse_date", "PERIODS"]
 
 #: Days in one clock unit (months and years on average).
 UNIT_DAYS = {"minute": 1 / 1440, "hour": 1 / 24, "day": 1.0, "week": 7.0, "month": 365.25 / 12, "year": 365.25}
 #: Named periods and their length in days.
 PERIODS = {"year": 365.25, "quarter": 365.25 / 4, "month": 365.25 / 12, "week": 7.0, "day": 1.0, "hour": 1 / 24}
+
+
+@dataclass(frozen=True)
+class Calendar:
+    """The clock as patterns read it: the resolved start date (``clock.start`` may be read from ``$inputs``), the unit,
+    the units per round and whether time is continuous."""
+
+    start: Optional[str]
+    unit: str
+    step: int
+    mode: str
+    tick: float
+
+
+def calendar_of(world: Any) -> Calendar:
+    """The calendar of a built world."""
+    clock = world.contract.clock
+    return Calendar(world.start, clock.unit, clock.step, clock.mode, clock.tick)
 
 
 def _unit(clock: Any) -> str:
@@ -44,10 +65,10 @@ def step_length(clock: Any) -> float:
 def parse_date(text: str) -> _dt.datetime:
     """An ISO date or date-time. Raises ValueError with the text when it is neither."""
     try:
-        return _dt.datetime.fromisoformat(text) if "T" in text or " " in text.strip() else \
-            _dt.datetime.combine(_dt.date.fromisoformat(text[:10]), _dt.time())
+        parsed = parse_moment(text.strip())
     except ValueError:
         raise ValueError(f"'{text}' is not an ISO date (YYYY-MM-DD)") from None
+    return parsed if isinstance(parsed, _dt.datetime) else _dt.datetime.combine(parsed, _dt.time())
 
 
 def moment(clock: Any, t: float) -> Optional[_dt.datetime]:

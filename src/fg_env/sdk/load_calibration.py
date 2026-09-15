@@ -40,7 +40,7 @@ def calibrate_at_load(contract: Contract, supplied: Mapping[str, Any], resolved:
                         workers=spec.workers)
     except ValueError as exc:
         raise RunError(str(exc), "calibration") from None
-    return {"params": dict(fit.params), "targets": targets, "fit": fit.fit, "validation_fit": fit.validation["fit"],
+    return {"params": dict(fit.params), "plausible": [dict(point) for point in fit.plausible], "targets": targets, "fit": fit.fit, "validation_fit": fit.validation["fit"],
             "method": fit.method, "evaluations": fit.evaluations, "pilot_sessions": fit.evaluations * spec.runs + spec.holdout,
             "seconds": round(time.perf_counter() - started, 3), "notes": list(fit.notes)}
 

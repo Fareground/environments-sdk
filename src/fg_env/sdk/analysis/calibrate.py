@@ -47,6 +47,8 @@ _NOISE_RESAMPLES = 200
 _PLAUSIBLE_SE = 2.0
 #: Cross-entropy population per generation, per parameter, and the share kept as elite.
 _CE_POPULATION_PER_DIM, _CE_ELITE_SHARE = 6, 0.25
+#: A target making up at least this share of the misfit at the best fit, with at most half the weight, is called out.
+_DOMINANT_SHARE = 0.75
 
 
 @dataclass(frozen=True)
@@ -168,6 +170,9 @@ class CalibrationResult:
     cases: List[str] = field(default_factory=list)
     #: Error on held-out cases (``test``) or across cross-validation folds (``folds``); ``None`` without them.
     holdout: Optional[Dict[str, Any]] = None
+    #: Every evaluated point that fits as well as the best within the objective's noise (inputs together), which
+    #: ``uncertainty=`` draws from so forecasts carry the parameters' uncertainty.
+    plausible: List[Dict[str, Any]] = field(default_factory=list)
 
     def report(self) -> str:
         v = self.validation
@@ -190,7 +195,7 @@ class CalibrationResult:
         return {"contract": self.contract, "params": self.params, "method": self.method, "fit": self.fit,
                 "targets": self.targets, "validation": self.validation, "uncertainty": self.uncertainty,
                 "evaluations": self.evaluations, "history": self.history, "notes": self.notes, "cases": self.cases,
-                "holdout": self.holdout}
+                "holdout": self.holdout, "plausible": self.plausible}
 
 
 def _target_text(detail: Dict[str, Any]) -> str:
@@ -225,7 +230,7 @@ def calibrate(contract: ContractLike, targets: Any, params: Mapping[str, Mapping
               runs: int = 5, budget: int = 30, holdout: Optional[int] = None, method: str = "auto",
               inputs: Optional[Mapping[str, Any]] = None, arm: Optional[str] = None, participants: Any = None,
               rounds: Optional[int] = None, seed: int = 0, workers: int = 1, test: Any = None,
-              folds: Optional[int] = None) -> CalibrationResult:
+              folds: Optional[int] = None, data_dir: Any = None, hosts: Any = None) -> CalibrationResult:
     """Search ``params`` (``{input: {"low", "high", "log"?}}``) so the contract matches ``targets``.
 
     ``targets``: a mapping of targets, or a list of cases ``{name?, inputs?, arm?, targets}`` (see the
@@ -236,11 +241,13 @@ def calibrate(contract: ContractLike, targets: Any, params: Mapping[str, Mapping
     ``runs`` runs per case; ``holdout`` (default ``runs``) fresh seeds validate the best point.
     With cases, ``test`` returns the fit to the other cases with its error on the held-out ones, and
     ``folds`` adds a cross-validated error to the fit on every case (one extra search per fold).
+    ``data_dir`` is where inputs with a ``source`` are read (default: the contract file's folder); ``hosts`` answers
+    host requests (feeds, judges) in every run.
     """
     runner.check_positive_int("runs", runs)
     runner.check_positive_int("budget", budget, 2)
     held = runner.check_positive_int("holdout", holdout if holdout is not None else runs)
-    parsed = runner.as_contract(contract)
+    parsed = runner.as_contract(contract, data_dir)
     if not params:
         raise ValueError("calibrate needs at least one param to fit")
     names = list(params)
@@ -253,8 +260,8 @@ def calibrate(contract: ContractLike, targets: Any, params: Mapping[str, Mapping
     if not tagged and (test is not None or folds is not None):
         raise ValueError("test and folds hold out cases: pass targets as a list of cases {name, inputs, targets}")
     parts = splits([case.name for case in cases], test=test, folds=folds, seed=seed)
-    problem = _Problem(parsed, cases, tagged, names, ranges, logs, participants, rounds, workers)
-    with runner.worker_pool(workers, participants) as pool:
+    problem = _Problem(parsed, cases, tagged, names, ranges, logs, participants, rounds, workers, hosts)
+    with runner.worker_pool(workers, participants, hosts) as pool:
         if test is not None:
             fitted = _fit(problem.subset(parts[0].train), pool, runs, held, budget, method, seed)
             return replace(fitted, holdout=_held_out(problem, parts, [fitted], pool, runs, held, "test", seed))
@@ -296,7 +303,28 @@ def _cases(contract: Any, targets: Any, inputs: Optional[Mapping[str, Any]], arm
         except ValueError as exc:
             raise ValueError(f"case '{name}': {exc}") from None
         out.append(_Case(name, {**dict(inputs or {}), **own}, case.get("arm", arm), goals))
-    return out, True
+    return _spread_scaled(out), True
+
+
+def _spread_scaled(cases: List[_Case]) -> List[_Case]:
+    """Cases whose value targets without a ``scale`` are scaled by how much that target varies across the cases,
+    when the cases mix several value targets.
+
+    Mixed targets are weighed against each other: an error then counts by how far off it is compared with the target's
+    own spread, so a rate near 0.05 and a share near 0.85 weigh alike instead of the smaller one counting hundreds of
+    times over. A single target keeps ``|goal|`` (its fit reads as a share off, and no weighting is at stake), as does a
+    target given once or one that never varies."""
+    goals: Dict[str, List[float]] = {}
+    for case in cases:
+        for goal in case.goals:
+            if goal.kind == "value" and goal.scale is None:
+                goals.setdefault(goal.name, []).append(goal.goal)
+    spreads = {name: sd(values) for name, values in goals.items() if len(values) > 1 and sd(values) > 0}
+    if len(goals) < 2 or not spreads:
+        return cases
+    return [replace(case, goals=[replace(goal, scale=spreads[goal.name])
+                                 if goal.kind == "value" and goal.scale is None and goal.name in spreads else goal
+                                 for goal in case.goals]) for case in cases]
 
 
 @dataclass(frozen=True)
@@ -312,6 +340,7 @@ class _Problem:
     participants: Any
     rounds: Optional[int]
     workers: int
+    hosts: Any = None
 
     @property
     def goals(self) -> List[Target]:
@@ -333,7 +362,7 @@ class _Problem:
         """Every case × every seed at these param values, grouped by case."""
         jobs = runner.jobs_for([({**case.inputs, **values}, case.arm) for case in self.cases], seeds)
         results = runner.run_jobs(self.contract, jobs, participants=self.participants, rounds=self.rounds,
-                                  workers=self.workers, pool=pool)
+                                  workers=self.workers, pool=pool, hosts=self.hosts)
         return runner.by_cell(jobs, results, len(self.cases))
 
     def evaluate(self, runs: Sequence[Sequence[RunResult]]) -> Tuple[float, List[Dict[str, Any]]]:
@@ -376,11 +405,41 @@ def _fit(problem: _Problem, pool: Any, runs: int, held: int, budget: int, method
         notes.append(f"best value at the edge of its range for {', '.join(at_edge)}: the true fit may lie outside it")
     validation_fit, validation_details = problem.evaluate(problem.run(values, runner.run_seeds(seed, held, start=runs), pool))
     uncertainty = _uncertainty(problem, evaluator, best_runs, fit, SeedTree(seed))
+    noise = next(iter(uncertainty.values()))["objective_noise"] if uncertainty else 0.0
+    plausible = [dict(d[0]) for _, loss, d in evaluator.history if loss <= fit + _PLAUSIBLE_SE * noise]
+    details = problem.evaluate(best_runs)[1]
+    notes += _fit_notes(problem, details, fit, validation_fit, noise, held)
     history = [{"inputs": d[0], "fit": loss} for _, loss, d in evaluator.history]
-    return CalibrationResult(problem.contract.name, values, chosen, fit, problem.evaluate(best_runs)[1],
+    return CalibrationResult(problem.contract.name, values, chosen, fit, details,
                              {"runs": held, "fit": validation_fit, "targets": validation_details},
                              uncertainty, len(evaluator.history), history, notes,
-                             [case.name for case in problem.cases] if problem.tagged else [])
+                             [case.name for case in problem.cases] if problem.tagged else [], plausible=plausible)
+
+
+def _fit_notes(problem: _Problem, details: Sequence[Dict[str, Any]], fit: float, fresh: float, noise: float,
+               held: int) -> List[str]:
+    """Plain warnings about a fit: one target making up most of the misfit, and a best point that was seed luck."""
+    notes: List[str] = []
+    misfit: Dict[str, float] = {}
+    weight: Dict[str, float] = {}
+    for goal, detail in zip(problem.goals, details):
+        if detail.get("error") is not None:
+            misfit[goal.name] = misfit.get(goal.name, 0.0) + goal.weight * detail["error"] ** 2
+        weight[goal.name] = weight.get(goal.name, 0.0) + goal.weight
+    total, total_weight = math.fsum(misfit.values()), math.fsum(weight.values())
+    if len(weight) > 1 and total > 0:
+        name = max(misfit, key=lambda key: misfit[key])
+        share, weight_share = misfit[name] / total, weight[name] / total_weight
+        if share >= _DOMINANT_SHARE and weight_share <= 0.5:
+            notes.append(f"{name} carries {share:.0%} of the misfit left at the best fit (with {weight_share:.0%} of "
+                         "the weight): the other targets' errors count for more per unit, so the search traded it away; "
+                         "give it more `weight` or a smaller `scale`, or leave `scale` out so mixed targets are scaled "
+                         "by their spread")
+    if noise > 0 and math.isfinite(fresh) and fresh > fit + _PLAUSIBLE_SE * noise:
+        notes.append(f"on {held} fresh seed(s) the fit is {fresh:.4g} against {fit:.4g} on the search seeds (more than "
+                     f"{_PLAUSIBLE_SE:g}× the objective's noise of {noise:.2g}): the best point is partly the luck of "
+                     "those seeds; use more `runs` and trust the fresh-seed fit")
+    return notes
 
 
 def _held_out(problem: _Problem, parts: Sequence[Split], fits: Sequence[CalibrationResult], pool: Any, runs: int,

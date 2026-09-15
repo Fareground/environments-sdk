@@ -12,7 +12,7 @@ import json
 from concurrent.futures import ProcessPoolExecutor
 from typing import Any, List, Mapping, Optional, Sequence, Tuple
 
-from ..api import ContractLike, parse
+from ..api import ContractLike, DataDir, located, parse
 from ..contract import Contract
 from ..experiment import Job, failed_run, run_job, worker_pool
 from ..experiment import run_jobs as _run_jobs
@@ -35,8 +35,9 @@ def check_positive_int(name: str, value: Any, minimum: int = 1) -> int:
     return value
 
 
-def as_contract(source: ContractLike) -> Contract:
-    return source if isinstance(source, Contract) else parse(source)
+def as_contract(source: ContractLike, data_dir: DataDir = None) -> Contract:
+    """The parsed contract, reading its data files from ``data_dir`` (default: the contract file's folder)."""
+    return located(source, data_dir) if isinstance(source, Contract) else parse(source, data_dir)
 
 
 def run_seeds(seed: int, count: int, start: int = 0) -> List[int]:
@@ -52,14 +53,15 @@ def input_spec(contract: Contract, name: str) -> Any:
 
 
 def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = None, rounds: Optional[int] = None,
-             workers: int = 1, events: bool = False, pool: Optional[ProcessPoolExecutor] = None) -> List[RunResult]:
+             workers: int = 1, events: bool = False, pool: Optional[ProcessPoolExecutor] = None,
+             hosts: Any = None) -> List[RunResult]:
     """:func:`fg_env.sdk.experiment.run_jobs` for analyses: event logs dropped by default, and
     :class:`AnalysisError` when every run failed (the first error is quoted)."""
     check_positive_int("workers", workers)
     if rounds is not None:
         check_positive_int("rounds", rounds)
     results = _run_jobs(as_contract(source), jobs, participants=participants, rounds=rounds, workers=workers,
-                        events=events, pool=pool)
+                        events=events, pool=pool, hosts=hosts)
     if results and all(r.status == "failed" for r in results):
         raise AnalysisError(f"all {len(results)} run(s) failed; first error: {results[0].error}")
     return results

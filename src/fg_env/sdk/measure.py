@@ -100,6 +100,8 @@ class RunResult:
     formats: Dict[str, str] = field(default_factory=dict)
     #: Likely logic problems the run revealed: ``[{code, path, message, fix}]`` (see :mod:`fg_env.sdk.diagnostics`).
     diagnostics: List[Dict[str, str]] = field(default_factory=list)
+    #: The clock the rounds count: ``{mode, unit, step, start}`` (empty for results saved before it was recorded).
+    clock: Dict[str, Any] = field(default_factory=dict)
     #: The assets the run knew — its catalog and submitted files — as metadata with content hashes (empty without any).
     assets: Dict[str, Any] = field(default_factory=dict)
 
@@ -129,9 +131,26 @@ class RunResult:
 
         return load_result(path)
 
+    @property
+    def unit(self) -> str:
+        """What one round is called: the clock's unit (``week``), or ``round`` for a continuous clock."""
+        if self.clock.get("mode", "rounds") != "rounds":
+            return "round"
+        return str(self.clock.get("unit") or "round")
+
+    def period(self, round_: int, capital: bool = False) -> str:
+        """A round named as a reader counts it: ``Week 7 (2026-10-12)`` on a dated weekly clock, else ``round 7``."""
+        from .stdlib.dates import calendar_date
+
+        word = self.unit
+        text = f"{word[:1].upper() + word[1:] if capital else word} {round_}"
+        date = None if self.unit == "round" else calendar_date(self.clock.get("start"), word, int(self.clock.get("step", 1)),
+                                                               max(0, round_ - 1))
+        return f"{text} ({date})" if date else text
+
     def summary(self) -> str:
         how = f"ended by {self.ended_by}" if self.ended_by else self.status
-        lines = [f"{self.status} after {self.rounds} round(s) — {how} (seed {self.seed}{', arm ' + self.arm if self.arm else ''})"]
+        lines = [f"{self.status} after {self.rounds} {self.unit}(s) — {how} (seed {self.seed}{', arm ' + self.arm if self.arm else ''})"]
         if self.error:
             lines.append(f"error: {self.error}")
         if self.winner is not None and "winner" not in self.outputs:

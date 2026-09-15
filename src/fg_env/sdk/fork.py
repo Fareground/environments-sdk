@@ -16,7 +16,7 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple, Union
 
-from .api import ContractLike, _merge, apply_arm, contract_source, parse
+from .api import ContractLike, _merge, apply_arm, contract_source, default_data_dir, located, parse
 from .build import _rounds
 from .check import BASE, _Checker, check_contract, parse_contract
 from .contract import Contract, PropSpec
@@ -27,6 +27,7 @@ from .links import _fields as link_fields
 from .seeds import SeedTree
 from .snapshot import KEEP_ARM, decode, encode, matching_contract, recording_start, restore_state, take_snapshot
 from .world import SdkWorld, _copy
+from .world_defaults import default_order
 
 if TYPE_CHECKING:
     from .runtime import Env
@@ -89,11 +90,12 @@ def _fork(cls: Any, contract: ContractLike, snapshot: Mapping[str, Any], *, arm:
                             title="the fork cannot be made")
     new = apply_arm(base, new_arm) if new_arm is not None else base
     if patch:
-        new = parse_contract(_merge(contract_source(new), dict(patch)))
+        new = located(parse_contract(_merge(contract_source(new), dict(patch))), new._folder)
     problems = [issue for issue in check_contract(new) if issue.severity == "error"]
     if problems:
         raise ContractError(problems, title="the forked contract is invalid")
-    resolved = resolve_inputs(new, _inputs(unarmed, base, snapshot, old_arm, new_arm, inputs), data_dir)
+    resolved = resolve_inputs(new, _inputs(unarmed, base, snapshot, old_arm, new_arm, inputs),
+                              default_data_dir(new, data_dir) or default_data_dir(unarmed))
     issues = compatibility(old, new, snapshot)
     if effects:
         checker = _Checker(new)
@@ -298,9 +300,10 @@ def _fill(env: "Env", new: Contract) -> None:
         for prop, spec in new.props_of(entity.entity_type).items():
             if prop not in entity.properties:
                 entity.properties[prop] = _default(world, spec, f"types.{entity.entity_type}.props.{prop}", it=entity)
-    for prop, spec in new.world.items():
+    order, _ = default_order({prop: spec.default for prop, spec in new.world.items()})
+    for prop in order:
         if prop not in world.props:
-            world.props[prop] = _default(world, spec, f"world.{prop}")
+            world.props[prop] = _default(world, new.world[prop], f"world.{prop}")
     for kind, edges in world.links.items():
         declared = new.relations[kind].props
         if not declared:

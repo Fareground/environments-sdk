@@ -111,7 +111,7 @@ ROOTS_TABLE
 MACROS = """\
 ## Macros (repeat structure from data)
 
-An object with `for` and `make` is a macro: it repeats `make` once per value, replacing `{name}`
+An object with `for` and `make` is a macro (data with only a `make` field, like a car's make, is not): it repeats `make` once per value, replacing `{name}`
 placeholders (the `as` name) in strings and keys. Expanded when the contract is read, before
 mechanisms, in every file on its own (see the result with `fg_env.expand(contract)` or `fg-env expand file.json`).
 
@@ -199,6 +199,9 @@ RECIPES = """\
 * Data files: `"inputs": {"households": {"type": "table", "source": "households.csv", "columns": {"income":
   "number", "size": "int"}}}` then `"population": [{"type": "person", "from": "$inputs.households"}]`. Files are
   read from the contract's folder (or `data_dir=`); undeclared CSV columns stay text. Also `.json` and `.jsonl`.
+  Read a big table by key, not by scanning it per row: `$lookup($inputs.sales, sku, $row.sku)` (rows, indexed once
+  per run; fields and keys may be lists) and `$lookup_one($inputs.models, model, $row.model)`. A queue served once per
+  arrival is a world list of ids (`$world.queue += $made.id`), not a `$count(call, …)`; `check` warns about both scans.
 * Continuous time (clinics, queues, trading days, emergencies): `"clock": {"mode": "continuous",
   "unit": "minute", "horizon": 480}`, a stage with `"turns": "scheduled"`, and `"duration"` on actions.
   Each agent acts when its time comes (earliest first) and next acts `duration` later (or the stage
@@ -288,7 +291,10 @@ RECIPES = """\
   entities from the inspect tool; `private` props hide single values.
 * Boards and tables in views: `"bullet": false` prints lines without "- ". View titles are templates.
 * Participants keyed by a parent type (`{"tier": ...}`) and `policy` on a parent type reach every subtype.
-* Calendars: `clock.start` with unit day, week, month, year, hour or minute adds the date to the time label.
+* Calendars: `clock.start` with unit day, week, month, year, hour or minute adds the date to the time label, and may
+  read an input (`"start": "$inputs.start"`) so each backtest case carries its own dates; `$clock.date` is today,
+  `$clock.start` round 1. `$date_add(d, 1, month)`, `$days_between(a, b)`, `$date_part(d, week)` (weekday, month,
+  quarter, …) and `$is_holiday(d, $inputs.holidays)` do the arithmetic; narratives name rounds in the clock's unit.
 * Policy rules with `each` act once per item: `{"each": "$filter(army, $it.owner == $actor.id)",
   "do": "hold", "with": {"army": "$it"}}`.
 * Coded participants: `policies` rules (first legal matching rule wins) for crowds and baselines;
@@ -308,6 +314,11 @@ snap = env.snapshot(); env2 = fg_env.Env.restore("shop.json", snap)   # between 
 exp = fg_env.experiment("shop.json", runs=20, arms=["control", "promo"]); print(exp.table())
 exp.deltas("control")   # paired promo − control per output: mean, sd, ci95, clear (CI excludes 0)
 fg_env.sweep("shop.json", {"price": {"low": 1, "high": 5, "steps": 5}}, runs=10).table()   # also sensitivity, calibrate, backtest
+# every check, experiment and analysis reads data files beside the contract file (or data_dir=) and takes hosts=
+v = fg_env.validate("shop.json", [{"name": "Q1", "inputs": {"start": "2026-01-05"}, "actuals": {"units_by_sku": {...}}}],
+                    runs=20, season=4); print(v.report())   # bias, MAPE/WAPE per key, interval coverage, baselines
+cal = fg_env.calibrate("shop.json", cases, {"demand_scale": {"low": 0.5, "high": 2}})   # cases: {name, inputs, targets}
+fg_env.validate("shop.json", cases, uncertainty=cal)   # also experiment, sweep, backtest: draw params per run
 fg_env.behavior_checks("shop.json")   # constant outputs, inputs that change nothing, actions and stages never used
 fg_env.tournament("duel.json", {"greedy": "policy:greedy", "llm": my_agent}, games=20).summary()
 # seats rotate and share seeds; Elo with intervals, Glicko-2, Nash average, α-Rank, votes, cost per entrant
