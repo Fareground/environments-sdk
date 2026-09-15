@@ -214,7 +214,7 @@ def _refused(probe: SdkWorld, spec: PropSpec, value: Any) -> Optional[str]:
 
 
 def _records(issues: List[Issue], new: Contract, snapshot: Mapping[str, Any]) -> None:
-    from .check import ENTRY_FIELDS
+    from .check_roots import ENTRY_FIELDS
 
     for name, rows in snapshot["records"].items():
         if not rows:
