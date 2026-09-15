@@ -64,7 +64,7 @@
       "do": [
         {"if": "$distance($actor, [$params.row, $params.col]) != 1", "then": [{"fail": "You can move exactly one square north, south, east or west."}]},
         {"if": "$any(unit, $it.at == [$params.row, $params.col])", "then": [{"fail": "That square is occupied."}]},
-        {"enter": "$actor", "to": "[$params.row, $params.col]"}
+        {"conditions": "terrain", "action": "enter", "who": "$actor", "to": "[$params.row, $params.col]"}
       ],
       "outcome": "You move to {$params.row}, {$params.col}.",
       "per_turn": 1
@@ -84,7 +84,7 @@
       "description": "Skirmishers: a light cut that poisons an adjacent enemy (stacks up to 3).",
       "when": [{"expr": "$actor.role == skirmisher", "why": "Only skirmishers carry poisoned blades."}],
       "params": {"target": {"type": "entity", "of": "unit", "where": "$enemy($actor, $it) and $distance($actor, $it) <= 1"}},
-      "do": ["$params.target.hp -= 1", {"apply": "poison", "to": "$params.target"}, {"block": "fall", "with": {"unit": "$params.target"}}],
+      "do": ["$params.target.hp -= 1", {"conditions": "conditions", "action": "apply", "status": "poison", "who": "$params.target"}, {"block": "fall", "with": {"unit": "$params.target"}}],
       "announce": "{$actor.name} poisons {$params.target.name}.",
       "per_turn": 1,
       "terminal": true
@@ -94,7 +94,7 @@
       "description": "Fighters: slam an adjacent enemy for 2 damage and stun it for its next round.",
       "when": [{"expr": "$actor.role == fighter", "why": "Only fighters can shield bash."}],
       "params": {"target": {"type": "entity", "of": "unit", "where": "$enemy($actor, $it) and $distance($actor, $it) <= 1"}},
-      "do": ["$params.target.hp -= 2", {"apply": "stun", "to": "$params.target"}, {"interrupt_channel": "$params.target"}, {"block": "fall", "with": {"unit": "$params.target"}}],
+      "do": ["$params.target.hp -= 2", {"conditions": "conditions", "action": "apply", "status": "stun", "who": "$params.target"}, {"conditions": "spells", "action": "interrupt", "who": "$params.target"}, {"block": "fall", "with": {"unit": "$params.target"}}],
       "announce": "{$actor.name} shield-bashes {$params.target.name}.",
       "per_turn": 1,
       "terminal": true
@@ -104,7 +104,7 @@
       "description": "Fighters: raise a shield over yourself or an adjacent ally (+3 armor for 2 rounds).",
       "when": [{"expr": "$actor.role == fighter", "why": "Only fighters carry shields."}],
       "params": {"ally": {"type": "entity", "of": "unit", "where": "not $enemy($actor, $it) and $distance($actor, $it) <= 1"}},
-      "do": [{"apply": "shield", "to": "$params.ally"}],
+      "do": [{"conditions": "conditions", "action": "apply", "status": "shield", "who": "$params.ally"}],
       "announce": "{$actor.name} shields {$params.ally.name}.",
       "per_turn": 1,
       "terminal": true
@@ -124,7 +124,7 @@
       "description": "Casters: restore 5 health to yourself or an ally within 3 squares.",
       "when": [{"expr": "$actor.role == caster", "why": "Only casters can heal."}],
       "params": {"ally": {"type": "entity", "of": "unit", "where": "not $enemy($actor, $it) and $distance($actor, $it) <= 3 and $it.hp < $it.max_hp"}},
-      "do": ["$params.ally.hp = $min($params.ally.max_hp, $params.ally.hp + 5)", {"cleanse": "poison", "from": "$params.ally"}],
+      "do": ["$params.ally.hp = $min($params.ally.max_hp, $params.ally.hp + 5)", {"conditions": "conditions", "action": "cleanse", "status": "poison", "who": "$params.ally"}],
       "announce": "{$actor.name} heals {$params.ally.name}.",
       "per_turn": 1,
       "terminal": true
@@ -133,8 +133,9 @@
   },
   "mechanisms": {
     "conditions": {
-      "kind": "status_effects",
-      "on": "unit",
+      "kind": "conditions",
+      "mode": "status",
+      "who": "unit",
       "statuses": {
         "poison": {"duration": 3, "stacking": "refresh", "max_stacks": 3, "tick": ["$it.hp -= 2 * $stacks", {"block": "fall", "with": {"unit": "$it"}}], "expire_say": "The poison in {$it.name} wears off."},
         "stun": {"duration": 1, "blocks": ["move", "strike", "poison_blade", "shield_bash", "raise_shield", "fireball", "heal"], "blocked_why": "you are stunned", "say": "{$it.name} is stunned."},
@@ -142,7 +143,8 @@
       }
     },
     "abilities": {
-      "kind": "cooldowns",
+      "kind": "conditions",
+      "mode": "cooldowns",
       "actions": {
         "poison_blade": {"cooldown": 1},
         "shield_bash": {"cooldown": 3},
@@ -152,7 +154,8 @@
       }
     },
     "spells": {
-      "kind": "channeling",
+      "kind": "conditions",
+      "mode": "channeling",
       "actions": {
         "fireball": {
           "rounds": 1,
@@ -169,8 +172,9 @@
       }
     },
     "terrain": {
-      "kind": "locations",
-      "occupants": "unit",
+      "kind": "conditions",
+      "mode": "terrain",
+      "who": "unit",
       "places": {
         "forest": {"description": "cover: +1 armor", "area": [[2, 0], [3, 1]], "modifiers": {"armor": 1}},
         "swamp": {"description": "slow going: -2 speed", "at": [[2, 3], [3, 3]], "modifiers": {"speed": -2}},
