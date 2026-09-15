@@ -127,6 +127,7 @@ def take_snapshot(env: "Env") -> Dict[str, Any]:
         "frames": encode(env.previews.frames),
         "budget": env.budget.to_dict(env) if env.budget is not None else None,
         "start": env.origin.start,
+        "diagnosis": env.diagnosis.to_dict(),
     }
 
 
@@ -269,6 +270,7 @@ def _restore(cls: Type[_E], contract: Contract, snapshot: Mapping[str, Any], par
     env.origin.start = snapshot.get("start")
     if snapshot.get("budget") is not None:
         env.budget = Budget.from_dict(snapshot["budget"])
+    env.diagnosis.load(snapshot.get("diagnosis"))
     w.journal.clear()
     w.touch()  # the state was replaced wholesale: nothing cached before holds
     env._emitted = len(w.log)

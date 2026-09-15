@@ -220,6 +220,9 @@ def check(source: ContractLike, rounds: int = 1, seed: int = 0) -> List[Issue]:
             for problem in result.output_issues:
                 warnings_from_smoke.append(Issue(problem["path"], f"{problem['message']} after {rounds} smoke round(s)",
                                                  "fine if it only has a value later in a run; otherwise guard it", "warning"))
+            for found in result.diagnostics:
+                warnings_from_smoke.append(Issue(found["path"], f"{found['message']} (smoke run of {rounds} round(s), "
+                                                 "random agents)", found["fix"], "warning"))
         except ContractError as exc:
             errors.extend(exc.issues)
         except RunError as exc:

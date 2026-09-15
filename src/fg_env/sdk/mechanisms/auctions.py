@@ -32,7 +32,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ...entity import Entity
 from ..errors import RunError
-from ..expr import Call, ExprError, compile_expr, function, truthy
+from ..expr import compile_expr, truthy
 from ..registry import MechanismError, family_action, mode
 from ..world import Abort
 from ._common import ToolsSetting, tools_field
@@ -503,79 +503,6 @@ def audit(world: Any, name: str) -> List[str]:
     return problems
 
 
-def describe(world: Any, name: str, viewer: Optional[Entity]) -> str:
-    """The lot as one plain sentence for a view."""
-    cfg = auction_config(world, name)
-    lot = world.props.get(f"{name}_lot") or {}
-    label = {"first_price": "Sealed-bid auction (highest bid wins and pays its bid)",
-             "second_price": "Sealed-bid Vickrey auction (highest bid wins and pays the second-highest bid)",
-             "english": "English auction (open ascending bids)", "dutch": "Dutch auction (falling clock; first taker wins)",
-             "double": "Double auction (sealed bids and asks cleared at one price)",
-             "uniform": f"Uniform-price auction ({cfg.units} units to the highest bids at one price)",
-             "combinatorial": "Combinatorial auction (sealed package bids; you win at most one package; winners pay "
-                              + ("VCG prices)" if cfg.payment == "vcg" else "their bids)")}[cfg.format]
-    if not lot.get("open"):
-        return f"{label}: no lot is open right now."
-    reserve = _reserve(world, name, cfg)
-    parts = [f"{label}: lot {lot['number']}, {cfg.item}"]
-    if cfg.format == "combinatorial":
-        reserves = _item_reserves(world, name, cfg)
-        left = world.props.get(f"{name}_items") or []
-        parts.append("for sale: " + ", ".join(f"{item} (reserve {fmt(reserves[item], 4)})" if reserves[item] else item for item in left))
-        mine = [b for b in lot.get("bids", []) if viewer is not None and b["bidder"] == viewer.id]
-        if mine:
-            parts.append("your bids: " + "; ".join(f"{' + '.join(b['items'])} at {fmt(b['price'], 4)}" for b in mine))
-        parts.append(f"{len(lot.get('bids', []))} sealed bid(s) in")
-    elif cfg.format == "english":
-        leader = world.entity(lot.get("leader")) if lot.get("leader") else None
-        parts.append(f"high bid {fmt(lot['price'], 4)} by {'you' if leader is viewer and viewer is not None else leader.name}"
-                     if leader else f"no bids yet (reserve {fmt(reserve, 4)})")
-        parts.append(f"next bid at least {fmt(min_bid(world, name), 4)}; closes after {cfg.timeout} round(s) without a bid")
-    elif cfg.format == "dutch":
-        parts.append(f"clock price {fmt(lot['price'], 4)}, falling {fmt(cfg.decrement, 4)} a round, reserve {fmt(reserve, 4)}")
-    else:
-        if reserve and cfg.format != "double":
-            parts.append(f"reserve {fmt(reserve, 4)}")
-        mine = [b for b in lot.get("bids", []) if viewer is not None and b["bidder"] == viewer.id]
-        if mine:
-            parts.append("your " + "; ".join(f"{b['side']} {fmt(b['price'], 4)} × {b['qty']}" for b in mine))
-        parts.append(f"{len(lot.get('bids', []))} sealed bid(s) in")
-    return ", ".join(parts) + "."
-
-
-def _auction(call: Call) -> str:
-    try:
-        auction_config(call.scope.world, call.arg(0))
-    except RunError as exc:
-        raise ExprError(f"${call.name}: {exc}", call.source) from None
-    return str(call.arg(0))
-
-
-@function("auction(name)", "An auction's state: {format, open, lot, price, leader, min_bid, reserve, bids, sold, revenue, stock, "
-          "items} (items: what a combinatorial lot still has for sale).", min_args=1, max_args=1)
-def _auction_function(call: Call) -> Dict[str, Any]:
-    name = _auction(call)
-    world: Any = call.scope.world
-    cfg = auction_config(world, name)
-    lot = world.props.get(f"{name}_lot") or {}
-    return {"format": cfg.format, "open": bool(lot.get("open")), "lot": lot.get("number", 0), "price": lot.get("price"),
-            "leader": lot.get("leader"), "min_bid": min_bid(world, name), "reserve": _reserve(world, name, cfg),
-            "bids": len(lot.get("bids", [])) if lot.get("open") else 0, "sold": world.props.get(f"{name}_sold") or 0,
-            "revenue": world.props.get(f"{name}_revenue") or 0, "stock": world.props.get(f"{name}_stock") or 0,
-            "items": list(world.props.get(f"{name}_items") or [])}
-
-
-@function("auction_text(name, viewer?)", "The open lot as one plain sentence (what is sold, prices, your bids).", min_args=1, max_args=2)
-def _text_function(call: Call) -> str:
-    name = _auction(call)
-    return describe(call.scope.world, name, call.scope.world.entity(call.arg(1)) if len(call) > 1 else None)
-
-
-@function("auction_ok(name)", "True while an auction conserves cash and units and escrow matches open bids.", min_args=1, max_args=1)
-def _ok_function(call: Call) -> bool:
-    return not audit(call.scope.world, _auction(call))
-
-
 def _format_check(action: str) -> Callable[[Any, Dict[str, Any], str], List[Tuple[str, str, Optional[str]]]]:
     """Check-time: a bid or ask names only what the auction's format takes."""
 
@@ -680,8 +607,8 @@ def _check_packages(cfg: AuctionConfig) -> None:
            "clock), double (call market at one price) or uniform (multi-unit, one price). Tools `<name>_bid` (price, qty) "
            "and, for double, `<name>_ask`. Bids escrow cash, asks escrow units; proceeds go to the `house` entity or "
            "$world.<name>_revenue. Each closed lot is posted to the `<name>_results` record (winner, price, qty, lot, note): read the "
-           "last sale as $last($records(<name>_results)).winner; $auction(name) is the open lot, reset once it closes, "
-           "and $auction_text(name, viewer) describes it.",
+           "last sale as $auction(<name>).last.winner and .price: null before the first lot closes, kept until another "
+           "closes. The other fields of $auction(name) describe the open lot; $auction_text(name, viewer) describes it.",
            example={"format": "second_price", "who": "collector", "item": "a painting", "stock": 3, "reserve": 50},
            was="auction")
 def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
