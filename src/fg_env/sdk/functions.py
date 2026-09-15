@@ -127,10 +127,10 @@ def _quantile(call: Call) -> Any:
     return values[low] + (values[high] - values[low]) * (position - low)
 
 
-@function("stdev(items, value, where?)", "Sample standard deviation of `value`; null when fewer than two.",
-          min_args=2, max_args=3, lazy=[1, 2])
+@function("stdev(items, value?, where?)", "Sample standard deviation of `value`, or of a list; null when fewer than two.",
+          min_args=1, max_args=3, lazy=[1, 2])
 def _stdev(call: Call) -> Any:
-    values = _values(call, 1, 2)
+    values = _numbers(call, call.collection(0)) if len(call) == 1 else _values(call, 1, 2)
     if len(values) < 2:
         return None
     mean = sum(values) / len(values)

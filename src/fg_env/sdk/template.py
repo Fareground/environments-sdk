@@ -133,7 +133,9 @@ def compile_template(source: str, subject: Optional[str] = "it") -> Template:
         while end < n and depth:
             c = source[end]
             if quote:
-                if c == quote:
+                if c == "\\":
+                    end += 1  # an escaped character never closes the quote: {'it\\'s'}
+                elif c == quote:
                     quote = None
             elif c in "\"'":
                 quote = c
