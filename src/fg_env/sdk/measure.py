@@ -135,24 +135,25 @@ class RunResult:
 
     @property
     def unit(self) -> str:
-        """What one round is called: the clock's unit (``week``), or ``round`` for a continuous clock."""
-        if self.clock.get("mode", "rounds") != "rounds":
-            return "round"
-        return str(self.clock.get("unit") or "round")
+        """What one round is called: ``week``, ``half-hour`` (a clock of 30 minutes), or ``round`` for a continuous
+        clock (see :mod:`fg_env.sdk.clock_words`)."""
+        from .clock_words import unit_word
+
+        return unit_word(self.clock)
 
     def period(self, round_: int, capital: bool = False) -> str:
-        """A round named as a reader counts it: ``Week 7 (2026-10-12)`` on a dated weekly clock, else ``round 7``."""
-        from .stdlib.dates import calendar_date
+        """A round named as a reader counts it: ``Week 7 (2026-10-12)`` on a dated weekly clock, ``09:30–10:00`` on a
+        dated clock of half-hours, else ``round 7``."""
+        from .clock_words import period_label
 
-        word = self.unit
-        text = f"{word[:1].upper() + word[1:] if capital else word} {round_}"
-        date = None if self.unit == "round" else calendar_date(self.clock.get("start"), word, int(self.clock.get("step", 1)),
-                                                               max(0, round_ - 1))
-        return f"{text} ({date})" if date else text
+        return period_label(self.clock, round_, capital=capital, rounds=self.rounds)
 
     def summary(self) -> str:
+        from .clock_words import plural
+
         how = f"ended by {self.ended_by}" if self.ended_by else self.status
-        lines = [f"{self.status} after {self.rounds} {self.unit}(s) — {how} (seed {self.seed}{', arm ' + self.arm if self.arm else ''})"]
+        lines = [f"{self.status} after {self.rounds} {plural(self.unit, self.rounds)} — {how} (seed {self.seed}"
+                 f"{', arm ' + self.arm if self.arm else ''})"]
         if self.error:
             lines.append(f"error: {self.error}")
         if self.winner is not None and "winner" not in self.outputs:
