@@ -21,6 +21,7 @@ An effect list mixes assignment statements and keyed operations::
     {"wake": "$params.who", "why": "{$actor.name} asked you a question."}
     {"repeat": 1000, "while": "$best_bid.price >= $best_ask.price", "do": [...]}
     {"block": "settle", "with": {"buyer": "$actor", "qty": "$params.qty"}}
+    {"chance": [{"p": 0.5, "label": "heads", "do": [...]}, {"p": 0.5, "label": "tails"}], "as": "coin"}
 
 Everything an action does is atomic: ``fail`` (or any error) rolls every change back.
 A ``repeat`` loop that is still running when its limit is reached is an error, so a
@@ -63,6 +64,7 @@ EFFECT_OPS: Dict[str, Tuple[str, ...]] = {
     "wake": ("wake", "why", "in", "now", "drop"),
     "repeat": ("repeat", "while", "do"),
     "block": ("block", "with"),
+    "chance": ("chance", "outcomes", "weight", "as", "do"),
 }
 
 #: ``post`` keys that are not record fields.
@@ -619,6 +621,11 @@ class EffectRunner:
             self.run(spec.do, inner, f"blocks.{name}.do")
         finally:
             self._depth = depth
+
+    def _op_chance(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        from .chance import run_chance
+
+        run_chance(self, effect, vars, where)
 
     def _op_repeat(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
         limit = self._eval(effect["repeat"], vars)

@@ -280,133 +280,121 @@ def test_ranked_ballot_runs_instant_runoff():
     assert result["winner"] == "b" and len(result["rounds"]) == 2
 
 
-def test_a_native_op_is_identified_by_its_own_key_even_with_core_op_named_fields():
-    from fg_env.sdk.registry import OPS, effect_op
+def _scratch_contract(family, mode_name, **sections):
+    return {"name": "Scratch", "clock": {"rounds": 1}, "types": {"p": {"agent": True}}, "entities": {"p": {"type": "p"}},
+            "stages": [{"name": "s", "turns": "sequential"}], "mechanisms": {"n": {"kind": family, "mode": mode_name}},
+            **sections}
 
-    name = "test_nudge_counter"
 
-    @effect_op(name, keys=("move",), literal=(name,), example='{"test_nudge_counter": "n", "move": 2}')
-    def _nudge(runner, effect, vars, where):
-        world = runner.world
-        world.set_world(effect[name], world.props[effect[name]] + runner.eval(effect["move"], vars))
+def _go(env):
+    def play(wake):
+        assert wake.call("go").ok
+        wake.end()
 
-    try:
-        contract = {"name": "Nudge", "clock": {"rounds": 1}, "world": {"n": 0},
-                    "types": {"p": {"agent": True}}, "entities": {"p": {"type": "p"}},
-                    "actions": {"go": {"by": "p", "do": [{name: "n", "move": 2}], "terminal": True}},
-                    "stages": [{"name": "s", "turns": "sequential"}]}
-        assert not [i for i in fg_env.check(contract) if i.severity == "error"]
+    return env.run(play)
+
+
+def test_a_family_op_is_identified_by_its_own_key_even_with_core_op_named_fields():
+    from fg_env.sdk.registry import family_action, mode
+
+    from family_fixtures import Nothing, scratch_family
+
+    with scratch_family("test_nudge"):
+        mode("test_nudge", "counter", Nothing, "A counter.")(lambda name, config, contract: {})
+
+        @family_action("test_nudge", ("counter",), "nudge", keys=("move",),
+                       example='{"test_nudge": "n", "action": "nudge", "move": 2}')
+        def _nudge(runner, effect, vars, where):
+            world = runner.world
+            world.set_world("count", world.props["count"] + runner.eval(effect["move"], vars))
+
+        nudge = {"test_nudge": "n", "action": "nudge", "move": 2}
+        contract = _scratch_contract("test_nudge", "counter", world={"count": 0},
+                                     actions={"go": {"by": "p", "do": [nudge], "terminal": True}})
+        assert not _issues(contract)
         env = fg_env.load(contract, seed=1)
-
-        def play(wake):
-            assert wake.call("go").ok
-            wake.end()
-
-        env.run(play)
-        assert env.props["n"] == 2
-        both = {**contract, "actions": {"go": {"by": "p", "do": [{name: "n", "game": "e2-e4"}],
-                                               "terminal": True}}}
-        assert any("names exactly one" in i.message for i in fg_env.check(both) if i.severity == "error")
-    finally:
-        OPS.pop(name, None)
+        _go(env)
+        assert env.props["count"] == 2
+        both = {**contract, "actions": {"go": {"by": "p", "do": [{**nudge, "decision": "x"}], "terminal": True}}}
+        assert any("names exactly one" in i.message for i in _issues(both))
 
 
-def test_a_post_keeps_fields_named_like_native_ops_and_undeclared_mixes_are_ambiguous():
-    from fg_env.sdk.registry import OPS, effect_op
+def test_a_post_keeps_fields_named_like_family_ops_and_undeclared_mixes_are_ambiguous():
+    from fg_env.sdk.registry import family_action, mode
 
-    name = "test_stamp"
+    from family_fixtures import Nothing, scratch_family
 
-    @effect_op(name, keys=(), literal=(name,), example='{"test_stamp": "n"}')
-    def _stamp(runner, effect, vars, where):
-        runner.world.set_world(effect[name], 1)
+    with scratch_family("test_stamp"):
+        mode("test_stamp", "pad", Nothing, "A stamp pad.")(lambda name, config, contract: {})
 
-    try:
-        contract = {"name": "Post", "clock": {"rounds": 1}, "world": {"n": 0},
-                    "types": {"p": {"agent": True}}, "entities": {"p": {"type": "p"}},
-                    "records": {"log": {"fields": {name: "text"}, "notify": False}},
-                    "actions": {"go": {"by": "p", "do": [{"post": "log", name: "hello"}], "terminal": True}},
-                    "stages": [{"name": "s", "turns": "sequential"}]}
-        assert not [i for i in fg_env.check(contract) if i.severity == "error"]
+        @family_action("test_stamp", ("pad",), "stamp", example='{"test_stamp": "n", "action": "stamp"}')
+        def _stamp(runner, effect, vars, where):
+            runner.world.set_world("stamped", 1)
+
+        contract = _scratch_contract("test_stamp", "pad", world={"stamped": 0},
+                                     records={"log": {"fields": {"test_stamp": "text"}, "notify": False}},
+                                     actions={"go": {"by": "p", "do": [{"post": "log", "test_stamp": "hello"}],
+                                                     "terminal": True}})
+        assert not _issues(contract)
         env = fg_env.load(contract, seed=1)
-
-        def play(wake):
-            assert wake.call("go").ok
-            wake.end()
-
-        env.run(play)
-        assert [row[name] for row in env.world.records_store["log"]] == ["hello"] and env.props["n"] == 0
-        mixed = {**contract, "actions": {"go": {"by": "p", "do": [{name: "n", "move": "$actor"}], "terminal": True}}}
-        assert any("names exactly one" in i.message for i in fg_env.check(mixed) if i.severity == "error")
-    finally:
-        OPS.pop(name, None)
+        _go(env)
+        assert [row["test_stamp"] for row in env.world.records_store["log"]] == ["hello"] and env.props["stamped"] == 0
+        mixed = {**contract, "actions": {"go": {"by": "p", "do": [{"test_stamp": "n", "action": "stamp", "move": "$actor"}],
+                                                "terminal": True}}}
+        assert any("names exactly one" in i.message for i in _issues(mixed))
 
 
-def test_guide_renders_factory_defaults_of_mechanism_config():
+def test_guide_renders_factory_defaults_of_mode_config():
     from pydantic import BaseModel, Field
 
-    from fg_env.sdk.registry import MECHANISMS, mechanism
+    from fg_env.sdk.registry import mode
+
+    from family_fixtures import scratch_family
 
     class WithFactory(BaseModel):
         tiebreak: list = Field(default_factory=list, description="Tie-breakers.")
 
-    kind = "test_factory_defaults"
-
-    @mechanism(kind, WithFactory, "Has a factory default.")
-    def _expand(name, config, contract):
-        return {}
-
-    try:
-        text = fg_env.guide("mechanisms")
+    with scratch_family("test_factory"):
+        mode("test_factory", "defaults", WithFactory, "Has a factory default.")(lambda name, config, contract: {})
+        text = fg_env.guide("test_factory.defaults")
         assert "`tiebreak` (default [])" in text and "PydanticUndefined" not in text
-    finally:
-        MECHANISMS.pop(kind, None)
 
 
 def test_crashing_extensions_are_reported_against_their_use_never_raised_or_blamed_on_participants():
-    from pydantic import BaseModel
+    from fg_env.sdk.registry import family_action, mode
 
-    from fg_env.sdk.registry import MECHANISMS, OPS, effect_op, mechanism
+    from family_fixtures import Nothing, scratch_family
 
-    class Empty(BaseModel):
-        pass
-
-    kind, op_check, op_run = "test_crashing_expand", "test_crashing_check", "test_crashing_run"
-
-    @mechanism(kind, Empty, "Crashes while expanding.")
-    def _expand(name, config, contract):
+    def crash(name, config, contract):
         raise KeyError("missing piece")
 
     def bad_check(checker, effect, path):
         raise ValueError("bad check")
 
-    @effect_op(op_check, keys=(), literal=(op_check,), example="{}", check=bad_check)
-    def _checked(runner, effect, vars, where):
-        return None
+    with scratch_family("test_crash"):
+        mode("test_crash", "expand", Nothing, "Crashes while expanding.")(crash)
+        mode("test_crash", "ops", Nothing, "Has crashing actions.")(lambda name, config, contract: {})
+        family_action("test_crash", ("ops",), "checked", example="{}", check=bad_check)(lambda runner, effect, vars, where: None)
 
-    @effect_op(op_run, keys=(), literal=(op_run,), example="{}")
-    def _boom(runner, effect, vars, where):
-        raise ValueError("kaboom")
+        @family_action("test_crash", ("ops",), "boom", example="{}")
+        def _boom(runner, effect, vars, where):
+            raise ValueError("kaboom")
 
-    try:
-        base = {"name": "Crash", "clock": {"rounds": 1}, "types": {"p": {"agent": True}},
-                "entities": {"p": {"type": "p"}}, "stages": [{"name": "s", "turns": "sequential"}]}
-        issues = fg_env.check({**base, "mechanisms": {"m": {"kind": kind}}})
+        base = _scratch_contract("test_crash", "ops")
+        issues = fg_env.check({**base, "mechanisms": {"m": {"kind": "test_crash", "mode": "expand"}}})
         assert any("failed to expand: KeyError" in i.message for i in issues)
         hooked = {**base, "mechanisms": {"vote": {"kind": "decision", "mode": "ballot", "who": "p", "options": ["a"],
                                                   "stage": "nowhere"}}}
         assert any("there is no stage 'nowhere'" in i.message for i in fg_env.check(hooked))
-        issues = fg_env.check({**base, "actions": {"go": {"by": "p", "do": [{op_check: "x"}], "terminal": True}}})
-        assert any("check failed: ValueError" in i.message for i in issues)
-        env = fg_env.load({**base, "actions": {"go": {"by": "p", "do": [{op_run: "x"}], "terminal": True}}}, seed=1)
+        checked = {**base, "actions": {"go": {"by": "p", "do": [{"test_crash": "n", "action": "checked"}], "terminal": True}}}
+        assert any("the `test_crash.checked` check failed: ValueError" in i.message for i in fg_env.check(checked))
+        env = fg_env.load({**base, "actions": {"go": {"by": "p", "do": [{"test_crash": "n", "action": "boom"}],
+                                                      "terminal": True}}}, seed=1)
 
         def play(wake):
             wake.call("go")
             wake.end()
 
         result = env.run(play)
-        assert result.status == "failed" and "`test_crashing_run` failed: ValueError: kaboom" in result.error
+        assert result.status == "failed" and "`test_crash.boom` failed: ValueError: kaboom" in result.error
         assert "participant" not in result.error
-    finally:
-        MECHANISMS.pop(kind, None)
-        OPS.pop(op_check, None)
-        OPS.pop(op_run, None)
