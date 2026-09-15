@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Environment SDK (`fg-env`)
+
+#### Added
+- **Turn time limits**: stage `time_limit` (seconds, or an expression over `$actor`) and `on_timeout`
+  effects, plus a run-wide default (`env.run(..., time_limit=30)`). A participant past its deadline loses
+  the turn — later calls are refused, a `timeout` event and `stats["timeouts"]` record it — and a hung one
+  never hangs the run. The update and `env.preview` show the limit; `wake.time_limit` / `wake.time_left`.
+- **Async participants**: `async def` participants (or async `__call__`, or functions returning an
+  awaitable) work in `env.run`, run concurrently in simultaneous stages with deterministic results, and
+  natively inside an event loop with `await env.arun(...)`.
+- **Exposure log** (`fg_env.load(..., exposures=True)`): `result.exposures` records, per wake, the brief,
+  update and views shown (texts stored once by hash), news delivered, tools offered and every call with its
+  arguments and result; kept in snapshots. `$seen(agent, item)` asks whether an agent was shown an event,
+  a record entry or a view (a contract that uses it records exposures automatically).
+- **Spectator views** (`"for": "spectator"`): an omniscient picture for UIs and reports, rendered each round
+  into `result.frames` and on demand with `env.spectate()`, never shown to an agent.
+- **Atomic turns**: stage `atomic` and `valid` — a turn's actions apply together, triggers, reactions and
+  invariants wait for the turn, and a turn that breaks `valid` is undone whole with a correction
+  (`stats["undone_turns"]`). Example: `examples/contracts/hopscotch_race.json`.
+
+#### Changed
+- Async participants are awaited instead of refused.
+
 ## [0.3.0]
 
 ### Environment SDK (`fg-env`)

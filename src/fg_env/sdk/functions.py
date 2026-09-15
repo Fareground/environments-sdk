@@ -346,6 +346,22 @@ def _events(call: Call) -> List[Any]:
     return [row for i, row in enumerate(rows) if truthy(call.each(1, row, i))]
 
 
+@function("seen(agent, item)",
+          "Whether `agent` was shown `item` on a wake so far — an event (from $events), a record entry "
+          "(from $records) or a view by name. Needs the exposure log, which a contract that calls $seen keeps.",
+          min_args=2, max_args=2)
+def _seen(call: Call) -> bool:
+    log = getattr(call.scope.world, "exposures", None)
+    if log is None:
+        raise ExprError("$seen needs the exposure log, which this run does not keep; load it with exposures=True",
+                        call.source)
+    item = call.arg(1)
+    found = log.seen(_entity_id(call.arg(0)), item)
+    if found is None:
+        raise ExprError(f"$seen: expected an event, a record entry or a view name, got {_describe(item)}", call.source)
+    return bool(found)
+
+
 @function("relation(a, b, kind)", "Value of the `kind` link from a to b, or null when not linked.",
           min_args=3, max_args=3)
 def _relation(call: Call) -> Any:

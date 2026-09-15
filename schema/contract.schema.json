@@ -2187,6 +2187,42 @@
           "title": "Auto",
           "type": "boolean"
         },
+        "time_limit": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Wall-clock seconds each agent has for its turn (number, or expression over $actor; null uses the run's `time_limit`). Past it the turn ends, later calls are refused and `on_timeout` runs.",
+          "title": "Time Limit"
+        },
+        "on_timeout": {
+          "description": "Effects for each agent whose turn ran out of time ($actor), instead of `on_idle`.",
+          "items": {},
+          "title": "On Timeout",
+          "type": "array"
+        },
+        "atomic": {
+          "default": false,
+          "description": "The turn's actions apply together or not at all: triggers, reactions and invariants wait until the turn ends, and a turn that breaks `valid` is undone.",
+          "title": "Atomic",
+          "type": "boolean"
+        },
+        "valid": {
+          "description": "Conditions the whole turn must meet when it ends ($actor, $pending); if one fails, every action of the turn is undone and the agent is told `why` and plays the turn again. Makes the stage atomic.",
+          "items": {
+            "$ref": "#/$defs/Condition"
+          },
+          "title": "Valid",
+          "type": "array"
+        },
         "on_enter": {
           "items": {},
           "title": "On Enter",
@@ -2353,7 +2389,7 @@
             }
           ],
           "default": "all",
-          "description": "Agent type(s) that see it.",
+          "description": "Agent type(s) that see it, or \"spectator\": an omniscient view for UIs and reports, rendered into `result.frames` each round and by `env.spectate()`, never shown to an agent.",
           "title": "For"
         },
         "stages": {

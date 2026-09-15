@@ -19,6 +19,7 @@ from pydantic import BaseModel, ValidationError
 
 from ..physics import _CONSTS, _FUNCS, PhysicsExprError, _CompiledExpr
 from . import contract as C
+from .check_turns import check_spectator_view, check_stage_turns, spectator_audience_issues
 from .contract import Contract
 from .effects import (
     REPEAT_CEILING,
@@ -29,6 +30,7 @@ from .effects import (
     statement_parts,
 )
 from .errors import ContractError, Issue
+from .perception import SPECTATOR
 from .expr import FUNCTIONS, ExprError, compile_expr, is_expr
 from .inputs import DATA_SUFFIXES, check_value
 from .template import compile_template
@@ -996,11 +998,18 @@ class _Checker:
             self.effects(stage.on_exit, f"{path}.on_exit", set(BASE), {})
             for hook in ("on_idle", "on_wake", "on_turn_end"):
                 self.effects(getattr(stage, hook), f"{path}.{hook}", set(BASE) | {"actor"}, {"actor": set(self.agents)})
+            check_stage_turns(self, stage, path, BASE)
 
     def _views(self) -> None:
+        if SPECTATOR in self.c.types:
+            self.error(f"types.{SPECTATOR}", f"'{SPECTATOR}' is reserved for spectator views", "rename the type")
         for name, view in self.c.views.items():
             path = f"views.{name}"
+            if spectator_audience_issues(self, name, view):
+                check_spectator_view(self, name, view, BASE)
+                continue
             targets = [view.for_] if isinstance(view.for_, str) else view.for_
+            targets = [target for target in targets if target != SPECTATOR]
             actor_types = set(self.agents) if targets == ["all"] else {t for t in targets if self._type(t, f"{path}.for", agent=True)}
             types: Types = {"actor": actor_types}
             for stage in view.stages or []:
