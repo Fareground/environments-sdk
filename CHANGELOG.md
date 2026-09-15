@@ -32,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   time) later with the content it had when sent; `drop` on `post`, `emit` and `wake` loses it with a chance
   rolled from the run's seed. Pending deliveries are journaled (a refused action sends nothing) and carried
   by snapshots with their provenance. `delay` and `drop` are now reserved record field names.
+- Example `examples/contracts/outbreak_network.json`: per-resident viral load and immunity with noise, a
+  contact network whose links carry a setting and closeness, newcomers wired in by `on_create`, a weather
+  feed with a seeded fallback, and advisories that arrive a day late and are sometimes lost.
 
 ### Changed
 - `link` without `value` keeps an existing link's value (it used to reset it to 1); a new link gets the

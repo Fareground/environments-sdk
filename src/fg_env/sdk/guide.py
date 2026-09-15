@@ -169,6 +169,10 @@ $metrics $series $arm):
 | population.*.brief, entities.*.brief | $actor (+ $row $i for population) |
 | types.*.inspect | $viewer $it |
 | types.*.on_create/on_remove | $it (the entity) + locals |
+| relations.*.props.*.default | $from $to |
+| links.*.props | $from $to (+ $row with `rows`) |
+| physics.per.*.read/where | $it |
+| feeds.*.query/when/fallback | — |
 | defs.*.expr | the def's args |
 | blocks.*.do | the block's args + locals |
 | policies.*.rules.* | $actor |
