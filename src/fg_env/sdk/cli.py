@@ -392,12 +392,16 @@ def add_commands(sub: Any) -> None:
 
     add_run_commands(sub)
 
+    from .cli_new import add_new_command
+
+    add_new_command(sub)
+
     p = sub.add_parser("expand", help="print the contract as the engine reads it: imports merged, macros expanded")
     p.add_argument("file", help="contract JSON file")
     p.add_argument("--mechanisms", action="store_true", help="also expand every mechanism into ordinary sections")
     p.set_defaults(func=_guarded(cmd_expand))
 
-    p = sub.add_parser("guide", help="print the contract authoring guide")
+    p = sub.add_parser("guide", help="print the core authoring guide, or one part of it (the core guide maps them)")
     p.add_argument("part", nargs="?", help="one part: overview, model, reference, expressions, macros, functions, "
                                            "templates, effects, patterns, mechanisms, running, checklist")
     p.set_defaults(func=cmd_guide)

@@ -9,7 +9,8 @@
     env = fg_env.load("shop.json", seed=7)                  # full control: preview, run, snapshot, fork
     exp = fg_env.experiment("shop.json", runs=20, arms=["control", "promo"])
 
-``fg_env.guide()`` is the complete authoring guide. The earlier template-based kernel API lives in
+``fg_env.guide()`` is the core authoring guide, mapping every other part (``fg_env.guide("all")`` is everything);
+``fg_env.new("game", "my_game.json")`` writes a ready-to-run contract to start from. The earlier template-based kernel API lives in
 :mod:`fg_env.legacy`.
 """
 from importlib.metadata import PackageNotFoundError as _PackageNotFoundError
@@ -30,6 +31,7 @@ from .sdk.contract import Contract
 from .sdk.errors import ContractError, InputError, InvariantViolation, Issue, RunError, SnapshotError
 from .sdk.experiment import ExperimentResult, experiment
 from .sdk.guide import guide, schema
+from .sdk.scaffold import new
 from .sdk.measure import RunResult
 from .sdk.runtime import Env
 from .sdk.session import ToolResult, Wake
@@ -59,6 +61,7 @@ __all__ = [
     "GymEnv",
     "guide",
     "schema",
+    "new",
     "Env",
     "Contract",
     "RunResult",
