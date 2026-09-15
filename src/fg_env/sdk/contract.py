@@ -11,6 +11,7 @@ from pydantic import (BaseModel, BeforeValidator, ConfigDict, Field, PrivateAttr
                       model_validator)
 from pydantic_core import PydanticCustomError
 
+from .assets.spec import AssetSpec
 from .game_spec import UTILITIES, GameSpec
 from .host.tape import TAPE, tape_prop
 
@@ -45,6 +46,7 @@ __all__ = [
     "OutputSpec",
     "EndSpec",
     "ArmSpec",
+    "AssetSpec",
     "GameSpec",
     "UTILITIES",
     "DefSpec",
@@ -68,8 +70,8 @@ __all__ = [
 CONTRACT_VERSION = "1"
 
 INPUT_TYPES = ("number", "int", "bool", "text", "enum", "list", "table", "map", "date", "any")
-PROP_TYPES = ("number", "int", "bool", "text", "enum", "list", "map", "any")
-PARAM_TYPES = ("number", "int", "bool", "text", "enum", "entity", "list")
+PROP_TYPES = ("number", "int", "bool", "text", "enum", "list", "map", "any", "asset")
+PARAM_TYPES = ("number", "int", "bool", "text", "enum", "entity", "list", "file")
 #: Most items a list argument may hold.
 MAX_LIST_ITEMS = 1_000
 OUTPUT_TYPES = ("number", "int", "bool", "text", "list", "map", "any")
@@ -162,6 +164,7 @@ class Brief(_Model):
     situation: str = Field("", description="What this world is and what is going on (template; {$inputs.x} works).")
     rules: str = Field("", description="How it works: what agents can do and what happens (template).")
     roles: Dict[str, str] = Field(default_factory=dict, description="Extra brief per agent type (template over $actor).")
+    attach: Optional[str] = Field(None, description="Assets every agent receives with its brief: an expression over $actor giving an asset id, a list of them, or null.")
 
 
 class Clock(_Model):
@@ -481,6 +484,8 @@ class ParamSpec(_Model):
     default: Any = None
     required: Optional[bool] = Field(None, description="Defaults to true unless a default is given.")
     invalid: Optional[str] = Field(None, description="What the agent is told when its value is not valid (template over $actor, $params, $value).")
+    kinds: Optional[List[str]] = Field(None, description="Type file: the asset types accepted (image, pdf, text, audio, file; default all).")
+    max_bytes: Optional[int] = Field(None, description="Type file: the largest file accepted (default: the largest for its kinds).")
     description: str = ""
 
     @model_validator(mode="before")
@@ -517,6 +522,7 @@ class ActionSpec(_Model):
     per_round: Optional[int] = Field(None, description="Max uses per round.")
     duration: Union[float, str, None] = Field(None, description="Continuous clock: how long it takes (number or expression over $actor, $params); the actor's next scheduled turn comes that much later.")
     tool: Optional[str] = Field(None, description="Offer this action inside one tool of this name, shared by every action naming it: the agent picks the action with the tool's `action` argument, which lists the ones legal now.")
+    attach: Optional[str] = Field(None, description="Assets the actor receives with the result (an expression over $actor, $params giving an asset id, a list or null); a sealed choice's arrive with its outcome.")
 
     @model_validator(mode="before")
     @classmethod
@@ -595,6 +601,7 @@ class ViewSpec(_Model):
     look: bool = Field(False, description="Offer it on demand as look(view) instead of always including it.")
     bullet: bool = Field(True, description="Prefix each item with '- ' (false for boards and tables).")
     only_changes: bool = Field(False, description="Include it only when it changed since the agent's last turn.")
+    attach: Optional[str] = Field(None, description="Assets delivered with the view: an expression giving an asset id, a list or null — per listed item ($it) with `of`, else once ($actor).")
 
 
 class EventSpec(_Model):
@@ -752,6 +759,7 @@ class Contract(_Model):
     description: str = ""
     imports: List[str] = Field(default_factory=list, description="Contract files merged into this one (paths relative to this file, inside its folder); this contract's own entries win. Imported files may import others.")
     brief: Brief = Field(default_factory=Brief)
+    assets: Dict[str, AssetSpec] = Field(default_factory=dict, description="Files beside the contract (images, PDFs, text, audio) by id; see guide('assets').")
     inputs: Dict[str, InputSpec] = Field(default_factory=dict)
     clock: Clock = Field(default_factory=Clock)
     space: Optional[Space] = None
@@ -790,9 +798,11 @@ class Contract(_Model):
     @model_validator(mode="before")
     @classmethod
     def _feed_tape(cls, data: Any) -> Any:
-        """Feeds record their answers on the host tape, so a contract with feeds declares it."""
+        """Feeds and described assets record their answers on the host tape, so such a contract declares it."""
         world = data.get("world") if isinstance(data, dict) else None
-        if isinstance(data, dict) and data.get("feeds") and isinstance(world or {}, dict) and TAPE not in (world or {}):
+        assets = data.get("assets") if isinstance(data, dict) else None
+        described = isinstance(assets, dict) and any(isinstance(a, dict) and a.get("describe") for a in assets.values())
+        if isinstance(data, dict) and (data.get("feeds") or described) and isinstance(world or {}, dict) and TAPE not in (world or {}):
             data = {**data, "world": {**(world or {}), TAPE: tape_prop()}}
         return data
 

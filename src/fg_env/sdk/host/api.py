@@ -32,9 +32,12 @@ def load(source: Any, *, hosts: HostsLike = None, **kwargs: Any) -> "Env":
 
 
 def attach(env: "Env", hosts: HostsLike) -> "Env":
-    """Bind a freshly loaded environment to ``hosts`` and do its build-time host work."""
+    """Bind a freshly loaded environment to ``hosts`` and do its build-time host work (personas, file descriptions)."""
+    from ..assets.describe import describe_assets
+
     bind(env, hosts)
     build(env)
+    describe_assets(env)
     return env
 
 

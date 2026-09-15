@@ -384,8 +384,9 @@ def attr(obj: Any, name: str, source: Optional[str] = None) -> Any:
     if isinstance(obj, Mapping):
         if name in obj:
             return obj[name]
-        known = ", ".join(sorted(str(k) for k in obj))
-        raise ExprError(f"no field '{name}' (fields: {known})", source)
+        if not obj:
+            raise ExprError(f"no field '{name}': the map is empty (nothing has set it yet)", source)
+        raise ExprError(f"no field '{name}' (fields: {', '.join(sorted(str(k) for k in obj))})", source)
     if isinstance(obj, (list, tuple)) and name in ("count", "size", "length"):
         return len(obj)
     raise ExprError(f"cannot read '.{name}' of {type(obj).__name__} {obj!r}", source)

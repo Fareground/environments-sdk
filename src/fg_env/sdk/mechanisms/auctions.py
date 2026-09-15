@@ -215,7 +215,8 @@ def bid(world: Any, name: str, trader: Entity, side: str, price: Any, qty: Any =
     lot["bids"] = kept
     world.set_world(f"{name}_lot", lot)
     verb = "ask" if side == "ask" else "bid"
-    return _receipt(world, name, f"Your sealed {verb} of {fmt(price, 4)} for {qty} {item} is in.")
+    amount = item if qty == 1 else f"{qty} × {item}"
+    return _receipt(world, name, f"Your sealed {verb} of {fmt(price, 4)} for {amount} is in.")
 
 
 def _refund(world: Any, name: str, cfg: AuctionConfig, entry: Mapping[str, Any], keep: float = 0.0) -> None:

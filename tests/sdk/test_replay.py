@@ -101,10 +101,11 @@ def test_a_replay_names_recorded_turns_it_never_reached(tmp_path):
 def test_recorded_timeouts_replay_exactly_without_a_clock():
     def slow(wake):
         wake.update
-        time.sleep(0.05)
+        while wake.time_left > 0:  # wait out the deadline itself, so the order of steps never depends on load
+            time.sleep(0.005)
         wake.call("say", {"text": "late"})
 
-    recorded = fg_env.run(TOWN, slow, seed=1, exposures=True, time_limit=0.01)
+    recorded = fg_env.run(TOWN, slow, seed=1, exposures=True, time_limit=0.5)
     assert recorded.stats["timeouts"] == 4 and recorded.exposures["wakes"][0]["steps"] == [["update"], ["timeout"]]
     replayed = fg_env.trace(recorded).replay(TOWN)
     assert replayed.ok, replayed.message

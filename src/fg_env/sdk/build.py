@@ -7,6 +7,7 @@ import math
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from ..entity import Entity
+from .assets.store import AssetStore
 from .contract import MAX_POPULATION, MAX_ROUNDS, Contract, LinkSpec, PopulationSpec
 from .effects import EffectRunner
 from .errors import RunError
@@ -21,8 +22,11 @@ from . import networks as _networks  # noqa: F401  (registers network and keyed-
 __all__ = ["build_world"]
 
 
-def build_world(contract: Contract, inputs: Dict[str, Any], seeds: SeedTree, arm: Optional[str] = None) -> SdkWorld:
+def build_world(contract: Contract, inputs: Dict[str, Any], seeds: SeedTree, arm: Optional[str] = None,
+                assets: Optional[AssetStore] = None) -> SdkWorld:
     world = SdkWorld(contract, inputs, seeds, arm)
+    if assets is not None:
+        world.assets = assets
     world.rng = seeds.rng("build")
     pending_briefs: List[Tuple[str, str, Dict[str, Any], str]] = []
     try:

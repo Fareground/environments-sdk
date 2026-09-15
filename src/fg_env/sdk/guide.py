@@ -12,6 +12,7 @@ from typing import Any, Callable, Dict, List, Optional
 from . import contract as C
 from .guide_pages import (SECTIONS, effects_page, expressions_page, family_page, function_groups, functions_index,
                           functions_page, mechanisms_page, mode_page, section_page)
+from .assets.guide import ASSETS
 from .guide_text import CHECKLIST, INSPECT, MACROS, MODEL, PATTERNS, RUNNING, TEMPLATES
 from .macros import MAX_MACRO_DEPTH, MAX_MACRO_ITEMS
 from .registry import FAMILIES
@@ -86,6 +87,7 @@ Every section is optional except `name` and `types`. Read any one with `guide('<
 | `clock` | `{rounds: 20, unit: "round"}` |
 | `inputs` | `{name: {type, default}}` — knobs set at load, read as `$inputs.name` |
 | `world` | `{prop: default}` — global props, `$world.prop`; a default may read `$inputs` and other `$world` props |
+| `assets` | `{id: {file or folder, caption}}` — files agents receive via `attach`, `asset` props and fields; `guide('assets')` |
 | `types` | `{type: {agent, props: {prop: default or {type, default, min, max, values, private}}, extends}}` |
 | `entities` | `{id: {type, name, props}}` |
 | `population` | `[{type, count, name: "Buyer {$i}", props}]` |
@@ -103,8 +105,8 @@ Every section is optional except `name` and `types`. Read any one with `guide('<
 Advanced sections, each in its own part: `triggers` (effects the moment a condition becomes true), `space`,
 `relations`, `links`, `physics`, `feeds`, `policies`, `arms`, `defs`, `blocks`, `imports`.
 
-Property and input types: number int bool text enum list map any (inferred from the default; `integer`, `string`,
-`boolean` and `float` also work). Parameter types: number int bool text enum entity list. An `entity` parameter
+Property and input types: number int bool text enum list map any asset (inferred from the default; `integer`,
+`string`, `boolean` and `float` also work). Parameter types: number int bool text enum entity list file. An `entity` parameter
 names its type in `of` and may filter with `where` (`$it` the candidate); its tool lists the valid ids.
 
 ## Expressions
@@ -202,6 +204,7 @@ _TOPICS: Dict[str, Callable[[], str]] = {
     "macros": lambda: MACROS.replace("MAX_ITEMS", f"{MAX_MACRO_ITEMS:,}").replace("MAX_DEPTH", str(MAX_MACRO_DEPTH)),
     "inspect": lambda: INSPECT,
     "running": lambda: RUNNING,
+    "assets": lambda: section_page("assets") + "\n\n" + ASSETS,
     "checklist": lambda: CHECKLIST,
 }
 
@@ -209,7 +212,7 @@ _TOPICS: Dict[str, Callable[[], str]] = {
 def guide_parts() -> List[str]:
     """Every name ``guide`` accepts, in the order ``guide('all')`` renders them (``all`` itself last)."""
     sections = [name for name, *_ in SECTIONS if name not in _TOPICS and name not in FAMILIES]
-    names = ["core", "model", *sections, "expressions", "templates", "effects", "functions"]
+    names = ["core", "model", *sections, "assets", "expressions", "templates", "effects", "functions"]
     names += [f"functions.{group}" for group in function_groups() if group not in FAMILIES]
     names += ["macros", "patterns", "mechanisms"]
     for name, family in FAMILIES.items():

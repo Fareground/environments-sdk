@@ -86,7 +86,7 @@ class GymEnv(_Base):  # type: ignore[misc]
         self.close()
         root = self._root
         source = Env(root.contract, root.inputs, episode_seed, root.arm, parallel=1,
-                     exposures=root.world.exposures is not None)
+                     exposures=root.world.exposures is not None, assets=root.world.assets.catalog())
         source.origin.unarmed = root.origin.unarmed
         if self._hosts is not None:
             from .host.api import attach

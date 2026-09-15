@@ -17,6 +17,8 @@ from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Tuple,
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ...entity import Entity
+from ..assets.delivery import Attachment, attached_ids, entry_assets
+from ..assets.multimodal import host_attachments
 from ..errors import RunError
 from ..expr import Untrusted
 from ..host import allowlist
@@ -95,6 +97,8 @@ class _Item:
     subject: Optional[Entity]
     target: Optional[int] = None
     context: List[Dict[str, str]] = field(default_factory=list)
+    #: Assets the judge receives with the text (`attach`, or a judged entry's files).
+    assets: List[str] = field(default_factory=list)
 
 
 @mode("host", "judge", JudgeConfig,
@@ -142,10 +146,11 @@ def _expand_judge(name: str, config: JudgeConfig, contract: Mapping[str, Any]) -
     return fragment
 
 
-@family_action("host", ("judge",), "judge", keys=("text", "subject", "entry", "context"), was=("judge",),
+@family_action("host", ("judge",), "judge", keys=("text", "subject", "entry", "context", "attach"), was=("judge",),
                example='{"host": "speeches", "action": "judge", "text": "$params.text", "subject": "$actor"}  '
                        '(score `text`, or a record `entry`, with the judge; the verdict goes to the record speeches and '
-                       'its totals; without either, judge the new entries of its `record`)')
+                       'its totals; without either, judge the new entries of its `record`; `attach` gives the judge '
+                       'files, and a judged entry brings its own)')
 def _judge_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["host"]
@@ -153,7 +158,11 @@ def _judge_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: 
     if "text" in effect and "entry" in effect:
         raise RunError("give `text` or `entry`, not both", where)
     if "text" in effect or "entry" in effect:
-        _judge(world, name, config, _given(runner, effect, vars, config, where), where)
+        item = _given(runner, effect, vars, config, where)
+        if "attach" in effect:
+            item.assets += [key for key in attached_ids(world, effect["attach"], world.scope(**vars), f"{where}.attach")
+                            if key not in item.assets]
+        _judge(world, name, config, item, where)
     elif config.record is not None:
         for item in _unjudged(world, name, config):
             _judge(world, name, config, item, where)
@@ -198,7 +207,9 @@ def _entry_item(world: Any, config: JudgeConfig, entry: Mapping[str, Any]) -> _I
         for e in earlier[-config.context_last:]:
             author = world.entities.get(e.get("author"))
             context.append({"speaker": author.name if author else "", "text": plain(e.get(config.field) or "")})
-    return _Item(text if isinstance(text, str) else format_value(text), subject, entry["seq"], context)
+    files = next((entry_assets(world, record, entry) for record, rows in world.records_store.items()
+                  if any(row is entry for row in rows)), [])
+    return _Item(text if isinstance(text, str) else format_value(text), subject, entry["seq"], context, files)
 
 
 def _unjudged(world: Any, name: str, config: JudgeConfig) -> List[_Item]:
@@ -227,13 +238,14 @@ def _judge(world: Any, name: str, config: JudgeConfig, item: _Item, where: str) 
     text = hide(item.text)
     fallback: Optional[Callable[[], Dict[str, Any]]] = partial(_midpoint, config) if config.fallback == "midpoint" else None
     answers: List[Tuple[str, Dict[str, Any]]] = []
+    files, hashes = _files(world, item.assets)
     for seat in seats:
         request = plain({"judge": seat.name, "model": seat.model or config.model, "instructions": config.instructions,
                          "criteria": criteria, "subject": label, "text": text, "context": context,
-                         "blind": config.blind, "out_of": config.out_of})
+                         "blind": config.blind, "out_of": config.out_of, **files})
         answer = consult(world, service=seat.host or config.host, method="judge", site=f"mechanisms.{name}",
                          actor=subject_id, identity={"seat": seat.name, "target": item.target, "text": text,
-                                                     "context": context},
+                                                     "context": context, **hashes},
                          ask=partial(_ask_judge, request), validate=partial(_verdict, config=config), fallback=fallback)
         answers.append((seat.name, answer))
     scores = {key: _aggregate([a["scores"][key] for _, a in answers], config.aggregate) for key in config.criteria}
@@ -249,6 +261,15 @@ def _judge(world: Any, name: str, config: JudgeConfig, item: _Item, where: str) 
         world.set_world(f"{name}_totals", totals)
         if config.into is not None:
             world.set_prop(item.subject, config.into, round(prop_of(item.subject, config.into, 0) + total, 6))
+
+
+def _files(world: Any, ids: List[str]) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """A host request's `attachments` and the call identity's file hashes (both empty without files)."""
+    assets = world.assets.of(ids)
+    if not assets:
+        return {}, {}
+    return ({"attachments": host_attachments([Attachment(asset, world.assets) for asset in assets])},
+            {"assets": [asset.hash for asset in assets]})
 
 
 def _ask_judge(request: Dict[str, Any], adapter: Any) -> Any:
@@ -435,9 +456,10 @@ def _absent() -> Dict[str, Any]:
     return {"refuse": "No game master is present."}
 
 
-@family_action("host", ("game_master",), "resolve", keys=("text",), required=("text",), was=("resolve",),
+@family_action("host", ("game_master",), "resolve", keys=("text", "attach"), required=("text",), was=("resolve",),
                example='{"host": "gm", "action": "resolve", "text": "$params.text"}  (the game master resolves the actor\'s '
-                       'attempt; changes apply only within its allow-list, and $actor.gm_told says what happened)')
+                       'attempt; changes apply only within its allow-list, and $actor.gm_told says what happened; '
+                       '`attach` gives it files)')
 def _resolve_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["host"]
@@ -450,13 +472,15 @@ def _resolve_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where
         raise RunError(f"`text` must be text, got {format_value(text)}", where)
     rules = allowlist.resolve_rules(runner, config.allow, vars, f"mechanisms.{name}")
     context = {key: _plain(runner.eval(expr, vars)) for key, expr in config.context.items()}
+    attached = attached_ids(world, effect["attach"], world.scope(**vars), f"{where}.attach") if "attach" in effect else []
+    files, hashes = _files(world, attached)
     request = plain({"game_master": name, "model": config.model, "rules": config.rules,
                      "actor": {"id": actor.id, "name": actor.name, "type": actor.entity_type,
                                "props": _plain(dict(actor.properties))},
                      "attempt": text, "context": context, "allowed": allowlist.describe(rules),
-                     "max_effects": config.max_effects, "time": world.clock_label()})
+                     "max_effects": config.max_effects, "time": world.clock_label(), **files})
     proposal = consult(world, service=config.host, method="resolve", site=f"mechanisms.{name}", actor=actor.id,
-                       identity={"attempt": text}, ask=lambda adapter: adapter.resolve(request),
+                       identity={"attempt": text, **hashes}, ask=lambda adapter: adapter.resolve(request),
                        fallback=_absent if config.fallback == "refuse" else None)
     plan, refusal = allowlist.validate(world, rules, proposal, config.max_effects)
     if refusal is None:

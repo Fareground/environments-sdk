@@ -1,0 +1,107 @@
+{
+  "fg_env": "1",
+  "name": "Harbor Fabrication v. Meridian Logistics (exhibits)",
+  "description": "A bench trial carried on real evidence files. The signed agreement (a PDF) is in every brief; each side first sees only its own exhibits — an inspection report, weld and loading-dock photos — which stay sealed from the other side and the judge until trial opens, when every exhibit counsel offered is revealed to the judge and both attorneys. A judge host scores each argument with the admitted exhibits attached, and the judge rules.",
+  "brief": {
+    "situation": "Bench trial, Superior Court. Harbor Fabrication LLC (plaintiff) delivered custom warehouse racking to Meridian Logistics Inc. (defendant) under the attached supply agreement. Meridian withheld the final installment, saying the welds were defective. Harbor sues for the unpaid price.",
+    "rules": "Day 1, preparation: each attorney reviews its own side's exhibits (no one else sees them) and offers the ones it wants the court to see. Day 2, trial opens: every offered exhibit is revealed to the judge and both attorneys, and each attorney argues; the court's evaluator scores each argument against the admitted exhibits. Day 3: attorneys make closing arguments and the judge rules for one side.",
+    "roles": {
+      "attorney": "You are trial counsel for the {side}. Offer the exhibits that help your side, then argue from the evidence the court admitted.",
+      "judge": "You are the presiding judge. Decide only on the admitted exhibits and the arguments made in court."
+    },
+    "attach": "supply_agreement"
+  },
+  "clock": {"rounds": 3, "unit": "court day"},
+  "assets": {
+    "supply_agreement": {"file": "court_exhibits/supply_agreement.pdf", "caption": "The signed supply agreement", "tags": ["contract"]},
+    "inspection_report": {"file": "court_exhibits/inspection_report.md", "caption": "Harbor's weld inspection report", "tags": ["exhibit"]},
+    "photos": {"folder": "court_exhibits/photos", "type": "image", "caption": "Meridian's photo {name}", "alt": "A photograph Meridian took at its warehouse after delivery.", "tags": ["exhibit"]}
+  },
+  "world": {"trial_open": false, "ruling": ""},
+  "types": {
+    "attorney": {"agent": true, "props": {"side": {"type": "enum", "values": ["plaintiff", "defense"], "default": "plaintiff"}, "score": 0}},
+    "judge": {"agent": true},
+    "exhibit": {
+      "inspect": "$world.trial_open and $it.offered or $viewer.type == 'attorney' and $viewer.side == $it.side",
+      "props": {
+        "title": "",
+        "side": {"type": "enum", "values": ["plaintiff", "defense"], "default": "plaintiff"},
+        "file": {"type": "asset", "private": true},
+        "offered": false
+      }
+    }
+  },
+  "entities": {
+    "pat": {"type": "attorney", "name": "Pat Moreno"},
+    "dana": {"type": "attorney", "name": "Dana Liu", "props": {"side": "defense"}},
+    "ito": {"type": "judge", "name": "Judge Ito"},
+    "p1": {"type": "exhibit", "name": "Exhibit P-1", "props": {"title": "Weld inspection report", "file": "inspection_report"}},
+    "d1": {"type": "exhibit", "name": "Exhibit D-1", "props": {"title": "Photo of a weld seam", "side": "defense", "file": "photos/weld_seam.png"}},
+    "d2": {"type": "exhibit", "name": "Exhibit D-2", "props": {"title": "Photo of the loading dock", "side": "defense", "file": "photos/loading_dock.png"}}
+  },
+  "records": {
+    "arguments": {"fields": {"text": "text"}, "show": "{author}: {text}", "description": "Arguments made in open court."},
+    "evidence": {"fields": {"text": "text", "file": "asset"}, "show": "Admitted: {text}", "description": "Exhibits revealed in open court, with their files."}
+  },
+  "actions": {
+    "offer": {
+      "by": "attorney",
+      "description": "Offer one of your side's exhibits; it is revealed to the court when trial opens.",
+      "params": {"exhibit": {"type": "entity", "of": "exhibit", "where": "$it.side == $actor.side and not $it.offered"}},
+      "do": "$params.exhibit.offered = true",
+      "private": true,
+      "outcome": "You offered {$params.exhibit.name}.",
+      "attach": "$params.exhibit.file"
+    },
+    "argue": {
+      "by": "attorney",
+      "description": "Argue your case from the admitted evidence.",
+      "params": {"text": {"type": "text", "max_len": 1200}},
+      "do": [
+        {"post": "arguments", "text": "$params.text"},
+        {"host": "bench", "action": "judge", "text": "$params.text", "subject": "$actor",
+         "attach": "$map($filter(exhibit, $it.offered), $it.file)"}
+      ],
+      "outcome": "The court heard your argument."
+    },
+    "rule": {
+      "by": "judge",
+      "description": "Rule for one side.",
+      "params": {"side": {"type": "enum", "values": ["plaintiff", "defense"]}},
+      "do": "$world.ruling = $params.side",
+      "outcome": "You ruled for the {$params.side}."
+    }
+  },
+  "stages": [
+    {"name": "preparation", "when": "$round == 1", "actions": ["offer"], "max_actions": 2, "max_calls": 6,
+     "brief": "Review your exhibits and offer the ones you want the court to see."},
+    {"name": "trial", "when": "$round >= 2", "actions": ["argue"],
+     "on_enter": [{"if": "not $world.trial_open", "then": [
+       "$world.trial_open = true",
+       {"each": "exhibit", "where": "$it.offered", "do": [{"post": "evidence", "text": "{$it.name}: {$it.title}", "file": "$it.file"}]}
+     ]}]},
+    {"name": "verdict", "when": "$round == 3", "actions": ["rule"]}
+  ],
+  "views": {
+    "own_exhibits": {"for": "attorney", "stages": ["preparation"], "title": "Your side's exhibits (sealed)", "of": "exhibit",
+                     "where": "$it.side == $actor.side", "show": "{name} [{id}]: {title}{' — offered' if $it.offered else ''}",
+                     "attach": "$it.file"},
+    "admitted": {"title": "Admitted exhibits", "of": "evidence", "stages": ["verdict"], "show": "{text}",
+                 "empty": "No exhibit was admitted."},
+    "scores": {"for": "judge", "stages": ["verdict"], "of": "attorney", "show": "{name} ({side}): {score|1} points from the court's evaluator"}
+  },
+  "mechanisms": {
+    "bench": {"kind": "host", "mode": "judge", "host": "bench", "who": "attorney", "into": "score",
+              "instructions": "Score each trial argument by how well it rests on the attached, admitted exhibits.",
+              "criteria": {"use_of_evidence": {"weight": 2}, "persuasion": {}}, "fallback": "midpoint"}
+  },
+  "metrics": {
+    "admitted": "$count(exhibit, $it.offered)",
+    "plaintiff_score": "$sum(attorney, $it.score, $it.side == plaintiff)",
+    "defense_score": "$sum(attorney, $it.score, $it.side == defense)"
+  },
+  "outputs": {
+    "ruling": {"expr": "$world.ruling", "type": "text", "description": "The side the judge ruled for (empty until day 3)."},
+    "admitted": {"expr": "$map($filter(exhibit, $it.offered), $it.name)", "type": "list", "description": "Exhibits revealed in court."}
+  }
+}

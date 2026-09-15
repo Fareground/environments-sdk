@@ -102,6 +102,8 @@ class RunResult:
     diagnostics: List[Dict[str, str]] = field(default_factory=list)
     #: The clock the rounds count: ``{mode, unit, step, start}`` (empty for results saved before it was recorded).
     clock: Dict[str, Any] = field(default_factory=dict)
+    #: The assets the run knew — its catalog and submitted files — as metadata with content hashes (empty without any).
+    assets: Dict[str, Any] = field(default_factory=dict)
 
     @property
     def ok(self) -> bool:

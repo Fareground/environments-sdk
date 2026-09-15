@@ -52,13 +52,14 @@ from .returns import check_game
 from .template import FORMATS, compile_template
 from .world import prop_type
 from .world_defaults import default_order
+from .assets.checks import check_assets
 
 __all__ = ["parse_contract", "check_contract"]
 
 BASE = frozenset({"inputs", "world", "physics", "clock", "round", "stage", "metrics", "series", "arm", "pending"})
 ENTITY_FIELDS = frozenset({"id", "name", "type", "alive", "at"})
 ENTRY_FIELDS = frozenset({"seq", "round", "stage", "author", "to"})
-RECORD_FIELD_TYPES = ("text", "number", "int", "bool", "list", "map", "any")
+RECORD_FIELD_TYPES = ("text", "number", "int", "bool", "list", "map", "any", "asset")
 
 
 #: Collection functions whose first parameter is not spelled ``items``.
@@ -374,6 +375,10 @@ class _Checker:
             self.error(path, exc.detail, "write `$actor.cash -= 5`, `$world.board[$i][$j] = x` or `$total = 3`")
             return
         self.expr(right, path, roots, types, params)
+        if re.search(r"'[^']*\{\$[^']*'|\"[^\"]*\{\$[^\"]*\"", right):
+            self.warn(path, "stores `{$...}` literally: placeholders fill in only in templates (outcome, say, show, text)",
+                      "build the text as an expression, e.g. `$text($params.n) + ': ' + $hint`, or store the values and "
+                      "format them in a view's show")
         for kind, step in steps:
             if kind == "index":
                 self.expr(step, path, roots, types, params)
@@ -623,6 +628,7 @@ class _Checker:
         self._defs_and_blocks()
         check_game(self)
         check_scans(self)
+        check_assets(self, BASE)
 
     def _inputs(self) -> None:
         for name, spec in self.c.inputs.items():
@@ -634,7 +640,7 @@ class _Checker:
                 self.error(path, "an enum input needs `values`")
             if spec.type == "table":
                 for column, kind in (spec.columns or {}).items():
-                    if kind not in C.INPUT_TYPES or kind in ("table",):
+                    if (kind not in C.INPUT_TYPES and kind != "asset") or kind in ("table",):
                         self.error(f"{path}.columns.{column}", f"unknown column type '{kind}'")
             if spec.source is not None:
                 source = PurePath(spec.source)

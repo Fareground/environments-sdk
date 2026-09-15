@@ -394,11 +394,16 @@ class GameState:
             actor_id = self.game.players[seat]
 
             def check(env: Any) -> Optional[str]:
+                from ..assets.intake import previewed
+
                 turn = self._seat_turn(env, actor_id)
                 if turn is None:
                     return "the seat is not acting"
-                params, problem = env.actions.validate(turn.actor, tool, args)
-                return problem or env.actions.dry_run(turn.actor, tool, params)
+                with previewed(turn, tool, args) as (checked, problem):  # files as the call will submit them
+                    if problem is not None:
+                        return problem
+                    params, problem = env.actions.validate(turn.actor, tool, checked)
+                    return problem or env.actions.dry_run(turn.actor, tool, params)
 
             problem = self._run.read(check)
             if problem is None:
