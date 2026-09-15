@@ -292,7 +292,7 @@ MARKET = {
     "types": {"trader": {"agent": True, "props": {"mood": 0.0, "vip": False}}},
     "population": [{"type": "trader", "count": 4, "props": {"vip": "$i == 1"}}],
     "actions": {"wait": {"by": "trader", "do": []}},
-    "mechanisms": {"weather": {"kind": "drift", "rules": {
+    "mechanisms": {"weather": {"kind": "dynamics", "mode": "drift", "rules": {
         "climb": {"target": "world.level", "model": "linear", "rate": 0.5},
         "revert": {"target": "world.price", "model": "mean_reversion", "rate": 0.3, "mean": 50},
         "wave": {"target": "world.wave", "model": "sinusoidal", "amplitude": 4, "period": 8},
@@ -335,7 +335,7 @@ OUTBREAK = {
     "entities": {"mayor": {"type": "mayor"}},
     "actions": {"wait": {"by": "mayor", "do": []}},
     "arms": {"calm": {"patch": {"world": {"bonus": 1}}}},
-    "mechanisms": {"shocks": {"kind": "shocks", "shocks": {
+    "mechanisms": {"shocks": {"kind": "dynamics", "mode": "shocks", "shocks": {
         "arrival": {"at": 2, "do": ["$world.cases += 10"], "say": "Ten cases arrive.",
                     "then": [{"shock": "alarm", "after": 2}]},
         "alarm": {"do": ["$world.alarm = true"], "then": [{"shock": "closure", "after": 0, "chance": 1, "when": "$world.cases > 5"}]},
@@ -378,12 +378,37 @@ def test_shock_rolls_use_their_own_stream_so_arms_share_them():
 def test_manual_shock_and_errors():
     env = fg_env.load(OUTBREAK, seed=1)
     env.run("idle", rounds=1)
-    env.effects.run([{"fire_shock": "alarm"}], {}, "t")
+    env.effects.run([{"dynamics": "shocks", "action": "fire", "shock": "alarm"}], {}, "t")
     assert env.props["alarm"] is True and env.props["shocks"]["alarm"]["count"] == 1
     bad = json.loads(json.dumps(OUTBREAK))
     bad["mechanisms"]["shocks"]["shocks"]["alarm"]["then"] = [{"shock": "alarms"}]
     with pytest.raises(ContractError, match="alarms"):
         fg_env.parse(bad)
+
+
+def test_dynamics_kinds_fields_and_actions_say_what_to_fix():
+    old = json.loads(json.dumps(OUTBREAK))
+    old["mechanisms"]["shocks"] = {"kind": "shocks", "shocks": {}}
+    issue = next(i for i in _errors(old) if i.path == "mechanisms.shocks.kind")
+    assert issue.message == "'shocks' is now kind 'dynamics' with mode 'shocks'"
+    typo = json.loads(json.dumps(MARKET))
+    typo["mechanisms"]["weather"]["phse"] = "end"
+    issue = _errors(typo)[0]
+    assert issue.message == "`phse` is not a field of `dynamics` mode `drift`" and issue.fix.startswith("did you mean 'phase'?")
+
+    def issues(effect):
+        contract = json.loads(json.dumps(OUTBREAK))
+        contract["actions"]["wait"]["do"] = [effect]
+        return [(i.path, i.message, i.fix) for i in _errors(contract)]
+
+    assert issues({"dynamics": "shocks", "action": "fire"})[0][1] == "`dynamics.fire` needs `shock`"
+    path, message, fix = issues({"dynamics": "shocks", "action": "fire", "shock": "alarn"})[0]
+    assert path.endswith(".shock") and message == "'alarn' is not a shock of shocks" and fix == "did you mean 'alarm'?"
+    assert issues({"dynamics": "shocks", "action": "fire", "shock": "alarm", "at": 3})[0][1] == "'at' is not part of `dynamics.fire`"
+    path, message, fix = issues({"dynamics": "shocks", "action": "roll"})[0]
+    assert path.endswith(".action") and message == "'roll' is not an action of shocks (dynamics shocks)" and fix == "actions: fire"
+    _, _, fix = issues({"fire_shock": "alarm"})[0]
+    assert fix.startswith('`fire_shock` is now the `dynamics` op: {"dynamics": "<mechanism>", "action": "fire"')
 
 
 PRIORS = {
@@ -393,7 +418,7 @@ PRIORS = {
     "types": {"analyst": {"agent": True}},
     "entities": {"a": {"type": "analyst"}},
     "actions": {"wait": {"by": "analyst", "do": []}},
-    "mechanisms": {"uncertainty": {"kind": "priors", "priors": {
+    "mechanisms": {"uncertainty": {"kind": "dynamics", "mode": "priors", "priors": {
         "beta_p": {"dist": "beta", "a": 9, "b": 21},
         "norm": {"dist": "normal", "mean": "$inputs.centre", "sd": 0.1, "min": 0, "max": 1},
         "uni": {"dist": "uniform", "low": 2, "high": 4},
@@ -725,7 +750,10 @@ def test_guide_documents_the_new_kinds_and_functions():
     for mode in ("status", "cooldowns", "channeling", "terrain"):
         assert f"### `conditions.{mode}`" in conditions
     assert "- `apply`" in conditions and "- `interrupt`" in conditions and '"action": "tick"' not in conditions
-    for kind in ("drift", "shocks", "priors", "procedure", "turn_order", "victory"):
+    assert "| `dynamics` | drift, shocks, priors |" in text
+    dynamics = fg_env.guide("dynamics")
+    assert "### `dynamics.priors`" in dynamics and "- `fire`" in dynamics and "- `step`" not in dynamics
+    for kind in ("procedure", "turn_order", "victory"):
         assert f"### `{kind}`" in text
     functions = fg_env.guide("functions")
     for name in ("$effective(", "$has_status(", "$ready(", "$prior(", "$winner(", "$terrain(", "$turn_rank("):
