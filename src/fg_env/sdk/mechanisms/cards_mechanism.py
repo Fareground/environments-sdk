@@ -1,10 +1,10 @@
-"""The ``cards`` mechanism: a deck expands into a card type, card entities, deal events, card tools and views."""
+"""The ``game.cards`` mode: a deck expands into a card type, card entities, deal events, card tools and views."""
 from __future__ import annotations
 
 import re
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
-from ..registry import MechanismError, mechanism
+from ..registry import MechanismError, mode
 from .cards import CardActionConfig, CardsConfig, Zone, card_family, slug, standard_cards, zones_for
 
 __all__: List[str] = []
@@ -87,7 +87,7 @@ def _card_param(config: CardsConfig, where: Optional[str], description: str) -> 
 
 def _action(config: CardsConfig, tool: CardActionConfig, description: str, params: Dict[str, Any], do: List[Any],
             outcome: str, announce: Optional[str], private: bool = False) -> Dict[str, Any]:
-    action: Dict[str, Any] = {"by": config.players, "description": tool.description or description,
+    action: Dict[str, Any] = {"by": config.who, "description": tool.description or description,
                               "params": {**params, **tool.params}, "when": list(tool.when), "do": do + list(tool.do),
                               "outcome": tool.outcome or outcome, "terminal": tool.terminal}
     if private:
@@ -99,77 +99,77 @@ def _action(config: CardsConfig, tool: CardActionConfig, description: str, param
 
 def _actions(name: str, config: CardsConfig, zones: Mapping[str, Zone]) -> Dict[str, Any]:
     actions: Dict[str, Any] = {}
-    play = _tool(config.play_card)
+    play = _tool(config.play)
     if play is not None:
         target = play.to or "discard"
         zone = zones.get(target)
         if zone is None:
-            raise MechanismError(f"'{target}' is not a zone", f"zones: {', '.join(zones)}", "play_card.to")
+            raise MechanismError(f"'{target}' is not a zone", f"zones: {', '.join(zones)}", "play.to")
         public = zone.visible == "public"
-        move = {"play_cards": "$params.card", "to": target} if public else \
-            {"move_cards": "$params.card", "to": target, **({"owner": "$actor"} if zone.owned else {})}
+        move = {"game": name, "action": "play", "cards": "$params.card", "to": target} if public else \
+            {"game": name, "action": "move", "cards": "$params.card", "to": target, **({"owner": "$actor"} if zone.owned else {})}
         legal = " Only cards you may play now are listed." if play.where else ""
-        actions["play_card"] = _action(
+        actions[f"{name}_play"] = _action(
             config, play, f"Play a card from your hand to the {zone.title.lower()}.{legal}",
             {"card": _card_param(config, play.where, "The card to play.")}, [move], "You played {$params.card.name}.",
             "{$actor.name} plays {$params.card.name}." if public else "{$actor.name} plays a card face down.")
     discard = _tool(config.discard)
     if discard is not None:
         public = zones["discard"].visible == "public"
-        actions["discard"] = _action(
+        actions[f"{name}_discard"] = _action(
             config, discard, "Discard a card from your hand.",
-            {"card": _card_param(config, discard.where, "The card to discard.")}, [{"discard": "$params.card"}],
-            "You discarded {$params.card.name}.",
+            {"card": _card_param(config, discard.where, "The card to discard.")},
+            [{"game": name, "action": "discard", "cards": "$params.card"}], "You discarded {$params.card.name}.",
             "{$actor.name} discards {$params.card.name}." if public else "{$actor.name} discards a card.")
     draw = _tool(config.draw)
     if draw is not None:
         drawn = f"$world.{name}_drawn"
-        actions["draw"] = _action(
-            config, draw, "Draw from the draw pile.", {}, [{"draw": name, "count": draw.count}],
+        actions[f"{name}_draw"] = _action(
+            config, draw, "Draw from the draw pile.", {}, [{"game": name, "action": "draw", "qty": draw.qty}],
             f"You drew {{$card_names({drawn}) or 'nothing: no cards are left'}}.",
             f"{{$actor.name}} draws {{$len({drawn})}} {{$'card' if $len({drawn}) == 1 else 'cards'}}.")
-    give = _tool(config.pass_card)
+    give = _tool(config.give)
     if give is not None:
-        actions["pass_card"] = _action(
+        actions[f"{name}_give"] = _action(
             config, give, "Give a card from your hand to another player (only the two of you see which).",
             {"card": _card_param(config, give.where, "The card to give."),
-             "to": {"type": "entity", "of": config.players, "where": "$it.id != $actor.id", "description": "Who receives it."}},
-            [{"pass_cards": "$params.card", "to": "$params.to"}], "You passed {$params.card.name} to {$params.to.name}.",
-            None, private=True)
+             "to": {"type": "entity", "of": config.who, "where": "$it.id != $actor.id", "description": "Who receives it."}},
+            [{"game": name, "action": "give", "cards": "$params.card", "to": "$params.to"}],
+            "You passed {$params.card.name} to {$params.to.name}.", None, private=True)
     return actions
 
 
 def _events(name: str, config: CardsConfig) -> List[Dict[str, Any]]:
-    deal: Dict[str, Any] = {"deal": name, "count": config.hand_size}
+    deal: Dict[str, Any] = {"game": name, "action": "deal", "qty": config.hand_size}
     if config.deal_to:
-        deal["to"] = f"$filter({config.players}, {config.deal_to})"
+        deal["to"] = f"$filter({config.who}, {config.deal_to})"
     dealing = [deal] if config.hand_size not in (0, "0") else []
-    setup: Dict[str, Any] = {"name": f"{name}_setup", "at": 1, "do": [{"setup_cards": name}]}
+    setup: Dict[str, Any] = {"name": f"{name}_setup", "at": 1, "do": [{"game": name, "action": "setup"}]}
     if config.deal == "start":
         setup["do"] += dealing + list(config.after_deal)
     elif config.deal == "never":
         setup["do"] += list(config.after_deal)
     events = [setup]
     if config.deal == "round":
-        events.append({"name": f"{name}_deal", "every": 1, "do": [{"collect": name}, *dealing, *config.after_deal]})
+        events.append({"name": f"{name}_deal", "every": 1,
+                       "do": [{"game": name, "action": "collect"}, *dealing, *config.after_deal]})
     return events
 
 
-@mechanism("cards", CardsConfig,
-           "A deck of cards as world state: card entities with a zone (deck, hand, discard, burn or declared zones), "
-           "owner and order; who sees a card is enforced by the engine (views, inspect, tools). Generates the card "
-           "type, the cards, round-1 setup (shuffle and deal), optional `play_card` / `discard` / `draw` / "
-           "`pass_card` tools listing only legal cards, and views of your hand and the table. Native ops: deal, "
-           "draw, shuffle, collect, burn, move_cards, play_cards, discard, pass_cards, reveal, peek. Functions: "
-           "$hand, $zone, $top_card, $top_cards, $card_names, $poker_rank, $blackjack_value, $sets, $runs, "
-           "$trick_winner, $follow_suit.",
-           example={"kind": "cards", "players": "player", "hand_size": 7, "keep_top": True,
-                    "play_card": {"where": "$it.suit == $top_card(discard).suit or $it.rank == $top_card(discard).rank"},
-                    "draw": True})
+@mode("game", "cards", CardsConfig,
+      "A deck of cards as world state: card entities with a zone (deck, hand, discard, burn or declared zones), "
+      "owner and order; who sees a card is enforced by the engine (views, inspect, tools). Generates the card "
+      "type, the cards, round-1 setup (shuffle and deal), optional `<name>_play` / `<name>_discard` / `<name>_draw` / "
+      "`<name>_give` tools listing only legal cards, and views of your hand and the table. Functions: "
+      "$hand, $zone, $top_card, $top_cards, $card_names, $poker_rank, $blackjack_value, $sets, $runs, "
+      "$trick_winner, $follow_suit.",
+      example={"who": "player", "hand_size": 7, "keep_top": True,
+               "play": {"where": "$it.suit == $top_card(discard).suit or $it.rank == $top_card(discard).rank"},
+               "draw": True}, was="cards")
 def _expand_cards(name: str, config: CardsConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     types = contract.get("types") or {}
-    if config.players not in types:
-        raise MechanismError(f"players '{config.players}' is not a declared type", f"types: {', '.join(types) or 'none'}", "players")
+    if config.who not in types:
+        raise MechanismError(f"who '{config.who}' is not a declared type", f"types: {', '.join(types) or 'none'}", "who")
     if not _NAME.match(config.type):
         raise MechanismError(f"'{config.type}' is not a valid type name", "use letters, digits and _", "type")
     declared = types.get(config.type)
@@ -193,9 +193,9 @@ def _expand_cards(name: str, config: CardsConfig, contract: Mapping[str, Any]) -
     }
     if config.views:
         fragment["views"] = {
-            f"{name}_hand": {"for": config.players, "title": f"Your hand ({{$len($hand($actor, '{name}'))}})",
+            f"{name}_hand": {"for": config.who, "title": f"Your hand ({{$len($hand($actor, '{name}'))}})",
                              "show": f"{{$card_names($hand($actor, '{name}'), true) or 'no cards'}}"},
-            f"{name}_table": {"for": config.players, "title": "Cards on the table", "of": f"$cards_table('{name}', $actor)",
+            f"{name}_table": {"for": config.who, "title": "Cards on the table", "of": f"$cards_table('{name}', $actor)",
                               "show": "{$it}"},
         }
     return fragment

@@ -25,8 +25,9 @@
   },
   "mechanisms": {
     "cards": {
-      "kind": "cards",
-      "players": "player",
+      "kind": "game",
+      "mode": "cards",
+      "who": "player",
       "deck": [
         {"suits": ["red", "yellow", "green", "blue"], "ranks": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]},
         {"suits": ["red", "yellow", "green", "blue"], "ranks": [1, 2, 3, 4, 5, 6, 7, 8, 9]},
@@ -36,10 +37,10 @@
       "hand_size": 7,
       "keep_top": true,
       "after_deal": [
-        {"deal": "cards", "count": 1, "zone": "discard"},
+        {"game": "cards", "action": "deal", "qty": 1, "zone": "discard"},
         "$world.color = $top_card(discard).suit if $top_card(discard).suit != wild else red"
       ],
-      "play_card": {
+      "play": {
         "where": "$it.suit == wild or $it.suit == $world.color or $it.rank == $top_card(discard).rank",
         "params": {
           "color": {"type": "enum", "values": ["red", "yellow", "green", "blue"], "required": false, "description": "The color you name when you play a Wild (ignored otherwise; default red)."}
@@ -50,7 +51,7 @@
             "if": "$params.card.rank == draw2",
             "then": [
               "$next = $pick(player, $it.seat == ($actor.seat + 1) % 4)",
-              {"draw": "cards", "count": 2, "to": "$next"},
+              {"game": "cards", "action": "draw", "qty": 2, "who": "$next"},
               {"emit": "penalty", "say": "{$next.name} draws two cards."}
             ]
           },
@@ -69,19 +70,19 @@
       "name": "turn",
       "turns": "sequential",
       "order": "$it.seat",
-      "actions": ["play_card", "draw"],
+      "actions": ["cards_play", "cards_draw"],
       "must_act": true,
       "max_calls": 6,
       "brief": "Top of the discard pile: {$top_card(discard).name}. Color to match: {$world.color}.",
-      "on_idle": [{"draw": "cards"}]
+      "on_idle": [{"game": "cards", "action": "draw"}]
     }
   ],
   "policies": {
     "eager": {
       "rules": [
-        {"do": "play_card", "with": {"card": "$pick($hand($actor), $it.suit != wild and ($it.suit == $world.color or $it.rank == $top_card(discard).rank))"}},
-        {"do": "play_card", "with": {"card": "$pick($hand($actor), $it.suit == wild)", "color": "$mode($map($filter($hand($actor), $it.suit != wild), $it.suit)) or red"}},
-        {"do": "draw"}
+        {"do": "cards_play", "with": {"card": "$pick($hand($actor), $it.suit != wild and ($it.suit == $world.color or $it.rank == $top_card(discard).rank))"}},
+        {"do": "cards_play", "with": {"card": "$pick($hand($actor), $it.suit == wild)", "color": "$mode($map($filter($hand($actor), $it.suit != wild), $it.suit)) or red"}},
+        {"do": "cards_draw"}
       ]
     }
   },

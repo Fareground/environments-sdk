@@ -117,13 +117,13 @@ def _card_game(players: int = 3, **cards) -> dict:
     return {"name": "Cards", "clock": {"rounds": 2},
             "types": {"player": {"agent": True, "props": {"seat": 0}}},
             "entities": _seats(players),
-            "mechanisms": {"cards": {"kind": "cards", "players": "player", **cards}},
+            "mechanisms": {"cards": {"kind": "game", "mode": "cards", "who": "player", **cards}},
             "stages": [{"name": "play", "turns": "sequential", "max_actions": 4, "max_calls": 12}],
             "outputs": {"hands": {"expr": "$dict(player, $it.id, $len($hand($it)))", "type": "map"}}}
 
 
 def test_standard_deck_is_shuffled_and_dealt_round_robin_into_hands():
-    contract = _card_game(hand_size=5, play_card=True, draw=True)
+    contract = _card_game(hand_size=5, play=True, draw=True)
     assert _errors(contract) == []
     env = fg_env.load(contract, seed=4)
     declared = [e["id"] for e in env.entities("card")]
@@ -142,7 +142,8 @@ def test_standard_deck_is_shuffled_and_dealt_round_robin_into_hands():
 
 def test_tools_offer_only_legal_cards_and_hidden_cards_never_reach_a_player():
     contract = _card_game(deck=[{"suits": ["red", "blue"], "ranks": [1, 2, 3, 4, 5, 6]}], hand_size=3,
-                          play_card={"where": "$it.rank >= 4"}, draw=True, after_deal=[{"deal": "cards", "count": 1, "zone": "discard"}])
+                          play={"where": "$it.rank >= 4"}, draw=True,
+                          after_deal=[{"game": "cards", "action": "deal", "qty": 1, "zone": "discard"}])
     assert _errors(contract) == []
     env = fg_env.load(contract, seed=2)
     checked = []
@@ -155,9 +156,9 @@ def test_tools_offer_only_legal_cards_and_hidden_cards_never_reach_a_player():
         tools = {t.name: t for t in wake.tools}
         legal = sorted(c.id for c in cards if c.id in mine and c.properties["rank"] >= 4)
         if legal:
-            assert sorted(tools["play_card"].input_schema["properties"]["card"]["enum"]) == legal
+            assert sorted(tools["cards_play"].input_schema["properties"]["card"]["enum"]) == legal
         else:
-            assert "play_card" not in tools
+            assert "cards_play" not in tools
         text = wake.update + json.dumps([t.to_dict() for t in wake.tools])
         assert not [cid for cid in hidden if re.search(rf"(?<![\w]){re.escape(cid)}(?![\w])", text)]
         other = next(cid for cid in hidden if world.entities[cid].properties["zone"] == "hand")
@@ -179,10 +180,10 @@ def test_an_empty_draw_pile_is_refilled_by_shuffling_the_discards(keep_top):
 
     def turn(wake):
         if wake.entity_id == "p1" and wake.round == 1:
-            first, second = sorted(next(t for t in wake.tools if t.name == "discard").input_schema["properties"]["card"]["enum"])
-            wake.call("discard", {"card": first})
-            wake.call("discard", {"card": second})
-            seen.update(first=first, second=second, drew=wake.call("draw", {}).text)
+            first, second = sorted(next(t for t in wake.tools if t.name == "cards_discard").input_schema["properties"]["card"]["enum"])
+            wake.call("cards_discard", {"card": first})
+            wake.call("cards_discard", {"card": second})
+            seen.update(first=first, second=second, drew=wake.call("cards_draw", {}).text)
         if not wake.done:
             wake.end()
 
@@ -202,16 +203,16 @@ def test_personal_decks_give_each_player_their_own_cards_pile_and_reshuffle():
     contract = _card_game(players=2, personal=True, zones={"market": "public"}, hand_size=2,
                           deck=[{"name": "Copper", "per_player": True, "copies": 3, "props": {"value": 1}},
                                 {"name": "Gold", "zone": "market", "copies": 2, "props": {"value": 3}}],
-                          discard={"terminal": False}, draw={"count": 2})
+                          discard={"terminal": False}, draw={"qty": 2})
     assert _errors(contract) == []
     env = fg_env.load(contract, seed=8)
     drew = []
 
     def turn(wake):
         if wake.entity_id == "p1" and wake.round == 1:
-            for card in sorted(next(t for t in wake.tools if t.name == "discard").input_schema["properties"]["card"]["enum"]):
-                wake.call("discard", {"card": card})
-            drew.append(wake.call("draw", {}).text)
+            for card in sorted(next(t for t in wake.tools if t.name == "cards_discard").input_schema["properties"]["card"]["enum"]):
+                wake.call("cards_discard", {"card": card})
+            drew.append(wake.call("cards_draw", {}).text)
         if not wake.done:
             wake.end()
 
@@ -228,11 +229,11 @@ def test_personal_decks_give_each_player_their_own_cards_pile_and_reshuffle():
 
 
 def test_pass_peek_reveal_change_who_sees_a_card_and_failed_actions_roll_back():
-    contract = _card_game(hand_size=2, pass_card={"terminal": False})
+    contract = _card_game(hand_size=2, give={"terminal": False})
     contract["actions"] = {
-        "spy": {"by": "player", "do": [{"peek": "$top_cards(deck, 1)"}]},
-        "flip": {"by": "player", "do": [{"reveal": "$hand($actor)"}]},
-        "doomed": {"by": "player", "do": [{"draw": "cards", "count": 2}, {"fail": "Not today."}]},
+        "spy": {"by": "player", "do": [{"game": "cards", "action": "peek", "cards": "$top_cards(deck, 1)"}]},
+        "flip": {"by": "player", "do": [{"game": "cards", "action": "reveal", "cards": "$hand($actor)"}]},
+        "doomed": {"by": "player", "do": [{"game": "cards", "action": "draw", "qty": 2}, {"fail": "Not today."}]},
     }
     assert _errors(contract) == []
     env = fg_env.load(contract, seed=5)
@@ -248,7 +249,7 @@ def test_pass_peek_reveal_change_who_sees_a_card_and_failed_actions_roll_back():
         state["top"] = max((c for c in world.entities_of("card") if c.properties["zone"] == "deck"), key=lambda c: c.properties["order"]).id
         wake.call("spy", {})
         state["given"] = sorted(c.id for c in world.entities_of("card") if c.properties["owner"] == "p1")[0]
-        assert wake.call("pass_card", {"card": state["given"], "to": "p2"}).ok
+        assert wake.call("cards_give", {"card": state["given"], "to": "p2"}).ok
         wake.call("flip", {})
         wake.end()
 
@@ -275,7 +276,7 @@ def _table(stacks: list, score: str = "$it.seat", streets: dict = None, **pot) -
             "types": {"player": {"agent": True, "props": {"seat": 0}}},
             "entities": {f"p{i + 1}": {"type": "player", "name": NAMES[i], "props": {"seat": i, "stack": s}}
                          for i, s in enumerate(stacks)},
-            "mechanisms": {"table": {"kind": "pot", "players": "player", "seat": "$it.seat", "stack": 0, "score": score,
+            "mechanisms": {"table": {"kind": "game", "mode": "pot", "who": "player", "seat": "$it.seat", "stack": 0, "score": score,
                                      "streets": streets or {"preflop": [], "flop": []}, **pot}},
             "outputs": {"stacks": {"expr": "$map($bottom(player, $it.seat), $it.stack)", "type": "list"}}}
 
@@ -290,25 +291,25 @@ def test_side_pots_count_folded_chips_and_return_uncalled_bets():
 
 def test_min_raise_and_a_short_all_in_that_does_not_reopen_raising():
     log: list = []
-    moves = {"p1": [("raise", {"to": 30}), ("raise", {"to": 60}), ("call", {})],
-             "p2": [("raise", {"to": 45}), ("call", {}), ("call", {})],
-             "p3": [("all_in", {})]}
+    moves = {"p1": [("table_raise", {"to": 30}), ("table_raise", {"to": 60}), ("table_call", {})],
+             "p2": [("table_raise", {"to": 45}), ("table_call", {}), ("table_call", {})],
+             "p3": [("table_all_in", {})]}
     contract = _table([1000, 1000, 45], blinds=[5, 10])
     assert _errors(contract) == []
     result = fg_env.load(contract, seed=1).run(_script(moves, log), rounds=1)
     assert result.status == "completed", result.error
     assert [(pid, tool, ok) for pid, _, tool, ok, _ in log] == [
-        ("p1", "raise", True), ("p2", "raise", False), ("p2", "call", True), ("p3", "all_in", True),
-        ("p1", "raise", False), ("p1", "call", True), ("p2", "call", True)]
+        ("p1", "table_raise", True), ("p2", "table_raise", False), ("p2", "table_call", True), ("p3", "table_all_in", True),
+        ("p1", "table_raise", False), ("p1", "table_call", True), ("p2", "table_call", True)]
     assert "at least 50" in log[1][4]  # a raise must be at least the last raise size (20) more
-    assert log[4][1] == ["call", "fold"]  # Cleo's all-in of 15 more is not a full raise: Ana may not re-raise
+    assert log[4][1] == ["table_call", "table_fold"]  # Cleo's all-in of 15 more is not a full raise: Ana may not re-raise
     assert result.outputs["stacks"] == [955, 955, 135]
     assert any(e.get("text") == "Cleo goes all-in (bet 45)." for e in result.events)
 
 
 def test_three_all_ins_of_different_sizes_build_side_pots_paid_by_rank():
     contract = _table([100, 250, 400, 1000], score="[3, 2, 1, 0][$it.seat]", streets={"betting": []})
-    moves = {"p2": [("all_in", {})], "p3": [("all_in", {})], "p4": [("call", {})], "p1": [("call", {})]}
+    moves = {"p2": [("table_all_in", {})], "p3": [("table_all_in", {})], "p4": [("table_call", {})], "p1": [("table_call", {})]}
     env = fg_env.load(contract, seed=1)
     result = env.run(_script(moves), rounds=1)
     assert result.status == "completed", result.error
@@ -319,22 +320,23 @@ def test_three_all_ins_of_different_sizes_build_side_pots_paid_by_rank():
 
 def test_split_pots_give_the_odd_chip_left_of_the_button_and_antes_count():
     contract = _table([51, 51, 51, 100], score="$it.seat * 0", streets={"betting": []}, ante=1)
-    moves = {"p2": [("all_in", {})], "p3": [("call", {})], "p4": [("fold", {})], "p1": [("call", {})]}
+    moves = {"p2": [("table_all_in", {})], "p3": [("table_call", {})], "p4": [("table_fold", {})], "p1": [("table_call", {})]}
     result = fg_env.load(contract, seed=1).run(_script(moves), rounds=1)
     assert result.outputs["stacks"] == [51, 52, 51, 99]
 
 
 def test_holdem_showdown_ranks_real_hands_and_returns_uncalled_chips():
-    rig = [{"collect": "cards"}, {"move_cards": ["AS", "AD"], "to": "hand", "owner": "p1"},
-           {"move_cards": ["KS", "KD"], "to": "hand", "owner": "p2"}, {"move_cards": ["2C", "7D"], "to": "hand", "owner": "p3"},
-           {"move_cards": ["AH", "KH", "3C", "9S", "4D"], "to": "board"}]
+    move = {"game": "cards", "action": "move"}
+    rig = [{"game": "cards", "action": "collect"}, {**move, "cards": ["AS", "AD"], "to": "hand", "owner": "p1"},
+           {**move, "cards": ["KS", "KD"], "to": "hand", "owner": "p2"}, {**move, "cards": ["2C", "7D"], "to": "hand", "owner": "p3"},
+           {**move, "cards": ["AH", "KH", "3C", "9S", "4D"], "to": "board"}]
     contract = _table([100, 200, 300], score="$poker_rank($hand($it) + $zone(board)).score", streets={"preflop": []},
                       setup=rig, label="$poker_rank($hand($it) + $zone(board)).name",
-                      before_showdown=[{"reveal": "$flatten($map($pot_live(table), $hand($it)))"}])
-    contract["mechanisms"] = {"cards": {"kind": "cards", "players": "player", "deal": "never", "zones": {"board": "public"}},
+                      before_showdown=[{"game": "cards", "action": "reveal", "cards": "$flatten($map($pot_live(table), $hand($it)))"}])
+    contract["mechanisms"] = {"cards": {"kind": "game", "mode": "cards", "who": "player", "deal": "never", "zones": {"board": "public"}},
                               **contract["mechanisms"]}
     assert _errors(contract) == []
-    moves = {"p2": [("all_in", {})], "p3": [("all_in", {})], "p1": [("call", {})]}
+    moves = {"p2": [("table_all_in", {})], "p3": [("table_all_in", {})], "p1": [("table_call", {})]}
     env = fg_env.load(contract, seed=9)
     result = env.run(_script(moves), rounds=1)
     assert result.outputs["stacks"] == [300, 200, 100]
@@ -364,10 +366,10 @@ VILLAGE = {
     "name": "Village", "clock": {"rounds": 2},
     "types": {"player": {"agent": True, "props": {"seat": 0}}},
     "entities": _seats(6),
-    "mechanisms": {"roles": {"kind": "roles", "players": "player", "deck": {"wolf": 2, "seer": 1, "villager": "rest"},
+    "mechanisms": {"roles": {"kind": "groups", "mode": "roles", "who": "player", "deck": {"wolf": 2, "seer": 1, "villager": "rest"},
                              "teams": {"pack": ["wolf"], "town": ["seer", "villager"]}, "know": ["pack"],
                              "actions": {"bite": {"roles": ["wolf"], "do": [], "terminal": True}}}},
-    "events": [{"at": 2, "do": [{"eliminate": "$pick(player, $it.role == wolf)"}]}],
+    "events": [{"at": 2, "do": [{"groups": "roles", "action": "eliminate", "who": "$pick(player, $it.role == wolf)"}]}],
     "stages": [{"name": "night", "turns": "sequential"}],
     "outputs": {"roles": {"expr": "$dict(player, $it.id, $it.role)", "type": "map"}},
 }
@@ -407,7 +409,7 @@ def test_worker_placement_offers_open_spaces_and_resets_each_round():
             "types": {"farmer": {"agent": True, "props": {"wood": 0, "coins": 0}}},
             "entities": {"f1": {"type": "farmer", "name": "Ana"}, "f2": {"type": "farmer", "name": "Ben"},
                          "f3": {"type": "farmer", "name": "Cleo"}},
-            "mechanisms": {"board": {"kind": "slots", "workers": "farmer", "spaces": {
+            "mechanisms": {"board": {"kind": "game", "mode": "slots", "who": "farmer", "spaces": {
                 "forest": {"capacity": 1, "description": "+2 wood", "do": ["$actor.wood += 2"]},
                 "market": {"capacity": 2, "do": ["$actor.coins += 1"]}}}},
             "outputs": {"goods": {"expr": "$dict(farmer, $it.id, [$it.wood, $it.coins])", "type": "map"}}}
@@ -415,13 +417,13 @@ def test_worker_placement_offers_open_spaces_and_resets_each_round():
     offered, boards = [], []
 
     def place(wake):
-        spaces = next(t for t in wake.tools if t.name == "place_worker").input_schema["properties"]["space"]["enum"]
+        spaces = next(t for t in wake.tools if t.name == "board_place").input_schema["properties"]["space"]["enum"]
         offered.append((wake.round, wake.entity_id, spaces))
         if wake.entity_id == "f2":
-            assert not wake.call("place_worker", {"space": "forest"}).ok  # full: not a valid choice
+            assert not wake.call("board_place", {"space": "forest"}).ok  # full: not a valid choice
         if wake.entity_id == "f3":
             boards.append(wake.update)
-        wake.call("place_worker", {"space": spaces[0]})
+        wake.call("board_place", {"space": spaces[0]})
         wake.end()
 
     env = fg_env.load(farm, seed=1)
@@ -439,33 +441,124 @@ def test_worker_placement_offers_open_spaces_and_resets_each_round():
 
 def test_config_mistakes_are_reported_with_what_to_fix():
     wrong_players = _card_game()
-    wrong_players["mechanisms"]["cards"]["players"] = "gambler"
-    assert any("players 'gambler' is not a declared type" in i.message for i in fg_env.check(wrong_players))
+    wrong_players["mechanisms"]["cards"]["who"] = "gambler"
+    assert any("who 'gambler' is not a declared type" in i.message for i in fg_env.check(wrong_players))
     leaky = _card_game()
     leaky["types"]["card"] = {"props": {"cost": 0}}
     assert any("without the card visibility rule" in i.message for i in fg_env.check(leaky))
     zone = _card_game()
-    zone["events"] = [{"do": [{"deal": "cards", "count": 1, "zone": "table"}]}]
+    zone["events"] = [{"do": [{"game": "cards", "action": "deal", "qty": 1, "zone": "table"}]}]
     assert any("'table' is not a zone of cards" in i.message for i in fg_env.check(zone))
     pot = _table([10, 10])
-    pot["events"] = [{"do": [{"wager": "bank", "action": "call"}]}, {"do": [{"wager": "table", "action": "shove"}]}]
+    pot["events"] = [{"do": [{"game": "bank", "action": "call"}]}, {"do": [{"game": "table", "action": "shove"}]}]
     messages = [i.message for i in fg_env.check(pot)]
-    assert "'bank' is not a declared pot" in messages and "'shove' is not a betting action" in messages
+    assert "`game` names a declared game mechanism, got 'bank'" in messages
+    assert "'shove' is not an action of table (game pot)" in messages
     ghost = json.loads(json.dumps(VILLAGE))
     ghost["mechanisms"]["roles"]["teams"]["town"].append("ghost")
     assert any("lists 'ghost', which is not in the deck" in i.message for i in fg_env.check(ghost))
     crowded = json.loads(json.dumps(VILLAGE))
     crowded["mechanisms"]["roles"]["deck"] = {"wolf": 5, "seer": 2, "villager": 0}
     assert "role deck holds 7 roles for 6 players" in (fg_env.load(crowded, seed=1).run("idle").error or "")
+    old = json.loads(json.dumps(VILLAGE))
+    old["mechanisms"]["roles"] = {**{k: v for k, v in old["mechanisms"]["roles"].items() if k not in ("mode", "who")},
+                                  "kind": "roles", "players": "player"}
+    assert any(i.message == "'roles' is now kind 'groups' with mode 'roles'" for i in _errors(old))
+    unnamed = {**VILLAGE, "events": [{"do": [{"groups": "roles", "action": "eliminate", "say": "Gone."}]}]}
+    assert any(i.message == "`groups.eliminate` needs `who`" for i in _errors(unnamed))
+    seated = {**VILLAGE, "types": {**VILLAGE["types"], "ghost": {"agent": True}}, "entities": {**VILLAGE["entities"],
+              "g1": {"type": "ghost"}}, "events": [{"at": 1, "do": [{"groups": "roles", "action": "reveal", "who": "$entity(g1)"}]}]}
+    assert "g1 is a ghost, not a player holding a role of roles" in (fg_env.load(seated, seed=1).run("idle").error or "")
+
+
+def test_a_pot_fills_the_game_section_with_the_chips_each_player_won_or_lost():
+    contract = _table([1000, 1000, 45], blinds=[5, 10])
+    game = fg_env.parse(contract).game
+    assert (game.players, game.seat, game.utility) == ("player", "$it.seat", "zero_sum")
+    moves = {"p1": [("table_raise", {"to": 30}), ("table_call", {})], "p2": [("table_call", {}), ("table_call", {})],
+             "p3": [("table_all_in", {})]}
+    result = fg_env.load(contract, seed=1).run(_script(moves), rounds=1)
+    assert result.status == "completed", result.error
+    assert result.returns == {f"p{i + 1}": float(stack - start) for i, (stack, start) in
+                              enumerate(zip(result.outputs["stacks"], [1000, 1000, 45]))}
+    assert sum(result.returns.values()) == 0
+    assert fg_env.parse(_table([10, 10], conserve=False)).game.utility == "general_sum"
+    assert fg_env.parse(_card_game()).game is None  # a deck alone does not know what a player scores
+
+
+def test_old_card_pot_and_slots_kinds_name_their_game_mode():
+    for kind, config in (("cards", {"players": "player"}), ("pot", {"players": "player", "score": "0"}),
+                         ("slots", {"workers": "player", "spaces": {"a": {}}})):
+        contract = {**_card_game(), "mechanisms": {"old": {"kind": kind, **config}}}
+        issue = next(i for i in _errors(contract) if i.path == "mechanisms.old.kind")
+        assert issue.message == f"'{kind}' is now kind 'game' with mode '{kind}'"
+
+
+def test_a_renamed_card_field_names_the_new_one():
+    issue = _errors(_card_game(play_card=True))[0]
+    assert issue.message == "`play_card` is not a field of `game` mode `cards`" and issue.fix.startswith("did you mean 'play'?")
+    issue = _errors(_table([10, 10], players="player"))[0]
+    assert issue.message == "`players` is not a field of `game` mode `pot`"
+
+
+def test_card_and_pot_actions_check_their_own_keys():
+    def op(contract, *effects):
+        return [(i.path, i.message, i.fix) for i in _errors({**contract, "events": [{"do": list(effects)}]})]
+
+    cards = _card_game()
+    assert any(m == "`game.move` needs `cards`" for _, m, _ in op(cards, {"game": "cards", "action": "move", "to": "hand"}))
+    assert any(m == "'count' is not part of `game.deal`" for _, m, _ in op(cards, {"game": "cards", "action": "deal", "count": 2}))
+    path, _, fix = op(cards, {"game": "cards", "action": "shufle"})[0]
+    assert path.endswith(".action") and fix == "did you mean 'shuffle'?"
+    _, _, fix = op(cards, {"deal": "cards", "count": 2})[0]
+    assert fix.startswith('`deal` is now the `game` op: {"game": "<mechanism>", "action": "deal"')
+    table = _table([10, 10])
+    assert any(m == "`game.raise` needs `to`" for _, m, _ in op(table, {"game": "table", "action": "raise"}))
+    assert any(m == "'amount' is not part of `game.fold`" for _, m, _ in op(table, {"game": "table", "action": "fold", "amount": 1}))
+    _, _, fix = op(table, {"wager": "table", "action": "call"})[0]
+    assert fix.startswith('`wager` is now the `game` op: {"game": "<mechanism>", "action": <action>')
+
+
+def test_a_moved_card_must_belong_to_the_deck_the_action_names():
+    contract = _card_game(players=2, hand_size=1)
+    contract["mechanisms"]["chips"] = {"kind": "game", "mode": "cards", "who": "player", "type": "chip", "deal": "never",
+                                       "deck": [{"name": "Chip", "copies": 2}]}
+    contract["actions"] = {"swap": {"by": "player", "do": [{"game": "chips", "action": "discard", "cards": "$hand($actor, cards)"}]}}
+    env = fg_env.load(contract, seed=1)
+    seen = []
+
+    def turn(wake):
+        seen.append(wake.call("swap", {}).text)
+        wake.end()
+
+    result = env.run(turn, rounds=1)
+    assert result.status == "failed" and "is not a card of chips" in result.error
+
+
+def test_tools_one_offers_every_betting_move_as_one_tool():
+    offered = []
+
+    def fold(wake):
+        offered.append(sorted(t.name for t in wake.tools if t.kind == "act"))
+        assert wake.call("table", {"action": "fold"}).ok
+
+    result = fg_env.load(_table([100, 100], blinds=[5, 10], tools="one"), seed=1).run(fold, rounds=1)
+    assert result.status == "completed", result.error
+    assert offered == [["table"]] and sorted(result.outputs["stacks"]) == [95, 105]
 
 
 def test_guide_documents_the_card_mechanisms_ops_and_functions():
     mechanisms = fg_env.guide("mechanisms")
-    for kind in ("cards", "pot", "roles", "slots"):
-        assert f"### `{kind}`" in mechanisms
-    effects, functions = fg_env.guide("effects"), fg_env.guide("functions")
-    for op in ("deal", "draw", "reveal", "peek", "pass_cards", "wager", "eliminate", "place_worker"):
-        assert f"`{op}`" in effects
+    assert "| `game` | board, cards, pot, slots |" in mechanisms and "| `groups` | roles, relationships, factions |" in mechanisms
+    game = fg_env.guide("game")
+    for key in ("game.cards", "game.pot", "game.slots"):
+        assert f"### `{key}`" in game
+    for action in ("deal", "draw", "reveal", "peek", "give", "fold", "raise", "place"):
+        assert f"- `{action}`" in game
+    assert "- `setup`" not in fg_env.guide("game.cards") and "- `timeout`" not in game
+    roles = fg_env.guide("groups.roles")
+    assert "- `eliminate`" in roles and "- `reveal`" in roles and "- `deal`" not in roles
+    functions = fg_env.guide("functions")
     for name in ("poker_rank", "blackjack_value", "trick_winner", "follow_suit", "hand", "zone", "top_card", "pot_options"):
         assert f"${name}(" in functions
 

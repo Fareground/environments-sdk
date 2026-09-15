@@ -11,6 +11,7 @@ from fg_env.sdk import host
 from fg_env.sdk.expr import Untrusted
 from fg_env.sdk.host.stubs import StubEvaluator
 from fg_env.sdk.mechanisms.judging import JudgeConfig, total_score
+from fg_env.sdk.registry import config_data
 
 DEBATE = Path(__file__).parents[2] / "examples" / "contracts" / "host" / "debate_judged.json"
 
@@ -33,8 +34,7 @@ def test_every_speech_is_scored_and_the_scores_decide_the_winner():
     assert result.status == "completed", result.error
     verdicts = env.world.records("judge")
     assert len(verdicts) == 6 == len(evaluator.calls) == result.outputs["speeches"]
-    config = JudgeConfig.model_validate({k: v for k, v in json.loads(DEBATE.read_text())["mechanisms"]["judge"].items()
-                                         if k != "kind"})
+    config = JudgeConfig.model_validate(config_data(json.loads(DEBATE.read_text())["mechanisms"]["judge"]))
     for verdict in verdicts:
         assert verdict["total"] == total_score(verdict["scores"], config)
         assert isinstance(verdict["rationale"], Untrusted)
@@ -88,8 +88,9 @@ PANEL = {
     "types": {"founder": {"agent": True, "props": {"points": 0}}},
     "entities": {"ana": {"type": "founder", "name": "Ana"}},
     "actions": {"pitch": {"by": "founder", "params": {"text": "text"},
-                          "do": [{"judge": "panel", "text": "$params.text", "subject": "$actor"}], "terminal": True}},
-    "mechanisms": {"panel": {"kind": "judge", "of": "founder", "into": "points", "aggregate": "median",
+                          "do": [{"host": "panel", "action": "judge", "text": "$params.text", "subject": "$actor"}],
+                          "terminal": True}},
+    "mechanisms": {"panel": {"kind": "host", "mode": "judge", "who": "founder", "into": "points", "aggregate": "median",
                              "panel": [{"name": "a"}, {"name": "b"}, {"name": "c", "host": "guest"}],
                              "criteria": {"quality": {"weight": 3}, "fit": {"scale": [0, 4]}}}},
     "outputs": {"points": "$entity(ana).points"},

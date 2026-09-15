@@ -29,8 +29,9 @@
   ],
   "mechanisms": {
     "election": {
-      "kind": "prediction_market",
-      "traders": "forecaster",
+      "kind": "market",
+      "mode": "prediction",
+      "who": "forecaster",
       "outcomes": ["ada", "bo", "cy"],
       "maker": "lmsr",
       "liquidity": 40,

@@ -25,6 +25,24 @@ def test_guide_covers_every_function_effect_and_section():
         guide("nope")
 
 
+def test_guide_covers_every_mechanism_family_mode_field_and_action():
+    from fg_env.sdk.registry import FAMILIES
+
+    table = guide("mechanisms")
+    whole = guide()
+    for name, family in FAMILIES.items():
+        assert f"| `{name}` |" in table
+        for mode, spec in family.modes.items():
+            page = guide(f"{name}.{mode}")
+            assert page.startswith(f"### `{name}.{mode}`") and page in whole and page in guide(name)
+            for field in spec.config.model_fields:
+                assert f"- `{field}` (" in page, (name, mode, field)
+            marker = f"Actions of the `{name}` op:"
+            listed = page[page.index(marker):] if marker in page else ""
+            for action, op in family.actions.get(mode, {}).items():
+                assert (f"\n- `{action}`" in listed) is not op.internal, (name, mode, action)
+
+
 def test_guide_example_contract_is_valid_and_runs():
     text = guide("overview")
     start = text.index("```json") + len("```json")

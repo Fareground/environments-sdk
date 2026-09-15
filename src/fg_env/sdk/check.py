@@ -42,6 +42,7 @@ from .effects import (
 )
 from .errors import ContractError, Issue
 from .perception import SPECTATOR
+from .registry import renamed_op_hint
 from .expr import FUNCTIONS, ExprError, compile_expr, is_expr
 from .inputs import DATA_SUFFIXES, check_value
 from .returns import check_game
@@ -440,13 +441,21 @@ class _Checker:
         ops = select_ops(effect)
         if len(ops) != 1:
             keys = ", ".join(effect) or "none"
-            hint = self._suggest(next(iter(effect), ""), known)
+            hint = renamed_op_hint(effect) or self._suggest(next(iter(effect), ""), known)
             self.error(path, f"an operation object names exactly one of: {', '.join(known)} (got keys {keys})", hint)
             return
         op = ops[0]
         allowed = set(known[op])
         native = registered_op(op)
+        if native is not None and native.select is not None:  # a family op: check the action it names
+            native, problem = native.select(effect, self.c.mechanisms or {})
+            if problem is not None:
+                self.error(f"{path}{problem[0]}", problem[1], problem[2])
+                return
+            assert native is not None
+            op = native.name
         if native is not None:
+            allowed = set(native.keys)
             for key in effect:
                 if key not in allowed:
                     self.error(f"{path}.{key}", f"'{key}' is not part of `{op}`",
@@ -921,6 +930,8 @@ class _Checker:
             by = [spec.by] if isinstance(spec.by, str) else spec.by
             by_types = {t for t in by if self._type(t, f"{path}.by", agent=True)}
             types: Types = {"actor": by_types}
+            if spec.tool is not None:
+                self._tool_group(spec, path)
             for pname, param in spec.params.items():
                 ppath = f"{path}.params.{pname}"
                 if param.type not in C.PARAM_TYPES:
@@ -964,6 +975,19 @@ class _Checker:
                               BASE | {"actor", "params", "value"}, types, spec.params)
             if not any(name in _stage_action_names(s, self.c) for s in self.c.stage_list()):
                 self.warn(path, "is not available in any stage", "add it to a stage's `actions`")
+
+    def _tool_group(self, spec: C.ActionSpec, path: str) -> None:
+        """An action offered inside a shared tool: the tool's name is free, and `action` is the tool's own argument."""
+        tool = spec.tool or ""
+        if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", tool):
+            self.error(f"{path}.tool", f"'{tool}' is not a tool name", "use letters, digits and _, starting with a letter")
+        elif tool in self.c.actions:
+            self.error(f"{path}.tool", f"'{tool}' is also the name of an action", "give the shared tool another name")
+        elif tool in ("look", "inspect", "end_turn"):
+            self.error(f"{path}.tool", f"'{tool}' is a built-in tool", "give the shared tool another name")
+        if "action" in spec.params:
+            self.error(f"{path}.params.action", "an action inside a shared tool cannot take a parameter named `action`",
+                       "the tool's `action` argument picks the action; rename the parameter")
 
     def _list_param(self, param: C.ParamSpec, ppath: str, by_types: Set[str], types: Types,
                     params: Mapping[str, C.ParamSpec]) -> None:

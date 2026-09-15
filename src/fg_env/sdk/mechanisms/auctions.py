@@ -20,27 +20,29 @@ until it closes:
   escrow is its highest package bid.
 
 Every bid escrows its money (and every ask its units) so a winner can always pay; losers and
-change are refunded from escrow. Proceeds go to the ``seller`` entity, or to
+change are refunded from escrow. Proceeds go to the ``house`` entity, or to
 ``$world.<name>_revenue`` for a house auction selling from ``$world.<name>_stock``.
 """
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, List, Literal, Mapping, Optional, Tuple, Union, cast
+from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Tuple, Union, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from ...entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, truthy
-from ..registry import MechanismError, effect_op, mechanism
+from ..registry import MechanismError, family_action, mode
 from ..world import Abort
-from .common import config_of, entity_of, fmt, name_check, number
+from ._common import ToolsSetting, tools_field
+from .common import config_of, entity_of, fmt, number
 from .ledger import Account, balance, clean, move
 from .package_auction import MAX_PACKAGE_BIDS, MAX_PACKAGE_ITEMS, PackageBid, SearchLimit, settle
 
 __all__ = ["AuctionConfig", "FORMATS", "SEALED"]
 
+KEY = "market.auction"
 FORMATS = ("first_price", "second_price", "english", "dutch", "double", "uniform", "combinatorial")
 SEALED = ("first_price", "second_price", "double", "uniform", "combinatorial")
 
@@ -53,11 +55,12 @@ class AuctionConfig(BaseModel):
     format: Literal["first_price", "second_price", "english", "dutch", "double", "uniform", "combinatorial"] = Field(
         ..., description="first_price | second_price (Vickrey) | english | dutch | double | uniform (multi-unit) | "
                          "combinatorial (package bids on `items`).")
-    bidders: str = Field(..., description="Agent type that bids (subtypes included).")
-    sellers: Optional[str] = Field(None, description="double: agent type that asks (default: the bidders).")
-    cash: str = Field("cash", description="Property holding cash.")
+    who: str = Field(..., description="Agent type that bids (subtypes included).")
+    sellers: Optional[str] = Field(None, description="double: agent type that asks (default: `who`).")
+    currency: str = Field("cash", description="Property holding money.")
     item: str = Field("lot", description="What is sold, in plain words.")
-    seller: Optional[str] = Field(None, description="Entity id that sells and is paid; default: the house (stock and revenue in world props).")
+    house: Optional[str] = Field(None, description="Entity id of the auction house: sells its units and is paid; default: the "
+                                                   "mechanism itself (stock and revenue in world props).")
     stock: Union[int, str] = Field(1, description="Units the house has to sell (number or expression).")
     units: int = Field(1, ge=1, description="Units in each lot (uniform), or the most units one bid or ask may carry (double).")
     reserve: Union[float, str] = Field(0, description="Lowest acceptable price per unit (number or expression).")
@@ -74,13 +77,11 @@ class AuctionConfig(BaseModel):
     when: Optional[str] = Field(None, description="Open lots only when true (e.g. \"$round <= 3\").")
     stage: Optional[str] = Field(None, description="Bid during this declared stage; default: a stage named after the auction.")
     conserve: bool = Field(True, description="Declare invariants that cash and units are conserved and escrow matches bids.")
+    tools: ToolsSetting = tools_field()
 
 
 def auction_config(world: Any, name: Any) -> AuctionConfig:
-    try:
-        return config_of(world, name, "auction", AuctionConfig)
-    except MechanismError as exc:
-        raise RunError(str(exc), "mechanisms") from None
+    return config_of(world, name, KEY, AuctionConfig)
 
 
 def _lot(world: Any, name: str) -> Dict[str, Any]:
@@ -90,22 +91,22 @@ def _lot(world: Any, name: str) -> Dict[str, Any]:
 
 def _parties(world: Any, cfg: AuctionConfig) -> List[Entity]:
     seen: Dict[str, Entity] = {}
-    for kind in {cfg.bidders, cfg.sellers or cfg.bidders}:
+    for kind in {cfg.who, cfg.sellers or cfg.who}:
         for entity in world.entities_of(kind):
             seen[entity.id] = entity
-    if cfg.seller:
-        seller = world.entity(cfg.seller)
-        if seller is not None:
-            seen[seller.id] = seller
+    if cfg.house:
+        house = world.entity(cfg.house)
+        if house is not None:
+            seen[house.id] = house
     return list(seen.values())
 
 
 def _payee(world: Any, name: str, cfg: AuctionConfig) -> Tuple[Account, Account]:
     """Where money goes and units come from (a combinatorial lot's items always come from the house list)."""
-    if cfg.seller:
-        seller = entity_of(world, cfg.seller, f"mechanisms.{name}.seller", "the seller")
-        source = Account(None, f"{name}_stock") if cfg.format == "combinatorial" else Account(seller, f"{name}_units")
-        return Account(seller, cfg.cash), source
+    if cfg.house:
+        house = entity_of(world, cfg.house, f"mechanisms.{name}.house", "the auction house")
+        source = Account(None, f"{name}_stock") if cfg.format == "combinatorial" else Account(house, f"{name}_units")
+        return Account(house, cfg.currency), source
     return Account(None, f"{name}_revenue"), Account(None, f"{name}_stock")
 
 
@@ -173,7 +174,7 @@ def bid(world: Any, name: str, trader: Entity, side: str, price: Any, qty: Any =
     floor = min_bid(world, name)
     if side == "bid" and price < floor - 1e-9:
         raise Abort(f"Your bid must be at least {fmt(floor, 4)}.")
-    cash, escrow = Account(trader, cfg.cash), Account(trader, f"{name}_escrow")
+    cash, escrow = Account(trader, cfg.currency), Account(trader, f"{name}_escrow")
     item = f"{cfg.item}"
     if cfg.format == "dutch":
         clock = float(lot["price"])
@@ -189,7 +190,7 @@ def bid(world: Any, name: str, trader: Entity, side: str, price: Any, qty: Any =
             raise Abort("You already hold the high bid.")
         if lot.get("leader"):
             leader = entity_of(world, lot["leader"], f"mechanisms.{name}", "the leader")
-            move(world, Account(leader, f"{name}_escrow"), Account(leader, cfg.cash), float(lot["price"]), what="escrow")
+            move(world, Account(leader, f"{name}_escrow"), Account(leader, cfg.currency), float(lot["price"]), what="escrow")
         move(world, cash, escrow, price, what="cash")
         lot.update(price=clean(price), leader=trader.id, last_bid=world.round)
         seq = int(world.props.get(f"{name}_seq") or 0) + 1
@@ -220,7 +221,7 @@ def bid(world: Any, name: str, trader: Entity, side: str, price: Any, qty: Any =
 def _refund(world: Any, name: str, cfg: AuctionConfig, entry: Mapping[str, Any], keep: float = 0.0) -> None:
     owner = entity_of(world, entry["bidder"], f"mechanisms.{name}", "a bidder")
     if entry["side"] == "bid":
-        move(world, Account(owner, f"{name}_escrow"), Account(owner, cfg.cash), entry["price"] * entry["qty"] - keep, what="escrow")
+        move(world, Account(owner, f"{name}_escrow"), Account(owner, cfg.currency), entry["price"] * entry["qty"] - keep, what="escrow")
     else:
         move(world, Account(owner, f"{name}_escrow_units"), Account(owner, f"{name}_units"), entry["qty"] - keep, what="units")
 
@@ -335,7 +336,7 @@ def _clear_double(world: Any, name: str, cfg: AuctionConfig, lot: Dict[str, Any]
     for b, a, q in trades:
         buyer = entity_of(world, b["bidder"], f"mechanisms.{name}", "a bidder")
         seller = entity_of(world, a["bidder"], f"mechanisms.{name}", "a seller")
-        move(world, Account(buyer, f"{name}_escrow"), Account(seller, cfg.cash), price * q, what="escrow")
+        move(world, Account(buyer, f"{name}_escrow"), Account(seller, cfg.currency), price * q, what="escrow")
         move(world, Account(seller, f"{name}_escrow_units"), Account(buyer, f"{name}_units"), q, what="units")
         bought[buyer.id] = bought.get(buyer.id, 0) + q
     for entry in bids:
@@ -380,7 +381,7 @@ def _bid_package(world: Any, name: str, cfg: AuctionConfig, trader: Entity, pric
                                                   "side": "bid", "items": wanted}]
     held = max((b["price"] for b in mine), default=0.0)
     needed = max(b["price"] for b in kept if b["bidder"] == trader.id)
-    cash, escrow = Account(trader, cfg.cash), Account(trader, f"{name}_escrow")
+    cash, escrow = Account(trader, cfg.currency), Account(trader, f"{name}_escrow")
     if needed > held:
         move(world, cash, escrow, clean(needed - held), what="cash")
     elif held > needed:
@@ -413,7 +414,7 @@ def _clear_packages(world: Any, name: str, cfg: AuctionConfig, lot: Dict[str, An
             move(world, escrow, payee, pays, what="escrow")
         change = clean(balance(world, escrow))
         if change:
-            move(world, escrow, Account(owner, cfg.cash), change, what="escrow")
+            move(world, escrow, Account(owner, cfg.currency), change, what="escrow")
         if win:
             move(world, source, Account(owner, f"{name}_units"), len(win["items"]), what="units")
             owned = cast(List[str], owner.properties.get(f"{name}_items") or [])
@@ -460,10 +461,10 @@ def rebase(world: Any, name: str) -> None:
 
 def _totals(world: Any, name: str, cfg: AuctionConfig) -> Tuple[float, float]:
     cash = float(world.props.get(f"{name}_revenue") or 0)
-    house_units = not cfg.seller or cfg.format == "combinatorial"
+    house_units = not cfg.house or cfg.format == "combinatorial"
     units = float(world.props.get(f"{name}_stock") or 0) if house_units else 0.0
     for party in _parties(world, cfg):
-        cash += balance(world, Account(party, cfg.cash)) + balance(world, Account(party, f"{name}_escrow"))
+        cash += balance(world, Account(party, cfg.currency)) + balance(world, Account(party, f"{name}_escrow"))
         units += balance(world, Account(party, f"{name}_units")) + balance(world, Account(party, f"{name}_escrow_units"))
     return cash, units
 
@@ -490,7 +491,7 @@ def audit(world: Any, name: str) -> List[str]:
             have = balance(world, Account(party, prop))
             if abs(have - expected.get(party.id, 0.0)) > 1e-6:
                 problems.append(f"{party.id} has {have} in {prop} but its open bids hold {expected.get(party.id, 0.0)}")
-        if balance(world, Account(party, cfg.cash)) < -1e-6 or balance(world, Account(party, f"{name}_units")) < -1e-9:
+        if balance(world, Account(party, cfg.currency)) < -1e-6 or balance(world, Account(party, f"{name}_units")) < -1e-9:
             problems.append(f"{party.id} has a negative balance")
     supply = world.props.get(f"{name}_supply") or {}
     if supply:
@@ -575,38 +576,77 @@ def _ok_function(call: Call) -> bool:
     return not audit(call.scope.world, _auction(call))
 
 
-AUCTION_ACTIONS = ("bid", "ask", "open", "close", "tick", "rebase")
+def _format_check(action: str) -> Callable[[Any, Dict[str, Any], str], List[Tuple[str, str, Optional[str]]]]:
+    """Check-time: a bid or ask names only what the auction's format takes."""
+
+    def check(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[str, str, Optional[str]]]:
+        raw = (getattr(checker.c, "mechanisms", None) or {}).get(effect.get("market"))
+        chosen = raw.get("format") if isinstance(raw, Mapping) else None
+        if chosen not in FORMATS:
+            return []
+        where = f"a {chosen} auction"
+        if action == "ask" and chosen != "double":
+            return [(f"{path}.action", f"{where} takes no asks", "only a double auction takes asks; use action bid")]
+        if chosen == "combinatorial":
+            if "items" not in effect:
+                return [(path, f"`market.bid` on {where} needs `items`", "list the items bid on together")]
+            if "qty" in effect:
+                return [(f"{path}.qty", f"{where} takes `items`, not `qty`", "remove qty")]
+        elif "items" in effect:
+            return [(f"{path}.items", f"`items` belongs to a combinatorial auction, not {where}", "remove items")]
+        return []
+
+    return check
 
 
-@effect_op("auction", keys=("action", "trader", "price", "qty", "items"), literal=("auction", "action"), required=("action",),
-           check=name_check("auction", "auction", AUCTION_ACTIONS),
-           example='{"auction": "house", "action": "bid", "trader": "$actor", "price": 120}  (auction: bid | ask | open | '
-                   'close (sealed lots) | tick (English/Dutch clock) | rebase; `items` lists a combinatorial package; '
-                   'receipt in $world.house_receipt)')
-def _auction_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-    world = runner.world
-    name, action = effect["auction"], effect["action"]
-    try:
-        if action == "open":
-            open_lot(world, name)
-        elif action == "close":
-            close_sealed(world, name)
-        elif action == "tick":
-            tick(world, name)
-        elif action == "rebase":
-            rebase(world, name)
-        elif action in ("bid", "ask"):
-            trader = entity_of(world, runner.eval(effect.get("trader", "$actor"), vars), where, "a bidder")
-            bid(world, name, trader, action, runner.eval(effect.get("price"), vars), runner.eval(effect.get("qty", 1), vars),
-                runner.eval(effect.get("items"), vars))
-        else:
-            raise RunError(f"auction action must be one of {', '.join(AUCTION_ACTIONS)}, got {action!r}", where)
-    except RunError as exc:
-        raise RunError(str(exc), where) from None
+#: action → (its keys, the required ones, generated by the mechanism itself, example keys, what it does).
+#: `who` is the bidder (default $actor); receipts land in $world.<name>_receipt.
+_ACTIONS: Dict[str, Tuple[Tuple[str, ...], Tuple[str, ...], bool, str, str]] = {
+    "bid": (("who", "price", "qty", "items"), ("price",), False, '"price": 120',
+            "bid on the open lot; `qty` for uniform and double, `items` lists a combinatorial package"),
+    "ask": (("who", "price", "qty"), ("price",), False, '"price": 90, "qty": 1', "offer units in a double auction"),
+    "rebase": ((), (), False, "", "take current cash and unit totals as the supply the invariants conserve"),
+    "open": ((), (), True, "", "open a lot when there is something to sell"),
+    "close": ((), (), True, "", "clear a sealed lot"),
+    "tick": ((), (), True, "", "move the English or Dutch clock"),
+}
+
+
+def _runner(action: str) -> Callable[[Any, Dict[str, Any], Dict[str, Any], str], None]:
+    def run(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        world = runner.world
+        name = effect["market"]
+        try:
+            if action == "open":
+                open_lot(world, name)
+            elif action == "close":
+                close_sealed(world, name)
+            elif action == "tick":
+                tick(world, name)
+            elif action == "rebase":
+                rebase(world, name)
+            else:
+                trader = entity_of(world, runner.eval(effect.get("who", "$actor"), vars), f"{where}.who", "a bidder")
+                bid(world, name, trader, action, runner.eval(effect["price"], vars), runner.eval(effect.get("qty", 1), vars),
+                    runner.eval(effect.get("items"), vars))
+        except RunError as exc:
+            raise RunError(str(exc), where) from None
+
+    return run
+
+
+def _register_actions() -> None:
+    for action, (keys, required, internal, fields, doc) in _ACTIONS.items():
+        example = '{"market": "house", "action": "' + action + '"' + (f", {fields}" if fields else "") + f"}}  ({doc})"
+        family_action("market", ("auction",), action, keys=keys, required=required, internal=internal, example=example,
+                      check=_format_check(action) if action in ("bid", "ask") else None, was=("auction",))(_runner(action))
+
+
+_register_actions()
 
 
 def _party_props(name: str, cfg: AuctionConfig) -> Dict[str, Any]:
-    props = {cfg.cash: {"type": "number", "default": 0},
+    props = {cfg.currency: {"type": "number", "default": 0},
              f"{name}_units": {"type": "int", "default": 0, "description": f"Units of {cfg.item} held."},
              f"{name}_escrow": {"type": "number", "default": 0, "private": True, "description": "Cash held for open bids."},
              f"{name}_escrow_units": {"type": "int", "default": 0, "private": True},
@@ -635,17 +675,17 @@ def _check_packages(cfg: AuctionConfig) -> None:
                              "reserves")
 
 
-@mechanism("auction", AuctionConfig,
+@mode("market", "auction", AuctionConfig,
            "An auction: sealed first_price, second_price (Vickrey), english (ascending, increment, timeout), dutch (falling "
            "clock), double (call market at one price) or uniform (multi-unit, one price). Tools `<name>_bid` (price, qty) "
-           "and, for double, `<name>_ask`. Bids escrow cash, asks escrow units; proceeds go to `seller` or "
+           "and, for double, `<name>_ask`. Bids escrow cash, asks escrow units; proceeds go to the `house` entity or "
            "$world.<name>_revenue. Results are posted to the `<name>_results` record; read the lot with $auction(name) "
            "and $auction_text(name, viewer).",
-           example={"kind": "auction", "format": "second_price", "bidders": "collector", "item": "a painting", "stock": 3,
-                    "reserve": 50})
+           example={"format": "second_price", "who": "collector", "item": "a painting", "stock": 3, "reserve": 50},
+           was="auction")
 def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     types = contract.get("types") or {}
-    for field, kind in (("bidders", cfg.bidders), ("sellers", cfg.sellers)):
+    for field, kind in (("who", cfg.who), ("sellers", cfg.sellers)):
         if kind is not None and kind not in types:
             raise MechanismError(f"{field} '{kind}' is not a declared type", f"types: {', '.join(types) or 'none'}", field)
     if cfg.format == "dutch" and cfg.start_price is None:
@@ -654,13 +694,13 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
         raise MechanismError("only uniform and double auctions trade several units at once", "set units: 1", "units")
     _check_packages(cfg)
     packaged = cfg.format == "combinatorial"
-    party_types = {cfg.bidders: {"props": _party_props(name, cfg)}}
+    party_types = {cfg.who: {"props": _party_props(name, cfg)}}
     if cfg.format == "double":
-        party_types[cfg.sellers or cfg.bidders] = {"props": _party_props(name, cfg)}
-    if cfg.seller:
-        entity = (contract.get("entities") or {}).get(cfg.seller)
+        party_types[cfg.sellers or cfg.who] = {"props": _party_props(name, cfg)}
+    if cfg.house:
+        entity = (contract.get("entities") or {}).get(cfg.house)
         if not isinstance(entity, Mapping) or entity.get("type") not in types:
-            raise MechanismError(f"seller '{cfg.seller}' is not a declared entity", "declare it under entities", "seller")
+            raise MechanismError(f"house '{cfg.house}' is not a declared entity", "declare it under entities", "house")
         party_types[entity["type"]] = {"props": _party_props(name, cfg)}
     sealed = cfg.format in SEALED
     single = cfg.format not in ("uniform", "double")
@@ -685,13 +725,13 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
                               "max_items": len(cfg.items), "description": "The items you want together."}}
     actions: Dict[str, Any] = {
         f"{name}_bid": {
-            "by": cfg.bidders, "description": f"Bid for {cfg.item}. {rules}{escrow}",
+            "by": cfg.who, "description": f"Bid for {cfg.item}. {rules}{escrow}",
             "params": {**amount, "price": {"type": "number", "min": f"$auction({name}).min_bid",
-                                           "max": f"$actor.{cfg.cash} + $actor.{name}_escrow" if packaged else f"$actor.{cfg.cash}",
+                                           "max": f"$actor.{cfg.currency} + $actor.{name}_escrow" if packaged else f"$actor.{cfg.currency}",
                                            "description": "Price for the whole package." if packaged else "Price per unit."}},
             "when": [{"expr": f"$auction({name}).open", "why": "No lot is open."},
-                     {"expr": f"$actor.{cfg.cash} > 0", "why": "You have no cash."}],
-            "do": [{"auction": name, "action": "bid", "trader": "$actor", "price": "$params.price",
+                     {"expr": f"$actor.{cfg.currency} > 0", "why": "You have no cash."}],
+            "do": [{"market": name, "action": "bid", "price": "$params.price",
                     **({"items": "$params.package"} if packaged else {"qty": "$params.qty"})}],
             "outcome": receipt, "private": sealed, "terminal": sealed and not packaged,
         },
@@ -700,12 +740,12 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
         actions[f"{name}_bid"]["when"].append({"expr": f"$auction({name}).leader != $actor.id", "why": "You hold the high bid."})
     if cfg.format == "double":
         actions[f"{name}_ask"] = {
-            "by": cfg.sellers or cfg.bidders, "description": f"Offer {cfg.item} for sale. {rules} Your units are held until the lot closes.",
+            "by": cfg.sellers or cfg.who, "description": f"Offer {cfg.item} for sale. {rules} Your units are held until the lot closes.",
             "params": {"price": {"type": "number", "min": 0.0001, "description": "Lowest price per unit you accept."},
                        "qty": {"type": "int", "min": 1, "max": f"$min($actor.{name}_units, {cfg.units})", "default": 1, "description": "Units offered."}},
             "when": [{"expr": f"$auction({name}).open", "why": "No lot is open."},
                      {"expr": f"$actor.{name}_units > 0", "why": "You have nothing to sell."}],
-            "do": [{"auction": name, "action": "ask", "trader": "$actor", "price": "$params.price", "qty": "$params.qty"}],
+            "do": [{"market": name, "action": "ask", "price": "$params.price", "qty": "$params.qty"}],
             "outcome": receipt, "private": True, "terminal": True,
         }
     winner_text = ("{$entity($it.winner).name if $it.winner else 'unsold'}" +
@@ -718,7 +758,7 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
                      if packaged else {}),
                   f"{name}_revenue": {"type": "number", "default": 0, "description": "House proceeds."},
                   f"{name}_stock": {"type": "int", "default": len(cfg.items) if packaged else
-                                    0 if cfg.seller or cfg.format == "double" else cfg.stock,
+                                    0 if cfg.house or cfg.format == "double" else cfg.stock,
                                     "description": "Units the house still has to sell."},
                   f"{name}_sold": {"type": "int", "default": 0}, f"{name}_supply": {"type": "map", "default": {}},
                   f"{name}_receipt": {"type": "text", "default": ""}},
@@ -727,9 +767,9 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
                                         "show": f"Lot {{lot}}: {winner_text} ({{note}})",
                                         "description": "Closed lots."}},
         "actions": actions,
-        "events": [{"name": f"{name}_open", "phase": "start", "do": [{"auction": name, "action": "open"}]}],
-        "views": {f"{name}_lot": {"for": sorted({cfg.bidders, cfg.sellers or cfg.bidders}), "show": f"{{$auction_text({name}, $actor)}}"},
-                  f"{name}_recent": {"for": sorted({cfg.bidders, cfg.sellers or cfg.bidders}), "title": "Recent results",
+        "events": [{"name": f"{name}_open", "phase": "start", "do": [{"market": name, "action": "open"}]}],
+        "views": {f"{name}_lot": {"for": sorted({cfg.who, cfg.sellers or cfg.who}), "show": f"{{$auction_text({name}, $actor)}}"},
+                  f"{name}_recent": {"for": sorted({cfg.who, cfg.sellers or cfg.who}), "title": "Recent results",
                                      "of": f"$reverse($slice($records({name}_results), -3))",
                                      "show": f"Lot {{lot}}: {winner_text}"}},
         "metrics": {f"{name}_sold": f"$world.{name}_sold", f"{name}_revenue": f"$world.{name}_revenue"},
@@ -740,19 +780,19 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
     }
     names = list(actions)
     if not sealed:
-        fragment["events"].append({"name": f"{name}_tick", "phase": "end", "do": [{"auction": name, "action": "tick"}]})
+        fragment["events"].append({"name": f"{name}_tick", "phase": "end", "do": [{"market": name, "action": "tick"}]})
     if cfg.stage is None:
         stage: Dict[str, Any] = {"name": name, "turns": "simultaneous" if sealed else "sequential", "actions": names,
                                  "when": f"$auction({name}).open", "brief": f"{rules}"}
         if not sealed:
             stage["order"] = "random"
         if sealed:
-            stage["on_exit"] = [{"auction": name, "action": "close"}]
+            stage["on_exit"] = [{"market": name, "action": "close"}]
         if packaged:
             stage.update(max_actions=cfg.packages, max_calls=cfg.packages + 4)
         fragment["stages"] = [stage]
     else:
-        hook: Dict[str, Any] = {"actions": names, "on_exit": [{"auction": name, "action": "close"}] if sealed else []}
+        hook: Dict[str, Any] = {"actions": names, "on_exit": [{"market": name, "action": "close"}] if sealed else []}
         if packaged:
             hook.update(max_actions=cfg.packages, max_calls=cfg.packages + 4)
         fragment["stage_hooks"] = {cfg.stage: hook}

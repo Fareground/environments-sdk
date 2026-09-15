@@ -2,31 +2,31 @@
 
 .. code-block:: json
 
-    "trial": {"kind": "procedure", "phases": {...}, "stack": {"players": ["attorney", "judge"], "kinds": {
+    "trial": {"kind": "flow", "mode": "procedure", "phases": {...}, "stack": {"who": ["attorney", "judge"], "kinds": {
         "exhibit": {"tool": false, "params": {"name": "text"}, "responders": "$is($it, attorney) and $it.id != $item.by",
                     "resolve": ["$world.admitted += $params.name"]},
-        "objection": {"starts": false, "on": ["exhibit"], "by": "attorney", "responders": "$is($it, judge)",
-                      "resolve": [{"if": "$world.sustained", "then": [{"procedure": "trial", "step": "counter"}]}]},
-        "ruling": {"starts": false, "on": ["objection"], "by": "judge", "responders": "false",
+        "objection": {"starts": false, "on": ["exhibit"], "who": "attorney", "responders": "$is($it, judge)",
+                      "resolve": [{"if": "$world.sustained", "then": [{"flow": "trial", "action": "counter"}]}]},
+        "ruling": {"starts": false, "on": ["objection"], "who": "judge", "responders": "false",
                    "params": {"sustain": "bool"}, "resolve": ["$world.sustained = $params.sustain"]}}}}
 
-An item is pushed by its tool ``<name>_<kind>`` or by ``{"procedure": name, "step": "push", "kind": ...}``
-inside any action. While it is on top, its responders — the players for whom the kind's
+An item is pushed by its tool ``<name>_<kind>`` or by ``{"flow": name, "action": "push", "item": kind, ...}``
+inside any action. While it is on top, its responders — the agents for whom the kind's
 ``responders`` holds — each answer it once: push an item that may sit on it (the kind lists the top's
 kind in ``on``), which counts as their answer, or ``<name>_pass``. Once nobody owes an answer the top
 resolves: its ``resolve`` effects run with ``$actor`` (who pushed it), ``$params``, ``$item`` and
-``$below`` (the item under it, or null). The ``counter`` step removes an item without resolving it (its
+``$below`` (the item under it, or null). The ``counter`` action removes an item without resolving it (its
 ``countered`` effects run instead). With ``reopen`` the item that comes back to the top gets a fresh
 response window; otherwise it resolves once its earlier answers are complete.
 
 Windows are played in the sequential stage ``<name>_stack`` (or a declared ``stage``), which wakes only
-the players who owe an answer and repeats until the stack is empty or its passes run out. Ending a
+the agents who owe an answer and repeats until the stack is empty or its passes run out. Ending a
 window turn without acting passes (``silence``); answers still owed when the stage ends pass too
 (``unanswered``), unless either is ``wait``. State lives in the world prop ``<name>_stack``; every push,
 answer, counter and resolution is a ``<name>_stack`` event, which phase transitions can wait for.
 
-The deliberation mechanism keeps its own motion stack because motions resolve by a vote of the body,
-not by effects; a stack item's ``resolve`` may still act on a deliberation (``deliberate`` ops).
+The decision family's deliberation keeps its own motion stack because motions resolve by a vote of the
+body, not by effects; a stack item's ``resolve`` may still act on a deliberation (``decision`` actions).
 """
 from __future__ import annotations
 
@@ -43,9 +43,8 @@ from . import _common as common
 from ._common import Config, Effects
 from ._social import check_expr, require_type
 
-__all__ = ["StackConfig", "StackKind", "STACK_STEPS", "expand_stack", "run_step", "check_stack", "read_stack"]
+__all__ = ["StackConfig", "StackKind", "expand_stack", "run_step", "check_push", "check_stack_rules", "read_stack"]
 
-STACK_STEPS = ("push", "pass", "idle", "counter", "close")
 READS = ("items", "top", "waiting", "can_push", "text")
 _ITEM_ROOTS = ("actor", "params", "item", "below")
 
@@ -55,32 +54,32 @@ class StackKind(Config):
 
     title: str = Field("", description="What it is called, in plain words (default: the kind's name).")
     description: str = Field("", description="Tool description (default: generated from the rules).")
-    by: Union[str, List[str], None] = Field(None, description="Agent type(s) that may push it (default: the stack's players).")
+    who: Union[str, List[str], None] = Field(None, description="Agent type(s) that may push it (default: the stack's `who`).")
     params: Dict[str, Any] = Field(default_factory=dict, description="Tool params (ordinary param specs), kept on the item as $params.")
     starts: bool = Field(True, description="It may be pushed onto an empty stack.")
     on: List[str] = Field(default_factory=list, description="Kinds it may be pushed on top of (answer).")
     when: Optional[str] = Field(None, description="Extra condition to push it ($actor, $top: the item it would answer, or null).")
     why: str = Field("", description="What the agent is told when it may not push it.")
-    responders: str = Field("$it.id != $item.by", description="Who owes it an answer while it is on top: an expression over $it (a player) and $item.")
+    responders: str = Field("$it.id != $item.by", description="Who owes it an answer while it is on top: an expression over $it (an agent) and $item.")
     show: str = Field("", description="How the item reads after its title (template over $item, $params, $actor).")
     on_push: Effects = Field(default_factory=list, description="Effects when it is pushed, e.g. paying a cost ($actor, $params, $item, $below).")
     resolve: Effects = Field(default_factory=list, description="Effects when it resolves ($actor = who pushed it, $params, $item, $below).")
     countered: Effects = Field(default_factory=list, description="Effects when it is countered instead of resolving.")
-    tool: bool = Field(True, description="Generate the `<name>_<kind>` tool; false = pushed only by the procedure op in your actions.")
+    tool: bool = Field(True, description="Generate the `<name>_<kind>` tool; false = pushed only by the push action in your actions.")
 
 
 class StackConfig(Config):
-    """A response stack: items players answer, resolved last in, first out."""
+    """A response stack: items agents answer, resolved last in, first out."""
 
-    players: Union[str, List[str]] = Field(..., description="Agent type(s) that answer items (and push them unless a kind says `by`).")
-    kinds: Dict[str, StackKind] = Field(..., description="{kind: {title, by, params, starts, on, when, why, responders, show, on_push, resolve, countered, tool}}.")
+    who: Union[str, List[str]] = Field(..., description="Agent type(s) that answer items (and push them unless a kind says `who`).")
+    kinds: Dict[str, StackKind] = Field(..., description="{kind: {title, who, params, starts, on, when, why, responders, show, on_push, resolve, countered, tool}}.")
     reopen: bool = Field(True, description="An item that comes back to the top (the one above resolved or was countered) gets a fresh response window.")
     silence: Literal["pass", "wait"] = Field("pass", description="Ending a window turn without acting: pass, or keep owing an answer.")
     unanswered: Literal["pass", "wait"] = Field("pass", description="Answers still owed when the window stage ends: pass (the stack resolves), or wait for the next round.")
     max_depth: int = Field(16, ge=1, le=64, description="Most items on the stack at once.")
     passes: int = Field(12, ge=1, le=100, description="Most passes of the window stage per round.")
     stage: Optional[str] = Field(None, description="Hold windows in this declared stage instead of a generated `<name>_stack` stage.")
-    view: bool = Field(True, description="Show players the stack while it holds items.")
+    views: bool = Field(True, description="Show the agents the stack while it holds items.")
 
     @model_validator(mode="after")
     def _shape(self) -> "StackConfig":
@@ -95,11 +94,11 @@ class StackConfig(Config):
         return self
 
     def player_types(self) -> List[str]:
-        return [self.players] if isinstance(self.players, str) else list(self.players)
+        return [self.who] if isinstance(self.who, str) else list(self.who)
 
     def pushers(self, kind: str) -> List[str]:
-        by = self.kinds[kind].by
-        return self.player_types() if by is None else ([by] if isinstance(by, str) else list(by))
+        who = self.kinds[kind].who
+        return self.player_types() if who is None else ([who] if isinstance(who, str) else list(who))
 
     def title(self, kind: str) -> str:
         return self.kinds[kind].title or kind.replace("_", " ")
@@ -203,7 +202,7 @@ def _push(runner: Any, name: str, cfg: StackConfig, kind: str, actor: Entity, pa
     issued = int((world.props.get(f"{name}_stack") or {}).get("next", 1))
     below = items[-1] if items else None
     if below is not None:
-        below["passed"].append(actor.id)  # pushing an answer is this player's answer to the item below
+        below["passed"].append(actor.id)  # pushing an answer is this agent's answer to the item below
     item: Dict[str, Any] = {"id": issued, "kind": kind, "by": actor.id, "params": common.freeze(dict(params)),
                             "on": below["id"] if below else None, "round": world.round, "responders": [], "passed": []}
     view = _view(world, cfg, item)
@@ -223,15 +222,15 @@ def _push(runner: Any, name: str, cfg: StackConfig, kind: str, actor: Entity, pa
     _settle(runner, name, cfg, where)
 
 
-def _answer(runner: Any, name: str, cfg: StackConfig, actor: Entity, step: str, where: str) -> None:
+def _answer(runner: Any, name: str, cfg: StackConfig, actor: Entity, action: str, where: str) -> None:
     world = runner.world
     items = _items(world, name)
     top = items[-1] if items else None
     if top is None or actor.id not in _waiting(world, top):
-        if step == "idle":
+        if action == "idle":
             return
         raise Abort("Nothing on the stack is waiting for your answer.")
-    if step == "idle" and cfg.silence == "wait":
+    if action == "idle" and cfg.silence == "wait":
         return
     top["passed"].append(actor.id)
     _save(world, name, items)
@@ -299,14 +298,14 @@ def _close(runner: Any, name: str, cfg: StackConfig, where: str) -> None:
     raise RunError(f"the {name} stack kept growing while it was closed (a loop?)", where)
 
 
-def run_step(runner: Any, name: str, cfg: StackConfig, effect: Mapping[str, Any], vars: Dict[str, Any], where: str) -> None:
-    """One stack step of the procedure op: push, pass, idle, counter or close."""
+def run_step(runner: Any, name: str, cfg: StackConfig, action: str, effect: Mapping[str, Any], vars: Dict[str, Any],
+             where: str) -> None:
+    """One stack action of the flow op: push, pass, idle, counter or close."""
     world = runner.world
-    step = effect["step"]
-    if step == "close":
+    if action == "close":
         _close(runner, name, cfg, where)
         return
-    if step == "counter":
+    if action == "counter":
         if "target" in effect:
             target = runner.eval(effect["target"], vars)
         elif isinstance(vars.get("item"), Mapping):  # inside a kind's effects: the item under that one
@@ -317,16 +316,16 @@ def run_step(runner: Any, name: str, cfg: StackConfig, effect: Mapping[str, Any]
         _counter(runner, name, cfg, target)
         _settle(runner, name, cfg, where)
         return
-    actor = world.entity(runner.eval(effect["by"], vars) if "by" in effect else vars.get("actor"))
+    actor = world.entity(runner.eval(effect["who"], vars) if "who" in effect else vars.get("actor"))
     if actor is None:
-        raise RunError(f"step {step} needs an actor: run it inside an action, or give `by`", where)
-    if step == "push":
-        kind = effect.get("kind")
+        raise RunError(f"`{action}` needs an agent: run it inside an action, or give `who`", where)
+    if action == "push":
+        kind = effect["item"]
         if kind not in cfg.kinds:
-            raise RunError(f"'{kind}' is not a kind of the {name} stack ({common.suggest(str(kind), cfg.kinds)})", f"{where}.kind")
+            raise RunError(f"'{kind}' is not a kind of the {name} stack ({common.suggest(str(kind), cfg.kinds)})", f"{where}.item")
         _push(runner, name, cfg, kind, actor, runner.eval(effect.get("params") or {}, vars), where)
     else:
-        _answer(runner, name, cfg, actor, step, where)
+        _answer(runner, name, cfg, actor, action, where)
 
 
 # ---------------------------------------------------------------------------
@@ -334,21 +333,22 @@ def run_step(runner: Any, name: str, cfg: StackConfig, effect: Mapping[str, Any]
 # ---------------------------------------------------------------------------
 
 
-def check_stack(checker: Any, name: str, cfg: StackConfig, effect: Mapping[str, Any], path: str,
-                rules: bool) -> List[Tuple[str, str, Optional[str]]]:
-    """Problems with one stack step (and, when ``rules``, with the kinds' effects and templates)."""
-    problems: List[Tuple[str, str, Optional[str]]] = []
-    if effect.get("step") == "push" and effect.get("kind") not in cfg.kinds:
-        problems.append((f"{path}.kind", f"'{effect.get('kind')}' is not a kind of the {name} stack",
-                         common.suggest(str(effect.get("kind")), cfg.kinds)))
-    if rules:
-        roots = set(common.base_roots()) | set(_ITEM_ROOTS)
-        for kind, spec in cfg.kinds.items():
-            at = f"mechanisms.{name}.stack.kinds.{kind}"
-            for key in ("on_push", "resolve", "countered"):
-                checker.effects(getattr(spec, key), f"{at}.{key}", roots, {})
-            checker.template(spec.show or None, f"{at}.show", None, roots)
-    return problems
+def check_push(name: str, cfg: StackConfig, effect: Mapping[str, Any], path: str) -> List[Tuple[str, str, Optional[str]]]:
+    """Problems with a push action: the item must be a kind of the stack."""
+    item = effect.get("item")
+    if item in cfg.kinds:
+        return []
+    return [(f"{path}.item", f"'{item}' is not a kind of the {name} stack", common.suggest(str(item), cfg.kinds))]
+
+
+def check_stack_rules(checker: Any, name: str, cfg: StackConfig) -> None:
+    """Check the kinds' effects and templates."""
+    roots = set(common.base_roots()) | set(_ITEM_ROOTS)
+    for kind, spec in cfg.kinds.items():
+        at = f"mechanisms.{name}.stack.kinds.{kind}"
+        for key in ("on_push", "resolve", "countered"):
+            checker.effects(getattr(spec, key), f"{at}.{key}", roots, {})
+        checker.template(spec.show or None, f"{at}.show", None, roots)
 
 
 def _entity_arg(call: Call, index: int) -> Entity:
@@ -401,16 +401,16 @@ def _text(world: Any, name: str, cfg: StackConfig, viewer: Optional[Entity]) -> 
 def expand_stack(name: str, cfg: StackConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     """The sections a procedure's stack adds: its state, tools, window stage (or hook) and view."""
     for type_name in cfg.player_types():
-        require_type(contract, type_name, "stack.players", agent=True)
+        require_type(contract, type_name, "stack.who", agent=True)
     for kind, spec in cfg.kinds.items():
         at = f"stack.kinds.{kind}"
         if not common.NAME.match(kind):
             raise common.MechanismError(f"kind name '{kind}' must start with a letter and use letters, digits and _", None, at)
-        for type_name in cfg.pushers(kind) if spec.by is not None else ():
-            require_type(contract, type_name, f"{at}.by", agent=True)
+        for type_name in cfg.pushers(kind) if spec.who is not None else ():
+            require_type(contract, type_name, f"{at}.who", agent=True)
         check_expr(spec.when, f"{at}.when", ("actor", "top"))
         check_expr(spec.responders, f"{at}.responders", ("it", "item"))
-    op = {"procedure": name}
+    op = {"flow": name}
     actions: Dict[str, Any] = {}
     for kind, spec in cfg.kinds.items():
         if not spec.tool:
@@ -422,18 +422,18 @@ def expand_stack(name: str, cfg: StackConfig, contract: Mapping[str, Any]) -> Di
             "description": spec.description or f"Push a {title} onto the stack.{answers}" + ("" if spec.starts else " It cannot start a stack."),
             "params": spec.params,
             "when": [{"expr": f"$stack({name}, can_push, {kind}, $actor)", "why": spec.why or f"You cannot push a {title} now."}],
-            "do": [{**op, "step": "push", "kind": kind, "params": {p: f"$params.{p}" for p in spec.params}}],
+            "do": [{**op, "action": "push", "item": kind, "params": {p: f"$params.{p}" for p in spec.params}}],
             "outcome": f"You pushed a {title}.", "private": True, "terminal": True,
         }
     players = cfg.player_types()
     actions[f"{name}_pass"] = {
         "by": players, "description": "Let the item on top of the stack stand without answering it.",
         "when": [{"expr": f"$stack({name}, waiting, $actor)", "why": "Nothing on the stack is waiting for your answer."}],
-        "do": [{**op, "step": "pass"}], "outcome": "You let it stand.", "private": True, "terminal": True,
+        "do": [{**op, "action": "pass"}], "outcome": "You let it stand.", "private": True, "terminal": True,
     }
-    window: Dict[str, Any] = {"on_exit": [{**op, "step": "close"}]}
+    window: Dict[str, Any] = {"on_exit": [{**op, "action": "close"}]}
     if cfg.silence == "pass":
-        window["on_idle"] = [{**op, "step": "idle"}]
+        window["on_idle"] = [{**op, "action": "idle"}]
     fragment: Dict[str, Any] = {
         "world": {f"{name}_stack": {"type": "map", "default": {"items": [], "next": 1}, "description": "The stack: its items, bottom first."}},
         "actions": actions,
@@ -445,7 +445,7 @@ def expand_stack(name: str, cfg: StackConfig, contract: Mapping[str, Any]) -> Di
                                "brief": "Answer the item on top of the stack, or let it stand.", **window}]
     else:
         fragment["stage_hooks"] = {cfg.stage: {"actions": list(actions), **window}}
-    if cfg.view:
+    if cfg.views:
         fragment["views"] = {f"{name}_stack": {"for": players, "title": "The stack", "when": f"$stack({name}, top) != null",
                                                "show": f"{{$stack({name}, text, $actor)}}", "bullet": False}}
     return fragment

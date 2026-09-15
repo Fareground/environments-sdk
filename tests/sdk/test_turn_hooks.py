@@ -1,9 +1,11 @@
 """Stage on_wake runs before each agent's turn (so the turn reflects it) and on_turn_end after it."""
-from pydantic import BaseModel
+import pytest
 
 import fg_env
 from fg_env.sdk.mechanisms import expand_mechanisms
-from fg_env.sdk.registry import MECHANISMS, mechanism
+from fg_env.sdk.registry import mode
+
+from family_fixtures import Nothing, scratch_family
 
 
 def _contract(turns):
@@ -37,17 +39,17 @@ def test_simultaneous_on_turn_end_runs_after_choices_are_committed():
         assert props["wakes"] == 2 and props["ends"] == 2 and props["acted"] == 1  # the action saw ends before the hook
 
 
-class _Nothing(BaseModel):
-    pass
+@pytest.fixture
+def upkeep():
+    with scratch_family("test_upkeep"):
+        mode("test_upkeep", "wake", Nothing, "Adds an upkeep on wake.")(
+            lambda name, cfg, contract: {"stage_hooks": {"play": {"on_wake": ["$actor.wakes += 10"],
+                                                                  "on_turn_end": ["$actor.ends += 10"]}}})
+        yield
 
 
-if "test_upkeep" not in MECHANISMS:
-    mechanism("test_upkeep", _Nothing, "Adds an upkeep on wake.")(
-        lambda name, cfg, contract: {"stage_hooks": {"play": {"on_wake": ["$actor.wakes += 10"], "on_turn_end": ["$actor.ends += 10"]}}})
-
-
-def test_mechanisms_can_append_to_turn_hooks():
-    data, issues = expand_mechanisms({**_contract("sequential"), "mechanisms": {"upkeep": {"kind": "test_upkeep"}}})
+def test_mechanisms_can_append_to_turn_hooks(upkeep):
+    data, issues = expand_mechanisms({**_contract("sequential"), "mechanisms": {"upkeep": {"kind": "test_upkeep", "mode": "wake"}}})
     assert issues == []
     stage = data["stages"][0]
     assert stage["on_wake"] == ["$actor.wakes += 1", "$actor.wakes += 10"]

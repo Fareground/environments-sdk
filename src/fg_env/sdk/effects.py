@@ -42,7 +42,7 @@ from .delivery import dropped, send
 from .expr import MAX_INT_BITS, Expr, ExprError, attr, check_size, compile_expr, is_expr, resolve, truthy
 from .template import compile_template, format_value
 from .links import Link
-from .registry import OPS, OpSpec
+from .registry import OPS, OpSpec, renamed_op_hint
 from .world import Abort, SdkWorld
 from .world_parts import PhysicsView, PropsView
 
@@ -422,9 +422,11 @@ class EffectRunner:
         if len(ops) != 1:
             if not ops:
                 keys = ", ".join(effect)
-                hint = get_close_matches(next(iter(effect), ""), list(EFFECT_OPS), n=1)
+                renamed = renamed_op_hint(effect)
+                hint = get_close_matches(next(iter(effect), ""), list(all_ops()), n=1)
                 raise RunError(
-                    f"unknown effect with keys ({keys})" + (f" — did you mean '{hint[0]}'?" if hint else "")
+                    f"unknown effect with keys ({keys})"
+                    + (f" — {renamed}" if renamed else f" — did you mean '{hint[0]}'?" if hint else "")
                     + f"; effects are: {', '.join(all_ops())}",
                     where,
                 )
@@ -663,8 +665,7 @@ def select_ops(effect: Dict[str, Any]) -> List[str]:
 
     * A ``post``'s other keys are record fields, whatever they are called (a field may be named
       like a native op, e.g. ``deal``).
-    * A single native op wins over core-op-named keys it declares itself
-      (``{"board_move": ..., "move": ...}`` when ``move`` is one of its keys).
+    * A single family op wins over keys named like core ops that its actions declare themselves.
     * Otherwise every key that names an operation counts.
     """
     core = [key for key in EFFECT_OPS if key in effect]

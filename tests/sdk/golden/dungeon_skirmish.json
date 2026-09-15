@@ -1,7 +1,7 @@
 {
   "actions": 33,
   "events": 35,
-  "events_sha256": "ca80005cc5c6d1f9448621eee2fe58e8c5afe5a1817e9a65c708b39a3f11fd95",
+  "events_sha256": "8cfdbe10f656d7afd199ea1a454db86cab1ff009f9d5f7f40880677d26ae1ccf",
   "metrics": {
     "heroes_hp": 57,
     "monsters_hp": 47,

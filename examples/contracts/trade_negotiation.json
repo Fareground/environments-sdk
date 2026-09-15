@@ -39,12 +39,12 @@
                 "expr": "($terms.price - $inputs.export_price) * $terms.quota * $terms.years if $is($party, exporter) else ($inputs.import_price - $terms.price) * $terms.quota * $terms.years"}
   },
   "mechanisms": {
-    "money": {"kind": "ledger", "holders": "country", "currencies": {"credits": {"unit": "credits"}}},
-    "stock": {"kind": "inventory", "holders": "country", "items": {"steel": {"unit": "t", "value": 10}}, "tools": [],
+    "money": {"kind": "economy", "mode": "ledger", "who": "country", "currencies": {"credits": {"unit": "credits"}}},
+    "stock": {"kind": "economy", "mode": "inventory", "who": "country", "items": {"steel": {"unit": "t", "value": 10}}, "actions": [],
               "needs": {"importer": {"steel": "$inputs.domestic_need"}},
               "on_short": ["$it.shortfall += $short", "$it.shortage_losses += $short * $inputs.shortage_cost"]},
     "trade": {
-      "kind": "negotiation", "parties": "country", "deadline": "$inputs.deadline", "max_depth": 8, "expires": 2,
+      "kind": "agreements", "mode": "negotiation", "who": "country", "deadline": "$inputs.deadline", "max_depth": 8, "expires": 2,
       "reservation": 0, "value": "$surplus($party, $terms)",
       "issues": {
         "price": {"type": "number", "min": 1, "max": 30, "unit": "credits/t", "description": "Price per ton."},
@@ -68,8 +68,8 @@
       "description": "Sell steel on the world market at the export price.",
       "when": [{"expr": "$count_items($actor, 'steel') > 0", "why": "You have no steel in stock."}],
       "params": {"tons": {"type": "int", "min": 1, "max": "$count_items($actor, 'steel')"}},
-      "do": [{"use_items": "steel", "from": "$actor", "qty": "$params.tons", "sink": "world market"},
-             {"mint": "credits", "to": "$actor", "amount": "$params.tons * $inputs.export_price", "source": "world market"},
+      "do": [{"economy": "stock", "action": "use", "item": "steel", "from": "$actor", "qty": "$params.tons", "sink": "world market"},
+             {"economy": "money", "action": "mint", "to": "$actor", "amount": "$params.tons * $inputs.export_price", "source": "world market"},
              "$world.exported += $params.tons"],
       "outcome": "Sold {$params.tons} t abroad for {$params.tons * $inputs.export_price} credits."
     },
@@ -78,14 +78,14 @@
       "description": "Buy steel on the world market at the import price.",
       "when": [{"expr": "$actor.credits >= $inputs.import_price", "why": "You cannot afford a ton abroad."}],
       "params": {"tons": {"type": "int", "min": 1, "max": "$floor($actor.credits / $inputs.import_price)"}},
-      "do": [{"burn_money": "credits", "from": "$actor", "amount": "$params.tons * $inputs.import_price", "sink": "world market"},
-             {"make_items": "steel", "to": "$actor", "qty": "$params.tons", "source": "world market"},
+      "do": [{"economy": "money", "action": "burn", "from": "$actor", "amount": "$params.tons * $inputs.import_price", "sink": "world market"},
+             {"economy": "stock", "action": "make", "item": "steel", "to": "$actor", "qty": "$params.tons", "source": "world market"},
              "$world.imported += $params.tons"],
       "outcome": "Bought {$params.tons} t abroad for {$params.tons * $inputs.import_price} credits."
     }
   },
   "events": [
-    {"name": "mills", "phase": "start", "do": [{"make_items": "steel", "to": "$entity(arland)", "qty": "$inputs.mill_output", "source": "mills"}]}
+    {"name": "mills", "phase": "start", "do": [{"economy": "stock", "action": "make", "item": "steel", "to": "$entity(arland)", "qty": "$inputs.mill_output", "source": "mills"}]}
   ],
   "stages": [
     {"name": "year", "turns": "sequential", "max_actions": 3, "max_calls": 10,

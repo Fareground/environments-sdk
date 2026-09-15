@@ -73,7 +73,7 @@ class _View:
         p = props_for(name)
         self.position = balance(world, Account(trader, p["shares"])) + balance(world, Account(trader, p["reserved_shares"]))
         self.inventory = self.position - float(state.get("start", 0.0))
-        self.cash = balance(world, Account(trader, cfg.cash))
+        self.cash = balance(world, Account(trader, cfg.currency))
         self.orders: List[str] = []
 
     def room(self, side: str, mult: float) -> float:
@@ -87,7 +87,7 @@ class _View:
             return
         if side == "buy":
             unit = (price if price is not None else (self.ask or self.last)) * (1 + max(self.cfg.maker_fee_bps, self.cfg.taker_fee_bps) / 1e4)
-            qty = min(qty, lot_floor(balance(self.world, Account(self.trader, self.cfg.cash)) / unit, self.lot)) if unit > 0 else 0
+            qty = min(qty, lot_floor(balance(self.world, Account(self.trader, self.cfg.currency)) / unit, self.lot)) if unit > 0 else 0
         else:
             free = balance(self.world, Account(self.trader, props_for(self.name)["shares"]))
             qty = min(qty, lot_floor(max(0.0, free + self.cfg.short_limit), self.lot))

@@ -1,6 +1,6 @@
-"""The ``negotiation`` mechanism: offers over several issues, counter-offers, deadlines, private
-walk-away values, and binding deals executed as conserved payments and deliveries over time,
-with breach detection and penalties. Bilateral by default; coalition offers need every
+"""The ``agreements`` family's ``negotiation`` mode: offers over several issues, counter-offers,
+deadlines, private walk-away values, and binding deals executed as conserved payments and deliveries
+over time, with breach detection and penalties. Bilateral by default; coalition offers need every
 recipient's acceptance."""
 from __future__ import annotations
 
@@ -10,11 +10,12 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from ..errors import RunError
 from ..expr import Call, ExprError, function
-from ..registry import MechanismError, effect_op, mechanism
+from ..registry import MechanismError, family_action, mode
 from ..world import Abort
+from ._common import ToolsSetting, tools_field
 from .econ_assets import assets, balance, move_items, move_money
-from .econ_base import (bump, choice_param, compiles, config_of, emit_to, entity_of, money, props, register_config, require_types, run_hook,
-                        to_ids, type_list, valid_name, whole)
+from .econ_base import (INVENTORY, LEDGER, NEGOTIATION, bump, choice_param, compiles, config_of, declared_names, emit_to,
+                        entity_of, money, props, register_config, require_types, run_hook, to_ids, type_list, valid_name, whole)
 from .econ_inventory import agent_types
 
 __all__ = ["NegotiationConfig", "IssueSpec", "ObligationSpec", "BreachSpec"]
@@ -76,7 +77,7 @@ class NegotiationConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    parties: Union[str, List[str]] = Field(..., description="Agent type(s) that negotiate.")
+    who: Union[str, List[str]] = Field(..., description="Agent type(s) that negotiate.")
     issues: Dict[str, IssueSpec] = Field(..., min_length=1, description="{issue: {type, min, max, values, unit}}.")
     max_depth: int = Field(6, ge=0, description="Longest chain of counter-offers.")
     expires: Optional[int] = Field(None, ge=1, description="Rounds an offer stays open.")
@@ -88,8 +89,9 @@ class NegotiationConfig(BaseModel):
     obligations: List[ObligationSpec] = Field([], description="What a signed deal makes parties pay or deliver.")
     breach: BreachSpec = Field(None, validate_default=True,
                                description="What a breach costs: {penalty, currency, terminate, on_breach}; nothing by default.")
-    tools: List[Literal["propose", "counter", "accept", "reject", "withdraw", "fulfill"]] = Field(
+    actions: List[Literal["propose", "counter", "accept", "reject", "withdraw", "fulfill"]] = Field(
         ["propose", "counter", "accept", "reject", "withdraw", "fulfill"], description="Tools generated for the parties.")
+    tools: ToolsSetting = tools_field()
 
     @field_validator("breach", mode="before")
     @classmethod
@@ -97,30 +99,30 @@ class NegotiationConfig(BaseModel):
         return {} if value is None else value
 
 
-register_config("negotiation", NegotiationConfig)
+register_config(NEGOTIATION, NegotiationConfig)
 
 
-@mechanism("negotiation", NegotiationConfig,
+@mode("agreements", "negotiation", NegotiationConfig,
            "Negotiation over several issues: `<name>_propose`, `<name>_counter` (up to `max_depth`), `<name>_accept`, "
            "`<name>_reject` and `<name>_withdraw`, each offered only for offers open to you, with issue bounds as tool "
            "bounds, an optional deadline and expiry. Walk-away values stay private (`<name>_reservation`) and `value` "
            "shows each party what terms are worth to it alone. A signed deal (`<name>_deal`) schedules `obligations` as "
            "duties (`<name>_duty`) executed as conserved payments or deliveries; a duty not met by its due round is a "
            "breach with a penalty, optional termination and `on_breach` effects. Totals in $world.<name>_stats.",
-           example={"kind": "negotiation", "parties": "country", "deadline": 8,
+           example={"who": "country", "deadline": 8,
                     "issues": {"tariff": {"min": 0, "max": 30, "unit": "%"}, "quota": {"type": "int", "min": 0, "max": 500}},
                     "reservation": 40, "value": "$party.weight * $terms.quota - $terms.tariff",
                     "obligations": [{"from": "$acceptor", "to": "$proposer", "pay": "credits", "amount": "$terms.quota",
                                      "times": 4}],
-                    "breach": {"penalty": 100, "terminate": True}})
+                    "breach": {"penalty": 100, "terminate": True}}, was="negotiation")
 def _expand_negotiation(name: str, config: NegotiationConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
-    parties = type_list(config.parties)
-    require_types(contract, parties, "parties")
+    parties = type_list(config.who)
+    require_types(contract, parties, "who")
     agents = agent_types(contract, parties)
     if not agents:
-        raise MechanismError("parties must be agents", "set \"agent\": true on the party type", "parties")
+        raise MechanismError("who must be agents", "set \"agent\": true on the party type", "who")
     if config.coalition and len(parties) != 1:
-        raise MechanismError("coalition offers need one party type", "give the parties a common parent type", "parties")
+        raise MechanismError("coalition offers need one party type", "give the parties a common parent type", "who")
     for issue, spec in config.issues.items():
         if not valid_name(issue) or issue in RESERVED_PARAMS:
             raise MechanismError(f"issue '{issue}' cannot be used as a name", f"avoid {', '.join(RESERVED_PARAMS)}", f"issues.{issue}")
@@ -128,9 +130,8 @@ def _expand_negotiation(name: str, config: NegotiationConfig, contract: Mapping[
             raise MechanismError("an enum issue needs `values`", None, f"issues.{issue}.values")
         if spec.min is not None and spec.max is not None and spec.min > spec.max:
             raise MechanismError("min is above max", None, f"issues.{issue}")
-    mechanisms = contract.get("mechanisms") or {}
-    currencies = {c for u in mechanisms.values() if isinstance(u, Mapping) and u.get("kind") == "ledger" for c in (u.get("currencies") or {})}
-    items = {i for u in mechanisms.values() if isinstance(u, Mapping) and u.get("kind") == "inventory" for i in (u.get("items") or {})}
+    currencies = declared_names(contract, LEDGER, "currencies")
+    items = declared_names(contract, INVENTORY, "items")
     for index, duty in enumerate(config.obligations):
         path = f"obligations[{index}]"
         for field in ("from_", "to", "amount", "times", "pay", "give"):
@@ -179,7 +180,7 @@ def _fragment(name: str, config: NegotiationConfig, parties: List[str], agents: 
                 "penalty": {"type": "number", "default": 0, "min": 0}}}},
         "world": {f"{name}_closed": {"type": "bool", "default": False, "description": "A deal closed the negotiation."},
                   f"{name}_stats": {"type": "map", "default": dict(STATS), "description": "Negotiation totals."}},
-        "events": [{"name": f"{name}: deadlines and duties", "phase": "end", "do": [{"negotiation_tick": name}]}],
+        "events": [{"name": f"{name}: deadlines and duties", "phase": "end", "do": [{"agreements": name, "action": "tick"}]}],
         "actions": {}, "views": {}, "defs": {},
     }
     if config.reservation is not None:
@@ -220,7 +221,7 @@ def _actions(name: str, config: NegotiationConfig, parties: List[str], agents: L
     note = {"type": "text", "max_len": 280, "default": "", "description": "Optional short message."}
     open_to_me = "$it.status == open and $actor.id in $it.recipients"
     actions = fragment["actions"]
-    if "propose" in config.tools:
+    if "propose" in config.actions:
         if config.coalition:
             target: Dict[str, Any] = {"recipients": {"type": "list", "of": parties[0], "where": "$it.id != $actor.id", "min_items": 1,
                                                "description": "Parties the offer goes to; all must accept."}}
@@ -231,30 +232,31 @@ def _actions(name: str, config: NegotiationConfig, parties: List[str], agents: L
         actions[f"{name}_propose"] = {
             "by": agents, "description": "Put a full offer on the table.", "when": [{"expr": closed, "why": "A deal has been signed."}],
             "params": {**target, **issues, "note": note},
-            "do": [{"propose_terms": name, "from": "$actor", "to": recipients, "terms": terms, "note": "$params.note"}],
+            "do": [{"agreements": name, "action": "propose", "who": "$actor", "to": recipients, "terms": terms, "note": "$params.note"}],
             "outcome": f"Offer made: {{$terms_text({_terms_literal(config)}, '{name}')}}."}
-    if "counter" in config.tools:
+    if "counter" in config.actions:
         actions[f"{name}_counter"] = {
             "by": agents, "description": "Answer an offer made to you with different terms (it replaces that offer).",
             "params": {"offer": {"type": "entity", "of": offer, "where": f"{open_to_me} and $it.depth < {config.max_depth}"},
                        **issues, "note": note},
-            "do": [{"propose_terms": name, "from": "$actor", "counter": "$params.offer", "terms": terms, "note": "$params.note"}],
+            "do": [{"agreements": name, "action": "counter", "who": "$actor", "offer": "$params.offer", "terms": terms,
+                    "note": "$params.note"}],
             "outcome": f"Counter-offer made: {{$terms_text({_terms_literal(config)}, '{name}')}}."}
-    for tool, answer, where, description in (
-            ("accept", "accept", f"{open_to_me} and not ($actor.id in $it.accepted_by)", "Accept an offer made to you; it binds you once everyone it went to accepts."),
-            ("reject", "reject", open_to_me, "Turn down an offer made to you."),
-            ("withdraw", "withdraw", "$it.status == open and $it.sender == $actor.id", "Take back an offer you made.")):
-        if tool in config.tools:
+    for tool, where, description in (
+            ("accept", f"{open_to_me} and not ($actor.id in $it.accepted_by)", "Accept an offer made to you; it binds you once everyone it went to accepts."),
+            ("reject", open_to_me, "Turn down an offer made to you."),
+            ("withdraw", "$it.status == open and $it.sender == $actor.id", "Take back an offer you made.")):
+        if tool in config.actions:
             actions[f"{name}_{tool}"] = {
                 "by": agents, "description": description,
                 "params": {"offer": {"type": "entity", "of": offer, "where": where}},
-                "do": [{"answer_offer": name, "offer": "$params.offer", "by": "$actor", "answer": answer}]}
-    if "fulfill" in config.tools and any(o.manual for o in config.obligations):
+                "do": [{"agreements": name, "action": tool, "who": "$actor", "offer": "$params.offer"}]}
+    if "fulfill" in config.actions and any(o.manual for o in config.obligations):
         actions[f"{name}_fulfill"] = {
             "by": agents, "description": "Pay or deliver an installment you owe under a deal, before its due round ends.",
             "params": {"duty": {"type": "entity", "of": f"{name}_duty",
                                 "where": "$it.status == open and $it.manual and $it.by == $actor.id"}},
-            "do": [{"fulfill_duty": name, "duty": "$params.duty", "by": "$actor"}],
+            "do": [{"agreements": name, "action": "fulfill", "who": "$actor", "duty": "$params.duty"}],
             "outcome": "Done: {$params.duty.amount} {$params.duty.asset} to {$entity($params.duty.to).name}."}
 
 
@@ -283,7 +285,7 @@ def _terms_text(call: Call) -> str:
     if not isinstance(terms, Mapping):
         raise ExprError(f"$terms_text: terms must be a map, got {terms!r}", call.source)
     try:
-        return terms_text(config_of(world, str(call.arg(1)), "negotiation", call.source), terms)
+        return terms_text(config_of(world, str(call.arg(1)), NEGOTIATION, call.source), terms)
     except RunError as exc:
         raise ExprError(f"$terms_text: {exc.args[0]}", call.source) from None
 
@@ -326,14 +328,20 @@ def _check_terms(config: NegotiationConfig, terms: Any) -> Dict[str, Any]:
     return clean
 
 
-@effect_op("propose_terms", keys=("from", "to", "counter", "terms", "note"), required=("from", "terms"), literal=("propose_terms",),
-           example='{"propose_terms": "trade", "from": "$actor", "to": "$params.to", "terms": {"tariff": 10, "quota": 200}}  '
-                   '(an offer; with "counter": an offer made to you, it replaces that offer)')
-def _propose_terms(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+@family_action("agreements", ("negotiation",), "counter", keys=("who", "offer", "terms", "note"),
+               required=("who", "offer", "terms"), was=("propose_terms",),
+               example='{"agreements": "trade", "action": "counter", "who": "$actor", "offer": "$params.offer", '
+                       '"terms": {"tariff": 12, "quota": 150}}  (answer an offer made to you with other terms; it replaces that offer)')
+@family_action("agreements", ("negotiation",), "propose", keys=("who", "to", "terms", "note"), required=("who", "to", "terms"),
+               was=("propose_terms",),
+               example='{"agreements": "trade", "action": "propose", "who": "$actor", "to": "$params.to", '
+                       '"terms": {"tariff": 10, "quota": 200}}  (an offer to a party; a list of parties for a coalition)')
+def _offer(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+    """A new offer (`propose`) or one answering an offer made to the sender (`counter`)."""
     world = runner.world
-    name = effect["propose_terms"]
-    config: NegotiationConfig = config_of(world, name, "negotiation", where)
-    sender = entity_of(world, runner.eval(effect["from"], vars), where, "a sender")
+    name = effect["agreements"]
+    config: NegotiationConfig = config_of(world, name, NEGOTIATION, where)
+    sender = entity_of(world, runner.eval(effect["who"], vars), where, "a sender")
     if world.props.get(f"{name}_closed"):
         raise Abort("The negotiation is closed: a deal has been signed.")
     deadline = _deadline(runner, config, name)
@@ -341,8 +349,8 @@ def _propose_terms(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], wh
         raise Abort(f"The deadline (round {deadline}) has passed.")
     terms = _check_terms(config, runner.eval(effect["terms"], vars))
     depth = 0
-    if effect.get("counter") is not None:
-        answered = entity_of(world, runner.eval(effect["counter"], vars), where, "an offer")
+    if effect["action"] == "counter":
+        answered = entity_of(world, runner.eval(effect["offer"], vars), where, "an offer")
         p = props(answered)
         if answered.entity_type != f"{name}_offer" or p["status"] != "open" or sender.id not in p["recipients"]:
             raise Abort("You can only counter an open offer made to you.")
@@ -360,7 +368,7 @@ def _propose_terms(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], wh
         raise Abort("Offers here go to exactly one party.")
     for rid in recipients:
         other = entity_of(world, rid, where, "a party")
-        if not any(world.is_a(other.entity_type, t) for t in type_list(config.parties)):
+        if not any(world.is_a(other.entity_type, t) for t in type_list(config.who)):
             raise Abort(f"{other.name} is not a party to this negotiation.")
     duplicate = [o for o in world.entities_of(f"{name}_offer") if props(o)["status"] == "open" and props(o)["sender"] == sender.id
                  and sorted(props(o)["recipients"]) == sorted(recipients)]
@@ -375,15 +383,14 @@ def _propose_terms(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], wh
             {"offer": made.id}, why=f"{sender.name} made you an offer.")
 
 
-@effect_op("answer_offer", keys=("offer", "by", "answer"), required=("offer", "by", "answer"), literal=("answer_offer",),
-           example='{"answer_offer": "trade", "offer": "$params.offer", "by": "$actor", "answer": "accept"}  (accept, reject or withdraw)')
 def _answer_offer(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+    """`accept`, `reject` or `withdraw` an open offer."""
     world = runner.world
-    name = effect["answer_offer"]
-    config: NegotiationConfig = config_of(world, name, "negotiation", where)
+    name = effect["agreements"]
+    config: NegotiationConfig = config_of(world, name, NEGOTIATION, where)
     offer = entity_of(world, runner.eval(effect["offer"], vars), where, "an offer")
-    who = entity_of(world, runner.eval(effect["by"], vars), where, "a party")
-    answer = str(runner.eval(effect["answer"], vars))
+    who = entity_of(world, runner.eval(effect["who"], vars), where, "a party")
+    answer = effect["action"]
     p = props(offer)
     if offer.entity_type != f"{name}_offer" or p["status"] != "open":
         raise Abort("That offer is no longer open.")
@@ -401,8 +408,6 @@ def _answer_offer(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], whe
         _stat(world, name, "rejected", 1)
         emit_to(world, f"{name}_rejected", f"{who.name} rejected your offer {offer.id}.", [p["sender"]], why=f"{who.name} rejected your offer.")
         return
-    if answer != "accept":
-        raise RunError(f"answer must be accept, reject or withdraw, got {answer!r}", where)
     deadline = _deadline(runner, config, name)
     if deadline is not None and world.round > deadline:
         raise Abort(f"The deadline (round {deadline}) has passed.")
@@ -415,6 +420,18 @@ def _answer_offer(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], whe
         return
     world.set_prop(offer, "status", "accepted")
     _sign(runner, name, config, offer, where)
+
+
+def _register_answers() -> None:
+    for answer, doc in (("accept", "accept an offer made to you; it binds once everyone it went to accepts"),
+                        ("reject", "turn down an offer made to you"), ("withdraw", "take back an offer you made")):
+        family_action("agreements", ("negotiation",), answer, keys=("who", "offer"), required=("who", "offer"),
+                      was=("answer_offer",),
+                      example=f'{{"agreements": "trade", "action": "{answer}", "who": "$actor", "offer": "$params.offer"}}  '
+                              f'({doc})')(_answer_offer)
+
+
+_register_answers()
 
 
 def _sign(runner: Any, name: str, config: NegotiationConfig, offer: Any, where: str) -> None:
@@ -467,13 +484,14 @@ def _perform(world: Any, duty: Any, where: str) -> None:
     world.set_prop(duty, "status", "done")
 
 
-@effect_op("fulfill_duty", keys=("duty", "by"), required=("duty", "by"), literal=("fulfill_duty",),
-           example='{"fulfill_duty": "trade", "duty": "$params.duty", "by": "$actor"}  (pay or deliver an installment you owe)')
+@family_action("agreements", ("negotiation",), "fulfill", keys=("who", "duty"), required=("who", "duty"), was=("fulfill_duty",),
+               example='{"agreements": "trade", "action": "fulfill", "who": "$actor", "duty": "$params.duty"}  '
+                       '(pay or deliver an installment you owe)')
 def _fulfill_duty(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    name = effect["fulfill_duty"]
+    name = effect["agreements"]
     duty = entity_of(world, runner.eval(effect["duty"], vars), where, "a duty")
-    who = entity_of(world, runner.eval(effect["by"], vars), where, "a party")
+    who = entity_of(world, runner.eval(effect["who"], vars), where, "a party")
     if duty.entity_type != f"{name}_duty" or props(duty)["status"] != "open":
         raise Abort("That duty is not open.")
     if props(duty)["by"] != who.id:
@@ -521,12 +539,12 @@ def _currencies(world: Any) -> List[str]:
     return list(assets(world).currencies)
 
 
-@effect_op("negotiation_tick", keys=(), literal=("negotiation_tick",),
-           example='{"negotiation_tick": "trade"}  (expire offers, carry out due installments, detect breaches)')
+@family_action("agreements", ("negotiation",), "tick", internal=True, was=("negotiation_tick",),
+               example='{"agreements": "trade", "action": "tick"}  (expire offers, carry out due installments, detect breaches)')
 def _negotiation_tick(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    name = effect["negotiation_tick"]
-    config: NegotiationConfig = config_of(world, name, "negotiation", where)
+    name = effect["agreements"]
+    config: NegotiationConfig = config_of(world, name, NEGOTIATION, where)
     deadline = _deadline(runner, config, name)
     for offer in world.entities_of(f"{name}_offer"):
         p = props(offer)

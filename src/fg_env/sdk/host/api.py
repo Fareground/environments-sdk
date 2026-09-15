@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Mapping
 
+from ..registry import use_key
 from .hosts import HostsLike, bind
 
 if TYPE_CHECKING:
@@ -39,10 +40,9 @@ def attach(env: "Env", hosts: HostsLike) -> "Env":
 
 def build(env: "Env") -> None:
     """Write everything hosts contribute when the world is built (personas). Idempotent."""
-    from .personas import generate
+    from .personas import KEY, generate
 
-    names = [name for name, raw in env.contract.mechanisms.items()
-             if isinstance(raw, Mapping) and raw.get("kind") == "personas"]
+    names = [name for name, raw in env.contract.mechanisms.items() if use_key(raw) == KEY]
     if not names or env.world.round:
         return
     from ..snapshot import take_snapshot

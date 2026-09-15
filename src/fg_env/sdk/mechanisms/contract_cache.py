@@ -14,6 +14,8 @@ from typing import Any, Callable, Dict, Mapping, Tuple, Type, TypeVar
 
 from pydantic import BaseModel
 
+from ..registry import config_data, use_key
+
 __all__ = ["per_contract", "parse_kind"]
 
 T = TypeVar("T")
@@ -49,5 +51,5 @@ def per_contract(world: Any, key: str, build: Callable[[Any], T], empty: T) -> T
 
 def parse_kind(contract: Any, kind: str, model: Type[M]) -> Dict[str, M]:
     """Every mechanism of ``kind`` in the contract, its config validated by ``model``, by name."""
-    return {name: model.model_validate({k: v for k, v in use.items() if k != "kind"})
-            for name, use in contract.mechanisms.items() if isinstance(use, Mapping) and use.get("kind") == kind}
+    return {name: model.model_validate(config_data(use))
+            for name, use in contract.mechanisms.items() if isinstance(use, Mapping) and use_key(use) == kind}

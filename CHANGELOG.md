@@ -9,7 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Environment SDK (`fg-env`)
 
+#### Changed
+- **Mechanism families**: mechanisms are declared as `"kind": <family>, "mode": <variant>` (`market`,
+  `economy`, `agreements`, `decision`, `game`, `flow`, `groups`, `social`, `mind`, `conditions`,
+  `dynamics`, `host`). Each mode keeps its own strict config: a field that does not belong to it is an
+  error naming the mode, listing its fields and suggesting the closest one. An old kind name is refused
+  with the new `kind` and `mode`. A family has one effect op, `{"<family>": "<mechanism>", "action": ...}`,
+  checked per action. The guide lists the families first; `guide("market")` and `guide("market.auction")`
+  read one family or mode.
+
 #### Added
+- **Shared tools** (`actions.<name>.tool`): actions naming the same tool are offered as one flat tool whose
+  required `action` argument lists the actions legal now; each call is routed to its action, whose own
+  arguments, conditions and limits apply, and the log keeps the action's own name. Mechanisms that generate
+  several tools take `tools: each | one | auto` (`each` by default; `auto` shares one tool only when every
+  action takes the same arguments).
 - **Spaces for agent-based models**: grid `neighborhood` (`von_neumann`, `moore`, `hex` in axial
   coordinates) and `torus`; plane `torus`; sizes and graph nodes/edges may be expressions over `$inputs`;
   `space.capacity` (per cell, or per type) refuses a `move` or `create` into a full cell. Positions are

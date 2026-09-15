@@ -1,14 +1,17 @@
-"""Voting and social choice: ``$tally_votes`` for any ballot, the ``tally`` op, and the ``ballot`` mechanism."""
+"""Voting and social choice: ``$tally_votes`` for any ballot, and the decision family's ``ballot`` mode with its
+``tally`` action."""
 from __future__ import annotations
 
 import math
-from functools import lru_cache
-from typing import Any, Dict, List, Literal, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Literal, Mapping, Optional, Sequence, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..errors import RunError
 from ..expr import Call, ExprError, function
-from ..registry import MechanismError, effect_op, mechanism
+from ..registry import MechanismError, family_action, mode
+from . import _common
+from ._common import ToolsSetting, tools_field
 
 __all__ = ["tally", "METHODS"]
 
@@ -16,6 +19,7 @@ METHODS = ("plurality", "majority", "supermajority", "approval", "ranked", "bord
 #: Methods whose ballot is a single choice; the others take a list (or a map for score).
 SINGLE = ("plurality", "majority", "supermajority")
 ABSTAIN = "abstain"
+KEY = "decision.ballot"
 
 
 def _key(value: Any) -> str:
@@ -229,7 +233,7 @@ class BallotConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    voters: str = Field(..., description="Agent type that votes (subtypes included).")
+    who: str = Field(..., description="Agent type that votes (subtypes included).")
     options: Union[List[Any], str] = Field(..., description="The choices: a list, or an expression giving a list (e.g. \"$map(candidate, $it.id)\").")
     method: Literal["plurality", "majority", "supermajority", "approval", "ranked", "borda", "condorcet"] = Field(
         "plurality", description="plurality (most votes) | majority (more than half) | supermajority (threshold, default 2/3) "
@@ -238,33 +242,13 @@ class BallotConfig(BaseModel):
     threshold: Optional[float] = Field(None, ge=0, le=1, description="Share of votes needed to pass (majority/supermajority).")
     quorum: Optional[float] = Field(None, ge=0, le=1, description="Share of eligible voters who must cast a ballot (abstentions count).")
     abstain: bool = Field(True, description="Voters may abstain.")
-    secret: bool = Field(True, description="Ballots stay private; only the result is announced.")
+    private: bool = Field(True, description="Ballots stay private; only the result is announced.")
     ties: Literal["random", "none", "first"] = Field("random", description="How a tie is decided (random uses the run's seed).")
     stage: Optional[str] = Field(None, description="Vote during this declared stage (tally at its end); default: a simultaneous stage named after the vote.")
     when: Optional[str] = Field(None, description="Hold the vote only when true (e.g. \"$round == 3\").")
     question: str = Field("", description="What is being decided, shown with the ballot.")
     announce: str = Field("", description="Result text (template over $result); default names the winner or says it failed.")
-
-
-def _config(world: Any, name: str) -> BallotConfig:
-    raw = world.contract.mechanisms.get(name)
-    if not isinstance(raw, Mapping) or raw.get("kind") != "ballot":
-        raise MechanismError(f"'{name}' is not a declared ballot")
-    return _parse_config(_frozen(raw))
-
-
-@lru_cache(maxsize=256)
-def _parse_config(raw: Tuple[Tuple[str, Any], ...]) -> BallotConfig:
-    import json
-
-    data = {k: json.loads(v) for k, v in raw if k != "kind"}
-    return BallotConfig.model_validate(data)
-
-
-def _frozen(raw: Mapping[str, Any]) -> Tuple[Tuple[str, Any], ...]:
-    import json
-
-    return tuple(sorted((k, json.dumps(v, sort_keys=True, default=str)) for k, v in raw.items()))
+    tools: ToolsSetting = tools_field()
 
 
 def _options(runner: Any, config: BallotConfig, vars: Dict[str, Any]) -> List[Any]:
@@ -274,19 +258,15 @@ def _options(runner: Any, config: BallotConfig, vars: Dict[str, Any]) -> List[An
     return [_key(v) for v in value]
 
 
-@effect_op("tally", keys=(), literal=("tally",),
-           example='{"tally": "election"}  (count a declared ballot now: sets $world.election_result, announces it, opens a fresh ballot)')
+@family_action("decision", ("ballot",), "tally", was=("tally",),
+               example='{"decision": "election", "action": "tally"}  (count the ballot now: sets $world.election_result, '
+                       'announces it, opens a fresh ballot)')
 def _tally_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-    from ..errors import RunError
-
-    name = effect["tally"]
+    name = effect["decision"]
     world = runner.world
-    try:
-        config = _config(world, name)
-    except MechanismError as exc:
-        raise RunError(str(exc), where) from None
+    config = _common.config(world, name, KEY, BallotConfig, where)
     ballots = dict(world.props.get(f"{name}_ballots") or {})
-    eligible = len(world.entities_of(config.voters))
+    eligible = len(world.entities_of(config.who))
     try:
         result = tally(config.method, ballots, _options(runner, config, vars), config.threshold, config.ties,
                        world.rng, eligible, config.quorum)
@@ -310,17 +290,16 @@ def _announcement(config: BallotConfig, result: Dict[str, Any]) -> str:
     return f"{subject}: {result['winner']} wins{tie} ({counts})."
 
 
-@mechanism("ballot", BallotConfig,
+@mode("decision", "ballot", BallotConfig,
            "A vote among agents: a `<name>_vote` tool (and `<name>_abstain`), counted at the end of the vote's "
            "stage by plurality, majority or supermajority with an optional quorum. The result is in "
            "$world.<name>_result ({winner, passed, counts, ranking, votes, turnout, tie}) and is announced.",
-           example={"kind": "ballot", "voters": "member", "options": ["approve", "reject"], "method": "majority",
-                    "quorum": 0.5, "question": "Adopt the budget?"})
+           example={"who": "member", "options": ["approve", "reject"], "method": "majority", "quorum": 0.5,
+                    "question": "Adopt the budget?"}, was="ballot")
 def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     types = contract.get("types") or {}
-    if config.voters not in types:
-        raise MechanismError(f"voters '{config.voters}' is not a declared type", f"types: {', '.join(types) or 'none'}",
-                             "voters")
+    if config.who not in types:
+        raise MechanismError(f"who '{config.who}' is not a declared type", f"types: {', '.join(types) or 'none'}", "who")
     ballots, result = f"{name}_ballots", f"{name}_result"
     vote, abstain = f"{name}_vote", f"{name}_abstain"
     question = f" on: {config.question}" if config.question else ""
@@ -339,18 +318,18 @@ def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any])
                                     "description": f"List {what}."}}
         cast, told = "$params.choices", "Your ballot: {$params.choices}."
     actions: Dict[str, Any] = {
-        vote: {"by": config.voters, "description": f"{how}{question}.",
+        vote: {"by": config.who, "description": f"{how}{question}.",
                "params": ballot_param,
                "when": [{"expr": open_ballot, "why": "You have already voted."}],
                "do": [f"$world.{ballots}[$actor.id] = {cast}"],
-               "outcome": told if config.secret else None,
-               "private": config.secret, "terminal": True},
+               "outcome": told if config.private else None,
+               "private": config.private, "terminal": True},
     }
     if config.abstain:
-        actions[abstain] = {"by": config.voters, "description": f"Abstain{question}.",
+        actions[abstain] = {"by": config.who, "description": f"Abstain{question}.",
                             "when": [{"expr": open_ballot, "why": "You have already voted."}],
                             "do": [f"$world.{ballots}[$actor.id] = '{ABSTAIN}'"],
-                            "private": config.secret, "terminal": True}
+                            "private": config.private, "terminal": True}
     for action in actions.values():
         if action.get("outcome") is None:
             action.pop("outcome", None)
@@ -361,7 +340,7 @@ def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any])
     names = list(actions)
     if config.stage is None:
         stage: Dict[str, Any] = {"name": name, "turns": "simultaneous", "actions": names,
-                                 "brief": config.question, "on_exit": [{"tally": name}]}
+                                 "brief": config.question, "on_exit": [{"decision": name, "action": "tally"}]}
         if config.when:
             stage["when"] = config.when
         fragment["stages"] = [stage]
@@ -369,5 +348,5 @@ def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any])
         if config.when:
             for action in actions.values():
                 action["when"].append({"expr": config.when, "why": "The vote is not open now."})
-        fragment["stage_hooks"] = {config.stage: {"actions": names, "on_exit": [{"tally": name}]}}
+        fragment["stage_hooks"] = {config.stage: {"actions": names, "on_exit": [{"decision": name, "action": "tally"}]}}
     return fragment

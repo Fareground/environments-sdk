@@ -1,5 +1,5 @@
-"""The ``bookings`` mechanism: capacity-limited resources (tables, seats, rides) booked for a
-future round or joined as a queue, with waitlists, FIFO or priority service and abandonment."""
+"""The ``agreements`` family's ``bookings`` mode: capacity-limited resources (tables, seats, rides)
+booked for a future round or joined as a queue, with waitlists, FIFO or priority service and abandonment."""
 from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Mapping, Optional, Union
@@ -8,10 +8,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function
-from ..registry import MechanismError, effect_op, mechanism
+from ..registry import MechanismError, family_action, mode
 from ..world import Abort
+from ._common import ToolsSetting, tools_field
 from .econ_assets import move_money
-from .econ_base import (bump, config_of, emit_to, entity_of, guarded, maybe_entity, money, props, register_config,
+from .econ_base import (BOOKINGS, bump, config_of, emit_to, entity_of, guarded, maybe_entity, money, props, register_config,
                         require_currency, require_types, type_list, valid_name, whole)
 from .econ_inventory import agent_types
 
@@ -31,7 +32,7 @@ class ResourceSpec(BaseModel):
     name: str = ""
     capacity: Union[int, str] = Field(1, description="Places per round (number or expression over $inputs).")
     price: float = Field(0, ge=0, description="Price per place.")
-    horizon: int = Field(3, ge=1, description="Slots mode: how many rounds ahead guests may book.")
+    horizon: int = Field(3, ge=1, description="Slots format: how many rounds ahead guests may book.")
     max_party: int = Field(1, ge=1, description="Most places one booking may take.")
     description: str = ""
 
@@ -41,33 +42,34 @@ class BookingsConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    guests: Union[str, List[str]] = Field(..., description="Type(s) that book.")
+    who: Union[str, List[str]] = Field(..., description="Type(s) that book.")
     resources: Dict[str, ResourceSpec] = Field({}, description="{resource id: {provider, capacity, price, horizon, max_party}}.")
-    mode: Literal["slots", "queue"] = Field("slots", description="slots: book a future round; queue: wait in line, served as places free up.")
+    format: Literal["slots", "queue"] = Field("slots", description="slots: book a future round; queue: wait in line, served as places free up.")
     currency: Optional[str] = Field(None, description="Ledger currency for prices.")
-    waitlist: bool = Field(True, description="Slots mode: a full round puts the guest on its waitlist instead of refusing.")
+    waitlist: bool = Field(True, description="Slots format: a full round puts the guest on its waitlist instead of refusing.")
     order: Literal["fifo", "priority"] = Field("fifo", description="Who is served or promoted first.")
     priority: Optional[str] = Field(None, description="Priority order: expression over $it (the guest), higher first.")
     patience: Union[int, str, None] = Field(None, description="Rounds a waiting guest waits before giving up (number or expression over $it).")
     refund: float = Field(1, ge=0, le=1, description="Share of the price returned when a booking is cancelled.")
-    tools: List[Literal["book", "cancel"]] = Field(["book", "cancel"], description="Tools generated for agent guests.")
+    actions: List[Literal["book", "cancel"]] = Field(["book", "cancel"], description="Tools generated for agent guests.")
+    tools: ToolsSetting = tools_field()
 
 
-register_config("bookings", BookingsConfig)
+register_config(BOOKINGS, BookingsConfig)
 
 
-@mechanism("bookings", BookingsConfig,
-           "Capacity-limited places: in `slots` mode guests book a future round (paying on booking) and join a waitlist "
-           "when it is full, promoted first-fit when a place frees; in `queue` mode they wait in line and are served "
+@mode("agreements", "bookings", BookingsConfig,
+           "Capacity-limited places: with `format: slots` guests book a future round (paying on booking) and join a waitlist "
+           "when it is full, promoted first-fit when a place frees; with `format: queue` they wait in line and are served "
            "(paying on service) as capacity allows each round. Service is FIFO or by `priority`, and waiting guests give "
            "up after `patience` rounds. Generates `<name>_book` and `<name>_cancel`; resources are entities of "
            "`<name>_resource` (served, offered, revenue), bookings of `<name>_booking`. Totals in $world.<name>_stats; "
            "utilization is stats.served / stats.offered.",
-           example={"kind": "bookings", "guests": "household", "currency": "cash", "waitlist": True, "patience": 2,
-                    "resources": {"tables": {"provider": "bistro", "capacity": 8, "price": 25, "horizon": 3, "max_party": 4}}})
+           example={"who": "household", "currency": "cash", "waitlist": True, "patience": 2,
+                    "resources": {"tables": {"provider": "bistro", "capacity": 8, "price": 25, "horizon": 3, "max_party": 4}}}, was="bookings")
 def _expand_bookings(name: str, config: BookingsConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
-    guests = type_list(config.guests)
-    require_types(contract, guests, "guests")
+    guests = type_list(config.who)
+    require_types(contract, guests, "who")
     if config.currency is not None:
         require_currency(contract, config.currency)
     if config.order == "priority" and not config.priority:
@@ -100,38 +102,39 @@ def _expand_bookings(name: str, config: BookingsConfig, contract: Mapping[str, A
                 "priority": {"type": "number", "default": 0}, "gives_up": {"type": "int", "default": 0}}}},
         "entities": entities,
         "world": {f"{name}_stats": {"type": "map", "default": dict(STATS), "description": "Booking totals (places)."}},
-        "events": [{"name": f"{name}: service", "phase": "start", "do": [{"bookings_tick": name}]}],
+        "events": [{"name": f"{name}: service", "phase": "start", "do": [{"agreements": name, "action": "tick"}]}],
     }
     agents = agent_types(contract, guests)
     if not agents:
         return fragment
     mine = "$it.guest == $actor.id and ($it.status == booked or $it.status == waiting)"
     params: Dict[str, Any] = {"resource": {"type": "entity", "of": resource, "where": "$it.capacity > 0", "description": "What to book."}}
-    if config.mode == "slots":
+    if config.format == "slots":
         params["ahead"] = {"type": "int", "min": 1, "max": guarded("$params.resource.horizon", "resource"), "default": 1,
                            "description": "Rounds from now (1 = next round)."}
     params["party"] = {"type": "int", "min": 1, "max": guarded("$params.resource.max_party", "resource"), "default": 1,
                        "description": "Places."}
-    do: Dict[str, Any] = {"reserve": name, "guest": "$actor", "resource": "$params.resource", "party": "$params.party"}
-    if config.mode == "slots":
+    do: Dict[str, Any] = {"agreements": name, "action": "book", "who": "$actor", "resource": "$params.resource",
+                          "party": "$params.party"}
+    if config.format == "slots":
         do["ahead"] = "$params.ahead"
     fragment["actions"] = {}
-    if "book" in config.tools:
+    if "book" in config.actions:
         fragment["actions"][f"{name}_book"] = {
             "by": agents, "private": True, "params": params, "do": [do],
-            "description": ("Book places for a future round: 1 = next round, up to the place's booking horizon (look at the places view for free places). Paid now; a full round puts you on its waitlist." if config.mode == "slots"
+            "description": ("Book places for a future round: 1 = next round, up to the place's booking horizon (look at the places view for free places). Paid now; a full round puts you on its waitlist." if config.format == "slots"
                             else "Join the line; you are served, and pay, when a place is free."),
             "outcome": f"{{$booking_text($actor, '{name}')}}"}
-    if "cancel" in config.tools:
+    if "cancel" in config.actions:
         fragment["actions"][f"{name}_cancel"] = {
             "by": agents, "private": True, "description": "Cancel a booking or leave the line.",
             "params": {"booking": {"type": "entity", "of": booking, "where": mine}},
-            "do": [{"cancel_booking": name, "booking": "$params.booking"}], "outcome": "Cancelled."}
+            "do": [{"agreements": name, "action": "cancel", "booking": "$params.booking"}], "outcome": "Cancelled."}
     fragment["views"] = {
         f"{name}_places": {"for": agents, "title": "Places", "of": resource, "look": True,
                            "show": f"[{{id}}] {{name}}: {{price|money}} a place, {{capacity}} per round · {{$places_text($it, '{name}')}}"},
         f"{name}_mine": {"for": agents, "title": "Your bookings", "of": booking, "where": mine,
-                         "show": "[{id}] {$entity($it.resource).name}" + (": round {slot}" if config.mode == "slots" else "")
+                         "show": "[{id}] {$entity($it.resource).name}" + (": round {slot}" if config.format == "slots" else "")
                                  + ", {party} place(s), {status}"}}
     return fragment
 
@@ -211,7 +214,7 @@ def _booking_text(call: Call) -> str:
     name = str(call.arg(1))
     if agent is None or not world.is_type(f"{name}_booking"):
         raise ExprError(f"$booking_text: expected an agent and a bookings mechanism, got {call.arg(0)!r}, {name!r}", call.source)
-    config: BookingsConfig = config_of(world, name, "bookings", call.source)
+    config: BookingsConfig = config_of(world, name, BOOKINGS, call.source)
     mine = [b for b in world.entities_of(f"{name}_booking") if props(b)["guest"] == agent.id]
     if not mine:
         return "You have no bookings."
@@ -237,22 +240,23 @@ def _places_text(call: Call) -> str:
     name = str(call.arg(1))
     if resource is None or not world.is_type(f"{name}_resource"):
         raise ExprError(f"$places_text: expected a resource of {name}, got {call.arg(0)!r}", call.source)
-    config: BookingsConfig = config_of(world, name, "bookings")
+    config: BookingsConfig = config_of(world, name, BOOKINGS)
     capacity = int(props(resource)["capacity"])
-    if config.mode == "queue":
+    if config.format == "queue":
         return f"{len(_bookings(world, name, resource.id, 0, 'waiting'))} waiting"
     rounds = range(world.round + 1, world.round + 1 + int(props(resource)["horizon"]))
     return "free: " + ", ".join(f"round {r} {max(0, capacity - taken(world, name, resource.id, r))}" for r in rounds)
 
 
-@effect_op("reserve", keys=("guest", "resource", "ahead", "party"), required=("guest", "resource"), literal=("reserve",),
-           example='{"reserve": "dining", "guest": "$actor", "resource": "$params.resource", "ahead": 2, "party": 4}  '
-                   '(book places, or join the waitlist or the line)')
+@family_action("agreements", ("bookings",), "book", keys=("who", "resource", "ahead", "party"), required=("who", "resource"),
+               was=("reserve",),
+               example='{"agreements": "dining", "action": "book", "who": "$actor", "resource": "$params.resource", "ahead": 2, '
+                       '"party": 4}  (book places, or join the waitlist or the line; `ahead` only with format slots)')
 def _book(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    name = effect["reserve"]
-    config: BookingsConfig = config_of(world, name, "bookings", where)
-    guest = entity_of(world, runner.eval(effect["guest"], vars), where, "a guest")
+    name = effect["agreements"]
+    config: BookingsConfig = config_of(world, name, BOOKINGS, where)
+    guest = entity_of(world, runner.eval(effect["who"], vars), where, "a guest")
     resource = entity_of(world, runner.eval(effect["resource"], vars), where, "a resource")
     if resource.entity_type != f"{name}_resource":
         raise RunError(f"{resource.id} is not a resource of {name}", where)
@@ -260,7 +264,7 @@ def _book(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str)
     if not 1 <= party <= int(props(resource)["max_party"]):
         raise Abort(f"{resource.name} takes 1 to {props(resource)['max_party']} places per booking.")
     slot = 0
-    if config.mode == "slots":
+    if config.format == "slots":
         ahead = whole(runner.eval(effect.get("ahead", 1), vars), where, "ahead")
         if not 1 <= ahead <= int(props(resource)["horizon"]):
             raise Abort(f"{resource.name} can be booked 1 to {props(resource)['horizon']} rounds ahead.")
@@ -273,11 +277,11 @@ def _book(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str)
     if config.patience is not None:
         values["gives_up"] = world.round + int(_number(world, config.patience, guest, f"mechanisms.{name}.patience"))
     free = int(props(resource)["capacity"]) - taken(world, name, resource.id, slot)
-    if config.mode == "slots" and party <= free:
+    if config.format == "slots" and party <= free:
         values.update(status="booked", paid=_pay(world, config, guest, resource, party, where))
         _stat(world, name, "booked", 1)
         _stat(world, name, "revenue", values["paid"])
-    elif config.mode == "slots" and not config.waitlist:
+    elif config.format == "slots" and not config.waitlist:
         raise Abort(f"{resource.name} is full for round {slot}: {max(0, free)} place(s) left.")
     else:
         values["status"] = "waiting"
@@ -296,12 +300,13 @@ def _number(world: Any, value: Union[int, str], guest: Any, where: str) -> float
     return float(value)
 
 
-@effect_op("cancel_booking", keys=("booking",), required=("booking",), literal=("cancel_booking",),
-           example='{"cancel_booking": "dining", "booking": "$params.booking"}  (cancel with a refund; the waitlist moves up)')
+@family_action("agreements", ("bookings",), "cancel", keys=("booking",), required=("booking",), was=("cancel_booking",),
+               example='{"agreements": "dining", "action": "cancel", "booking": "$params.booking"}  '
+                       '(cancel with a refund; the waitlist moves up)')
 def _cancel_booking(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    name = effect["cancel_booking"]
-    config: BookingsConfig = config_of(world, name, "bookings", where)
+    name = effect["agreements"]
+    config: BookingsConfig = config_of(world, name, BOOKINGS, where)
     booking = entity_of(world, runner.eval(effect["booking"], vars), where, "a booking")
     if booking.entity_type != f"{name}_booking" or props(booking)["status"] not in LIVE:
         raise Abort("That booking is not open.")
@@ -316,16 +321,16 @@ def _cancel_booking(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], w
         _stat(world, name, "revenue", -refund)
     world.set_prop(booking, "status", "cancelled")
     _stat(world, name, "cancelled", 1)
-    if was_booked and config.mode == "slots":
+    if was_booked and config.format == "slots":
         _promote(world, name, config, resource, int(p["slot"]), where)
 
 
-@effect_op("bookings_tick", keys=(), literal=("bookings_tick",),
-           example='{"bookings_tick": "dining"}  (serve this round\'s bookings or the line, let impatient guests give up)')
+@family_action("agreements", ("bookings",), "tick", internal=True, was=("bookings_tick",),
+               example='{"agreements": "dining", "action": "tick"}  (serve this round\'s bookings or the line, let impatient guests give up)')
 def _bookings_tick(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
-    name = effect["bookings_tick"]
-    config: BookingsConfig = config_of(world, name, "bookings", where)
+    name = effect["agreements"]
+    config: BookingsConfig = config_of(world, name, BOOKINGS, where)
     for booking in _bookings(world, name, status="waiting"):
         gives_up = int(props(booking)["gives_up"])
         if gives_up and gives_up < world.round:
@@ -336,7 +341,7 @@ def _bookings_tick(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], wh
         capacity = int(props(resource)["capacity"])
         world.set_prop(resource, "offered", int(props(resource)["offered"]) + capacity)
         _stat(world, name, "offered", capacity)
-        if config.mode == "slots":
+        if config.format == "slots":
             for booking in _bookings(world, name, resource.id, world.round, "booked"):
                 _serve(world, name, booking, resource)
                 emit_to(world, f"{name}_served", f"Your booking at {resource.name} is today.", [props(booking)["guest"]])

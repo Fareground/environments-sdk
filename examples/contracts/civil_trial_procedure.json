@@ -1173,7 +1173,8 @@
   },
   "mechanisms": {
     "trial": {
-      "kind": "procedure",
+      "kind": "flow",
+      "mode": "procedure",
       "phases": {
         "opening": {
           "title": "Opening statements",

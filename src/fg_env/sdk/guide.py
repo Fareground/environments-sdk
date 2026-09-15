@@ -16,7 +16,7 @@ from pydantic_core import PydanticUndefined
 from . import contract as C
 from .effects import EFFECT_OPS
 from .macros import MAX_MACRO_DEPTH, MAX_MACRO_ITEMS
-from .registry import MECHANISMS, OPS
+from .registry import FAMILIES, OPS, FamilySpec, ModeSpec
 from .expr import FUNCTIONS
 from .template import FORMATS
 
@@ -466,7 +466,17 @@ state.current_player(), state.legal_actions(), state.chance_outcomes(), state.ch
 state.information_state(seat), state.observation(seat, "struct"), state.apply_actions({0: a, 1: b})
 env = fg_env.gym("nim.json", "a", others="random"); obs, info = env.reset(seed=1)
 obs, reward, terminated, truncated, info = env.step({"tool": "take", "args": {"count": 2}})
+fg_env.conformance("kuhn_poker.json", sims=20).summary()   # legal calls, chance, clone, serialize, returns, replay, resume, leaks
+print(fg_env.playthrough("kuhn_poker.json", seed=1))       # every seat's reading at every decision: a golden text to diff
+from fg_env.sdk.game.algorithms import CFRSolver, exploitability, minimax, MCTSBot
+policy = CFRSolver(game, plus=True).iterate(1000).average_policy(); exploitability(game, policy)
+fg_env.run("tic_tac_toe.json", {"x": "mcts:200", "o": "minimax"})   # also "ismcts:200", "cfr:policy.json", "cfr:1000"
+aec = fg_env.pettingzoo_aec("kuhn_poker.json", seed=1)     # PettingZoo AEC (reward since last turn); pettingzoo_parallel too
 ```
+Games transform into ordinary contracts: `fg_env.sdk.game.repeated(contract, 10)`, `misere`, `zerosum`;
+`game.start_at(steps)` starts part-way. Known-answer games live in `examples/contracts/games`.
+CLI: `fg-env conformance file.json --sims 50`, `fg-env playthrough file.json --seed 1 [--check golden.txt]`,
+`fg-env bench --game file.json`.
 A copy is rebuilt from the run's base and replays what its participants did, so it is exact (state, random
 streams, turn numbers, log, recorded host answers) and costs a restore plus the round so far; turn time
 limits never run out in a copy. It holds the whole world, hidden state included. Game action ids are fixed
@@ -479,7 +489,7 @@ limits, timeouts and server errors (`retries=4`), then fail the run or, with `on
 forfeit the turn. Their real token usage is in `result.stats` (`llm_calls`, `input_tokens`,
 `output_tokens`, `cache_read_tokens`, `cache_write_tokens`, `llm_retries`, `forfeits`); your own
 participants can add theirs with `wake.record_usage(...)`.
-Built-ins: `"random"`, `"idle"`, `"policy:<name>"`.
+Built-ins: `"random"`, `"idle"`, `"policy:<name>"`, and game algorithms `"mcts:N"`, `"ismcts:N"`, `"minimax[:depth]"`, `"cfr:<policy.json|iterations>"`.
 
 `result.events` is the ordered log: `{seq, round, kind, text, actor, to, stage, data}` where kind is
 `action` (data: action, params, success), `outcome` (a sealed action's result, to its actor),
@@ -532,7 +542,7 @@ _SHAPES = {
     "metrics": "{metric: MetricSpec | expr}", "outputs": "{output: OutputSpec | expr}", "end": "[EndSpec]",
     "arms": "{arm: ArmSpec}", "game": "GameSpec", "invariants": "[InvariantSpec | expr]",
     "defs": "{name: DefSpec | expr}", "blocks": "{name: BlockSpec}",
-    "mechanisms": "{name: {kind, ...config}} — native building blocks; see the mechanisms part",
+    "mechanisms": "{name: {kind, mode, ...config}} — native building blocks by family; see the mechanisms part",
 }
 
 
@@ -584,9 +594,14 @@ def _functions() -> str:
 
 
 def _effects() -> str:
-    ops = "\n".join([f"- `{op}`: {_EFFECT_EXAMPLES[op]}" for op in EFFECT_OPS]
-                    + [f"- `{name}`: {spec.example}" for name, spec in OPS.items()])
-    return _EFFECTS.replace("OPS", ops)
+    lines = [f"- `{op}`: {_EFFECT_EXAMPLES[op]}" for op in EFFECT_OPS]
+    lines += [f"- `{name}`: {spec.example}" for name, spec in OPS.items() if spec.select is None]
+    for name, family in FAMILIES.items():
+        if family.actions and any(family.actions.values()):
+            lines.append(f"- `{name}`: {{\"{name}\": \"<{name} mechanism>\", \"action\": ...}} — actions: "
+                         + "; ".join(f"{mode} {' '.join(_public(family, mode)) or '—'}" for mode in family.modes)
+                         + f" (guide(\"{name}\"))")
+    return _EFFECTS.replace("OPS", "\n".join(lines))
 
 
 def _nested_models(model: Type[BaseModel]) -> List[Type[BaseModel]]:
@@ -608,22 +623,57 @@ def _nested_models(model: Type[BaseModel]) -> List[Type[BaseModel]]:
     return found
 
 
+def _public(family: FamilySpec, mode: str) -> List[str]:
+    """The actions of a mode an author writes (the mechanism's own bookkeeping actions left out)."""
+    return [action for action, op in family.actions.get(mode, {}).items() if not op.internal]
+
+
 def _mechanisms() -> str:
+    from .mechanisms.families import SHARED
+
     lines = ["## Mechanisms (native building blocks)", "",
-             "Declare `\"mechanisms\": {name: {\"kind\": ..., ...config}}`. Each expands into ordinary actions,",
-             "stages, world props and events you can read, preview and override (declare the same name",
-             "yourself to replace a generated part). Kinds:"]
-    for kind, spec in sorted(MECHANISMS.items()):
-        lines += ["", f"### `{kind}`", spec.doc, "", "Config:"]
-        for field_name, info in spec.config.model_fields.items():
-            default = "required" if info.is_required() else \
-                f"default {json.dumps(info.get_default(call_default_factory=True), default=str)}"
-            lines.append(f"- `{field_name}` ({default}): {info.description or ''}")
-        nested = _nested_models(spec.config)
-        if nested:
-            lines += ["", "Nested config:"] + [_fields(model) for model in nested]
-        if spec.example:
-            lines += ["", "```json", json.dumps({"mechanisms": {"my_" + kind: spec.example}}, ensure_ascii=False), "```"]
+             "Declare `\"mechanisms\": {name: {\"kind\": <family>, \"mode\": <mode>, ...config}}`. Each expands into",
+             "ordinary actions, stages, world props and events you can read, preview and override (declare the same",
+             "name yourself to replace a generated part). A family has one effect op:",
+             "`{\"<family>\": \"<mechanism name>\", \"action\": \"<action>\", ...}`. Read a family with",
+             "`guide(\"<family>\")` and one mode with `guide(\"<family>.<mode>\")`.", "",
+             "| kind | modes | for |", "|---|---|---|"]
+    lines += [f"| `{name}` | {', '.join(family.modes) or '—'} | {family.doc} |" for name, family in FAMILIES.items()]
+    lines += ["", "Every family names these the same way:"]
+    lines += [f"- `{key}`: {meaning}" for key, meaning in SHARED.items()]
+    return "\n".join(lines)
+
+
+def _family_page(name: str) -> str:
+    family = FAMILIES[name]
+    lines = [f"## Mechanism family `{name}`", "", family.doc, ""]
+    if family.shared:
+        lines += ["Named the same in every mode:"] + [f"- `{key}`: {meaning}" for key, meaning in family.shared.items()] + [""]
+    lines += [f"Modes (`\"kind\": \"{name}\", \"mode\": ...`):"]
+    lines += [f"- `{mode}`: {spec.doc.split('. ')[0].rstrip('.')}." for mode, spec in family.modes.items()]
+    return "\n".join(lines + [""] + [_mode_page(spec) for spec in family.modes.values()])
+
+
+def _mode_page(spec: ModeSpec) -> str:
+    lines = [f"### `{spec.key}`", spec.doc, "", "Config:"]
+    for field_name, info in spec.config.model_fields.items():
+        default = "required" if info.is_required() else \
+            f"default {json.dumps(info.get_default(call_default_factory=True), default=str)}"
+        lines.append(f"- `{field_name}` ({default}): {info.description or ''}")
+    nested = _nested_models(spec.config)
+    if nested:
+        lines += ["", "Nested config:"] + [_fields(model) for model in nested]
+    actions = FAMILIES[spec.family].actions.get(spec.mode, {})
+    public = [(action, op) for action, op in actions.items() if not op.internal]
+    if public:
+        lines += ["", f"Actions of the `{spec.family}` op:"]
+        for action, op in public:
+            keys = [k for k in op.keys if k not in (spec.family, "action")]
+            needs = [k for k in op.required if k in keys]
+            takes = f" — takes {', '.join(f'`{k}`' for k in keys)}" if keys else ""
+            required = f" (needs {', '.join(f'`{k}`' for k in needs)})" if needs else ""
+            lines.append(f"- `{action}`{takes}{required}: {op.example}")
+    lines += ["", "```json", json.dumps({"mechanisms": {f"my_{spec.mode}": spec.example}}, ensure_ascii=False), "```"]
     return "\n".join(lines)
 
 
@@ -645,9 +695,19 @@ GUIDE_PARTS: Dict[str, Any] = {
 
 def guide(part: Optional[str] = None) -> str:
     """The authoring guide (all parts), or one part: overview, model, reference, expressions, macros,
-    functions, templates, effects, patterns, mechanisms, running, checklist."""
+    functions, templates, effects, patterns, mechanisms, running, checklist — or a mechanism family
+    (``guide("market")``) or one of its modes (``guide("market.auction")``)."""
     if part is None:
-        return "\n\n".join(render() for render in GUIDE_PARTS.values())
-    if part not in GUIDE_PARTS:
-        raise KeyError(f"unknown guide part '{part}' (parts: {', '.join(GUIDE_PARTS)})")
-    return GUIDE_PARTS[part]()
+        rendered = [render() for render in GUIDE_PARTS.values()]
+        mechanisms = list(GUIDE_PARTS).index("mechanisms")
+        pages = [_family_page(name) for name, family in FAMILIES.items() if family.modes]
+        return "\n\n".join(rendered[:mechanisms + 1] + pages + rendered[mechanisms + 1:])
+    if part in GUIDE_PARTS:
+        return GUIDE_PARTS[part]()
+    if part in FAMILIES:
+        return _family_page(part)
+    family_name, _, mode = part.partition(".")
+    if family_name in FAMILIES and mode in FAMILIES[family_name].modes:
+        return _mode_page(FAMILIES[family_name].modes[mode])
+    raise KeyError(f"unknown guide part '{part}' (parts: {', '.join(GUIDE_PARTS)}; families: {', '.join(FAMILIES)}; "
+                   f"a mode as family.mode)")
