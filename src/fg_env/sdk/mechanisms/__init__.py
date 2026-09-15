@@ -138,3 +138,10 @@ def _canonical(value: Any) -> str:
 
 
 from . import voting  # noqa: E402,F401  (registers the built-in mechanisms)
+from . import status  # noqa: E402,F401
+from . import abilities  # noqa: E402,F401
+from . import locations  # noqa: E402,F401
+from . import dynamics  # noqa: E402,F401
+from . import procedure  # noqa: E402,F401
+from . import turn_order  # noqa: E402,F401
+from . import victory  # noqa: E402,F401
