@@ -193,6 +193,13 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, RuleChecks):
 
     def _refs(self, compiled: Any, path: str, roots: Set[str], types: Types,
               params: Mapping[str, C.ParamSpec]) -> None:
+        # Unknown callees can explain downstream scope errors (e.g. a misspelled
+        # aggregate no longer binds $it). Put the repair first, but keep independent errors.
+        for name in sorted(compiled.functions):
+            if name not in FUNCTIONS and name not in self.c.defs:
+                hint = suggest_function(name, list(FUNCTIONS) + list(self.c.defs))
+                self.error(path, f"unknown function ${name}",
+                           (f"did you mean ${hint}?" if hint else "declare it under `defs`") + f" — in `{compiled.source}`")
         for root in compiled.roots:
             if root not in roots and not (root in self.c.defs and not self.c.defs[root].args):
                 available = ", ".join(f"${r}" for r in sorted(roots))
@@ -218,11 +225,6 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, RuleChecks):
         for name, signature in getattr(compiled, "arity_errors", ()):
             if name not in self.c.defs:
                 self.error(path, f"wrong number of arguments: ${signature}", f"in `{compiled.source}`")
-        for name in compiled.functions:
-            if name not in FUNCTIONS and name not in self.c.defs:
-                hint = suggest_function(name, list(FUNCTIONS) + list(self.c.defs))
-                self.error(path, f"unknown function ${name}",
-                           (f"did you mean ${hint}?" if hint else "declare it under `defs`") + f" — in `{compiled.source}`")
         for chain, word in compiled.comparisons:
             self._compare(self._spec_for(chain, types, params), chain, word, path, compiled.source)
         for _, symbol, chain, word in compiled.item_comparisons:

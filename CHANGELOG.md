@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Expression diagnostics list unknown functions and correction hints before dependent scope errors,
+  in stable name order. Independent errors remain visible; validation and runtime semantics are unchanged.
 - Static checks reject impossible literal `after` delays at the authored field, with a repair hint:
   positive whole rounds, or finite positive time on a continuous clock. Expression delays remain
   runtime-checked; valid scheduling behavior is unchanged.
