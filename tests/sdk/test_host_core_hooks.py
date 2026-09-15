@@ -43,3 +43,9 @@ def test_hosts_can_be_given_to_run_and_restore():
     finished = restored.run(researcher)
     assert finished.status == "completed", finished.error
     assert finished.outputs["searches"] > 0
+
+
+def test_a_preview_lists_the_in_turn_host_tools_the_agent_will_be_offered():
+    env = fg_env.load(COUNCIL, hosts={"web_search": StubTools()}, seed=1)
+    names = [tool["name"] for tool in env.preview("panelist_1")["tools"]]
+    assert "search" in names and "end_turn" in names

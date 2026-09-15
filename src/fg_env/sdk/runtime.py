@@ -795,7 +795,13 @@ class Env:
     def _preview_turn(self, entity_id: str, spec: StageSpec, reason: str) -> Dict[str, Any]:
         actor = self.world.entities[entity_id]
         turn = Turn(self, actor, spec, reason, spec.turns == "simultaneous", peek=True)
-        tools = turn.tools()
+        extras = self._turn_tool_specs()
+        if extras:  # what the agent will be offered, in-turn host tools included
+            from .host.turn_tools import HostWake
+
+            tools = HostWake(turn, extras).tools
+        else:
+            tools = turn.tools()
         return {"brief": turn.brief, "update": turn.update, "tools": [t.to_dict() for t in tools],
                 "tokens": {"brief": len(turn.brief) // 4, "update": len(turn.update) // 4,
                            "tools": len(json.dumps([t.to_anthropic() for t in tools])) // 4}}
@@ -818,14 +824,23 @@ class Env:
         self._participants_spec = dict(participants)
         self._participants.clear()
 
-    def _with_turn_tools(self, participant: Participant) -> Participant:
-        """The participant, offered the contract's in-turn host tools (recall, note, host services) if it has any."""
-        from .host.turn_tools import offer, turn_tools
-
+    def _turn_tool_specs(self) -> Dict[str, Any]:
+        """The contract's in-turn host tools (recall, note, host services), by name."""
         tools = self.__dict__.get("_turn_tools")
         if tools is None:
+            from .host.turn_tools import turn_tools
+
             tools = self.__dict__["_turn_tools"] = turn_tools(self.contract)
-        return offer(participant, tools) if tools else participant
+        return tools
+
+    def _with_turn_tools(self, participant: Participant) -> Participant:
+        """The participant, offered the contract's in-turn host tools if it has any."""
+        tools = self._turn_tool_specs()
+        if not tools:
+            return participant
+        from .host.turn_tools import offer
+
+        return offer(participant, tools)
 
     def _participant(self, actor: Entity) -> Participant:
         cached = self._participants.get(actor.id)
