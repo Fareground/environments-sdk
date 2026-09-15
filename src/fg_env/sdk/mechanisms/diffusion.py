@@ -175,7 +175,6 @@ def _runner(action: str) -> Callable[[Any, Dict[str, Any], Dict[str, Any], str],
                 _apply(runner, name, config, items, item, action, agents, where)
         except ExprError as exc:
             raise RunError(str(exc), where) from None
-        world.set_world(name, items)
 
     return run
 
@@ -205,6 +204,7 @@ def _apply(runner: Any, name: str, config: DiffusionConfig, items: Dict[str, Any
            agents: List[str], where: str) -> None:
     state = items[item]
     world = runner.world
+    adopted: Dict[str, Optional[str]] = {}
     for agent in agents:
         if act == "expose":
             if agent not in state["adopted"]:
@@ -218,7 +218,23 @@ def _apply(runner: Any, name: str, config: DiffusionConfig, items: Dict[str, Any
             state["adopted"][agent] = world.round
             state["frontier"].append(agent)
             if act == "adopt":
-                _adopted(runner, name, config, item, agent, None, where)
+                adopted[agent] = None
+    _publish(runner, name, config, items, item, adopted, where)
+
+
+def _publish(runner: Any, name: str, config: DiffusionConfig, items: Dict[str, Any], item: str,
+             adopted: Mapping[str, Optional[str]], where: str) -> None:
+    """Publish a batch before callbacks; carry nested callback changes into later steps."""
+    world = runner.world
+    world.set_world(name, items)
+    if adopted and config.on_adopt:
+        for agent, source in adopted.items():
+            _adopted(runner, name, config, item, agent, source, where)
+        # Hooks can reject an adopter, expose another item, or spread recursively.
+        # Never overwrite their state with the pre-hook working copy.
+        current = {key: _copy(value) for key, value in _items(world, name).items()}
+        items.clear()
+        items.update(current)
 
 
 def _adopted(runner: Any, name: str, config: DiffusionConfig, item: str, agent: str, source: Optional[str], where: str) -> None:
@@ -250,15 +266,16 @@ def _number(value: Any, what: str, where: str) -> float:
 def _step(runner: Any, name: str, config: DiffusionConfig, items: Dict[str, Any], item: str, where: str) -> None:
     for _ in range(config.steps):
         if config.model == "cascade":
-            _cascade(runner, name, config, items[item], item, where)
+            adopted = _cascade(runner, name, config, items[item], item, where)
         else:
-            _threshold(runner, name, config, items[item], item, where)
+            adopted = _threshold(runner, name, config, items[item], item, where)
+        _publish(runner, name, config, items, item, adopted, where)
 
 
-def _cascade(runner: Any, name: str, config: DiffusionConfig, state: Dict[str, Any], item: str, where: str) -> None:
+def _cascade(runner: Any, name: str, config: DiffusionConfig, state: Dict[str, Any], item: str, where: str) -> Dict[str, Optional[str]]:
     world = runner.world
     p_expr = compile_expr(config.p) if isinstance(config.p, str) else None
-    convinced: Dict[str, str] = {}
+    convinced: Dict[str, Optional[str]] = {}
     for source in state["frontier"]:
         if source not in state["adopted"] or not _eligible(world, config, source):
             continue
@@ -273,11 +290,10 @@ def _cascade(runner: Any, name: str, config: DiffusionConfig, state: Dict[str, A
     state["frontier"] = list(convinced)
     for target, source in convinced.items():
         state["adopted"][target] = world.round
-    for target, source in convinced.items():
-        _adopted(runner, name, config, item, target, source, where)
+    return convinced
 
 
-def _threshold(runner: Any, name: str, config: DiffusionConfig, state: Dict[str, Any], item: str, where: str) -> None:
+def _threshold(runner: Any, name: str, config: DiffusionConfig, state: Dict[str, Any], item: str, where: str) -> Dict[str, Optional[str]]:
     world = runner.world
     adopted = state["adopted"]
     candidates = dict.fromkeys(t for a in adopted if _eligible(world, config, a)
@@ -302,8 +318,7 @@ def _threshold(runner: Any, name: str, config: DiffusionConfig, state: Dict[str,
     for agent in joining:
         adopted[agent] = world.round
     state["frontier"] = joining
-    for agent in joining:
-        _adopted(runner, name, config, item, agent, None, where)
+    return dict.fromkeys(joining)
 
 
 def _weight(world: Any, config: DiffusionConfig, source: str, target: str) -> float:

@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Diffusion publishes each adoption batch before its hooks. Hooks see current adoption state, nested diffusion
+  changes survive, and later steps use those changes. Refused hooks still roll back the whole action.
 - Inspection listings with fixed visibility can be reused across ordinary viewers until journaled state changes.
   Dynamic permissions and private self-views keep individual evaluation; rollback and run copies invalidate reuse,
   and returned schemas are isolated from each other.
