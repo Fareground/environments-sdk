@@ -125,7 +125,8 @@ def _valid(space: Mapping[str, Any], position: Any, field: str) -> None:
         rows, cols = grid.get("rows"), grid.get("cols")
         if not (isinstance(position, list) and len(position) == 2 and all(isinstance(v, int) and not isinstance(v, bool) for v in position)):
             raise MechanismError(f"a grid position is [row, col], got {position!r}", None, field)
-        if not (0 <= position[0] < rows and 0 <= position[1] < cols):
+        sized = all(isinstance(n, int) and not isinstance(n, bool) for n in (rows, cols))
+        if sized and not (0 <= position[0] < rows and 0 <= position[1] < cols):  # sizes from $inputs: checked on the built grid
             raise MechanismError(f"position {position} is off the {rows}x{cols} grid", None, field)
     elif isinstance(graph, Mapping):
         nodes = graph.get("nodes") or []
@@ -242,6 +243,20 @@ def _check_tick(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[s
     return []
 
 
+def _on_grid(world: Any, mech: str, cfg: TerrainConfig) -> None:
+    """Every place lies on the built grid (its size may come from `$inputs`, so it is known only once the world exists)."""
+    space = world.space
+    geometry = space.geometry if space is not None else None
+    if geometry is None or geometry.kind != "grid":
+        return
+    for place, spec in cfg.places.items():
+        corners = [("at", i, p) for i, p in enumerate(spec.at)] + [("area", i, p) for i, p in enumerate(spec.area or [])]
+        for key, index, (row, col) in corners:
+            if not (0 <= row < geometry.rows and 0 <= col < geometry.cols):
+                raise RunError(f"position {[row, col]} is off the {geometry.rows}x{geometry.cols} grid",
+                               f"mechanisms.{mech}.places.{place}.{key}[{index}]")
+
+
 @family_action("conditions", ("terrain",), "tick", check=_check_tick, internal=True, was=("terrain_tick",),
                example='{"conditions": "terrain", "action": "tick"}  (run tick effects on every occupant; generated at '
                        'the start of each round)')
@@ -249,6 +264,7 @@ def _tick_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: s
     world = runner.world
     mech = effect["conditions"]
     cfg = common.config(world, mech, KEY, TerrainConfig, where)
+    _on_grid(world, mech, cfg)
     if not any(spec.tick for spec in cfg.places.values()):
         return
     for entity in common.carriers(world, _occupant_types(cfg)):

@@ -130,7 +130,8 @@ def _expand_ledger(name: str, config: LedgerConfig, contract: Mapping[str, Any])
         "world": {f"{name}_supply": {"type": "map", "default": baseline(contract, holders, list(config.currencies)),
                                      "description": "Money in existence per currency."},
                   f"{name}_flows": {"type": "map", "default": {}, "description": "Money created (+) and destroyed (−) by each named source and sink."}},
-        "invariants": [{"expr": f"$conserved('{name}')", "why": f"Money of {name} changes only by payments or named sources and sinks."}],
+        "invariants": [{"expr": f"$conserved('{name}')", "check": "round",
+                        "why": f"Money of {name} changes only by payments or named sources and sinks."}],
         "events": [_source_event(name, config, source, spec, contract) for source, spec in config.sources.items()],
         "actions": {},
     }

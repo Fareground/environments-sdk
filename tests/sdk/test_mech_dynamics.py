@@ -771,6 +771,17 @@ def test_terrain_errors():
         fg_env.parse(bad)
 
 
+def test_terrain_on_a_grid_sized_by_inputs_is_checked_against_the_built_grid():
+    sized = json.loads(json.dumps(FIELD))
+    sized["inputs"] = {"size": {"type": "int", "default": 3}}
+    sized["space"] = {"grid": {"rows": "$inputs.size", "cols": "$inputs.size"}}
+    assert [i for i in fg_env.check(sized) if i.severity == "error"] == []
+    assert fg_env.load(sized, seed=1).run("idle", rounds=2).status != "failed"
+    small = fg_env.load(sized, seed=1, inputs={"size": 2}).run("idle", rounds=1)
+    assert small.status == "failed"
+    assert small.error == "mechanisms.terrain.places.forest.area[1]: position [1, 2] is off the 2x2 grid"
+
+
 # ---------------------------------------------------------------------------
 # Spine behaviour shared by every family
 # ---------------------------------------------------------------------------

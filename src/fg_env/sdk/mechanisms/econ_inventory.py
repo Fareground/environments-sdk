@@ -156,7 +156,8 @@ def _expand_inventory(name: str, config: InventoryConfig, contract: Mapping[str,
         world[f"{name}_ground"] = {"type": "map", "default": {}, "description": "Goods lying at each place: {place: {item: qty}}."}
     fragment: Dict[str, Any] = {
         "types": types, "world": world,
-        "invariants": [{"expr": f"$conserved('{name}')", "why": f"Goods of {name} change only by moves or named sources and sinks."}],
+        "invariants": [{"expr": f"$conserved('{name}')", "check": "round",
+                        "why": f"Goods of {name} change only by moves or named sources and sinks."}],
         "actions": _actions(name, config, contract, holders, stackable),
     }
     events = _events(name, config)
