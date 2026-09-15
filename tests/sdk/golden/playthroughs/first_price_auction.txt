@@ -1,0 +1,85 @@
+# fg-env playthrough: First-price sealed-bid auction
+Game: first_price_sealed_bid_auction@82dc09a6:a44fbc47
+Seed: 1
+Seats: 0 a, 1 b
+Dynamics: simultaneous; chance: explicit; information: imperfect; utility: general_sum
+Action space: 6 ids
+
+## Brief of seat 0 (a)
+  | # First-price sealed-bid auction
+  | One item is for sale to two bidders. Each bidder privately learns what the item is worth to them: a whole number from 1 to 4, each equally likely.
+  | 
+  | ## Rules
+  | Both bidders submit a sealed bid from 0 to 4 at the same time. The highest bid wins and pays that bid; the winner scores value minus bid, and the loser scores 0. Equal bids split the item: each scores half of value minus bid.
+  | 
+  | ## You
+  | You are A (bidder, id a).
+  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+
+## Brief of seat 1 (b)
+  | # First-price sealed-bid auction
+  | One item is for sale to two bidders. Each bidder privately learns what the item is worth to them: a whole number from 1 to 4, each equally likely.
+  | 
+  | ## Rules
+  | Both bidders submit a sealed bid from 0 to 4 at the same time. The highest bid wins and pays that bid; the winner scores value minus bid, and the loser scores 0. Equal bids split the item: each scores half of value minus bid.
+  | 
+  | ## You
+  | You are B (bidder, id b).
+  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+
+# State 0
+Current player: chance
+Chance outcomes: value: 1 (p=0.25), value: 2 (p=0.25), value: 3 (p=0.25), value: 4 (p=0.25)
+Seat 0 (a) reads:
+  | Round 1 of 1 · bid
+  | 
+  | The item is worth 0 to you.
+Seat 0 information state: 1f424a4c0fcdc04e
+Seat 1 (b) reads:
+  | Round 1 of 1 · bid
+  | 
+  | The item is worth 0 to you.
+Seat 1 information state: 005d74de23568777
+Returns: [0, 0]
+Chosen: value: 3
+Step: {"chance": 2}
+
+# State 1
+Current player: chance
+Chance outcomes: value: 1 (p=0.25), value: 2 (p=0.25), value: 3 (p=0.25), value: 4 (p=0.25)
+Seat 0 (a) reads:
+  | Round 1 of 1 · bid
+  | 
+  | The item is worth 3 to you.
+Seat 0 information state: 7c294242f1c59225
+Seat 1 (b) reads:
+  | Round 1 of 1 · bid
+  | 
+  | The item is worth 0 to you.
+Seat 1 information state: 005d74de23568777
+Returns: [0, 0]
+Chosen: value: 4
+Step: {"chance": 3}
+
+# State 2
+Current player: simultaneous 0, 1
+Legal calls of seat 0: [1] bid(amount=0); [2] bid(amount=1); [3] bid(amount=2); [4] bid(amount=3); [5] bid(amount=4)
+Legal calls of seat 1: [1] bid(amount=0); [2] bid(amount=1); [3] bid(amount=2); [4] bid(amount=3); [5] bid(amount=4)
+Seat 0 (a) reads:
+  | Round 1 of 1 · bid
+  | Now: Everyone chooses at the same time.
+  | 
+  | The item is worth 3 to you.
+Seat 0 information state: 7c294242f1c59225
+Seat 1 (b) reads:
+  | Round 1 of 1 · bid
+  | 
+  | The item is worth 4 to you.
+Seat 1 information state: 73083bc338e7d29b
+Returns: [0, 0]
+Chosen: seat 0: bid(amount=2); seat 1: bid(amount=3)
+Step: {"joint": {"0": {"args": {"amount": 2}, "tool": "bid"}, "1": {"args": {"amount": 3}, "tool": "bid"}}}
+
+# State 3
+Terminal
+Returns: [0, 1]

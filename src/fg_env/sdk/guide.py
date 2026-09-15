@@ -471,7 +471,17 @@ state.current_player(), state.legal_actions(), state.chance_outcomes(), state.ch
 state.information_state(seat), state.observation(seat, "struct"), state.apply_actions({0: a, 1: b})
 env = fg_env.gym("nim.json", "a", others="random"); obs, info = env.reset(seed=1)
 obs, reward, terminated, truncated, info = env.step({"tool": "take", "args": {"count": 2}})
+fg_env.conformance("kuhn_poker.json", sims=20).summary()   # legal calls, chance, clone, serialize, returns, replay, resume, leaks
+print(fg_env.playthrough("kuhn_poker.json", seed=1))       # every seat's reading at every decision: a golden text to diff
+from fg_env.sdk.game.algorithms import CFRSolver, exploitability, minimax, MCTSBot
+policy = CFRSolver(game, plus=True).iterate(1000).average_policy(); exploitability(game, policy)
+fg_env.run("tic_tac_toe.json", {"x": "mcts:200", "o": "minimax"})   # also "ismcts:200", "cfr:policy.json", "cfr:1000"
+aec = fg_env.pettingzoo_aec("kuhn_poker.json", seed=1)     # PettingZoo AEC (reward since last turn); pettingzoo_parallel too
 ```
+Games transform into ordinary contracts: `fg_env.sdk.game.repeated(contract, 10)`, `misere`, `zerosum`;
+`game.start_at(steps)` starts part-way. Known-answer games live in `examples/contracts/games`.
+CLI: `fg-env conformance file.json --sims 50`, `fg-env playthrough file.json --seed 1 [--check golden.txt]`,
+`fg-env bench --game file.json`.
 A copy is rebuilt from the run's base and replays what its participants did, so it is exact (state, random
 streams, turn numbers, log, recorded host answers) and costs a restore plus the round so far; turn time
 limits never run out in a copy. It holds the whole world, hidden state included. Game action ids are fixed
@@ -484,7 +494,7 @@ limits, timeouts and server errors (`retries=4`), then fail the run or, with `on
 forfeit the turn. Their real token usage is in `result.stats` (`llm_calls`, `input_tokens`,
 `output_tokens`, `cache_read_tokens`, `cache_write_tokens`, `llm_retries`, `forfeits`); your own
 participants can add theirs with `wake.record_usage(...)`.
-Built-ins: `"random"`, `"idle"`, `"policy:<name>"`.
+Built-ins: `"random"`, `"idle"`, `"policy:<name>"`, and game algorithms `"mcts:N"`, `"ismcts:N"`, `"minimax[:depth]"`, `"cfr:<policy.json|iterations>"`.
 
 `result.events` is the ordered log: `{seq, round, kind, text, actor, to, stage, data}` where kind is
 `action` (data: action, params, success), `outcome` (a sealed action's result, to its actor),

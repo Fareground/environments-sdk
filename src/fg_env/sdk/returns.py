@@ -86,13 +86,20 @@ def utility_issues(contract: Contract, returns: Dict[str, float]) -> List[Issue]
     total = sum(values)
     slack = UTILITY_TOLERANCE * max(1.0, sum(abs(v) for v in values))
     fix = "fix game.returns, or declare the utility class these returns really have"
+    issues: List[Issue] = []
     if spec.utility == "zero_sum" and abs(total) > slack:
-        return [Issue("game.utility", f"is zero_sum, but the returns add up to {total:.10g}", fix)]
+        issues.append(Issue("game.utility", f"is zero_sum, but the returns add up to {total:.10g}", fix))
     if spec.utility == "constant_sum" and spec.total is not None and abs(total - spec.total) > slack:
-        return [Issue("game.utility", f"is constant_sum ({spec.total:g}), but the returns add up to {total:.10g}", fix)]
+        issues.append(Issue("game.utility", f"is constant_sum ({spec.total:g}), but the returns add up to {total:.10g}", fix))
     if spec.utility == "identical" and max(values) - min(values) > slack:
-        return [Issue("game.utility", f"is identical, but the returns differ: {returns}", fix)]
-    return []
+        issues.append(Issue("game.utility", f"is identical, but the returns differ: {returns}", fix))
+    bound_fix = "fix game.returns, or widen the declared bound"
+    for seat, value in returns.items():
+        if spec.min_return is not None and value < spec.min_return - slack:
+            issues.append(Issue("game.min_return", f"is {spec.min_return:g}, but {seat} finished with {value:.10g}", bound_fix))
+        if spec.max_return is not None and value > spec.max_return + slack:
+            issues.append(Issue("game.max_return", f"is {spec.max_return:g}, but {seat} finished with {value:.10g}", bound_fix))
+    return issues
 
 
 def check_game(checker: Any) -> None:
@@ -118,6 +125,9 @@ def check_game(checker: Any) -> None:
         checker.error("game", "constant_sum needs `total` (what the returns add up to)")
     elif spec.utility != "constant_sum" and spec.total is not None:
         checker.warn("game.total", "only applies to constant_sum")
+    if spec.min_return is not None and spec.max_return is not None and spec.min_return > spec.max_return:
+        checker.error("game.min_return", f"is {spec.min_return:g}, above max_return {spec.max_return:g}",
+                      "swap them, or correct the bound")
     from .describe.claims import CLAIMS, claim_issues
     from .describe.metadata import game_metadata
 
