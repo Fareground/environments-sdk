@@ -12,6 +12,7 @@ from typing import Any, Callable, Dict, Generator, List, Mapping, Optional, Tupl
 
 from ..entity import Entity
 from .actions import ACTION_BUDGET, ActionBook, stage_actions
+from .assets.store import AssetStore
 from .budget import Budget, is_seconds
 from .build import build_world, whole_setting
 from .contract import MAX_ROUNDS, MAX_STAGE_PASSES, Contract, StageSpec
@@ -72,14 +73,14 @@ class Env(Copying, RunChecks):
     and :meth:`fork`."""
 
     def __init__(self, contract: Contract, inputs: Dict[str, Any], seed: int, arm: Optional[str] = None,
-                 parallel: int = 8, exposures: bool = False):
+                 parallel: int = 8, exposures: bool = False, assets: Optional[AssetStore] = None):
         self.contract = contract
         self.inputs = inputs
         self.seed = seed
         self.arm = arm
         self.parallel = max(1, parallel)
         self.seeds = SeedTree(seed)
-        self.world = build_world(contract, inputs, self.seeds, arm)
+        self.world = build_world(contract, inputs, self.seeds, arm, assets)
         self.world.enable_def_cache()
         self.effects = EffectRunner(self.world)
         self.actions = ActionBook(contract, self.world, self.effects)
@@ -92,6 +93,8 @@ class Env(Copying, RunChecks):
         self.error: Optional[str] = None
         self._memories: Dict[str, Memory] = {}
         self._briefs: Dict[str, str] = {}
+        #: The assets each agent's brief attaches (fixed with the brief text).
+        self._brief_assets: Dict[str, List[str]] = {}
         self._used_round: Dict[str, Dict[str, int]] = {}
         self._fired_once: set = set()
         self._lock = threading.RLock()
@@ -121,7 +124,7 @@ class Env(Copying, RunChecks):
         #: The state each invariant was last found to hold in (see _check_invariants).
         self._invariant_held: Dict[int, Any] = {}
         self._end_on_action = any(end.check == "action" for end in contract.end)
-        self.diagnosis = Diagnosis(self.world.written)
+        self.diagnosis = self.world.diagnosis = Diagnosis(self.world.written)
         self._check_invariants("build", "build")
 
     # -- public API ----------------------------------------------------------------
@@ -252,6 +255,7 @@ class Env(Copying, RunChecks):
             host_tape=tape_of(self) if self.world.exposures is not None else {}, budget=Budget.report(self),
             formats={name: spec.format for name, spec in self.contract.outputs.items() if spec.format},
             diagnostics=diagnose(self, outputs),
+            assets=self.world.assets.to_dict() if len(self.world.assets) else {},
         )
 
     @property
@@ -279,11 +283,17 @@ class Env(Copying, RunChecks):
         return take_snapshot(self)
 
     @classmethod
-    def restore(cls, contract: Any, snapshot: Mapping[str, Any], parallel: int = 8, hosts: Any = None) -> "Env":
+    def restore(cls, contract: Any, snapshot: Mapping[str, Any], parallel: int = 8, hosts: Any = None,
+                data_dir: Any = None) -> "Env":
         """Continue a run from :meth:`snapshot`. ``contract`` is the contract it was taken with
         (a :class:`Contract`, dict, path or JSON text; the snapshot's arm is applied if needed).
-        ``hosts`` answers host judgment; answers already recorded in the snapshot are never asked again."""
+        ``hosts`` answers host judgment; answers already recorded in the snapshot are never asked again.
+        The contract's files are found again in its folder (or ``data_dir``) and checked against the recorded hashes."""
+        from .api import default_data_dir
+        from .assets.catalog import locate
+
         env = restore_env(cls, contract, snapshot, parallel)
+        locate(env.world.assets, default_data_dir(contract, data_dir))
         if hosts is not None:
             from .host.hosts import bind
 
@@ -727,7 +737,7 @@ class Env(Copying, RunChecks):
     def _commit_choices(self, stage: StageSpec, turns: List[Turn]) -> _Steps:
         """Commit each agent's sealed choices in turn order; atomic stages commit or undo each agent's as a whole."""
         atomic = stage.atomic or bool(stage.valid)
-        writes = self.world.sealed_writes = SealedWrites(stage.name, self.diagnosis)
+        writes = self.world.watched_writes = SealedWrites(stage.name, self.diagnosis)
         try:
             for turn in turns:
                 mark = self.world.journal.mark() if atomic else None
@@ -747,7 +757,7 @@ class Env(Copying, RunChecks):
                     self._atomic(stage.on_idle, {"actor": turn.actor}, f"stages.{stage.name}.on_idle")
                 self._turn_end_hook(stage, turn.actor)
         finally:
-            self.world.sealed_writes = None
+            self.world.watched_writes = None
         yield from ()
 
     def _tally(self, actor_id: str, stats: Stats) -> None:
@@ -792,7 +802,8 @@ class Env(Copying, RunChecks):
                 return 0
             outcome = self.actions.apply(actor, name, params)
             text = outcome.text if outcome.ok else f"Your {verb} failed: {outcome.text}"
-            world.emit("outcome", text, actor=actor.id, to=(actor.id,), data={"action": name, "ok": outcome.ok})
+            data = {"action": name, "ok": outcome.ok, **({"assets": outcome.assets} if outcome.assets else {})}
+            world.emit("outcome", text, actor=actor.id, to=(actor.id,), data=data)
             if not outcome.ok:
                 self.diagnosis.refused_at_commit(name, outcome.text)
                 self._tally(actor.id, Stats(rejected_actions=1))
@@ -825,7 +836,10 @@ class Env(Copying, RunChecks):
     def _brief(self, actor: Entity) -> str:
         brief = self._briefs.get(actor.id)
         if brief is None:
-            brief = self._briefs[actor.id] = self.perception.brief(actor)
+            attached: List[str] = []
+            brief = self._briefs[actor.id] = self.perception.brief(actor, attached)
+            if attached:
+                self._brief_assets[actor.id] = attached
         return brief
 
     def _flush_events(self) -> None:

@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from ..entity import Entity
+from .assets.delivery import attached_ids
+from .assets.intake import file_schema, file_value
 from .contract import MAX_LIST_ITEMS, ActionSpec, Contract, ParamSpec, RecordSpec, StageSpec
 from .effects import EffectRunner
 from .errors import RunError
@@ -88,6 +90,8 @@ class Outcome:
     text: str
     success: bool = True
     params: Dict[str, Any] = field(default_factory=dict)
+    #: The assets the action's `attach` delivers to its actor.
+    assets: List[str] = field(default_factory=list)
 
 
 def stage_actions(contract: Contract, stage: StageSpec, type_name: str) -> List[str]:
@@ -324,6 +328,9 @@ class ActionBook:
                     out["multipleOf"] = _tidy(param.step)
         elif param.type == "bool":
             out["type"] = "boolean"
+        elif param.type == "file":
+            out.update(file_schema(param))
+            description = out.pop("description")
         elif param.type == "text":
             out["type"] = "string"
             out["maxLength"] = param.max_len if param.max_len is not None else TEXT_MAX_LEN
@@ -486,6 +493,8 @@ class ActionBook:
                     return None, f"must go in steps of {format_value(param.step)} from {format_value(base or 0)} " \
                                  f"(got {format_value(value)})"
             return value, None
+        if kind == "file":
+            return file_value(self.world, param, raw)
         if kind == "bool":
             if isinstance(raw, str) and raw.strip().lower() in ("true", "false"):
                 return raw.strip().lower() == "true", None
@@ -627,6 +636,7 @@ class ActionBook:
                 success = world.rng.random() < probability
             self.effects.run(spec.do if success else spec.otherwise, vars, f"{path}.{'do' if success else 'otherwise'}")
             text = self._render(spec.outcome, vars, f"{path}.outcome") if spec.outcome else self._default_outcome(name, params, success)
+            assets = attached_ids(world, spec.attach, world.scope(**vars), f"{path}.attach") if spec.attach else []
             announce = spec.announce
             if not spec.private:
                 public = self._public_params(params, self._posted_since(record_mark))
@@ -653,7 +663,7 @@ class ActionBook:
         except RunError:
             world.journal.rollback(mark)
             raise
-        return Outcome(True, text, success, params)
+        return Outcome(True, text, success, params, assets)
 
     def duration(self, actor: Entity, name: str, params: Dict[str, Any]) -> float:
         """How long the action takes on a continuous clock (0 when it declares no duration)."""

@@ -68,6 +68,7 @@ SECTIONS: List[Tuple[str, List[Type[BaseModel]], str, str]] = [
     ("clock", [C.Clock], "Clock", "How long a run lasts (`rounds`, default 20) and what one round is called."),
     ("inputs", [C.InputSpec], "{name: InputSpec}", "Typed values supplied when the contract is loaded ($inputs.x): knobs, data tables."),
     ("world", [C.PropSpec], "{prop: default | PropSpec}", "Global properties ($world.x)."),
+    ("assets", [C.AssetSpec], "{asset: AssetSpec}", "Files beside the contract — images, PDFs, text, audio — delivered to agents under the visibility rules; see guide('assets')."),
     ("types", [C.TypeSpec, C.PropSpec], "{type: TypeSpec}", "Kinds of entities and their properties; `agent: true` makes a type act."),
     ("entities", [C.EntitySpec], "{id: EntitySpec}", "Named entities (the name defaults to the id)."),
     ("population", [C.PopulationSpec], "[PopulationSpec]", "Generated entities: a count, or one per data row, with sampled traits."),
@@ -127,7 +128,7 @@ def section_page(section: str) -> str:
 _CORE_GROUPS = {
     "collections": "count sum avg min max median quantile stdev top bottom filter map pick any all ids len first last "
                    "unique tally mode sort reverse slice range flatten dict keys values get is",
-    "world": "entity exists records events seen",
+    "world": "entity exists records events seen asset",
     "space": "relation linked link links neighbors distance",
     "math": "abs floor ceil sqrt exp log round clamp pct",
     "random": "random chance uniform randint normal lognormal beta exponential poisson choice sample shuffle",

@@ -19,9 +19,12 @@ runs the async participants of a simultaneous stage concurrently.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
+import os
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
 from .actions import ToolSpec
+from .assets.delivery import Attachment
+from .assets.intake import intake
 from .measure import Stats
 
 if TYPE_CHECKING:
@@ -41,6 +44,8 @@ class ToolResult:
     text: str
     ended: bool = False
     data: Dict[str, Any] = field(default_factory=dict)
+    #: Files delivered with the result (an action's `attach`, a view's, or the asset properties inspect shows).
+    attachments: List[Attachment] = field(default_factory=list)
 
     def __str__(self) -> str:
         return self.text
@@ -101,6 +106,14 @@ class Wake:
         return self._turn.update
 
     @property
+    def attachments(self) -> List[Attachment]:
+        """The files delivered with the brief and the update (reading them reads both): each has ``type``, ``name``,
+        ``media_type``, ``caption``, ``alt``, ``size``, ``hash``, ``read()`` for its bytes and ``text()`` for text files."""
+        self.brief
+        self.update
+        return self._turn.attachments()
+
+    @property
     def tools(self) -> List[ToolSpec]:
         """Tools legal right now. Recomputed after every call."""
         if not self._turn._offered:
@@ -131,8 +144,17 @@ class Wake:
         turn = self._turn
         with turn.env._lock:  # a call made after the deadline is refused, so it is no step on the tape
             if turn.refusal() is None:
+                args = intake(turn, name, args)  # submitted files are stored first: the tape holds their ids
                 turn.record("call", name, _copy(args))
             return turn.call(name, args)
+
+    def upload(self, source: Union[bytes, str, "os.PathLike[str]"], name: Optional[str] = None) -> str:
+        """Store a file for this agent — bytes, or a path your own code chose — and return its id, to pass as a
+        `file` argument (``{"asset": id}``). Its kind is recognised from its bytes; it is untrusted like any
+        participant text."""
+        from .assets.intake import upload
+
+        return upload(self._turn, source, name)
 
     def end(self) -> ToolResult:
         """Finish the turn."""

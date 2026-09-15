@@ -209,9 +209,15 @@ class Replayer:
 
     def _ending_differs(self, turn: "Turn", recorded: Mapping[str, Any],
                         made: List[Mapping[str, Any]]) -> Optional[Dict[str, Any]]:
-        played = len(_effective(self._live_record(turn)[0]["calls"]))
+        live = self._live_record(turn)[0]
+        played = len(_effective(live["calls"]))
         if played != len(made):
             return self._count_differs(recorded, len(made), played)
+        before, now = recorded.get("assets", []), live.get("assets", [])
+        if before != now:
+            return {**_at(recorded), "what": "assets", "expected": before, "got": now,
+                    "message": f"{_label(recorded)}: the files delivered differ from the recording — recorded "
+                               f"{_files(before)}; now {_files(now)}"}
         if recorded["timed_out"] != turn.timed_out:  # the live record gets its totals when the turn closes
             which = "the recording" if recorded["timed_out"] else "the replay"
             return {**_at(recorded), "what": "timeout", "expected": recorded["timed_out"], "got": turn.timed_out,
@@ -438,6 +444,10 @@ def _plain(value: Any) -> Any:
 def _at(wake: Mapping[str, Any]) -> Dict[str, Any]:
     return {"turn": wake["turn"], "wake": wake.get("wake"), "entity": wake["entity"], "round": wake["round"],
             "stage": wake["stage"]}
+
+
+def _files(delivered: List[Mapping[str, Any]]) -> str:
+    return ", ".join(f"{item['id']} ({item['hash'][:8]}, {item['in']})" for item in delivered) or "none"
 
 
 def _label(wake: Mapping[str, Any]) -> str:
