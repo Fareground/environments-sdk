@@ -46,6 +46,7 @@ from .sdk.tournament import tournament
 from .sdk.describe import describe
 from .sdk.patterns.fit import FitResult, fit_patterns
 from .sdk.patterns.decompose import Decomposition, decompose
+from .sdk.report import Report, report
 from .sdk.trace import trace
 from .sdk.evaluate import evaluate
 
@@ -88,6 +89,8 @@ __all__ = [
     "FitResult",
     "decompose",
     "Decomposition",
+    "report",
+    "Report",
     "score",
     "backtest",
     "validate",
