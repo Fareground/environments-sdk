@@ -195,8 +195,7 @@
         "$actor.initial_why = $params.rationale"
       ],
       "outcome": "Initial ballot recorded: {$params.probability|1}%.",
-      "private": true,
-      "terminal": true
+      "private": true
     },
     "say": {
       "by": "panelist",
@@ -297,8 +296,7 @@
         "$actor.final = $params.probability"
       ],
       "outcome": "Final ballot recorded: {$params.probability|1}%.",
-      "private": true,
-      "terminal": true
+      "private": true
     }
   },
   "stages": [

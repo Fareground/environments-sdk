@@ -301,8 +301,7 @@
         }
       ],
       "outcome": "Your vision is clear: {$params.target.name} is {$verdict}.",
-      "private": true,
-      "terminal": true
+      "private": true
     },
     "protect": {
       "by": "player",
@@ -325,8 +324,7 @@
         "$actor.protecting = $params.target.id"
       ],
       "outcome": "You will watch over {$params.target.name} tonight.",
-      "private": true,
-      "terminal": true
+      "private": true
     },
     "say": {
       "by": "player",
@@ -397,8 +395,7 @@
         "$actor.vote = $params.target.id"
       ],
       "outcome": "Your ballot for {$params.target.name} is cast.",
-      "private": true,
-      "terminal": true
+      "private": true
     },
     "abstain": {
       "by": "player",
@@ -413,8 +410,7 @@
         "$actor.vote = ''"
       ],
       "outcome": "You abstained.",
-      "private": true,
-      "terminal": true
+      "private": true
     }
   },
   "stages": [

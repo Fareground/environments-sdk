@@ -47,7 +47,6 @@
     "pass": {
       "by": "player",
       "description": "Check, or fold facing a bet.",
-      "terminal": true,
       "when": [{"expr": "$world.to_act == $actor.id and not $world.over", "why": "It is not your turn."}],
       "do": [
         {"if": "$world.history == ''",
@@ -60,7 +59,6 @@
     "bet": {
       "by": "player",
       "description": "Bet 1, or call a bet.",
-      "terminal": true,
       "when": [{"expr": "$world.to_act == $actor.id and not $world.over", "why": "It is not your turn."}],
       "do": [
         {"if": "$world.history == ''",

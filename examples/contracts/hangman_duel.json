@@ -84,8 +84,7 @@
         {"if": "not $contains($mask($rival.secret, $actor.guessed), '_')", "then": ["$actor.solved = true"]}
       ],
       "outcome": "{$upper($l)}: {$text($hits) + ' in the word' if $hits > 0 else 'not in the word, a strike'}. Board: {$board_of($actor)} (strikes {$actor.strikes} of {$inputs.strikes})",
-      "private": true,
-      "terminal": true
+      "private": true
     },
     "solve": {
       "by": "player",
@@ -105,8 +104,7 @@
         "$verdict = 'right' if $actor.solved else ('wrong, but close' if $similar($a, $lower($rival.secret)) >= 0.7 else 'wrong')"
       ],
       "outcome": "{$upper($a)} is {$verdict}. Board: {$board_of($actor)} (strikes {$actor.strikes} of {$inputs.strikes})",
-      "private": true,
-      "terminal": true
+      "private": true
     }
   },
   "stages": [

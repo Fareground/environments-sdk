@@ -460,7 +460,6 @@
       ],
       "outcome": "{$'You started brewing ' if $is($actor, factory) else 'You ordered '}{$params.qty} units.",
       "private": true,
-      "terminal": true,
       "per_round": 1
     }
   },

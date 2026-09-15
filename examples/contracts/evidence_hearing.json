@@ -31,7 +31,7 @@
       "params": {"exhibit": {"type": "text", "max_len": 80, "description": "The exhibit, e.g. 'the signed supply agreement'."}},
       "when": [{"expr": "$stack(hearing, top) == null", "why": "Wait until the pending exhibit has been dealt with."}],
       "do": [{"flow": "hearing", "action": "push", "item": "exhibit", "params": {"name": "$params.exhibit", "side": "$actor.side"}}],
-      "outcome": "You offered {$params.exhibit}.", "terminal": true
+      "outcome": "You offered {$params.exhibit}."
     }
   },
   "mechanisms": {

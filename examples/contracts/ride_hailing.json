@@ -560,8 +560,7 @@
         "$actor.heading = none"
       ],
       "outcome": "You accepted {$params.request.id}: pickup {$distance($actor, $params.request)} blocks away, then a {$params.request.trip}-block trip paying you {$round($params.request.fare * $inputs.driver_share, 2)|money}.",
-      "private": true,
-      "terminal": true
+      "private": true
     },
     "reposition": {
       "by": "driver",
@@ -584,8 +583,7 @@
         "$actor.heading = $params.zone.id"
       ],
       "outcome": "Heading to {$params.zone.name}, {$distance($actor, $params.zone)} blocks to its center.",
-      "private": true,
-      "terminal": true
+      "private": true
     },
     "go_offline": {
       "by": "driver",
@@ -601,8 +599,7 @@
         "$actor.heading = none"
       ],
       "outcome": "You are offline.",
-      "private": true,
-      "terminal": true
+      "private": true
     },
     "go_online": {
       "by": "driver",
@@ -617,8 +614,7 @@
         "$actor.status = idle"
       ],
       "outcome": "You are back online.",
-      "private": true,
-      "terminal": true
+      "private": true
     }
   },
   "stages": [

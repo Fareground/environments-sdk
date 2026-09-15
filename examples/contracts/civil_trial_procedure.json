@@ -547,8 +547,7 @@
         }
       ],
       "outcome": "Your opening statement is on the record.",
-      "announce": "{$actor.name} delivered an opening statement.",
-      "terminal": true
+      "announce": "{$actor.name} delivered an opening statement."
     },
     "offer_exhibit": {
       "by": "attorney",
@@ -580,8 +579,7 @@
       ],
       "outcome": "You offered {$params.exhibit.name} (claimed credibility {$params.claimed_credibility|pct}).",
       "announce": "{$actor.name} offered {$params.exhibit.name} into evidence, claiming credibility {$params.claimed_credibility|pct}.",
-      "per_round": 1,
-      "terminal": true
+      "per_round": 1
     },
     "object": {
       "by": "attorney",
@@ -689,8 +687,7 @@
         }
       ],
       "outcome": "Your closing argument is on the record.",
-      "announce": "{$actor.name} delivered a closing argument.",
-      "terminal": true
+      "announce": "{$actor.name} delivered a closing argument."
     },
     "instruct_jury": {
       "by": "judge",
@@ -717,8 +714,7 @@
         }
       ],
       "outcome": "The jury has been instructed.",
-      "announce": "{$actor.name} instructed the jury.",
-      "terminal": true
+      "announce": "{$actor.name} instructed the jury."
     },
     "speak": {
       "by": "juror",
@@ -797,8 +793,7 @@
         "$actor.award = $params.award if $params.verdict == liable else 0"
       ],
       "outcome": "Your secret ballot is cast: {$params.verdict}.",
-      "private": true,
-      "terminal": true
+      "private": true
     },
     "enter_judgment": {
       "by": "judge",
@@ -829,8 +824,7 @@
           "say": "Judgment entered: {$world.verdict}, damages {$params.damages|money}."
         }
       ],
-      "outcome": "Judgment entered with damages of {$params.damages|money}.",
-      "terminal": true
+      "outcome": "Judgment entered with damages of {$params.damages|money}."
     },
     "cross_examine": {
       "by": "attorney",
@@ -865,8 +859,7 @@
         }
       ],
       "announce": "{$actor.name} cross-examined the witness behind {$params.exhibit.name}.",
-      "per_round": 1,
-      "terminal": true
+      "per_round": 1
     }
   },
   "stages": [],

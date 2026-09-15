@@ -636,8 +636,7 @@
         "$actor.vote = $params.decision"
       ],
       "outcome": "You voted to {$params.decision} the mediator's proposal.",
-      "private": true,
-      "terminal": true
+      "private": true
     }
   },
   "stages": [

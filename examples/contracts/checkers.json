@@ -301,8 +301,7 @@
         }
       ],
       "outcome": "You played {$params.move}.{$' Crowned a king.' if $crown else ''}{$join([' Captured a piece; you must jump again with the same piece (', $sqname($d), ').'], '') if $more else ''}",
-      "announce": "{$actor.name} played {$params.move}.",
-      "terminal": true
+      "announce": "{$actor.name} played {$params.move}."
     }
   },
   "stages": [

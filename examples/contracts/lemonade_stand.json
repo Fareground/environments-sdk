@@ -40,8 +40,7 @@
       },
       "do": [
         "$actor.price = $params.price"
-      ],
-      "terminal": true
+      ]
     }
   },
   "stages": [

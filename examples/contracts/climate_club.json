@@ -585,8 +585,7 @@
         "$actor.cut = $params.cut"
       ],
       "outcome": "You will cut {$params.cut|1}% this period, costing about {$share($abatement_share($params.cut, $actor.intensity))} of GDP a year.",
-      "private": true,
-      "terminal": true
+      "private": true
     }
   },
   "stages": [

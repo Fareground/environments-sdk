@@ -241,8 +241,7 @@
         }
       ],
       "outcome": "Your {$actor.mark} landed in column {$params.column}, row {$slot.r + 1}.",
-      "announce": "{$actor.name} ({$actor.mark}) dropped a piece into column {$params.column}; it landed on row {$slot.r + 1}.",
-      "terminal": true
+      "announce": "{$actor.name} ({$actor.mark}) dropped a piece into column {$params.column}; it landed on row {$slot.r + 1}."
     }
   },
   "stages": [
