@@ -10,7 +10,7 @@ import pytest
 
 import fg_env
 from fg_env.sdk.game.algorithms import (CFRSolver, ISMCTSBot, MCTSBot, TabularPolicy, best_response, determinize,
-                                        exploitability, extract_tree, minimax, policy_values)
+                                        exploitability, extract_tree, minimax, nash_conv, policy_values)
 from game_contracts import GAMES
 
 slow = pytest.mark.skipif(not os.environ.get("FG_ENV_SLOW"), reason="slow verification: set FG_ENV_SLOW=1")
@@ -84,9 +84,10 @@ def test_tic_tac_toe_is_a_draw_from_the_empty_board():
 
 
 @slow
-def test_leduc_uniform_policy_has_openspiels_exploitability():
+def test_leduc_uniform_policy_has_openspiels_nash_conv():
     tree = extract_tree(_game("leduc_poker"))
-    assert exploitability(tree, _uniform(tree)) == pytest.approx(4.747222, abs=1e-5)
+    assert nash_conv(tree, _uniform(tree)) == pytest.approx(4.747222, abs=1e-5)  # OpenSpiel's value
+    assert exploitability(tree, _uniform(tree)) == pytest.approx(4.747222 / 2, abs=1e-5)
 
 
 def test_mcts_beats_a_random_player_at_tic_tac_toe():
