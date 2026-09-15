@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Protocol, Sequence, runtime_checkable
 
-__all__ = ["HostError", "Evaluator", "GameMaster", "Tools", "Writer", "Ranker"]
+__all__ = ["HostError", "Evaluator", "GameMaster", "Tools", "Writer", "Ranker", "Feed"]
 
 
 class HostError(Exception):
@@ -77,3 +77,16 @@ class Ranker(Protocol):
     """
 
     def rank(self, request: Mapping[str, Any]) -> Sequence[float]: ...
+
+
+@runtime_checkable
+class Feed(Protocol):
+    """Supplies external data for a contract's ``feeds``: live or historical prices, news, weather.
+
+    Request: ``{"feed", "query", "into", "expects", "round", "time", "date"}`` — ``expects`` is the
+    target's shape (``{"type", "values"?, "min"?, "max"?}`` for a world prop, ``{"entries": {field: type}}``
+    for a record). Answer: the prop's new value, or one record entry's fields or a list of entries.
+    Text in the answer reaches agents marked untrusted.
+    """
+
+    def fetch(self, request: Mapping[str, Any]) -> Any: ...

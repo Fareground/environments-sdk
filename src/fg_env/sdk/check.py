@@ -20,7 +20,16 @@ from pydantic import BaseModel, ValidationError
 from ..physics import _CONSTS, _FUNCS, PhysicsExprError, _CompiledExpr
 from . import contract as C
 from .contract import Contract
+from .check_state import (
+    check_delivery,
+    check_feeds,
+    check_hooks,
+    check_link_fields,
+    check_physics_state,
+    check_relation_fields,
+)
 from .effects import (
+    POST_KEYS,
     REPEAT_CEILING,
     RESERVED_ROOTS,
     all_ops,
@@ -510,6 +519,8 @@ class _Checker:
                     self.error(path, "`wake` takes `now` or `in`, not both")
                 if "in" in effect and self.c.clock.mode != "continuous":
                     self.error(f"{path}.in", "`in` needs a continuous clock", "set clock.mode to continuous")
+                v("drop")
+                check_delivery(self, op, effect, path)
         elif op == "transfer":
             prop = effect["transfer"]
             if not any(prop in props for props in self.type_props.values()):
@@ -531,6 +542,7 @@ class _Checker:
                 v(key)
             if op == "link":
                 v("value")
+                check_link_fields(self, effect[op], effect.get("props", {}), f"{path}.props", roots, types, params)
         elif op == "post":
             record = effect["post"]
             spec = self.c.records.get(record)
@@ -539,16 +551,20 @@ class _Checker:
                            self._suggest(record, self.c.records) or "declare it under `records`")
             else:
                 for key in effect:
-                    if key not in ("post", "to", "author") and key not in spec.fields:
+                    if key not in POST_KEYS and key not in spec.fields:
                         self.error(f"{path}.{key}", f"record '{record}' has no field '{key}'",
                                    self._suggest(key, spec.fields) or f"fields: {', '.join(spec.fields)}")
             for key, raw in effect.items():
                 if key != "post":
                     self.value(raw, f"{path}.{key}", roots, types, params)
+            check_delivery(self, op, effect, path)
         elif op == "emit":
             self.template(effect.get("say"), f"{path}.say", None, roots, types, params)
             v("to")
             v("data")
+            v("delay")
+            v("drop")
+            check_delivery(self, op, effect, path)
         elif op == "fail":
             self.template(effect["fail"], f"{path}.fail", None, roots, types, params)
         elif op == "end":
@@ -594,11 +610,15 @@ class _Checker:
         self._brief()
         self._clock_space()
         self._types_and_world()
+        check_hooks(self, BASE)
         self._keyword_names()
         self._entities()
         self._relations()
+        check_relation_fields(self, BASE)
         self._physics()
+        check_physics_state(self, BASE)
         self._records()
+        check_feeds(self, BASE)
         self._actions()
         self._stages()
         self._views()
@@ -797,7 +817,7 @@ class _Checker:
                            self._suggest(link.relation, self.c.relations) or "declare it under `relations`")
             if not is_expr(link.value) and (isinstance(link.value, bool) or not isinstance(link.value, (int, float))):
                 self.error(f"{path}.value", f"a link value must be a number, got {json.dumps(link.value, default=str)[:60]}",
-                           "one number per link; for several fields per link use an entity per link")
+                           "one number per link; declare other data as the relation's `props` and set them with `props`")
             graphs = ("complete", "ring", "random", "small_world", "scale_free", "blocks", "lattice", "star", "bipartite")
             if link.rows is not None:
                 self.expr(link.rows, f"{path}.rows", BASE)
@@ -873,6 +893,9 @@ class _Checker:
                     self.error(f"{path}.fields.{field}", f"unknown field type '{kind}'", ", ".join(RECORD_FIELD_TYPES))
                 if field in ENTRY_FIELDS:
                     self.error(f"{path}.fields.{field}", f"'{field}' is a built-in entry field")
+                elif field in POST_KEYS:
+                    self.error(f"{path}.fields.{field}", f"'{field}' is a `post` option, so a post cannot set it",
+                               "rename the field")
             if spec.visible != "all":
                 self.expr(spec.visible, f"{path}.visible", BASE | {"viewer", "it"}, {"viewer": set(self.agents)})
             self.template(spec.show, f"{path}.show", "it", BASE | {"actor", "it"}, {"actor": set(self.agents)})

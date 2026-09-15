@@ -2,7 +2,8 @@
 
 ``anthropic(client, model)`` / ``openai(client, model)`` give one :class:`LLMHost` that can serve
 as evaluator, game master, writer and ranker; ``anthropic_web_search(client, model)`` is a
-``Tools`` adapter using Anthropic's server-side web search::
+``Tools`` adapter using Anthropic's server-side web search; ``historical(rows)`` is a ``Feed``
+that replays a history (prices by date) for backtests::
 
     import anthropic as sdk
     from fg_env.sdk import host
@@ -20,11 +21,12 @@ from __future__ import annotations
 import json
 import threading
 import time
-from typing import Any, Callable, Dict, List, Mapping
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence
 
 from .protocols import HostError
 
-__all__ = ["LLMHost", "AnthropicWebSearch", "anthropic", "openai", "anthropic_web_search", "parse_json"]
+__all__ = ["LLMHost", "AnthropicWebSearch", "HistoricalFeed", "anthropic", "openai", "anthropic_web_search",
+           "historical", "parse_json"]
 
 _ROLES = {"judge": "impartial judge", "resolve": "game master", "rank": "memory ranker", "write": "writer"}
 _ANSWERS = {
@@ -204,6 +206,39 @@ class AnthropicWebSearch(_Provider):
         return text
 
 
+class HistoricalFeed:
+    """A ``Feed`` that replays history: each request gets the latest row at or before the run's moment
+    (its ``date``, ``round`` or ``time``), so a run over a past period sees exactly what was known then."""
+
+    MOMENTS = ("date", "round", "time")
+
+    def __init__(self, rows: Sequence[Mapping[str, Any]], *, at: str = "date", value: Optional[str] = None):
+        if at not in self.MOMENTS:
+            raise ValueError(f"at must be one of {', '.join(self.MOMENTS)}, got {at!r}")
+        if isinstance(rows, (str, bytes)) or not all(isinstance(row, Mapping) and at in row for row in rows):
+            raise ValueError(f"rows must be objects that each have an '{at}' column")
+        if value is not None and not all(value in row for row in rows):
+            raise ValueError(f"every row needs the '{value}' column")
+        self.at = at
+        self.value = value
+        self.rows = sorted((dict(row) for row in rows), key=lambda row: row[at])
+
+    def fetch(self, request: Mapping[str, Any]) -> Any:
+        moment = request.get(self.at)
+        if moment is None:
+            raise HostError(f"the run has no {self.at} to look up (a date needs clock.start; a time, a continuous clock)")
+        chosen: Optional[Dict[str, Any]] = None
+        for row in self.rows:
+            if row[self.at] > moment:
+                break
+            chosen = row
+        if chosen is None:
+            raise HostError(f"the history starts after {self.at} {moment}")
+        if self.value is not None:
+            return chosen[self.value]
+        return {key: item for key, item in chosen.items() if key != self.at}
+
+
 def anthropic(client: Any, model: str, **kwargs: Any) -> LLMHost:
     """An :class:`LLMHost` on an ``anthropic.Anthropic()`` client."""
     return LLMHost(client, model, provider="anthropic", **kwargs)
@@ -217,3 +252,8 @@ def openai(client: Any, model: str, **kwargs: Any) -> LLMHost:
 def anthropic_web_search(client: Any, model: str, **kwargs: Any) -> AnthropicWebSearch:
     """A web search ``Tools`` adapter on an ``anthropic.Anthropic()`` client."""
     return AnthropicWebSearch(client, model, **kwargs)
+
+
+def historical(rows: Sequence[Mapping[str, Any]], *, at: str = "date", value: Optional[str] = None) -> HistoricalFeed:
+    """A :class:`HistoricalFeed` over ``rows`` (e.g. ``historical(prices, at="date", value="close")``)."""
+    return HistoricalFeed(rows, at=at, value=value)

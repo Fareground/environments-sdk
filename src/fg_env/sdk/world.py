@@ -6,16 +6,20 @@ import datetime as _dt
 import heapq
 import math
 import threading
+from contextlib import contextmanager
 from difflib import get_close_matches
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Tuple
 
 from ..entity import Entity
-from ..physics import PhysicsExprError, PhysicsModel, PhysicsVariable, _CompiledExpr
+from ..physics import PhysicsModel, _CompiledExpr
 from .contract import Contract, PropSpec
 from .errors import RunError
 from .expr import ExprError, FUNCTIONS, Scope, Untrusted, World, compile_expr, is_expr, truthy
+from .props import finite_number as _finite_number, prop_type, shown_value as _shown_value
 from .seeds import SeedTree
+from . import links as _links, world_physics
+from .links import Link
 
 __all__ = ["SdkWorld", "Entry", "LogEvent", "Abort", "prop_type"]
 
@@ -26,25 +30,6 @@ class Abort(Exception):
     def __init__(self, reason: str):
         self.reason = reason
         super().__init__(reason)
-
-
-def prop_type(spec: PropSpec) -> str:
-    if spec.type:
-        return spec.type
-    value = spec.default
-    if isinstance(value, bool):
-        return "bool"
-    # A numeric default means "a number": `"cash": 0` must accept 12.5 later.
-    # Whole-number enforcement is opt-in with `"type": "int"`.
-    if isinstance(value, (int, float)):
-        return "number"
-    if isinstance(value, str) and not is_expr(value):
-        return "enum" if spec.values else "text"
-    if isinstance(value, list):
-        return "list"
-    if isinstance(value, dict):
-        return "map"
-    return "any"
 
 
 class Entry(dict):
@@ -192,6 +177,8 @@ class SdkWorld(World):
         self.entities: Dict[str, Entity] = {}
         self.props: Dict[str, Any] = {}
         self.links: Dict[str, Dict[Tuple[str, str], float]] = {name: {} for name in contract.relations}
+        #: relation → (a, b) → the link's fields (relations that declare props)
+        self.link_fields: Dict[str, Dict[Tuple[str, str], Dict[str, Any]]] = {name: {} for name in contract.relations}
         #: relation → entity id → {linked entity id: number of edges between them}
         self.adjacent: Dict[str, Dict[str, Dict[str, int]]] = {name: {} for name in contract.relations}
         self.records_store: Dict[str, List[Entry]] = {name: [] for name in contract.records}
@@ -201,6 +188,8 @@ class SdkWorld(World):
         self.entity_briefs: Dict[str, str] = {}
         self.log: List[LogEvent] = []
         self.physics: Optional[PhysicsModel] = None
+        self.physics_writes: List[Tuple[str, _CompiledExpr]] = []
+        self.entity_dynamics: List[Any] = []
         self.round = 0
         self.stage: Optional[str] = None
         self.rounds = 0
@@ -221,6 +210,8 @@ class SdkWorld(World):
         self.end_request: Optional[Dict[str, Any]] = None
         self.counters: Dict[str, int] = {}
         self.journal = _Journal()
+        #: Called as ``lifecycle(hook, entity, where)`` after every creation and removal (set by the effect runner).
+        self.lifecycle: Optional[Callable[[str, Entity, str], None]] = None
         self._seq = 0
         self._record_seq = 0
         self._props_view = _Props(self)
@@ -257,6 +248,16 @@ class SdkWorld(World):
     def use_turn_pending(self, pending: Optional[List[Dict[str, Any]]]) -> None:
         self._local.pending = pending
 
+    @contextmanager
+    def drawing_from(self, rng: Any) -> Iterator[None]:
+        """Inside the block this thread draws from ``rng``, then from the stream it used before."""
+        previous = getattr(self._local, "rng", None)
+        self._local.rng = rng
+        try:
+            yield
+        finally:
+            self._local.rng = previous
+
     # -- expression interface ------------------------------------------------
 
     def entities_of(self, type_name: str) -> List[Entity]:
@@ -282,18 +283,17 @@ class SdkWorld(World):
         return [e for e in self.log if (kind is None or e.kind == kind) and (seen is None or e.visible_to(seen))]
 
     def relation(self, a: Any, b: Any, kind: str) -> Optional[float]:
-        edges = self._edges(kind)
-        return edges.get(self._key(kind, _id(a), _id(b)))
+        return _links.relation(self, a, b, kind)
 
     def neighbors(self, entity: Any, kind: str) -> List[Entity]:
-        self._edges(kind)
-        linked = self.adjacent[kind].get(_id(entity), {})
-        out: List[Entity] = []
-        for other in linked:
-            found = self.entities.get(other)
-            if found is not None and found.alive:
-                out.append(found)
-        return out
+        return _links.neighbors(self, entity, kind)
+
+    def link_view(self, a: Any, b: Any, kind: str) -> Optional[Link]:
+        """The live ``kind`` link from a to b, or None."""
+        return _links.link_view(self, a, b, kind)
+
+    def links_of(self, entity: Any, kind: str) -> List[Link]:
+        return _links.links_of(self, entity, kind)
 
     def visible_records(self, name: str, viewer: Any) -> List[Entry]:
         rows = self.records(name)
@@ -594,13 +594,17 @@ class SdkWorld(World):
             entity.location_id = self._check_location(at, where)
         self.entities[eid] = entity
         self.journal.push(lambda: self.entities.pop(eid, None))
+        if self.lifecycle is not None:
+            self.lifecycle("on_create", entity, where)
         return entity
 
-    def remove(self, entity: Entity) -> None:
+    def remove(self, entity: Entity, where: str = "remove") -> None:
         if not entity.alive:
             return
         entity.alive = False
         self.journal.push(lambda: setattr(entity, "alive", True))
+        if self.lifecycle is not None:
+            self.lifecycle("on_remove", entity, where)
 
     def move(self, entity: Entity, at: Any, where: str) -> None:
         location = self._check_location(at, where)
@@ -608,65 +612,18 @@ class SdkWorld(World):
         entity.location_id = location
         self.journal.push(lambda: setattr(entity, "location_id", old))
 
-    def link(self, kind: str, a: Any, b: Any, value: Any, where: str) -> None:
-        spec = self.contract.relations.get(kind)
-        if spec is None:
-            raise RunError(f"'{kind}' is not a declared relation (relations: {', '.join(self.contract.relations) or 'none'})", where)
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            raise RunError(f"link value must be a number, got {value!r}", where)
-        value = float(value)
-        if spec.min is not None:
-            value = max(spec.min, value)
-        if spec.max is not None:
-            value = min(spec.max, value)
-        edges = self.links[kind]
-        key = self._key(kind, _id(a), _id(b))
-        missing = key not in edges
-        old = edges.get(key)
-        edges[key] = value
-        if missing:
-            self._adjust(kind, key, 1)
-
-        def undo() -> None:
-            if missing:
-                edges.pop(key, None)
-                self._adjust(kind, key, -1)
-            else:
-                edges[key] = old
-
-        self.journal.push(undo)
+    def link(self, kind: str, a: Any, b: Any, value: Any, where: str, fields: Optional[Dict[str, Any]] = None) -> None:
+        """Create or update a link (``value`` None keeps the current value; see :func:`links.link`)."""
+        _links.link(self, kind, a, b, value, where, fields)
 
     def unlink(self, kind: str, a: Any, b: Any, where: str) -> None:
-        edges = self._edges(kind, where)
-        key = self._key(kind, _id(a), _id(b))
-        if key in edges:
-            old = edges.pop(key)
-            self._adjust(kind, key, -1)
+        _links.unlink(self, kind, a, b, where)
 
-            def undo() -> None:
-                edges[key] = old
-                self._adjust(kind, key, 1)
-
-            self.journal.push(undo)
-
-    def _adjust(self, kind: str, key: Tuple[str, str], delta: int) -> None:
-        a, b = key
-        if a == b:
-            return
-        index = self.adjacent[kind]
-        for x, y in ((a, b), (b, a)):
-            row = index.setdefault(x, {})
-            count = row.get(y, 0) + delta
-            if count > 0:
-                row[y] = count
-            else:
-                row.pop(y, None)
+    def set_link_field(self, view: Link, name: str, value: Any, where: str) -> None:
+        _links.set_link_field(self, view, name, value, where)
 
     def rebuild_adjacency(self) -> None:
-        self.adjacent = {kind: {} for kind in self.links}
-        for kind, edges in self.links.items():
-            for key in edges:
-                self._adjust(kind, key, 1)
+        _links.rebuild_adjacency(self)
 
     def post(self, record: str, fields: Dict[str, Any], author: Optional[str],
              to: Optional[Tuple[str, ...]], where: str) -> Entry:
@@ -731,9 +688,13 @@ class SdkWorld(World):
         self.journal.push(undo)
         return event
 
-    def schedule(self, due_round: float, effects: List[Any], vars: Dict[str, Any], path: str) -> None:
-        """Run ``effects`` when the round (or, on a continuous clock, the time) reaches ``due_round``."""
-        item = {"effects": effects, "vars": {k: _freeze(v) for k, v in vars.items()}, "path": path}
+    def schedule(self, due_round: float, effects: List[Any], vars: Dict[str, Any], path: str,
+                 delivery: Optional[Dict[str, Any]] = None) -> None:
+        """Run ``effects`` when the round (or, on a continuous clock, the time) reaches ``due_round``;
+        or, with ``delivery``, deliver that message (see :mod:`delivery`)."""
+        item: Dict[str, Any] = {"effects": effects, "vars": {k: _freeze(v) for k, v in vars.items()}, "path": path}
+        if delivery is not None:
+            item["delivery"] = delivery
         self._schedule_seq += 1
         entry = (due_round, self._schedule_seq, item)
         heapq.heappush(self.scheduled, entry)
@@ -778,18 +739,19 @@ class SdkWorld(World):
     def thaw(self, vars: Dict[str, Any]) -> Dict[str, Any]:
         return {k: _thaw(v, self) for k, v in vars.items()}
 
+    # -- physics (see world_physics) --------------------------------------------------
+
+    def build_physics(self) -> None:
+        world_physics.build_physics(self)
+
+    def step_physics(self, elapsed: Optional[float] = None) -> List[Dict[str, Any]]:
+        """Advance physics one round, or by ``elapsed`` clock time on a continuous clock."""
+        return world_physics.step_physics(self, elapsed)
+
     # -- helpers ---------------------------------------------------------------
 
-    def _edges(self, kind: str, where: Optional[str] = None) -> Dict[Tuple[str, str], float]:
-        if kind not in self.links:
-            raise ExprError(f"'{kind}' is not a declared relation (relations: {', '.join(self.links) or 'none'})", where)
-        return self.links[kind]
-
     def _key(self, kind: str, a: str, b: str) -> Tuple[str, str]:
-        spec = self.contract.relations.get(kind)
-        if spec is not None and spec.symmetric and b < a:
-            return (b, a)
-        return (a, b)
+        return _links.edge_key(self, kind, a, b)
 
     def _check_location(self, at: Any, where: str) -> Any:
         space = self.contract.space
@@ -810,69 +772,6 @@ class SdkWorld(World):
                 raise RunError(f"position {at} is outside the {space.plane.width}x{space.plane.height} plane", where)
         return list(at) if isinstance(at, list) else at
 
-    # -- physics ------------------------------------------------------------------
-
-    def build_physics(self) -> None:
-        spec = self.contract.physics
-        if spec is None:
-            return
-        scope = self.scope()
-        params: Dict[str, float] = {}
-        for name, raw in spec.params.items():
-            params[name] = float(_number(compile_expr(raw)(scope) if is_expr(raw) else raw, f"physics.params.{name}"))
-        for name in spec.read:
-            if name in spec.vars or name in spec.params:
-                raise RunError(f"'{name}' is both a read name and a variable or param; give the read its own name", f"physics.read.{name}")
-            params.setdefault(name, 0.0)
-        variables = []
-        for name, var in spec.vars.items():
-            start = compile_expr(var.start)(scope) if is_expr(var.start) else var.start
-            variables.append(PhysicsVariable(name=name, value=float(_number(start, f"physics.vars.{name}.start")),
-                                             rate=var.rate, min=var.min, max=var.max))
-        try:
-            self.physics = PhysicsModel(variables=variables, params=params, substeps=spec.substeps)
-            self._writes = [(target, _CompiledExpr(src)) for target, src in spec.write.items()]
-        except PhysicsExprError as exc:
-            raise RunError(str(exc), "physics") from None
-        self._refresh_physics_reads()
-
-    def _refresh_physics_reads(self) -> None:
-        spec = self.contract.physics
-        if spec is None or self.physics is None:
-            return
-        scope = self.scope()
-        for name, src in spec.read.items():
-            try:
-                value = compile_expr(src)(scope)
-            except ExprError as exc:
-                raise RunError(str(exc), f"physics.read.{name}") from None
-            self.physics.params[name] = float(_number(value, f"physics.read.{name}"))
-
-    def step_physics(self, elapsed: Optional[float] = None) -> List[Dict[str, Any]]:
-        """Advance physics one round, or by ``elapsed`` clock time on a continuous clock
-        (rates are then per clock unit)."""
-        spec = self.contract.physics
-        if spec is None or self.physics is None:
-            return []
-        self._refresh_physics_reads()
-        changes = self.physics.integrate(spec.dt if elapsed is None else spec.dt * elapsed)
-        self.touch()
-        errors = [c for c in changes if c.get("type") == "physics_error"]
-        if errors:
-            raise RunError(errors[0]["narrative"], "physics")
-        values = {**self.physics.params, **self.physics.values}
-        namespace = self.physics._namespace(values, self.physics.time)
-        for target, expr in self._writes:
-            value = expr.eval(namespace)
-            owner, _, prop = target.partition(".")
-            if owner == "world":
-                self.set_world(prop, value)
-            else:
-                for entity in self.entities_of(owner):
-                    self.set_prop(entity, prop, value)
-        return changes
-
-
 # ---------------------------------------------------------------------------
 
 
@@ -886,41 +785,8 @@ def _short(value: Optional[float]) -> str:
     return f"{value:.10g}" if isinstance(value, float) else str(value)
 
 
-def _id(value: Any) -> str:
-    if isinstance(value, Entity):
-        return value.id
-    if isinstance(value, str):
-        return value
-    raise ExprError(f"expected an entity or id, got {value!r}")
-
-
 def _location(value: Any) -> Any:
     return value.location_id if isinstance(value, Entity) else value
-
-
-def _number(value: Any, where: str) -> float:
-    if not _finite_number(value):
-        raise RunError(f"must be a finite number that fits in a float, got {_shown_value(value)}", where)
-    return value
-
-
-def _finite_number(value: Any) -> bool:
-    """A real number that is finite and fits in a float. Never raises: a huge whole number that
-    cannot be converted to a float is simply not a storable number."""
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return False
-    try:
-        return math.isfinite(value)
-    except OverflowError:
-        return False
-
-
-def _shown_value(value: Any) -> str:
-    """A value for an error message; huge whole numbers are described, not printed digit by digit."""
-    if isinstance(value, int) and not isinstance(value, bool) and value.bit_length() > 64:
-        return f"a whole number of {value.bit_length():,} bits"
-    text = repr(value)
-    return text if len(text) <= 80 else text[:77] + "..."
 
 
 def _copy(value: Any) -> Any:
@@ -932,9 +798,11 @@ def _copy(value: Any) -> Any:
 
 
 def _plain(value: Any) -> Any:
-    """Store entities by id: properties never hold live object references."""
+    """Store entities by id and links as data: properties never hold live object references."""
     if isinstance(value, Entity):
         return value.id
+    if isinstance(value, Link):
+        return value.as_dict()
     if isinstance(value, list):
         return [_plain(v) for v in value]
     if isinstance(value, dict) and not isinstance(value, Entry):
@@ -947,6 +815,8 @@ def _plain(value: Any) -> Any:
 def _freeze(value: Any) -> Any:
     if isinstance(value, Entity):
         return {"$entity": value.id}
+    if isinstance(value, Link):
+        return _freeze(value.as_dict())
     if isinstance(value, list):
         return [_freeze(v) for v in value]
     if isinstance(value, dict):

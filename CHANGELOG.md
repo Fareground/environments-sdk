@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Per-entity dynamics** (`physics.per.<type>`): every entity of a type integrates its own ODEs over its
+  number props (viral load, firm capital, habit strength), reading its own props, per-entity `read`s, the
+  type's `params` and world physics values; `where` limits who steps, `write` sets other props. Stepped by
+  the same clock right after world physics; thousands of entities per step.
+- **Stochastic terms** (`noise`, Euler–Maruyama) on world physics variables and per-entity variables, drawn
+  from streams derived from the run seed, so adding noise never shifts any other random draw.
+- **Link fields** (`relations.<kind>.props`): typed fields on every link (defaults may read `$from`/`$to`),
+  read with `$link(a, b, kind).field` and listed with `$links(entity, kind, where?)`; set by `link` with
+  `props`, by assignment (`"$link($actor, $it, trusts).since = $round"`), in generated `links` and from
+  `rows` columns; removed with the link, journaled, and carried by snapshots.
+- **Entity lifecycle hooks** (`types.<type>.on_create` / `on_remove`, `$it` = the entity): run for every
+  creation and removal — effects, mechanisms, other hooks — atomically with the change that caused them,
+  inherited through `extends` (ancestors first) and guarded against endless recursion. Entities made at
+  build run `on_create` once the whole world exists; `on_create_at_build: false` opts a type out.
+- **External data feeds** (`feeds: {name: {host, into, query, every, when, fallback}}`): live or historical
+  values (prices, news, weather) written into `world.<prop>` or `records.<record>` at the start of a due
+  round, answered by a host adapter implementing the new `Feed` protocol (`fetch(request)`), recorded on the
+  host tape so snapshots, restores and replays never ask again; host text is marked untrusted. A declared
+  `fallback` answers without a host, drawing randomness from its own seeded stream. New `StubFeed` stub and
+  `adapters.historical(rows, at=, value=)` for backtests.
+- **Delivery latency and lossy channels**: `delay` on `post` and `emit` delivers the message rounds (or clock
+  time) later with the content it had when sent; `drop` on `post`, `emit` and `wake` loses it with a chance
+  rolled from the run's seed. Pending deliveries are journaled (a refused action sends nothing) and carried
+  by snapshots with their provenance. `delay` and `drop` are now reserved record field names.
+- Example `examples/contracts/outbreak_network.json`: per-resident viral load and immunity with noise, a
+  contact network whose links carry a setting and closeness, newcomers wired in by `on_create`, a weather
+  feed with a seeded fallback, and advisories that arrive a day late and are sometimes lost.
+
+### Changed
+- `link` without `value` keeps an existing link's value (it used to reset it to 1); a new link gets the
+  relation's `default` (previously ignored), or 1.
+
 ## [0.3.0]
 
 ### Environment SDK (`fg-env`)

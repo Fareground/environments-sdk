@@ -251,6 +251,12 @@ class World:
     def neighbors(self, entity: Any, kind: str) -> List[Any]:
         return []
 
+    def link_view(self, a: Any, b: Any, kind: str) -> Any:
+        return None
+
+    def links_of(self, entity: Any, kind: str) -> List[Any]:
+        return []
+
     def distance(self, a: Any, b: Any) -> float:
         raise ExprError("this environment declares no space")
 

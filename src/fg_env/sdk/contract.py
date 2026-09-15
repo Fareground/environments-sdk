@@ -10,6 +10,8 @@ from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator, model_validator
 from pydantic_core import PydanticCustomError
 
+from .host.tape import TAPE, tape_prop
+
 __all__ = [
     "CONTRACT_VERSION",
     "Contract",
@@ -25,6 +27,9 @@ __all__ = [
     "LinkSpec",
     "PhysicsSpec",
     "PhysicsVar",
+    "FeedSpec",
+    "EntityVar",
+    "EntityDynamics",
     "RecordSpec",
     "ParamSpec",
     "Condition",
@@ -216,7 +221,8 @@ class PropSpec(_Model):
 
 class TypeSpec(_Model):
     """A kind of entity. ``agent: true`` types take turns. ``extends`` inherits another type:
-    its props, its agent flag, and membership (``$count(trader)`` counts every kind of trader)."""
+    its props, its agent flag, its lifecycle hooks and membership (``$count(trader)`` counts
+    every kind of trader)."""
 
     agent: bool = False
     extends: Optional[str] = Field(None, description="Parent type whose props and role this type inherits.")
@@ -224,6 +230,9 @@ class TypeSpec(_Model):
     props: Dict[str, PropSpec] = Field(default_factory=dict)
     policy: Optional[str] = Field(None, description="Default coded policy for agents of this type.")
     inspect: Union[bool, str] = Field(True, description="Whether agents may inspect these entities: true, false, or an expression over $viewer and $it.")
+    on_create: Effects = Field(default_factory=list, description="Effects run for every entity of this type (subtypes too) the moment it is created ($it), atomically with whatever created it; an ancestor's hooks run first.")
+    on_remove: Effects = Field(default_factory=list, description="Effects run for every entity of this type (subtypes too) the moment it is removed ($it, already no longer alive), atomically with the removal.")
+    on_create_at_build: bool = Field(True, description="Also run on_create for entities made when the world is built (once the whole world exists, in creation order); false runs it only for entities created during the run. The nearest declaration in the type's lineage wins.")
 
 
 class EntitySpec(_Model):
@@ -291,12 +300,14 @@ class PopulationSpec(_Model):
 
 
 class RelationSpec(_Model):
-    """A kind of link between entities (follows, trusts, owns …)."""
+    """A kind of link between entities (follows, trusts, owns …). Every link carries a number
+    (``value``) and, with ``props``, typed fields of its own (``since``, ``channel``, ``strength``)."""
 
     symmetric: bool = False
-    default: Optional[float] = None
+    default: Optional[float] = Field(None, description="Value of a link made without one (default 1).")
     min: Optional[float] = None
     max: Optional[float] = None
+    props: Dict[str, PropSpec] = Field(default_factory=dict, description="Typed fields every link carries, read as $link(a, b, kind).field; defaults may be expressions over $from and $to.")
     description: str = ""
 
 
@@ -317,6 +328,7 @@ class LinkSpec(_Model):
     rows: Optional[str] = Field(None, description="Edges from data: an expression giving rows with `from`, `to` and optional `value`.")
     degree: Union[int, str, None] = Field(None, description="Links per member (number or expression).")
     p: Union[float, str, None] = Field(None, description="Link probability (random) or rewiring probability (small_world). For random it may depend on the pair: '0.1 if $to.influencer else 0.02'.")
+    props: Dict[str, Any] = Field(default_factory=dict, description="Link field values or expressions over $from and $to ($row too with `rows`, whose columns named like a field fill it).")
     where: Optional[str] = None
 
 
@@ -330,8 +342,33 @@ class PhysicsVar(_Model):
 
     start: Any = Field(0, description="Initial value (number or expression).")
     rate: Optional[str] = Field(None, description="Math over variable/param names: 'beta*S*I/N'.")
+    noise: Optional[str] = Field(None, description="Stochastic term (Euler–Maruyama): d(var) = rate·dt + noise·dW, drawn from the run's seed; e.g. 'sigma*price'. Needs a rate; the var's min/max then hold at every sub-step.")
     min: Optional[float] = None
     max: Optional[float] = None
+
+
+class EntityVar(_Model):
+    """How one number property changes by itself on every entity. Shorthand: the rate text."""
+
+    rate: str = Field(..., description="d(prop)/dt as math over names: the entity's own number props, this type's params and reads, world physics variables and params, and t.")
+    noise: Optional[str] = Field(None, description="Stochastic term (Euler–Maruyama), drawn from the run's seed: d(prop) = rate·dt + noise·dW.")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _shorthand(cls, data: Any) -> Any:
+        return {"rate": data} if isinstance(data, str) else data
+
+
+class EntityDynamics(_Model):
+    """Continuous dynamics each entity of a type (subtypes too) integrates on its own, stepped by
+    the same clock right after world physics. The variables are the type's number props, so
+    views, effects and snapshots see them like any other prop; their min/max hold at every sub-step."""
+
+    where: Optional[str] = Field(None, description="Which entities integrate this step ($it); the others keep their values.")
+    params: Dict[str, Any] = Field(default_factory=dict, description="Constants for this type (numbers or expressions over $inputs, $world).")
+    read: Dict[str, str] = Field(default_factory=dict, description="Names refreshed per entity before each step: {exposure: '$count($neighbors($it, contact), $it.sick)'}.")
+    vars: Dict[str, EntityVar] = Field(default_factory=dict, description="{number prop: EntityVar | rate}: the props integrated.")
+    write: Dict[str, str] = Field(default_factory=dict, description="After each step, other props of the entity from math: {'sick': 'viral_load > 5'}.")
 
 
 class PhysicsSpec(_Model):
@@ -343,11 +380,27 @@ class PhysicsSpec(_Model):
     vars: Dict[str, PhysicsVar] = Field(default_factory=dict)
     read: Dict[str, str] = Field(default_factory=dict, description="Names refreshed from the world before each step: {N: '$count(person)'}.")
     write: Dict[str, str] = Field(default_factory=dict, description="After each step: {'world.price': 'P', 'person.risk': 'I/N'}.")
+    per: Dict[str, EntityDynamics] = Field(default_factory=dict, description="{type: EntityDynamics}: dynamics every entity integrates on its own (viral load, firm capital, habit strength).")
 
     @field_validator("substeps")
     @classmethod
     def _substeps_ceiling(cls, value: int) -> int:
         return _ceiling(value, MAX_SUBSTEPS, "use fewer sub-steps or a smaller dt")
+
+
+class FeedSpec(_Model):
+    """External data written into the world — live or historical prices, news, weather — answered
+    by a host adapter (``fetch(request)``) at the start of a round, before events and physics.
+    Every answer is recorded on the host tape, so snapshots, restores and replays never ask again;
+    text from a host is marked untrusted."""
+
+    host: str = Field(..., description="Name of the host adapter that answers (a Feed).")
+    into: str = Field(..., description="'world.<prop>' (the answer is the new value) or 'records.<record>' (the answer is one entry's fields, or a list of entries).")
+    query: Any = Field(None, description="What to ask for: data whose texts may be expressions or templates over the world ($world, $clock, $round, $inputs).")
+    every: int = Field(1, ge=1, description="Fetch every N rounds, from round 1.")
+    when: Optional[str] = Field(None, description="Fetch only when true.")
+    fallback: Any = Field(None, description="The value (or entries) used when no host is bound: a literal or an expression, whose random draws come from the run's seed. Without one, a run with no host stops and names the host it needs.")
+    description: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -644,6 +697,7 @@ class Contract(_Model):
     relations: Dict[str, RelationSpec] = Field(default_factory=dict)
     links: List[LinkSpec] = Field(default_factory=list)
     physics: Optional[PhysicsSpec] = None
+    feeds: Dict[str, FeedSpec] = Field(default_factory=dict, description="External data written into world props or records, answered by host adapters.")
     records: Dict[str, RecordSpec] = Field(default_factory=dict)
     actions: Dict[str, ActionSpec] = Field(default_factory=dict)
     stages: List[StageSpec] = Field(default_factory=list)
@@ -664,6 +718,15 @@ class Contract(_Model):
 
     #: The contract as written, before mechanisms were expanded (re-parse this, not a dump).
     _source: Optional[Dict[str, Any]] = PrivateAttr(default=None)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _feed_tape(cls, data: Any) -> Any:
+        """Feeds record their answers on the host tape, so a contract with feeds declares it."""
+        world = data.get("world") if isinstance(data, dict) else None
+        if isinstance(data, dict) and data.get("feeds") and isinstance(world or {}, dict) and TAPE not in (world or {}):
+            data = {**data, "world": {**(world or {}), TAPE: tape_prop()}}
+        return data
 
     # -- type lineage ----------------------------------------------------------
 
@@ -694,6 +757,18 @@ class Contract(_Model):
                 props[prop] = spec if inherited is None else inherited.model_copy(
                     update={key: getattr(spec, key) for key in spec.model_fields_set})
         return props
+
+    def hooks_of(self, type_name: str, hook: str) -> List[Any]:
+        """``(type, effects)`` for every type in the lineage (root first) that declares lifecycle ``hook``."""
+        return [(name, getattr(self.types[name], hook)) for name in self.lineage(type_name)
+                if getattr(self.types[name], hook)]
+
+    def hooks_at_build(self, type_name: str) -> bool:
+        """Whether on_create runs for this type's entities made at build (the nearest declaration wins)."""
+        for name in reversed(self.lineage(type_name)):
+            if "on_create_at_build" in self.types[name].model_fields_set:
+                return self.types[name].on_create_at_build
+        return True
 
     def is_agent(self, type_name: str) -> bool:
         return any(self.types[name].agent for name in self.lineage(type_name))

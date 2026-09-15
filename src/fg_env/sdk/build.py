@@ -8,8 +8,9 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from ..entity import Entity
 from .contract import MAX_POPULATION, MAX_ROUNDS, Contract, LinkSpec, PopulationSpec
+from .effects import EffectRunner
 from .errors import RunError
-from .expr import ExprError, compile_expr, is_expr, truthy  # noqa: F401
+from .expr import ExprError, compile_expr, is_expr, resolve, truthy  # noqa: F401
 from .seeds import SeedTree
 from .template import compile_template
 from .world import SdkWorld
@@ -47,11 +48,24 @@ def build_world(contract: Contract, inputs: Dict[str, Any], seeds: SeedTree, arm
                     world.scope(actor=actor, **vars)).strip()
             except ExprError as exc:
                 raise RunError(str(exc), path) from None
+        _build_hooks(world)
     except ExprError as exc:
         raise RunError(str(exc), "build") from None
     world.journal.clear()
     world.rng = seeds.rng("run")
     return world
+
+
+def _build_hooks(world: SdkWorld) -> None:
+    """on_create for every entity made at build — once the whole world exists, in creation order —
+    unless its type sets on_create_at_build false. Entities the hooks create run their own hooks."""
+    contract = world.contract
+    if not any(spec.on_create for spec in contract.types.values()):
+        return
+    runner = EffectRunner(world)
+    for entity in list(world.entities.values()):
+        if entity.alive and contract.hooks_at_build(entity.entity_type):
+            runner.lifecycle("on_create", entity, f"entities.{entity.id}")
 
 
 def _value(world: SdkWorld, raw: Any, vars: Dict[str, Any]) -> Any:
@@ -217,13 +231,17 @@ def _links(world: SdkWorld, spec: LinkSpec, index: int, seeds: SeedTree) -> None
                 if entity is None:
                     raise RunError(f"edge {position + 1}: no entity '{row[key]}'", f"{path}.rows")
                 ends.append(entity)
-            world.link(spec.relation, ends[0], ends[1], row.get("value", _value(world, spec.value, {})), path)
+            pair = {"from": ends[0], "to": ends[1], "row": row}
+            fields = {name: row[name] for name in world.contract.relations[spec.relation].props if name in row}
+            fields.update(_fields(world, spec, pair, path))
+            world.link(spec.relation, ends[0], ends[1], row.get("value", _value(world, spec.value, pair)), path, fields)
         return
     if spec.among is None:
         if spec.from_ is None or spec.to is None:
             raise RunError("give `from` and `to`, or `among` with a `graph`", path)
-        world.link(spec.relation, _endpoint(world, spec.from_, path), _endpoint(world, spec.to, path),
-                   _value(world, spec.value, {}), path)
+        source, target = _endpoint(world, spec.from_, path), _endpoint(world, spec.to, path)
+        pair = {"from": source, "to": target}
+        world.link(spec.relation, source, target, _value(world, spec.value, pair), path, _fields(world, spec, pair, path))
         return
     members: List[Entity] = world.entities_of(spec.among)
     if spec.where:
@@ -262,7 +280,7 @@ def _links(world: SdkWorld, spec: LinkSpec, index: int, seeds: SeedTree) -> None
         if directed:
             one_way = [(i, j) for i in range(n) for j in range(n) if i != j and rng.random() < probability(i, j, default)]
             for i, j in one_way:
-                world.link(spec.relation, members[i], members[j], _value(world, spec.value, {"from": members[i], "to": members[j]}), path)
+                _pair_link(world, spec, members[i], members[j], path)
             return
         pairs = {(i, j) for i in range(n) for j in range(i + 1, n) if rng.random() < probability(i, j, default)}
     elif graph == "small_world":
@@ -316,16 +334,31 @@ def _links(world: SdkWorld, spec: LinkSpec, index: int, seeds: SeedTree) -> None
         for member in members:
             for other in others:
                 if member is not other and rng.random() < chance:
-                    world.link(spec.relation, member, other, _value(world, spec.value, {"from": member, "to": other}), path)
+                    _pair_link(world, spec, member, other, path)
         return
     else:
         raise RunError(f"unknown graph '{graph}' (complete, ring, random, small_world, scale_free, blocks, lattice, "
                        "star, bipartite)", f"{path}.graph")
     for i, j in sorted(pairs):
         value = _value(world, spec.value, {})
-        world.link(spec.relation, members[i], members[j], value, path)
+        world.link(spec.relation, members[i], members[j], value, path,
+                   _fields(world, spec, {"from": members[i], "to": members[j]}, path))
         if not world.contract.relations[spec.relation].symmetric:
-            world.link(spec.relation, members[j], members[i], value, path)
+            world.link(spec.relation, members[j], members[i], value, path,
+                       _fields(world, spec, {"from": members[j], "to": members[i]}, path))
+
+
+def _pair_link(world: SdkWorld, spec: LinkSpec, source: Entity, target: Entity, path: str) -> None:
+    pair = {"from": source, "to": target}
+    world.link(spec.relation, source, target, _value(world, spec.value, pair), path, _fields(world, spec, pair, path))
+
+
+def _fields(world: SdkWorld, spec: LinkSpec, pair: Dict[str, Any], path: str) -> Dict[str, Any]:
+    """The link fields a `links` entry sets for one pair (values, templates or expressions over $from, $to, $row)."""
+    try:
+        return {name: resolve(copy.deepcopy(raw), world.scope(**pair)) for name, raw in spec.props.items()}
+    except ExprError as exc:
+        raise RunError(str(exc), f"{path}.props") from None
 
 
 def _archetypes(world: SdkWorld, spec: PopulationSpec, count: int, path: str) -> List[Any]:
