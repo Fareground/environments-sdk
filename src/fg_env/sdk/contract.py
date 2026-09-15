@@ -5,7 +5,7 @@ reference, field by field, is generated from these models (see ``fg_env.guide()`
 """
 from __future__ import annotations
 
-from typing import Annotated, Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
 from pydantic import (BaseModel, BeforeValidator, ConfigDict, Field, PrivateAttr, WithJsonSchema, field_validator,
                       model_validator)
@@ -296,7 +296,7 @@ class MixSpec(_Model):
     """One archetype (segment) of a population mix."""
 
     name: str
-    weight: Union[float, str] = Field(1, description="Share of the population (relative; number or expression over $inputs).")
+    weight: Union[float, str] = Field(1.0, description="Share of the population (relative; number or expression over $inputs).")
     props: Dict[str, Any] = Field(default_factory=dict, description="Trait values or expressions for this archetype (over $row, $i, $it).")
     brief: Optional[str] = Field(None, description="Extra private brief text for members of this archetype.")
 
@@ -544,7 +544,7 @@ class StageSpec(_Model):
     order: str = Field("seat", description="seat | random | expression over $it (lowest first).")
     who: Optional[str] = Field(None, description="Which agents are woken ($it); e.g. $it.alive && $chance(0.3).")
     until: Optional[str] = Field(None, description="Repeat turns within the round until true.")
-    passes: Optional[int] = Field(None, description="Max passes through the agents (default 1, or 10 with until).")
+    passes: Union[int, str, None] = Field(None, description="Max passes through the agents (default 1, or 10 with until): a number or an expression over $inputs.")
     quiet: str = Field("wake", description="wake | skip — skip agents with nothing new since their last turn.")
     max_actions: int = Field(1, description="Actions an agent may take per turn.")
     max_calls: int = Field(8, description="Tool calls (including looks) per turn.")
@@ -570,7 +570,7 @@ class StageSpec(_Model):
 
     @field_validator("passes")
     @classmethod
-    def _passes_ceiling(cls, value: Optional[int]) -> Optional[int]:
+    def _passes_ceiling(cls, value: Any) -> Any:
         return _ceiling(value, MAX_STAGE_PASSES, "use fewer passes; a stage that needs this many never settles")
 
     @field_validator("max_calls")
@@ -609,7 +609,7 @@ class EventSpec(_Model):
 
     name: Optional[str] = None
     at: Union[int, List[int], str, None] = Field(None, description="Round(s) it fires.")
-    every: Optional[int] = Field(None, description="Fires every N rounds.")
+    every: Union[int, str, None] = Field(None, description="Fires every N rounds, from round 1: a number or an expression over $inputs.")
     when: Optional[str] = Field(None, description="Fires when true.")
     chance: Union[float, str, None] = Field(None, description="Probability of firing when otherwise due.")
     phase: str = Field("start", description="start (before stages) | end (after stages).")
@@ -751,6 +751,26 @@ class InvariantSpec(_ExprShorthand):
 # ---------------------------------------------------------------------------
 
 
+class CalibrationSpec(_Model):
+    """A quick pilot calibration run whenever the contract loads: inputs are fitted so short pilot sessions hit the
+    targets, and the session runs with the fitted values (``env.inputs``, ``result.inputs``; the fit is in
+    ``env.calibration``). Deterministic given the session's seed. It costs ``budget × runs`` pilot sessions plus
+    ``holdout`` at every load that does not set a fitted input itself — setting one (or sweeping it) skips it.
+
+    A pilot fit is only as steady as its pilots: a noisy target (a volatility over a few dozen bars) fitted with one
+    short pilot per point can land anywhere in the range, even on its bounds (check ``env.calibration``). Longer
+    pilots, more ``runs`` per point, a larger ``holdout`` and a range no wider than plausible make it reliable."""
+
+    params: Dict[str, Dict[str, Any]] = Field(..., min_length=1, description="{input: {low?, high?, log?}}: number or int inputs to fit (the range defaults to the input's min and max).")
+    targets: Dict[str, Any] = Field(..., min_length=1, description="{output or metric: target} as fg_env.calibrate takes them; a number (or a stat target's `value`) may be an expression over $inputs and $world, read from the world this session builds.")
+    inputs: Dict[str, Any] = Field(default_factory=dict, description="Inputs of the pilot sessions only, e.g. fewer bars; the session's own inputs apply underneath.")
+    runs: int = Field(2, ge=1, le=20, description="Pilot sessions per evaluated point.")
+    budget: int = Field(6, ge=2, le=50, description="Distinct points evaluated.")
+    holdout: int = Field(1, ge=1, le=20, description="Pilot sessions on fresh seeds that validate the fit.")
+    method: Literal["auto", "bisection", "golden", "nelder_mead", "cross_entropy"] = Field("auto", description="Search method (see fg_env.calibrate).")
+    workers: int = Field(1, ge=1, le=64, description="Pilot sessions run in this many processes at once.")
+
+
 class Contract(_Model):
     """An environment: world, people, rules, what agents see, what is measured."""
 
@@ -782,6 +802,7 @@ class Contract(_Model):
     outputs: Dict[str, OutputSpec] = Field(default_factory=dict)
     end: List[EndSpec] = Field(default_factory=list)
     arms: Dict[str, ArmSpec] = Field(default_factory=dict)
+    calibration: Optional[CalibrationSpec] = Field(None, description="Inputs fitted by short pilot sessions whenever the contract loads.")
     game: Optional[GameSpec] = Field(None, description="Seats, returns and utility for game and learning interfaces.")
     invariants: List[InvariantSpec] = Field(default_factory=list)
     defs: Dict[str, DefSpec] = Field(default_factory=dict, description="Reusable expressions, called as $name(args).")

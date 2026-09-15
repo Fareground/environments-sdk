@@ -63,6 +63,10 @@ def _log_base(call: Call) -> float:
         raise fail(call, f"x must be above 0, got {x}")
     if base <= 0 or base == 1:
         raise fail(call, f"the base must be above 0 and not 1, got {base}")
+    if base == 10:  # exact at powers of the base: log(1000) / log(10) is 2.9999999999999996
+        return math.log10(x)
+    if base == 2:
+        return math.log2(x)
     return math.log(x) / math.log(base)
 
 

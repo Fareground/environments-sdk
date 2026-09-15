@@ -57,8 +57,8 @@ def tools_field() -> Any:
 class ModifierSpec(Config):
     """How a status or a place changes a property: ``(base + add) * mul`` (per stack for statuses)."""
 
-    add: Number = Field(0, description="Added to the property (number or expression over $it).")
-    mul: Number = Field(1, description="Multiplies the property (number or expression over $it).")
+    add: Number = Field(0.0, description="Added to the property (number or expression over $it).")
+    mul: Number = Field(1.0, description="Multiplies the property (number or expression over $it).")
 
 
 # ---------------------------------------------------------------------------

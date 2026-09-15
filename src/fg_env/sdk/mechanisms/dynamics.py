@@ -56,12 +56,12 @@ class DriftRule(Config):
     model: Literal["linear", "mean_reversion", "random_walk", "geometric", "sinusoidal"] = Field(
         "linear", description="linear: + rate | mean_reversion: + rate × (mean − x) + noise | random_walk: + rate + noise | "
                               "geometric: × e^(rate + noise) | sinusoidal: a wave of `amplitude` and `period` around its start.")
-    rate: Number = Field(0, description="Step per application (linear, random_walk drift), pull toward the mean (mean_reversion, 0–1) or log growth (geometric).")
+    rate: Number = Field(0.0, description="Step per application (linear, random_walk drift), pull toward the mean (mean_reversion, 0–1) or log growth (geometric).")
     mean: Optional[Number] = Field(None, description="Level it reverts to (mean_reversion).")
-    sd: Number = Field(0, description="Standard deviation of the noise added each application.")
-    amplitude: Number = Field(0, description="Wave height (sinusoidal).")
+    sd: Number = Field(0.0, description="Standard deviation of the noise added each application.")
+    amplitude: Number = Field(0.0, description="Wave height (sinusoidal).")
     period: Optional[Number] = Field(None, description="Rounds per wave (sinusoidal).")
-    offset: Number = Field(0, description="Rounds the wave is shifted by (sinusoidal).")
+    offset: Number = Field(0.0, description="Rounds the wave is shifted by (sinusoidal).")
     min: Optional[Number] = Field(None, description="Lowest value the rule allows (the prop's own min also applies).")
     max: Optional[Number] = Field(None, description="Highest value the rule allows.")
     where: Optional[str] = Field(None, description="Entity targets: which entities drift ($it).")
@@ -234,7 +234,7 @@ class Cascade(Config):
 
     shock: str = Field(..., description="The shock that follows.")
     after: int = Field(0, ge=0, description="Rounds later (0 = at once).")
-    chance: Number = Field(1, description="Probability it follows.")
+    chance: Number = Field(1.0, description="Probability it follows.")
     when: Optional[str] = Field(None, description="It follows only if this holds when it is due.")
 
 
