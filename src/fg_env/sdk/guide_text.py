@@ -1,7 +1,7 @@
 """The guide's hand-written prose parts (the generated ones are in :mod:`fg_env.sdk.guide_pages`)."""
 from __future__ import annotations
 
-__all__ = ["MODEL", "EXPRESSIONS", "MACROS", "TEMPLATES", "EFFECTS", "EFFECT_EXAMPLES", "PATTERNS", "RUNNING",
+__all__ = ["MODEL", "EXPRESSIONS", "MACROS", "TEMPLATES", "EFFECTS", "EFFECT_EXAMPLES", "RECIPES", "RUNNING",
            "INSPECT", "CHECKLIST"]
 
 MODEL = """\
@@ -193,8 +193,8 @@ EFFECT_EXAMPLES = {
               'enumerate and choose outcomes instead of sampling them)',
 }
 
-PATTERNS = """\
-## Patterns for common mechanics
+RECIPES = """\
+## Recipes for common mechanics
 
 * Data files: `"inputs": {"households": {"type": "table", "source": "households.csv", "columns": {"income":
   "number", "size": "int"}}}` then `"population": [{"type": "person", "from": "$inputs.households"}]`. Files are

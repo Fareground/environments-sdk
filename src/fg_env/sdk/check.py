@@ -48,6 +48,7 @@ from .registry import renamed_op_hint
 from .expr import FUNCTIONS, ExprError, compile_expr, is_expr
 from .inputs import DATA_SUFFIXES, check_value
 from .parse_errors import validation_issues
+from .patterns.check import check_pattern_call, check_patterns
 from .returns import check_game
 from .template import FORMATS, compile_template
 from .world import prop_type
@@ -56,7 +57,7 @@ from .assets.checks import check_assets
 
 __all__ = ["parse_contract", "check_contract"]
 
-BASE = frozenset({"inputs", "world", "physics", "clock", "round", "stage", "metrics", "series", "arm", "pending"})
+BASE = frozenset({"inputs", "world", "physics", "clock", "round", "stage", "metrics", "series", "arm", "pending", "pattern"})
 ENTITY_FIELDS = frozenset({"id", "name", "type", "alive", "at"})
 ENTRY_FIELDS = frozenset({"seq", "round", "stage", "author", "to"})
 RECORD_FIELD_TYPES = ("text", "number", "int", "bool", "list", "map", "any", "asset")
@@ -89,6 +90,11 @@ def parse_contract(data: Any) -> Contract:
     expanded, mechanism_issues = expand_mechanisms(source)
     if mechanism_issues:
         raise ContractError(_dedupe(mechanism_issues))
+    from .patterns.expand import expand_patterns
+
+    expanded, pattern_issues = expand_patterns(expanded)
+    if pattern_issues:
+        raise ContractError(_dedupe(pattern_issues))
     try:
         contract = Contract.model_validate(expanded)
         contract._source = source
@@ -230,6 +236,7 @@ class _Checker:
             if name == "records" and symbol is not None and symbol not in self.c.records:
                 self.error(path, f"$records({symbol}): '{symbol}' is not a declared record",
                            self._suggest(symbol, self.c.records))
+        check_pattern_call(self, compiled, path)
         for name, signature in getattr(compiled, "arity_errors", ()):
             if name not in self.c.defs:
                 self.error(path, f"wrong number of arguments: ${signature}", f"in `{compiled.source}`")
@@ -617,6 +624,7 @@ class _Checker:
         check_physics_state(self, BASE)
         self._records()
         check_feeds(self, BASE)
+        check_patterns(self, BASE)
         self._actions()
         self._stages()
         self._views()

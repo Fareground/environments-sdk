@@ -13,7 +13,9 @@ from . import contract as C
 from .guide_pages import (SECTIONS, effects_page, expressions_page, family_page, function_groups, functions_index,
                           functions_page, mechanisms_page, mode_page, section_page)
 from .assets.guide import ASSETS
-from .guide_text import CHECKLIST, INSPECT, MACROS, MODEL, PATTERNS, RUNNING, TEMPLATES
+from .guide_text import CHECKLIST, INSPECT, MACROS, MODEL, RECIPES, RUNNING, TEMPLATES
+from .patterns.guide import patterns_page
+from .patterns.schema import patterns_definitions, patterns_field_schema
 from .macros import MAX_MACRO_DEPTH, MAX_MACRO_ITEMS
 from .registry import FAMILIES
 from .template import FORMATS
@@ -23,7 +25,10 @@ __all__ = ["guide", "schema", "guide_parts", "QUICKSTART"]
 
 def schema() -> Dict[str, Any]:
     """JSON Schema of the contract (structure only; ``fg_env.check`` verifies meaning)."""
-    return C.Contract.model_json_schema(by_alias=True)
+    out = C.Contract.model_json_schema(by_alias=True)
+    out["$defs"] = {**out.get("$defs", {}), **patterns_definitions()}
+    out["properties"]["patterns"] = {**out["properties"]["patterns"], **patterns_field_schema()}
+    return out
 
 
 QUICKSTART = """\
@@ -87,6 +92,7 @@ Every section is optional except `name` and `types`. Read any one with `guide('<
 | `clock` | `{rounds: 20, unit: "round"}` |
 | `inputs` | `{name: {type, default}}` — knobs set at load, read as `$inputs.name` |
 | `world` | `{prop: default}` — global props, `$world.prop`; a default may read `$inputs` and other `$world` props |
+| `patterns` | `{name: {kind, …}}` — trends, seasons, responses, random paths, draws, noise; read `$pattern.name` |
 | `assets` | `{id: {file or folder, caption}}` — files agents receive via `attach`, `asset` props and fields; `guide('assets')` |
 | `types` | `{type: {agent, props: {prop: default or {type, default, min, max, values, private}}, extends}}` |
 | `entities` | `{id: {type, name, props}}` |
@@ -171,7 +177,9 @@ _PARTS_MAP = [
     ("functions", "every function by group; `functions.<group>` for one group's docs (e.g. `functions.stats`)"),
     ("mechanisms", "the family table and names every family shares; `<family>` and `<family>.<mode>` "
                    "(e.g. `market`, `market.auction`)"),
-    ("patterns", "recipes: data files, continuous time, markets, hidden roles, spaces, networks, physics, feeds"),
+    ("patterns", "world patterns — seasons, trends, responses, random processes, draws, noise, carry-over — with an "
+                 "example per group, every kind, and fitting them from data"),
+    ("recipes", "recipes: data files, continuous time, markets, hidden roles, spaces, networks, physics, feeds"),
     ("macros", "repeat structure from data with `for`/`make`"),
     ("inspect", "debugging a run in brief: summary, outputs, diagnostics, events, traces, replay"),
     ("running", "Python API: participants, runs, snapshots, experiments, traces, evaluation, games, gyms, CLI"),
@@ -200,7 +208,8 @@ _TOPICS: Dict[str, Callable[[], str]] = {
     "effects": effects_page,
     "functions": functions_index,
     "mechanisms": mechanisms_page,
-    "patterns": lambda: PATTERNS,
+    "patterns": patterns_page,
+    "recipes": lambda: RECIPES,
     "macros": lambda: MACROS.replace("MAX_ITEMS", f"{MAX_MACRO_ITEMS:,}").replace("MAX_DEPTH", str(MAX_MACRO_DEPTH)),
     "inspect": lambda: INSPECT,
     "running": lambda: RUNNING,
@@ -214,7 +223,7 @@ def guide_parts() -> List[str]:
     sections = [name for name, *_ in SECTIONS if name not in _TOPICS and name not in FAMILIES]
     names = ["core", "model", *sections, "assets", "expressions", "templates", "effects", "functions"]
     names += [f"functions.{group}" for group in function_groups() if group not in FAMILIES]
-    names += ["macros", "patterns", "mechanisms"]
+    names += ["patterns", "macros", "recipes", "mechanisms"]
     for name, family in FAMILIES.items():
         names += [name, *[spec.key for spec in family.modes.values()]]
     names += [f"functions.{group}" for group in function_groups() if group in FAMILIES]
@@ -240,7 +249,7 @@ def _render(part: str) -> Optional[str]:
 
 def guide(part: Optional[str] = None) -> str:
     """The core guide, or one part by name: a section (``"actions"``), a topic (``"expressions"``, ``"effects"``,
-    ``"functions"``, ``"mechanisms"``, ``"patterns"``, ``"running"`` …), a function group (``"functions.stats"``),
+    ``"functions"``, ``"mechanisms"``, ``"patterns"``, ``"recipes"``, ``"running"`` …), a function group (``"functions.stats"``),
     a mechanism family (``"market"``) or mode (``"market.auction"``) — or ``"all"`` for everything.
     The core guide ends with a map of the parts."""
     if part is None:

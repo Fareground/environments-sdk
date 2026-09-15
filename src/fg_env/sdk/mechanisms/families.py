@@ -51,7 +51,5 @@ family("mind", "What agents know and remember: beliefs with confidence, memory w
        {"who": "agent type whose mind it models", "phase": SHARED["phase"], "views": SHARED["views"]})
 family("conditions", "Effects on entities over time: statuses, cooldowns, channeled actions and terrain.",
        {"who": "entity type(s) the conditions apply to", "phase": SHARED["phase"], "views": SHARED["views"]})
-family("dynamics", "The world changing on its own: drift rules, random shocks and priors drawn from data.",
-       {"phase": SHARED["phase"]})
 family("host", "Services the host provides during a run: an LLM judge, a game master, recaps and tools such as web search.",
        {"who": "agent type(s) served", "max_chars": SHARED["max_chars"], "private": SHARED["private"]})

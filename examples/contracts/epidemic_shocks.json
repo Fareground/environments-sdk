@@ -228,6 +228,23 @@
       "default": 0,
       "min": 0,
       "description": "Infections from superspreader events"
+    },
+    "superspreader_events": {
+      "type": "int",
+      "default": 0,
+      "min": 0,
+      "description": "Superspreader events so far"
+    },
+    "forced_lockdowns": {
+      "type": "int",
+      "default": 0,
+      "min": 0,
+      "description": "Times hospital chiefs forced a lockdown"
+    },
+    "last_superspreader": {
+      "type": "int",
+      "default": -1000,
+      "description": "Day of the last superspreader event"
     }
   },
   "types": {
@@ -374,6 +391,38 @@
     "write": {
       "world.hospital_load": "H",
       "world.town_protection": "W"
+    }
+  },
+  "patterns": {
+    "transmissibility": {
+      "kind": "draw",
+      "dist": "beta",
+      "a": 9,
+      "b": 91,
+      "description": "Chance one infected contact infects one fully susceptible contact per day"
+    },
+    "superspreader_size": {
+      "kind": "draw",
+      "dist": "triangular",
+      "low": 4,
+      "mode": 8,
+      "high": 20,
+      "integer": true,
+      "description": "Residents infected at one superspreader event"
+    },
+    "trust_wobble": {
+      "kind": "noise",
+      "sd": 0.01,
+      "description": "Day-to-day wobble in a resident's trust"
+    },
+    "indoor_event": {
+      "kind": "shocks",
+      "chance": 0.06,
+      "window": [
+        5,
+        null
+      ],
+      "description": "A packed indoor event somewhere in town (1 on the day it happens)"
     }
   },
   "actions": {
@@ -652,7 +701,7 @@
               "then": [
                 "$shield = 1 - $cut if $lock and $p.complying else 1",
                 "$protection = $p.immunity_peak * $exp(-0.693147 * ($round - $p.immune_since) / $inputs.immunity_half_life)",
-                "$risk = 1 - (1 - $world.transmissibility * $shield * (1 - $protection)) ** $exposure",
+                "$risk = 1 - (1 - $pattern.transmissibility * $shield * (1 - $protection)) ** $exposure",
                 {
                   "if": "$chance($risk)",
                   "then": [
@@ -723,6 +772,65 @@
       "when": "$world.hospital_load > $inputs.hospital_beds and $world.days_over_capacity == 1",
       "once": true,
       "say": "The hospital is over capacity for the first time."
+    },
+    {
+      "name": "compliance",
+      "phase": "end",
+      "each": "resident",
+      "where": "$it.status != D",
+      "do": [
+        {
+          "if": "$world.lockdown",
+          "then": [
+            "$it.propensity = $max(0.02, $it.propensity - $inputs.lockdown_fatigue)"
+          ],
+          "else": [
+            "$it.propensity = $clamp($it.propensity + 0.02 * (0.72 - $it.propensity) + $pattern.trust_wobble($it), 0, 1)"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "superspreader",
+      "phase": "start",
+      "when": "$pattern.indoor_event > 0 and not $world.lockdown and $count(resident, $it.status == I) > 0 and $round - $world.last_superspreader > 6",
+      "do": [
+        "$world.last_superspreader = $round",
+        {
+          "each": "$sample($filter(resident, $it.status == S), $pattern.superspreader_size)",
+          "do": [
+            "$it.status = I",
+            "$it.infected_on = $round",
+            "$it.infections += 1",
+            "$world.superspreader_cases += 1"
+          ]
+        },
+        "$world.superspreader_events += 1",
+        {
+          "after": 3,
+          "do": [
+            {
+              "if": "$chance(0.7) and $count(resident, $it.status == I) >= $inputs.lockdown_trigger",
+              "then": [
+                {
+                  "if": "not $world.lockdown",
+                  "then": [
+                    "$world.lockdown = true",
+                    "$world.lockdown_started = $round",
+                    "$world.lockdowns_imposed += 1"
+                  ]
+                },
+                "$world.forced_lockdowns += 1",
+                {
+                  "emit": "hospital_alarm",
+                  "say": "Hospital chiefs sound the alarm and the county orders a lockdown."
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "say": "A packed indoor event turns into a superspreader: dozens were exposed."
     }
   ],
   "views": {
@@ -817,7 +925,7 @@
       "type": "number"
     },
     "superspreader_events": {
-      "expr": "$world.outbreaks.superspreader.count",
+      "expr": "$world.superspreader_events",
       "type": "int"
     },
     "superspreader_cases": {
@@ -825,13 +933,23 @@
       "type": "int"
     },
     "forced_lockdowns": {
-      "expr": "$world.outbreaks.hospital_alarm.count",
+      "expr": "$world.forced_lockdowns",
       "type": "int"
     },
     "mean_propensity": {
       "expr": "$round($avg(resident, $it.propensity, $it.status != D), 3)",
       "type": "number",
       "description": "Average willingness to comply at the end"
+    },
+    "transmissibility": {
+      "expr": "$pattern.transmissibility",
+      "type": "number",
+      "description": "Chance one infected contact infects one fully susceptible contact per day"
+    },
+    "superspreader_size": {
+      "expr": "$pattern.superspreader_size",
+      "type": "int",
+      "description": "Residents infected at one superspreader event"
     }
   },
   "invariants": [
@@ -862,106 +980,6 @@
       "description": "Wait until 40 residents are sick.",
       "inputs": {
         "lockdown_trigger": 40
-      }
-    }
-  },
-  "mechanisms": {
-    "uncertainty": {
-      "kind": "dynamics",
-      "mode": "priors",
-      "priors": {
-        "transmissibility": {
-          "dist": "beta",
-          "a": 9,
-          "b": 91,
-          "description": "Chance one infected contact infects one fully susceptible contact per day"
-        },
-        "superspreader_size": {
-          "dist": "triangular",
-          "low": 4,
-          "mode": 8,
-          "high": 20,
-          "integer": true,
-          "description": "Residents infected at one superspreader event"
-        }
-      }
-    },
-    "compliance": {
-      "kind": "dynamics",
-      "mode": "drift",
-      "phase": "end",
-      "rules": {
-        "fatigue": {
-          "target": "resident.propensity",
-          "model": "linear",
-          "rate": "-$inputs.lockdown_fatigue",
-          "when": "$world.lockdown",
-          "where": "$it.status != D",
-          "min": 0.02,
-          "description": "Willingness to comply wears down while a lockdown lasts"
-        },
-        "trust": {
-          "target": "resident.propensity",
-          "model": "mean_reversion",
-          "rate": 0.02,
-          "mean": 0.72,
-          "sd": 0.01,
-          "when": "not $world.lockdown",
-          "where": "$it.status != D",
-          "min": 0,
-          "max": 1,
-          "description": "Trust slowly recovers once restrictions end"
-        }
-      }
-    },
-    "outbreaks": {
-      "kind": "dynamics",
-      "mode": "shocks",
-      "shocks": {
-        "superspreader": {
-          "description": "A packed indoor event",
-          "chance": 0.06,
-          "window": [
-            5,
-            null
-          ],
-          "gap": 6,
-          "when": "not $world.lockdown and $count(resident, $it.status == I) > 0",
-          "do": [
-            {
-              "each": "$sample($filter(resident, $it.status == S), $world.superspreader_size)",
-              "do": [
-                "$it.status = I",
-                "$it.infected_on = $round",
-                "$it.infections += 1",
-                "$world.superspreader_cases += 1"
-              ]
-            }
-          ],
-          "say": "A packed indoor event turns into a superspreader: dozens were exposed.",
-          "then": [
-            {
-              "shock": "hospital_alarm",
-              "after": 3,
-              "chance": 0.7,
-              "when": "$count(resident, $it.status == I) >= $inputs.lockdown_trigger"
-            }
-          ]
-        },
-        "hospital_alarm": {
-          "description": "Hospital chiefs force a lockdown",
-          "do": [
-            {
-              "if": "not $world.lockdown",
-              "then": [
-                "$world.lockdown = true",
-                "$world.lockdown_started = $round",
-                "$world.lockdowns_imposed += 1"
-              ]
-            }
-          ],
-          "say": "Hospital chiefs sound the alarm and the county orders a lockdown."
-        }
       }
     }
   }
