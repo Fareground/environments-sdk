@@ -43,7 +43,8 @@ from .expr import MAX_INT_BITS, Expr, ExprError, attr, check_size, compile_expr,
 from .template import compile_template, format_value
 from .links import Link
 from .registry import OPS, OpSpec
-from .world import Abort, SdkWorld, _Physics, _Props
+from .world import Abort, SdkWorld
+from .world_parts import PhysicsView, PropsView
 
 __all__ = ["EFFECT_OPS", "RESERVED_ROOTS", "Statement", "compile_statement", "statement_parts", "split_statement", "EffectRunner"]
 
@@ -313,7 +314,7 @@ class EffectRunner:
             self.world.set_prop(owner, prop, value)
         elif isinstance(owner, Link):
             self.world.set_link_field(owner, prop, value, where)
-        elif isinstance(owner, _Props):
+        elif isinstance(owner, PropsView):
             self.world.set_world(prop, value)
         else:
             self.world.set_physics(prop, value)
@@ -324,7 +325,7 @@ class EffectRunner:
         current = stmt.base(scope)  # type: ignore[misc]
         found: Optional[Tuple[Any, int]] = None
         for position, (kind, step) in enumerate(stmt.steps):
-            if kind == "field" and isinstance(current, (Entity, Link, _Props, _Physics)):
+            if kind == "field" and isinstance(current, (Entity, Link, PropsView, PhysicsView)):
                 found = (current, position)
             if position == len(stmt.steps) - 1:
                 break

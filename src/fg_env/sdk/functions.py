@@ -29,6 +29,8 @@ def _is_scalar_form(call: Call) -> bool:
 @function("count(items, where?)", "How many items (entities of a type, or a list) match `where`.",
           min_args=1, max_args=2, lazy=[1])
 def _count(call: Call) -> int:
+    if len(call) == 1:
+        return len(call.members(0))
     return len(call.filtered(0, 1))
 
 
@@ -209,15 +211,18 @@ def _map(call: Call) -> List[Any]:
 
 @function("pick(items, where?)", "The first matching item, or null.", min_args=1, max_args=2, lazy=[1])
 def _pick(call: Call) -> Any:
-    for i, item in enumerate(call.collection(0)):
-        if len(call) < 2 or truthy(call.each(1, item, i)):
+    items = call.collection(0)
+    if len(call) < 2:
+        return items[0] if items else None
+    for i, item in call.candidates(items, 1):
+        if truthy(call.each(1, item, i)):
             return item
     return None
 
 
 @function("any(items, where)", "True when at least one item matches.", min_args=2, max_args=2, lazy=[1])
 def _any(call: Call) -> bool:
-    return any(truthy(call.each(1, it, i)) for i, it in enumerate(call.collection(0)))
+    return any(truthy(call.each(1, it, i)) for i, it in call.candidates(call.collection(0), 1))
 
 
 @function("all(items, where)", "True when every item matches (and for no items).",
@@ -511,11 +516,12 @@ def _poisson(call: Call) -> int:
 @function("choice(items, weight?)", "One item picked at random; `weight` is a per-item expression ($it), e.g. $choice([a, b], $it == a and 3 or 1).",
           min_args=1, max_args=2, lazy=[1])
 def _choice(call: Call) -> Any:
+    if len(call) < 2:
+        members = call.members(0)
+        return members[call.rng.randrange(len(members))] if members else None
     items = call.collection(0)
     if not items:
         return None
-    if len(call) < 2:
-        return items[call.rng.randrange(len(items))]
     weights = _numbers(call, [call.each(1, it, i) for i, it in enumerate(items)])
     if any(w < 0 for w in weights) or sum(weights) <= 0:
         raise ExprError("$choice weights must be ≥ 0 and not all zero", call.source)
@@ -647,3 +653,4 @@ def _flatten(call: Call) -> List[Any]:
 
 
 from . import stdlib as _stdlib  # noqa: E402,F401  (registers the standard library)
+from . import space_functions as _space_functions  # noqa: E402,F401  (registers the space functions)

@@ -1,0 +1,84 @@
+"""Which entities of each type are alive, kept current as entities are created and removed.
+
+Reading every entity of a type (``$count(person)``, ``$choice(person)``, an event over ``person``)
+never scans the other types, and between creations and removals a type's living members are one
+cached list. Lists are in creation order, exactly as a scan of the world would give them.
+"""
+from __future__ import annotations
+
+import heapq
+from typing import Dict, Iterable, List, Optional
+
+from ..entity import Entity
+from .contract import Contract
+
+__all__ = ["TypeIndex"]
+
+
+class TypeIndex:
+    """Members of every declared type (subtypes included), in creation order."""
+
+    def __init__(self, contract: Contract):
+        self._kinds = {name: tuple(contract.subtypes(name)) for name in contract.types}
+        #: exact type → the declared types whose members it counts as (itself and its ancestors)
+        self._queries = {kind: [name for name, kinds in self._kinds.items() if kind in kinds] for kind in contract.types}
+        #: exact type → every entity ever made of it, in creation order (removed ones until compacted)
+        self._members: Dict[str, List[Entity]] = {name: [] for name in contract.types}
+        self._alive: Dict[str, Optional[List[Entity]]] = {}
+        #: entity id → its creation position (only the order matters)
+        self.ordinal: Dict[str, int] = {}
+        self._next = 0
+
+    def created(self, entity: Entity) -> None:
+        self.ordinal[entity.id] = self._next
+        self._next += 1
+        self._members[entity.entity_type].append(entity)
+        for name in self._queries[entity.entity_type]:
+            cached = self._alive.get(name)
+            if cached is not None:
+                cached.append(entity)  # the newest entity comes last in creation order
+
+    def uncreated(self, entity: Entity) -> None:
+        """Undo a creation (the journal undoes changes newest first, so it is its type's last member)."""
+        members = self._members[entity.entity_type]
+        if members and members[-1] is entity:
+            members.pop()
+        elif entity in members:
+            members.remove(entity)
+        self.ordinal.pop(entity.id, None)
+        self.changed(entity)
+
+    def changed(self, entity: Entity) -> None:
+        """An entity was removed or brought back: the cached lists that hold its type refresh on next read."""
+        for name in self._queries[entity.entity_type]:
+            self._alive[name] = None
+
+    def alive(self, type_name: str, compact: bool) -> List[Entity]:
+        """The living members of ``type_name`` — the cached list itself, which callers must not change.
+        ``compact`` (nothing left to roll back) also forgets removed members for good."""
+        cached = self._alive.get(type_name)
+        if cached is not None:
+            return cached
+        kinds = self._kinds[type_name]
+        parts = []
+        for kind in kinds:
+            living = [entity for entity in self._members[kind] if entity.alive]
+            if compact:
+                self._members[kind] = list(living)
+            parts.append(living)
+        if len(parts) == 1:
+            cached = parts[0]
+        else:
+            order = self.ordinal
+            cached = list(heapq.merge(*parts, key=lambda entity: order[entity.id]))
+        self._alive[type_name] = cached
+        return cached
+
+    def rebuild(self, entities: Iterable[Entity]) -> None:
+        """Index ``entities`` (in creation order) from scratch, e.g. after a restore."""
+        self._members = {name: [] for name in self._members}
+        self._alive = {}
+        self.ordinal = {}
+        self._next = 0
+        for entity in entities:
+            self.created(entity)

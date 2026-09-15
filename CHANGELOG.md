@@ -10,6 +10,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Added
+- **Spaces for agent-based models**: grid `neighborhood` (`von_neumann`, `moore`, `hex` in axial
+  coordinates) and `torus`; plane `torus`; sizes and graph nodes/edges may be expressions over `$inputs`;
+  `space.capacity` (per cell, or per type) refuses a `move` or `create` into a full cell. Positions are
+  indexed (kept current under rollback and restore): `$at`, `$near`, `$nearest`, `$cells`, `$empty`,
+  `$random_empty`. `diagonal` is replaced by `neighborhood: moore`.
+- **Layers** (`space.layers`): values on every cell or place, read with `$layer(name, position)` and changed
+  by the `layer` effect — one cell (`at`), every cell reading the old values (`set` with `$cell`/`$value`),
+  `diffuse` and `decay`; kept in snapshots.
+- **Synchronous and ordered events**: `events[].sync` (every item reads the state before the event and all
+  property and layer-cell writes land together; conflicting writes are an error) and `events[].order`
+  (`random` or an expression).
+- **`fg-env bench`** (`fg_env.sdk.bench.bench`): build time, ms per round, rounds per second and exclusive
+  time per phase, for given contracts or the reference models; new examples `schelling`,
+  `boltzmann_wealth`, `game_of_life`, `forest_fire`, `wolf_sheep`, `sugarscape_lite` with checks of their
+  known results.
+- **Crowd scale**: `invariants[].check` (`action` default, `round`, `end`); an invariant already found to
+  hold in the same state is not evaluated again. Type members are indexed (no world scan per
+  `$choice(type)`/`$count(type)`/`each`), a condition opening with `$it.field == value` skips entities whose
+  field differs without evaluating them, and a coded policy's entity argument is validated without listing
+  every candidate. Boltzmann 20 000 agents: 11.8 s → 0.48 s per round.
 - **Chance nodes** (`chance` effect): `{"chance": [{"p": 0.5, "label": "heads", "do": [...]}, ...], "as": "coin"}`
   or `{"chance": "deal", "outcomes": "$world.deck", "weight": "...", "as": "card", "do": [...]}` picks one
   outcome from a listed distribution and logs it as a `chance` event. Sampled from the seed by default;
