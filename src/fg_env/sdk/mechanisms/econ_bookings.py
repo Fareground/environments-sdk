@@ -331,12 +331,33 @@ def _bookings_tick(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], wh
     world = runner.world
     name = effect["agreements"]
     config: BookingsConfig = config_of(world, name, BOOKINGS, where)
-    for booking in _bookings(world, name, status="waiting"):
-        gives_up = int(props(booking)["gives_up"])
-        if gives_up and gives_up < world.round:
+    freed: Dict[tuple[str, int], None] = {}
+    for booking in _bookings(world, name):
+        p = props(booking)
+        if p["status"] not in LIVE:
+            continue
+        guest = world.entities.get(p["guest"])
+        if guest is None or not guest.alive:
+            if p["status"] == "booked" and int(p["slot"]) >= world.round:
+                freed[(p["resource"], int(p["slot"]))] = None
+            # Departure is not cancellation: retain any payment, with refunds
+            # left to an explicitly authored cancellation/exit procedure.
             world.set_prop(booking, "status", "abandoned")
             _stat(world, name, "abandoned", 1)
-            emit_to(world, f"{name}_gave_up", "You gave up waiting.", [props(booking)["guest"]])
+            emit_to(world, f"{name}_abandoned", "Booking abandoned: the guest is no longer active.", [],
+                    {"booking": booking.id, "guest": p["guest"], "reason": "guest gone"})
+            continue
+        gives_up = int(p["gives_up"])
+        if p["status"] == "waiting" and gives_up and gives_up < world.round:
+            world.set_prop(booking, "status", "abandoned")
+            _stat(world, name, "abandoned", 1)
+            emit_to(world, f"{name}_gave_up", "You gave up waiting.", [p["guest"]])
+    # Clear all departed/expired entries before promoting, so a freed place
+    # cannot be sold to someone whose wait has already ended.
+    for resource_id, slot in freed:
+        resource = world.entities.get(resource_id)
+        if resource is not None and resource.alive:
+            _promote(world, name, config, resource, slot, where)
     for resource in world.entities_of(f"{name}_resource"):
         capacity = int(props(resource)["capacity"])
         world.set_prop(resource, "offered", int(props(resource)["offered"]) + capacity)

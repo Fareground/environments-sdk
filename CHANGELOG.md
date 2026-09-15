@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Guest exit abandons pending bookings without counting service or leaving permanent queue entries. Freed
+  reservations promote eligible waiters after expired waits are cleared. Departure retains payments; explicit
+  cancellation still applies the configured refund once.
 - Installments with inactive parties follow the configured breach/termination policy without stopping unrelated
   deals. Breach hooks still run for retained inactive participants; automatic penalties require active parties.
 - Removing a subscription provider ends due agreements as withdrawn instead of failing the run. Unavailable
