@@ -1,0 +1,39 @@
+{
+  "fg_env": "1",
+  "name": "Prisoner's dilemma",
+  "description": "The one-shot general-sum matrix game (T=5, R=3, P=1, S=0). Defecting strictly dominates, so the only equilibrium is mutual defection (1, 1).",
+  "brief": {
+    "situation": "Two players each choose to cooperate or defect, at the same time.",
+    "rules": "Both cooperate: 3 each. Both defect: 1 each. One defects while the other cooperates: the defector scores 5 and the cooperator 0."
+  },
+  "clock": {"rounds": 1},
+  "world": {
+    "payoff": {"type": "map", "default": {
+      "cooperate": {"cooperate": 3, "defect": 0},
+      "defect": {"cooperate": 5, "defect": 1}
+    }}
+  },
+  "types": {"player": {"agent": true, "props": {
+    "seat": 0,
+    "move": {"type": "text", "default": "", "private": true},
+    "score": 0
+  }}},
+  "entities": {
+    "a": {"type": "player", "name": "A", "props": {"seat": 0}},
+    "b": {"type": "player", "name": "B", "props": {"seat": 1}}
+  },
+  "actions": {"choose": {
+    "by": "player", "description": "Cooperate or defect.", "private": true, "terminal": true,
+    "params": {"move": {"type": "enum", "values": ["cooperate", "defect"]}},
+    "do": ["$actor.move = $params.move"]
+  }},
+  "stages": [{"name": "choose", "turns": "simultaneous", "must_act": true}],
+  "events": [{"phase": "end", "do": [
+    "$a = $entity('a')", "$b = $entity('b')",
+    "$a.score = $world.payoff[$a.move][$b.move]", "$b.score = $world.payoff[$b.move][$a.move]",
+    {"emit": "shown", "say": "A chose to {$a.move}; B chose to {$b.move}."}
+  ]}],
+  "game": {"players": "player", "seat": "$it.seat", "returns": "$actor.score", "utility": "general_sum",
+           "min_return": 0, "max_return": 5},
+  "outputs": {"a_score": {"expr": "$entity('a').score", "type": "number"}}
+}

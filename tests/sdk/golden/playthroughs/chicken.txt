@@ -1,0 +1,48 @@
+# fg-env playthrough: Chicken
+Game: chicken@9f459967:4642e142
+Seed: 1
+Seats: 0 a, 1 b
+Dynamics: simultaneous; chance: deterministic; information: imperfect; utility: general_sum
+Action space: 3 ids
+Returns between: -10 and 1
+
+## Brief of seat 0 (a)
+  | # Chicken
+  | Two drivers head at each other; each chooses to swerve or go straight, at the same time.
+  | 
+  | ## Rules
+  | Both swerve: 0 each. One goes straight: that driver scores 1 and the swerver -1. Both go straight: -10 each.
+  | 
+  | ## You
+  | You are A (player, id a).
+  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+
+## Brief of seat 1 (b)
+  | # Chicken
+  | Two drivers head at each other; each chooses to swerve or go straight, at the same time.
+  | 
+  | ## Rules
+  | Both swerve: 0 each. One goes straight: that driver scores 1 and the swerver -1. Both go straight: -10 each.
+  | 
+  | ## You
+  | You are B (player, id b).
+  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+
+# State 0
+Current player: simultaneous 0, 1
+Legal calls of seat 0: [1] drive(move=swerve); [2] drive(move=straight)
+Legal calls of seat 1: [1] drive(move=swerve); [2] drive(move=straight)
+Seat 0 (a) reads:
+  | Round 1 of 1 · drive
+  | Now: Everyone chooses at the same time.
+Seat 0 information state: 88471e8b3394e18d
+Seat 1 (b) reads:
+  | Round 1 of 1 · drive
+Seat 1 information state: 872e4eabe1a17707
+Returns: [0, 0]
+Chosen: seat 0: drive(move=swerve); seat 1: drive(move=straight)
+Step: {"joint": {"0": {"args": {"move": "swerve"}, "tool": "drive"}, "1": {"args": {"move": "straight"}, "tool": "drive"}}}
+
+# State 1
+Terminal
+Returns: [-1, 1]

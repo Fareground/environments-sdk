@@ -1,0 +1,113 @@
+{
+  "fg_env": "1",
+  "name": "Nim",
+  "brief": {
+    "situation": "A heap of stones between two players.",
+    "rules": "Take 1 to 3 stones on your move. Whoever takes the last stone wins."
+  },
+  "clock": {
+    "rounds": 50,
+    "unit": "move"
+  },
+  "inputs": {
+    "stones": {
+      "type": "int",
+      "default": 5,
+      "min": 1
+    }
+  },
+  "world": {
+    "stones": {
+      "type": "int",
+      "default": "$inputs.stones"
+    },
+    "turn": {
+      "type": "text",
+      "default": "a"
+    },
+    "winner": {
+      "type": "text",
+      "default": ""
+    }
+  },
+  "types": {
+    "player": {
+      "agent": true,
+      "props": {
+        "seat": 0
+      }
+    }
+  },
+  "entities": {
+    "a": {
+      "type": "player",
+      "name": "Ann",
+      "props": {
+        "seat": 0
+      }
+    },
+    "b": {
+      "type": "player",
+      "name": "Bob",
+      "props": {
+        "seat": 1
+      }
+    }
+  },
+  "actions": {
+    "take": {
+      "by": "player",
+      "description": "Take stones from the heap.",
+      "params": {
+        "count": {
+          "type": "int",
+          "min": 1,
+          "max": "$min(3, $world.stones)"
+        }
+      },
+      "when": [
+        "$world.turn == $actor.id"
+      ],
+      "do": [
+        "$world.stones -= $params.count",
+        "$world.turn = 'b' if $actor.id == 'a' else 'a'",
+        {
+          "if": "$world.stones == 0",
+          "then": [
+            "$world.winner = $actor.id",
+            {
+              "end": "last_stone",
+              "winner": "$actor"
+            }
+          ]
+        }
+      ],
+      "terminal": true
+    }
+  },
+  "stages": [
+    {
+      "name": "move",
+      "who": "$world.turn == $it.id",
+      "must_act": true
+    }
+  ],
+  "views": {
+    "heap": {
+      "for": "player",
+      "show": "Stones left: {$world.stones}."
+    }
+  },
+  "game": {
+    "players": "player",
+    "seat": "$it.seat",
+    "utility": "zero_sum",
+    "returns": "(1 if $world.winner == $actor.id else -1) if $world.winner != '' else 0"
+  },
+  "outputs": {
+    "winner": {
+      "expr": "$world.winner",
+      "type": "text"
+    }
+  }
+}

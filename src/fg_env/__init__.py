@@ -261,6 +261,10 @@ __all__ = [
     "describe",
     "trace",
     "evaluate",
+    "conformance",
+    "playthrough",
+    "pettingzoo_aec",
+    "pettingzoo_parallel",
 ]
 
 # Environment SDK public API. Everything a user needs is importable from ``fg_env``.
@@ -268,6 +272,9 @@ from .sdk.api import check, expand, load, parse, run
 from .sdk.branch import Branch
 from .sdk.fork import fork
 from .sdk.game import Game, GameState, game
+from .sdk.game.conformance import conformance
+from .sdk.game.pettingzoo import pettingzoo_aec, pettingzoo_parallel
+from .sdk.game.playthrough import playthrough
 from .sdk.gym import GymEnv, gym
 from .sdk.contract import Contract
 from .sdk.errors import ContractError, InputError, InvariantViolation, Issue, RunError, SnapshotError

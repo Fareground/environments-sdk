@@ -1,0 +1,48 @@
+# fg-env playthrough: Stag hunt
+Game: stag_hunt@3b4160e7:4642e142
+Seed: 1
+Seats: 0 a, 1 b
+Dynamics: simultaneous; chance: deterministic; information: imperfect; utility: general_sum
+Action space: 3 ids
+Returns between: 0 and 4
+
+## Brief of seat 0 (a)
+  | # Stag hunt
+  | Two hunters each choose to hunt stag or hare, at the same time.
+  | 
+  | ## Rules
+  | A stag needs both hunters: both hunting stag score 4 each. A hare hunter always scores 3. A lone stag hunter scores 0.
+  | 
+  | ## You
+  | You are A (player, id a).
+  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+
+## Brief of seat 1 (b)
+  | # Stag hunt
+  | Two hunters each choose to hunt stag or hare, at the same time.
+  | 
+  | ## Rules
+  | A stag needs both hunters: both hunting stag score 4 each. A hare hunter always scores 3. A lone stag hunter scores 0.
+  | 
+  | ## You
+  | You are B (player, id b).
+  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+
+# State 0
+Current player: simultaneous 0, 1
+Legal calls of seat 0: [1] hunt(move=stag); [2] hunt(move=hare)
+Legal calls of seat 1: [1] hunt(move=stag); [2] hunt(move=hare)
+Seat 0 (a) reads:
+  | Round 1 of 1 · hunt
+  | Now: Everyone chooses at the same time.
+Seat 0 information state: fcf49e3867aed9ce
+Seat 1 (b) reads:
+  | Round 1 of 1 · hunt
+Seat 1 information state: 276b4739713e5d8d
+Returns: [0, 0]
+Chosen: seat 0: hunt(move=stag); seat 1: hunt(move=hare)
+Step: {"joint": {"0": {"args": {"move": "stag"}, "tool": "hunt"}, "1": {"args": {"move": "hare"}, "tool": "hunt"}}}
+
+# State 1
+Terminal
+Returns: [0, 3]

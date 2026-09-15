@@ -227,9 +227,15 @@ def resolve_participant(value: Any, contract: "Contract", seed: int) -> Particip
         name = value[len("policy:"):] if value.startswith("policy:") else value
         if name in contract.policies:
             return PolicyAgent(contract, name, seed)
+        from .game.algorithms.participants import algorithm_participant
+
+        algorithm = algorithm_participant(value, contract, seed)
+        if algorithm is not None:
+            return algorithm
     raise ValueError(
-        f"unknown participant {value!r}: use a callable, 'random', 'idle', or 'policy:<name>' "
-        f"(policies: {', '.join(contract.policies) or 'none'})"
+        f"unknown participant {value!r}: use a callable, 'random', 'idle', 'policy:<name>', or a game algorithm: "
+        f"'mcts:<simulations>', 'ismcts:<simulations>', 'minimax[:<depth>]', 'cfr:<policy.json>' or "
+        f"'cfr:<iterations>' (policies: {', '.join(contract.policies) or 'none'})"
     )
 
 

@@ -131,8 +131,11 @@ def _chance(contract: Contract, scan: _Scan) -> Tuple[str, List[str], List[str]]
         names = sorted(walk.calls(text) & functions)
         if names and where:
             (setup if where == {"setup"} else play).append(f"{path} calls " + ", ".join(f"${n}" for n in names))
+    nodes: List[str] = []
     for path, node in scan.effects:
-        for op in sorted(set(node) & ops):
+        if "chance" in node:
+            nodes.append(f"{path} is a chance node with listed outcomes (fg_env.game enumerates them)")
+        for op in sorted(set(node) & ops - {"chance"}):
             play.append(f"{path} uses the {op} op, which draws at random")
         if _lossy(node):
             play.append(f"{path} may lose the message (drop)")
@@ -152,7 +155,9 @@ def _chance(contract: Contract, scan: _Scan) -> Tuple[str, List[str], List[str]]
         if group.mix and not group.quota:
             setup.append(f"population[{i}] draws each member's archetype")
     during = [label for label, found in (("setup", setup), ("play", play)) if found]
-    return ("sampled" if during else "deterministic"), during, setup + play
+    if during:
+        return "sampled", during, setup + play + nodes
+    return ("explicit" if nodes else "deterministic"), (["play"] if nodes else []), nodes
 
 
 def _information(contract: Contract, scan: _Scan) -> Tuple[str, List[str]]:
