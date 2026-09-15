@@ -62,6 +62,18 @@
     }
   },
   "defs": {
+    "cell": {
+      "args": [
+        "n"
+      ],
+      "expr": "$text($n) if $world.board[$n] == '.' else $world.board[$n]"
+    },
+    "row": {
+      "args": [
+        "n"
+      ],
+      "expr": "$cell($n) + ' ' + $cell($n + 1) + ' ' + $cell($n + 2)"
+    },
     "three": {
       "args": [
         "m"
@@ -117,7 +129,7 @@
   "views": {
     "board": {
       "for": "player",
-      "show": "Board: {$join($world.board, '')}. You play {$actor.mark}."
+      "show": "You play {$actor.mark}. Board, row by row (an empty cell shows its number):\n{$row(0)}\n{$row(3)}\n{$row(6)}"
     }
   },
   "end": [

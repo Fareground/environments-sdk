@@ -44,6 +44,10 @@ __all__ = ["DeliberationConfig"]
 
 KIND = "decision.deliberation"
 _RECENT_DECISIONS = 3
+#: Floor-control refusals, the same wherever they are given (a tool's requirement or the effect itself).
+_NO_FLOOR = "You do not hold the floor: raise your hand and wait to be recognized."
+_RAISED = "Your hand is raised: wait to be recognized."
+_HOLDING = "You already hold the floor: speak, or yield it."
 
 
 class DeliberationConfig(BaseModel):
@@ -101,13 +105,15 @@ def _all_ready(world: Any, name: str, config: DeliberationConfig, state: Optiona
 
 
 def _describe(world: Any, item: Mapping[str, Any]) -> str:
-    what = "motion" if item["kind"] == "motion" else f"amendment to motion [{item['target']}]"
-    return f"{what} [{item['id']}] {format_value(item['text'])}"
+    """A motion or amendment by number: numbers name them in text, and no tool takes one (so no [id] handle)."""
+    what = f"motion {item['id']}" if item["kind"] == "motion" else f"amendment {item['id']} to motion {item['target']}"
+    return f"{what} {format_value(item['text'])}"
 
 
 def _person(world: Any, entity_id: Optional[str]) -> str:
+    """A member as the reader sees entities: by name, with the [id] handle it can inspect them by."""
     found = world.entities.get(entity_id) if entity_id else None
-    return found.name if found is not None else "—"
+    return format_value(found) if found is not None else "—"
 
 
 # ---------------------------------------------------------------------------
@@ -170,8 +176,10 @@ def _house(world: Any, name: str, config: DeliberationConfig, viewer: Optional[E
         hands = ", ".join(_person(world, h) for h in state["hands"]) or "none"
         lines.append(f"Floor: {_person(world, holder) if holder else 'open (the chair recognizes speakers)'}{used} · "
                      f"Hands raised: {hands}")
-    if state["phase"] == "voting":
+    if state["phase"] == "voting" and world.stage == f"{name}_vote":
         lines.append(f"Voting now: {len(state['ballots'])} of {len(_members(world, config))} ballots cast.")
+    elif state["phase"] == "voting":
+        lines.append("The question has been called: voting opens in the next stage.")
     else:
         members = _members(world, config)
         ready = sum(1 for m in members if props(m).get(f"{name}_ready"))
@@ -182,7 +190,7 @@ def _house(world: Any, name: str, config: DeliberationConfig, viewer: Optional[E
     for decision in state["decisions"][-_RECENT_DECISIONS:]:
         verdict = "passed" if decision["passed"] else "failed"
         counts = ", ".join(f"{k} {v}" for k, v in decision["counts"].items())
-        lines.append(f"Decided: motion [{decision['id']}] {format_value(decision['text'])} — {verdict} ({counts})")
+        lines.append(f"Decided: motion {decision['id']} {format_value(decision['text'])} — {verdict} ({counts})")
     return "\n".join(lines)
 
 
@@ -331,8 +339,10 @@ def _member_act(world: Any, name: str, config: DeliberationConfig, state: Dict[s
 def _hand(world: Any, name: str, config: DeliberationConfig, state: Dict[str, Any], actor: Entity) -> None:
     if not config.floor or config.chair is None:
         raise Abort("There is no floor control here; just speak.")
-    if state["floor"] == actor.id or actor.id in state["hands"]:
-        raise Abort("You already hold the floor or have your hand raised.")
+    if state["floor"] == actor.id:
+        raise Abort(_HOLDING)
+    if actor.id in state["hands"]:
+        raise Abort(_RAISED)
     state["hands"].append(actor.id)
     chairs = [c.id for c in world.entities_of(config.chair)]
     why = f"{actor.name} raised a hand and asks for the floor."
@@ -354,7 +364,7 @@ def _recognize(world: Any, name: str, config: DeliberationConfig, state: Dict[st
 
 def _needs_floor(config: DeliberationConfig, state: Dict[str, Any], actor: Entity) -> None:
     if config.floor and state["floor"] != actor.id:
-        raise Abort("You do not hold the floor: raise your hand and wait to be recognized.")
+        raise Abort(_RAISED if actor.id in state["hands"] else _NO_FLOOR)
 
 
 def _text(config: DeliberationConfig, text: Any) -> Any:
@@ -403,7 +413,7 @@ def _propose(world: Any, name: str, config: DeliberationConfig, state: Dict[str,
             "status": "proposed" if config.second else "open", "speeches": 0, "target": target, "round": world.round}
     state["next"] += 1
     state["stack"].append(item)
-    says = f"moves motion [{item['id']}]" if kind == "motion" else f"moves amendment [{item['id']}] to motion [{target}]"
+    says = f"moves motion {item['id']}" if kind == "motion" else f"moves amendment {item['id']} to motion {target}"
     _record(world, name, actor, says + (" (needs a second)" if config.second else ""), body, item["id"], where)
     _use_floor(world, name, config, state, actor)
 
@@ -416,7 +426,7 @@ def _second(world: Any, name: str, config: DeliberationConfig, state: Dict[str, 
         raise Abort("You cannot second your own motion.")
     top.update(status="open", seconder=actor.id)
     _spoke(world, name, config, state, actor)
-    _record(world, name, actor, f"seconds {'motion' if top['kind'] == 'motion' else 'amendment'} [{top['id']}]; it is open for debate",
+    _record(world, name, actor, f"seconds {top['kind']} {top['id']}; it is open for debate",
             "", top["id"], where)
 
 
@@ -426,7 +436,7 @@ def _call(world: Any, name: str, config: DeliberationConfig, state: Dict[str, An
         raise Abort("There is no open question to call.")
     if not is_chair and top["speeches"] < config.min_debate:
         raise Abort(f"The question needs {config.min_debate} speech(es) of debate first ({top['speeches']} so far).")
-    _record(world, name, actor, f"calls the question on [{top['id']}]", "", top["id"], where)
+    _record(world, name, actor, f"calls the question on {top['kind']} {top['id']}", "", top["id"], where)
     _put_question(world, name, state, top)
 
 
@@ -464,7 +474,7 @@ def _tally(world: Any, name: str, config: DeliberationConfig, state: Dict[str, A
                    data={"mechanism": name, "motion": item["id"], "passed": passed, "counts": counts})
         return
     state["decisions"].append({"id": item["id"], "text": item["text"], "passed": passed, "counts": counts, "round": world.round})
-    text = f"Motion [{item['id']}] {format_value(item['text'])} {verdict}{reason} ({detail})."
+    text = f"Motion {item['id']} {format_value(item['text'])} {verdict}{reason} ({detail})."
     world.emit(name, text, data={"mechanism": name, "motion": item["id"], "passed": passed, "counts": counts})
     if config.end == "decision" or (config.end == "adoption" and passed):
         world.request_end(name, None, text)
@@ -497,7 +507,9 @@ def _expand(name: str, config: DeliberationConfig, contract: Mapping[str, Any]) 
     check_expr(config.when, "when", ())
     debate = f"$world.{name}.phase == 'debate'"
     members, chair = config.who, config.chair
-    floor = [{"expr": f"$world.{name}.floor == $actor.id", "why": "You do not hold the floor; raise your hand."}] if config.floor else []
+    holds = f"$world.{name}.floor == $actor.id"
+    raised = f"$actor.id in $world.{name}.hands"
+    floor = [{"expr": f"{holds} or {raised}", "why": _NO_FLOOR}, {"expr": holds, "why": _RAISED}] if config.floor else []
     open_debate = [{"expr": debate, "why": "A vote is under way."}]
     text = {"type": "text", "max_len": config.max_chars}
 
@@ -516,8 +528,8 @@ def _expand(name: str, config: DeliberationConfig, contract: Mapping[str, Any]) 
     }
     if config.floor:
         actions[f"{name}_raise_hand"] = act(members, "Ask the chair for the floor.", {"action": "raise_hand"}, open_debate + [
-            {"expr": f"$world.{name}.floor != $actor.id and not ($actor.id in $world.{name}.hands)",
-             "why": "You hold the floor or your hand is already up."}], outcome="Your hand is raised.", private=True)
+            {"expr": f"not ({holds})", "why": _HOLDING}, {"expr": f"not ({raised})", "why": _RAISED}],
+            outcome="Your hand is raised.", private=True)
         actions[f"{name}_yield"] = act(members, "Give the floor back to the chair.", {"action": "yield"}, open_debate + floor,
                                        outcome="You yielded the floor.", private=True)
         actions[f"{name}_recognize"] = act(chair or members, "Give the floor to a member whose hand is raised.",

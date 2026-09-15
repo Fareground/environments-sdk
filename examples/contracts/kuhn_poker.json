@@ -74,7 +74,7 @@
      "must_act": true}
   ],
   "views": {
-    "table": {"for": "player", "show": "Your card: {$actor.card}. Betting so far: {$world.history}."}
+    "table": {"for": "player", "show": "Your card: {$actor.card}. Betting so far (P0 first): {$'none' if $world.history == '' else $join($map($chars($world.history), $'pass' if $it == 'p' else 'bet'), ', ')}."}
   },
   "game": {
     "players": "player",

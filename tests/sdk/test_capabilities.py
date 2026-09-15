@@ -87,7 +87,7 @@ def test_inspect_is_scoped_by_type_rules():
         wake.end()
 
     fg_env.run(EXCHANGE, agent, seed=1, rounds=1)
-    assert seen["m"][0] == "No entity with that id is available to inspect."
+    assert seen["m"][0] == "No entity with that id is available to inspect. You can inspect: m."
     assert seen["t"][0].startswith("Tia [t] (taker)")
 
 

@@ -16,8 +16,9 @@ from .contract import StageSpec
 from .errors import RunError
 from .expr import ExprError, compile_expr, shared_budget, truthy
 from .measure import Stats
+from .reads import READS, find_target, handle_filter, inspect_tool, look_tool, may_inspect
 from .session import END_TURN, ToolResult
-from .template import compile_template, format_value
+from .template import compile_template, entity_handles, format_value
 from .world import _plain
 
 if TYPE_CHECKING:
@@ -69,6 +70,10 @@ class Turn:
         #: The assets delivered with the brief and with the update.
         self._delivered: List[str] = []
         self.calls_left = stage.max_calls
+        #: Looks and inspects that do not spend a call (see :mod:`fg_env.sdk.reads`).
+        self.reads_left = stage.max_calls
+        #: The stage required an action, one was available, and the agent took none (set when the turn is finished).
+        self.did_not_act = False
         self.actions_left = stage.max_actions
         self.done = False
         self.used: Dict[str, int] = {}
@@ -157,9 +162,10 @@ class Turn:
                     return _CLOSED_TEXT
                 shown = _shown() if self.exposure is not None else None
                 attached: List[str] = []
-                with shared_budget(ACTION_BUDGET, "update"):
+                with shared_budget(ACTION_BUDGET, "update"), entity_handles(handle_filter(self.env, self.actor)):
                     self._update = self.env.perception.update(self.actor, self.stage, self.reason, self._since,
-                                                              self._views, self.time_limit, shown, attached)
+                                                              self._views, self.time_limit, shown, attached,
+                                                              self.calls_left if self.call_limit else None)
                 self.stats.update_chars = len(self._update)
                 self.stats.update_reads = 1
                 self._deliver(attached, "update")
@@ -172,6 +178,12 @@ class Turn:
         self._delivered.extend(fresh)
         if self.exposure is not None and fresh:
             self.exposure.shown(self.env.world.assets.of(fresh), where)
+
+    @property
+    def call_limit(self) -> bool:
+        """Whether the stage allows fewer calls than stages usually do: then the update states the budget (a larger
+        `max_calls` is a backstop the agent never needs to plan around)."""
+        return self.stage.max_calls < type(self.stage).model_fields["max_calls"].default
 
     def attachments(self, ids: Optional[List[str]] = None) -> List[Attachment]:
         """The files delivered with the brief and update (or the assets ``ids``), as participants receive them."""
@@ -198,13 +210,10 @@ class Turn:
             tools = env.actions.tools(self.actor, self._legal(), self.staged)
         looks = env.perception.look_views(self.actor, self.stage)
         if looks:
-            tools.append(ToolSpec("look", "Show one of these views: " + ", ".join(looks) + ".", {
-                "type": "object", "properties": {"view": {"type": "string", "enum": looks}},
-                "required": ["view"], "additionalProperties": False}, "look"))
+            tools.append(look_tool(looks))
         if env._inspectable:
-            tools.append(ToolSpec("inspect", "Details of one entity by id (uses one tool call).", {
-                "type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"],
-                "additionalProperties": False}, "look"))
+            with env._lock:
+                tools.append(inspect_tool(env, self.actor))
         if not self._must_act_now(tools):
             if self.staged:
                 end_text = "Finish your turn (your choices are submitted)."
@@ -256,10 +265,13 @@ class Turn:
         refused = self.refusal()
         if refused is not None:
             return refused
-        if self.calls_left <= 0:
+        if name in READS and self.reads_left > 0:
+            self.reads_left -= 1  # reading never spends the calls the agent needs to act
+        elif self.calls_left <= 0:
             self.done = True
             return ToolResult(False, "No tool calls left this turn; your turn is over.", True)
-        self.calls_left -= 1
+        else:
+            self.calls_left -= 1
         self.stats.calls += 1
         env = self.env
         if not isinstance(name, str):
@@ -426,17 +438,12 @@ class Turn:
             self.done = True
             result.ended = True
             result.text += " (No tool calls left; your turn is over.)"
+        elif self.calls_left <= self.actions_left + 1:  # the calls left barely cover the actions still allowed and ending
+            result.text += f" (Calls left: {self.calls_left}.)"
         return result
 
     def _may_inspect(self, target: Entity) -> bool:
-        rule = self.env._inspect_rule(target.entity_type)
-        if isinstance(rule, bool):
-            return rule or target.id == self.actor.id
-        try:
-            return target.id == self.actor.id or truthy(
-                compile_expr(rule)(self.env.world.scope(viewer=self.actor, it=target)))
-        except ExprError as exc:
-            raise RunError(str(exc), f"types.{target.entity_type}.inspect") from None
+        return may_inspect(self.env, self.actor, target)
 
     def _look(self, args: Optional[Mapping[str, Any]]) -> ToolResult:
         env = self.env
@@ -447,7 +454,7 @@ class Turn:
             return self._after(ToolResult(False, f"view must be one of: {', '.join(looks) or 'none'}.", data=_INVALID))
         shown = _shown() if self.exposure is not None else None
         attached: List[str] = []
-        with shared_budget(ACTION_BUDGET, f"views.{name}"):
+        with shared_budget(ACTION_BUDGET, f"views.{name}"), entity_handles(handle_filter(env, self.actor)):
             text = env.perception.render_view(name, env.contract.views[name], self.actor, shown, attached)
         if self.exposure is not None and shown is not None and text is not None:
             shown.views.append((name, text))
@@ -456,11 +463,10 @@ class Turn:
 
     def _inspect(self, args: Optional[Mapping[str, Any]]) -> ToolResult:
         env = self.env
-        wanted = (args or {}).get("id")
-        target = env.world.entity(wanted) if isinstance(wanted, str) else None
-        if target is None or not target.alive or not self._may_inspect(target):
+        target, refusal = find_target(env, self.actor, (args or {}).get("id"))
+        if target is None:
             self.stats.invalid_calls += 1
-            return self._after(ToolResult(False, "No entity with that id is available to inspect.", data=_INVALID))
+            return self._after(ToolResult(False, refusal, data=_INVALID))
         specs = env.contract.props_of(target.entity_type)
         own = target.id == self.actor.id
         visible = {k: v for k, v in target.properties.items() if own or not specs.get(k) or not specs[k].private}

@@ -45,6 +45,8 @@ class Stats:
     reactions: int = 0
     #: Turns a participant gave up after a provider error (``on_error="end_turn"``).
     forfeits: int = 0
+    #: Model replies cut off at their output limit (reported by LLM participants).
+    truncated: int = 0
     #: Turns that ran past their time limit.
     timeouts: int = 0
     #: Atomic turns undone because the whole turn was not `valid`.
