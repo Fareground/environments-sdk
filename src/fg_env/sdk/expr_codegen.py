@@ -26,7 +26,7 @@ call, a missing root).
 from __future__ import annotations
 
 import ast
-from typing import Any, Callable, Dict, FrozenSet, List, Optional, Tuple
+from typing import Any, Callable, Dict, FrozenSet, List, Optional, Sequence, Tuple
 
 from .expr_base import _BUDGET, ExprError
 from .expr_calls import FUNCTIONS, Call, EqualityGuard, Evaluator
@@ -75,6 +75,14 @@ def _arity(signature: str, source: str) -> None:
     raise ExprError(f"wrong number of arguments: ${signature}", source)
 
 
+def _caller(target: Any, root: str, name: str, source: str) -> Any:
+    """What answers ``$root.name(args)``: the root value's ``expr_call``."""
+    caller = getattr(target, "expr_call", None)
+    if caller is None:
+        raise ExprError(f"${root}.{name} cannot be called; read it as ${root}.{name}", source)
+    return caller
+
+
 def _negate(value: Any, source: str) -> Any:
     return -1 * _number(value, source)
 
@@ -90,7 +98,7 @@ def _helpers() -> Dict[str, Any]:
     return {
         "__builtins__": {}, "_type": type, "_len": len, "_int": int, "_str": str, "_float": float, "_list": list,
         "_enumerate": enumerate, "_Entity": _Entity, "_PropsView": PropsView, "_Scope": Scope, "_Call": Call,
-        "_attr": attr, "_index": _index, "_root": _root, "_call_def": _call_def, "_arity": _arity,
+        "_attr": attr, "_index": _index, "_caller": _caller, "_root": _root, "_call_def": _call_def, "_arity": _arity,
         "_negate": _negate, "_plus": _plus, "_add": _add, "_sub": _BINARY[ast.Sub], "_mul": _mul,
         "_truediv": _BINARY[ast.Div], "_floordiv": _BINARY[ast.FloorDiv], "_mod": _BINARY[ast.Mod], "_pow": _pow,
         "_eq": _eq, "_in": _in, "_lt": _COMPARE[ast.Lt], "_le": _COMPARE[ast.LtE], "_gt": _COMPARE[ast.Gt],
@@ -167,6 +175,7 @@ class Codegen:
         self.item_paths: set = set()
         self.comparisons: set = set()
         self.item_comparisons: set = set()
+        self.methods: set = set()
         self._namespace: Dict[str, Any] = {}
         self._strings: Dict[str, str] = {}
         self._written: List[_Function] = []
@@ -456,7 +465,22 @@ class Codegen:
         self.item_comparisons |= {(name, symbol, c[0], c[1]) for c in inner_cmp if c[0][0] == "it"}
         return written
 
+    def _method(self, func: ast.Attribute, nodes: Sequence[ast.AST]) -> str:
+        """``$root.name(args)``: the root's value answers the call (``expr_call``), e.g. ``$pattern.season($it.sku)``."""
+        assert isinstance(func.value, ast.Name)
+        root, name = func.value.id[len(_ROOT_PREFIX):], func.attr
+        self.paths.add((root, name))
+        self.methods.add((root, name, len(nodes)))
+        target = self._Name(func.value)  # read as scope.root reads it (and noted as a root)
+        caller, value, source = self._temp(), self._temp(), self._source()
+        self._line(f"{caller} = _caller({target}, {self._const(root)}, {self._const(name)}, {source})")
+        values = [self.node(arg) for arg in nodes]
+        self._line(f"{value} = {caller}({self._const(name)}, [{', '.join(values)}], {source})")
+        return value
+
     def _Call(self, node: ast.Call) -> str:
+        if isinstance(node.func, ast.Attribute):
+            return self._method(node.func, node.args)
         assert isinstance(node.func, ast.Name)
         name = node.func.id[len(_FUNC_PREFIX):]
         spec = FUNCTIONS.get(name)

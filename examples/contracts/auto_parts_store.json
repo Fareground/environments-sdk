@@ -1,0 +1,946 @@
+{
+  "fg_env": "1",
+  "name": "Auto parts store: demand patterns and reorder policies",
+  "description": "A parts store's weekly trade in 12 SKUs (brake pads, batteries and wiper blades for two makes, each in a premium and a value tier). Demand per SKU is a fitted base × a trend × a per-category season × a price response (to regular price moves and promotions) × a promotion with a dip after it × substitution between the tiers, drawn as negative-binomial counts; sales are capped by stock (a stockout loses demand, part of which spills to the other tier), and orders arrive after a noisy lead time. The demand patterns are fitted from auto_parts_store/history.csv (fg_env.fit_patterns; examples/auto_parts_history.py regenerates the history from the `truth` arm and refits). Arms compare the store's lean reorder rule with an order-up-to rule driven by the fitted forecast.",
+  "brief": {
+    "situation": "A car-parts store deciding how to keep its shelves stocked."
+  },
+  "clock": {
+    "rounds": 52,
+    "unit": "week",
+    "start": "2026-01-05"
+  },
+  "inputs": {
+    "skus": {
+      "type": "table",
+      "source": "auto_parts_store/skus.csv",
+      "columns": {
+        "list_price": "number",
+        "unit_cost": "number",
+        "lead_weeks": "int",
+        "case_pack": "int"
+      },
+      "description": "The SKUs: part, category, tier, sibling in the other tier, prices, cost, lead time and case pack."
+    },
+    "history": {
+      "type": "table",
+      "source": "auto_parts_store/history.csv",
+      "columns": {
+        "units": "int",
+        "stockout": "int",
+        "price": "number",
+        "rel_price": "number",
+        "promo": "number"
+      },
+      "description": "Weekly sales history the demand patterns are fitted from: units sold, whether stock ran out, price and promotion depth."
+    },
+    "categories": {
+      "type": "table",
+      "default": [
+        {
+          "category": "brake_pads",
+          "promo_offset": 2
+        },
+        {
+          "category": "batteries",
+          "promo_offset": 4
+        },
+        {
+          "category": "wipers",
+          "promo_offset": 0
+        }
+      ],
+      "description": "Each category's promotion calendar offset (weeks)."
+    },
+    "policy": {
+      "type": "enum",
+      "values": [
+        "lean",
+        "service"
+      ],
+      "default": "lean",
+      "description": "lean: reorder when stock covers less than lean_cover of the lead time at the trailing 8-week average | service: order up to the fitted forecast over lead time plus a week, with a safety margin."
+    },
+    "service_z": {
+      "type": "number",
+      "default": 1.65,
+      "min": 0,
+      "description": "Safety margin of the service policy, in standard deviations of demand over the cover."
+    },
+    "lean_cover": {
+      "type": "number",
+      "default": 0.8,
+      "min": 0,
+      "description": "The lean rule reorders when stock covers less than this share of the lead time at the trailing 8-week average."
+    },
+    "holding_rate": {
+      "type": "number",
+      "default": 0.004,
+      "min": 0,
+      "description": "Holding cost per week, as a share of the unit cost."
+    },
+    "order_cost": {
+      "type": "number",
+      "default": 6.0,
+      "min": 0,
+      "description": "Cost of placing one order.",
+      "unit": "USD"
+    },
+    "promo_every": {
+      "type": "int",
+      "default": 6,
+      "min": 2,
+      "description": "Weeks between a category's promotions."
+    },
+    "promo_depth": {
+      "type": "number",
+      "default": 0.2,
+      "min": 0,
+      "max": 0.9,
+      "description": "Share off during a promotion."
+    },
+    "promo_dip": {
+      "type": "number",
+      "default": 0.25,
+      "min": 0,
+      "max": 1,
+      "description": "Demand lost after a promotion per unit of remembered promotion (assumed, not fitted)."
+    },
+    "promo_retain": {
+      "type": "number",
+      "default": 0.5,
+      "min": 0,
+      "max": 1,
+      "description": "Share of the remembered promotion kept each week."
+    },
+    "cross_elasticity": {
+      "type": "number",
+      "default": 0.8,
+      "min": 0,
+      "description": "How strongly demand moves between tiers when their relative price changes (assumed)."
+    },
+    "spill_share": {
+      "type": "number",
+      "default": 0.3,
+      "min": 0,
+      "max": 1,
+      "description": "Share of a premium stockout's lost demand that buys the value tier instead."
+    },
+    "premium_markup": {
+      "type": "number",
+      "default": 0.0,
+      "min": -0.5,
+      "max": 1,
+      "description": "Extra share on premium prices (a pricing experiment)."
+    },
+    "record_history": {
+      "type": "bool",
+      "default": false,
+      "description": "Post every SKU-week to the history record (the truth arm does)."
+    },
+    "parameter_uncertainty": {
+      "type": "number",
+      "default": 1,
+      "min": 0,
+      "description": "Scales the standard errors of fitted pattern parameters: 1 draws each run's parameters around their estimates, 0 uses the estimates as they are."
+    },
+    "growth_rate": {
+      "type": "number",
+      "default": 0.0007844961619680142,
+      "description": "Pattern 'growth', rate: fitted by fg_env.fit_patterns from $inputs.history (joint count regression)."
+    },
+    "growth_rate_se": {
+      "type": "number",
+      "default": 0.00032286044610652646,
+      "description": "Standard error of growth_rate."
+    },
+    "promo_lift": {
+      "type": "number",
+      "default": 1.4425211045090005,
+      "description": "Pattern 'promo', lift: fitted by fg_env.fit_patterns from $inputs.history (joint count regression)."
+    },
+    "promo_lift_se": {
+      "type": "number",
+      "default": 0.3537005885146852,
+      "description": "Standard error of promo_lift."
+    },
+    "sales_dispersion": {
+      "type": "number",
+      "default": 5.604558369912476,
+      "description": "Pattern 'sales', dispersion: fitted by fg_env.fit_patterns from $inputs.history (method of moments around the fitted means)."
+    },
+    "season_fit": {
+      "type": "table",
+      "default": [
+        {
+          "category": "brake_pads",
+          "profile": [
+            0.8939147454138019,
+            0.8831247119866231,
+            1.1204766584878953,
+            1.0141669421819506,
+            1.1222073523733949,
+            1.1080934026097748,
+            0.9079113303031293,
+            0.9543249069929312,
+            1.1155596942424868,
+            0.9613269635135918,
+            1.0182376711736587,
+            0.9006556207207583
+          ],
+          "profile_se": [
+            0.0,
+            0.10085860962672978,
+            0.12238312949709469,
+            0.11183466255314423,
+            0.12285482789773809,
+            0.12183362860533974,
+            0.09963377607662632,
+            0.10819735996508217,
+            0.12033578831581196,
+            0.10710822631928854,
+            0.11632671697166438,
+            0.10102353328604904
+          ]
+        },
+        {
+          "category": "batteries",
+          "profile": [
+            1.2038996080347593,
+            1.1775701961795888,
+            1.0011260753870053,
+            0.8935442913083121,
+            0.7413741371979603,
+            0.8704012006650603,
+            1.1048202234725761,
+            1.0491570099529854,
+            0.9444209945806143,
+            0.9172374794059434,
+            0.8890745724651653,
+            1.2073742113500292
+          ],
+          "profile_se": [
+            0.0,
+            0.14818052291212006,
+            0.12656259530061434,
+            0.11500350903859506,
+            0.09880516525624146,
+            0.11209293416908803,
+            0.13499770388344703,
+            0.13484518069127724,
+            0.1184634922257996,
+            0.11841226799760603,
+            0.11728944192250518,
+            0.14902534963252384
+          ]
+        },
+        {
+          "category": "wipers",
+          "profile": [
+            0.8780820378570698,
+            0.9707160040811446,
+            1.085778340552998,
+            1.5747806733898384,
+            1.071707250929214,
+            0.9802223996284205,
+            0.7121241004264023,
+            0.7037955315178459,
+            1.0739850733364853,
+            1.2424305282865462,
+            0.8726961086077729,
+            0.833681951386261
+          ],
+          "profile_se": [
+            0.0,
+            0.1055064998961279,
+            0.11467122097018857,
+            0.16242940136657738,
+            0.11359031704190524,
+            0.10511471538686248,
+            0.07698579873381832,
+            0.08030426707653113,
+            0.11354119662634984,
+            0.13073637937595242,
+            0.09664855693152982,
+            0.09107909272095377
+          ]
+        }
+      ],
+      "description": "Pattern 'season', one row per key: profile fitted by fg_env.fit_patterns from $inputs.history (joint count regression)."
+    },
+    "price_effect_fit": {
+      "type": "table",
+      "default": [
+        {
+          "category": "brake_pads",
+          "elasticity": -1.183294883840624,
+          "elasticity_se": 0.32866610590086937
+        },
+        {
+          "category": "batteries",
+          "elasticity": -0.20544061059909166,
+          "elasticity_se": 0.3729962186591878
+        },
+        {
+          "category": "wipers",
+          "elasticity": -1.7575615808944816,
+          "elasticity_se": 0.31895549659022887
+        }
+      ],
+      "description": "Pattern 'price_effect', one row per key: elasticity fitted by fg_env.fit_patterns from $inputs.history (joint count regression)."
+    },
+    "demand_fit": {
+      "type": "table",
+      "default": [
+        {
+          "sku": "PAD-TOY-P",
+          "category": "brake_pads",
+          "scale": 6.147750902147716,
+          "scale_se": 0.5818901765215935
+        },
+        {
+          "sku": "PAD-TOY-V",
+          "category": "brake_pads",
+          "scale": 11.597319337791513,
+          "scale_se": 1.0661488252767317
+        },
+        {
+          "sku": "PAD-FOR-P",
+          "category": "brake_pads",
+          "scale": 4.223812497872693,
+          "scale_se": 0.4103254694450747
+        },
+        {
+          "sku": "PAD-FOR-V",
+          "category": "brake_pads",
+          "scale": 8.338092819230909,
+          "scale_se": 0.7767143781752187
+        },
+        {
+          "sku": "BAT-TOY-P",
+          "category": "batteries",
+          "scale": 3.1284876361942198,
+          "scale_se": 0.33038809134670044
+        },
+        {
+          "sku": "BAT-TOY-V",
+          "category": "batteries",
+          "scale": 5.25496232166502,
+          "scale_se": 0.5343025843962724
+        },
+        {
+          "sku": "BAT-FOR-P",
+          "category": "batteries",
+          "scale": 2.412674262509044,
+          "scale_se": 0.26158220218243666
+        },
+        {
+          "sku": "BAT-FOR-V",
+          "category": "batteries",
+          "scale": 4.775037268394521,
+          "scale_se": 0.4883086997799431
+        },
+        {
+          "sku": "WIP-TOY-P",
+          "category": "wipers",
+          "scale": 6.79153539080503,
+          "scale_se": 0.627774580394548
+        },
+        {
+          "sku": "WIP-TOY-V",
+          "category": "wipers",
+          "scale": 12.188934537280185,
+          "scale_se": 1.0979043514140534
+        },
+        {
+          "sku": "WIP-FOR-P",
+          "category": "wipers",
+          "scale": 5.293861502017681,
+          "scale_se": 0.4969255925763489
+        },
+        {
+          "sku": "WIP-FOR-V",
+          "category": "wipers",
+          "scale": 9.134311754340256,
+          "scale_se": 0.8320248215402554
+        }
+      ],
+      "description": "Pattern 'demand', one row per key: scale fitted by fg_env.fit_patterns from $inputs.history (joint count regression)."
+    }
+  },
+  "types": {
+    "sku": {
+      "description": "A stocked part in one tier.",
+      "props": {
+        "part": "",
+        "category": "",
+        "tier": {
+          "type": "enum",
+          "values": [
+            "premium",
+            "value"
+          ],
+          "default": "value"
+        },
+        "sibling": "",
+        "list_price": 0.0,
+        "unit_cost": 0.0,
+        "lead_weeks": 1,
+        "case_pack": 1,
+        "stock": {
+          "type": "int",
+          "default": 0,
+          "min": 0
+        },
+        "pipeline": {
+          "type": "list",
+          "default": []
+        },
+        "price": 0.0,
+        "promo": 0.0,
+        "demand": 0,
+        "spill_in": 0,
+        "sold": 0,
+        "lost": 0,
+        "recent": {
+          "type": "list",
+          "default": []
+        },
+        "units_total": 0,
+        "demand_total": 0,
+        "lost_total": 0,
+        "revenue": 0.0,
+        "cogs": 0.0,
+        "holding": 0.0,
+        "orders": 0,
+        "weeks_out": 0
+      }
+    }
+  },
+  "population": [
+    {
+      "type": "sku",
+      "from": "$inputs.skus",
+      "id": "{$row.sku}",
+      "name": "{$row.sku}",
+      "props": {
+        "part": "$row.part",
+        "category": "$row.category",
+        "tier": "$row.tier",
+        "sibling": "$row.sibling",
+        "list_price": "$row.list_price",
+        "unit_cost": "$row.unit_cost",
+        "lead_weeks": "$row.lead_weeks",
+        "case_pack": "$row.case_pack",
+        "price": "$row.list_price",
+        "stock": "$ceil($pattern.demand($row.sku) * 4)"
+      }
+    }
+  ],
+  "records": {
+    "history": {
+      "fields": {
+        "week_start": "text",
+        "sku": "text",
+        "units": "int",
+        "stockout": "int",
+        "price": "number",
+        "rel_price": "number",
+        "promo": "number"
+      },
+      "notify": false,
+      "description": "Every SKU-week, when record_history is on."
+    }
+  },
+  "patterns": {
+    "growth": {
+      "kind": "trend",
+      "form": "exponential",
+      "rate": "$inputs.growth_rate",
+      "origin": "2026-01-05",
+      "uncertainty": {
+        "rate": "$inputs.growth_rate_se * $inputs.parameter_uncertainty"
+      },
+      "description": "Demand growth as the local fleet ages."
+    },
+    "season": {
+      "kind": "seasonal",
+      "period": "year",
+      "table": "$inputs.season_fit",
+      "column": "category",
+      "profile": "$row.profile",
+      "uncertainty": {
+        "profile": "$map($row.profile_se, $it * $inputs.parameter_uncertainty)"
+      },
+      "description": "Each category's month-by-month demand index."
+    },
+    "demand": {
+      "kind": "product",
+      "table": "$inputs.demand_fit",
+      "column": "sku",
+      "scale": "$row.scale",
+      "of": [
+        "growth",
+        {
+          "pattern": "season",
+          "key": "$row.category"
+        }
+      ],
+      "uncertainty": {
+        "scale": "$row.scale_se * $inputs.parameter_uncertainty"
+      },
+      "description": "Expected weekly demand of a SKU at list price, before promotions and substitution.",
+      "fit": {
+        "data": "$inputs.history",
+        "value": "units",
+        "time": "week_start",
+        "key": "sku",
+        "censored": "stockout",
+        "noise": "sales",
+        "x": {
+          "price_effect": {
+            "column": "rel_price",
+            "key": "$row.category"
+          },
+          "promo": "promo"
+        }
+      }
+    },
+    "price_effect": {
+      "kind": "elasticity",
+      "table": "$inputs.price_effect_fit",
+      "column": "category",
+      "elasticity": "$row.elasticity",
+      "reference": 1.0,
+      "uncertainty": {
+        "elasticity": "$row.elasticity_se * $inputs.parameter_uncertainty"
+      },
+      "description": "How demand answers the price relative to list price."
+    },
+    "promo": {
+      "kind": "promotion",
+      "keys": "sku",
+      "input": "$it.promo",
+      "form": "exponential",
+      "lift": "$inputs.promo_lift",
+      "dip": "$inputs.promo_dip",
+      "retain": "$inputs.promo_retain",
+      "uncertainty": {
+        "lift": "$inputs.promo_lift_se * $inputs.parameter_uncertainty"
+      },
+      "description": "A promotion lifts demand while it runs; customers who bought early buy less after."
+    },
+    "substitution": {
+      "kind": "cross_price",
+      "keys": "sku",
+      "reference": "$dict($inputs.skus, $it.sku, $it.list_price)",
+      "own": "-$inputs.cross_elasticity",
+      "cross": "$inputs.cross_elasticity",
+      "groups": "$dict($inputs.skus, $it.sku, $it.part)",
+      "description": "Demand moves between a part's tiers when their relative price changes."
+    },
+    "promo_week": {
+      "kind": "shocks",
+      "table": "$inputs.categories",
+      "column": "category",
+      "recur": "$inputs.promo_every",
+      "window": [
+        "$row.promo_offset",
+        null
+      ],
+      "description": "A category's promotion weeks."
+    },
+    "price_index": {
+      "kind": "mean_reversion",
+      "table": "$inputs.categories",
+      "column": "category",
+      "mean": 1.0,
+      "rate": 0.3,
+      "sd": 0.04,
+      "min": 0.8,
+      "max": 1.2,
+      "description": "The store's regular price level for a category, following suppliers and competitors."
+    },
+    "sales": {
+      "kind": "counts",
+      "dist": "negative_binomial",
+      "dispersion": "$inputs.sales_dispersion",
+      "description": "Weekly units asked for, around the expected demand."
+    },
+    "sold": {
+      "kind": "censored",
+      "description": "Units sold: demand capped by stock, with what was lost."
+    },
+    "lead_noise": {
+      "kind": "noise",
+      "keys": "sku",
+      "sd": 0.3,
+      "description": "How far a delivery runs early or late, as a log factor."
+    }
+  },
+  "events": [
+    {
+      "name": "receive_and_price",
+      "phase": "start",
+      "each": "sku",
+      "as": "s",
+      "do": [
+        "$s.stock += $sum($filter($s.pipeline, $it[0] <= $round), $it[1])",
+        "$s.pipeline = $filter($s.pipeline, $it[0] > $round)",
+        "$s.promo = $inputs.promo_depth if $pattern.promo_week($s.category) > 0 else 0",
+        "$s.price = $round($s.list_price * $pattern.price_index($s.category) * (1 - $s.promo) * (1 + $inputs.premium_markup if $s.tier == premium else 1), 2)",
+        "$s.spill_in = 0"
+      ]
+    },
+    {
+      "name": "trade",
+      "phase": "end",
+      "each": "sku",
+      "as": "s",
+      "order": "0 if $s.tier == premium else 1",
+      "do": [
+        "$prices = $dict(sku, $it.id, $it.price)",
+        "$mean = $pattern.demand($s) * $pattern.price_effect($s.price / $s.list_price, $s.category) * $pattern.promo($s) * $pattern.substitution($prices, $s)",
+        "$s.demand = $pattern.sales($mean, $s)",
+        "$sale = $pattern.sold($s.demand + $s.spill_in, $s.stock)",
+        "$s.sold = $sale.value",
+        "$s.lost = $sale.lost",
+        {
+          "if": "$s.tier == premium and $sale.lost > 0",
+          "then": "$entity($s.sibling).spill_in += $round($sale.lost * $inputs.spill_share)"
+        },
+        "$s.stock -= $s.sold",
+        "$s.weeks_out += 1 if $sale.censored else 0",
+        "$s.units_total += $s.sold",
+        "$s.demand_total += $s.demand + $s.spill_in",
+        "$s.lost_total += $s.lost",
+        "$s.revenue += $s.sold * $s.price",
+        "$s.cogs += $s.sold * $s.unit_cost",
+        "$s.recent = $slice($s.recent + [$s.sold], -8)",
+        {
+          "if": "$inputs.record_history",
+          "then": {
+            "post": "history",
+            "week_start": "$clock.date",
+            "sku": "$s.id",
+            "units": "$s.sold",
+            "stockout": "1 if $sale.censored else 0",
+            "price": "$s.price",
+            "rel_price": "$round($s.price / $s.list_price, 4)",
+            "promo": "$s.promo"
+          }
+        }
+      ]
+    },
+    {
+      "name": "reorder",
+      "phase": "end",
+      "each": "sku",
+      "as": "s",
+      "do": [
+        "$s.holding += $s.stock * $s.unit_cost * $inputs.holding_rate",
+        "$position = $s.stock + $sum($s.pipeline, $it[1])",
+        {
+          "if": "$inputs.policy == service",
+          "then": [
+            "$forecast = $pattern.demand($s)",
+            "$cover = $forecast * ($s.lead_weeks + 1)",
+            "$target = $ceil($cover + $inputs.service_z * $sqrt($cover * (1 + $forecast / $inputs.sales_dispersion)))",
+            "$reorder_at = $target"
+          ],
+          "else": [
+            "$average = $avg($s.recent, $it) if $len($s.recent) > 0 else 0",
+            "$reorder_at = $ceil($average * $s.lead_weeks * $inputs.lean_cover)",
+            "$target = $reorder_at + $ceil($average * 1.5)"
+          ]
+        },
+        {
+          "if": "$position <= $reorder_at and $target > $position",
+          "then": [
+            "$qty = $max($s.case_pack, $ceil(($target - $position) / $s.case_pack) * $s.case_pack)",
+            "$delay = $max(1, $round($s.lead_weeks * $exp($pattern.lead_noise($s))))",
+            "$s.pipeline = $s.pipeline + [[$round + $delay, $qty]]",
+            "$s.orders += 1"
+          ]
+        }
+      ]
+    }
+  ],
+  "metrics": {
+    "sold": {
+      "expr": "$sum(sku, $it.sold)",
+      "unit": "units"
+    },
+    "lost": {
+      "expr": "$sum(sku, $it.lost)",
+      "unit": "units"
+    },
+    "stock_value": {
+      "expr": "$round($sum(sku, $it.stock * $it.unit_cost), 2)",
+      "unit": "USD"
+    },
+    "skus_out": {
+      "expr": "$count(sku, $it.lost > 0)",
+      "description": "SKUs that ran out this week"
+    }
+  },
+  "outputs": {
+    "fill_rate": {
+      "expr": "$round($sum(sku, $it.units_total) / $max(1, $sum(sku, $it.demand_total)), 4)",
+      "type": "number",
+      "description": "Share of demand served from stock"
+    },
+    "lost_units": {
+      "expr": "$sum(sku, $it.lost_total)",
+      "type": "int"
+    },
+    "revenue": {
+      "expr": "$round($sum(sku, $it.revenue), 2)",
+      "type": "number"
+    },
+    "holding_cost": {
+      "expr": "$round($sum(sku, $it.holding), 2)",
+      "type": "number"
+    },
+    "order_costs": {
+      "expr": "$sum(sku, $it.orders) * $inputs.order_cost",
+      "type": "number"
+    },
+    "profit": {
+      "expr": "$round($sum(sku, $it.revenue - $it.cogs - $it.holding) - $sum(sku, $it.orders) * $inputs.order_cost, 2)",
+      "type": "number",
+      "description": "Gross margin less holding and ordering costs"
+    },
+    "average_stock_value": {
+      "expr": "$round($avg($series.stock_value, $it), 2)",
+      "type": "number"
+    },
+    "fill_by_category": {
+      "expr": "{brake_pads: $round($sum(sku, $it.units_total, $it.category == brake_pads) / $max(1, $sum(sku, $it.demand_total, $it.category == brake_pads)), 3), batteries: $round($sum(sku, $it.units_total, $it.category == batteries) / $max(1, $sum(sku, $it.demand_total, $it.category == batteries)), 3), wipers: $round($sum(sku, $it.units_total, $it.category == wipers) / $max(1, $sum(sku, $it.demand_total, $it.category == wipers)), 3)}",
+      "type": "map"
+    }
+  },
+  "arms": {
+    "lean": {
+      "description": "The store's current rule.",
+      "inputs": {
+        "policy": "lean"
+      }
+    },
+    "service": {
+      "description": "Order up to the fitted forecast with a 95% safety margin.",
+      "inputs": {
+        "policy": "service"
+      }
+    },
+    "premium_price_up": {
+      "description": "Premium tiers 10% dearer: substitution moves demand to the value tier.",
+      "inputs": {
+        "premium_markup": 0.1
+      }
+    },
+    "truth": {
+      "description": "The world that generated history.csv: the true parameters, three years from 2023 under a less tight lean rule, recording every week.",
+      "inputs": {
+        "record_history": true,
+        "parameter_uncertainty": 0,
+        "growth_rate": 0.0006,
+        "promo_lift": 1.65,
+        "sales_dispersion": 5.0,
+        "season_fit": [
+          {
+            "category": "brake_pads",
+            "profile": [
+              0.953975,
+              0.953975,
+              1.054393,
+              1.104603,
+              1.054393,
+              1.004184,
+              1.004184,
+              1.004184,
+              1.004184,
+              1.004184,
+              0.953975,
+              0.903766
+            ],
+            "profile_se": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          {
+            "category": "batteries",
+            "profile": [
+              1.280632,
+              1.185771,
+              0.853755,
+              0.758893,
+              0.806324,
+              0.996047,
+              1.185771,
+              1.185771,
+              0.901186,
+              0.806324,
+              0.901186,
+              1.13834
+            ],
+            "profile_se": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          {
+            "category": "wipers",
+            "profile": [
+              0.888889,
+              0.987654,
+              1.234568,
+              1.283951,
+              1.185185,
+              0.888889,
+              0.740741,
+              0.740741,
+              0.987654,
+              1.185185,
+              0.987654,
+              0.888889
+            ],
+            "profile_se": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          }
+        ],
+        "price_effect_fit": [
+          {
+            "category": "brake_pads",
+            "elasticity": -1.1,
+            "elasticity_se": 0.0
+          },
+          {
+            "category": "batteries",
+            "elasticity": -0.7,
+            "elasticity_se": 0.0
+          },
+          {
+            "category": "wipers",
+            "elasticity": -1.3,
+            "elasticity_se": 0.0
+          }
+        ],
+        "demand_fit": [
+          {
+            "sku": "PAD-TOY-P",
+            "category": "brake_pads",
+            "scale": 6.0,
+            "scale_se": 0.0
+          },
+          {
+            "sku": "PAD-TOY-V",
+            "category": "brake_pads",
+            "scale": 11.0,
+            "scale_se": 0.0
+          },
+          {
+            "sku": "PAD-FOR-P",
+            "category": "brake_pads",
+            "scale": 4.0,
+            "scale_se": 0.0
+          },
+          {
+            "sku": "PAD-FOR-V",
+            "category": "brake_pads",
+            "scale": 8.0,
+            "scale_se": 0.0
+          },
+          {
+            "sku": "BAT-TOY-P",
+            "category": "batteries",
+            "scale": 3.0,
+            "scale_se": 0.0
+          },
+          {
+            "sku": "BAT-TOY-V",
+            "category": "batteries",
+            "scale": 5.0,
+            "scale_se": 0.0
+          },
+          {
+            "sku": "BAT-FOR-P",
+            "category": "batteries",
+            "scale": 2.5,
+            "scale_se": 0.0
+          },
+          {
+            "sku": "BAT-FOR-V",
+            "category": "batteries",
+            "scale": 4.5,
+            "scale_se": 0.0
+          },
+          {
+            "sku": "WIP-TOY-P",
+            "category": "wipers",
+            "scale": 7.0,
+            "scale_se": 0.0
+          },
+          {
+            "sku": "WIP-TOY-V",
+            "category": "wipers",
+            "scale": 12.0,
+            "scale_se": 0.0
+          },
+          {
+            "sku": "WIP-FOR-P",
+            "category": "wipers",
+            "scale": 5.0,
+            "scale_se": 0.0
+          },
+          {
+            "sku": "WIP-FOR-V",
+            "category": "wipers",
+            "scale": 9.0,
+            "scale_se": 0.0
+          }
+        ],
+        "lean_cover": 1.2
+      },
+      "patch": {
+        "clock": {
+          "start": "2023-01-02",
+          "rounds": 156
+        }
+      }
+    }
+  }
+}

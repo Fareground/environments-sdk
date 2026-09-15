@@ -29,6 +29,8 @@ _MODE = threading.local()
 _ORACLES: Dict[str, Any] = {}
 _BUDGET_FIELDS = ("hold", "used", "limit", "cap", "label", "shared")
 _UNSET = object()
+#: What a world's pattern runtime derives once and keeps (parameters, rows, keys, random paths).
+_PATTERN_CACHES = ("_params", "_rows", "_keys", "_paths")
 
 
 def _oracle(source: str) -> Any:
@@ -71,6 +73,10 @@ def _capture(world: Any) -> Dict[str, Any]:
         social = world.__dict__.get("_social_cache")
         state["caches"] = (None if orders is None else dict(orders),
                            None if social is None else {k: dict(v) if isinstance(v, dict) else v for k, v in social.items()})
+        patterns = world.__dict__.get("patterns")
+        state["patterns"] = None if patterns is None else (patterns, {
+            name: {k: list(v) if isinstance(v, list) else v for k, v in getattr(patterns, name).items()}
+            for name in _PATTERN_CACHES})
     return state
 
 
@@ -99,6 +105,10 @@ def _restore(world: Any, state: Dict[str, Any]) -> None:
             world.__dict__.pop("_social_cache", None)
         else:
             world.__dict__["_social_cache"] = {k: dict(v) if isinstance(v, dict) else v for k, v in social.items()}
+        if state["patterns"] is not None:
+            patterns, saved = state["patterns"]
+            for name, entries in saved.items():
+                setattr(patterns, name, {k: list(v) if isinstance(v, list) else v for k, v in entries.items()})
 
 
 def same(a: Any, b: Any) -> bool:

@@ -35,7 +35,7 @@ CONTRACTS = Path(__file__).parents[2] / "examples" / "contracts"
 EXAMPLES = sorted(CONTRACTS.glob("*.json"))
 GAMES = sorted((CONTRACTS / "games").glob("*.json"))
 FACTS = ("roots", "functions", "symbols", "paths", "calls", "item_paths", "comparisons", "item_comparisons",
-         "arity_errors")
+         "arity_errors", "methods")
 EDGE_CASES = [
     "", "   ", "$", "$1x", "$x.", "$x._secret", "x.y", "$f", "$count", "$count()", "$count(a, b, c, d)", "$nope(1)",
     "$max(1, 2, 3)", "$len(1, 2)", "true.x", "null[0]", "(3).x", "[1, 2][true]", "{1: 2, 'a': 3, b: 4, 'b': 5}",
@@ -47,7 +47,8 @@ EDGE_CASES = [
     "$it.owner == $outer.id and $chance(0.5)", "$pick(item, $it.worth > $randint(0, 2))",
     "1 + " * 600 + "1", "(" * 150 + "1" + ")" * 150, "not " * 700 + "true", "$x if $x else " * 60 + "0",
     "$a and " * 90 + "$b", "[" * 90 + "]" * 90, "$abs(" * 40 + "1" + ")" * 40, "$count(" * 30 + "x" + ")" * 30,
-    "&& || !", "$x && !$y || $z", "$'text' + $(1 + 2)", "'unclosed", "\x00",
+    "$pattern.season($it.sku)", "$pattern.level()", "$x.y(1, $z)", "$x.y.z(1)", "$f.g", "$count.x(1)", "(1).x(2)",
+    "$x._y(1)", "$x.y(k=1)", "&& || !", "$x && !$y || $z", "$'text' + $(1 + 2)", "'unclosed", "\x00",
 ]
 
 

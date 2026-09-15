@@ -24,7 +24,7 @@ def test_the_core_guide_is_short_and_maps_every_part():
         assert f"`{name}`" in core
     for family in FAMILIES:
         assert f"| `{family}` |" in core
-    for topic in ("model", "expressions", "templates", "effects", "functions", "mechanisms", "patterns", "macros",
+    for topic in ("model", "expressions", "templates", "effects", "functions", "mechanisms", "patterns", "recipes", "macros",
                   "running", "checklist"):
         assert f"- `{topic}` —" in core
     assert guide("core") == core

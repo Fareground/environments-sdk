@@ -109,6 +109,8 @@ class Expr:
     #: ``(function, signature)`` — built-in calls with the wrong number of arguments. Valid when the
     #: contract defines its own function of that name (a def shadows a built-in); reported otherwise.
     arity_errors: FrozenSet[Tuple[str, str]] = frozenset()
+    #: ``(root, name, argument count)`` — calls of a root's member, e.g. ``$pattern.season($it.sku)``.
+    methods: FrozenSet[Tuple[str, str, int]] = frozenset()
 
     def __call__(self, scope: Scope) -> Any:
         budget = _BUDGET
@@ -166,7 +168,7 @@ def compile_expr(source: str) -> Expr:
         if not isinstance(node, _ALLOWED):
             raise ExprError(f"unsupported syntax ({type(node).__name__})", source)
         if isinstance(node, ast.Call) and (node.keywords or not (
-            isinstance(node.func, ast.Name) and node.func.id.startswith(_FUNC_PREFIX)
+            isinstance(node.func, ast.Name) and node.func.id.startswith(_FUNC_PREFIX) or _root_method(node.func)
         )):
             called = node.func.id if isinstance(node.func, ast.Name) and not node.keywords else None
             raise ExprError("only $functions can be called, with positional arguments"
@@ -185,4 +187,9 @@ def compile_expr(source: str) -> Expr:
     return Expr(source, run, frozenset(compiler.roots), frozenset(compiler.functions),
                 frozenset(compiler.symbols), frozenset(compiler.paths), frozenset(compiler.calls),
                 frozenset(compiler.item_paths), frozenset(compiler.comparisons),
-                frozenset(compiler.item_comparisons), frozenset(compiler.arity_errors))
+                frozenset(compiler.item_comparisons), frozenset(compiler.arity_errors), frozenset(compiler.methods))
+
+
+def _root_method(func: ast.AST) -> bool:
+    """``func`` is ``$root.name`` — a member of a root, which may be called like a function."""
+    return isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id.startswith(_ROOT_PREFIX)
