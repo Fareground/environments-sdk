@@ -16,6 +16,7 @@ from .budget import Budget, is_seconds
 from .build import build_world
 from .contract import MAX_ROUNDS, Contract, StageSpec
 from .copying import Copying
+from .diagnostics import diagnose
 from .driving import Driver, run_on_worker
 from .effects import EffectRunner
 from .errors import RunError
@@ -30,6 +31,7 @@ from .previews import Previews
 from .replay import Origin
 from .returns import measured
 from .run_checks import RunChecks
+from .run_diagnosis import Diagnosis, SealedWrites
 from .seeds import SeedTree
 from .snapshot import SNAPSHOT_VERSION, restore_env, take_snapshot
 from .turn import Memory, Turn, entity_dict
@@ -102,6 +104,7 @@ class Env(Copying, RunChecks):
         #: The state each invariant was last found to hold in (see _check_invariants).
         self._invariant_held: Dict[int, Any] = {}
         self._end_on_action = any(end.check == "action" for end in contract.end)
+        self.diagnosis = Diagnosis(self.world.written)
         self._check_invariants("build", "build")
 
     # -- public API ----------------------------------------------------------------
@@ -231,6 +234,7 @@ class Env(Copying, RunChecks):
             frames=[dict(frame) for frame in self.previews.frames], returns=returns,
             host_tape=tape_of(self) if self.world.exposures is not None else {}, budget=Budget.report(self),
             formats={name: spec.format for name, spec in self.contract.outputs.items() if spec.format},
+            diagnostics=diagnose(self, outputs),
         )
 
     @property
@@ -450,7 +454,9 @@ class Env(Copying, RunChecks):
     def _run_stage(self, stage: StageSpec) -> _Steps:
         world = self.world
         path = f"stages.{stage.name}"
-        if not self._stage_runs(stage):
+        runs = self._stage_runs(stage)
+        self.diagnosis.stage(stage.name, reached=1, ran=int(runs))
+        if not runs:
             return
         world.stage = stage.name
         self._atomic(stage.on_enter, {}, f"{path}.on_enter")
@@ -461,6 +467,7 @@ class Env(Copying, RunChecks):
             if pass_index:
                 yield _Point(stage)
             agents = self._eligible(stage)
+            self.diagnosis.stage(stage.name, woke=len(agents))
             if stage.turns == "simultaneous":
                 yield from self._simultaneous(stage, agents, pass_index)
             elif stage.turns == "scheduled":
@@ -671,21 +678,27 @@ class Env(Copying, RunChecks):
     def _commit_choices(self, stage: StageSpec, turns: List[Turn]) -> _Steps:
         """Commit each agent's sealed choices in turn order; atomic stages commit or undo each agent's as a whole."""
         atomic = stage.atomic or bool(stage.valid)
-        for turn in turns:
-            mark = self.world.journal.mark() if atomic else None
-            applied = 0
-            for name, args in turn.intents:
-                if self._ended() and mark is None:
-                    return
-                applied += self._commit_intent(turn, name, args, deferred=mark is not None)
-            acted = bool(turn.intents)
-            if mark is not None:
-                acted = self._settle_choices(turn, mark, applied)
-                if self._ended():
-                    return
-            if not self._timed_out(turn) and stage.on_idle and not acted and turn.actor.alive and not self._ended():
-                self._atomic(stage.on_idle, {"actor": turn.actor}, f"stages.{stage.name}.on_idle")
-            self._turn_end_hook(stage, turn.actor)
+        writes = self.world.sealed_writes = SealedWrites(stage.name, self.diagnosis)
+        try:
+            for turn in turns:
+                mark = self.world.journal.mark() if atomic else None
+                applied = 0
+                writes.writer = turn.actor.name or turn.actor.id
+                for name, args in turn.intents:
+                    if self._ended() and mark is None:
+                        return
+                    writes.action = name
+                    applied += self._commit_intent(turn, name, args, deferred=mark is not None)
+                acted = bool(turn.intents)
+                if mark is not None:
+                    acted = self._settle_choices(turn, mark, applied)
+                    if self._ended():
+                        return
+                if not self._timed_out(turn) and stage.on_idle and not acted and turn.actor.alive and not self._ended():
+                    self._atomic(stage.on_idle, {"actor": turn.actor}, f"stages.{stage.name}.on_idle")
+                self._turn_end_hook(stage, turn.actor)
+        finally:
+            self.world.sealed_writes = None
         yield from ()
 
     def _tally(self, actor_id: str, stats: Stats) -> None:
@@ -723,6 +736,7 @@ class Env(Copying, RunChecks):
             if problem:
                 world.emit("outcome", f"Your {verb} did not happen: {str(problem).rstrip('.')}.",
                            actor=actor.id, to=(actor.id,), data={"action": name, "ok": False})
+                self.diagnosis.refused_at_commit(name, str(problem))
                 if not deferred:
                     world.journal.clear()
                 self._tally(actor.id, Stats(rejected_actions=1))
@@ -731,6 +745,7 @@ class Env(Copying, RunChecks):
             text = outcome.text if outcome.ok else f"Your {verb} failed: {outcome.text}"
             world.emit("outcome", text, actor=actor.id, to=(actor.id,), data={"action": name, "ok": outcome.ok})
             if not outcome.ok:
+                self.diagnosis.refused_at_commit(name, outcome.text)
                 self._tally(actor.id, Stats(rejected_actions=1))
                 if not deferred:
                     world.journal.clear()

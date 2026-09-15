@@ -98,6 +98,8 @@ class RunResult:
     budget: Dict[str, Any] = field(default_factory=dict)
     #: How :meth:`summary` shows the outputs that declare a `format`, by output name.
     formats: Dict[str, str] = field(default_factory=dict)
+    #: Likely logic problems the run revealed: ``[{code, path, message, fix}]`` (see :mod:`fg_env.sdk.diagnostics`).
+    diagnostics: List[Dict[str, str]] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -136,6 +138,8 @@ class RunResult:
             lines.append(f"{key}: {shown(value, self.formats.get(key))}")
         for issue in self.output_issues:
             lines.append(f"output issue: {issue['path']}: {issue['message']}")
+        for found in self.diagnostics:
+            lines.append(f"diagnostic: {found['path']}: {found['message']} → {found['fix']}")
         if self.budget.get("exhausted"):
             from .budget import spent
 
