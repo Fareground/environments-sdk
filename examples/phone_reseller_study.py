@@ -19,8 +19,9 @@ the truth arm's own parameters on the same cases:
   2–4% low. Now read as "more than", the channel totals sit within their standard errors of the truth.
 * Ranges (fixed here). Validating with the fitted priors draws only the number parameters, leaving every item's
   demand scale at its estimate, so a channel's total carried none of the sixteen scales' uncertainty. The cases now
-  draw every fitted parameter per run (``parameter_uncertainty`` 1): held-out channel ranges hold 5 of 6 values, and
-  92% over every case.
+  draw every fitted parameter per run (``parameter_uncertainty`` 1). With the scales' and weekday profile's errors
+  taken where the profile averages 1 (not from its first day) and stockout days' information counted as censored,
+  channel 80% ranges hold 88% of values over every case and 95% ranges 96%.
 * The held-out months themselves (not a defect). Forecast with the truth's own parameters, the thirteen cases are
   unbiased (+0.3%), yet the three held-out periods sold about 6% more than even the truth expects — retail 796 against
   738 — which is chance in the generated history. Three periods are thin evidence either way, and the report says so
