@@ -12,6 +12,8 @@ from __future__ import annotations
 from typing import Any, Dict, List, Mapping
 
 from ..registry import MechanismError, mode
+from . import book_functions  # noqa: F401  (registers $book … and the market op's order_book actions)
+from .book_rules import rules_default
 from .common import fmt
 from .order_book import OrderBookConfig, props_for
 
@@ -22,9 +24,16 @@ _LABELS = {"market_maker": "Market maker", "momentum": "Momentum trader", "mean_
 def _actions(name: str, cfg: OrderBookConfig, qty_type: str) -> Dict[str, Any]:
     unit = cfg.instrument or name
     p = props_for(name)
-    lot = int(cfg.lot_size) if qty_type == "int" else cfg.lot_size
-    rules = (f"Tick {fmt(cfg.tick_size, 6)}, lot {fmt(cfg.lot_size, 6)}; fees {fmt(cfg.maker_fee_bps)} bps when your resting "
-             f"order fills, {fmt(cfg.taker_fee_bps)} bps when you trade against the book.")
+    lot: Any = f"$book({name}).lot" if isinstance(cfg.lot_size, str) else int(cfg.lot_size) if qty_type == "int" else cfg.lot_size
+    if any(isinstance(value, str) for value in (cfg.tick_size, cfg.lot_size, cfg.maker_fee_bps, cfg.taker_fee_bps)):
+        rules = ("Prices are whole ticks and quantities whole lots; fees are charged when your resting order fills and when you "
+                 "trade against the book ($book shows the tick, lot and fees).")
+        multiple = "the lot"
+    else:
+        rules = (f"Tick {fmt(float(cfg.tick_size), 6)}, lot {fmt(float(cfg.lot_size), 6)}; fees {fmt(float(cfg.maker_fee_bps))} bps "
+                 f"when your resting order fills, {fmt(float(cfg.taker_fee_bps))} bps when you trade against the book.")
+        multiple = fmt(float(cfg.lot_size), 6)
+    collar = "the market-order collar" if isinstance(cfg.collar_pct, str) else f"{cfg.collar_pct:.0%}"
     receipt = f"{{$world.{name}_receipt}}"
     manual = {"expr": f"$actor.{p['strategy']} == ''", "why": f"Your coded strategy trades for you; use {name}_algo."}
     halted = {"expr": f"not $world.{name}_halted",
@@ -41,11 +50,11 @@ def _actions(name: str, cfg: OrderBookConfig, qty_type: str) -> Dict[str, Any]:
             "description": (f"{side.capitalize()} {unit}. With a price it is a limit order: it trades at once against {other} "
                             f"orders {edge} your price (best price first, then oldest), possibly in part, and the rest rests "
                             f"on the book with its {reserve} reserved. Without a price it is a market order that trades within "
-                            f"{cfg.collar_pct:.0%} of the best {'ask' if side == 'buy' else 'bid'}; the rest is cancelled. "
+                            f"{collar} of the best {'ask' if side == 'buy' else 'bid'}; the rest is cancelled. "
                             + rules),
             "params": {
                 "qty": {"type": qty_type, "min": lot, "max": f"$book_account({name}, $actor).{bound}",
-                        "description": f"Quantity, a multiple of {fmt(cfg.lot_size, 6)}."},
+                        "description": f"Quantity, a multiple of {multiple}."},
                 "price": {"type": "number", "min": f"$book({name}).band_low", "max": f"$book({name}).band_high",
                           "required": False, "description": "Limit price; leave out for a market order."},
             },
@@ -119,12 +128,19 @@ def _views(name: str, cfg: OrderBookConfig) -> Dict[str, Any]:
 
 @mode("market", "order_book", OrderBookConfig,
            "One instrument on a continuous limit order book with price-time priority, partial fills, tick and lot sizes, "
-           "maker/taker fees, market-order collars, optional short selling, order expiry and a circuit breaker. Tools "
+           "maker/taker fees, market-order collars, optional short selling, order expiry, OHLCV bars of `bar_rounds` rounds "
+           "and a circuit breaker (measured from the round's open, the bar's open or a rolling window; checked on every trade "
+           "or at each round's end; halting for some rounds or to the end of the bar). The venue's numbers (tick_size, "
+           "lot_size, fees, collar_pct, price_band_pct, halt_pct, halt_rounds, halt_window, short_limit, max_short_leverage, "
+           "order_ttl, max_orders, bar_rounds) may be expressions over $inputs (like world defaults), resolved once when the world is "
+           "built into $world.<name>_rules, so they can follow the price level and be swept or calibrated. Tools "
            "`<name>_buy` / `<name>_sell` (limit with a price, market without), `<name>_cancel`, `<name>_cancel_all` and "
            "`<name>_algo` (coded strategy). Resting orders reserve cash or shares; trades settle with conserved transfers "
            "and fees go to $world.<name>_fees. Read the book with $book(name), $book_depth(name, levels, viewer), "
-           "$book_orders(name, trader), $book_account(name, trader); trades are in the `<name>_tape` record and per-round "
-           "OHLCV bars in `<name>_bars`. `crowd` adds coded traders (market_maker, momentum, mean_reversion, fundamentalist, "
+           "$book_orders(name, trader), $book_account(name, trader); trades are in the `<name>_tape` record and OHLCV bars "
+           "{bar, open, high, low, close, volume, vwap, trades, halted, flow} in `<name>_bars`; $book(name).bar is the bar in "
+           "progress. The book opens and closes each round once, in its own start and end events, which run after yours: an "
+           "end event that reads the round or bar the book closes runs {\"market\": name, \"action\": \"close\"} first. `crowd` adds coded traders (market_maker, momentum, mean_reversion, fundamentalist, "
            "noise, passive) as subtypes `<name>_<strategy>`; any trader whose `<name>_strategy` prop names a strategy trades only "
            "through `<name>_algo` (the `<name>_algo` policy calls it). A strategy with a `stop_loss` param (in multiples of the "
            "per-round volatility) liquidates a losing position at market. $book(name).flow is the last round's aggressive "
@@ -139,7 +155,7 @@ def _expand_order_book(name: str, cfg: OrderBookConfig, contract: Mapping[str, A
     if not _is_agent(types, cfg.who):
         raise MechanismError(f"who '{cfg.who}' must be an agent type", "set \"agent\": true on it", "who")
     p = props_for(name)
-    qty_type = "int" if float(cfg.lot_size).is_integer() else "number"
+    qty_type = "int" if not isinstance(cfg.lot_size, str) and float(cfg.lot_size).is_integer() else "number"
     unit = cfg.instrument or name
     fragment: Dict[str, Any] = {
         "types": {cfg.who: {"props": {
@@ -156,11 +172,17 @@ def _expand_order_book(name: str, cfg: OrderBookConfig, contract: Mapping[str, A
             f"{name}_bids": {"type": "list", "default": []}, f"{name}_asks": {"type": "list", "default": []},
             f"{name}_seq": {"type": "int", "default": 0},
             f"{name}_last": {"type": "number", "default": cfg.start_price, "description": f"Last traded {unit} price."},
+            f"{name}_rules": {"type": "map", "default": rules_default(name, cfg),
+                              "description": "The venue's rules (tick_size, lot_size, fees, collar, band, breaker, short limits, "
+                                             "order expiry, bar_rounds), resolved when the world was built."},
             f"{name}_ref": {"type": "number", "default": cfg.start_price, "description": "Circuit-breaker reference price."},
             f"{name}_halted": {"type": "bool", "default": False}, f"{name}_halt_until": {"type": "int", "default": 0},
             f"{name}_halts": {"type": "int", "default": 0},
             f"{name}_fees": {"type": "number", "default": 0, "description": "Fees collected by the venue."},
-            f"{name}_bar": {"type": "map", "default": {}}, f"{name}_volume": {"type": "number", "default": 0},
+            f"{name}_bar": {"type": "map", "default": {}, "description": "The round in progress."},
+            f"{name}_current_bar": {"type": "map", "default": {}, "description": "The bar in progress, up to its last closed round."},
+            f"{name}_opened": {"type": "int", "default": 0}, f"{name}_closed": {"type": "int", "default": 0},
+            f"{name}_volume": {"type": "number", "default": 0},
             f"{name}_notional": {"type": "number", "default": 0}, f"{name}_trades": {"type": "int", "default": 0},
             f"{name}_closes": {"type": "list", "default": []}, f"{name}_supply": {"type": "map", "default": {}},
             f"{name}_flow": {"type": "map", "default": {}, "description": "Last round's aggressive quantity by trader kind."},
@@ -171,10 +193,13 @@ def _expand_order_book(name: str, cfg: OrderBookConfig, contract: Mapping[str, A
             f"{name}_tape": {"fields": {"price": "number", "qty": "number", "aggressor": "text"}, "keep": cfg.tape,
                              "notify": False, "show": "{qty} @ {price|money} ({aggressor}-initiated)",
                              "description": f"Recent {unit} trades."},
-            f"{name}_bars": {"fields": {"open": "number", "high": "number", "low": "number", "close": "number",
-                                        "volume": "number", "vwap": "number", "trades": "int"}, "notify": False,
-                             "show": "round {round}: O {open|money} H {high|money} L {low|money} C {close|money} V {volume}",
-                             "description": f"{unit} OHLCV per round."},
+            f"{name}_bars": {"fields": {"bar": "int", "open": "number", "high": "number", "low": "number", "close": "number",
+                                        "volume": "number", "vwap": "number", "trades": "int", "halted": "bool", "flow": "map"},
+                             "notify": False,
+                             "show": ("round {round}" if cfg.bar_rounds == 1 else "bar {bar}")
+                                     + ": O {open|money} H {high|money} L {low|money} C {close|money} V {volume}",
+                             "description": f"{unit} OHLCV per {'round' if cfg.bar_rounds == 1 else 'bar'}, with whether a halt "
+                                            "tripped in it and its aggressive flow by trader kind."},
         },
         "actions": _actions(name, cfg, qty_type),
         "events": [{"name": f"{name}_open", "phase": "start", "do": [{"market": name, "action": "open"}]},

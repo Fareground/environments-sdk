@@ -32,7 +32,8 @@ from ..world import Abort
 from .common import lot_floor, number
 from .ledger import Account, balance
 from .market_stats import log_returns, stdev
-from .order_book import OrderBookConfig, book_config, cancel_all, place, props_for, quote, short_room
+from .book_rules import venue
+from .order_book import OrderBookConfig, book_config, cancel_all, place, props_for, short_room, top
 
 __all__ = ["DEFAULTS", "run_algo"]
 
@@ -69,16 +70,16 @@ class _View:
 
     def __init__(self, world: Any, name: str, cfg: OrderBookConfig, trader: Entity, state: Dict[str, Any]):
         self.world, self.name, self.cfg, self.trader, self.state = world, name, cfg, trader, state
-        q = quote(world, name)
-        self.last, self.bid, self.ask, self.mid = q["last"], q["bid"], q["ask"], q["mid"]
-        self.tick, self.lot = cfg.tick_size, cfg.lot_size
+        self.venue = venue(world, name)
+        self.last, self.bid, self.ask, self.mid = top(world, name)
+        self.tick, self.lot = self.venue.tick, self.venue.lot
         self.prices: List[float] = list(world.props.get(f"{name}_closes") or []) + [self.last]
         assumed = _setting(world, name, "volatility", cfg.volatility, trader, 0.0)
         if assumed <= 0:
             raise RunError(f"volatility must be above 0, got {assumed!r}", f"mechanisms.{name}.volatility")
         rets = log_returns(self.prices[-31:]) if cfg.measure_volatility else []
         self.sigma = stdev(rets) if len(rets) >= 5 and stdev(rets) > 0 else assumed
-        self.base = _setting(world, name, "base_qty", cfg.base_qty, trader, cfg.lot_size * 10)
+        self.base = _setting(world, name, "base_qty", cfg.base_qty, trader, self.venue.lot * 10)
         if self.base <= 0:
             raise RunError(f"base_qty must be above 0, got {self.base!r}", f"mechanisms.{name}.base_qty")
         self.flow = max(0.0, _setting(world, name, "flow_scale", cfg.flow_scale, trader, 1.0))
@@ -99,7 +100,7 @@ class _View:
         if qty <= 0 or (price is not None and price <= 0):
             return
         if side == "buy":
-            unit = (price if price is not None else (self.ask or self.last)) * (1 + max(self.cfg.maker_fee_bps, self.cfg.taker_fee_bps) / 1e4)
+            unit = (price if price is not None else (self.ask or self.last)) * (1 + max(self.venue.maker, self.venue.taker))
             qty = min(qty, lot_floor(balance(self.world, Account(self.trader, self.cfg.currency)) / unit, self.lot)) if unit > 0 else 0
         else:
             free = balance(self.world, Account(self.trader, props_for(self.name)["shares"]))
@@ -189,8 +190,8 @@ def _overrides(cfg: OrderBookConfig, strategy: str) -> Dict[str, Union[float, st
 
 def _market_maker(v: _View, p: Dict[str, float], rng: Any) -> None:
     cancel_all(v.world, v.name, v.trader)
-    q = quote(v.world, v.name)
-    centre_price = q["mid"] if q["bid"] is not None and q["ask"] is not None else v.last
+    last, bid, ask, mid = top(v.world, v.name)
+    centre_price = mid if bid is not None and ask is not None else last
     quote_qty = max(v.lot, v.base * p["quote_mult"])
     limit = max(quote_qty, v.base * p["inventory_mult"])
     half = max(1.0, p["half_spread_ticks"] + v.sigma * centre_price / v.tick * p["vol_mult"])
@@ -256,7 +257,7 @@ def _mean_reversion(v: _View, p: Dict[str, float], rng: Any) -> None:
 def _fair_value(v: _View) -> float:
     raw = v.cfg.fair_value
     if raw is None:
-        from .order_book import start_price
+        from .book_session import start_price
 
         return start_price(v.world, v.name)
     try:

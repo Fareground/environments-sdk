@@ -541,7 +541,7 @@ def test_market_actions_check_their_own_keys():
         book(), {"market": "acme", "action": "cancel_all", "trader": "a"}))
     path, message, fix = _op_issues(book(), {"market": "acme", "action": "bid"})[0]
     assert path.endswith(".action") and message == "'bid' is not an action of acme (market order_book)"
-    assert fix == "actions: buy, sell, cancel, cancel_all, algo, rebase"
+    assert fix == "actions: buy, sell, cancel, cancel_all, algo, rebase, open, close"
     _, _, fix = _op_issues(book(), {"market": "acmee", "action": "rebase"})[0]
     assert fix == "did you mean 'acme'?"
     _, _, fix = _op_issues(book(), {"book": "acme", "action": "rebase"})[0]
