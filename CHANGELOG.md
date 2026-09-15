@@ -137,6 +137,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   error naming the circle. A local named like a reserved root (`$row = …`) says to rename it.
 
 #### Changed
+- **Batches pay less for worker processes.** `experiment`, the analyses, `optimise`, `tournament` and `evaluate` keep
+  one pool of worker processes for the life of the process (started on first use, closed at exit or by
+  `fg_env.sdk.workers.shutdown_workers()`; `FG_ENV_KEEP_WORKERS=0` gives every batch its own pool as before). A batch
+  whose runs are measured to finish before workers could start stays in this process until the time spent so would
+  have paid for starting them, many short runs travel to a worker per round trip, and each worker parses a contract
+  once. Results are unchanged whichever way a batch runs.
 - **The `dynamics` mechanism family is gone: the world's own changes are `patterns`.** A drift rule becomes a trend,
   seasonal, random-walk or mean-reversion pattern (applied to state by an event, or `physics`, where agents change
   the same property); a shock becomes a `shocks` pattern an event reads; a prior becomes a `draw` pattern. Declaring a
