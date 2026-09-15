@@ -269,21 +269,22 @@ class SdkWorld(World):
             raise ExprError(f"unknown function ${name}" + (f" — did you mean ${hint[0]}?" if hint else ""), source)
         if len(args) != len(spec.args):
             raise ExprError(f"${name} takes {len(spec.args)} argument(s) ({', '.join(spec.args) or 'none'}), got {len(args)}", source)
+        local = self._here()  # the running turn's state, read once: nothing before the evaluation changes it
         key = self._def_key(name, args)
         if key is not None:
-            state = self.state_version()
+            pending = getattr(local, "pending", None)
+            state = (self.journal.version, self.round, self.stage, self.time, id(pending), len(pending or ()))
             if state != self._def_cache_state:
                 self._def_cache, self._def_cache_state = {}, state
             elif key in self._def_cache:
                 return self._def_cache[key]
-        local = self._here()
         depth = getattr(local, "depth", 0)
         if depth >= 32:
             raise ExprError(f"${name}: defs call each other too deeply (recursion?)", source)
         local.depth = depth + 1
-        drawn = self.draws()
+        drawn = getattr(local, "draws", 0)
         try:
-            value = compile_expr(spec.expr)(self.scope(**dict(zip(spec.args, args))))
+            value = compile_expr(spec.expr)(self._scope(local, dict(zip(spec.args, args))))
         finally:
             local.depth = depth
         # A call that drew a random number is never reused; with the same state and arguments a call that
@@ -341,6 +342,10 @@ class SdkWorld(World):
     # -- scopes --------------------------------------------------------------
 
     def scope(self, **values: Any) -> Scope:
+        return self._scope(self._here(), values)
+
+    def _scope(self, local: Any, values: Dict[str, Any]) -> Scope:
+        """A scope over the world as ``local`` (the running turn's state) sees it, with ``values`` as extra roots."""
         base: Dict[str, Any] = {
             "inputs": self.inputs,
             "world": self._props_view,
@@ -352,7 +357,7 @@ class SdkWorld(World):
             "metrics": self.metrics,
             "series": self.series,
             "arm": self.arm,
-            "pending": getattr(self._here(), "pending", None) or [],
+            "pending": getattr(local, "pending", None) or [],
         }
         base.update(values)
         return Scope(base, self)
@@ -754,6 +759,9 @@ def _copy(value: Any) -> Any:
 
 def _plain(value: Any) -> Any:
     """Store entities by id and links as data: properties never hold live object references."""
+    kind = type(value)
+    if kind is str or kind is int or kind is float or kind is bool or value is None:
+        return value
     if isinstance(value, Entity):
         return value.id
     if isinstance(value, Link):

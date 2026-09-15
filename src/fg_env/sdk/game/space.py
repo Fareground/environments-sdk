@@ -22,6 +22,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple
 
 from ...entity import Entity
+from ..actions import TrialStream
 from ..contract import ParamSpec
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, is_expr
@@ -240,12 +241,13 @@ def sample_call(env: "Env", turn: "Turn", rng: random.Random, *, limit: int = CO
         return candidates[order[0]] if order else None
     book, actor = env.actions, turn.actor
     with env._lock, as_turn(env, turn):
+        stream = TrialStream(env.world)
         for index in order:
             tool, args = candidates[index]
             if tool == END_TURN:
                 return tool, args
             params, problem = book.validate(actor, tool, args)
-            if problem is None and book.dry_run(actor, tool, params) is None:
+            if problem is None and book.dry_run(actor, tool, params, stream) is None:
                 return tool, args
     return None
 
@@ -263,10 +265,11 @@ def legal_calls(env: "Env", turn: "Turn", *, limit: int = COMBINATION_LIMIT,
         acted = turn.actions_left < turn.stage.max_actions or bool(turn.intents)
         if not (turn.stage.must_act and not acted and names):
             calls.append((END_TURN, {}))
+        stream = TrialStream(env.world) if dry_run else None
         for name in names:
             found: List[Tuple[str, Dict[str, Any]]] = []
             try:
-                _walk(env, turn, name, list(env.contract.actions[name].params.items()), 0, {}, {}, found, limit, dry_run)
+                _walk(env, turn, name, list(env.contract.actions[name].params.items()), 0, {}, {}, found, limit, stream)
             except _Unlisted as reason:
                 unlisted[name] = str(reason)
                 continue
@@ -275,11 +278,13 @@ def legal_calls(env: "Env", turn: "Turn", *, limit: int = COMBINATION_LIMIT,
 
 
 def _walk(env: "Env", turn: "Turn", name: str, items: List[Tuple[str, ParamSpec]], index: int, raw: Dict[str, Any],
-          resolved: Dict[str, Any], found: List[Tuple[str, Dict[str, Any]]], limit: int, dry_run: bool) -> None:
+          resolved: Dict[str, Any], found: List[Tuple[str, Dict[str, Any]]], limit: int,
+          stream: Optional[TrialStream]) -> None:
+    """Every call of ``name`` from here on; ``stream`` is the saved random stream when calls are dry-run, else None."""
     book, actor = env.actions, turn.actor
     if index == len(items):
         params, problem = book.validate(actor, name, raw)
-        if problem is None and (not dry_run or book.dry_run(actor, name, params) is None):
+        if problem is None and (stream is None or book.dry_run(actor, name, params, stream) is None):
             if len(found) >= limit:
                 raise _Unlisted(f"more than {limit:,} legal combinations of arguments")
             found.append((name, dict(raw)))
@@ -287,32 +292,35 @@ def _walk(env: "Env", turn: "Turn", name: str, items: List[Tuple[str, ParamSpec]
     pname, param = items[index]
     for value in _choices(env, turn, name, pname, param, resolved, limit):
         if value is None:
-            _walk(env, turn, name, items, index + 1, raw, resolved, found, limit, dry_run)
+            _walk(env, turn, name, items, index + 1, raw, resolved, found, limit, stream)
             continue
         typed, problem = book._value(actor, name, pname, param, value, resolved)
         if problem is None:
             _walk(env, turn, name, items, index + 1, {**raw, pname: value}, {**resolved, pname: typed}, found, limit,
-                  dry_run)
+                  stream)
 
 
 def _choices(env: "Env", turn: "Turn", name: str, pname: str, param: ParamSpec, resolved: Dict[str, Any],
              limit: int) -> List[Any]:
     book, world, actor = env.actions, env.world, turn.actor
     head: List[Any] = [] if book._required(param) else [None]
-    scope = world.scope(actor=actor, params=resolved)
     path = f"actions.{name}.params.{pname}"
+
+    def scope() -> Any:  # built only for a domain that is an expression
+        return world.scope(actor=actor, params=resolved)
+
     try:
         if param.type == "bool":
             return head + [False, True]
         if param.type == "entity":
             return head + [choice.id for choice in book._choices(actor, name, pname, param, resolved)]
         if param.type == "enum":
-            values = compile_expr(param.values)(scope) if isinstance(param.values, str) else param.values
+            values = compile_expr(param.values)(scope()) if isinstance(param.values, str) else param.values
             return head + [_plain(value) for value in values or []]
         if param.type in ("int", "number"):
             step = param.step if param.step is not None else (1 if param.type == "int" else None)
-            low = compile_expr(param.min)(scope) if is_expr(param.min) else param.min
-            high = compile_expr(param.max)(scope) if is_expr(param.max) else param.max
+            low = compile_expr(param.min)(scope()) if is_expr(param.min) else param.min
+            high = compile_expr(param.max)(scope()) if is_expr(param.max) else param.max
             if step is not None and _is_number(low) and _is_number(high):
                 values, why = _steps(float(low), float(high), step, param.type, limit)  # type: ignore[arg-type]
                 if values is not None:

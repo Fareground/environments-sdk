@@ -15,12 +15,13 @@ from .assets.intake import file_schema, file_value
 from .contract import MAX_LIST_ITEMS, ActionSpec, Contract, ParamSpec, RecordSpec, StageSpec
 from .effects import EffectRunner
 from .errors import RunError
-from .expr import EVAL_BUDGET, ExprError, Untrusted, compile_expr, is_expr, nested_free, resolve, shared_budget, truthy
+from .expr import EVAL_BUDGET, ExprError, Scope, Untrusted, compile_expr, is_expr, nested_free, resolve, shared_budget, truthy
 from .template import compile_template, format_value
 from .tool_text import shared_description, shared_param, text_limit, usage_limits
 from .world import Abort, SdkWorld, _plain
 
-__all__ = ["ACTION_BUDGET", "TEXT_MAX_LEN", "MAX_SAFE_INT", "ToolSpec", "Outcome", "ActionBook", "stage_actions"]
+__all__ = ["ACTION_BUDGET", "TEXT_MAX_LEN", "MAX_SAFE_INT", "ToolSpec", "Outcome", "ActionBook", "TrialStream",
+           "stage_actions"]
 
 #: Work one action application may do in total (all its conditions, effects and templates).
 ACTION_BUDGET = 5 * EVAL_BUDGET
@@ -143,7 +144,7 @@ class ActionBook:
             return f"{name} can be used {spec.per_turn} time(s) per turn"
         if spec.per_round is not None and used_round.get(name, 0) >= spec.per_round:
             return f"{name} can be used {spec.per_round} time(s) per round"
-        refused = self._unmet(actor, name, self.world.scope(actor=actor), with_params=False)
+        refused = self._unmet(actor, name, None)
         if refused is not None:
             return refused
         for pname, param in spec.params.items():
@@ -159,12 +160,16 @@ class ActionBook:
                 return f"there is no value you can choose for {pname} right now"
         return None
 
-    def _unmet(self, actor: Entity, name: str, scope: Any, with_params: bool) -> Optional[str]:
-        """The `why` of the first requirement that does not hold: those over $actor alone, or those that read $params."""
+    def _unmet(self, actor: Entity, name: str, params: Optional[Dict[str, Any]]) -> Optional[str]:
+        """The `why` of the first requirement that does not hold: those over $actor alone (``params`` None), or
+        those that read $params."""
+        scope: Optional[Scope] = None
         for index, condition in enumerate(self.contract.actions[name].when):
             compiled = compile_expr(condition.expr)
-            if ("params" in compiled.roots) is not with_params:
+            if ("params" in compiled.roots) is not (params is not None):
                 continue
+            if scope is None:  # built for the first requirement evaluated
+                scope = self.world.scope(actor=actor) if params is None else self.world.scope(actor=actor, params=params)
             try:
                 ok = truthy(compiled(scope))
             except ExprError as exc:
@@ -458,7 +463,7 @@ class ActionBook:
                 params[pname] = value
         if problems:
             return {}, "; ".join(problems)
-        refused = self._unmet(actor, name, self.world.scope(actor=actor, params=params), with_params=True)
+        refused = self._unmet(actor, name, params)
         if refused is not None:
             return {}, refused
         return params, None
@@ -478,12 +483,16 @@ class ActionBook:
                 if isinstance(value, float) and not value.is_integer():
                     return None, f"must be a whole number, got {_preview(raw) if isinstance(raw, str) else raw}"
                 value = int(value)
-            scope = self.world.scope(actor=actor, params=params)
+            scope: Optional[Scope] = None  # built only for a bound that is an expression
             for label, bound, bad in (("at least", param.min, lambda v, b: v < b), ("at most", param.max, lambda v, b: v > b)):
                 if bound is None:
                     continue
                 try:
-                    limit = compile_expr(bound)(scope) if is_expr(bound) else bound
+                    if is_expr(bound):
+                        scope = scope or self.world.scope(actor=actor, params=params)
+                        limit = compile_expr(bound)(scope)
+                    else:
+                        limit = bound
                 except ExprError as exc:
                     raise RunError(str(exc), f"actions.{action}.params.{pname}") from None
                 if limit is not None and (isinstance(limit, bool) or not isinstance(limit, (int, float))):
@@ -492,7 +501,8 @@ class ActionBook:
                 if limit is not None and bad(value, limit):
                     return None, f"must be {label} {format_value(limit)} (got {format_value(value)})"
             if param.step is not None:
-                base = compile_expr(param.min)(scope) if is_expr(param.min) else param.min
+                base = compile_expr(param.min)(scope or self.world.scope(actor=actor, params=params)) \
+                    if is_expr(param.min) else param.min
                 offset = (value - (base or 0)) / param.step
                 if abs(offset - round(offset)) > _STEP_TOLERANCE:
                     return None, f"must go in steps of {format_value(param.step)} from {format_value(base or 0)} " \
@@ -624,7 +634,9 @@ class ActionBook:
         with shared_budget(ACTION_BUDGET, f"actions.{name}"):
             return self._apply(actor, name, params)
 
-    def _apply(self, actor: Entity, name: str, params: Dict[str, Any]) -> Outcome:
+    def _apply(self, actor: Entity, name: str, params: Dict[str, Any], trial: bool = False) -> Outcome:
+        """Apply atomically. A ``trial`` (a dry run, rolled back by the caller) leaves out the default outcome text,
+        the announcement and its event: they cannot fail or draw, and a rollback would undo them unseen."""
         spec: ActionSpec = self.contract.actions[name]
         world = self.world
         mark = world.journal.mark()
@@ -640,10 +652,15 @@ class ActionBook:
                     raise RunError(f"chance must be a number, got {probability!r}", f"{path}.chance")
                 success = world.rng.random() < probability
             self.effects.run(spec.do if success else spec.otherwise, vars, f"{path}.{'do' if success else 'otherwise'}")
-            text = self._render(spec.outcome, vars, f"{path}.outcome") if spec.outcome else self._default_outcome(name, params, success)
+            text = self._render(spec.outcome, vars, f"{path}.outcome") if spec.outcome else \
+                "" if trial else self._default_outcome(name, params, success)
             assets = attached_ids(world, spec.attach, world.scope(**vars), f"{path}.attach") if spec.attach else []
             announce = spec.announce
-            if not spec.private:
+            if trial:
+                if announce is not None and not spec.private:
+                    self._render(announce, vars, f"{path}.announce")
+                world.touch()  # the announcement would have changed the state version
+            elif not spec.private:
                 public = self._public_params(params, self._posted_since(record_mark))
                 if announce is not None:
                     line = self._render(announce, vars, f"{path}.announce")
@@ -692,17 +709,21 @@ class ActionBook:
         except ExprError as exc:
             raise RunError(str(exc), f"actions.{name}.terminal") from None
 
-    def dry_run(self, actor: Entity, name: str, params: Dict[str, Any]) -> Optional[str]:
-        """Apply and roll back, to catch a doomed sealed choice at submit. Returns the refusal, or None."""
+    def dry_run(self, actor: Entity, name: str, params: Dict[str, Any],
+                stream: Optional["TrialStream"] = None) -> Optional[str]:
+        """Apply and roll back, to catch a doomed sealed choice at submit. Returns the refusal, or None.
+        ``stream``: the random stream saved for a series of dry runs (see :class:`TrialStream`)."""
         world = self.world
         mark = world.journal.mark()
-        rng_state = world.rng.getstate()
+        stream = stream or TrialStream(world)
+        stream.save()
         picker, world.chance_picker = world.chance_picker, None  # a trial roll is sampled, never asked for
         try:
-            outcome = self.apply(actor, name, params)
+            with shared_budget(ACTION_BUDGET, f"actions.{name}"):
+                outcome = self._apply(actor, name, params, trial=True)
         finally:
             world.journal.rollback(mark)
-            world.rng.setstate(rng_state)
+            stream.restore()
             world.chance_picker = picker
         return None if outcome.ok else outcome.text
 
@@ -749,6 +770,29 @@ class ActionBook:
         verb = name.replace("_", " ")
         suffix = "" if success else " — it did not succeed"
         return f"{actor.name}: {verb}{self._args_text(params)}{suffix}."
+
+
+class TrialStream:
+    """The random stream as dry runs must leave it. Its state is saved once and saved again only after something drew
+    from it; a dry run that drew puts it back. Every draw goes through ``world.rng``, which counts them, so an unchanged
+    count means an unchanged stream — a listing of many calls saves the stream once, not once per call."""
+
+    __slots__ = ("world", "state", "drawn")
+
+    def __init__(self, world: SdkWorld):
+        self.world = world
+        self.state: Any = None
+        self.drawn = -1
+
+    def save(self) -> None:
+        if self.state is None or self.world.draws() != self.drawn:
+            self.state = self.world.rng.getstate()
+            self.drawn = self.world.draws()
+
+    def restore(self) -> None:
+        if self.world.draws() != self.drawn:
+            self.world.rng.setstate(self.state)
+            self.drawn = self.world.draws()
 
 
 def _choice_names(group: str, members: Sequence[str]) -> Dict[str, str]:
