@@ -1,21 +1,64 @@
-"""Static checks for the state model: noise, per-entity dynamics, link fields, lifecycle hooks."""
+"""Static checks for the state model: noise, per-entity dynamics, link fields, lifecycle hooks, feeds."""
 from __future__ import annotations
 
 import keyword
 import re
 from typing import TYPE_CHECKING, Any, Dict, FrozenSet, Iterable, List, Mapping, Optional, Set
 
-from .contract import EntityDynamics, ParamSpec
+from .contract import EntityDynamics, FeedSpec, InputSpec, ParamSpec, PropSpec
 from .entity_physics import MATH_NAMES
+from .expr import is_expr
+from .feeds import feed_target
+from .host.tape import TAPE
+from .inputs import check_value
 from .links import LINK_ATTRS
 from .props import prop_type
 
 if TYPE_CHECKING:
     from .check import Types, _Checker
 
-__all__ = ["check_physics_state", "check_relation_fields", "check_link_fields", "check_hooks"]
+__all__ = ["check_physics_state", "check_relation_fields", "check_link_fields", "check_hooks", "check_feeds"]
 
 _FIELD_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def check_feeds(checker: "_Checker", base: FrozenSet[str]) -> None:
+    """Feeds: a host name, a declared target, and valid expressions for query, when and fallback."""
+    contract = checker.c
+    for name, spec in contract.feeds.items():
+        path = f"feeds.{name}"
+        if not _FIELD_NAME.match(name):
+            checker.error(path, "feed names are letters, digits and underscores")
+        if not spec.host.strip():
+            checker.error(f"{path}.host", "names no host", "the name the run binds with hosts={name: adapter}")
+        owner, target = feed_target(spec)
+        if owner == "world":
+            if target not in contract.world or target == TAPE:
+                checker.error(f"{path}.into", f"world has no property '{target}'",
+                              checker._suggest(target, contract.world) or "declare it under `world`")
+            else:
+                _literal_fallback(checker, spec, target, contract.world[target], path)
+        elif owner == "records":
+            if target not in contract.records:
+                checker.error(f"{path}.into", f"'{target}' is not a declared record",
+                              checker._suggest(target, contract.records) or "declare it under `records`")
+        else:
+            checker.error(f"{path}.into", "a feed writes into 'world.<prop>' or 'records.<record>'", f"e.g. world.{name}")
+        checker.expr(spec.when, f"{path}.when", base)
+        checker.value(spec.query, f"{path}.query", base)
+        checker.value(spec.fallback, f"{path}.fallback", base)
+
+
+def _literal_fallback(checker: "_Checker", spec: FeedSpec, target: str, prop: PropSpec, path: str) -> None:
+    raw = spec.fallback
+    if raw is None or (isinstance(raw, str) and ("{$" in raw or is_expr(raw))):
+        return
+    kind = prop_type(prop)
+    if kind == "any":
+        return
+    problem = check_value(kind, raw, InputSpec(type=kind, values=prop.values))
+    if problem:
+        checker.error(f"{path}.fallback", f"world.{target} {problem}")
 
 
 def check_hooks(checker: "_Checker", base: FrozenSet[str]) -> None:

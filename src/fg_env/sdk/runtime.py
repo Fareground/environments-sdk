@@ -20,6 +20,7 @@ from .contract import MAX_ROUNDS, Contract, StageSpec
 from .effects import EffectRunner
 from .errors import InvariantViolation, RunError
 from .expr import ExprError, compile_expr, shared_budget, truthy
+from .feeds import run_feeds
 from .measure import RunResult, Stats, compute_outputs, sample_metrics
 from .participants import Participant, resolve_participant
 from .perception import Perception
@@ -250,7 +251,7 @@ class Env:
     # -- round -----------------------------------------------------------------------
 
     def _begin_round(self) -> bool:
-        """Start the next round: scheduled effects, start events, physics. False if the run ended."""
+        """Start the next round: scheduled effects, feeds, start events, physics. False if the run ended."""
         world = self.world
         self._in_round = True
         if self.status in ("ready", "stopped"):
@@ -267,6 +268,7 @@ class Env:
         world.stage = None
         self._used_round.clear()
         self._run_scheduled()
+        run_feeds(self)
         self._run_events("start")
         self._check_end()
         if self._ended():

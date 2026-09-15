@@ -10,6 +10,8 @@ from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator, model_validator
 from pydantic_core import PydanticCustomError
 
+from .host.tape import TAPE, tape_prop
+
 __all__ = [
     "CONTRACT_VERSION",
     "Contract",
@@ -25,6 +27,7 @@ __all__ = [
     "LinkSpec",
     "PhysicsSpec",
     "PhysicsVar",
+    "FeedSpec",
     "EntityVar",
     "EntityDynamics",
     "RecordSpec",
@@ -385,6 +388,21 @@ class PhysicsSpec(_Model):
         return _ceiling(value, MAX_SUBSTEPS, "use fewer sub-steps or a smaller dt")
 
 
+class FeedSpec(_Model):
+    """External data written into the world — live or historical prices, news, weather — answered
+    by a host adapter (``fetch(request)``) at the start of a round, before events and physics.
+    Every answer is recorded on the host tape, so snapshots, restores and replays never ask again;
+    text from a host is marked untrusted."""
+
+    host: str = Field(..., description="Name of the host adapter that answers (a Feed).")
+    into: str = Field(..., description="'world.<prop>' (the answer is the new value) or 'records.<record>' (the answer is one entry's fields, or a list of entries).")
+    query: Any = Field(None, description="What to ask for: data whose texts may be expressions or templates over the world ($world, $clock, $round, $inputs).")
+    every: int = Field(1, ge=1, description="Fetch every N rounds, from round 1.")
+    when: Optional[str] = Field(None, description="Fetch only when true.")
+    fallback: Any = Field(None, description="The value (or entries) used when no host is bound: a literal or an expression, whose random draws come from the run's seed. Without one, a run with no host stops and names the host it needs.")
+    description: str = ""
+
+
 # ---------------------------------------------------------------------------
 # Records, actions, stages, views, events, policies
 # ---------------------------------------------------------------------------
@@ -679,6 +697,7 @@ class Contract(_Model):
     relations: Dict[str, RelationSpec] = Field(default_factory=dict)
     links: List[LinkSpec] = Field(default_factory=list)
     physics: Optional[PhysicsSpec] = None
+    feeds: Dict[str, FeedSpec] = Field(default_factory=dict, description="External data written into world props or records, answered by host adapters.")
     records: Dict[str, RecordSpec] = Field(default_factory=dict)
     actions: Dict[str, ActionSpec] = Field(default_factory=dict)
     stages: List[StageSpec] = Field(default_factory=list)
@@ -699,6 +718,15 @@ class Contract(_Model):
 
     #: The contract as written, before mechanisms were expanded (re-parse this, not a dump).
     _source: Optional[Dict[str, Any]] = PrivateAttr(default=None)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _feed_tape(cls, data: Any) -> Any:
+        """Feeds record their answers on the host tape, so a contract with feeds declares it."""
+        world = data.get("world") if isinstance(data, dict) else None
+        if isinstance(data, dict) and data.get("feeds") and isinstance(world or {}, dict) and TAPE not in (world or {}):
+            data = {**data, "world": {**(world or {}), TAPE: tape_prop()}}
+        return data
 
     # -- type lineage ----------------------------------------------------------
 

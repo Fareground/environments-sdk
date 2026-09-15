@@ -6,9 +6,10 @@ import datetime as _dt
 import heapq
 import math
 import threading
+from contextlib import contextmanager
 from difflib import get_close_matches
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Tuple
 
 from ..entity import Entity
 from ..physics import PhysicsModel, _CompiledExpr
@@ -246,6 +247,16 @@ class SdkWorld(World):
 
     def use_turn_pending(self, pending: Optional[List[Dict[str, Any]]]) -> None:
         self._local.pending = pending
+
+    @contextmanager
+    def drawing_from(self, rng: Any) -> Iterator[None]:
+        """Inside the block this thread draws from ``rng``, then from the stream it used before."""
+        previous = getattr(self._local, "rng", None)
+        self._local.rng = rng
+        try:
+            yield
+        finally:
+            self._local.rng = previous
 
     # -- expression interface ------------------------------------------------
 

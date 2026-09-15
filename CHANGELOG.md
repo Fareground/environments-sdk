@@ -22,6 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   creation and removal — effects, mechanisms, other hooks — atomically with the change that caused them,
   inherited through `extends` (ancestors first) and guarded against endless recursion. Entities made at
   build run `on_create` once the whole world exists; `on_create_at_build: false` opts a type out.
+- **External data feeds** (`feeds: {name: {host, into, query, every, when, fallback}}`): live or historical
+  values (prices, news, weather) written into `world.<prop>` or `records.<record>` at the start of a due
+  round, answered by a host adapter implementing the new `Feed` protocol (`fetch(request)`), recorded on the
+  host tape so snapshots, restores and replays never ask again; host text is marked untrusted. A declared
+  `fallback` answers without a host, drawing randomness from its own seeded stream. New `StubFeed` stub and
+  `adapters.historical(rows, at=, value=)` for backtests.
 
 ### Changed
 - `link` without `value` keeps an existing link's value (it used to reset it to 1); a new link gets the

@@ -719,6 +719,63 @@
       "title": "EventSpec",
       "type": "object"
     },
+    "FeedSpec": {
+      "additionalProperties": false,
+      "description": "External data written into the world — live or historical prices, news, weather — answered\nby a host adapter (``fetch(request)``) at the start of a round, before events and physics.\nEvery answer is recorded on the host tape, so snapshots, restores and replays never ask again;\ntext from a host is marked untrusted.",
+      "properties": {
+        "host": {
+          "description": "Name of the host adapter that answers (a Feed).",
+          "title": "Host",
+          "type": "string"
+        },
+        "into": {
+          "description": "'world.<prop>' (the answer is the new value) or 'records.<record>' (the answer is one entry's fields, or a list of entries).",
+          "title": "Into",
+          "type": "string"
+        },
+        "query": {
+          "default": null,
+          "description": "What to ask for: data whose texts may be expressions or templates over the world ($world, $clock, $round, $inputs).",
+          "title": "Query"
+        },
+        "every": {
+          "default": 1,
+          "description": "Fetch every N rounds, from round 1.",
+          "minimum": 1,
+          "title": "Every",
+          "type": "integer"
+        },
+        "when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Fetch only when true.",
+          "title": "When"
+        },
+        "fallback": {
+          "default": null,
+          "description": "The value (or entries) used when no host is bound: a literal or an expression, whose random draws come from the run's seed. Without one, a run with no host stops and names the host it needs.",
+          "title": "Fallback"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "host",
+        "into"
+      ],
+      "title": "FeedSpec",
+      "type": "object"
+    },
     "GraphSpace": {
       "additionalProperties": false,
       "description": "Named places joined by edges; positions are place names. Distance is the shortest path.",
@@ -2725,6 +2782,14 @@
         }
       ],
       "default": null
+    },
+    "feeds": {
+      "additionalProperties": {
+        "$ref": "#/$defs/FeedSpec"
+      },
+      "description": "External data written into world props or records, answered by host adapters.",
+      "title": "Feeds",
+      "type": "object"
     },
     "records": {
       "additionalProperties": {
