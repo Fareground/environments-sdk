@@ -63,7 +63,7 @@ class AuctionConfig(BaseModel):
                                                    "mechanism itself (stock and revenue in world props).")
     stock: Union[int, str] = Field(1, description="Units the house has to sell (number or expression).")
     units: int = Field(1, ge=1, description="Units in each lot (uniform), or the most units one bid or ask may carry (double).")
-    reserve: Union[float, str] = Field(0, description="Lowest acceptable price per unit (number or expression).")
+    reserve: Union[float, str] = Field(0.0, description="Lowest acceptable price per unit (number or expression).")
     start_price: Optional[Union[float, str]] = Field(None, description="dutch: where the clock starts.")
     decrement: float = Field(1, gt=0, description="dutch: how much the clock falls each round.")
     increment: float = Field(1, gt=0, description="english: minimum raise over the high bid.")

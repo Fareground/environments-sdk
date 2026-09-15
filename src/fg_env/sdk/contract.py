@@ -293,7 +293,7 @@ class MixSpec(_Model):
     """One archetype (segment) of a population mix."""
 
     name: str
-    weight: Union[float, str] = Field(1, description="Share of the population (relative; number or expression over $inputs).")
+    weight: Union[float, str] = Field(1.0, description="Share of the population (relative; number or expression over $inputs).")
     props: Dict[str, Any] = Field(default_factory=dict, description="Trait values or expressions for this archetype (over $row, $i, $it).")
     brief: Optional[str] = Field(None, description="Extra private brief text for members of this archetype.")
 

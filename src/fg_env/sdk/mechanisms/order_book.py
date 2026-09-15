@@ -53,8 +53,8 @@ class CrowdSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     count: Union[int, str] = Field(..., description="How many (number or expression).")
-    cash: Union[float, str] = Field(0, description="Starting cash each (number or expression).")
-    shares: Union[float, str] = Field(0, description="Starting shares each (number or expression).")
+    cash: Union[float, str] = Field(0.0, description="Starting cash each (number or expression).")
+    shares: Union[float, str] = Field(0.0, description="Starting shares each (number or expression).")
     params: Dict[str, Union[float, str]] = Field({}, description="Strategy parameter overrides (see the guide): numbers, or expressions read once per trader when its parameters are drawn.")
 
 

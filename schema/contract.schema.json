@@ -1676,7 +1676,7 @@
               "type": "string"
             }
           ],
-          "default": 1,
+          "default": 1.0,
           "description": "Share of the population (relative; number or expression over $inputs).",
           "title": "Weight"
         },
