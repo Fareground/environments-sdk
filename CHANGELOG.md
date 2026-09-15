@@ -45,8 +45,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `max_tokens` and `reasoning_effort`.
 - **Calls after the turn ended**: LLM participants stop running a reply's tool calls once one ends the turn; the
   leftovers are answered without reaching the engine. `look` and `inspect` are free reads (up to `max_calls` per
-  turn), so reading never spends the calls needed to act; a stage that declares `max_calls` states the budget in the
-  update, and tool results count the last calls down (`(Calls left: 2.)`).
+  turn), so reading never spends the calls needed to act; a stage allowing fewer calls than the default states the
+  budget in the update, and tool results count down the calls once they barely cover the actions left
+  (`(Calls left: 2.)`).
 - **Inspect ids**: `inspect.id` offers the ids it accepts (an enum, or a compact listing like `u1–u150`), finds a
   unique name, and a refusal suggests the closest id. Entities an agent may inspect read `Moderator [chair]` in its
   update and views; deliberation motions are numbered (`motion 1`), not bracketed.

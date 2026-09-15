@@ -29,6 +29,7 @@ from .host.tape import tape_of
 from .measure import RunResult, Stats, sample_metrics
 from .perception import Perception
 from .previews import Previews
+from .reads import inspect_rule
 from .replay import Origin
 from .returns import measured
 from .run_checks import RunChecks
@@ -835,8 +836,6 @@ class Env(Copying, RunChecks):
 
     def _inspect_rule(self, type_name: str) -> Any:
         """The inspect rule for a type, inherited through `extends`."""
-        from .reads import inspect_rule
-
         return inspect_rule(self.contract, type_name)
 
     # -- helpers --------------------------------------------------------------------------------

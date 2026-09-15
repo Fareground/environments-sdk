@@ -30,14 +30,16 @@ def _first_tools(contract, seat, inputs=None, rounds=1, others=None):
 
 
 def test_text_limits_are_stated_in_words_and_usage_caps_before_the_first_call():
-    seen = _first_tools(_example("werewolf.json"), "player", rounds=1)
-    whisper = seen["tools"].get("whisper") or seen["tools"]["say"]
-    assert "Twice per turn." in whisper.description or "Once per turn." in whisper.description
-    assert whisper.input_schema["properties"]["text"]["description"].endswith("Up to 300 characters (about 40 words).")
-    from fg_env.sdk.tool_text import text_limit, usage_limits
+    contract = {"name": "Square", "clock": {"rounds": 1}, "types": {"person": {"agent": True}},
+                "entities": {"ann": {"type": "person"}}, "stages": [{"name": "talk"}],
+                "actions": {"say": {"by": "person", "per_turn": 1, "per_round": 3,
+                                    "params": {"text": {"type": "text", "max_len": 400, "description": "What you say."}}}}}
+    say = _first_tools(contract, "ann")["tools"]["say"]
+    assert say.description == "Say. Once per turn and at most 3 times per round."
+    assert say.input_schema["properties"]["text"]["description"] == "What you say. Up to 400 characters (about 60 words)."
+    from fg_env.sdk.tool_text import text_limit
 
-    assert text_limit(400) == "Up to 400 characters (about 60 words)." and text_limit(600).endswith("(about 90 words).")
-    assert usage_limits(1, None) == "Once per turn." and usage_limits(None, 3) == "At most 3 times per round."
+    assert text_limit(600) == "Up to 600 characters (about 90 words)." and text_limit(4) == "Up to 4 characters (about 1 word)."
 
 
 def test_holdem_says_whether_a_hand_uses_the_hole_cards_or_is_on_the_board():
