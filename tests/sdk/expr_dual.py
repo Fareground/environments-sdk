@@ -12,6 +12,7 @@ Differences are collected, not raised inside the engine (code under test may cat
 """
 from __future__ import annotations
 
+import copy
 import gc
 import threading
 from contextlib import contextmanager
@@ -79,8 +80,7 @@ def _capture(world: Any) -> Dict[str, Any]:
         state["indexes"] = None if indexes is None else dict(indexes)
         patterns = world.__dict__.get("patterns")
         state["patterns"] = None if patterns is None else (patterns, {
-            name: {k: list(v) if isinstance(v, list) else v for k, v in getattr(patterns, name).items()}
-            for name in _PATTERN_CACHES})
+            name: {k: _pattern_entry(v) for k, v in getattr(patterns, name).items()} for name in _PATTERN_CACHES})
     return state
 
 
@@ -116,7 +116,20 @@ def _restore(world: Any, state: Dict[str, Any]) -> None:
         if state["patterns"] is not None:
             patterns, saved = state["patterns"]
             for name, entries in saved.items():
-                setattr(patterns, name, {k: list(v) if isinstance(v, list) else v for k, v in entries.items()})
+                setattr(patterns, name, {k: _pattern_entry(v, restore=True) for k, v in entries.items()})
+
+
+def _pattern_entry(entry: Any, restore: bool = False) -> Any:
+    """A copy of one pattern cache entry that shares nothing mutable with it. A random path is ``[rng, state, values]``
+    with the stream advanced and the values appended in place, so its stream state is saved (and set back) too."""
+    if isinstance(entry, list) and len(entry) == 3 and hasattr(entry[0], "getstate"):
+        rng, state, values = entry
+        if restore:
+            rng, saved = state
+            rng.setstate(saved)
+            return [rng, copy.deepcopy(values[0]), list(values[1])]
+        return [rng, (rng, rng.getstate()), (copy.deepcopy(state), list(values))]
+    return list(entry) if isinstance(entry, list) else entry  # parameters, rows and keys are built once, never changed
 
 
 def same(a: Any, b: Any) -> bool:
