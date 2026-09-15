@@ -114,10 +114,9 @@ def _compare(a: GameState, b: GameState, steps: List[Step], other_steps: List[St
 
 
 def _visible(state: GameState, seat: int) -> str:
-    env = state._pilot.env
-    actor = env.world.entities[state.game.players[seat]]
-    pending = _own_pending(state._pending(), actor.id)
-    return str(state._pilot.read(lambda: visible_key(env, actor, pending)))
+    actor_id = state.game.players[seat]
+    return str(state._run.read(lambda env: visible_key(env, env.world.entities[actor_id],
+                                                       _own_pending(state._pending(env), actor_id))))
 
 
 def _own_pending(pending: Dict[str, Any], actor_id: str) -> Dict[str, Any]:
