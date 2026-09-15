@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Added a declarative regional-rollout acceptance composition: nested macros instantiate independent
+  approval/delivery/sales workflows sharing funding and stock, with inheritance and checkpoint regressions.
 - Money totals use accurate summation across holders, and conservation tolerates floating-point roundoff
   instead of a fraction of the total supply. Payments, minting and burning fail explicitly when a nonzero
   change cannot move a balance in the requested direction at the chosen monetary scale.
