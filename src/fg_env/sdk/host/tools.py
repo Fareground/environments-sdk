@@ -87,21 +87,23 @@ def _expand_host_tool(name: str, config: HostToolConfig, contract: Mapping[str, 
     return fragment
 
 
-def fetch(world: Any, name: str, config: HostToolConfig, actor_id: str, args: Mapping[str, Any]) -> str:
+def fetch(world: Any, name: str, config: HostToolConfig, actor_id: str, args: Mapping[str, Any],
+          lock: Any = None) -> str:
     """The host's result for this call (recorded, replayed or live)."""
     arguments = plain({key: value for key, value in args.items() if value is not None})
     result: str = consult(world, service=config.host, method="call", site=f"mechanisms.{name}", actor=actor_id,
                           identity={"args": arguments}, ask=lambda adapter: adapter.call(config.host, arguments),
-                          validate=lambda answer: _result(answer, config.max_chars))
+                          validate=lambda answer: _result(answer, config.max_chars), lock=lock)
     return result
 
 
 def prefetch(env: Any, name: str, actor: Entity, params: Mapping[str, Any]) -> None:
-    """Ask the host before the tool applies, outside the run's lock (the answer lands on the tape)."""
+    """Ask the host before the tool applies, outside the run's lock; the answer lands on the tape under it."""
     config = config_of(env.world, name, "host_tool", HostToolConfig, f"mechanisms.{name}")
-    calls = prop_of(actor, f"{name}_calls", 0)
+    with env._lock:
+        calls = prop_of(actor, f"{name}_calls", 0)
     if config.max_calls_per_run is None or calls < config.max_calls_per_run:
-        fetch(env.world, name, config, actor.id, params)
+        fetch(env.world, name, config, actor.id, params, lock=env._lock)
 
 
 def _result(answer: Any, limit: int) -> str:

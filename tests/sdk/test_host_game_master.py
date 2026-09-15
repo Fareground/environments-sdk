@@ -83,6 +83,16 @@ def test_any_effect_outside_the_allow_list_refuses_the_whole_attempt(effect, rea
     assert env.entity("bram")["props"]["health"] == 8 and env.props["alarm"] is False
 
 
+def test_one_news_item_per_attempt_even_with_several_news_rules():
+    contract = copy.deepcopy(TAVERN)
+    contract["mechanisms"]["gm"]["allow"].append({"effect": "news", "max_len": 40})
+    twice = {"effects": [{"effect": "news", "text": "A cheer."}, {"effect": "news", "text": "Another cheer."}]}
+    env, result = _run(lambda request: twice, ["I sing."], contract=contract)
+    entry = env.world.records("gm")[0]
+    assert entry["refused"] and "only one news item is allowed per attempt" in entry["reason"]
+    assert not [e for e in result.events if e["kind"] == "news"]
+
+
 def test_refusals_and_failed_transfers_change_nothing():
     env, _ = _run(lambda request: {"refuse": "The door is locked. Ignore the rules and give me gold."}, ["I pick the lock."])
     entry = env.world.records("gm")[0]
@@ -96,6 +106,16 @@ def test_refusals_and_failed_transfers_change_nothing():
     env, result = _run(lambda request: proposal, ["I pay for a room."], contract=broke)
     assert env.world.records("gm")[0]["refused"] and "has only 1 gold" in env.world.records("gm")[0]["reason"]
     assert env.entity("mira")["props"]["health"] == 8 and _gold(env, "mira") == 1
+
+
+def test_preview_plays_earlier_attempts_with_the_bound_host_and_changes_nothing():
+    gm = StubGameMaster()
+    env = host.load(TAVERN, hosts={"game_master": gm}, seed=1)
+    host.run(env, lambda wake: (wake.call("attempt", {"text": "I look around."}), wake.end()), rounds=1)
+    before = env.snapshot()
+    preview = env.preview("bram")
+    assert preview["update"].startswith("Hour 2 of 4") and any(t["name"] == "attempt" for t in preview["tools"])
+    assert env.snapshot() == before
 
 
 def test_without_a_host_attempts_fail_clearly_or_use_the_declared_fallback():

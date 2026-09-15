@@ -301,7 +301,8 @@ def _check_transfer(world: Any, rule: Rule, raw: Mapping[str, Any], used: Dict[T
         return None, "a transfer needs two different parties", key, True
     if isinstance(amount, bool) or not isinstance(amount, (int, float)) or not math.isfinite(amount) or amount <= 0:
         return None, f"the amount must be a number greater than 0, got {_shown(amount)}", key, True
-    limit = rule.amount or 0.0
+    limit = rule.amount
+    assert limit is not None  # every transfer rule declares its amount
     if used.get(key, 0.0) + amount > limit + _EPSILON:
         return None, f"at most {limit:g} {prop} may move from {giver} per attempt", key, True
     source, target = world.entities.get(giver), world.entities.get(receiver)
@@ -336,7 +337,7 @@ def _check_move(world: Any, rule: Rule, raw: Mapping[str, Any], used: Dict[Tuple
 
 def _check_news(world: Any, rule: Rule, raw: Mapping[str, Any], used: Dict[Tuple[Any, ...], float]) -> _Checked:
     text = raw["text"]
-    key = ("news", rule.index)
+    key: Tuple[Any, ...] = ("news",)
     if key in used:
         return None, "only one news item is allowed per attempt", key, True
     if not isinstance(text, str) or not text.strip() or len(text) > rule.max_len:

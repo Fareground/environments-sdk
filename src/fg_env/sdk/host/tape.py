@@ -61,16 +61,18 @@ def request_key(world: Any, service: str, site: str, actor: Optional[str], ident
 
 def consult(world: Any, *, service: str, method: str, site: str, identity: Any, ask: Callable[[Any], Any],
             actor: Optional[str] = None, validate: Optional[Callable[[Any], Any]] = None,
-            fallback: Optional[Callable[[], Any]] = None, moment: bool = True) -> Any:
+            fallback: Optional[Callable[[], Any]] = None, moment: bool = True, lock: Any = None) -> Any:
     """The host's answer for this call: recorded, replayed, live, or the declared fallback.
 
     ``ask(adapter)`` performs the live call; ``validate(answer)`` returns the normalised answer
     or raises :class:`HostError`. Without a recorded answer, a live adapter or a ``fallback``
-    the run stops with a contract error naming the host it needs.
+    the run stops with a contract error naming the host it needs. Callers outside the run's
+    lock pass it as ``lock``: the host is asked without it, and the tape is written under it.
     """
     key = request_key(world, service, site, actor, identity, moment)
     hosts = hosts_for(world)
-    with _LOCK:
+    guard = lock if lock is not None else _LOCK
+    with guard:
         tape = _tape(world, site)
         found = tape.get(key)
         if found is None and hosts is not None and key in hosts.replay:
@@ -108,7 +110,7 @@ def consult(world: Any, *, service: str, method: str, site: str, identity: Any, 
                              "response": answer}
     if adapter is None:
         entry["fallback"] = True
-    with _LOCK:
+    with guard:
         tape = _tape(world, site)
         if key in tape:  # a concurrent identical call recorded first: everyone reads that answer
             return copy.deepcopy(tape[key]["response"])
