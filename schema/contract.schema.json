@@ -2506,6 +2506,14 @@
       "title": "Description",
       "type": "string"
     },
+    "imports": {
+      "description": "Contract files merged into this one (paths relative to this file, inside its folder); this contract's own entries win. Imported files may import others.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Imports",
+      "type": "array"
+    },
     "brief": {
       "$ref": "#/$defs/Brief"
     },

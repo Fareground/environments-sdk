@@ -25,7 +25,7 @@ from pydantic import ValidationError
 from ..errors import Issue
 from ..registry import MECHANISMS, MechanismError
 
-__all__ = ["expand_mechanisms", "MECHANISMS"]
+__all__ = ["expand_mechanisms", "merge_sections", "MECHANISMS"]
 
 _NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
 
@@ -39,7 +39,7 @@ _HOOK_SETTINGS = ("turns", "order", "who", "until", "passes", "quiet", "max_acti
 _HOOK_EFFECTS = ("on_enter", "on_exit", "on_idle", "on_wake", "on_turn_end")
 _HOOK_KEYS = frozenset({"actions", *_HOOK_EFFECTS, *_HOOK_SETTINGS})
 #: Sections merged by appending generated items (an identical item is never added twice).
-_LISTED = ("population", "links", "events", "end", "invariants")
+_LISTED = ("population", "links", "events", "triggers", "end", "invariants")
 #: What an action hook may add to a declared action.
 _ACTION_HOOK_KEYS = ("when", "do", "otherwise")
 #: Most mechanism uses one contract may expand, generated ones included.
@@ -92,7 +92,7 @@ def expand_mechanisms(data: Mapping[str, Any]) -> Tuple[Dict[str, Any], List[Iss
                 continue
             try:
                 fragment = spec.expand(name, config, out)
-                _merge(out, fragment)
+                merge_sections(out, fragment)
             except MechanismError as exc:
                 issues.append(Issue(f"{path}.{exc.path}" if exc.path else path, str(exc), exc.fix))
                 continue
@@ -103,7 +103,8 @@ def expand_mechanisms(data: Mapping[str, Any]) -> Tuple[Dict[str, Any], List[Iss
     return out, issues
 
 
-def _merge(data: Dict[str, Any], fragment: Mapping[str, Any]) -> None:
+def merge_sections(data: Dict[str, Any], fragment: Mapping[str, Any]) -> None:
+    """Merge contract sections into ``data`` (a mechanism's output, or an imported file); ``data``'s own entries win."""
     for section, value in fragment.items():
         if section == "types":
             types = data.setdefault("types", {})
@@ -159,7 +160,8 @@ def _merge(data: Dict[str, Any], fragment: Mapping[str, Any]) -> None:
             for use_name, use in value.items():
                 uses.setdefault(use_name, copy.deepcopy(use))
         else:
-            raise MechanismError(f"a mechanism produced an unknown section '{section}'")
+            known = sorted({*_KEYED, *_LISTED, "types", "entities", "stages", "brief", "clock", "stage_hooks", "action_hooks", "mechanisms"})
+            raise MechanismError(f"unknown contract section '{section}'", f"sections: {', '.join(known)}")
 
 
 def _fill(declared: Dict[str, Any], generated: Mapping[str, Any]) -> None:

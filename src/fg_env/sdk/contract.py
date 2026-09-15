@@ -632,6 +632,7 @@ class Contract(_Model):
     fg_env: str = Field(CONTRACT_VERSION, description="Contract version.")
     name: str
     description: str = ""
+    imports: List[str] = Field(default_factory=list, description="Contract files merged into this one (paths relative to this file, inside its folder); this contract's own entries win. Imported files may import others.")
     brief: Brief = Field(default_factory=Brief)
     inputs: Dict[str, InputSpec] = Field(default_factory=dict)
     clock: Clock = Field(default_factory=Clock)

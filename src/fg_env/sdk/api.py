@@ -5,7 +5,7 @@ import copy
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Union
+from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
 from .check import check_contract, parse_contract
 from .contract import Contract
@@ -30,14 +30,73 @@ def _read(source: ContractLike) -> Any:
 
     A string is JSON text when it starts (after whitespace) with ``{`` or ``[`` and a file path
     otherwise: a contract is a JSON object, so contract text cannot start any other way."""
-    if isinstance(source, (Contract, Mapping)):
+    if isinstance(source, Contract):
         return source
+    if isinstance(source, Mapping):
+        return _with_imports(source, Path.cwd(), ())
     if isinstance(source, str) and source.lstrip().startswith(("{", "[")):
-        return _json(source, "(json text)")
+        return _with_imports(_json(source, "(json text)"), Path.cwd(), ())
     if isinstance(source, (str, os.PathLike)):
         path = Path(source)
-        return _json(_file_text(path), _shown(str(path)))
+        return _with_imports(_json(_file_text(path), _shown(str(path))), path.parent, (path.resolve(),))
     raise ContractError([Issue("(contract)", f"cannot read a contract from {type(source).__name__}", _SOURCES)])
+
+
+#: Deepest chain of imports, and most imported files, one contract may use.
+MAX_IMPORT_DEPTH = 16
+MAX_IMPORTS = 64
+
+
+def _with_imports(data: Any, folder: Path, stack: Tuple[Path, ...]) -> Any:
+    """``data`` with its ``imports`` merged in (unchanged when it has none)."""
+    if not isinstance(data, Mapping) or "imports" not in data:
+        return data
+    return _resolve_imports(data, folder, folder.resolve(), stack, [0], "imports")
+
+
+def _resolve_imports(data: Mapping[str, Any], folder: Path, root: Path, stack: Tuple[Path, ...], count: List[int],
+                     where: str) -> Dict[str, Any]:
+    from .mechanisms import merge_sections
+    from .registry import MechanismError
+
+    out = copy.deepcopy(dict(data))
+    listed = out.pop("imports", None)
+    if listed is None:
+        return out
+    if not isinstance(listed, list) or not all(isinstance(item, str) for item in listed):
+        raise ContractError([Issue(where, "must be a list of file paths", 'e.g. "imports": ["parts/deck.json"]')])
+    for index, relative in enumerate(listed):
+        path = f"{where}[{index}]"
+        target = (folder / relative).resolve()
+        try:
+            target.relative_to(root)
+        except ValueError:
+            raise ContractError([Issue(path, f"'{_shown(relative)}' is outside the contract's folder",
+                                       "keep imported files beside the contract or in a subfolder")]) from None
+        if target in stack:
+            chain = " → ".join(p.name for p in (*stack, target))
+            raise ContractError([Issue(path, f"imports form a cycle: {chain}", "remove one of these imports")])
+        count[0] += 1
+        if len(stack) >= MAX_IMPORT_DEPTH or count[0] > MAX_IMPORTS:
+            raise ContractError([Issue(path, f"too many imports (at most {MAX_IMPORTS} files, {MAX_IMPORT_DEPTH} deep)",
+                                       "import fewer, larger files")])
+        fragment = _json(_file_text(target), _shown(str(target)))
+        if not isinstance(fragment, dict):
+            raise ContractError([Issue(path, f"'{_shown(relative)}' must hold a JSON object of contract sections")])
+        fragment = _resolve_imports(fragment, target.parent, root, (*stack, target), count, f"{path}.imports")
+        for key in ("fg_env", "name", "description"):
+            fragment.pop(key, None)
+        try:
+            for key in ("space", "physics"):
+                if key in fragment:
+                    out.setdefault(key, fragment.pop(key))
+            merge_sections(out, fragment)
+        except MechanismError as exc:
+            raise ContractError([Issue(path, f"cannot merge '{_shown(relative)}': {exc}", exc.fix)]) from None
+        except (AttributeError, TypeError, ValueError) as exc:
+            raise ContractError([Issue(path, f"cannot merge '{_shown(relative)}': a section has the wrong shape ({exc})",
+                                       "compare the imported file with the contract reference")]) from None
+    return out
 
 
 def _shown(text: str) -> str:

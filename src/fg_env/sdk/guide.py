@@ -347,7 +347,7 @@ _CHECKLIST = """\
 """
 
 _SECTIONS: List[Tuple[str, List[Type[BaseModel]]]] = [
-    ("inputs", [C.InputSpec]), ("brief", [C.Brief]), ("clock", [C.Clock]),
+    ("imports", []), ("inputs", [C.InputSpec]), ("brief", [C.Brief]), ("clock", [C.Clock]),
     ("space", [C.Space, C.GridSpace, C.GraphSpace, C.PlaneSpace]), ("world", [C.PropSpec]),
     ("types", [C.TypeSpec, C.PropSpec]), ("entities", [C.EntitySpec]), ("population", [C.PopulationSpec]),
     ("relations", [C.RelationSpec]), ("links", [C.LinkSpec]), ("physics", [C.PhysicsSpec, C.PhysicsVar]),
@@ -359,6 +359,7 @@ _SECTIONS: List[Tuple[str, List[Type[BaseModel]]]] = [
 ]
 
 _SHAPES = {
+    "imports": "[path] — contract files merged into this one (relative to it, inside its folder); this contract's own entries win, and imported files may import others",
     "inputs": "{name: InputSpec}", "brief": "Brief", "clock": "Clock", "space": "Space", "world": "{prop: PropSpec}",
     "types": "{type: TypeSpec}", "entities": "{id: EntitySpec}", "population": "[PopulationSpec]",
     "relations": "{relation: RelationSpec}", "links": "[LinkSpec]", "physics": "PhysicsSpec",
