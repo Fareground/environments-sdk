@@ -47,6 +47,7 @@ __all__ = [
     "BlockSpec",
     "InvariantSpec",
     "INPUT_TYPES",
+    "INVARIANT_CHECKS",
     "PROP_TYPES",
     "PARAM_TYPES",
     "OUTPUT_TYPES",
@@ -677,11 +678,15 @@ class ArmSpec(_Model):
     patch: Dict[str, Any] = Field(default_factory=dict, description="Deep-merged into the contract (objects merge, lists replace).")
 
 
+INVARIANT_CHECKS = ("action", "round", "end")
+
+
 class InvariantSpec(_ExprShorthand):
-    """Must always hold; checked after every action and round. A violation fails the run."""
+    """Must always hold. A violation fails the run."""
 
     expr: str
     why: str = ""
+    check: str = Field("action", description="When it is checked: action (after the build, every action and effect block, and every round) | round (after the build and at the end of every round: much cheaper for sums over big crowds) | end (once, when the run finishes).")
 
 
 

@@ -929,7 +929,7 @@
     },
     "InvariantSpec": {
       "additionalProperties": false,
-      "description": "Must always hold; checked after every action and round. A violation fails the run.",
+      "description": "Must always hold. A violation fails the run.",
       "properties": {
         "expr": {
           "title": "Expr",
@@ -938,6 +938,12 @@
         "why": {
           "default": "",
           "title": "Why",
+          "type": "string"
+        },
+        "check": {
+          "default": "action",
+          "description": "When it is checked: action (after the build, every action and effect block, and every round) | round (after the build and at the end of every round: much cheaper for sums over big crowds) | end (once, when the run finishes).",
+          "title": "Check",
           "type": "string"
         }
       },

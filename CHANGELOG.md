@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Added
+- **Crowd scale**: `invariants[].check` (`action` default, `round`, `end`); an invariant already found to
+  hold in the same state is not evaluated again. Type members are indexed (no world scan per
+  `$choice(type)`/`$count(type)`/`each`), a condition opening with `$it.field == value` skips entities whose
+  field differs without evaluating them, and a coded policy's entity argument is validated without listing
+  every candidate. Boltzmann 20 000 agents: 11.8 s → 0.48 s per round.
 - **Turn time limits**: stage `time_limit` (seconds, or an expression over `$actor`) and `on_timeout`
   effects, plus a run-wide default (`env.run(..., time_limit=30)`). A participant past its deadline loses
   the turn — later calls are refused, a `timeout` event and `stats["timeouts"]` record it — and a hung one

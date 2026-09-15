@@ -90,7 +90,9 @@ class Env:
         self._triggers_fired: set = set()
         self._in_round = False
         self._inspectable = any(self._inspect_rule(kind) is not False for kind in contract.types)
-        self._check_invariants("build")
+        #: The state each invariant was last found to hold in (see _check_invariants).
+        self._invariant_held: Dict[int, Any] = {}
+        self._check_invariants("build", "build")
 
     # -- public API ----------------------------------------------------------------
 
@@ -356,7 +358,7 @@ class Env:
         self.happenings.run_events("end")
         sample_metrics(self.contract, world)
         self.happenings.check_triggers("round end")
-        self._check_invariants("round")
+        self._check_invariants("round", "round")
         self._check_end()
         self._flush_events()
         if self._ended():
@@ -385,6 +387,7 @@ class Env:
         self._final_event()
 
     def _final_event(self) -> None:
+        self._check_invariants("the run", "end")
         end = self.world.end_request or {}
         text = end.get("text") or (f"The run ended: {self.ended_by}." if self.ended_by != "rounds" else "Time is up.")
         self.world.emit("end", text, data={"ended_by": self.ended_by, "winner": end.get("winner")})
@@ -723,9 +726,19 @@ class Env:
                 return self.contract.types[kind].inspect
         return True
 
-    def _check_invariants(self, path: str) -> None:
-        scope = self.world.scope()
+    def _check_invariants(self, path: str, moment: str = "action") -> None:
+        """Check the invariants due at ``moment``: build, action (after a change), round or end. An
+        invariant already found to hold in exactly this state — without drawing randomness — holds again,
+        so it is not evaluated again."""
+        world = self.world
+        scope = world.scope()
         for index, invariant in enumerate(self.contract.invariants):
+            if moment not in _INVARIANT_MOMENTS[invariant.check]:
+                continue
+            state = world.state_version()
+            if moment == "action" and self._invariant_held.get(index) == state:
+                continue
+            drawn = world.draws()
             try:
                 holds = truthy(compile_expr(invariant.expr)(scope))
             except ExprError as exc:
@@ -734,6 +747,9 @@ class Env:
                 why = f" ({invariant.why})" if invariant.why else ""
                 raise InvariantViolation(f"invariant `{invariant.expr}` no longer holds after {path}{why}",
                                          f"invariants[{index}]")
+            unseen = world.exposures is None  # `$seen` reads a log that is not part of the state version
+            fresh = unseen and world.draws() == drawn and world.state_version() == state
+            self._invariant_held[index] = state if fresh else None
 
     def _check_end(self) -> None:
         world = self.world
@@ -774,6 +790,10 @@ class Env:
             event = self.world.log[self._emitted]
             self._emitted += 1
             self._on_event(event.to_dict())
+
+
+#: The moments each `invariants[].check` setting is checked at.
+_INVARIANT_MOMENTS = {"action": ("build", "action", "round"), "round": ("build", "round"), "end": ("end",)}
 
 
 def _seconds(value: Any) -> bool:

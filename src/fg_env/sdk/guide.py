@@ -112,7 +112,9 @@ turn, uses `max_actions`, or runs out of `max_calls`.
   whole world exists, in creation order (`on_create_at_build: false` skips them). `$it` is the entity;
   in on_remove it is already no longer alive. Hooks setting off hooks stop at 16 levels.
 * Invariants are checked after every action and effect block: write them for states that must hold
-  at all times, not ones that only settle at the end of a stage.
+  at all times, not ones that only settle at the end of a stage. `"check": "round"` checks one only at
+  the end of every round (a conservation sum over a big crowd then costs one pass a round, not one per
+  change); `"check": "end"` once, when the run finishes.
 * `end` conditions are checked after the start events, after each stage, and at the end of the round.
   To end at once in the middle of a stage (a winning move), use the `end` effect inside the action.
 

@@ -1147,6 +1147,9 @@ class _Checker:
             self.template(end.say, f"end[{index}].say", None, BASE)
         for index, invariant in enumerate(self.c.invariants):
             self.expr(invariant.expr, f"invariants[{index}]", BASE)
+            if invariant.check not in C.INVARIANT_CHECKS:
+                self.error(f"invariants[{index}].check", f"unknown check '{invariant.check}'",
+                           self._suggest(invariant.check, C.INVARIANT_CHECKS) or ", ".join(C.INVARIANT_CHECKS))
         if not self.c.outputs:
             self.warn("outputs", "no outputs declared", "declare the typed results this environment produces")
 

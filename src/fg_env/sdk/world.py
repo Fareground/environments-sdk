@@ -19,6 +19,7 @@ from .errors import RunError
 from .expr import ExprError, FUNCTIONS, Scope, Untrusted, World, compile_expr, is_expr, truthy
 from .props import finite_number as _finite_number, prop_type, shown_value as _shown_value
 from .seeds import SeedTree
+from .type_index import TypeIndex
 from . import links as _links, world_physics
 from .links import Link
 
@@ -240,8 +241,9 @@ class SdkWorld(World):
         self._def_cache: Dict[Any, Any] = {}
         self._def_cache_state: Any = None
         self._def_cache_on = False
-        #: Empty while the world is being built (build writes state outside the journal).
         self._subtypes = {t: set(contract.subtypes(t)) for t in contract.types}
+        #: The living entities of every type, kept current by create and remove.
+        self.types = TypeIndex(contract)
 
     # -- randomness --------------------------------------------------------------
 
@@ -290,10 +292,17 @@ class SdkWorld(World):
     # -- expression interface ------------------------------------------------
 
     def entities_of(self, type_name: str) -> List[Entity]:
+        return list(self.alive_of(type_name))
+
+    def alive_of(self, type_name: str) -> List[Entity]:
+        """The living entities of a type (subtypes included) in creation order — a shared list: read it, never change it."""
         if type_name not in self.contract.types:
             raise ExprError(f"'{type_name}' is not a declared type (types: {', '.join(self.contract.types)})")
-        kinds = self._subtypes[type_name]
-        return [e for e in self.entities.values() if e.entity_type in kinds and e.alive]
+        return self.types.alive(type_name, compact=self.journal.mark() == 0)
+
+    def rebuild_index(self) -> None:
+        """Re-index every entity after the entity store was replaced wholesale (a restore)."""
+        self.types.rebuild(self.entities.values())
 
     def entity(self, entity_id: Any) -> Optional[Entity]:
         if isinstance(entity_id, Entity):
@@ -623,7 +632,13 @@ class SdkWorld(World):
         if at is not None:
             entity.location_id = self._check_location(at, where)
         self.entities[eid] = entity
-        self.journal.push(lambda: self.entities.pop(eid, None))
+        self.types.created(entity)
+
+        def undo_create() -> None:
+            self.entities.pop(eid, None)
+            self.types.uncreated(entity)
+
+        self.journal.push(undo_create)
         if self.lifecycle is not None:
             self.lifecycle("on_create", entity, where)
         return entity
@@ -632,7 +647,13 @@ class SdkWorld(World):
         if not entity.alive:
             return
         entity.alive = False
-        self.journal.push(lambda: setattr(entity, "alive", True))
+        self.types.changed(entity)
+
+        def undo_remove() -> None:
+            entity.alive = True
+            self.types.changed(entity)
+
+        self.journal.push(undo_remove)
         if self.lifecycle is not None:
             self.lifecycle("on_remove", entity, where)
 

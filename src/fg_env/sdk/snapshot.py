@@ -148,6 +148,7 @@ def _restore(cls: Type[_E], contract: Contract, snapshot: Mapping[str, Any], par
         w.entities[row["id"]] = Entity(id=row["id"], name=row["name"], entity_type=row["type"],
                                        properties=decode(row["props"]), location_id=row.get("at"),
                                        alive=row["alive"])
+    w.rebuild_index()
     w.props = decode(snapshot["props"])
     w.entity_briefs = decode(snapshot["entity_briefs"])
     env._briefs = decode(snapshot["briefs"])
