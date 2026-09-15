@@ -292,6 +292,8 @@ fg_env.sweep("shop.json", {"price": {"low": 1, "high": 5, "steps": 5}}, runs=10)
 fg_env.behavior_checks("shop.json")   # constant outputs, inputs that change nothing, actions and stages never used
 fg_env.tournament("duel.json", {"greedy": "policy:greedy", "llm": my_agent}, games=20).summary()
 # seats rotate and share seeds; Elo with intervals, Glicko-2, Nash average, α-Rank, votes, cost per entrant
+d = fg_env.describe("duel.json"); d.markdown, d.metadata   # ODD description; turns, chance, information, players, length
+
 ```
 
 A participant is any callable taking a `Wake`:

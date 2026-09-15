@@ -198,6 +198,27 @@ def cmd_tournament(args: argparse.Namespace) -> int:
     return 0
 
 
+def _description(args: argparse.Namespace) -> Any:
+    from .describe import describe
+
+    return describe(args.file, inputs=_inputs(args), arm=args.arm, data_dir=args.data_dir)
+
+
+def cmd_describe(args: argparse.Namespace) -> int:
+    description = _description(args)
+    if args.json:
+        print(json.dumps(description.to_dict(), indent=2, default=str, ensure_ascii=False))
+    else:
+        print(description.markdown, end="")
+    return 0
+
+
+def cmd_info(args: argparse.Namespace) -> int:
+    description = _description(args)
+    print(json.dumps(description.metadata, indent=2, default=str, ensure_ascii=False) if args.json else description.info())
+    return 0
+
+
 def cmd_guide(args: argparse.Namespace) -> int:
     from .guide import guide
 
@@ -277,6 +298,19 @@ def add_commands(sub: Any) -> None:
     p.add_argument("--workers", type=int, default=1)
     p.add_argument("--json", action="store_true", help="print the full result as JSON")
     p.set_defaults(func=_guarded(cmd_tournament))
+
+    for name, text, command in (
+            ("describe", "write an ODD-protocol description of a contract (markdown; --json adds the game metadata)",
+             cmd_describe),
+            ("info", "derived game metadata: turns, chance, information, players, length, action space", cmd_info)):
+        p = sub.add_parser(name, help=text)
+        p.add_argument("file", help="contract JSON file")
+        p.add_argument("--input", action="append", metavar="NAME=VALUE", help="set an input (JSON value or text)")
+        p.add_argument("--inputs-file", help="JSON file of inputs")
+        p.add_argument("--arm", help="describe the contract with this arm applied")
+        p.add_argument("--data-dir", help="folder input data files are read from (default: the contract's folder)")
+        p.add_argument("--json", action="store_true", help="print JSON")
+        p.set_defaults(func=_guarded(command))
 
     p = sub.add_parser("guide", help="print the contract authoring guide")
     p.add_argument("part", nargs="?", help="one part: overview, model, reference, expressions, functions, "
