@@ -53,7 +53,7 @@ class EffectChecks:
     def _statement(self: "_Checker", source: str, path: str, roots: Set[str], types: Types,  # type: ignore[misc]
                    params: Optional[Mapping[str, C.ParamSpec]]) -> None:
         try:
-            base, steps, local, _, right = statement_parts(source)
+            base, steps, local, op, right = statement_parts(source)
         except ExprError as exc:
             self.error(path, exc.detail, "write `$actor.cash -= 5`, `$world.board[$i][$j] = x` or `$total = 3`")
             return
@@ -69,6 +69,9 @@ class EffectChecks:
             if local in RESERVED_ROOTS:
                 self.error(path, f"${local} is a reserved name, so a local cannot be called that",
                            f"rename the local (e.g. ${local}_value), or assign to one of its fields (${local}.x = …)")
+            elif op != "=" and local not in roots and not (local in self.c.defs and not self.c.defs[local].args):
+                self.error(path, f"${local} has no initial value for `{op}`",
+                           f"initialize it with `${local} = …` before updating it, or use `=` to set its value")
             roots.add(local)
             return
         assert base is not None
@@ -154,8 +157,9 @@ class EffectChecks:
         v = lambda key, r=roots: self.value(effect.get(key), f"{path}.{key}", r, types, params)
         if op == "if":
             self.expr(effect["if"], f"{path}.if", roots, types, params)
-            roots |= self.effects(effect.get("then", []), f"{path}.then", roots, types, params)
-            roots |= self.effects(effect.get("else", []), f"{path}.else", roots, types, params)
+            then_roots = self.effects(effect.get("then", []), f"{path}.then", roots, types, params)
+            else_roots = self.effects(effect.get("else", []), f"{path}.else", roots, types, params)
+            roots |= then_roots | else_roots
         elif op == "each":
             v("each")
             name = effect.get("as") or "it"

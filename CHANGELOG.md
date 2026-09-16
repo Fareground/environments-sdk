@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Static checks explain uninitialized local compound updates before execution and check conditional
+  branches independently, so a value assigned only in `then` cannot initialize its sibling `else`.
 - Forks check pending delayed rules against replacement contracts, reporting newly missing
   dependencies before the branch runs. Captured locals and action parameters remain valid.
 - Straight-line delayed assignments capture only needed outer bindings, avoiding repeated copies of
