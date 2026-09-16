@@ -42,7 +42,8 @@ class Happenings:
             if "delivery" in item:
                 run_delivery(env, item)
             else:
-                env._atomic(item["effects"], world.thaw(item["vars"]), item["path"])
+                env._atomic(item["effects"], world.thaw(item["vars"], tagged=item.get("capture_version") == 1),
+                            item["path"])
 
     def run_events(self, phase: str) -> None:
         env, world = self.env, self.env.world

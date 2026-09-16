@@ -715,7 +715,8 @@ class SdkWorld(World):
                  delivery: Optional[Dict[str, Any]] = None) -> None:
         """Run ``effects`` when the round (or, on a continuous clock, the time) reaches ``due_round``;
         or, with ``delivery``, deliver that message (see :mod:`delivery`)."""
-        item: Dict[str, Any] = {"effects": effects, "vars": {k: _freeze(v) for k, v in vars.items()}, "path": path}
+        item: Dict[str, Any] = {"effects": effects, "vars": {k: _freeze(v) for k, v in vars.items()},
+                                "capture_version": 1, "path": path}
         if delivery is not None:
             item["delivery"] = delivery
         self._schedule_seq += 1
@@ -759,8 +760,8 @@ class SdkWorld(World):
             self.end_request = {"name": name, "winner": winner, "text": text}
             self.journal.push(lambda: setattr(self, "end_request", None))
 
-    def thaw(self, vars: Dict[str, Any]) -> Dict[str, Any]:
-        return {k: _thaw(v, self) for k, v in vars.items()}
+    def thaw(self, vars: Dict[str, Any], *, tagged: bool = False) -> Dict[str, Any]:
+        return {k: _thaw(v, self, tagged=tagged) for k, v in vars.items()}
 
     # -- physics (see world_physics) --------------------------------------------------
 
@@ -822,20 +823,29 @@ def _freeze(value: Any) -> Any:
     if isinstance(value, Entity):
         return {"$entity": value.id}
     if isinstance(value, Link):
-        return _freeze(value.as_dict())
+        return {"$link": [value.kind, *value.key]}
     if isinstance(value, list):
         return [_freeze(v) for v in value]
     if isinstance(value, dict):
-        return {k: _freeze(v) for k, v in value.items()}
+        frozen = {k: _freeze(v) for k, v in value.items()}
+        # User data may look exactly like a reference tag. Escape the container,
+        # while retaining reference handling for values nested inside it.
+        if len(value) == 1 and next(iter(value)) in ("$entity", "$link", "$literal"):
+            return {"$literal": frozen}
+        return frozen
     return value
 
 
-def _thaw(value: Any, world: SdkWorld) -> Any:
+def _thaw(value: Any, world: SdkWorld, *, tagged: bool = False) -> Any:
+    if tagged and isinstance(value, dict) and set(value) == {"$literal"}:
+        return {k: _thaw(v, world, tagged=tagged) for k, v in value["$literal"].items()}
     if isinstance(value, dict) and set(value) == {"$entity"}:
         return world.entities.get(value["$entity"])
+    if tagged and isinstance(value, dict) and set(value) == {"$link"}:
+        kind, source, target = value["$link"]
+        return Link(world, kind, (source, target))
     if isinstance(value, list):
-        return [_thaw(v, world) for v in value]
+        return [_thaw(v, world, tagged=tagged) for v in value]
     if isinstance(value, dict):
-        return {k: _thaw(v, world) for k, v in value.items()}
+        return {k: _thaw(v, world, tagged=tagged) for k, v in value.items()}
     return value
-
