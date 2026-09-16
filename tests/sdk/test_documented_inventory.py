@@ -1,0 +1,33 @@
+"""Known business outcomes promised by the public quickstart."""
+import json
+import re
+from pathlib import Path
+
+import fg_env
+
+ROOT = Path(__file__).resolve().parents[2]
+CONTRACT = ROOT / "examples/contracts/weekly_inventory.json"
+POLICY = {"retailer": "policy:steady"}
+
+
+def test_quickstart_contract_matches_downloadable_example():
+    page = (ROOT / "docs/sdk/getting-started.md").read_text()
+    embedded = re.search(r"```json\n(.*?)\n```", page, re.S).group(1)
+    assert json.loads(embedded) == json.loads(CONTRACT.read_text())
+    assert not fg_env.check(CONTRACT)
+
+
+def test_documented_inventory_balances_and_shortage():
+    baseline = fg_env.run(CONTRACT, POLICY, seed=7)
+    assert baseline.outputs == {"units_sold": 24, "lost_sales": 0, "closing_cash": 244.0}
+    busy = fg_env.run(CONTRACT, POLICY, inputs={"weekly_demand": 9}, seed=7)
+    assert busy.outputs == {"units_sold": 34, "lost_sales": 2, "closing_cash": 344.0}
+    # Each sold unit must come from opening inventory or a paid purchase.
+    assert busy.outputs["units_sold"] == 10 + 4 * 6
+
+
+def test_documented_snapshot_continuation():
+    env = fg_env.load(CONTRACT, seed=7)
+    env.step(POLICY)
+    continued = fg_env.Env.restore(CONTRACT, env.snapshot()).run(POLICY)
+    assert continued.outputs == fg_env.run(CONTRACT, POLICY, seed=7).outputs

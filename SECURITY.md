@@ -11,7 +11,7 @@ Only the latest minor release receives security fixes.
 
 `fg-env-kernel` (the previous distribution name, 0.2.x and earlier) no longer
 receives fixes. Move to `fg-env`; see the 0.3.0 migration notes in
-[CHANGELOG.md](https://github.com/Fareground/env-kernel/blob/main/CHANGELOG.md).
+[CHANGELOG.md](https://github.com/Fareground/environments-sdk/blob/main/CHANGELOG.md).
 
 ## Security model of the contract SDK
 

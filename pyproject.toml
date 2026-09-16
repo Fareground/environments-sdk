@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "fg-env"
 version = "0.3.0"
-description = "The Environment SDK for AI agents: define an environment as one JSON contract, the engine runs it."
+description = "The Environments SDK for AI agents: define an environment as one JSON contract, the engine runs it."
 readme = "README.md"
 requires-python = ">=3.11"
 keywords = ["agents", "environments", "llm", "simulation", "multi-agent", "sdk", "contract", "ai"]
@@ -31,11 +31,11 @@ dependencies = [
 dev = ["pytest>=8.0", "ruff==0.16.1", "mypy>=1.10", "build>=1.0"]
 
 [project.urls]
-Homepage = "https://github.com/Fareground/env-kernel"
-Repository = "https://github.com/Fareground/env-kernel"
-Documentation = "https://github.com/Fareground/env-kernel/blob/main/docs/README.md"
-Changelog = "https://github.com/Fareground/env-kernel/blob/main/CHANGELOG.md"
-Issues = "https://github.com/Fareground/env-kernel/issues"
+Homepage = "https://github.com/Fareground/environments-sdk"
+Repository = "https://github.com/Fareground/environments-sdk"
+Documentation = "https://github.com/Fareground/environments-sdk/blob/main/docs/README.md"
+Changelog = "https://github.com/Fareground/environments-sdk/blob/main/CHANGELOG.md"
+Issues = "https://github.com/Fareground/environments-sdk/issues"
 
 [project.scripts]
 fg-env = "fg_env.__main__:main"

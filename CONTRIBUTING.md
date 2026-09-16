@@ -6,7 +6,7 @@ The distribution name is `fg-env` and the import package is `fg_env`.
 Do not rename either — downstream projects depend on them.
 
 ```bash
-git clone https://github.com/Fareground/env-kernel
+git clone https://github.com/Fareground/environments-sdk
 cd env-kernel
 python -m venv .venv
 source .venv/bin/activate
@@ -115,3 +115,7 @@ Optional features may add dev-only dependencies under `[project.optional-depende
 - Run `pytest`, `ruff check src tests`, `mypy` and `make check-schema` locally before pushing.
 - **Commits must not include AI or assistant co-author attribution** — no
   `Co-authored-by` trailers or generated-by notices for any AI tool.
+
+## Documentation
+
+The current Environments SDK documentation lives in `docs/sdk/`. Edit tutorials there. Regenerate the schema-derived reference with `PYTHONPATH=src python scripts/build_docs_reference.py`. The website imports these Markdown sources with `site/sync_sdk_docs.py`; do not independently edit its SDK copies. Run `pytest tests/sdk/test_documented_inventory.py` when changing the quickstart.

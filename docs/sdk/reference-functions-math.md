@@ -1,0 +1,46 @@
+# functions / math
+
+## Functions: math
+
+- `$abs(x)` — Absolute value.
+- `$acos(x)` — Arc cosine in radians, for x in [-1, 1].
+- `$asin(x)` — Arc sine in radians, for x in [-1, 1].
+- `$atan(x)` — Arc tangent in radians.
+- `$atan2(y, x)` — Angle in radians of the point (x, y), in (-pi, pi].
+- `$ceil(x)` — Round up to a whole number.
+- `$clamp(x, low, high)` — x limited to the range [low, high].
+- `$comb(n, k)` — Ways to choose k of n items, ignoring order (0 when k > n).
+- `$cos(x)` — Cosine of x (radians).
+- `$det(matrix)` — Determinant of a square matrix (exact for whole numbers; 0 when singular).
+- `$dot(xs, ys)` — Inner product of two equal-length lists of numbers: Σ xs[i] × ys[i] (use $matmul for matrices).
+- `$e()` — The constant e (2.71828…).
+- `$erf(x)` — Error function; the standard normal CDF is (1 + $erf(x / $sqrt(2))) / 2.
+- `$exp(x)` — e to the power x.
+- `$factorial(n)` — n! for a whole number n ≥ 0 (limited by the whole-number size limit).
+- `$floor(x)` — Round down to a whole number.
+- `$gcd(a, b, ...)` — Greatest common divisor of whole numbers (0 when all are 0).
+- `$hypot(x, y)` — Length of the vector (x, y): sqrt(x² + y²).
+- `$identity(n)` — The n×n identity matrix (1 on the diagonal, 0 elsewhere).
+- `$interp(x, xs, ys)` — Piecewise-linear y at x through the points (xs, ys); xs strictly increasing; flat beyond the ends.
+- `$inverse(matrix)` — The inverse of a square matrix (error when it is singular).
+- `$lcm(a, b, ...)` — Least common multiple of whole numbers (0 when any is 0).
+- `$lerp(a, b, t)` — The point a fraction `t` of the way from a to b: a + (b - a) × t (t is not clamped).
+- `$linsolve(a, b)` — x such that a × x = b, for a square matrix a and a list b (or a matrix b, solved column by column).
+- `$log(x)` — Natural logarithm.
+- `$log_base(x, base)` — Logarithm of x in `base` (e.g. 2 or 10); $log(x) is the natural logarithm.
+- `$logit(p)` — Log-odds ln(p / (1 - p)) of a probability strictly between 0 and 1.
+- `$logsumexp(scores)` — ln(Σ e^score), computed without overflow; null for an empty list.
+- `$matmul(a, b)` — Matrix product a × b. A plain list is a column on the right (matrix × list → list) or a row on the left (list × matrix → list).
+- `$mvnormal(means, cov)` — A list of normal numbers with these means and covariance matrix (correlated draws; cov must be symmetric positive semi-definite). In population props, draw once and read parts with $it: {"z": "$mvnormal([0, 0], [[1, 0.6], [0.6, 1]])", "a": "$it.z[0]"}.
+- `$pct(part, whole)` — part / whole, or 0 when whole is 0.
+- `$pi()` — The constant pi (3.14159…).
+- `$pow(x, y)` — x to the power y (like x ** y).
+- `$round(x, digits?)` — Round to `digits` decimals (default 0 → whole number).
+- `$sigmoid(x)` — Logistic function 1 / (1 + e^-x), in (0, 1).
+- `$sign(x)` — -1, 0 or 1 by the sign of x.
+- `$sin(x)` — Sine of x (radians).
+- `$softmax(scores, temperature?)` — Probabilities proportional to e^(score / temperature) (default temperature 1); sums to 1.
+- `$sqrt(x)` — Square root.
+- `$tan(x)` — Tangent of x (radians).
+- `$tanh(x)` — Hyperbolic tangent, in (-1, 1).
+- `$transpose(matrix)` — The matrix with rows and columns swapped: an n×m matrix becomes m×n.

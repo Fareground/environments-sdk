@@ -1,16 +1,16 @@
 <div align="center">
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Fareground/env-kernel/main/assets/wordmark-dark.svg" />
-  <img src="https://raw.githubusercontent.com/Fareground/env-kernel/main/assets/wordmark.svg" alt="Fareground" width="320" />
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Fareground/environments-sdk/main/assets/wordmark-dark.svg" />
+  <img src="https://raw.githubusercontent.com/Fareground/environments-sdk/main/assets/wordmark.svg" alt="Fareground" width="320" />
 </picture>
 
-# fg-env
+# Environments SDK
 
-*The Environment SDK for agents — define an environment as one contract, the engine runs it.*
+*The Environments SDK for agents — define an environment as one contract, the engine runs it.*
 
 <p>
-  <a href="https://github.com/Fareground/env-kernel/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Fareground/env-kernel/ci.yml?branch=main&style=flat-square&label=CI" /></a>
+  <a href="https://github.com/Fareground/environments-sdk/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Fareground/environments-sdk/ci.yml?branch=main&style=flat-square&label=CI" /></a>
   <a href="https://pypi.org/project/fg-env/"><img alt="PyPI" src="https://img.shields.io/pypi/v/fg-env?style=flat-square" /></a>
   <img alt="Python" src="https://img.shields.io/badge/python-3.11+-3b82f6?style=flat-square" />
   <img alt="Dependencies" src="https://img.shields.io/badge/deps-pydantic%20only-2dd4a7?style=flat-square" />
@@ -21,16 +21,18 @@
 
 ---
 
+[Documentation](https://fareground.com/docs/environments-sdk/) · [Quickstart](docs/sdk/getting-started.md) · [Authoring guide](docs/sdk/authoring.md) · [Reference](docs/sdk/reference.md)
+
 ## Overview
 
 **fg-env** turns one JSON contract into a running environment for AI agents: a market, a
 council, an exchange, a courtroom, an epidemic, a game. The contract declares the world, the
 people, what agents can do, what they see, how the world moves on its own, and what is measured.
 The engine builds the world, wakes agents, gives each a short plain-language picture with typed
-tools, applies their actions atomically, runs events and physics, and returns typed outputs.
+tools, applies their actions atomically, runs scheduled world rules, and returns typed outputs.
 
 You write data, never engine code. The same contract runs with LLM agents, coded crowds, or both,
-and a run is reproducible from its seed.
+and engine randomness is reproducible from its seed. Reproducing an LLM run also requires the same participant decisions; record traces for replay.
 
 Built for LLM agents from the ground up:
 
@@ -44,7 +46,7 @@ Built for LLM agents from the ground up:
 - **Measured.** Every run reports turns, tool calls, invalid calls and tokens per update.
 
 fg-env is one of Fareground's open-source building blocks, alongside
-[agent-framework](https://github.com/Fareground/agent-sdk),
+[Agents SDK](https://github.com/Fareground/agents-sdk),
 [agent-id](https://github.com/Fareground/agent-id),
 [agent-memory](https://github.com/Fareground/agent-memory),
 [agent-knowledge](https://github.com/Fareground/agent-knowledge) and
@@ -60,7 +62,7 @@ Python ≥ 3.11. The only runtime dependency is `pydantic`.
 
 ## Quickstart
 
-A whole environment — two players betting coins for 20 rounds:
+For a business walkthrough, start with [weekly inventory](docs/sdk/getting-started.md), including exact expected outputs. The following small contract illustrates the basic API:
 
 ```python
 import fg_env
@@ -99,7 +101,7 @@ Run it with an LLM — pass your own client:
 
 ```python
 import anthropic
-claude = fg_env.participants.anthropic(anthropic.Anthropic(), "claude-sonnet-5")
+claude = fg_env.participants.anthropic(anthropic.Anthropic(), "YOUR_AVAILABLE_MODEL_ID")
 result = fg_env.run(contract, {"player": claude}, seed=1)
 ```
 
@@ -167,7 +169,7 @@ by run, so differences between arms come from the arm, not from luck.
 
 ## Examples
 
-[`examples/contracts/`](https://github.com/Fareground/env-kernel/tree/main/examples/contracts) holds complete environments. Each was written by an LLM
+[`examples/contracts/`](https://github.com/Fareground/environments-sdk/tree/main/examples/contracts) holds complete environments. Each was written by an LLM
 agent from the guide alone, and each is covered by a golden-run test: a coffee market with sampled
 households and subscriptions, a forecasting council, a price-time-priority order-book exchange, a
 civil trial, a town epidemic with physics, Werewolf, a labor negotiation, Connect Four, a
@@ -188,17 +190,17 @@ JSON between rounds and resume identically.
 
 The earlier template-based engine API (`Kernel`, `simulate`, `load_world`, the registry decorators)
 remains available for existing templates as `fg_env.legacy` (`from fg_env.legacy import simulate`), with its
-commands under `fg-env legacy`; see [`docs/template_schema.md`](https://github.com/Fareground/env-kernel/blob/main/docs/template_schema.md).
+commands under `fg-env legacy`; see [`docs/template_schema.md`](https://github.com/Fareground/environments-sdk/blob/main/docs/template_schema.md).
 New environments should use contracts.
 
 ## Contributing
 
-See [CONTRIBUTING.md](https://github.com/Fareground/env-kernel/blob/main/CONTRIBUTING.md) for dev setup, tests and lint. What changed is in the
-[CHANGELOG](https://github.com/Fareground/env-kernel/blob/main/CHANGELOG.md).
+See [CONTRIBUTING.md](https://github.com/Fareground/environments-sdk/blob/main/CONTRIBUTING.md) for dev setup, tests and lint. What changed is in the
+[CHANGELOG](https://github.com/Fareground/environments-sdk/blob/main/CHANGELOG.md).
 
 ---
 
 <div align="center">
 <sub>Stewarded by <b>Fareground</b>.</sub><br />
-<sub>Licensed under the <a href="https://github.com/Fareground/env-kernel/blob/main/LICENSE">Apache License 2.0</a>.</sub>
+<sub>Licensed under the <a href="https://github.com/Fareground/environments-sdk/blob/main/LICENSE">Apache License 2.0</a>.</sub>
 </div>
