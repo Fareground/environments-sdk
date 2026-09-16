@@ -1,27 +1,26 @@
-<div align="center">
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Fareground/environments-sdk/main/assets/wordmark-dark.svg" />
-  <img src="https://raw.githubusercontent.com/Fareground/environments-sdk/main/assets/wordmark.svg" alt="Fareground" width="320" />
-</picture>
-
-# Environments SDK
-
-*The Environments SDK for agents — define an environment as one contract, the engine runs it.*
-
-<p>
-  <a href="https://github.com/Fareground/environments-sdk/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Fareground/environments-sdk/ci.yml?branch=main&style=flat-square&label=CI" /></a>
-  <a href="https://pypi.org/project/fg-env/"><img alt="PyPI" src="https://img.shields.io/pypi/v/fg-env?style=flat-square" /></a>
-  <img alt="Python" src="https://img.shields.io/badge/python-3.11+-3b82f6?style=flat-square" />
-  <img alt="Dependencies" src="https://img.shields.io/badge/deps-pydantic%20only-2dd4a7?style=flat-square" />
-  <img alt="Engine" src="https://img.shields.io/badge/engine-deterministic-9b59b6?style=flat-square" />
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/wordmark-dark.svg" />
+    <img src="assets/wordmark.svg" alt="Fareground" width="320" />
+  </picture>
 </p>
 
-</div>
+<h1 align="center">Environments SDK</h1>
+
+<p align="center">
+  <em>Define an environment as one contract. The engine runs it.</em>
+</p>
+
+<p align="center">
+  <a href="https://github.com/Fareground/environments-sdk/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Fareground/environments-sdk/ci.yml?branch=main&amp;style=flat-square&amp;label=CI" /></a>
+  <img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python 3.11+" />
+  <img src="https://img.shields.io/badge/PyPI-publication%20pending-orange?style=flat-square" alt="PyPI publication pending" />
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-lightgrey" alt="Apache-2.0" /></a>
+</p>
 
 ---
 
-[Documentation](https://fareground.com/docs/environments-sdk/) · [Quickstart](docs/sdk/getting-started.md) · [Authoring guide](docs/sdk/authoring.md) · [Reference](docs/sdk/reference.md)
+[Documentation](https://fareground.com/docs/env-kernel/) · [Quickstart](docs/sdk/getting-started.md) · [Authoring guide](docs/sdk/authoring.md) · [Reference](docs/sdk/reference.md)
 
 ## Overview
 
@@ -54,8 +53,10 @@ fg-env is one of Fareground's open-source building blocks, alongside
 
 ## Install
 
+The `fg-env` PyPI release is pending. Install the tested source revision in the meantime:
+
 ```bash
-pip install fg-env
+python -m pip install "git+https://github.com/Fareground/environments-sdk.git@d1e98a2"
 ```
 
 Python ≥ 3.11. The only runtime dependency is `pydantic`.

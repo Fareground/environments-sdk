@@ -1,3 +1,174 @@
+# Environments SDK contracts
+
+The current contract SDK uses `fg_env`. See the [generated reference](sdk/reference.md) and the installation instructions in the repository README; publication of `fg-env` is pending.
+
+
+# fg_env — core guide
+
+An environment is one JSON contract; the engine runs it. You declare what exists (`types` of entities with
+properties, and the `entities` themselves), what agents can do (`actions`: typed parameters, requirements, effects),
+when they act (`stages`), what they see (`views`) and what is measured (`outputs`). Each turn the engine gives an
+agent a brief, an update and one typed tool per action it can take right now, applies what it does atomically, runs
+the world's `events`, and at the end returns typed outputs. You write data, never code.
+
+Workflow: `fg-env new game my_game.json` (or write one) → `fg-env check my_game.json` (static checks plus one played
+round; fix every issue) → `fg-env preview my_game.json <agent id>` (exactly what that agent reads) →
+`fg-env run my_game.json --seed 1`. In Python: `fg_env.new`, `fg_env.check`, `env.preview`, `fg_env.run`. A run's
+summary lists its diagnostics — logic problems it revealed, each with a fix; `guide('inspect')` shows how to look
+inside a run.
+
+## Quickstart
+
+```json
+{
+  "name": "Coin flip",
+  "brief": {"rules": "Bet some coins each round. Heads you win that much, tails you lose it."},
+  "types": {"player": {"agent": true, "props": {"coins": 10}}},
+  "entities": {"ann": {"type": "player"}, "bob": {"type": "player"}},
+  "actions": {"bet": {"by": "player", "params": {"amount": {"type": "int", "min": 1, "max": "$actor.coins"}},
+                      "do": "$actor.coins += $params.amount if $chance(0.5) else -$params.amount"}},
+  "outputs": {"richest": "$best(player, $it.coins, 'random').name"}
+}
+```
+
+`fg_env.run(contract, seed=1)` plays it with random agents; `fg_env.run(contract, {"player": my_llm})` with yours.
+Defaults at work: 20 rounds (`clock.rounds`); one stage where agents act one after another, one action per turn;
+names from ids; a tool is offered only while it can be used (at 0 coins `bet` has no valid amount).
+
+## How a round runs
+
+Start events → each stage in order → end events → metrics → `end` conditions. A run ends when an `end` condition
+holds, an `end` effect runs, or the rounds are used up. `end` conditions are checked after each stage; with
+`"check": "action"` also the moment any action commits, so a winning move ends the run before anyone else moves:
+`{"when": "$world.found", "winner": "$world.finder", "check": "action"}`.
+* A stage wakes agents (`who`, in `order`). `turns: sequential` — one at a time, actions apply at once and the tool
+  result is the outcome. `turns: simultaneous` — everyone chooses from the same picture, then choices commit together
+  (sealed bids, votes); outcomes arrive as news.
+* A turn ends after `max_actions` actions (default 1), when the agent calls `end_turn`, or after `max_calls` calls.
+  `terminal: true` ends it early when a stage allows more than one action.
+* An action is atomic: if an effect `fail`s or a `transfer` lacks funds, all of it is undone and the agent is told why.
+* Others read "Name: action (args)." unless the action is `private` or sets `announce`. Text an agent writes is
+  always shown «quoted».
+
+## Sections
+
+Every section is optional except `name` and `types`. Read any one with `guide('<section>')`.
+
+| section | shape and main fields |
+|---|---|
+| `brief` | `{situation, rules, roles: {type: text}}` — templates |
+| `clock` | `{rounds: 20, unit: "round"}` |
+| `inputs` | `{name: {type, default}}` — knobs set at load, read as `$inputs.name` |
+| `world` | `{prop: default}` — global props, `$world.prop`; a default may read `$inputs` and other `$world` props |
+| `patterns` | `{name: {kind, …}}` — trends, seasons, responses, random paths, draws, noise; read `$pattern.name` |
+| `assets` | `{id: {file or folder, caption}}` — files agents receive via `attach`, `asset` props and fields; `guide('assets')` |
+| `types` | `{type: {agent, props: {prop: default or {type, default, min, max, values, private}}, extends}}` |
+| `entities` | `{id: {type, name, props}}` |
+| `population` | `[{type, count, name: "Buyer {$i}", props}]` |
+| `records` | `{log: {fields: {text: "text"}, show: "{author}: {text}", visible}}` — written by `post` |
+| `actions` | `{act: {by, description, params: {p: {type, min, max, values, of, where}}, when, do, outcome, announce, private}}` |
+| `stages` | `[{name, actions, turns, who, order, max_actions, until, on_enter, on_exit}]` |
+| `views` | `{v: {for, title, of, where, sort, desc, limit, show}}` — `of` omitted: one line about `$actor` |
+| `events` | `[{phase: start or end, at, every, when, chance, each, do, say}]` |
+| `end` | `[{when, winner, say, check: stage or action}]` |
+| `metrics`, `outputs` | `{name: expr}` or `{name: {expr, type}}`; an output's `format` (money, pct, 2 …) shapes how summaries show it |
+| `invariants` | `[expr]` |
+| `mechanisms` | `{name: {kind, mode, ...config}}` — see the families below |
+| `game` | `{players, returns}` — seats and scores for tournaments and game search |
+
+Advanced sections, each in its own part: `triggers` (effects the moment a condition becomes true), `space`,
+`relations`, `links`, `physics`, `feeds`, `policies`, `arms`, `defs`, `blocks`, `imports`.
+
+Property and input types: number int bool text enum list map any asset (inferred from the default; `integer`,
+`string`, `boolean` and `float` also work). Parameter types: number int bool text enum entity list file. An `entity` parameter
+names its type in `of` and may filter with `where` (`$it` the candidate); its tool lists the valid ids.
+
+## Expressions
+
+A string with `$name` in it is an expression; other strings are text.
+* Roots: `$actor` (who acts), `$params` (its arguments), `$it` (the current item), `$world`, `$inputs`, `$round`,
+  `$clock`, `$metrics`; locals you assign (`$total`). Props: `$actor.coins`, `$params.target.name`,
+  `$entity(shop).stock`. Entities also have `id name type alive`.
+* Operators: `+ - * / // % **`, `== != < <= > >=`, `and or not`, `in`, `a if cond else b`, lists `[1, 2]`, maps
+  `{price: 3}`, indexing `$list[0]`. Bare words are text: `$actor.role == wolf`. Compare with `==`, never `=`.
+* Functions always take `$`: `$count(buyer, $it.cash > 0)`, `$sum(player, $it.coins)`, `$avg`, `$min`, `$max`,
+  `$filter(player, $it.alive)`, `$map(player, $it.name)`, `$top(offer, $it.price, 3)`, `$best(player, $it.score)`,
+  `$any`, `$all`, `$len`, `$chance(0.3)`, `$randint(1, 6)`, `$choice(list)`, `$shuffle(list)`, `$round(x, 2)`.
+  Per-item arguments read `$it` (and `$i`).
+* `$result.winner` (in outputs and game returns) is the winner an `end` gave; `$result.ended_by` the end's name.
+* Strict: unknown props, missing roots and type errors are reported with the fix, never silent zeros.
+
+Where the roots come from: `actions.when` $actor (and $params, checked when called) · params `where` $actor $it
+$params · `do`/`outcome`/`announce` $actor $params · stages `who`/`order` $it · views `where`/`sort`/`show` $actor $it ·
+`events` with `each` $it · outputs $outputs $result. Each section's page has its full table.
+
+Templates (`show`, `outcome`, `announce`, `say`, `brief`, `name`): `"{name} has {coins} coins"` reads the subject
+(`$it` in lists, `$actor` otherwise); `{$params.amount|money}` any expression with a format (money, pct, pct1, int, upper, lower, title, yesno, list, 0, 1, 2, 3, 4).
+
+## Effects
+
+`do` (in actions, events, stages' `on_enter`/`on_exit`) is a list of effects, or one effect on its own:
+* Assignments: `"$actor.coins -= $params.amount"`, `"$world.pot += 5"`, `"$total = $params.qty * 2"` (a local);
+  also `=`, `+=`, `-=`, `*=`, `/=`; `+=` on a list appends.
+* `{"if": "$world.stock < $params.qty", "then": [{"fail": "Not enough stock."}], "else": [...]}`
+* `{"each": "player", "where": "$it.coins == 0", "do": ["$it.alive_rounds = 0"]}`
+* `{"transfer": "coins", "from": "$actor", "to": "$params.target", "amount": 3}` — fails the action if short
+* `{"create": "order", "props": {"price": "$params.price"}}` · `{"remove": "$params.order"}`
+* `{"post": "chat", "text": "$params.text"}` · `{"emit": "storm", "say": "A storm hits."}`
+* `{"fail": "You cannot afford that."}` — undo the action and tell the actor
+* `{"end": "bankrupt", "winner": "$best(player, $it.coins)", "say": "{$actor.name} went broke."}`
+* `{"after": 2, "do": [...]}` — later, with the same locals
+
+An action's `when` holds requirements: `["$actor.coins > 0", {"expr": "$params.amount <= $world.cap", "why": "Too
+much."}]`. Requirements over `$actor` decide whether the tool is offered; ones that read `$params` refuse a call
+with their `why`.
+
+## Mechanisms
+
+Native building blocks expand into ordinary actions, stages, views and outputs: `"mechanisms": {"sale": {"kind":
+"market", "mode": "auction", "format": "first_price", "who": "bidder"}}`. `fg-env check` lists what each generated.
+
+| kind | modes | for |
+|---|---|---|
+| `market` | order_book, prediction, auction, posted | Trading venues: continuous order books, auctions, prediction markets and posted-price shops. |
+| `economy` | inventory, ledger, production, supply_chain, demand, replenishment | Money, goods and making things: ledgers (currencies, taxes, loans), inventories, production, supply chains, customers' demand for stocked items and the policies that replenish them. |
+| `agreements` | bookings, labor, negotiation, subscriptions | Commitments between agents over time: negotiated deals, jobs, subscriptions and bookings. |
+| `decision` | ballot, deliberation | Collective choice: ballots and structured deliberation with motions and votes. |
+| `game` | board, cards, pot, slots | Game equipment: boards with enforced rules, cards, betting pots and worker-placement slots. |
+| `flow` | procedure, order, victory | Who acts when and how it ends: turn order, procedures with phases, victory conditions. |
+| `operations` | queue | Service operations: customers arriving on channels and served by staffed server pools — contact centres, clinics, counters, repair crews — with queues, patience, callbacks and service levels. |
+| `groups` | roles, relationships, factions | Who belongs with whom: hidden roles and teams, factions and alliances, relationships. |
+| `social` | channels, diffusion, feed | Talking and spreading: channels (rooms, direct messages), a social feed, diffusion over a network. |
+| `mind` | beliefs, personas, memory | What agents know and remember: beliefs with confidence, memory with recall, generated personas. |
+| `conditions` | status, cooldowns, channeling, terrain | Effects on entities over time: statuses, cooldowns, channeled actions and terrain. |
+| `host` | judge, game_master, tool, recap | Services the host provides during a run: an LLM judge, a game master, recaps and tools such as web search. |
+
+## Every other part
+
+Read with `fg_env.guide('<part>')` or `fg-env guide <part>`; `guide('all')` is everything.
+- `<section>` — one section's fields and roots: `brief`, `clock`, `inputs`, `world`, `assets`, `types`, `entities`, `population`, `records`, `actions`, `stages`, `views`, `events`, `triggers`, `end`, `metrics`, `outputs`, `invariants`, `mechanisms`, `game`, `space`, `relations`, `links`, `physics`, `feeds`, `policies`, `arms`, `calibration`, `defs`, `blocks`, `imports`
+- `model` — how a run works in detail: turns, atomic turns, time limits, hooks, invariants, what an agent reads
+- `expressions` — the expression language in full, with every root by location
+- `templates` — templates and formats
+- `effects` — every effect op with an example
+- `functions` — every function by group; `functions.<group>` for one group's docs (e.g. `functions.stats`)
+- `mechanisms` — the family table and names every family shares; `<family>` and `<family>.<mode>` (e.g. `market`, `market.auction`)
+- `patterns` — world patterns — seasons, trends, responses, random processes, draws, noise, carry-over — with an example per group, every kind, and fitting them from data
+- `recipes` — recipes: data files, continuous time, markets, hidden roles, spaces, networks, physics, feeds
+- `macros` — repeat structure from data with `for`/`make`
+- `inspect` — debugging a run in brief: summary, outputs, diagnostics, events, traces, replay
+- `running` — Python API: participants, runs, snapshots, experiments, traces, evaluation, games, gyms, CLI
+- `optimise` — the best decision under constraints: decision vectors, objectives, methods, fresh-seed checks, Pareto frontiers
+- `checklist` — what makes an environment great for LLM agents
+
+
+
+---
+
+# Legacy template API reference
+
+The remainder documents `fg_env_kernel`, the older separately published template API. It is retained for existing integrations; new contract authors should use the guide above.
+
 # World template schema
 
 A human-readable reference for the template dict that `Kernel.load()` / `load_world()` accepts. The authoritative sources are the pydantic models in `src/fg_env/pipeline/loader.py` (`WorldTemplate` and its sub-specs) and the machine-readable export in [`kernel_contract.json`](kernel_contract.json) — which also carries the **live registries**: every valid `operation`, `resolution_archetype`, `check_type`, phase handler, and domain module name. When in doubt, that file wins.
