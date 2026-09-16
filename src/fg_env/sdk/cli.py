@@ -170,7 +170,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             for event in result.events:
                 if event.get("text"):
                     print(f"  r{event['round']} {event['kind']}: {event['text']}")
-    return 0 if result.status in ("completed", "ended", "stopped") else 2
+    return 0 if result.status in ("completed", "ended", "stopped") and not result.output_issues else 2
 
 
 def cmd_preview(args: argparse.Namespace) -> int:
@@ -223,7 +223,8 @@ def cmd_experiment(args: argparse.Namespace) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     print(json.dumps(result.to_dict(), indent=2, default=str, ensure_ascii=False) if args.json else result.table())
-    return 0
+    return 2 if any(run.status == "failed" or run.output_issues
+                    for arm in result.arms.values() for run in arm.runs) else 0
 
 
 def cmd_tournament(args: argparse.Namespace) -> int:

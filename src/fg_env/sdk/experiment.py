@@ -57,6 +57,12 @@ def _describe(values: List[Any]) -> Dict[str, Any]:
     return {"n": len(present), "counts": dict(sorted(counts.items(), key=lambda kv: -kv[1]))}
 
 
+def _usable_output(result: RunResult, name: str) -> bool:
+    """A healthy output can still be used when a different output failed."""
+    return result.status != "failed" and not any(
+        issue.get("path") == f"outputs.{name}" for issue in result.output_issues)
+
+
 def _is_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
@@ -110,7 +116,7 @@ class ExperimentResult:
             for key in base.outputs:
                 diffs = []
                 for mine, theirs in zip(arm.runs, base.runs):
-                    if mine.status == "failed" or theirs.status == "failed":
+                    if not _usable_output(mine, key) or not _usable_output(theirs, key):
                         continue
                     a, b = mine.outputs.get(key), theirs.outputs.get(key)
                     if isinstance(a, bool) and isinstance(b, bool):
@@ -162,6 +168,10 @@ class ExperimentResult:
         failed = [r for a in self.arms.values() for r in a.failed]
         if failed:
             lines.append(f"failed runs: {len(failed)} (first: {failed[0].error})")
+        output_errors = [r for arm in self.arms.values() for r in arm.runs if r.output_issues]
+        if output_errors:
+            first = output_errors[0].output_issues[0]
+            lines.append(f"output issues: {len(output_errors)} run(s) (first: {first['path']}: {first['message']})")
         return "\n".join(lines)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -480,7 +490,7 @@ def experiment(source: ContractLike, *, runs: int = 10, arms: Optional[List[str]
     out: Dict[str, ArmResult] = {}
     for arm in labels:
         arm_runs = [r for job, r in zip(jobs, results) if job.arm == arm]
-        summary = {name: _describe([r.outputs.get(name) for r in arm_runs if r.status != "failed"])
+        summary = {name: _describe([r.outputs.get(name) for r in arm_runs if _usable_output(r, name)])
                    for name in contract.outputs}
         overridden = [override_message(arm, name, arm_value, given)
                       for name, arm_value, given in arm_input_overrides(contract, arm, inputs or {})] if arm else []
