@@ -284,10 +284,22 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, RuleChecks):
         """``(allowed values, kind)`` of the field a chain reads, when statically known."""
         root = chain[0]
         if root in types and len(chain) == 2:
-            for kind in types[root]:
-                spec = self.c.props_of(kind).get(chain[1]) if kind in self.c.types else None
-                if spec is not None:
-                    return spec.values, prop_type(spec)
+            specs = [self.c.props_of(kind).get(chain[1]) if kind in self.c.types else None
+                     for kind in sorted(types[root])]
+            if not specs or any(spec is None for spec in specs):
+                return None
+            known_specs = [spec for spec in specs if spec is not None]
+            kinds = {prop_type(spec) for spec in known_specs}
+            if len(kinds) != 1:
+                return None
+            values = None
+            if all(spec.values for spec in known_specs):
+                values = []
+                for spec in known_specs:
+                    for value in spec.values or []:
+                        if value not in values:
+                            values.append(value)
+            return values, kinds.pop()
         if root == "world" and len(chain) == 2 and chain[1] in self.c.world:
             spec = self.c.world[chain[1]]
             return spec.values, prop_type(spec)

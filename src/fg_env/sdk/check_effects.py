@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Set
 from . import contract as C
 from .chance import check_chance
 from .check_params import check_entity_literals
+from .check_roots import merge_types
 from .check_state import check_delivery, check_link_fields
 from .effects import (
     POST_KEYS,
@@ -72,6 +73,12 @@ class EffectChecks:
             elif op != "=" and local not in roots and not (local in self.c.defs and not self.c.defs[local].args):
                 self.error(path, f"${local} has no initial value for `{op}`",
                            f"initialize it with `${local} = …` before updating it, or use `=` to set its value")
+            alias = re.fullmatch(r"\$([A-Za-z_][A-Za-z0-9_]*)", right.strip()) if op == "=" else None
+            hint = types.get(alias.group(1)) if alias is not None else None
+            if hint is None:
+                types.pop(local, None)
+            else:
+                types[local] = set(hint)
             roots.add(local)
             return
         assert base is not None
@@ -139,6 +146,7 @@ class EffectChecks:
                     self.error(f"{path}.{key}", f"'{bound}' is a built-in root", "choose another name")
                 else:
                     roots.add(bound)
+                    types.pop(bound, None)
             if native.check is not None:
                 try:
                     findings = list(native.check(self, effect, path))
@@ -157,8 +165,10 @@ class EffectChecks:
         v = lambda key, r=roots: self.value(effect.get(key), f"{path}.{key}", r, types, params)
         if op == "if":
             self.expr(effect["if"], f"{path}.if", roots, types, params)
-            then_roots = self.effects(effect.get("then", []), f"{path}.then", roots, types, params)
-            else_roots = self.effects(effect.get("else", []), f"{path}.else", roots, types, params)
+            then_types, else_types = dict(types), dict(types)
+            then_roots = self.effects(effect.get("then", []), f"{path}.then", roots, then_types, params)
+            else_roots = self.effects(effect.get("else", []), f"{path}.else", roots, else_types, params)
+            merge_types(types, then_types, else_types)
             roots |= then_roots | else_roots
         elif op == "each":
             v("each")
@@ -174,6 +184,11 @@ class EffectChecks:
                     inner_types[name] = {source}
             self.expr(effect.get("where"), f"{path}.where", inner, inner_types, params)
             self.effects(effect.get("do", []), f"{path}.do", inner, inner_types, params)
+            for binding in (name, "i"):
+                inner_types.pop(binding, None)
+                if binding in types:
+                    inner_types[binding] = types[binding]
+            merge_types(types, dict(types), inner_types)
         elif op == "create":
             type_name = effect["create"]
             if self._type(type_name, f"{path}.create"):
@@ -272,7 +287,7 @@ class EffectChecks:
                     required = "a finite positive time" if continuous else "a whole number of rounds ≥ 1"
                     self.error(f"{path}.after", f"`after` needs {required}, got {delay!r}",
                                "use a positive delay; for immediate effects, put the `do` effects here without `after`")
-            self.effects(effect.get("do", []), f"{path}.do", roots, types, params)
+            self.effects(effect.get("do", []), f"{path}.do", roots, dict(types), params)
         elif op == "block":
             block = self.c.blocks.get(effect["block"])
             given = effect.get("with") or {}
@@ -296,6 +311,11 @@ class EffectChecks:
                 self.error(f"{path}.repeat", f"is {limit:,}; a repeat limit runs from 1 to {REPEAT_CEILING:,}",
                            "use a smaller limit; a loop that needs more never settles")
             self.expr(effect.get("while"), f"{path}.while", roots, types, params)
-            roots |= self.effects(effect.get("do", []), f"{path}.do", roots, types, params)
+            body_types = dict(types)
+            roots |= self.effects(effect.get("do", []), f"{path}.do", roots, body_types, params)
+            if effect.get("while") is None:
+                merge_types(types, body_types)
+            else:
+                merge_types(types, dict(types), body_types)
         elif op == "chance":
             roots |= check_chance(self, effect, path, roots, types, params)

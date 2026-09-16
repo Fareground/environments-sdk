@@ -147,6 +147,7 @@ def check_chance(checker: Any, effect: Mapping[str, Any], path: str, roots: Set[
                  params: Optional[Mapping[str, Any]]) -> Set[str]:
     """Check a `chance` effect; returns the names it makes available afterwards."""
     from .effects import RESERVED_ROOTS
+    from .check_roots import merge_types
 
     bound: Set[str] = set()
     name = effect.get("as")
@@ -158,6 +159,7 @@ def check_chance(checker: Any, effect: Mapping[str, Any], path: str, roots: Set[
         else:
             bound.add(name)
     inner = roots | bound
+    inner_types = {key: value for key, value in types.items() if key not in bound}
     raw = effect["chance"]
     if isinstance(raw, list):
         for key in ("outcomes", "weight", "do"):
@@ -166,22 +168,26 @@ def check_chance(checker: Any, effect: Mapping[str, Any], path: str, roots: Set[
                               "give each branch its own `p` and `do`, or name the chance and list `outcomes`")
         if not raw:
             checker.error(f"{path}.chance", "needs at least one branch", 'e.g. [{"p": 0.5, "do": [...]}, {"p": 0.5}]')
-        bound |= _check_branches(checker, raw, path, roots, inner, types, params)
+        bound |= _check_branches(checker, raw, path, roots, inner, inner_types, params)
     elif isinstance(raw, str) and raw.strip():
         if "outcomes" not in effect:
             checker.error(path, "a named chance needs `outcomes`", "a list, a type name or an expression giving a list")
         checker.value(effect.get("outcomes"), f"{path}.outcomes", roots, types, params)
         checker.expr(effect.get("weight"), f"{path}.weight", roots | {"it", "i"}, types, params)
-        bound |= checker.effects(effect.get("do", []), f"{path}.do", inner, types, params) - roots
+        bound |= checker.effects(effect.get("do", []), f"{path}.do", inner, inner_types, params) - roots
     else:
         checker.error(f"{path}.chance", "is a list of branches or the name of a chance with `outcomes`",
                       'e.g. {"chance": [{"p": 0.5, "do": [...]}, {"p": 0.5}]}')
+    merge_types(types, inner_types)
     return bound
 
 
 def _check_branches(checker: Any, branches: List[Any], path: str, roots: Set[str], inner: Set[str],
                     types: Dict[str, Set[str]], params: Optional[Mapping[str, Any]]) -> Set[str]:
     bound: Set[str] = set()
+    from .check_roots import merge_types
+
+    paths: List[Dict[str, Set[str]]] = []
     total, literal = 0.0, True
     labels: Set[str] = set()
     for index, branch in enumerate(branches):
@@ -214,7 +220,10 @@ def _check_branches(checker: Any, branches: List[Any], path: str, roots: Set[str
             labels.add(label)
         elif label is not None:
             checker.error(f"{where}.label", "a label is text")
-        bound |= checker.effects(branch.get("do", []), f"{where}.do", inner, types, params) - roots
+        branch_types = dict(types)
+        bound |= checker.effects(branch.get("do", []), f"{where}.do", inner, branch_types, params) - roots
+        paths.append(branch_types)
+    merge_types(types, *paths)
     if literal and branches and abs(total - 1) > PROBABILITY_TOLERANCE:
         checker.error(f"{path}.chance", f"the probabilities add up to {total:.10g}, not 1", "make them add up to 1")
     return bound
