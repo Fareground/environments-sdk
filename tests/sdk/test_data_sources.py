@@ -111,3 +111,50 @@ def test_mechanisms_add_rules_text_and_clock_defaults_without_overriding_the_aut
         assert parsed.brief.rules == "Author rules.\n\nMechanism rules."
         assert parsed.clock.rounds == 2 and parsed.clock.unit == "hour"
         assert fg_env.parse(json.loads(json.dumps(contract))).brief.rules.count("Mechanism rules.") == 1
+
+
+def test_nested_configurable_inputs_reach_objects_and_validate_before_running():
+    contract = {"name": "Configurable shop", "clock": {"rounds": 1}, "inputs": {
+        "shop": {"type": "map", "default": {}, "display": "object", "fields": {
+            "budget": {"type": "number", "default": 50, "min": 0, "max": 100, "display": "knob", "step": 5},
+            "segment": {"type": "enum", "default": "local", "values": ["local", "enterprise"], "display": "select"}}},
+        "products": {"type": "table", "default": [], "display": "table", "fields": {
+            "name": {"type": "text", "required": True, "display": "text"},
+            "stock": {"type": "int", "default": 3, "min": 0}}},
+        "prices": {"type": "list", "default": [], "items": {"type": "number", "min": 0}}},
+        "types": {"product": {"props": {"stock": 0}}},
+        "population": [{"type": "product", "from": "$inputs.products", "props": {"stock": "$row.stock"}}],
+        "world": {"budget": "$inputs.shop.budget"}}
+    supplied = {"shop": {"budget": 75}, "products": [{"name": "Widget"}], "prices": [2, 3]}
+    env = fg_env.load(contract, inputs=supplied)
+    assert env.props["budget"] == 75
+    assert env.inputs["shop"]["segment"] == "local"
+    assert env.entities("product")[0]["props"]["stock"] == 3
+    assert supplied["products"] == [{"name": "Widget"}]
+    for inputs, message in [({"shop": {"budget": -1}}, "field 'budget'"),
+                            ({"products": [{"stock": 2}]}, "field 'name' is required"),
+                            ({"prices": [2, -1]}, "item 1"),
+                            ({"shop": {"segment": "unknown"}}, "field 'segment'")]:
+        with pytest.raises(InputError, match=message):
+            fg_env.load(contract, inputs=inputs)
+
+
+def test_typed_table_fields_parse_csv_and_default_missing_columns(tmp_path):
+    (tmp_path / "rows.csv").write_text("stock,active\n7,true\n")
+    contract = {"name": "Rows", "types": {}, "inputs": {"rows": {"type": "table", "source": "rows.csv", "fields": {
+        "stock": {"type": "int", "display": "slider", "min": 0, "max": 20},
+        "active": {"type": "bool", "display": "toggle"},
+        "price": {"type": "number", "default": 4}}}}}
+    assert fg_env.load(contract, data_dir=tmp_path).inputs["rows"] == [{"stock": 7, "active": True, "price": 4}]
+
+
+@pytest.mark.parametrize("spec", [
+    {"type": "text", "display": "slider", "min": 0, "max": 10},
+    {"type": "number", "display": "knob"},
+    {"type": "bool", "fields": {}},
+    {"type": "map", "items": {"type": "text"}},
+    {"type": "number", "step": 0},
+    {"type": "map", "fields": {"x": {"type": "enum", "values": []}}},
+])
+def test_invalid_input_controls_and_nested_specs_are_rejected(spec):
+    assert any(issue.severity == "error" for issue in fg_env.check({"name": "Invalid controls", "types": {}, "inputs": {"value": spec}}))

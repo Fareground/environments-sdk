@@ -1474,6 +1474,81 @@
           "default": "",
           "title": "Unit",
           "type": "string"
+        },
+        "label": {
+          "default": "",
+          "description": "Human-readable input label; defaults to the input name in a host UI.",
+          "title": "Label",
+          "type": "string"
+        },
+        "display": {
+          "anyOf": [
+            {
+              "enum": [
+                "number",
+                "text",
+                "textarea",
+                "select",
+                "toggle",
+                "date",
+                "slider",
+                "knob",
+                "table",
+                "object",
+                "list",
+                "json"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional host UI control. Presentation only: does not change simulation semantics.",
+          "title": "Display"
+        },
+        "step": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Suggested numeric control increment; min/max still validate supplied values.",
+          "title": "Step"
+        },
+        "fields": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/InputSpec"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Typed configurable fields of a map object or each table row; supports nested objects, defaults and control hints.",
+          "title": "Fields"
+        },
+        "items": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InputSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Typed elements of a list input."
         }
       },
       "title": "InputSpec",

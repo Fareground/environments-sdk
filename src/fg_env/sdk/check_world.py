@@ -29,11 +29,10 @@ class WorldChecks:
     """The world-model sections of a contract (mixed into the contract checker)."""
 
     def _inputs(self: "_Checker") -> None:  # type: ignore[misc]
-        for name, spec in self.c.inputs.items():
-            path = f"inputs.{name}"
+        def visit(spec: C.InputSpec, path: str) -> None:
             if spec.type not in C.INPUT_TYPES:
                 self.error(f"{path}.type", f"unknown type '{spec.type}'", self._suggest(spec.type, C.INPUT_TYPES))
-                continue
+                return
             if spec.type == "enum" and not spec.values:
                 self.error(path, "an enum input needs `values`")
             if spec.type == "table":
@@ -60,6 +59,12 @@ class WorldChecks:
             elif not spec.required and spec.source is None:
                 self.warn(path, "has no default and is not required, so it may be null",
                           "give a default or set required: true")
+            for field, child in (spec.fields or {}).items():
+                visit(child, f"{path}.fields.{field}")
+            if spec.items is not None:
+                visit(spec.items, f"{path}.items")
+        for name, spec in self.c.inputs.items():
+            visit(spec, f"inputs.{name}")
 
     def _brief(self: "_Checker") -> None:  # type: ignore[misc]
         roots, types = BASE | {"actor"}, {"actor": set(self.agents)}
