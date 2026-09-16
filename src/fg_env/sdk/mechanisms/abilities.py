@@ -24,7 +24,7 @@ from pydantic import Field, model_validator
 
 from ...entity import Entity
 from ..errors import RunError
-from ..expr import Call, ExprError, function, truthy
+from ..expr import Call, ExprError, function
 from ..registry import MechanismError, family_action, mode, use_key
 from ..template import compile_template
 from ..world import Abort
@@ -487,7 +487,7 @@ def _step_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: s
         at = f"mechanisms.{mech}.actions.{action}"
         params = common.thaw(state.get("params") or {}, world)
         channel_vars = {"actor": entity, "params": params}
-        if spec.interrupt and truthy(common.evaluate(world, spec.interrupt, f"{at}.interrupt", **channel_vars)):
+        if spec.interrupt is not None and common.condition(world, spec.interrupt, f"{at}.interrupt", **channel_vars):
             _break(runner, mech, cfg, entity, state)
             continue
         if world.round < int(state.get("completes", 0)):

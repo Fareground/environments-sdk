@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Mapping, Optional, Tuple
 from ..api import load
 from ..clock_words import period_label, plural, sub_day, unit_word
 from ..measure import RunResult
+from ..mechanisms._common import condition
 from ..mechanisms.econ_base import DEMAND, config_of, props
 from ..mechanisms.econ_demand_trade import number_of, plan, read_term
 from ..patterns.decompose import decompose
@@ -103,9 +104,9 @@ def _replay(contract: Any, run: RunResult, names: List[str]) -> Tuple[Tallies, D
             for segment in plan(world, name, config):
                 for item in items:
                     scope: Dict[str, Any] = {"it": item, "price": prices[item.id]}
-                    if segment.spec.where is not None and not runner.eval(segment.spec.where, scope):
+                    where = f"mechanisms.{name}" if segment.main else f"mechanisms.{name}.segments.{segment.name}"
+                    if segment.spec.where is not None and not condition(world, segment.spec.where, f"{where}.where", **scope):
                         continue
-                    where = f"mechanisms.{name}"
                     if segment.spec.price is not None:
                         scope["price"] = number_of(runner, segment.spec.price, scope, where, low=0)
                     amount = read_term(runner, segment.rate, item, scope, prices, where)

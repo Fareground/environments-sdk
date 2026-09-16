@@ -8,9 +8,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ...entity import Entity
 from ..errors import RunError
-from ..expr import Call, ExprError, compile_expr, function, is_expr, truthy
+from ..expr import Call, ExprError, compile_expr, function, is_expr
 from ..registry import MechanismError, family_action, mode
 from ..world import Abort
+from ._common import condition
 from .econ_assets import balance, burn_money, credit_of, destroy_items, held, is_holder, make_items
 from .econ_base import (INVENTORY, LEDGER, PRODUCTION, checked_config, config_of, declared_names, declared_use, emit_to,
                         entity_of, guarded, maybe_entity, money, props, register_config, require_types, type_list, uses_of,
@@ -177,7 +178,7 @@ def _blocked(world: Any, name: str, config: ProductionConfig, agent: Entity, rec
             return f"{recipe} needs {qty} {item} in hand"
     if spec.at is not None and agent.location_id not in type_list(spec.at):
         return f"{recipe} is made at {' or '.join(type_list(spec.at))}"
-    if spec.when is not None and not truthy(_eval(world, spec.when, agent, f"{where}.when")):
+    if spec.when is not None and not condition(world, spec.when, f"{where}.when", actor=agent):
         return f"{recipe}: its requirements are not met"
     for item, qty in spec.inputs.items():
         have = held(world, agent, item, where)

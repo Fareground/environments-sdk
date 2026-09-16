@@ -18,6 +18,7 @@ from ..patterns.base import KINDS
 from ..patterns.observe import count_quantile
 from ..registry import family_action
 from ..world import Abort
+from ._common import condition
 from .econ_assets import burn_money, mint_money
 from .econ_base import DEMAND, bump, cached, config_of, entity_of, props, whole
 from .econ_demand import SEGMENT_TOTALS, DemandConfig, FactorRef, SegmentSpec, segments_of
@@ -284,7 +285,7 @@ def _trade(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str
     backlog = _unmet(runner, name, config, rows, stock, tallies, base)
     _settle(runner, name, config, items, stock, tallies, backlog, rows, base)
     _schedule_returns(runner, name, tallies, base)
-    if config.record is True or (isinstance(config.record, str) and runner.eval(config.record, {})):
+    if config.record is True or (isinstance(config.record, str) and condition(world, config.record, f"{base}.record")):
         _post(runner, name, rows, tallies)
 
 
@@ -304,7 +305,7 @@ def _serve(runner: Any, name: str, config: DemandConfig, segment: _Segment, item
     for item in items:
         price = prices[item.id]
         scope: Dict[str, Any] = {"it": item, "price": price}
-        if spec.where is not None and not runner.eval(spec.where, scope):
+        if spec.where is not None and not condition(runner.world, spec.where, f"{path}.where", **scope):
             continue
         if spec.price is not None:
             price = number_of(runner, spec.price, scope, f"{path}.price", low=0)

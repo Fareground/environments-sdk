@@ -20,12 +20,12 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ...entity import Entity
 from ..errors import RunError
-from ..expr import Call, ExprError, compile_expr, function, is_expr
+from ..expr import Call, ExprError, compile_expr, function, is_expr, truthy
 from ..registry import MechanismError, config_data, describe, use_key
 
 __all__ = [
     "Config", "Number", "Effects", "ModifierSpec", "NAME", "MODIFIER_SOURCES", "parsed", "uses", "config",
-    "actions_by", "types_in", "suggest", "evaluate", "number", "whole", "entities_of",
+    "actions_by", "types_in", "suggest", "evaluate", "condition", "number", "whole", "entities_of",
     "freeze", "thaw", "canonical", "modifier_terms", "check_names", "carriers", "raw_is_a", "is_agent_type",
 ]
 
@@ -196,6 +196,14 @@ def evaluate(world: Any, raw: Any, where: str, **roots: Any) -> Any:
         return raw
     try:
         return compile_expr(raw)(world.scope(**roots))
+    except ExprError as exc:
+        raise RunError(str(exc), where) from None
+
+
+def condition(world: Any, raw: str, where: str, **roots: Any) -> bool:
+    """A predicate is an expression, including constant expressions without $ references."""
+    try:
+        return truthy(compile_expr(raw)(world.scope(**roots)))
     except ExprError as exc:
         raise RunError(str(exc), where) from None
 

@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Mechanism predicates now evaluate constant expressions consistently: production requirements,
+  procedure transitions, status immunity, channel interruption, demand segment filters and history
+  recording. Demand report replay uses the same filter semantics. Previously truthy text such as
+  `false` or `1 > 2` now evaluates as false in these fields.
 - `if`, `each.where` and `repeat.while` evaluate every string as an expression, matching static
   validation. Constant conditions such as `false`, `0` and `1 > 2` no longer act as truthy text.
   Ordinary data strings keep their literal semantics; existing `$` conditions retain draw order.

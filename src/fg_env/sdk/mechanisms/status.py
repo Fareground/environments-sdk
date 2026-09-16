@@ -26,7 +26,7 @@ from pydantic import Field
 
 from ...entity import Entity
 from ..errors import RunError
-from ..expr import Call, ExprError, function, truthy
+from ..expr import Call, ExprError, function
 from ..registry import MechanismError, family_action, mode
 from ..template import compile_template
 from . import _common as common
@@ -177,7 +177,7 @@ def apply_status(runner: Any, mech: str, cfg: StatusConfig, status: str, target:
     if not target.alive:
         return False
     state = _state(target, mech)
-    if spec.unless and truthy(common.evaluate(world, spec.unless, f"mechanisms.{mech}.statuses.{status}.unless", it=target)):
+    if spec.unless is not None and common.condition(world, spec.unless, f"mechanisms.{mech}.statuses.{status}.unless", it=target):
         return False
     if any(status in cfg.statuses[other].immune for other in state if other in cfg.statuses):
         return False

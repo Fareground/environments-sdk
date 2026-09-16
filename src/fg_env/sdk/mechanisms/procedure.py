@@ -35,7 +35,7 @@ from pydantic import Field, ValidationError, model_validator
 
 from ..contract import StageSpec
 from ..errors import RunError
-from ..expr import Call, ExprError, compile_expr, function, truthy
+from ..expr import Call, ExprError, compile_expr, function
 from ..registry import MechanismError, family_action, mode
 from . import _common as common
 from ._common import Config, Effects, ToolsSetting, tools_field
@@ -218,7 +218,7 @@ def _holds(runner: Any, mech: str, phase: str, index: int, transition: Transitio
                if e.kind == "action" and e.data.get("action") == transition.all_did and e.data.get("success", True)}
         if not all(agent.id in did for agent in common.carriers(world, by)):
             return False
-    if transition.when is not None and not truthy(common.evaluate(world, transition.when, f"{at}.when")):
+    if transition.when is not None and not common.condition(world, transition.when, f"{at}.when"):
         return False
     return True
 
