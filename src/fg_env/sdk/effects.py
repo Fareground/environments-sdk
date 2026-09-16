@@ -132,7 +132,7 @@ def statement_parts(source: str) -> Tuple[Optional[str], Tuple[Tuple[str, str], 
     if _NAME.match(left[1:]):
         return None, (), left[1:], op, right
     base, steps = _target_steps(left, source)
-    if not steps or steps[0][0] != "field":
+    if not any(kind == "field" for kind, _ in steps):
         raise ExprError("the left side must name a property, like `$actor.cash`, `$entity(x).cash` or "
                         "`$world.board[$i][$j]`", source)
     return base, steps, None, op, right
@@ -365,17 +365,20 @@ class EffectRunner:
         the element path (resolved keys) inside that property's value."""
         current = stmt.base(scope)  # type: ignore[misc]
         found: Optional[Tuple[Any, int]] = None
+        resolved: List[Tuple[str, Any]] = []
         for position, (kind, step) in enumerate(stmt.steps):
+            key = step(scope) if kind == "index" else step
+            resolved.append((kind, key))
             if kind == "field" and isinstance(current, (Entity, Link, PropsView, PhysicsView)):
                 found = (current, position)
             if position == len(stmt.steps) - 1:
                 break
-            current = attr(current, step, source) if kind == "field" else self._element(current, step(scope), source)
+            current = attr(current, key, source) if kind == "field" else self._element(current, key, source)
         if found is None:
             raise RunError(_NOT_ASSIGNABLE.format(source=source), where)
         owner, position = found
         prop = stmt.steps[position][1]
-        rest = [(kind, step(scope) if kind == "index" else step) for kind, step in stmt.steps[position + 1:]]
+        rest = resolved[position + 1:]
         return owner, prop, rest
 
     @staticmethod
