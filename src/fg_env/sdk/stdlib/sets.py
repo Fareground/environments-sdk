@@ -64,7 +64,7 @@ def _key_list(call: Call, index: int) -> List[Any]:
 def _without(call: Call) -> Dict[Any, Any]:
     source = map_arg(call, 0)
     drop = set(_key_list(call, 1))
-    return {key: value for key, value in source.items() if key not in drop}
+    return {key: source[key] for key in source if key not in drop}
 
 
 @function("pick_keys(map, keys)", "A map with only `keys` (one key or a list), in the order given; missing keys are skipped.",

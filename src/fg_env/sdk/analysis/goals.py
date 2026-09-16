@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 from ..expr import ExprError, Scope, compile_expr, evaluate
 from ..measure import RunResult
 from . import runner
+from .output_scope import OutputScope, RejectedOutput, materialize
 from .stats import estimate, mean, numeric, quantile, sd
 
 __all__ = ["Stat", "Measure", "Objective", "parse_objectives", "stat_prefix", "paired", "dominates"]
@@ -129,12 +130,12 @@ class Measure:
         return out
 
     def _evaluate(self, r: RunResult) -> Any:
-        # A composite output expression must not consume values the run rejected.
-        # Named measures remain independently usable through runner.raw_value.
-        if r.output_issues and "outputs" in compile_expr(self.text).roots:
-            return None
         try:
-            return evaluate(self.text, Scope({"outputs": r.outputs, "metrics": r.metrics, "inputs": r.inputs}))
+            outputs = OutputScope(r) if r.output_issues else r.outputs
+            value = evaluate(self.text, Scope({"outputs": outputs, "metrics": r.metrics, "inputs": r.inputs}))
+            return materialize(value)
+        except RejectedOutput:
+            return None
         except ExprError as exc:
             raise ValueError(f"'{self.text}': {exc}") from None
 

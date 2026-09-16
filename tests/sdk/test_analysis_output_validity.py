@@ -65,8 +65,7 @@ def test_expression_measures_do_not_consume_invalid_output_sets():
     assert Measure('units', ('outputs', 'units')).per_run([bad]) == [None]
     assert Measure('sales', ('outputs', 'sales')).per_run([bad]) == [7]
     assert Measure('$outputs.units + $outputs.sales').per_run([bad]) == [None]
-    # Composite expressions over an invalid output set are conservatively excluded.
-    assert Measure('$outputs.sales * 2').per_run([bad]) == [None]
+    assert Measure('$outputs.sales * 2').per_run([bad]) == [14]
     assert Measure('$inputs.sales * 2').per_run([bad]) == [14]
     assert Measure('$metrics.sales * 2').per_run([bad]) == [14]
 
@@ -109,3 +108,63 @@ def test_queue_report_excludes_invalid_structured_outputs():
     queue = QueueView('q', {}, {}, 1)
     assert queue.staff(option) == [2]
     assert queue._per_interval(option, 'offered_by_interval') == [[2.0]]
+
+
+@pytest.mark.parametrize('expression, expected', [
+    ('$outputs["sales"] * 2', 14),
+    ('$get($outputs, "sales", 0)', 7),
+    ('$get($outputs, "missing", 11)', 11),
+    ('$outputs.sales if $inputs.sales > 6 else $outputs.units', 7),
+    ('$sum($values($pick_keys($outputs, ["sales"])))', 7),
+    ('$sum($values($without($outputs, ["units"])))', 7),
+    ('$len($keys($outputs))', 2),
+    ('$len($outputs)', 2),
+    ('$sum($map($filter($keys($outputs), $it == "sales"), $get($outputs, $it)))', 7),
+])
+def test_output_formulas_can_select_healthy_values(expression, expected):
+    bad = result()
+    original = dict(bad.outputs)
+    assert Measure(expression).per_run([bad]) == [expected]
+    assert bad.outputs == original
+
+
+@pytest.mark.parametrize('expression', [
+    '$outputs["units"]',
+    '$pow($outputs.units, 2)',
+    '$len($text($outputs))',
+    '$get($outputs, "units", 0)',
+    '$outputs.units if $inputs.sales > 6 else $outputs.sales',
+    '$sum($values($outputs))',
+    '$len($items($outputs))',
+    '$sum($values($merge($outputs, {other: 1})))',
+    '$sum($values($pick_keys($outputs, ["sales", "units"])))',
+    '$sum($map($keys($outputs), $get($outputs, $it)))',
+    '1 if $outputs == {units: 3.5, sales: 7} else 0',
+    '1 if {units: 3.5, sales: 7} != $outputs else 0',
+])
+def test_output_formulas_cannot_impute_or_aggregate_rejected_values(expression):
+    assert Measure(expression).per_run([result()]) == [None]
+
+
+@pytest.mark.parametrize('expression', ['$outputs', '[$outputs]', '{wrapped: $outputs}'])
+def test_returned_output_containers_are_checked_before_keyed_conversion(expression):
+    assert Measure(expression).per_run_keyed([result()]) == [None]
+
+
+@pytest.mark.parametrize('expression, message', [
+    ('$outputs.saless', 'no field'),
+    ('$outputs.sales / 0', 'division by zero'),
+])
+def test_unrelated_output_errors_do_not_hide_formula_authoring_errors(expression, message):
+    with pytest.raises(ValueError, match=message):
+        Measure(expression).per_run([result()])
+
+
+def test_healthy_formula_optimizer_can_use_run_with_an_unrelated_output_error():
+    optimum = fg_env.optimise(contract(), {'sales': [6, 7]}, 'maximise $outputs.sales * 2',
+                             runs=2, holdout_seeds=0)
+    assert optimum.best == {'sales': 7}
+
+
+def test_healthy_keyed_projection_remains_available():
+    assert Measure('$pick_keys($outputs, ["sales"])').per_run_keyed([result()]) == [{'sales': 7}]
