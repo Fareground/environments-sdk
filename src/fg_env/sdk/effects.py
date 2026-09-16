@@ -506,8 +506,12 @@ class EffectRunner:
     _eval = eval
     _text = text
 
+    def _condition(self, value: Any, vars: Dict[str, Any]) -> bool:
+        # These fields are checked as expressions, even without a $ reference.
+        return truthy(compile_expr(value)(self.world.scope(**vars)) if isinstance(value, str) else value)
+
     def _op_if(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-        branch = "then" if truthy(self._eval(effect["if"], vars)) else "else"
+        branch = "then" if self._condition(effect["if"], vars) else "else"
         self.run(effect.get(branch) or [], vars, f"{where}.{branch}")
 
     def _op_each(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -520,7 +524,7 @@ class EffectRunner:
         try:
             for position, item in enumerate(items):
                 inner = {**vars, name: item, "i": position}
-                if where_expr is not None and not truthy(self._eval(where_expr, inner)):
+                if where_expr is not None and not self._condition(where_expr, inner):
                     continue
                 if watch is not None:
                     watch.item, watch.position = item, position
@@ -701,10 +705,10 @@ class EffectRunner:
             raise RunError(f"`repeat` needs a whole-number limit from 1 to {REPEAT_CEILING}, got {limit!r}", where)
         condition = effect.get("while")
         for _ in range(limit):
-            if condition is not None and not truthy(self._eval(condition, vars)):
+            if condition is not None and not self._condition(condition, vars):
                 return
             self.run(effect.get("do") or [], vars, f"{where}.do")
-        if condition is not None and truthy(self._eval(condition, vars)):
+        if condition is not None and self._condition(condition, vars):
             raise RunError(f"`repeat` reached its limit of {limit} while `{condition}` still holds", where)
 
 

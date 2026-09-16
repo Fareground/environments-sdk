@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- `if`, `each.where` and `repeat.while` evaluate every string as an expression, matching static
+  validation. Constant conditions such as `false`, `0` and `1 > 2` no longer act as truthy text.
+  Ordinary data strings keep their literal semantics; existing `$` conditions retain draw order.
 - Static checks explain uninitialized local compound updates before execution and check conditional
   branches independently, so a value assigned only in `then` cannot initialize its sibling `else`.
 - Forks check pending delayed rules against replacement contracts, reporting newly missing
