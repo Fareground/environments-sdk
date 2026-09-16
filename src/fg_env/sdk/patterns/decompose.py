@@ -18,6 +18,7 @@ from . import timebase as tb
 from .base import KINDS
 from .compose import operand_key, operand_names
 from .runtime import Ctx, key_text
+from .product_math import scaled_product, unscale
 
 __all__ = ["decompose", "Decomposition"]
 
@@ -116,15 +117,19 @@ def _row(runtime: Any, pattern: str, key: Optional[str], t: float, number: int, 
             adds[name] = (weights[index] if weights is not None else 1.0) * value
     if cfg.kind == "product":
         scale = ctx.number("scale")
-        raw = math.prod(factors.values(), start=scale)
+        mantissa, exponent = scaled_product(factors.values(), start=scale)
         low, high = ctx.optional("min"), ctx.optional("max")
         zeros = [name for name, value in factors.items() if value == 0]
         # Removing the only zero restores the other factors; dividing the total
         # by zero cannot recover that counterfactual. Two zeros still suppress it.
-        without_zero = math.prod((value for value in factors.values() if value != 0),
-                                 start=scale) if len(zeros) == 1 else 0.0
+        without_zero = unscale(*scaled_product((value for value in factors.values() if value != 0),
+                                              start=scale)) if len(zeros) == 1 else 0.0
         for name, value in factors.items():
-            without = raw / value if value else without_zero
+            if value:
+                part, power = math.frexp(value)
+                without = unscale(mantissa / part, exponent - power)
+            else:
+                without = without_zero
             if not math.isfinite(without):
                 raise ExprError(f"'{name}' contribution is outside the finite numeric range; rescale the factors", source)
             if low is not None:

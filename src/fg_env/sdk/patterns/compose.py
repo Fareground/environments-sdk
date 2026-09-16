@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ..expr import ExprError, Scope, compile_expr
 from .base import Number, PatternConfig, kind
+from .product_math import product
 
 __all__ = ["ProductConfig", "SumConfig", "Operand", "operand_names"]
 
@@ -79,10 +80,8 @@ class ProductConfig(_Combined):
                "table": "$inputs.skus", "column": "sku"},
       params=("scale",), words=lambda cfg: f"{cfg.scale} × " + " × ".join(operand_names(cfg)))
 def _product(ctx: Any) -> float:
-    total = ctx.number("scale")
-    for value in _operands(ctx):
-        total *= value
-    return total
+    scale = ctx.number("scale")
+    return product(_operands(ctx), start=scale)
 
 
 class SumConfig(_Combined):
