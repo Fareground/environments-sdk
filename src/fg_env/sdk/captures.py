@@ -3,7 +3,8 @@
 Callers persist CAPTURE_VERSION beside newly frozen data. Version 0 retains
 legacy entity-only decoding; version 1 adds links and literal escaping; version 2
 adds shared-state views; version 3 preserves record entries; version 4 preserves
-logged events. Old literal maps are not reinterpreted as newer tags.
+logged events; version 5 binds pattern views to the executing model runtime.
+Old literal maps are not reinterpreted as newer tags.
 """
 from __future__ import annotations
 
@@ -12,13 +13,15 @@ from typing import Any
 
 from ..entity import Entity
 from .links import Link
+from .patterns.runtime import PatternsView
 from .world_parts import ClockView, Entry, LogEvent, PhysicsView, PropsView
 
 __all__ = ["CAPTURE_VERSION", "freeze", "thaw"]
 
-CAPTURE_VERSION = 4
+CAPTURE_VERSION = 5
 _VIEW_TYPES = {"world": PropsView, "physics": PhysicsView, "clock": ClockView}
-_VIEW_NAMES = {cls: name for name, cls in _VIEW_TYPES.items()}
+_VIEW_NAMES: dict[type, str] = {cls: name for name, cls in _VIEW_TYPES.items()}
+_VIEW_NAMES[PatternsView] = "pattern"
 
 
 def freeze(value: Any) -> Any:
@@ -54,6 +57,8 @@ def thaw(value: Any, world: Any, *, version: int = 0) -> Any:
         kind, source, target = value["$link"]
         return Link(world, kind, (source, target))
     if version >= 2 and isinstance(value, Mapping) and set(value) == {"$view"}:
+        if version >= 5 and value["$view"] == "pattern":
+            return world.patterns.view
         return _VIEW_TYPES[value["$view"]](world)
     if version >= 3 and isinstance(value, Mapping) and set(value) == {"$entry"}:
         entry = Entry({k: thaw(v, world, version=version) for k, v in value["$entry"].items()})
