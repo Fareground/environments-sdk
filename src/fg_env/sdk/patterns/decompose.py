@@ -93,8 +93,8 @@ def decompose(source: Union[ContractLike, Any], pattern: str, *, key: Any = None
         try:
             result.rows.append(_row(runtime, pattern, text, t, number, env, live))
         except ExprError as exc:
-            raise ContractError([Issue(where, exc.detail, "decompose a run (fg_env.decompose(env, …)) when a factor "
-                                                          "carries state from it")]) from None
+            raise ContractError([Issue(where, exc.detail, "check factor values and scales; decompose a live run "
+                                                          "(fg_env.decompose(env, …)) for stateful factors")]) from None
     return result
 
 
@@ -112,10 +112,29 @@ def _row(runtime: Any, pattern: str, key: Optional[str], t: float, number: int, 
             raise ExprError(f"'{name}' carries state from a run, so it has no value outside one", source)
         value = runtime.evaluate(name, operand_key(ctx, index), [], t, source)
         factors[name] = value
-        if cfg.kind == "product":
-            adds[name] = total - total / value if value else math.nan
-        else:
+        if cfg.kind == "sum":
             adds[name] = (weights[index] if weights is not None else 1.0) * value
+    if cfg.kind == "product":
+        scale = ctx.number("scale")
+        raw = math.prod(factors.values(), start=scale)
+        low, high = ctx.optional("min"), ctx.optional("max")
+        zeros = [name for name, value in factors.items() if value == 0]
+        # Removing the only zero restores the other factors; dividing the total
+        # by zero cannot recover that counterfactual. Two zeros still suppress it.
+        without_zero = math.prod((value for value in factors.values() if value != 0),
+                                 start=scale) if len(zeros) == 1 else 0.0
+        for name, value in factors.items():
+            without = raw / value if value else without_zero
+            if not math.isfinite(without):
+                raise ExprError(f"'{name}' contribution is outside the finite numeric range; rescale the factors", source)
+            if low is not None:
+                without = max(low, without)
+            if high is not None:
+                without = min(high, without)
+            adds[name] = total - without
+    for name, value in adds.items():
+        if not math.isfinite(value):
+            raise ExprError(f"'{name}' contribution is outside the finite numeric range; rescale the factors", source)
     when = tb.moment(tb.calendar_of(env.world), t)
     date = when.date().isoformat() if when is not None else None
     return {"round": number, "date": date, "total": total, "factors": factors, "adds": adds}
