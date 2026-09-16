@@ -1,7 +1,8 @@
 """Versioned captures for deferred rules: live references and frozen literal data.
 
-Callers persist capture_version=1 beside newly frozen data. Untagged thaw retains
-legacy entity-only decoding, so old literal maps are not reinterpreted as new tags.
+Callers persist CAPTURE_VERSION beside newly frozen data. Version 0 retains
+legacy entity-only decoding; version 1 adds links and literal escaping; version 2
+adds shared-state views. Old literal maps are not reinterpreted as newer tags.
 """
 from __future__ import annotations
 
@@ -10,8 +11,13 @@ from typing import Any
 
 from ..entity import Entity
 from .links import Link
+from .world_parts import ClockView, PhysicsView, PropsView
 
-__all__ = ["freeze", "thaw"]
+__all__ = ["CAPTURE_VERSION", "freeze", "thaw"]
+
+CAPTURE_VERSION = 2
+_VIEW_TYPES = {"world": PropsView, "physics": PhysicsView, "clock": ClockView}
+_VIEW_NAMES = {cls: name for name, cls in _VIEW_TYPES.items()}
 
 
 def freeze(value: Any) -> Any:
@@ -19,28 +25,33 @@ def freeze(value: Any) -> Any:
         return {"$entity": value.id}
     if isinstance(value, Link):
         return {"$link": [value.kind, *value.key]}
+    view = _VIEW_NAMES.get(type(value))
+    if view is not None:
+        return {"$view": view}
     if isinstance(value, (list, tuple)):
         return [freeze(v) for v in value]
     if isinstance(value, Mapping):
         frozen = {k: freeze(v) for k, v in value.items()}
         # User data may look exactly like a reference tag. Escape the container,
         # while retaining reference handling for values nested inside it.
-        if len(value) == 1 and next(iter(value)) in ("$entity", "$link", "$literal"):
+        if len(value) == 1 and next(iter(value)) in ("$entity", "$link", "$literal", "$view"):
             return {"$literal": frozen}
         return frozen
     return value
 
 
-def thaw(value: Any, world: Any, *, tagged: bool = False) -> Any:
-    if tagged and isinstance(value, Mapping) and set(value) == {"$literal"}:
-        return {k: thaw(v, world, tagged=tagged) for k, v in value["$literal"].items()}
+def thaw(value: Any, world: Any, *, version: int = 0) -> Any:
+    if version >= 1 and isinstance(value, Mapping) and set(value) == {"$literal"}:
+        return {k: thaw(v, world, version=version) for k, v in value["$literal"].items()}
     if isinstance(value, Mapping) and set(value) == {"$entity"}:
         return world.entities.get(value["$entity"])
-    if tagged and isinstance(value, Mapping) and set(value) == {"$link"}:
+    if version >= 1 and isinstance(value, Mapping) and set(value) == {"$link"}:
         kind, source, target = value["$link"]
         return Link(world, kind, (source, target))
+    if version >= 2 and isinstance(value, Mapping) and set(value) == {"$view"}:
+        return _VIEW_TYPES[value["$view"]](world)
     if isinstance(value, (list, tuple)):
-        return [thaw(v, world, tagged=tagged) for v in value]
+        return [thaw(v, world, version=version) for v in value]
     if isinstance(value, Mapping):
-        return {k: thaw(v, world, tagged=tagged) for k, v in value.items()}
+        return {k: thaw(v, world, version=version) for k, v in value.items()}
     return value

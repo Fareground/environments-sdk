@@ -12,7 +12,7 @@ from ..entity import Entity
 from ..physics import PhysicsModel, _CompiledExpr
 from .assets.store import AssetStore
 from .contract import Contract, PropSpec
-from .captures import freeze, thaw
+from .captures import CAPTURE_VERSION, freeze, thaw
 from .errors import RunError
 from .expr_calls import suggest_function
 from .expr import ExprError, FUNCTIONS, Scope, Untrusted, World, compile_expr, is_expr, truthy
@@ -717,7 +717,7 @@ class SdkWorld(World):
         """Run ``effects`` when the round (or, on a continuous clock, the time) reaches ``due_round``;
         or, with ``delivery``, deliver that message (see :mod:`delivery`)."""
         item: Dict[str, Any] = {"effects": effects, "vars": {k: freeze(v) for k, v in vars.items()},
-                                "capture_version": 1, "path": path}
+                                "capture_version": CAPTURE_VERSION, "path": path}
         if delivery is not None:
             item["delivery"] = delivery
         self._schedule_seq += 1
@@ -761,8 +761,8 @@ class SdkWorld(World):
             self.end_request = {"name": name, "winner": winner, "text": text}
             self.journal.push(lambda: setattr(self, "end_request", None))
 
-    def thaw(self, vars: Dict[str, Any], *, tagged: bool = False) -> Dict[str, Any]:
-        return {k: thaw(v, self, tagged=tagged) for k, v in vars.items()}
+    def thaw(self, vars: Dict[str, Any], *, version: int = 0) -> Dict[str, Any]:
+        return {k: thaw(v, self, version=version) for k, v in vars.items()}
 
     # -- physics (see world_physics) --------------------------------------------------
 

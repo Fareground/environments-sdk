@@ -20,14 +20,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ...entity import Entity
 from ..errors import RunError
-from ..captures import freeze, thaw
+from ..captures import CAPTURE_VERSION, freeze, thaw
 from ..expr import Call, ExprError, compile_expr, function, is_expr, truthy
 from ..registry import MechanismError, config_data, describe, use_key
 
 __all__ = [
     "Config", "Number", "Effects", "ModifierSpec", "NAME", "MODIFIER_SOURCES", "parsed", "uses", "config",
     "actions_by", "types_in", "suggest", "evaluate", "condition", "number", "whole", "entities_of",
-    "freeze", "thaw", "canonical", "modifier_terms", "check_names", "carriers", "raw_is_a", "is_agent_type",
+    "freeze", "thaw", "CAPTURE_VERSION", "canonical", "modifier_terms", "check_names", "carriers", "raw_is_a", "is_agent_type",
 ]
 
 M = TypeVar("M", bound=BaseModel)

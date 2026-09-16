@@ -389,7 +389,7 @@ def _channeling(call: Call) -> Optional[Dict[str, Any]]:
     if not state:
         return None
     view = dict(state)
-    view["params"] = common.thaw(state.get("params") or {}, world, tagged=state.get("capture_version") == 1)
+    view["params"] = common.thaw(state.get("params") or {}, world, version=state.get("capture_version", 0))
     view.pop("capture_version", None)
     return view
 
@@ -411,7 +411,7 @@ def _channel_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where
         raise Abort("You are already channeling.")
     rounds = common.whole(runner.eval(cfg.actions[action].rounds, vars), f"mechanisms.{mech}.actions.{action}.rounds")
     world.set_prop(actor, mech, {"action": action, "params": common.freeze(vars.get("params") or {}),
-                                 "capture_version": 1, "started": world.round, "completes": world.round + rounds})
+                                 "capture_version": common.CAPTURE_VERSION, "started": world.round, "completes": world.round + rounds})
 
 
 @family_action("conditions", ("channeling",), "interrupt", keys=("who",), required=("who",), was=("interrupt_channel",),
@@ -435,7 +435,7 @@ def _break(runner: Any, mech: str, cfg: ChannelConfig, entity: Entity, state: Ma
     if spec is None:
         return
     at = f"mechanisms.{mech}.actions.{action}"
-    vars = {"actor": entity, "params": common.thaw(state.get("params") or {}, world, tagged=state.get("capture_version") == 1)}
+    vars = {"actor": entity, "params": common.thaw(state.get("params") or {}, world, version=state.get("capture_version", 0))}
     runner.run(spec.on_interrupt, vars, f"{at}.on_interrupt")
     _news(runner, mech, spec.interrupt_say or f"{entity.name}'s {str(action).replace('_', ' ')} was interrupted.",
           vars, f"{at}.interrupt_say")
@@ -491,7 +491,7 @@ def _step_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: s
             world.set_prop(entity, mech, {})
             continue
         at = f"mechanisms.{mech}.actions.{action}"
-        params = common.thaw(state.get("params") or {}, world, tagged=state.get("capture_version") == 1)
+        params = common.thaw(state.get("params") or {}, world, version=state.get("capture_version", 0))
         channel_vars = {"actor": entity, "params": params}
         if spec.interrupt is not None and common.condition(world, spec.interrupt, f"{at}.interrupt", **channel_vars):
             _break(runner, mech, cfg, entity, state)
