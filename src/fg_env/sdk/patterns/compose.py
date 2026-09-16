@@ -1,6 +1,9 @@
 """Composition: patterns built from other patterns — demand = base × season × trend × promotion."""
 from __future__ import annotations
 
+import math
+from fractions import Fraction
+
 from typing import Any, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -100,4 +103,17 @@ class SumConfig(_Combined):
       params=("weights", "base"), words=lambda cfg: " + ".join(operand_names(cfg)) + (f" + {cfg.base}" if cfg.base else ""))
 def _sum(ctx: Any) -> float:
     weights = ctx.numbers("weights") if ctx.cfg.weights is not None else [1.0] * len(ctx.cfg.of)
-    return ctx.number("base") + sum(w * v for w, v in zip(weights, _operands(ctx)))
+    terms = [ctx.number("base"), *(w * v for w, v in zip(weights, _operands(ctx)))]
+    if not all(math.isfinite(term) for term in terms):
+        raise ctx.fail("weighted terms must be finite; rescale the weights or factors")
+    try:
+        # Include the base in the compensated sum; adding it afterwards can
+        # erase a small residual between otherwise cancelling business drivers.
+        return math.fsum(terms)
+    except OverflowError:
+        # fsum can overflow before later terms cancel. Exact binary fractions
+        # are a rare fallback, preserving finite results regardless of order.
+        try:
+            return float(sum((Fraction(term) for term in terms), Fraction()))
+        except OverflowError:
+            raise ctx.fail("sum is outside the finite numeric range; rescale the base or factors") from None
