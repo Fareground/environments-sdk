@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from ..api import ContractLike
-from ..measure import RunResult
+from ..measure import RunResult, _usable_output
 from . import runner
 from .drivers import collect_runs
 from .stats import Estimate, estimate, mean, numeric, quantile, sd, t_quantile
@@ -43,6 +43,7 @@ class Comparison:
     outputs: Dict[str, Dict[str, Any]]
     series: Dict[str, Dict[str, Any]]
     notes: List[str] = field(default_factory=list)
+    level: float = 0.95
 
     def report(self) -> str:
         a, b = self.labels
@@ -54,7 +55,7 @@ class Comparison:
             elif row.get("low") is not None:
                 verdict = "clear" if row["clear"] else "within noise"
                 lines.append(f"  {name}: {row[a]:.4g} → {row[b]:.4g}, {row['difference']:+.4g} "
-                             f"(95% CI {row['low']:+.3g} to {row['high']:+.3g}, {verdict})")
+                             f"({self.level:.0%} CI {row['low']:+.3g} to {row['high']:+.3g}, {verdict})")
             else:
                 rel = f" ({row['relative']:+.0%})" if row.get("relative") is not None else ""
                 lines.append(f"  {name}: {row[a]:.4g} → {row[b]:.4g}, {row['difference']:+.4g}{rel}")
@@ -65,42 +66,78 @@ class Comparison:
 
     def to_dict(self) -> Dict[str, Any]:
         return {"labels": list(self.labels), "paired": self.paired, "outputs": self.outputs, "series": self.series,
-                "notes": self.notes}
+                "notes": self.notes, "level": self.level}
 
 
 def compare(a: Any, b: Any, *, labels: Tuple[str, str] = ("a", "b"), level: float = 0.95) -> Comparison:
-    """Compare two results: RunResults, lists of them, experiment arms or sweeps (anything with ``runs``)."""
+    """Compare results, matching shared unique seeds and excluding invalid outputs per pair.
+
+    Unmatched seeds are omitted when shared seeds exist; disjoint samples use an
+    independent comparison. Notes identify exclusions and numeric rows give sample sizes.
+    """
     if labels[0] == labels[1]:
         raise ValueError("the two labels must differ")
-    runs_a = [r for r in collect_runs(a) if r.status != "failed"]
-    runs_b = [r for r in collect_runs(b) if r.status != "failed"]
+    reserved = {"difference", "relative", "n_a", "n_b", "low", "high", "se", "df", "clear", "counts"}
+    if any(label in reserved for label in labels):
+        raise ValueError("comparison labels must not use reserved result fields such as difference, counts or n_a")
+    if not 0 < level < 1:
+        raise ValueError("level must be between 0 and 1")
+    raw_a, raw_b = collect_runs(a), collect_runs(b)
+    runs_a = [r for r in raw_a if r.status != "failed"]
+    runs_b = [r for r in raw_b if r.status != "failed"]
     if not runs_a or not runs_b:
         raise ValueError("each side needs at least one completed run")
     la, lb = labels
-    paired = len(runs_a) == len(runs_b) and len(runs_a) > 1 and [r.seed for r in runs_a] == [r.seed for r in runs_b]
-    single = len(runs_a) == 1 and len(runs_b) == 1
     notes: List[str] = []
+    for label, raw, runs in ((la, raw_a, runs_a), (lb, raw_b, runs_b)):
+        if len(raw) != len(runs):
+            notes.append(f"{label}: excluded {len(raw) - len(runs)} failed run(s)")
+        if len({r.seed for r in runs}) != len(runs):
+            raise ValueError(f"{label}: duplicate seeds cannot identify independent runs or unique pairs; use distinct seeds")
+    by_b = {r.seed: r for r in runs_b}
+    common = [r for r in runs_a if r.seed in by_b]
+    paired = bool(common)
+    if paired:
+        omitted = len(runs_a) + len(runs_b) - 2 * len(common)
+        if omitted:
+            notes.append(f"paired by shared seeds: excluded {omitted} unmatched run(s)")
+        runs_a, runs_b = common, [by_b[r.seed] for r in common]
     outputs: Dict[str, Dict[str, Any]] = {}
-    for name in [k for k in runs_a[0].outputs if k in runs_b[0].outputs]:
-        xa = [numeric(r.outputs.get(name)) for r in runs_a]
-        xb = [numeric(r.outputs.get(name)) for r in runs_b]
+    names_b = {key for run in runs_b for key in run.outputs}
+    names = dict.fromkeys(key for run in runs_a for key in run.outputs if key in names_b)
+    for name in names:
+        valid_a = [r for r in runs_a if _usable_output(r, name) and r.outputs.get(name) is not None]
+        valid_b = [r for r in runs_b if _usable_output(r, name) and r.outputs.get(name) is not None]
+        if paired:
+            usable_b = {r.seed: r for r in valid_b}
+            valid_a = [r for r in valid_a if r.seed in usable_b]
+            valid_b = [usable_b[r.seed] for r in valid_a]
+        if len(valid_a) != len(runs_a) or len(valid_b) != len(runs_b):
+            notes.append(f"{name}: excluded missing or invalid observations; using "
+                         f"{len(valid_a)}/{len(runs_a)} {la} and {len(valid_b)}/{len(runs_b)} {lb} run(s)"
+                         + (" in matched pairs" if paired else ""))
+        if not valid_a or not valid_b:
+            continue
+        xa = [numeric(r.outputs[name]) for r in valid_a]
+        xb = [numeric(r.outputs[name]) for r in valid_b]
         if all(v is not None for v in xa + xb):
+            single = len(valid_a) == len(valid_b) == 1
             outputs[name] = _numeric_row(name, xa, xb, la, lb, paired, single, level, notes)
-        elif all(isinstance(r.outputs.get(name), str) for r in runs_a + runs_b):
-            outputs[name] = {"counts": {la: _counts(runs_a, name), lb: _counts(runs_b, name)}}
+        elif all(isinstance(r.outputs[name], str) for r in valid_a + valid_b):
+            outputs[name] = {"counts": {la: _counts(valid_a, name), lb: _counts(valid_b, name)}}
     series: Dict[str, Dict[str, Any]] = {}
     for name in [k for k in runs_a[0].series if k in runs_b[0].series]:
         pa, pb = _mean_path(runs_a, name), _mean_path(runs_b, name)
         length = min(len(pa), len(pb))
         if length:
             series[name] = {"rmse": math.sqrt(mean([(x - y) ** 2 for x, y in zip(pa, pb)])), "rounds": length}
-    return Comparison(labels, paired, outputs, series, notes)
+    return Comparison(labels, paired, outputs, series, notes, level)
 
 
 def _numeric_row(name: str, xa: List[Any], xb: List[Any], la: str, lb: str, paired: bool, single: bool,
                  level: float, notes: List[str]) -> Dict[str, Any]:
     ma, mb = mean(xa), mean(xb)
-    row: Dict[str, Any] = {la: ma, lb: mb, "difference": mb - ma, "relative": (mb - ma) / abs(ma) if ma else None}
+    row: Dict[str, Any] = {la: ma, lb: mb, "n_a": len(xa), "n_b": len(xb), "difference": mb - ma, "relative": (mb - ma) / abs(ma) if ma else None}
     if single:
         return row
     if paired:

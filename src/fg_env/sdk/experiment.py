@@ -18,7 +18,7 @@ from .arm_inputs import arm_input_overrides, override_message
 from .budget import Budget
 from .contract import Contract
 from .errors import ContractError, Issue, RunError
-from .measure import RunResult
+from .measure import RunResult, _usable_output
 from .seeds import SeedTree
 
 __all__ = ["experiment", "ExperimentResult", "ArmResult"]
@@ -55,12 +55,6 @@ def _describe(values: List[Any]) -> Dict[str, Any]:
         key = str(v)
         counts[key] = counts.get(key, 0) + 1
     return {"n": len(present), "counts": dict(sorted(counts.items(), key=lambda kv: -kv[1]))}
-
-
-def _usable_output(result: RunResult, name: str) -> bool:
-    """A healthy output can still be used when a different output failed."""
-    return result.status != "failed" and not any(
-        issue.get("path") == f"outputs.{name}" for issue in result.output_issues)
 
 
 def _is_number(value: Any) -> bool:

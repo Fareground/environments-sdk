@@ -233,3 +233,9 @@ def compute_outputs(contract: Contract, world: SdkWorld) -> tuple[Dict[str, Any]
             issues.append(Issue(f"outputs.{name}", problem, f"declared type is {spec.type}"))
         outputs[name] = value
     return outputs, issues
+
+
+def _usable_output(result: RunResult, name: str) -> bool:
+    """A healthy output can still be used when a different output failed."""
+    return result.status != "failed" and not any(
+        issue.get("path") == f"outputs.{name}" for issue in result.output_issues)
