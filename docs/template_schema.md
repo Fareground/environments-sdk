@@ -1,6 +1,6 @@
 # Environments SDK contracts
 
-The current contract SDK uses `fg_env`. See the [generated reference](sdk/reference.md) and the installation instructions in the repository README; publication of `fg-env` is pending.
+The current contract SDK uses `fg_env`. See the [generated reference](sdk/reference.md) and the installation instructions in the repository README. The distribution is `fg-env` on PyPI.
 
 
 # fg_env — core guide

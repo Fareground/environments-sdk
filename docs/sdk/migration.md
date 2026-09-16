@@ -16,10 +16,10 @@ For the current contract SDK, the repository and product rename does not require
 git remote set-url origin https://github.com/Fareground/environments-sdk.git
 ```
 
-Until the new distribution is available on PyPI, install the matching release from GitHub:
+Install the published distribution from PyPI:
 
 ```bash
-python -m pip install "git+https://github.com/Fareground/environments-sdk.git@v0.3.0"
+python -m pip install "fg-env==0.3.0"
 ```
 
 ## Contract API versus legacy templates

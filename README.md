@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://github.com/Fareground/environments-sdk/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Fareground/environments-sdk/ci.yml?branch=main&amp;style=flat-square&amp;label=CI" /></a>
   <img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python 3.11+" />
-  <img src="https://img.shields.io/badge/PyPI-publication%20pending-orange?style=flat-square" alt="PyPI publication pending" />
+  <a href="https://pypi.org/project/fg-env/"><img src="https://img.shields.io/pypi/v/fg-env?style=flat-square" alt="PyPI version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-lightgrey" alt="Apache-2.0" /></a>
 </p>
 
@@ -53,10 +53,10 @@ fg-env is one of Fareground's open-source building blocks, alongside
 
 ## Install
 
-The `fg-env` PyPI release is pending. Install the tested source revision in the meantime:
+Install Environments SDK from PyPI:
 
 ```bash
-python -m pip install "git+https://github.com/Fareground/environments-sdk.git@d1e98a2"
+python -m pip install "fg-env==0.3.0"
 ```
 
 Python ≥ 3.11. The only runtime dependency is `pydantic`.
