@@ -29,6 +29,7 @@ rule that never settles is reported instead of silently truncated.
 """
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from difflib import get_close_matches
@@ -235,6 +236,61 @@ def _capture_roots(sources: Tuple[str, ...]) -> Optional[frozenset[str]]:
                 assigned.add(statement.local)
     except ExprError:
         return None  # Preserve the original error at execution, rather than moving it to scheduling.
+    return frozenset(needed)
+
+
+@lru_cache(maxsize=8_192)
+def _structured_capture_roots(source: str) -> Optional[frozenset[str]]:
+    """Conservative reads across control flow; retain all possibly needed outer locals.
+
+    Unlike the straight-line analysis, no assignments remove dependencies. This
+    preserves incoming values on paths where a branch/loop never assigns them.
+    Calls and other operations may inspect implicit scope, so keep it in full.
+    """
+    needed: set[str] = set()
+
+    def expression(raw: Any, *, condition: bool = False) -> None:
+        if isinstance(raw, str) and (condition or is_expr(raw)):
+            compiled = compile_expr(raw)
+            if compiled.functions:
+                raise ValueError("implicit call scope")
+            needed.update(compiled.roots)
+        elif not condition and isinstance(raw, (dict, list)):
+            for item in raw.values() if isinstance(raw, dict) else raw:
+                expression(item)
+
+    def walk(effects: Any) -> None:
+        for effect in one_or_many(effects) or []:
+            if isinstance(effect, str):
+                roots = _capture_roots((effect,))
+                if roots is None:
+                    raise ValueError("implicit assignment scope")
+                needed.update(roots)
+            elif isinstance(effect, dict):
+                if "if" in effect and set(effect) <= {"if", "then", "else"}:
+                    expression(effect["if"], condition=True)
+                    walk(effect.get("then"))
+                    walk(effect.get("else"))
+                elif "each" in effect and set(effect) <= {"each", "as", "where", "do"}:
+                    expression(effect["each"])
+                    expression(effect.get("where"), condition=True)
+                    walk(effect.get("do"))
+                elif "repeat" in effect and set(effect) <= {"repeat", "while", "do"}:
+                    expression(effect["repeat"])
+                    expression(effect.get("while"), condition=True)
+                    walk(effect.get("do"))
+                elif "after" in effect and set(effect) <= {"after", "do"}:
+                    expression(effect["after"])
+                    walk(effect.get("do"))
+                else:
+                    raise ValueError("implicit operation scope")
+            else:
+                raise ValueError("unknown effect shape")
+
+    try:
+        walk(json.loads(source))
+    except (ExprError, ValueError, TypeError, RecursionError):
+        return None
     return frozenset(needed)
 
 
@@ -650,12 +706,17 @@ class EffectRunner:
             if isinstance(delay, bool) or not isinstance(delay, int) or delay < 1:
                 raise RunError(f"`after` needs a whole number of rounds ≥ 1, got {delay!r}", where)
             due = world.round + delay
-        effects = effect.get("do") or []
+        effects = one_or_many(effect.get("do")) or []
         captured = vars
         if all(isinstance(item, str) for item in effects):
             roots = _capture_roots(tuple(effects))
-            if roots is not None and not roots.intersection(world.contract.defs):
-                captured = {name: value for name, value in vars.items() if name in roots}
+        else:
+            try:
+                roots = _structured_capture_roots(json.dumps(effects, sort_keys=True))
+            except (TypeError, ValueError, RecursionError):
+                roots = None
+        if roots is not None and not roots.intersection(world.contract.defs):
+            captured = {name: value for name, value in vars.items() if name in roots}
         world.schedule(due, effects, captured, f"{where}.do")
 
     def _op_wake(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:

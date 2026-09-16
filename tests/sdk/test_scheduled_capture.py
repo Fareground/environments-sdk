@@ -64,12 +64,12 @@ def test_function_callbacks_keep_full_scope_and_frozen_values():
     assert result.outputs['total'] == 30
 
 
-def test_nested_effect_callbacks_keep_full_scope():
+def test_nested_condition_callbacks_omit_unused_scope():
     c = batch(4)
     c['events'][0]['do'][1]['do'][0]['do'] = [{'if': '$invoice > 1', 'then': ['$world.total += $invoice']}]
     env = fg_env.load(c, seed=1)
     env.run(rounds=1)
-    assert all('batch' in item['vars'] for _, _, item in env.world.scheduled)
+    assert all('batch' not in item['vars'] for _, _, item in env.world.scheduled)
     assert env.run().outputs['total'] == 5
 
 
