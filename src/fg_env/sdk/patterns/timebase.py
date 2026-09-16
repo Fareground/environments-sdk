@@ -12,7 +12,7 @@ import math
 from dataclasses import dataclass
 from typing import Any, List, Optional
 
-from ..stdlib.dates import parse_moment
+from ..stdlib.dates import parse_moment, shift
 
 __all__ = ["UNIT_DAYS", "Calendar", "calendar_of", "now", "step_length", "unit_days", "moment", "to_t", "position",
            "slot", "days_covered", "parse_date", "PERIODS"]
@@ -79,13 +79,15 @@ def moment(clock: Any, t: float) -> Optional[_dt.datetime]:
     start = parse_date(clock.start)
     if unit in ("minute", "hour", "day", "week"):
         return start + _dt.timedelta(days=UNIT_DAYS[unit] * t)
-    if unit == "month":
+    if unit in ("month", "year"):
         whole = math.floor(t)
-        months = start.month - 1 + whole
-        first = start.replace(year=start.year + months // 12, month=months % 12 + 1, day=min(start.day, 28))
-        return first + _dt.timedelta(days=(t - whole) * UNIT_DAYS["month"])
-    if unit == "year":
-        return start.replace(year=start.year + math.floor(t))
+        first = shift(start, whole, unit)
+        assert isinstance(first, _dt.datetime)
+        if t == whole:
+            return first
+        following = shift(start, whole + 1, unit)
+        assert isinstance(following, _dt.datetime)
+        return first + (following - first) * (t - whole)
     return None
 
 
@@ -101,7 +103,24 @@ def to_t(clock: Any, when: Any) -> float:
     days = unit_days(clock)
     if not clock.start or days is None:
         raise ValueError(f"the date '{when}' needs clock.start and a calendar clock.unit (day, week, month …)")
-    return (at - parse_date(clock.start)).total_seconds() / 86400 / days
+    start = parse_date(clock.start)
+    unit = _unit(clock)
+    if unit in ("month", "year"):
+        whole = at.year - start.year
+        if unit == "month":
+            whole = whole * 12 + at.month - start.month
+        first = shift(start, whole, unit)
+        assert isinstance(first, _dt.datetime)
+        if first > at:
+            whole -= 1
+            first = shift(start, whole, unit)
+            assert isinstance(first, _dt.datetime)
+        if first == at:
+            return float(whole)
+        following = shift(start, whole + 1, unit)
+        assert isinstance(following, _dt.datetime)
+        return whole + (at - first).total_seconds() / (following - first).total_seconds()
+    return (at - start).total_seconds() / 86400 / days
 
 
 def position(clock: Any, t: float, period: Any) -> float:
@@ -146,7 +165,13 @@ def days_covered(clock: Any, t: float) -> List[_dt.date]:
     if first is None:
         return []
     days = unit_days(clock) or 1.0
-    length = max(1, round(days * (clock.step if clock.mode != "continuous" else 1)))
+    span = clock.step if clock.mode != "continuous" else 1
+    if _unit(clock) in ("month", "year"):
+        following = moment(clock, t + span)
+        assert following is not None
+        length = max(1, (following.date() - first.date()).days)
+    else:
+        length = max(1, round(days * span))
     if days < 1:
         return [first.date()]
     return [first.date() + _dt.timedelta(days=i) for i in range(length)]

@@ -57,7 +57,7 @@ def shift(moment: Moment, amount: float, unit: str) -> Moment:
 
 def calendar_date(start: Optional[str], unit: str, step: int, elapsed: float) -> Optional[str]:
     """The calendar label of a moment ``elapsed`` clock steps after ``start`` (``None`` without a start or for units
-    that have no calendar). A month clock keeps the start's day up to the 28th, so every month has that day."""
+    that have no calendar). Month clocks retain the start day, clamping only in shorter target months."""
     if not start:
         return None
     n = step * elapsed
@@ -71,8 +71,7 @@ def calendar_date(start: Optional[str], unit: str, step: int, elapsed: float) ->
         return (first + _dt.timedelta(days=(7 if name == "week" else 1) * n)).isoformat()
     whole = int(n)
     if name == "month":
-        months = first.month - 1 + whole
-        return _dt.date(first.year + months // 12, months % 12 + 1, min(first.day, 28)).isoformat()
+        return shift(first, whole, "month").isoformat()
     if name == "year":
         return str(first.year + whole)
     return None
