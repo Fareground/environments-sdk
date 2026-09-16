@@ -18,7 +18,7 @@ Matrix = List[List[Any]]
 SINGULAR_TOLERANCE = 1e-12
 #: Covariance entries may differ from their mirror by this share of their size and still count as symmetric.
 SYMMETRY_TOLERANCE = 1e-9
-#: A Cholesky remainder above −(this share of the largest variance) counts as a zero eigenvalue, not a negative one.
+#: A negative Cholesky remainder within this share of its own variance is treated as roundoff.
 PSD_TOLERANCE = 1e-10
 
 
@@ -232,28 +232,27 @@ def cholesky(cov: Matrix) -> Tuple[List[List[float]], str]:
     Returns ``(L, "")``, or ``([], reason)`` when ``cov`` is not a valid covariance matrix. A zero
     eigenvalue (perfectly correlated or constant components) is allowed: its column of L is zero."""
     n = len(cov)
-    scale = max((abs(cov[i][i]) for i in range(n)), default=0.0)
     for i in range(n):
         if cov[i][i] < 0:
             return [], f"variance {i} (the diagonal) is negative: {cov[i][i]}"
         for j in range(i):
             a, b = cov[i][j], cov[j][i]
-            if abs(a - b) > SYMMETRY_TOLERANCE * max(1.0, abs(a), abs(b)):
+            if abs(a - b) > SYMMETRY_TOLERANCE * max(abs(a), abs(b)):
                 return [], f"it is not symmetric: row {i}, column {j} is {a} but row {j}, column {i} is {b}"
-    diagonal_tolerance = PSD_TOLERANCE * scale
-    off_tolerance = math.sqrt(PSD_TOLERANCE) * scale
+    deviations = [math.sqrt(cov[i][i]) for i in range(n)]
     lower = [[0.0] * n for _ in range(n)]
     for j in range(n):
         remainder = cov[j][j] - math.fsum(lower[j][k] ** 2 for k in range(j))
-        if remainder < -diagonal_tolerance:
+        if remainder < -PSD_TOLERANCE * cov[j][j]:
             return [], "it is not positive semi-definite (the correlations are impossible together)"
-        root = math.sqrt(remainder) if remainder > diagonal_tolerance else 0.0
+        # A small positive conditional variance is real variation, not roundoff.
+        root = math.sqrt(max(0.0, remainder))
         lower[j][j] = root
         for i in range(j + 1, n):
             rest = cov[i][j] - math.fsum(lower[i][k] * lower[j][k] for k in range(j))
             if root > 0.0:
                 lower[i][j] = rest / root
-            elif abs(rest) > off_tolerance:
+            elif abs(rest) > math.sqrt(PSD_TOLERANCE) * deviations[i] * deviations[j]:
                 return [], "it is not positive semi-definite (the correlations are impossible together)"
     return lower, ""
 
