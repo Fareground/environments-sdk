@@ -1,7 +1,7 @@
 """Tests for kernel/action.py and kernel/resolution.py"""
 import pytest
-from fg_env_kernel.action import ActionDefinition, ActionInstance, Precondition, Effect, Operator, EffectOperation
-from fg_env_kernel.resolution import (
+from fg_env.action import ActionDefinition, ActionInstance, Precondition, Effect, Operator, EffectOperation
+from fg_env.resolution import (
     DeterministicResolution,
     ProbabilisticSkillCheck,
     ContestOpposed,

@@ -7,9 +7,9 @@ a piece between me and the target") require Python.
 """
 import pytest
 
-from fg_env_kernel.effects import resolve_expression
-from fg_env_kernel.entity import Entity, EntityType
-from fg_env_kernel.state import WorldState
+from fg_env.effects import resolve_expression
+from fg_env.entity import Entity, EntityType
+from fg_env.state import WorldState
 
 
 @pytest.fixture
@@ -145,7 +145,7 @@ class TestQueriesInsidePredicates:
     predicate language. This is what makes complex games declarative."""
 
     def test_last_one_standing_via_query(self, world):
-        from fg_env_kernel.predicates import evaluate
+        from fg_env.predicates import evaluate
         # Predicate: only one alive player remains
         expr = "$count(Player, alive) == 1"
         assert evaluate(expr, state=world) is False
@@ -156,7 +156,7 @@ class TestQueriesInsidePredicates:
 
     def test_aoe_target_query(self, world):
         """AoE attack hits everyone within range — count them via expr."""
-        from fg_env_kernel.predicates import evaluate
+        from fg_env.predicates import evaluate
         expr = "$len($within_range($actor.location_id, 1)) >= 3"
         # Use p0 as actor (at loc0); within_range 1 = {p0, p2, p1, p3} = 4
         assert evaluate(expr, actor=world.entities["p0"], state=world) is True

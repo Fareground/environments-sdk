@@ -1,0 +1,18 @@
+{
+  "actions": 94,
+  "events": 94,
+  "events_sha256": "3b48dc56a60860c1b26b707c95e65047f81fcdc38933b8d53af0603fbcab9af7",
+  "metrics": {
+    "fair_value": 50,
+    "halted": 0,
+    "last_price": 50.69,
+    "pnl_market_maker": 1142.6904,
+    "pnl_momentum": 1061.3855,
+    "pnl_value": 1078.53125,
+    "resting_orders": 5,
+    "round_volume": 110
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 80
+}

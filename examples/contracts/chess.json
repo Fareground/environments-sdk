@@ -1,0 +1,150 @@
+{
+  "fg_env": "1",
+  "name": "Chess",
+  "description": "Full legal chess for two players, played natively by the board mechanism.",
+  "brief": {
+    "situation": "A game of chess between White and Black.",
+    "rules": "Standard chess: castling, en passant, promotion, check, checkmate, stalemate, threefold repetition and the 50-move rule all apply. Your move tool lists only legal moves: from-to (e2-e4), captures fromxto (e4xd5), promotion adds the new piece (e7-e8=Q), castling is O-O (king side) or O-O-O (queen side).",
+    "roles": {
+      "player": "You play {$actor.name}. Checkmate the enemy king; never leave your own in check."
+    }
+  },
+  "clock": {
+    "rounds": 600,
+    "unit": "ply"
+  },
+  "mechanisms": {
+    "chess": {
+      "kind": "game",
+      "mode": "board",
+      "sides": [
+        "white",
+        "black"
+      ],
+      "pieces": {
+        "K": {
+          "name": "king",
+          "royal": true,
+          "moves": [
+            {
+              "step": "all"
+            }
+          ]
+        },
+        "Q": {
+          "name": "queen",
+          "moves": [
+            {
+              "slide": "all"
+            }
+          ]
+        },
+        "R": {
+          "name": "rook",
+          "moves": [
+            {
+              "slide": "orthogonal"
+            }
+          ]
+        },
+        "B": {
+          "name": "bishop",
+          "moves": [
+            {
+              "slide": "diagonal"
+            }
+          ]
+        },
+        "N": {
+          "name": "knight",
+          "moves": [
+            {
+              "leap": [
+                2,
+                1
+              ]
+            }
+          ]
+        },
+        "P": {
+          "name": "pawn",
+          "irreversible": true,
+          "promote": {
+            "to": [
+              "Q",
+              "R",
+              "B",
+              "N"
+            ]
+          },
+          "moves": [
+            {
+              "step": "f",
+              "only": "move"
+            },
+            {
+              "step": "f",
+              "distance": 2,
+              "only": "move",
+              "from": {
+                "white": "rank 2",
+                "black": "rank 7"
+              },
+              "passable": true
+            },
+            {
+              "step": [
+                "fl",
+                "fr"
+              ],
+              "only": "capture",
+              "en_passant": true
+            }
+          ]
+        }
+      },
+      "setup": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR",
+      "castling": [
+        {
+          "side": "white",
+          "king": "e1",
+          "rook": "h1",
+          "king_to": "g1",
+          "rook_to": "f1",
+          "name": "O-O"
+        },
+        {
+          "side": "white",
+          "king": "e1",
+          "rook": "a1",
+          "king_to": "c1",
+          "rook_to": "d1",
+          "name": "O-O-O"
+        },
+        {
+          "side": "black",
+          "king": "e8",
+          "rook": "h8",
+          "king_to": "g8",
+          "rook_to": "f8",
+          "name": "O-O"
+        },
+        {
+          "side": "black",
+          "king": "e8",
+          "rook": "a8",
+          "king_to": "c8",
+          "rook_to": "d8",
+          "name": "O-O-O"
+        }
+      ],
+      "self_check": true,
+      "repetition": 3,
+      "move_limit": 100
+    }
+  },
+  "metrics": {
+    "white_pieces": "$count(piece, $it.owner == white)",
+    "black_pieces": "$count(piece, $it.owner == black)"
+  }
+}

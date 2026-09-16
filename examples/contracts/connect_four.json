@@ -1,0 +1,47 @@
+{
+  "fg_env": "1",
+  "name": "Connect Four (native)",
+  "description": "Classic Connect Four on a 6-row, 7-column board, played natively by the board mechanism.",
+  "brief": {
+    "situation": "Two players face each other across an upright Connect Four board with 6 rows and 7 columns.",
+    "rules": "Red (X) moves first. On your turn drop a piece into a column that is not full; it falls to the lowest empty cell, which is how the move is written (d1 is the bottom of column d). The first player with four pieces in a row horizontally, vertically or diagonally wins at once. A full board with no four in a row is a draw.",
+    "roles": {
+      "player": "Connect four of your own pieces before your opponent does, and block their lines of three."
+    }
+  },
+  "clock": {
+    "rounds": 42,
+    "unit": "move"
+  },
+  "mechanisms": {
+    "connect4": {
+      "kind": "game",
+      "mode": "board",
+      "size": [
+        6,
+        7
+      ],
+      "sides": [
+        {
+          "id": "red",
+          "mark": "X"
+        },
+        {
+          "id": "yellow",
+          "mark": "O"
+        }
+      ],
+      "pieces": {
+        "disc": {}
+      },
+      "place": {
+        "gravity": "s"
+      },
+      "line": 4,
+      "no_moves": "draw"
+    }
+  },
+  "metrics": {
+    "pieces": "$count(piece)"
+  }
+}

@@ -1,0 +1,92 @@
+# fg-env playthrough: Nim
+Game: nim@17d6bb7a:53eb4f84
+Seed: 1
+Seats: 0 a, 1 b
+Dynamics: sequential; chance: deterministic; information: unknown; utility: zero_sum
+Action space: 4 ids
+
+## Brief of seat 0 (a)
+  | # Nim
+  | A heap of stones between two players.
+  | 
+  | ## Rules
+  | Take 1 to 3 stones on your move. Whoever takes the last stone wins.
+  | 
+  | ## You
+  | You are Ann (player, id a).
+  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+
+## Brief of seat 1 (b)
+  | # Nim
+  | A heap of stones between two players.
+  | 
+  | ## Rules
+  | Take 1 to 3 stones on your move. Whoever takes the last stone wins.
+  | 
+  | ## You
+  | You are Bob (player, id b).
+  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+
+# State 0
+Current player: 0
+Legal calls of seat 0: [1] take(count=1); [2] take(count=2); [3] take(count=3)
+Seat 0 (a) reads:
+  | Move 1 of 50 · move
+  | Now: It is your turn.
+  | 
+  | Stones left: 5.
+Seat 0 information state: 2c6973df880fd011
+Seat 1 (b) reads:
+  | Move 1 of 50 · move
+  | 
+  | Stones left: 5.
+Seat 1 information state: 1b4e22b6161de91d
+Returns: [0, 0]
+Chosen: seat 0: take(count=3)
+Step: {"args": {"count": 3}, "seat": 0, "tool": "take"}
+
+# State 1
+Current player: 1
+Legal calls of seat 1: [1] take(count=1); [2] take(count=2)
+Seat 0 (a) reads:
+  | Move 2 of 50 · move
+  | 
+  | Stones left: 2.
+Seat 0 information state: 8d623a5f059c9b03
+Seat 1 (b) reads:
+  | Move 2 of 50 · move
+  | Now: It is your turn.
+  | 
+  | Since your last turn:
+  | - Ann: take (count=3).
+  | 
+  | Stones left: 2.
+Seat 1 information state: bfe9498af54eddd4
+Returns: [0, 0]
+Chosen: seat 1: take(count=1)
+Step: {"args": {"count": 1}, "seat": 1, "tool": "take"}
+
+# State 2
+Current player: 0
+Legal calls of seat 0: [1] take(count=1)
+Seat 0 (a) reads:
+  | Move 3 of 50 · move
+  | Now: It is your turn.
+  | 
+  | Since your last turn:
+  | - Bob: take (count=1).
+  | 
+  | Stones left: 1.
+Seat 0 information state: 6d068b10ce9ee414
+Seat 1 (b) reads:
+  | Move 3 of 50 · move
+  | 
+  | Stones left: 1.
+Seat 1 information state: 5ff43d7a387d7568
+Returns: [0, 0]
+Chosen: seat 0: take(count=1)
+Step: {"args": {"count": 1}, "seat": 0, "tool": "take"}
+
+# State 3
+Terminal
+Returns: [1, -1]

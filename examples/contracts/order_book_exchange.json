@@ -1,0 +1,1261 @@
+{
+  "fg_env": "1",
+  "name": "Single-stock exchange",
+  "description": "A continuous limit order book for one stock with price-time priority, partial fills, per-side trading fees, a fundamental news shock and a circuit breaker. Twenty traders of three kinds compete for P&L.",
+  "inputs": {
+    "rounds": {
+      "type": "int",
+      "default": 15,
+      "min": 2,
+      "max": 60,
+      "description": "Trading sessions in the run."
+    },
+    "start_price": {
+      "type": "number",
+      "default": 50,
+      "min": 1,
+      "unit": "$",
+      "description": "Opening reference price."
+    },
+    "fair_value": {
+      "type": "number",
+      "default": 50,
+      "min": 1,
+      "unit": "$",
+      "description": "True value before the news."
+    },
+    "fee_bps": {
+      "type": "number",
+      "default": 5,
+      "min": 0,
+      "max": 100,
+      "unit": "bps",
+      "description": "Fee on traded notional, charged to buyer and seller each."
+    },
+    "band": {
+      "type": "number",
+      "default": 0.1,
+      "min": 0.01,
+      "max": 0.5,
+      "description": "Circuit-breaker band: a trade more than this fraction away from the round's reference price halts trading."
+    },
+    "order_ttl": {
+      "type": "int",
+      "default": 3,
+      "min": 1,
+      "max": 60,
+      "description": "Rounds a resting order lives before it expires."
+    },
+    "shock_round": {
+      "type": "int",
+      "default": 8,
+      "min": 1,
+      "description": "Round the news breaks."
+    },
+    "shock_pct": {
+      "type": "number",
+      "default": -0.15,
+      "min": -0.9,
+      "max": 2,
+      "description": "Change in fair value caused by the news."
+    },
+    "headline": {
+      "type": "text",
+      "default": "NEWS: the company cuts full-year guidance; analysts rush to revise their valuations.",
+      "description": "Public headline of the shock."
+    },
+    "signal_sd": {
+      "type": "number",
+      "default": 0.03,
+      "min": 0,
+      "max": 0.5,
+      "description": "Noise of value traders' private fair-value estimates (fraction)."
+    },
+    "n_market_makers": {
+      "type": "int",
+      "default": 4,
+      "min": 0
+    },
+    "n_momentum": {
+      "type": "int",
+      "default": 8,
+      "min": 0
+    },
+    "n_value": {
+      "type": "int",
+      "default": 8,
+      "min": 0
+    },
+    "mm_cash": {
+      "type": "number",
+      "default": 20000,
+      "min": 0
+    },
+    "mm_shares": {
+      "type": "int",
+      "default": 400,
+      "min": 0
+    },
+    "trader_cash": {
+      "type": "number",
+      "default": 10000,
+      "min": 0
+    },
+    "trader_shares": {
+      "type": "int",
+      "default": 200,
+      "min": 0
+    }
+  },
+  "brief": {
+    "situation": "You trade one stock on an electronic exchange against 19 other traders: market makers, momentum traders and value traders. Everyone starts with cash and shares. Your score is profit and loss: cash plus shares marked at the last traded price, compared with your start.",
+    "rules": "Each round every trader gets one turn (market makers first, the rest in random order) and may take a few actions. place_order submits a limit order: it trades immediately against resting orders on the other side at their prices, best price first and oldest first at the same price, possibly filling only partly; whatever is left rests on the book. The cash (price x quantity + fee) for a buy, or the shares for a sell, are reserved while the order rests. cancel_order and cancel_all release them. Resting orders expire after a few rounds. Every trade costs buyer and seller a fee on the traded value. You cannot trade against your own orders. Circuit breaker: if a trade prints more than the band away from the round's reference price (the last price when the round opened), trading halts for the rest of that round and the whole next round; the unfilled part of the order that triggered it is cancelled. News can change what the stock is really worth.",
+    "roles": {
+      "market_maker": "You are a market maker. You earn the spread by quoting a bid below and an ask above the price and letting others trade with you. Keep your inventory near your starting position, requote when the price moves, and widen or step away when the price is running against you.",
+      "momentum": "You are a momentum trader. You believe moves continue: buy when the price is rising, sell when it is falling, and cut positions that go against you.",
+      "value": "You are a value trader. You have a private estimate of what the stock is truly worth, shown only to you. Buy when the price is below it, sell when above, and update when news arrives."
+    }
+  },
+  "clock": {
+    "rounds": "$inputs.rounds",
+    "unit": "round"
+  },
+  "world": {
+    "last_price": {
+      "type": "number",
+      "default": "$inputs.start_price",
+      "description": "Last traded price."
+    },
+    "ref_price": {
+      "type": "number",
+      "default": "$inputs.start_price",
+      "description": "Circuit-breaker reference: last price at the start of the round."
+    },
+    "fair_value": {
+      "type": "number",
+      "default": "$inputs.fair_value",
+      "private": true,
+      "description": "True value of the stock."
+    },
+    "fee_rate": {
+      "type": "number",
+      "default": "$inputs.fee_bps / 10000"
+    },
+    "band": {
+      "type": "number",
+      "default": "$inputs.band"
+    },
+    "ttl": {
+      "type": "int",
+      "default": "$inputs.order_ttl"
+    },
+    "halted": {
+      "type": "bool",
+      "default": false
+    },
+    "halt_until": {
+      "type": "int",
+      "default": 0
+    },
+    "halts": {
+      "type": "int",
+      "default": 0
+    },
+    "seq": {
+      "type": "int",
+      "default": 0,
+      "description": "Order sequence number (time priority)."
+    },
+    "fees": {
+      "type": "number",
+      "default": 0,
+      "description": "Fees collected by the exchange."
+    },
+    "volume": {
+      "type": "int",
+      "default": 0
+    },
+    "notional": {
+      "type": "number",
+      "default": 0
+    },
+    "trades": {
+      "type": "int",
+      "default": 0
+    },
+    "round_volume": {
+      "type": "int",
+      "default": 0
+    },
+    "round_high": {
+      "type": "number",
+      "default": "$inputs.start_price"
+    },
+    "round_low": {
+      "type": "number",
+      "default": "$inputs.start_price"
+    },
+    "c1": {
+      "type": "number",
+      "default": "$inputs.start_price",
+      "description": "Close of the previous round."
+    },
+    "c2": {
+      "type": "number",
+      "default": "$inputs.start_price"
+    },
+    "c3": {
+      "type": "number",
+      "default": "$inputs.start_price"
+    },
+    "ret_n": {
+      "type": "int",
+      "default": 0
+    },
+    "ret_sum": {
+      "type": "number",
+      "default": 0
+    },
+    "ret_sq": {
+      "type": "number",
+      "default": 0
+    },
+    "price_peak": {
+      "type": "number",
+      "default": "$inputs.start_price"
+    },
+    "price_max_dd": {
+      "type": "number",
+      "default": 0
+    },
+    "total_cash": {
+      "type": "number",
+      "default": "$inputs.n_market_makers * $inputs.mm_cash + ($inputs.n_momentum + $inputs.n_value) * $inputs.trader_cash"
+    },
+    "total_shares": {
+      "type": "int",
+      "default": "$inputs.n_market_makers * $inputs.mm_shares + ($inputs.n_momentum + $inputs.n_value) * $inputs.trader_shares"
+    }
+  },
+  "types": {
+    "market_maker": {
+      "agent": true,
+      "description": "Liquidity provider quoting both sides.",
+      "policy": "quote",
+      "props": {
+        "cash": {
+          "type": "number",
+          "default": 0,
+          "description": "Free cash."
+        },
+        "locked_cash": {
+          "type": "number",
+          "default": 0,
+          "description": "Cash reserved by resting buy orders."
+        },
+        "shares": {
+          "type": "int",
+          "default": 0,
+          "description": "Free shares."
+        },
+        "locked_shares": {
+          "type": "int",
+          "default": 0,
+          "description": "Shares reserved by resting sell orders."
+        },
+        "start_shares": {
+          "type": "int",
+          "default": 0
+        },
+        "start_equity": {
+          "type": "number",
+          "default": 0
+        },
+        "equity": {
+          "type": "number",
+          "default": 0
+        },
+        "peak_equity": {
+          "type": "number",
+          "default": 0
+        },
+        "max_drawdown": {
+          "type": "number",
+          "default": 0
+        },
+        "fees_paid": {
+          "type": "number",
+          "default": 0
+        },
+        "traded_qty": {
+          "type": "int",
+          "default": 0
+        }
+      }
+    },
+    "momentum": {
+      "agent": true,
+      "description": "Trend follower.",
+      "policy": "trend",
+      "props": {
+        "cash": {
+          "type": "number",
+          "default": 0,
+          "description": "Free cash."
+        },
+        "locked_cash": {
+          "type": "number",
+          "default": 0,
+          "description": "Cash reserved by resting buy orders."
+        },
+        "shares": {
+          "type": "int",
+          "default": 0,
+          "description": "Free shares."
+        },
+        "locked_shares": {
+          "type": "int",
+          "default": 0,
+          "description": "Shares reserved by resting sell orders."
+        },
+        "start_shares": {
+          "type": "int",
+          "default": 0
+        },
+        "start_equity": {
+          "type": "number",
+          "default": 0
+        },
+        "equity": {
+          "type": "number",
+          "default": 0
+        },
+        "peak_equity": {
+          "type": "number",
+          "default": 0
+        },
+        "max_drawdown": {
+          "type": "number",
+          "default": 0
+        },
+        "fees_paid": {
+          "type": "number",
+          "default": 0
+        },
+        "traded_qty": {
+          "type": "int",
+          "default": 0
+        }
+      }
+    },
+    "value": {
+      "agent": true,
+      "description": "Fundamental trader with a private fair-value estimate.",
+      "policy": "fundamental",
+      "props": {
+        "cash": {
+          "type": "number",
+          "default": 0,
+          "description": "Free cash."
+        },
+        "locked_cash": {
+          "type": "number",
+          "default": 0,
+          "description": "Cash reserved by resting buy orders."
+        },
+        "shares": {
+          "type": "int",
+          "default": 0,
+          "description": "Free shares."
+        },
+        "locked_shares": {
+          "type": "int",
+          "default": 0,
+          "description": "Shares reserved by resting sell orders."
+        },
+        "start_shares": {
+          "type": "int",
+          "default": 0
+        },
+        "start_equity": {
+          "type": "number",
+          "default": 0
+        },
+        "equity": {
+          "type": "number",
+          "default": 0
+        },
+        "peak_equity": {
+          "type": "number",
+          "default": 0
+        },
+        "max_drawdown": {
+          "type": "number",
+          "default": 0
+        },
+        "fees_paid": {
+          "type": "number",
+          "default": 0
+        },
+        "traded_qty": {
+          "type": "int",
+          "default": 0
+        },
+        "private_value": {
+          "type": "number",
+          "default": 0,
+          "private": true,
+          "description": "Private estimate of fair value."
+        }
+      }
+    },
+    "order": {
+      "description": "A resting limit order on the book.",
+      "props": {
+        "side": {
+          "type": "enum",
+          "values": [
+            "buy",
+            "sell"
+          ],
+          "default": "buy"
+        },
+        "price": {
+          "type": "number",
+          "default": 0
+        },
+        "qty": {
+          "type": "int",
+          "default": 0,
+          "description": "Unfilled quantity."
+        },
+        "owner": {
+          "type": "text",
+          "default": "",
+          "private": true,
+          "description": "Id of the trader who placed it."
+        },
+        "seq": {
+          "type": "int",
+          "default": 0
+        },
+        "placed": {
+          "type": "int",
+          "default": 0,
+          "description": "Round placed."
+        }
+      }
+    }
+  },
+  "population": [
+    {
+      "type": "market_maker",
+      "count": "$inputs.n_market_makers",
+      "id": "mm_{$i}",
+      "name": "Maker {$i}",
+      "props": {
+        "cash": "$inputs.mm_cash",
+        "shares": "$inputs.mm_shares",
+        "start_shares": "$inputs.mm_shares",
+        "start_equity": "$inputs.mm_cash + $inputs.mm_shares * $inputs.start_price",
+        "equity": "$inputs.mm_cash + $inputs.mm_shares * $inputs.start_price",
+        "peak_equity": "$inputs.mm_cash + $inputs.mm_shares * $inputs.start_price"
+      }
+    },
+    {
+      "type": "momentum",
+      "count": "$inputs.n_momentum",
+      "id": "mom_{$i}",
+      "name": "Momentum {$i}",
+      "props": {
+        "cash": "$inputs.trader_cash",
+        "shares": "$inputs.trader_shares",
+        "start_shares": "$inputs.trader_shares",
+        "start_equity": "$inputs.trader_cash + $inputs.trader_shares * $inputs.start_price",
+        "equity": "$inputs.trader_cash + $inputs.trader_shares * $inputs.start_price",
+        "peak_equity": "$inputs.trader_cash + $inputs.trader_shares * $inputs.start_price"
+      }
+    },
+    {
+      "type": "value",
+      "count": "$inputs.n_value",
+      "id": "val_{$i}",
+      "name": "Value {$i}",
+      "props": {
+        "cash": "$inputs.trader_cash",
+        "shares": "$inputs.trader_shares",
+        "start_shares": "$inputs.trader_shares",
+        "start_equity": "$inputs.trader_cash + $inputs.trader_shares * $inputs.start_price",
+        "equity": "$inputs.trader_cash + $inputs.trader_shares * $inputs.start_price",
+        "peak_equity": "$inputs.trader_cash + $inputs.trader_shares * $inputs.start_price",
+        "private_value": "$round($inputs.fair_value * (1 + $normal(0, $inputs.signal_sd)), 2)"
+      }
+    }
+  ],
+  "records": {
+    "trades": {
+      "fields": {
+        "price": "number",
+        "qty": "int",
+        "aggressor": "text"
+      },
+      "show": "round {round}: {qty} @ {price|money} ({aggressor}-initiated)",
+      "keep": 50,
+      "notify": false,
+      "description": "Tape of executed trades."
+    }
+  },
+  "actions": {
+    "place_order": {
+      "by": [
+        "market_maker",
+        "momentum",
+        "value"
+      ],
+      "description": "Submit a limit order. It trades at once against resting orders that cross your price (best price first, then oldest), possibly in part; the rest stays on the book until filled, cancelled or expired. Buys reserve price x qty + fee in cash; sells reserve the shares.",
+      "private": true,
+      "when": [
+        {
+          "expr": "not $world.halted",
+          "why": "Trading is halted by the circuit breaker; you can only cancel orders."
+        },
+        {
+          "expr": "$actor.cash > 0 or $actor.shares > 0",
+          "why": "You have no free cash or shares; cancel a resting order to free them."
+        }
+      ],
+      "params": {
+        "side": {
+          "type": "enum",
+          "values": [
+            "buy",
+            "sell"
+          ],
+          "description": "buy or sell."
+        },
+        "price": {
+          "type": "number",
+          "min": "$round($world.last_price * 0.5, 2)",
+          "max": "$round($world.last_price * 1.5, 2)",
+          "description": "Limit price in dollars (rounded to the cent). Buys trade at or below it, sells at or above it."
+        },
+        "qty": {
+          "type": "int",
+          "min": 1,
+          "max": 5000,
+          "description": "Number of shares."
+        }
+      },
+      "do": [
+        "$limit = $round($params.price, 2)",
+        "$fee = $world.fee_rate",
+        "$left = $params.qty",
+        "$filled = 0",
+        "$spent = 0",
+        "$paid_fees = 0",
+        "$rested = 0",
+        "$cut = 0",
+        "$halted_now = false",
+        {
+          "if": "$params.side == buy",
+          "then": [
+            {
+              "if": "$any(order, $it.owner == $actor.id and $it.side == sell and $it.price <= $limit)",
+              "then": [
+                {
+                  "fail": "This buy would trade with your own resting sell order. Cancel that order first, or bid below it."
+                }
+              ]
+            },
+            "$reserve = $left * $limit * (1 + $fee)",
+            {
+              "if": "$reserve > $actor.cash + 0.000001",
+              "then": [
+                {
+                  "fail": "Not enough free cash: {$left} @ {$limit|money} plus fee needs {$reserve|money}, you have {$actor.cash|money} free. Buy at most {$floor($actor.cash / ($limit * (1 + $fee)))} shares at this price, or cancel resting buys."
+                }
+              ]
+            },
+            "$actor.cash -= $reserve",
+            "$actor.locked_cash += $reserve",
+            {
+              "repeat": 2000,
+              "while": "$left > 0 and not $world.halted and $any(order, $it.side == sell and $it.price <= $limit)",
+              "do": [
+                "$best = $bottom(order, $it.price * 1000000 + $it.seq, 1, $it.side == sell and $it.price <= $limit)[0]",
+                "$maker = $entity($best.owner)",
+                "$q = $min($left, $best.qty)",
+                "$px = $best.price",
+                "$notional = $q * $px",
+                "$actor.locked_cash -= $q * $limit * (1 + $fee)",
+                "$actor.cash += $q * $limit * (1 + $fee) - $notional * (1 + $fee)",
+                "$actor.shares += $q",
+                "$actor.fees_paid += $notional * $fee",
+                "$actor.traded_qty += $q",
+                "$maker.locked_shares -= $q",
+                "$maker.cash += $notional * (1 - $fee)",
+                "$maker.fees_paid += $notional * $fee",
+                "$maker.traded_qty += $q",
+                "$best.qty -= $q",
+                {
+                  "if": "$best.qty == 0",
+                  "then": [
+                    {
+                      "remove": "$best"
+                    }
+                  ]
+                },
+                "$left -= $q",
+                "$filled += $q",
+                "$spent += $notional",
+                "$paid_fees += $notional * $fee",
+                "$world.fees += 2 * $notional * $fee",
+                "$world.volume += $q",
+                "$world.round_volume += $q",
+                "$world.notional += $notional",
+                "$world.trades += 1",
+                "$world.last_price = $px",
+                "$world.round_high = $max($world.round_high, $px)",
+                "$world.round_low = $min($world.round_low, $px)",
+                {
+                  "post": "trades",
+                  "price": "$px",
+                  "qty": "$q",
+                  "aggressor": "buy"
+                },
+                {
+                  "if": "$abs($px - $world.ref_price) > $world.band * $world.ref_price",
+                  "then": [
+                    "$world.halted = true",
+                    "$world.halt_until = $round + 1",
+                    "$world.halts += 1",
+                    "$halted_now = true",
+                    {
+                      "emit": "circuit_breaker",
+                      "say": "CIRCUIT BREAKER: a trade at {$px|money} moved more than {$world.band|pct} from this round's reference {$world.ref_price|money}. Trading is halted for the rest of this round and all of next round."
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "if": "$left > 0 and $halted_now",
+              "then": [
+                "$actor.locked_cash -= $left * $limit * (1 + $fee)",
+                "$actor.cash += $left * $limit * (1 + $fee)",
+                "$cut = $left",
+                "$left = 0"
+              ]
+            },
+            {
+              "if": "$left > 0",
+              "then": [
+                "$world.seq += 1",
+                "$rested = $left",
+                {
+                  "create": "order",
+                  "name": "Bid {$left} @ {$limit|money}",
+                  "props": {
+                    "side": "buy",
+                    "price": "$limit",
+                    "qty": "$left",
+                    "owner": "$actor.id",
+                    "seq": "$world.seq",
+                    "placed": "$round"
+                  }
+                }
+              ]
+            }
+          ],
+          "else": [
+            {
+              "if": "$any(order, $it.owner == $actor.id and $it.side == buy and $it.price >= $limit)",
+              "then": [
+                {
+                  "fail": "This sell would trade with your own resting buy order. Cancel that order first, or offer above it."
+                }
+              ]
+            },
+            {
+              "if": "$left > $actor.shares",
+              "then": [
+                {
+                  "fail": "Not enough free shares: you have {$actor.shares} free (others are reserved by your resting sells). Sell at most {$actor.shares}, or cancel resting sells."
+                }
+              ]
+            },
+            "$actor.shares -= $left",
+            "$actor.locked_shares += $left",
+            {
+              "repeat": 2000,
+              "while": "$left > 0 and not $world.halted and $any(order, $it.side == buy and $it.price >= $limit)",
+              "do": [
+                "$best = $top(order, $it.price * 1000000 - $it.seq, 1, $it.side == buy and $it.price >= $limit)[0]",
+                "$maker = $entity($best.owner)",
+                "$q = $min($left, $best.qty)",
+                "$px = $best.price",
+                "$notional = $q * $px",
+                "$actor.locked_shares -= $q",
+                "$actor.cash += $notional * (1 - $fee)",
+                "$actor.fees_paid += $notional * $fee",
+                "$actor.traded_qty += $q",
+                "$maker.locked_cash -= $notional * (1 + $fee)",
+                "$maker.shares += $q",
+                "$maker.fees_paid += $notional * $fee",
+                "$maker.traded_qty += $q",
+                "$best.qty -= $q",
+                {
+                  "if": "$best.qty == 0",
+                  "then": [
+                    {
+                      "remove": "$best"
+                    }
+                  ]
+                },
+                "$left -= $q",
+                "$filled += $q",
+                "$spent += $notional",
+                "$paid_fees += $notional * $fee",
+                "$world.fees += 2 * $notional * $fee",
+                "$world.volume += $q",
+                "$world.round_volume += $q",
+                "$world.notional += $notional",
+                "$world.trades += 1",
+                "$world.last_price = $px",
+                "$world.round_high = $max($world.round_high, $px)",
+                "$world.round_low = $min($world.round_low, $px)",
+                {
+                  "post": "trades",
+                  "price": "$px",
+                  "qty": "$q",
+                  "aggressor": "sell"
+                },
+                {
+                  "if": "$abs($px - $world.ref_price) > $world.band * $world.ref_price",
+                  "then": [
+                    "$world.halted = true",
+                    "$world.halt_until = $round + 1",
+                    "$world.halts += 1",
+                    "$halted_now = true",
+                    {
+                      "emit": "circuit_breaker",
+                      "say": "CIRCUIT BREAKER: a trade at {$px|money} moved more than {$world.band|pct} from this round's reference {$world.ref_price|money}. Trading is halted for the rest of this round and all of next round."
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "if": "$left > 0 and $halted_now",
+              "then": [
+                "$actor.locked_shares -= $left",
+                "$actor.shares += $left",
+                "$cut = $left",
+                "$left = 0"
+              ]
+            },
+            {
+              "if": "$left > 0",
+              "then": [
+                "$world.seq += 1",
+                "$rested = $left",
+                {
+                  "create": "order",
+                  "name": "Ask {$left} @ {$limit|money}",
+                  "props": {
+                    "side": "sell",
+                    "price": "$limit",
+                    "qty": "$left",
+                    "owner": "$actor.id",
+                    "seq": "$world.seq",
+                    "placed": "$round"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "$avg = $spent / $filled if $filled > 0 else 0"
+      ],
+      "outcome": "{$params.side|upper} {$params.qty} @ {$limit|money}: filled {$filled}{$text(' at avg ' + $text($round($avg, 2)) if $filled > 0 else '')}, fees {$paid_fees|money}, resting {$rested}{$text(', ' + $text($cut) + ' cancelled by the halt' if $cut > 0 else '')}."
+    },
+    "cancel_order": {
+      "by": [
+        "market_maker",
+        "momentum",
+        "value"
+      ],
+      "description": "Cancel one of your resting orders and release its reserved cash or shares.",
+      "private": true,
+      "when": [
+        {
+          "expr": "$any(order, $it.owner == $actor.id)",
+          "why": "You have no resting orders."
+        }
+      ],
+      "params": {
+        "order": {
+          "type": "entity",
+          "of": "order",
+          "where": "$it.owner == $actor.id",
+          "description": "Id of your resting order."
+        }
+      },
+      "do": [
+        "$o = $params.order",
+        "$desc = $text($o.side) + ' ' + $text($o.qty) + ' @ ' + $text($o.price)",
+        {
+          "if": "$o.side == buy",
+          "then": [
+            "$actor.locked_cash -= $o.qty * $o.price * (1 + $world.fee_rate)",
+            "$actor.cash += $o.qty * $o.price * (1 + $world.fee_rate)"
+          ],
+          "else": [
+            "$actor.locked_shares -= $o.qty",
+            "$actor.shares += $o.qty"
+          ]
+        },
+        {
+          "remove": "$o"
+        }
+      ],
+      "outcome": "Cancelled {$desc}."
+    },
+    "cancel_all": {
+      "by": [
+        "market_maker",
+        "momentum",
+        "value"
+      ],
+      "description": "Cancel all your resting orders at once (use before requoting).",
+      "private": true,
+      "per_turn": 1,
+      "when": [
+        {
+          "expr": "$any(order, $it.owner == $actor.id)",
+          "why": "You have no resting orders."
+        }
+      ],
+      "params": {},
+      "do": [
+        "$n = $count(order, $it.owner == $actor.id)",
+        {
+          "each": "order",
+          "where": "$it.owner == $actor.id",
+          "do": [
+            {
+              "if": "$it.side == buy",
+              "then": [
+                "$actor.locked_cash -= $it.qty * $it.price * (1 + $world.fee_rate)",
+                "$actor.cash += $it.qty * $it.price * (1 + $world.fee_rate)"
+              ],
+              "else": [
+                "$actor.locked_shares -= $it.qty",
+                "$actor.shares += $it.qty"
+              ]
+            },
+            {
+              "remove": "$it"
+            }
+          ]
+        }
+      ],
+      "outcome": "Cancelled {$n} orders."
+    }
+  },
+  "stages": [
+    {
+      "name": "trading",
+      "when": "not $world.halted",
+      "turns": "sequential",
+      "order": "0 if $it.type == market_maker else 1 + $random()",
+      "max_actions": 4,
+      "max_calls": 10,
+      "brief": "Round {$round} of {$clock.rounds}. Trade, cancel, or end your turn."
+    }
+  ],
+  "events": [
+    {
+      "name": "resume",
+      "phase": "start",
+      "when": "$world.halted and $round > $world.halt_until",
+      "do": [
+        "$world.halted = false"
+      ],
+      "say": "Trading resumes after the circuit-breaker halt."
+    },
+    {
+      "name": "open",
+      "phase": "start",
+      "every": 1,
+      "do": [
+        "$world.ref_price = $world.last_price",
+        "$world.round_high = $world.last_price",
+        "$world.round_low = $world.last_price",
+        "$world.round_volume = 0"
+      ]
+    },
+    {
+      "name": "news_shock",
+      "phase": "start",
+      "at": "$inputs.shock_round",
+      "do": [
+        "$world.fair_value = $round($world.fair_value * (1 + $inputs.shock_pct), 2)",
+        {
+          "each": "value",
+          "do": [
+            "$it.private_value = $round($world.fair_value * (1 + $normal(0, $inputs.signal_sd)), 2)"
+          ]
+        }
+      ],
+      "say": "{$inputs.headline}"
+    },
+    {
+      "name": "expire_orders",
+      "phase": "end",
+      "each": "order",
+      "where": "$round - $it.placed + 1 >= $world.ttl",
+      "do": [
+        "$o = $entity($it.owner)",
+        {
+          "if": "$it.side == buy",
+          "then": [
+            "$o.locked_cash -= $it.qty * $it.price * (1 + $world.fee_rate)",
+            "$o.cash += $it.qty * $it.price * (1 + $world.fee_rate)"
+          ],
+          "else": [
+            "$o.locked_shares -= $it.qty",
+            "$o.shares += $it.qty"
+          ]
+        },
+        {
+          "emit": "order_expired",
+          "say": "Your {$it.side} order for {$it.qty} @ {$it.price|money} expired; its reserve was released.",
+          "to": "$o"
+        },
+        {
+          "remove": "$it"
+        }
+      ]
+    },
+    {
+      "name": "close",
+      "phase": "end",
+      "every": 1,
+      "do": [
+        "$r = $log($world.last_price / $world.c1)",
+        "$world.ret_n += 1",
+        "$world.ret_sum += $r",
+        "$world.ret_sq += $r * $r",
+        "$world.c3 = $world.c2",
+        "$world.c2 = $world.c1",
+        "$world.c1 = $world.last_price",
+        "$world.price_peak = $max($world.price_peak, $world.last_price)",
+        "$world.price_max_dd = $max($world.price_max_dd, ($world.price_peak - $world.last_price) / $world.price_peak)"
+      ]
+    },
+    {
+      "name": "mark_to_market",
+      "phase": "end",
+      "every": 1,
+      "do": [
+        {
+          "each": "market_maker",
+          "do": [
+            "$it.equity = $it.cash + $it.locked_cash + ($it.shares + $it.locked_shares) * $world.last_price",
+            "$it.peak_equity = $max($it.peak_equity, $it.equity)",
+            "$it.max_drawdown = $max($it.max_drawdown, ($it.peak_equity - $it.equity) / $it.peak_equity)"
+          ]
+        },
+        {
+          "each": "momentum",
+          "do": [
+            "$it.equity = $it.cash + $it.locked_cash + ($it.shares + $it.locked_shares) * $world.last_price",
+            "$it.peak_equity = $max($it.peak_equity, $it.equity)",
+            "$it.max_drawdown = $max($it.max_drawdown, ($it.peak_equity - $it.equity) / $it.peak_equity)"
+          ]
+        },
+        {
+          "each": "value",
+          "do": [
+            "$it.equity = $it.cash + $it.locked_cash + ($it.shares + $it.locked_shares) * $world.last_price",
+            "$it.peak_equity = $max($it.peak_equity, $it.equity)",
+            "$it.max_drawdown = $max($it.max_drawdown, ($it.peak_equity - $it.equity) / $it.peak_equity)"
+          ]
+        }
+      ]
+    }
+  ],
+  "views": {
+    "market": {
+      "title": "Market",
+      "show": "Last {$world.last_price|money} (round high {$world.round_high|money}, low {$world.round_low|money}) · reference {$world.ref_price|money}, halt if a trade prints outside {$world.ref_price * (1 - $world.band)|money}–{$world.ref_price * (1 + $world.band)|money} · volume this round {$world.round_volume}, all rounds {$world.volume} · VWAP {$world.notional / $world.volume if $world.volume > 0 else null|money} · fee {$world.fee_rate * 10000|1} bps per side{$text(' · TRADING HALTED' if $world.halted else '')}"
+    },
+    "asks": {
+      "title": "Book: sell orders (best first)",
+      "of": "order",
+      "where": "$it.side == sell",
+      "sort": "$it.price * 1000000 + $it.seq",
+      "limit": 6,
+      "show": "[{id}] ask {qty} @ {price|money}{$text(' (yours)' if $it.owner == $actor.id else '')}",
+      "empty": "No sell orders resting."
+    },
+    "bids": {
+      "title": "Book: buy orders (best first)",
+      "of": "order",
+      "where": "$it.side == buy",
+      "sort": "$it.price * 1000000 - $it.seq",
+      "desc": true,
+      "limit": 6,
+      "show": "[{id}] bid {qty} @ {price|money}{$text(' (yours)' if $it.owner == $actor.id else '')}",
+      "empty": "No buy orders resting."
+    },
+    "depth": {
+      "title": "Full book",
+      "of": "order",
+      "sort": "$it.price",
+      "desc": true,
+      "look": true,
+      "show": "[{id}] {side} {qty} @ {price|money}",
+      "empty": "The book is empty."
+    },
+    "tape": {
+      "title": "Recent trades (newest first)",
+      "of": "$records(trades)",
+      "sort": "$i",
+      "desc": true,
+      "limit": 5,
+      "show": "round {$it.round}: {$it.qty} @ {$it.price|money} ({$it.aggressor}-initiated)",
+      "empty": "No trades yet."
+    },
+    "account": {
+      "title": "Your account",
+      "show": "Cash {cash|money} free + {locked_cash|money} reserved · shares {shares} free + {locked_shares} reserved · equity at last price {$actor.cash + $actor.locked_cash + ($actor.shares + $actor.locked_shares) * $world.last_price|money} · P&L {$actor.cash + $actor.locked_cash + ($actor.shares + $actor.locked_shares) * $world.last_price - $actor.start_equity|money} · fees paid {fees_paid|money}"
+    },
+    "my_orders": {
+      "title": "Your resting orders",
+      "of": "order",
+      "where": "$it.owner == $actor.id",
+      "sort": "$it.seq",
+      "show": "[{id}] {side} {qty} @ {price|money}, placed round {placed}, expires after round {$it.placed + $world.ttl - 1}",
+      "empty": "You have no resting orders."
+    },
+    "inventory": {
+      "for": "market_maker",
+      "title": "Inventory",
+      "show": "Position {$actor.shares + $actor.locked_shares} shares vs {start_shares} at start ({$actor.shares + $actor.locked_shares - $actor.start_shares} net)."
+    },
+    "trend": {
+      "for": "momentum",
+      "title": "Trend",
+      "show": "Closes three rounds ago → last round: {$world.c3|money} → {$world.c2|money} → {$world.c1|money}; now {$world.last_price|money} ({$world.last_price / $world.c1 - 1|pct} this round)."
+    },
+    "valuation": {
+      "for": "value",
+      "title": "Your valuation",
+      "show": "Your private fair-value estimate is {private_value|money}; the last price is {$world.last_price / $actor.private_value - 1|pct} versus it."
+    }
+  },
+  "metrics": {
+    "last_price": {
+      "expr": "$world.last_price",
+      "unit": "$"
+    },
+    "fair_value": {
+      "expr": "$world.fair_value",
+      "unit": "$"
+    },
+    "round_volume": {
+      "expr": "$world.round_volume",
+      "unit": "shares"
+    },
+    "resting_orders": "$count(order)",
+    "halted": "1 if $world.halted else 0",
+    "pnl_market_maker": "$sum(market_maker, $it.equity - $it.start_equity)",
+    "pnl_momentum": "$sum(momentum, $it.equity - $it.start_equity)",
+    "pnl_value": "$sum(value, $it.equity - $it.start_equity)"
+  },
+  "outputs": {
+    "last_price": {
+      "expr": "$world.last_price",
+      "type": "number",
+      "description": "Last traded price."
+    },
+    "vwap": {
+      "expr": "$round($world.notional / $world.volume, 4) if $world.volume > 0 else null",
+      "type": "number",
+      "description": "Volume-weighted average trade price over the run."
+    },
+    "volatility": {
+      "expr": "$round($sqrt($max(0, ($world.ret_sq - $world.ret_sum * $world.ret_sum / $world.ret_n) / ($world.ret_n - 1))), 6) if $world.ret_n > 1 else 0",
+      "type": "number",
+      "description": "Standard deviation of round-to-round log returns of closing prices."
+    },
+    "volume": {
+      "expr": "$world.volume",
+      "type": "int",
+      "description": "Shares traded."
+    },
+    "trades": {
+      "expr": "$world.trades",
+      "type": "int",
+      "description": "Number of fills."
+    },
+    "pnl_market_maker": {
+      "expr": "$round($sum(market_maker, $it.equity - $it.start_equity), 2)",
+      "type": "number",
+      "description": "Total P&L of market makers, marked at the last price."
+    },
+    "pnl_momentum": {
+      "expr": "$round($sum(momentum, $it.equity - $it.start_equity), 2)",
+      "type": "number",
+      "description": "Total P&L of momentum traders."
+    },
+    "pnl_value": {
+      "expr": "$round($sum(value, $it.equity - $it.start_equity), 2)",
+      "type": "number",
+      "description": "Total P&L of value traders."
+    },
+    "price_max_drawdown": {
+      "expr": "$round($world.price_max_dd, 6)",
+      "type": "number",
+      "description": "Largest peak-to-trough fall of the round closes, as a fraction."
+    },
+    "worst_trader_drawdown": {
+      "expr": "$round($max($max(market_maker, $it.max_drawdown), $max(momentum, $it.max_drawdown), $max(value, $it.max_drawdown)), 6)",
+      "type": "number",
+      "description": "Largest peak-to-trough equity fall of any single trader, as a fraction."
+    },
+    "halts": {
+      "expr": "$world.halts",
+      "type": "int",
+      "description": "Circuit-breaker halts."
+    },
+    "fees_collected": {
+      "expr": "$round($world.fees, 2)",
+      "type": "number",
+      "description": "Fees collected by the exchange."
+    },
+    "final_fair_value": {
+      "expr": "$world.fair_value",
+      "type": "number"
+    }
+  },
+  "invariants": [
+    {
+      "expr": "$abs($sum(market_maker, $it.cash + $it.locked_cash) + $sum(momentum, $it.cash + $it.locked_cash) + $sum(value, $it.cash + $it.locked_cash) + $world.fees - $world.total_cash) < 0.0001",
+      "why": "Cash is conserved: trader cash (free + reserved) plus fees collected equals the starting total."
+    },
+    {
+      "expr": "$sum(market_maker, $it.shares + $it.locked_shares) + $sum(momentum, $it.shares + $it.locked_shares) + $sum(value, $it.shares + $it.locked_shares) == $world.total_shares",
+      "why": "Shares are conserved."
+    },
+    {
+      "expr": "$sum(market_maker, $it.locked_shares) + $sum(momentum, $it.locked_shares) + $sum(value, $it.locked_shares) == $sum(order, $it.qty, $it.side == sell)",
+      "why": "Reserved shares equal the shares offered on the book."
+    },
+    {
+      "expr": "$abs($sum(market_maker, $it.locked_cash) + $sum(momentum, $it.locked_cash) + $sum(value, $it.locked_cash) - $sum(order, $it.qty * $it.price * (1 + $world.fee_rate), $it.side == buy)) < 0.0001",
+      "why": "Reserved cash equals the cost of resting bids plus fees."
+    },
+    {
+      "expr": "$all(market_maker, $it.cash > -0.0001 and $it.shares >= 0 and $it.locked_cash > -0.0001 and $it.locked_shares >= 0) and $all(momentum, $it.cash > -0.0001 and $it.shares >= 0 and $it.locked_cash > -0.0001 and $it.locked_shares >= 0) and $all(value, $it.cash > -0.0001 and $it.shares >= 0 and $it.locked_cash > -0.0001 and $it.locked_shares >= 0)",
+      "why": "No trader holds negative cash or shares."
+    },
+    {
+      "expr": "$all(order, $it.qty > 0)",
+      "why": "Filled orders leave the book."
+    },
+    {
+      "expr": "not ($any(order, $it.side == buy) and $any(order, $it.side == sell)) or $max(order, $it.price, $it.side == buy) < $min(order, $it.price, $it.side == sell)",
+      "why": "The book is never crossed: the best bid is below the best ask."
+    }
+  ],
+  "policies": {
+    "quote": {
+      "repeat": true,
+      "rules": [
+        {
+          "when": "$any(order, $it.owner == $actor.id and $it.placed < $round)",
+          "do": "cancel_all"
+        },
+        {
+          "when": "not $any(order, $it.owner == $actor.id and $it.side == buy) and $actor.cash > $world.last_price * 25",
+          "do": "place_order",
+          "with": {
+            "side": "buy",
+            "qty": 20,
+            "price": "$round($world.last_price * (0.99 - 0.02 * ($actor.shares + $actor.locked_shares - $actor.start_shares) / $actor.start_shares), 2)"
+          }
+        },
+        {
+          "when": "not $any(order, $it.owner == $actor.id and $it.side == sell) and $actor.shares >= 20",
+          "do": "place_order",
+          "with": {
+            "side": "sell",
+            "qty": 20,
+            "price": "$round($world.last_price * (1.01 - 0.02 * ($actor.shares + $actor.locked_shares - $actor.start_shares) / $actor.start_shares), 2)"
+          }
+        },
+        {
+          "do": "pass"
+        }
+      ]
+    },
+    "trend": {
+      "rules": [
+        {
+          "when": "($world.last_price > $world.c1 * 1.01 or $world.c1 > $world.c3 * 1.02) and $actor.cash > $world.last_price * 12",
+          "do": "place_order",
+          "with": {
+            "side": "buy",
+            "qty": 10,
+            "price": "$round($world.last_price * 1.01, 2)"
+          }
+        },
+        {
+          "when": "($world.last_price < $world.c1 * 0.99 or $world.c1 < $world.c3 * 0.98) and $actor.shares >= 10",
+          "do": "place_order",
+          "with": {
+            "side": "sell",
+            "qty": 10,
+            "price": "$round($world.last_price * 0.99, 2)"
+          }
+        },
+        {
+          "do": "pass"
+        }
+      ]
+    },
+    "fundamental": {
+      "repeat": true,
+      "rules": [
+        {
+          "when": "$any(order, $it.owner == $actor.id and $it.placed < $round)",
+          "do": "cancel_all"
+        },
+        {
+          "when": "$world.last_price < $actor.private_value * 0.98 and not $any(order, $it.owner == $actor.id and $it.side == buy) and $actor.cash > $actor.private_value * 16",
+          "do": "place_order",
+          "with": {
+            "side": "buy",
+            "qty": 15,
+            "price": "$round($actor.private_value * 0.98, 2)"
+          }
+        },
+        {
+          "when": "$world.last_price > $actor.private_value * 1.02 and not $any(order, $it.owner == $actor.id and $it.side == sell) and $actor.shares >= 15",
+          "do": "place_order",
+          "with": {
+            "side": "sell",
+            "qty": 15,
+            "price": "$round($actor.private_value * 1.02, 2)"
+          }
+        },
+        {
+          "do": "pass"
+        }
+      ]
+    }
+  }
+}

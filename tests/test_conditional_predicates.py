@@ -1,11 +1,11 @@
 import pytest
 
-from fg_env_kernel.action import Effect, EffectCondition, EffectOperation
-from fg_env_kernel.engine import SimulationEngine
-from fg_env_kernel.entity import Entity
-from fg_env_kernel.predicates import evaluate
-from fg_env_kernel.runtime.conditions import _evaluate_world_condition
-from fg_env_kernel.state import WorldState
+from fg_env.action import Effect, EffectCondition, EffectOperation
+from fg_env.engine import SimulationEngine
+from fg_env.entity import Entity
+from fg_env.predicates import evaluate
+from fg_env.runtime.conditions import _evaluate_world_condition
+from fg_env.state import WorldState
 
 
 @pytest.fixture
@@ -98,8 +98,8 @@ def test_explicit_defined_check_allows_missing_and_zero(context):
     {"if": {"expr": "$target.is_fraud == true"}},
 ])
 def test_composed_effects_use_the_canonical_condition_evaluator(context, clause):
-    from fg_env_kernel.composition import _shim_engine_for_ctx
-    from fg_env_kernel.effect_context import EffectContext
+    from fg_env.composition import _shim_engine_for_ctx
+    from fg_env.effect_context import EffectContext
     engine, actor, target = context
     shim = _shim_engine_for_ctx(EffectContext(state=engine.state, actor=actor, target=target))
     assert shim._evaluate_conditional_clause(

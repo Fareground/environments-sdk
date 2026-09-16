@@ -1,7 +1,7 @@
 """Observation APIs never fall back to private owner setup text."""
 import pytest
-from fg_env_kernel import compile_template
-from fg_env_kernel.runtime.perception import build_perception
+from fg_env.legacy import compile_template
+from fg_env.runtime.perception import build_perception
 
 
 @pytest.mark.parametrize('briefing', [None, 'Inspect to learn the concealed status.'])

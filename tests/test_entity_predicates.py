@@ -3,10 +3,10 @@ import copy
 
 import pytest
 
-from fg_env_kernel import compile_template
-from fg_env_kernel.action import ActionInstance
-from fg_env_kernel.effect_values import resolve_value
-from fg_env_kernel.predicates import evaluate, resolve
+from fg_env.legacy import compile_template
+from fg_env.action import ActionInstance
+from fg_env.effect_values import resolve_value
+from fg_env.predicates import evaluate, resolve
 from test_effect_values import WORLD
 
 

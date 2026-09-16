@@ -1,0 +1,15 @@
+{
+  "actions": 10,
+  "events": 15,
+  "events_sha256": "514a46d8f2c83bf1fe4f49051f4169b508da935754c6b8de453bfe2179a434ae",
+  "metrics": {
+    "exposed_false_share": 0.03,
+    "false_reach": 6,
+    "false_shares": 0,
+    "true_reach": 7,
+    "true_shares": 0
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 805
+}

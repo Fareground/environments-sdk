@@ -1,0 +1,13 @@
+sku,part,category,tier,sibling,list_price,unit_cost,lead_weeks,case_pack
+PAD-TOY-P,PAD-TOY,brake_pads,premium,PAD-TOY-V,89.0,48.95,1,2
+PAD-TOY-V,PAD-TOY,brake_pads,value,PAD-TOY-P,62.0,34.1,1,2
+PAD-FOR-P,PAD-FOR,brake_pads,premium,PAD-FOR-V,89.0,48.95,1,2
+PAD-FOR-V,PAD-FOR,brake_pads,value,PAD-FOR-P,62.0,34.1,1,2
+BAT-TOY-P,BAT-TOY,batteries,premium,BAT-TOY-V,199.0,123.38,2,1
+BAT-TOY-V,BAT-TOY,batteries,value,BAT-TOY-P,139.0,86.18,2,1
+BAT-FOR-P,BAT-FOR,batteries,premium,BAT-FOR-V,199.0,123.38,2,1
+BAT-FOR-V,BAT-FOR,batteries,value,BAT-FOR-P,139.0,86.18,2,1
+WIP-TOY-P,WIP-TOY,wipers,premium,WIP-TOY-V,29.0,11.6,1,4
+WIP-TOY-V,WIP-TOY,wipers,value,WIP-TOY-P,18.0,7.2,1,4
+WIP-FOR-P,WIP-FOR,wipers,premium,WIP-FOR-V,29.0,11.6,1,4
+WIP-FOR-V,WIP-FOR,wipers,value,WIP-FOR-P,18.0,7.2,1,4

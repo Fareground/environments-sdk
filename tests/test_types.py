@@ -1,6 +1,6 @@
 """Tests for kernel/types.py"""
 import pytest
-from fg_env_kernel.types import PropertyType, PropertySchema
+from fg_env.types import PropertyType, PropertySchema
 
 
 class TestPropertySchema:

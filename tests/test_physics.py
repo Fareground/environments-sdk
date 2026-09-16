@@ -8,7 +8,7 @@ import math
 
 import pytest
 
-from fg_env_kernel.physics import (
+from fg_env.physics import (
     EntitySource,
     EntityWriteback,
     PhysicsExprError,

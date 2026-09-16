@@ -1,0 +1,67 @@
+{
+  "fg_env": "1",
+  "name": "Wolf-sheep predation",
+  "description": "Sheep graze grass that regrows after a delay; wolves eat sheep. Sheep step to a neighbouring cell without wolves (one with grass if they can), wolves step towards sheep; both spend one unit of energy per step, starve below zero and reproduce by chance, halving their energy (Mesa's rules). Grass is a layer of regrowth countdowns, not an entity per cell. Wolves multiply while sheep are plentiful and crash after the sheep do.",
+  "inputs": {
+    "size": {"type": "int", "default": 20, "min": 3},
+    "sheep": {"type": "int", "default": 100, "min": 0},
+    "wolves": {"type": "int", "default": 50, "min": 0},
+    "sheep_reproduce": {"type": "number", "default": 0.04, "min": 0, "max": 1},
+    "wolf_reproduce": {"type": "number", "default": 0.05, "min": 0, "max": 1},
+    "sheep_gain": {"type": "number", "default": 4, "min": 0, "description": "Energy from eating grass."},
+    "wolf_gain": {"type": "number", "default": 20, "min": 0, "description": "Energy from eating a sheep."},
+    "regrowth": {"type": "int", "default": 30, "min": 1, "description": "Steps grass takes to grow back."}
+  },
+  "clock": {"rounds": 100, "unit": "step"},
+  "space": {
+    "grid": {"rows": "$inputs.size", "cols": "$inputs.size", "torus": true},
+    "layers": {"regrow": {"type": "int", "default": "0 if $chance(0.5) else $randint(1, $inputs.regrowth)", "min": 0,
+                          "description": "Steps until the grass here is grown (0: grown)."}}
+  },
+  "types": {
+    "animal": {"props": {"energy": 0.0}},
+    "sheep": {"extends": "animal"},
+    "wolf": {"extends": "animal"}
+  },
+  "population": [
+    {"type": "sheep", "count": "$inputs.sheep", "at": "[$randint(0, $inputs.size - 1), $randint(0, $inputs.size - 1)]",
+     "props": {"energy": "$uniform(0, 2 * $inputs.sheep_gain)"}},
+    {"type": "wolf", "count": "$inputs.wolves", "at": "[$randint(0, $inputs.size - 1), $randint(0, $inputs.size - 1)]",
+     "props": {"energy": "$uniform(0, 2 * $inputs.wolf_gain)"}}
+  ],
+  "events": [
+    {"name": "sheep", "each": "sheep", "as": "s", "order": "random", "do": [
+      "$safe = $filter($cells($s), $len($at($it, wolf)) == 0)",
+      "$grass = $filter($safe, $layer(regrow, $it) == 0)",
+      {"if": "$len($safe) > 0", "then": [{"move": "$s", "to": "$choice($grass) if $len($grass) > 0 else $choice($safe)"}]},
+      "$s.energy -= 1",
+      {"if": "$layer(regrow, $s) == 0", "then": [
+        "$s.energy += $inputs.sheep_gain",
+        {"layer": "regrow", "at": "$s", "set": "$inputs.regrowth"}]},
+      {"if": "$s.energy < 0", "then": [{"remove": "$s"}], "else": [
+        {"if": "$chance($inputs.sheep_reproduce)", "then": [
+          "$s.energy /= 2", {"create": "sheep", "at": "$s.at", "props": {"energy": "$s.energy"}}]}]}
+    ]},
+    {"name": "wolves", "each": "wolf", "as": "w", "order": "random", "do": [
+      "$hunting = $filter($cells($w), $len($at($it, sheep)) > 0)",
+      {"move": "$w", "to": "$choice($hunting) if $len($hunting) > 0 else $choice($cells($w))"},
+      "$w.energy -= 1",
+      "$prey = $choice($at($w, sheep))",
+      {"if": "$prey != null", "then": ["$w.energy += $inputs.wolf_gain", {"remove": "$prey"}]},
+      {"if": "$w.energy < 0", "then": [{"remove": "$w"}], "else": [
+        {"if": "$chance($inputs.wolf_reproduce)", "then": [
+          "$w.energy /= 2", {"create": "wolf", "at": "$w.at", "props": {"energy": "$w.energy"}}]}]}
+    ]},
+    {"name": "grass", "phase": "end", "do": [{"layer": "regrow", "set": "$value - 1"}]}
+  ],
+  "metrics": {
+    "sheep": "$count(sheep)",
+    "wolves": "$count(wolf)",
+    "grass": {"expr": "$count($cells(), $layer(regrow, $it) == 0)", "description": "Cells with grown grass."}
+  },
+  "end": [{"when": "$count(animal) == 0", "name": "extinct"}],
+  "outputs": {
+    "sheep": {"expr": "$metrics.sheep", "type": "int"},
+    "wolves": {"expr": "$metrics.wolves", "type": "int"}
+  }
+}

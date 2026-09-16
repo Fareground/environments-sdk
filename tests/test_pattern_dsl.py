@@ -14,9 +14,9 @@ adjacency graph, these close the gap for spatial/network games.
 """
 import pytest
 
-from fg_env_kernel.effects import resolve_expression
-from fg_env_kernel.entity import Entity, EntityType
-from fg_env_kernel.state import WorldState
+from fg_env.effects import resolve_expression
+from fg_env.entity import Entity, EntityType
+from fg_env.state import WorldState
 
 
 # ---------------------------------------------------------------------------
@@ -28,8 +28,8 @@ from fg_env_kernel.state import WorldState
 @pytest.fixture
 def board_world():
     """A 3x3 board with X at (0,0) and O at (1,1)."""
-    from fg_env_kernel.board_module import BoardModule
-    from fg_env_kernel.domain_module import DomainModuleManager
+    from fg_env.board_module import BoardModule
+    from fg_env.domain_module import DomainModuleManager
 
     state = WorldState()
     state.entity_types["Player"] = EntityType(name="Player", role="agent")
@@ -147,7 +147,7 @@ class TestPatternsInsidePredicates:
 
     def test_precondition_can_check_square_empty(self, board_world):
         """A move action's precondition: 'target square must be empty'."""
-        from fg_env_kernel.predicates import evaluate
+        from fg_env.predicates import evaluate
         # $params.target is [0, 1] (empty)
         expr = "$square_empty($params.target)"
         ok = evaluate(expr, params={"target": [0, 1]}, state=board_world)
@@ -160,7 +160,7 @@ class TestPatternsInsidePredicates:
         """Termination predicate: 'X has 3 in a row' — uses board_pattern,
         but we can also express it via custom expressions. Here: 'the
         board has more X than O' as an expr."""
-        from fg_env_kernel.predicates import evaluate
+        from fg_env.predicates import evaluate
         # Quick test that we can chain queries in predicates
         # — does (0,0) have an X mark? AND is (1,1) NOT empty?
         expr = "$piece_at([0,0]) == 'X' && !$square_empty([1,1])"

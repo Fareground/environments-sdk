@@ -1,7 +1,7 @@
-from fg_env_kernel.pipeline.compile import compile_template
-from fg_env_kernel.pipeline.loader import load_world
-from fg_env_kernel.pipeline.smoke import smoke_test
-from fg_env_kernel.phase_handlers import PHASE_HANDLER_REGISTRY, PhaseHandlerResult
+from fg_env.pipeline.compile import compile_template
+from fg_env.pipeline.loader import load_world
+from fg_env.pipeline.smoke import smoke_test
+from fg_env.phase_handlers import PHASE_HANDLER_REGISTRY, PhaseHandlerResult
 
 
 def schema(handler):

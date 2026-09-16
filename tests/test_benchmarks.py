@@ -19,7 +19,7 @@ dependency — these are just timed assertions with generous margins.
 import time
 
 
-from fg_env_kernel import (
+from fg_env.legacy import (
     compile_template,
     enable_engine_metrics,
     engine_metrics_enabled,
@@ -141,7 +141,7 @@ class TestEffectDispatchThroughput:
 
 class TestMetricsRegistry:
     def test_metrics_are_exportable(self):
-        from fg_env_kernel import metrics as global_metrics
+        from fg_env.legacy import metrics as global_metrics
 
         # Force a fresh registry so prior tests don't pollute
         global_metrics.reset()

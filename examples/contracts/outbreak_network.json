@@ -1,0 +1,121 @@
+{
+  "fg_env": "1",
+  "name": "Outbreak on a contact network",
+  "description": "A town of residents whose viral load and immunity evolve continuously and noisily inside each person, spread along a contact network whose links carry a setting and a closeness, with newcomers wired in by lifecycle hooks, daily weather from a data feed, and health advisories that reach the town a day late and not always.",
+  "inputs": {
+    "residents": {"type": "int", "default": 60, "min": 10, "max": 2000, "description": "Town size"},
+    "seed_cases": {"type": "int", "default": 3, "min": 1, "description": "Residents carrying the virus on day 1"},
+    "growth": {"type": "number", "default": 0.35, "min": 0, "description": "Daily growth of an untreated viral load"},
+    "clearance": {"type": "number", "default": 0.25, "min": 0, "description": "Daily clearance per unit of immunity"},
+    "spread": {"type": "number", "default": 0.08, "min": 0, "description": "Load picked up per unit of close contact with an infected load"}
+  },
+  "brief": {
+    "situation": "Millbrook's residents meet at home, at work and at school. A virus multiplies inside whoever carries it and passes along close contacts; cold days help it spread. Newcomers arrive every few days and quickly make contacts of their own.",
+    "rules": "Each day the health officer may close or reopen a setting (home visits, workplaces or schools) — contacts in a closed setting stop passing the virus — and may issue an advisory, which reaches residents the next day by word of mouth and is sometimes lost on the way.",
+    "roles": {"officer": "You are the health officer. Keep the number of sick residents and deaths low while keeping as much of town life open as you can."}
+  },
+  "clock": {"rounds": 30, "unit": "day", "start": "2026-03-01"},
+  "world": {
+    "temperature": {"type": "number", "default": 12, "min": -30, "max": 45, "unit": "°C", "description": "Today's temperature (from the weather feed)"},
+    "closed": {"type": "list", "default": [], "description": "Settings whose contacts no longer pass the virus"},
+    "deaths": {"type": "int", "default": 0, "min": 0},
+    "arrivals": {"type": "int", "default": 0, "min": 0}
+  },
+  "types": {
+    "officer": {"agent": true, "policy": "cautious", "props": {"advisories": 0}},
+    "resident": {
+      "props": {
+        "viral_load": {"type": "number", "default": 0, "min": 0, "max": 100, "description": "Virus in the body"},
+        "immunity": {"type": "number", "default": 0, "min": 0, "max": 5},
+        "sick": false
+      },
+      "on_create": [
+        "$world.arrivals += 1",
+        {"each": "$sample($filter(resident, $it.id != $outer.id), 3)", "as": "friend",
+         "do": [{"link": "contact", "from": "$it", "to": "$friend", "props": {"setting": "work", "closeness": 0.5}},
+                {"link": "contact", "from": "$friend", "to": "$it", "props": {"setting": "work", "closeness": 0.5}}]}
+      ],
+      "on_create_at_build": false,
+      "on_remove": ["$world.deaths += 1"]
+    }
+  },
+  "entities": {"officer": {"type": "officer", "name": "Dr. Reyes"}},
+  "population": [{"type": "resident", "count": "$inputs.residents",
+                  "props": {"viral_load": "10 if $i <= $inputs.seed_cases else 0"}}],
+  "relations": {
+    "contact": {"description": "Someone this resident meets regularly", "props": {
+      "setting": {"type": "enum", "values": ["home", "work", "school"], "default": "$choice(['home', 'work', 'school'])"},
+      "closeness": {"type": "number", "default": "$uniform(0.2, 1)", "min": 0, "max": 1},
+      "since": {"type": "int", "default": "$round"}
+    }}
+  },
+  "links": [{"relation": "contact", "among": "resident", "graph": "random", "degree": 4}],
+  "physics": {
+    "substeps": 8,
+    "per": {"resident": {
+      "params": {"growth": "$inputs.growth", "clearance": "$inputs.clearance", "spread": "$inputs.spread"},
+      "read": {
+        "exposure": "$sum($links($it, contact), $it.closeness * $it.target.viral_load, not ($it.setting in $world.closed))",
+        "warmth": "$world.temperature"
+      },
+      "vars": {
+        "viral_load": {"rate": "growth * viral_load * (1 - viral_load / 100) - clearance * immunity * viral_load + spread * exposure * (1 + (20 - warmth) / 40)",
+                       "noise": "0.2 * viral_load"},
+        "immunity": "0.14 * viral_load / (1 + viral_load) - 0.01 * immunity"
+      },
+      "write": {"sick": "viral_load > 20"}
+    }}
+  },
+  "feeds": {
+    "weather": {"host": "weather", "into": "world.temperature", "query": {"city": "Millbrook", "date": "{$clock.date}"},
+                "fallback": "$round($normal(9, 4), 1)", "description": "Daily temperature; without a weather host a seeded draw stands in."}
+  },
+  "records": {
+    "advisories": {"fields": {"text": "text"}, "show": "Advisory: {text}", "description": "What the officer has told the town"}
+  },
+  "actions": {
+    "close_setting": {"by": "officer", "description": "Close a setting: its contacts stop passing the virus.",
+      "params": {"setting": {"type": "enum", "values": "$filter(['home', 'work', 'school'], not ($it in $world.closed))"}},
+      "do": ["$world.closed += $params.setting"], "outcome": "{$params.setting} contacts are closed."},
+    "reopen_setting": {"by": "officer", "description": "Reopen a closed setting.",
+      "when": {"expr": "$count($world.closed) > 0", "why": "Nothing is closed."},
+      "params": {"setting": {"type": "enum", "values": "$world.closed"}},
+      "do": ["$world.closed -= $params.setting"], "outcome": "{$params.setting} contacts are open again."},
+    "advise": {"by": "officer", "description": "Issue an advisory; it reaches residents tomorrow, and word of mouth sometimes loses it.",
+      "params": {"text": {"type": "text", "max_len": 200}},
+      "do": [{"post": "advisories", "text": "$params.text", "delay": 1, "drop": 0.1}, "$actor.advisories += 1"]},
+    "wait": {"by": "officer", "description": "Change nothing today.", "terminal": true}
+  },
+  "policies": {
+    "cautious": {"rules": [
+      {"when": "$count(resident, $it.sick) > 5 and not ('school' in $world.closed)", "do": "close_setting", "with": {"setting": "school"}},
+      {"when": "$count(resident, $it.sick) > 12 and not ('work' in $world.closed)", "do": "close_setting", "with": {"setting": "work"}},
+      {"when": "$count(resident, $it.sick) < 4 and 'work' in $world.closed", "do": "reopen_setting", "with": {"setting": "work"}},
+      {"when": "$count(resident, $it.sick) == 0 and 'school' in $world.closed", "do": "reopen_setting", "with": {"setting": "school"}},
+      {"do": "wait"}
+    ]}
+  },
+  "stages": [{"name": "day", "max_actions": 2}],
+  "events": [
+    {"name": "newcomer", "every": 3, "do": [{"create": "resident", "name": "Newcomer {$world.arrivals + 1}"}],
+     "say": "A newcomer moved to town."},
+    {"name": "deaths", "phase": "end", "each": "resident", "where": "$it.viral_load > 90", "do": [{"if": "$chance(0.2)", "then": [{"remove": "$it"}]}]}
+  ],
+  "views": {
+    "town": {"for": "officer", "show": "Sick: {$count(resident, $it.sick)} of {$count(resident)} · deaths {$world.deaths} · {$world.temperature}°C · closed: {$world.closed if $world.closed else 'nothing'}"},
+    "hotspots": {"for": "officer", "title": "Heaviest loads", "of": "resident", "where": "$it.sick", "sort": "$it.viral_load", "desc": true, "limit": 5,
+                 "show": "{name}: load {$fmt($it.viral_load, 1)}, {$count($links($it, contact, not ($it.setting in $world.closed)))} open contacts",
+                 "empty": "Nobody is sick."}
+  },
+  "metrics": {
+    "sick": "$count(resident, $it.sick)",
+    "mean_load": "$avg(resident, $it.viral_load)",
+    "temperature": "$world.temperature"
+  },
+  "outputs": {
+    "peak_sick": {"expr": "$max($series.sick, $it)", "type": "int", "description": "Most residents sick at once"},
+    "deaths": {"expr": "$world.deaths", "type": "int"},
+    "arrivals": {"expr": "$world.arrivals", "type": "int"},
+    "closures": {"expr": "$count($events(action), $it.action == close_setting)", "type": "int", "description": "Settings the officer closed"}
+  }
+}

@@ -3,8 +3,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from fg_env_kernel.event import EventLog, SimEvent
-from fg_env_kernel.runtime.perception import _add_trade_history
+from fg_env.event import EventLog, SimEvent
+from fg_env.runtime.perception import _add_trade_history
 
 
 def trade(actor='a', amount=3.1, action='buy', round_number=1):

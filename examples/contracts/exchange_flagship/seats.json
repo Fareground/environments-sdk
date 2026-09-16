@@ -1,0 +1,61 @@
+{
+  "fg_env": "1",
+  "name": "Exchange flagship: trader seats",
+  "description": "Seats for model traders: a persona each, a compact picture of the tape once per decision, the venue's typed order tools plus a private rationale, and a coded stand-in policy so the environment runs without a model.",
+  "types": {
+    "seat": {"extends": "trader", "policy": "seat_trend", "description": "A model trader's seat.",
+             "props": {"persona": {"type": "text", "default": ""}}}
+  },
+  "population": [
+    {"type": "seat", "count": "$inputs.seats", "id": "seat_{$i}", "name": "Seat {$i}",
+     "props": {"cash": "$inputs.seat_cash"},
+     "mix": [
+       {"name": "market_maker", "props": {"persona": "Market maker"}, "brief": "You make markets: quote both sides, earn the spread, keep inventory small."},
+       {"name": "momentum", "props": {"persona": "Momentum PM"}, "brief": "You ride trends that have started and cut them when they fade."},
+       {"name": "mean_reversion", "props": {"persona": "Mean-reversion trader"}, "brief": "You fade stretched moves and take profit when price returns to normal."},
+       {"name": "value", "props": {"persona": "Value investor"}, "brief": "You judge what the stock is worth from the news and trade the gap patiently."},
+       {"name": "retail", "props": {"persona": "Retail trader"}, "brief": "You trade on headlines and recent moves with small size."},
+       {"name": "passive", "props": {"persona": "Passive mandate"}, "brief": "You execute a steady allocation with little regard for short-term moves."}
+     ]}
+  ],
+  "records": {
+    "rationale": {"fields": {"text": "text"}, "show": "{text}", "visible": "$viewer.id == $it.author", "notify": false,
+                  "description": "Each seat's own one-line reasons, private to it."}
+  },
+  "actions": {
+    "explain": {"by": "seat", "description": "Write down, privately, the one-line reason for this decision (kept for your review).",
+                "params": {"text": {"type": "text", "description": "Your reason, one line (kept to 400 characters)."}},
+                "per_turn": 1, "private": true, "do": {"post": "rationale", "text": "$substr($params.text, 0, 400)"}, "outcome": "Noted."}
+  },
+  "views": {
+    "venue": {"for": "seat", "title": "Session",
+              "show": "{$persona_line($actor)}DEMO · bar {$bar()} of {$inputs.bars} · tick {$book(demo).tick} · lot {$book(demo).lot} · fees: maker {$book(demo).maker_fee_bps} bps, taker {$book(demo).taker_fee_bps} bps · shorts up to 2× equity · you decide every {$inputs.decision_every_bars} bar(s){$' · the circuit breaker halted trading last bar' if $len($records(demo_bars)) > 0 and $last($records(demo_bars)).halted else ''}"},
+    "moves": {"for": "seat", "title": "Price moves",
+              "show": "Last {$book(demo).last|money} · spread {$spread_bps()|1} bps · change over 1 bar {$change(1)|pct1}, 5 bars {$change(5)|pct1}, 20 bars {$change(20)|pct1} · halted bars so far {$count($records(demo_bars), $it.halted)} · stop-loss liquidations so far {$book(demo).liquidations}"},
+    "recent_bars": {"for": "seat", "title": "Recent bars (newest first)", "of": "$reverse($slice($records(demo_bars), -8))",
+                    "show": "bar {bar}: O {open|money} H {high|money} L {low|money} C {close|money} V {volume|int}", "empty": "No bars yet."},
+    "flow": {"for": "seat", "title": "Aggressive flow last bar by trader kind", "of": "$flow_rows()",
+             "show": "{kind}: bought {buy|int}, sold {sell|int}"},
+    "headlines": {"for": "seat", "title": "News in play", "of": "$world.news",
+                  "show": "{headline} (until bar {until})"}
+  },
+  "defs": {
+    "persona_line": {"args": ["seat"], "expr": "$seat.persona + ' · ' if $seat.persona else ''"},
+    "closes": {"expr": "$map($seed_bars(), $it.close) + $bar_closes()", "description": "Seed closes then the session's bar closes."},
+    "change": {"args": ["bars"], "expr": "$last($closes()) / $slice($closes(), -$bars - 1)[0] - 1 if $len($closes()) > $bars else 0"},
+    "spread_bps": {"expr": "10000 * $book(demo).spread / $book(demo).mid if $book(demo).spread else 0"},
+    "last_bar_flow": {"expr": "$last($records(demo_bars)).flow if $len($records(demo_bars)) > 0 else {}"},
+    "flow_rows": {"expr": "$map($sort($keys($last_bar_flow())), {kind: $it, buy: $last_bar_flow()[$it].buy, sell: $last_bar_flow()[$it].sell})"},
+    "tenth_of_equity": {"args": ["trader"], "expr": "$floor(0.1 * $book_account(demo, $trader).equity / $book(demo).last)",
+                        "description": "Shares worth a tenth of a trader's equity (the platform's auto size)."}
+  },
+  "policies": {
+    "seat_trend": {"rules": [
+      {"when": "$change(5) > 0.01 and $book_account(demo, $actor).position <= 0", "do": "demo_buy",
+       "with": {"qty": "$max(1, $min($book_account(demo, $actor).max_buy, $tenth_of_equity($actor)))"}},
+      {"when": "$change(5) < -0.01 and $book_account(demo, $actor).position >= 0", "do": "demo_sell",
+       "with": {"qty": "$max(1, $min($book_account(demo, $actor).max_sell, $tenth_of_equity($actor)))"}},
+      {"do": "pass"}
+    ]}
+  }
+}

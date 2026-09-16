@@ -2,7 +2,7 @@ import copy
 
 import pytest
 
-from fg_env_kernel.pipeline.loader import WorldTemplate, build_world_state
+from fg_env.pipeline.loader import WorldTemplate, build_world_state
 
 
 @pytest.mark.parametrize('runtime', [

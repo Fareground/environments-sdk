@@ -1,10 +1,10 @@
 """An absent budget runs to a world outcome, without a hidden fallback cap."""
 import json
 import pytest
-from fg_env_kernel.action import ActionDefinition, ActionInstance, Effect, EffectOperation
-from fg_env_kernel.entity import Entity, EntityType
-from fg_env_kernel.engine import SimulationEngine, TerminationCondition
-from fg_env_kernel.state import WorldState
+from fg_env.action import ActionDefinition, ActionInstance, Effect, EffectOperation
+from fg_env.entity import Entity, EntityType
+from fg_env.engine import SimulationEngine, TerminationCondition
+from fg_env.state import WorldState
 
 
 def engine(**kwargs):
@@ -57,7 +57,7 @@ def test_invalid_budgets_do_not_become_unbounded(budget):
 
 
 def test_continuous_unbounded_clock_and_event_budget_survive_checkpoint():
-    from fg_env_kernel.continuous_time import ContinuousTemporalModel
+    from fg_env.continuous_time import ContinuousTemporalModel
     clock = ContinuousTemporalModel(max_time=None, max_events=None)
     sim = engine(continuous_time=clock)
     sim.on_checkpoint = lambda current: current.pause() if current.state.temporal.current_round == 202 else None

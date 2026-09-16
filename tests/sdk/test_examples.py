@@ -1,0 +1,79 @@
+"""Every shipped example contract checks clean, runs, and reproduces its golden run.
+
+Regenerate goldens after an intended behaviour change: FG_ENV_UPDATE_GOLDEN=1 pytest tests/sdk/test_examples.py
+"""
+import hashlib
+import json
+import os
+from pathlib import Path
+
+import pytest
+
+import fg_env
+
+EXAMPLES = sorted((Path(__file__).parents[2] / "examples" / "contracts").glob("*.json"))
+GOLDEN = Path(__file__).parent / "golden"
+ROUNDS = 4
+
+
+def _stable(value):
+    """Floats to 10 significant digits: Python 3.12 made float sum() more exact, and goldens must hold on every supported Python."""
+    if isinstance(value, float):
+        return float(f"{value:.10g}")
+    if isinstance(value, list):
+        return [_stable(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _stable(v) for k, v in value.items()}
+    return value
+
+
+def _fingerprint(result: fg_env.RunResult) -> dict:
+    events = json.dumps(_stable(result.events), sort_keys=True, default=str)
+    return {
+        "status": result.status,
+        "rounds": result.rounds,
+        "metrics": _stable(result.metrics),
+        "events": len(result.events),
+        "events_sha256": hashlib.sha256(events.encode()).hexdigest(),
+        "actions": result.stats["actions"],
+        "wakes": result.stats["wakes"],
+    }
+
+
+@pytest.mark.parametrize("path", EXAMPLES, ids=[p.stem for p in EXAMPLES])
+def test_example_contract(path: Path) -> None:
+    errors = [str(i) for i in fg_env.check(path) if i.severity == "error"]
+    assert errors == []
+    result = fg_env.load(path, seed=7).run(rounds=ROUNDS)
+    assert result.status in ("running", "completed", "ended"), result.error
+    again = fg_env.load(path, seed=7).run(rounds=ROUNDS)
+    assert _fingerprint(again) == _fingerprint(result)  # deterministic under a seed
+    golden = GOLDEN / f"{path.stem}.json"
+    if os.environ.get("FG_ENV_UPDATE_GOLDEN") or not golden.exists():
+        golden.write_text(json.dumps(_fingerprint(result), indent=2, sort_keys=True, default=str) + "\n")
+    assert _fingerprint(result) == json.loads(golden.read_text())
+
+
+@pytest.mark.parametrize("path", EXAMPLES, ids=[p.stem for p in EXAMPLES])
+def test_example_resumes_exactly(path: Path) -> None:
+    """A run split by a JSON snapshot, or stopped part-way through a round, ends exactly like one straight run."""
+    straight = fg_env.load(path, seed=11).run(rounds=ROUNDS).to_dict()
+
+    env = fg_env.load(path, seed=11)
+    env.run(rounds=1)
+    if not env.finished:
+        env = fg_env.Env.restore(path, json.loads(json.dumps(env.snapshot())))
+        env.run(rounds=ROUNDS - 1)
+    assert env.result().to_dict() == straight
+
+    points = {"n": 0}
+
+    def stop_part_way(_env: fg_env.Env) -> bool:
+        points["n"] += 1
+        return points["n"] == 7
+
+    env = fg_env.load(path, seed=11)
+    env.run(rounds=ROUNDS, stop=stop_part_way)
+    if env.status == "stopped":
+        env.run(rounds=ROUNDS - env.round + (1 if env._in_round else 0))
+    assert env.result().to_dict() == straight

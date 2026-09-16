@@ -1,0 +1,105 @@
+# fg-env playthrough: Kuhn poker
+Game: kuhn_poker@f482b01f:4642e142
+Seed: 1
+Seats: 0 p0, 1 p1
+Dynamics: sequential; chance: explicit; information: imperfect; utility: zero_sum
+Action space: 3 ids
+
+## Brief of seat 0 (p0)
+  | # Kuhn poker
+  | Two players, a deck of three cards (1, 2, 3), one card each, ante 1.
+  | 
+  | ## Rules
+  | P0 acts first: pass or bet 1. A bet facing a bet calls; a pass facing a bet folds. The higher card wins at showdown.
+  | 
+  | ## You
+  | You are P0 (player, id p0).
+  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+
+## Brief of seat 1 (p1)
+  | # Kuhn poker
+  | Two players, a deck of three cards (1, 2, 3), one card each, ante 1.
+  | 
+  | ## Rules
+  | P0 acts first: pass or bet 1. A bet facing a bet calls; a pass facing a bet folds. The higher card wins at showdown.
+  | 
+  | ## You
+  | You are P1 (player, id p1).
+  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+
+# State 0
+Current player: chance
+Chance outcomes: deal p0: 1 (p=0.333333), deal p0: 2 (p=0.333333), deal p0: 3 (p=0.333333)
+Seat 0 (p0) reads:
+  | Hand 1 of 1 · betting
+  | 
+  | Your card: 0. Betting so far (P0 first): none.
+Seat 0 information state: f66a2bda11728954
+Seat 1 (p1) reads:
+  | Hand 1 of 1 · betting
+  | 
+  | Your card: 0. Betting so far (P0 first): none.
+Seat 1 information state: fd1f9612bd87a9b3
+Returns: [0, 0]
+Chosen: deal p0: 2
+Step: {"chance": 1}
+
+# State 1
+Current player: chance
+Chance outcomes: deal p1: 1 (p=0.5), deal p1: 3 (p=0.5)
+Seat 0 (p0) reads:
+  | Hand 1 of 1 · betting
+  | 
+  | Your card: 2. Betting so far (P0 first): none.
+Seat 0 information state: f6ad431830c0e871
+Seat 1 (p1) reads:
+  | Hand 1 of 1 · betting
+  | 
+  | Your card: 0. Betting so far (P0 first): none.
+Seat 1 information state: fd1f9612bd87a9b3
+Returns: [0, 0]
+Chosen: deal p1: 3
+Step: {"chance": 1}
+
+# State 2
+Current player: 0
+Legal calls of seat 0: [1] pass; [2] bet
+Seat 0 (p0) reads:
+  | Hand 1 of 1 · betting
+  | Now: It is your turn.
+  | 
+  | Your card: 2. Betting so far (P0 first): none.
+Seat 0 information state: f6ad431830c0e871
+Seat 1 (p1) reads:
+  | Hand 1 of 1 · betting
+  | 
+  | Your card: 3. Betting so far (P0 first): none.
+Seat 1 information state: 574cc81ab3d58b3a
+Returns: [0, 0]
+Chosen: seat 0: bet
+Step: {"args": {}, "seat": 0, "tool": "bet"}
+
+# State 3
+Current player: 1
+Legal calls of seat 1: [1] pass; [2] bet
+Seat 0 (p0) reads:
+  | Hand 1 of 1 · betting
+  | 
+  | Your card: 2. Betting so far (P0 first): bet.
+Seat 0 information state: f1934ac2f8ea5f97
+Seat 1 (p1) reads:
+  | Hand 1 of 1 · betting
+  | Now: Your turn again.
+  | 
+  | Since your last turn:
+  | - P0: bet.
+  | 
+  | Your card: 3. Betting so far (P0 first): bet.
+Seat 1 information state: 24aedfe7ef141653
+Returns: [0, 0]
+Chosen: seat 1: bet
+Step: {"args": {}, "seat": 1, "tool": "bet"}
+
+# State 4
+Terminal
+Returns: [-2, 2]

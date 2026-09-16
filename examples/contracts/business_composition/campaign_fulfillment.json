@@ -1,0 +1,481 @@
+{
+  "fg_env": "1",
+  "name": "Campaign audiences, customer decisions and fulfillment",
+  "description": "Acceptance composition, not a calibrated forecast. Two creators have overlapping audiences. Adoption means consideration, not a purchase. Customer policy uses private willingness and budget; purchases reserve stock and arrive later.",
+  "clock": {
+    "rounds": "$inputs.days",
+    "unit": "day"
+  },
+  "inputs": {
+    "days": {
+      "type": "int",
+      "default": 6,
+      "min": 1,
+      "max": 30
+    },
+    "campaign": {
+      "type": "bool",
+      "default": true
+    },
+    "influence": {
+      "type": "number",
+      "default": 0.55,
+      "min": 0,
+      "max": 1
+    },
+    "price": {
+      "type": "number",
+      "default": 8,
+      "min": 1
+    },
+    "stock": {
+      "type": "int",
+      "default": 20,
+      "min": 0
+    },
+    "delivery_delay": {
+      "type": "int",
+      "default": 2,
+      "min": 1,
+      "max": 20
+    }
+  },
+  "world": {
+    "spend": 0,
+    "orders": 0,
+    "delivered": 0
+  },
+  "types": {
+    "holder": {},
+    "person": {
+      "extends": "holder"
+    },
+    "creator": {
+      "extends": "person"
+    },
+    "brand": {
+      "extends": "holder",
+      "agent": true,
+      "policy": "campaign_manager"
+    },
+    "customer": {
+      "extends": "person",
+      "agent": true,
+      "policy": "buyer",
+      "props": {
+        "willingness": {
+          "type": "number",
+          "default": 8,
+          "private": true
+        },
+        "considering": {
+          "type": "bool",
+          "default": false,
+          "private": true
+        },
+        "ordered": {
+          "type": "bool",
+          "default": false,
+          "private": true
+        },
+        "delivered": {
+          "type": "bool",
+          "default": false,
+          "private": true
+        }
+      }
+    }
+  },
+  "entities": {
+    "brand": {
+      "type": "brand",
+      "props": {
+        "cash": 100,
+        "goods": "{'unit': $inputs.stock}"
+      }
+    },
+    "agency": {
+      "type": "holder"
+    },
+    "warehouse": {
+      "type": "holder"
+    },
+    "creator_a": {
+      "type": "creator"
+    },
+    "creator_b": {
+      "type": "creator"
+    },
+    "c1": {
+      "type": "customer",
+      "props": {
+        "cash": 20,
+        "willingness": 8,
+        "considering": true
+      }
+    },
+    "c2": {
+      "type": "customer",
+      "props": {
+        "cash": 20,
+        "willingness": 10,
+        "considering": false
+      }
+    },
+    "c3": {
+      "type": "customer",
+      "props": {
+        "cash": 20,
+        "willingness": 12,
+        "considering": false
+      }
+    },
+    "c4": {
+      "type": "customer",
+      "props": {
+        "cash": 20,
+        "willingness": 6,
+        "considering": false
+      }
+    },
+    "c5": {
+      "type": "customer",
+      "props": {
+        "cash": 20,
+        "willingness": 8,
+        "considering": false
+      }
+    },
+    "c6": {
+      "type": "customer",
+      "props": {
+        "cash": 20,
+        "willingness": 10,
+        "considering": false
+      }
+    },
+    "c7": {
+      "type": "customer",
+      "props": {
+        "cash": 20,
+        "willingness": 12,
+        "considering": false
+      }
+    },
+    "c8": {
+      "type": "customer",
+      "props": {
+        "cash": 20,
+        "willingness": 6,
+        "considering": false
+      }
+    },
+    "c9": {
+      "type": "customer",
+      "props": {
+        "cash": 4,
+        "willingness": 8,
+        "considering": false
+      }
+    },
+    "c10": {
+      "type": "customer",
+      "props": {
+        "cash": 20,
+        "willingness": 10,
+        "considering": true
+      }
+    },
+    "c11": {
+      "type": "customer",
+      "props": {
+        "cash": 20,
+        "willingness": 12,
+        "considering": true
+      }
+    },
+    "c12": {
+      "type": "customer",
+      "props": {
+        "cash": 20,
+        "willingness": 6,
+        "considering": false
+      }
+    }
+  },
+  "relations": {
+    "audience": {}
+  },
+  "links": [
+    {
+      "relation": "audience",
+      "from": "creator_a",
+      "to": "c1"
+    },
+    {
+      "relation": "audience",
+      "from": "creator_a",
+      "to": "c2"
+    },
+    {
+      "relation": "audience",
+      "from": "creator_a",
+      "to": "c3"
+    },
+    {
+      "relation": "audience",
+      "from": "creator_a",
+      "to": "c4"
+    },
+    {
+      "relation": "audience",
+      "from": "creator_a",
+      "to": "c5"
+    },
+    {
+      "relation": "audience",
+      "from": "creator_a",
+      "to": "c6"
+    },
+    {
+      "relation": "audience",
+      "from": "creator_b",
+      "to": "c4"
+    },
+    {
+      "relation": "audience",
+      "from": "creator_b",
+      "to": "c5"
+    },
+    {
+      "relation": "audience",
+      "from": "creator_b",
+      "to": "c6"
+    },
+    {
+      "relation": "audience",
+      "from": "creator_b",
+      "to": "c7"
+    },
+    {
+      "relation": "audience",
+      "from": "creator_b",
+      "to": "c8"
+    },
+    {
+      "relation": "audience",
+      "from": "creator_b",
+      "to": "c9"
+    }
+  ],
+  "mechanisms": {
+    "money": {
+      "kind": "economy",
+      "mode": "ledger",
+      "who": "holder",
+      "currencies": {
+        "cash": {}
+      }
+    },
+    "goods": {
+      "kind": "economy",
+      "mode": "inventory",
+      "who": "holder",
+      "items": {
+        "unit": {}
+      },
+      "actions": []
+    },
+    "awareness": {
+      "kind": "social",
+      "mode": "diffusion",
+      "who": "person",
+      "over": "audience",
+      "flow": "along",
+      "model": "cascade",
+      "p": "$inputs.influence",
+      "phase": "end",
+      "on_adopt": [
+        {
+          "if": "$it.type == 'customer'",
+          "then": [
+            "$it.considering = true"
+          ]
+        }
+      ]
+    }
+  },
+  "actions": {
+    "promote": {
+      "by": "brand",
+      "params": {
+        "creator": {
+          "type": "entity",
+          "of": "creator"
+        }
+      },
+      "when": [
+        {
+          "expr": "$inputs.campaign",
+          "why": "Campaign disabled."
+        },
+        {
+          "expr": "$actor.cash >= 5",
+          "why": "Campaign budget exhausted."
+        }
+      ],
+      "do": [
+        {
+          "economy": "money",
+          "action": "pay",
+          "currency": "cash",
+          "from": "$actor",
+          "to": "$entity(agency)",
+          "amount": 5
+        },
+        "$world.spend += 5",
+        {
+          "social": "awareness",
+          "action": "seed",
+          "item": "product",
+          "who": "$params.creator"
+        }
+      ]
+    },
+    "order": {
+      "by": "customer",
+      "when": [
+        {
+          "expr": "$actor.considering and not $actor.ordered",
+          "why": "No new purchase decision."
+        },
+        {
+          "expr": "$has($actor, cash, $inputs.price)",
+          "why": "Insufficient budget."
+        },
+        {
+          "expr": "$count_items($entity(brand), unit) >= 1",
+          "why": "Out of stock."
+        }
+      ],
+      "do": [
+        {
+          "economy": "money",
+          "action": "pay",
+          "currency": "cash",
+          "from": "$actor",
+          "to": "$entity(brand)",
+          "amount": "$inputs.price"
+        },
+        {
+          "economy": "goods",
+          "action": "give",
+          "item": "unit",
+          "from": "$entity(brand)",
+          "to": "$entity(warehouse)",
+          "qty": 1
+        },
+        "$actor.ordered = true",
+        "$world.orders += 1",
+        {
+          "after": "$inputs.delivery_delay",
+          "do": [
+            {
+              "economy": "goods",
+              "action": "give",
+              "item": "unit",
+              "from": "$entity(warehouse)",
+              "to": "$actor",
+              "qty": 1
+            },
+            "$actor.delivered = true",
+            "$world.delivered += 1"
+          ]
+        }
+      ],
+      "outcome": "Order accepted; delivery in {$inputs.delivery_delay} days."
+    }
+  },
+  "policies": {
+    "campaign_manager": {
+      "rules": [
+        {
+          "when": "$inputs.campaign and $round == 1",
+          "do": "promote",
+          "with": {
+            "creator": "creator_a"
+          }
+        },
+        {
+          "when": "$inputs.campaign and $round == 2",
+          "do": "promote",
+          "with": {
+            "creator": "creator_b"
+          }
+        }
+      ]
+    },
+    "buyer": {
+      "rules": [
+        {
+          "when": "$actor.considering and not $actor.ordered and $inputs.price <= $actor.willingness and $actor.cash >= $inputs.price and $count_items($entity(brand), unit) > 0",
+          "do": "order"
+        }
+      ]
+    }
+  },
+  "stages": [
+    {
+      "name": "campaign",
+      "actions": [
+        "promote"
+      ],
+      "turns": "sequential",
+      "max_actions": 1
+    },
+    {
+      "name": "purchase",
+      "actions": [
+        "order"
+      ],
+      "turns": "sequential",
+      "max_actions": 1
+    }
+  ],
+  "views": {
+    "business": {
+      "for": "brand",
+      "show": "Spend: {$world.spend}; orders: {$world.orders}; delivered: {$world.delivered}; available stock: {$count_items($entity(brand), unit)}."
+    },
+    "customer": {
+      "for": "customer",
+      "show": "Price: {$inputs.price}; considering: {$actor.considering}; ordered: {$actor.ordered}; delivered: {$actor.delivered}."
+    }
+  },
+  "outputs": {
+    "unique_customer_reach": "$count(customer, $spread_state($it, product) != unaware)",
+    "customer_contacts": "$sum(customer, $exposures($it, product))",
+    "considering": "$count(customer, $it.considering)",
+    "orders": "$world.orders",
+    "delivered": "$world.delivered",
+    "pending": "$world.orders - $world.delivered",
+    "available": "$count_items($entity(brand), unit)",
+    "transit": "$count_items($entity(warehouse), unit)",
+    "customer_units": "$sum(customer, $count_items($it, unit))",
+    "spend": "$world.spend",
+    "brand_cash": "$entity(brand).cash",
+    "cash_conserved": "$conserved(money)",
+    "goods_conserved": "$conserved(goods)",
+    "reached_buyers": "$count(customer, $it.ordered and $spread_state($it, product) != unaware)"
+  },
+  "invariants": [
+    {
+      "expr": "$world.orders == $world.delivered + $count_items($entity(warehouse), unit)",
+      "why": "Orders must be delivered or in transit."
+    },
+    {
+      "expr": "$inputs.stock == $count_items($entity(brand), unit) + $count_items($entity(warehouse), unit) + $sum(customer, $count_items($it, unit))",
+      "why": "Every unit stays accounted for."
+    }
+  ]
+}

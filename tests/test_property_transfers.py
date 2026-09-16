@@ -2,10 +2,10 @@ import copy
 
 import pytest
 
-from fg_env_kernel import compile_template, export_kernel_contract
-from fg_env_kernel.action import ActionInstance
-from fg_env_kernel.resolution import ResolutionResult
-from fg_env_kernel.transfers import TransferError, apply_action_effects, settle_transfers
+from fg_env.legacy import compile_template, export_kernel_contract
+from fg_env.action import ActionInstance
+from fg_env.resolution import ResolutionResult
+from fg_env.transfers import TransferError, apply_action_effects, settle_transfers
 
 
 def world(balance=100, *, amount=90, maximum=None, mode="sequential"):
@@ -207,7 +207,7 @@ def test_decimal_expression_cannot_round_an_actual_overdraft_down():
 
 
 def test_ordinary_effect_arithmetic_keeps_existing_float_semantics():
-    from fg_env_kernel.effect_values import resolve_value
+    from fg_env.effect_values import resolve_value
     assert resolve_value({"expr": "0.1 * 3"}) == 0.1 * 3
 
 

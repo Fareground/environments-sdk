@@ -1,0 +1,966 @@
+{
+  "fg_env": "1",
+  "name": "Ride-hailing city",
+  "description": "Thirty drivers serve ride requests on a 10x10 city grid in 5-minute steps. Demand follows an hourly profile with downtown rush hours; the platform can price each zone by surge. Compares no surge against surge on trips, waits, cancellations, driver earnings and utilization.",
+  "inputs": {
+    "drivers": {
+      "type": "int",
+      "default": 30,
+      "min": 1,
+      "max": 200,
+      "description": "Drivers in the city."
+    },
+    "start_hour": {
+      "type": "int",
+      "default": 6,
+      "min": 0,
+      "max": 23,
+      "unit": "hour",
+      "description": "Clock hour of the first step."
+    },
+    "hours": {
+      "type": "int",
+      "default": 14,
+      "min": 1,
+      "max": 48,
+      "unit": "hour",
+      "description": "Length of the shift simulated."
+    },
+    "demand_profile": {
+      "type": "table",
+      "columns": {
+        "hour": "int",
+        "requests_per_hour": "number",
+        "downtown_share": "number"
+      },
+      "description": "Citywide ride requests per hour and the share that start downtown, by clock hour.",
+      "default": [
+        {
+          "hour": 0,
+          "requests_per_hour": 8,
+          "downtown_share": 0.3
+        },
+        {
+          "hour": 1,
+          "requests_per_hour": 5,
+          "downtown_share": 0.3
+        },
+        {
+          "hour": 2,
+          "requests_per_hour": 4,
+          "downtown_share": 0.3
+        },
+        {
+          "hour": 3,
+          "requests_per_hour": 3,
+          "downtown_share": 0.25
+        },
+        {
+          "hour": 4,
+          "requests_per_hour": 4,
+          "downtown_share": 0.25
+        },
+        {
+          "hour": 5,
+          "requests_per_hour": 10,
+          "downtown_share": 0.25
+        },
+        {
+          "hour": 6,
+          "requests_per_hour": 25,
+          "downtown_share": 0.35
+        },
+        {
+          "hour": 7,
+          "requests_per_hour": 60,
+          "downtown_share": 0.55
+        },
+        {
+          "hour": 8,
+          "requests_per_hour": 75,
+          "downtown_share": 0.6
+        },
+        {
+          "hour": 9,
+          "requests_per_hour": 50,
+          "downtown_share": 0.5
+        },
+        {
+          "hour": 10,
+          "requests_per_hour": 35,
+          "downtown_share": 0.4
+        },
+        {
+          "hour": 11,
+          "requests_per_hour": 35,
+          "downtown_share": 0.4
+        },
+        {
+          "hour": 12,
+          "requests_per_hour": 45,
+          "downtown_share": 0.45
+        },
+        {
+          "hour": 13,
+          "requests_per_hour": 40,
+          "downtown_share": 0.4
+        },
+        {
+          "hour": 14,
+          "requests_per_hour": 32,
+          "downtown_share": 0.35
+        },
+        {
+          "hour": 15,
+          "requests_per_hour": 35,
+          "downtown_share": 0.35
+        },
+        {
+          "hour": 16,
+          "requests_per_hour": 50,
+          "downtown_share": 0.45
+        },
+        {
+          "hour": 17,
+          "requests_per_hour": 80,
+          "downtown_share": 0.6
+        },
+        {
+          "hour": 18,
+          "requests_per_hour": 75,
+          "downtown_share": 0.6
+        },
+        {
+          "hour": 19,
+          "requests_per_hour": 50,
+          "downtown_share": 0.5
+        },
+        {
+          "hour": 20,
+          "requests_per_hour": 40,
+          "downtown_share": 0.4
+        },
+        {
+          "hour": 21,
+          "requests_per_hour": 35,
+          "downtown_share": 0.35
+        },
+        {
+          "hour": 22,
+          "requests_per_hour": 25,
+          "downtown_share": 0.35
+        },
+        {
+          "hour": 23,
+          "requests_per_hour": 15,
+          "downtown_share": 0.3
+        }
+      ]
+    },
+    "surge": {
+      "type": "bool",
+      "default": true,
+      "description": "Whether the platform prices zones by surge."
+    },
+    "surge_sensitivity": {
+      "type": "number",
+      "default": 0.5,
+      "min": 0,
+      "max": 5,
+      "description": "Surge added per unit of open requests per idle driver above 1."
+    },
+    "surge_cap": {
+      "type": "number",
+      "default": 2.5,
+      "min": 1,
+      "max": 10,
+      "description": "Highest surge multiplier."
+    },
+    "rider_price_sensitivity": {
+      "type": "number",
+      "default": 0.7,
+      "min": 0,
+      "max": 5,
+      "description": "Riders still request with probability exp(-k * (surge - 1))."
+    },
+    "base_fare": {
+      "type": "number",
+      "default": 2.5,
+      "min": 0,
+      "unit": "USD"
+    },
+    "fare_per_cell": {
+      "type": "number",
+      "default": 1.5,
+      "min": 0,
+      "unit": "USD"
+    },
+    "driver_share": {
+      "type": "number",
+      "default": 0.75,
+      "min": 0,
+      "max": 1,
+      "description": "Share of the fare the driver keeps."
+    },
+    "pickup_radius": {
+      "type": "int",
+      "default": 5,
+      "min": 0,
+      "max": 18,
+      "unit": "cell",
+      "description": "Farthest pickup a driver is offered."
+    },
+    "cancel_after_min": {
+      "type": "int",
+      "default": 15,
+      "min": 5,
+      "max": 120,
+      "unit": "minute",
+      "description": "Riders cancel if not picked up within this long."
+    }
+  },
+  "brief": {
+    "situation": "A city laid out as a 10x10 grid of blocks, played in 5-minute steps starting at {$inputs.start_hour}:00. Riders request trips all day; demand peaks downtown in the morning and evening rush. You are one of {$inputs.drivers} drivers working for the platform.",
+    "rules": "Positions are (row, col); downtown is rows 3-6, cols 3-6, and the rest of the city is split into North (rows 0-2), South (rows 7-9), West and East. You drive one block per step, never diagonally. When you are free you may accept one open request you can reach before the rider gives up, drive toward a zone, go offline, or wait. After accepting you drive to the pickup and then to the destination automatically; you are paid your share ({$inputs.driver_share|pct}) of the fare when the rider is dropped off. A fare is {$inputs.base_fare|money} plus {$inputs.fare_per_cell|money} per block of trip, times the surge of the pickup zone when the ride was requested. Riders cancel if not picked up within {$inputs.cancel_after_min} minutes of requesting, even if you are on your way.",
+    "roles": {
+      "driver": "You want to earn as much as you can over the shift. Short pickups waste less time; surge zones pay more but may be far."
+    }
+  },
+  "clock": {
+    "rounds": "$inputs.hours * 12",
+    "unit": "step"
+  },
+  "space": {
+    "grid": {
+      "rows": 10,
+      "cols": 10
+    }
+  },
+  "world": {
+    "cells": {
+      "type": "list",
+      "default": "$map($range(100), [$it // 10, $it % 10])",
+      "description": "Every cell of the grid."
+    },
+    "requested": {
+      "type": "int",
+      "default": 0,
+      "description": "Ride requests riders actually placed."
+    },
+    "priced_out": {
+      "type": "int",
+      "default": 0,
+      "description": "Riders who saw the surge price and did not request."
+    },
+    "pickups": {
+      "type": "int",
+      "default": 0
+    },
+    "wait_total_min": {
+      "type": "number",
+      "default": 0
+    },
+    "completed": {
+      "type": "int",
+      "default": 0
+    },
+    "cancelled": {
+      "type": "int",
+      "default": 0
+    },
+    "gross_fares": {
+      "type": "number",
+      "default": 0
+    },
+    "platform_revenue": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "types": {
+    "zone": {
+      "description": "A pricing zone of the city.",
+      "inspect": true,
+      "props": {
+        "center": {
+          "type": "list",
+          "default": [
+            0,
+            0
+          ],
+          "description": "Cell drivers head to when repositioning here."
+        },
+        "surge": {
+          "type": "number",
+          "default": 1,
+          "min": 1,
+          "description": "Current surge multiplier."
+        },
+        "ratio": {
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "description": "Open requests per idle driver at the last pricing update."
+        }
+      }
+    },
+    "driver": {
+      "agent": true,
+      "policy": "surge_chaser",
+      "props": {
+        "status": {
+          "type": "enum",
+          "values": [
+            "idle",
+            "to_pickup",
+            "on_trip",
+            "offline"
+          ],
+          "default": "idle"
+        },
+        "job": {
+          "type": "text",
+          "default": "none",
+          "description": "Request being served."
+        },
+        "target": {
+          "type": "list",
+          "default": [
+            0,
+            0
+          ],
+          "private": true
+        },
+        "heading": {
+          "type": "text",
+          "default": "none",
+          "description": "Zone the driver is repositioning toward."
+        },
+        "earnings": {
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "private": true,
+          "description": "USD earned this shift."
+        },
+        "trips": {
+          "type": "int",
+          "default": 0
+        },
+        "online_steps": {
+          "type": "int",
+          "default": 0,
+          "private": true
+        },
+        "busy_steps": {
+          "type": "int",
+          "default": 0,
+          "private": true
+        }
+      }
+    },
+    "request": {
+      "description": "A rider waiting for or taking a trip.",
+      "props": {
+        "status": {
+          "type": "enum",
+          "values": [
+            "open",
+            "assigned",
+            "riding"
+          ],
+          "default": "open"
+        },
+        "driver": {
+          "type": "text",
+          "default": "none"
+        },
+        "dest": {
+          "type": "list",
+          "default": [
+            0,
+            0
+          ]
+        },
+        "trip": {
+          "type": "int",
+          "default": 0,
+          "min": 0
+        },
+        "fare": {
+          "type": "number",
+          "default": 0,
+          "min": 0
+        },
+        "surge": {
+          "type": "number",
+          "default": 1,
+          "min": 1
+        },
+        "zone": {
+          "type": "text",
+          "default": "downtown"
+        },
+        "created": {
+          "type": "int",
+          "default": 0
+        },
+        "deadline": {
+          "type": "int",
+          "default": 0,
+          "description": "Last step in which the rider can still be picked up."
+        }
+      }
+    }
+  },
+  "entities": {
+    "downtown": {
+      "type": "zone",
+      "name": "Downtown",
+      "props": {
+        "center": [
+          4,
+          4
+        ]
+      },
+      "at": [
+        4,
+        4
+      ]
+    },
+    "north": {
+      "type": "zone",
+      "name": "North",
+      "props": {
+        "center": [
+          1,
+          4
+        ]
+      },
+      "at": [
+        1,
+        4
+      ]
+    },
+    "south": {
+      "type": "zone",
+      "name": "South",
+      "props": {
+        "center": [
+          8,
+          5
+        ]
+      },
+      "at": [
+        8,
+        5
+      ]
+    },
+    "west": {
+      "type": "zone",
+      "name": "West",
+      "props": {
+        "center": [
+          4,
+          1
+        ]
+      },
+      "at": [
+        4,
+        1
+      ]
+    },
+    "east": {
+      "type": "zone",
+      "name": "East",
+      "props": {
+        "center": [
+          5,
+          8
+        ]
+      },
+      "at": [
+        5,
+        8
+      ]
+    }
+  },
+  "population": [
+    {
+      "type": "driver",
+      "count": "$inputs.drivers",
+      "id": "driver_{$i}",
+      "name": "Driver {$i}",
+      "at": "[$randint(0, 9), $randint(0, 9)]"
+    }
+  ],
+  "defs": {
+    "zone_of": {
+      "args": [
+        "pos"
+      ],
+      "description": "Zone id of a grid position.",
+      "expr": "'downtown' if ($pos[0] >= 3 and $pos[0] <= 6 and $pos[1] >= 3 and $pos[1] <= 6) else ('north' if $pos[0] <= 2 else ('south' if $pos[0] >= 7 else ('west' if $pos[1] <= 2 else 'east')))"
+    },
+    "hour": {
+      "expr": "($inputs.start_hour * 60 + ($round - 1) * 5) // 60 % 24",
+      "description": "Clock hour of the current step."
+    },
+    "clock_label": {
+      "expr": "$text($hour()) + ':' + ('0' if (($inputs.start_hour * 60 + ($round - 1) * 5) % 60) < 10 else '') + $text(($inputs.start_hour * 60 + ($round - 1) * 5) % 60)"
+    },
+    "demand_now": {
+      "expr": "$pick($inputs.demand_profile, $it.hour == $hour())",
+      "description": "The demand profile row for this hour."
+    },
+    "reachable": {
+      "args": [
+        "d",
+        "r"
+      ],
+      "description": "Driver d can reach open request r before its rider cancels.",
+      "expr": "$r.status == 'open' and $distance($d, $r) <= $inputs.pickup_radius and $distance($d, $r) <= $r.deadline - $round + 1"
+    },
+    "cancel_steps": {
+      "expr": "$max(1, $inputs.cancel_after_min // 5)"
+    },
+    "step_toward": {
+      "args": [
+        "pos",
+        "goal"
+      ],
+      "description": "Next cell one block toward goal, rows first.",
+      "expr": "[$pos[0] + (1 if $goal[0] > $pos[0] else -1), $pos[1]] if $pos[0] != $goal[0] else ([$pos[0], $pos[1] + (1 if $goal[1] > $pos[1] else -1)] if $pos[1] != $goal[1] else $pos)"
+    }
+  },
+  "actions": {
+    "accept": {
+      "by": "driver",
+      "description": "Accept one open ride request. You then drive one block per step to the pickup and on to the destination automatically, and are paid when the rider is dropped off.",
+      "params": {
+        "request": {
+          "type": "entity",
+          "of": "request",
+          "where": "$reachable($actor, $it)",
+          "description": "Request id from 'Open requests you can reach'."
+        }
+      },
+      "when": [
+        {
+          "expr": "$actor.status == 'idle'",
+          "why": "You can only accept a request while you are online and free."
+        }
+      ],
+      "do": [
+        "$params.request.status = assigned",
+        "$params.request.driver = $actor.id",
+        "$actor.status = to_pickup",
+        "$actor.job = $params.request.id",
+        "$actor.target = $params.request.at",
+        "$actor.heading = none"
+      ],
+      "outcome": "You accepted {$params.request.id}: pickup {$distance($actor, $params.request)} blocks away, then a {$params.request.trip}-block trip paying you {$round($params.request.fare * $inputs.driver_share, 2)|money}.",
+      "private": true
+    },
+    "reposition": {
+      "by": "driver",
+      "description": "Drive toward a zone's center while staying available. You keep receiving requests on the way and stop once you are inside the zone.",
+      "params": {
+        "zone": {
+          "type": "entity",
+          "of": "zone",
+          "where": "$zone_of($actor.at) != $it.id",
+          "description": "Zone to drive toward."
+        }
+      },
+      "when": [
+        {
+          "expr": "$actor.status == 'idle'",
+          "why": "You can only reposition while you are online and free."
+        }
+      ],
+      "do": [
+        "$actor.heading = $params.zone.id"
+      ],
+      "outcome": "Heading to {$params.zone.name}, {$distance($actor, $params.zone)} blocks to its center.",
+      "private": true
+    },
+    "go_offline": {
+      "by": "driver",
+      "description": "Stop taking rides for now. You stay where you are and can come back online later.",
+      "when": [
+        {
+          "expr": "$actor.status == 'idle'",
+          "why": "Finish your current ride before going offline."
+        }
+      ],
+      "do": [
+        "$actor.status = offline",
+        "$actor.heading = none"
+      ],
+      "outcome": "You are offline.",
+      "private": true
+    },
+    "go_online": {
+      "by": "driver",
+      "description": "Start taking rides again from where you are.",
+      "when": [
+        {
+          "expr": "$actor.status == 'offline'",
+          "why": "You are already online."
+        }
+      ],
+      "do": [
+        "$actor.status = idle"
+      ],
+      "outcome": "You are back online.",
+      "private": true
+    }
+  },
+  "stages": [
+    {
+      "name": "drivers",
+      "turns": "sequential",
+      "order": "random",
+      "who": "$it.status == 'idle' or $it.status == 'offline'",
+      "max_actions": 1,
+      "max_calls": 4,
+      "brief": "It is {$clock_label()}. Decide your move for the next 5 minutes; ending your turn without an action means you wait where you are."
+    }
+  ],
+  "events": [
+    {
+      "name": "rider_cancellations",
+      "phase": "start",
+      "each": "request",
+      "where": "$it.status != 'riding' and $round > $it.deadline",
+      "do": [
+        {
+          "if": "$it.status == 'assigned'",
+          "then": [
+            "$d = $entity($it.driver)",
+            "$d.status = idle",
+            "$d.job = none",
+            {
+              "emit": "rider_cancelled",
+              "to": "$d",
+              "say": "Your rider for {$it.id} cancelled after waiting {$inputs.cancel_after_min} minutes. You are free again."
+            }
+          ]
+        },
+        "$world.cancelled += 1",
+        {
+          "remove": "$it"
+        }
+      ]
+    },
+    {
+      "name": "new_requests",
+      "phase": "start",
+      "do": [
+        "$profile = $demand_now()",
+        "$share = $profile.downtown_share",
+        {
+          "each": "$range($poisson($profile.requests_per_hour / 12))",
+          "as": "n",
+          "do": [
+            "$origin = $choice($world.cells, ($share / 16) if $zone_of($it) == 'downtown' else ((1 - $share) / 84))",
+            "$dest = $choice($filter($world.cells, $abs($it[0] - $origin[0]) + $abs($it[1] - $origin[1]) >= 2))",
+            "$zone = $zone_of($origin)",
+            "$quote = $entity($zone).surge if $inputs.surge else 1",
+            {
+              "if": "$chance($exp(-$inputs.rider_price_sensitivity * ($quote - 1)))",
+              "then": [
+                "$trip = $abs($dest[0] - $origin[0]) + $abs($dest[1] - $origin[1])",
+                {
+                  "create": "request",
+                  "at": "$origin",
+                  "props": {
+                    "dest": "$dest",
+                    "trip": "$trip",
+                    "zone": "$zone",
+                    "surge": "$quote",
+                    "fare": "$round(($inputs.base_fare + $inputs.fare_per_cell * $trip) * $quote, 2)",
+                    "created": "$round",
+                    "deadline": "$round + $cancel_steps() - 1"
+                  }
+                },
+                "$world.requested += 1"
+              ],
+              "else": [
+                "$world.priced_out += 1"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "shift_accounting",
+      "phase": "end",
+      "each": "driver",
+      "where": "$it.status != 'offline'",
+      "do": [
+        "$it.online_steps += 1",
+        {
+          "if": "$it.status == 'to_pickup' or $it.status == 'on_trip'",
+          "then": [
+            "$it.busy_steps += 1"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "driving",
+      "phase": "end",
+      "each": "driver",
+      "where": "$it.status == 'to_pickup' or $it.status == 'on_trip' or ($it.status == 'idle' and $it.heading != 'none')",
+      "do": [
+        "$goal = $it.target if $it.status != 'idle' else $entity($it.heading).center",
+        {
+          "move": "$it",
+          "to": "$step_toward($it.at, $goal)"
+        },
+        {
+          "if": "$it.status == 'idle' and $zone_of($it.at) == $it.heading",
+          "then": [
+            "$it.heading = none"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "dropoffs",
+      "phase": "end",
+      "each": "driver",
+      "where": "$it.status == 'on_trip' and $it.at == $it.target",
+      "do": [
+        "$r = $entity($it.job)",
+        "$pay = $round($r.fare * $inputs.driver_share, 2)",
+        "$it.earnings += $pay",
+        "$it.trips += 1",
+        "$world.completed += 1",
+        "$world.gross_fares += $r.fare",
+        "$world.platform_revenue += $r.fare - $pay",
+        "$it.status = idle",
+        "$it.job = none",
+        {
+          "emit": "dropoff",
+          "to": "$it",
+          "say": "You dropped off your rider from {$r.id} and earned {$pay|money}."
+        },
+        {
+          "remove": "$r"
+        }
+      ]
+    },
+    {
+      "name": "pickups",
+      "phase": "end",
+      "each": "driver",
+      "where": "$it.status == 'to_pickup' and $it.at == $it.target",
+      "do": [
+        "$r = $entity($it.job)",
+        "$r.status = riding",
+        "$wait = ($round - $r.created + 1) * 5",
+        "$world.pickups += 1",
+        "$world.wait_total_min += $wait",
+        "$it.status = on_trip",
+        "$it.target = $r.dest",
+        {
+          "emit": "pickup",
+          "to": "$it",
+          "say": "Picked up the rider for {$r.id} after a {$wait}-minute wait; {$r.trip} blocks to go.",
+          "data": {
+            "request": "$r.id",
+            "wait_min": "$wait",
+            "round": "$round"
+          }
+        }
+      ]
+    },
+    {
+      "name": "surge_pricing",
+      "phase": "end",
+      "each": "zone",
+      "do": [
+        "$open = $count(request, $it.status == 'open' and $it.zone == $outer.id)",
+        "$idle = $count(driver, $it.status == 'idle' and $zone_of($it.at) == $outer.id)",
+        "$it.ratio = $round($open / $max(1, $idle), 2)",
+        "$it.surge = $clamp($round(1 + $inputs.surge_sensitivity * ($it.ratio - 1), 1), 1, $inputs.surge_cap) if $inputs.surge else 1"
+      ]
+    }
+  ],
+  "views": {
+    "you": {
+      "for": "driver",
+      "title": "You",
+      "show": "{name} at ({$actor.at[0]}, {$actor.at[1]}) in {$entity($zone_of($actor.at)).name} · {$get({idle: 'free', to_pickup: 'driving to a pickup', on_trip: 'carrying a rider', offline: 'offline'}, $actor.status)}{$', heading to ' + $entity($actor.heading).name if $actor.heading != 'none' else ''} · earned {earnings|money} from {trips} {$'trip' if $actor.trips == 1 else 'trips'}"
+    },
+    "requests": {
+      "for": "driver",
+      "title": "Open requests you can reach (nearest first)",
+      "when": "$actor.status == 'idle'",
+      "of": "request",
+      "where": "$reachable($actor, $it)",
+      "sort": "[$distance($actor, $it), -$it.fare]",
+      "limit": 6,
+      "show": "[{id}] pickup {$distance($actor, $it)} {$'block' if $distance($actor, $it) == 1 else 'blocks'} at ({$it.at[0]}, {$it.at[1]}) in {$entity($it.zone).name} → {trip}-block trip · you earn {$round($it.fare * $inputs.driver_share, 2)|money}{$' (surge ×' + $fmt($it.surge, '1') + ')' if $it.surge > 1 else ''} · rider cancels in {($it.deadline - $round + 1) * 5} min",
+      "empty": "No open request you can reach before its rider cancels."
+    },
+    "zones": {
+      "for": "driver",
+      "title": "Zones (open requests / idle drivers now)",
+      "of": "zone",
+      "sort": "[$it.surge, $count(request, $it.status == 'open' and $it.zone == $outer.id)]",
+      "desc": true,
+      "show": "{name}: {$count(request, $it.status == 'open' and $it.zone == $outer.id)} open / {$count(driver, $it.status == 'idle' and $zone_of($it.at) == $outer.id)} idle · {$'surge ×' + $fmt($it.surge, '1') if $inputs.surge else 'no surge pricing'} · center ({$it.center[0]}, {$it.center[1]}), {$distance($actor, $it)} {$'block' if $distance($actor, $it) == 1 else 'blocks'} away"
+    }
+  },
+  "policies": {
+    "surge_chaser": {
+      "rules": [
+        {
+          "when": "$count(request, $reachable($actor, $it)) > 0",
+          "do": "accept",
+          "with": {
+            "request": "$bottom(request, [$distance($actor, $it), -$it.fare], 1, $reachable($actor, $it))[0]"
+          }
+        },
+        {
+          "when": "$actor.status == 'idle' and $actor.heading == 'none' and $max(zone, $it.surge) >= 1.3 and $zone_of($actor.at) != $top(zone, $it.surge, 1)[0].id",
+          "do": "reposition",
+          "with": {
+            "zone": "$top(zone, $it.surge, 1)[0]"
+          }
+        },
+        {
+          "when": "$actor.status == 'offline'",
+          "do": "go_online"
+        },
+        {
+          "do": "pass"
+        }
+      ]
+    },
+    "nearest_only": {
+      "rules": [
+        {
+          "when": "$count(request, $reachable($actor, $it)) > 0",
+          "do": "accept",
+          "with": {
+            "request": "$bottom(request, [$distance($actor, $it), -$it.fare], 1, $reachable($actor, $it))[0]"
+          }
+        },
+        {
+          "do": "pass"
+        }
+      ]
+    }
+  },
+  "metrics": {
+    "open_requests": {
+      "expr": "$count(request, $it.status == 'open')",
+      "description": "Unassigned requests at the end of the step."
+    },
+    "idle_drivers": {
+      "expr": "$count(driver, $it.status == 'idle')"
+    },
+    "busy_drivers": {
+      "expr": "$count(driver, $it.status == 'to_pickup' or $it.status == 'on_trip')"
+    },
+    "max_surge": {
+      "expr": "$max(zone, $it.surge)"
+    },
+    "downtown_surge": {
+      "expr": "$entity(downtown).surge"
+    },
+    "completed_trips": {
+      "expr": "$world.completed"
+    }
+  },
+  "outputs": {
+    "completed_trips": {
+      "expr": "$world.completed",
+      "type": "int",
+      "description": "Riders dropped off."
+    },
+    "requests_placed": {
+      "expr": "$world.requested",
+      "type": "int"
+    },
+    "priced_out_riders": {
+      "expr": "$world.priced_out",
+      "type": "int",
+      "description": "Riders who declined the surge price."
+    },
+    "avg_wait_min": {
+      "expr": "$round($world.wait_total_min / $world.pickups, 1) if $world.pickups > 0 else 0",
+      "type": "number",
+      "description": "Mean minutes from request to pickup, counted in whole 5-minute steps."
+    },
+    "cancellation_rate": {
+      "expr": "$round($pct($world.cancelled, $world.cancelled + $world.pickups), 3)",
+      "type": "number",
+      "description": "Cancelled / (cancelled + picked up)."
+    },
+    "driver_earnings_mean": {
+      "expr": "$round($avg(driver, $it.earnings), 2)",
+      "type": "number",
+      "description": "USD per driver."
+    },
+    "driver_earnings_sd": {
+      "expr": "$round($stdev(driver, $it.earnings), 2)",
+      "type": "number"
+    },
+    "driver_earnings_p10": {
+      "expr": "$round($quantile(driver, $it.earnings, 0.1), 2)",
+      "type": "number"
+    },
+    "driver_earnings_p90": {
+      "expr": "$round($quantile(driver, $it.earnings, 0.9), 2)",
+      "type": "number"
+    },
+    "utilization": {
+      "expr": "$round($pct($sum(driver, $it.busy_steps), $sum(driver, $it.online_steps)), 3)",
+      "type": "number",
+      "description": "Share of online driver time spent driving to or with a rider."
+    },
+    "platform_revenue": {
+      "expr": "$round($world.platform_revenue, 2)",
+      "type": "number"
+    },
+    "peak_surge": {
+      "expr": "$max($series.max_surge)",
+      "type": "number"
+    }
+  },
+  "invariants": [
+    {
+      "expr": "$world.completed <= $world.pickups",
+      "why": "Every completed trip had a pickup."
+    },
+    {
+      "expr": "$world.pickups + $world.cancelled + $count(request, $it.status != 'riding') == $world.requested",
+      "why": "Requests are conserved."
+    },
+    {
+      "expr": "$all(driver, $it.busy_steps <= $it.online_steps)",
+      "why": "Busy time is part of online time."
+    }
+  ],
+  "arms": {
+    "no_surge": {
+      "description": "Flat fares everywhere.",
+      "inputs": {
+        "surge": false
+      }
+    },
+    "surge": {
+      "description": "Zones surge-priced from open requests per idle driver.",
+      "inputs": {
+        "surge": true
+      }
+    }
+  }
+}

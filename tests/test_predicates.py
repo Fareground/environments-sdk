@@ -1,4 +1,4 @@
-"""Tests for the unified predicate evaluator (fg_env_kernel.predicates).
+"""Tests for the unified predicate evaluator (fg_env.predicates).
 
 This module is the single source of truth for boolean expressions used
 by preconditions, effect conditions, terminations, state-machine
@@ -12,8 +12,8 @@ guards, and triggers. Coverage must include:
 """
 import pytest
 
-from fg_env_kernel.predicates import evaluate, resolve
-from fg_env_kernel.entity import Entity
+from fg_env.predicates import evaluate, resolve
+from fg_env.entity import Entity
 
 
 @pytest.fixture

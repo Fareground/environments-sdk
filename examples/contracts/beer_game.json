@@ -1,0 +1,97 @@
+{
+  "fg_env": "1",
+  "name": "Beer distribution game (native supply chain)",
+  "description": "The beer game rebuilt on the economy inventory and supply_chain modes: four tiers (retailer, wholesaler, distributor, factory), each seeing only its own position and ordering from the tier above. Measures cost, the bullwhip effect, backlog and how long the chain takes to settle after a demand change.",
+  "inputs": {
+    "demand": {"type": "list", "default": [4, 4, 4, 4, 8], "description": "Customer demand at the retailer, one value per week; the last value repeats for the rest of the run."},
+    "weeks": {"type": "int", "default": 36, "min": 1, "unit": "week", "description": "Length of the run."},
+    "order_delay": {"type": "int", "default": 1, "min": 1, "unit": "week", "description": "Weeks for an order to reach the tier upstream."},
+    "shipping_delay": {"type": "int", "default": 2, "min": 1, "unit": "week", "description": "Weeks for a shipment to reach the tier downstream."},
+    "brewing_delay": {"type": "int", "default": 2, "min": 1, "unit": "week", "description": "Weeks for the factory to brew what it orders."},
+    "holding_cost": {"type": "number", "default": 0.5, "min": 0, "unit": "$/unit/week"},
+    "backlog_cost": {"type": "number", "default": 1.0, "min": 0, "unit": "$/unit/week"},
+    "initial_inventory": {"type": "int", "default": 12, "min": 0, "unit": "unit"},
+    "max_order": {"type": "int", "default": 200, "min": 1, "unit": "unit", "description": "Largest order a tier may place in one week."},
+    "share_demand": {"type": "bool", "default": false, "description": "Every tier also sees this week's real customer demand."},
+    "stable_tolerance": {"type": "int", "default": 1, "min": 0, "unit": "unit", "description": "How far an order may be from customer demand and still count as stable."},
+    "stable_window": {"type": "int", "default": 4, "min": 1, "unit": "week", "description": "Stable weeks at the end needed to count the chain as settled."}
+  },
+  "brief": {
+    "situation": "You run one tier of a four-tier beer supply chain: customers buy from the retailer, the retailer orders from the wholesaler, the wholesaler from the distributor, the distributor from the factory, and the factory brews. Beer flows down the chain; orders flow up it.",
+    "rules": "Each week: shipments that have reached you go into your stock; you receive an order from the tier below you (the retailer's comes from customers) and ship all you can toward that order plus any backlog; whatever you cannot ship becomes backlog you still owe. Then you place one order with the tier above you (the factory instead starts a batch). Orders take {$inputs.order_delay} week(s) to reach the tier above; shipments take {$inputs.shipping_delay} weeks to reach you; a batch takes {$inputs.brewing_delay} weeks. Every week each unit in stock costs {$inputs.holding_cost|money} and each unit of backlog costs {$inputs.backlog_cost|money}. You see only your own position. If you place no order in a week, you order nothing. Goal: keep your total cost low.",
+    "roles": {
+      "retailer": "You are the retailer. Your orders come from customers; you order from the wholesaler.",
+      "wholesaler": "You are the wholesaler. The retailer orders from you; you order from the distributor.",
+      "distributor": "You are the distributor. The wholesaler orders from you; you order from the factory.",
+      "factory": "You are the factory. The distributor orders from you; you decide how much to brew each week."
+    }
+  },
+  "clock": {"rounds": "$inputs.weeks", "unit": "week"},
+  "defs": {
+    "flow": {"description": "Steady weekly flow the chain starts in.", "expr": "$first($inputs.demand)"},
+    "variance": {"args": ["xs"], "description": "Sample variance of a list of numbers.", "expr": "$stdev($xs, $it) ** 2 if $len($xs) > 1 else 0"},
+    "last_unstable_week": {"description": "Index (0-based) of the last unstable week, or null.", "expr": "$last($filter($range($len($series.stable)), $series.stable[$it] == 0))"},
+    "shock_week": {"description": "Index (0-based) of the first week whose demand differs from week 1, or 0.", "expr": "$get($filter($range($len($series.customer_demand)), $series.customer_demand[$it] != $series.customer_demand[0]), 0, 0)"}
+  },
+  "types": {
+    "tier": {"agent": true, "description": "One tier of the supply chain.", "inspect": "$viewer.id == $it.id"},
+    "retailer": {"extends": "tier", "description": "Sells to customers.", "policy": "anchor"},
+    "wholesaler": {"extends": "tier", "description": "Supplies the retailer.", "policy": "anchor"},
+    "distributor": {"extends": "tier", "description": "Supplies the wholesaler.", "policy": "anchor"},
+    "factory": {"extends": "tier", "description": "Brews beer and supplies the distributor.", "policy": "anchor"}
+  },
+  "entities": {
+    "retailer": {"type": "retailer", "name": "Retailer"},
+    "wholesaler": {"type": "wholesaler", "name": "Wholesaler"},
+    "distributor": {"type": "distributor", "name": "Distributor"},
+    "factory": {"type": "factory", "name": "Factory"}
+  },
+  "mechanisms": {
+    "stock": {"kind": "economy", "mode": "inventory", "who": "tier", "items": {"beer": {"unit": "units"}}, "start": {"beer": "$inputs.initial_inventory"}, "actions": []},
+    "beer": {
+      "kind": "economy", "mode": "supply_chain", "inventory": "stock", "item": "beer",
+      "nodes": ["retailer", "wholesaler", "distributor", "factory"],
+      "demand": "$get($inputs.demand, $round - 1, $last($inputs.demand))",
+      "order_delay": "$inputs.order_delay", "lead_time": "$inputs.shipping_delay", "production_delay": "$inputs.brewing_delay",
+      "initial_flow": "$flow()", "holding_cost": "$inputs.holding_cost", "backlog_cost": "$inputs.backlog_cost",
+      "max_order": "$inputs.max_order"
+    }
+  },
+  "stages": [
+    {"name": "ordering", "turns": "simultaneous", "actions": ["beer_order"], "max_actions": 1, "max_calls": 6, "brief": "Place your order for week {$round}."}
+  ],
+  "views": {
+    "customer_demand": {"for": "tier", "title": "Customer demand", "bullet": false, "when": "$inputs.share_demand",
+                        "show": "Customers bought {$world.beer_demand} units at the retailer this week."}
+  },
+  "policies": {
+    "passthrough": {"rules": [{"do": "beer_order", "with": {"qty": "$actor.beer_incoming"}}]},
+    "anchor": {"rules": [{"do": "beer_order", "with": {"qty": "$clamp($round(($world.beer_demand if $inputs.share_demand else $actor.beer_incoming) + 0.5 * ($inputs.initial_inventory - $count_items($actor, 'beer') + $actor.beer_backlog)), 0, $inputs.max_order)"}}]},
+    "base_stock": {"rules": [{"do": "beer_order", "with": {"qty": "$clamp($round(($world.beer_demand if $inputs.share_demand else $actor.beer_incoming) + $inputs.initial_inventory - $count_items($actor, 'beer') + $actor.beer_backlog - $sum($pipeline($actor, 'beer')) + $flow() * $len($pipeline($actor, 'beer'))), 0, $inputs.max_order)"}}]}
+  },
+  "metrics": {
+    "customer_demand": {"expr": "$world.beer_demand", "unit": "unit"},
+    "factory_order": {"expr": "$entity(factory).beer_last_order", "unit": "unit", "description": "Units the factory started brewing this week."},
+    "total_backlog": {"expr": "$sum(tier, $it.beer_backlog)", "unit": "unit"},
+    "total_inventory": {"expr": "$sum(tier, $count_items($it, 'beer'))", "unit": "unit"},
+    "total_cost": {"expr": "$sum(tier, $it.beer_cost)", "unit": "$"},
+    "stable": {"expr": "1 if $all(tier, $it.beer_backlog == 0 and $abs($it.beer_last_order - $world.beer_demand) <= $inputs.stable_tolerance) else 0",
+               "description": "1 when every tier is stable this week."}
+  },
+  "outputs": {
+    "cost_by_tier": {"type": "map", "expr": "$dict(tier, $it.id, $it.beer_cost)", "description": "Total cost per tier ($)."},
+    "total_cost": {"type": "number", "expr": "$sum(tier, $it.beer_cost)", "description": "Total cost of the whole chain ($)."},
+    "bullwhip_ratio": {"type": "number", "expr": "$variance($series.factory_order) / $variance($series.customer_demand) if $variance($series.customer_demand) > 0 else null",
+                       "description": "Variance of factory brew orders / variance of customer demand (null when demand never varies)."},
+    "peak_backlog": {"type": "int", "expr": "$max($series.total_backlog)", "description": "Largest chain-wide backlog in any week (units)."},
+    "peak_backlog_by_tier": {"type": "map", "expr": "$dict(tier, $it.id, $it.beer_peak_backlog)", "description": "Largest backlog each tier carried (units)."},
+    "weeks_until_stable": {"type": "int",
+                           "expr": "0 if $last_unstable_week() == null else (null if $last_unstable_week() >= $len($series.stable) - $inputs.stable_window else $max(0, $last_unstable_week() + 1 - $shock_week()))",
+                           "description": "Weeks from the first demand change until the chain settled for good; null if it had not settled by the end."},
+    "units_sold": {"type": "int", "expr": "$world.beer_sold", "description": "Units delivered to customers."}
+  },
+  "arms": {
+    "baseline": {"description": "Each tier sees only its own position."},
+    "shared_demand": {"description": "Every tier also sees real customer demand each week.", "inputs": {"share_demand": true}}
+  }
+}

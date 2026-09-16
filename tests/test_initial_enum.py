@@ -1,5 +1,5 @@
 import pytest
-from fg_env_kernel.pipeline.compile import compile_template
+from fg_env.pipeline.compile import compile_template
 
 
 @pytest.mark.parametrize("value,ok", [("cool", True), ("heat", True), ("invalid", False), ("", False)])

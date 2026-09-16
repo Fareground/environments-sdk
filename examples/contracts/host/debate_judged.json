@@ -1,0 +1,72 @@
+{
+  "fg_env": "1",
+  "name": "Judged debate",
+  "description": "Two debaters give three speeches each; an impartial rubric judge scores every speech and the higher total wins.",
+  "brief": {
+    "situation": "A formal debate on the motion: {$inputs.motion}",
+    "rules": "Each round both debaters speak once, the pro side first. An impartial judge scores every speech on logic, evidence and rebuttal, out of 10. After three rounds the debater with the higher total wins.",
+    "roles": {"debater": "You argue the {$actor.side} side of the motion."}
+  },
+  "inputs": {
+    "motion": {"type": "text", "default": "Cities should make public transport free."}
+  },
+  "clock": {"rounds": 3, "unit": "round"},
+  "types": {
+    "debater": {
+      "agent": true,
+      "props": {
+        "side": {"type": "enum", "values": ["pro", "con"], "default": "pro"},
+        "score": {"type": "number", "default": 0}
+      }
+    }
+  },
+  "entities": {
+    "avery": {"type": "debater", "name": "Avery", "props": {"side": "pro"}},
+    "blake": {"type": "debater", "name": "Blake", "props": {"side": "con"}}
+  },
+  "records": {
+    "speeches": {"fields": {"text": "text"}, "show": "{author} ({$it.author.side}): {text}"}
+  },
+  "actions": {
+    "speak": {
+      "by": "debater",
+      "description": "Give your speech for this round.",
+      "params": {"text": {"type": "text", "max_len": 1500, "description": "Your speech."}},
+      "do": [{"post": "speeches", "text": "$params.text"}],
+      "terminal": true
+    }
+  },
+  "stages": [
+    {"name": "speeches", "turns": "sequential", "order": "0 if $it.side == pro else 1", "must_act": true}
+  ],
+  "mechanisms": {
+    "judge": {
+      "kind": "host",
+      "mode": "judge",
+      "record": "speeches",
+      "stage": "speeches",
+      "who": "debater",
+      "into": "score",
+      "blind": true,
+      "context_last": 2,
+      "instructions": "Score this debate speech on its own merits. Earlier speeches are context only.",
+      "criteria": {
+        "logic": {"description": "Sound, coherent reasoning.", "weight": 2},
+        "evidence": {"description": "Concrete, relevant support.", "weight": 1},
+        "rebuttal": {"description": "Engages the opponent's strongest points.", "weight": 1}
+      }
+    }
+  },
+  "views": {
+    "standings": {
+      "for": "debater", "title": "Scores so far", "of": "debater", "sort": "$it.score", "desc": true,
+      "show": "{name} ({side}): {score|1}"
+    }
+  },
+  "outputs": {
+    "winner": {"expr": "$top(debater, $it.score, 1)[0].name", "type": "text"},
+    "pro_score": {"expr": "$entity(avery).score", "type": "number"},
+    "con_score": {"expr": "$entity(blake).score", "type": "number"},
+    "speeches": {"expr": "$count($records(speeches))", "type": "int"}
+  }
+}

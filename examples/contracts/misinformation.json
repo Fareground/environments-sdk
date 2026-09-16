@@ -1,0 +1,1232 @@
+{
+  "fg_env": "1",
+  "name": "Misinformation on a follower network",
+  "description": "200 accounts on a follower graph share, like and report posts about breaking stories, some of them false. A fact-checker labels claims and a platform moderator sets the moderation policy.",
+  "inputs": {
+    "moderation": {
+      "type": "enum",
+      "values": [
+        "none",
+        "label",
+        "downrank"
+      ],
+      "default": "none",
+      "description": "Platform policy the coded moderator enforces."
+    },
+    "crowd_users": {
+      "type": "int",
+      "default": 190,
+      "min": 10,
+      "max": 2000
+    },
+    "influencers": {
+      "type": "int",
+      "default": 10,
+      "min": 0,
+      "max": 100
+    },
+    "follow_p": {
+      "type": "number",
+      "default": 0.02,
+      "min": 0,
+      "max": 1,
+      "description": "Chance any account follows any other ordinary account."
+    },
+    "influencer_follow_p": {
+      "type": "number",
+      "default": 0.1,
+      "min": 0,
+      "max": 1,
+      "description": "Chance an account follows a given influencer."
+    },
+    "feed_size": {
+      "type": "int",
+      "default": 6,
+      "min": 1,
+      "max": 30
+    },
+    "feed_window": {
+      "type": "int",
+      "default": 8,
+      "min": 1,
+      "max": 48,
+      "unit": "hour",
+      "description": "Posts older than this drop out of feeds."
+    },
+    "post_rate": {
+      "type": "number",
+      "default": 0.03,
+      "min": 0,
+      "max": 1,
+      "description": "Hourly chance an ordinary user posts about a story they have seen."
+    },
+    "influencer_post_rate": {
+      "type": "number",
+      "default": 0.25,
+      "min": 0,
+      "max": 1
+    },
+    "share_rate": {
+      "type": "number",
+      "default": 0.35,
+      "min": 0,
+      "max": 1,
+      "description": "Scale of the hourly chance a user reshares the most compelling post in their feed."
+    },
+    "label_effect": {
+      "type": "number",
+      "default": 0.6,
+      "min": 0,
+      "max": 1,
+      "description": "How much a visible 'misleading' label cuts sharing for a fully sceptical user."
+    },
+    "downrank_factor": {
+      "type": "number",
+      "default": 0.2,
+      "min": 0,
+      "max": 1,
+      "description": "Under downranking, the chance a post about a claim labeled misleading is delivered into a given feed each hour."
+    },
+    "checks_per_hour": {
+      "type": "int",
+      "default": 1,
+      "min": 0,
+      "max": 20
+    },
+    "research_accuracy": {
+      "type": "number",
+      "default": 0.9,
+      "min": 0.5,
+      "max": 1
+    },
+    "stories": {
+      "type": "table",
+      "columns": {
+        "key": "text",
+        "headline": "text",
+        "lean": "number",
+        "appeal": "number",
+        "is_false": "bool",
+        "breaks": "int"
+      },
+      "description": "Stories that break during the run. lean is -1 (left) to 1 (right); appeal is how shareable it is; is_false is hidden ground truth; breaks is the hour it first appears.",
+      "default": [
+        {
+          "key": "transit",
+          "headline": "City council approves late-night bus routes",
+          "lean": -0.2,
+          "appeal": 0.35,
+          "is_false": false,
+          "breaks": 1
+        },
+        {
+          "key": "ballots",
+          "headline": "Thousands of mail ballots found dumped behind a warehouse",
+          "lean": 0.8,
+          "appeal": 0.7,
+          "is_false": true,
+          "breaks": 2
+        },
+        {
+          "key": "heatwave",
+          "headline": "Weather service extends heat advisory through Friday",
+          "lean": 0.0,
+          "appeal": 0.4,
+          "is_false": false,
+          "breaks": 3
+        },
+        {
+          "key": "vaccine",
+          "headline": "Leaked memo says new vaccine alters DNA",
+          "lean": 0.6,
+          "appeal": 0.65,
+          "is_false": true,
+          "breaks": 4
+        },
+        {
+          "key": "wages",
+          "headline": "State raises minimum wage by one dollar next year",
+          "lean": -0.5,
+          "appeal": 0.55,
+          "is_false": false,
+          "breaks": 5
+        },
+        {
+          "key": "oilspill",
+          "headline": "Oil company secretly paid regulators to hide a spill",
+          "lean": -0.8,
+          "appeal": 0.65,
+          "is_false": true,
+          "breaks": 7
+        },
+        {
+          "key": "taxcut",
+          "headline": "Senate passes small-business tax credit",
+          "lean": 0.5,
+          "appeal": 0.5,
+          "is_false": false,
+          "breaks": 8
+        },
+        {
+          "key": "school",
+          "headline": "District adds free breakfast at every school",
+          "lean": -0.4,
+          "appeal": 0.45,
+          "is_false": false,
+          "breaks": 10
+        },
+        {
+          "key": "border",
+          "headline": "Photo shows army tanks massing at the border this week",
+          "lean": 0.7,
+          "appeal": 0.6,
+          "is_false": true,
+          "breaks": 11
+        },
+        {
+          "key": "police",
+          "headline": "Police budget audit finds overtime errors",
+          "lean": 0.2,
+          "appeal": 0.45,
+          "is_false": false,
+          "breaks": 13
+        },
+        {
+          "key": "billionaire",
+          "headline": "Billionaire caught buying votes with gift cards",
+          "lean": -0.7,
+          "appeal": 0.7,
+          "is_false": true,
+          "breaks": 14
+        },
+        {
+          "key": "bridge",
+          "headline": "River bridge reopens after two-year repair",
+          "lean": 0.0,
+          "appeal": 0.35,
+          "is_false": false,
+          "breaks": 16
+        }
+      ]
+    },
+    "research_hours": {
+      "type": "int",
+      "default": 3,
+      "min": 0,
+      "max": 12,
+      "unit": "hour",
+      "description": "Hours before research on a claim comes back."
+    }
+  },
+  "brief": {
+    "situation": "A social network during a busy news day. Accounts follow each other; each hour everyone scrolls a ranked feed of recent posts from the accounts they follow (newer and more-engaged posts rank higher). Some stories going around are false, and nobody can see which for sure.",
+    "rules": "Each hour, in order: the platform moderator may set policy (first hour only), the fact-checker researches and labels claims, then every user acts once on their feed — post about a story they have seen, share or like a post, report a post, or do nothing. Shares put the post into the sharer's followers' feeds. Under the 'label' policy, claims labeled misleading carry a warning; under 'downrank' they sink in feeds without a warning; under 'none' labels have no effect on the platform.",
+    "roles": {
+      "user": "You are {$actor.name}, an ordinary account. Your politics lean {$'left' if $actor.lean < -0.2 else ('right' if $actor.lean > 0.2 else 'center')}. You share what you find compelling and report what you think is harmful.",
+      "fact_checker": "You are the independent fact-checker. You can research a limited number of claims per hour (research is usually but not always right) and label a claim misleading or accurate. A label applies to every post about that claim. Aim to label the false claims that are reaching the most people, fast, without mislabeling true ones.",
+      "moderator": "You run trust and safety for the platform. Choose how the platform treats claims the fact-checker labels misleading: none, label (show a warning), or downrank (quietly rank them lower)."
+    }
+  },
+  "clock": {
+    "rounds": 24,
+    "unit": "hour"
+  },
+  "world": {
+    "policy": {
+      "type": "enum",
+      "values": [
+        "none",
+        "label",
+        "downrank"
+      ],
+      "default": "$inputs.moderation",
+      "description": "Current moderation policy."
+    }
+  },
+  "types": {
+    "user": {
+      "agent": true,
+      "policy": "crowd",
+      "inspect": "$it.id == $viewer.id or $is($viewer, fact_checker)",
+      "description": "An account on the network.",
+      "props": {
+        "credulity": {
+          "type": "number",
+          "default": 0.4,
+          "min": 0,
+          "max": 1,
+          "private": true,
+          "description": "How readily they believe and pass on claims."
+        },
+        "lean": {
+          "type": "number",
+          "default": 0,
+          "min": -1,
+          "max": 1,
+          "private": true
+        },
+        "post_rate": {
+          "type": "number",
+          "default": 0.03,
+          "min": 0,
+          "max": 1,
+          "private": true
+        },
+        "feed": {
+          "type": "list",
+          "default": [],
+          "private": true,
+          "description": "Post ids in this hour's ranked feed."
+        },
+        "seen_stories": {
+          "type": "list",
+          "default": [],
+          "private": true
+        },
+        "exposed_false": {
+          "type": "bool",
+          "default": false,
+          "private": true
+        },
+        "posts_made": {
+          "type": "int",
+          "default": 0
+        },
+        "shares_made": {
+          "type": "int",
+          "default": 0
+        }
+      }
+    },
+    "influencer": {
+      "extends": "user",
+      "description": "A high-follower account."
+    },
+    "fact_checker": {
+      "agent": true,
+      "policy": "desk",
+      "props": {
+        "checks_left": {
+          "type": "int",
+          "default": 0
+        }
+      }
+    },
+    "moderator": {
+      "agent": true,
+      "policy": "by_arm",
+      "props": {}
+    },
+    "story": {
+      "description": "A claim going around. Truth is hidden.",
+      "props": {
+        "key": "",
+        "headline": "",
+        "lean": {
+          "type": "number",
+          "default": 0,
+          "min": -1,
+          "max": 1
+        },
+        "appeal": {
+          "type": "number",
+          "default": 0.5,
+          "min": 0,
+          "max": 1
+        },
+        "is_false": {
+          "type": "bool",
+          "default": false,
+          "private": true
+        },
+        "breaks": {
+          "type": "int",
+          "default": 1
+        },
+        "evidence": {
+          "type": "enum",
+          "values": [
+            "unresearched",
+            "pending",
+            "looks_misleading",
+            "looks_accurate"
+          ],
+          "default": "unresearched",
+          "private": true
+        },
+        "label": {
+          "type": "enum",
+          "values": [
+            "unlabeled",
+            "misleading",
+            "accurate"
+          ],
+          "default": "unlabeled"
+        },
+        "labeled_round": {
+          "type": "int",
+          "default": 0
+        },
+        "first_post_round": {
+          "type": "int",
+          "default": 0
+        },
+        "posts": {
+          "type": "int",
+          "default": 0
+        },
+        "shares": {
+          "type": "int",
+          "default": 0
+        },
+        "reports": {
+          "type": "int",
+          "default": 0
+        },
+        "reach": {
+          "type": "int",
+          "default": 0,
+          "description": "Distinct accounts that had a post about it in their feed."
+        }
+      }
+    },
+    "post": {
+      "description": "A post about a story.",
+      "props": {
+        "story": "",
+        "headline": "",
+        "comment": {
+          "type": "text",
+          "default": ""
+        },
+        "author": "",
+        "author_name": "",
+        "lean": {
+          "type": "number",
+          "default": 0,
+          "min": -1,
+          "max": 1
+        },
+        "appeal": {
+          "type": "number",
+          "default": 0.5,
+          "min": 0,
+          "max": 1
+        },
+        "is_false": {
+          "type": "bool",
+          "default": false,
+          "private": true
+        },
+        "label": {
+          "type": "enum",
+          "values": [
+            "unlabeled",
+            "misleading",
+            "accurate"
+          ],
+          "default": "unlabeled"
+        },
+        "born": {
+          "type": "int",
+          "default": 0
+        },
+        "likes": {
+          "type": "int",
+          "default": 0
+        },
+        "shares": {
+          "type": "int",
+          "default": 0
+        },
+        "reports": {
+          "type": "int",
+          "default": 0
+        },
+        "impressions": {
+          "type": "int",
+          "default": 0
+        },
+        "sharers": {
+          "type": "list",
+          "default": []
+        },
+        "likers": {
+          "type": "list",
+          "default": []
+        },
+        "reporters": {
+          "type": "list",
+          "default": []
+        }
+      }
+    }
+  },
+  "entities": {
+    "checker": {
+      "type": "fact_checker",
+      "name": "FactDesk"
+    },
+    "trust_safety": {
+      "type": "moderator",
+      "name": "Trust & Safety"
+    }
+  },
+  "population": [
+    {
+      "type": "user",
+      "count": "$inputs.crowd_users",
+      "id": "u{$i}",
+      "name": "user{$i}",
+      "props": {
+        "credulity": "$beta(2, 3)",
+        "lean": "$clamp($normal(0, 0.45), -1, 1)",
+        "post_rate": "$inputs.post_rate"
+      }
+    },
+    {
+      "type": "influencer",
+      "count": "$inputs.influencers",
+      "id": "inf{$i}",
+      "name": "influencer{$i}",
+      "props": {
+        "credulity": "$beta(2, 3)",
+        "lean": "$clamp($normal(0, 0.7), -1, 1)",
+        "post_rate": "$inputs.influencer_post_rate"
+      }
+    },
+    {
+      "type": "story",
+      "from": "$inputs.stories",
+      "id": "story_{$row.key}",
+      "name": "{$row.key}",
+      "props": {
+        "key": "$row.key",
+        "headline": "$row.headline",
+        "lean": "$row.lean",
+        "appeal": "$row.appeal",
+        "is_false": "$row.is_false",
+        "breaks": "$row.breaks"
+      }
+    }
+  ],
+  "relations": {
+    "follows": {
+      "description": "Directed: from follows to, so to's posts and shares reach from's feed."
+    }
+  },
+  "links": [],
+  "records": {
+    "share_log": {
+      "fields": {
+        "sharer_lean": "number",
+        "story_lean": "number",
+        "is_false": "bool"
+      },
+      "visible": "false",
+      "notify": false,
+      "description": "Measurement log of every share."
+    }
+  },
+  "defs": {
+    "recent": {
+      "args": [
+        "p"
+      ],
+      "expr": "$round - $p.born <= $inputs.feed_window"
+    },
+    "follows_source": {
+      "args": [
+        "u",
+        "p"
+      ],
+      "expr": "$linked($u, $p.author, follows) or $any($p.sharers, $linked($u, $it, follows))"
+    },
+    "in_feed": {
+      "args": [
+        "u",
+        "p"
+      ],
+      "expr": "$recent($p) and $p.author != $u.id and $follows_source($u, $p)"
+    },
+    "label_hits": {
+      "args": [
+        "p"
+      ],
+      "expr": "$p.label == misleading and $world.policy != 'none'"
+    },
+    "feed_score": {
+      "args": [
+        "p"
+      ],
+      "expr": "(1 + $p.likes + 3 * $p.shares) / (1 + $round - $p.born) ** 1.5"
+    },
+    "rank_feed": {
+      "args": [
+        "u"
+      ],
+      "expr": "$ids($top($filter(post, $in_feed($u, $it)), ($feed_score($it) * ($inputs.downrank_factor if $demoted($it) else 1)), $inputs.feed_size, $delivered($it)))"
+    },
+    "feed_posts": {
+      "args": [
+        "u"
+      ],
+      "expr": "$map($u.feed, $entity($it))"
+    },
+    "share_pull": {
+      "args": [
+        "u",
+        "p"
+      ],
+      "expr": "$inputs.share_rate * $p.appeal * (0.4 + $u.credulity) * (1 + $u.lean * $p.lean) / 2 * ((1 - $inputs.label_effect * (1 - $u.credulity)) if $p.label == misleading and $world.policy == label else 1)"
+    },
+    "best_share": {
+      "args": [
+        "u"
+      ],
+      "expr": "$first($top($feed_posts($u), $share_pull($u, $it), 1, not ($u.id in $it.sharers)))"
+    },
+    "report_pull": {
+      "args": [
+        "u",
+        "p"
+      ],
+      "expr": "0.08 * (1 - $u.credulity) * ($max(0, -$u.lean * $p.lean) + (1.5 if $p.label == misleading and $world.policy == label else 0))"
+    },
+    "best_report": {
+      "args": [
+        "u"
+      ],
+      "expr": "$first($top($feed_posts($u), $report_pull($u, $it), 1, not ($u.id in $it.reporters)))"
+    },
+    "best_like": {
+      "args": [
+        "u"
+      ],
+      "expr": "$first($top($feed_posts($u), $p_like($u, $it), 1, not ($u.id in $it.likers)))"
+    },
+    "verdict_of": {
+      "args": [
+        "s"
+      ],
+      "expr": "misleading if $s.evidence == looks_misleading else accurate"
+    },
+    "p_like": {
+      "args": [
+        "u",
+        "p"
+      ],
+      "expr": "$p.appeal * (1 + $u.lean * $p.lean) / 2"
+    },
+    "false_reach": {
+      "expr": "$sum(story, $it.reach, $it.is_false)"
+    },
+    "true_reach": {
+      "expr": "$sum(story, $it.reach, not $it.is_false)"
+    },
+    "evidence_text": {
+      "args": [
+        "s"
+      ],
+      "expr": "$get({unresearched: 'not researched', pending: 'research in progress', looks_misleading: 'the evidence points to it being misleading', looks_accurate: 'the evidence supports it'}, $s.evidence)"
+    },
+    "researched": {
+      "args": [
+        "s"
+      ],
+      "expr": "$s.label == unlabeled and ($s.evidence == looks_misleading or $s.evidence == looks_accurate)"
+    },
+    "demoted": {
+      "args": [
+        "p"
+      ],
+      "expr": "$p.label == misleading and $world.policy == downrank"
+    },
+    "delivered": {
+      "args": [
+        "p"
+      ],
+      "expr": "not $demoted($p) or $chance($inputs.downrank_factor)"
+    }
+  },
+  "blocks": {
+    "create_post": {
+      "args": [
+        "author",
+        "story",
+        "comment"
+      ],
+      "description": "Publish a post about a story and update the story's counters.",
+      "do": [
+        {
+          "create": "post",
+          "name": "{$author.name} on {$story.key}",
+          "props": {
+            "story": "$story.id",
+            "headline": "$story.headline",
+            "comment": "$comment",
+            "author": "$author.id",
+            "author_name": "$author.name",
+            "lean": "$story.lean",
+            "appeal": "$story.appeal",
+            "is_false": "$story.is_false",
+            "label": "$story.label",
+            "born": "$round"
+          }
+        },
+        "$author.posts_made += 1",
+        "$story.posts += 1",
+        {
+          "if": "$story.first_post_round == 0",
+          "then": [
+            "$story.first_post_round = $round"
+          ]
+        },
+        {
+          "if": "not ($story.id in $author.seen_stories)",
+          "then": [
+            "$author.seen_stories += $story.id"
+          ]
+        }
+      ]
+    },
+    "apply_label": {
+      "args": [
+        "story",
+        "verdict"
+      ],
+      "do": [
+        "$story.label = $verdict",
+        "$story.labeled_round = $round",
+        {
+          "each": "post",
+          "where": "$it.story == $story.id",
+          "do": [
+            "$it.label = $verdict"
+          ]
+        }
+      ]
+    },
+    "build_feeds": {
+      "description": "Rank every feed for this hour and record who was exposed to what.",
+      "do": [
+        {
+          "each": "user",
+          "as": "u",
+          "do": [
+            "$u.feed = $rank_feed($u)",
+            {
+              "each": "$feed_posts($u)",
+              "as": "p",
+              "do": [
+                "$p.impressions += 1",
+                {
+                  "if": "$p.is_false",
+                  "then": [
+                    "$u.exposed_false = true"
+                  ]
+                },
+                {
+                  "if": "not ($p.story in $u.seen_stories)",
+                  "then": [
+                    "$u.seen_stories += $p.story",
+                    {
+                      "each": "story",
+                      "where": "$it.id == $p.story",
+                      "do": [
+                        "$it.reach += 1"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "actions": {
+    "set_policy": {
+      "by": "moderator",
+      "description": "Set how the platform treats claims labeled misleading.",
+      "params": {
+        "policy": {
+          "type": "enum",
+          "values": [
+            "none",
+            "label",
+            "downrank"
+          ]
+        }
+      },
+      "do": [
+        "$world.policy = $params.policy"
+      ],
+      "announce": "The platform set its misinformation policy to {$params.policy}.",
+      "outcome": "Policy is now {$params.policy}."
+    },
+    "research": {
+      "by": "fact_checker",
+      "description": "Research one claim. Usually, but not always, finds the truth. Uses one of this hour's checks.",
+      "params": {
+        "story": {
+          "type": "entity",
+          "of": "story",
+          "where": "$it.posts > 0 and $it.evidence == unresearched",
+          "description": "A claim that has been posted and not researched yet."
+        }
+      },
+      "when": [
+        {
+          "expr": "$actor.checks_left > 0",
+          "why": "You have used this hour's research capacity; label what you already know or end your turn."
+        }
+      ],
+      "private": true,
+      "do": [
+        "$actor.checks_left -= 1",
+        "$params.story.evidence = pending",
+        {
+          "after": "$inputs.research_hours",
+          "do": [
+            "$right = $chance($inputs.research_accuracy)",
+            "$params.story.evidence = (looks_misleading if $params.story.is_false == $right else looks_accurate)",
+            {
+              "emit": "research_done",
+              "to": "$actor",
+              "say": "Research back on «{$params.story.headline}»: {$evidence_text($params.story)}."
+            }
+          ]
+        }
+      ],
+      "outcome": "Research started on «{$params.story.headline}»; results in {$inputs.research_hours} hours."
+    },
+    "label": {
+      "by": "fact_checker",
+      "description": "Label a claim misleading or accurate. The label applies to every post about it, now and later.",
+      "params": {
+        "story": {
+          "type": "entity",
+          "of": "story",
+          "where": "$it.posts > 0 and $it.label == unlabeled",
+          "description": "An unlabeled claim that has been posted."
+        },
+        "verdict": {
+          "type": "enum",
+          "values": [
+            "misleading",
+            "accurate"
+          ]
+        }
+      },
+      "do": [
+        {
+          "block": "apply_label",
+          "with": {
+            "story": "$params.story",
+            "verdict": "$params.verdict"
+          }
+        }
+      ],
+      "outcome": "Labeled «{$params.story.headline}» {$params.verdict}.",
+      "private": true
+    },
+    "post": {
+      "by": "user",
+      "description": "Post about a story you have seen. Optionally add a short comment.",
+      "params": {
+        "story": {
+          "type": "entity",
+          "of": "story",
+          "where": "$it.id in $actor.seen_stories"
+        },
+        "comment": {
+          "type": "text",
+          "max_len": 200,
+          "default": ""
+        }
+      },
+      "private": true,
+      "do": [
+        {
+          "block": "create_post",
+          "with": {
+            "author": "$actor",
+            "story": "$params.story",
+            "comment": "$params.comment"
+          }
+        }
+      ],
+      "outcome": "You posted about «{$params.story.headline}»."
+    },
+    "share": {
+      "by": "user",
+      "description": "Reshare a post from your feed to your followers.",
+      "params": {
+        "post": {
+          "type": "entity",
+          "of": "post",
+          "where": "$it.id in $actor.feed and not ($actor.id in $it.sharers)",
+          "description": "A post in your feed you have not shared."
+        }
+      },
+      "private": true,
+      "do": [
+        "$params.post.sharers += $actor.id",
+        "$params.post.shares += 1",
+        "$actor.shares_made += 1",
+        {
+          "each": "story",
+          "where": "$it.id == $params.post.story",
+          "do": [
+            "$it.shares += 1"
+          ]
+        },
+        {
+          "post": "share_log",
+          "sharer_lean": "$actor.lean",
+          "story_lean": "$params.post.lean",
+          "is_false": "$params.post.is_false"
+        }
+      ],
+      "outcome": "You shared {$params.post.author_name}'s post."
+    },
+    "like": {
+      "by": "user",
+      "description": "Like a post in your feed (boosts its ranking).",
+      "params": {
+        "post": {
+          "type": "entity",
+          "of": "post",
+          "where": "$it.id in $actor.feed and not ($actor.id in $it.likers)"
+        }
+      },
+      "private": true,
+      "do": [
+        "$params.post.likers += $actor.id",
+        "$params.post.likes += 1"
+      ],
+      "outcome": "You liked {$params.post.author_name}'s post."
+    },
+    "report": {
+      "by": "user",
+      "description": "Report a post in your feed as false or harmful. Reports flag it to the fact-checker.",
+      "params": {
+        "post": {
+          "type": "entity",
+          "of": "post",
+          "where": "$it.id in $actor.feed and not ($actor.id in $it.reporters)"
+        }
+      },
+      "private": true,
+      "do": [
+        "$params.post.reporters += $actor.id",
+        "$params.post.reports += 1",
+        {
+          "each": "story",
+          "where": "$it.id == $params.post.story",
+          "do": [
+            "$it.reports += 1"
+          ]
+        }
+      ],
+      "outcome": "You reported {$params.post.author_name}'s post."
+    }
+  },
+  "events": [
+    {
+      "name": "build_follow_graph",
+      "at": 1,
+      "phase": "start",
+      "each": "user",
+      "as": "fan",
+      "do": [
+        {
+          "each": "user",
+          "where": "$it.id != $fan.id and $chance($inputs.influencer_follow_p if $is($it, influencer) else $inputs.follow_p)",
+          "do": [
+            {
+              "link": "follows",
+              "from": "$fan",
+              "to": "$it"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "story_breaks",
+      "phase": "start",
+      "each": "story",
+      "as": "s",
+      "where": "$s.breaks == $round",
+      "do": [
+        {
+          "block": "create_post",
+          "with": {
+            "author": "$choice($filter(user, not $is($it, influencer)), 0.05 + $max(0, 1 + $it.lean * $s.lean))",
+            "story": "$s",
+            "comment": ""
+          }
+        }
+      ]
+    }
+  ],
+  "stages": [
+    {
+      "name": "moderation",
+      "when": "$round == 1",
+      "actions": {
+        "moderator": [
+          "set_policy"
+        ]
+      },
+      "turns": "sequential",
+      "max_calls": 4
+    },
+    {
+      "name": "fact_check",
+      "actions": {
+        "fact_checker": [
+          "research",
+          "label"
+        ]
+      },
+      "turns": "sequential",
+      "on_enter": [
+        {
+          "each": "fact_checker",
+          "do": [
+            "$it.checks_left = $inputs.checks_per_hour"
+          ]
+        }
+      ],
+      "max_actions": 6,
+      "max_calls": 12,
+      "brief": "You have {$inputs.checks_per_hour} research check(s) per hour. Label claims once you are confident; labels cannot be undone."
+    },
+    {
+      "name": "browse",
+      "actions": {
+        "user": [
+          "post",
+          "share",
+          "like",
+          "report"
+        ]
+      },
+      "turns": "simultaneous",
+      "on_enter": [
+        {
+          "block": "build_feeds"
+        }
+      ],
+      "max_actions": 1,
+      "max_calls": 6,
+      "brief": "Scroll your feed and do one thing, or end your turn."
+    }
+  ],
+  "views": {
+    "feed": {
+      "for": "user",
+      "stages": [
+        "browse"
+      ],
+      "title": "Your feed",
+      "of": "$feed_posts($actor)",
+      "show": "[{id}] {author_name}{$' (shared by someone you follow)' if not $linked($actor, $it.author, follows) else ''}: \"{headline}\"{$' — ' + $it.comment if $it.comment != '' else ''} · {likes} likes · {shares} shares{$' · WARNING: fact-checkers rate this claim misleading' if $it.label == misleading and $world.policy == label else ''}",
+      "empty": "Nothing new from the accounts you follow."
+    },
+    "my_reach": {
+      "for": "influencer",
+      "title": "Your recent posts",
+      "of": "post",
+      "where": "$it.author == $actor.id and $recent($it)",
+      "sort": "born",
+      "desc": true,
+      "limit": 5,
+      "show": "\"{headline}\" · {impressions} impressions · {shares} shares · {likes} likes"
+    },
+    "claims": {
+      "for": "fact_checker",
+      "title": "Claims circulating (most reported and shared first)",
+      "of": "story",
+      "where": "$it.posts > 0",
+      "sort": "$it.reports * 3 + $it.shares",
+      "desc": true,
+      "limit": 10,
+      "show": "[{id}] \"{headline}\" · {posts} posts, {shares} shares, {reports} reports, reached {reach} accounts · {$evidence_text($it)} · label: {label}",
+      "empty": "No claims posted yet."
+    },
+    "capacity": {
+      "for": "fact_checker",
+      "show": "Research checks left this hour: {checks_left} (results take {$inputs.research_hours} hours). Platform policy: {$world.policy}."
+    },
+    "platform": {
+      "for": "moderator",
+      "show": "Policy: {$world.policy}. Accounts exposed to a false claim: {$fmt($metrics.exposed_false_share, 'pct')}."
+    }
+  },
+  "policies": {
+    "crowd": {
+      "rules": [
+        {
+          "when": "$best_share($actor) != null",
+          "chance": "$share_pull($actor, $best_share($actor))",
+          "do": "share",
+          "with": {
+            "post": "$best_share($actor)"
+          }
+        },
+        {
+          "when": "$best_report($actor) != null",
+          "chance": "$report_pull($actor, $best_report($actor))",
+          "do": "report",
+          "with": {
+            "post": "$best_report($actor)"
+          }
+        },
+        {
+          "when": "$len($actor.seen_stories) > 0",
+          "chance": "$actor.post_rate",
+          "do": "post",
+          "with": {
+            "story": "$choice($filter(story, $it.id in $actor.seen_stories), 0.05 + $max(0, 1 + $it.lean * $actor.lean))"
+          }
+        },
+        {
+          "when": "$best_like($actor) != null",
+          "chance": "0.5 * $p_like($actor, $best_like($actor))",
+          "do": "like",
+          "with": {
+            "post": "$best_like($actor)"
+          }
+        },
+        {
+          "do": "pass"
+        }
+      ]
+    },
+    "desk": {
+      "repeat": true,
+      "rules": [
+        {
+          "when": "$any(story, $researched($it))",
+          "do": "label",
+          "with": {
+            "story": "$first($filter(story, $researched($it)))",
+            "verdict": "$verdict_of($first($filter(story, $researched($it))))"
+          }
+        },
+        {
+          "when": "$any(story, $it.posts > 0 and $it.evidence == unresearched)",
+          "do": "research",
+          "with": {
+            "story": "$first($top(story, $it.reports * 3 + $it.shares, 1, $it.posts > 0 and $it.evidence == unresearched))"
+          }
+        },
+        {
+          "do": "pass"
+        }
+      ]
+    },
+    "by_arm": {
+      "rules": [
+        {
+          "do": "set_policy",
+          "with": {
+            "policy": "$inputs.moderation"
+          }
+        }
+      ]
+    }
+  },
+  "metrics": {
+    "exposed_false_share": {
+      "expr": "$pct($count(user, $it.exposed_false), $count(user))",
+      "unit": "share"
+    },
+    "false_reach": "$false_reach()",
+    "true_reach": "$true_reach()",
+    "false_shares": "$count($records(share_log), $it.is_false)",
+    "true_shares": "$count($records(share_log), not $it.is_false)"
+  },
+  "outputs": {
+    "policy": {
+      "expr": "$world.policy",
+      "type": "text"
+    },
+    "avg_reach_false_story": {
+      "expr": "$avg(story, $it.reach, $it.is_false and $it.posts > 0)",
+      "type": "number",
+      "description": "Mean distinct accounts reached per posted false story."
+    },
+    "avg_reach_true_story": {
+      "expr": "$avg(story, $it.reach, not $it.is_false and $it.posts > 0)",
+      "type": "number"
+    },
+    "false_to_true_reach_ratio": {
+      "expr": "null if $outputs.avg_reach_false_story == null or $outputs.avg_reach_true_story == null else $pct($outputs.avg_reach_false_story, $outputs.avg_reach_true_story)",
+      "type": "number"
+    },
+    "exposed_false_share": {
+      "expr": "$metrics.exposed_false_share",
+      "type": "number",
+      "description": "Share of accounts that had a false post in their feed at least once."
+    },
+    "hours_to_first_label": {
+      "expr": "$min(story, $it.labeled_round - $it.first_post_round, $it.is_false and $it.label == misleading)",
+      "type": "number",
+      "description": "Hours from a false story's first post to its misleading label, fastest story (null if none labeled)."
+    },
+    "avg_hours_to_label_false": {
+      "expr": "$avg(story, $it.labeled_round - $it.first_post_round, $it.is_false and $it.label == misleading)",
+      "type": "number",
+      "description": "Mean hours from first post to misleading label over false stories that got labeled."
+    },
+    "false_stories_labeled": {
+      "expr": "$count(story, $it.is_false and $it.label == misleading)",
+      "type": "int"
+    },
+    "false_share_of_shares": {
+      "expr": "$pct($metrics.false_shares, $metrics.false_shares + $metrics.true_shares)",
+      "type": "number"
+    },
+    "share_polarization": {
+      "expr": "null if $len($records(share_log)) == 0 else $avg($map($records(share_log), $it.sharer_lean * $it.story_lean))",
+      "type": "number",
+      "description": "Mean of sharer lean × story lean over shares: 0 = shares cross the aisle as often as not, positive = people share what fits their side."
+    },
+    "mislabeled_true_stories": {
+      "expr": "$count(story, not $it.is_false and $it.label == misleading)",
+      "type": "int"
+    }
+  },
+  "invariants": [
+    {
+      "expr": "$all(story, $it.reach <= $count(user))",
+      "why": "A story cannot reach more accounts than exist."
+    }
+  ],
+  "arms": {
+    "no_moderation": {
+      "description": "Labels exist but the platform ignores them.",
+      "inputs": {
+        "moderation": "none"
+      }
+    },
+    "labels": {
+      "description": "Posts about claims labeled misleading carry a warning.",
+      "inputs": {
+        "moderation": "label"
+      }
+    },
+    "downrank": {
+      "description": "Posts about claims labeled misleading rank lower, with no warning.",
+      "inputs": {
+        "moderation": "downrank"
+      }
+    }
+  }
+}

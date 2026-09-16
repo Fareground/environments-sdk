@@ -10,14 +10,14 @@ without modifying any kernel code.
 """
 import pytest
 
-from fg_env_kernel.entity import Entity, EntityType
-from fg_env_kernel.kernel_module import (
+from fg_env.entity import Entity, EntityType
+from fg_env.kernel_module import (
     collect_snapshots,
     dispatch_despawn,
     dispatch_round_start,
     dispatch_spawn,
 )
-from fg_env_kernel.state import WorldState
+from fg_env.state import WorldState
 
 
 class TrackedReferenceModule:

@@ -1,0 +1,87 @@
+{
+  "fg_env": "1",
+  "name": "Matching pennies",
+  "brief": {
+    "situation": "Two players show a coin at once.",
+    "rules": "The matcher wins when the coins match."
+  },
+  "clock": {
+    "rounds": 1
+  },
+  "types": {
+    "player": {
+      "agent": true,
+      "props": {
+        "seat": 0,
+        "side": {
+          "type": "text",
+          "default": "",
+          "private": true
+        },
+        "score": 0
+      }
+    }
+  },
+  "entities": {
+    "m": {
+      "type": "player",
+      "props": {
+        "seat": 0
+      }
+    },
+    "n": {
+      "type": "player",
+      "props": {
+        "seat": 1
+      }
+    }
+  },
+  "actions": {
+    "show": {
+      "by": "player",
+      "private": true,
+      "terminal": true,
+      "params": {
+        "side": {
+          "type": "enum",
+          "values": [
+            "heads",
+            "tails"
+          ]
+        }
+      },
+      "do": [
+        "$actor.side = $params.side"
+      ]
+    }
+  },
+  "stages": [
+    {
+      "name": "show",
+      "turns": "simultaneous",
+      "must_act": true
+    }
+  ],
+  "events": [
+    {
+      "phase": "end",
+      "do": [
+        "$same = $entity('m').side == $entity('n').side",
+        "$entity('m').score = 1 if $same else -1",
+        "$entity('n').score = -1 if $same else 1"
+      ]
+    }
+  ],
+  "game": {
+    "players": "player",
+    "seat": "$it.seat",
+    "returns": "$actor.score",
+    "utility": "zero_sum"
+  },
+  "outputs": {
+    "match": {
+      "expr": "$entity('m').score",
+      "type": "number"
+    }
+  }
+}

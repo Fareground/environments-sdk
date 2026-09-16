@@ -1,6 +1,6 @@
 """Declared action-parameter bounds are enforced, not decorative."""
-from fg_env_kernel.action import ActionInstance
-from fg_env_kernel.pipeline.loader import load_world
+from fg_env.action import ActionInstance
+from fg_env.pipeline.loader import load_world
 
 
 def _world():
@@ -115,7 +115,7 @@ class TestParameterContract:
 
 
 def test_smoke_exercises_required_parameters_with_seeded_samples():
-    from fg_env_kernel.pipeline.smoke import smoke_test
+    from fg_env.pipeline.smoke import smoke_test
     results = []
     for _ in range(2):
         world = _world()
@@ -130,7 +130,7 @@ def test_smoke_exercises_required_parameters_with_seeded_samples():
 
 
 def test_explicit_smoke_decisions_can_still_test_rejected_inputs():
-    from fg_env_kernel.pipeline.smoke import smoke_test
+    from fg_env.pipeline.smoke import smoke_test
     world = _world()
     world.state.action_definitions['bid'].parameters[0]['required'] = True
     report = smoke_test(world, rounds=2, decisions=lambda entity, perception, actions:

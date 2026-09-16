@@ -6,10 +6,10 @@ must reconstruct semantically equivalent state.
 """
 import pytest
 
-from fg_env_kernel.action import ActionDefinition
-from fg_env_kernel.entity import Entity, EntityType
-from fg_env_kernel.resource import ResourceType
-from fg_env_kernel.state import WorldState
+from fg_env.action import ActionDefinition
+from fg_env.entity import Entity, EntityType
+from fg_env.resource import ResourceType
+from fg_env.state import WorldState
 
 
 @pytest.fixture
@@ -54,7 +54,7 @@ def populated_world():
     state.temporal.current_round = 7
 
     # Inventory
-    from fg_env_kernel.inventory import Item
+    from fg_env.inventory import Item
     state.inventory.add_item("a", Item(id="sword", name="Iron Sword", item_type="weapon"))
 
     # Action history with cooldowns
@@ -125,7 +125,7 @@ class TestSubsystemRoundTrip:
         snap = populated_world.to_dict()
         restored = WorldState.from_dict(snap, schema_provider=populated_world)
         # Cooldown should still block attack at round 8
-        from fg_env_kernel.action import ActionDefinition
+        from fg_env.action import ActionDefinition
         action = ActionDefinition(name="attack", description="", actor_type="player")
         assert restored.action_history.is_available("a", "attack", action, round_num=8) is False
         # And be available at round 10
@@ -186,7 +186,7 @@ class TestPluginModuleRoundTrip:
         new_state = WorldState()
         new_instance = WriteOnly()
         new_state.register_module("write_only", new_instance)
-        from fg_env_kernel.kernel_module import restore_plugin_modules
+        from fg_env.kernel_module import restore_plugin_modules
         with pytest.raises(ValueError, match="write_only"):
             restore_plugin_modules(new_state.modules, snap["plugin_modules"])
         assert new_state.get_module("write_only") is new_instance

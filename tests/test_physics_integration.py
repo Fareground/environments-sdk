@@ -5,13 +5,13 @@ in both discrete and continuous modes, via the public load_world path.
 """
 import pytest
 
-from fg_env_kernel import (
+from fg_env.legacy import (
     ContinuousTemporalModel,
     TimeMode,
     build_world_state,
     load_world,
 )
-from fg_env_kernel.action import ActionInstance
+from fg_env.action import ActionInstance
 
 
 def _idle_decision(entity_id, perception, valid_actions):

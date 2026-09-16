@@ -1,0 +1,1407 @@
+{
+  "fg_env": "1",
+  "name": "Used-iPhone reseller: graded stock, two channels and launches",
+  "description": "A bulk reseller of used iPhones (four models, four grades each) on the economy demand and replenishment modes. A graded phone's wholesale value is the model's price when new × a resale share × its grade, falling with age and stepping down over three weeks at every later iPhone launch (a lifecycle pattern). Retail buyers online pay the listing (value × markup, less the marketplace fee), answer the markup with a fitted elasticity and a weekday profile, and send 5–13% of phones back; wholesale buyers take bulk at a share of value and rarely return. The reseller buys graded lots every week up to a few weeks of forecast demand (or to a service level), paying a share of value plus refurbishment, within a lot minimum, case packs and a weekly budget, with delivery and grading times drawn per lot. Demand and lead times are fitted from bundled sales and purchase histories that the `truth` arm records (examples/phone_reseller_study.py regenerates them, compares channels, forks a new-model launch and validates on held-out months).",
+  "brief": {
+    "situation": "A reseller buying graded used iPhones in bulk and selling them to retail buyers online and to wholesale buyers."
+  },
+  "clock": {
+    "rounds": "$inputs.days",
+    "unit": "day",
+    "start": "$inputs.start"
+  },
+  "inputs": {
+    "start": {
+      "type": "text",
+      "default": "2026-08-03",
+      "description": "The first day."
+    },
+    "days": {
+      "type": "int",
+      "default": 90,
+      "min": 1,
+      "description": "Days to run."
+    },
+    "items": {
+      "type": "table",
+      "source": "phone_reseller/items.csv",
+      "columns": {
+        "grade_factor": "number",
+        "refurb_cost": "number",
+        "retail_return": "number",
+        "retail_rate": "number",
+        "wholesale_rate": "number"
+      },
+      "description": "Item lines (model × grade): grade value factor, refurbishment per unit, retail return rate, and the demand each line saw when the history began."
+    },
+    "models": {
+      "type": "table",
+      "default": [
+        {
+          "model": "14",
+          "launch": "2022-09-16",
+          "msrp": 799,
+          "later": [
+            "2023-09-22",
+            "2024-09-20",
+            "2025-09-19"
+          ]
+        },
+        {
+          "model": "15",
+          "launch": "2023-09-22",
+          "msrp": 799,
+          "later": [
+            "2024-09-20",
+            "2025-09-19"
+          ]
+        },
+        {
+          "model": "16P",
+          "launch": "2024-09-20",
+          "msrp": 999,
+          "later": [
+            "2025-09-19"
+          ]
+        },
+        {
+          "model": "17",
+          "launch": "2025-09-19",
+          "msrp": 829,
+          "later": []
+        }
+      ],
+      "description": "Models: launch date, price when new, and the launches since."
+    },
+    "history": {
+      "type": "table",
+      "source": "phone_reseller/history.csv",
+      "columns": {
+        "units": "int",
+        "stockout": "int",
+        "stock": "int",
+        "price": "number"
+      },
+      "description": "Daily sales per item and channel: units, whether stock ran out, units on hand, price and the retail markup (retail rows only)."
+    },
+    "orders": {
+      "type": "table",
+      "source": "phone_reseller/orders.csv",
+      "columns": {
+        "placed": "int",
+        "arrived": "int",
+        "qty": "int",
+        "lead_time": "number",
+        "factor": "number"
+      },
+      "description": "Lots bought per item: day placed and day listed, units, days from purchase to listing, and that over the usual time."
+    },
+    "opening_stock": {
+      "type": "map",
+      "default": {},
+      "description": "Phones on hand per item at the start, {item: units}; items left out start with 20."
+    },
+    "opening_orders": {
+      "type": "map",
+      "default": {},
+      "description": "Lots on their way at the start, {item: [[day due, units, day placed, lead time, factor], …]}."
+    },
+    "cash": {
+      "type": "number",
+      "default": 150000,
+      "min": 0,
+      "unit": "USD",
+      "description": "Cash at the start."
+    },
+    "new_launch": {
+      "type": "bool",
+      "default": false,
+      "description": "A new iPhone launches on new_launch_date."
+    },
+    "new_launch_date": {
+      "type": "text",
+      "default": "2026-09-18"
+    },
+    "resale_share": {
+      "type": "number",
+      "default": 0.6,
+      "description": "Wholesale value of a new grade-A phone, as a share of its price new."
+    },
+    "monthly_decay": {
+      "type": "number",
+      "default": 0.017,
+      "description": "Log value lost per month of age."
+    },
+    "launch_drop": {
+      "type": "number",
+      "default": 0.93,
+      "min": 0,
+      "max": 1,
+      "description": "Value kept at each later launch."
+    },
+    "retail_markup": {
+      "type": "map",
+      "default": {
+        "A": 1.31,
+        "B": 1.31,
+        "C": 1.31,
+        "D": 1.31
+      },
+      "description": "Retail listing over wholesale value, per grade (1.31 is the marketplace's fair uplift)."
+    },
+    "retail_fee": {
+      "type": "number",
+      "default": 0.1325,
+      "min": 0,
+      "max": 1,
+      "description": "Marketplace fee on retail sales."
+    },
+    "markup_wiggle": {
+      "type": "number",
+      "default": 0,
+      "min": 0,
+      "description": "Spread of day-to-day repricing around the markup (log)."
+    },
+    "wholesale_share": {
+      "type": "number",
+      "default": 0.86,
+      "min": 0,
+      "description": "What wholesale buyers pay, as a share of value."
+    },
+    "bid_share": {
+      "type": "number",
+      "default": 0.72,
+      "min": 0,
+      "description": "What a graded lot costs, as a share of value."
+    },
+    "capital_rate_daily": {
+      "type": "number",
+      "default": 0.0004,
+      "min": 0,
+      "description": "Cost of money tied up in stock, per day."
+    },
+    "buy_policy": {
+      "type": "enum",
+      "values": [
+        "cover",
+        "service"
+      ],
+      "default": "cover",
+      "description": "cover: every week buy up to cover_days of forecast demand | service: up to the forecast over lead time and a week, with safety stock for service_level."
+    },
+    "cover_days": {
+      "type": "number",
+      "default": 21,
+      "min": 0
+    },
+    "service_level": {
+      "type": "number",
+      "default": 0.9,
+      "min": 0.5,
+      "max": 0.999
+    },
+    "lead_days": {
+      "type": "number",
+      "default": 10,
+      "min": 0,
+      "description": "Usual days from buying a lot to listing its phones."
+    },
+    "lot_minimum": {
+      "type": "int",
+      "default": 10,
+      "min": 0,
+      "description": "Fewest phones of an item a supplier sells."
+    },
+    "weekly_budget": {
+      "type": "number",
+      "default": 40000,
+      "min": 0,
+      "unit": "USD"
+    },
+    "record_history": {
+      "type": "bool",
+      "default": false,
+      "description": "Record every day's sales and every lot (the truth arm does)."
+    },
+    "parameter_uncertainty": {
+      "type": "number",
+      "default": 1,
+      "min": 0,
+      "description": "Scales the standard errors of fitted pattern parameters: 1 draws each run's parameters around their estimates, 0 uses the estimates as they are."
+    },
+    "weekday_profile": {
+      "type": "list",
+      "default": [
+        0.8540511684398295,
+        0.8758089778332168,
+        1.0123252089026953,
+        1.0958862378490632,
+        1.0595023709917213,
+        1.0770652146235087,
+        1.0253608213599645
+      ],
+      "description": "Pattern 'weekday', profile: fitted by fg_env.fit_patterns from $inputs.history (joint count regression)."
+    },
+    "weekday_profile_se": {
+      "type": "list",
+      "default": [
+        0.04377421313641446,
+        0.04453303616808272,
+        0.04799683578357031,
+        0.05002967355396212,
+        0.04929303065421975,
+        0.04980909065897955,
+        0.04823762793989305
+      ],
+      "description": "Standard error of weekday_profile."
+    },
+    "retail_price_effect_elasticity": {
+      "type": "number",
+      "default": -2.4168946793616572,
+      "description": "Pattern 'retail_price_effect', elasticity: fitted by fg_env.fit_patterns from $inputs.history (joint count regression)."
+    },
+    "retail_price_effect_elasticity_se": {
+      "type": "number",
+      "default": 0.19410844827699558,
+      "description": "Standard error of retail_price_effect_elasticity."
+    },
+    "retail_demand_fit": {
+      "type": "table",
+      "default": [
+        {
+          "item": "14-A",
+          "model": "14",
+          "grade": "A",
+          "grade_factor": 1.0,
+          "refurb_cost": 5.0,
+          "retail_return": 0.05,
+          "retail_rate": 0.72,
+          "wholesale_rate": 0.24,
+          "scale": 0.6788960487590625,
+          "scale_se": 0.04732490115137551
+        },
+        {
+          "item": "14-B",
+          "model": "14",
+          "grade": "B",
+          "grade_factor": 0.85,
+          "refurb_cost": 25.0,
+          "retail_return": 0.06,
+          "retail_rate": 0.88,
+          "wholesale_rate": 0.48,
+          "scale": 0.8575592631627532,
+          "scale_se": 0.05430704899049668
+        },
+        {
+          "item": "14-C",
+          "model": "14",
+          "grade": "C",
+          "grade_factor": 0.68,
+          "refurb_cost": 60.0,
+          "retail_return": 0.11,
+          "retail_rate": 0.4,
+          "wholesale_rate": 0.64,
+          "scale": 0.3397357847507928,
+          "scale_se": 0.03188691663867729
+        },
+        {
+          "item": "14-D",
+          "model": "14",
+          "grade": "D",
+          "grade_factor": 0.42,
+          "refurb_cost": 10.0,
+          "retail_return": 0.13,
+          "retail_rate": 0.12,
+          "wholesale_rate": 0.8,
+          "scale": 0.13505929285769058,
+          "scale_se": 0.019507884033561983
+        },
+        {
+          "item": "15-A",
+          "model": "15",
+          "grade": "A",
+          "grade_factor": 1.0,
+          "refurb_cost": 5.0,
+          "retail_return": 0.05,
+          "retail_rate": 0.9,
+          "wholesale_rate": 0.3,
+          "scale": 0.9832273214488881,
+          "scale_se": 0.05916326964878411
+        },
+        {
+          "item": "15-B",
+          "model": "15",
+          "grade": "B",
+          "grade_factor": 0.85,
+          "refurb_cost": 25.0,
+          "retail_return": 0.06,
+          "retail_rate": 1.1,
+          "wholesale_rate": 0.6,
+          "scale": 1.2203703929050562,
+          "scale_se": 0.06814663712248048
+        },
+        {
+          "item": "15-C",
+          "model": "15",
+          "grade": "C",
+          "grade_factor": 0.68,
+          "refurb_cost": 60.0,
+          "retail_return": 0.11,
+          "retail_rate": 0.5,
+          "wholesale_rate": 0.8,
+          "scale": 0.5145362193299647,
+          "scale_se": 0.03999246373689333
+        },
+        {
+          "item": "15-D",
+          "model": "15",
+          "grade": "D",
+          "grade_factor": 0.42,
+          "refurb_cost": 10.0,
+          "retail_return": 0.13,
+          "retail_rate": 0.15,
+          "wholesale_rate": 1.0,
+          "scale": 0.13354189394792954,
+          "scale_se": 0.019478220114268058
+        },
+        {
+          "item": "16P-A",
+          "model": "16P",
+          "grade": "A",
+          "grade_factor": 1.0,
+          "refurb_cost": 5.0,
+          "retail_return": 0.05,
+          "retail_rate": 0.81,
+          "wholesale_rate": 0.27,
+          "scale": 0.8055233244571427,
+          "scale_se": 0.05221504550811222
+        },
+        {
+          "item": "16P-B",
+          "model": "16P",
+          "grade": "B",
+          "grade_factor": 0.85,
+          "refurb_cost": 25.0,
+          "retail_return": 0.06,
+          "retail_rate": 0.99,
+          "wholesale_rate": 0.54,
+          "scale": 0.96360249316608,
+          "scale_se": 0.05782793522566532
+        },
+        {
+          "item": "16P-C",
+          "model": "16P",
+          "grade": "C",
+          "grade_factor": 0.68,
+          "refurb_cost": 60.0,
+          "retail_return": 0.11,
+          "retail_rate": 0.45,
+          "wholesale_rate": 0.72,
+          "scale": 0.45571776894204896,
+          "scale_se": 0.03732569061961605
+        },
+        {
+          "item": "16P-D",
+          "model": "16P",
+          "grade": "D",
+          "grade_factor": 0.42,
+          "refurb_cost": 10.0,
+          "retail_return": 0.13,
+          "retail_rate": 0.135,
+          "wholesale_rate": 0.9,
+          "scale": 0.14680166469000067,
+          "scale_se": 0.020434837768853662
+        },
+        {
+          "item": "17-A",
+          "model": "17",
+          "grade": "A",
+          "grade_factor": 1.0,
+          "refurb_cost": 5.0,
+          "retail_return": 0.05,
+          "retail_rate": 0.54,
+          "wholesale_rate": 0.18,
+          "scale": 0.524069827541095,
+          "scale_se": 0.040298703753760504
+        },
+        {
+          "item": "17-B",
+          "model": "17",
+          "grade": "B",
+          "grade_factor": 0.85,
+          "refurb_cost": 25.0,
+          "retail_return": 0.06,
+          "retail_rate": 0.66,
+          "wholesale_rate": 0.36,
+          "scale": 0.585328024190665,
+          "scale_se": 0.043199370688178786
+        },
+        {
+          "item": "17-C",
+          "model": "17",
+          "grade": "C",
+          "grade_factor": 0.68,
+          "refurb_cost": 60.0,
+          "retail_return": 0.11,
+          "retail_rate": 0.3,
+          "wholesale_rate": 0.48,
+          "scale": 0.2875630361388193,
+          "scale_se": 0.028927330841338448
+        },
+        {
+          "item": "17-D",
+          "model": "17",
+          "grade": "D",
+          "grade_factor": 0.42,
+          "refurb_cost": 10.0,
+          "retail_return": 0.13,
+          "retail_rate": 0.09,
+          "wholesale_rate": 0.6,
+          "scale": 0.08389203468784144,
+          "scale_se": 0.015267632108148414
+        }
+      ],
+      "description": "Pattern 'retail_demand', one row per key: scale fitted by fg_env.fit_patterns from $inputs.history (joint count regression)."
+    },
+    "sales_dispersion": {
+      "type": "number",
+      "default": 3.4644827767042385,
+      "description": "Pattern 'sales', dispersion: fitted by fg_env.fit_patterns from $inputs.history (method of moments around the fitted means)."
+    },
+    "wholesale_trend_rate": {
+      "type": "number",
+      "default": 0.00019497986486851653,
+      "description": "Pattern 'wholesale_trend', rate: fitted by fg_env.fit_patterns from $inputs.history (joint count regression)."
+    },
+    "wholesale_trend_rate_se": {
+      "type": "number",
+      "default": 0.00019793028526595734,
+      "description": "Standard error of wholesale_trend_rate."
+    },
+    "wholesale_demand_fit": {
+      "type": "table",
+      "default": [
+        {
+          "item": "14-A",
+          "model": "14",
+          "grade": "A",
+          "grade_factor": 1.0,
+          "refurb_cost": 5.0,
+          "retail_return": 0.05,
+          "retail_rate": 0.72,
+          "wholesale_rate": 0.24,
+          "scale": 0.23823347003981263,
+          "scale_se": 0.027566101092453093
+        },
+        {
+          "item": "14-B",
+          "model": "14",
+          "grade": "B",
+          "grade_factor": 0.85,
+          "refurb_cost": 25.0,
+          "retail_return": 0.06,
+          "retail_rate": 0.88,
+          "wholesale_rate": 0.48,
+          "scale": 0.4488365142432106,
+          "scale_se": 0.040336595307545194
+        },
+        {
+          "item": "14-C",
+          "model": "14",
+          "grade": "C",
+          "grade_factor": 0.68,
+          "refurb_cost": 60.0,
+          "retail_return": 0.11,
+          "retail_rate": 0.4,
+          "wholesale_rate": 0.64,
+          "scale": 0.6588556830659709,
+          "scale_se": 0.0516862571019131
+        },
+        {
+          "item": "14-D",
+          "model": "14",
+          "grade": "D",
+          "grade_factor": 0.42,
+          "refurb_cost": 10.0,
+          "retail_return": 0.13,
+          "retail_rate": 0.12,
+          "wholesale_rate": 0.8,
+          "scale": 0.780276178102968,
+          "scale_se": 0.05808523083774835
+        },
+        {
+          "item": "15-A",
+          "model": "15",
+          "grade": "A",
+          "grade_factor": 1.0,
+          "refurb_cost": 5.0,
+          "retail_return": 0.05,
+          "retail_rate": 0.9,
+          "wholesale_rate": 0.3,
+          "scale": 0.33101268014565266,
+          "scale_se": 0.033475554944493835
+        },
+        {
+          "item": "15-B",
+          "model": "15",
+          "grade": "B",
+          "grade_factor": 0.85,
+          "refurb_cost": 25.0,
+          "retail_return": 0.06,
+          "retail_rate": 1.1,
+          "wholesale_rate": 0.6,
+          "scale": 0.5425073666967374,
+          "scale_se": 0.045629436107717004
+        },
+        {
+          "item": "15-C",
+          "model": "15",
+          "grade": "C",
+          "grade_factor": 0.68,
+          "refurb_cost": 60.0,
+          "retail_return": 0.11,
+          "retail_rate": 0.5,
+          "wholesale_rate": 0.8,
+          "scale": 0.8917678944147579,
+          "scale_se": 0.06339320180633194
+        },
+        {
+          "item": "15-D",
+          "model": "15",
+          "grade": "D",
+          "grade_factor": 0.42,
+          "refurb_cost": 10.0,
+          "retail_return": 0.13,
+          "retail_rate": 0.15,
+          "wholesale_rate": 1.0,
+          "scale": 0.9969845081945831,
+          "scale_se": 0.06942711324748399
+        },
+        {
+          "item": "16P-A",
+          "model": "16P",
+          "grade": "A",
+          "grade_factor": 1.0,
+          "refurb_cost": 5.0,
+          "retail_return": 0.05,
+          "retail_rate": 0.81,
+          "wholesale_rate": 0.27,
+          "scale": 0.26823050517441727,
+          "scale_se": 0.029498732747833854
+        },
+        {
+          "item": "16P-B",
+          "model": "16P",
+          "grade": "B",
+          "grade_factor": 0.85,
+          "refurb_cost": 25.0,
+          "retail_return": 0.06,
+          "retail_rate": 0.99,
+          "wholesale_rate": 0.54,
+          "scale": 0.45324649424695734,
+          "scale_se": 0.040358582305746425
+        },
+        {
+          "item": "16P-C",
+          "model": "16P",
+          "grade": "C",
+          "grade_factor": 0.68,
+          "refurb_cost": 60.0,
+          "retail_return": 0.11,
+          "retail_rate": 0.45,
+          "wholesale_rate": 0.72,
+          "scale": 0.7451733740576951,
+          "scale_se": 0.056067629752861885
+        },
+        {
+          "item": "16P-D",
+          "model": "16P",
+          "grade": "D",
+          "grade_factor": 0.42,
+          "refurb_cost": 10.0,
+          "retail_return": 0.13,
+          "retail_rate": 0.135,
+          "wholesale_rate": 0.9,
+          "scale": 0.905505946047328,
+          "scale_se": 0.06418853061971831
+        },
+        {
+          "item": "17-A",
+          "model": "17",
+          "grade": "A",
+          "grade_factor": 1.0,
+          "refurb_cost": 5.0,
+          "retail_return": 0.05,
+          "retail_rate": 0.54,
+          "wholesale_rate": 0.18,
+          "scale": 0.11593612470733437,
+          "scale_se": 0.018425795839312725
+        },
+        {
+          "item": "17-B",
+          "model": "17",
+          "grade": "B",
+          "grade_factor": 0.85,
+          "refurb_cost": 25.0,
+          "retail_return": 0.06,
+          "retail_rate": 0.66,
+          "wholesale_rate": 0.36,
+          "scale": 0.40076799725605017,
+          "scale_se": 0.03763582401178491
+        },
+        {
+          "item": "17-C",
+          "model": "17",
+          "grade": "C",
+          "grade_factor": 0.68,
+          "refurb_cost": 60.0,
+          "retail_return": 0.11,
+          "retail_rate": 0.3,
+          "wholesale_rate": 0.48,
+          "scale": 0.4081565390320782,
+          "scale_se": 0.0378873742359473
+        },
+        {
+          "item": "17-D",
+          "model": "17",
+          "grade": "D",
+          "grade_factor": 0.42,
+          "refurb_cost": 10.0,
+          "retail_return": 0.13,
+          "retail_rate": 0.09,
+          "wholesale_rate": 0.6,
+          "scale": 0.5038065814127517,
+          "scale_se": 0.04326268932733994
+        }
+      ],
+      "description": "Pattern 'wholesale_demand', one row per key: scale fitted by fg_env.fit_patterns from $inputs.history (joint count regression)."
+    },
+    "bulk_dispersion": {
+      "type": "number",
+      "default": 1.6826919000563045,
+      "description": "Pattern 'bulk', dispersion: fitted by fg_env.fit_patterns from $inputs.history (method of moments around the fitted means)."
+    },
+    "lead_noise_mean": {
+      "type": "number",
+      "default": 0.016229408068922934,
+      "description": "Pattern 'lead_noise', mean: fitted by fg_env.fit_patterns from $inputs.orders (method of moments)."
+    },
+    "lead_noise_mean_se": {
+      "type": "number",
+      "default": 0.01472889695585948,
+      "description": "Standard error of lead_noise_mean."
+    },
+    "lead_noise_sd": {
+      "type": "number",
+      "default": 0.34730226817312554,
+      "description": "Pattern 'lead_noise', sd: fitted by fg_env.fit_patterns from $inputs.orders (method of moments)."
+    }
+  },
+  "types": {
+    "phone": {
+      "description": "A line of graded phones of one model.",
+      "props": {
+        "model": "",
+        "grade": {
+          "type": "enum",
+          "values": [
+            "A",
+            "B",
+            "C",
+            "D"
+          ],
+          "default": "B"
+        },
+        "refurb_cost": 0.0,
+        "retail_return": 0.0
+      }
+    },
+    "reseller": {
+      "description": "The business.",
+      "props": {}
+    }
+  },
+  "entities": {
+    "reseller": {
+      "type": "reseller",
+      "name": "Pocket Mobile"
+    }
+  },
+  "population": [
+    {
+      "type": "phone",
+      "from": "$inputs.items",
+      "id": "{$row.item}",
+      "name": "iPhone {$row.model} grade {$row.grade}",
+      "props": {
+        "model": "$row.model",
+        "grade": "$row.grade",
+        "refurb_cost": "$row.refurb_cost",
+        "retail_return": "$row.retail_return",
+        "stock": "$get($inputs.opening_stock, $row.item, 20)",
+        "buying_pipeline": "$get($inputs.opening_orders, $row.item, [])",
+        "buying_on_order": "$sum($get($inputs.opening_orders, $row.item, []), $it[1])"
+      }
+    }
+  ],
+  "patterns": {
+    "age_decay": {
+      "kind": "trend",
+      "form": "exponential",
+      "table": "$inputs.models",
+      "column": "model",
+      "rate": "-$inputs.monthly_decay / 30.44",
+      "origin": "$row.launch",
+      "description": "Value lost with age since the model's launch."
+    },
+    "launches": {
+      "kind": "lifecycle",
+      "table": "$inputs.models",
+      "column": "model",
+      "start": "$row.later + ([$inputs.new_launch_date] if $inputs.new_launch else [])",
+      "before": 1,
+      "peak": "$inputs.launch_drop",
+      "ramp": 21,
+      "description": "Every later iPhone launch cuts an older model's value, over three weeks."
+    },
+    "value": {
+      "kind": "product",
+      "table": "$inputs.items",
+      "column": "item",
+      "scale": "$dict($inputs.models, $it.model, $it.msrp)[$row.model] * $inputs.resale_share * $row.grade_factor",
+      "of": [
+        {
+          "pattern": "age_decay",
+          "key": "$row.model"
+        },
+        {
+          "pattern": "launches",
+          "key": "$row.model"
+        }
+      ],
+      "unit": "USD",
+      "description": "A graded phone's wholesale value today."
+    },
+    "weekday": {
+      "kind": "seasonal",
+      "period": "week",
+      "profile": "$inputs.weekday_profile",
+      "description": "Retail buyers by day of the week, Monday first.",
+      "uncertainty": {
+        "profile": "$map($inputs.weekday_profile_se, $it * $inputs.parameter_uncertainty)"
+      }
+    },
+    "retail_demand": {
+      "kind": "product",
+      "table": "$inputs.retail_demand_fit",
+      "column": "item",
+      "scale": "$row.scale",
+      "of": [
+        "weekday"
+      ],
+      "description": "Retail buyers a day for an item at the fair markup.",
+      "fit": {
+        "data": "$inputs.history",
+        "where": "$row.segment == retail",
+        "value": "units",
+        "time": "time",
+        "key": "item",
+        "censored": "stockout",
+        "noise": "sales",
+        "x": {
+          "retail_price_effect": "retail_price_effect"
+        }
+      },
+      "uncertainty": {
+        "scale": "$row.scale_se * $inputs.parameter_uncertainty"
+      }
+    },
+    "retail_price_effect": {
+      "kind": "elasticity",
+      "elasticity": "$inputs.retail_price_effect_elasticity",
+      "reference": 1.31,
+      "description": "Retail buyers answer the listing's markup over value.",
+      "uncertainty": {
+        "elasticity": "$inputs.retail_price_effect_elasticity_se * $inputs.parameter_uncertainty"
+      }
+    },
+    "markup_wiggle": {
+      "kind": "noise",
+      "keys": [
+        "A",
+        "B",
+        "C",
+        "D"
+      ],
+      "dist": "lognormal",
+      "mean": 0,
+      "sd": "$inputs.markup_wiggle",
+      "description": "Day-to-day repricing around the markup, per grade."
+    },
+    "sales": {
+      "kind": "counts",
+      "dispersion": "$inputs.sales_dispersion",
+      "description": "Retail buyers a day, around the expected number."
+    },
+    "wholesale_trend": {
+      "kind": "trend",
+      "form": "exponential",
+      "rate": "$inputs.wholesale_trend_rate",
+      "origin": "2026-01-01",
+      "description": "Growth of wholesale buyers' demand.",
+      "uncertainty": {
+        "rate": "$inputs.wholesale_trend_rate_se * $inputs.parameter_uncertainty"
+      }
+    },
+    "wholesale_demand": {
+      "kind": "product",
+      "table": "$inputs.wholesale_demand_fit",
+      "column": "item",
+      "scale": "$row.scale",
+      "of": [
+        "wholesale_trend"
+      ],
+      "description": "Phones a day wholesale buyers take of an item.",
+      "fit": {
+        "data": "$inputs.history",
+        "where": "$row.segment == wholesale",
+        "value": "units",
+        "time": "time",
+        "key": "item",
+        "censored": "stockout",
+        "noise": "bulk"
+      },
+      "uncertainty": {
+        "scale": "$row.scale_se * $inputs.parameter_uncertainty"
+      }
+    },
+    "bulk": {
+      "kind": "counts",
+      "dispersion": "$inputs.bulk_dispersion",
+      "description": "Wholesale takes come in lumps."
+    },
+    "lead_noise": {
+      "kind": "noise",
+      "dist": "lognormal",
+      "mean": "$inputs.lead_noise_mean",
+      "sd": "$inputs.lead_noise_sd",
+      "description": "How far a lot's delivery and grading run from the usual days.",
+      "fit": {
+        "data": "$inputs.orders",
+        "value": "factor"
+      },
+      "uncertainty": {
+        "mean": "$inputs.lead_noise_mean_se * $inputs.parameter_uncertainty"
+      }
+    }
+  },
+  "mechanisms": {
+    "money": {
+      "kind": "economy",
+      "mode": "ledger",
+      "who": "reseller",
+      "currencies": {
+        "cash": {
+          "start": "$inputs.cash",
+          "unit": "USD"
+        }
+      }
+    },
+    "sales": {
+      "kind": "economy",
+      "mode": "demand",
+      "items": "phone",
+      "stock": "stock",
+      "group": "$it.model",
+      "price": "$round($pattern.value($it) * $get($inputs.retail_markup, $it.grade) * $pattern.markup_wiggle($it.grade) * (1 - $inputs.retail_fee), 2)",
+      "cost": "$pattern.value($it) * $inputs.bid_share + $it.refurb_cost",
+      "segment": "retail",
+      "rate": "retail_demand",
+      "noise": "sales",
+      "factors": [
+        {
+          "pattern": "retail_price_effect",
+          "driver": "$get($inputs.retail_markup, $it.grade) * $pattern.markup_wiggle($it.grade)"
+        }
+      ],
+      "returns": {
+        "rate": "$it.retail_return",
+        "delay": 10,
+        "restock": 0.7
+      },
+      "segments": {
+        "wholesale": {
+          "rate": "wholesale_demand",
+          "noise": "bulk",
+          "price": "$round($pattern.value($it) * $inputs.wholesale_share, 2)",
+          "returns": {
+            "rate": 0.015,
+            "delay": 5,
+            "restock": 0.9
+          }
+        }
+      },
+      "account": "reseller",
+      "currency": "cash",
+      "record": "$inputs.record_history"
+    },
+    "buying": {
+      "kind": "economy",
+      "mode": "replenishment",
+      "demand": "sales",
+      "policy": "'order_up_to' if $inputs.buy_policy == cover else 'service'",
+      "order_up_to": "$ceil($forecast * $inputs.cover_days)",
+      "service_level": "$inputs.service_level",
+      "review_every": 7,
+      "lead_time": {
+        "pattern": "lead_noise",
+        "scale": "$inputs.lead_days"
+      },
+      "min_order": "$inputs.lot_minimum",
+      "case_pack": 5,
+      "budget": "$inputs.weekly_budget",
+      "holding_cost": "$pattern.value($it) * $inputs.capital_rate_daily",
+      "record": "$inputs.record_history"
+    }
+  },
+  "arms": {
+    "clearance": {
+      "description": "List retail 8% cheaper and sell to wholesale at 90% of value.",
+      "inputs": {
+        "retail_markup": {
+          "A": 1.2,
+          "B": 1.2,
+          "C": 1.2,
+          "D": 1.2
+        },
+        "wholesale_share": 0.9
+      }
+    },
+    "launch": {
+      "description": "A new iPhone launches on 2026-09-18.",
+      "inputs": {
+        "new_launch": true
+      }
+    },
+    "service": {
+      "description": "Buy to a 90% service level instead of three weeks of cover.",
+      "inputs": {
+        "buy_policy": "service"
+      }
+    },
+    "truth": {
+      "description": "The world that generated the bundled histories: a year from 2025-10-06 with day-to-day repricing and the 2026 launch, recording every day and lot.",
+      "inputs": {
+        "record_history": true,
+        "start": "2025-10-06",
+        "days": 364,
+        "markup_wiggle": 0.1,
+        "new_launch": true,
+        "parameter_uncertainty": 0,
+        "retail_demand_fit": [
+          {
+            "item": "14-A",
+            "model": "14",
+            "grade": "A",
+            "grade_factor": 1.0,
+            "refurb_cost": 5.0,
+            "retail_return": 0.05,
+            "retail_rate": 0.72,
+            "wholesale_rate": 0.24,
+            "scale": 0.72,
+            "scale_se": 0.0
+          },
+          {
+            "item": "14-B",
+            "model": "14",
+            "grade": "B",
+            "grade_factor": 0.85,
+            "refurb_cost": 25.0,
+            "retail_return": 0.06,
+            "retail_rate": 0.88,
+            "wholesale_rate": 0.48,
+            "scale": 0.88,
+            "scale_se": 0.0
+          },
+          {
+            "item": "14-C",
+            "model": "14",
+            "grade": "C",
+            "grade_factor": 0.68,
+            "refurb_cost": 60.0,
+            "retail_return": 0.11,
+            "retail_rate": 0.4,
+            "wholesale_rate": 0.64,
+            "scale": 0.4,
+            "scale_se": 0.0
+          },
+          {
+            "item": "14-D",
+            "model": "14",
+            "grade": "D",
+            "grade_factor": 0.42,
+            "refurb_cost": 10.0,
+            "retail_return": 0.13,
+            "retail_rate": 0.12,
+            "wholesale_rate": 0.8,
+            "scale": 0.12,
+            "scale_se": 0.0
+          },
+          {
+            "item": "15-A",
+            "model": "15",
+            "grade": "A",
+            "grade_factor": 1.0,
+            "refurb_cost": 5.0,
+            "retail_return": 0.05,
+            "retail_rate": 0.9,
+            "wholesale_rate": 0.3,
+            "scale": 0.9,
+            "scale_se": 0.0
+          },
+          {
+            "item": "15-B",
+            "model": "15",
+            "grade": "B",
+            "grade_factor": 0.85,
+            "refurb_cost": 25.0,
+            "retail_return": 0.06,
+            "retail_rate": 1.1,
+            "wholesale_rate": 0.6,
+            "scale": 1.1,
+            "scale_se": 0.0
+          },
+          {
+            "item": "15-C",
+            "model": "15",
+            "grade": "C",
+            "grade_factor": 0.68,
+            "refurb_cost": 60.0,
+            "retail_return": 0.11,
+            "retail_rate": 0.5,
+            "wholesale_rate": 0.8,
+            "scale": 0.5,
+            "scale_se": 0.0
+          },
+          {
+            "item": "15-D",
+            "model": "15",
+            "grade": "D",
+            "grade_factor": 0.42,
+            "refurb_cost": 10.0,
+            "retail_return": 0.13,
+            "retail_rate": 0.15,
+            "wholesale_rate": 1.0,
+            "scale": 0.15,
+            "scale_se": 0.0
+          },
+          {
+            "item": "16P-A",
+            "model": "16P",
+            "grade": "A",
+            "grade_factor": 1.0,
+            "refurb_cost": 5.0,
+            "retail_return": 0.05,
+            "retail_rate": 0.81,
+            "wholesale_rate": 0.27,
+            "scale": 0.81,
+            "scale_se": 0.0
+          },
+          {
+            "item": "16P-B",
+            "model": "16P",
+            "grade": "B",
+            "grade_factor": 0.85,
+            "refurb_cost": 25.0,
+            "retail_return": 0.06,
+            "retail_rate": 0.99,
+            "wholesale_rate": 0.54,
+            "scale": 0.99,
+            "scale_se": 0.0
+          },
+          {
+            "item": "16P-C",
+            "model": "16P",
+            "grade": "C",
+            "grade_factor": 0.68,
+            "refurb_cost": 60.0,
+            "retail_return": 0.11,
+            "retail_rate": 0.45,
+            "wholesale_rate": 0.72,
+            "scale": 0.45,
+            "scale_se": 0.0
+          },
+          {
+            "item": "16P-D",
+            "model": "16P",
+            "grade": "D",
+            "grade_factor": 0.42,
+            "refurb_cost": 10.0,
+            "retail_return": 0.13,
+            "retail_rate": 0.135,
+            "wholesale_rate": 0.9,
+            "scale": 0.135,
+            "scale_se": 0.0
+          },
+          {
+            "item": "17-A",
+            "model": "17",
+            "grade": "A",
+            "grade_factor": 1.0,
+            "refurb_cost": 5.0,
+            "retail_return": 0.05,
+            "retail_rate": 0.54,
+            "wholesale_rate": 0.18,
+            "scale": 0.54,
+            "scale_se": 0.0
+          },
+          {
+            "item": "17-B",
+            "model": "17",
+            "grade": "B",
+            "grade_factor": 0.85,
+            "refurb_cost": 25.0,
+            "retail_return": 0.06,
+            "retail_rate": 0.66,
+            "wholesale_rate": 0.36,
+            "scale": 0.66,
+            "scale_se": 0.0
+          },
+          {
+            "item": "17-C",
+            "model": "17",
+            "grade": "C",
+            "grade_factor": 0.68,
+            "refurb_cost": 60.0,
+            "retail_return": 0.11,
+            "retail_rate": 0.3,
+            "wholesale_rate": 0.48,
+            "scale": 0.3,
+            "scale_se": 0.0
+          },
+          {
+            "item": "17-D",
+            "model": "17",
+            "grade": "D",
+            "grade_factor": 0.42,
+            "refurb_cost": 10.0,
+            "retail_return": 0.13,
+            "retail_rate": 0.09,
+            "wholesale_rate": 0.6,
+            "scale": 0.09,
+            "scale_se": 0.0
+          }
+        ],
+        "wholesale_demand_fit": [
+          {
+            "item": "14-A",
+            "model": "14",
+            "grade": "A",
+            "grade_factor": 1.0,
+            "refurb_cost": 5.0,
+            "retail_return": 0.05,
+            "retail_rate": 0.72,
+            "wholesale_rate": 0.24,
+            "scale": 0.24,
+            "scale_se": 0.0
+          },
+          {
+            "item": "14-B",
+            "model": "14",
+            "grade": "B",
+            "grade_factor": 0.85,
+            "refurb_cost": 25.0,
+            "retail_return": 0.06,
+            "retail_rate": 0.88,
+            "wholesale_rate": 0.48,
+            "scale": 0.48,
+            "scale_se": 0.0
+          },
+          {
+            "item": "14-C",
+            "model": "14",
+            "grade": "C",
+            "grade_factor": 0.68,
+            "refurb_cost": 60.0,
+            "retail_return": 0.11,
+            "retail_rate": 0.4,
+            "wholesale_rate": 0.64,
+            "scale": 0.64,
+            "scale_se": 0.0
+          },
+          {
+            "item": "14-D",
+            "model": "14",
+            "grade": "D",
+            "grade_factor": 0.42,
+            "refurb_cost": 10.0,
+            "retail_return": 0.13,
+            "retail_rate": 0.12,
+            "wholesale_rate": 0.8,
+            "scale": 0.8,
+            "scale_se": 0.0
+          },
+          {
+            "item": "15-A",
+            "model": "15",
+            "grade": "A",
+            "grade_factor": 1.0,
+            "refurb_cost": 5.0,
+            "retail_return": 0.05,
+            "retail_rate": 0.9,
+            "wholesale_rate": 0.3,
+            "scale": 0.3,
+            "scale_se": 0.0
+          },
+          {
+            "item": "15-B",
+            "model": "15",
+            "grade": "B",
+            "grade_factor": 0.85,
+            "refurb_cost": 25.0,
+            "retail_return": 0.06,
+            "retail_rate": 1.1,
+            "wholesale_rate": 0.6,
+            "scale": 0.6,
+            "scale_se": 0.0
+          },
+          {
+            "item": "15-C",
+            "model": "15",
+            "grade": "C",
+            "grade_factor": 0.68,
+            "refurb_cost": 60.0,
+            "retail_return": 0.11,
+            "retail_rate": 0.5,
+            "wholesale_rate": 0.8,
+            "scale": 0.8,
+            "scale_se": 0.0
+          },
+          {
+            "item": "15-D",
+            "model": "15",
+            "grade": "D",
+            "grade_factor": 0.42,
+            "refurb_cost": 10.0,
+            "retail_return": 0.13,
+            "retail_rate": 0.15,
+            "wholesale_rate": 1.0,
+            "scale": 1.0,
+            "scale_se": 0.0
+          },
+          {
+            "item": "16P-A",
+            "model": "16P",
+            "grade": "A",
+            "grade_factor": 1.0,
+            "refurb_cost": 5.0,
+            "retail_return": 0.05,
+            "retail_rate": 0.81,
+            "wholesale_rate": 0.27,
+            "scale": 0.27,
+            "scale_se": 0.0
+          },
+          {
+            "item": "16P-B",
+            "model": "16P",
+            "grade": "B",
+            "grade_factor": 0.85,
+            "refurb_cost": 25.0,
+            "retail_return": 0.06,
+            "retail_rate": 0.99,
+            "wholesale_rate": 0.54,
+            "scale": 0.54,
+            "scale_se": 0.0
+          },
+          {
+            "item": "16P-C",
+            "model": "16P",
+            "grade": "C",
+            "grade_factor": 0.68,
+            "refurb_cost": 60.0,
+            "retail_return": 0.11,
+            "retail_rate": 0.45,
+            "wholesale_rate": 0.72,
+            "scale": 0.72,
+            "scale_se": 0.0
+          },
+          {
+            "item": "16P-D",
+            "model": "16P",
+            "grade": "D",
+            "grade_factor": 0.42,
+            "refurb_cost": 10.0,
+            "retail_return": 0.13,
+            "retail_rate": 0.135,
+            "wholesale_rate": 0.9,
+            "scale": 0.9,
+            "scale_se": 0.0
+          },
+          {
+            "item": "17-A",
+            "model": "17",
+            "grade": "A",
+            "grade_factor": 1.0,
+            "refurb_cost": 5.0,
+            "retail_return": 0.05,
+            "retail_rate": 0.54,
+            "wholesale_rate": 0.18,
+            "scale": 0.18,
+            "scale_se": 0.0
+          },
+          {
+            "item": "17-B",
+            "model": "17",
+            "grade": "B",
+            "grade_factor": 0.85,
+            "refurb_cost": 25.0,
+            "retail_return": 0.06,
+            "retail_rate": 0.66,
+            "wholesale_rate": 0.36,
+            "scale": 0.36,
+            "scale_se": 0.0
+          },
+          {
+            "item": "17-C",
+            "model": "17",
+            "grade": "C",
+            "grade_factor": 0.68,
+            "refurb_cost": 60.0,
+            "retail_return": 0.11,
+            "retail_rate": 0.3,
+            "wholesale_rate": 0.48,
+            "scale": 0.48,
+            "scale_se": 0.0
+          },
+          {
+            "item": "17-D",
+            "model": "17",
+            "grade": "D",
+            "grade_factor": 0.42,
+            "refurb_cost": 10.0,
+            "retail_return": 0.13,
+            "retail_rate": 0.09,
+            "wholesale_rate": 0.6,
+            "scale": 0.6,
+            "scale_se": 0.0
+          }
+        ],
+        "weekday_profile": [
+          0.9,
+          0.9,
+          0.95,
+          1.0,
+          1.05,
+          1.15,
+          1.05
+        ],
+        "retail_price_effect_elasticity": -2.5,
+        "sales_dispersion": 3,
+        "wholesale_trend_rate": 0.0,
+        "bulk_dispersion": 1.5,
+        "lead_noise_mean": 0,
+        "lead_noise_sd": 0.35
+      }
+    }
+  }
+}

@@ -1,0 +1,254 @@
+"""The turn session an agent drives: read the picture, call tools, end the turn.
+
+A participant receives a :class:`Wake`. It reads ``wake.brief`` (static, cache it) and
+``wake.update`` (what is new), then calls tools until the turn is over::
+
+    def my_agent(wake):
+        result = wake.call("buy", {"offer": "house_blend", "qty": 2})
+        if not result.ok:
+            wake.call("buy", {"offer": "house_blend", "qty": 1})   # the text says what to fix
+        wake.end()
+
+For an LLM, ``wake.tools_for("anthropic")`` / ``"openai"`` gives provider tool
+definitions and ``wake.call(name, args)`` executes the model's tool call; feed
+``result.text`` back as the tool result.
+
+A participant may also be an ``async def`` (or return an awaitable): the engine awaits it, and
+runs the async participants of a simultaneous stage concurrently.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+import os
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
+
+from .actions import ToolSpec
+from .assets.delivery import Attachment
+from .assets.intake import intake
+from .measure import Stats
+
+if TYPE_CHECKING:
+    from .branch import Branch
+    from .turn import Turn
+
+__all__ = ["Wake", "ToolResult", "END_TURN"]
+
+END_TURN = "end_turn"
+
+
+@dataclass
+class ToolResult:
+    """What a tool call did. ``text`` is written for the agent; ``ended`` means the turn is over."""
+
+    ok: bool
+    text: str
+    ended: bool = False
+    data: Dict[str, Any] = field(default_factory=dict)
+    #: Files delivered with the result (an action's `attach`, a view's, or the asset properties inspect shows).
+    attachments: List[Attachment] = field(default_factory=list)
+
+    def __str__(self) -> str:
+        return self.text
+
+
+class Wake:
+    """One agent's turn. Obtained from the runtime; never constructed directly."""
+
+    def __init__(self, turn: "Turn"):
+        self._turn = turn
+
+    # -- who / when / why -----------------------------------------------------
+
+    @property
+    def entity_id(self) -> str:
+        return self._turn.actor.id
+
+    @property
+    def name(self) -> str:
+        return self._turn.actor.name
+
+    @property
+    def type(self) -> str:
+        return self._turn.actor.entity_type
+
+    @property
+    def round(self) -> int:
+        return self._turn.round
+
+    @property
+    def stage(self) -> str:
+        return self._turn.stage.name
+
+    @property
+    def reason(self) -> str:
+        return self._turn.reason
+
+    @property
+    def me(self) -> Dict[str, Any]:
+        """A copy of this agent's own properties plus ``id``, ``name``, ``type`` and ``at``."""
+        actor = self._turn.actor
+        return {**actor.properties, "id": actor.id, "name": actor.name, "type": actor.entity_type, "at": actor.location_id}
+
+    # -- what the agent reads ---------------------------------------------------
+
+    @property
+    def brief(self) -> str:
+        """Static context: situation, rules, role. Identical across this agent's turns (cacheable)."""
+        if self._turn._brief is None:
+            self._turn.record("brief")
+        return self._turn.brief
+
+    @property
+    def update(self) -> str:
+        """Dynamic context: time, why now, what happened since the last turn, declared views."""
+        if self._turn._update is None:
+            self._turn.record("update")
+        return self._turn.update
+
+    @property
+    def attachments(self) -> List[Attachment]:
+        """The files delivered with the brief and the update (reading them reads both): each has ``type``, ``name``,
+        ``media_type``, ``caption``, ``alt``, ``size``, ``hash``, ``read()`` for its bytes and ``text()`` for text files."""
+        self.brief
+        self.update
+        return self._turn.attachments()
+
+    @property
+    def tools(self) -> List[ToolSpec]:
+        """Tools legal right now. Recomputed after every call."""
+        if not self._turn._offered:
+            self._turn.record("tools")
+        return self._offer(self._turn.tools())
+
+    def _offer(self, tools: List[ToolSpec]) -> List[ToolSpec]:
+        exposure = self._turn.exposure
+        if exposure is not None and tools:
+            with self._turn.env._lock:
+                exposure.offered(tools)
+        return tools
+
+    def tools_for(self, provider: str = "anthropic") -> List[Dict[str, Any]]:
+        """Tool definitions in a provider's format: ``anthropic`` or ``openai``."""
+        converters: Dict[str, Callable[[ToolSpec], Dict[str, Any]]] = {
+            "anthropic": ToolSpec.to_anthropic,
+            "openai": ToolSpec.to_openai,
+        }
+        if provider not in converters:
+            raise ValueError(f"unknown provider {provider!r} (anthropic, openai)")
+        return [converters[provider](tool) for tool in self.tools]
+
+    # -- acting ------------------------------------------------------------------------
+
+    def call(self, name: str, args: Optional[Dict[str, Any]] = None) -> ToolResult:
+        """Execute one tool call. Invalid calls cost nothing but a call and return what to fix."""
+        turn = self._turn
+        with turn.env._lock:  # a call made after the deadline is refused, so it is no step on the tape
+            if turn.refusal() is None:
+                args = intake(turn, name, args)  # submitted files are stored first: the tape holds their ids
+                turn.record("call", name, _copy(args))
+            return turn.call(name, args)
+
+    def upload(self, source: Union[bytes, str, "os.PathLike[str]"], name: Optional[str] = None) -> str:
+        """Store a file for this agent — bytes, or a path your own code chose — and return its id, to pass as a
+        `file` argument (``{"asset": id}``). Its kind is recognised from its bytes; it is untrusted like any
+        participant text."""
+        from .assets.intake import upload
+
+        return upload(self._turn, source, name)
+
+    def end(self) -> ToolResult:
+        """Finish the turn; a normally finished turn needs no further tool call.
+
+        Timeouts and externally closed turns retain their refusal. Explicit
+        ``call("end_turn")`` still follows the tool protocol, including recording.
+        """
+        turn = self._turn
+        with turn.env._lock:
+            if turn.done and not turn.closed and not turn.expired():
+                return ToolResult(True, "Turn already ended.", True)
+            return self.call(END_TURN, {})
+
+    def clone(self, *, participants: Any = None, seed: Optional[int] = None, same_luck: bool = False) -> "Branch":
+        """A private copy of the whole run, paused exactly here in this turn, to look ahead on.
+
+        Try tool calls on it (``branch.call``), let it play on (``branch.run`` or ``branch.advance``) and
+        read the outcome; the real run's state, random streams, turn numbers and log never change. The
+        copy pauses for this agent's turns; everyone else is played by ``participants`` (default: the
+        run's named participants, else each type's policy, else random). Wall-clock time limits do not
+        apply in a copy.
+
+        Its luck is fresh: draws from here on come from a stream derived from this turn (or ``seed``), so
+        looking ahead never reveals the real run's future draws, and every clone taken in this turn shares
+        that stream (compare moves under the same luck). ``same_luck=True`` keeps the real run's streams.
+        The copy holds the whole world, hidden state included: honest search in a game of hidden
+        information reads only what the agent may see.
+        """
+        from .branch import clone_turn
+
+        return clone_turn(self._turn, participants=participants, seed=seed, same_luck=same_luck)
+
+    def record_usage(self, *, llm_calls: int = 0, input_tokens: int = 0, output_tokens: int = 0,
+                     cache_read_tokens: int = 0, cache_write_tokens: int = 0, llm_retries: int = 0,
+                     forfeits: int = 0, truncated: int = 0) -> None:
+        """Add a model's real usage to the run's statistics (the built-in LLM participants call this). Usage reported
+        after the turn is over (it ran out of time) still counts toward the statistics and the budget. ``truncated``
+        counts replies cut off at the model's output limit."""
+        stats = self._turn.stats
+        counts = (("llm_calls", llm_calls), ("input_tokens", input_tokens), ("output_tokens", output_tokens),
+                  ("cache_read_tokens", cache_read_tokens), ("cache_write_tokens", cache_write_tokens),
+                  ("llm_retries", llm_retries), ("forfeits", forfeits), ("truncated", truncated))
+        for name, value in counts:
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f"{name} must be a whole number ≥ 0, got {value!r}")
+        turn = self._turn
+        reported = {name: value for name, value in counts if value}
+        shown = {name: value for name, value in reported.items() if name in _SHOWN_USAGE}
+        with turn.env._lock:
+            if turn.tallied:  # the turn is over and counted: add to the run's totals; the participant still cannot act
+                turn.env._tally(turn.actor.id, Stats(**reported))
+                if turn.exposure is not None:
+                    turn.exposure.used(shown, late=True)
+                return
+            turn.record("usage", reported)
+            for name, value in reported.items():
+                setattr(stats, name, getattr(stats, name) + value)
+            if turn.exposure is not None:
+                turn.exposure.used(shown)
+
+    @property
+    def done(self) -> bool:
+        return self._turn.done
+
+    @property
+    def time_limit(self) -> Optional[float]:
+        """Wall-clock seconds this turn may take, or None when it has no limit."""
+        return self._turn.time_limit
+
+    @property
+    def time_left(self) -> Optional[float]:
+        """Seconds left before the turn ends (None when it has no limit)."""
+        return self._turn.time_left()
+
+    @property
+    def calls_left(self) -> int:
+        return self._turn.calls_left
+
+    @property
+    def actions_left(self) -> int:
+        return self._turn.actions_left
+
+    def __repr__(self) -> str:
+        return f"<Wake {self.entity_id} round {self.round} stage {self.stage!r}{' done' if self.done else ''}>"
+
+
+#: The reported usage an exposure record shows.
+_SHOWN_USAGE = ("llm_calls", "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "truncated")
+
+
+def _copy(value: Any) -> Any:
+    """A copy of call arguments as recorded on the tape (the caller may reuse its own objects)."""
+    if isinstance(value, list):
+        return [_copy(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _copy(item) for key, item in value.items()}
+    return value

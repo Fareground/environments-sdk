@@ -1,0 +1,62 @@
+{
+  "fg_env": "1",
+  "name": "Election forecast market",
+  "description": "Forecasters with private hunches trade shares in three candidates on an LMSR prediction market. Prices aggregate what the crowd knows; on election night the market resolves and pays 1 for every share of the winner.",
+  "inputs": {
+    "rounds": {"type": "int", "default": 8, "min": 2, "max": 60, "description": "Trading days before the election."},
+    "forecasters": {"type": "int", "default": 9, "min": 1, "max": 60, "description": "How many forecasters trade."},
+    "signal": {"type": "number", "default": 0.5, "min": 0, "max": 1, "description": "Chance that a forecaster's private hunch names the true winner."},
+    "stake": {"type": "number", "default": 100, "min": 1, "unit": "$", "description": "Starting cash per forecaster."}
+  },
+  "brief": {
+    "situation": "Three candidates, Ada, Bo and Cy, run for mayor. A prediction market trades shares in each of them until election night. Each forecaster has a private hunch about who will win; some hunches are right.",
+    "rules": "Buy shares of the candidate you believe in, or sell shares you hold. Prices are the market's probabilities and move with every trade. When the election is decided, each share of the winner pays $1 and every other share pays nothing. Your score is your cash at the end."
+  },
+  "clock": {"rounds": "$inputs.rounds", "unit": "day"},
+  "world": {
+    "truth": {"type": "text", "default": "$choice(['ada', 'bo', 'cy'])", "private": true, "description": "Who will actually win."}
+  },
+  "types": {
+    "forecaster": {"agent": true, "policy": "hunch", "props": {
+      "cash": 0,
+      "hunch": {"type": "text", "default": "", "private": true, "description": "Private belief about the winner."}
+    }}
+  },
+  "population": [
+    {"type": "forecaster", "count": "$inputs.forecasters", "name": "Forecaster {$i}",
+     "props": {"cash": "$inputs.stake", "hunch": "$world.truth if $chance($inputs.signal) else $choice(['ada', 'bo', 'cy'])"},
+     "brief": "Your private hunch: {$actor.hunch} will win."}
+  ],
+  "mechanisms": {
+    "election": {
+      "kind": "market",
+      "mode": "prediction",
+      "who": "forecaster",
+      "outcomes": ["ada", "bo", "cy"],
+      "maker": "lmsr",
+      "liquidity": 40,
+      "fee_pct": 0.01,
+      "question": "Who wins the mayoral election?",
+      "resolve_at": "$inputs.rounds",
+      "outcome": "$world.truth"
+    }
+  },
+  "policies": {
+    "hunch": {"rules": [
+      {"when": "$get($amm(election).prices, $actor.hunch) < 0.75 and $actor.cash >= 5", "do": "election_buy",
+       "with": {"outcome": "$actor.hunch", "spend": 5}},
+      {"do": "pass"}
+    ]}
+  },
+  "arms": {
+    "cpmm": {"description": "A constant-product market maker instead of LMSR.",
+             "patch": {"mechanisms": {"election": {"maker": "cpmm", "liquidity": 60}}}},
+    "informed": {"description": "Sharper private signals.", "inputs": {"signal": 0.8}}
+  },
+  "outputs": {
+    "truth": {"expr": "$world.truth", "type": "text", "description": "The actual winner."},
+    "price_of_truth": {"expr": "$round($get($amm(election).prices, $world.truth), 4)", "type": "number", "description": "The market's final probability for the actual winner."},
+    "brier": {"expr": "$round($sum(['ada', 'bo', 'cy'], ($get($amm(election).prices, $it) - (1 if $it == $world.truth else 0)) ** 2), 4)", "type": "number", "description": "Brier score of the final prices (lower is better)."},
+    "forecaster_pnl": {"expr": "$round($sum(forecaster, $it.cash) - $inputs.forecasters * $inputs.stake, 2)", "type": "number", "description": "What forecasters won or lost in total."}
+  }
+}

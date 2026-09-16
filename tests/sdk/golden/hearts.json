@@ -1,0 +1,12 @@
+{
+  "actions": 16,
+  "events": 21,
+  "events_sha256": "f93aea8ae4ce7e068bca0372b12fc50450eabba0ab833c9591eed7e47be6b691",
+  "metrics": {
+    "hearts_broken": 0,
+    "leader_score": 0
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 16
+}

@@ -1,0 +1,160 @@
+{
+  "fg_env": "1",
+  "name": "Hearts",
+  "description": "Four-player Hearts: follow suit, hearts cannot be led until broken, every heart costs a point and the queen of spades thirteen; shooting the moon included.",
+  "inputs": {
+    "hands": {"type": "int", "default": 2, "min": 1, "max": 20, "description": "Hands of 13 tricks to play."},
+    "target": {"type": "int", "default": 100, "min": 1, "description": "The game ends when a player reaches this score."}
+  },
+  "brief": {
+    "situation": "Four players play Hearts, a trick-taking game where points are bad: the lowest score wins.",
+    "rules": "Each hand all 52 cards are dealt, 13 each. The holder of the 2 of clubs leads it to the first trick. Every player in turn plays one card: you must follow the suit that was led if you can; if you cannot, play anything. The highest card of the suit led wins the trick (aces high, no trumps) and its winner leads the next one. You may not lead a heart until a heart has been played (hearts are broken), unless you hold only hearts. After 13 tricks every heart you took scores 1 point and the queen of spades 13. Taking all 26 points (shooting the moon) scores 0 for you and 26 for everyone else. The game ends after {$inputs.hands} hands or when someone reaches {$inputs.target}.",
+    "roles": {"player": "Take as few points as possible: avoid winning tricks that hold hearts or the queen of spades, and get rid of dangerous high cards when you cannot follow suit."}
+  },
+  "clock": {"rounds": "13 * $inputs.hands", "unit": "trick"},
+  "world": {
+    "leader": {"type": "text", "default": "", "description": "Player who leads the current trick."},
+    "lead_suit": {"type": "text", "default": ""},
+    "hearts_broken": {"type": "bool", "default": false},
+    "trick": {"type": "int", "default": 0, "description": "Tricks finished this hand."},
+    "hand": {"type": "int", "default": 0},
+    "moons": {"type": "int", "default": 0}
+  },
+  "types": {
+    "player": {
+      "agent": true,
+      "description": "A Hearts player.",
+      "props": {
+        "seat": {"type": "int", "default": 0},
+        "points": {"type": "int", "default": 0, "description": "Points taken this hand."},
+        "score": {"type": "int", "default": 0},
+        "tricks": {"type": "int", "default": 0}
+      }
+    }
+  },
+  "entities": {
+    "p1": {"type": "player", "name": "Ana", "props": {"seat": 0}},
+    "p2": {"type": "player", "name": "Ben", "props": {"seat": 1}},
+    "p3": {"type": "player", "name": "Cleo", "props": {"seat": 2}},
+    "p4": {"type": "player", "name": "Dev", "props": {"seat": 3}}
+  },
+  "mechanisms": {
+    "cards": {
+      "kind": "game",
+      "mode": "cards",
+      "who": "player",
+      "deal": "never",
+      "zones": {
+        "trick": "public",
+        "taken": {"visible": "hidden", "owned": true, "show": "count", "title": "Tricks taken"}
+      },
+      "play": {
+        "to": "trick",
+        "where": "$legal($actor, $it)",
+        "do": [{"block": "after_play", "with": {"card": "$params.card"}}]
+      }
+    }
+  },
+  "defs": {
+    "legal": {
+      "args": ["who", "card"],
+      "expr": "($world.lead_suit != '' and $card in $follow_suit($hand($who), $world.lead_suit)) or ($world.lead_suit == '' and ($world.trick > 0 or $card.id == '2C') and ($card.suit != hearts or $world.hearts_broken or $all($hand($who), $it.suit == hearts)))",
+      "description": "Whether `who` may play `card` to the current trick."
+    }
+  },
+  "blocks": {
+    "after_play": {
+      "args": ["card"],
+      "do": [
+        {"if": "$world.lead_suit == ''", "then": ["$world.lead_suit = $card.suit"]},
+        {"if": "$card.suit == hearts", "then": ["$world.hearts_broken = true"]}
+      ]
+    }
+  },
+  "stages": [
+    {
+      "name": "trick",
+      "turns": "sequential",
+      "actions": ["cards_play"],
+      "order": "($it.seat - $entity($world.leader).seat + 4) % 4",
+      "must_act": true,
+      "max_calls": 6,
+      "brief": "Trick {$world.trick + 1} of 13. {$'Led: ' + $world.lead_suit + '.' if $world.lead_suit != '' else 'You lead.'} Hearts are {$'broken' if $world.hearts_broken else 'not broken yet'}.",
+      "on_enter": ["$world.lead_suit = ''"],
+      "on_idle": [
+        "$card = $bottom($filter($hand($actor), $legal($actor, $it)), $it.rank, 1)[0]",
+        {"game": "cards", "action": "play", "cards": "$card", "to": "trick"},
+        {"block": "after_play", "with": {"card": "$card"}},
+        {"emit": "timeout", "say": "{$actor.name} ran out of time and plays {$card.name}."}
+      ],
+      "on_exit": [
+        "$winning = $trick_winner($zone(trick), $world.lead_suit)",
+        "$taker = $entity($winning.played_by)",
+        "$taken = $count($zone(trick), $it.suit == hearts) + (13 if $any($zone(trick), $it.id == 'QS') else 0)",
+        "$taker.points += $taken",
+        "$taker.tricks += 1",
+        {"emit": "trick", "say": "{$taker.name} takes the trick ({$card_names($zone(trick))}) with {$winning.name}{$': ' + $text($taken) + ' points' if $taken > 0 else ''}."},
+        {"game": "cards", "action": "move", "cards": "$zone(trick)", "to": "taken", "owner": "$taker"},
+        "$world.leader = $taker.id",
+        "$world.trick += 1"
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "deal",
+      "phase": "start",
+      "when": "$world.trick == 0",
+      "do": [
+        {"game": "cards", "action": "collect"},
+        {"game": "cards", "action": "deal", "qty": 13},
+        "$world.leader = $entity('2C').owner",
+        "$world.hearts_broken = false",
+        "$world.hand += 1",
+        {"emit": "deal", "say": "Hand {$world.hand}: the cards are dealt; {$entity($world.leader).name} holds the 2 of clubs and leads."}
+      ]
+    },
+    {
+      "name": "score_hand",
+      "phase": "end",
+      "when": "$world.trick == 13",
+      "do": [
+        "$moon = $pick(player, $it.points == 26)",
+        {"if": "$moon != null", "then": ["$world.moons += 1"]},
+        {"each": "player", "do": ["$it.score += ($it.points if $moon == null else (0 if $it.id == $moon.id else 26))"]},
+        {"emit": "scores", "say": "End of hand {$world.hand}{$': ' + $moon.name + ' shot the moon' if $moon != null else ''}. Points this hand: {$join($map(player, $it.name + ' ' + $text($it.points)), ', ')}. Scores: {$join($map(player, $it.name + ' ' + $text($it.score)), ', ')}."},
+        {"each": "player", "do": ["$it.points = 0", "$it.tricks = 0"]},
+        "$world.trick = 0"
+      ]
+    }
+  ],
+  "views": {
+    "scores": {
+      "for": "player",
+      "title": "Scores",
+      "of": "player",
+      "sort": "$it.seat",
+      "show": "{name}: {score} ({points} this hand, {tricks} tricks){$' · leads' if $it.id == $world.leader else ''}"
+    }
+  },
+  "policies": {
+    "duck": {
+      "rules": [
+        {"do": "cards_play", "with": {"card": "$bottom($filter($hand($actor), $legal($actor, $it)), $it.rank, 1)[0]"}}
+      ]
+    }
+  },
+  "metrics": {
+    "hearts_broken": "1 if $world.hearts_broken else 0",
+    "leader_score": "$min(player, $it.score)"
+  },
+  "end": [
+    {"name": "target_reached", "when": "$world.trick == 0 and $max(player, $it.score) >= $inputs.target", "winner": "$bottom(player, $it.score, 1)[0]", "say": "{$bottom(player, $it.score, 1)[0].name} wins with the lowest score."}
+  ],
+  "outputs": {
+    "scores": {"expr": "$dict(player, $it.name, $it.score)", "type": "map"},
+    "winner": {"expr": "$bottom(player, $it.score, 1)[0].name", "type": "text", "description": "Lowest score (the first seat wins ties)."},
+    "hands_played": {"expr": "$world.hand", "type": "int"},
+    "moons_shot": {"expr": "$world.moons", "type": "int"}
+  }
+}

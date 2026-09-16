@@ -20,7 +20,7 @@
 
 ---
 
-[Documentation](https://fareground.com/docs/env-kernel/) · [Quickstart](https://github.com/Fareground/environments-sdk/blob/d1e98a2/docs/sdk/getting-started.md) · [Authoring guide](https://github.com/Fareground/environments-sdk/blob/d1e98a2/docs/sdk/authoring.md) · [Reference](https://github.com/Fareground/environments-sdk/blob/d1e98a2/docs/sdk/reference.md)
+[Documentation](https://fareground.com/docs/env-kernel/) · [Quickstart](docs/sdk/getting-started.md) · [Authoring guide](docs/sdk/authoring.md) · [Reference](docs/sdk/reference.md)
 
 ## Overview
 
@@ -53,19 +53,17 @@ fg-env is one of Fareground's open-source building blocks, alongside
 
 ## Install
 
-The contract SDK described here is available from the tested development revision below. PyPI publication as `fg-env` is pending. The default branch still contains the older `fg-env-kernel` implementation until the SDK release is merged.
+The `fg-env` PyPI release is pending. Install the tested source revision in the meantime:
 
 ```bash
 python -m pip install "git+https://github.com/Fareground/environments-sdk.git@d1e98a2"
 ```
 
-The new distribution/import names are `fg-env` / `fg_env`. The older published distribution/import names are `fg-env-kernel` / `fg_env_kernel`; they are not interchangeable.
-
 Python ≥ 3.11. The only runtime dependency is `pydantic`.
 
 ## Quickstart
 
-For a business walkthrough, start with [weekly inventory](https://github.com/Fareground/environments-sdk/blob/d1e98a2/docs/sdk/getting-started.md), including exact expected outputs. The following small contract illustrates the basic API:
+For a business walkthrough, start with [weekly inventory](docs/sdk/getting-started.md), including exact expected outputs. The following small contract illustrates the basic API:
 
 ```python
 import fg_env
@@ -172,7 +170,7 @@ by run, so differences between arms come from the arm, not from luck.
 
 ## Examples
 
-[`examples/contracts/`](https://github.com/Fareground/environments-sdk/tree/d1e98a2/examples/contracts) holds complete environments. Each was written by an LLM
+[`examples/contracts/`](https://github.com/Fareground/environments-sdk/tree/main/examples/contracts) holds complete environments. Each was written by an LLM
 agent from the guide alone, and each is covered by a golden-run test: a coffee market with sampled
 households and subscriptions, a forecasting council, a price-time-priority order-book exchange, a
 civil trial, a town epidemic with physics, Werewolf, a labor negotiation, Connect Four, a

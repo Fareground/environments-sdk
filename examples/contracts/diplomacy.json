@@ -1,0 +1,1497 @@
+{
+  "fg_env": "1",
+  "name": "Five Crowns",
+  "description": "A Diplomacy-style game of alliances and betrayal: five nations, twenty provinces, simultaneous orders.",
+  "inputs": {
+    "years": {
+      "type": "int",
+      "default": 10,
+      "min": 1,
+      "max": 30,
+      "description": "Years before the game ends without a winner (two seasons each)."
+    },
+    "win_centers": {
+      "type": "int",
+      "default": 10,
+      "min": 2,
+      "max": 16,
+      "description": "Supply centers a nation needs to win outright."
+    },
+    "armies": {
+      "type": "table",
+      "description": "Starting armies (one row each). Override to set up a custom position.",
+      "columns": {
+        "id": "text",
+        "owner": "text",
+        "at": "text"
+      },
+      "default": [
+        {
+          "id": "aur_1",
+          "owner": "aurelia",
+          "at": "aurum"
+        },
+        {
+          "id": "aur_2",
+          "owner": "aurelia",
+          "at": "silvermere"
+        },
+        {
+          "id": "bor_1",
+          "owner": "borovia",
+          "at": "borsk"
+        },
+        {
+          "id": "bor_2",
+          "owner": "borovia",
+          "at": "kovna"
+        },
+        {
+          "id": "cal_1",
+          "owner": "caldor",
+          "at": "calder"
+        },
+        {
+          "id": "cal_2",
+          "owner": "caldor",
+          "at": "emberfall"
+        },
+        {
+          "id": "dra_1",
+          "owner": "drakmar",
+          "at": "drakhold"
+        },
+        {
+          "id": "dra_2",
+          "owner": "drakmar",
+          "at": "ravenmoor"
+        },
+        {
+          "id": "els_1",
+          "owner": "elswyth",
+          "at": "elswick"
+        },
+        {
+          "id": "els_2",
+          "owner": "elswyth",
+          "at": "thornwood"
+        }
+      ]
+    }
+  },
+  "brief": {
+    "situation": "Five nations share a continent of twenty provinces. Sixteen provinces are supply centers (marked ★); each center feeds one army. Whoever holds {$inputs.win_centers} centers after an autumn wins; otherwise the game ends after year {$inputs.years}. Map — each province and the provinces it borders: {$map_text()}",
+    "rules": "Each year has two seasons, Spring and Fall. Every season: (1) Negotiation — write private letters to any nation (only you and the recipient see them) and public declarations everyone sees. A letter can carry a formal pledge not to attack the recipient this season; the recipient sees the pledge. (2) Orders — all nations secretly order each of their armies at the same time: hold, move to a bordering province, or support another army's move (the supporter must border the destination). Unordered armies hold. (3) Resolution — a move's strength is 1 plus its valid supports; it takes the province if its strength beats every other move into that province and the defending army's strength (1 for an army that stays). Ties bounce and nobody moves in. You cannot dislodge your own army. Two armies trading places bounce unless one is stronger. A support is cut if the supporter is attacked by another nation from any province other than the one it supports into. (4) Retreats — a dislodged army retreats to an empty bordering province (not where the attack came from, not a province left empty by a bounce) or is destroyed; two retreats to the same province destroy both. (5) After Fall, each supply center belongs to the nation occupying it (empty centers keep their owner). Each nation then builds armies in its free, owned home centers or disbands armies until it has one army per center; whatever you leave undone is done for you.",
+    "roles": {
+      "nation": "You lead {$actor.name}. Your home centers: {$join($map($filter(province, $it.home == $actor.id), $it.name + ' [' + $it.id + ']'), ', ')}. Grow your nation: take supply centers, keep your armies alive, and win outright if you can. Alliances help; so can betrayal."
+    }
+  },
+  "clock": {
+    "rounds": "$inputs.years * 2",
+    "unit": "season"
+  },
+  "space": {
+    "graph": {
+      "nodes": [
+        "aurum",
+        "silvermere",
+        "borsk",
+        "kovna",
+        "calder",
+        "emberfall",
+        "drakhold",
+        "ravenmoor",
+        "elswick",
+        "thornwood",
+        "goldmarch",
+        "ironford",
+        "saltcliff",
+        "greyharbor",
+        "mistvale",
+        "heartland",
+        "wolfpass",
+        "blackfen",
+        "stormreach",
+        "duskwood"
+      ],
+      "edges": [
+        [
+          "aurum",
+          "silvermere"
+        ],
+        [
+          "borsk",
+          "kovna"
+        ],
+        [
+          "calder",
+          "emberfall"
+        ],
+        [
+          "drakhold",
+          "ravenmoor"
+        ],
+        [
+          "elswick",
+          "thornwood"
+        ],
+        [
+          "silvermere",
+          "goldmarch"
+        ],
+        [
+          "goldmarch",
+          "borsk"
+        ],
+        [
+          "kovna",
+          "ironford"
+        ],
+        [
+          "ironford",
+          "calder"
+        ],
+        [
+          "emberfall",
+          "saltcliff"
+        ],
+        [
+          "saltcliff",
+          "drakhold"
+        ],
+        [
+          "ravenmoor",
+          "greyharbor"
+        ],
+        [
+          "greyharbor",
+          "elswick"
+        ],
+        [
+          "thornwood",
+          "mistvale"
+        ],
+        [
+          "mistvale",
+          "aurum"
+        ],
+        [
+          "heartland",
+          "wolfpass"
+        ],
+        [
+          "heartland",
+          "blackfen"
+        ],
+        [
+          "heartland",
+          "stormreach"
+        ],
+        [
+          "heartland",
+          "duskwood"
+        ],
+        [
+          "wolfpass",
+          "blackfen"
+        ],
+        [
+          "blackfen",
+          "stormreach"
+        ],
+        [
+          "stormreach",
+          "duskwood"
+        ],
+        [
+          "duskwood",
+          "wolfpass"
+        ],
+        [
+          "goldmarch",
+          "wolfpass"
+        ],
+        [
+          "ironford",
+          "blackfen"
+        ],
+        [
+          "saltcliff",
+          "blackfen"
+        ],
+        [
+          "greyharbor",
+          "stormreach"
+        ],
+        [
+          "mistvale",
+          "duskwood"
+        ],
+        [
+          "aurum",
+          "duskwood"
+        ],
+        [
+          "borsk",
+          "wolfpass"
+        ],
+        [
+          "calder",
+          "blackfen"
+        ],
+        [
+          "drakhold",
+          "stormreach"
+        ],
+        [
+          "elswick",
+          "stormreach"
+        ]
+      ]
+    }
+  },
+  "world": {
+    "report": {
+      "type": "list",
+      "default": [],
+      "description": "What happened in the most recent resolution, one line per event."
+    },
+    "changed": {
+      "type": "bool",
+      "default": false,
+      "description": "Adjudication loop flag."
+    },
+    "betrayal_keys": {
+      "type": "list",
+      "default": []
+    },
+    "betrayal_log": {
+      "type": "list",
+      "default": []
+    },
+    "sc_history": {
+      "type": "list",
+      "default": []
+    }
+  },
+  "types": {
+    "nation": {
+      "agent": true,
+      "description": "A great power.",
+      "policy": "raider",
+      "props": {
+        "sc_count": {
+          "type": "int",
+          "default": 2,
+          "description": "Supply centers owned (counted after each Fall)."
+        },
+        "delta": {
+          "type": "int",
+          "default": 0,
+          "description": "Armies to build (positive) or disband (negative) this winter."
+        },
+        "out": {
+          "type": "bool",
+          "default": false,
+          "description": "Eliminated: no centers and no armies."
+        },
+        "betrayals": {
+          "type": "int",
+          "default": 0,
+          "private": true
+        }
+      }
+    },
+    "province": {
+      "description": "A region of the map.",
+      "props": {
+        "sc": {
+          "type": "bool",
+          "default": false
+        },
+        "home": {
+          "type": "text",
+          "default": ""
+        },
+        "owner": {
+          "type": "text",
+          "default": ""
+        },
+        "standoff": {
+          "type": "bool",
+          "default": false
+        }
+      }
+    },
+    "army": {
+      "description": "One army of a nation.",
+      "props": {
+        "owner": {
+          "type": "text",
+          "default": ""
+        },
+        "order": {
+          "type": "enum",
+          "values": [
+            "hold",
+            "move",
+            "support"
+          ],
+          "default": "hold",
+          "private": true
+        },
+        "dest": {
+          "type": "text",
+          "default": "",
+          "private": true
+        },
+        "support_of": {
+          "type": "text",
+          "default": "",
+          "private": true
+        },
+        "strength": {
+          "type": "int",
+          "default": 1,
+          "private": true
+        },
+        "move_ok": {
+          "type": "bool",
+          "default": false,
+          "private": true
+        },
+        "support_note": {
+          "type": "text",
+          "default": "",
+          "private": true
+        },
+        "dislodged": {
+          "type": "bool",
+          "default": false
+        },
+        "attacker_from": {
+          "type": "text",
+          "default": ""
+        },
+        "retreat_to": {
+          "type": "text",
+          "default": "",
+          "private": true
+        },
+        "retreat_ok": {
+          "type": "bool",
+          "default": false,
+          "private": true
+        }
+      }
+    }
+  },
+  "entities": {
+    "aurelia": {
+      "type": "nation",
+      "name": "Aurelia"
+    },
+    "borovia": {
+      "type": "nation",
+      "name": "Borovia"
+    },
+    "caldor": {
+      "type": "nation",
+      "name": "Caldor"
+    },
+    "drakmar": {
+      "type": "nation",
+      "name": "Drakmar"
+    },
+    "elswyth": {
+      "type": "nation",
+      "name": "Elswyth"
+    },
+    "aurum": {
+      "type": "province",
+      "name": "Aurum",
+      "at": "aurum",
+      "props": {
+        "sc": true,
+        "home": "aurelia",
+        "owner": "aurelia"
+      }
+    },
+    "silvermere": {
+      "type": "province",
+      "name": "Silvermere",
+      "at": "silvermere",
+      "props": {
+        "sc": true,
+        "home": "aurelia",
+        "owner": "aurelia"
+      }
+    },
+    "borsk": {
+      "type": "province",
+      "name": "Borsk",
+      "at": "borsk",
+      "props": {
+        "sc": true,
+        "home": "borovia",
+        "owner": "borovia"
+      }
+    },
+    "kovna": {
+      "type": "province",
+      "name": "Kovna",
+      "at": "kovna",
+      "props": {
+        "sc": true,
+        "home": "borovia",
+        "owner": "borovia"
+      }
+    },
+    "calder": {
+      "type": "province",
+      "name": "Calder",
+      "at": "calder",
+      "props": {
+        "sc": true,
+        "home": "caldor",
+        "owner": "caldor"
+      }
+    },
+    "emberfall": {
+      "type": "province",
+      "name": "Emberfall",
+      "at": "emberfall",
+      "props": {
+        "sc": true,
+        "home": "caldor",
+        "owner": "caldor"
+      }
+    },
+    "drakhold": {
+      "type": "province",
+      "name": "Drakhold",
+      "at": "drakhold",
+      "props": {
+        "sc": true,
+        "home": "drakmar",
+        "owner": "drakmar"
+      }
+    },
+    "ravenmoor": {
+      "type": "province",
+      "name": "Ravenmoor",
+      "at": "ravenmoor",
+      "props": {
+        "sc": true,
+        "home": "drakmar",
+        "owner": "drakmar"
+      }
+    },
+    "elswick": {
+      "type": "province",
+      "name": "Elswick",
+      "at": "elswick",
+      "props": {
+        "sc": true,
+        "home": "elswyth",
+        "owner": "elswyth"
+      }
+    },
+    "thornwood": {
+      "type": "province",
+      "name": "Thornwood",
+      "at": "thornwood",
+      "props": {
+        "sc": true,
+        "home": "elswyth",
+        "owner": "elswyth"
+      }
+    },
+    "goldmarch": {
+      "type": "province",
+      "name": "Goldmarch",
+      "at": "goldmarch",
+      "props": {
+        "sc": true
+      }
+    },
+    "ironford": {
+      "type": "province",
+      "name": "Ironford",
+      "at": "ironford",
+      "props": {
+        "sc": true
+      }
+    },
+    "saltcliff": {
+      "type": "province",
+      "name": "Saltcliff",
+      "at": "saltcliff",
+      "props": {
+        "sc": true
+      }
+    },
+    "greyharbor": {
+      "type": "province",
+      "name": "Greyharbor",
+      "at": "greyharbor",
+      "props": {
+        "sc": true
+      }
+    },
+    "mistvale": {
+      "type": "province",
+      "name": "Mistvale",
+      "at": "mistvale",
+      "props": {
+        "sc": true
+      }
+    },
+    "heartland": {
+      "type": "province",
+      "name": "Heartland",
+      "at": "heartland",
+      "props": {
+        "sc": true
+      }
+    },
+    "wolfpass": {
+      "type": "province",
+      "name": "Wolfpass",
+      "at": "wolfpass"
+    },
+    "blackfen": {
+      "type": "province",
+      "name": "Blackfen",
+      "at": "blackfen"
+    },
+    "stormreach": {
+      "type": "province",
+      "name": "Stormreach",
+      "at": "stormreach"
+    },
+    "duskwood": {
+      "type": "province",
+      "name": "Duskwood",
+      "at": "duskwood"
+    }
+  },
+  "population": [
+    {
+      "type": "army",
+      "from": "$inputs.armies",
+      "id": "{$row.id}",
+      "name": "{$entity($row.owner).name} army {$row.id}",
+      "props": {
+        "owner": "$row.owner"
+      },
+      "at": "$row.at"
+    }
+  ],
+  "defs": {
+    "nation_name": {
+      "args": [
+        "nid"
+      ],
+      "expr": "$entity($nid).name if $nid != '' else 'neutral'"
+    },
+    "place_name": {
+      "args": [
+        "pid"
+      ],
+      "expr": "$entity($pid).name"
+    },
+    "borders": {
+      "args": [
+        "pid"
+      ],
+      "description": "Ids of the provinces bordering a province.",
+      "expr": "$map($filter(province, $distance($it.at, $pid) == 1), $it.id)"
+    },
+    "army_at": {
+      "args": [
+        "pid"
+      ],
+      "expr": "$pick(army, $it.at == $pid and not $it.dislodged)"
+    },
+    "free_home": {
+      "args": [
+        "nid"
+      ],
+      "description": "Home centers the nation owns with no army in them.",
+      "expr": "$filter(province, $it.home == $nid and $it.owner == $nid and $count(army, $it.at == $outer.id) == 0)"
+    },
+    "armies_of": {
+      "args": [
+        "nid"
+      ],
+      "expr": "$filter(army, $it.owner == $nid)"
+    },
+    "season_label": "('Spring' if $round % 2 == 1 else 'Fall') + ' of year ' + $text(($round + 1) // 2)",
+    "map_text": "$join($map(province, $it.name + (' ★' if $it.sc else '') + ' [' + $it.id + '] borders ' + $join($map($filter(province, $distance($it.at, $outer.at) == 1), $it.id), ', ')), '; ')",
+    "army_label": {
+      "args": [
+        "a"
+      ],
+      "expr": "$nation_name($a.owner) + ' [' + $a.id + '] ' + $place_name($a.at)"
+    },
+    "victim_of": {
+      "args": [
+        "a"
+      ],
+      "description": "The nation an attack or support is aimed at ('' when none).",
+      "expr": "$pick(army, $it.at == $a.dest and $it.owner != $a.owner).owner if $any(army, $it.at == $a.dest and $it.owner != $a.owner) else ($entity($a.dest).owner if $entity($a.dest).sc and $entity($a.dest).owner != $a.owner else '')"
+    },
+    "army_tag": {
+      "args": [
+        "a"
+      ],
+      "expr": "'[' + $a.id + '] ' + $nation_name($a.owner) + (' (dislodged)' if $a.dislodged else '')"
+    },
+    "season_of": {
+      "args": [
+        "r"
+      ],
+      "expr": "('Spring' if $r % 2 == 1 else 'Fall') + ' ' + $text(($r + 1) // 2)"
+    },
+    "lead_army": {
+      "args": [
+        "nid"
+      ],
+      "description": "The army a coded raider moves this season (rotates by season).",
+      "expr": "$sort($armies_of($nid), $it.id)[$round % $len($armies_of($nid))]"
+    },
+    "raid_targets": {
+      "args": [
+        "a"
+      ],
+      "description": "Bordering provinces worth attacking, centers not already owned first.",
+      "expr": "$top($filter(province, $distance($it.at, $a.at) == 1 and not ($it.sc and $it.owner == $a.owner) and $count(army, $it.at == $outer.id and $it.owner == $a.owner) == 0), 1 if $it.sc else 0)"
+    },
+    "retreat_spots": {
+      "args": [
+        "a"
+      ],
+      "description": "Where a dislodged army may retreat.",
+      "expr": "$map($filter(province, $distance($it.at, $a.at) == 1 and $it.id != $a.attacker_from and not $it.standoff and $army_at($it.id) == null), $it.id)"
+    }
+  },
+  "records": {
+    "letters": {
+      "description": "Private correspondence between two nations.",
+      "fields": {
+        "recipient": "text",
+        "text": "text",
+        "pledge": "bool"
+      },
+      "show": "Letter from {author} to {$nation_name($it.recipient)}{$' (with a formal pledge not to attack this season)' if $it.pledge else ''}: {text}",
+      "visible": "$it.author == $viewer or $it.recipient == $viewer.id"
+    },
+    "declarations": {
+      "description": "Public statements every nation sees.",
+      "fields": {
+        "text": "text"
+      },
+      "show": "Public declaration by {author}: {text}"
+    }
+  },
+  "actions": {
+    "write_letter": {
+      "by": "nation",
+      "description": "Send a private letter to one nation. Only you and the recipient ever see it. Set pledge to true to formally promise not to attack them this season (the recipient sees the pledge).",
+      "params": {
+        "to": {
+          "type": "entity",
+          "of": "nation",
+          "where": "$it.id != $actor.id and not $it.out",
+          "description": "The nation to write to."
+        },
+        "text": {
+          "type": "text",
+          "max_len": 800,
+          "description": "What you want to say."
+        },
+        "pledge": {
+          "type": "bool",
+          "default": false,
+          "description": "True to pledge not to move into or support moves into their provinces or centers this season."
+        }
+      },
+      "private": true,
+      "per_turn": 5,
+      "do": [
+        {
+          "post": "letters",
+          "recipient": "$params.to.id",
+          "text": "$params.text",
+          "pledge": "$params.pledge",
+          "to": "$params.to"
+        }
+      ],
+      "outcome": "Letter delivered to {$params.to.name}."
+    },
+    "declare": {
+      "by": "nation",
+      "description": "Make a public declaration that every nation reads.",
+      "params": {
+        "text": {
+          "type": "text",
+          "max_len": 500,
+          "description": "Your public statement."
+        }
+      },
+      "per_turn": 1,
+      "do": [
+        {
+          "post": "declarations",
+          "text": "$params.text"
+        }
+      ],
+      "outcome": "Your declaration is public."
+    },
+    "hold": {
+      "by": "nation",
+      "description": "Order one of your armies to stay where it is.",
+      "params": {
+        "army": {
+          "type": "entity",
+          "of": "army",
+          "where": "$it.owner == $actor.id",
+          "description": "Your army."
+        }
+      },
+      "private": true,
+      "do": [
+        "$params.army.order = hold",
+        "$params.army.dest = ''",
+        "$params.army.support_of = ''"
+      ],
+      "outcome": "Order: {$params.army.id} holds in {$place_name($params.army.at)}."
+    },
+    "move": {
+      "by": "nation",
+      "description": "Order one of your armies to move into a bordering province.",
+      "params": {
+        "army": {
+          "type": "entity",
+          "of": "army",
+          "where": "$it.owner == $actor.id",
+          "description": "Your army."
+        },
+        "to": {
+          "type": "entity",
+          "of": "province",
+          "description": "A province bordering the army's province."
+        }
+      },
+      "private": true,
+      "do": [
+        {
+          "if": "not ($params.to.id in $borders($params.army.at))",
+          "then": [
+            {
+              "fail": "{$place_name($params.to.id)} does not border {$place_name($params.army.at)}. {$params.army.id} can move to: {$join($borders($params.army.at), ', ')}."
+            }
+          ]
+        },
+        "$params.army.order = move",
+        "$params.army.dest = $params.to.id",
+        "$params.army.support_of = ''"
+      ],
+      "outcome": "Order: {$params.army.id} moves {$place_name($params.army.at)} → {$place_name($params.to.id)}."
+    },
+    "support": {
+      "by": "nation",
+      "description": "Order one of your armies to support another army's move (yours or another nation's) into a province your army borders. It only counts if that army really orders that move.",
+      "params": {
+        "army": {
+          "type": "entity",
+          "of": "army",
+          "where": "$it.owner == $actor.id",
+          "description": "Your supporting army."
+        },
+        "helps": {
+          "type": "entity",
+          "of": "army",
+          "description": "The army whose move you support."
+        },
+        "into": {
+          "type": "entity",
+          "of": "province",
+          "description": "Where the supported army is moving."
+        }
+      },
+      "private": true,
+      "do": [
+        {
+          "if": "$params.helps.id == $params.army.id",
+          "then": [
+            {
+              "fail": "An army cannot support itself; order it to move instead."
+            }
+          ]
+        },
+        {
+          "if": "not ($params.into.id in $borders($params.army.at))",
+          "then": [
+            {
+              "fail": "{$params.army.id} in {$place_name($params.army.at)} does not border {$place_name($params.into.id)}, so it cannot support a move there. It borders: {$join($borders($params.army.at), ', ')}."
+            }
+          ]
+        },
+        {
+          "if": "not ($params.into.id in $borders($params.helps.at))",
+          "then": [
+            {
+              "fail": "{$params.helps.id} in {$place_name($params.helps.at)} cannot reach {$place_name($params.into.id)}. It borders: {$join($borders($params.helps.at), ', ')}."
+            }
+          ]
+        },
+        "$params.army.order = support",
+        "$params.army.dest = $params.into.id",
+        "$params.army.support_of = $params.helps.id"
+      ],
+      "outcome": "Order: {$params.army.id} supports {$params.helps.id} into {$place_name($params.into.id)}."
+    },
+    "retreat": {
+      "by": "nation",
+      "description": "Retreat one of your dislodged armies into an empty bordering province.",
+      "params": {
+        "army": {
+          "type": "entity",
+          "of": "army",
+          "where": "$it.owner == $actor.id and $it.dislodged",
+          "description": "Your dislodged army."
+        },
+        "to": {
+          "type": "entity",
+          "of": "province",
+          "description": "An empty bordering province."
+        }
+      },
+      "private": true,
+      "do": [
+        {
+          "if": "not ($params.to.id in $borders($params.army.at))",
+          "then": [
+            {
+              "fail": "{$place_name($params.to.id)} does not border {$place_name($params.army.at)}."
+            }
+          ]
+        },
+        {
+          "if": "$params.to.id == $params.army.attacker_from",
+          "then": [
+            {
+              "fail": "You cannot retreat into {$place_name($params.to.id)}: the attack came from there."
+            }
+          ]
+        },
+        {
+          "if": "$army_at($params.to.id) != null",
+          "then": [
+            {
+              "fail": "{$place_name($params.to.id)} is occupied."
+            }
+          ]
+        },
+        {
+          "if": "$params.to.standoff",
+          "then": [
+            {
+              "fail": "{$place_name($params.to.id)} was left empty by a bounce this season; no retreats there."
+            }
+          ]
+        },
+        "$params.army.retreat_to = $params.to.id"
+      ],
+      "outcome": "Order: {$params.army.id} retreats to {$place_name($params.to.id)}."
+    },
+    "disband": {
+      "by": "nation",
+      "description": "Disband one of your armies: a dislodged army during retreats, or any army during winter adjustments when you have more armies than centers.",
+      "params": {
+        "army": {
+          "type": "entity",
+          "of": "army",
+          "where": "$it.owner == $actor.id",
+          "description": "Your army."
+        }
+      },
+      "private": true,
+      "when": [
+        {
+          "expr": "$stage != retreats or $count(army, $it.owner == $actor.id and $it.dislodged) > 0",
+          "why": "You have no dislodged army to disband."
+        },
+        {
+          "expr": "$stage == retreats or $actor.delta < 0",
+          "why": "You have no armies to disband: you own at least as many centers as armies."
+        }
+      ],
+      "do": [
+        {
+          "if": "$stage == retreats",
+          "then": [
+            {
+              "if": "not $params.army.dislodged",
+              "then": [
+                {
+                  "fail": "Only dislodged armies can be disbanded during retreats."
+                }
+              ]
+            },
+            "$params.army.retreat_to = disband"
+          ],
+          "else": [
+            {
+              "remove": "$params.army"
+            },
+            "$actor.delta += 1"
+          ]
+        }
+      ],
+      "outcome": "{$params.army.id + ' will be disbanded unless you order a retreat instead.' if $stage == retreats else $params.army.id + ' is disbanded.'}"
+    },
+    "build": {
+      "by": "nation",
+      "description": "Raise a new army in one of your home centers that you still own and that is empty.",
+      "when": [
+        {
+          "expr": "$actor.delta > 0",
+          "why": "You have no builds: you do not own more centers than you have armies."
+        }
+      ],
+      "params": {
+        "center": {
+          "type": "entity",
+          "of": "province",
+          "where": "$it.home == $actor.id and $it.owner == $actor.id",
+          "description": "An owned, empty home center."
+        }
+      },
+      "do": [
+        {
+          "if": "$army_at($params.center.id) != null",
+          "then": [
+            {
+              "fail": "{$params.center.name} is occupied; build in an empty home center."
+            }
+          ]
+        },
+        {
+          "create": "army",
+          "name": "{$actor.name} army",
+          "props": {
+            "owner": "$actor.id"
+          },
+          "at": "$params.center.id",
+          "as": "made"
+        },
+        "$actor.delta -= 1"
+      ],
+      "outcome": "A new army [{$made.id}] stands in {$params.center.name}."
+    }
+  },
+  "stages": [
+    {
+      "name": "negotiation",
+      "actions": [
+        "write_letter",
+        "declare"
+      ],
+      "turns": "sequential",
+      "who": "not $it.out",
+      "passes": 2,
+      "quiet": "skip",
+      "max_actions": 6,
+      "max_calls": 12,
+      "brief": "Negotiation, {$season_label()}. Write letters or declare publicly, then end your turn. You get a second turn if someone writes to you."
+    },
+    {
+      "name": "orders",
+      "actions": [
+        "hold",
+        "move",
+        "support"
+      ],
+      "turns": "simultaneous",
+      "who": "not $it.out and $count(army, $it.owner == $outer.id) > 0",
+      "max_actions": 30,
+      "max_calls": 40,
+      "brief": "Orders, {$season_label()}. Give each of your armies one order; a later order for the same army replaces the earlier one. Unordered armies hold. End your turn when done.",
+      "on_enter": [
+        {
+          "each": "army",
+          "do": [
+            "$it.order = hold",
+            "$it.dest = ''",
+            "$it.support_of = ''"
+          ]
+        }
+      ],
+      "on_exit": [
+        {
+          "block": "resolve_orders"
+        }
+      ]
+    },
+    {
+      "name": "retreats",
+      "when": "$any(army, $it.dislodged)",
+      "actions": [
+        "retreat",
+        "disband"
+      ],
+      "turns": "simultaneous",
+      "who": "$any(army, $it.owner == $outer.id and $it.dislodged)",
+      "max_actions": 20,
+      "max_calls": 30,
+      "brief": "Retreats, {$season_label()}. Retreat or disband each dislodged army. Dislodged armies without an order are destroyed.",
+      "on_exit": [
+        {
+          "block": "apply_retreats"
+        }
+      ]
+    },
+    {
+      "name": "adjustments",
+      "when": "$round % 2 == 0",
+      "actions": [
+        "build",
+        "disband"
+      ],
+      "turns": "sequential",
+      "who": "$it.delta != 0",
+      "max_actions": 20,
+      "max_calls": 30,
+      "brief": "Winter adjustments after {$season_label()}. You own {$actor.sc_count} centers and have {$count(army, $it.owner == $actor.id)} army(ies).",
+      "on_enter": [
+        {
+          "block": "count_centers"
+        }
+      ],
+      "on_exit": [
+        {
+          "block": "finish_adjustments"
+        }
+      ]
+    }
+  ],
+  "blocks": {
+    "resolve_orders": {
+      "description": "Adjudicate all orders simultaneously, record betrayals, move armies, mark dislodgements.",
+      "do": [
+        "$world.report = []",
+        {
+          "each": "army",
+          "do": [
+            "$it.strength = 1",
+            "$it.move_ok = $it.order == move",
+            "$it.dislodged = false",
+            "$it.attacker_from = ''",
+            "$it.retreat_to = ''",
+            "$it.support_note = ''"
+          ]
+        },
+        {
+          "each": "province",
+          "do": [
+            "$it.standoff = false"
+          ]
+        },
+        {
+          "each": "army",
+          "as": "a",
+          "where": "$a.order != hold",
+          "do": [
+            "$victim = $victim_of($a)",
+            "$key = $a.owner + '>' + $victim + '@' + $text($round)",
+            {
+              "if": "$victim != '' and not ($key in $world.betrayal_keys) and $any($records(letters), $it.round == $round and $it.author == $a.owner and $it.recipient == $victim and $it.pledge)",
+              "then": [
+                "$world.betrayal_keys += $key",
+                "$world.betrayal_log += {season: $season_label(), betrayer: $nation_name($a.owner), victim: $nation_name($victim)}",
+                "$traitor = $entity($a.owner)",
+                "$traitor.betrayals += 1"
+              ]
+            }
+          ]
+        },
+        {
+          "each": "army",
+          "as": "s",
+          "where": "$s.order == support",
+          "do": [
+            "$target = $entity($s.support_of)",
+            "$cut = $any(army, $it.order == move and $it.dest == $s.at and $it.owner != $s.owner and $it.at != $s.dest)",
+            {
+              "if": "$target == null or $target.order != move or $target.dest != $s.dest",
+              "then": [
+                "$s.support_note = 'void: that army did not move there'"
+              ],
+              "else": [
+                {
+                  "if": "$cut",
+                  "then": [
+                    "$s.support_note = 'cut by an attack'"
+                  ],
+                  "else": [
+                    "$s.support_note = 'counted'",
+                    "$target.strength += 1"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "$world.changed = true",
+        {
+          "repeat": 100,
+          "while": "$world.changed",
+          "do": [
+            "$world.changed = false",
+            {
+              "each": "army",
+              "as": "m",
+              "where": "$m.move_ok",
+              "do": [
+                "$rival = $any(army, $it.id != $m.id and $it.order == move and $it.dest == $m.dest and $it.strength >= $m.strength)",
+                "$o = $pick(army, $it.at == $m.dest)",
+                "$swap = $o != null and $o.order == move and $o.dest == $m.at",
+                "$blocked = $o != null and (($swap and ($o.owner == $m.owner or $m.strength <= $o.strength)) or (not $swap and not $o.move_ok and ($o.owner == $m.owner or $m.strength <= 1)))",
+                {
+                  "if": "$rival or $blocked",
+                  "then": [
+                    "$m.move_ok = false",
+                    "$world.changed = true"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "each": "army",
+          "as": "d",
+          "where": "not $d.move_ok",
+          "do": [
+            "$att = $pick(army, $it.move_ok and $it.dest == $d.at)",
+            {
+              "if": "$att != null",
+              "then": [
+                "$d.dislodged = true",
+                "$d.attacker_from = $att.at"
+              ]
+            }
+          ]
+        },
+        {
+          "each": "province",
+          "as": "p",
+          "do": [
+            {
+              "if": "$any(army, $it.order == move and $it.dest == $p.id) and not $any(army, $it.move_ok and $it.dest == $p.id) and $army_at($p.id) == null",
+              "then": [
+                "$p.standoff = true"
+              ]
+            }
+          ]
+        },
+        {
+          "each": "army",
+          "as": "a",
+          "do": [
+            "$tail = (' — dislodged, attacked from ' + $place_name($a.attacker_from)) if $a.dislodged else ''",
+            {
+              "if": "$a.order == hold",
+              "then": [
+                "$world.report += $army_label($a) + ' held' + $tail"
+              ]
+            },
+            {
+              "if": "$a.order == move",
+              "then": [
+                "$world.report += $army_label($a) + ' → ' + $place_name($a.dest) + ' (strength ' + $text($a.strength) + '): ' + ('succeeded' if $a.move_ok else 'bounced') + $tail"
+              ]
+            },
+            {
+              "if": "$a.order == support",
+              "then": [
+                "$world.report += $army_label($a) + ' supported [' + $a.support_of + '] into ' + $place_name($a.dest) + ': ' + $a.support_note + $tail"
+              ]
+            }
+          ]
+        },
+        {
+          "each": "army",
+          "where": "$it.move_ok",
+          "do": [
+            {
+              "move": "$it",
+              "to": "$it.dest"
+            }
+          ]
+        }
+      ]
+    },
+    "apply_retreats": {
+      "description": "Carry out retreats; unordered, disbanded or colliding retreats destroy the army.",
+      "do": [
+        {
+          "each": "army",
+          "as": "r",
+          "where": "$r.dislodged",
+          "do": [
+            "$r.retreat_ok = $r.retreat_to != '' and $r.retreat_to != disband and $count(army, $it.dislodged and $it.id != $r.id and $it.retreat_to == $r.retreat_to) == 0"
+          ]
+        },
+        {
+          "each": "army",
+          "as": "r",
+          "where": "$r.dislodged",
+          "do": [
+            {
+              "if": "$r.retreat_ok",
+              "then": [
+                "$world.report += $army_label($r) + ' retreated to ' + $place_name($r.retreat_to)",
+                {
+                  "move": "$r",
+                  "to": "$r.retreat_to"
+                },
+                "$r.dislodged = false"
+              ],
+              "else": [
+                "$world.report += $army_label($r) + ' was destroyed' + (' (disbanded)' if $r.retreat_to == disband else (' (no retreat ordered)' if $r.retreat_to == '' else ' (retreats collided)'))",
+                {
+                  "remove": "$r"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "count_centers": {
+      "description": "After Fall: occupied centers change hands; compute builds and disbands.",
+      "do": [
+        {
+          "each": "province",
+          "as": "p",
+          "where": "$p.sc",
+          "do": [
+            "$occ = $army_at($p.id)",
+            {
+              "if": "$occ != null and $occ.owner != $p.owner",
+              "then": [
+                "$world.report += $nation_name($occ.owner) + ' takes ' + $p.name + (' from ' + $nation_name($p.owner) if $p.owner != '' else '')",
+                "$p.owner = $occ.owner"
+              ]
+            }
+          ]
+        },
+        {
+          "each": "nation",
+          "as": "n",
+          "do": [
+            "$n.sc_count = $count(province, $it.sc and $it.owner == $n.id)",
+            "$n.delta = $n.sc_count - $count(army, $it.owner == $n.id)"
+          ]
+        }
+      ]
+    },
+    "finish_adjustments": {
+      "description": "Do the adjustments nations left undone, record the year, mark eliminated nations.",
+      "do": [
+        {
+          "each": "nation",
+          "as": "n",
+          "do": [
+            {
+              "repeat": 20,
+              "while": "$n.delta > 0 and $len($free_home($n.id)) > 0",
+              "do": [
+                "$spot = $first($free_home($n.id))",
+                {
+                  "create": "army",
+                  "name": "{$n.name} army",
+                  "props": {
+                    "owner": "$n.id"
+                  },
+                  "at": "$spot.id"
+                },
+                "$world.report += $n.name + ' raised an army in ' + $spot.name + ' (automatic)'",
+                "$n.delta -= 1"
+              ]
+            },
+            "$n.delta = 0 if $n.delta > 0 else $n.delta",
+            {
+              "repeat": 20,
+              "while": "$n.delta < 0",
+              "do": [
+                "$gone = $top($armies_of($n.id), [0 if $entity($it.at).owner == $n.id else 1, $it.id], 1)[0]",
+                "$world.report += $army_label($gone) + ' disbanded (automatic)'",
+                {
+                  "remove": "$gone"
+                },
+                "$n.delta += 1"
+              ]
+            },
+            "$n.out = $n.sc_count == 0 and $count(army, $it.owner == $n.id) == 0"
+          ]
+        },
+        "$world.sc_history += {year: ($round + 1) // 2, centers: $dict(nation, $it.name, $it.sc_count)}"
+      ]
+    }
+  },
+  "views": {
+    "standing": {
+      "for": "nation",
+      "title": "Your position",
+      "show": "{$season_label()}. {name} owns {sc_count} supply centers and has {$count(army, $it.owner == $actor.id)} army(ies). {$inputs.win_centers} centers wins."
+    },
+    "powers": {
+      "for": "nation",
+      "title": "The powers (centers · armies)",
+      "of": "nation",
+      "sort": "$it.sc_count",
+      "desc": true,
+      "show": "{name}: {sc_count} centers · {$count(army, $it.owner == $outer.id)} armies{$' · eliminated' if $it.out else ''}"
+    },
+    "board": {
+      "for": "nation",
+      "title": "Board (★ = supply center)",
+      "of": "province",
+      "show": "[{id}] {name}{$' ★ ' + $nation_name($it.owner) if $it.sc else ''} — {$join($map($filter(army, $it.at == $outer.id), $army_tag($it)), '; ') if $any(army, $it.at == $outer.id) else 'empty'}"
+    },
+    "my_armies": {
+      "for": "nation",
+      "stages": [
+        "negotiation",
+        "orders"
+      ],
+      "title": "Your armies and where each can move",
+      "of": "army",
+      "where": "$it.owner == $actor.id",
+      "show": "[{id}] in {$place_name($it.at)} → borders {$join($borders($it.at), ', ')}",
+      "empty": "You have no armies."
+    },
+    "retreat_options": {
+      "for": "nation",
+      "stages": [
+        "retreats"
+      ],
+      "title": "Your dislodged armies",
+      "of": "army",
+      "where": "$it.owner == $actor.id and $it.dislodged",
+      "show": "[{id}] dislodged from {$place_name($it.at)} (attacked from {$place_name($it.attacker_from)}) → {$'can retreat to: ' + $join($retreat_spots($it), ', ') if $len($retreat_spots($it)) > 0 else 'no retreat possible: it will be destroyed'}"
+    },
+    "adjustment_options": {
+      "for": "nation",
+      "stages": [
+        "adjustments"
+      ],
+      "title": "Winter adjustments",
+      "show": "{$('Build ' + $text($actor.delta) + ' in: ' + ($join($ids($free_home($actor.id)), ', ') if $len($free_home($actor.id)) > 0 else 'nowhere — no free home center, builds are lost')) if $actor.delta > 0 else ('Disband ' + $text(-$actor.delta) + ' of: ' + $join($ids($armies_of($actor.id)), ', ') if $actor.delta < 0 else 'No adjustments needed.')}"
+    },
+    "results": {
+      "for": "nation",
+      "title": "Latest resolution",
+      "of": "$world.report",
+      "when": "$len($world.report) > 0",
+      "show": "{$it}"
+    },
+    "correspondence": {
+      "for": "nation",
+      "title": "Your letters (latest first)",
+      "look": true,
+      "of": "$reverse($records(letters, $it.author == $actor or $it.recipient == $actor.id))",
+      "limit": 20,
+      "show": "{$season_of($it.round)} · {$it.author.name} → {$nation_name($it.recipient)}{$' [pledge]' if $it.pledge else ''}: {$it.text}",
+      "empty": "No letters yet."
+    }
+  },
+  "policies": {
+    "raider": {
+      "rules": [
+        {
+          "when": "$stage == orders and $len($armies_of($actor.id)) > 0 and $len($raid_targets($lead_army($actor.id))) > 0",
+          "do": "move",
+          "with": {
+            "army": "$lead_army($actor.id)",
+            "to": "$first($raid_targets($lead_army($actor.id)))"
+          }
+        },
+        {
+          "do": "pass"
+        }
+      ]
+    }
+  },
+  "metrics": {
+    "leader_centers": {
+      "expr": "$max(nation, $it.sc_count)",
+      "description": "Centers held by the largest nation."
+    },
+    "armies": {
+      "expr": "$count(army)",
+      "description": "Armies on the board."
+    },
+    "betrayals": {
+      "expr": "$sum(nation, $it.betrayals)",
+      "description": "Pledges broken so far."
+    },
+    "letters": {
+      "expr": "$len($records(letters))",
+      "description": "Private letters written so far."
+    }
+  },
+  "end": [
+    {
+      "name": "victory",
+      "when": "$any(nation, $it.sc_count >= $inputs.win_centers)",
+      "winner": "$top(nation, $it.sc_count, 1)[0]",
+      "say": "{$top(nation, $it.sc_count, 1)[0].name} controls {$inputs.win_centers} supply centers and wins."
+    }
+  ],
+  "outputs": {
+    "winner": {
+      "type": "text",
+      "description": "The nation that reached the winning center count, or 'none' when time ran out.",
+      "expr": "$top(nation, $it.sc_count, 1)[0].name if $any(nation, $it.sc_count >= $inputs.win_centers) else 'none'"
+    },
+    "final_centers": {
+      "type": "map",
+      "description": "Supply centers per nation at the end.",
+      "expr": "$dict(nation, $it.name, $it.sc_count)"
+    },
+    "centers_by_year": {
+      "type": "list",
+      "description": "Supply centers per nation after each Fall.",
+      "expr": "$world.sc_history"
+    },
+    "betrayals": {
+      "type": "int",
+      "description": "Times a nation attacked (moved or supported into) a nation it had pledged not to attack that season.",
+      "expr": "$sum(nation, $it.betrayals)"
+    },
+    "betrayals_by_nation": {
+      "type": "map",
+      "expr": "$dict(nation, $it.name, $it.betrayals)"
+    },
+    "betrayal_log": {
+      "type": "list",
+      "expr": "$world.betrayal_log"
+    },
+    "years_played": {
+      "type": "int",
+      "expr": "($round + 1) // 2"
+    }
+  },
+  "invariants": [
+    {
+      "expr": "$all(province, $count(army, $it.at == $outer.id and not $it.dislodged) <= 1)",
+      "why": "Two armies may never share a province after resolution."
+    }
+  ]
+}

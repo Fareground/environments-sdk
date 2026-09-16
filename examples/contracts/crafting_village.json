@@ -1,0 +1,119 @@
+{
+  "fg_env": "1",
+  "name": "Crafting village",
+  "description": "Villagers gather wood, grain and ore, craft flour, bread, iron and pickaxes at the workshop with skills that grow with practice, eat to stay healthy, and trade with the village store at posted prices. Measures what gets made, how skills develop, health and wealth.",
+  "inputs": {
+    "days": {"type": "int", "default": 40, "min": 1, "unit": "day"},
+    "starting_coin": {"type": "number", "default": 20, "min": 0}
+  },
+  "brief": {
+    "situation": "A village with a forest, a field, a mine and a workshop around its square, where the store buys and sells goods at posted prices.",
+    "rules": "Move one step a day between the square and the forest, field, mine or workshop. Gather where the resources are, craft at the workshop (some recipes take days and need skill), eat bread or grain to keep hunger down — very hungry villagers lose health — and trade with the store on the square. Skills rise as you practise them."
+  },
+  "clock": {"rounds": "$inputs.days", "unit": "day"},
+  "space": {"graph": {"nodes": ["square", "forest", "field", "mine", "workshop"],
+                      "edges": [["square", "forest"], ["square", "field"], ["square", "mine"], ["square", "workshop"]]}},
+  "world": {
+    "store_buys": {"type": "map", "default": {"wood": 1, "grain": 1, "ore": 2, "flour": 3, "bread": 4, "iron": 9}, "description": "What the store pays per unit."},
+    "store_sells": {"type": "map", "default": {"wood": 2, "grain": 2, "ore": 4, "flour": 5, "bread": 6, "iron": 14}, "description": "What the store charges per unit."},
+    "turnover": {"type": "number", "default": 0, "min": 0, "description": "Coins that changed hands at the store."}
+  },
+  "types": {
+    "villager": {"agent": true, "props": {
+      "hunger": {"type": "int", "default": 2, "min": 0, "max": 10},
+      "health": {"type": "int", "default": 10, "min": 0, "max": 10}}},
+    "store": {"description": "The village store."}
+  },
+  "entities": {
+    "ada": {"type": "villager", "name": "Ada", "at": "square"},
+    "bram": {"type": "villager", "name": "Bram", "at": "square"},
+    "cora": {"type": "villager", "name": "Cora", "at": "square"},
+    "dov": {"type": "villager", "name": "Dov", "at": "square"},
+    "store": {"type": "store", "name": "Village store", "at": "square",
+              "props": {"coin": 400, "goods_capacity": 1000, "goods": {"bread": 10, "grain": 20, "wood": 10}}}
+  },
+  "mechanisms": {
+    "money": {"kind": "economy", "mode": "ledger", "who": ["villager", "store"], "currencies": {"coin": {"start": "$inputs.starting_coin"}}},
+    "goods": {"kind": "economy", "mode": "inventory", "who": ["villager", "store"], "capacity": 30,
+              "items": {
+                "wood": {"value": 1}, "grain": {"value": 1, "on_consume": ["$actor.hunger -= $qty"]}, "ore": {"value": 2},
+                "flour": {"value": 3}, "bread": {"value": 4, "shelf_life": 6, "on_consume": ["$actor.hunger -= 3 * $qty"]},
+                "iron": {"value": 9}, "pickaxe": {"unique": true, "value": 20, "size": 2}
+              },
+              "actions": ["consume"]},
+    "craft": {"kind": "economy", "mode": "production", "who": "villager", "inventory": "goods", "slots": 2,
+              "skills": {"woodcraft": {"xp_per_level": 3, "max_level": 5}, "farming": {"xp_per_level": 3, "max_level": 5},
+                         "mining": {"xp_per_level": 3, "max_level": 5}, "cooking": {"xp_per_level": 4, "max_level": 5},
+                         "smithing": {"xp_per_level": 5, "max_level": 5}},
+              "recipes": {
+                "chop_wood": {"outputs": {"wood": "1 + $floor($skill($actor, woodcraft) / 2)"}, "at": "forest", "skill": "woodcraft", "xp": 1},
+                "harvest_grain": {"outputs": {"grain": "2 + $floor($skill($actor, farming) / 2)"}, "at": "field", "skill": "farming", "xp": 1},
+                "mine_ore": {"outputs": {"ore": "1 + $floor($skill($actor, mining) / 2)"}, "at": "mine", "tools": {"pickaxe": 1}, "skill": "mining", "xp": 1},
+                "mill_flour": {"inputs": {"grain": 2}, "outputs": {"flour": 1}, "at": "workshop", "rounds": 1},
+                "bake_bread": {"inputs": {"flour": 1, "wood": 1}, "outputs": {"bread": 2}, "at": "workshop", "rounds": 1, "skill": "cooking", "xp": 2},
+                "smelt_iron": {"inputs": {"ore": 2, "wood": 2}, "outputs": {"iron": 1}, "at": "workshop", "rounds": 2, "skill": "smithing", "level": 1, "xp": 3},
+                "forge_pickaxe": {"inputs": {"iron": 1, "wood": 1}, "outputs": {"pickaxe": 1}, "at": "workshop", "skill": "smithing", "level": 2, "xp": 4}
+              }}
+  },
+  "actions": {
+    "move": {
+      "by": "villager", "description": "Walk one step to a neighbouring place.",
+      "params": {"place": {"type": "enum", "values": "$filter(['square', 'forest', 'field', 'mine', 'workshop'], $distance($actor.at, $it) == 1)"}},
+      "do": [{"move": "$actor", "to": "$params.place"}],
+      "outcome": "You walk to the {$params.place}.", "private": true, "per_turn": 1
+    },
+    "sell": {
+      "by": "villager", "private": true, "description": "Sell goods to the store at its posted buying price.",
+      "when": [{"expr": "$actor.at == 'square'", "why": "The store is on the square."},
+               {"expr": "$len($filter($owned_items($actor, 'goods'), $it in $keys($world.store_buys))) > 0", "why": "You have nothing the store buys."}],
+      "params": {"item": {"type": "enum", "values": "$filter($owned_items($actor, 'goods'), $it in $keys($world.store_buys))"},
+                 "qty": {"type": "int", "min": 1, "default": 1, "max": "$count_items($actor, $params.item) if 'item' in $params else null"}},
+      "do": ["$price = $get($world.store_buys, $params.item) * $params.qty",
+             {"economy": "goods", "action": "give", "item": "$params.item", "from": "$actor", "to": "$entity(store)", "qty": "$params.qty"},
+             {"economy": "money", "action": "pay", "from": "$entity(store)", "to": "$actor", "amount": "$price"},
+             "$world.turnover += $price"],
+      "outcome": "Sold {$params.qty} {$params.item} for {$price} coin."
+    },
+    "buy": {
+      "by": "villager", "private": true, "description": "Buy goods from the store at its posted selling price.",
+      "when": [{"expr": "$actor.at == 'square'", "why": "The store is on the square."}],
+      "params": {"item": {"type": "enum", "values": "$filter($keys($world.store_sells), $count_items($entity(store), $it) > 0 and $actor.coin >= $get($world.store_sells, $it))"},
+                 "qty": {"type": "int", "min": 1, "default": 1,
+                         "max": "$min($count_items($entity(store), $params.item), $floor($actor.coin / $get($world.store_sells, $params.item))) if 'item' in $params else null"}},
+      "do": ["$price = $get($world.store_sells, $params.item) * $params.qty",
+             {"economy": "money", "action": "pay", "from": "$actor", "to": "$entity(store)", "amount": "$price"},
+             {"economy": "goods", "action": "give", "item": "$params.item", "from": "$entity(store)", "to": "$actor", "qty": "$params.qty"},
+             "$world.turnover += $price"],
+      "outcome": "Bought {$params.qty} {$params.item} for {$price} coin."
+    }
+  },
+  "events": [
+    {"name": "heirloom pickaxe", "at": 1, "phase": "start", "do": [{"economy": "goods", "action": "make", "item": "pickaxe", "to": "$entity(bram)", "source": "heirloom"}]},
+    {"name": "hunger", "phase": "end", "each": "villager", "do": ["$it.hunger += 1", {"if": "$it.hunger >= 8", "then": ["$it.health -= 1"]}]}
+  ],
+  "stages": [
+    {"name": "day", "turns": "sequential", "order": "random", "max_actions": 3, "max_calls": 8,
+     "brief": "Day {$round}: you are at the {at}."}
+  ],
+  "views": {
+    "you": {"for": "villager", "title": "You", "bullet": false,
+            "show": "At the {at} · hunger {hunger}/10 · health {health}/10"},
+    "store": {"for": "villager", "title": "Store prices (buys / sells)", "bullet": false, "look": true,
+              "show": "{$join($map($keys($world.store_sells), $it + ' ' + $text($get($world.store_buys, $it)) + '/' + $text($get($world.store_sells, $it))), ', ')}"}
+  },
+  "metrics": {
+    "bread_made": {"expr": "$get($world.craft_made, 'bake_bread', 0) * 2"},
+    "iron_made": {"expr": "$get($world.craft_made, 'smelt_iron', 0)"},
+    "avg_health": {"expr": "$avg(villager, $it.health)"},
+    "avg_skill": {"expr": "$avg(villager, $sum($values($it.skills)))"},
+    "village_worth": {"expr": "$round($sum(villager, $net_worth($it)), 2)"}
+  },
+  "outputs": {
+    "made": {"type": "map", "expr": "$world.craft_made", "description": "Batches finished per recipe."},
+    "richest": {"type": "text", "expr": "$top(villager, $net_worth($it), 1)[0].name"},
+    "avg_health": {"type": "number", "expr": "$avg(villager, $it.health)"},
+    "skills": {"type": "map", "expr": "$dict(villager, $it.name, $it.skills)"},
+    "store_turnover": {"type": "number", "expr": "$world.turnover"},
+    "goods_flows": {"type": "map", "expr": "$world.goods_flows", "description": "Goods made (+) and used up (−) by each source and sink."}
+  }
+}

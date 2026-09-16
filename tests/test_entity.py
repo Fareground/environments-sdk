@@ -1,7 +1,7 @@
 """Tests for kernel/entity.py"""
 import pytest
-from fg_env_kernel.entity import EntityType, Entity
-from fg_env_kernel.types import PropertySchema, PropertyType
+from fg_env.entity import EntityType, Entity
+from fg_env.types import PropertySchema, PropertyType
 
 
 class TestEntityType:

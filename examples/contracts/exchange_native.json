@@ -1,0 +1,76 @@
+{
+  "fg_env": "1",
+  "name": "Single-stock exchange (native order book)",
+  "description": "The order_book_exchange scenario on the native market mechanism's order_book mode: a continuous limit order book with price-time priority, partial fills, maker/taker fees, a market-order collar, order expiry, a fundamental news shock and a circuit breaker, traded by coded market makers, momentum traders and fundamentalists (and optional agent seats).",
+  "inputs": {
+    "rounds": {"type": "int", "default": 15, "min": 2, "max": 500, "description": "Trading sessions in the run."},
+    "start_price": {"type": "number", "default": 50, "min": 1, "unit": "$", "description": "Opening reference price."},
+    "fair_value": {"type": "number", "default": 50, "min": 1, "unit": "$", "description": "True value before the news."},
+    "shock_round": {"type": "int", "default": 8, "min": 1, "description": "Round the news breaks."},
+    "shock_pct": {"type": "number", "default": -0.15, "min": -0.9, "max": 2, "description": "Change in fair value caused by the news."},
+    "headline": {"type": "text", "default": "NEWS: the company cuts full-year guidance; analysts rush to revise their valuations.", "description": "Public headline of the shock."},
+    "n_market_makers": {"type": "int", "default": 4, "min": 0},
+    "n_momentum": {"type": "int", "default": 8, "min": 0},
+    "n_value": {"type": "int", "default": 8, "min": 0},
+    "n_agents": {"type": "int", "default": 0, "min": 0, "description": "Extra seats for your own agents."},
+    "mm_cash": {"type": "number", "default": 20000, "min": 0},
+    "mm_shares": {"type": "int", "default": 400, "min": 0},
+    "trader_cash": {"type": "number", "default": 10000, "min": 0},
+    "trader_shares": {"type": "int", "default": 200, "min": 0}
+  },
+  "brief": {
+    "situation": "You trade ACME on an electronic exchange against market makers, momentum traders and value traders. Everyone starts with cash and shares. Your score is profit and loss: cash plus shares marked at the last traded price, compared with your start.",
+    "rules": "Buy or sell with a price for a limit order (it trades at once against better or equal resting orders, best price first and oldest first, and the rest waits on the book with its cash or shares reserved) or without a price for a market order (it trades within 5% of the best quote; the rest is cancelled). Resting orders expire after 3 rounds. Every fill costs 5 bps of its value. You never trade with yourself. If a trade prints more than 10% away from the price the round opened at, trading halts for the rest of that round and the whole next round. News can change what the stock is really worth."
+  },
+  "clock": {"rounds": "$inputs.rounds", "unit": "round"},
+  "world": {
+    "fair_value": {"type": "number", "default": "$inputs.fair_value", "private": true, "description": "True value of the stock."}
+  },
+  "types": {
+    "trader": {"agent": true, "description": "A trader on the exchange."}
+  },
+  "population": [
+    {"type": "trader", "count": "$inputs.n_agents", "id": "agent_{$i}", "name": "Trader {$i}",
+     "props": {"cash": "$inputs.trader_cash", "acme_shares": "$inputs.trader_shares"}}
+  ],
+  "mechanisms": {
+    "acme": {
+      "kind": "market",
+      "mode": "order_book",
+      "who": "trader",
+      "instrument": "ACME",
+      "start_price": "$inputs.start_price",
+      "tick_size": 0.01,
+      "maker_fee_bps": 5,
+      "taker_fee_bps": 5,
+      "collar_pct": 0.05,
+      "halt_pct": 0.1,
+      "halt_rounds": 1,
+      "order_ttl": 3,
+      "fair_value": "$world.fair_value",
+      "crowd": {
+        "market_maker": {"count": "$inputs.n_market_makers", "cash": "$inputs.mm_cash", "shares": "$inputs.mm_shares"},
+        "momentum": {"count": "$inputs.n_momentum", "cash": "$inputs.trader_cash", "shares": "$inputs.trader_shares"},
+        "fundamentalist": {"count": "$inputs.n_value", "cash": "$inputs.trader_cash", "shares": "$inputs.trader_shares"}
+      }
+    }
+  },
+  "events": [
+    {"name": "news_shock", "phase": "start", "at": "$inputs.shock_round",
+     "do": ["$world.fair_value = $round($world.fair_value * (1 + $inputs.shock_pct), 2)"],
+     "say": "{$inputs.headline}"}
+  ],
+  "metrics": {
+    "fair_value": {"expr": "$world.fair_value", "unit": "$"},
+    "pnl_market_maker": "$sum(acme_market_maker, $book_account(acme, $it).pnl)",
+    "pnl_momentum": "$sum(acme_momentum, $book_account(acme, $it).pnl)",
+    "pnl_value": "$sum(acme_fundamentalist, $book_account(acme, $it).pnl)"
+  },
+  "outputs": {
+    "pnl_market_maker": {"expr": "$round($metrics.pnl_market_maker, 2)", "type": "number", "description": "Total P&L of market makers, marked at the last price."},
+    "pnl_momentum": {"expr": "$round($metrics.pnl_momentum, 2)", "type": "number", "description": "Total P&L of momentum traders."},
+    "pnl_value": {"expr": "$round($metrics.pnl_value, 2)", "type": "number", "description": "Total P&L of value traders."},
+    "price_max_drawdown": {"expr": "$round(-$market_stats($series.acme_price).max_drawdown, 6)", "type": "number", "description": "Largest peak-to-trough fall of the round closes, as a fraction."},
+    "final_fair_value": {"expr": "$world.fair_value", "type": "number"}
+  }
+}

@@ -1,0 +1,688 @@
+{
+  "fg_env": "1",
+  "name": "Hold'em Lite",
+  "description": "A four-seat Texas Hold'em-lite table: two hole cards, three community cards, one betting round, simplified showdown.",
+  "inputs": {
+    "hands": {
+      "type": "int",
+      "default": 10,
+      "min": 1,
+      "max": 200,
+      "description": "Hands to play (the run also ends when one player holds every chip)."
+    },
+    "starting_stack": {
+      "type": "int",
+      "default": 500,
+      "min": 20,
+      "unit": "chips"
+    },
+    "small_blind": {
+      "type": "int",
+      "default": 5,
+      "min": 1,
+      "unit": "chips"
+    },
+    "big_blind": {
+      "type": "int",
+      "default": 10,
+      "min": 2,
+      "unit": "chips",
+      "description": "Also the minimum raise size."
+    }
+  },
+  "brief": {
+    "situation": "Four players sit at a no-limit Hold'em-lite table and play several hands for chips. The dealer button moves one seat to the left after every hand.",
+    "rules": "Each hand: the deck is shuffled, the two players left of the button post the small and big blinds, everyone still holding chips gets 2 private hole cards, and 3 community cards are dealt face up at once. Then there is ONE betting round, starting left of the button and going around until every player still in has either matched the highest bet, folded, or is all-in. On your turn: fold, check (nothing to call), call (match the highest bet, or go all-in for less), or raise to a total bet of at least the highest bet plus the minimum raise (the size of the last full raise, never less than the big blind), up to all your chips. An all-in raise smaller than a full raise does not let players who already acted raise again. Showdown: your hand is exactly your 2 hole cards plus the 3 community cards. Ranking, best first: flush (5 of one suit), straight (5 in sequence; A-2-3-4-5 is the lowest), three of a kind (full house and four of a kind count here), two pair, pair, high card. Ties within a rank go to the higher cards that make it, then kickers; exact ties split the pot (odd chip to the first winner left of the button). All-in players can only win what they matched from each opponent (side pots). A player with no chips is out.",
+    "roles": {
+      "player": "You want to finish with as many chips as possible: win big pots with strong hands, fold weak ones cheaply, and read what other players' bets say about their cards."
+    }
+  },
+  "clock": {
+    "rounds": "$inputs.hands",
+    "unit": "hand"
+  },
+  "world": {
+    "hand": {
+      "type": "int",
+      "default": 0
+    },
+    "button": {
+      "type": "int",
+      "default": 0,
+      "description": "Seat of the dealer button."
+    },
+    "small_blind": {
+      "type": "int",
+      "default": "$inputs.small_blind"
+    },
+    "big_blind": {
+      "type": "int",
+      "default": "$inputs.big_blind"
+    },
+    "pot": {
+      "type": "int",
+      "default": 0,
+      "min": 0
+    },
+    "current_bet": {
+      "type": "int",
+      "default": 0,
+      "description": "Highest total bet this hand."
+    },
+    "min_raise": {
+      "type": "int",
+      "default": "$inputs.big_blind",
+      "description": "Smallest legal raise increment."
+    },
+    "board": {
+      "type": "text",
+      "default": ""
+    },
+    "biggest_pot": {
+      "type": "int",
+      "default": 0
+    },
+    "main_winners": {
+      "type": "text",
+      "default": ""
+    }
+  },
+  "types": {
+    "player": {
+      "agent": true,
+      "description": "A seated player.",
+      "props": {
+        "seat": {
+          "type": "int",
+          "default": 0
+        },
+        "stack": {
+          "type": "int",
+          "default": "$inputs.starting_stack",
+          "min": 0
+        },
+        "bet": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "description": "Chips put in this hand."
+        },
+        "contrib": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "description": "Chips still unsettled in the pot (bookkeeping for side pots)."
+        },
+        "in_hand": {
+          "type": "bool",
+          "default": true
+        },
+        "folded": {
+          "type": "bool",
+          "default": false
+        },
+        "acted": {
+          "type": "bool",
+          "default": false
+        },
+        "won": {
+          "type": "int",
+          "default": 0
+        },
+        "hands_won": {
+          "type": "int",
+          "default": 0
+        },
+        "hole": {
+          "type": "text",
+          "default": "",
+          "private": true
+        },
+        "score": {
+          "type": "int",
+          "default": 0,
+          "private": true
+        },
+        "hand_name": {
+          "type": "text",
+          "default": "",
+          "private": true
+        }
+      }
+    },
+    "card": {
+      "description": "One card of the 52-card deck.",
+      "props": {
+        "rank": {
+          "type": "int",
+          "default": 2,
+          "min": 2,
+          "max": 14
+        },
+        "suit": {
+          "type": "text",
+          "default": "s"
+        },
+        "order": {
+          "type": "int",
+          "default": 0,
+          "private": true
+        },
+        "loc": {
+          "type": "text",
+          "default": "deck",
+          "private": true
+        },
+        "holder": {
+          "type": "text",
+          "default": "",
+          "private": true
+        }
+      }
+    }
+  },
+  "entities": {
+    "p1": {
+      "type": "player",
+      "name": "Ana",
+      "props": {
+        "seat": 0
+      }
+    },
+    "p2": {
+      "type": "player",
+      "name": "Ben",
+      "props": {
+        "seat": 1
+      }
+    },
+    "p3": {
+      "type": "player",
+      "name": "Cleo",
+      "props": {
+        "seat": 2
+      }
+    },
+    "p4": {
+      "type": "player",
+      "name": "Dev",
+      "props": {
+        "seat": 3
+      }
+    }
+  },
+  "population": [
+    {
+      "type": "card",
+      "count": 52,
+      "id": "card_{$i}",
+      "name": "{$text(['2','3','4','5','6','7','8','9','10','J','Q','K','A'][($i - 1) % 13])}{$text(['♠','♥','♦','♣'][($i - 1) // 13])}",
+      "props": {
+        "rank": "($i - 1) % 13 + 2",
+        "suit": "['s', 'h', 'd', 'c'][($i - 1) // 13]"
+      }
+    }
+  ],
+  "records": {
+    "hands": {
+      "fields": {
+        "hand": "int",
+        "winner": "text",
+        "pot": "int",
+        "detail": "text"
+      },
+      "show": "Hand {hand}: {winner} won the {pot}-chip pot. {detail}",
+      "description": "Result of each finished hand."
+    }
+  },
+  "actions": {
+    "fold": {
+      "by": "player",
+      "description": "Give up this hand and any chips you have already bet.",
+      "when": [
+        {
+          "expr": "$actor.bet < $world.current_bet",
+          "why": "Nothing to call: check instead of folding."
+        }
+      ],
+      "do": [
+        "$actor.folded = true",
+        "$actor.acted = true"
+      ],
+      "outcome": "You folded.",
+      "announce": "{$actor.name} folds."
+    },
+    "check": {
+      "by": "player",
+      "description": "Stay in without adding chips (only when your bet already matches the highest bet).",
+      "when": [
+        {
+          "expr": "$actor.bet == $world.current_bet",
+          "why": "There is a bet to match: call, raise or fold."
+        }
+      ],
+      "do": [
+        "$actor.acted = true"
+      ],
+      "outcome": "You checked.",
+      "announce": "{$actor.name} checks."
+    },
+    "call": {
+      "by": "player",
+      "description": "Match the highest bet (all-in if you have fewer chips).",
+      "when": [
+        {
+          "expr": "$actor.bet < $world.current_bet",
+          "why": "Nothing to call: check instead."
+        }
+      ],
+      "do": [
+        "$amount = $min($world.current_bet - $actor.bet, $actor.stack)",
+        "$actor.stack -= $amount",
+        "$actor.bet += $amount",
+        "$actor.contrib += $amount",
+        "$world.pot += $amount",
+        "$actor.acted = true"
+      ],
+      "outcome": "You called {$amount}{$text(' and are all-in' if $actor.stack == 0 else '')}. Pot is {$world.pot}.",
+      "announce": "{$actor.name} calls {$amount}{$text(' (all-in)' if $actor.stack == 0 else '')}."
+    },
+    "raise": {
+      "by": "player",
+      "description": "Raise: `to` is your new TOTAL bet for the hand, at least the highest bet plus the minimum raise (or all your chips if that is less).",
+      "when": [
+        {
+          "expr": "not $actor.acted",
+          "why": "Nobody has made a full raise since you acted: you may only call or fold."
+        },
+        {
+          "expr": "$actor.stack > $world.current_bet - $actor.bet",
+          "why": "You do not have enough chips to raise: call (all-in) or fold."
+        }
+      ],
+      "params": {
+        "to": {
+          "type": "int",
+          "description": "Your total bet after raising.",
+          "min": "$min($world.current_bet + $world.min_raise, $actor.bet + $actor.stack)",
+          "max": "$actor.bet + $actor.stack"
+        }
+      },
+      "do": [
+        "$added = $params.to - $actor.bet",
+        "$size = $params.to - $world.current_bet",
+        "$actor.stack -= $added",
+        "$actor.bet = $params.to",
+        "$actor.contrib += $added",
+        "$world.pot += $added",
+        "$actor.acted = true",
+        {
+          "if": "$size >= $world.min_raise",
+          "then": [
+            "$world.min_raise = $size",
+            {
+              "each": "player",
+              "where": "$it.id != $actor.id",
+              "do": [
+                "$it.acted = false"
+              ]
+            }
+          ]
+        },
+        "$world.current_bet = $params.to"
+      ],
+      "outcome": "You raised to {$params.to}{$text(' (all-in)' if $actor.stack == 0 else '')}. Pot is {$world.pot}.",
+      "announce": "{$actor.name} raises to {$params.to}{$text(' (all-in)' if $actor.stack == 0 else '')}."
+    }
+  },
+  "stages": [
+    {
+      "name": "betting",
+      "turns": "sequential",
+      "who": "$it.in_hand and not $it.folded and $it.stack > 0 and ($it.bet < $world.current_bet or (not $it.acted and $count(player, $it.in_hand and not $it.folded and $it.stack > 0) > 1))",
+      "order": "($it.seat - $world.button + 3) % 4",
+      "until": "$count(player, $it.in_hand and not $it.folded) <= 1 or not $any(player, $it.in_hand and not $it.folded and $it.stack > 0 and ($it.bet < $world.current_bet or (not $it.acted and $count(player, $it.in_hand and not $it.folded and $it.stack > 0) > 1)))",
+      "passes": 50,
+      "max_actions": 1,
+      "max_calls": 6,
+      "brief": "Your action. To call: {$world.current_bet - $actor.bet} chips. Minimum raise: to {$min($world.current_bet + $world.min_raise, $actor.bet + $actor.stack)}."
+    }
+  ],
+  "events": [
+    {
+      "name": "deal",
+      "phase": "start",
+      "every": 1,
+      "do": [
+        "$world.hand += 1",
+        "$world.pot = 0",
+        "$world.main_winners = ''",
+        {
+          "each": "player",
+          "do": [
+            "$it.in_hand = $it.stack > 0",
+            "$it.folded = false",
+            "$it.acted = false",
+            "$it.bet = 0",
+            "$it.contrib = 0",
+            "$it.won = 0",
+            "$it.hole = ''",
+            "$it.score = 0",
+            "$it.hand_name = ''"
+          ]
+        },
+        {
+          "each": "$shuffle(card)",
+          "do": [
+            "$it.order = $i",
+            "$it.loc = 'deck'",
+            "$it.holder = ''"
+          ]
+        },
+        {
+          "each": "$bottom(player, ($it.seat - $world.button + 3) % 4, null, $it.in_hand)",
+          "as": "p",
+          "do": [
+            "$two = $bottom(card, $it.order, 2, $it.loc == 'deck')",
+            {
+              "each": "$two",
+              "do": [
+                "$it.loc = 'hole'",
+                "$it.holder = $p.id"
+              ]
+            },
+            "$p.hole = $join($map($two, $it.name), ' ')"
+          ]
+        },
+        "$flop = $bottom(card, $it.order, 3, $it.loc == 'deck')",
+        {
+          "each": "$flop",
+          "do": [
+            "$it.loc = 'board'"
+          ]
+        },
+        "$world.board = $join($map($flop, $it.name), ' ')",
+        "$labels = ['', '', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']",
+        {
+          "each": "player",
+          "where": "$p.in_hand",
+          "as": "p",
+          "do": [
+            "$cards = $filter(card, $it.loc == 'board' or $it.holder == $p.id)",
+            "$r = $map($cards, $it.rank)",
+            "$u = $unique($r)",
+            "$t = $tally($r)",
+            "$flush = $len($unique($map($cards, $it.suit))) == 1",
+            "$wheel = $len($u) == 5 and 14 in $u and 2 in $u and 3 in $u and 4 in $u and 5 in $u",
+            "$straight = $len($u) == 5 and ($max($u, $it) - $min($u, $it) == 4 or $wheel)",
+            "$most = $max($u, $get($t, $it))",
+            "$pairs = $count($u, $get($t, $it) == 2)",
+            "$cat = 5 if $flush else (4 if $straight else (3 if $most >= 3 else (2 if $pairs == 2 else (1 if $pairs == 1 else 0))))",
+            "$ord = [5, 4, 3, 2, 1] if $wheel and not $flush else $top($r, $get($t, $it) * 15 + $it)",
+            "$p.score = $cat * 759375 + $ord[0] * 50625 + $ord[1] * 3375 + $ord[2] * 225 + $ord[3] * 15 + $ord[4]",
+            "$p.hand_name = ['high card', 'pair', 'two pair', 'three of a kind', 'straight', 'flush'][$cat] + ' (' + $join($map($ord, $labels[$it] if $it > 1 else 'A'), ' ') + ')'"
+          ]
+        },
+        "$n = $count(player, $it.in_hand)",
+        "$btn = $pick(player, $it.seat == $world.button)",
+        "$sb = $btn if $n == 2 else $bottom(player, ($it.seat - $world.button + 3) % 4, 1, $it.in_hand and $it.seat != $world.button)[0]",
+        "$bb = $bottom(player, ($it.seat - $sb.seat + 3) % 4, 1, $it.in_hand and $it.seat != $sb.seat)[0]",
+        "$a = $min($world.small_blind, $sb.stack)",
+        "$sb.stack -= $a",
+        "$sb.bet += $a",
+        "$sb.contrib += $a",
+        "$world.pot += $a",
+        "$b = $min($world.big_blind, $bb.stack)",
+        "$bb.stack -= $b",
+        "$bb.bet += $b",
+        "$bb.contrib += $b",
+        "$world.pot += $b",
+        "$world.current_bet = $world.big_blind",
+        "$world.min_raise = $world.big_blind",
+        {
+          "emit": "deal",
+          "say": "Hand {$world.hand}: {$btn.name} has the button; {$sb.name} posts {$a}, {$bb.name} posts {$b}. Board: {$world.board}."
+        }
+      ]
+    },
+    {
+      "name": "showdown",
+      "phase": "end",
+      "every": 1,
+      "do": [
+        "$live = $filter(player, $it.in_hand and not $it.folded)",
+        "$pot = $world.pot",
+        "$world.biggest_pot = $max($world.biggest_pot, $pot)",
+        {
+          "if": "$len($live) == 1",
+          "then": [
+            "$w = $live[0]",
+            "$w.stack += $pot",
+            "$w.won += $pot",
+            "$w.hands_won += 1",
+            {
+              "each": "player",
+              "do": [
+                "$it.contrib = 0"
+              ]
+            },
+            "$world.main_winners = $w.name",
+            "$detail = 'Everyone else folded; no cards shown.'"
+          ],
+          "else": [
+            {
+              "repeat": 8,
+              "while": "$any(player, $it.contrib > 0)",
+              "do": [
+                "$level = $min(player, $it.contrib, $it.contrib > 0)",
+                "$slice = $sum(player, $min($it.contrib, $level), $it.contrib > 0)",
+                "$elig = $filter(player, $it.in_hand and not $it.folded and $it.contrib >= $level)",
+                {
+                  "if": "$len($elig) == 0",
+                  "then": [
+                    {
+                      "each": "player",
+                      "where": "$it.contrib > 0",
+                      "do": [
+                        "$it.stack += $min($it.contrib, $level)"
+                      ]
+                    }
+                  ],
+                  "else": [
+                    "$best = $max($elig, $it.score)",
+                    "$ws = $bottom($filter($elig, $it.score == $best), ($it.seat - $world.button + 3) % 4)",
+                    "$share = $slice // $len($ws)",
+                    {
+                      "each": "$ws",
+                      "do": [
+                        "$it.stack += $share",
+                        "$it.won += $share"
+                      ]
+                    },
+                    "$first = $ws[0]",
+                    "$first.stack += $slice - $share * $len($ws)",
+                    "$first.won += $slice - $share * $len($ws)",
+                    {
+                      "if": "$world.main_winners == ''",
+                      "then": [
+                        "$world.main_winners = $join($map($ws, $it.name), ' and ')",
+                        {
+                          "each": "$ws",
+                          "do": [
+                            "$it.hands_won += 1"
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "each": "player",
+                  "where": "$it.contrib > 0",
+                  "do": [
+                    "$it.contrib -= $level"
+                  ]
+                }
+              ]
+            },
+            "$detail = 'Showdown on ' + $world.board + ': ' + $join($map($bottom($live, $it.seat), $it.name + ' ' + $it.hole + ' = ' + $it.hand_name), '; ') + '.'"
+          ]
+        },
+        "$world.pot = 0",
+        {
+          "post": "hands",
+          "hand": "$world.hand",
+          "winner": "$world.main_winners",
+          "pot": "$pot",
+          "detail": "$detail"
+        },
+        {
+          "each": "player",
+          "where": "$it.stack == 0 and $it.in_hand",
+          "do": [
+            "$it.in_hand = false"
+          ]
+        },
+        "$world.button = $bottom(player, ($it.seat - $world.button + 3) % 4, 1, $it.stack > 0)[0].seat"
+      ]
+    }
+  ],
+  "views": {
+    "my_hand": {
+      "for": "player",
+      "when": "$actor.in_hand",
+      "show": "Your cards: {hole} · with the board you hold {hand_name} · your stack {stack} · your bet this hand {bet}{$text(' · you folded' if $actor.folded else '')}"
+    },
+    "sitting_out": {
+      "for": "player",
+      "when": "not $actor.in_hand",
+      "show": "You have no chips left and are out of the game."
+    },
+    "table_state": {
+      "for": "player",
+      "show": "Hand {$world.hand} · Board: {$world.board} · Pot {$world.pot} · Highest bet {$world.current_bet} · Minimum raise size {$world.min_raise}"
+    },
+    "seats": {
+      "for": "player",
+      "title": "Table (in seat order)",
+      "of": "player",
+      "sort": "$it.seat",
+      "show": "[{id}] {name}{$text(' (button)' if $it.seat == $world.button else '')}: stack {stack}, bet {bet}{$text(' · folded' if $it.folded else '')}{$text(' · all-in' if $it.in_hand and not $it.folded and $it.stack == 0 else '')}{$text(' · out' if not $it.in_hand else '')}"
+    }
+  },
+  "policies": {
+    "calling_station": {
+      "rules": [
+        {
+          "do": "check"
+        },
+        {
+          "do": "call"
+        }
+      ]
+    },
+    "tight": {
+      "rules": [
+        {
+          "when": "$actor.score >= 2 * 759375",
+          "do": "raise",
+          "with": {
+            "to": "$min($world.current_bet + $world.min_raise * 2, $actor.bet + $actor.stack)"
+          }
+        },
+        {
+          "when": "$actor.score >= 759375",
+          "do": "call"
+        },
+        {
+          "do": "check"
+        },
+        {
+          "do": "fold"
+        }
+      ]
+    },
+    "maniac": {
+      "rules": [
+        {
+          "chance": 0.6,
+          "do": "raise",
+          "with": {
+            "to": "$min($world.current_bet + $world.min_raise, $actor.bet + $actor.stack)"
+          }
+        },
+        {
+          "do": "call"
+        },
+        {
+          "do": "check"
+        }
+      ]
+    },
+    "shover": {
+      "rules": [
+        {
+          "do": "raise",
+          "with": {
+            "to": "$actor.bet + $actor.stack"
+          }
+        },
+        {
+          "do": "call"
+        },
+        {
+          "do": "check"
+        }
+      ]
+    }
+  },
+  "metrics": {
+    "biggest_pot": "$world.biggest_pot",
+    "players_left": "$count(player, $it.stack > 0)",
+    "chip_leader_stack": "$max(player, $it.stack)"
+  },
+  "invariants": [
+    {
+      "expr": "$sum(player, $it.stack) + $world.pot == $inputs.starting_stack * $count(player)",
+      "why": "Chips are never created or destroyed."
+    }
+  ],
+  "end": [
+    {
+      "name": "one_player_left",
+      "when": "$world.pot == 0 and $count(player, $it.stack > 0) <= 1",
+      "winner": "$top(player, $it.stack, 1)[0]",
+      "say": "{$top(player, $it.stack, 1)[0].name} has won every chip."
+    }
+  ],
+  "outputs": {
+    "hand_winners": {
+      "expr": "$map($records(hands), 'Hand ' + $text($it.hand) + ': ' + $it.winner + ' (pot ' + $text($it.pot) + ')')",
+      "type": "list",
+      "description": "Winner(s) of the main pot of each hand."
+    },
+    "hand_log": {
+      "expr": "$map($records(hands), 'Hand ' + $text($it.hand) + ': ' + $it.winner + ' won the ' + $text($it.pot) + '-chip pot. ' + $it.detail)",
+      "type": "list",
+      "description": "Full result of every hand, including cards shown at showdown."
+    },
+    "final_stacks": {
+      "expr": "$map($bottom(player, $it.seat), $it.name + ': ' + $text($it.stack))",
+      "type": "list",
+      "description": "Chips each player holds at the end."
+    },
+    "biggest_pot": {
+      "expr": "$world.biggest_pot",
+      "type": "int",
+      "description": "Largest pot of the run, in chips."
+    },
+    "chip_leader": {
+      "expr": "$top(player, $it.stack, 1)[0].name",
+      "type": "text"
+    },
+    "hands_played": {
+      "expr": "$world.hand",
+      "type": "int"
+    }
+  }
+}

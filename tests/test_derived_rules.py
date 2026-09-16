@@ -5,8 +5,8 @@ state machine transitions for the common "when X then Y" pattern.
 This is the framework's forward-chaining inference primitive.
 """
 
-from fg_env_kernel import compile_template
-from fg_env_kernel.action import ActionInstance
+from fg_env.legacy import compile_template
+from fg_env.action import ActionInstance
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,81 @@
+{
+  "fg_env": "1",
+  "name": "The Clean Rivers Bill",
+  "description": "A bill passes through first, second and third readings with a committee stage between; each reading ends in a division. The readings are written once as a macro over data.",
+  "inputs": {
+    "members": {"type": "int", "default": 5, "min": 3, "max": 9, "description": "Members of parliament."}
+  },
+  "brief": {
+    "situation": "Parliament considers the Clean Rivers Bill, which would fine factories that pollute rivers.",
+    "rules": "The bill passes through a first reading (a formal vote), a second reading (debate on its principle, then a vote), a committee stage (amendments) and a third reading (final debate and vote). Each reading ends in a division: the bill moves on when more members vote aye than no, and is defeated otherwise. After the third reading it becomes law.",
+    "roles": {"mp": "You are a member of parliament. Speak for your constituents and vote by how much you support the bill."}
+  },
+  "clock": {"rounds": 8, "unit": "sitting day"},
+  "world": {
+    "ayes": {"type": "int", "default": 0},
+    "noes": {"type": "int", "default": 0},
+    "amendments": {"type": "list", "default": []}
+  },
+  "types": {
+    "mp": {"agent": true, "policy": "whip", "props": {
+      "support": {"type": "number", "default": 0.5, "min": 0, "max": 1, "private": true},
+      "vote": {"type": "enum", "values": ["undecided", "aye", "no"], "default": "undecided", "private": true}
+    }}
+  },
+  "population": [{"type": "mp", "count": "$inputs.members",
+                  "name": "{$text(['Ada', 'Bram', 'Cora', 'Dmitri', 'Esme', 'Farid', 'Greta', 'Hugo', 'Ines'][$i - 1])}",
+                  "props": {"support": "$round($random(), 2)"}}],
+  "records": {"hansard": {"fields": {"text": "text"}, "show": "{author}: {text}", "description": "What was said in the chamber."}},
+  "actions": {
+    "speak": {"by": "mp", "description": "Speak in the debate.", "params": {"text": {"type": "text", "max_len": 400}},
+              "do": [{"post": "hansard", "text": "$params.text"}]},
+    "amend": {"by": "mp", "description": "Propose an amendment to the bill's wording.",
+              "params": {"text": {"type": "text", "max_len": 200}},
+              "do": ["$world.amendments += $params.text"], "outcome": "Your amendment is added."},
+    "vote": {"by": "mp", "description": "Vote in the division.", "params": {"choice": {"type": "enum", "values": ["aye", "no"]}},
+             "do": ["$actor.vote = $params.choice"], "outcome": "You voted {$params.choice}.", "private": true}
+  },
+  "mechanisms": {
+    "bill": {"kind": "flow", "mode": "procedure", "phases": {
+      "reading_{r.n}": {
+        "for": [
+          {"n": 1, "title": "First reading", "debate": [], "then": "reading_2"},
+          {"n": 2, "title": "Second reading", "debate": ["speak"], "then": "committee"},
+          {"n": 3, "title": "Third reading", "debate": ["speak"], "then": "assent"}
+        ],
+        "as": "r",
+        "make": {
+          "title": "{r.title}",
+          "say": "{r.title} of the Clean Rivers Bill.",
+          "on_enter": [{"each": "mp", "do": ["$it.vote = undecided"]}],
+          "stages": [
+            {"name": "debate_{r.n}", "actions": "{r.debate}", "brief": "{r.title}: debate the bill."},
+            {"name": "division_{r.n}", "actions": ["vote"], "turns": "simultaneous", "brief": "{r.title}: the division. Vote aye or no.",
+             "on_exit": ["$world.ayes = $count(mp, $it.vote == aye)", "$world.noes = $count(mp, $it.vote == no)"]}
+          ],
+          "next": [
+            {"to": "{r.then}", "when": "$world.ayes > $world.noes", "say": "{r.title}: ayes {$world.ayes}, noes {$world.noes}. The bill proceeds."},
+            {"to": "defeated", "say": "{r.title}: ayes {$world.ayes}, noes {$world.noes}. The bill is defeated."}
+          ]
+        }
+      },
+      "committee": {"title": "Committee stage", "stages": [{"actions": ["amend"], "brief": "Committee stage: propose amendments."}],
+                    "next": "reading_3"},
+      "assent": {"title": "Royal assent", "say": "The Clean Rivers Bill becomes law.", "terminal": true},
+      "defeated": {"title": "Defeated", "terminal": true}
+    }}
+  },
+  "policies": {
+    "whip": {"rules": [
+      {"when": "$actor.support >= 0.4", "do": "vote", "with": {"choice": "aye"}},
+      {"do": "vote", "with": {"choice": "no"}},
+      {"do": "speak", "with": {"text": "{$actor.name} speaks {$'for' if $actor.support >= 0.4 else 'against'} the bill."}},
+      {"do": "amend", "with": {"text": "Exempt small workshops."}}
+    ]}
+  },
+  "outputs": {
+    "outcome": {"expr": "$world.bill_phase", "type": "text", "description": "assent, defeated, or the phase reached."},
+    "phases": {"expr": "$world.bill_history", "type": "list", "description": "Phases the bill went through."},
+    "amendments": {"expr": "$len($world.amendments)", "type": "int"}
+  }
+}

@@ -1,0 +1,70 @@
+# expressions
+
+## Expressions
+
+Any string containing `$name` is an expression; other strings are literal text.
+* Roots: `$actor`, `$params`, `$it`, `$inputs`, `$world`, … (which ones depend on where — see below).
+* Functions: `$count(buyer, $it.cash > 0)`. Per-item arguments bind `$it` (and `$i`).
+* Bare words are text: `$actor.status == open`, `$count(offer)`. `true false null` are literals.
+  Quote text with spaces: `$actor.mood == 'very happy'`.
+* Operators: `+ - * / // % **`, `== != < <= > >=`, `and or not` (`&& || !`), `in`,
+  `a if cond else b`, lists `[1, 2]`, indexing `$top(offer, $it.price, 1)[0]`.
+* Entities expose `id name type alive at` and their props. Comparing an entity with an id works.
+* Maps: `{wage: 3, 'job years': 2}`; read with `.key` or `$get(map, key, default)`.
+* Nested per-item functions rebind `$it`; the enclosing item is `$outer`:
+  `$sum(trader, $sum(order, $it.qty, $it.owner == $outer.id))`.
+* Every function call needs its `$`: `$max(a, b)`, never `max(a, b)`.
+* `a or b` gives the first truthy value (a default: `$x or 0`); `a and b` the first falsy one.
+* A def without arguments reads like a value: `$negotiating` or `$negotiating()`.
+* `$pending` lists what the agent already did or submitted this turn (`{action, ...args}`): use it in
+  param `where` or `when` to stop ordering the same army twice.
+* A param `where` may read earlier params: `{"to": {"type": "entity", "of": "province",
+  "where": "$linked($params.army.at, $it.id, border)"}}` (the tool then lists every province and
+  validation enforces the rule).
+* Reserved roots cannot be used as local names: $actor $params $it $i $row $inputs $world $physics
+  $clock $round $stage $metrics $series $arm $viewer $event $outer $pending $result.
+* Contract `defs` are called like built-ins: `$utility($actor, $params.offer)`.
+* Bare words are text even when they match a property name: write `$actor.bet`, not `bet`.
+* Strict: unknown props, missing roots and type errors are errors, never silent zeros.
+
+Roots available by location (plus everywhere: $inputs $world $physics $clock $round $stage
+$metrics $series $arm):
+| where | extra roots |
+|---|---|
+| actions.when | $actor ($params too: such a requirement is checked when the action is called) |
+| actions.params.*.where | $actor $it $i $params (earlier params) |
+| actions.params.*.min/max/values/default | $actor $params (earlier params) |
+| actions.chance/do/otherwise/outcome/announce/terminal | $actor $params + locals |
+| stages.who/order/first_wake | $it $i |
+| stages.brief/time_limit/interval/on_wake/on_idle/on_turn_end/on_timeout | $actor |
+| stages.valid (expr and why) | $actor $pending |
+| stages.when/until/on_enter/on_exit | — |
+| views.when/of | $actor |
+| views.where/sort/show | $actor $it $i |
+| views.with for: spectator | no $actor ($it $i in lists) |
+| records.visible | $viewer $it (entry) |
+| records.show | $it (entry: its fields directly, $it.text, plus author, round, seq, stage, to) |
+| events.where/do (with each) | $it $i (or the `as` name) |
+| triggers.when/do/say | — |
+| population.where/weight | $row |
+| population.props/id/name | $row $i ($i counts from 1) |
+| population.brief | $actor $row $i |
+| entities.brief | $actor |
+| types.inspect | $viewer $it |
+| types.on_create/on_remove | $it (the entity) + locals |
+| relations.props.*.default | $from $to |
+| links.props | $from $to (+ $row with `rows`) |
+| physics.per.*.read/where | $it |
+| feeds.query/when/fallback | — |
+| defs.expr | the def's args |
+| blocks.do | the block's args + locals |
+| policies.rules.* | $actor ($it $i with `each`) |
+| metrics.* | — |
+| outputs.* | $outputs (earlier outputs) $result (winner, ended_by) |
+| end.when/winner/say | — |
+| game.seat | $it $i |
+| game.returns/rewards | $actor $result (winner, ended_by) |
+| invariants.* | — |
+
+`$clock` fields: round rounds left unit date label. `$metrics.x` = latest value; `$series.x` = list per round.
+

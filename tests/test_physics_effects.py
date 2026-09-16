@@ -1,6 +1,6 @@
 """Effects targeting the physics model — shocks reach the ODE world."""
-from fg_env_kernel.action import ActionInstance
-from fg_env_kernel.pipeline.loader import load_world
+from fg_env.action import ActionInstance
+from fg_env.pipeline.loader import load_world
 
 
 def _world():

@@ -7,17 +7,17 @@ condition in the game is a string the agent emits.
 """
 import pytest
 
-from fg_env_kernel.action import (
+from fg_env.action import (
     ActionDefinition,
     Effect,
     EffectCondition,
     EffectOperation,
     Precondition,
 )
-from fg_env_kernel.engine import SimulationEngine, TerminationCondition
-from fg_env_kernel.entity import Entity, EntityType
-from fg_env_kernel.resolution import ResolutionResult
-from fg_env_kernel.state import WorldState
+from fg_env.engine import SimulationEngine, TerminationCondition
+from fg_env.entity import Entity, EntityType
+from fg_env.resolution import ResolutionResult
+from fg_env.state import WorldState
 
 
 @pytest.fixture

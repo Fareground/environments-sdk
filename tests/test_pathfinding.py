@@ -2,16 +2,16 @@
 
 In-memory tests -- no DB needed.
 """
-from fg_env_kernel.pathfinding import Pathfinder
-from fg_env_kernel.state import WorldState
-from fg_env_kernel.entity import EntityType, Entity
-from fg_env_kernel.action import (
+from fg_env.pathfinding import Pathfinder
+from fg_env.state import WorldState
+from fg_env.entity import EntityType, Entity
+from fg_env.action import (
     ActionDefinition, ActionInstance, Effect, EffectOperation,
     Precondition, Operator,
 )
-from fg_env_kernel.engine import SimulationEngine
-from fg_env_kernel.temporal import TemporalModel, Phase
-from fg_env_kernel.types import PropertySchema, PropertyType
+from fg_env.engine import SimulationEngine
+from fg_env.temporal import TemporalModel, Phase
+from fg_env.types import PropertySchema, PropertyType
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,12 @@
+{
+  "actions": 131,
+  "events": 235,
+  "events_sha256": "00368fef90c3849aa000280298b2e4b5447de1f21278042942c9723bfc1f81f8",
+  "metrics": {
+    "living": 4,
+    "living_wolves": 1
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 131
+}

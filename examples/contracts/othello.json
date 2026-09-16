@@ -1,0 +1,46 @@
+{
+  "fg_env": "1",
+  "name": "Othello",
+  "description": "Othello (Reversi) on an 8x8 board, played natively by the board mechanism.",
+  "brief": {
+    "situation": "A game of Othello between Black (B) and White (W). Black moves first.",
+    "rules": "Place a disc on an empty cell (written like d3) so that it closes a straight line of your opponent's discs with one of your own; every closed line flips to your colour. A move must flip at least one disc. If you cannot move, you pass automatically. The game ends when nobody can move; the player with more discs wins."
+  },
+  "clock": {
+    "rounds": 120,
+    "unit": "move"
+  },
+  "mechanisms": {
+    "othello": {
+      "kind": "game",
+      "mode": "board",
+      "sides": [
+        {
+          "id": "black",
+          "mark": "B"
+        },
+        {
+          "id": "white",
+          "mark": "W"
+        }
+      ],
+      "pieces": {
+        "disc": {}
+      },
+      "setup": "8/8/8/3BW3/3WB3/8/8/8",
+      "place": {},
+      "captures": [
+        {
+          "rule": "flip",
+          "required": true
+        }
+      ],
+      "no_moves": "pass",
+      "score": "pieces"
+    }
+  },
+  "metrics": {
+    "black_discs": "$count(piece, $it.owner == black)",
+    "white_discs": "$count(piece, $it.owner == white)"
+  }
+}

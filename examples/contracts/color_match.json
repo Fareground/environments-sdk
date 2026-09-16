@@ -1,0 +1,98 @@
+{
+  "fg_env": "1",
+  "name": "Color Match",
+  "description": "An UNO-like shedding game for four: match the top card's color or number, Draw Two and Wild cards, and a draw pile refilled by reshuffling the discards.",
+  "inputs": {
+    "laps": {"type": "int", "default": 40, "min": 1, "max": 400, "description": "Times around the table before the game stops."}
+  },
+  "brief": {
+    "situation": "Four players race to be the first to empty their hand.",
+    "rules": "Everyone starts with 7 cards; one card is turned face up to start the discard pile. On your turn play one card from your hand that matches the color to match or the top card's number or symbol, or play a Wild (any time) and name the next color. Otherwise draw one card, which ends your turn. A Draw Two makes the next player draw two cards. When the draw pile runs out, the discard pile (except its top card) is shuffled into a new draw pile. The first player with no cards left wins; after {$inputs.laps} laps the game stops and the fewest cards wins.",
+    "roles": {"player": "Get rid of your cards before anyone else."}
+  },
+  "clock": {"rounds": "$inputs.laps", "unit": "lap"},
+  "world": {
+    "color": {"type": "text", "default": "", "description": "The color the next card must match."}
+  },
+  "types": {
+    "player": {"agent": true, "description": "A player.", "props": {"seat": {"type": "int", "default": 0}}}
+  },
+  "entities": {
+    "p1": {"type": "player", "name": "Ana", "props": {"seat": 0}},
+    "p2": {"type": "player", "name": "Ben", "props": {"seat": 1}},
+    "p3": {"type": "player", "name": "Cleo", "props": {"seat": 2}},
+    "p4": {"type": "player", "name": "Dev", "props": {"seat": 3}}
+  },
+  "mechanisms": {
+    "cards": {
+      "kind": "game",
+      "mode": "cards",
+      "who": "player",
+      "deck": [
+        {"suits": ["red", "yellow", "green", "blue"], "ranks": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]},
+        {"suits": ["red", "yellow", "green", "blue"], "ranks": [1, 2, 3, 4, 5, 6, 7, 8, 9]},
+        {"suits": ["red", "yellow", "green", "blue"], "ranks": ["draw2"], "copies": 2, "name": "{suit} Draw Two"},
+        {"name": "Wild", "suit": "wild", "rank": "wild", "copies": 4}
+      ],
+      "hand_size": 7,
+      "keep_top": true,
+      "after_deal": [
+        {"game": "cards", "action": "deal", "qty": 1, "zone": "discard"},
+        "$world.color = $top_card(discard).suit if $top_card(discard).suit != wild else red"
+      ],
+      "play": {
+        "where": "$it.suit == wild or $it.suit == $world.color or $it.rank == $top_card(discard).rank",
+        "params": {
+          "color": {"type": "enum", "values": ["red", "yellow", "green", "blue"], "required": false, "description": "The color you name when you play a Wild (ignored otherwise; default red)."}
+        },
+        "do": [
+          "$world.color = ($params.color or red) if $params.card.suit == wild else $params.card.suit",
+          {
+            "if": "$params.card.rank == draw2",
+            "then": [
+              "$next = $pick(player, $it.seat == ($actor.seat + 1) % 4)",
+              {"game": "cards", "action": "draw", "qty": 2, "who": "$next"},
+              {"emit": "penalty", "say": "{$next.name} draws two cards."}
+            ]
+          },
+          {
+            "if": "$len($hand($actor)) == 0",
+            "then": [{"end": "out_of_cards", "winner": "$actor", "say": "{$actor.name} played their last card and wins."}]
+          }
+        ],
+        "announce": "{$actor.name} plays {$params.card.name}{$' and names ' + $world.color if $params.card.suit == wild else ''}."
+      },
+      "draw": {"description": "Draw one card instead of playing."}
+    }
+  },
+  "stages": [
+    {
+      "name": "turn",
+      "turns": "sequential",
+      "order": "$it.seat",
+      "actions": ["cards_play", "cards_draw"],
+      "must_act": true,
+      "max_calls": 6,
+      "brief": "Top of the discard pile: {$top_card(discard).name}. Color to match: {$world.color}.",
+      "on_idle": [{"game": "cards", "action": "draw"}]
+    }
+  ],
+  "policies": {
+    "eager": {
+      "rules": [
+        {"do": "cards_play", "with": {"card": "$pick($hand($actor), $it.suit != wild and ($it.suit == $world.color or $it.rank == $top_card(discard).rank))"}},
+        {"do": "cards_play", "with": {"card": "$pick($hand($actor), $it.suit == wild)", "color": "$mode($map($filter($hand($actor), $it.suit != wild), $it.suit)) or red"}},
+        {"do": "cards_draw"}
+      ]
+    }
+  },
+  "metrics": {
+    "cards_in_hands": "$sum(player, $len($hand($it)))",
+    "draw_pile": "$len($zone(deck))"
+  },
+  "outputs": {
+    "leader": {"expr": "$bottom(player, $len($hand($it)), 1)[0].name", "type": "text", "description": "The player with the fewest cards (the winner when someone went out)."},
+    "cards_left": {"expr": "$dict(player, $it.name, $len($hand($it)))", "type": "map"},
+    "reshuffles": {"expr": "$count($events(cards), $contains($it.text, 'shuffled into the draw pile'))", "type": "int"}
+  }
+}

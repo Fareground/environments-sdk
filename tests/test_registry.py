@@ -1,7 +1,7 @@
 """Tests for the KernelRegistry plugin system."""
 import pytest
 
-from fg_env_kernel.registry import (
+from fg_env.registry import (
     KernelRegistry,
     registry,
     effect,
@@ -134,14 +134,14 @@ class TestNamespaceIsolation:
 
 class TestEffectContext:
     def test_context_constructible(self):
-        from fg_env_kernel.effect_context import EffectContext
+        from fg_env.effect_context import EffectContext
         ctx = EffectContext(state=None)  # type: ignore[arg-type]
         assert ctx.changes == []
         ctx.record({"op": "test"})
         assert ctx.changes == [{"op": "test"}]
 
     def test_resolve_passthrough_for_non_expression(self):
-        from fg_env_kernel.effect_context import EffectContext
+        from fg_env.effect_context import EffectContext
         ctx = EffectContext(state=None)  # type: ignore[arg-type]
         assert ctx.resolve(42) == 42
         assert ctx.resolve("plain_string") == "plain_string"

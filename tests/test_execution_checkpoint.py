@@ -4,13 +4,13 @@ import json
 
 import pytest
 
-from fg_env_kernel.action import ActionDefinition, ActionInstance, Effect, EffectOperation
-from fg_env_kernel.continuous_time import ContinuousTemporalModel
-from fg_env_kernel.engine import SimulationEngine
-from fg_env_kernel.entity import Entity, EntityType
-from fg_env_kernel.invariants import InvariantChecker
-from fg_env_kernel.state import WorldState
-from fg_env_kernel.world_events import WorldEventEngine, WorldEventDefinition, WorldDynamicsEngine
+from fg_env.action import ActionDefinition, ActionInstance, Effect, EffectOperation
+from fg_env.continuous_time import ContinuousTemporalModel
+from fg_env.engine import SimulationEngine
+from fg_env.entity import Entity, EntityType
+from fg_env.invariants import InvariantChecker
+from fg_env.state import WorldState
+from fg_env.world_events import WorldEventEngine, WorldEventDefinition, WorldDynamicsEngine
 
 
 def make_state():
@@ -170,8 +170,8 @@ def test_completed_checkpoint_does_not_run_or_emit_end_twice():
 
 
 def test_deck_rng_remains_shared_without_reshuffling_saved_cards():
-    from fg_env_kernel.deck_module import DeckModule
-    from fg_env_kernel.domain_module import DomainModuleManager
+    from fg_env.deck_module import DeckModule
+    from fg_env.domain_module import DomainModuleManager
     source = make_state()
     source.domain_modules = DomainModuleManager()
     source.domain_modules.add_module(DeckModule(params={'cards': [{'text': str(i)} for i in range(15)], 'consume_on_draw': True}))
@@ -202,7 +202,7 @@ def test_callback_cannot_capture_mid_event_cascade():
 
 
 def test_scheduled_ties_keep_insertion_order_after_json_reload():
-    from fg_env_kernel.continuous_time import EventQueue, ScheduledEvent
+    from fg_env.continuous_time import EventQueue, ScheduledEvent
     queue = EventQueue()
     queue.schedule(ScheduledEvent(1, id='z', data={'order': 1}))
     queue.schedule(ScheduledEvent(1, id='a', data={'order': 2}))

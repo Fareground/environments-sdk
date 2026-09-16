@@ -1,7 +1,7 @@
 """Settlement emitted by a domain tick ends execution before the next decision."""
-from fg_env_kernel.domain.base import DomainModuleManager
+from fg_env.domain.base import DomainModuleManager
 from test_unbounded_execution import engine
-from fg_env_kernel.engine import TerminationCondition
+from fg_env.engine import TerminationCondition
 
 
 def test_domain_settlement_prevents_extra_decisions_and_marks_callback_terminal(monkeypatch):

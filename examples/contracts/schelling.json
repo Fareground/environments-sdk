@@ -1,0 +1,41 @@
+{
+  "fg_env": "1",
+  "name": "Schelling segregation",
+  "description": "Households of two groups live on a wrapping grid, one per cell. Each step, in random order, a household looks at its eight neighbours; if too few share its group it moves to a random empty cell. Mild preferences produce strongly segregated neighbourhoods.",
+  "inputs": {
+    "size": {"type": "int", "default": 20, "min": 5, "description": "Cells per side."},
+    "density": {"type": "number", "default": 0.8, "min": 0, "max": 1, "description": "Share of cells with a household."},
+    "minority": {"type": "number", "default": 0.3, "min": 0, "max": 1, "description": "Share of households in group 1."},
+    "homophily": {"type": "number", "default": 0.375, "min": 0, "max": 1, "description": "Share of similar neighbours a household needs to stay."},
+    "steps": {"type": "int", "default": 30, "min": 1}
+  },
+  "clock": {"rounds": "$inputs.steps", "unit": "step"},
+  "space": {"grid": {"rows": "$inputs.size", "cols": "$inputs.size", "neighborhood": "moore", "torus": true}, "capacity": 1},
+  "types": {
+    "household": {"props": {
+      "group": {"type": "int", "default": 0, "values": [0, 1]},
+      "similar": {"type": "number", "default": 1, "min": 0, "max": 1, "description": "Share of neighbours in the same group."},
+      "happy": false}}
+  },
+  "population": [
+    {"type": "household", "count": "$round($inputs.size ** 2 * $inputs.density)", "at": "$random_empty()",
+     "props": {"group": "1 if $chance($inputs.minority) else 0"}}
+  ],
+  "events": [
+    {"name": "relocate", "each": "household", "order": "random", "do": [
+      "$neighbours = $near($it, 1)",
+      "$it.similar = $count($neighbours, $it.group == $outer.group) / $len($neighbours) if $len($neighbours) > 0 else 1",
+      "$it.happy = $it.similar >= $inputs.homophily",
+      {"if": "not $it.happy", "then": [{"move": "$it", "to": "$random_empty()"}]}
+    ]}
+  ],
+  "metrics": {
+    "happy": {"expr": "$pct($count(household, $it.happy), $count(household))", "description": "Share of households that stayed this step."},
+    "segregation": {"expr": "$avg(household, $it.similar)", "description": "Mean share of same-group neighbours."}
+  },
+  "end": [{"when": "$all(household, $it.happy)", "name": "everyone content"}],
+  "outputs": {
+    "happy": {"expr": "$metrics.happy", "type": "number"},
+    "segregation": {"expr": "$metrics.segregation", "type": "number"}
+  }
+}
