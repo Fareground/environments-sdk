@@ -163,6 +163,8 @@ def usable(turn: "Turn", name: str) -> Optional[bool]:
     when that cannot be told (the action is not offered, a parameter is free text or unbounded, or there are too
     many combinations)."""
     env, actor = turn.env, turn.actor
+    if turn.actions_left <= 0 or name not in stage_actions(env.contract, turn.stage, actor.entity_type):
+        return None
     if env.actions.blocked(actor, name, turn.used, env._used_round.get(actor.id, {})) is not None:
         return None
     found = _axes(env.actions.tool(actor, name, turn.staged).input_schema)
