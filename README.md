@@ -1,17 +1,16 @@
 <div align="center">
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/wordmark-dark.svg" />
-  <img src="assets/wordmark.svg" alt="Fareground" width="320" />
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Fareground/environments-sdk/main/assets/wordmark-dark.svg" />
+  <img src="https://raw.githubusercontent.com/Fareground/environments-sdk/main/assets/wordmark.svg" alt="Fareground" width="320" />
 </picture>
 
-# env-kernel
+# Environments SDK
 
-*A deterministic simulation kernel for agent environments — LLMs are brains, code is physics.*
+*The Environments SDK for agents — define an environment as one contract, the engine runs it.*
 
 <p>
-  <a href="https://github.com/Fareground/env-kernel/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Fareground/env-kernel/ci.yml?branch=main&style=flat-square&label=CI" /></a>
-  <a href="https://pypi.org/project/fg-env-kernel/"><img alt="PyPI" src="https://img.shields.io/pypi/v/fg-env-kernel?style=flat-square" /></a>
+  <a href="https://github.com/Fareground/environments-sdk/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Fareground/environments-sdk/ci.yml?branch=main&style=flat-square&label=CI" /></a>
   <img alt="Python" src="https://img.shields.io/badge/python-3.11+-3b82f6?style=flat-square" />
   <img alt="Dependencies" src="https://img.shields.io/badge/deps-pydantic%20only-2dd4a7?style=flat-square" />
   <img alt="Engine" src="https://img.shields.io/badge/engine-deterministic-9b59b6?style=flat-square" />
@@ -21,182 +20,190 @@
 
 ---
 
+[Documentation](https://fareground.com/docs/env-kernel/) · [Quickstart](https://github.com/Fareground/environments-sdk/blob/d1e98a2/docs/sdk/getting-started.md) · [Authoring guide](https://github.com/Fareground/environments-sdk/blob/d1e98a2/docs/sdk/authoring.md) · [Reference](https://github.com/Fareground/environments-sdk/blob/d1e98a2/docs/sdk/reference.md)
+
 ## Overview
 
-**env-kernel** is a continuous-time simulation kernel for agent environments: you describe a world as declarative data, and the kernel compiles it into an executable, deterministic, multi-agent simulation — with RK4 coupled-ODE integration for continuous dynamics and grounded, verifiable outcomes. It is pure Python with a single runtime dependency (`pydantic`) and no coupling to any game, domain, or LLM provider.
+**fg-env** turns one JSON contract into a running environment for AI agents: a market, a
+council, an exchange, a courtroom, an epidemic, a game. The contract declares the world, the
+people, what agents can do, what they see, how the world moves on its own, and what is measured.
+The engine builds the world, wakes agents, gives each a short plain-language picture with typed
+tools, applies their actions atomically, runs scheduled world rules, and returns typed outputs.
 
-env-kernel is stewarded by [Fareground](https://github.com/Fareground) and is one of six open-source building blocks alongside [agent-id](https://github.com/Fareground/agent-id), [agent-messaging](https://github.com/Fareground/agent-messaging), [agent-knowledge](https://github.com/Fareground/agent-knowledge), [agent-memory](https://github.com/Fareground/agent-memory), and [agent-framework](https://github.com/Fareground/agent-framework).
+You write data, never engine code. The same contract runs with LLM agents, coded crowds, or both,
+and engine randomness is reproducible from its seed. Reproducing an LLM run also requires the same participant decisions; record traces for replay.
 
-Agents make discrete, turn-based decisions; the kernel is the deterministic rule engine that resolves those decisions and evolves the world around them. It knows nothing about chess or markets or elections — those are just *configurations*. New mechanics plug in through registries and decorators, never by editing the engine.
+Built for LLM agents from the ground up:
 
-Between agent turns the world does not have to sit still: an event-driven clock and a coupled-ODE physics integrator can evolve numeric state continuously, so action durations and reaction speed become part of the strategy.
+- **A cacheable brief and a compact update.** Each turn opens with why the agent is acting,
+  what changed since its last turn, and ranked views of the world, names first, with ids as
+  handles. Nothing is repeated that the agent already has.
+- **One typed tool per legal action.** JSON Schema with enums and numeric bounds. An invalid
+  call returns exactly what to fix, and a refused action changes nothing.
+- **Participant text stays marked.** Anything an agent writes carries its provenance through
+  records, properties and views, and is always shown «quoted».
+- **Measured.** Every run reports turns, tool calls, invalid calls and tokens per update.
+
+fg-env is one of Fareground's open-source building blocks, alongside
+[Agents SDK](https://github.com/Fareground/agents-sdk),
+[agent-id](https://github.com/Fareground/agent-id),
+[agent-memory](https://github.com/Fareground/agent-memory),
+[agent-knowledge](https://github.com/Fareground/agent-knowledge) and
+[agent-messaging](https://github.com/Fareground/agent-messaging).
 
 ## Install
 
-> **Note:** the distribution name is **`fg-env-kernel`** and the import package is **`fg_env_kernel`**. These are unchanged — downstream projects depend on them, and renaming them would break those imports.
+The contract SDK described here is available from the tested development revision below. PyPI publication as `fg-env` is pending. The default branch still contains the older `fg-env-kernel` implementation until the SDK release is merged.
 
 ```bash
-pip install fg-env-kernel
+python -m pip install "git+https://github.com/Fareground/environments-sdk.git@d1e98a2"
 ```
 
-Importing the package never scans the filesystem. Drop-in primitive discovery (`kernel_primitives/*.py`) is opt-in: call `fg_env_kernel.discover()` explicitly, or set the `KERNEL_PRIMITIVES_DIR` environment variable — an explicitly configured directory is honored at import time.
+The new distribution/import names are `fg-env` / `fg_env`. The older published distribution/import names are `fg-env-kernel` / `fg_env_kernel`; they are not interchangeable.
+
+Python ≥ 3.11. The only runtime dependency is `pydantic`.
 
 ## Quickstart
 
-One line — the built-in seeded random agent plays every turn:
+For a business walkthrough, start with [weekly inventory](https://github.com/Fareground/environments-sdk/blob/d1e98a2/docs/sdk/getting-started.md), including exact expected outputs. The following small contract illustrates the basic API:
 
 ```python
-from fg_env_kernel import simulate
+import fg_env
 
-world = simulate("path/to/template.json")   # or a template dict
-print(world.summary())
-```
-
-`simulate(template, *, agent=None, seed=None, max_rounds=None, on_event=None, registry=None)` loads the template (dict, `WorldTemplate`, or path to a JSON file), runs to completion, and returns the finished `World`. With no `agent`, a deterministic random-valid-action policy (`random_policy`) drives every turn — same seed, same run. Pass your own `decision_fn` as `agent` to plug in an LLM.
-
-### Bring your own agent
-
-A world is a plain dict; an agent is a plain function. This is a complete, runnable program:
-
-```python
-from fg_env_kernel import ActionInstance, Kernel
-
-template = {
-    "name": "Race to 10",
-    "description": "Two runners sprint; first to distance 10 wins.",
-    "entity_types": [
-        {"name": "runner", "role": "agent", "properties": [
-            {"name": "distance", "type": "float", "default": 0}
-        ]}
-    ],
-    "entities": [
-        {"id": "alice", "entity_type": "runner", "name": "Alice"},
-        {"id": "bob", "entity_type": "runner", "name": "Bob"},
-    ],
-    "actions": [
-        {"name": "sprint", "description": "Run forward.", "actor_type": "runner",
-         "effects_on_success": [
-             {"operation": "add", "target": "actor", "field": "distance",
-              "value": "$random(1, 3)"}
-         ]}
-    ],
-    "termination_conditions": [
-        {"name": "finish_line", "check_type": "expr",
-         "params": {"expr": "$state.entities.alice.distance >= 10 || "
-                            "$state.entities.bob.distance >= 10"}}
-    ],
-    "temporal": {"max_rounds": 20},
+contract = {
+    "name": "Coin flip",
+    "brief": {"rules": "Bet some coins each round. Heads you win that much, tails you lose it."},
+    "types": {"player": {"agent": True, "props": {"coins": 10}}},
+    "entities": {"ann": {"type": "player"}, "bob": {"type": "player"}},
+    "actions": {"bet": {"by": "player", "params": {"amount": {"type": "int", "min": 1, "max": "$actor.coins"}},
+                        "do": "$actor.coins += $params.amount if $chance(0.5) else -$params.amount"}},
+    "outputs": {"richest": "$best(player, $it.coins, 'random').name"},
 }
 
-def decision_fn(entity_id, perception, valid_actions):
-    """Called once per agent turn. Swap in an LLM call here."""
-    if "sprint" not in valid_actions:
-        return None
-    return ActionInstance(action_name="sprint", actor_id=entity_id)
-
-world = Kernel(seed=42).load(template, decision_fn=decision_fn)
-world.run()                       # or: while not world.finished: world.step()
-
-print(world.terminated_by)        # "finish_line"
-print(world.current_round)        # 5
-print(world.events[-1].narrative) # "Simulation ended after 5 rounds."
+print(fg_env.check(contract))        # [] — every problem would come with its path and a fix
+result = fg_env.run(contract, seed=1)  # random agents; same seed, same run
+print(result.outputs)                  # typed, per the contract
 ```
 
-Same seed, same template, same `decision_fn` → same run, every time. More in [`examples/`](examples/) — including tic-tac-toe built from a domain module.
+Or start from a template and read the short core guide:
 
-## The agent contract
+```bash
+fg-env new game my_game.json    # blank, game, market, simulation or social — checks clean and runs
+fg-env check my_game.json       # static checks plus one played round
+fg-env guide                    # the core guide; it maps every other part: fg-env guide actions, fg-env guide market.auction
+```
 
-`decision_fn(entity_id, perception, valid_actions) -> ActionInstance | None` is the only interface between your agent (LLM or otherwise) and the kernel:
-
-- **`entity_id`** — id of the agent whose turn it is.
-- **`perception`** — a plain dict of what this agent can see, visibility-filtered. Always present: `self` (own id/name/properties), `visible_entities`, `visible_relations`, `visible_resources`, `round`, `phase`, `location`, `faction`. Present when the world provides them: `world_brief` (the template's name/description/rules markdown), `incoming_messages`, `your_recent_actions`, `domain_data` (board layout, hand contents, market state, ...), and more (roles, polls, time context, trade history).
-- **`valid_actions`** — names of the actions whose preconditions currently pass. Return an `ActionInstance` whose `action_name` is one of these (with `actor_id=entity_id` and any `parameters` the action declares), or `None` to skip the turn.
-
-The engine is fully decoupled from the LLM — the same world runs with real agents, cheap heuristics, or a deterministic test stub.
-
-`Kernel(seed=..., registry=...)` holds run configuration; `Kernel.load(template, decision_fn=..., on_event=..., seed=..., max_rounds=...)` accepts a template dict, `WorldTemplate`, or path to a JSON file, and returns a `World` with `run()`, `step()`, `finished`, `terminated_by`, `current_round`, `events`, `state`, `seed`, and a readable `summary()`. An `on_event` callback streams each event as it is emitted.
-
-The ladder: `simulate()` for one-shot runs → `Kernel`/`World` for stepwise control → `load_world` for the raw engine.
-
-### Going lower level
-
-The facade is a thin wrapper over `load_world(template, *, seed=0, decision_fn=None, on_event=None, registry=None)`, which returns the raw `(WorldState, SimulationEngine)` pair — use it when you need direct engine or state access. Custom primitives register through the decorator surface (`@effect`, `@resolution`, `@phase`, `@termination_decorator`, `@module`) shown below.
-
-The full template shape is documented in [`docs/template_schema.md`](docs/template_schema.md); the machine-readable contract (including the live list of every registered effect operation, resolution archetype, termination check, and domain module) is [`docs/kernel_contract.json`](docs/kernel_contract.json).
-
-For cash or other conserved numeric properties, use [atomic property transfers](docs/property-transfers.md) instead of independent clamped debit and credit effects.
-
-### Continuous time and physics
-
-A `physics` block on the world definition declares numeric variables and their rates of change. A dt-aware 4th-order Runge–Kutta integrator evolves them between turns — predator/prey, epidemics (SIR), price discovery. Variables can read entity aggregates and write values back onto the world. The result is deterministic and serializable.
+What an agent receives on its turn:
 
 ```python
-"physics": {
-    "params": {"alpha": 1.1, "beta": 0.4, "delta": 0.1, "gamma": 0.4},
-    "variables": [
-        {"name": "prey", "value": 10, "rate": "alpha*prey - beta*prey*pred", "min": 0},
-        {"name": "pred", "value": 5,  "rate": "delta*prey*pred - gamma*pred", "min": 0}
-    ]
-}
+env = fg_env.load(contract, seed=1)
+print(env.preview("ann"))    # {'brief': ..., 'update': ..., 'tools': [...], 'tokens': {...}}
 ```
 
-### Extending the engine
-
-Register custom verbs, resolution archetypes, phases, and terminations with decorators — the engine looks everything up by string name through the registry. The module-level decorators register process-wide:
+Run it with an LLM — pass your own client:
 
 ```python
-from fg_env_kernel import effect, EffectContext
-
-@effect("grant_gold")
-def grant_gold(ctx: EffectContext, spec: dict) -> None:
-    gold = ctx.actor.properties.get("gold", 0)
-    ctx.actor.properties["gold"] = gold + spec.get("value", 1)
+import anthropic
+claude = fg_env.participants.anthropic(anthropic.Anthropic(), "YOUR_AVAILABLE_MODEL_ID")
+result = fg_env.run(contract, {"player": claude}, seed=1)
 ```
 
-For per-kernel isolation, fork the registry and register on the fork. A fork sees every built-in primitive (nothing is copied — unknown names fall back to the parent), but its own registrations are invisible to the global registry and to other forks:
+Or with your own code. A participant is any function that takes a `Wake`:
 
 ```python
-from fg_env_kernel import Kernel, registry
+def cautious(wake):
+    print(wake.update)                                   # the same picture an LLM reads
+    result = wake.call("bet", {"amount": 99})            # out of range
+    print(result.text)                                   # "bet was not done: amount must be at most 10 (got 99). ..."
+    wake.call("bet", {"amount": 1})
 
-mine = registry.fork()
-
-@mine.effect("grant_gold")
-def grant_gold(ctx, spec): ...
-
-kernel = Kernel(seed=42, registry=mine)   # worlds resolve against `mine` only
+fg_env.run(contract, {"ann": cautious, "bob": claude}, seed=1)
 ```
 
-Every namespace has an instance decorator (`mine.effect`, `mine.precondition`, `mine.resolution`, `mine.phase`, `mine.termination`, `mine.module`, `mine.target_selector`). Validation/reporting surfaces (`lint_template`, `export_kernel_contract`) read the global registry.
+## The contract
 
-## Concepts
+| Section | What it declares |
+|---|---|
+| `inputs` | Typed values supplied at load (numbers, enums, dates, tables of rows) |
+| `brief` | Static text: situation, rules, role text per agent type |
+| `clock`, `space` | Round budget and calendar; grid, graph or plane positions |
+| `world`, `types`, `entities`, `population` | Global props; kinds of entities with inheritance; named entities; sampled populations |
+| `relations`, `links` | Typed links and generated networks (small-world, random, ring, complete) |
+| `physics` | Continuous variables integrated with RK4, read from and written back to the world |
+| `records` | Append-only logs (chat, reviews, transcripts) with per-viewer visibility |
+| `actions` | What agents can do: typed params, requirements, chance, atomic effects, outcome text |
+| `stages` | The steps of each round: sequential or sealed simultaneous turns, `until`, `quiet` |
+| `views` | Ranked, filtered, templated slices of the world agents read |
+| `events` | Scheduled, periodic, conditional or random world logic; shocks per experiment arm |
+| `policies` | Coded participants as rules, for crowds and baselines |
+| `metrics`, `outputs` | Series tracked each round; the typed result of a run |
+| `end`, `invariants` | Early ending; rules that must always hold (a violation fails the run) |
+| `arms`, `defs`, `blocks` | Experiment variants; reusable expressions and effect lists |
 
-- **Determinism** — given a template, a seed, and a `decision_fn`, a run is fully reproducible. State is serializable end to end, so runs can be replayed step by step.
-- **Declarative worlds** — entities, properties, resources, relations, actions, effects, and terminations are all data. A safe expression grammar (`$actor.gold >= 100 && $count(player, alive) > 1`) powers guards, effects, and terminations without per-game Python.
-- **Turn-based agents, continuous world** — agents decide in discrete turns; an event-driven clock and the physics integrator evolve the world between those turns.
-- **Registry extension points** — custom verbs, resolution archetypes, phases, terminations, and domain modules register by name, keeping the engine core untouched.
+One small, strict expression language is used everywhere:
+`$actor.cash >= $params.qty * $params.offer.price`, `$count(buyer, $it.cash > 0)`,
+`$top(offer, [$it.rating, -$it.price], 5)`. Unknown properties and type errors are reported with
+the fix; nothing silently evaluates to zero.
 
-## Project Structure
+The authoring guide is generated from the SDK itself, so it always matches the engine. `fg-env guide` prints the
+short core guide (enough for a first environment) with a map of every other part; `fg-env guide all` prints everything:
 
+```bash
+fg-env guide              # or: python -c "import fg_env; print(fg_env.guide())"
+fg-env guide stages       # one section's fields and the $roots available there
+fg-env guide market       # a mechanism family; fg-env guide market.auction for one mode
 ```
-src/fg_env_kernel/
-  runtime/        the tick loop (discrete + continuous)
-  physics.py      coupled-dynamics ODE integrator
-  state.py        the world state graph
-  action.py …     actions, effects, resolution archetypes
-  predicates.py   the expression language
-  domain/         optional game-genre modules (markets, boards, …)
-  pipeline/       compile · lint · smoke · replay · package
+
+## Tooling
+
+```bash
+fg-env check shop.json                    # every problem with its path and a fix, plus a smoke round
+fg-env expand shop.json --mechanisms       # the contract with every mechanism expanded into plain sections
+fg-env preview shop.json shopper_1        # exactly what that agent reads, its tools, token estimates
+fg-env preview shop.json shopper_1 --rounds 5 --agent shopper=policy:thrifty
+fg-env run shop.json --seed 1 --input budget=50 --agent shopper=policy:thrifty --json
+fg-env experiment shop.json --runs 20 --arms control,promo
+fg-env schema                             # JSON Schema of the contract
 ```
 
-See the [`CHANGELOG`](CHANGELOG.md) for what's new.
+In Python: `fg_env.check`, `fg_env.load`, `env.run` / `env.step`, `env.preview`,
+`env.snapshot()` / `fg_env.Env.restore`, and `fg_env.experiment`. Experiment arms share seeds run
+by run, so differences between arms come from the arm, not from luck.
+
+## Examples
+
+[`examples/contracts/`](https://github.com/Fareground/environments-sdk/tree/d1e98a2/examples/contracts) holds complete environments. Each was written by an LLM
+agent from the guide alone, and each is covered by a golden-run test: a coffee market with sampled
+households and subscriptions, a forecasting council, a price-time-priority order-book exchange, a
+civil trial, a town epidemic with physics, Werewolf, a labor negotiation, Connect Four, a
+Hold'em-lite poker table, the beer distribution game, a climate club with a CO2 model, a
+ride-hailing city, checkers, a Diplomacy-style strategy game, and misinformation spreading on a follower network.
+
+```bash
+fg-env run examples/contracts/werewolf.json --seed 3
+```
+
+## Determinism
+
+Every random draw comes from one seed tree per run, so a run is reproducible exactly from its seed.
+Adding an event with a chance roll never changes how the population was sampled. Runs snapshot to
+JSON between rounds and resume identically.
+
+## Template API
+
+The earlier template-based engine API (`Kernel`, `simulate`, `load_world`, the registry decorators)
+remains available for existing templates as `fg_env.legacy` (`from fg_env.legacy import simulate`), with its
+commands under `fg-env legacy`; see [`docs/template_schema.md`](https://github.com/Fareground/environments-sdk/blob/main/docs/template_schema.md).
+New environments should use contracts.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for dev setup, running the test suite, and lint/format tooling.
+See [CONTRIBUTING.md](https://github.com/Fareground/environments-sdk/blob/main/CONTRIBUTING.md) for dev setup, tests and lint. What changed is in the
+[CHANGELOG](https://github.com/Fareground/environments-sdk/blob/main/CHANGELOG.md).
 
 ---
 
 <div align="center">
 <sub>Stewarded by <b>Fareground</b>.</sub><br />
-<sub>Licensed under the <a href="LICENSE">Apache License 2.0</a>.</sub>
+<sub>Licensed under the <a href="https://github.com/Fareground/environments-sdk/blob/main/LICENSE">Apache License 2.0</a>.</sub>
 </div>
