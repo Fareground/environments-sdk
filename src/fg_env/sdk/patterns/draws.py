@@ -48,8 +48,18 @@ class DrawConfig(PatternConfig):
                 raise ValueError(f"a {self.dist} draw needs `{key}`")
         literal = {k: getattr(self, k) for k in ("low", "high", "mode", "sd", "sigma", "a", "b", "shape", "scale")
                    if isinstance(getattr(self, k), (int, float))}
+        for key, value in literal.items():
+            if not math.isfinite(value):
+                raise ValueError(f"{key} must be a finite number")
         if "low" in literal and "high" in literal and literal["low"] > literal["high"]:
             raise ValueError("low is more than high")
+        if self.dist == "triangular" and "mode" in literal:
+            if ("low" in literal and literal["mode"] < literal["low"]) or \
+                    ("high" in literal and literal["mode"] > literal["high"]):
+                raise ValueError("a triangular draw needs low ≤ mode ≤ high")
+        if self.dist == "uniform" and self.integer and "low" in literal and "high" in literal:
+            if math.ceil(literal["low"]) > math.floor(literal["high"]):
+                raise ValueError("an integer uniform draw needs at least one whole number between low and high")
         for key in ("sd", "sigma"):
             if literal.get(key, 0) < 0:
                 raise ValueError(f"{key} must be ≥ 0")
@@ -96,13 +106,18 @@ def _draw(ctx: Any) -> Any:
         low, high = ctx.number("low"), ctx.number("high")
         if low > high:
             raise ctx.fail(f"low ({low:g}) is more than high ({high:g})")
+        if cfg.integer and math.ceil(low) > math.floor(high):
+            raise ctx.fail(f"an integer uniform draw needs at least one whole number between low ({low:g}) and high ({high:g})")
         value = rng.randint(math.ceil(low), math.floor(high)) if cfg.integer else rng.uniform(low, high)
     elif dist == "beta":
         value = rng.betavariate(ctx.number("a", 1e-12), ctx.number("b", 1e-12))
     elif dist == "gamma":
         value = rng.gammavariate(ctx.number("shape", 1e-12), ctx.number("scale", 1e-12))
     elif dist == "triangular":
-        value = rng.triangular(ctx.number("low"), ctx.number("high"), ctx.number("mode"))
+        low, high, mode = ctx.number("low"), ctx.number("high"), ctx.number("mode")
+        if not low <= mode <= high:
+            raise ctx.fail(f"a triangular draw needs low ≤ mode ≤ high, got {low:g}, {mode:g}, {high:g}")
+        value = rng.triangular(low, high, mode)
     else:
         try:
             value = sample_poisson(rng, ctx.number("mean", 0))
