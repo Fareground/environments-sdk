@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Environment SDK (`fg-env`)
 
+- Configurable inputs support nested map/table `fields`, typed list `items`, child defaults, and
+  validated `label`, `display`, and `step` hints for host controls. Existing flat inputs and table
+  `columns` remain supported; presentation hints never change simulation equations.
+
 #### Composition and agent choices
 - The Python `wake.end()` helper is idempotent after normal turn completion, avoiding redundant
   failed calls when an action already ended the turn. No-op cleanup adds no tape/exposure/stat entries;

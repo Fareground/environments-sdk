@@ -57,3 +57,28 @@ Use this as a starting instruction in your own authoring workflow:
 > Build a rounds-based environment with the Environments SDK. Read `fg-env guide`, then the relevant sections. Map each requirement to contract rules and observable checks. Make uncertain assumptions explicit inputs. Use public SDK APIs and keep scenario logic in the contract. Check the contract, preview every role, run a deterministic baseline, and verify a small known-answer case. Report omissions and unsupported behavior. Deliver the contract, data, tests and run instructions.
 
 The agent should repair errors using their paths and suggested fixes, then rerun the affected checks. A clean checker result does not prove that the brief was captured faithfully.
+
+## Configurable data and controls
+
+Expose the data a user should change in `inputs`, and bind it into entity defaults,
+population `from`, actions or events using `$inputs`. Input objects are data, not
+new engine entity types. A `map` input can declare nested `fields`; a `table` can
+declare the fields of each row, and a `list` can declare `items`. Each child uses
+the same input specification, including types, defaults, required values and bounds.
+
+```json
+{"shop": {"type": "map", "label": "Store", "display": "object", "default": {},
+  "fields": {
+    "price": {"type": "number", "default": 25, "min": 5, "max": 100, "step": 1, "display": "slider", "unit": "USD"},
+    "segment": {"type": "enum", "values": ["consumer", "business"], "default": "consumer", "display": "select"},
+    "description": {"type": "text", "default": "", "display": "textarea"}
+  }}}
+```
+
+The example is an `inputs` section. Read its price as `$inputs.shop.price`.
+Hosts may render `display` hints using their own controls; the standalone SDK
+validates and resolves values without requiring a UI. Supported displays are
+`number`, `text`, `textarea`, `select`, `toggle`, `date`, `slider`, `knob`,
+`table`, `object`, `list` and `json`. Sliders and knobs require numeric bounds.
+`step` is a presentation increment, not rounding or a constraint on the engine.
+Old contracts need no changes; existing `columns` table declarations still work.

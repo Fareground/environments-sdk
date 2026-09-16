@@ -69,11 +69,29 @@ def check_value(type_name: str, value: Any, spec: Optional[InputSpec] = None) ->
             for column, column_type in columns.items():
                 if column not in row:
                     return f"row {index} is missing column '{column}'"
-                problem = check_value("text" if column_type == "asset" else column_type, row[column])
+                problem = check_value("text" if column_type == "asset" else column_type, row[column], (spec.fields or {}).get(column) if spec else None)
                 if problem:
                     return f"row {index} column '{column}' {problem}"
     else:
         return f"has unknown type '{type_name}'"
+    if spec is not None and spec.fields is not None and type_name in {"map", "table"}:
+        rows = enumerate(value) if type_name == "table" else [(None, value)]
+        for index, row in rows:
+            for name, field in spec.fields.items():
+                prefix = f"row {index} field '{name}'" if index is not None else f"field '{name}'"
+                if name not in row and field.default is None:
+                    if field.required:
+                        return f"{prefix} is required"
+                    continue
+                item = row.get(name, field.default)
+                problem = check_value(field.type, item, field)
+                if problem:
+                    return f"{prefix} {problem}"
+    if spec is not None and spec.items is not None and type_name == "list":
+        for index, item in enumerate(value):
+            problem = check_value(spec.items.type, item, spec.items)
+            if problem:
+                return f"item {index} {problem}"
     if spec is not None and _is_number(value):
         if spec.min is not None and value < spec.min:
             return f"must be ≥ {spec.min:g}, got {value}"
@@ -119,10 +137,25 @@ def resolve_inputs(contract: Contract, supplied: Optional[Mapping[str, Any]] = N
                 continue
             if spec.type == "int":
                 value = int(value)
-        resolved[name] = value
+        resolved[name] = _nested_defaults(spec, value)
     if issues:
         raise InputError(issues)
     return resolved
+
+
+def _nested_defaults(spec: InputSpec, value: Any) -> Any:
+    """Materialize declared child defaults without changing the caller's data."""
+    if spec.fields is not None and value is not None:
+        def row_defaults(row: Dict[str, Any]) -> Dict[str, Any]:
+            result = copy.deepcopy(row)
+            for name, field in spec.fields.items():
+                if name in result or field.default is not None:
+                    result[name] = _nested_defaults(field, result.get(name, copy.deepcopy(field.default)))
+            return result
+        return [row_defaults(row) for row in value] if spec.type == "table" else row_defaults(value)
+    if spec.items is not None and isinstance(value, list):
+        return [_nested_defaults(spec.items, item) for item in value]
+    return copy.deepcopy(value)
 
 
 class _SourceProblem(Exception):
@@ -162,7 +195,7 @@ def load_source(spec: InputSpec, data_dir: Union[str, "os.PathLike[str]", None])
     if suffix == ".csv":
         if spec.type != "table":
             raise _SourceProblem(f"a CSV file gives a table, but this input is {spec.type}", "set type: table")
-        return _csv_rows(text, spec.columns or {}, name)
+        return _csv_rows(text, spec.columns or {}, name, spec.fields)
     try:
         if suffix == ".json":
             return json.loads(text)
@@ -174,7 +207,7 @@ def load_source(spec: InputSpec, data_dir: Union[str, "os.PathLike[str]", None])
     return rows
 
 
-def _csv_rows(text: str, columns: Mapping[str, str], name: str) -> List[Dict[str, Any]]:
+def _csv_rows(text: str, columns: Mapping[str, str], name: str, fields: Optional[Dict[str, InputSpec]] = None) -> List[Dict[str, Any]]:
     reader = csv.DictReader(io.StringIO(text))
     if reader.fieldnames is None:
         raise _SourceProblem(f"'{name}' has no header row", "put column names on the first line")
@@ -190,7 +223,8 @@ def _csv_rows(text: str, columns: Mapping[str, str], name: str) -> List[Dict[str
         for column, cell in raw.items():
             if column is None:
                 raise _SourceProblem(f"'{name}' line {line} has more cells than the header", "fix the row")
-            row[column] = _cell(columns.get(column, "text"), cell, name, line, column)
+            kind = fields[column].type if fields and column in fields else columns.get(column, "text")
+            row[column] = _cell(kind, cell, name, line, column)
         rows.append(row)
     return rows
 

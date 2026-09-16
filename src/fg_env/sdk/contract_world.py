@@ -2,7 +2,7 @@
 relations; physics; and feeds."""
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import Field, field_validator, model_validator
 
@@ -39,6 +39,36 @@ class InputSpec(_Model):
     source: Optional[str] = Field(None, description="Load the value from a data file (.csv → table, .json, .jsonl) inside the data directory: the contract file's folder, or `data_dir=` at load. Undeclared CSV columns stay text.")
     description: str = ""
     unit: str = ""
+    label: str = Field("", description="Human-readable input label; defaults to the input name in a host UI.")
+    display: Optional[Literal["number", "text", "textarea", "select", "toggle", "date", "slider", "knob", "table", "object", "list", "json"]] = Field(None, description="Optional host UI control. Presentation only: does not change simulation semantics.")
+    step: Optional[float] = Field(None, gt=0, allow_inf_nan=False, description="Suggested numeric control increment; min/max still validate supplied values.")
+    fields: Optional[Dict[str, "InputSpec"]] = Field(None, description="Typed configurable fields of a map object or each table row; supports nested objects, defaults and control hints.")
+    items: Optional["InputSpec"] = Field(None, description="Typed elements of a list input.")
+
+    @model_validator(mode="after")
+    def _input_presentation(self) -> "InputSpec":
+        compatible = {"number": {"number", "int"}, "text": {"text"}, "textarea": {"text"},
+                      "select": {"enum"}, "toggle": {"bool"}, "date": {"date"},
+                      "slider": {"number", "int"}, "knob": {"number", "int"},
+                      "table": {"table"}, "object": {"map"}, "list": {"list"}}
+        if self.display in compatible and self.type not in compatible[self.display]:
+            raise ValueError(f"display '{self.display}' does not support type '{self.type}'")
+        if self.display in {"slider", "knob"} and (self.min is None or self.max is None or self.min >= self.max):
+            raise ValueError("slider and knob controls require min < max")
+        if self.step is not None and self.type not in {"number", "int"}:
+            raise ValueError("step only applies to numeric inputs")
+        if self.fields is not None and self.type not in {"map", "table"}:
+            raise ValueError("fields only apply to map or table inputs")
+        if self.items is not None and self.type != "list":
+            raise ValueError("items only applies to list inputs")
+        for name, child in (self.fields or {}).items():
+            if child.source is not None:
+                raise ValueError(f"field '{name}': declare data sources on the containing input")
+            if name in (self.columns or {}) and self.columns[name] != child.type:
+                raise ValueError(f"field '{name}' conflicts with its column type")
+        if self.items is not None and self.items.source is not None:
+            raise ValueError("declare data sources on the containing input, not list items")
+        return self
 
 
 class Brief(_Model):

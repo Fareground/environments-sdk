@@ -200,6 +200,13 @@ EFFECT_EXAMPLES = {
 RECIPES = """\
 ## Recipes for common mechanics
 
+* Configurable objects: declare `inputs.shop` with `type: map`, `default: {}` and `fields` mapping
+  names to InputSpecs. A table uses `fields` for each row; a list uses `items` for its element spec.
+  Field defaults are filled at load; required fields and bounds are validated before execution.
+  Bind these values explicitly through `$inputs.shop.price`, entity defaults or population `from`.
+  Choose `label`, `description`, `unit` and `display` (text, textarea, select, toggle, date, number,
+  slider, knob, table, object, list, json) for the host UI. Sliders/knobs require numeric min < max;
+  `step` suggests a numeric control increment. These hints do not alter simulation semantics.
 * Data files: `"inputs": {"households": {"type": "table", "source": "households.csv", "columns": {"income":
   "number", "size": "int"}}}` then `"population": [{"type": "person", "from": "$inputs.households"}]`. Files are
   read from the contract's folder (or `data_dir=`); undeclared CSV columns stay text. Also `.json` and `.jsonl`.
