@@ -72,23 +72,29 @@ def fork_env(env: "Env", *, arm: Any = KEEP_ARM, inputs: Optional[Mapping[str, A
     if env._in_round:
         raise RunError("changes apply between rounds: finish the round first (env.run(rounds=1)), or copy the run "
                        "as it is with env.clone()", "fork")
-    forked = _fork(Env, env.origin.unarmed, take_snapshot(env), arm=arm, inputs=inputs, patch=patch, to=contract,
-                   seed=seed, effects=effects, parallel=env.parallel, hosts=hosts_for(env.world), data_dir=None)
+    forked = _fork(Env, env.contract, take_snapshot(env), arm=arm, inputs=inputs, patch=patch, to=contract,
+                   seed=seed, effects=effects, parallel=env.parallel, hosts=hosts_for(env.world), data_dir=None,
+                   unarmed_source=env.origin.unarmed)
     forked.time_limit = env.time_limit
     return forked
 
 
 def _fork(cls: Any, contract: ContractLike, snapshot: Mapping[str, Any], *, arm: Any, inputs: Optional[Mapping[str, Any]],
           patch: Optional[Mapping[str, Any]], to: Optional[ContractLike], seed: Optional[int],
-          effects: Optional[List[Any]], parallel: int, hosts: Any, data_dir: Any) -> "Env":
+          effects: Optional[List[Any]], parallel: int, hosts: Any, data_dir: Any,
+          unarmed_source: Optional[Contract] = None) -> "Env":
     old, unarmed = matching_contract(contract, snapshot)
+    if unarmed_source is not None:
+        unarmed = unarmed_source
     base = parse(to) if to is not None else unarmed
     old_arm = snapshot.get("arm")
     new_arm = old_arm if arm is KEEP_ARM else arm
     if new_arm is not None and new_arm not in base.arms:
         raise ContractError([Issue("arm", f"'{new_arm}' is not a declared arm", f"arms: {', '.join(base.arms) or 'none'}")],
                             title="the fork cannot be made")
-    new = apply_arm(base, new_arm) if new_arm is not None else base
+    # Continuing the same arm keeps the current rules, including earlier patches.
+    # A different arm or replacement contract deliberately selects a new rule base.
+    new = old if to is None and new_arm == old_arm else (apply_arm(base, new_arm) if new_arm is not None else base)
     if patch:
         new = located(parse_contract(_merge(contract_source(new), dict(patch))), new._folder)
     problems = [issue for issue in check_contract(new) if issue.severity == "error"]

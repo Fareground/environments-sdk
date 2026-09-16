@@ -79,8 +79,7 @@ def test_restore_copy_and_fork_rebuild_for_new_policy(keep):
         assert 9 not in read(env.world, 'b')[0]
     forked = env.fork(patch={'records': {'notes': {'visible': 'all'}}})
     assert read(forked.world, 'a')[0] == ([2, 3] if keep else [0, 1, 2, 3])
-    reindexed = fg_env.fork(forked.contract, forked.snapshot(),
-                            patch={'records': {'notes': {'visible': '$viewer.team == $it.team'}}})
+    reindexed = forked.fork(patch={'records': {'notes': {'visible': '$viewer.team == $it.team'}}})
     assert read(reindexed.world, 'a') == read(env.world, 'a')
 
 
