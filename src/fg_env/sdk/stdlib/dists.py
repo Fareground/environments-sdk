@@ -126,22 +126,33 @@ def _dirichlet(call: Call) -> List[float]:
 def _multinomial(call: Call) -> Any:
     n = int_arg(call, 0, low=0, high=10**12, what="the number of draws n")
     keys, weights = _weights(call, 1, "the weights")
-    if max(weights) <= 0:
+    largest = max(weights)
+    if largest <= 0:
         raise fail(call, "at least one weight must be above 0")
+    # Relative weights must not overflow merely because of their chosen units.
+    weights = [weight / largest for weight in weights]
     last = max(i for i, weight in enumerate(weights) if weight > 0)
-    remaining_weight = math.fsum(weights)
+    # Sum suffixes directly: subtracting a large category from the total can
+    # erase the smaller categories or distort their conditional probabilities.
+    remaining = [0.0] * len(weights)
+    total = correction = 0.0
+    for index in range(len(weights) - 1, -1, -1):
+        weight = weights[index]
+        combined = total + weight
+        correction += (total - combined) + weight if total >= weight else (weight - combined) + total
+        total = combined
+        remaining[index] = total + correction
     counts: List[int] = []
     left = n
     for index, weight in enumerate(weights):
         if left == 0 or weight == 0:
             counts.append(0)
         else:
-            share = 1.0 if index == last else min(1.0, weight / remaining_weight)
+            share = 1.0 if index == last else min(1.0, weight / remaining[index])
             charge(min(left, BINOMIAL_EXACT_MEAN), call.source)
             drawn = binomial(call.rng, left, share)
             counts.append(drawn)
             left -= drawn
-        remaining_weight -= weight
     if isinstance(call.arg(1), dict):
         return dict(zip(keys, counts))
     return counts
