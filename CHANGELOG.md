@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- The Python `wake.end()` helper is idempotent after normal turn completion, avoiding redundant
+  failed calls when an action already ended the turn. No-op cleanup adds no tape/exposure/stat entries;
+  explicit tool calls, timeouts, external closure and atomic settlement retain their rules.
 - Mechanism predicates now evaluate constant expressions consistently: production requirements,
   procedure transitions, status immunity, channel interruption, demand segment filters and history
   recording. Demand report replay uses the same filter semantics. Previously truthy text such as

@@ -157,8 +157,16 @@ class Wake:
         return upload(self._turn, source, name)
 
     def end(self) -> ToolResult:
-        """Finish the turn."""
-        return self.call(END_TURN, {})
+        """Finish the turn; a normally finished turn needs no further tool call.
+
+        Timeouts and externally closed turns retain their refusal. Explicit
+        ``call("end_turn")`` still follows the tool protocol, including recording.
+        """
+        turn = self._turn
+        with turn.env._lock:
+            if turn.done and not turn.closed and not turn.expired():
+                return ToolResult(True, "Turn already ended.", True)
+            return self.call(END_TURN, {})
 
     def clone(self, *, participants: Any = None, seed: Optional[int] = None, same_luck: bool = False) -> "Branch":
         """A private copy of the whole run, paused exactly here in this turn, to look ahead on.
