@@ -1,3 +1,5 @@
+> **Environments SDK — legacy template API.** This page documents the older `fg_env_kernel` API. For new JSON contracts and `fg_env`, start with the [current contract guide](template_schema.md) and the installation instructions in the [README](../README.md).
+
 # Execution checkpoints
 
 `engine.checkpoint()` returns a JSON-compatible `fg-execution-v1` checkpoint.
