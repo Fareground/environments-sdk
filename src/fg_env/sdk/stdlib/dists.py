@@ -8,9 +8,10 @@ from statistics import NormalDist
 from typing import Any, List, Tuple
 
 from ..expr import MAX_RANGE, Call, _describe, charge, function
+from ..binomial import sample_large_binomial
 from ._args import fail, int_arg, list_arg, number_arg, present_numbers, probability
 
-#: Above this expected count of the rarer outcome, `$binomial` uses a normal approximation.
+#: Preserve geometric-skipping sequences through this expected count; larger draws use BTRS.
 BINOMIAL_EXACT_MEAN = 1_000
 #: Most dice one `$dice` roll may throw, and the most sides a die may have.
 MAX_DICE = 10_000
@@ -21,22 +22,23 @@ _STANDARD = NormalDist()
 
 
 def binomial(rng: Any, n: int, p: float) -> int:
-    """Successes in n trials. Exact (geometric skipping, O(n·min(p, 1-p)) steps) unless the expected count
-    of the rarer outcome passes :data:`BINOMIAL_EXACT_MEAN`, where a rounded normal draw is used."""
+    """Successes in n trials: geometric skipping for small counts, transformed rejection for large ones."""
     if n == 0 or p == 0:
         return 0
     if p == 1:
         return n
     q = min(p, 1 - p)
     if n * q > BINOMIAL_EXACT_MEAN:
-        draw = round(rng.gauss(n * p, math.sqrt(n * p * (1 - p))))
-        return max(0, min(n, draw))
+        return sample_large_binomial(rng, n, p)
     log_miss = math.log1p(-q)
     successes, position = 0, 0
     while True:
-        position += int(math.log(1.0 - rng.random()) / log_miss) + 1
-        if position > n:
+        gap = math.log(1.0 - rng.random()) / log_miss
+        # Tiny valid probabilities can make the floating gap infinite. It already
+        # exceeds the remaining trials; never convert it to an integer first.
+        if gap >= n - position:
             break
+        position += int(gap) + 1
         successes += 1
     return successes if p <= 0.5 else n - successes
 
@@ -249,4 +251,3 @@ def _dice(call: Call) -> int:
             rolls = sorted(rolls, reverse=(keep == "kh"))[:kept]
         total += sign * sum(rolls)
     return total
-
