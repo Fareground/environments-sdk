@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Forks check pending delayed rules against replacement contracts, reporting newly missing
+  dependencies before the branch runs. Captured locals and action parameters remain valid.
 - Straight-line delayed assignments capture only needed outer bindings, avoiding repeated copies of
   unused batch lists. Function calls, contract definitions and other effect forms retain full context;
   existing snapshots and scheduling semantics remain supported.

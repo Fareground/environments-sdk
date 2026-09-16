@@ -183,7 +183,32 @@ def compatibility(old: Contract, new: Contract, snapshot: Mapping[str, Any]) -> 
     _records(issues, new, snapshot)
     _physics(issues, new, snapshot)
     _clock(issues, new, snapshot, probe)
+    _pending(issues, old, new, snapshot)
     return issues
+
+
+def _pending(issues: List[Issue], old: Contract, new: Contract, snapshot: Mapping[str, Any]) -> None:
+    """Pending code survives a fork, even when its originating event or action is replaced."""
+    before, after = _Checker(old), _Checker(new)
+    for index, (_, _, encoded) in enumerate(snapshot["scheduled"]):
+        item = decode(encoded)
+        effects = item.get("effects", [])
+        if not effects:
+            continue
+        roots = set(BASE) | set(item.get("vars", {}))
+        path = f"scheduled[{index}].effects"
+        # Captures no longer carry the original action's parameter/type declarations.
+        # Compare checks so missing authoring metadata cannot reject a valid continuation.
+        before.issues.clear()
+        after.issues.clear()
+        before.effects(effects, path, roots, {})
+        after.effects(effects, path, roots, {})
+        existing = {(issue.path, issue.message) for issue in before.issues if issue.severity == "error"}
+        for issue in after.issues:
+            if issue.severity == "error" and (issue.path, issue.message) not in existing:
+                issues.append(Issue(issue.path, f"pending rule from {item.get('path', 'an earlier rule')}: {issue.message}",
+                                    "keep its dependencies until the pending work finishes" +
+                                    (f"; {issue.fix}" if issue.fix else "")))
 
 
 def _values(issues: List[Issue], specs: Mapping[str, PropSpec], values: Mapping[str, Any], path: str, owner: str,
