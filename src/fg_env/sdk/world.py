@@ -78,11 +78,11 @@ class SdkWorld(World):
         #: Retained record entries by sequence number (entries dropped by `keep` are removed).
         self.entry_by_seq: Dict[int, Entry] = {}
         self.record_authors = RecordAuthors(
-            (name for name, spec in contract.records.items() if author_only(spec.visible)), self.records_store)
+            {name: spec.visible for name, spec in contract.records.items()}, self.records_store)
         #: Per-entity brief text rendered at build (from entities.*.brief / population.brief).
         self.entity_briefs: Dict[str, str] = {}
         self.log: List[LogEvent] = []
-        self.record_events = RecordEvents((), self.entry_by_seq)
+        self.record_events = RecordEvents((), self.entry_by_seq, contract)
         self.physics: Optional[PhysicsModel] = None
         self.physics_writes: List[Tuple[str, _CompiledExpr]] = []
         self.entity_dynamics: List[Any] = []
@@ -223,12 +223,12 @@ class SdkWorld(World):
     def events(self, kind: Optional[str], viewer: Any = None) -> List[LogEvent]:
         """Events so far; with a ``viewer`` (views, record visibility) only those it may know about."""
         seen = viewer if isinstance(viewer, Entity) else None
-        candidates = self.record_events.candidates(self.contract, seen.id) if kind == "record" and seen else self.log
+        candidates = self.record_events.candidates(self.contract, seen) if kind == "record" and seen else self.log
         return [e for e in candidates if (kind is None or e.kind == kind)
                 and (seen is None or self.event_visible(e, seen))]
 
     def rebuild_event_index(self) -> None:
-        self.record_events = RecordEvents(self.log, self.entry_by_seq)
+        self.record_events = RecordEvents(self.log, self.entry_by_seq, self.contract)
 
     def event_visible(self, event: LogEvent, viewer: Entity) -> bool:
         """Record notifications carry the same visibility as their retained source entry."""
@@ -257,15 +257,14 @@ class SdkWorld(World):
         rows = self.records(name)
         if not isinstance(viewer, Entity):
             return rows
-        if author_only(self.contract.records[name].visible):
-            indexed = self.record_authors.for_author(name, viewer.id)
-            if indexed is not None:
-                rows = indexed
+        indexed = self.record_authors.candidates(name, viewer)
+        if indexed is not None:
+            rows = indexed
         return [row for row in rows if self.entry_visible(name, row, viewer)]
 
     def rebuild_record_index(self) -> None:
         self.record_authors = RecordAuthors(
-            (name for name, spec in self.contract.records.items() if author_only(spec.visible)), self.records_store)
+            {name: spec.visible for name, spec in self.contract.records.items()}, self.records_store)
 
     def entry_visible(self, record: str, entry: Entry, viewer: Optional[Entity]) -> bool:
         if viewer is None:
