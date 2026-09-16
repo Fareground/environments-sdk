@@ -212,6 +212,32 @@ def compile_statement(source: str) -> Statement:
     return Statement(source, compile_expr(base), compiled, None, op, value)
 
 
+
+@lru_cache(maxsize=8_192)
+def _capture_roots(sources: Tuple[str, ...]) -> Optional[frozenset[str]]:
+    """External reads of straight-line assignments; calls may read implicit scope."""
+    needed: set[str] = set()
+    assigned: set[str] = set()
+    try:
+        for source in sources:
+            statement = compile_statement(source)
+            expressions = [statement.value]
+            if statement.base is not None:
+                expressions.append(statement.base)
+            expressions.extend(step for kind, step in statement.steps if kind == "index")
+            if any(expr.functions for expr in expressions):
+                return None
+            reads = set().union(*(expr.roots for expr in expressions))
+            if statement.local is not None and statement.op != "=":
+                reads.add(statement.local)
+            needed.update(reads - assigned)
+            if statement.local is not None:
+                assigned.add(statement.local)
+    except ExprError:
+        return None  # Preserve the original error at execution, rather than moving it to scheduling.
+    return frozenset(needed)
+
+
 def _to_ids(value: Any, where: str) -> Optional[Tuple[str, ...]]:
     if value is None:
         return None
@@ -612,11 +638,18 @@ class EffectRunner:
         if world.continuous:
             if isinstance(delay, bool) or not isinstance(delay, (int, float)) or not delay > 0:
                 raise RunError(f"`after` needs a time greater than 0 on a continuous clock, got {delay!r}", where)
-            world.schedule(advance_time(world.time, delay, where), effect.get("do") or [], vars, f"{where}.do")
-            return
-        if isinstance(delay, bool) or not isinstance(delay, int) or delay < 1:
-            raise RunError(f"`after` needs a whole number of rounds ≥ 1, got {delay!r}", where)
-        world.schedule(world.round + delay, effect.get("do") or [], vars, f"{where}.do")
+            due = advance_time(world.time, delay, where)
+        else:
+            if isinstance(delay, bool) or not isinstance(delay, int) or delay < 1:
+                raise RunError(f"`after` needs a whole number of rounds ≥ 1, got {delay!r}", where)
+            due = world.round + delay
+        effects = effect.get("do") or []
+        captured = vars
+        if all(isinstance(item, str) for item in effects):
+            roots = _capture_roots(tuple(effects))
+            if roots is not None and not roots.intersection(world.contract.defs):
+                captured = {name: value for name, value in vars.items() if name in roots}
+        world.schedule(due, effects, captured, f"{where}.do")
 
     def _op_wake(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
         why = self._text(effect.get("why"), vars) or "You were asked to act."

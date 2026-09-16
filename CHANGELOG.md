@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Environment SDK (`fg-env`)
 
 #### Composition and agent choices
+- Straight-line delayed assignments capture only needed outer bindings, avoiding repeated copies of
+  unused batch lists. Function calls, contract definitions and other effect forms retain full context;
+  existing snapshots and scheduling semantics remain supported.
 - Probabilities on actions, events, policy rules and `$chance` must be numeric values from 0 to 1.
   Invalid literals receive field-specific checks and percentage-conversion hints; invalid computed
   values fail at runtime instead of silently becoming certain or impossible. Boolean numeric-field
