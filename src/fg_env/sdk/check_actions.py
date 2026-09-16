@@ -70,6 +70,7 @@ class ActionChecks:
                 self.warn(f"{path}.otherwise", "runs only when `chance` fails, and there is no `chance`")
             for key in ("outcome", "announce"):
                 self.template(getattr(spec, key), f"{path}.{key}", None, after, types, spec.params)
+            self._private_announcement(spec, by_types, path)
             if isinstance(spec.terminal, str):
                 self.expr(spec.terminal, f"{path}.terminal", after, types, spec.params)
             for pname, param in spec.params.items():
@@ -80,6 +81,32 @@ class ActionChecks:
                               BASE | {"actor", "params", "value"}, types, spec.params)
             if not any(name in _stage_action_names(s, self.c) for s in self.c.stage_list()):
                 self.warn(path, "is not available in any stage", "add it to a stage's `actions`")
+
+    def _private_announcement(self: "_Checker", spec: C.ActionSpec, by_types: Set[str], path: str) -> None:  # type: ignore[misc]
+        """Direct private-field references in a public announcement deserve an explicit choice."""
+        if spec.private or spec.announce is None:
+            return
+        try:
+            compiled = compile_template(spec.announce, None)
+        except ExprError:
+            return  # the template check already reports this
+        shown: Set[str] = set()
+        for expr in compiled.expressions:
+            for chain in expr.paths:
+                kinds: Set[str] = set()
+                field = ""
+                if len(chain) >= 2 and chain[0] == "actor":
+                    kinds, field = by_types, chain[1]
+                elif len(chain) >= 3 and chain[0] == "params":
+                    param = spec.params.get(chain[1])
+                    if param is not None and param.type == "entity" and param.of in self.c.types:
+                        kinds, field = {param.of}, chain[2]
+                if any((prop := self.c.props_of(kind).get(field)) is not None and prop.private for kind in kinds):
+                    shown.add("$" + ".".join(chain))
+        if shown:
+            self.warn(f"{path}.announce", f"public announcement references private fields: {', '.join(sorted(shown))}",
+                      "everyone can receive this announcement; remove private values, put them in `outcome` "
+                      "for the actor, or set `private: true` if the action itself should be private")
 
     def _tool_group(self: "_Checker", spec: C.ActionSpec, path: str) -> None:  # type: ignore[misc]
         """An action offered inside a shared tool: the tool's name is free, and `action` is the tool's own argument."""
