@@ -12,6 +12,7 @@ from ..entity import Entity
 from ..physics import PhysicsModel, _CompiledExpr
 from .assets.store import AssetStore
 from .contract import Contract, PropSpec
+from .captures import freeze, thaw
 from .errors import RunError
 from .expr_calls import suggest_function
 from .expr import ExprError, FUNCTIONS, Scope, Untrusted, World, compile_expr, is_expr, truthy
@@ -715,7 +716,7 @@ class SdkWorld(World):
                  delivery: Optional[Dict[str, Any]] = None) -> None:
         """Run ``effects`` when the round (or, on a continuous clock, the time) reaches ``due_round``;
         or, with ``delivery``, deliver that message (see :mod:`delivery`)."""
-        item: Dict[str, Any] = {"effects": effects, "vars": {k: _freeze(v) for k, v in vars.items()},
+        item: Dict[str, Any] = {"effects": effects, "vars": {k: freeze(v) for k, v in vars.items()},
                                 "capture_version": 1, "path": path}
         if delivery is not None:
             item["delivery"] = delivery
@@ -761,7 +762,7 @@ class SdkWorld(World):
             self.journal.push(lambda: setattr(self, "end_request", None))
 
     def thaw(self, vars: Dict[str, Any], *, tagged: bool = False) -> Dict[str, Any]:
-        return {k: _thaw(v, self, tagged=tagged) for k, v in vars.items()}
+        return {k: thaw(v, self, tagged=tagged) for k, v in vars.items()}
 
     # -- physics (see world_physics) --------------------------------------------------
 
@@ -816,36 +817,4 @@ def _plain(value: Any) -> Any:
         return {k: _plain(v) for k, v in value.items()}
     if isinstance(value, Entry):
         return {k: v for k, v in value.items()}
-    return value
-
-
-def _freeze(value: Any) -> Any:
-    if isinstance(value, Entity):
-        return {"$entity": value.id}
-    if isinstance(value, Link):
-        return {"$link": [value.kind, *value.key]}
-    if isinstance(value, list):
-        return [_freeze(v) for v in value]
-    if isinstance(value, dict):
-        frozen = {k: _freeze(v) for k, v in value.items()}
-        # User data may look exactly like a reference tag. Escape the container,
-        # while retaining reference handling for values nested inside it.
-        if len(value) == 1 and next(iter(value)) in ("$entity", "$link", "$literal"):
-            return {"$literal": frozen}
-        return frozen
-    return value
-
-
-def _thaw(value: Any, world: SdkWorld, *, tagged: bool = False) -> Any:
-    if tagged and isinstance(value, dict) and set(value) == {"$literal"}:
-        return {k: _thaw(v, world, tagged=tagged) for k, v in value["$literal"].items()}
-    if isinstance(value, dict) and set(value) == {"$entity"}:
-        return world.entities.get(value["$entity"])
-    if tagged and isinstance(value, dict) and set(value) == {"$link"}:
-        kind, source, target = value["$link"]
-        return Link(world, kind, (source, target))
-    if isinstance(value, list):
-        return [_thaw(v, world, tagged=tagged) for v in value]
-    if isinstance(value, dict):
-        return {k: _thaw(v, world, tagged=tagged) for k, v in value.items()}
     return value

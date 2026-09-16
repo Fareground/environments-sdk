@@ -133,7 +133,8 @@ def _view(world: Any, cfg: StackConfig, item: Optional[Mapping[str, Any]]) -> Op
     if item is None:
         return None
     return {"id": item["id"], "kind": item["kind"], "title": cfg.title(item["kind"]), "by": item["by"],
-            "params": common.thaw(item["params"], world), "on": item["on"], "round": item["round"],
+            "params": common.thaw(item["params"], world, tagged=item.get("capture_version") == 1),
+            "on": item["on"], "round": item["round"],
             "waiting": _waiting(world, item)}
 
 
@@ -152,7 +153,8 @@ def _describe(world: Any, cfg: StackConfig, item: Mapping[str, Any], by: bool = 
     if spec.show:
         shown = compile_template(spec.show, None).render(world.scope(**_vars(world, cfg, item, None)))
     else:
-        shown = ", ".join(f"{key} {format_value(value)}" for key, value in common.thaw(item["params"], world).items())
+        params = common.thaw(item["params"], world, tagged=item.get("capture_version") == 1)
+        shown = ", ".join(f"{key} {format_value(value)}" for key, value in params.items())
     return f"{text}: {shown}" if shown.strip() else text
 
 
@@ -204,7 +206,8 @@ def _push(runner: Any, name: str, cfg: StackConfig, kind: str, actor: Entity, pa
     if below is not None:
         below["passed"].append(actor.id)  # pushing an answer is this agent's answer to the item below
     item: Dict[str, Any] = {"id": issued, "kind": kind, "by": actor.id, "params": common.freeze(dict(params)),
-                            "on": below["id"] if below else None, "round": world.round, "responders": [], "passed": []}
+                            "capture_version": 1, "on": below["id"] if below else None, "round": world.round,
+                            "responders": [], "passed": []}
     view = _view(world, cfg, item)
     at = f"mechanisms.{name}.stack.kinds.{kind}"
     for player in common.carriers(world, cfg.player_types()):

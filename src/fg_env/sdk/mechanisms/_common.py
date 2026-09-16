@@ -20,6 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ...entity import Entity
 from ..errors import RunError
+from ..captures import freeze, thaw
 from ..expr import Call, ExprError, compile_expr, function, is_expr, truthy
 from ..registry import MechanismError, config_data, describe, use_key
 
@@ -242,17 +243,6 @@ def carriers(world: Any, type_names: Sequence[str]) -> List[Entity]:
     return [e for e in world.entities.values() if e.alive and e.entity_type in kinds]
 
 
-def freeze(value: Any) -> Any:
-    """Plain data for storing in a property: entities become ``{"$entity": id}``."""
-    if isinstance(value, Entity):
-        return {"$entity": value.id}
-    if isinstance(value, (list, tuple)):
-        return [freeze(v) for v in value]
-    if isinstance(value, Mapping):
-        return {k: freeze(v) for k, v in value.items()}
-    return value
-
-
 def plain(value: Any) -> Any:
     """Entities as ids, deeply: how a winner or an emitted value is stored."""
     if isinstance(value, Entity):
@@ -268,16 +258,6 @@ def by_types(action: Any) -> List[str]:
     """The agent types that may take an action (an ActionSpec or action data)."""
     by = action.get("by") if isinstance(action, Mapping) else action.by
     return [by] if isinstance(by, str) else list(by or [])
-
-
-def thaw(value: Any, world: Any) -> Any:
-    if isinstance(value, Mapping) and set(value) == {"$entity"}:
-        return world.entities.get(value["$entity"])
-    if isinstance(value, list):
-        return [thaw(v, world) for v in value]
-    if isinstance(value, Mapping):
-        return {k: thaw(v, world) for k, v in value.items()}
-    return value
 
 
 # ---------------------------------------------------------------------------
