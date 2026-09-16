@@ -15,7 +15,7 @@ from ..api import ContractLike, DataDir, located, parse
 from ..contract import Contract
 from ..experiment import Job, failed_run, run_job, worker_pool
 from ..experiment import run_jobs as _run_jobs
-from ..measure import RunResult
+from ..measure import RunResult, _usable_output
 from ..seeds import SeedTree
 from ..workers import Pool
 from .stats import numeric
@@ -90,6 +90,8 @@ def resolve_measure(contract: Contract, name: str) -> Tuple[str, str]:
 
 def raw_value(result: RunResult, measure: Tuple[str, str]) -> Any:
     section, key = measure
+    if section == "outputs" and not _usable_output(result, key):
+        return None
     return (result.outputs if section == "outputs" else result.metrics).get(key)
 
 
@@ -117,9 +119,15 @@ def numeric_measures(contract: Contract, results: Sequence[RunResult]) -> List[s
 
 def summarize_failures(results: Sequence[RunResult]) -> Optional[str]:
     failed = [r for r in results if r.status == "failed"]
-    if not failed:
-        return None
-    return f"{len(failed)} of {len(results)} run(s) failed (first: {failed[0].error})"
+    messages = []
+    if failed:
+        messages.append(f"{len(failed)} of {len(results)} run(s) failed (first: {failed[0].error})")
+    invalid = [r for r in results if r.output_issues]
+    if invalid:
+        first = invalid[0].output_issues[0]
+        messages.append(f"{len(invalid)} of {len(results)} run(s) had output issues "
+                        f"(first: {first['path']}: {first['message']}); invalid outputs were excluded")
+    return "; ".join(messages) or None
 
 
 def describe_inputs(inputs: Mapping[str, Any]) -> str:

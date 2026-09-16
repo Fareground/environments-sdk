@@ -116,6 +116,9 @@ class Measure:
                 out.append(None)
                 continue
             raw = runner.raw_value(r, self.named) if self.named else self._evaluate(r)
+            if raw is None:
+                out.append(None)
+                continue
             if isinstance(raw, Mapping):
                 out.append({str(k): numeric(v) for k, v in raw.items()})
             elif isinstance(raw, Sequence) and not isinstance(raw, (str, bytes)):
@@ -126,6 +129,10 @@ class Measure:
         return out
 
     def _evaluate(self, r: RunResult) -> Any:
+        # A composite output expression must not consume values the run rejected.
+        # Named measures remain independently usable through runner.raw_value.
+        if r.output_issues and "outputs" in compile_expr(self.text).roots:
+            return None
         try:
             return evaluate(self.text, Scope({"outputs": r.outputs, "metrics": r.metrics, "inputs": r.inputs}))
         except ExprError as exc:

@@ -7,11 +7,13 @@ the outcome itself — a real but trivial gap is no reason to pick one option ov
 """
 from __future__ import annotations
 
+
 import math
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from ..analysis.stats import estimate
+from ..measure import _usable_output
 from .evidence import Option
 
 __all__ = ["Paired", "paired", "MEANINGFUL_SHARE"]
@@ -58,6 +60,8 @@ class Paired:
 def _by_seed(option: Option, measure: str) -> Dict[int, float]:
     out: Dict[int, float] = {}
     for run in option.runs:
+        if not _usable_output(run, measure):
+            continue
         value = run.outputs.get(measure)
         if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
             out[run.seed] = float(value)

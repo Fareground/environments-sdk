@@ -7,12 +7,14 @@ A queue is recognised by the outputs its mechanism generates (``<name>_staff_by_
 """
 from __future__ import annotations
 
+
 import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from ..clock_words import plural, span_label, unit_word
 from ..measure import RunResult
+from ..measure import _usable_output
 from .evidence import Option, summary
 from .words import Namer
 
@@ -79,7 +81,9 @@ class QueueView:
         return f"interval {first + 1}" if first == last else f"intervals {first + 1}–{last + 1}"
 
     def staff(self, option: Option) -> List[int]:
-        plan = option.runs[0].outputs.get(f"{self.name}_staff_by_interval") if option.runs else None
+        key = f"{self.name}_staff_by_interval"
+        plan = next((run.outputs[key] for run in option.runs
+                     if _usable_output(run, key) and isinstance(run.outputs.get(key), list)), None)
         return [int(v) for v in plan] if isinstance(plan, list) else []
 
     @classmethod
@@ -125,8 +129,11 @@ class QueueView:
     def _per_interval(self, option: Option, output: str) -> List[List[float]]:
         """For each interval, the value of ``output`` in every run (runs without one left out)."""
         columns: List[List[float]] = []
+        key = f"{self.name}_{output}"
         for run in option.runs:
-            values = run.outputs.get(f"{self.name}_{output}")
+            if not _usable_output(run, key):
+                continue
+            values = run.outputs.get(key)
             for index, value in enumerate(values if isinstance(values, list) else []):
                 while len(columns) <= index:
                     columns.append([])

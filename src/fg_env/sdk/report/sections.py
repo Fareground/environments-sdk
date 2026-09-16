@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 from ..analysis.accuracy import bias_verdict
 from ..analysis.highlights import highlights
 from ..clock_words import plural, unit_word
+from ..measure import _usable_output
 from .confidence import Confidence, interval, label
 from .confidence import lines as confidence_lines
 from .demand import demand_lines
@@ -219,7 +220,7 @@ def _representative(option: Optional[Option], choice: Choice, measures: Sequence
     if measure is None:
         return option.runs[0]
     scored = [(r.outputs.get(measure), i) for i, r in enumerate(option.runs)
-              if isinstance(r.outputs.get(measure), (int, float))]
+              if _usable_output(r, measure) and isinstance(r.outputs.get(measure), (int, float))]
     if not scored:
         return option.runs[0]
     scored.sort()
@@ -229,15 +230,22 @@ def _representative(option: Optional[Option], choice: Choice, measures: Sequence
 def risks(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str], queues: Sequence[QueueView],
           owner: bool) -> Section:
     section = Section("Risks")
+    for option in ev.options:
+        invalid = [run for run in option.runs if run.output_issues]
+        if invalid:
+            first = invalid[0].output_issues[0]
+            section.lines.append(f"{label(option, start=True)} had output issues in {len(invalid)} run(s): "
+                                 f"{first['path']}: {first['message']}. Invalid values were excluded.")
     best = choice.best or (ev.options[0] if len(ev.options) == 1 else None)
     if best is not None:
         for requirement in choice.requirements:
             share = choice.meeting.get(best.label, {}).get(requirement.measure)
             if share is not None and share < 1:
-                missed = round((1 - share) * len(best.runs))
+                available = len(best.values(requirement.measure))
+                missed = round((1 - share) * available)
                 section.lines.append(f"{namer.name(requirement.measure).capitalize()} was {_MISSED[requirement.op]} "
                                      f"{namer.value(requirement.measure, requirement.value)} in {missed} of "
-                                     f"{len(best.runs)} runs.")
+                                     f"{available} runs.")
         for view in queues:
             below = summary(best.values(f"{view.name}_intervals_below_target"))
             if below is not None and below.median > 0:
