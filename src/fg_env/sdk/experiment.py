@@ -72,7 +72,7 @@ def _moments(values: List[float]) -> Dict[str, Any]:
     mean = sum(values) / n
     sd = math.sqrt(sum((v - mean) ** 2 for v in values) / (n - 1)) if n > 1 else 0.0
     half = _critical(n) * sd / math.sqrt(n) if n > 1 else 0.0
-    return {"mean": mean, "sd": sd, "min": min(values), "max": max(values), "ci95": [mean - half, mean + half]}
+    return {"mean": mean, "sd": sd, "min": min(values), "max": max(values), "ci95": [mean - half, mean + half] if n > 1 else None}
 
 
 @dataclass
@@ -100,7 +100,8 @@ class ExperimentResult:
         Run *i* of every arm shares a seed, so each difference compares like with like; a
         confidence interval that excludes zero means the arm moved the output. Runs that failed
         in either arm, or have no value, are left out of that pair. ``control`` defaults to the
-        first arm.
+        first arm. With fewer than two usable pairs, ``ci95`` is None and ``clear`` is False:
+        the observed difference alone does not estimate sampling uncertainty.
         """
         if not self.arms:
             return {}
@@ -125,8 +126,9 @@ class ExperimentResult:
                         diffs.append(a - b)
                 if diffs:
                     stats = _moments(diffs)
-                    low, high = stats["ci95"]
-                    per_output[key] = {"n": len(diffs), **stats, "clear": low > 0 or high < 0}
+                    interval = stats["ci95"]
+                    clear = interval is not None and (interval[0] > 0 or interval[1] < 0)
+                    per_output[key] = {"n": len(diffs), **stats, "clear": clear}
             out[name] = per_output
         return out
 
@@ -143,7 +145,10 @@ class ExperimentResult:
             for label, arm in self.arms.items():
                 stats = arm.outputs.get(key, {})
                 if "mean" in stats:
-                    cells.append(f"{label}: {stats['mean']:.4g} ± {stats['sd']:.2g} (n={stats['n']})")
+                    if stats["n"] < 2:
+                        cells.append(f"{label}: {stats['mean']:.4g} (n=1; uncertainty not estimated)")
+                    else:
+                        cells.append(f"{label}: {stats['mean']:.4g} ± {stats['sd']:.2g} (n={stats['n']})")
                 elif "rate" in stats:
                     cells.append(f"{label}: {stats['rate']:.0%} (n={stats['n']})")
                 elif "keys" in stats:
@@ -162,6 +167,10 @@ class ExperimentResult:
             control = next(iter(self.arms))
             for name, outputs in self.deltas(control).items():
                 for key, d in outputs.items():
+                    if d["ci95"] is None:
+                        lines.append(f"{name} − {control} · {key}: {d['mean']:+.4g} "
+                                     f"(n={d['n']}; uncertainty not estimated)")
+                        continue
                     verdict = "clear" if d["clear"] else "within noise"
                     lines.append(f"{name} − {control} · {key}: {d['mean']:+.4g} "
                                  f"(95% CI {d['ci95'][0]:+.3g} to {d['ci95'][1]:+.3g}, n={d['n']}, {verdict})")
