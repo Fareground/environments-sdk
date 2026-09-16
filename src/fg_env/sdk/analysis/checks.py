@@ -173,20 +173,33 @@ def _rounds_note(rounds: Optional[int]) -> str:
     return f" (runs were capped at {rounds} round(s); it may only happen later)" if rounds else ""
 
 
-def _output_findings(contract: Any, runs: Sequence[RunResult], rounds: Optional[int]) -> List[Finding]:
-    out: List[Finding] = []
-    issues: Dict[str, List[str]] = {}
+def _output_errors(runs: Sequence[RunResult], varied: Optional[Mapping[str, Any]] = None) -> List[Finding]:
+    issues: Dict[str, List[Tuple[int, str]]] = {}
     for r in runs:
         for issue in r.output_issues:
-            issues.setdefault(issue["path"], []).append(issue["message"])
-    for path, messages in issues.items():
-        out.append(Finding("output_issue", "warning", path, f"In {len(messages)} run(s) this output could not be "
-                           f"computed or had the wrong type: {messages[0]}.", {"messages": messages[:5]}))
+            issues.setdefault(issue["path"], []).append((r.seed, issue["message"]))
+    out = []
+    context = "When " + ", ".join(f"inputs.{k}={v!r}" for k, v in varied.items()) + ", " if varied else ""
+    for path, observations in issues.items():
+        seeds = list(dict.fromkeys(seed for seed, _ in observations))
+        messages = [message for _, message in observations]
+        evidence: Dict[str, Any] = {"messages": messages[:5], "seeds": seeds}
+        if varied:
+            evidence["inputs"] = dict(varied)
+        out.append(Finding("output_issue", "error", path,
+                           f"{context}this output could not be computed or had the wrong type in "
+                           f"{len(seeds)} run(s): {messages[0]}.", evidence))
+    return out
+
+
+def _output_findings(contract: Any, runs: Sequence[RunResult], rounds: Optional[int]) -> List[Finding]:
+    out = _output_errors(runs)
+    rejected = {finding.subject for finding in out}
     if len(runs) < 2:
         return out
     for name in contract.outputs:
         values = [json.dumps(r.outputs.get(name), sort_keys=True, default=str) for r in runs]
-        if f"outputs.{name}" in issues or len(set(values)) > 1:
+        if f"outputs.{name}" in rejected or len(set(values)) > 1:
             continue
         shown = values[0] if len(values[0]) <= 60 else values[0][:57] + "…"
         if runs[0].outputs.get(name) is None:
@@ -290,26 +303,32 @@ def _input_findings(contract: Any, base_inputs: Mapping[str, Any], baseline: Seq
     results = runner.run_jobs(contract, jobs, participants=participants, rounds=rounds, workers=workers,
                               hosts=hosts, require_success=False)
     grouped = runner.by_cell(jobs, results, len(cells))
-    base_prints = [_fingerprint(r) if r.status != "failed" else None for r in baseline]
+    base_prints = [_fingerprint(r) if r.status != "failed" and not r.output_issues else None for r in baseline]
     changed: Dict[str, List[Any]] = {}
-    broke: Dict[str, List[Tuple[Any, str]]] = {}
+    broke: Dict[str, List[Tuple[Any, str, int]]] = {}
     unfinished: Dict[str, List[RunResult]] = {}
+    compared: Dict[str, int] = {}
+    findings = []
     for (name, v), cell in zip(plan, grouped):
+        findings += _output_errors(cell, {name: v})
         for base_print, result in zip(base_prints, cell):
             if result.status not in ("completed", "ended", "failed"):
                 unfinished.setdefault(name, []).append(result)
             if result.status == "failed":
-                broke.setdefault(name, []).append((v, result.error or "failed"))
-            elif base_print is not None and _fingerprint(result) != base_print:
-                changed.setdefault(name, []).append(v)
-    findings = []
+                broke.setdefault(name, []).append((v, result.error or "failed", result.seed))
+            elif base_print is not None and not result.output_issues:
+                compared[name] = compared.get(name, 0) + 1
+                if _fingerprint(result) != base_print:
+                    changed.setdefault(name, []).append(v)
     for name in tested:
         tried = [v for n, v in plan if n == name]
         if name in broke:
-            value, error = broke[name][0]
-            findings.append(Finding("input_breaks_runs", "warning", f"inputs.{name}",
-                                    f"Setting it to {value!r} made runs fail: {error}.", {"value": value, "error": error}))
-        elif name not in changed and name not in unfinished:
+            value, error, _ = broke[name][0]
+            failed_seeds = [s for v, _, s in broke[name] if v == value]
+            findings.append(Finding("input_breaks_runs", "error", f"inputs.{name}",
+                                    f"Setting it to {value!r} made runs fail: {error}.", {"value": value, "error": error, "seeds": failed_seeds}))
+        elif (name not in changed and name not in unfinished
+              and compared.get(name, 0) == len(seeds) * len(tried)):
             findings.append(Finding("input_has_no_effect", "warning", f"inputs.{name}",
                                     f"Changing it (tried {', '.join(repr(v) for v in tried)}) changed no output and "
                                     f"no metric in {len(seeds)} seeded run(s){_rounds_note(rounds)}. It may be unused, "
