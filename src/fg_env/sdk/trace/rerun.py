@@ -346,7 +346,7 @@ def _from_start(recording: "Trace", contract: Any, start: Mapping[str, Any], hos
     from ..api import apply_arm, parse
     from ..host.hosts import bind
     from ..runtime import Env
-    from ..snapshot import restore_state
+    from ..snapshot import restore_state, contract_hash, _restore_rule_origin
 
     counts = start.get("exposures") or {"wakes": 0, "chance": 0}
     held = {"texts": dict(recording.texts), "wakes": recording.wakes[:counts["wakes"]],
@@ -354,7 +354,12 @@ def _from_start(recording: "Trace", contract: Any, start: Mapping[str, Any], hos
     snapshot = {**start, "exposures": held}
     unarmed = parse(contract)
     arm = start.get("arm")
-    armed = apply_arm(unarmed, arm) if arm is not None and arm in unarmed.arms else unarmed
+    # An effective contract already includes its variant and any later patches.
+    # Reapplying that variant would overwrite the rules actually recorded.
+    armed = unarmed if contract_hash(unarmed) == snapshot.get("contract") else (
+        apply_arm(unarmed, arm) if arm is not None and arm in unarmed.arms else unarmed)
+    if contract_hash(armed) == snapshot.get("contract"):
+        unarmed = _restore_rule_origin(snapshot, unarmed)
     try:
         env = restore_state(Env, armed, snapshot)
     except SnapshotError as exc:

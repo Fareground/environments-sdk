@@ -95,6 +95,7 @@ def take_snapshot(env: "Env") -> Dict[str, Any]:
     return {
         "fg_env_snapshot": SNAPSHOT_VERSION,
         "contract": contract_hash(env.contract),
+        **_rule_origin(env),
         "run": run_identity(env.seed, env.arm, inputs),
         "seed": env.seed, "arm": env.arm, "inputs": inputs,
         "status": env.status, "ended_by": env.ended_by, "error": env.error,
@@ -149,7 +150,7 @@ def matching_contract(contract: Any, snapshot: Mapping[str, Any]) -> Tuple[Contr
     check_snapshot(snapshot)
     base = contract if isinstance(contract, Contract) else parse(contract)
     if snapshot.get("contract") == contract_hash(base):
-        return base, base
+        return base, _restore_rule_origin(snapshot, base)
     arm = snapshot.get("arm")
     if isinstance(arm, str) and arm in base.arms:
         try:
@@ -157,12 +158,46 @@ def matching_contract(contract: Any, snapshot: Mapping[str, Any]) -> Tuple[Contr
         except ContractError:
             patched = None
         if patched is not None and snapshot.get("contract") == contract_hash(patched):
-            return patched, base
+            return patched, _restore_rule_origin(snapshot, base)
     if arm is not None and arm not in base.arms:
         raise SnapshotError(f"the snapshot's arm '{arm}' is not declared in this contract (arms: "
                             f"{', '.join(base.arms) or 'none'}); restore it into the contract it was taken with")
     raise SnapshotError("the snapshot was taken with a different contract (or this contract was changed since); "
                         f"restore continues a run exactly under its own contract — {_FORK_HINT}")
+
+
+
+def _rule_origin(env: "Env") -> Dict[str, Any]:
+    """Keep a different rule base only when future variant selection needs it."""
+    from .api import contract_source
+
+    base = env.origin.unarmed
+    if base is env.contract:
+        return {}
+    fingerprint = contract_hash(base)
+    if fingerprint == contract_hash(env.contract):
+        return {}
+    return {"rule_origin": {"hash": fingerprint, "source": contract_source(base)}}
+
+
+def _restore_rule_origin(snapshot: Mapping[str, Any], fallback: Contract) -> Contract:
+    """Optional provenance; old snapshots continue to use their supplied contract."""
+    from .api import located
+    from .check import parse_contract
+
+    if "rule_origin" not in snapshot:
+        return fallback
+    held = snapshot["rule_origin"]
+    if not isinstance(held, Mapping) or not isinstance(held.get("source"), Mapping) or not isinstance(held.get("hash"), str):
+        raise SnapshotError("snapshot rule_origin must contain its original contract source and hash")
+    try:
+        # Sources are already import-resolved. Never read files named inside saved data.
+        base = located(parse_contract(held["source"]), fallback._folder)
+    except ContractError as exc:
+        raise SnapshotError(f"snapshot rule_origin contains an invalid contract: {exc}") from None
+    if contract_hash(base) != held["hash"]:
+        raise SnapshotError("snapshot rule_origin contract was changed after it was saved")
+    return base
 
 
 def check_snapshot(snapshot: Any) -> None:
