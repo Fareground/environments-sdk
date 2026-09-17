@@ -3,7 +3,7 @@
 AUTHORING = '''\
 # Environments SDK: author a faithful scenario
 
-One JSON contract defines the scenario. Preserve requirements during repairs.
+Preserve scenario requirements when repairing the contract.
 
 ## Example: shared capacity
 
@@ -93,8 +93,7 @@ assert "Prioritize smallest backlog." in preview["brief"]
   entity per row when count is omitted. Never hardcode rows 0, 1, 2. Test empty,
   added, removed and reordered rows. Use stable input IDs as entity IDs when the
   domain needs persistent identity; duplicate IDs are invalid.
-- Objects with independent lifecycles belong in entities (orders, accounts,
-  cohorts); simple settings belong in maps. Use relations for links, records for history. Only decision-makers need `agent: true`; processes use events. Use views to expose precisely what each role is allowed to know.
+- Use entities for independent lifecycles (orders, accounts, cohorts); maps for settings. Use relations for links, records for history. Only decision-makers need `agent: true`; processes use events. Use views to expose precisely what each role is allowed to know.
 - Order matters: start events, stages, end events, metrics. Rounds advance after stages, not individual actions. Set `max_actions` explicitly for repeated choices. A per-round cap must track
   the total across ALL calls in that round and reset once; a parameter maximum
   only limits one call. Test a second action that tries to exceed the remaining cap.
@@ -120,13 +119,14 @@ assert "Prioritize smallest backlog." in preview["brief"]
   results from the brief BEFORE running, never from the contract or its output.
   Check balances, conservation, timing, zero cases, sensitivity and overlap. Inputs must change rules,
   not just reports.
-- Put per-round measures in `metrics`, final measures in `outputs`, not `views`.
+- Per-round `metrics` use expressions, no `format`. Final `outputs` support `format`.
+  Use `$map(type, {...})` for row reports.
   Test intermediate balances: pending means ALL created but unsettled items,
   not just those due after the horizon. Check created = settled + lost + pending.
 - Deliver assumptions, input controls, output meanings and tested limitations.
   Running does not prove accuracy.
 
-## Validate nested inputs
+## Nested inputs
 
 Lists use `items`; `required: true` rejects null. Define missing-data behavior:
 `$get(list, index, 0)` returns zero beyond the list; indexing fails. Test empty/short
@@ -159,19 +159,20 @@ for invalid in ([-1], ["invalid"], [None]):
         raise AssertionError("Invalid schedule was accepted")
 
 money = fg_env.run({"name": "Money", "types": {}, "clock": {"rounds": 1}, "world": {"cash_cents": 16600},
+    "metrics": {"cash": "$world.cash_cents / 100"},
     "outputs": {"cash": {"expr": "$world.cash_cents / 100", "format": "money"}}})
-assert money.outputs["cash"] == 166 and "$166.00" in money.summary()
+assert money.series["cash"] == [166] and money.outputs["cash"] == 166
+assert "$166.00" in money.summary()
 ```
 
-Defaults are not bounds. Use `number` for fractional money/effort/rates, `int`
-for whole counts. Derive loops/buckets from inputs, not arbitrary fixed limits.
-Bounds reject inputs. Never invent limits for controls; use `number` instead. Test zero,
-empty lists, duplicate names and changed row counts. Define zero-price/delay
-behavior; never hide it behind a nonzero divisor.
+Defaults are not bounds. Use `number` for fractions, `int` for counts. Derive
+loops/buckets from inputs. Never invent limits for controls. Test zero, empty
+lists, duplicate names and changed row counts. Define zero-price/delay behavior;
+never hide it behind a nonzero divisor.
 
 ## Focused references
 
 `fg_env.guide(part)` / `fg-env guide PART`: inputs, population, actions, stages,
-events, views, expressions, effects, running. `core` maps the SDK; `mechanisms`
+events, metrics, outputs, views, expressions, functions, effects, running. `core` maps the SDK; `mechanisms`
 lists reusable rules. Exact fields: `fg_env.schema()`.
 '''
