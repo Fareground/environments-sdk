@@ -50,7 +50,14 @@ from .sdk.report import Report, report
 from .sdk.trace import trace
 from .sdk.evaluate import evaluate
 from . import engines
-from .engines import EngineNotFound, clone as clone_engine, get as get_engine, list_engines, load as load_engine
+from .engines import (
+    EngineNotFound,
+    EngineUnavailable,
+    clone as clone_engine,
+    get as get_engine,
+    list_engines,
+    load as load_engine,
+)
 from . import personas
 from .personas import PersonaSample, SamplingProvenance, assign_labels, sample_records
 
@@ -112,6 +119,7 @@ __all__ = [
     "evaluate",
     "engines",
     "EngineNotFound",
+    "EngineUnavailable",
     "list_engines",
     "get_engine",
     "clone_engine",

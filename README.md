@@ -90,17 +90,18 @@ Discover a versioned engine, clone its starter, then customize the contract:
 ```python
 import fg_env
 
-for engine in fg_env.list_engines(product="simulation"):
-    print(engine.id, engine.status, [preset.id for preset in engine.presets])
+for engine in fg_env.list_engines():
+    print(engine.id, engine.status, engine.available)
 
 fg_env.clone_engine("market", "my_market.json", name="My market study")
 result = fg_env.experiment("my_market.json", runs=20, participants="random")
 print(result.table())
 ```
 
-All current Fareground simulation and Arena engines are represented. Native
-contract starters are preferred for new work; `legacy_compatible` entries keep
-existing engines runnable while their product environments are migrated.
+The catalog contains reusable behavioral engines only—not finished environments,
+scenario presets, or Arena games. Market, Council, Dispute, and Exchange are
+currently cloneable; the other engine boundaries are marked as Phase 2 work
+until their reusable mechanics are implemented.
 
 Persona generation is shared infrastructure rather than an environment:
 

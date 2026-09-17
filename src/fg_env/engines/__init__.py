@@ -1,14 +1,13 @@
-"""Versioned, reusable engine starters bundled with :mod:`fg_env`.
+"""Versioned, reusable behavioral engines bundled with :mod:`fg_env`.
 
-The catalogue separates reusable engines from their scenario/game presets.
-Native contract starters are the preferred base for new work.  Existing
-Fareground templates remain runnable through the compatibility runtime while
-they are migrated one engine at a time.
+This package deliberately contains engines, not finished environments, scenario
+presets, or Arena games.  A builder clones an available engine and supplies the
+roles, population, subject matter, and rules for its custom scenario.
 """
 from .catalog import (
     EngineCatalog,
     EngineNotFound,
-    EnginePreset,
+    EngineUnavailable,
     EngineSpec,
     catalog,
     clone,
@@ -20,7 +19,7 @@ from .catalog import (
 __all__ = [
     "EngineCatalog",
     "EngineNotFound",
-    "EnginePreset",
+    "EngineUnavailable",
     "EngineSpec",
     "catalog",
     "list_engines",
