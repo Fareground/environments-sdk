@@ -1422,6 +1422,20 @@
           "default": null,
           "title": "Max"
         },
+        "multiple_of": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Require a multiple of this positive numeric increment, measured from zero; e.g. 0.01 for cents. Unlike step, validates supplied data.",
+          "title": "Multiple Of"
+        },
         "values": {
           "anyOf": [
             {
