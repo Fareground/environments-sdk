@@ -181,3 +181,40 @@ def test_cli_reports_user_mistakes_without_tracebacks(tmp_path, capsys):
     for argv, status, message in cases:
         assert main(argv) == status, argv
         assert message in capsys.readouterr().err, argv
+
+
+def test_authoring_guide_example_and_known_answer_run_verbatim(tmp_path, monkeypatch):
+    page = guide('authoring')
+    assert len(page) < 10_000  # Fits a single reference page, also used by host agents.
+    contract_text = page.split('```json\n')[1].split('```')[0]
+    script = page.split('```python\n')[1].split('```')[0]
+    (tmp_path / 'scenario.json').write_text(contract_text)
+    monkeypatch.chdir(tmp_path)
+    exec(compile(script, '<authoring guide>', 'exec'), {})
+
+
+@pytest.mark.parametrize('rows,capacity,completed,pending', [
+    ([], 4, 0, 0),
+    ([{'name': 'A', 'quantity': 3}], 0, 0, 3),
+    ([{'name': 'B', 'quantity': 2}, {'name': 'A', 'quantity': 3}], 4, 5, 0),
+    ([{'name': str(i), 'quantity': 3} for i in range(4)], 4, 8, 4),
+])
+def test_authoring_example_uses_every_input_row_and_shared_capacity(rows, capacity, completed, pending):
+    contract = json.loads(guide('authoring').split('```json\n')[1].split('```')[0])
+    env = fg_env.load(contract, inputs={'items': rows, 'facility': {'capacity': capacity}}, seed=1)
+    assert len(env.entities('item')) == len(rows)
+
+    def greedy(wake):
+        available = capacity
+        for entity in env.entities('item'):
+            quantity = min(available, entity['props']['pending'], entity['props']['remaining_today'])
+            if quantity:
+                receipt = wake.call('allocate', {'item': entity['id'], 'quantity': quantity})
+                assert receipt.ok, receipt.text
+                available -= quantity
+        wake.end()
+
+    result = env.run(greedy)
+    assert result.ok, result.error
+    assert result.outputs == {'completed': completed, 'pending': pending}
+    assert completed + pending == sum(row['quantity'] for row in rows)

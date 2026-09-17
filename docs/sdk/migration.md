@@ -19,7 +19,7 @@ git remote set-url origin https://github.com/Fareground/environments-sdk.git
 Install the published distribution from PyPI:
 
 ```bash
-python -m pip install "fg-env==0.4.0"
+python -m pip install "fg-env==0.4.1"
 ```
 
 ## Contract API versus legacy templates

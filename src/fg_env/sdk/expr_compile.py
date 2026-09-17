@@ -154,7 +154,7 @@ def compile_expr(source: str) -> Expr:
     if len(source) > _MAX_SOURCE:
         raise ExprError("expression is too long", source[:60] + "…")
     try:
-        tree = ast.parse(_preprocess(source), mode="eval")
+        tree = ast.parse(_preprocess(source).strip(), mode="eval")
     except SyntaxError as exc:
         raise ExprError(syntax_message(source, str(exc.msg)), source) from None
     except (RecursionError, MemoryError):

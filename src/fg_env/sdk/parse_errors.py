@@ -109,6 +109,12 @@ def validation_issues(exc: ValidationError) -> List[Issue]:
                 fix: Optional[str] = f"'{key}' belongs to another part of the contract; remove it here"
             else:
                 fix = f"did you mean '{hint[0]}'?" if hint else "remove it"
+            if len(loc) == 3 and loc[0] == "events" and key in {"round", "rounds"}:
+                fix = 'Use at for scheduled rounds (at=2 or at=[2, 4]); use every for an interval (every=2)'
+            elif loc and loc[0] == "inputs" and key == "options":
+                fix = 'For a dropdown use type="enum", values=[...], display="select"; options is not an input field'
+            elif len(loc) == 2 and loc[0] == "brief" and not get_close_matches(key, C.Brief.model_fields, cutoff=0.7):
+                fix = f'Put role-specific instructions in brief.roles.{key}; keep shared instructions in brief.rules'
             issues.append(Issue(path, f"'{key}' is not a field here", fix))
         elif kind == "missing":
             issues.append(Issue(path, "is required"))

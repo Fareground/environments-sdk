@@ -457,7 +457,10 @@ class SdkWorld(World):
         elif kind == "bool" and not isinstance(value, bool):
             raise RunError(f"must be true or false, got {value!r}", where)
         elif kind == "text" and not isinstance(value, str):
-            raise RunError(f"must be text, got {value!r}", where)
+            hint = ('; property shorthand "bool" is a text default, not a type declaration; '
+                    'use {"type": "bool", "default": false}'
+                    if spec.type is None and spec.default == "bool" and isinstance(value, bool) else '')
+            raise RunError(f"must be text, got {value!r}{hint}", where)
         elif kind == "enum" and value not in (spec.values or []):
             raise RunError(f"must be one of {spec.values}, got {value!r}", where)
         elif kind == "list" and not isinstance(value, list):

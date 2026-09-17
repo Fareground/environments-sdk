@@ -119,3 +119,14 @@ def test_templates():
     assert render("{{literal}}", s) == "{literal}"
     with pytest.raises(ExprError, match="unknown format"):
         render("{price|dollars}", s)
+
+
+
+@pytest.mark.parametrize('source,expected', [
+    ('!($round > 5)', True),
+    ('!($round < 5)', False),
+    ('!!($round < 5)', True),
+    ('!($round > 5) && $actor.cash >= 40', True),
+])
+def test_boolean_negation_can_start_an_expression(source, expected):
+    assert evaluate(source, _scope()) is expected

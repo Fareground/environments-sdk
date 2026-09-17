@@ -107,3 +107,49 @@ def test_diplomacy_offers_disband_only_when_an_army_can_be_disbanded():
     env = fg_env.load(EXAMPLES / "diplomacy.json", seed=1)
     preview = env.preview(next(e["id"] for e in env.entities("nation")))
     assert "disband" not in [tool["name"] for tool in preview["tools"]]
+
+
+
+def test_input_options_and_role_brief_errors_preserve_the_authors_intent():
+    contract = _contract(inputs={'priority': {'type': 'text', 'display': 'select', 'options': ['due', 'fee']}},
+                         brief={'player': 'Prioritize urgent work.'})
+    issues = {issue.path: issue for issue in fg_env.check(contract, rounds=0)}
+    assert 'type="enum", values=[...], display="select"' in issues['inputs.priority.options'].fix
+    assert 'brief.roles.player' in issues['brief.player'].fix
+
+
+def test_bool_type_name_as_default_has_an_actionable_load_error():
+    import pytest
+    contract = {'name': 'Bool shorthand', 'types': {'item': {'props': {'done': 'bool'}}},
+                'entities': {'one': {'type': 'item', 'props': {'done': False}}}}
+    with pytest.raises(fg_env.RunError, match='type declaration'):
+        fg_env.load(contract)
+    # Preserve literal text compatibility; only the diagnostic changes.
+    contract['entities']['one']['props']['done'] = 'bool'
+    assert fg_env.load(contract).entities('item')[0]['props']['done'] == 'bool'
+
+
+
+def test_dynamic_goal_in_static_action_description_points_to_participant_brief():
+    contract = _contract()
+    contract['actions']['guess']['description'] = 'Pursue {$actor.pick}.'
+    issues = fg_env.check(contract, rounds=0)
+    warning = next(issue for issue in issues if issue.path == 'actions.guess.description')
+    assert warning.severity == 'warning'
+    assert 'brief.roles' in warning.fix and 'env.preview' in warning.fix
+    contract['actions']['guess']['description'] = 'Make a guess.'
+    contract['brief'] = {'roles': {'player': 'Pursue {$actor.pick}.'}}
+    assert not [issue for issue in fg_env.check(contract, rounds=0) if issue.path.endswith('.description')]
+    assert 'Pursue 0.' in fg_env.load(contract).preview('ann')['brief']
+
+
+def test_event_round_diagnostic_points_to_executable_schedule():
+    for misspelling in ('round', 'rounds'):
+        contract = {'name': 'Scheduled update', 'clock': {'rounds': 3}, 'types': {},
+                    'world': {'count': 0}, 'outputs': {'count': '$world.count'},
+                    'events': [{misspelling: 2, 'do': '$world.count += 1'}]}
+        issue = next(i for i in fg_env.check(contract, rounds=0) if i.path == f'events[0].{misspelling}')
+        assert 'at' in issue.fix and 'every' in issue.fix
+        contract['events'][0]['at'] = contract['events'][0].pop(misspelling)
+        result = fg_env.run(contract, lambda wake: wake.end())
+        assert result.ok and result.outputs['count'] == 1
