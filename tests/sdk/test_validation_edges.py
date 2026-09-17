@@ -44,3 +44,13 @@ def test_an_argument_whose_bound_reads_an_earlier_bad_argument_is_reported_not_c
     assert result.status == "completed", result.error
     assert "total must be a number" in told[0] and "part can be checked once total is corrected" in told[0]
     assert "not done" not in told[1]
+
+
+def test_entity_name_diagnostic_points_to_working_population_label():
+    contract = _contract(types={"player": {"agent": True, "props": {"name": "Label"}}})
+    issue = next(i for i in fg_env.check(contract) if i.path == "types.player.props.name")
+    assert "outside props" in issue.fix
+    contract["types"]["player"]["props"] = {}
+    contract["entities"] = {"ann": {"type": "player", "name": "Label"}}
+    assert not [i for i in fg_env.check(contract) if i.severity == "error"]
+    assert fg_env.load(contract).entity("ann")["name"] == "Label"

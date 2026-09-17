@@ -128,7 +128,9 @@ class WorldChecks:
                 self.error(f"types.{name}", "type names are letters, digits and underscores")
             for prop, prop_spec in spec.props.items():
                 if prop in ENTITY_FIELDS:
-                    self.error(f"types.{name}.props.{prop}", f"'{prop}' is a built-in entity field", "choose another name")
+                    fix = ("remove name from props; set name on the entity or population entry, outside props"
+                           if prop == "name" else "choose another property name; built-in entity fields already exist")
+                    self.error(f"types.{name}.props.{prop}", f"'{prop}' is a built-in entity field", fix)
                 self._prop_spec(prop_spec, f"types.{name}.props.{prop}", BASE - {"metrics", "series"} | {"row", "i", "it"},
                                 {"it": {name}})
             if spec.extends is not None:
