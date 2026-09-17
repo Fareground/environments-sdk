@@ -115,6 +115,9 @@ assert "Prioritize smallest backlog." in preview["brief"]
   equation: closing cash = opening cash + receipts - payments. Money returned to
   a customer reduces cash. Refundable deposits create liabilities, not revenue.
   Define refunds and settlement timing. For delays, define the due round and whether arrivals precede decisions.
+  `{"after": n, "do": [...]}` needs integer rounds `n >= 1`; due effects run
+  before start events/decisions. For zero delay, branch to immediate effects
+  or constrain the input to start at 1 if same-round delivery is unsupported.
 - Property shorthand is a DEFAULT value: `"done": false` is Boolean; `"done":
   "bool"` is literal text. For explicit types use `{"type": "bool", "default": false}`.
 - Expressions read `$inputs`, `$world`, `$actor`, `$params`; `population` uses
@@ -130,13 +133,11 @@ assert "Prioritize smallest backlog." in preview["brief"]
 - Deliver assumptions, input controls, output meanings and tested limitations.
   A runnable model is not proof of predictive accuracy. Keep omissions visible.
 
-## Validate nested inputs, not just the outer container
+## Validate nested inputs
 
-A list type alone accepts arbitrary elements. Use `items` to constrain each element,
-including lists inside table rows or objects. Set `required: true` on items
-when null elements are invalid. Control hints (`display`) choose how
-an input looks; they do not impose numerical bounds. For example, an editable
-nonnegative integer schedule inside each row:
+Use `items` to validate list elements, even inside table rows or objects;
+`required: true` rejects null elements. `display` chooses a control, not numerical
+bounds. Example: a nonnegative integer schedule in each editable row:
 
 ```python
 import fg_env
@@ -159,10 +160,9 @@ for invalid in ([-1], ["invalid"], [None]):
         raise AssertionError("Invalid schedule was accepted")
 ```
 
-Choose constraints from the scenario: signed quantities can be valid in other
-models. Test every supported boundary, including zero, empty lists, duplicate
-names and changed row counts. If zero price or zero delay is allowed, define and
-test its behavior explicitly; do not hide it behind an arbitrary nonzero divisor.
+Choose constraints from the scenario. Test zero, empty lists, duplicate names and
+changed row counts. Define zero-price/delay behavior explicitly; do not hide it
+behind an arbitrary nonzero divisor.
 
 ## Focused references
 
