@@ -29,7 +29,9 @@ Choose input types from the business units, not the example values. Money, effor
 
 Use `metrics` for per-round expressions and `outputs` for final results. `format`
 belongs on outputs, not metrics. For per-entity rows, use an output expression
-such as `$map(product, {name: $it.name, stock: $it.stock})`.
+such as `$map(product, {id: $it.id, name: $it.name, stock: $it.stock})`.
+Include entity IDs in row reports: display names may repeat, so names alone
+cannot identify which entity a result belongs to.
 
 Use integer minor units for accounting that must be exact. Dollar inputs and
 outputs can remain ordinary numbers: convert them to cents once, perform budget

@@ -113,3 +113,23 @@ def test_action_parameter_input_fields_point_to_executable_repair():
         wake.end()
     result = fg_env.run(contract, pay)
     assert result.ok and result.outputs == {"cash": 9.7}
+
+
+def test_dependent_step_schema_does_not_advertise_false_zero_based_multiples():
+    contract = _contract(actions={"choose": {"by": "player", "params": {
+        "start": {"type": "int", "min": 1},
+        "quantity": {"type": "int", "min": "$params.start", "step": 2}},
+        "do": []}})
+    env = fg_env.load(contract)
+    schema = env.preview("ann")["tools"][0]["input_schema"]["properties"]["quantity"]
+    assert "multipleOf" not in schema and "minimum" not in schema
+    assert "$params.start" in schema["description"] and "steps of 2" in schema["description"]
+    def choose(wake):
+        assert not wake.call("choose", {"start": 1, "quantity": 2}).ok
+        assert wake.call("choose", {"start": 1, "quantity": 3}).ok
+        wake.end()
+    assert env.run(choose).ok
+    contract["actions"]["choose"]["params"]["quantity"].update(type="number", min=0.001, step=0.002)
+    schema = fg_env.load(contract).preview("ann")["tools"][0]["input_schema"]["properties"]["quantity"]
+    assert "multipleOf" not in schema
+    assert "steps of 0.002 from 0.001" in schema["description"]

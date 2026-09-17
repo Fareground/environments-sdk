@@ -12,7 +12,6 @@ from .action_params import TEXT_MAX_LEN, _LISTED_UNKNOWN, _STEP_TOLERANCE, _item
 from .assets.intake import file_schema
 from .contract import ParamSpec
 from .expr import ExprError, compile_expr, is_expr, resolve
-from .template import format_value
 from .tool_text import compact_ids, shared_description, shared_param, text_limit, usage_limits
 from .world import _plain
 
@@ -161,9 +160,12 @@ class ActionSchemas:
             if param.step is not None:
                 base = out.get("minimum", 0) if param.min is not None else 0
                 if param.min is None or "minimum" in out:
-                    description = f"{description} In steps of {format_value(param.step)} from {format_value(base)}.".strip()
-                if abs(base / param.step - round(base / param.step)) <= _STEP_TOLERANCE:
-                    out["multipleOf"] = _tidy(param.step)
+                    description = f"{description} In steps of {_preview(_tidy(param.step))} from {_preview(_tidy(base))}.".strip()
+                    if abs(base / param.step - round(base / param.step)) <= _STEP_TOLERANCE:
+                        out["multipleOf"] = _tidy(param.step)
+                else:
+                    description = (f"{description} In steps of {_preview(_tidy(param.step))} from {param.min} "
+                                   "(resolved from the action arguments).").strip()
         elif param.type == "bool":
             out["type"] = "boolean"
         elif param.type == "file":

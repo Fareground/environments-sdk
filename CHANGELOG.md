@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.9] - 2026-09-17
+
+### Improved
+- Show entity IDs in per-entity report examples so duplicate display labels remain distinguishable.
+- Correct action tool schemas for increments whose minimum depends on another argument: do not advertise an incorrect zero-based multiple.
+- Distinguish configuration input constraints from action parameter constraints in the compact authoring guide and executable monetary example.
+- Give directly usable repair hints when input-only fields appear on action parameters, including nested list items.
+- Preserve numeric precision in action rejection messages so fractional-cent and boundary errors show the actual invalid value. Validation behavior is unchanged.
+
 ## [0.4.8] - 2026-09-17
 
 ### Improved

@@ -3,7 +3,7 @@
 AUTHORING = '''\
 # Environments SDK: author a faithful scenario
 
-Preserve scenario requirements when repairing the contract.
+Preserve requirements during repairs.
 
 ## Example: shared capacity
 
@@ -123,7 +123,7 @@ assert "Prioritize smallest backlog." in preview["brief"]
   Check balances, conservation, timing, zero cases, sensitivity and overlap. Inputs must change rules,
   not just reports.
 - Per-round `metrics` use expressions, no `format`. Final `outputs` support `format`.
-  Use `$map(type, {...})` for row reports.
+  Entity reports: `$map(type, {id: $it.id, ...})`; names may repeat.
   Test intermediate balances: pending means ALL created but unsettled items,
   not just those due after the horizon. Check created = settled + lost + pending.
 - Deliver assumptions, input controls, output meanings and tested limitations.
