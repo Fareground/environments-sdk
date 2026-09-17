@@ -24,11 +24,19 @@
 
 ## Overview
 
-**fg-env** turns one JSON contract into a running environment for AI agents: a market, a
-council, an exchange, a courtroom, an epidemic, a game. The contract declares the world, the
-people, what agents can do, what they see, how the world moves on its own, and what is measured.
-The engine builds the world, wakes agents, gives each a short plain-language picture with typed
-tools, applies their actions atomically, runs scheduled world rules, and returns typed outputs.
+**fg-env** turns one JSON contract into a running environment for AI agents. The contract
+declares the participants, roles, private and public information, legal actions, state
+transitions, stopping conditions, and measurements. The runtime builds the world, gives each
+agent an appropriate view and typed tools, applies actions atomically, and returns typed outputs.
+
+Use this SDK when you need to simulate people interacting under explicit rules and run the same
+scenario repeatedly. Start from one of twelve reusable behavioral engines—Market, Council,
+Dispute, Exchange, Legislature, Judged Contest, Deliberation, Negotiation, Population, Network,
+Matching, or Strategy—then customize the topic, participants, rules, information, and outcomes.
+
+Do not treat an engine as a finished scenario. Engines provide interaction mechanics; your
+environment supplies the real-world question and assumptions. Named Arena games and physical,
+spatial, logistics, or disease models are not part of the behavioral engine catalog.
 
 You write data, never engine code. The same contract runs with LLM agents, coded crowds, or both,
 and engine randomness is reproducible from its seed. Reproducing an LLM run also requires the same participant decisions; record traces for replay.
@@ -56,10 +64,12 @@ fg-env is one of Fareground's open-source building blocks, alongside
 Install Environments SDK from PyPI:
 
 ```bash
-python -m pip install "fg-env==0.5.0"
+python -m pip install --upgrade fg-env
 ```
 
-Python ≥ 3.11. The only runtime dependency is `pydantic`.
+The PyPI badge at the top of this page shows the current released version. This README documents
+the `main` branch; release-specific behavior is recorded in the [changelog](CHANGELOG.md).
+Python 3.11 or newer is required. The only runtime dependency is `pydantic`.
 
 ## Quickstart
 
@@ -99,9 +109,7 @@ print(result.table())
 ```
 
 The catalog contains reusable behavioral engines only—not finished environments,
-scenario presets, or Arena games. Market, Council, Dispute, and Exchange are
-currently cloneable; the other engine boundaries are marked as Phase 2 work
-until their reusable mechanics are implemented.
+scenario presets, or Arena games. All twelve engines are native, available, and cloneable.
 
 Persona generation is shared infrastructure rather than an environment:
 
@@ -206,12 +214,11 @@ by run, so differences between arms come from the arm, not from luck.
 
 ## Examples
 
-[`examples/contracts/`](https://github.com/Fareground/environments-sdk/tree/main/examples/contracts) holds complete environments. Each was written by an LLM
-agent from the guide alone, and each is covered by a golden-run test: a coffee market with sampled
-households and subscriptions, a forecasting council, a price-time-priority order-book exchange, a
-civil trial, a town epidemic with physics, Werewolf, a labor negotiation, Connect Four, a
-Hold'em-lite poker table, the beer distribution game, a climate club with a CO2 model, a
-ride-hailing city, checkers, a Diplomacy-style strategy game, and misinformation spreading on a follower network.
+[`examples/contracts/`](https://github.com/Fareground/environments-sdk/tree/main/examples/contracts)
+holds complete contracts covered by golden-run tests. They demonstrate contract features and
+lower-level mechanics; they are examples, not entries in the behavioral engine catalog. For new
+human-behavior scenarios, begin with the closest engine starter and customize it rather than
+copying a named example.
 
 ```bash
 fg-env run examples/contracts/werewolf.json --seed 3
@@ -234,6 +241,11 @@ New environments should use contracts.
 
 See [CONTRIBUTING.md](https://github.com/Fareground/environments-sdk/blob/main/CONTRIBUTING.md) for dev setup, tests and lint. What changed is in the
 [CHANGELOG](https://github.com/Fareground/environments-sdk/blob/main/CHANGELOG.md).
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE) for the full terms. Security issues should follow the
+private reporting process in [SECURITY.md](SECURITY.md).
 
 ---
 
