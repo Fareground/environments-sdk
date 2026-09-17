@@ -54,7 +54,7 @@ class InputSpec(_Model):
         if self.display in compatible and self.type not in compatible[self.display]:
             raise ValueError(f"display '{self.display}' does not support type '{self.type}'")
         if self.display in {"slider", "knob"} and (self.min is None or self.max is None or self.min >= self.max):
-            raise ValueError("slider and knob controls require min < max")
+            raise ValueError("slider and knob controls require min < max; use display=number for an input without justified finite bounds")
         if self.step is not None and self.type not in {"number", "int"}:
             raise ValueError("step only applies to numeric inputs")
         if self.fields is not None and self.type not in {"map", "table"}:
