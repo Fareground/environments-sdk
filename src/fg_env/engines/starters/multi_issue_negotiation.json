@@ -1,0 +1,252 @@
+{
+  "fg_env": "1",
+  "name": "Multi-Issue Negotiation Engine",
+  "description": "A reusable bilateral negotiation over several configurable issues. Each party has private priorities and a private walk-away value, can propose or counter complete terms, and may accept, reject, withdraw, or leave without agreement before the deadline.",
+  "inputs": {
+    "rounds": {
+      "type": "int",
+      "default": 6,
+      "min": 2,
+      "max": 30,
+      "description": "Maximum negotiation rounds."
+    },
+    "deadline": {
+      "type": "int",
+      "default": 5,
+      "min": 1,
+      "max": 30,
+      "description": "Last round in which an offer may be made or accepted."
+    },
+    "participants": {
+      "type": "table",
+      "description": "Two negotiating parties. Priority weights and reservation values are private.",
+      "columns": {
+        "id": "text",
+        "name": "text",
+        "role": "text",
+        "counterparty": "text",
+        "initiator": "bool",
+        "amount_weight": "number",
+        "scope_weight": "number",
+        "timing_weight": "number",
+        "reservation": "number"
+      },
+      "default": [
+        {
+          "id": "party_a",
+          "name": "Party A",
+          "role": "Seeks broader scope while controlling amount and timing.",
+          "counterparty": "party_b",
+          "initiator": true,
+          "amount_weight": -0.6,
+          "scope_weight": 0.9,
+          "timing_weight": -0.2,
+          "reservation": 11
+        },
+        {
+          "id": "party_b",
+          "name": "Party B",
+          "role": "Seeks a larger amount and more time while limiting scope.",
+          "counterparty": "party_a",
+          "initiator": false,
+          "amount_weight": 0.8,
+          "scope_weight": -0.3,
+          "timing_weight": 0.5,
+          "reservation": 17
+        }
+      ]
+    }
+  },
+  "brief": {
+    "situation": "You are negotiating a binding agreement with one other party. Every offer sets all three terms: amount, scope, and timing. These neutral issue names are intended to be renamed and rebounded when this engine is cloned for a real scenario.",
+    "rules": "You may propose terms, counter an offer made to you, accept, reject, or withdraw your own open offer. Offers expire after two rounds. The first accepted agreement closes the negotiation. No new offer or acceptance is allowed after round {$inputs.deadline}. Your priorities and walk-away value are private; do not accept terms worth less than your walk-away value unless the scenario author deliberately changes that rule.",
+    "roles": {
+      "party": "Negotiate according to your private priorities and constraints. Explain trade-offs without revealing private values unless doing so serves your strategy."
+    }
+  },
+  "clock": {
+    "rounds": "$inputs.rounds",
+    "unit": "round"
+  },
+  "types": {
+    "party": {
+      "agent": true,
+      "description": "A human party to the negotiation.",
+      "props": {
+        "role": {
+          "type": "text",
+          "default": ""
+        },
+        "counterparty": {
+          "type": "text",
+          "default": "",
+          "private": true
+        },
+        "initiator": {
+          "type": "bool",
+          "default": false
+        },
+        "amount_weight": {
+          "type": "number",
+          "default": 0,
+          "private": true
+        },
+        "scope_weight": {
+          "type": "number",
+          "default": 0,
+          "private": true
+        },
+        "timing_weight": {
+          "type": "number",
+          "default": 0,
+          "private": true
+        }
+      }
+    }
+  },
+  "population": [
+    {
+      "type": "party",
+      "from": "$inputs.participants",
+      "id": "{$row.id}",
+      "name": "{$row.name}",
+      "props": {
+        "role": "$row.role",
+        "counterparty": "$row.counterparty",
+        "initiator": "$row.initiator",
+        "amount_weight": "$row.amount_weight",
+        "scope_weight": "$row.scope_weight",
+        "timing_weight": "$row.timing_weight",
+        "agreement_reservation": "$row.reservation"
+      },
+      "brief": "Your scenario role: {$actor.role}"
+    }
+  ],
+  "mechanisms": {
+    "agreement": {
+      "kind": "agreements",
+      "mode": "negotiation",
+      "who": "party",
+      "deadline": "$inputs.deadline",
+      "expires": 2,
+      "max_depth": 8,
+      "reservation": 0,
+      "value": "$party.amount_weight * $terms.amount + $party.scope_weight * $terms.scope + $party.timing_weight * $terms.timing",
+      "issues": {
+        "amount": {
+          "type": "number",
+          "min": 0,
+          "max": 100,
+          "description": "The amount or price dimension; rename and rescale for the scenario."
+        },
+        "scope": {
+          "type": "number",
+          "min": 0,
+          "max": 100,
+          "description": "The breadth, quantity, or commitment dimension."
+        },
+        "timing": {
+          "type": "int",
+          "min": 1,
+          "max": 12,
+          "unit": "periods",
+          "description": "The delivery, duration, or timing dimension."
+        }
+      }
+    }
+  },
+  "stages": [
+    {
+      "name": "negotiate",
+      "turns": "sequential",
+      "max_actions": 2,
+      "max_calls": 8,
+      "brief": "Negotiation round {$round}. Offers close after round {$inputs.deadline}."
+    }
+  ],
+  "views": {
+    "private_position": {
+      "for": "party",
+      "title": "Your private position",
+      "bullet": false,
+      "show": "Walk-away value {agreement_reservation|1}. Priorities: amount {amount_weight|2}, scope {scope_weight|2}, timing {timing_weight|2}."
+    }
+  },
+  "policies": {
+    "cooperative": {
+      "repeat": true,
+      "rules": [
+        {
+          "when": "$any(agreement_offer, $it.status == open and $actor.id in $it.recipients and $agreement_value($actor, $it.terms) >= $actor.agreement_reservation)",
+          "do": "agreement_accept",
+          "with": {
+            "offer": "$pick(agreement_offer, $it.status == open and $actor.id in $it.recipients)"
+          }
+        },
+        {
+          "when": "$actor.initiator and $count(agreement_offer, $it.status == open) == 0 and not $world.agreement_closed",
+          "do": "agreement_propose",
+          "with": {
+            "to": "$actor.counterparty",
+            "amount": 50,
+            "scope": 70,
+            "timing": 6,
+            "note": "A balanced opening package."
+          }
+        }
+      ]
+    }
+  },
+  "metrics": {
+    "deal_active": {
+      "expr": "1 if $count(agreement_deal) > 0 else 0"
+    },
+    "offer_activity": {
+      "expr": "$world.agreement_stats.offers + $world.agreement_stats.counters"
+    }
+  },
+  "outputs": {
+    "deal_signed": {
+      "type": "bool",
+      "expr": "$count(agreement_deal) > 0",
+      "description": "Whether the parties reached an agreement."
+    },
+    "agreement_round": {
+      "type": "int",
+      "expr": "$pick(agreement_deal, true).signed if $count(agreement_deal) > 0 else null",
+      "description": "Round in which the agreement was signed, or null."
+    },
+    "terms": {
+      "type": "map",
+      "expr": "$pick(agreement_deal, true).terms if $count(agreement_deal) > 0 else null",
+      "description": "The accepted terms, or null."
+    },
+    "offers": {
+      "type": "int",
+      "expr": "$world.agreement_stats.offers"
+    },
+    "counteroffers": {
+      "type": "int",
+      "expr": "$world.agreement_stats.counters"
+    },
+    "rejections": {
+      "type": "int",
+      "expr": "$world.agreement_stats.rejected"
+    },
+    "withdrawals": {
+      "type": "int",
+      "expr": "$world.agreement_stats.withdrawn"
+    },
+    "expired_offers": {
+      "type": "int",
+      "expr": "$world.agreement_stats.expired"
+    }
+  },
+  "end": [
+    {
+      "when": "$world.agreement_closed",
+      "name": "agreement",
+      "say": "The parties signed an agreement."
+    }
+  ]
+}

@@ -37,7 +37,7 @@ class EngineSpec:
         """Read this engine's reusable starter contract."""
         if self.path is None:
             raise EngineUnavailable(
-                f"engine {self.id!r} is planned for Phase 2 and has no reusable "
+                f"engine {self.id!r} is planned for Phase 1 completion and has no reusable "
                 "implementation in this SDK version"
             )
         resource = files("fg_env.engines").joinpath(self.path)

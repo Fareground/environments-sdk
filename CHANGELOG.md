@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2] - 2026-09-17
+
+### Added
+- Make Negotiation the fifth native behavioral engine. Its cloneable starter
+  supports multi-issue offers, counteroffers, private priorities and walk-away
+  values, deadlines, expiry, acceptance, rejection and withdrawal.
+- Verify scenario customization, sampled/fixed participant cohorts, private
+  position boundaries, deterministic execution and N-run aggregation.
+
+### Changed
+- Treat the remaining seven unavailable behavioral engines as unfinished Phase
+  1 SDK work rather than Phase 2 product-environment work.
+
 ## [0.5.1] - 2026-09-17
 
 ### Fixed
