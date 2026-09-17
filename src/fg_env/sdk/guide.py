@@ -10,6 +10,7 @@ from difflib import get_close_matches
 from typing import Any, Callable, Dict, List, Optional
 
 from . import contract as C
+from .authoring_guide import AUTHORING
 from .guide_pages import (SECTIONS, effects_page, expressions_page, family_page, function_groups, functions_index,
                           functions_page, mechanisms_page, mode_page, section_page)
 from .analysis.optimise_guide import OPTIMISE
@@ -170,6 +171,7 @@ PARTS
 """
 
 _PARTS_MAP = [
+    ("authoring", "compact scenario workflow with configurable objects, dynamic entities and a known-answer test"),
     ("<section>", "one section's fields and roots: " + ", ".join(f"`{name}`" for name, *_ in SECTIONS)),
     ("model", "how a run works in detail: turns, atomic turns, time limits, hooks, invariants, what an agent reads"),
     ("expressions", "the expression language in full, with every root by location"),
@@ -205,6 +207,7 @@ def _game_page() -> str:
 
 _TOPICS: Dict[str, Callable[[], str]] = {
     "core": _core,
+    "authoring": lambda: AUTHORING,
     "model": lambda: MODEL,
     "expressions": expressions_page,
     "templates": lambda: TEMPLATES.replace("FORMATS", ", ".join(f"`{f}`" for f in FORMATS)),
@@ -225,7 +228,7 @@ _TOPICS: Dict[str, Callable[[], str]] = {
 def guide_parts() -> List[str]:
     """Every name ``guide`` accepts, in the order ``guide('all')`` renders them (``all`` itself last)."""
     sections = [name for name, *_ in SECTIONS if name not in _TOPICS and name not in FAMILIES]
-    names = ["core", "model", *sections, "assets", "expressions", "templates", "effects", "functions"]
+    names = ["core", "authoring", "model", *sections, "assets", "expressions", "templates", "effects", "functions"]
     names += [f"functions.{group}" for group in function_groups() if group not in FAMILIES]
     names += ["patterns", "macros", "recipes", "mechanisms"]
     for name, family in FAMILIES.items():

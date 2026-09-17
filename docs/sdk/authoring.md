@@ -2,6 +2,13 @@
 
 The shortest reliable path is **brief → contract → checks → known-answer tests → run → review**. Start with the smallest model that preserves the decision the user wants to make.
 
+## Start with the executable guide
+
+Run `fg-env guide authoring` (or `fg_env.guide("authoring")`) for the compact, tested
+starting path: configurable objects and tables, dynamic entities, shared capacity,
+round timing and an exact known-answer check. Hosts can include this installed-SDK
+guide directly in an authoring agent’s starting context.
+
 ## 1. Make the decision explicit
 
 Write down the decision, horizon, actors, controllable inputs and outputs before writing rules. For example: “Should a distributor raise safety stock for seasonal products over the next 12 weeks, given supplier delays and a fixed cash budget?”
@@ -54,7 +61,7 @@ Ship the contract and its data together, with:
 
 Use this as a starting instruction in your own authoring workflow:
 
-> Build a rounds-based environment with the Environments SDK. Read `fg-env guide`, then the relevant sections. Map each requirement to contract rules and observable checks. Make uncertain assumptions explicit inputs. Use public SDK APIs and keep scenario logic in the contract. Check the contract, preview every role, run a deterministic baseline, and verify a small known-answer case. Report omissions and unsupported behavior. Deliver the contract, data, tests and run instructions.
+> Build a rounds-based environment with the Environments SDK. Read `fg-env guide authoring`, then only the reference sections needed. Map each requirement to contract rules and observable checks. Make uncertain assumptions explicit inputs. Use public SDK APIs and keep scenario logic in the contract. Check the contract, preview every role, run a deterministic baseline, and verify a small known-answer case. Report omissions and unsupported behavior. Deliver the contract, data, tests and run instructions.
 
 The agent should repair errors using their paths and suggested fixes, then rerun the affected checks. A clean checker result does not prove that the brief was captured faithfully.
 
