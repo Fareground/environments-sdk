@@ -143,11 +143,15 @@ One small, strict expression language is used everywhere:
 `$top(offer, [$it.rating, -$it.price], 5)`. Unknown properties and type errors are reported with
 the fix; nothing silently evaluates to zero.
 
-The authoring guide is generated from the SDK itself, so it always matches the engine. `fg-env guide` prints the
-short core guide (enough for a first environment) with a map of every other part; `fg-env guide all` prints everything:
+Start with `fg-env guide authoring`: a compact, executable path from configurable
+objects and tables to decisions, rounds and known-answer checks. Hosts can put
+`fg_env.guide("authoring")` directly in an authoring agent’s starting context.
+Field references are generated from the installed SDK; `fg-env guide` maps the
+full language and `fg-env guide all` prints the complete reference.
 
 ```bash
-fg-env guide              # or: python -c "import fg_env; print(fg_env.guide())"
+fg-env guide authoring    # or: python -c 'import fg_env; print(fg_env.guide("authoring"))'
+fg-env guide              # full language map
 fg-env guide stages       # one section's fields and the $roots available there
 fg-env guide market       # a mechanism family; fg-env guide market.auction for one mode
 ```

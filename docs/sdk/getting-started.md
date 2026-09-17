@@ -2,6 +2,10 @@
 
 Run a retailer for four weeks. Each week, the retailer orders stock, customers buy what is available, and the engine records cash and inventory. This example requires no API key.
 
+For a compact example with editable objects and multiple entities, use
+`fg-env guide authoring` after installing. Its known-answer test checks the
+actual output, and the [authoring workflow](authoring.md) explains how to adapt it.
+
 ## 1. Install
 
 ```bash
