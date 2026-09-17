@@ -23,7 +23,7 @@ Represent objects with their own lifecycle as entities: an order that can arrive
 
 Entity `id`, `name`, `type`, `alive` and `at` are built-in fields, not custom properties. Put display labels in the entity or population entry’s `name`, outside `props`. Within `create.props`, `$it` refers to the new entity; capture values from the enclosing loop in local variables before creating it.
 
-Choose input types from the business units, not the example values. Money, effort and rates can be fractional (`type: "number"`); counts of indivisible items use `int`. An example of two hours per job does not imply whole-hour work. Defaults do not define minimums or maximums. Derive processing and bucket sizes from configured data instead of constraining customer inputs to match a hardcoded implementation. Use a number control when there is no justified finite range for a slider or knob, and explain any necessary modeling limit.
+Choose input types from the business units, not the example values. Money, effort and rates can be fractional (`type: "number"`); counts of indivisible items use `int`. An example of two hours per job does not imply whole-hour work. Defaults do not define minimums or maximums. Derive processing and bucket sizes from configured data instead of constraining customer inputs to match a hardcoded implementation. Input bounds reject values; they are not just the visual scale of a control. Do not invent a maximum merely to use a slider or knob. Use a number control unless the brief or domain justifies a finite range, and explain necessary modeling limits.
 
 ## Exact monetary budgets
 

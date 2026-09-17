@@ -126,7 +126,7 @@ assert "Prioritize smallest backlog." in preview["brief"]
   Test intermediate balances: pending means ALL created but unsettled items,
   not just those due after the horizon. Check created = settled + lost + pending.
 - Deliver assumptions, input controls, output meanings and tested limitations.
-  Running is not proof of predictive accuracy.
+  Running does not prove accuracy.
 
 ## Validate nested inputs
 
@@ -161,9 +161,9 @@ for invalid in ([-1], ["invalid"], [None]):
         raise AssertionError("Invalid schedule was accepted")
 ```
 
-Defaults are not limits. Use `number` for fractional money/effort/rates, `int`
+Defaults are not bounds. Use `number` for fractional money/effort/rates, `int`
 for whole counts. Derive loops/buckets from inputs, not arbitrary fixed limits.
-Use number controls without a justified finite slider/knob range. Test zero,
+Bounds reject inputs. Never invent limits for controls; use `number` instead. Test zero,
 empty lists, duplicate names and changed row counts. Define zero-price/delay
 behavior; never hide it behind a nonzero divisor.
 
