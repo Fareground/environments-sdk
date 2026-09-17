@@ -46,6 +46,23 @@ For every important requirement, write one observable check. Useful cases includ
 
 Calculate at least one small run by hand. Assert exact inventory, cash or capacity balances after each important transition. Also test changes: higher demand should not create inventory, and doubling a product table should not silently drop half the products.
 
+Check configured values without editing the contract's defaults:
+
+```bash
+fg-env check scenario.json --inputs-file inputs.json --rounds 8
+fg-env checks scenario.json --inputs-file inputs.json --boundaries --runs 2 --rounds 8
+```
+
+The Python equivalents are `fg_env.check(..., inputs=values)` and
+`fg_env.behavior_checks(..., inputs=values, boundaries=True)`. Boundary checks sample
+zero/min/max values, enum choices, empty/short collections and fields in the first
+row/item, with a default limit of 24 configurations. Reports state when that limit
+is reached and give the input path, value, seed and runtime error for failures.
+These checks do not cover every row or combination, behavior after the round cap,
+or whether requested business rules and reports are complete. Keep the independent
+known-answer tests. For time series, explicitly choose what missing future values
+mean; `$get(schedule, $round - 1, 0)` uses zero after the list ends.
+
 ## 6. Hand off a complete environment
 
 Ship the contract and its data together, with:

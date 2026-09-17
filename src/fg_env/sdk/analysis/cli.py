@@ -262,7 +262,8 @@ def cmd_checks(args: argparse.Namespace) -> int:
 
     report = behavior_checks(args.file, runs=args.runs, rounds=args.rounds, seed=args.seed,
                              participants=_participants(args.agent) or "random", inputs=_inputs(args),
-                             workers=args.workers, data_dir=args.data_dir)
+                             workers=args.workers, data_dir=args.data_dir, boundaries=args.boundaries,
+                             max_boundary_cases=args.max_boundary_cases)
     _emit(report, args.json)
     return 0 if report.ok else 1
 
@@ -386,6 +387,8 @@ def add_analysis_commands(sub: Any) -> None:
                                       "(exit status 1 when runs fail)")
     _run_options(p)
     p.add_argument("--runs", type=int, default=4)
+    p.add_argument("--boundaries", action="store_true", help="also sample declared input boundaries, including nested fields")
+    p.add_argument("--max-boundary-cases", type=int, default=24, help="maximum boundary configurations to sample")
     p.set_defaults(func=_guarded(cmd_checks))
 
     p = sub.add_parser("highlights", help="the notable moments of one run")

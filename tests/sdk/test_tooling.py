@@ -194,6 +194,29 @@ def test_authoring_guide_example_and_known_answer_run_verbatim(tmp_path, monkeyp
         exec(compile(script, '<authoring guide>', 'exec'), {})
 
 
+def test_check_configured_inputs_without_mutating_defaults(tmp_path, capsys):
+    contract = {"name": "Configured check", "types": {}, "world": {"value": 0},
+                "inputs": {"settings": {"type": "map", "default": {}, "fields": {
+                    "scale": {"type": "number", "default": 2, "min": 0}}}},
+                "events": [{"do": "$world.value = 10 / $inputs.settings.scale"}]}
+    original = json.loads(json.dumps(contract))
+    assert not [i for i in fg_env.check(contract) if i.severity == "error"]
+    supplied = {"settings": {"scale": 0}}
+    assert not [i for i in fg_env.check(contract, rounds=0, inputs=supplied) if i.severity == "error"]
+    assert any("division by zero" in i.message for i in fg_env.check(contract, inputs=supplied))
+    invalid = fg_env.check(contract, rounds=0, inputs={"settings": {"scale": -1}})
+    assert any(i.path == "inputs.settings" and i.severity == "error" for i in invalid)
+    assert contract == original and supplied == {"settings": {"scale": 0}}
+    path = tmp_path / "configured.json"
+    path.write_text(json.dumps(contract))
+    values = tmp_path / "inputs.json"
+    values.write_text(json.dumps(supplied))
+    for flags in (["--input", 'settings={"scale":0}'], ["--inputs-file", str(values)]):
+        assert main(["check", str(path), "--json", *flags]) == 1
+        assert any("division by zero" in i["message"] for i in json.loads(capsys.readouterr().out))
+    assert json.loads(path.read_text()) == original
+
+
 @pytest.mark.parametrize('rows,capacity,completed,pending', [
     ([], 4, 0, 0),
     ([{'name': 'A', 'quantity': 3}], 0, 0, 3),
