@@ -10,9 +10,8 @@ simplify it to make validation pass. No spatial model is needed for rounds-based
 
 ## Small complete example: allocate a shared resource
 
-This example teaches composition, not a built-in scenario. Each editable table row
-becomes an entity. One operator allocates shared capacity AND each item’s daily allowance. The example
-has a two-round horizon; real authors choose their own timing, decisions and rules.
+Each editable row becomes an entity. One operator allocates shared capacity and
+per-item allowances over a configurable horizon.
 
 ```json
 {
@@ -130,6 +129,8 @@ assert "Prioritize smallest backlog." in preview["brief"]
   do not copy the contract expression or observed output as the expected answer. Check conservation (cash, stock, capacity), timing, zero cases and
   sensitivity. A declared input appearing only in an output is not a mechanism.
   Check deduplication/overlap explicitly when combining audiences or populations.
+- Record every requested per-round measure in `metrics` and final measure in
+  `outputs`. Participant `views` are observations, not user reports.
 - Deliver assumptions, input controls, output meanings and tested limitations.
   A runnable model is not proof of predictive accuracy. Keep omissions visible.
 
