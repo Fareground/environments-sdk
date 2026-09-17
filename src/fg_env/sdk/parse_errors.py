@@ -113,6 +113,15 @@ def validation_issues(exc: ValidationError) -> List[Issue]:
                 fix = 'Use at for scheduled rounds (at=2 or at=[2, 4]); use every for an interval (every=2)'
             elif loc and loc[0] == "inputs" and key == "options":
                 fix = 'For a dropdown use type="enum", values=[...], display="select"; options is not an input field'
+            elif (len(loc) >= 5 and loc[0] == "actions" and loc[2] == "params"
+                  and all(part == "items" for part in loc[4:-1])):
+                if key == "multiple_of":
+                    fix = ('Action parameters use step for enforced increments from min (or zero); '
+                           'for whole cents use min=0 or min=0.01 and step=0.01. '
+                           'multiple_of belongs to configuration inputs')
+                elif key in {"label", "display"}:
+                    fix = ('Describe an action parameter with description; label/display configure '
+                           'input controls, not participant action tools')
             elif len(loc) == 2 and loc[0] == "brief" and not get_close_matches(key, C.Brief.model_fields, cutoff=0.7):
                 fix = f'Put role-specific instructions in brief.roles.{key}; keep shared instructions in brief.rules'
             issues.append(Issue(path, f"'{key}' is not a field here", fix))
