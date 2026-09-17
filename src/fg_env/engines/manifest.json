@@ -57,7 +57,8 @@
       "id": "negotiation",
       "title": "Negotiation",
       "description": "Simulates proposals, counteroffers, concessions, constraints, agreements, and walkaways between human parties.",
-      "status": "planned"
+      "status": "native",
+      "path": "starters/multi_issue_negotiation.json"
     },
     {
       "id": "population",

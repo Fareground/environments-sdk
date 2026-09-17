@@ -20,9 +20,9 @@ The engine catalog contains exactly these twelve boundaries:
 - **Matching** — preferences and eligibility produce selections or pairings.
 - **Strategy** — interdependent choices model cooperation, competition, and consequences.
 
-Market, Council, Dispute, and Exchange have native SDK implementations. The
-remaining eight are explicit Phase 2 work: they are discoverable so builders can
-plan correctly, but cannot be cloned until their reusable mechanics are built.
+Market, Council, Dispute, Exchange, and Negotiation have native SDK implementations.
+The remaining seven are Phase 1 work: they are discoverable so builders can plan
+correctly, but cannot be cloned until their reusable mechanics are built.
 The SDK does not package existing Fareground environments or Arena games as a
 substitute for those missing implementations.
 
