@@ -130,6 +130,40 @@ assert "Prioritize smallest backlog." in preview["brief"]
 - Deliver assumptions, input controls, output meanings and tested limitations.
   A runnable model is not proof of predictive accuracy. Keep omissions visible.
 
+## Validate nested inputs, not just the outer container
+
+A list type alone accepts arbitrary elements. Use `items` to constrain each element,
+including lists inside table rows or objects. Set `required: true` on items
+when null elements are invalid. Control hints (`display`) choose how
+an input looks; they do not impose numerical bounds. For example, an editable
+nonnegative integer schedule inside each row:
+
+```python
+import fg_env
+
+input_example = {"name": "Typed schedules", "types": {}, "inputs": {
+    "rows": {"type": "table", "display": "table", "default": [], "fields": {
+        "name": {"type": "text", "required": True},
+        "schedule": {"type": "list", "display": "list", "default": [],
+                     "items": {"type": "int", "min": 0, "required": True}}
+    }}
+}}
+loaded = fg_env.load(input_example, inputs={"rows": [{"name": "A", "schedule": [0, 2]}]})
+assert loaded.inputs["rows"][0]["schedule"] == [0, 2]
+for invalid in ([-1], ["invalid"], [None]):
+    try:
+        fg_env.load(input_example, inputs={"rows": [{"name": "A", "schedule": invalid}]})
+    except fg_env.ContractError:
+        pass
+    else:
+        raise AssertionError("Invalid schedule was accepted")
+```
+
+Choose constraints from the scenario: signed quantities can be valid in other
+models. Test every supported boundary, including zero, empty lists, duplicate
+names and changed row counts. If zero price or zero delay is allowed, define and
+test its behavior explicitly; do not hide it behind an arbitrary nonzero divisor.
+
 ## Focused references
 
 `fg_env.guide(part)` or `fg-env guide PART`: inputs, population, actions, stages,

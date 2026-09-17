@@ -187,10 +187,11 @@ def test_authoring_guide_example_and_known_answer_run_verbatim(tmp_path, monkeyp
     page = guide('authoring')
     assert len(page) < 10_000  # Fits a single reference page, also used by host agents.
     contract_text = page.split('```json\n')[1].split('```')[0]
-    script = page.split('```python\n')[1].split('```')[0]
+    scripts = [block.split('```')[0] for block in page.split('```python\n')[1:]]
     (tmp_path / 'scenario.json').write_text(contract_text)
     monkeypatch.chdir(tmp_path)
-    exec(compile(script, '<authoring guide>', 'exec'), {})
+    for script in scripts:
+        exec(compile(script, '<authoring guide>', 'exec'), {})
 
 
 @pytest.mark.parametrize('rows,capacity,completed,pending', [
