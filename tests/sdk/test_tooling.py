@@ -55,6 +55,10 @@ def test_every_function_belongs_to_a_named_group():
 
 
 def test_an_unknown_part_suggests_the_closest_one():
+    for group in ("math", "collections", "stats"):
+        with pytest.raises(KeyError, match=f"did you mean 'functions.{group}'"):
+            guide(group)
+        assert guide(f"functions.{group}").strip()
     with pytest.raises(KeyError, match="did you mean 'market.auction'"):
         guide("market.auctoin")
     with pytest.raises(KeyError, match="did you mean 'actions'"):

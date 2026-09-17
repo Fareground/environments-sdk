@@ -267,7 +267,10 @@ def guide(part: Optional[str] = None) -> str:
                            if not (name.startswith("functions.") and name.partition(".")[2] in FAMILIES))
     rendered = _render(part)
     if rendered is None:
-        hint = get_close_matches(part, guide_parts(), n=1, cutoff=0.6)
+        # A bare function-group name is a better match than an unrelated
+        # fuzzy topic (for example, math previously suggested market).
+        hint = ([f"functions.{part}"] if part in function_groups()
+                else get_close_matches(part, guide_parts(), n=1, cutoff=0.6))
         suggestion = f"did you mean '{hint[0]}'? " if hint else ""
         raise KeyError(f"unknown guide part '{part}' → {suggestion}guide() ends with a map of every part")
     return rendered
