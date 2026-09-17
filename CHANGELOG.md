@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.5] - 2026-09-17
+
+- Match static validation to runtime creation scope: `create.props` reads `$it`
+  as the new entity; outer locals and creation labels keep their existing scope.
+  Catch invalid outer-property reads before execution and accept valid self-initialization.
+- Clarify built-in entity fields and give an actionable name-placement diagnostic.
+- Demonstrate intermediate pending balances and distinguish input bounds from UI hints.
+  Keep the executable authoring guide within its existing size limit.
+
 ## [0.4.4] - 2026-09-17
 
 - Demonstrate exact monetary budgets with integer minor units and an executable
