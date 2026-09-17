@@ -3,10 +3,9 @@
 AUTHORING = '''\
 # Environments SDK: author a faithful scenario
 
-One JSON contract defines the scenario. Separate facts from assumptions; preserve
-requirements when fixing failures.
+One JSON contract defines the scenario. Preserve requirements during repairs.
 
-## Small complete example: allocate a shared resource
+## Example: shared capacity
 
 ```json
 {
@@ -14,9 +13,9 @@ requirements when fixing failures.
   "clock": {"rounds": "$inputs.horizon", "unit": "day"},
   "brief": {"rules": "Allocate capacity to work items. Shared and per-item allowances reset each day. Finish as much as possible.", "roles": {"operator": "Prioritize {$inputs.facility.priority}."}},
   "inputs": {
-    "horizon": {"type": "int", "default": 2, "min": 1, "max": 30, "display": "slider", "label": "Days"},
+    "horizon": {"type": "int", "default": 2, "min": 1, "display": "number", "label": "Days"},
     "facility": {"type": "map", "display": "object", "default": {}, "fields": {
-      "capacity": {"type": "int", "default": 4, "min": 0, "max": 100, "display": "knob", "label": "Daily capacity"},
+      "capacity": {"type": "int", "default": 4, "min": 0, "display": "number", "label": "Daily capacity"},
       "priority": {"type": "enum", "values": ["smallest backlog", "largest backlog"], "default": "largest backlog", "display": "select"}
     }},
     "items": {"type": "table", "display": "table", "fields": {
@@ -53,7 +52,7 @@ requirements when fixing failures.
 }
 ```
 
-Save as `scenario.json`; validate, preview and run:
+Save as `scenario.json`:
 
 ```python
 import fg_env
@@ -87,8 +86,8 @@ assert "Prioritize smallest backlog." in preview["brief"]
   Bind `$inputs` in defaults, `population.from`, actions or events. `display` may be
   text, textarea, number, select, toggle, date, slider, knob, table, object, list or
   json. Dropdowns use `type: "enum"`, `values: [...]`, `display: "select"`.
-  Bind goals in `brief.roles.<type>` so participants read them. Action descriptions are static text, not templates.
-  Slider/knob need numeric bounds. Bind a configurable duration with
+  Bind goals in `brief.roles.<type>`. Action descriptions are static, not templates.
+  Use number for open ranges; sliders/knobs need justified bounds. Bind duration with
   `"clock": {"rounds": "$inputs.horizon", "unit": "day"}`.
 - Editable collections must remain data-driven: `population.from` creates one
   entity per row when count is omitted. Never hardcode rows 0, 1, 2. Test empty,
@@ -103,9 +102,8 @@ assert "Prioritize smallest backlog." in preview["brief"]
   only limits one call. Test a second action that tries to exceed the remaining cap.
   Charge a shared budget/capacity once, in the same atomic action as the outcome.
   Money: closing cash = opening cash + receipts - payments; deposits are liabilities.
-  Keep dollar inputs/outputs but budget and floor ratios in integer cents
-  (`$round(value * 100)`); convert action amounts before checking/charging.
-  Formatting does not fix arithmetic. Test 0.10 + 0.20 under a 0.30 cap and
+  Keep dollar inputs/outputs; compute budgets and floor ratios in integer cents
+  (`$round(value * 100)`). `format: "money"` takes DOLLARS, never cents. Test 0.10 + 0.20 under a 0.30 cap and
   0.30 buying three units at 0.10. Define refund, settlement and arrival timing.
   `{"after": n, "do": [...]}` needs integer rounds `n >= 1`; due effects run
   before start events/decisions. For zero delay, branch to immediate effects
@@ -130,9 +128,9 @@ assert "Prioritize smallest backlog." in preview["brief"]
 
 ## Validate nested inputs
 
-List elements use `items`; `required: true` rejects null. For horizons beyond
-schedules, state a missing-data policy. Here `$get(list, index, 0)` means no arrivals after the
-list ends; direct indexing would fail. Test short/empty lists and longer horizons.
+Lists use `items`; `required: true` rejects null. Define missing-data behavior:
+`$get(list, index, 0)` returns zero beyond the list; indexing fails. Test empty/short
+schedules and longer horizons.
 
 ```python
 import fg_env
@@ -159,6 +157,10 @@ for invalid in ([-1], ["invalid"], [None]):
         pass
     else:
         raise AssertionError("Invalid schedule was accepted")
+
+money = fg_env.run({"name": "Money", "types": {}, "clock": {"rounds": 1}, "world": {"cash_cents": 16600},
+    "outputs": {"cash": {"expr": "$world.cash_cents / 100", "format": "money"}}})
+assert money.outputs["cash"] == 166 and "$166.00" in money.summary()
 ```
 
 Defaults are not bounds. Use `number` for fractional money/effort/rates, `int`
@@ -171,6 +173,5 @@ behavior; never hide it behind a nonzero divisor.
 
 `fg_env.guide(part)` / `fg-env guide PART`: inputs, population, actions, stages,
 events, views, expressions, effects, running. `core` maps the SDK; `mechanisms`
-lists reusable rules. Use mechanisms only when they fit.
-Exact fields: `fg_env.schema()`.
+lists reusable rules. Exact fields: `fg_env.schema()`.
 '''
