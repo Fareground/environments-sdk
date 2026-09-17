@@ -17,9 +17,10 @@ has a two-round horizon; real authors choose their own timing, decisions and rul
 ```json
 {
   "name": "Shared capacity",
-  "clock": {"rounds": 2, "unit": "day"},
+  "clock": {"rounds": "$inputs.horizon", "unit": "day"},
   "brief": {"rules": "Allocate capacity to work items. Shared and per-item allowances reset each day. Finish as much as possible.", "roles": {"operator": "Prioritize {$inputs.facility.priority}."}},
   "inputs": {
+    "horizon": {"type": "int", "default": 2, "min": 1, "max": 30, "display": "slider", "label": "Days"},
     "facility": {"type": "map", "display": "object", "default": {}, "fields": {
       "capacity": {"type": "int", "default": 4, "min": 0, "max": 100, "display": "knob", "label": "Daily capacity"},
       "priority": {"type": "enum", "values": ["smallest backlog", "largest backlog"], "default": "largest backlog", "display": "select"}
@@ -79,6 +80,8 @@ result = fg_env.run("scenario.json", fixed_policy, seed=1)
 assert result.ok
 assert result.outputs == {"completed": 5, "pending": 0}
 assert result.series["completed"] == [4, 5]
+short = fg_env.run("scenario.json", fixed_policy, inputs={"horizon": 1}, seed=1)
+assert short.ok and short.outputs == {"completed": 4, "pending": 1}
 preview = fg_env.load("scenario.json", inputs={"facility": {"priority": "smallest backlog"}}).preview("manager")
 assert "Prioritize smallest backlog." in preview["brief"]
 ```
@@ -92,7 +95,9 @@ assert "Prioritize smallest backlog." in preview["brief"]
   json. Dropdowns use `type: "enum"`, `values: [...]`, `display: "select"`.
   Roles use `brief.roles.<type>`; put selected goals there so the participant reads
   their actual values. Action descriptions are static text, not templates.
-  Slider/knob need numeric bounds. Hosts render hints using their existing UI.
+  Slider/knob need numeric bounds. Bind a configurable duration with
+  `"clock": {"rounds": "$inputs.horizon", "unit": "day"}` as above.
+  Hosts render hints using their existing UI.
 - Editable collections must remain data-driven: `population.from` creates one
   entity per row when count is omitted. Never hardcode rows 0, 1, 2. Test empty,
   added, removed and reordered rows. Use stable input IDs as entity IDs when the
