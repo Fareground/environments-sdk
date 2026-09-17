@@ -120,14 +120,14 @@ class ActionValidation:
                     raise RunError(f"the {label} bound must be a number, got {format_value(limit)}",
                                    f"actions.{action}.params.{pname}")
                 if limit is not None and bad(value, limit):
-                    return None, f"must be {label} {format_value(limit)} (got {format_value(value)})"
+                    return None, f"must be {label} {_preview(limit)} (got {_preview(value)})"
             if param.step is not None:
                 base = compile_expr(param.min)(scope or self.world.scope(actor=actor, params=params)) \
                     if is_expr(param.min) else param.min
                 offset = (value - (base or 0)) / param.step
                 if abs(offset - round(offset)) > _STEP_TOLERANCE:
-                    return None, f"must go in steps of {format_value(param.step)} from {format_value(base or 0)} " \
-                                 f"(got {format_value(value)})"
+                    return None, f"must go in steps of {_preview(param.step)} from {_preview(base or 0)} " \
+                                 f"(got {_preview(value)})"
             return value, None
         if kind == "file":
             return file_value(self.world, param, raw)
