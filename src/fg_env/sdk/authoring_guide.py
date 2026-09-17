@@ -3,14 +3,12 @@
 AUTHORING = '''\
 # Environments SDK: author a faithful scenario
 
-An environment is one JSON contract of rules. Start from the user's decision,
-actors, inputs, timing and outcomes. Separate facts from assumptions. Preserve
-requirements; do not simplify them to pass validation. Rounds need no spatial model.
+One JSON contract defines actors, inputs, timing, rules and outcomes. Separate
+facts from assumptions. Preserve requirements when fixing validation failures.
 
 ## Small complete example: allocate a shared resource
 
-Each editable row becomes an entity. One operator allocates shared capacity and
-per-item allowances over a configurable horizon.
+Each row becomes an entity; an operator allocates shared and per-item capacity.
 
 ```json
 {
@@ -166,9 +164,11 @@ for invalid in ([-1], ["invalid"], [None]):
         raise AssertionError("Invalid schedule was accepted")
 ```
 
-Choose constraints from the scenario. Test zero, empty lists, duplicate names and
-changed row counts. Define zero-price/delay behavior explicitly; do not hide it
-behind an arbitrary nonzero divisor.
+Defaults are not limits. Use `number` for fractional money/effort/rates, `int`
+for whole counts. Derive loops/buckets from inputs, not arbitrary fixed limits.
+Use number controls without a justified finite slider/knob range. Test zero,
+empty lists, duplicate names and changed row counts. Define zero-price/delay
+behavior; never hide it behind a nonzero divisor.
 
 ## Focused references
 

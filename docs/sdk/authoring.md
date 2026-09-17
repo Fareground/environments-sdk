@@ -21,6 +21,8 @@ For each outcome, identify what changes it. Stock depends on opening inventory, 
 
 Represent objects with their own lifecycle as entities: an order that can arrive late or be canceled usually deserves an identity. Use maps and lists for simpler structured values; use records for history.
 
+Choose input types from the business units, not the example values. Money, effort and rates can be fractional (`type: "number"`); counts of indivisible items use `int`. An example of two hours per job does not imply whole-hour work. Defaults do not define minimums or maximums. Derive processing and bucket sizes from configured data instead of constraining customer inputs to match a hardcoded implementation. Use a number control when there is no justified finite range for a slider or knob, and explain any necessary modeling limit.
+
 ## 3. Choose the timing
 
 Name each round and stage. State whether delivery happens before demand, whether participants observe competitors' decisions, and when payment clears. These choices can change the answer more than a sophisticated demand equation.
