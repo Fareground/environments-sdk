@@ -37,7 +37,12 @@ checks and whole-unit ratios in cents, then divide by 100 for reporting. A money
 format changes presentation, not numeric arithmetic. The `money` formatter takes
 dollars in outputs, views and action receipts. Convert every cent-valued expression
 there, not only the final report. State the rounding policy.
-This example rounds inputs to cents and requires action amounts in whole cents.
+Configuration inputs and action parameters have different schemas. On `inputs`,
+`multiple_of: 0.01` validates cents and `step` is a display hint. On action
+`params`, `step: 0.01` validates increments from `min` (or zero); describe them
+with `description`, not input-only `label` or `display`. Do not put `multiple_of`
+on action parameters. For whole cents, choose a cent-aligned minimum.
+This example rejects fractional cents before changing the budget.
 
 ```python
 import fg_env
@@ -57,10 +62,9 @@ money = {
     "stages": [{"name": "allocate", "max_actions": 4}],
     "actions": {"spend": {
         "by": "operator",
-        "params": {"amount": {"type": "number", "min": 0.01,
-                              "max": "$world.available_cents / 100"}},
-        "when": [{"expr": "$params.amount == $round($params.amount, 2)",
-                  "why": "Use whole cents."}],
+        "params": {"amount": {"type": "number", "min": 0.01, "step": 0.01,
+                              "max": "$world.available_cents / 100",
+                              "description": "Amount in dollars, in whole cents."}},
         "do": ["$cost_cents = $round($params.amount * 100)",
                "$world.available_cents -= $cost_cents", "$world.spent_cents += $cost_cents"],
         "outcome": "Paid {$cost_cents / 100|money}."
@@ -69,6 +73,7 @@ money = {
                 "units": "$world.spent_cents // $world.unit_cents"}
 }
 def spend_in_parts(wake):
+    assert not wake.call("spend", {"amount": 0.105}).ok
     for amount, receipt in [(0.10, "Paid $0.10."), (0.20, "Paid $0.20.")]:
         paid = wake.call("spend", {"amount": amount})
         assert paid.ok and paid.text == receipt
@@ -165,7 +170,8 @@ Hosts may render `display` hints using their own controls; the standalone SDK
 validates and resolves values without requiring a UI. Supported displays are
 `number`, `text`, `textarea`, `select`, `toggle`, `date`, `slider`, `knob`,
 `table`, `object`, `list` and `json`. Sliders and knobs require numeric bounds.
-`step` is a presentation increment, not rounding or a constraint on the engine.
+For configuration inputs, `step` is a presentation increment, not rounding or
+a validation constraint. Action parameters differ: their `step` is enforced.
 Use `multiple_of` to validate numeric increments: `0.01` for whole-cent dollar
 inputs or `6` for packs of six. It applies to defaults and supplied values,
 including nested fields and list items, and is measured from zero independently

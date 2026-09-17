@@ -89,19 +89,22 @@ assert "Prioritize smallest backlog." in preview["brief"]
   Bind goals in `brief.roles.<type>`. Action descriptions are static.
   Use number for open ranges; sliders/knobs need justified bounds. Bind duration with
   `"clock": {"rounds": "$inputs.horizon", "unit": "day"}`.
-- Keep editable collections data-driven: `population.from` creates one
-  entity per row when count is omitted. Never hardcode rows 0, 1, 2. Test empty,
+- `population.from` creates one entity per input row if count is omitted.
+  Never hardcode row indices. Test empty,
   added, removed and reordered rows. Use stable input IDs as entity IDs when the
   domain needs persistent identity; duplicate IDs are invalid.
-- Use entities for independent lifecycles (orders, accounts, cohorts); maps for settings. Use relations for links, records for history. Only decision-makers need `agent: true`; processes use events. Use views to expose precisely what each role is allowed to know.
+- Entities have lifecycles; maps hold settings, relations links, records history.
+  Decision-makers use `agent: true`; processes use events; views control visibility.
 - Order matters: start events, stages, end events, metrics. Rounds advance after stages, not individual actions. Set `max_actions` explicitly for repeated choices. A per-round cap must track
   the total across ALL calls in that round and reset once; a parameter maximum
   only limits one call. Test a second action that tries to exceed the remaining cap.
   Charge a shared budget/capacity once, in the same atomic action as the outcome.
   Cash = opening + receipts - payments; deposits are liabilities.
   Use dollar inputs/outputs; compute budgets and floor ratios in cents
-  (`$round(value * 100)`). Validate cents with `multiple_of: 0.01`;
-  `step` is only a UI hint. Money formats take dollars in reports AND receipts:
+  (`$round(value * 100)`). For cents: `inputs` use `multiple_of: 0.01` (`step` is UI-only);
+  action `params` use enforced `step: 0.01` from `min` or 0, and `description`,
+  not input-only `label`/`display`/`multiple_of`.
+  Money formats take dollars in reports AND receipts:
   `"outcome": "Paid {$cost_cents / 100|money}." Test 0.10 + 0.20 under a 0.30 cap and
   0.30 buying three units at 0.10. Define refund, settlement and arrival timing.
   `{"after": n, "do": [...]}` needs integer rounds `n >= 1`; due effects run
