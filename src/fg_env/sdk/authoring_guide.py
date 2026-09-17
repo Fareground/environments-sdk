@@ -10,9 +10,8 @@ simplify it to make validation pass. No spatial model is needed for rounds-based
 
 ## Small complete example: allocate a shared resource
 
-This example teaches composition, not a built-in scenario. Each editable table row
-becomes an entity. One operator allocates shared capacity AND each item’s daily allowance. The example
-has a two-round horizon; real authors choose their own timing, decisions and rules.
+Each editable row becomes an entity. One operator allocates shared capacity and
+per-item allowances over a configurable horizon.
 
 ```json
 {
@@ -115,6 +114,9 @@ assert "Prioritize smallest backlog." in preview["brief"]
   equation: closing cash = opening cash + receipts - payments. Money returned to
   a customer reduces cash. Refundable deposits create liabilities, not revenue.
   Define refunds and settlement timing. For delays, define the due round and whether arrivals precede decisions.
+  `{"after": n, "do": [...]}` needs integer rounds `n >= 1`; due effects run
+  before start events/decisions. For zero delay, branch to immediate effects
+  or constrain the input to start at 1 if same-round delivery is unsupported.
 - Property shorthand is a DEFAULT value: `"done": false` is Boolean; `"done":
   "bool"` is literal text. For explicit types use `{"type": "bool", "default": false}`.
 - Expressions read `$inputs`, `$world`, `$actor`, `$params`; `population` uses
@@ -127,8 +129,41 @@ assert "Prioritize smallest backlog." in preview["brief"]
   do not copy the contract expression or observed output as the expected answer. Check conservation (cash, stock, capacity), timing, zero cases and
   sensitivity. A declared input appearing only in an output is not a mechanism.
   Check deduplication/overlap explicitly when combining audiences or populations.
+- Record every requested per-round measure in `metrics` and final measure in
+  `outputs`. Participant `views` are observations, not user reports.
 - Deliver assumptions, input controls, output meanings and tested limitations.
   A runnable model is not proof of predictive accuracy. Keep omissions visible.
+
+## Validate nested inputs
+
+Use `items` to validate list elements, even inside table rows or objects;
+`required: true` rejects null elements. `display` chooses a control, not numerical
+bounds. Example: a nonnegative integer schedule in each editable row:
+
+```python
+import fg_env
+
+input_example = {"name": "Typed schedules", "types": {}, "inputs": {
+    "rows": {"type": "table", "display": "table", "default": [], "fields": {
+        "name": {"type": "text", "required": True},
+        "schedule": {"type": "list", "display": "list", "default": [],
+                     "items": {"type": "int", "min": 0, "required": True}}
+    }}
+}}
+loaded = fg_env.load(input_example, inputs={"rows": [{"name": "A", "schedule": [0, 2]}]})
+assert loaded.inputs["rows"][0]["schedule"] == [0, 2]
+for invalid in ([-1], ["invalid"], [None]):
+    try:
+        fg_env.load(input_example, inputs={"rows": [{"name": "A", "schedule": invalid}]})
+    except fg_env.ContractError:
+        pass
+    else:
+        raise AssertionError("Invalid schedule was accepted")
+```
+
+Choose constraints from the scenario. Test zero, empty lists, duplicate names and
+changed row counts. Define zero-price/delay behavior explicitly; do not hide it
+behind an arbitrary nonzero divisor.
 
 ## Focused references
 

@@ -56,7 +56,7 @@ fg-env is one of Fareground's open-source building blocks, alongside
 Install Environments SDK from PyPI:
 
 ```bash
-python -m pip install "fg-env==0.4.1"
+python -m pip install "fg-env==0.4.2"
 ```
 
 Python ≥ 3.11. The only runtime dependency is `pydantic`.
