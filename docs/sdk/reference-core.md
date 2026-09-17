@@ -143,6 +143,7 @@ Native building blocks expand into ordinary actions, stages, views and outputs: 
 ## Every other part
 
 Read with `fg_env.guide('<part>')` or `fg-env guide <part>`; `guide('all')` is everything.
+- `authoring` — compact scenario workflow with configurable objects, dynamic entities and a known-answer test
 - `<section>` — one section's fields and roots: `brief`, `clock`, `inputs`, `world`, `assets`, `types`, `entities`, `population`, `records`, `actions`, `stages`, `views`, `events`, `triggers`, `end`, `metrics`, `outputs`, `invariants`, `mechanisms`, `game`, `space`, `relations`, `links`, `physics`, `feeds`, `policies`, `arms`, `calibration`, `defs`, `blocks`, `imports`
 - `model` — how a run works in detail: turns, atomic turns, time limits, hooks, invariants, what an agent reads
 - `expressions` — the expression language in full, with every root by location

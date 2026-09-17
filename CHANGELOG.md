@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.8] - 2026-09-17
+
+### Improved
+- Clarified metric expressions versus formatted outputs, with executable report assertions in the authoring guide.
+- Added ordered-processing guidance using sorted collections and list priority keys, avoiding unsupported loop fields and numeric tie-break shortcuts.
+- Refreshed the generated SDK reference pages for these authoring examples. No simulation engine behavior changes.
+
 ## [0.4.7] - 2026-09-17
 
 - Add numeric input `multiple_of` validation for increments such as cents or pack
