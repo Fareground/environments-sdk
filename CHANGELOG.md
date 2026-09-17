@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.4] - 2026-09-17
+
+- Demonstrate exact monetary budgets with integer minor units and an executable
+  cent-precision example; preserve ordinary dollar inputs and outputs.
+
+- Clarify that defaults are not limits: use fractional numeric inputs where the
+  business units allow them and derive processing bounds from configured data.
+- Suggest exact function-group reference names before unrelated fuzzy topics
+  (for example, `math` now points to `functions.math`, not `market`).
+- Explain how to recover from an unbounded slider/knob declaration without
+  inventing arbitrary limits: use a number control.
+
 ## [0.4.3] - 2026-09-17
 
 - Validate configured inputs with `check(inputs=...)`, `fg-env check --input`,

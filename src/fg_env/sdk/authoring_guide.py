@@ -92,7 +92,7 @@ assert "Prioritize smallest backlog." in preview["brief"]
   Roles use `brief.roles.<type>`; put selected goals there so the participant reads
   their actual values. Action descriptions are static text, not templates.
   Slider/knob need numeric bounds. Bind a configurable duration with
-  `"clock": {"rounds": "$inputs.horizon", "unit": "day"}` as above.
+  `"clock": {"rounds": "$inputs.horizon", "unit": "day"}`.
   Hosts render hints using their existing UI.
 - Editable collections must remain data-driven: `population.from` creates one
   entity per row when count is omitted. Never hardcode rows 0, 1, 2. Test empty,
@@ -107,10 +107,11 @@ assert "Prioritize smallest backlog." in preview["brief"]
   the total across ALL calls in that round and reset once; a parameter maximum
   only limits one call. Test a second action that tries to exceed the remaining cap.
   Charge a shared budget/capacity once, in the same atomic action as the outcome.
-  For money, record both cash received and cash paid. Write the conservation
-  equation: closing cash = opening cash + receipts - payments. Money returned to
-  a customer reduces cash. Refundable deposits create liabilities, not revenue.
-  Define refunds and settlement timing. For delays, define the due round and whether arrivals precede decisions.
+  Money: closing cash = opening cash + receipts - payments; deposits are liabilities.
+  Keep dollar inputs/outputs but budget and floor ratios in integer cents
+  (`$round(value * 100)`); convert action amounts before checking/charging.
+  Formatting does not fix arithmetic. Test 0.10 + 0.20 under a 0.30 cap and
+  0.30 buying three units at 0.10. Define refund, settlement and arrival timing.
   `{"after": n, "do": [...]}` needs integer rounds `n >= 1`; due effects run
   before start events/decisions. For zero delay, branch to immediate effects
   or constrain the input to start at 1 if same-round delivery is unsupported.
@@ -174,6 +175,6 @@ behavior; never hide it behind a nonzero divisor.
 
 `fg_env.guide(part)` / `fg-env guide PART`: inputs, population, actions, stages,
 events, views, expressions, effects, running. `core` maps the SDK; `mechanisms`
-lists reusable rules. Use only mechanisms that fit, otherwise compose rules.
-`fg_env.schema()` gives exact field definitions.
+lists reusable rules. Use mechanisms only when they fit.
+Exact fields: `fg_env.schema()`.
 '''
