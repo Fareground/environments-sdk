@@ -1,0 +1,921 @@
+{
+  "name": "Auction",
+  "description": "Bidders compete to acquire an item under one of several auction formats (English, Dutch, sealed-bid first or second price, reverse). Bidders have private valuations, budget constraints, and varying risk appetites. Watch winner's curse, bid shading, jump bidding, and strategic late-bidding emerge.",
+  "scenario_type": "economic",
+  "spatial": {
+    "type": "none"
+  },
+  "temporal": {
+    "phases": [
+      {
+        "name": "bidding",
+        "description": "Bidders place bids according to the active auction format",
+        "active_roles": [
+          "Bidder"
+        ]
+      },
+      {
+        "name": "settlement",
+        "description": "Auctioneer evaluates the bids and announces the winner",
+        "active_roles": [
+          "Auctioneer"
+        ]
+      }
+    ]
+  },
+  "entity_types": [
+    {
+      "name": "Bidder",
+      "role": "agent",
+      "description": "A participant bidding for the auctioned item with a private valuation and budget",
+      "properties": [
+        {
+          "name": "private_valuation",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Bidder's true value for the item (hidden from others)",
+          "hidden": true
+        },
+        {
+          "name": "budget",
+          "type": "float",
+          "default": 1.0,
+          "min_value": 0.0,
+          "max_value": null,
+          "description": "Maximum amount this bidder can spend",
+          "hidden": false
+        },
+        {
+          "name": "risk_appetite",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Willingness to bid aggressively close to or above valuation",
+          "hidden": false
+        },
+        {
+          "name": "patience",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Tendency to wait and snipe vs. bid early",
+          "hidden": false
+        },
+        {
+          "name": "information_quality",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "How well-informed about the item's true (common) value",
+          "hidden": false
+        },
+        {
+          "name": "current_high_bid",
+          "type": "float",
+          "default": 0.0,
+          "min_value": 0.0,
+          "max_value": null,
+          "description": "Highest bid this agent has placed so far",
+          "hidden": false
+        },
+        {
+          "name": "still_in",
+          "type": "bool",
+          "default": true,
+          "description": "Whether this bidder is still active in the auction",
+          "hidden": false
+        }
+      ]
+    },
+    {
+      "name": "Auctioneer",
+      "role": "agent",
+      "description": "Runs the auction — announces the current ask price, validates bids, declares the winner",
+      "properties": [
+        {
+          "name": "reserve_price",
+          "type": "float",
+          "default": 0.1,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Minimum acceptable winning bid",
+          "hidden": true
+        },
+        {
+          "name": "current_ask",
+          "type": "float",
+          "default": 0.0,
+          "min_value": 0.0,
+          "max_value": null,
+          "description": "Currently announced ask price (for English/Dutch)",
+          "hidden": false
+        }
+      ]
+    }
+  ],
+  "resource_types": [
+    {
+      "name": "money",
+      "conservation": true,
+      "discrete": false,
+      "min_value": 0.0,
+      "max_value": null,
+      "description": "Currency bidders use to pay for the item"
+    }
+  ],
+  "relation_types": [
+    {
+      "name": "rivalry",
+      "symmetric": true,
+      "default_value": 0.0,
+      "min_value": 0.0,
+      "max_value": 1.0,
+      "description": "Competitive tension between specific bidders"
+    }
+  ],
+  "visibility_rules": [
+    {
+      "observer_type": "*",
+      "visible_entity_types": [
+        "Bidder",
+        "Auctioneer"
+      ],
+      "visible_properties": {
+        "Bidder": [
+          "budget",
+          "risk_appetite",
+          "patience",
+          "information_quality",
+          "current_high_bid",
+          "still_in"
+        ],
+        "Auctioneer": [
+          "current_ask"
+        ]
+      },
+      "max_range": null,
+      "requires_same_location": false,
+      "see_relations_involving_self": true,
+      "see_all_relations": false,
+      "visible_resources": [
+        "money"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "name": "place_bid",
+      "description": "Submit a bid at the current ask price or higher (English) / at any sealed price (sealed-bid)",
+      "actor_type": "Bidder",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [
+        {
+          "subject": "actor",
+          "operator": "eq",
+          "field": "still_in",
+          "value": true
+        }
+      ],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "message_action": false,
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "current_high_bid",
+          "value": 0.05,
+          "description": "Bidder commits to a higher bid"
+        }
+      ],
+      "effects_on_failure": []
+    },
+    {
+      "name": "pass_bid",
+      "description": "Decline to raise — pass on bidding higher this round (English auction)",
+      "actor_type": "Bidder",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [
+        {
+          "subject": "actor",
+          "operator": "eq",
+          "field": "still_in",
+          "value": true
+        }
+      ],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "set",
+          "field": "still_in",
+          "value": false,
+          "description": "Bidder drops out of the bidding"
+        }
+      ],
+      "effects_on_failure": []
+    },
+    {
+      "name": "jump_bid",
+      "description": "Bid well above the current ask price to scare off competitors (strategic move)",
+      "actor_type": "Bidder",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [
+        {
+          "subject": "actor",
+          "operator": "eq",
+          "field": "still_in",
+          "value": true
+        }
+      ],
+      "resolution_archetype": "skill_check",
+      "resolution_params": {
+        "skill": "risk_appetite",
+        "difficulty": 0.4
+      },
+      "message_action": false,
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "current_high_bid",
+          "value": 0.15,
+          "description": "Aggressive jump may discourage rivals"
+        }
+      ],
+      "effects_on_failure": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "current_high_bid",
+          "value": 0.15,
+          "description": "Jump bid placed but didn't shake off competitors"
+        }
+      ]
+    },
+    {
+      "name": "snipe_bid",
+      "description": "Wait until the final moment, then place a last-second bid (only effective with patience)",
+      "actor_type": "Bidder",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [
+        {
+          "subject": "actor",
+          "operator": "eq",
+          "field": "still_in",
+          "value": true
+        }
+      ],
+      "resolution_archetype": "skill_check",
+      "resolution_params": {
+        "skill": "patience",
+        "difficulty": 0.5
+      },
+      "message_action": false,
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "current_high_bid",
+          "value": 0.08,
+          "description": "Successful snipe locks in win at low premium"
+        }
+      ],
+      "effects_on_failure": []
+    },
+    {
+      "name": "withdraw",
+      "description": "Permanently leave the auction (concede)",
+      "actor_type": "Bidder",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [
+        {
+          "subject": "actor",
+          "operator": "eq",
+          "field": "still_in",
+          "value": true
+        }
+      ],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "set",
+          "field": "still_in",
+          "value": false,
+          "description": "Bidder exits the auction"
+        }
+      ],
+      "effects_on_failure": []
+    },
+    {
+      "name": "announce_price",
+      "description": "Auctioneer announces a new ask price (English: increases; Dutch: decreases)",
+      "actor_type": "Auctioneer",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "message_action": false,
+      "effects_on_success": [],
+      "effects_on_failure": []
+    },
+    {
+      "name": "declare_winner",
+      "description": "Auctioneer announces the winning bidder and price (settlement phase)",
+      "actor_type": "Auctioneer",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "message_action": false,
+      "effects_on_success": [],
+      "effects_on_failure": []
+    }
+  ],
+  "entities": [
+    {
+      "id": "auctioneer_01",
+      "name": "Auctioneer",
+      "entity_type": "Auctioneer",
+      "location_id": null,
+      "properties": {
+        "reserve_price": 0.1,
+        "current_ask": 0.05
+      }
+    },
+    {
+      "id": "aggressive_bidder_01",
+      "name": "Aggressive Bidder",
+      "entity_type": "Bidder",
+      "location_id": null,
+      "properties": {
+        "private_valuation": 0.8,
+        "budget": 1.0,
+        "risk_appetite": 0.85,
+        "patience": 0.2,
+        "information_quality": 0.6,
+        "current_high_bid": 0.0,
+        "still_in": true
+      }
+    },
+    {
+      "id": "value_hunter_01",
+      "name": "Value Hunter",
+      "entity_type": "Bidder",
+      "location_id": null,
+      "properties": {
+        "private_valuation": 0.7,
+        "budget": 1.0,
+        "risk_appetite": 0.4,
+        "patience": 0.7,
+        "information_quality": 0.8,
+        "current_high_bid": 0.0,
+        "still_in": true
+      }
+    },
+    {
+      "id": "sniper_01",
+      "name": "Sniper",
+      "entity_type": "Bidder",
+      "location_id": null,
+      "properties": {
+        "private_valuation": 0.75,
+        "budget": 1.0,
+        "risk_appetite": 0.5,
+        "patience": 0.95,
+        "information_quality": 0.7,
+        "current_high_bid": 0.0,
+        "still_in": true
+      }
+    },
+    {
+      "id": "casual_bidder_01",
+      "name": "Casual Bidder",
+      "entity_type": "Bidder",
+      "location_id": null,
+      "properties": {
+        "private_valuation": 0.5,
+        "budget": 0.7,
+        "risk_appetite": 0.3,
+        "patience": 0.4,
+        "information_quality": 0.3,
+        "current_high_bid": 0.0,
+        "still_in": true
+      }
+    }
+  ],
+  "resource_holdings": [
+    {
+      "entity_id": "aggressive_bidder_01",
+      "resource": "money",
+      "amount": 100
+    },
+    {
+      "entity_id": "value_hunter_01",
+      "resource": "money",
+      "amount": 100
+    },
+    {
+      "entity_id": "sniper_01",
+      "resource": "money",
+      "amount": 100
+    },
+    {
+      "entity_id": "casual_bidder_01",
+      "resource": "money",
+      "amount": 70
+    }
+  ],
+  "resource_unallocated": [],
+  "initial_relations": [],
+  "personas": [
+    {
+      "entity_name": "Auctioneer",
+      "entity_type": "Auctioneer",
+      "persona_text": "You are the auctioneer running this auction. You announce the ask price, accept bids, and ultimately declare the winner. You are neutral but follow the rules of the chosen auction format.",
+      "goals": [
+        "Run a fair and orderly auction",
+        "Achieve the highest possible final price for the seller",
+        "Enforce the rules of the active auction format"
+      ],
+      "personality_traits": [
+        "neutral",
+        "precise",
+        "authoritative"
+      ],
+      "attribute_values": {}
+    },
+    {
+      "entity_name": "Aggressive Bidder",
+      "entity_type": "Bidder",
+      "persona_text": "You bid aggressively and early. You like to intimidate other bidders with bold opening moves and jump bids. You sometimes overpay because your competitive instinct overrides your value discipline.",
+      "goals": [
+        "Win the auction",
+        "Discourage other bidders with bold moves",
+        "Don't appear weak"
+      ],
+      "personality_traits": [
+        "aggressive",
+        "competitive",
+        "impatient",
+        "ego-driven"
+      ],
+      "attribute_values": {}
+    },
+    {
+      "entity_name": "Value Hunter",
+      "entity_type": "Bidder",
+      "persona_text": "You bid only when the math is in your favor. You walk away if the price exceeds your private valuation by even a small margin. You read the room, watch other bidders, and stay disciplined.",
+      "goals": [
+        "Win the item below your private valuation",
+        "Avoid the winner's curse",
+        "Stay disciplined under competitive pressure"
+      ],
+      "personality_traits": [
+        "disciplined",
+        "analytical",
+        "patient",
+        "rational"
+      ],
+      "attribute_values": {}
+    },
+    {
+      "entity_name": "Sniper",
+      "entity_type": "Bidder",
+      "persona_text": "You wait. You let others tire each other out with early bidding wars, then strike at the last possible moment with a decisive bid. Your patience is your weapon.",
+      "goals": [
+        "Win at the lowest possible final price",
+        "Time your bid to surprise competitors",
+        "Avoid revealing your interest until the last moment"
+      ],
+      "personality_traits": [
+        "patient",
+        "calculating",
+        "quiet",
+        "opportunistic"
+      ],
+      "attribute_values": {}
+    },
+    {
+      "entity_name": "Casual Bidder",
+      "entity_type": "Bidder",
+      "persona_text": "You bid based on feel more than analysis. You may be a hobbyist or sentimental buyer with limited information. You get caught up in the excitement and sometimes bid past your budget.",
+      "goals": [
+        "Win the item if it's affordable",
+        "Enjoy the experience",
+        "Avoid embarrassing yourself"
+      ],
+      "personality_traits": [
+        "emotional",
+        "casual",
+        "uninformed",
+        "impulsive"
+      ],
+      "attribute_values": {}
+    }
+  ],
+  "agent_archetypes": [
+    {
+      "name": "Aggressive Bidder",
+      "weight": 0.2,
+      "entity_type": "Bidder",
+      "persona_hint": "Bids early and high to intimidate; high risk_appetite, low patience, ego-driven",
+      "property_distributions": {
+        "private_valuation": {
+          "type": "normal",
+          "params": {
+            "mean": 0.65,
+            "std": 0.12,
+            "min": 0.4,
+            "max": 0.95
+          }
+        },
+        "budget": {
+          "type": "normal",
+          "params": {
+            "mean": 1.0,
+            "std": 0.2,
+            "min": 0.5,
+            "max": 1.5
+          }
+        },
+        "risk_appetite": {
+          "type": "beta",
+          "params": {
+            "alpha": 6,
+            "beta": 2,
+            "min": 0.6,
+            "max": 1.0
+          }
+        },
+        "patience": {
+          "type": "beta",
+          "params": {
+            "alpha": 2,
+            "beta": 5,
+            "min": 0.05,
+            "max": 0.4
+          }
+        },
+        "information_quality": {
+          "type": "normal",
+          "params": {
+            "mean": 0.5,
+            "std": 0.15,
+            "min": 0.2,
+            "max": 0.8
+          }
+        }
+      }
+    },
+    {
+      "name": "Value Hunter",
+      "weight": 0.3,
+      "entity_type": "Bidder",
+      "persona_hint": "Disciplined analytical bidder; high information_quality, moderate patience, walks away above valuation",
+      "property_distributions": {
+        "private_valuation": {
+          "type": "normal",
+          "params": {
+            "mean": 0.6,
+            "std": 0.1,
+            "min": 0.4,
+            "max": 0.85
+          }
+        },
+        "budget": {
+          "type": "normal",
+          "params": {
+            "mean": 1.0,
+            "std": 0.15,
+            "min": 0.7,
+            "max": 1.3
+          }
+        },
+        "risk_appetite": {
+          "type": "beta",
+          "params": {
+            "alpha": 2,
+            "beta": 4,
+            "min": 0.2,
+            "max": 0.55
+          }
+        },
+        "patience": {
+          "type": "beta",
+          "params": {
+            "alpha": 5,
+            "beta": 2,
+            "min": 0.5,
+            "max": 0.9
+          }
+        },
+        "information_quality": {
+          "type": "beta",
+          "params": {
+            "alpha": 6,
+            "beta": 2,
+            "min": 0.6,
+            "max": 0.95
+          }
+        }
+      }
+    },
+    {
+      "name": "Sniper",
+      "weight": 0.15,
+      "entity_type": "Bidder",
+      "persona_hint": "Waits until the very last moment then bids decisively; extreme patience, moderate risk",
+      "property_distributions": {
+        "private_valuation": {
+          "type": "normal",
+          "params": {
+            "mean": 0.65,
+            "std": 0.1,
+            "min": 0.45,
+            "max": 0.9
+          }
+        },
+        "budget": {
+          "type": "normal",
+          "params": {
+            "mean": 1.0,
+            "std": 0.15,
+            "min": 0.7,
+            "max": 1.3
+          }
+        },
+        "risk_appetite": {
+          "type": "normal",
+          "params": {
+            "mean": 0.5,
+            "std": 0.1,
+            "min": 0.3,
+            "max": 0.7
+          }
+        },
+        "patience": {
+          "type": "beta",
+          "params": {
+            "alpha": 8,
+            "beta": 2,
+            "min": 0.75,
+            "max": 1.0
+          }
+        },
+        "information_quality": {
+          "type": "normal",
+          "params": {
+            "mean": 0.65,
+            "std": 0.12,
+            "min": 0.4,
+            "max": 0.9
+          }
+        }
+      }
+    },
+    {
+      "name": "Casual Bidder",
+      "weight": 0.35,
+      "entity_type": "Bidder",
+      "persona_hint": "Emotional / uninformed bidder; lower information, gets caught up in bidding wars",
+      "property_distributions": {
+        "private_valuation": {
+          "type": "normal",
+          "params": {
+            "mean": 0.45,
+            "std": 0.15,
+            "min": 0.2,
+            "max": 0.7
+          }
+        },
+        "budget": {
+          "type": "normal",
+          "params": {
+            "mean": 0.65,
+            "std": 0.2,
+            "min": 0.3,
+            "max": 1.0
+          }
+        },
+        "risk_appetite": {
+          "type": "normal",
+          "params": {
+            "mean": 0.45,
+            "std": 0.15,
+            "min": 0.2,
+            "max": 0.75
+          }
+        },
+        "patience": {
+          "type": "normal",
+          "params": {
+            "mean": 0.35,
+            "std": 0.15,
+            "min": 0.1,
+            "max": 0.65
+          }
+        },
+        "information_quality": {
+          "type": "beta",
+          "params": {
+            "alpha": 2,
+            "beta": 5,
+            "min": 0.1,
+            "max": 0.45
+          }
+        }
+      }
+    }
+  ],
+  "domain_modules": [],
+  "crowd_config": {
+    "enabled": false
+  },
+  "cognitive_config": {
+    "enabled": false
+  },
+  "social_config": {
+    "enabled": false
+  },
+  "runtime_parameters": [
+    {
+      "name": "sample_size",
+      "label": "Number of Bidders",
+      "type": "int",
+      "default": 6,
+      "min_value": 2,
+      "max_value": 30,
+      "description": "How many bidders compete in the auction",
+      "category": "scale",
+      "role": "budget"
+    },
+    {
+      "name": "premise",
+      "label": "Scenario Premise",
+      "type": "string",
+      "default": "",
+      "description": "What-if framing — what is being auctioned and the broader context",
+      "category": "premise",
+      "role": "input"
+    },
+    {
+      "name": "context",
+      "label": "Auction Context",
+      "type": "string",
+      "default": "",
+      "description": "Factual grounding — item details, seller, market conditions, comparable sales",
+      "category": "premise",
+      "role": "input"
+    },
+    {
+      "name": "auction_format",
+      "label": "Auction Format",
+      "type": "enum",
+      "default": "english",
+      "enum_values": [
+        "english",
+        "dutch",
+        "sealed_bid_first_price",
+        "sealed_bid_second_price",
+        "reverse",
+        "combinatorial"
+      ],
+      "description": "Auction mechanic — English (ascending), Dutch (descending), sealed-bid first or second price, reverse (lowest bid wins), or combinatorial (bundles)",
+      "category": "auction",
+      "role": "structure"
+    },
+    {
+      "name": "item_type",
+      "label": "Item Being Auctioned",
+      "type": "enum",
+      "default": "artwork",
+      "enum_values": [
+        "artwork",
+        "real_estate",
+        "spectrum_license",
+        "company_assets",
+        "rare_collectible",
+        "government_contract",
+        "luxury_good",
+        "domain_name",
+        "racing_horse",
+        "estate_jewelry"
+      ],
+      "description": "What is being auctioned",
+      "category": "auction",
+      "role": "input"
+    },
+    {
+      "name": "value_uncertainty",
+      "label": "Value Uncertainty",
+      "type": "enum",
+      "default": "moderate",
+      "enum_values": [
+        "common_value_known",
+        "moderate",
+        "high_uncertainty",
+        "speculative"
+      ],
+      "description": "How uncertain bidders are about the item's true value (drives winner's curse)",
+      "category": "auction",
+      "role": "input"
+    },
+    {
+      "name": "information_asymmetry",
+      "label": "Information Asymmetry",
+      "type": "enum",
+      "default": "symmetric",
+      "enum_values": [
+        "symmetric",
+        "mild_asymmetry",
+        "insider_present",
+        "expert_vs_amateur"
+      ],
+      "description": "Whether some bidders have private information about the item",
+      "category": "auction",
+      "role": "input"
+    },
+    {
+      "name": "reserve_price_disclosed",
+      "label": "Reserve Price Disclosed",
+      "type": "bool",
+      "default": false,
+      "description": "Whether bidders know the seller's minimum acceptable price",
+      "category": "auction",
+      "role": "structure"
+    },
+    {
+      "name": "bidding_increment",
+      "label": "Bidding Increment",
+      "type": "enum",
+      "default": "moderate",
+      "enum_values": [
+        "small",
+        "moderate",
+        "large",
+        "free"
+      ],
+      "description": "Minimum bid step size (free = any positive increment)",
+      "category": "auction",
+      "role": "structure"
+    },
+    {
+      "name": "time_pressure",
+      "label": "Time Pressure",
+      "type": "enum",
+      "default": "moderate",
+      "enum_values": [
+        "leisurely",
+        "moderate",
+        "fast_paced",
+        "going_once"
+      ],
+      "description": "Pace of the auction",
+      "category": "auction",
+      "role": "input"
+    },
+    {
+      "name": "venue_visibility",
+      "label": "Venue Visibility",
+      "type": "enum",
+      "default": "public_room",
+      "enum_values": [
+        "public_room",
+        "online",
+        "phone_bidding",
+        "private",
+        "live_broadcast"
+      ],
+      "description": "How public the auction is",
+      "category": "context",
+      "role": "structure"
+    }
+  ],
+  "termination_conditions": [
+    {
+      "name": "max_rounds",
+      "description": "End after N bidding rounds",
+      "check_type": "round_limit",
+      "params": {
+        "max_rounds": 12
+      },
+      "sub_conditions": []
+    }
+  ]
+}

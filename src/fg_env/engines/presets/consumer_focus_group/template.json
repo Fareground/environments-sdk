@@ -1,0 +1,1156 @@
+{
+  "name": "Consumer Focus Group",
+  "description": "Consumer focus group and market research simulation where participants share opinions, debate preferences, and react to product concepts. Group dynamics emerge as vocal participants influence quieter ones, brand loyalists clash with critics, and consensus forms or fractures around key features.",
+  "scenario_type": "social",
+  "spatial": {
+    "type": "none"
+  },
+  "temporal": {
+    "phases": [
+      {
+        "name": "discussion",
+        "description": "Consumers share opinions, agree or disagree with each other, rate features, and suggest improvements",
+        "active_roles": []
+      }
+    ]
+  },
+  "entity_types": [
+    {
+      "name": "Consumer",
+      "role": "agent",
+      "description": "A consumer participating in a focus group discussion, offering opinions and reacting to others based on personal preferences and confidence",
+      "properties": [
+        {
+          "name": "brand_awareness",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Familiarity with the brand and its product lineup",
+          "hidden": false
+        },
+        {
+          "name": "price_sensitivity",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "How much price influences purchasing decisions",
+          "hidden": true
+        },
+        {
+          "name": "quality_preference",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Importance placed on build quality, materials, and durability",
+          "hidden": true
+        },
+        {
+          "name": "trend_following",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Tendency to adopt products that are popular or trending",
+          "hidden": true
+        },
+        {
+          "name": "vocal_confidence",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Willingness and ability to speak up and assert opinions in a group",
+          "hidden": false
+        },
+        {
+          "name": "satisfaction",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Overall satisfaction with the product or concept being discussed",
+          "hidden": true
+        }
+      ]
+    }
+  ],
+  "resource_types": [],
+  "relation_types": [
+    {
+      "name": "agreement",
+      "symmetric": true,
+      "default_value": 0.5,
+      "min_value": 0.0,
+      "max_value": 1.0,
+      "description": "How much two consumers agree on product preferences and opinions"
+    }
+  ],
+  "visibility_rules": [
+    {
+      "observer_type": "*",
+      "visible_entity_types": [
+        "Consumer"
+      ],
+      "visible_properties": {
+        "Consumer": [
+          "brand_awareness",
+          "vocal_confidence"
+        ]
+      },
+      "max_range": null,
+      "requires_same_location": false,
+      "see_relations_involving_self": true,
+      "see_all_relations": false,
+      "visible_resources": []
+    }
+  ],
+  "actions": [
+    {
+      "name": "share_opinion",
+      "description": "Openly share thoughts and feelings about the product or concept being discussed",
+      "actor_type": "Consumer",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "message_action": true,
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "vocal_confidence",
+          "value": 0.02,
+          "description": "Speaking up builds confidence over time"
+        }
+      ],
+      "effects_on_failure": []
+    },
+    {
+      "name": "agree_with",
+      "description": "Express agreement with another participant's point of view",
+      "actor_type": "Consumer",
+      "target_type": "Consumer",
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "vocal_confidence",
+          "value": 0.01,
+          "description": "Agreeing is a low-risk way to participate"
+        },
+        {
+          "target": "target",
+          "operation": "add",
+          "field": "vocal_confidence",
+          "value": 0.02,
+          "description": "Being agreed with encourages further participation"
+        }
+      ],
+      "effects_on_failure": []
+    },
+    {
+      "name": "disagree_with",
+      "description": "Push back against another participant's view with a counterargument",
+      "actor_type": "Consumer",
+      "target_type": "Consumer",
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "contest",
+      "resolution_params": {
+        "attacker_field": "vocal_confidence",
+        "defender_field": "vocal_confidence"
+      },
+      "message_action": true,
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "vocal_confidence",
+          "value": 0.03,
+          "description": "Winning a debate boosts assertiveness"
+        },
+        {
+          "target": "target",
+          "operation": "add",
+          "field": "vocal_confidence",
+          "value": -0.02,
+          "description": "Being effectively countered reduces confidence"
+        }
+      ],
+      "effects_on_failure": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "vocal_confidence",
+          "value": -0.02,
+          "description": "Losing a debate dampens willingness to speak"
+        },
+        {
+          "target": "target",
+          "operation": "add",
+          "field": "vocal_confidence",
+          "value": 0.02,
+          "description": "Successfully defending a point reinforces confidence"
+        }
+      ]
+    },
+    {
+      "name": "rate_feature",
+      "description": "Provide a structured rating on a specific product feature",
+      "actor_type": "Consumer",
+      "target_type": null,
+      "parameters": [
+        {
+          "name": "rating",
+          "type": "float",
+          "default": 3.0,
+          "min_value": 1.0,
+          "max_value": 5.0,
+          "description": "Rating from 1 (poor) to 5 (excellent)"
+        }
+      ],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "brand_awareness",
+          "value": 0.02,
+          "description": "Rating features deepens product familiarity"
+        }
+      ],
+      "effects_on_failure": []
+    },
+    {
+      "name": "suggest_improvement",
+      "description": "Propose a specific change or enhancement to the product",
+      "actor_type": "Consumer",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "skill_check",
+      "resolution_params": {
+        "skill_field": "quality_preference",
+        "difficulty": 0.3
+      },
+      "message_action": true,
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "vocal_confidence",
+          "value": 0.03,
+          "description": "Well-received suggestion boosts confidence"
+        },
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "satisfaction",
+          "value": 0.02,
+          "description": "Feeling heard increases satisfaction"
+        }
+      ],
+      "effects_on_failure": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "vocal_confidence",
+          "value": -0.01,
+          "description": "Ignored suggestion slightly reduces confidence"
+        }
+      ]
+    },
+    {
+      "name": "compare_to_competitor",
+      "description": "Draw a comparison between the product and a competing alternative",
+      "actor_type": "Consumer",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "message_action": true,
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "brand_awareness",
+          "value": 0.03,
+          "description": "Comparing products demonstrates and reinforces market knowledge"
+        }
+      ],
+      "effects_on_failure": []
+    },
+    {
+      "name": "stay_silent",
+      "description": "Choose not to speak, observing the discussion without contributing",
+      "actor_type": "Consumer",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "brand_awareness",
+          "value": 0.01,
+          "description": "Quiet observation still builds awareness"
+        }
+      ],
+      "effects_on_failure": []
+    }
+  ],
+  "entities": [
+    {
+      "id": "consumer_loyalist_01",
+      "name": "Brand Loyalist",
+      "entity_type": "Consumer",
+      "location_id": null,
+      "properties": {
+        "brand_awareness": 0.9,
+        "price_sensitivity": 0.3,
+        "quality_preference": 0.6,
+        "trend_following": 0.4,
+        "vocal_confidence": 0.6,
+        "satisfaction": 0.8
+      }
+    },
+    {
+      "id": "consumer_price_01",
+      "name": "Price Hunter",
+      "entity_type": "Consumer",
+      "location_id": null,
+      "properties": {
+        "brand_awareness": 0.4,
+        "price_sensitivity": 0.9,
+        "quality_preference": 0.4,
+        "trend_following": 0.3,
+        "vocal_confidence": 0.5,
+        "satisfaction": 0.5
+      }
+    },
+    {
+      "id": "consumer_quality_01",
+      "name": "Quality Snob",
+      "entity_type": "Consumer",
+      "location_id": null,
+      "properties": {
+        "brand_awareness": 0.7,
+        "price_sensitivity": 0.2,
+        "quality_preference": 0.95,
+        "trend_following": 0.3,
+        "vocal_confidence": 0.65,
+        "satisfaction": 0.4
+      }
+    },
+    {
+      "id": "consumer_trend_01",
+      "name": "Trend Follower",
+      "entity_type": "Consumer",
+      "location_id": null,
+      "properties": {
+        "brand_awareness": 0.6,
+        "price_sensitivity": 0.5,
+        "quality_preference": 0.4,
+        "trend_following": 0.9,
+        "vocal_confidence": 0.55,
+        "satisfaction": 0.6
+      }
+    },
+    {
+      "id": "consumer_critic_01",
+      "name": "Vocal Critic",
+      "entity_type": "Consumer",
+      "location_id": null,
+      "properties": {
+        "brand_awareness": 0.7,
+        "price_sensitivity": 0.6,
+        "quality_preference": 0.7,
+        "trend_following": 0.2,
+        "vocal_confidence": 0.9,
+        "satisfaction": 0.25
+      }
+    },
+    {
+      "id": "consumer_quiet_01",
+      "name": "Quiet Observer",
+      "entity_type": "Consumer",
+      "location_id": null,
+      "properties": {
+        "brand_awareness": 0.5,
+        "price_sensitivity": 0.5,
+        "quality_preference": 0.5,
+        "trend_following": 0.5,
+        "vocal_confidence": 0.15,
+        "satisfaction": 0.5
+      }
+    }
+  ],
+  "resource_holdings": [],
+  "resource_unallocated": [],
+  "initial_relations": [
+    {
+      "from_entity": "consumer_loyalist_01",
+      "to_entity": "consumer_trend_01",
+      "relation": "agreement",
+      "value": 0.6
+    },
+    {
+      "from_entity": "consumer_quality_01",
+      "to_entity": "consumer_critic_01",
+      "relation": "agreement",
+      "value": 0.5
+    },
+    {
+      "from_entity": "consumer_price_01",
+      "to_entity": "consumer_quality_01",
+      "relation": "agreement",
+      "value": 0.3
+    }
+  ],
+  "personas": [
+    {
+      "entity_name": "Brand Loyalist",
+      "entity_type": "Consumer",
+      "persona_text": "You are a devoted fan of this brand who has used their products for years. You are quick to defend the brand against criticism and tend to focus on positives. You provide enthusiastic feedback and encourage others to give the product a fair chance.",
+      "goals": [
+        "Advocate for the brand you trust and love",
+        "Share positive experiences to influence the group",
+        "Help the company continue making products you enjoy"
+      ],
+      "personality_traits": [
+        "loyal",
+        "enthusiastic",
+        "defensive",
+        "warm"
+      ],
+      "attribute_values": {}
+    },
+    {
+      "entity_name": "Price Hunter",
+      "entity_type": "Consumer",
+      "persona_text": "You are a budget-conscious consumer who evaluates everything through the lens of value for money. You compare prices obsessively and will switch brands without hesitation if a competitor offers a better deal. You push back on premium pricing and demand justification for every dollar.",
+      "goals": [
+        "Find the best value for money",
+        "Challenge unjustified pricing",
+        "Ensure the product is accessible to budget-conscious consumers"
+      ],
+      "personality_traits": [
+        "frugal",
+        "practical",
+        "comparative",
+        "blunt"
+      ],
+      "attribute_values": {}
+    },
+    {
+      "entity_name": "Quality Snob",
+      "entity_type": "Consumer",
+      "persona_text": "You have exacting standards and judge products primarily on craftsmanship, materials, and attention to detail. You are willing to pay more for superior quality and are quick to point out flaws that others might overlook. You reference high-end competitors as benchmarks.",
+      "goals": [
+        "Hold the product to the highest quality standards",
+        "Identify flaws and areas for improvement",
+        "Ensure premium quality justifies the price"
+      ],
+      "personality_traits": [
+        "discerning",
+        "demanding",
+        "knowledgeable",
+        "perfectionist"
+      ],
+      "attribute_values": {}
+    },
+    {
+      "entity_name": "Trend Follower",
+      "entity_type": "Consumer",
+      "persona_text": "You stay on top of what is popular and want products that are current and socially validated. You care about aesthetics, social proof, and whether a product will impress your peers. You are influenced by influencers, reviews, and what everyone else is using.",
+      "goals": [
+        "Adopt products that are trending and socially desirable",
+        "Stay ahead of or with the curve",
+        "Share opinions that align with popular sentiment"
+      ],
+      "personality_traits": [
+        "social",
+        "image-conscious",
+        "adaptable",
+        "trend-aware"
+      ],
+      "attribute_values": {}
+    },
+    {
+      "entity_name": "Vocal Critic",
+      "entity_type": "Consumer",
+      "persona_text": "You are not easily impressed and are not afraid to say exactly what you think. You have strong opinions, voice them loudly, and enjoy poking holes in marketing claims. You believe honest criticism makes products better and sugarcoating helps nobody.",
+      "goals": [
+        "Provide brutally honest feedback",
+        "Challenge marketing hype with real-world experience",
+        "Push for meaningful improvements, not cosmetic changes"
+      ],
+      "personality_traits": [
+        "outspoken",
+        "critical",
+        "direct",
+        "uncompromising"
+      ],
+      "attribute_values": {}
+    },
+    {
+      "entity_name": "Quiet Observer",
+      "entity_type": "Consumer",
+      "persona_text": "You prefer to listen and absorb before speaking. You have opinions but are hesitant to share them in a group setting, especially when louder personalities dominate. When you do speak, your contributions tend to be thoughtful and measured.",
+      "goals": [
+        "Observe and understand others' perspectives before forming opinions",
+        "Contribute thoughtful input when you feel ready",
+        "Avoid confrontation while still being honest"
+      ],
+      "personality_traits": [
+        "reserved",
+        "reflective",
+        "considerate",
+        "observant"
+      ],
+      "attribute_values": {}
+    }
+  ],
+  "agent_archetypes": [
+    {
+      "name": "Power User",
+      "weight": 0.15,
+      "entity_type": "Consumer",
+      "persona_hint": "Highly experienced power user with strong opinions, deep domain expertise, and articulate communication style",
+      "property_distributions": {
+        "brand_awareness": {
+          "type": "normal",
+          "params": {
+            "mean": 0.85,
+            "std": 0.07,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "price_sensitivity": {
+          "type": "normal",
+          "params": {
+            "mean": 0.3,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "quality_preference": {
+          "type": "normal",
+          "params": {
+            "mean": 0.85,
+            "std": 0.07,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "trend_following": {
+          "type": "normal",
+          "params": {
+            "mean": 0.3,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "vocal_confidence": {
+          "type": "normal",
+          "params": {
+            "mean": 0.8,
+            "std": 0.08,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "satisfaction": {
+          "type": "normal",
+          "params": {
+            "mean": 0.5,
+            "std": 0.15,
+            "min": 0.0,
+            "max": 1.0
+          }
+        }
+      }
+    },
+    {
+      "name": "Average Consumer",
+      "weight": 0.3,
+      "entity_type": "Consumer",
+      "persona_hint": "Typical mainstream consumer with moderate preferences across all dimensions, representative of the general market",
+      "property_distributions": {
+        "brand_awareness": {
+          "type": "normal",
+          "params": {
+            "mean": 0.5,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "price_sensitivity": {
+          "type": "normal",
+          "params": {
+            "mean": 0.5,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "quality_preference": {
+          "type": "normal",
+          "params": {
+            "mean": 0.5,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "trend_following": {
+          "type": "normal",
+          "params": {
+            "mean": 0.5,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "vocal_confidence": {
+          "type": "normal",
+          "params": {
+            "mean": 0.45,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "satisfaction": {
+          "type": "normal",
+          "params": {
+            "mean": 0.5,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        }
+      }
+    },
+    {
+      "name": "Price-Conscious Shopper",
+      "weight": 0.15,
+      "entity_type": "Consumer",
+      "persona_hint": "Very price-sensitive consumer who compares features obsessively, practical and value-driven in all purchasing decisions",
+      "property_distributions": {
+        "brand_awareness": {
+          "type": "normal",
+          "params": {
+            "mean": 0.45,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "price_sensitivity": {
+          "type": "normal",
+          "params": {
+            "mean": 0.9,
+            "std": 0.05,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "quality_preference": {
+          "type": "normal",
+          "params": {
+            "mean": 0.5,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "trend_following": {
+          "type": "normal",
+          "params": {
+            "mean": 0.25,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "vocal_confidence": {
+          "type": "normal",
+          "params": {
+            "mean": 0.55,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "satisfaction": {
+          "type": "normal",
+          "params": {
+            "mean": 0.45,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        }
+      }
+    },
+    {
+      "name": "Brand Enthusiast",
+      "weight": 0.1,
+      "entity_type": "Consumer",
+      "persona_hint": "Loyal brand fan with positive bias, emotional attachment to the brand, enthusiastic advocate in group settings",
+      "property_distributions": {
+        "brand_awareness": {
+          "type": "normal",
+          "params": {
+            "mean": 0.9,
+            "std": 0.05,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "price_sensitivity": {
+          "type": "normal",
+          "params": {
+            "mean": 0.25,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "quality_preference": {
+          "type": "normal",
+          "params": {
+            "mean": 0.6,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "trend_following": {
+          "type": "normal",
+          "params": {
+            "mean": 0.5,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "vocal_confidence": {
+          "type": "normal",
+          "params": {
+            "mean": 0.65,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "satisfaction": {
+          "type": "normal",
+          "params": {
+            "mean": 0.8,
+            "std": 0.08,
+            "min": 0.0,
+            "max": 1.0
+          }
+        }
+      }
+    },
+    {
+      "name": "Critical Reviewer",
+      "weight": 0.15,
+      "entity_type": "Consumer",
+      "persona_hint": "Highly analytical consumer who is detail-oriented, finds flaws others miss, and provides thorough critical feedback",
+      "property_distributions": {
+        "brand_awareness": {
+          "type": "normal",
+          "params": {
+            "mean": 0.7,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "price_sensitivity": {
+          "type": "normal",
+          "params": {
+            "mean": 0.5,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "quality_preference": {
+          "type": "normal",
+          "params": {
+            "mean": 0.85,
+            "std": 0.07,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "trend_following": {
+          "type": "normal",
+          "params": {
+            "mean": 0.2,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "vocal_confidence": {
+          "type": "normal",
+          "params": {
+            "mean": 0.8,
+            "std": 0.08,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "satisfaction": {
+          "type": "normal",
+          "params": {
+            "mean": 0.3,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        }
+      }
+    },
+    {
+      "name": "Trend Follower",
+      "weight": 0.15,
+      "entity_type": "Consumer",
+      "persona_hint": "Socially influenced consumer who follows peers and trends, moderate product knowledge, appearance and status focused",
+      "property_distributions": {
+        "brand_awareness": {
+          "type": "normal",
+          "params": {
+            "mean": 0.6,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "price_sensitivity": {
+          "type": "normal",
+          "params": {
+            "mean": 0.45,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "quality_preference": {
+          "type": "normal",
+          "params": {
+            "mean": 0.4,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "trend_following": {
+          "type": "normal",
+          "params": {
+            "mean": 0.9,
+            "std": 0.05,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "vocal_confidence": {
+          "type": "normal",
+          "params": {
+            "mean": 0.55,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "satisfaction": {
+          "type": "normal",
+          "params": {
+            "mean": 0.6,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        }
+      }
+    }
+  ],
+  "domain_modules": [],
+  "crowd_config": {
+    "enabled": false
+  },
+  "cognitive_config": {
+    "enabled": false
+  },
+  "social_config": {
+    "enabled": false
+  },
+  "runtime_parameters": [
+    {
+      "name": "sample_size",
+      "label": "Group Size",
+      "type": "int",
+      "default": 8,
+      "min_value": 4,
+      "max_value": 15,
+      "description": "Number of consumers in the focus group",
+      "category": "scale",
+      "role": "budget"
+    },
+    {
+      "name": "premise",
+      "label": "Scenario Premise",
+      "type": "string",
+      "default": "",
+      "description": "What-if scenario framing text",
+      "category": "premise",
+      "role": "input"
+    },
+    {
+      "name": "context",
+      "label": "Discussion Context",
+      "type": "string",
+      "default": "",
+      "description": "Rich factual background (product details, market positioning, competitor info) for agent grounding",
+      "category": "premise",
+      "role": "input"
+    },
+    {
+      "name": "product_name",
+      "label": "Product Name",
+      "type": "string",
+      "default": "",
+      "description": "Name of the product being discussed",
+      "category": "product",
+      "role": "input"
+    },
+    {
+      "name": "product_type",
+      "label": "Product Type",
+      "type": "enum",
+      "default": "physical_product",
+      "options": [
+        "physical_product",
+        "mobile_app",
+        "website",
+        "food_beverage",
+        "fashion",
+        "household",
+        "automotive",
+        "subscription_service",
+        "packaging_redesign"
+      ],
+      "description": "Category of product being evaluated",
+      "category": "product",
+      "role": "input"
+    },
+    {
+      "name": "product_stage",
+      "label": "Product Stage",
+      "type": "enum",
+      "default": "prototype",
+      "options": [
+        "concept",
+        "prototype",
+        "pre_launch",
+        "just_launched",
+        "established",
+        "redesign"
+      ],
+      "description": "Development stage of the product",
+      "category": "product",
+      "role": "input"
+    },
+    {
+      "name": "discussion_topic",
+      "label": "Discussion Topic",
+      "type": "enum",
+      "default": "first_impressions",
+      "options": [
+        "first_impressions",
+        "usability",
+        "pricing",
+        "branding",
+        "feature_priority",
+        "competitive_comparison",
+        "pain_points",
+        "packaging",
+        "messaging"
+      ],
+      "description": "Primary focus of the group discussion",
+      "category": "research",
+      "role": "input"
+    },
+    {
+      "name": "target_demographic",
+      "label": "Target Demographic",
+      "type": "enum",
+      "default": "mixed",
+      "options": [
+        "teens",
+        "young_adults",
+        "parents",
+        "professionals",
+        "seniors",
+        "mixed",
+        "power_users"
+      ],
+      "description": "Demographic composition of focus group participants",
+      "category": "research",
+      "role": "structure"
+    },
+    {
+      "name": "income_level",
+      "label": "Income Level",
+      "type": "enum",
+      "default": "mixed",
+      "options": [
+        "low",
+        "lower_middle",
+        "middle",
+        "upper_middle",
+        "high",
+        "mixed"
+      ],
+      "description": "Income bracket of participants",
+      "category": "research",
+      "role": "structure"
+    },
+    {
+      "name": "brand_awareness",
+      "label": "Brand Awareness",
+      "type": "enum",
+      "default": "mixed",
+      "options": [
+        "never_heard",
+        "vaguely_aware",
+        "familiar",
+        "regular_users",
+        "mixed"
+      ],
+      "description": "Participants' prior familiarity with the brand",
+      "category": "research",
+      "role": "input"
+    },
+    {
+      "name": "competitor_exposure",
+      "label": "Competitor Exposure",
+      "type": "enum",
+      "default": "some",
+      "options": [
+        "none",
+        "some",
+        "heavy_users",
+        "brand_loyal_competitor"
+      ],
+      "description": "Participants' experience with competing products",
+      "category": "research",
+      "role": "input"
+    },
+    {
+      "name": "moderator_style",
+      "label": "Moderator Style",
+      "type": "enum",
+      "default": "guided",
+      "options": [
+        "passive_listener",
+        "guided",
+        "probing",
+        "devil_advocate",
+        "structured_exercises"
+      ],
+      "description": "Facilitation approach used by the moderator",
+      "category": "research",
+      "role": "structure"
+    },
+    {
+      "name": "show_prototype",
+      "label": "Show Prototype",
+      "type": "bool",
+      "default": true,
+      "description": "Whether participants can see/test the product",
+      "category": "research",
+      "role": "input"
+    },
+    {
+      "name": "compensation",
+      "label": "Compensation",
+      "type": "enum",
+      "default": "gift_card",
+      "options": [
+        "none",
+        "gift_card",
+        "product_sample",
+        "cash",
+        "generous"
+      ],
+      "description": "Incentive provided to focus group participants",
+      "category": "research",
+      "role": "structure"
+    },
+    {
+      "name": "group_familiarity",
+      "label": "Group Familiarity",
+      "type": "enum",
+      "default": "strangers",
+      "options": [
+        "strangers",
+        "acquaintances",
+        "colleagues",
+        "returning_group"
+      ],
+      "description": "How well participants know each other before the session",
+      "category": "research",
+      "role": "structure"
+    },
+    {
+      "name": "recording",
+      "label": "Recording",
+      "type": "enum",
+      "default": "video",
+      "options": [
+        "none",
+        "audio_only",
+        "video",
+        "one_way_mirror"
+      ],
+      "description": "Observation and recording method used during the session",
+      "category": "research",
+      "role": "structure"
+    }
+  ],
+  "termination_conditions": [
+    {
+      "name": "max_rounds",
+      "description": "End after N rounds of discussion",
+      "check_type": "round_limit",
+      "params": {
+        "max_rounds": 15
+      },
+      "sub_conditions": []
+    }
+  ]
+}

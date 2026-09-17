@@ -1,0 +1,493 @@
+{
+  "name": "Stocks Trading",
+  "description": "Real-time stock daytrading competition. NYSE session hours (9:30 AM–4:00 PM ET, Mon-Fri). Trade AAPL, NVDA, TSLA, SPY and friends head-to-head. Each trader gets the same starting capital and the same live price feed. Highest portfolio value at the closing tick wins.",
+  "scenario_type": "trading",
+  "spatial": {
+    "type": "none",
+    "params": {}
+  },
+  "temporal": {
+    "phases": [
+      {
+        "name": "trading",
+        "description": "Single phase. Trading-PvP module cycles ticks.",
+        "active_roles": [],
+        "initiative_type": "fixed",
+        "initiative_descending": true,
+        "handler": null,
+        "handler_params": {},
+        "resolution_mode": "simultaneous"
+      }
+    ]
+  },
+  "entity_types": [
+    {
+      "name": "Trader",
+      "role": "agent",
+      "description": "A crypto daytrader. Holds cash + position. Acts on the live price each tick.",
+      "properties": [
+        {
+          "name": "cash",
+          "type": "float",
+          "default": 100000.0,
+          "description": "Available cash balance.",
+          "hidden": false
+        },
+        {
+          "name": "position",
+          "type": "float",
+          "default": 0.0,
+          "description": "Units held (positive = long, negative = short).",
+          "hidden": false
+        },
+        {
+          "name": "entry_avg_price",
+          "type": "float",
+          "default": 0.0,
+          "description": "Weighted-average entry price for current position.",
+          "hidden": false
+        },
+        {
+          "name": "realized_pnl",
+          "type": "float",
+          "default": 0.0,
+          "description": "Cumulative realized P&L.",
+          "hidden": false
+        },
+        {
+          "name": "portfolio_value",
+          "type": "float",
+          "default": 100000.0,
+          "description": "cash + position × last_price.",
+          "hidden": false
+        },
+        {
+          "name": "trades_made",
+          "type": "int",
+          "default": 0,
+          "description": "Total orders submitted.",
+          "hidden": false
+        }
+      ]
+    }
+  ],
+  "resource_types": [],
+  "relation_types": [],
+  "visibility_rules": [],
+  "actions": [
+    {
+      "name": "buy",
+      "description": "Go LONG (open or add to a long). REQUIRED `qty`: units to buy.",
+      "actor_type": "Trader",
+      "target_type": null,
+      "parameters": [
+        {
+          "name": "qty",
+          "type": "float",
+          "default": 1.0,
+          "min_value": 0.0,
+          "description": "Units to buy."
+        }
+      ],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": [],
+      "broadcast": true,
+      "message_action": false
+    },
+    {
+      "name": "sell",
+      "description": "Sell from a LONG position. REQUIRED `qty`: units to sell.",
+      "actor_type": "Trader",
+      "target_type": null,
+      "parameters": [
+        {
+          "name": "qty",
+          "type": "float",
+          "default": 1.0,
+          "min_value": 0.0,
+          "description": "Units to sell."
+        }
+      ],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": [],
+      "broadcast": true,
+      "message_action": false
+    },
+    {
+      "name": "short",
+      "description": "Open or add to a SHORT (only if shorts enabled). REQUIRED `qty`: units to short.",
+      "actor_type": "Trader",
+      "target_type": null,
+      "parameters": [
+        {
+          "name": "qty",
+          "type": "float",
+          "default": 1.0,
+          "min_value": 0.0,
+          "description": "Units to short."
+        }
+      ],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": [],
+      "broadcast": true,
+      "message_action": false
+    },
+    {
+      "name": "cover",
+      "description": "Buy back to close a SHORT. REQUIRED `qty`: units to cover.",
+      "actor_type": "Trader",
+      "target_type": null,
+      "parameters": [
+        {
+          "name": "qty",
+          "type": "float",
+          "default": 1.0,
+          "min_value": 0.0,
+          "description": "Units to cover."
+        }
+      ],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": [],
+      "broadcast": true,
+      "message_action": false
+    },
+    {
+      "name": "close_all",
+      "description": "Flatten — sell all longs or cover all shorts in one shot.",
+      "actor_type": "Trader",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": [],
+      "broadcast": true,
+      "message_action": false
+    },
+    {
+      "name": "hold",
+      "description": "Pass — no trade this tick. The tick still advances and your portfolio marks to market.",
+      "actor_type": "Trader",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": [],
+      "broadcast": false,
+      "message_action": false
+    },
+    {
+      "name": "discuss",
+      "description": "Open table-talk. Post a thesis, react to a price move.",
+      "actor_type": "Trader",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": [],
+      "broadcast": true,
+      "message_action": false
+    }
+  ],
+  "entities": [
+    {
+      "id": "seat_1",
+      "name": "Trader 1",
+      "entity_type": "Trader",
+      "location_id": null,
+      "properties": {}
+    },
+    {
+      "id": "seat_2",
+      "name": "Trader 2",
+      "entity_type": "Trader",
+      "location_id": null,
+      "properties": {}
+    },
+    {
+      "id": "seat_3",
+      "name": "Trader 3",
+      "entity_type": "Trader",
+      "location_id": null,
+      "properties": {}
+    },
+    {
+      "id": "seat_4",
+      "name": "Trader 4",
+      "entity_type": "Trader",
+      "location_id": null,
+      "properties": {}
+    },
+    {
+      "id": "seat_5",
+      "name": "Trader 5",
+      "entity_type": "Trader",
+      "location_id": null,
+      "properties": {}
+    },
+    {
+      "id": "seat_6",
+      "name": "Trader 6",
+      "entity_type": "Trader",
+      "location_id": null,
+      "properties": {}
+    },
+    {
+      "id": "seat_7",
+      "name": "Trader 7",
+      "entity_type": "Trader",
+      "location_id": null,
+      "properties": {}
+    },
+    {
+      "id": "seat_8",
+      "name": "Trader 8",
+      "entity_type": "Trader",
+      "location_id": null,
+      "properties": {}
+    },
+    {
+      "id": "seat_9",
+      "name": "Trader 9",
+      "entity_type": "Trader",
+      "location_id": null,
+      "properties": {}
+    },
+    {
+      "id": "seat_10",
+      "name": "Trader 10",
+      "entity_type": "Trader",
+      "location_id": null,
+      "properties": {}
+    }
+  ],
+  "personas": [
+    {
+      "entity_name": "Trader 1",
+      "entity_type": "Trader",
+      "persona_text": "Momentum crypto trader. Buys breakouts, cuts losers fast.",
+      "goals": [
+        "Catch the directional move."
+      ],
+      "personality_traits": [
+        "aggressive",
+        "tape-reader"
+      ]
+    },
+    {
+      "entity_name": "Trader 2",
+      "entity_type": "Trader",
+      "persona_text": "Mean-reversion scalper. Fades extreme moves expecting a snap-back.",
+      "goals": [
+        "Buy panic, sell euphoria."
+      ],
+      "personality_traits": [
+        "contrarian",
+        "patient"
+      ]
+    },
+    {
+      "entity_name": "Trader 3",
+      "entity_type": "Trader",
+      "persona_text": "Narrative-driven trader. Trades on news / catalyst flow.",
+      "goals": [
+        "Concentrate on conviction trades."
+      ],
+      "personality_traits": [
+        "analytical",
+        "decisive"
+      ]
+    },
+    {
+      "entity_name": "Trader 4",
+      "entity_type": "Trader",
+      "persona_text": "Risk-averse position trader. Smaller size, infrequent trades.",
+      "goals": [
+        "Capital preservation."
+      ],
+      "personality_traits": [
+        "cautious",
+        "disciplined"
+      ]
+    },
+    {
+      "entity_name": "Trader 5",
+      "entity_type": "Trader",
+      "persona_text": "Aggressive short-seller. Looks for tops, leans into weakness.",
+      "goals": [
+        "Hit shorts on the second push."
+      ],
+      "personality_traits": [
+        "bearish",
+        "skeptical"
+      ]
+    },
+    {
+      "entity_name": "Trader 6",
+      "entity_type": "Trader",
+      "persona_text": "Range trader. Buys the low end of a range, sells the top.",
+      "goals": [
+        "Trade the band."
+      ],
+      "personality_traits": [
+        "technical",
+        "methodical"
+      ]
+    },
+    {
+      "entity_name": "Trader 7",
+      "entity_type": "Trader",
+      "persona_text": "Degenerate gambler. Big size, all-in moves.",
+      "goals": [
+        "Get rich or get rekt."
+      ],
+      "personality_traits": [
+        "reckless",
+        "high-variance"
+      ]
+    },
+    {
+      "entity_name": "Trader 8",
+      "entity_type": "Trader",
+      "persona_text": "Quant. Short-term inefficiencies, fast exits.",
+      "goals": [
+        "Many small edges."
+      ],
+      "personality_traits": [
+        "systematic",
+        "unemotional"
+      ]
+    },
+    {
+      "entity_name": "Trader 9",
+      "entity_type": "Trader",
+      "persona_text": "HODLer. Picks a direction early and holds.",
+      "goals": [
+        "Conviction over chop."
+      ],
+      "personality_traits": [
+        "stubborn",
+        "long-only"
+      ]
+    },
+    {
+      "entity_name": "Trader 10",
+      "entity_type": "Trader",
+      "persona_text": "Adaptive trader. Switches between styles based on what's working.",
+      "goals": [
+        "Follow the regime."
+      ],
+      "personality_traits": [
+        "flexible",
+        "observant"
+      ]
+    }
+  ],
+  "agent_archetypes": [],
+  "domain_modules": [
+    {
+      "name": "trading_pvp",
+      "params": {
+        "asset_class": "stocks"
+      }
+    }
+  ],
+  "crowd_config": {},
+  "cognitive_config": {},
+  "social_config": {},
+  "runtime_parameters": [
+    {
+      "name": "sample_size",
+      "label": "Number of Traders",
+      "type": "int",
+      "default": 4,
+      "min_value": 2,
+      "max_value": 10,
+      "description": "How many isolated portfolios compete.",
+      "category": "scale"
+    },
+    {
+      "name": "domain.trading_pvp.symbol",
+      "label": "Ticker",
+      "type": "string",
+      "default": "AAPL",
+      "description": "Stock ticker (Yahoo Finance format). Examples: AAPL, MSFT, NVDA, SPY. The pre-match config gives you a search box.",
+      "category": "rules"
+    },
+    {
+      "name": "domain.trading_pvp.asset_class",
+      "label": "Asset Class",
+      "type": "string",
+      "default": "stocks",
+      "description": "Locked for this template.",
+      "category": "rules"
+    },
+    {
+      "name": "domain.trading_pvp.starting_cash",
+      "label": "Starting Capital ($)",
+      "type": "int",
+      "default": 100000,
+      "min_value": 1000,
+      "max_value": 1000000,
+      "description": "Cash each trader starts with. Everyone starts equal.",
+      "category": "rules"
+    },
+    {
+      "name": "domain.trading_pvp.num_ticks",
+      "label": "Number of Ticks",
+      "type": "int",
+      "default": 30,
+      "min_value": 4,
+      "max_value": 200,
+      "description": "How many trading rounds. Each tick, every trader gets one decision against the live price. Match length ≈ ticks × minutes-between-ticks.",
+      "category": "rules"
+    },
+    {
+      "name": "domain.trading_pvp.tick_minutes",
+      "label": "Minutes Between Ticks",
+      "type": "int",
+      "default": 1,
+      "min_value": 1,
+      "max_value": 60,
+      "description": "Wall-clock minutes between trading ticks. Lower = faster matches, more reaction-time pressure. Higher = more realistic.",
+      "category": "rules"
+    },
+    {
+      "name": "domain.trading_pvp.shorts_allowed",
+      "label": "Allow Short Selling",
+      "type": "bool",
+      "default": true,
+      "description": "When ON, traders can short / cover. When OFF, only buy / sell (long-only).",
+      "category": "rules"
+    }
+  ],
+  "termination_conditions": [
+    {
+      "name": "match_over",
+      "description": "All trading ticks completed.",
+      "check_type": "event_triggered",
+      "params": {
+        "event_type": "trading_pvp_match_over",
+        "count": 1
+      },
+      "sub_conditions": []
+    }
+  ]
+}

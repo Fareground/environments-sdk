@@ -1,0 +1,330 @@
+{
+  "name": "Roast Battle",
+  "description": "Two roasters trade vicious-but-funny burns over a configurable number of rounds. An odd-sized AI jury votes the funniest, sharpest, most-on-target roaster the winner. Powered by the judged-contest engine (scenario: roast_battle).",
+  "scenario_type": "competition",
+  "spatial": {
+    "type": "none"
+  },
+  "temporal": {
+    "phases": [
+      {
+        "name": "contest",
+        "description": "Roasters trade jabs. Judges keep poker faces.",
+        "active_roles": []
+      },
+      {
+        "name": "verdict",
+        "description": "Judges vote. Majority wins.",
+        "active_roles": []
+      }
+    ]
+  },
+  "entity_types": [
+    {
+      "name": "Contestant",
+      "role": "agent",
+      "description": "A roaster going for blood and laughs.",
+      "properties": [
+        {
+          "name": "rhetorical_skill",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Setup → punchline craft",
+          "hidden": false
+        },
+        {
+          "name": "wit",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Speed and sharpness of clapbacks",
+          "hidden": false
+        },
+        {
+          "name": "composure",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Staying funny while getting roasted",
+          "hidden": false
+        },
+        {
+          "name": "is_winner",
+          "type": "bool",
+          "default": false,
+          "description": "True after the jury declares them the winner.",
+          "hidden": false
+        },
+        {
+          "name": "votes_received",
+          "type": "int",
+          "default": 0,
+          "description": "Count of jury votes received.",
+          "hidden": false
+        }
+      ]
+    },
+    {
+      "name": "Judge",
+      "role": "agent",
+      "description": "A roast-panel judge scoring the burns.",
+      "properties": [
+        {
+          "name": "lean",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Cleverness (0) vs raw meanness (1) bias",
+          "hidden": true
+        },
+        {
+          "name": "harshness",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "How critically they score weak jokes",
+          "hidden": true
+        },
+        {
+          "name": "voted_for",
+          "type": "string",
+          "default": "",
+          "description": "Contestant entity_id this judge voted for.",
+          "hidden": false
+        }
+      ]
+    }
+  ],
+  "resource_types": [],
+  "relation_types": [],
+  "visibility_rules": [],
+  "actions": [
+    {
+      "name": "make_argument",
+      "description": "Deliver your roast set for this round. REQUIRED parameter `text`: your burns — observational jabs, callbacks, punchlines. Be specific, cutting, and FUNNY. Generic insults (height/weight/looks) score low — judges reward sharp observational comedy that punches at something REAL about the target. FORMAT: separate distinct jokes with line breaks so the set reads as performance, not a paragraph.",
+      "actor_type": "Contestant",
+      "target_type": null,
+      "parameters": [
+        {
+          "name": "text",
+          "type": "string",
+          "default": "",
+          "description": "Your roast set for this round."
+        }
+      ],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": []
+    },
+    {
+      "name": "cast_vote",
+      "description": "Cast your single vote for the roaster who landed the hardest. REQUIRED parameter `winner`: the entity_id of the roaster.",
+      "actor_type": "Judge",
+      "target_type": null,
+      "parameters": [
+        {
+          "name": "winner",
+          "type": "string",
+          "default": "",
+          "description": "Roaster entity_id you're voting for."
+        },
+        {
+          "name": "reasoning",
+          "type": "string",
+          "default": "",
+          "description": "Short explanation of your call."
+        }
+      ],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": []
+    }
+  ],
+  "entities": [
+    {
+      "id": "contestant_a",
+      "name": "Roaster A",
+      "entity_type": "Contestant",
+      "properties": {}
+    },
+    {
+      "id": "contestant_b",
+      "name": "Roaster B",
+      "entity_type": "Contestant",
+      "properties": {}
+    },
+    {
+      "id": "judge_1",
+      "name": "Judge 1",
+      "entity_type": "Judge",
+      "properties": {}
+    },
+    {
+      "id": "judge_2",
+      "name": "Judge 2",
+      "entity_type": "Judge",
+      "properties": {}
+    },
+    {
+      "id": "judge_3",
+      "name": "Judge 3",
+      "entity_type": "Judge",
+      "properties": {}
+    }
+  ],
+  "resource_holdings": [],
+  "resource_unallocated": [],
+  "initial_relations": [],
+  "personas": [
+    {
+      "entity_name": "Roaster A",
+      "entity_type": "Contestant",
+      "persona_text": "Surgical wit. You write your set, edit it, then murder with it. Every punchline has a reason — no filler.",
+      "goals": [
+        "Win the jury's vote."
+      ],
+      "personality_traits": [
+        "precise",
+        "deadpan",
+        "ruthless"
+      ]
+    },
+    {
+      "entity_name": "Roaster B",
+      "entity_type": "Contestant",
+      "persona_text": "Wildcard performer. You ride the room, improvise, and find the laugh wherever it lives — even at your own expense. Self-deprecation as a weapon.",
+      "goals": [
+        "Win the jury's vote."
+      ],
+      "personality_traits": [
+        "chaotic",
+        "improvisational",
+        "fearless"
+      ]
+    },
+    {
+      "entity_name": "Judge 1",
+      "entity_type": "Judge",
+      "persona_text": "Comedy nerd. Counts set construction (callback density, escalation, tag-jokes). Rewards craft over shock.",
+      "goals": [
+        "Cast a fair vote based on comedic craft."
+      ],
+      "personality_traits": [
+        "analytical",
+        "writerly",
+        "patient"
+      ]
+    },
+    {
+      "entity_name": "Judge 2",
+      "entity_type": "Judge",
+      "persona_text": "Crowd reader. Rewards what would make a real room ACTUALLY laugh — punchy timing, recognition, the line you'd quote tomorrow.",
+      "goals": [
+        "Cast a fair vote weighted toward laugh-out-loud impact."
+      ],
+      "personality_traits": [
+        "instinctive",
+        "vibes-driven",
+        "energetic"
+      ]
+    },
+    {
+      "entity_name": "Judge 3",
+      "entity_type": "Judge",
+      "persona_text": "Balanced. Weighs craft and impact equally. Looks for the roaster who controlled the back-and-forth.",
+      "goals": [
+        "Cast a fair vote."
+      ],
+      "personality_traits": [
+        "balanced",
+        "thoughtful",
+        "calm"
+      ]
+    }
+  ],
+  "agent_archetypes": [],
+  "domain_modules": [
+    {
+      "name": "judged_contest",
+      "params": {
+        "scenario": "roast_battle",
+        "topic": "Open mic at the Comedy Cellar — no holds barred",
+        "contest_rounds": 3,
+        "jury_size": 3
+      }
+    }
+  ],
+  "crowd_config": {},
+  "cognitive_config": {},
+  "social_config": {},
+  "runtime_parameters": [
+    {
+      "name": "sample_size",
+      "label": "Total Roasters",
+      "type": "int",
+      "default": 2,
+      "min_value": 2,
+      "max_value": 2,
+      "description": "Roast battle is strictly 1v1 — two roasters, plus the AI jury.",
+      "category": "scale"
+    },
+    {
+      "name": "domain.judged_contest.topic",
+      "label": "Roast Premise",
+      "type": "string",
+      "default": "Open mic at the Comedy Cellar — no holds barred",
+      "description": "The setting / premise for the roast.",
+      "category": "premise",
+      "presets": [
+        "Open mic at the Comedy Cellar — no holds barred",
+        "A celebrity roast hosted by Comedy Central",
+        "Office party — your coworker is the guest of honor",
+        "Wedding speech gone rogue",
+        "Late-night talk show panel — the host is the target",
+        "Stand-up showcase, final two comics, winner takes the headliner slot"
+      ]
+    },
+    {
+      "name": "domain.judged_contest.contest_rounds",
+      "label": "Roast Rounds",
+      "type": "int",
+      "default": 3,
+      "min_value": 1,
+      "max_value": 11,
+      "description": "Back-and-forth rounds before the jury votes. Odd-only — one roaster always gets the closing set.",
+      "category": "structure"
+    },
+    {
+      "name": "domain.judged_contest.jury_size",
+      "label": "Jury Size",
+      "type": "int",
+      "default": 3,
+      "min_value": 1,
+      "max_value": 11,
+      "description": "Number of judges. Odd-only so a tie is impossible.",
+      "category": "structure"
+    }
+  ],
+  "termination_conditions": [
+    {
+      "name": "verdict_reached",
+      "description": "End when the jury has rendered its verdict.",
+      "check_type": "event_triggered",
+      "params": {
+        "event_type": "judged_contest_verdict",
+        "count": 1
+      },
+      "sub_conditions": []
+    }
+  ]
+}

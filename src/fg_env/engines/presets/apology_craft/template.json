@@ -1,0 +1,332 @@
+{
+  "name": "Apology Craft",
+  "description": "Two contestants face the same scenario — they've done something bad and need to make it right. Each round they draft an apology. The AI jury picks the apology most likely to actually mend the relationship: genuine ownership, concrete acknowledgment of harm, credible plan to prevent recurrence. Powered by the judged-contest engine (scenario: apology_craft).",
+  "scenario_type": "competition",
+  "spatial": {
+    "type": "none"
+  },
+  "temporal": {
+    "phases": [
+      {
+        "name": "contest",
+        "description": "Contestants draft apologies in turn. Judges score sincerity, accountability, plan.",
+        "active_roles": []
+      },
+      {
+        "name": "verdict",
+        "description": "Judges vote. Majority wins.",
+        "active_roles": []
+      }
+    ]
+  },
+  "entity_types": [
+    {
+      "name": "Contestant",
+      "role": "agent",
+      "description": "A contestant crafting their apology.",
+      "properties": [
+        {
+          "name": "rhetorical_skill",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Clarity & word choice",
+          "hidden": false
+        },
+        {
+          "name": "wit",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Emotional intelligence — reading what the harmed party actually needs",
+          "hidden": false
+        },
+        {
+          "name": "composure",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Holding accountability without collapsing into self-pity",
+          "hidden": false
+        },
+        {
+          "name": "is_winner",
+          "type": "bool",
+          "default": false,
+          "description": "True after the jury declares them the winner.",
+          "hidden": false
+        },
+        {
+          "name": "votes_received",
+          "type": "int",
+          "default": 0,
+          "description": "Count of jury votes received.",
+          "hidden": false
+        }
+      ]
+    },
+    {
+      "name": "Judge",
+      "role": "agent",
+      "description": "A panel judge scoring the apology.",
+      "properties": [
+        {
+          "name": "lean",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Sincerity (0) vs concrete-plan (1) bias",
+          "hidden": true
+        },
+        {
+          "name": "harshness",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "How aggressively they sniff out weasel words",
+          "hidden": true
+        },
+        {
+          "name": "voted_for",
+          "type": "string",
+          "default": "",
+          "description": "Contestant entity_id this judge voted for.",
+          "hidden": false
+        }
+      ]
+    }
+  ],
+  "resource_types": [],
+  "relation_types": [],
+  "visibility_rules": [],
+  "actions": [
+    {
+      "name": "make_argument",
+      "description": "Deliver your apology draft for this round. REQUIRED parameter `text`: the actual apology you'd say to the harmed party — first-person, direct, no hedging. Strong apologies (1) NAME the harm specifically, (2) take OWNERSHIP without 'if' or 'but', (3) acknowledge the impact on the other person, (4) propose a CONCRETE change going forward. Avoid 'I'm sorry IF you felt…', 'I'm sorry BUT…', 'mistakes were made'. Each round you can refine, respond to the other contestant's draft, or push your apology further.",
+      "actor_type": "Contestant",
+      "target_type": null,
+      "parameters": [
+        {
+          "name": "text",
+          "type": "string",
+          "default": "",
+          "description": "Your apology draft for this round."
+        }
+      ],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": []
+    },
+    {
+      "name": "cast_vote",
+      "description": "Cast your single vote for the contestant whose apology you'd actually accept. REQUIRED parameter `winner`: the entity_id of the contestant.",
+      "actor_type": "Judge",
+      "target_type": null,
+      "parameters": [
+        {
+          "name": "winner",
+          "type": "string",
+          "default": "",
+          "description": "Contestant entity_id you're voting for."
+        },
+        {
+          "name": "reasoning",
+          "type": "string",
+          "default": "",
+          "description": "Short explanation of your call."
+        }
+      ],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": []
+    }
+  ],
+  "entities": [
+    {
+      "id": "contestant_a",
+      "name": "Contestant A",
+      "entity_type": "Contestant",
+      "properties": {}
+    },
+    {
+      "id": "contestant_b",
+      "name": "Contestant B",
+      "entity_type": "Contestant",
+      "properties": {}
+    },
+    {
+      "id": "judge_1",
+      "name": "Judge 1",
+      "entity_type": "Judge",
+      "properties": {}
+    },
+    {
+      "id": "judge_2",
+      "name": "Judge 2",
+      "entity_type": "Judge",
+      "properties": {}
+    },
+    {
+      "id": "judge_3",
+      "name": "Judge 3",
+      "entity_type": "Judge",
+      "properties": {}
+    }
+  ],
+  "resource_holdings": [],
+  "resource_unallocated": [],
+  "initial_relations": [],
+  "personas": [
+    {
+      "entity_name": "Contestant A",
+      "entity_type": "Contestant",
+      "persona_text": "Reflective communicator. You take time to understand the harm before drafting. Your apologies are grounded, specific, and self-aware — no performative grovel.",
+      "goals": [
+        "Win the jury's vote by crafting an apology that would actually be accepted."
+      ],
+      "personality_traits": [
+        "thoughtful",
+        "grounded",
+        "self-aware"
+      ]
+    },
+    {
+      "entity_name": "Contestant B",
+      "entity_type": "Contestant",
+      "persona_text": "Direct and concrete. You skip the soft preamble and go straight to ownership + plan. The harmed party knows exactly what you did and exactly what changes next.",
+      "goals": [
+        "Win the jury's vote by crafting an apology that would actually be accepted."
+      ],
+      "personality_traits": [
+        "direct",
+        "pragmatic",
+        "honest"
+      ]
+    },
+    {
+      "entity_name": "Judge 1",
+      "entity_type": "Judge",
+      "persona_text": "Sincerity-first judge. Sniffs out 'I'm sorry IF' / 'I'm sorry BUT' / passive voice. Rewards apologies that genuinely OWN the harm in plain language.",
+      "goals": [
+        "Cast a fair vote based on accountability and sincerity."
+      ],
+      "personality_traits": [
+        "perceptive",
+        "principled",
+        "patient"
+      ]
+    },
+    {
+      "entity_name": "Judge 2",
+      "entity_type": "Judge",
+      "persona_text": "Plan-of-action judge. An apology without a credible 'here's what changes' is just emotion. You reward concrete, time-bound commitments.",
+      "goals": [
+        "Cast a fair vote weighted toward demonstrated repair plan."
+      ],
+      "personality_traits": [
+        "practical",
+        "skeptical",
+        "outcome-focused"
+      ]
+    },
+    {
+      "entity_name": "Judge 3",
+      "entity_type": "Judge",
+      "persona_text": "Empathy reader. You weigh whether the apology speaks to what the OTHER person actually needs to hear, not what the apologizer wants to say. Theory of mind matters.",
+      "goals": [
+        "Cast a fair vote weighted toward emotional intelligence."
+      ],
+      "personality_traits": [
+        "empathetic",
+        "balanced",
+        "attentive"
+      ]
+    }
+  ],
+  "agent_archetypes": [],
+  "domain_modules": [
+    {
+      "name": "judged_contest",
+      "params": {
+        "scenario": "apology_craft",
+        "topic": "You missed your best friend's wedding to take a work call. They haven't spoken to you in three weeks.",
+        "contest_rounds": 3,
+        "jury_size": 3
+      }
+    }
+  ],
+  "crowd_config": {},
+  "cognitive_config": {},
+  "social_config": {},
+  "runtime_parameters": [
+    {
+      "name": "sample_size",
+      "label": "Total Contestants",
+      "type": "int",
+      "default": 2,
+      "min_value": 2,
+      "max_value": 2,
+      "description": "Apology craft is strictly 1v1 — two contestants, plus the AI jury.",
+      "category": "scale"
+    },
+    {
+      "name": "domain.judged_contest.topic",
+      "label": "Scenario (the harm)",
+      "type": "string",
+      "default": "You missed your best friend's wedding to take a work call. They haven't spoken to you in three weeks.",
+      "description": "The scenario both contestants are apologizing for. Be specific about the harm.",
+      "category": "premise",
+      "presets": [
+        "You missed your best friend's wedding to take a work call. They haven't spoken to you in three weeks.",
+        "You forgot your partner's birthday for the second year in a row.",
+        "You shipped a feature that broke production for a major customer; you ignored the QA report.",
+        "You told a story at a dinner party that revealed a friend's secret without their permission.",
+        "You took credit for a coworker's idea in a meeting with leadership.",
+        "You cancelled on your sibling's recital — again — and they overheard you say it was 'no big deal'.",
+        "You promised to call your aging parent every weekend and haven't called in two months.",
+        "You sent an angry text to a friend at 2am that you regretted by morning."
+      ]
+    },
+    {
+      "name": "domain.judged_contest.contest_rounds",
+      "label": "Drafting Rounds",
+      "type": "int",
+      "default": 3,
+      "min_value": 1,
+      "max_value": 11,
+      "description": "How many drafting rounds before the jury votes. Odd-only — one contestant always gets the closing draft. More rounds = more opportunity to refine.",
+      "category": "structure"
+    },
+    {
+      "name": "domain.judged_contest.jury_size",
+      "label": "Jury Size",
+      "type": "int",
+      "default": 3,
+      "min_value": 1,
+      "max_value": 11,
+      "description": "Number of judges. Odd-only so a tie is impossible.",
+      "category": "structure"
+    }
+  ],
+  "termination_conditions": [
+    {
+      "name": "verdict_reached",
+      "description": "End when the jury has rendered its verdict.",
+      "check_type": "event_triggered",
+      "params": {
+        "event_type": "judged_contest_verdict",
+        "count": 1
+      },
+      "sub_conditions": []
+    }
+  ]
+}

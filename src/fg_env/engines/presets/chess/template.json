@@ -1,0 +1,264 @@
+{
+  "name": "Chess",
+  "description": "Standard 2-player chess. Capture the opponent's king (checkmate) to win. Castling, en passant, pawn promotion, threefold repetition, and the 50-move rule are all enforced. Real board, real moves — `legal_moves` is supplied to every agent each turn in UCI notation.",
+  "scenario_type": "competition",
+  "spatial": { "type": "none" },
+  "temporal": {
+    "phases": [
+      {
+        "name": "move",
+        "description": "Each player alternates moves. White moves first.",
+        "active_roles": []
+      }
+    ]
+  },
+  "entity_types": [
+    {
+      "name": "ChessPlayer",
+      "role": "agent",
+      "description": "A chess player. Reads the board, chooses one legal move per turn.",
+      "properties": [
+        {
+          "name": "color",
+          "type": "string",
+          "default": "white",
+          "description": "Side of the board: 'white' or 'black'. Assigned by seat order.",
+          "hidden": false
+        },
+        {
+          "name": "is_in_check",
+          "type": "bool",
+          "default": false,
+          "description": "True when this player's king is currently in check.",
+          "hidden": false
+        },
+        {
+          "name": "playing_style",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "0 = highly defensive / positional, 1 = sharp / tactical / sacrificial.",
+          "hidden": true
+        },
+        {
+          "name": "calculation_depth",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "How many half-moves ahead the player tends to consider.",
+          "hidden": true
+        }
+      ]
+    }
+  ],
+  "resource_types": [],
+  "relation_types": [],
+  "visibility_rules": [],
+  "actions": [
+    {
+      "name": "make_move",
+      "description": "Move a chess piece. REQUIRED: `from` (origin square like 'e2') and `to` (destination like 'e4'). The move MUST appear in `legal_moves` from your perception — anything else is rejected. Do NOT set a target_id; chess has no target entity. For pawn promotion add `promotion`='Q'|'R'|'B'|'N'. Castling = king moves two squares (white O-O: from='e1', to='g1').",
+      "actor_type": "ChessPlayer",
+      "target_type": null,
+      "parameters": [
+        {
+          "name": "from",
+          "type": "string",
+          "default": "",
+          "description": "Origin square in algebraic notation, e.g. 'e2'."
+        },
+        {
+          "name": "to",
+          "type": "string",
+          "default": "",
+          "description": "Destination square in algebraic notation, e.g. 'e4'."
+        },
+        {
+          "name": "promotion",
+          "type": "string",
+          "description": "Only when a pawn reaches the last rank: the piece it becomes (Q/R/B/N). Omit it on every other move; a promoting pawn without it becomes a queen."
+        }
+      ],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": []
+    },
+    {
+      "name": "resign",
+      "description": "Forfeit the game. Your opponent immediately wins. Use only when the position is hopeless.",
+      "actor_type": "ChessPlayer",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": []
+    },
+    {
+      "name": "offer_draw",
+      "description": "Offer a draw to your opponent. They may accept_draw or decline_draw on their next turn. Any further move auto-clears the offer.",
+      "actor_type": "ChessPlayer",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": []
+    },
+    {
+      "name": "accept_draw",
+      "description": "Accept your opponent's standing draw offer. The game ends immediately in a draw.",
+      "actor_type": "ChessPlayer",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": []
+    },
+    {
+      "name": "decline_draw",
+      "description": "Decline your opponent's standing draw offer. Play continues as normal.",
+      "actor_type": "ChessPlayer",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": []
+    }
+  ],
+  "entities": [],
+  "resource_holdings": [],
+  "resource_unallocated": [],
+  "initial_relations": [],
+  "personas": [],
+  "agent_archetypes": [
+    {
+      "name": "Tactical Sharpshooter",
+      "weight": 0.25,
+      "entity_type": "ChessPlayer",
+      "persona_hint": "Plays sharp, attacking chess. Loves open positions, piece sacrifices, and king-side attacks. Calculates concrete forcing lines first; weighs prophylaxis second.",
+      "property_distributions": {
+        "playing_style": { "type": "normal", "params": { "mean": 0.85, "std": 0.05, "min": 0.7, "max": 1.0 } },
+        "calculation_depth": { "type": "normal", "params": { "mean": 0.75, "std": 0.1, "min": 0.55, "max": 0.95 } }
+      }
+    },
+    {
+      "name": "Positional Grinder",
+      "weight": 0.25,
+      "entity_type": "ChessPlayer",
+      "persona_hint": "Builds slow, structural advantages: pawn chains, outposts, space, the bishop pair. Avoids unclear tactics. Prefers to outplay opponents in long endgames.",
+      "property_distributions": {
+        "playing_style": { "type": "normal", "params": { "mean": 0.2, "std": 0.08, "min": 0.05, "max": 0.4 } },
+        "calculation_depth": { "type": "normal", "params": { "mean": 0.65, "std": 0.1, "min": 0.45, "max": 0.85 } }
+      }
+    },
+    {
+      "name": "Balanced Universal",
+      "weight": 0.25,
+      "entity_type": "ChessPlayer",
+      "persona_hint": "Adapts to the position. Plays both attack and defense depending on what the board demands. Solid in all phases; no glaring weaknesses.",
+      "property_distributions": {
+        "playing_style": { "type": "normal", "params": { "mean": 0.5, "std": 0.08, "min": 0.3, "max": 0.7 } },
+        "calculation_depth": { "type": "normal", "params": { "mean": 0.7, "std": 0.1, "min": 0.5, "max": 0.9 } }
+      }
+    },
+    {
+      "name": "Risk-Averse Defender",
+      "weight": 0.15,
+      "entity_type": "ChessPlayer",
+      "persona_hint": "Trades aggressively to simplify into drawn endgames. Avoids tactical complications. Offers draws early in equal positions.",
+      "property_distributions": {
+        "playing_style": { "type": "normal", "params": { "mean": 0.15, "std": 0.05, "min": 0.05, "max": 0.3 } },
+        "calculation_depth": { "type": "normal", "params": { "mean": 0.5, "std": 0.1, "min": 0.3, "max": 0.7 } }
+      }
+    },
+    {
+      "name": "Sacrificial Romantic",
+      "weight": 0.1,
+      "entity_type": "ChessPlayer",
+      "persona_hint": "Plays in the spirit of 19th-century romantic chess: gambits, sacrifices, brilliancies. Will burn a rook for a king-hunt. Never plays drily.",
+      "property_distributions": {
+        "playing_style": { "type": "normal", "params": { "mean": 0.95, "std": 0.04, "min": 0.85, "max": 1.0 } },
+        "calculation_depth": { "type": "normal", "params": { "mean": 0.8, "std": 0.1, "min": 0.6, "max": 0.95 } }
+      }
+    }
+  ],
+  "domain_modules": [
+    { "name": "chess", "params": {} }
+  ],
+  "crowd_config": {},
+  "cognitive_config": {},
+  "social_config": {},
+  "runtime_parameters": [
+    {
+      "name": "sample_size",
+      "label": "Number of Players",
+      "type": "int",
+      "default": 2,
+      "min_value": 2,
+      "max_value": 2,
+      "description": "Chess is strictly 2 players (one White, one Black).",
+      "category": "scale"
+    },
+    {
+      "name": "premise",
+      "label": "Scenario Premise",
+      "type": "string",
+      "default": "",
+      "description": "Optional framing — e.g. 'World Championship final, game 12' or 'speed chess blitz'.",
+      "category": "premise"
+    }
+  ],
+  "termination_conditions": [
+    {
+      "name": "checkmate",
+      "description": "End the game when a checkmate occurs.",
+      "check_type": "event_triggered",
+      "params": {
+        "event_type": "chess_checkmate",
+        "count": 1
+      },
+      "sub_conditions": []
+    },
+    {
+      "name": "resignation",
+      "description": "End the game when a player resigns.",
+      "check_type": "event_triggered",
+      "params": {
+        "event_type": "chess_resign",
+        "count": 1
+      },
+      "sub_conditions": []
+    },
+    {
+      "name": "stalemate",
+      "description": "End the game on stalemate.",
+      "check_type": "event_triggered",
+      "params": {
+        "event_type": "chess_stalemate",
+        "count": 1
+      },
+      "sub_conditions": []
+    },
+    {
+      "name": "draw",
+      "description": "End the game on a draw (agreement, 50-move rule or threefold repetition).",
+      "check_type": "event_triggered",
+      "params": {
+        "event_type": "chess_draw",
+        "count": 1
+      },
+      "sub_conditions": []
+    }
+  ]
+}

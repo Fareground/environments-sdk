@@ -1,0 +1,174 @@
+{
+  "name": "Dominoes",
+  "description": "Classic 2-player draw dominoes with the standard double-six set. Each player draws a hand of tiles and takes turns adding to a single line, matching pip values at the open ends. If you cannot play, you draw from the boneyard until you can. First to empty their hand wins; if the game is blocked, the lighter hand wins. A game of memory, counting and tile management.",
+  "scenario_type": "competition",
+  "spatial": { "type": "none" },
+  "temporal": {
+    "phases": [
+      { "name": "play", "description": "Players alternate placing tiles on the line.", "active_roles": [] }
+    ]
+  },
+  "entity_types": [
+    {
+      "name": "DominoPlayer",
+      "role": "agent",
+      "description": "A dominoes player. Holds a concealed hand of tiles and plays them onto the line.",
+      "properties": [
+        {
+          "name": "tiles_in_hand",
+          "type": "int",
+          "default": 7,
+          "min_value": 0,
+          "max_value": 28,
+          "description": "Number of tiles still in this player's hand.",
+          "hidden": false
+        },
+        {
+          "name": "tile_management",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "0 = plays reactively, 1 = carefully manages suits, counts tiles and blocks the opponent.",
+          "hidden": true
+        }
+      ]
+    }
+  ],
+  "resource_types": [],
+  "relation_types": [],
+  "visibility_rules": [],
+  "actions": [
+    {
+      "name": "play_tile",
+      "description": "Place one tile from your hand onto the line. REQUIRED: `tile` — a tile from your hand like '3-5' — and `end` — 'left' or 'right', which open end of the line to attach it to. The tile must share a pip value with that end (see `playable_moves` in your perception). On the very first move the line is empty and any tile may be played.",
+      "actor_type": "DominoPlayer",
+      "target_type": null,
+      "parameters": [
+        { "name": "tile", "type": "string", "default": "", "description": "The tile to play, e.g. '3-5'." },
+        { "name": "end", "type": "string", "default": "right", "description": "Which open end to play on: 'left' or 'right'." }
+      ],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": []
+    },
+    {
+      "name": "draw_tile",
+      "description": "Draw one tile from the boneyard. Available only when you have no playable tile and the boneyard is not empty.",
+      "actor_type": "DominoPlayer",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": []
+    },
+    {
+      "name": "pass",
+      "description": "Pass your turn. Available only when you have no playable tile and the boneyard is empty.",
+      "actor_type": "DominoPlayer",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": []
+    }
+  ],
+  "entities": [],
+  "resource_holdings": [],
+  "resource_unallocated": [],
+  "initial_relations": [],
+  "personas": [],
+  "agent_archetypes": [
+    {
+      "name": "Calculating Counter",
+      "weight": 0.4,
+      "entity_type": "DominoPlayer",
+      "persona_hint": "Tracks which suits have been played and what the opponent has drawn or passed on. Plays to starve the opponent of matches and control both ends of the line.",
+      "property_distributions": {
+        "tile_management": { "type": "normal", "params": { "mean": 0.9, "std": 0.06, "min": 0.75, "max": 1.0 } }
+      }
+    },
+    {
+      "name": "Balanced Player",
+      "weight": 0.35,
+      "entity_type": "DominoPlayer",
+      "persona_hint": "Plays a solid all-round game — sheds heavy tiles early, keeps options open, and blocks when the chance appears.",
+      "property_distributions": {
+        "tile_management": { "type": "normal", "params": { "mean": 0.55, "std": 0.1, "min": 0.35, "max": 0.75 } }
+      }
+    },
+    {
+      "name": "Instinctive Player",
+      "weight": 0.25,
+      "entity_type": "DominoPlayer",
+      "persona_hint": "Plays quickly on feel — usually the first reasonable tile — without deep counting or blocking plans.",
+      "property_distributions": {
+        "tile_management": { "type": "normal", "params": { "mean": 0.25, "std": 0.08, "min": 0.1, "max": 0.45 } }
+      }
+    }
+  ],
+  "domain_modules": [
+    { "name": "dominoes", "params": { "hand_size": 7 } }
+  ],
+  "crowd_config": {},
+  "cognitive_config": {},
+  "social_config": {},
+  "runtime_parameters": [
+    {
+      "name": "sample_size",
+      "label": "Number of Players",
+      "type": "int",
+      "default": 2,
+      "min_value": 2,
+      "max_value": 2,
+      "description": "Dominoes here is played as a 2-player game.",
+      "category": "scale"
+    },
+    {
+      "name": "domain.dominoes.hand_size",
+      "label": "Tiles per Hand",
+      "type": "int",
+      "default": 7,
+      "min_value": 5,
+      "max_value": 9,
+      "description": "How many tiles each player draws at the start.",
+      "category": "scenario"
+    },
+    {
+      "name": "premise",
+      "label": "Scenario Premise",
+      "type": "string",
+      "default": "",
+      "description": "Optional framing — e.g. 'café championship' or 'AI exhibition match'.",
+      "category": "premise"
+    }
+  ],
+  "termination_conditions": [
+    {
+      "name": "hand_emptied",
+      "description": "End the game when a player plays their last tile.",
+      "check_type": "event_triggered",
+      "params": {
+        "event_type": "domino_win",
+        "count": 1
+      },
+      "sub_conditions": []
+    },
+    {
+      "name": "blocked_draw",
+      "description": "End the game if it is blocked and tied on pips.",
+      "check_type": "event_triggered",
+      "params": {
+        "event_type": "domino_draw",
+        "count": 1
+      },
+      "sub_conditions": []
+    }
+  ]
+}

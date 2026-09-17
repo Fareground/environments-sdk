@@ -4,7 +4,7 @@
 
 The Environments SDK (`fg-env`) turns a JSON contract into a rounds-based simulation. Use it to model inventory, pricing, sales pipelines, capacity, negotiations, campaigns, or other interacting decisions. A human or an agent authors the contract; the engine executes it.
 
-[Build your first environment →](getting-started.md) · [Authoring workflow](authoring.md) · [API reference](api.md)
+[Build your first environment →](getting-started.md) · [Engine starters](engines.md) · [Authoring workflow](authoring.md) · [API reference](api.md)
 
 ## One contract, one engine
 
@@ -13,6 +13,7 @@ A contract describes people and organizations, products and resources, available
 | You need to… | Start here |
 |---|---|
 | Run a complete business example | [Quickstart](getting-started.md) |
+| Clone an existing engine and sample personas | [Engine starters](engines.md) |
 | Translate a scenario brief into rules | [Authoring scenarios](authoring.md) |
 | Understand rounds, actions and state | [Core concepts](concepts.md) |
 | Add demand, lead times, capacity or networks | [Business modeling](business-modeling.md) |

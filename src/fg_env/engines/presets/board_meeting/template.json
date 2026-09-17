@@ -1,0 +1,1325 @@
+{
+  "name": "Board Meeting",
+  "description": "Corporate board meeting simulation where executives debate strategic direction, challenge proposals, and vote on key decisions. Board dynamics emerge from individual power, expertise, and alignment as members propose, deliberate, and reach consensus or deadlock.",
+  "scenario_type": "economic",
+  "spatial": {
+    "type": "none"
+  },
+  "temporal": {
+    "phases": [
+      {
+        "name": "deliberation",
+        "description": "Board members propose strategies, present data, challenge each other, and vote on motions",
+        "active_roles": []
+      }
+    ]
+  },
+  "entity_types": [
+    {
+      "name": "BoardMember",
+      "role": "agent",
+      "description": "A corporate board member who participates in strategic deliberation through proposals, challenges, data presentations, and voting",
+      "properties": [
+        {
+          "name": "seniority",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Years of experience and standing on the board",
+          "hidden": false
+        },
+        {
+          "name": "financial_acumen",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Ability to analyze financial data and assess business viability",
+          "hidden": false
+        },
+        {
+          "name": "risk_tolerance",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Willingness to support bold or uncertain strategic moves",
+          "hidden": true
+        },
+        {
+          "name": "industry_expertise",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Deep knowledge of the industry and competitive landscape",
+          "hidden": false
+        },
+        {
+          "name": "persuasion",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Ability to convince others and build coalitions",
+          "hidden": true
+        },
+        {
+          "name": "stake_ownership",
+          "type": "float",
+          "default": 0.05,
+          "min_value": 0.0,
+          "max_value": 0.3,
+          "description": "Percentage of company equity owned by this board member",
+          "hidden": false
+        },
+        {
+          "name": "has_voted",
+          "type": "bool",
+          "default": false,
+          "description": "Whether this member has already cast their vote on the current motion",
+          "hidden": false
+        },
+        {
+          "name": "motion_support",
+          "type": "float",
+          "default": 0.0,
+          "min_value": -100.0,
+          "max_value": 100.0,
+          "description": "Running vote tally for the current motion (approve +1, reject -1), accumulated on the board chair",
+          "hidden": false
+        }
+      ]
+    }
+  ],
+  "resource_types": [
+    {
+      "name": "voting_power",
+      "conservation": false,
+      "discrete": true,
+      "min_value": 0,
+      "max_value": null,
+      "description": "Votes available for board decisions"
+    }
+  ],
+  "relation_types": [
+    {
+      "name": "alignment",
+      "symmetric": true,
+      "default_value": 0.5,
+      "min_value": 0.0,
+      "max_value": 1.0,
+      "description": "How closely two board members' strategic visions align"
+    },
+    {
+      "name": "deference",
+      "symmetric": false,
+      "default_value": 0.0,
+      "min_value": 0.0,
+      "max_value": 1.0,
+      "description": "How much one board member yields to another's judgment"
+    }
+  ],
+  "visibility_rules": [
+    {
+      "observer_type": "*",
+      "visible_entity_types": [
+        "BoardMember"
+      ],
+      "visible_properties": {
+        "BoardMember": [
+          "seniority",
+          "financial_acumen",
+          "industry_expertise",
+          "stake_ownership",
+          "has_voted",
+          "motion_support"
+        ]
+      },
+      "max_range": null,
+      "requires_same_location": false,
+      "see_relations_involving_self": true,
+      "see_all_relations": false,
+      "visible_resources": [
+        "voting_power"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "name": "propose_strategy",
+      "description": "Put forward a strategic proposal for the board to consider and debate",
+      "actor_type": "BoardMember",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "skill_check",
+      "resolution_params": {
+        "skill_field": "industry_expertise",
+        "difficulty": 0.4
+      },
+      "message_action": true,
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "persuasion",
+          "value": 0.03,
+          "description": "A well-received proposal builds persuasive authority"
+        },
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "seniority",
+          "value": 0.01,
+          "description": "Successful proposals enhance standing"
+        }
+      ],
+      "effects_on_failure": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "persuasion",
+          "value": -0.02,
+          "description": "A poorly received proposal weakens credibility"
+        },
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "seniority",
+          "value": -0.01,
+          "description": "Failed proposals slightly diminish standing"
+        }
+      ]
+    },
+    {
+      "name": "challenge_proposal",
+      "description": "Directly challenge another board member's proposal with financial or strategic counterarguments",
+      "actor_type": "BoardMember",
+      "target_type": "BoardMember",
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "contest",
+      "resolution_params": {
+        "attacker_field": "financial_acumen",
+        "defender_field": "financial_acumen"
+      },
+      "message_action": true,
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "persuasion",
+          "value": 0.03,
+          "description": "Winning a challenge demonstrates analytical strength"
+        },
+        {
+          "target": "target",
+          "operation": "add",
+          "field": "persuasion",
+          "value": -0.02,
+          "description": "Having a proposal successfully challenged weakens influence"
+        }
+      ],
+      "effects_on_failure": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "persuasion",
+          "value": -0.02,
+          "description": "Failed challenge makes challenger appear uninformed"
+        },
+        {
+          "target": "target",
+          "operation": "add",
+          "field": "persuasion",
+          "value": 0.01,
+          "description": "Surviving a challenge strengthens the proposal"
+        }
+      ]
+    },
+    {
+      "name": "second_motion",
+      "description": "Formally support another board member's proposal to move it toward a vote",
+      "actor_type": "BoardMember",
+      "target_type": "BoardMember",
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [
+        {
+          "target": "target",
+          "operation": "add",
+          "field": "persuasion",
+          "value": 0.02,
+          "description": "Being seconded strengthens the proposer's position"
+        }
+      ],
+      "effects_on_failure": []
+    },
+    {
+      "name": "vote_approve",
+      "description": "Cast a vote in favor of the current proposal (one vote per member)",
+      "actor_type": "BoardMember",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [
+        {
+          "subject": "actor",
+          "operator": "eq",
+          "field": "has_voted",
+          "value": false
+        }
+      ],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "set",
+          "field": "has_voted",
+          "value": true,
+          "description": "Vote is cast and final"
+        },
+        {
+          "target": "board_chair_01",
+          "operation": "add",
+          "field": "motion_support",
+          "value": 1,
+          "description": "Approval vote recorded on the chair's tally"
+        },
+        {
+          "target": "actor",
+          "operation": "emit_event",
+          "value": "vote_approve_cast",
+          "description": "A board member voted to approve the motion"
+        }
+      ],
+      "effects_on_failure": []
+    },
+    {
+      "name": "vote_reject",
+      "description": "Cast a vote against the current proposal (one vote per member)",
+      "actor_type": "BoardMember",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [
+        {
+          "subject": "actor",
+          "operator": "eq",
+          "field": "has_voted",
+          "value": false
+        }
+      ],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "set",
+          "field": "has_voted",
+          "value": true,
+          "description": "Vote is cast and final"
+        },
+        {
+          "target": "board_chair_01",
+          "operation": "add",
+          "field": "motion_support",
+          "value": -1,
+          "description": "Rejection vote recorded on the chair's tally"
+        },
+        {
+          "target": "actor",
+          "operation": "emit_event",
+          "value": "vote_reject_cast",
+          "description": "A board member voted to reject the motion"
+        }
+      ],
+      "effects_on_failure": []
+    },
+    {
+      "name": "table_discussion",
+      "description": "Move to postpone the current topic for further analysis or a future meeting",
+      "actor_type": "BoardMember",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": []
+    },
+    {
+      "name": "present_data",
+      "description": "Share financial analysis, market research, or performance metrics to inform the discussion",
+      "actor_type": "BoardMember",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "skill_check",
+      "resolution_params": {
+        "skill_field": "financial_acumen",
+        "difficulty": 0.3
+      },
+      "message_action": true,
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "persuasion",
+          "value": 0.02,
+          "description": "Compelling data presentation builds authority"
+        },
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "financial_acumen",
+          "value": 0.01,
+          "description": "Preparing presentations sharpens analytical skills"
+        }
+      ],
+      "effects_on_failure": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "persuasion",
+          "value": -0.01,
+          "description": "Weak data presentation undermines credibility"
+        }
+      ]
+    },
+    {
+      "name": "abstain",
+      "description": "Decline to vote on the current matter, citing conflict of interest or insufficient information",
+      "actor_type": "BoardMember",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [
+        {
+          "subject": "actor",
+          "operator": "eq",
+          "field": "has_voted",
+          "value": false
+        }
+      ],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "set",
+          "field": "has_voted",
+          "value": true,
+          "description": "Abstention recorded; no further vote on this motion"
+        }
+      ],
+      "effects_on_failure": []
+    }
+  ],
+  "entities": [
+    {
+      "id": "board_ceo_01",
+      "name": "CEO",
+      "entity_type": "BoardMember",
+      "location_id": null,
+      "properties": {
+        "seniority": 0.9,
+        "financial_acumen": 0.7,
+        "risk_tolerance": 0.6,
+        "industry_expertise": 0.75,
+        "persuasion": 0.85,
+        "stake_ownership": 0.15
+      }
+    },
+    {
+      "id": "board_cfo_01",
+      "name": "CFO",
+      "entity_type": "BoardMember",
+      "location_id": null,
+      "properties": {
+        "seniority": 0.7,
+        "financial_acumen": 0.95,
+        "risk_tolerance": 0.3,
+        "industry_expertise": 0.6,
+        "persuasion": 0.6,
+        "stake_ownership": 0.05
+      }
+    },
+    {
+      "id": "board_independent_01",
+      "name": "Independent Director",
+      "entity_type": "BoardMember",
+      "location_id": null,
+      "properties": {
+        "seniority": 0.6,
+        "financial_acumen": 0.65,
+        "risk_tolerance": 0.5,
+        "industry_expertise": 0.55,
+        "persuasion": 0.5,
+        "stake_ownership": 0.02
+      }
+    },
+    {
+      "id": "board_activist_01",
+      "name": "Activist Investor",
+      "entity_type": "BoardMember",
+      "location_id": null,
+      "properties": {
+        "seniority": 0.4,
+        "financial_acumen": 0.8,
+        "risk_tolerance": 0.85,
+        "industry_expertise": 0.5,
+        "persuasion": 0.7,
+        "stake_ownership": 0.25
+      }
+    },
+    {
+      "id": "board_chair_01",
+      "name": "Board Chair",
+      "entity_type": "BoardMember",
+      "location_id": null,
+      "properties": {
+        "seniority": 0.95,
+        "financial_acumen": 0.7,
+        "risk_tolerance": 0.45,
+        "industry_expertise": 0.7,
+        "persuasion": 0.65,
+        "stake_ownership": 0.08
+      }
+    }
+  ],
+  "resource_holdings": [
+    {
+      "entity_id": "board_ceo_01",
+      "resource": "voting_power",
+      "amount": 1
+    },
+    {
+      "entity_id": "board_cfo_01",
+      "resource": "voting_power",
+      "amount": 1
+    },
+    {
+      "entity_id": "board_independent_01",
+      "resource": "voting_power",
+      "amount": 1
+    },
+    {
+      "entity_id": "board_activist_01",
+      "resource": "voting_power",
+      "amount": 1
+    },
+    {
+      "entity_id": "board_chair_01",
+      "resource": "voting_power",
+      "amount": 1
+    }
+  ],
+  "resource_unallocated": [],
+  "initial_relations": [
+    {
+      "from_entity": "board_ceo_01",
+      "to_entity": "board_chair_01",
+      "relation": "alignment",
+      "value": 0.7
+    },
+    {
+      "from_entity": "board_cfo_01",
+      "to_entity": "board_ceo_01",
+      "relation": "deference",
+      "value": 0.6
+    },
+    {
+      "from_entity": "board_independent_01",
+      "to_entity": "board_chair_01",
+      "relation": "deference",
+      "value": 0.5
+    },
+    {
+      "from_entity": "board_activist_01",
+      "to_entity": "board_ceo_01",
+      "relation": "alignment",
+      "value": 0.3
+    }
+  ],
+  "personas": [
+    {
+      "entity_name": "CEO",
+      "entity_type": "BoardMember",
+      "persona_text": "You are the chief executive officer who sets the strategic vision and drives execution. You are persuasive and charismatic, accustomed to getting your way in boardroom debates. You take calculated risks and defend your strategy vigorously against challengers.",
+      "goals": [
+        "Secure board approval for your strategic vision",
+        "Maintain authority and credibility with the board",
+        "Balance growth ambitions with financial discipline"
+      ],
+      "personality_traits": [
+        "visionary",
+        "persuasive",
+        "decisive",
+        "commanding"
+      ],
+      "attribute_values": {}
+    },
+    {
+      "entity_name": "CFO",
+      "entity_type": "BoardMember",
+      "persona_text": "You are the chief financial officer and the board's voice of fiscal prudence. You analyze every proposal through the lens of financial return, risk exposure, and cash flow impact. You prefer conservative strategies backed by solid numbers over ambitious bets.",
+      "goals": [
+        "Ensure financial sustainability and risk management",
+        "Ground strategic discussions in hard financial data",
+        "Protect shareholder value through disciplined capital allocation"
+      ],
+      "personality_traits": [
+        "analytical",
+        "conservative",
+        "precise",
+        "data-driven"
+      ],
+      "attribute_values": {}
+    },
+    {
+      "entity_name": "Independent Director",
+      "entity_type": "BoardMember",
+      "persona_text": "You serve as an independent voice on the board, representing the interests of minority shareholders and good governance. You listen carefully to all sides, ask probing questions, and vote based on merit rather than political allegiance. You value transparency and process.",
+      "goals": [
+        "Ensure sound corporate governance",
+        "Represent minority shareholder interests",
+        "Evaluate proposals objectively on their merits"
+      ],
+      "personality_traits": [
+        "impartial",
+        "thoughtful",
+        "principled",
+        "questioning"
+      ],
+      "attribute_values": {}
+    },
+    {
+      "entity_name": "Activist Investor",
+      "entity_type": "BoardMember",
+      "persona_text": "You are an activist investor who bought a large stake to push for aggressive changes. You believe the company is undervalued and needs bold action to unlock shareholder value. You are willing to challenge management publicly and push for restructuring, divestitures, or leadership changes.",
+      "goals": [
+        "Unlock shareholder value through aggressive strategic change",
+        "Challenge complacent management decisions",
+        "Push for higher returns on invested capital"
+      ],
+      "personality_traits": [
+        "aggressive",
+        "bold",
+        "impatient",
+        "confrontational"
+      ],
+      "attribute_values": {}
+    },
+    {
+      "entity_name": "Board Chair",
+      "entity_type": "BoardMember",
+      "persona_text": "You chair the board and are responsible for running an orderly and productive meeting. You guide discussion, ensure all voices are heard, and steer toward consensus when possible. You have deep institutional knowledge and prefer stability over disruption.",
+      "goals": [
+        "Facilitate productive and orderly board deliberation",
+        "Build consensus among diverse board members",
+        "Ensure decisions serve long-term company health"
+      ],
+      "personality_traits": [
+        "diplomatic",
+        "experienced",
+        "balanced",
+        "procedural"
+      ],
+      "attribute_values": {}
+    }
+  ],
+  "agent_archetypes": [
+    {
+      "name": "Visionary CEO",
+      "weight": 0.1,
+      "entity_type": "BoardMember",
+      "persona_hint": "Charismatic chief executive with high influence, high risk tolerance, and innovation-focused strategic vision",
+      "property_distributions": {
+        "seniority": {
+          "type": "normal",
+          "params": {
+            "mean": 0.85,
+            "std": 0.07,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "financial_acumen": {
+          "type": "normal",
+          "params": {
+            "mean": 0.65,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "risk_tolerance": {
+          "type": "normal",
+          "params": {
+            "mean": 0.75,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "industry_expertise": {
+          "type": "normal",
+          "params": {
+            "mean": 0.75,
+            "std": 0.08,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "persuasion": {
+          "type": "normal",
+          "params": {
+            "mean": 0.85,
+            "std": 0.07,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "stake_ownership": {
+          "type": "normal",
+          "params": {
+            "mean": 0.15,
+            "std": 0.05,
+            "min": 0.02,
+            "max": 0.3
+          }
+        }
+      }
+    },
+    {
+      "name": "Risk-Averse CFO",
+      "weight": 0.1,
+      "entity_type": "BoardMember",
+      "persona_hint": "Highly analytical chief financial officer, conservative and cost-focused, demands rigorous financial justification",
+      "property_distributions": {
+        "seniority": {
+          "type": "normal",
+          "params": {
+            "mean": 0.7,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "financial_acumen": {
+          "type": "normal",
+          "params": {
+            "mean": 0.92,
+            "std": 0.04,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "risk_tolerance": {
+          "type": "normal",
+          "params": {
+            "mean": 0.2,
+            "std": 0.08,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "industry_expertise": {
+          "type": "normal",
+          "params": {
+            "mean": 0.55,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "persuasion": {
+          "type": "normal",
+          "params": {
+            "mean": 0.55,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "stake_ownership": {
+          "type": "normal",
+          "params": {
+            "mean": 0.05,
+            "std": 0.02,
+            "min": 0.01,
+            "max": 0.1
+          }
+        }
+      }
+    },
+    {
+      "name": "Growth-Focused Director",
+      "weight": 0.2,
+      "entity_type": "BoardMember",
+      "persona_hint": "Revenue-focused board director with moderate risk appetite, expansion-minded, pushes for growth opportunities",
+      "property_distributions": {
+        "seniority": {
+          "type": "normal",
+          "params": {
+            "mean": 0.6,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "financial_acumen": {
+          "type": "normal",
+          "params": {
+            "mean": 0.7,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "risk_tolerance": {
+          "type": "normal",
+          "params": {
+            "mean": 0.6,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "industry_expertise": {
+          "type": "normal",
+          "params": {
+            "mean": 0.65,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "persuasion": {
+          "type": "normal",
+          "params": {
+            "mean": 0.65,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "stake_ownership": {
+          "type": "normal",
+          "params": {
+            "mean": 0.04,
+            "std": 0.02,
+            "min": 0.01,
+            "max": 0.1
+          }
+        }
+      }
+    },
+    {
+      "name": "Governance-Focused Director",
+      "weight": 0.15,
+      "entity_type": "BoardMember",
+      "persona_hint": "Compliance-oriented director focused on process, governance, and regulatory adherence with low risk tolerance",
+      "property_distributions": {
+        "seniority": {
+          "type": "normal",
+          "params": {
+            "mean": 0.65,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "financial_acumen": {
+          "type": "normal",
+          "params": {
+            "mean": 0.6,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "risk_tolerance": {
+          "type": "normal",
+          "params": {
+            "mean": 0.25,
+            "std": 0.08,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "industry_expertise": {
+          "type": "normal",
+          "params": {
+            "mean": 0.55,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "persuasion": {
+          "type": "normal",
+          "params": {
+            "mean": 0.5,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "stake_ownership": {
+          "type": "normal",
+          "params": {
+            "mean": 0.03,
+            "std": 0.015,
+            "min": 0.0,
+            "max": 0.08
+          }
+        }
+      }
+    },
+    {
+      "name": "Shareholder Representative",
+      "weight": 0.15,
+      "entity_type": "BoardMember",
+      "persona_hint": "Profit-focused representative of major shareholders, moderate analytical ability, short-term returns oriented",
+      "property_distributions": {
+        "seniority": {
+          "type": "normal",
+          "params": {
+            "mean": 0.5,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "financial_acumen": {
+          "type": "normal",
+          "params": {
+            "mean": 0.7,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "risk_tolerance": {
+          "type": "normal",
+          "params": {
+            "mean": 0.5,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "industry_expertise": {
+          "type": "normal",
+          "params": {
+            "mean": 0.45,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "persuasion": {
+          "type": "normal",
+          "params": {
+            "mean": 0.6,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "stake_ownership": {
+          "type": "normal",
+          "params": {
+            "mean": 0.12,
+            "std": 0.05,
+            "min": 0.03,
+            "max": 0.25
+          }
+        }
+      }
+    },
+    {
+      "name": "Industry Expert Director",
+      "weight": 0.15,
+      "entity_type": "BoardMember",
+      "persona_hint": "Director with deep domain knowledge and industry connections, balanced risk approach, strategic and long-term oriented",
+      "property_distributions": {
+        "seniority": {
+          "type": "normal",
+          "params": {
+            "mean": 0.6,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "financial_acumen": {
+          "type": "normal",
+          "params": {
+            "mean": 0.6,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "risk_tolerance": {
+          "type": "normal",
+          "params": {
+            "mean": 0.5,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "industry_expertise": {
+          "type": "normal",
+          "params": {
+            "mean": 0.9,
+            "std": 0.05,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "persuasion": {
+          "type": "normal",
+          "params": {
+            "mean": 0.6,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "stake_ownership": {
+          "type": "normal",
+          "params": {
+            "mean": 0.03,
+            "std": 0.015,
+            "min": 0.0,
+            "max": 0.08
+          }
+        }
+      }
+    },
+    {
+      "name": "Independent Director",
+      "weight": 0.15,
+      "entity_type": "BoardMember",
+      "persona_hint": "Balanced independent director with moderate influence, objective viewpoint, focuses on good governance and fair evaluation",
+      "property_distributions": {
+        "seniority": {
+          "type": "normal",
+          "params": {
+            "mean": 0.55,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "financial_acumen": {
+          "type": "normal",
+          "params": {
+            "mean": 0.6,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "risk_tolerance": {
+          "type": "normal",
+          "params": {
+            "mean": 0.45,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "industry_expertise": {
+          "type": "normal",
+          "params": {
+            "mean": 0.55,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "persuasion": {
+          "type": "normal",
+          "params": {
+            "mean": 0.5,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "stake_ownership": {
+          "type": "normal",
+          "params": {
+            "mean": 0.02,
+            "std": 0.01,
+            "min": 0.0,
+            "max": 0.05
+          }
+        }
+      }
+    }
+  ],
+  "domain_modules": [],
+  "crowd_config": {
+    "enabled": false
+  },
+  "cognitive_config": {
+    "enabled": false
+  },
+  "social_config": {
+    "enabled": false
+  },
+  "runtime_parameters": [
+    {
+      "name": "sample_size",
+      "label": "Board Size",
+      "type": "int",
+      "default": 9,
+      "min_value": 3,
+      "max_value": 20,
+      "description": "Number of board members",
+      "category": "scale",
+      "role": "budget"
+    },
+    {
+      "name": "premise",
+      "label": "Scenario Premise",
+      "type": "string",
+      "default": "",
+      "description": "What-if scenario framing text",
+      "category": "premise",
+      "role": "input"
+    },
+    {
+      "name": "context",
+      "label": "Meeting Context",
+      "type": "string",
+      "default": "",
+      "description": "Rich factual background (company financials, market conditions, recent events) for agent grounding",
+      "category": "premise",
+      "role": "input"
+    },
+    {
+      "name": "company_name",
+      "label": "Company Name",
+      "type": "string",
+      "default": "",
+      "description": "Name of the company holding the board meeting",
+      "category": "company",
+      "role": "input"
+    },
+    {
+      "name": "company_stage",
+      "label": "Company Stage",
+      "type": "enum",
+      "default": "mature",
+      "options": [
+        "startup",
+        "growth",
+        "mature",
+        "turnaround",
+        "pre_ipo",
+        "post_crisis"
+      ],
+      "description": "Current lifecycle stage of the company",
+      "category": "company",
+      "role": "input"
+    },
+    {
+      "name": "industry",
+      "label": "Industry",
+      "type": "enum",
+      "default": "technology",
+      "options": [
+        "technology",
+        "finance",
+        "healthcare",
+        "retail",
+        "manufacturing",
+        "energy",
+        "media",
+        "real_estate"
+      ],
+      "description": "Industry sector the company operates in",
+      "category": "company",
+      "role": "input"
+    },
+    {
+      "name": "agenda_topic",
+      "label": "Agenda Topic",
+      "type": "enum",
+      "default": "quarterly_review",
+      "options": [
+        "quarterly_review",
+        "annual_strategy",
+        "merger_acquisition",
+        "crisis_response",
+        "ceo_succession",
+        "budget_approval",
+        "expansion_plan",
+        "cost_cutting",
+        "ipo_readiness",
+        "regulatory_response",
+        "activist_investor"
+      ],
+      "description": "Primary topic for board deliberation",
+      "category": "meeting",
+      "role": "input"
+    },
+    {
+      "name": "financial_health",
+      "label": "Financial Health",
+      "type": "enum",
+      "default": "stable",
+      "options": [
+        "distressed",
+        "struggling",
+        "stable",
+        "healthy",
+        "thriving",
+        "cash_rich"
+      ],
+      "description": "Current financial condition of the company",
+      "category": "company",
+      "role": "input"
+    },
+    {
+      "name": "stock_performance",
+      "label": "Stock Performance",
+      "type": "enum",
+      "default": "flat",
+      "options": [
+        "crashing",
+        "declining",
+        "flat",
+        "growing",
+        "soaring"
+      ],
+      "description": "Recent stock price trajectory",
+      "category": "company",
+      "role": "input"
+    },
+    {
+      "name": "external_pressure",
+      "label": "External Pressure",
+      "type": "enum",
+      "default": "none",
+      "options": [
+        "none",
+        "activist_investor",
+        "hostile_takeover",
+        "regulatory_probe",
+        "media_scrutiny",
+        "labor_unrest"
+      ],
+      "description": "External forces creating urgency or constraint on the board",
+      "category": "context",
+      "role": "input"
+    },
+    {
+      "name": "board_independence",
+      "label": "Board Independence",
+      "type": "enum",
+      "default": "balanced",
+      "options": [
+        "insider_heavy",
+        "balanced",
+        "independent_majority",
+        "fully_independent"
+      ],
+      "description": "Ratio of independent to insider board members",
+      "category": "governance",
+      "role": "structure"
+    },
+    {
+      "name": "ceo_confidence",
+      "label": "CEO Confidence",
+      "type": "enum",
+      "default": "moderate",
+      "options": [
+        "under_fire",
+        "low",
+        "moderate",
+        "strong",
+        "unquestioned"
+      ],
+      "description": "Board's confidence level in the current CEO",
+      "category": "company",
+      "role": "input"
+    },
+    {
+      "name": "time_pressure",
+      "label": "Time Pressure",
+      "type": "enum",
+      "default": "moderate",
+      "options": [
+        "no_rush",
+        "moderate",
+        "urgent",
+        "emergency"
+      ],
+      "description": "Urgency of the decisions being made",
+      "category": "meeting",
+      "role": "input"
+    },
+    {
+      "name": "prior_decisions",
+      "label": "Prior Decisions",
+      "type": "string",
+      "default": "",
+      "description": "Relevant prior board decisions affecting this meeting",
+      "category": "context",
+      "role": "input"
+    },
+    {
+      "name": "shareholder_mood",
+      "label": "Shareholder Mood",
+      "type": "enum",
+      "default": "neutral",
+      "options": [
+        "angry",
+        "concerned",
+        "neutral",
+        "satisfied",
+        "enthusiastic"
+      ],
+      "description": "General sentiment among the shareholder base",
+      "category": "context",
+      "role": "input"
+    },
+    {
+      "name": "legal_exposure",
+      "label": "Legal Exposure",
+      "type": "enum",
+      "default": "none",
+      "options": [
+        "none",
+        "minor",
+        "significant",
+        "severe"
+      ],
+      "description": "Level of pending or potential legal liability",
+      "category": "context",
+      "role": "input"
+    }
+  ],
+  "termination_conditions": [
+    {
+      "name": "max_rounds",
+      "description": "End after N rounds of deliberation",
+      "check_type": "round_limit",
+      "params": {
+        "max_rounds": 15
+      },
+      "sub_conditions": []
+    }
+  ]
+}

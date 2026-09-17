@@ -1,0 +1,238 @@
+{
+  "name": "Cube",
+  "description": "Sealed-tick Fewest-Moves Challenge (FMC). Both players receive the SAME scramble at the start and work the puzzle on their own private cube. Each round both players submit ONE move sealed (R, U', F2, etc. — standard Singmaster notation); reveals happen simultaneously and each move applies only to that player's cube. The first player to reach the solved state wins the game. If both solve the same round, the tie breaks to the player with fewer total moves used. If the move cap is hit before either solves, fewer moves so far wins (true tie possible). Configurable cube size (2×2 or 3×3) and scramble depth.",
+  "scenario_type": "competition",
+  "spatial": { "type": "none" },
+  "temporal": {
+    "phases": [
+      {
+        "name": "play",
+        "description": "Both players submit one cube move per round. Round resolves when both have submitted.",
+        "active_roles": [],
+        "resolution_mode": "simultaneous"
+      }
+    ]
+  },
+  "entity_types": [
+    {
+      "name": "RubiksCubePlayer",
+      "role": "agent",
+      "description": "A Rubik's Cube FMC player. Sees their own current cube state (unfolded 6-face view), their move count, and the opponent's move count. Picks ONE legal move per round (R, U', F2 …) or `give_up` if stuck.",
+      "properties": [
+        {
+          "name": "color",
+          "type": "string",
+          "default": "white",
+          "description": "Seat: 'white' (first-listed) or 'black' (second). Both players race the same scramble; no in-game color matters.",
+          "hidden": false
+        },
+        {
+          "name": "moves_used",
+          "type": "int",
+          "default": 0,
+          "min_value": 0,
+          "max_value": 200,
+          "description": "Total moves this player has applied to their cube.",
+          "hidden": false
+        },
+        {
+          "name": "solved",
+          "type": "bool",
+          "default": false,
+          "description": "True once this player's cube reaches the solved state.",
+          "hidden": false
+        },
+        {
+          "name": "algorithm_recall",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "0 = improvises moves; 1 = aggressively pattern-matches against memorized algorithms (CFOP, OLL/PLL).",
+          "hidden": true
+        },
+        {
+          "name": "intuition",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "0 = relies entirely on memorized algorithms; 1 = looks for opportunistic local improvements outside known algs.",
+          "hidden": true
+        }
+      ]
+    }
+  ],
+  "resource_types": [],
+  "relation_types": [],
+  "visibility_rules": [],
+  "actions": [
+    {
+      "name": "cube_move",
+      "description": "Apply ONE move to your own cube. REQUIRED parameter `move` — a single move in Singmaster notation. Face letters: R (right), L (left), U (up), D (down), F (front), B (back). Modifiers: a single quote ' for counter-clockwise (e.g. R'), the digit 2 for a 180° double turn (e.g. R2). Examples: R, R', R2, U, U', U2, F, F', F2, B, B', B2, L, L', L2, D, D', D2. Each move costs 1 from your move budget. After your move, the engine checks if your cube is solved.",
+      "actor_type": "RubiksCubePlayer",
+      "target_type": null,
+      "parameters": [
+        {
+          "name": "move",
+          "type": "string",
+          "default": "R",
+          "description": "Singmaster move notation: one face letter + optional ' or 2 modifier."
+        }
+      ],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": []
+    },
+    {
+      "name": "give_up",
+      "description": "Concede this game — your cube is declared unsolvable from your current position. Only use this if you are deeply stuck and the opponent has a clear lead. The opponent automatically wins this game.",
+      "actor_type": "RubiksCubePlayer",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": []
+    }
+  ],
+  "entities": [],
+  "resource_holdings": [],
+  "resource_unallocated": [],
+  "initial_relations": [],
+  "personas": [],
+  "agent_archetypes": [
+    {
+      "name": "CFOP Recaller",
+      "weight": 0.3,
+      "entity_type": "RubiksCubePlayer",
+      "persona_hint": "Plays the canonical Cross → F2L → OLL → PLL method. Strong opening (cross is well-defined) but often misapplies OLL/PLL algorithms when the orientation isn't exact. Move-count: average; consistency: high in early game.",
+      "property_distributions": {
+        "algorithm_recall": { "type": "normal", "params": { "mean": 0.9, "std": 0.05, "min": 0.75, "max": 1.0 } },
+        "intuition": { "type": "normal", "params": { "mean": 0.25, "std": 0.08, "min": 0.1, "max": 0.4 } }
+      }
+    },
+    {
+      "name": "Layer-By-Layer Beginner",
+      "weight": 0.25,
+      "entity_type": "RubiksCubePlayer",
+      "persona_hint": "Knows the beginner-method algorithms (white cross, white corners, middle edges, yellow cross, yellow corners). Slow but reliable on simple scrambles. Falls apart on parity-style positions.",
+      "property_distributions": {
+        "algorithm_recall": { "type": "normal", "params": { "mean": 0.7, "std": 0.07, "min": 0.55, "max": 0.85 } },
+        "intuition": { "type": "normal", "params": { "mean": 0.2, "std": 0.07, "min": 0.05, "max": 0.35 } }
+      }
+    },
+    {
+      "name": "Intuitive Solver",
+      "weight": 0.2,
+      "entity_type": "RubiksCubePlayer",
+      "persona_hint": "Plays mostly from local pattern-matching — finds pieces, makes setup moves, inserts. Doesn't lean on memorized algs. Lower move-count when it works, prone to errors when blocked.",
+      "property_distributions": {
+        "algorithm_recall": { "type": "normal", "params": { "mean": 0.25, "std": 0.08, "min": 0.1, "max": 0.4 } },
+        "intuition": { "type": "normal", "params": { "mean": 0.85, "std": 0.06, "min": 0.7, "max": 1.0 } }
+      }
+    },
+    {
+      "name": "Balanced Solver",
+      "weight": 0.15,
+      "entity_type": "RubiksCubePlayer",
+      "persona_hint": "Mix of algorithm recall + local intuition. Uses standard algs when the pattern is recognized, falls back to setup-and-insert when not.",
+      "property_distributions": {
+        "algorithm_recall": { "type": "normal", "params": { "mean": 0.55, "std": 0.07, "min": 0.4, "max": 0.7 } },
+        "intuition": { "type": "normal", "params": { "mean": 0.55, "std": 0.07, "min": 0.4, "max": 0.7 } }
+      }
+    },
+    {
+      "name": "Flailer",
+      "weight": 0.1,
+      "entity_type": "RubiksCubePlayer",
+      "persona_hint": "Limited algorithm knowledge, weak spatial reasoning. Often applies moves that undo previous progress. High variance — occasional lucky completions, mostly noise.",
+      "property_distributions": {
+        "algorithm_recall": { "type": "normal", "params": { "mean": 0.2, "std": 0.08, "min": 0.05, "max": 0.35 } },
+        "intuition": { "type": "normal", "params": { "mean": 0.2, "std": 0.08, "min": 0.05, "max": 0.35 } }
+      }
+    }
+  ],
+  "domain_modules": [
+    { "name": "rubiks_cube", "params": { "cube_size": 3, "scramble_depth": 15, "move_cap": 80 } }
+  ],
+  "crowd_config": {},
+  "cognitive_config": {},
+  "social_config": {},
+  "runtime_parameters": [
+    {
+      "name": "sample_size",
+      "label": "Number of Players",
+      "type": "int",
+      "default": 2,
+      "min_value": 2,
+      "max_value": 2,
+      "description": "Rubik's Cube Duel is strictly 2 players.",
+      "category": "scale"
+    },
+    {
+      "name": "domain.cube_size",
+      "label": "Cube size",
+      "type": "int",
+      "default": 3,
+      "min_value": 2,
+      "max_value": 3,
+      "options": [2, 3],
+      "description": "2 = 2×2 pocket cube (small state space, often solvable), 3 = 3×3 classic.",
+      "category": "rules"
+    },
+    {
+      "name": "domain.scramble_depth",
+      "label": "Scramble depth (moves)",
+      "type": "int",
+      "default": 15,
+      "min_value": 5,
+      "max_value": 25,
+      "description": "Number of random moves applied to scramble the starting position. Higher = harder puzzle.",
+      "category": "rules"
+    },
+    {
+      "name": "domain.move_cap",
+      "label": "Move cap per player",
+      "type": "int",
+      "default": 80,
+      "min_value": 30,
+      "max_value": 200,
+      "description": "Maximum moves each player can use. Hitting the cap without solving means tie-break by fewer moves used.",
+      "category": "rules"
+    },
+    {
+      "name": "premise",
+      "label": "Scenario Premise",
+      "type": "string",
+      "default": "",
+      "description": "Optional framing — e.g. 'FMC championship'.",
+      "category": "premise"
+    }
+  ],
+  "termination_conditions": [
+    {
+      "name": "match_won",
+      "description": "End the match when a player wins (solves first, or wins on move-cap tie-break).",
+      "check_type": "event_triggered",
+      "params": {
+        "event_type": "rc_win",
+        "count": 1
+      },
+      "sub_conditions": []
+    },
+    {
+      "name": "match_tied",
+      "description": "End on a tie (rare — both hit move cap with equal counts).",
+      "check_type": "event_triggered",
+      "params": {
+        "event_type": "rc_draw",
+        "count": 1
+      },
+      "sub_conditions": []
+    }
+  ]
+}

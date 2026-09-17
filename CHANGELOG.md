@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-09-17
+
+### Added
+- Ship a versioned engine catalogue containing native Market, Council, Dispute
+  and Exchange starters, the consolidated behavioral presets and all 32 public
+  Arena games. Retired market/trial duplicates are omitted; remaining template
+  engines stay runnable through the compatibility runtime while they are ported.
+- Add `fg_env.list_engines`, `get_engine`, `clone_engine` and `load_engine` so
+  agents can discover, clone, customize and execute supported engines instead
+  of authoring every scenario from an empty contract.
+- Add shared, role-neutral persona sampling with fixed cohorts, per-run
+  resampling, constraints, grouped draws, proportional role/model assignment
+  and recorded provenance.
+
 ## [0.4.10] - 2026-09-17
 
 ### Improved
