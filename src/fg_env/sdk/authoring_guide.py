@@ -99,6 +99,10 @@ assert "Prioritize smallest backlog." in preview["brief"]
   Test repeated calls exceeding the cap.
   Charge a shared budget/capacity once, in the same atomic action as the outcome.
   Cash = opening + receipts - payments; deposits are liabilities.
+  Model cash holders as entities with `cash_cents`. Move money in one effect:
+  `{"transfer": "cash_cents", "from": "$params.customer", "to": "$entity(shop)", "amount": "$amount"}`.
+  Refunds reverse from/to. Both sides change atomically. Assert total cash is conserved
+  except for explicit external sources/sinks.
   Use dollar inputs/outputs; compute budgets and floor ratios in cents
   (`$round(value * 100)`). For cents: `inputs` use `multiple_of: 0.01` (`step` is UI-only);
   action `params` use enforced `step: 0.01` from `min` or 0, and `description`,
@@ -159,11 +163,6 @@ for invalid in ([-1], ["invalid"], [None]):
     else:
         raise AssertionError("Invalid schedule was accepted")
 
-money = fg_env.run({"name": "Money", "types": {}, "clock": {"rounds": 1}, "world": {"cash_cents": 16600},
-    "metrics": {"cash": "$world.cash_cents / 100"},
-    "outputs": {"cash": {"expr": "$world.cash_cents / 100", "format": "money"}}})
-assert money.series["cash"] == [166] and money.outputs["cash"] == 166
-assert "$166.00" in money.summary()
 ```
 
 Defaults are not bounds. Use `number` for fractions, `int` for counts. Test zero,
