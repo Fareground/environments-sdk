@@ -107,3 +107,23 @@ def test_diplomacy_offers_disband_only_when_an_army_can_be_disbanded():
     env = fg_env.load(EXAMPLES / "diplomacy.json", seed=1)
     preview = env.preview(next(e["id"] for e in env.entities("nation")))
     assert "disband" not in [tool["name"] for tool in preview["tools"]]
+
+
+
+def test_input_options_and_role_brief_errors_preserve_the_authors_intent():
+    contract = _contract(inputs={'priority': {'type': 'text', 'display': 'select', 'options': ['due', 'fee']}},
+                         brief={'player': 'Prioritize urgent work.'})
+    issues = {issue.path: issue for issue in fg_env.check(contract, rounds=0)}
+    assert 'type="enum", values=[...], display="select"' in issues['inputs.priority.options'].fix
+    assert 'brief.roles.player' in issues['brief.player'].fix
+
+
+def test_bool_type_name_as_default_has_an_actionable_load_error():
+    import pytest
+    contract = {'name': 'Bool shorthand', 'types': {'item': {'props': {'done': 'bool'}}},
+                'entities': {'one': {'type': 'item', 'props': {'done': False}}}}
+    with pytest.raises(fg_env.RunError, match='type declaration'):
+        fg_env.load(contract)
+    # Preserve literal text compatibility; only the diagnostic changes.
+    contract['entities']['one']['props']['done'] = 'bool'
+    assert fg_env.load(contract).entities('item')[0]['props']['done'] == 'bool'
