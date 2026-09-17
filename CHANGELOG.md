@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.6] - 2026-09-17
+
+- Use open-range number controls in the starting authoring example instead of
+  arbitrary horizon/capacity ceilings.
+- Add an executable cents-to-dollars output example, including the displayed
+  money value, and verify converted dollars in action receipts. Keep the guide
+  within its existing 10,000-character limit.
+
 ## [0.4.5] - 2026-09-17
 
 - Match static validation to runtime creation scope: `create.props` reads `$it`
