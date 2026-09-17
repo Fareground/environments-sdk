@@ -133,3 +133,16 @@ def test_dependent_step_schema_does_not_advertise_false_zero_based_multiples():
     schema = fg_env.load(contract).preview("ann")["tools"][0]["input_schema"]["properties"]["quantity"]
     assert "multipleOf" not in schema
     assert "steps of 0.002 from 0.001" in schema["description"]
+
+
+def test_integer_only_stage_fields_do_not_suggest_expressions():
+    import fg_env
+
+    contract = {"name": "Stage bounds", "types": {}, "stages": [
+        {"name": "work", "max_actions": "$inputs.size", "max_calls": "$inputs.size + 1"}]}
+    issues = fg_env.check(contract, rounds=0)
+    for path in ("stages[0].max_actions", "stages[0].max_calls"):
+        issue = next(item for item in issues if item.path == path)
+        assert issue.fix == "write a whole number without quotes"
+    contract["stages"][0].update(max_actions=2, max_calls=3)
+    assert not [issue for issue in fg_env.check(contract, rounds=0) if issue.severity == "error"]
