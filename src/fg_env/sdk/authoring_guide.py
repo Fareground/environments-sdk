@@ -94,17 +94,22 @@ assert result.series["completed"] == [4, 5]
   for history. Only decision-makers need `agent: true`; background processes use
   events. Use views to expose precisely what each role is allowed to know.
 - Order matters: start events, stages, end events, metrics. A round advances after
-  stages, not after each action. Set `max_actions` explicitly for repeated choices.
+  stages, not after each action. Set `max_actions` explicitly for repeated choices. A per-round cap must track
+  the total across ALL calls in that round and reset once; a parameter maximum
+  only limits one call. Test a second action that tries to exceed the remaining cap.
   Charge a shared budget/capacity once, in the same atomic action as the outcome.
-  For money, record both cash received and cash paid. Define refunds and settlement
-  timing. For delays, define the due round and whether arrivals precede decisions.
+  For money, record both cash received and cash paid. Write the conservation
+  equation: closing cash = opening cash + receipts - payments. Money returned to
+  a customer reduces cash. Refundable deposits create liabilities, not revenue.
+  Define refunds and settlement timing. For delays, define the due round and whether arrivals precede decisions.
 - Expressions read `$inputs`, `$world`, `$actor`, `$params`; `population` uses
   `$row`; loops use `$it`. `{$...}` substitutes only in template fields (brief,
   show, outcome, say), not ordinary stored strings. Read a focused guide when a
   feature is unfamiliar; don't invent syntax or reload the whole manual.
 - Validation and random runs establish executability, not fidelity. For each
-  important requirement, specify an action/input and its expected observable
-  result. Check conservation (cash, stock, capacity), timing, zero cases and
+  important requirement, calculate an expected observable result from the brief
+  BEFORE inspecting a run. State the opening balance and each receipt/payment;
+  do not copy the contract expression or observed output as the expected answer. Check conservation (cash, stock, capacity), timing, zero cases and
   sensitivity. A declared input appearing only in an output is not a mechanism.
   Check deduplication/overlap explicitly when combining audiences or populations.
 - Deliver assumptions, input controls, output meanings and tested limitations.
