@@ -172,6 +172,22 @@ Assignment text:
 
 Operation objects (exactly one operation key each):
 OPS
+
+### Ordered processing
+
+`each` has no `order` field. Pass a sorted collection to `each` instead:
+
+```json
+{"each": "$sort(item, [$it.due, $it.sequence])", "do": "$world.seen += $it.id"}
+```
+
+Keys are compared in order: earliest `due`, then lowest `sequence`. Use list keys
+for priority and tie-breaking; multiplying a key by a large constant can change
+priority when the second key grows. Negate a numeric key for descending order.
+The list is selected once before the loop; effects still see current entity
+properties. Filter with `$filter` when needed. For one highest-ranked item use
+`$best(items, [key1, key2])`; exact ties return a list by default, so use a unique
+last key when the rule requires one deterministic item.
 """
 
 EFFECT_EXAMPLES = {
