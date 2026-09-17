@@ -84,6 +84,51 @@ def spend_in_parts(wake):
 
 result = fg_env.run(money, spend_in_parts)
 assert result.ok and result.outputs == {"spent": 0.30, "units": 3}
+money = fg_env.run({"name": "Money", "types": {}, "clock": {"rounds": 1}, "world": {"cash_cents": 16600},
+    "metrics": {"cash": "$world.cash_cents / 100"},
+    "outputs": {"cash": {"expr": "$world.cash_cents / 100", "format": "money"}}})
+assert money.series["cash"] == [166] and money.outputs["cash"] == 166
+assert "$166.00" in money.summary()
+```
+
+### Move money with one operation
+
+Give each cash holder an entity with a `cash_cents` property. Use `transfer` for
+payments and reverse its endpoints for refunds. The engine debits one holder and
+credits the other atomically, rejecting a transfer when funds are insufficient.
+Keep income and liabilities separate from cash. Where the brief has no external
+cash sources or sinks, assert that total cash is conserved.
+
+```python
+import fg_env
+
+accounts = {
+    "name": "Account transfers", "clock": {"rounds": 1},
+    "types": {"operator": {"agent": True}, "account": {"props": {"cash_cents": 0}}},
+    "entities": {"manager": {"type": "operator"},
+                 "payer": {"type": "account", "props": {"cash_cents": 1000}},
+                 "payee": {"type": "account"}},
+    "stages": [{"name": "payments", "max_actions": 5}],
+    "actions": {"move": {"by": "operator", "params": {
+        "source": {"type": "entity", "of": "account"},
+        "target": {"type": "entity", "of": "account"},
+        "cents": {"type": "int", "min": 0}}, "do": {
+            "transfer": "cash_cents", "from": "$params.source",
+            "to": "$params.target", "amount": "$params.cents"}}},
+    "invariants": [{"expr": "$sum(account, $it.cash_cents) == 1000",
+                    "why": "Transfers must conserve total cash."}],
+    "outputs": {"payer": "$entity(payer).cash_cents / 100",
+                "payee": "$entity(payee).cash_cents / 100"}
+}
+def payments(wake):
+    assert wake.call("move", {"source": "payer", "target": "payee", "cents": 700}).ok
+    assert not wake.call("move", {"source": "payer", "target": "payee", "cents": 400}).ok
+    assert wake.call("move", {"source": "payee", "target": "payer", "cents": 200}).ok
+    assert wake.call("move", {"source": "payer", "target": "payee", "cents": 0}).ok
+    wake.end()
+
+result = fg_env.run(accounts, payments)
+assert result.ok and result.outputs == {"payer": 5, "payee": 5}
 ```
 
 ## 3. Choose the timing

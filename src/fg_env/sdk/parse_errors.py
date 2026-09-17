@@ -83,7 +83,7 @@ def _fix(path: str, expected: List[str], value: Any) -> Optional[str]:
         return f"write an object {{...}} with the fields guide('{section}') lists" if section in C.Contract.model_fields \
             else "write an object {...}"
     if "a number" in expected or "a whole number" in expected:
-        return "write a number (no quotes), or an expression starting with $, like \"$inputs.size\""
+        return "write a whole number without quotes" if "a whole number" in expected else "write a number without quotes"
     if expected == ["true or false"]:
         return "write true or false, without quotes"
     return None

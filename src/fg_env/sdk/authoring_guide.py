@@ -11,7 +11,7 @@ Preserve requirements during repairs.
 {
   "name": "Shared capacity",
   "clock": {"rounds": "$inputs.horizon", "unit": "day"},
-  "brief": {"rules": "Allocate capacity to work items. Shared and per-item allowances reset each day. Finish as much as possible.", "roles": {"operator": "Prioritize {$inputs.facility.priority}."}},
+  "brief": {"rules": "Complete work. Shared and item allowances reset daily.", "roles": {"operator": "Prioritize {$inputs.facility.priority}."}},
   "inputs": {
     "horizon": {"type": "int", "default": 2, "min": 1, "display": "number", "label": "Days"},
     "facility": {"type": "map", "display": "object", "default": {}, "fields": {
@@ -95,11 +95,14 @@ assert "Prioritize smallest backlog." in preview["brief"]
   domain needs persistent identity; duplicate IDs are invalid.
 - Entities have lifecycles; maps hold settings, relations links, records history.
   Decision-makers use `agent: true`; processes use events; views control visibility.
-- Order matters: start events, stages, end events, metrics. Rounds advance after stages, not individual actions. Set `max_actions` explicitly for repeated choices. A per-round cap must track
-  the total across ALL calls in that round and reset once; a parameter maximum
-  only limits one call. Test a second action that tries to exceed the remaining cap.
+- Order matters: start events, stages, end events, metrics. Rounds advance after stages, not individual actions. Set `max_actions` explicitly for repeated choices. A round cap tracks ALL calls and resets once; parameter maxima limit one call.
+  Test repeated calls exceeding the cap.
   Charge a shared budget/capacity once, in the same atomic action as the outcome.
   Cash = opening + receipts - payments; deposits are liabilities.
+  Model cash holders as entities with `cash_cents`. Move money in one effect:
+  `{"transfer": "cash_cents", "from": "$params.customer", "to": "$entity(shop)", "amount": "$amount"}`.
+  Refunds reverse from/to. Both sides change atomically. Assert total cash is conserved
+  except for explicit external sources/sinks.
   Use dollar inputs/outputs; compute budgets and floor ratios in cents
   (`$round(value * 100)`). For cents: `inputs` use `multiple_of: 0.01` (`step` is UI-only);
   action `params` use enforced `step: 0.01` from `min` or 0, and `description`,
@@ -120,8 +123,7 @@ assert "Prioritize smallest backlog." in preview["brief"]
   show, outcome, say), not stored strings. Use focused syntax references.
 - Validation/random runs establish executability, not fidelity. Derive expected
   results from the brief BEFORE running, never from the contract or its output.
-  Check balances, conservation, timing, zero cases, sensitivity and overlap. Inputs must change rules,
-  not just reports.
+  Check balances, conservation, timing, zero cases, sensitivity and overlap. Inputs must change rules.
 - Per-round `metrics` use expressions, no `format`. Final `outputs` support `format`.
   Entity reports: `$map(type, {id: $it.id, ...})`; names may repeat.
   Test intermediate balances: pending means ALL created but unsettled items,
@@ -161,21 +163,19 @@ for invalid in ([-1], ["invalid"], [None]):
     else:
         raise AssertionError("Invalid schedule was accepted")
 
-money = fg_env.run({"name": "Money", "types": {}, "clock": {"rounds": 1}, "world": {"cash_cents": 16600},
-    "metrics": {"cash": "$world.cash_cents / 100"},
-    "outputs": {"cash": {"expr": "$world.cash_cents / 100", "format": "money"}}})
-assert money.series["cash"] == [166] and money.outputs["cash"] == 166
-assert "$166.00" in money.summary()
 ```
 
-Defaults are not bounds. Use `number` for fractions, `int` for counts. Derive
-loops/buckets from inputs. Never invent limits for controls. Test zero, empty
-lists, duplicate names and changed row counts. Define zero-price/delay behavior;
-never hide it behind a nonzero divisor.
+Defaults are not bounds. Use `number` for fractions, `int` for counts. Test zero,
+empty lists, duplicate names and changed row counts. Derive loops from inputs;
+never hide zero behind a nonzero divisor.
 
 ## Focused references
 
-`fg_env.guide(part)` / `fg-env guide PART`: inputs, population, actions, stages,
-events, metrics, outputs, views, expressions, functions, effects, running. `core` maps the SDK; `mechanisms`
-lists reusable rules. Exact fields: `fg_env.schema()`.
+`fg_env.guide(part)` / `fg-env guide PART`:
+- `effects`: create/remove entities, transfers, delays (not `patterns`).
+- `functions`: lookup `$entity(id)`; `functions.collections`: filter/sum/map.
+- `population`: rows to entities; `inputs`: controls; `actions`: decisions.
+- `stages`: turn order; `events`: lifecycle; `metrics`/`outputs`: reports.
+- `patterns`: trends/randomness; `mechanisms`: rule families; `views`: visibility.
+Exact fields: `fg_env.schema()`.
 '''
