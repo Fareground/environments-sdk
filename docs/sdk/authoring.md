@@ -27,6 +27,10 @@ Choose input types from the business units, not the example values. Money, effor
 
 ## Exact monetary budgets
 
+Use `metrics` for per-round expressions and `outputs` for final results. `format`
+belongs on outputs, not metrics. For per-entity rows, use an output expression
+such as `$map(product, {name: $it.name, stock: $it.stock})`.
+
 Use integer minor units for accounting that must be exact. Dollar inputs and
 outputs can remain ordinary numbers: convert them to cents once, perform budget
 checks and whole-unit ratios in cents, then divide by 100 for reporting. A money
@@ -42,9 +46,9 @@ money = {
     "name": "Exact budget", "clock": {"rounds": 1},
     "inputs": {
         "budget": {"type": "number", "default": 0.30, "min": 0, "step": 0.01, "multiple_of": 0.01,
-                   "description": "Dollars, rounded to the nearest cent"},
+                   "description": "Dollars in whole-cent increments; fractional cents are rejected"},
         "unit_cost": {"type": "number", "default": 0.10, "min": 0.01, "step": 0.01, "multiple_of": 0.01,
-                      "description": "Dollars, rounded to the nearest cent"}
+                      "description": "Dollars in whole-cent increments; fractional cents are rejected"}
     },
     "world": {"available_cents": "$round($inputs.budget * 100)",
               "unit_cents": "$round($inputs.unit_cost * 100)", "spent_cents": 0},
