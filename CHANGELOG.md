@@ -5,7 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.1] - 2026-09-16
+
+- Add a concise, executable scenario-authoring guide covering configurable objects,
+  editable entity tables, host controls, per-round limits, participant instructions
+  and deterministic known-answer checks.
+- Fix leading logical negation in expressions.
+- Improve authoring diagnostics for dropdowns, Boolean defaults, role instructions,
+  event scheduling and dynamic placeholders in static action descriptions.
+
+## [0.4.0] - 2026-09-16
 
 ### Environment SDK (`fg-env`)
 
