@@ -23,6 +23,52 @@ Represent objects with their own lifecycle as entities: an order that can arrive
 
 Choose input types from the business units, not the example values. Money, effort and rates can be fractional (`type: "number"`); counts of indivisible items use `int`. An example of two hours per job does not imply whole-hour work. Defaults do not define minimums or maximums. Derive processing and bucket sizes from configured data instead of constraining customer inputs to match a hardcoded implementation. Use a number control when there is no justified finite range for a slider or knob, and explain any necessary modeling limit.
 
+## Exact monetary budgets
+
+Use integer minor units for accounting that must be exact. Dollar inputs and
+outputs can remain ordinary numbers: convert them to cents once, perform budget
+checks and whole-unit ratios in cents, then divide by 100 for reporting. A money
+format changes presentation, not numeric arithmetic. State the rounding policy.
+This example rounds inputs to cents and requires action amounts in whole cents.
+
+```python
+import fg_env
+
+money = {
+    "name": "Exact budget", "clock": {"rounds": 1},
+    "inputs": {
+        "budget": {"type": "number", "default": 0.30, "min": 0, "step": 0.01,
+                   "description": "Dollars, rounded to the nearest cent"},
+        "unit_cost": {"type": "number", "default": 0.10, "min": 0.01, "step": 0.01,
+                      "description": "Dollars, rounded to the nearest cent"}
+    },
+    "world": {"available_cents": "$round($inputs.budget * 100)",
+              "unit_cents": "$round($inputs.unit_cost * 100)", "spent_cents": 0},
+    "types": {"operator": {"agent": True}},
+    "entities": {"manager": {"type": "operator"}},
+    "stages": [{"name": "allocate", "max_actions": 4}],
+    "actions": {"spend": {
+        "by": "operator",
+        "params": {"amount": {"type": "number", "min": 0.01,
+                              "max": "$world.available_cents / 100"}},
+        "when": [{"expr": "$params.amount == $round($params.amount, 2)",
+                  "why": "Use whole cents."}],
+        "do": ["$cents = $round($params.amount * 100)",
+               "$world.available_cents -= $cents", "$world.spent_cents += $cents"]
+    }},
+    "outputs": {"spent": "$world.spent_cents / 100",
+                "units": "$world.spent_cents // $world.unit_cents"}
+}
+def spend_in_parts(wake):
+    assert wake.call("spend", {"amount": 0.10}).ok
+    assert wake.call("spend", {"amount": 0.20}).ok
+    assert not wake.call("spend", {"amount": 0.01}).ok
+    wake.end()
+
+result = fg_env.run(money, spend_in_parts)
+assert result.ok and result.outputs == {"spent": 0.30, "units": 3}
+```
+
 ## 3. Choose the timing
 
 Name each round and stage. State whether delivery happens before demand, whether participants observe competitors' decisions, and when payment clears. These choices can change the answer more than a sophisticated demand equation.

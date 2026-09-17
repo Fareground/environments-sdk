@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.4] - 2026-09-17
 
+- Demonstrate exact monetary budgets with integer minor units and an executable
+  cent-precision example; preserve ordinary dollar inputs and outputs.
+
 - Clarify that defaults are not limits: use fractional numeric inputs where the
   business units allow them and derive processing bounds from configured data.
 - Suggest exact function-group reference names before unrelated fuzzy topics
