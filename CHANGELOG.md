@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-09-17
+
+### Added
+- Complete the twelve-engine behavioral SDK with native Legislature, Judged
+  Contest, Deliberation, Population, Network, Matching and Strategy starters.
+- Give every new engine scenario-neutral participants, customization seams,
+  meaningful outputs, deterministic execution and N-run experiment coverage.
+- Cover sampled population cohorts, private respondent positions, private
+  matching preferences and selector criteria, explicit social ties, capacity,
+  procedural voting, blind rubric judging and repeated strategic consequences.
+
+### Changed
+- Make all twelve catalog entries available and remove the Phase 1 placeholder
+  distinction. Finished product environments and named Arena games remain out
+  of the SDK engine package.
+
 ## [0.5.2] - 2026-09-17
 
 ### Added

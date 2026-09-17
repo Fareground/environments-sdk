@@ -1,0 +1,52 @@
+{
+  "fg_env": "1",
+  "name": "Deliberation Engine",
+  "description": "A reusable deliberation engine in which people exchange reasons, revise views, propose a conclusion, and vote.",
+  "inputs": {
+    "question": {"type": "text", "default": "Should the group adopt the proposed course of action?"},
+    "participants": {
+      "type": "table",
+      "columns": {"id": "text", "name": "text", "stance": "number", "perspective": "text"},
+      "default": [
+        {"id": "m1", "name": "Member 1", "stance": 0.7, "perspective": "Focuses on expected benefits."},
+        {"id": "m2", "name": "Member 2", "stance": -0.6, "perspective": "Focuses on risks and safeguards."},
+        {"id": "m3", "name": "Member 3", "stance": 0.2, "perspective": "Looks for a workable compromise."}
+      ]
+    }
+  },
+  "brief": {
+    "situation": "A group is considering: {$inputs.question}",
+    "rules": "Members may speak, propose a conclusion, second it, amend it, signal readiness, call the question, and vote. The purpose is reasoned view revision rather than role-specific institutional procedure.",
+    "roles": {"member": "Contribute your perspective, listen to reasons, revise when warranted, and vote according to your considered judgment."}
+  },
+  "clock": {"rounds": 3, "unit": "session"},
+  "types": {"member": {"agent": true, "policy": "baseline", "props": {
+    "stance": {"type": "number", "default": 0, "min": -1, "max": 1, "private": true},
+    "perspective": {"type": "text", "default": "", "private": true}
+  }}},
+  "population": [{"type": "member", "from": "$inputs.participants", "id": "{$row.id}", "name": "{$row.name}", "props": {"stance": "$row.stance", "perspective": "$row.perspective"}}],
+  "mechanisms": {"forum": {
+    "kind": "decision", "mode": "deliberation", "who": "member", "question": "$inputs.question",
+    "passes": 4, "method": "majority", "floor": false, "motions": true,
+    "second": true, "amendments": true, "min_debate": 1, "private": true, "backstop": "vote", "end": "decision"
+  }},
+  "views": {"private_view": {"for": "member", "show": "Your starting stance is {stance|2}. Your perspective: {perspective}"}},
+  "defs": {"open_motion": "$pending_motion() != null and $pending_motion().status == 'open'"},
+  "policies": {"baseline": {"repeat": true, "rules": [
+    {"when": "$world.forum.phase == voting", "do": "forum_vote", "with": {"choice": "$'yes' if $actor.stance >= 0 else 'no'"}},
+    {"when": "$pending_motion() == null and $actor.stance > 0.4", "do": "forum_propose", "with": {"text": "$inputs.question"}},
+    {"when": "$pending_motion() != null and $pending_motion().status == proposed and $pending_motion().mover != $actor.id and $actor.stance >= 0", "do": "forum_second"},
+    {"when": "$open_motion and $pending_motion().speeches < 2", "do": "forum_speak", "with": {"text": "$actor.perspective"}},
+    {"when": "$open_motion and $pending_motion().speeches >= 2", "do": "forum_call_question"},
+    {"do": "forum_ready"}
+  ]}},
+  "metrics": {"contributions": {"expr": "$count($records(forum), $it.says == says)"}},
+  "outputs": {
+    "decided": {"type": "bool", "expr": "$len($decisions()) > 0"},
+    "passed": {"type": "bool", "expr": "$last($decisions()).passed if $len($decisions()) > 0 else null"},
+    "conclusion": {"type": "text", "expr": "$last($decisions()).text if $len($decisions()) > 0 else null"},
+    "yes": {"type": "int", "expr": "$last($decisions()).counts.yes if $len($decisions()) > 0 else 0"},
+    "no": {"type": "int", "expr": "$last($decisions()).counts.no if $len($decisions()) > 0 else 0"},
+    "contributions": {"type": "int", "expr": "$metrics.contributions"}
+  }
+}

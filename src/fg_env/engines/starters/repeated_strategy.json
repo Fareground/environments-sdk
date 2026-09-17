@@ -1,0 +1,66 @@
+{
+  "fg_env": "1",
+  "name": "Strategy Engine",
+  "description": "A reusable repeated-interaction engine for interdependent human choices, cooperation, competition, commitments, and configurable consequences.",
+  "inputs": {
+    "rounds": {"type": "int", "default": 4, "min": 1, "max": 50},
+    "participants": {
+      "type": "table",
+      "columns": {"id": "text", "name": "text", "seat": "int", "cooperative": "bool"},
+      "default": [
+        {"id": "a", "name": "Participant A", "seat": 0, "cooperative": true},
+        {"id": "b", "name": "Participant B", "seat": 1, "cooperative": true}
+      ]
+    },
+    "mutual_cooperate": {"type": "number", "default": 3},
+    "mutual_compete": {"type": "number", "default": 1},
+    "compete_bonus": {"type": "number", "default": 5},
+    "cooperate_loss": {"type": "number", "default": 0}
+  },
+  "brief": {
+    "situation": "Participants repeatedly make interdependent choices under incomplete information.",
+    "rules": "Each round, privately choose cooperate or compete. Mutual cooperation rewards both; mutual competition gives a smaller return; when choices differ, the competitor gains the bonus and the cooperator receives the loss payoff. Past choices and scores become public after each round.",
+    "roles": {"strategist": "Choose based on your goals, expectations, history, and any scenario-specific commitments."}
+  },
+  "clock": {"rounds": "$inputs.rounds", "unit": "round"},
+  "types": {"strategist": {"agent": true, "policy": "baseline", "props": {
+    "seat": {"type": "int", "default": 0},
+    "cooperative": {"type": "bool", "default": true, "private": true},
+    "choice": {"type": "text", "default": "", "private": true},
+    "last_choice": {"type": "text", "default": "none"},
+    "score": {"type": "number", "default": 0},
+    "cooperations": {"type": "int", "default": 0},
+    "competitions": {"type": "int", "default": 0}
+  }}},
+  "population": [{"type": "strategist", "from": "$inputs.participants", "id": "{$row.id}", "name": "{$row.name}", "props": {"seat": "$row.seat", "cooperative": "$row.cooperative"}}],
+  "actions": {"choose": {
+    "by": "strategist", "description": "Privately choose cooperate or compete for this round.", "private": true, "terminal": true,
+    "params": {"choice": {"type": "enum", "values": ["cooperate", "compete"]}},
+    "do": ["$actor.choice = $params.choice"]
+  }},
+  "stages": [{"name": "choose", "turns": "simultaneous", "must_act": true}],
+  "events": [{"name": "resolve_choices", "phase": "end", "do": [
+    "$first = $top(strategist, -$it.seat, 1)[0]", "$second = $top(strategist, $it.seat, 1)[0]",
+    {"if": "$first.choice == cooperate and $second.choice == cooperate", "then": ["$first.score += $inputs.mutual_cooperate", "$second.score += $inputs.mutual_cooperate"]},
+    {"if": "$first.choice == compete and $second.choice == compete", "then": ["$first.score += $inputs.mutual_compete", "$second.score += $inputs.mutual_compete"]},
+    {"if": "$first.choice == compete and $second.choice == cooperate", "then": ["$first.score += $inputs.compete_bonus", "$second.score += $inputs.cooperate_loss"]},
+    {"if": "$first.choice == cooperate and $second.choice == compete", "then": ["$first.score += $inputs.cooperate_loss", "$second.score += $inputs.compete_bonus"]},
+    {"each": "strategist", "do": [
+      {"if": "$it.choice == cooperate", "then": ["$it.cooperations += 1"], "else": ["$it.competitions += 1"]},
+      "$it.last_choice = $it.choice", "$it.choice = ''"
+    ]},
+    {"emit": "round_result", "say": "Choices are revealed and consequences applied."}
+  ]}],
+  "policies": {"baseline": {"rules": [
+    {"when": "$actor.cooperative", "do": "choose", "with": {"choice": "cooperate"}},
+    {"do": "choose", "with": {"choice": "compete"}}
+  ]}},
+  "metrics": {"cooperation_rate": {"expr": "$sum(strategist, $it.cooperations) / $max(1, $sum(strategist, $it.cooperations + $it.competitions))"}},
+  "outputs": {
+    "cooperation_rate": {"type": "number", "expr": "$metrics.cooperation_rate"},
+    "total_cooperations": {"type": "int", "expr": "$sum(strategist, $it.cooperations)"},
+    "total_competitions": {"type": "int", "expr": "$sum(strategist, $it.competitions)"},
+    "top_score": {"type": "number", "expr": "$max(strategist, $it.score)"},
+    "winner": {"type": "text", "expr": "$top(strategist, $it.score, 1)[0].name"}
+  }
+}
