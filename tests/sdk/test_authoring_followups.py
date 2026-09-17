@@ -127,3 +127,17 @@ def test_bool_type_name_as_default_has_an_actionable_load_error():
     # Preserve literal text compatibility; only the diagnostic changes.
     contract['entities']['one']['props']['done'] = 'bool'
     assert fg_env.load(contract).entities('item')[0]['props']['done'] == 'bool'
+
+
+
+def test_dynamic_goal_in_static_action_description_points_to_participant_brief():
+    contract = _contract()
+    contract['actions']['guess']['description'] = 'Pursue {$actor.pick}.'
+    issues = fg_env.check(contract, rounds=0)
+    warning = next(issue for issue in issues if issue.path == 'actions.guess.description')
+    assert warning.severity == 'warning'
+    assert 'brief.roles' in warning.fix and 'env.preview' in warning.fix
+    contract['actions']['guess']['description'] = 'Make a guess.'
+    contract['brief'] = {'roles': {'player': 'Pursue {$actor.pick}.'}}
+    assert not [issue for issue in fg_env.check(contract, rounds=0) if issue.path.endswith('.description')]
+    assert 'Pursue 0.' in fg_env.load(contract).preview('ann')['brief']
