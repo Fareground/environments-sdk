@@ -250,3 +250,18 @@ def test_authoring_example_uses_every_input_row_and_shared_capacity(rows, capaci
     assert result.ok, result.error
     assert result.outputs == {'completed': completed, 'pending': pending}
     assert completed + pending == sum(row['quantity'] for row in rows)
+
+
+def test_ordered_processing_reference_runs_without_priority_scaling():
+    page = guide('effects').split('### Ordered processing')[1]
+    effect = json.loads(page.split('```json\n')[1].split('```')[0])
+    contract = {"name": "Ordered work", "clock": {"rounds": 1},
+                "types": {"item": {"props": {"due": 0, "sequence": 0}}},
+                "entities": {"later": {"type": "item", "props": {"due": 2, "sequence": 0}},
+                             "early_second": {"type": "item", "props": {"due": 1, "sequence": 2000001}},
+                             "early_first": {"type": "item", "props": {"due": 1, "sequence": 1}}},
+                "world": {"seen": []}, "events": [{"do": [effect]}],
+                "outputs": {"seen": "$world.seen"}}
+    result = fg_env.run(contract)
+    assert result.ok
+    assert result.outputs['seen'] == ['early_first', 'early_second', 'later']
