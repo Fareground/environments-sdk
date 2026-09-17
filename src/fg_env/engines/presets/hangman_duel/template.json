@@ -1,0 +1,204 @@
+{
+  "name": "Hangman Duel",
+  "description": "Sealed-tick competitive Hangman. Both players race to reveal the SAME secret word by guessing letters one at a time. Each round, both players submit a single letter SEALED (neither sees the other's pick until both have submitted). Then both letters are revealed against the target. Correct letters reveal every matching position on that player's board; wrong letters add a strike. Player wins by FULLY revealing the word before reaching `max_strikes`. Hitting `max_strikes` first = loss. Configurable: best-of-N match length (default 1 = single game) and max strikes per game (default 6, matching classic Hangman). Chat is DISABLED — players don't see each other's reasoning. Per-seat opener mandate guarantees the two AI players start from different letters.",
+  "scenario_type": "competition",
+  "spatial": { "type": "none" },
+  "temporal": {
+    "phases": [
+      {
+        "name": "play",
+        "description": "Both players submit one letter per round. Round resolves when both have submitted.",
+        "active_roles": [],
+        "resolution_mode": "simultaneous"
+      }
+    ]
+  },
+  "entity_types": [
+    {
+      "name": "HangmanDuelPlayer",
+      "role": "agent",
+      "description": "A Hangman Duel player. Sees their own mask (revealed letters + blanks), their own strike count, and the letters they've already tried. Picks ONE new letter per round.",
+      "properties": [
+        {
+          "name": "color",
+          "type": "string",
+          "default": "white",
+          "description": "Seat: 'white' (first-listed) or 'black' (second). Both players are equally active each round.",
+          "hidden": false
+        },
+        {
+          "name": "strikes",
+          "type": "int",
+          "default": 0,
+          "min_value": 0,
+          "max_value": 20,
+          "description": "Wrong-letter count for this player. At max_strikes the player loses.",
+          "hidden": false
+        },
+        {
+          "name": "letters_revealed",
+          "type": "int",
+          "default": 0,
+          "min_value": 0,
+          "max_value": 30,
+          "description": "Number of unique target letters this player has correctly revealed.",
+          "hidden": false
+        },
+        {
+          "name": "solved",
+          "type": "bool",
+          "default": false,
+          "description": "True once this player has revealed every letter in the target word.",
+          "hidden": false
+        },
+        {
+          "name": "frequency_bias",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "0 = ignores letter frequency; 1 = always picks the highest-frequency unguessed letter.",
+          "hidden": true
+        },
+        {
+          "name": "risk_appetite",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "0 = always probes vowels & common consonants; 1 = takes early flyers on rare letters when context suggests them.",
+          "hidden": true
+        }
+      ]
+    }
+  ],
+  "resource_types": [],
+  "relation_types": [],
+  "visibility_rules": [],
+  "actions": [
+    {
+      "name": "guess_letter",
+      "description": "Submit your letter guess for the current round. REQUIRED parameter `letter` — a single alphabetic character (case-insensitive). Sealed: your opponent does NOT see your pick until both players have submitted. After both submit, both letters are revealed against the target word simultaneously. A letter you've already guessed in this game is rejected — pick a NEW letter every round.",
+      "actor_type": "HangmanDuelPlayer",
+      "target_type": null,
+      "parameters": [
+        {
+          "name": "letter",
+          "type": "string",
+          "default": "",
+          "description": "A single letter a-z to guess."
+        }
+      ],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": []
+    }
+  ],
+  "entities": [],
+  "resource_holdings": [],
+  "resource_unallocated": [],
+  "initial_relations": [],
+  "personas": [],
+  "agent_archetypes": [
+    {
+      "name": "Frequency Optimizer",
+      "weight": 0.3,
+      "entity_type": "HangmanDuelPlayer",
+      "persona_hint": "Plays canonical Hangman frequency strategy — opens with the high-information vowels and common consonants (E, T, A, O, I, N, S, H, R), pivots once the mask reveals enough structure. Almost never guesses a rare letter early.",
+      "property_distributions": {
+        "frequency_bias": { "type": "normal", "params": { "mean": 0.9, "std": 0.05, "min": 0.75, "max": 1.0 } },
+        "risk_appetite": { "type": "normal", "params": { "mean": 0.15, "std": 0.08, "min": 0.0, "max": 0.3 } }
+      }
+    },
+    {
+      "name": "Pattern Reader",
+      "weight": 0.25,
+      "entity_type": "HangmanDuelPlayer",
+      "persona_hint": "Reads the partial mask aggressively — once a few letters are revealed, picks letters that complete plausible English words rather than maximizing raw frequency. Strong when the word fits common patterns (e.g. -ATION, -ING, double letters).",
+      "property_distributions": {
+        "frequency_bias": { "type": "normal", "params": { "mean": 0.4, "std": 0.1, "min": 0.2, "max": 0.6 } },
+        "risk_appetite": { "type": "normal", "params": { "mean": 0.55, "std": 0.1, "min": 0.4, "max": 0.7 } }
+      }
+    },
+    {
+      "name": "Balanced Solver",
+      "weight": 0.3,
+      "entity_type": "HangmanDuelPlayer",
+      "persona_hint": "Hybrid — frequency-first for the first 3-4 guesses, then switches to pattern matching once the mask exposes word shape.",
+      "property_distributions": {
+        "frequency_bias": { "type": "normal", "params": { "mean": 0.6, "std": 0.08, "min": 0.4, "max": 0.8 } },
+        "risk_appetite": { "type": "normal", "params": { "mean": 0.45, "std": 0.08, "min": 0.3, "max": 0.6 } }
+      }
+    },
+    {
+      "name": "Risk-Taker",
+      "weight": 0.15,
+      "entity_type": "HangmanDuelPlayer",
+      "persona_hint": "Goes for rare letters early when the mask hints at them (e.g. seeing 'Q_' bets on U; 'X' if pattern suggests EXIT/AXIS). Big wins or fast strikeouts.",
+      "property_distributions": {
+        "frequency_bias": { "type": "normal", "params": { "mean": 0.2, "std": 0.08, "min": 0.05, "max": 0.4 } },
+        "risk_appetite": { "type": "normal", "params": { "mean": 0.85, "std": 0.07, "min": 0.7, "max": 1.0 } }
+      }
+    }
+  ],
+  "domain_modules": [
+    { "name": "hangman_duel", "params": { "wins_needed": 2, "max_strikes": 6 } }
+  ],
+  "crowd_config": {},
+  "cognitive_config": {},
+  "social_config": {},
+  "runtime_parameters": [
+    {
+      "name": "sample_size",
+      "label": "Number of Players",
+      "type": "int",
+      "default": 2,
+      "min_value": 2,
+      "max_value": 2,
+      "description": "Hangman Duel is strictly 2 players.",
+      "category": "scale"
+    },
+    {
+      "name": "domain.max_strikes",
+      "label": "Max strikes per game",
+      "type": "int",
+      "default": 6,
+      "min_value": 4,
+      "max_value": 10,
+      "description": "How many wrong-letter strikes each player gets before losing the game. Classic Hangman uses 6 (head, body, two arms, two legs).",
+      "category": "rules"
+    },
+    {
+      "name": "wins_needed",
+      "label": "Games to Win Match",
+      "type": "int",
+      "default": 2,
+      "min_value": 1,
+      "max_value": 5,
+      "description": "Games a player must win to take the match. 1 = best of 1, 2 = best of 3, 3 = best of 5. Tied best-of-N goes to sudden death.",
+      "category": "structure"
+    },
+    {
+      "name": "premise",
+      "label": "Scenario Premise",
+      "type": "string",
+      "default": "",
+      "description": "Optional framing — e.g. 'speed-deduction tournament' or 'word-shape championship'.",
+      "category": "premise"
+    }
+  ],
+  "termination_conditions": [
+    {
+      "name": "match_won",
+      "description": "End the match when a player clinches the best-of-N.",
+      "check_type": "event_triggered",
+      "params": {
+        "event_type": "hm_win",
+        "count": 1
+      },
+      "sub_conditions": []
+    }
+  ]
+}

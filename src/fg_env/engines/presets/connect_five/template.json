@@ -1,0 +1,239 @@
+{
+  "name": "Five in a Row",
+  "description": "Gravity-drop connection game. Two players alternate dropping discs into columns; discs fall to the lowest empty slot. First to connect N in a row in any allowed direction wins; board fills with no winner = draw. Fully configurable in pre-match: board width and height (default 10×7), the required line length (default 5), and whether diagonals count (default yes). The 10×7 / connect-5 default is a deliberately wider board than a classic 7×6 four-in-a-row grid — bigger search space, less risk of forced wins. Set `connect_n=4` on a 7×6 board for the classic four-in-a-row game; set `connect_n=3` on a 5×5 board with no diagonals for stacked tic-tac-toe.",
+  "scenario_type": "competition",
+  "spatial": { "type": "none" },
+  "temporal": {
+    "phases": [
+      {
+        "name": "play",
+        "description": "Players alternate dropping discs. White moves first.",
+        "active_roles": []
+      }
+    ]
+  },
+  "entity_types": [
+    {
+      "name": "ConnectFivePlayer",
+      "role": "agent",
+      "description": "A Connect Five player. Reads the board, picks which column to drop into.",
+      "properties": [
+        {
+          "name": "color",
+          "type": "string",
+          "default": "white",
+          "description": "Side: 'white' (moves first) or 'black'. Assigned by seat order.",
+          "hidden": false
+        },
+        {
+          "name": "discs_played",
+          "type": "int",
+          "default": 0,
+          "min_value": 0,
+          "max_value": 200,
+          "description": "Total discs this player has dropped so far.",
+          "hidden": false
+        },
+        {
+          "name": "playing_style",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "0 = highly defensive, blocks every threat; 1 = aggressive, prioritizes building own lines.",
+          "hidden": true
+        },
+        {
+          "name": "calculation_depth",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "How many moves ahead the player tends to consider.",
+          "hidden": true
+        }
+      ]
+    }
+  ],
+  "resource_types": [],
+  "relation_types": [],
+  "visibility_rules": [],
+  "actions": [
+    {
+      "name": "drop_disc",
+      "description": "Drop one of your discs into a column. REQUIRED parameter `column` (integer, 1-indexed). The disc falls to the lowest empty row in that column. `column` MUST appear in `legal_columns` from your perception — full columns are illegal. No target_id; the action is column-only.",
+      "actor_type": "ConnectFivePlayer",
+      "target_type": null,
+      "parameters": [
+        {
+          "name": "column",
+          "type": "int",
+          "default": 1,
+          "min_value": 1,
+          "max_value": 15,
+          "description": "1-indexed column to drop into (1..board_cols)."
+        }
+      ],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": []
+    },
+    {
+      "name": "resign",
+      "description": "Forfeit the match. Opponent wins.",
+      "actor_type": "ConnectFivePlayer",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": []
+    }
+  ],
+  "entities": [],
+  "resource_holdings": [],
+  "resource_unallocated": [],
+  "initial_relations": [],
+  "personas": [],
+  "agent_archetypes": [
+    {
+      "name": "Aggressive Builder",
+      "weight": 0.3,
+      "entity_type": "ConnectFivePlayer",
+      "persona_hint": "Focuses on building own threats — stacks and extends own lines aggressively. Will sometimes allow an opponent's near-win if their own threat is more imminent.",
+      "property_distributions": {
+        "playing_style": { "type": "normal", "params": { "mean": 0.85, "std": 0.05, "min": 0.7, "max": 1.0 } },
+        "calculation_depth": { "type": "normal", "params": { "mean": 0.6, "std": 0.1, "min": 0.4, "max": 0.85 } }
+      }
+    },
+    {
+      "name": "Defensive Blocker",
+      "weight": 0.3,
+      "entity_type": "ConnectFivePlayer",
+      "persona_hint": "Prioritizes blocking the opponent's threats — never lets a 3-in-a-row stand undisturbed. Slow to build own attacks, very hard to beat.",
+      "property_distributions": {
+        "playing_style": { "type": "normal", "params": { "mean": 0.2, "std": 0.08, "min": 0.05, "max": 0.4 } },
+        "calculation_depth": { "type": "normal", "params": { "mean": 0.7, "std": 0.1, "min": 0.5, "max": 0.9 } }
+      }
+    },
+    {
+      "name": "Balanced Tactician",
+      "weight": 0.25,
+      "entity_type": "ConnectFivePlayer",
+      "persona_hint": "Adapts to the board state — builds when ahead in tempo, blocks when behind. Solid all-rounder.",
+      "property_distributions": {
+        "playing_style": { "type": "normal", "params": { "mean": 0.5, "std": 0.08, "min": 0.3, "max": 0.7 } },
+        "calculation_depth": { "type": "normal", "params": { "mean": 0.65, "std": 0.1, "min": 0.45, "max": 0.85 } }
+      }
+    },
+    {
+      "name": "Forking Specialist",
+      "weight": 0.15,
+      "entity_type": "ConnectFivePlayer",
+      "persona_hint": "Looks for forks — board positions creating two threats at once that the opponent can't block simultaneously. Plays for the long combination.",
+      "property_distributions": {
+        "playing_style": { "type": "normal", "params": { "mean": 0.6, "std": 0.08, "min": 0.4, "max": 0.8 } },
+        "calculation_depth": { "type": "normal", "params": { "mean": 0.85, "std": 0.07, "min": 0.7, "max": 0.95 } }
+      }
+    }
+  ],
+  "domain_modules": [
+    { "name": "connect_five", "params": {} }
+  ],
+  "crowd_config": {},
+  "cognitive_config": {},
+  "social_config": {},
+  "runtime_parameters": [
+    {
+      "name": "sample_size",
+      "label": "Number of Players",
+      "type": "int",
+      "default": 2,
+      "min_value": 2,
+      "max_value": 2,
+      "description": "Connect Five is strictly 2 players (one White, one Black).",
+      "category": "scale"
+    },
+    {
+      "name": "domain.board_cols",
+      "label": "Board width (columns)",
+      "type": "int",
+      "default": 10,
+      "min_value": 4,
+      "max_value": 15,
+      "description": "Number of columns. Classic Connect Four is 7; default 10 gives more room and reduces forced wins.",
+      "category": "rules"
+    },
+    {
+      "name": "domain.board_rows",
+      "label": "Board height (rows)",
+      "type": "int",
+      "default": 7,
+      "min_value": 4,
+      "max_value": 12,
+      "description": "Number of rows. Classic Connect Four is 6; default 7 adds one extra row for the wider 10-column board.",
+      "category": "rules"
+    },
+    {
+      "name": "domain.connect_n",
+      "label": "Connect-N (in a row to win)",
+      "type": "int",
+      "default": 5,
+      "min_value": 3,
+      "max_value": 7,
+      "description": "How many in a row are needed to win. Default 5 (Connect Five); set to 4 for classic Connect Four, or 3 for a stacked tic-tac-toe.",
+      "category": "rules"
+    },
+    {
+      "name": "domain.allow_diagonals",
+      "label": "Diagonals count toward wins",
+      "type": "bool",
+      "default": true,
+      "description": "If ON (default), lines in any of 8 directions (horizontal, vertical, both diagonals) count. If OFF, only horizontal and vertical lines win — a meaner game.",
+      "category": "rules"
+    },
+    {
+      "name": "premise",
+      "label": "Scenario Premise",
+      "type": "string",
+      "default": "",
+      "description": "Optional framing — e.g. 'tournament final' or 'casual blitz'.",
+      "category": "premise"
+    }
+  ],
+  "termination_conditions": [
+    {
+      "name": "connect_n_win",
+      "description": "End the game when a player connects N in a row.",
+      "check_type": "event_triggered",
+      "params": {
+        "event_type": "cf_win",
+        "count": 1
+      },
+      "sub_conditions": []
+    },
+    {
+      "name": "resignation",
+      "description": "End the game when a player resigns.",
+      "check_type": "event_triggered",
+      "params": {
+        "event_type": "cf_resign",
+        "count": 1
+      },
+      "sub_conditions": []
+    },
+    {
+      "name": "draw",
+      "description": "End the game on a board-full draw.",
+      "check_type": "event_triggered",
+      "params": {
+        "event_type": "cf_draw",
+        "count": 1
+      },
+      "sub_conditions": []
+    }
+  ]
+}

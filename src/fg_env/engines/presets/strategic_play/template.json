@@ -1,0 +1,510 @@
+{
+  "name": "Strategic Play",
+  "description": "Generic strategic-play arena: actors take moves in a shared state space under explicit rules. One move palette covers the three classic shapes — TERRITORY (claim and hold positions on a fixed map of fronts), COMMITMENT (simultaneous moves committed blind and revealed together, payoff-matrix style), and SEALED BIDS (hidden offers for a prize, revealed together). All moves resolve simultaneously each round: everyone commits against the same snapshot, nobody reacts to another's move within the round. Built entirely from kernel primitives — claimable slots (territory), a development deck (chance), sealed-bid auction resolution, and commit-then-reveal phase resolution.",
+  "scenario_type": "competition",
+  "spatial": {
+    "type": "none"
+  },
+  "temporal": {
+    "phases": [
+      {
+        "name": "maneuver",
+        "description": "Every player commits one move against the same snapshot of the board; all moves are revealed and resolved together. Commit-then-reveal: no player sees another's move this round before choosing their own.",
+        "active_roles": [],
+        "resolution_mode": "simultaneous"
+      }
+    ]
+  },
+  "entity_types": [
+    {
+      "name": "Player",
+      "role": "agent",
+      "description": "A strategic actor competing in the shared state space — a rival firm, faction, bidder, or player.",
+      "properties": [
+        {
+          "name": "score",
+          "type": "float",
+          "default": 0.0,
+          "min_value": 0.0,
+          "max_value": null,
+          "description": "Accumulated strategic gains — territory value, payoffs won, prizes taken. The victory metric.",
+          "hidden": false
+        },
+        {
+          "name": "resources",
+          "type": "float",
+          "default": 100.0,
+          "min_value": 0.0,
+          "max_value": null,
+          "description": "Commitment budget — spent on bids and stakes. Running dry means playing conservatively.",
+          "hidden": false
+        },
+        {
+          "name": "territories",
+          "type": "int",
+          "default": 0,
+          "min_value": 0,
+          "max_value": null,
+          "description": "Number of fronts currently claimed and held.",
+          "hidden": false
+        },
+        {
+          "name": "boldness",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Willingness to escalate and press contested positions.",
+          "hidden": false
+        },
+        {
+          "name": "foresight",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Planning skill — reading the board and timing claims and commitments.",
+          "hidden": false
+        },
+        {
+          "name": "guile",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Deception and defense — bluffing commitments, holding ground under challenge.",
+          "hidden": false
+        },
+        {
+          "name": "last_commitment",
+          "type": "string",
+          "default": "",
+          "description": "The move this player committed last round (visible after the reveal).",
+          "hidden": false
+        }
+      ]
+    }
+  ],
+  "resource_types": [],
+  "relation_types": [],
+  "visibility_rules": [],
+  "actions": [
+    {
+      "name": "claim",
+      "description": "Stake a claim on an open front. REQUIRED parameter: `territory` — the id of the front to claim (see the board's open fronts: north_ridge, south_gate, east_market, west_pass, central_plaza, far_reaches). Succeeds only if your read of the board is right (foresight check) and the front is still open — a front holds one claimant. Claimed ground pays score and counts toward territories held.",
+      "actor_type": "Player",
+      "target_type": null,
+      "parameters": [
+        {
+          "name": "territory",
+          "type": "string",
+          "default": "",
+          "description": "Id of the front to claim: north_ridge, south_gate, east_market, west_pass, central_plaza, or far_reaches."
+        }
+      ],
+      "preconditions": [],
+      "resolution_archetype": "skill_check",
+      "resolution_params": {
+        "skill_property": "foresight",
+        "difficulty": 0.35
+      },
+      "effects_on_success": [
+        {
+          "operation": "claim_slot",
+          "target": "actor",
+          "field": "territories",
+          "value": "$params.territory",
+          "description": "Claim the named front (one claimant per front; rewards fire on claim)."
+        }
+      ],
+      "effects_on_failure": []
+    },
+    {
+      "name": "contest",
+      "description": "Challenge another player directly — pressure their position, undercut their claim, force a confrontation. Opposed contest: your boldness against their guile. Winning takes ground in the standings; a failed challenge hands the defender the initiative.",
+      "actor_type": "Player",
+      "target_type": "Player",
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "contest",
+      "resolution_params": {
+        "attacker_property": "boldness",
+        "defender_property": "guile"
+      },
+      "effects_on_success": [
+        {
+          "operation": "add",
+          "target": "actor",
+          "field": "score",
+          "value": 1.5,
+          "scale_by_magnitude": true,
+          "description": "A won confrontation converts to standing, scaled by how decisively it was won."
+        }
+      ],
+      "effects_on_failure": [
+        {
+          "operation": "add",
+          "target": "target",
+          "field": "score",
+          "value": 0.75,
+          "description": "A repelled challenge strengthens the defender."
+        }
+      ]
+    },
+    {
+      "name": "commit",
+      "description": "Commit a strategic move for this round — everyone commits blind and all moves are revealed together. REQUIRED parameter: `choice` — the move you commit to (e.g. 'cooperate', 'defect', 'escalate', 'hold_firm', or whatever moves the scenario defines). Optional `stake` — resources you put behind it. Your payoff depends on how your committed move plays against what everyone else committed.",
+      "actor_type": "Player",
+      "target_type": null,
+      "parameters": [
+        {
+          "name": "choice",
+          "type": "string",
+          "default": "hold_firm",
+          "description": "The move committed this round, from the scenario's move set."
+        },
+        {
+          "name": "stake",
+          "type": "float",
+          "default": 1.0,
+          "description": "Resources staked behind the commitment."
+        }
+      ],
+      "preconditions": [],
+      "resolution_archetype": "skill_check",
+      "resolution_params": {
+        "skill_property": "foresight",
+        "difficulty": 0.45
+      },
+      "effects_on_success": [
+        {
+          "operation": "set",
+          "target": "actor",
+          "field": "last_commitment",
+          "value": "$params.choice",
+          "description": "Reveal the committed move."
+        },
+        {
+          "operation": "add",
+          "target": "actor",
+          "field": "score",
+          "value": 1.0,
+          "scale_by_magnitude": true,
+          "description": "Payoff for a well-timed commitment, scaled by how well it was played."
+        }
+      ],
+      "effects_on_failure": [
+        {
+          "operation": "set",
+          "target": "actor",
+          "field": "last_commitment",
+          "value": "$params.choice",
+          "description": "A misplayed commitment is still revealed."
+        }
+      ]
+    },
+    {
+      "name": "sealed_bid",
+      "description": "Submit a hidden bid for the round's prize. REQUIRED parameter: `bid` — the amount you offer, from your resources. All bids are sealed: submitted blind, revealed together. Highest bid takes the prize and pays for it; everyone else keeps their money and gets nothing. Bid above your read of the prize's value and you win a loss.",
+      "actor_type": "Player",
+      "target_type": null,
+      "parameters": [
+        {
+          "name": "bid",
+          "type": "float",
+          "default": 0.0,
+          "description": "The sealed offer, in resources."
+        }
+      ],
+      "preconditions": [],
+      "resolution_archetype": "auction_sealed_first",
+      "resolution_params": {},
+      "effects_on_success": [
+        {
+          "operation": "add",
+          "target": "actor",
+          "field": "score",
+          "value": 1.0,
+          "scale_by_magnitude": true,
+          "description": "The prize, worth more the harder it was fought for."
+        },
+        {
+          "operation": "subtract",
+          "target": "actor",
+          "field": "resources",
+          "value": "$result.magnitude",
+          "description": "The winner pays their clearing price."
+        }
+      ],
+      "effects_on_failure": []
+    },
+    {
+      "name": "gambit",
+      "description": "Play for a development — draw from the deck of strategic developments. Cheap information-and-luck move: the drawn development applies to you immediately (windfalls, setbacks, openings). Use when the direct moves look unfavorable this round.",
+      "actor_type": "Player",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [
+        {
+          "operation": "draw_from_deck",
+          "target": "actor",
+          "field": "developments",
+          "description": "Draw the next strategic development and apply it."
+        }
+      ],
+      "effects_on_failure": []
+    },
+    {
+      "name": "hold",
+      "description": "Hold position — make no move this round. Consolidate, watch the reveal, keep your resources intact.",
+      "actor_type": "Player",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": []
+    }
+  ],
+  "entities": [],
+  "resource_holdings": [],
+  "resource_unallocated": [],
+  "initial_relations": [],
+  "personas": [],
+  "agent_archetypes": [
+    {
+      "name": "Expansionist",
+      "weight": 0.3,
+      "entity_type": "Player",
+      "persona_hint": "Grabs ground early and everywhere — claims aggressively, contests anything contested, outbids on instinct. Vulnerable when overextended and low on resources.",
+      "property_distributions": {
+        "boldness": {
+          "type": "normal",
+          "params": { "mean": 0.8, "std": 0.07, "min": 0.6, "max": 0.95 }
+        },
+        "foresight": {
+          "type": "normal",
+          "params": { "mean": 0.45, "std": 0.08, "min": 0.3, "max": 0.6 }
+        },
+        "guile": {
+          "type": "normal",
+          "params": { "mean": 0.4, "std": 0.08, "min": 0.25, "max": 0.55 }
+        }
+      }
+    },
+    {
+      "name": "Fortress Builder",
+      "weight": 0.25,
+      "entity_type": "Player",
+      "persona_hint": "Takes few positions and holds them absolutely — claims only what can be defended, repels challenges, never overpays. Wins long games; loses land-grabs.",
+      "property_distributions": {
+        "boldness": {
+          "type": "normal",
+          "params": { "mean": 0.35, "std": 0.07, "min": 0.2, "max": 0.5 }
+        },
+        "foresight": {
+          "type": "normal",
+          "params": { "mean": 0.65, "std": 0.08, "min": 0.5, "max": 0.8 }
+        },
+        "guile": {
+          "type": "normal",
+          "params": { "mean": 0.75, "std": 0.07, "min": 0.6, "max": 0.9 }
+        }
+      }
+    },
+    {
+      "name": "Opportunist",
+      "weight": 0.25,
+      "entity_type": "Player",
+      "persona_hint": "Reads the other players, not the board — defects when cooperation is priced in, snipes fronts others fight over, bids only when the field looks timid.",
+      "property_distributions": {
+        "boldness": {
+          "type": "normal",
+          "params": { "mean": 0.55, "std": 0.08, "min": 0.4, "max": 0.7 }
+        },
+        "foresight": {
+          "type": "normal",
+          "params": { "mean": 0.7, "std": 0.07, "min": 0.55, "max": 0.85 }
+        },
+        "guile": {
+          "type": "normal",
+          "params": { "mean": 0.7, "std": 0.08, "min": 0.55, "max": 0.85 }
+        }
+      }
+    },
+    {
+      "name": "Dealmaker",
+      "weight": 0.2,
+      "entity_type": "Player",
+      "persona_hint": "Plays the cooperative equilibrium as long as others do — commits to mutual-gain moves, punishes defection once, forgives after. Steady scorer, rarely spectacular.",
+      "property_distributions": {
+        "boldness": {
+          "type": "normal",
+          "params": { "mean": 0.45, "std": 0.08, "min": 0.3, "max": 0.6 }
+        },
+        "foresight": {
+          "type": "normal",
+          "params": { "mean": 0.6, "std": 0.08, "min": 0.45, "max": 0.75 }
+        },
+        "guile": {
+          "type": "normal",
+          "params": { "mean": 0.5, "std": 0.08, "min": 0.35, "max": 0.65 }
+        }
+      }
+    }
+  ],
+  "domain_modules": [
+    {
+      "name": "slots",
+      "params": {
+        "id": "territories",
+        "reset_on": "manual",
+        "slots": [
+          {
+            "id": "north_ridge",
+            "capacity": 1,
+            "description": "The high ground — hardest to take, commands the board.",
+            "reward": [
+              { "operation": "add", "target": "actor", "field": "territories", "value": 1 },
+              { "operation": "add", "target": "actor", "field": "score", "value": 3.0 }
+            ]
+          },
+          {
+            "id": "south_gate",
+            "capacity": 1,
+            "description": "The main approach — heavy traffic, contested early.",
+            "reward": [
+              { "operation": "add", "target": "actor", "field": "territories", "value": 1 },
+              { "operation": "add", "target": "actor", "field": "score", "value": 2.0 }
+            ]
+          },
+          {
+            "id": "east_market",
+            "capacity": 1,
+            "description": "The revenue front — steady value, everyone wants it.",
+            "reward": [
+              { "operation": "add", "target": "actor", "field": "territories", "value": 1 },
+              { "operation": "add", "target": "actor", "field": "score", "value": 2.5 },
+              { "operation": "add", "target": "actor", "field": "resources", "value": 10.0 }
+            ]
+          },
+          {
+            "id": "west_pass",
+            "capacity": 1,
+            "description": "The flank — cheap to take, awkward to defend.",
+            "reward": [
+              { "operation": "add", "target": "actor", "field": "territories", "value": 1 },
+              { "operation": "add", "target": "actor", "field": "score", "value": 1.5 }
+            ]
+          },
+          {
+            "id": "central_plaza",
+            "capacity": 1,
+            "description": "The center — symbolic and strategic, the prestige claim.",
+            "reward": [
+              { "operation": "add", "target": "actor", "field": "territories", "value": 1 },
+              { "operation": "add", "target": "actor", "field": "score", "value": 2.5 }
+            ]
+          },
+          {
+            "id": "far_reaches",
+            "capacity": 1,
+            "description": "The frontier — overlooked, pays off late.",
+            "reward": [
+              { "operation": "add", "target": "actor", "field": "territories", "value": 1 },
+              { "operation": "add", "target": "actor", "field": "score", "value": 1.5 },
+              { "operation": "add", "target": "actor", "field": "resources", "value": 5.0 }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "deck",
+      "params": {
+        "id": "developments",
+        "shuffle": true,
+        "reshuffle_on_empty": true,
+        "cards": [
+          {
+            "text": "Windfall — an unexpected backer arrives. Gain 15 resources.",
+            "effect": [
+              { "operation": "add", "target": "actor", "field": "resources", "value": 15.0 }
+            ]
+          },
+          {
+            "text": "Momentum — your last move lands better than expected. Gain 1 score.",
+            "effect": [
+              { "operation": "add", "target": "actor", "field": "score", "value": 1.0 }
+            ]
+          },
+          {
+            "text": "Setback — a supply line fails. Lose 10 resources.",
+            "effect": [
+              { "operation": "subtract", "target": "actor", "field": "resources", "value": 10.0 }
+            ]
+          },
+          {
+            "text": "Intelligence — you learn how the field is leaning. Your next commitment is better informed (no immediate effect; play accordingly).",
+            "effect": []
+          },
+          {
+            "text": "Opening — a rival's position weakens. Gain 0.5 score.",
+            "effect": [
+              { "operation": "add", "target": "actor", "field": "score", "value": 0.5 }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "crowd_config": {},
+  "cognitive_config": {},
+  "social_config": {},
+  "runtime_parameters": [
+    {
+      "name": "sample_size",
+      "label": "Number of Players",
+      "type": "int",
+      "default": 4,
+      "min_value": 2,
+      "max_value": 12,
+      "description": "How many strategic actors compete in the shared state space.",
+      "category": "scale"
+    },
+    {
+      "name": "premise",
+      "label": "Scenario Premise",
+      "type": "string",
+      "default": "",
+      "description": "What is being contested, by whom, and under what rules — the scenario framing every player reads.",
+      "category": "premise",
+      "role": "input"
+    },
+    {
+      "name": "context",
+      "label": "Context",
+      "type": "string",
+      "default": "",
+      "description": "Additional background the players should factor in.",
+      "category": "premise",
+      "role": "input"
+    }
+  ],
+  "rules": "STRATEGIC PLAY — actors take moves in a shared state space under explicit rules.\n\nHOW A ROUND WORKS: every player commits ONE move at the same time, blind — nobody sees another's move this round before choosing their own. All moves are then revealed and resolved together.\n\nTHE MOVES:\n- claim(territory): stake a claim on an open front (north_ridge, south_gate, east_market, west_pass, central_plaza, far_reaches). One claimant per front; claimed ground pays score and counts as territory held.\n- contest(target): challenge another player directly — your boldness against their guile. Win and gain standing; lose and hand them the initiative.\n- commit(choice, stake): commit a strategic move from the scenario's move set (cooperate, defect, escalate, …). Payoffs land on the reveal.\n- sealed_bid(bid): submit a hidden offer for the round's prize. Highest bid wins and pays; everyone else keeps their resources.\n- gambit: draw a strategic development — cheap luck-and-information play.\n- hold: no move; conserve resources and watch the reveal.\n\nSCORING: 'score' is the victory metric — territory value, payoffs, prizes. 'resources' is your commitment budget; spend it on bids and stakes, and mind that it runs out. Play the scenario in the briefing: it defines what the fronts, moves, and prizes mean here.",
+  "termination_conditions": [
+    {
+      "name": "max_rounds",
+      "description": "Hard cap on the number of rounds (defensive only — scenario endings usually replace this).",
+      "check_type": "round_limit",
+      "params": {
+        "max_rounds": 40
+      },
+      "sub_conditions": []
+    }
+  ]
+}

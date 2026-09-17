@@ -56,7 +56,7 @@ fg-env is one of Fareground's open-source building blocks, alongside
 Install Environments SDK from PyPI:
 
 ```bash
-python -m pip install "fg-env==0.4.2"
+python -m pip install "fg-env==0.5.0"
 ```
 
 Python ≥ 3.11. The only runtime dependency is `pydantic`.
@@ -82,6 +82,37 @@ print(fg_env.check(contract))        # [] — every problem would come with its 
 result = fg_env.run(contract, seed=1)  # random agents; same seed, same run
 print(result.outputs)                  # typed, per the contract
 ```
+
+## Start from a reusable engine
+
+Discover a versioned engine, clone its starter, then customize the contract:
+
+```python
+import fg_env
+
+for engine in fg_env.list_engines(product="simulation"):
+    print(engine.id, engine.status, [preset.id for preset in engine.presets])
+
+fg_env.clone_engine("market", "my_market.json", name="My market study")
+result = fg_env.experiment("my_market.json", runs=20, participants="random")
+print(result.table())
+```
+
+All current Fareground simulation and Arena engines are represented. Native
+contract starters are preferred for new work; `legacy_compatible` entries keep
+existing engines runnable while their product environments are migrated.
+
+Persona generation is shared infrastructure rather than an environment:
+
+```python
+cohort = fg_env.sample_records(
+    people, size=100, seed=7, run=0, resample=True,
+    constraints={"region": "north"}, group_by="household_id",
+    source="survey-2026",
+)
+```
+
+See [engine starters and persona sampling](docs/sdk/engines.md).
 
 Or start from a template and read the short core guide:
 

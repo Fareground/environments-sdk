@@ -1,0 +1,189 @@
+{
+  "name": "Rock Paper Scissors",
+  "description": "Sealed-tick iterated Rock Paper Scissors. Each round both players SECRETLY pick rock, paper, or scissors; reveals happen simultaneously. Standard win rules: rock crushes scissors, scissors cuts paper, paper covers rock. Tied rounds award no points. Match is best-of-N — first player to reach the win threshold takes the match. Configure N from 1 (single round) up to 99 (long iterated match). Skill comes from pattern detection and randomness generation. Chat is ENABLED — players can talk trash and try to bluff each other; speech reveals alongside the move so it can't leak the pick.",
+  "scenario_type": "competition",
+  "spatial": { "type": "none" },
+  "temporal": {
+    "phases": [
+      {
+        "name": "play",
+        "description": "Both players submit one move per round. Round resolves when both have submitted.",
+        "active_roles": [],
+        "resolution_mode": "simultaneous"
+      }
+    ]
+  },
+  "entity_types": [
+    {
+      "name": "RPSPlayer",
+      "role": "agent",
+      "description": "A Rock Paper Scissors player. Sees their own move history, opponent's move history (after reveals), and the running score. Picks ONE move per round: 'rock', 'paper', or 'scissors'.",
+      "properties": [
+        {
+          "name": "color",
+          "type": "string",
+          "default": "white",
+          "description": "Seat: 'white' (first-listed) or 'black' (second).",
+          "hidden": false
+        },
+        {
+          "name": "score",
+          "type": "int",
+          "default": 0,
+          "min_value": 0,
+          "max_value": 99,
+          "description": "Round wins accumulated this match.",
+          "hidden": false
+        },
+        {
+          "name": "randomness",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "0 = leans on detectable patterns (favorite move, periodic switches); 1 = tries to play uniformly random.",
+          "hidden": true
+        },
+        {
+          "name": "counter_seeking",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "0 = ignores opponent history; 1 = aggressively counters opponent's most-frequent / most-recent move.",
+          "hidden": true
+        }
+      ]
+    }
+  ],
+  "resource_types": [],
+  "relation_types": [],
+  "visibility_rules": [],
+  "actions": [
+    {
+      "name": "throw",
+      "description": "Submit your move for the current round. REQUIRED parameter `move` — one of 'rock', 'paper', 'scissors' (case-insensitive). Sealed: your opponent does NOT see your pick until both have submitted. After both submit, both reveals happen simultaneously. Rock crushes scissors; scissors cuts paper; paper covers rock; identical moves tie (no point awarded).",
+      "actor_type": "RPSPlayer",
+      "target_type": null,
+      "parameters": [
+        {
+          "name": "move",
+          "type": "string",
+          "default": "rock",
+          "options": ["rock", "paper", "scissors"],
+          "description": "Your move this round."
+        }
+      ],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": []
+    }
+  ],
+  "entities": [],
+  "resource_holdings": [],
+  "resource_unallocated": [],
+  "initial_relations": [],
+  "personas": [],
+  "agent_archetypes": [
+    {
+      "name": "Pattern Hunter",
+      "weight": 0.3,
+      "entity_type": "RPSPlayer",
+      "persona_hint": "Reads opponent's move history aggressively. Tracks frequency, recent streaks, and 'switch-after-loss' patterns; plays the counter to the predicted next move. Wins big against predictable opponents; loses to true randomness.",
+      "property_distributions": {
+        "randomness": { "type": "normal", "params": { "mean": 0.25, "std": 0.08, "min": 0.1, "max": 0.4 } },
+        "counter_seeking": { "type": "normal", "params": { "mean": 0.9, "std": 0.05, "min": 0.75, "max": 1.0 } }
+      }
+    },
+    {
+      "name": "Randomizer",
+      "weight": 0.25,
+      "entity_type": "RPSPlayer",
+      "persona_hint": "Tries to play maximally random — no patterns, no opponent-reads, just uniform 1/3 on every move. Hard to exploit; relies on opponent making mistakes.",
+      "property_distributions": {
+        "randomness": { "type": "normal", "params": { "mean": 0.95, "std": 0.03, "min": 0.9, "max": 1.0 } },
+        "counter_seeking": { "type": "normal", "params": { "mean": 0.1, "std": 0.05, "min": 0.0, "max": 0.25 } }
+      }
+    },
+    {
+      "name": "Frequency Counter",
+      "weight": 0.2,
+      "entity_type": "RPSPlayer",
+      "persona_hint": "Tracks opponent's TOTAL frequency across the match. If opponent has thrown more rock than paper or scissors, plays paper. Doesn't react to short-term streaks. Steady, exploitable by adaptive opponents.",
+      "property_distributions": {
+        "randomness": { "type": "normal", "params": { "mean": 0.35, "std": 0.07, "min": 0.2, "max": 0.5 } },
+        "counter_seeking": { "type": "normal", "params": { "mean": 0.7, "std": 0.07, "min": 0.55, "max": 0.85 } }
+      }
+    },
+    {
+      "name": "Streaker",
+      "weight": 0.15,
+      "entity_type": "RPSPlayer",
+      "persona_hint": "Loves streaks — once they pick a move, they repeat it for 2-4 rounds in a row before switching. Hopes the opponent over-adapts after one round. Wins fast on hot streaks; punished by anyone who notices.",
+      "property_distributions": {
+        "randomness": { "type": "normal", "params": { "mean": 0.2, "std": 0.06, "min": 0.1, "max": 0.35 } },
+        "counter_seeking": { "type": "normal", "params": { "mean": 0.35, "std": 0.08, "min": 0.2, "max": 0.5 } }
+      }
+    },
+    {
+      "name": "Win-Stay-Lose-Shift",
+      "weight": 0.1,
+      "entity_type": "RPSPlayer",
+      "persona_hint": "Classic conditional rule — if last round won, repeat the same move; if lost or tied, shift to a different move. A famously decent baseline against humans, exploitable in pure theory.",
+      "property_distributions": {
+        "randomness": { "type": "normal", "params": { "mean": 0.4, "std": 0.07, "min": 0.25, "max": 0.55 } },
+        "counter_seeking": { "type": "normal", "params": { "mean": 0.55, "std": 0.07, "min": 0.4, "max": 0.7 } }
+      }
+    }
+  ],
+  "domain_modules": [
+    { "name": "rock_paper_scissors", "params": { "best_of": 9 } }
+  ],
+  "crowd_config": {},
+  "cognitive_config": {},
+  "social_config": {},
+  "runtime_parameters": [
+    {
+      "name": "sample_size",
+      "label": "Number of Players",
+      "type": "int",
+      "default": 2,
+      "min_value": 2,
+      "max_value": 2,
+      "description": "Rock Paper Scissors is strictly 2 players.",
+      "category": "scale"
+    },
+    {
+      "name": "best_of",
+      "label": "Best of (rounds)",
+      "type": "int",
+      "default": 9,
+      "min_value": 1,
+      "max_value": 99,
+      "description": "Match length. The first player to reach ceil(best_of/2) round wins takes the match. Odd values guarantee no overall tie. Higher N rewards pattern detection over single-round luck.",
+      "category": "structure"
+    },
+    {
+      "name": "premise",
+      "label": "Scenario Premise",
+      "type": "string",
+      "default": "",
+      "description": "Optional framing — e.g. 'world championship' or 'duel to settle a wager'.",
+      "category": "premise"
+    }
+  ],
+  "termination_conditions": [
+    {
+      "name": "match_won",
+      "description": "End the match when a player reaches the win threshold.",
+      "check_type": "event_triggered",
+      "params": {
+        "event_type": "rps_win",
+        "count": 1
+      },
+      "sub_conditions": []
+    }
+  ]
+}

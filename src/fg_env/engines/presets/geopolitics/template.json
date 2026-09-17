@@ -1,0 +1,1262 @@
+{
+  "name": "Geopolitics",
+  "description": "Geopolitical simulation with nations making strategic decisions about alliances, sanctions, trade, and military posture. Nations balance power, diplomacy, and economic interests while navigating crises and managing public opinion.",
+  "scenario_type": "political",
+  "spatial": {
+    "type": "none"
+  },
+  "temporal": {
+    "phases": [
+      {
+        "name": "diplomacy",
+        "description": "Nations negotiate, posture, and take strategic actions on the world stage",
+        "active_roles": []
+      }
+    ]
+  },
+  "entity_types": [
+    {
+      "name": "Nation",
+      "role": "agent",
+      "description": "A sovereign nation-state that pursues strategic interests through military, economic, and diplomatic means",
+      "properties": [
+        {
+          "name": "military_power",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Conventional military strength and projection capability",
+          "hidden": false
+        },
+        {
+          "name": "economic_strength",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Overall economic output and resilience",
+          "hidden": false
+        },
+        {
+          "name": "diplomatic_influence",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Soft power and ability to shape international consensus",
+          "hidden": false
+        },
+        {
+          "name": "internal_stability",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Domestic political stability and social cohesion",
+          "hidden": false
+        },
+        {
+          "name": "nuclear_capability",
+          "type": "float",
+          "default": 0.0,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Nuclear weapons capability and delivery systems",
+          "hidden": true
+        },
+        {
+          "name": "public_opinion",
+          "type": "float",
+          "default": 0.0,
+          "min_value": -1.0,
+          "max_value": 1.0,
+          "description": "Domestic public sentiment from dovish (-1) to hawkish (1)",
+          "hidden": false
+        }
+      ]
+    }
+  ],
+  "resource_types": [
+    {
+      "name": "gdp",
+      "conservation": false,
+      "discrete": false,
+      "min_value": 0.0,
+      "max_value": null,
+      "description": "Gross domestic product representing economic output"
+    },
+    {
+      "name": "military_units",
+      "conservation": true,
+      "discrete": true,
+      "min_value": 0,
+      "max_value": null,
+      "description": "Deployable military units"
+    }
+  ],
+  "relation_types": [
+    {
+      "name": "alliance",
+      "symmetric": true,
+      "default_value": 0.0,
+      "min_value": 0.0,
+      "max_value": 1.0,
+      "description": "Strength of alliance and mutual defense commitment"
+    },
+    {
+      "name": "hostility",
+      "symmetric": true,
+      "default_value": 0.0,
+      "min_value": 0.0,
+      "max_value": 1.0,
+      "description": "Level of hostility and antagonism between nations"
+    },
+    {
+      "name": "trade_dependency",
+      "symmetric": false,
+      "default_value": 0.0,
+      "min_value": 0.0,
+      "max_value": 1.0,
+      "description": "How economically dependent one nation is on trade with another"
+    }
+  ],
+  "visibility_rules": [
+    {
+      "observer_type": "*",
+      "visible_entity_types": [
+        "Nation"
+      ],
+      "visible_properties": {
+        "Nation": [
+          "military_power",
+          "economic_strength",
+          "diplomatic_influence",
+          "internal_stability",
+          "public_opinion"
+        ]
+      },
+      "max_range": null,
+      "requires_same_location": false,
+      "see_relations_involving_self": true,
+      "see_all_relations": false,
+      "visible_resources": [
+        "gdp",
+        "military_units"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "name": "impose_sanctions",
+      "description": "Impose economic sanctions against a target nation to pressure a change in behavior",
+      "actor_type": "Nation",
+      "target_type": "Nation",
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "contest",
+      "resolution_params": {
+        "attacker_skill": "economic_strength",
+        "defender_skill": "economic_strength"
+      },
+      "effects_on_success": [
+        {
+          "target": "target",
+          "operation": "add",
+          "field": "economic_strength",
+          "value": -0.05,
+          "description": "Sanctions weaken target's economy"
+        },
+        {
+          "target": "target",
+          "operation": "add",
+          "field": "internal_stability",
+          "value": -0.03,
+          "description": "Economic pressure destabilizes target domestically"
+        }
+      ],
+      "effects_on_failure": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "diplomatic_influence",
+          "value": -0.02,
+          "description": "Failed sanctions attempt reduces diplomatic standing"
+        }
+      ]
+    },
+    {
+      "name": "form_alliance",
+      "description": "Propose or strengthen a strategic alliance with another nation",
+      "actor_type": "Nation",
+      "target_type": "Nation",
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "contest",
+      "resolution_params": {
+        "attacker_skill": "diplomatic_influence",
+        "defender_skill": "diplomatic_influence"
+      },
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "diplomatic_influence",
+          "value": 0.03,
+          "description": "Forming alliance boosts diplomatic influence"
+        },
+        {
+          "target": "target",
+          "operation": "add",
+          "field": "diplomatic_influence",
+          "value": 0.02,
+          "description": "Alliance partner also gains influence"
+        }
+      ],
+      "effects_on_failure": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "diplomatic_influence",
+          "value": -0.01,
+          "description": "Rejected alliance proposal is a minor diplomatic setback"
+        }
+      ]
+    },
+    {
+      "name": "military_posture",
+      "description": "Adjust military readiness and posture to signal strength or deterrence",
+      "actor_type": "Nation",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "skill_check",
+      "resolution_params": {
+        "skill": "military_power",
+        "difficulty": 0.3
+      },
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "military_power",
+          "value": 0.02,
+          "description": "Successful posturing reinforces military credibility"
+        },
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "public_opinion",
+          "value": 0.05,
+          "description": "Show of strength shifts public opinion hawkish"
+        }
+      ],
+      "effects_on_failure": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "internal_stability",
+          "value": -0.02,
+          "description": "Failed military posturing exposes weakness"
+        }
+      ]
+    },
+    {
+      "name": "trade_agreement",
+      "description": "Negotiate a trade agreement with another nation for mutual economic benefit",
+      "actor_type": "Nation",
+      "target_type": "Nation",
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "contest",
+      "resolution_params": {
+        "attacker_skill": "economic_strength",
+        "defender_skill": "economic_strength"
+      },
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "economic_strength",
+          "value": 0.03,
+          "description": "Trade deal strengthens economy"
+        },
+        {
+          "target": "target",
+          "operation": "add",
+          "field": "economic_strength",
+          "value": 0.02,
+          "description": "Trade partner also benefits economically"
+        }
+      ],
+      "effects_on_failure": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "diplomatic_influence",
+          "value": -0.01,
+          "description": "Failed trade negotiation is a minor setback"
+        }
+      ]
+    },
+    {
+      "name": "diplomatic_statement",
+      "description": "Issue a public diplomatic statement to signal intentions, make demands, or shape narrative",
+      "actor_type": "Nation",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "message_action": true,
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "diplomatic_influence",
+          "value": 0.01,
+          "description": "Public statements maintain diplomatic presence"
+        }
+      ],
+      "effects_on_failure": []
+    },
+    {
+      "name": "espionage",
+      "description": "Conduct covert intelligence operations against a target nation",
+      "actor_type": "Nation",
+      "target_type": "Nation",
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "contest",
+      "resolution_params": {
+        "attacker_skill": "diplomatic_influence",
+        "defender_skill": "internal_stability"
+      },
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "diplomatic_influence",
+          "value": 0.03,
+          "description": "Successful espionage yields strategic intelligence"
+        }
+      ],
+      "effects_on_failure": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "diplomatic_influence",
+          "value": -0.05,
+          "description": "Exposed espionage causes major diplomatic fallout"
+        },
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "internal_stability",
+          "value": -0.02,
+          "description": "Espionage scandal hurts domestic stability"
+        }
+      ]
+    },
+    {
+      "name": "humanitarian_aid",
+      "description": "Provide humanitarian aid to a target nation, building goodwill and soft power",
+      "actor_type": "Nation",
+      "target_type": "Nation",
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "diplomatic_influence",
+          "value": 0.03,
+          "description": "Humanitarian aid builds international goodwill"
+        },
+        {
+          "target": "target",
+          "operation": "add",
+          "field": "internal_stability",
+          "value": 0.02,
+          "description": "Aid helps stabilize recipient nation"
+        },
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "economic_strength",
+          "value": -0.01,
+          "description": "Aid has a small economic cost"
+        }
+      ],
+      "effects_on_failure": []
+    },
+    {
+      "name": "withdraw",
+      "description": "Withdraw from an engagement, treaty, or confrontation to reduce exposure",
+      "actor_type": "Nation",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "internal_stability",
+          "value": 0.02,
+          "description": "Withdrawal reduces strain on domestic resources"
+        },
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "public_opinion",
+          "value": -0.05,
+          "description": "Withdrawal shifts public opinion dovish"
+        }
+      ],
+      "effects_on_failure": []
+    }
+  ],
+  "entities": [
+    {
+      "id": "nation_alpha_01",
+      "name": "Superpower Alpha",
+      "entity_type": "Nation",
+      "location_id": null,
+      "properties": {
+        "military_power": 0.9,
+        "economic_strength": 0.85,
+        "diplomatic_influence": 0.7,
+        "internal_stability": 0.7,
+        "nuclear_capability": 0.9,
+        "public_opinion": 0.2
+      }
+    },
+    {
+      "id": "nation_beta_01",
+      "name": "Superpower Beta",
+      "entity_type": "Nation",
+      "location_id": null,
+      "properties": {
+        "military_power": 0.6,
+        "economic_strength": 0.9,
+        "diplomatic_influence": 0.85,
+        "internal_stability": 0.75,
+        "nuclear_capability": 0.7,
+        "public_opinion": -0.1
+      }
+    },
+    {
+      "id": "nation_regional_01",
+      "name": "Regional Power",
+      "entity_type": "Nation",
+      "location_id": null,
+      "properties": {
+        "military_power": 0.55,
+        "economic_strength": 0.6,
+        "diplomatic_influence": 0.55,
+        "internal_stability": 0.65,
+        "nuclear_capability": 0.2,
+        "public_opinion": 0.0
+      }
+    },
+    {
+      "id": "nation_democracy_01",
+      "name": "Small Democracy",
+      "entity_type": "Nation",
+      "location_id": null,
+      "properties": {
+        "military_power": 0.25,
+        "economic_strength": 0.5,
+        "diplomatic_influence": 0.6,
+        "internal_stability": 0.85,
+        "nuclear_capability": 0.0,
+        "public_opinion": -0.3
+      }
+    },
+    {
+      "id": "nation_authoritarian_01",
+      "name": "Authoritarian State",
+      "entity_type": "Nation",
+      "location_id": null,
+      "properties": {
+        "military_power": 0.75,
+        "economic_strength": 0.45,
+        "diplomatic_influence": 0.35,
+        "internal_stability": 0.4,
+        "nuclear_capability": 0.5,
+        "public_opinion": 0.4
+      }
+    }
+  ],
+  "resource_holdings": [
+    {
+      "entity_id": "nation_alpha_01",
+      "resource": "gdp",
+      "amount": 5000
+    },
+    {
+      "entity_id": "nation_alpha_01",
+      "resource": "military_units",
+      "amount": 100
+    },
+    {
+      "entity_id": "nation_beta_01",
+      "resource": "gdp",
+      "amount": 6000
+    },
+    {
+      "entity_id": "nation_beta_01",
+      "resource": "military_units",
+      "amount": 60
+    },
+    {
+      "entity_id": "nation_regional_01",
+      "resource": "gdp",
+      "amount": 2000
+    },
+    {
+      "entity_id": "nation_regional_01",
+      "resource": "military_units",
+      "amount": 40
+    },
+    {
+      "entity_id": "nation_democracy_01",
+      "resource": "gdp",
+      "amount": 800
+    },
+    {
+      "entity_id": "nation_democracy_01",
+      "resource": "military_units",
+      "amount": 10
+    },
+    {
+      "entity_id": "nation_authoritarian_01",
+      "resource": "gdp",
+      "amount": 1500
+    },
+    {
+      "entity_id": "nation_authoritarian_01",
+      "resource": "military_units",
+      "amount": 70
+    }
+  ],
+  "resource_unallocated": [],
+  "initial_relations": [],
+  "personas": [
+    {
+      "entity_name": "Superpower Alpha",
+      "entity_type": "Nation",
+      "persona_text": "You are the world's dominant military power with a massive economy and global force projection. You see yourself as the guarantor of international order and are willing to use military strength to maintain your strategic interests. You are wary of rising challengers and seek to preserve your hegemonic position.",
+      "goals": [
+        "Maintain global military and economic dominance",
+        "Prevent rival superpowers from gaining regional hegemony",
+        "Protect allied nations while managing domestic war-weariness"
+      ],
+      "personality_traits": [
+        "assertive",
+        "interventionist",
+        "strategic",
+        "hegemonic"
+      ],
+      "attribute_values": {}
+    },
+    {
+      "entity_name": "Superpower Beta",
+      "entity_type": "Nation",
+      "persona_text": "You are an economic powerhouse with growing diplomatic clout and a modernizing military. You prefer to exert influence through trade, investment, and institutional partnerships rather than direct military confrontation. You seek a multipolar world order where your economic leverage translates into geopolitical authority.",
+      "goals": [
+        "Expand economic influence through trade agreements and investment",
+        "Build a network of allied and dependent nations",
+        "Avoid direct military confrontation while strengthening deterrence"
+      ],
+      "personality_traits": [
+        "strategic",
+        "economically-focused",
+        "patient",
+        "ambitious"
+      ],
+      "attribute_values": {}
+    },
+    {
+      "entity_name": "Regional Power",
+      "entity_type": "Nation",
+      "persona_text": "You are a mid-sized nation with balanced capabilities and ambitions to become the dominant power in your region. You navigate between the superpowers, seeking favorable deals from both sides while building your own independent strength. You are pragmatic and willing to shift alliances when it serves your interests.",
+      "goals": [
+        "Establish regional dominance without provoking superpower intervention",
+        "Play superpowers against each other for maximum benefit",
+        "Build economic and military self-sufficiency"
+      ],
+      "personality_traits": [
+        "pragmatic",
+        "opportunistic",
+        "balancing",
+        "ambitious"
+      ],
+      "attribute_values": {}
+    },
+    {
+      "entity_name": "Small Democracy",
+      "entity_type": "Nation",
+      "persona_text": "You are a small but stable democracy with strong institutions and high quality of life. You lack military power but compensate with diplomatic skill and moral authority. You champion international law, human rights, and multilateral cooperation as the foundation of global order.",
+      "goals": [
+        "Protect sovereignty through alliances and international institutions",
+        "Promote democratic values and human rights globally",
+        "Maintain domestic stability and avoid being drawn into great power conflicts"
+      ],
+      "personality_traits": [
+        "principled",
+        "diplomatic",
+        "multilateral",
+        "cautious"
+      ],
+      "attribute_values": {}
+    },
+    {
+      "entity_name": "Authoritarian State",
+      "entity_type": "Nation",
+      "persona_text": "You are a militarized authoritarian state with significant armed forces but a struggling economy and low domestic legitimacy. You rely on nationalism and external threats to maintain internal control. You are unpredictable and willing to take aggressive actions to distract from domestic problems.",
+      "goals": [
+        "Use foreign policy to shore up domestic legitimacy",
+        "Expand territorial influence and challenge the existing order",
+        "Avoid economic isolation while maintaining regime control"
+      ],
+      "personality_traits": [
+        "aggressive",
+        "nationalistic",
+        "unpredictable",
+        "insecure"
+      ],
+      "attribute_values": {}
+    }
+  ],
+  "agent_archetypes": [
+    {
+      "name": "Superpower",
+      "weight": 0.1,
+      "entity_type": "Nation",
+      "persona_hint": "Global superpower with overwhelming military and economic resources, seeks to maintain hegemonic world order and deter rivals",
+      "property_distributions": {
+        "military_power": {
+          "type": "normal",
+          "params": {
+            "mean": 0.9,
+            "std": 0.05,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "economic_strength": {
+          "type": "normal",
+          "params": {
+            "mean": 0.85,
+            "std": 0.06,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "diplomatic_influence": {
+          "type": "normal",
+          "params": {
+            "mean": 0.8,
+            "std": 0.08,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "internal_stability": {
+          "type": "normal",
+          "params": {
+            "mean": 0.7,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "nuclear_capability": {
+          "type": "normal",
+          "params": {
+            "mean": 0.85,
+            "std": 0.08,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "public_opinion": {
+          "type": "normal",
+          "params": {
+            "mean": 0.1,
+            "std": 0.25,
+            "min": -1.0,
+            "max": 1.0
+          }
+        }
+      }
+    },
+    {
+      "name": "Regional Power",
+      "weight": 0.2,
+      "entity_type": "Nation",
+      "persona_hint": "Strong regional player with solid military, moderate economy, and ambitions to dominate its neighborhood while balancing between superpowers",
+      "property_distributions": {
+        "military_power": {
+          "type": "normal",
+          "params": {
+            "mean": 0.6,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "economic_strength": {
+          "type": "normal",
+          "params": {
+            "mean": 0.55,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "diplomatic_influence": {
+          "type": "normal",
+          "params": {
+            "mean": 0.55,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "internal_stability": {
+          "type": "normal",
+          "params": {
+            "mean": 0.6,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "nuclear_capability": {
+          "type": "beta",
+          "params": {
+            "alpha": 1.5,
+            "beta": 4.0,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "public_opinion": {
+          "type": "normal",
+          "params": {
+            "mean": 0.05,
+            "std": 0.3,
+            "min": -1.0,
+            "max": 1.0
+          }
+        }
+      }
+    },
+    {
+      "name": "Economic Powerhouse",
+      "weight": 0.15,
+      "entity_type": "Nation",
+      "persona_hint": "Trade-focused economic giant that leverages financial clout over military force, building influence through investment, debt, and market access",
+      "property_distributions": {
+        "military_power": {
+          "type": "normal",
+          "params": {
+            "mean": 0.4,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "economic_strength": {
+          "type": "normal",
+          "params": {
+            "mean": 0.85,
+            "std": 0.06,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "diplomatic_influence": {
+          "type": "normal",
+          "params": {
+            "mean": 0.7,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "internal_stability": {
+          "type": "normal",
+          "params": {
+            "mean": 0.7,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "nuclear_capability": {
+          "type": "beta",
+          "params": {
+            "alpha": 1.2,
+            "beta": 5.0,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "public_opinion": {
+          "type": "normal",
+          "params": {
+            "mean": -0.1,
+            "std": 0.2,
+            "min": -1.0,
+            "max": 1.0
+          }
+        }
+      }
+    },
+    {
+      "name": "Developing Nation",
+      "weight": 0.25,
+      "entity_type": "Nation",
+      "persona_hint": "Developing country with limited resources and growing influence, dependent on foreign aid and trade, navigating between great power blocs",
+      "property_distributions": {
+        "military_power": {
+          "type": "normal",
+          "params": {
+            "mean": 0.25,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "economic_strength": {
+          "type": "normal",
+          "params": {
+            "mean": 0.3,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "diplomatic_influence": {
+          "type": "normal",
+          "params": {
+            "mean": 0.3,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "internal_stability": {
+          "type": "normal",
+          "params": {
+            "mean": 0.45,
+            "std": 0.15,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "nuclear_capability": {
+          "type": "normal",
+          "params": {
+            "mean": 0.0,
+            "std": 0.02,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "public_opinion": {
+          "type": "normal",
+          "params": {
+            "mean": -0.05,
+            "std": 0.3,
+            "min": -1.0,
+            "max": 1.0
+          }
+        }
+      }
+    },
+    {
+      "name": "Small Allied State",
+      "weight": 0.2,
+      "entity_type": "Nation",
+      "persona_hint": "Small stable democracy that relies on alliances and international institutions for security, compensating for limited military with diplomatic skill",
+      "property_distributions": {
+        "military_power": {
+          "type": "normal",
+          "params": {
+            "mean": 0.2,
+            "std": 0.08,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "economic_strength": {
+          "type": "normal",
+          "params": {
+            "mean": 0.5,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "diplomatic_influence": {
+          "type": "normal",
+          "params": {
+            "mean": 0.6,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "internal_stability": {
+          "type": "normal",
+          "params": {
+            "mean": 0.8,
+            "std": 0.08,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "nuclear_capability": {
+          "type": "normal",
+          "params": {
+            "mean": 0.0,
+            "std": 0.01,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "public_opinion": {
+          "type": "normal",
+          "params": {
+            "mean": -0.2,
+            "std": 0.2,
+            "min": -1.0,
+            "max": 1.0
+          }
+        }
+      }
+    },
+    {
+      "name": "Non-State Actor",
+      "weight": 0.1,
+      "entity_type": "Nation",
+      "persona_hint": "Unconventional non-state actor with asymmetric capabilities, high ideological commitment, and willingness to disrupt the international order",
+      "property_distributions": {
+        "military_power": {
+          "type": "normal",
+          "params": {
+            "mean": 0.15,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "economic_strength": {
+          "type": "normal",
+          "params": {
+            "mean": 0.15,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "diplomatic_influence": {
+          "type": "normal",
+          "params": {
+            "mean": 0.2,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "internal_stability": {
+          "type": "normal",
+          "params": {
+            "mean": 0.55,
+            "std": 0.15,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "nuclear_capability": {
+          "type": "normal",
+          "params": {
+            "mean": 0.0,
+            "std": 0.02,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "public_opinion": {
+          "type": "normal",
+          "params": {
+            "mean": 0.4,
+            "std": 0.25,
+            "min": -1.0,
+            "max": 1.0
+          }
+        }
+      }
+    }
+  ],
+  "domain_modules": [
+    {
+      "name": "political",
+      "params": {}
+    }
+  ],
+  "crowd_config": {
+    "enabled": false
+  },
+  "cognitive_config": {
+    "enabled": false
+  },
+  "social_config": {
+    "enabled": false
+  },
+  "runtime_parameters": [
+    {
+      "name": "sample_size",
+      "label": "Sample Size",
+      "type": "int",
+      "default": 8,
+      "min_value": 3,
+      "max_value": 30,
+      "description": "Number of nations in the simulation",
+      "category": "scale",
+      "role": "budget"
+    },
+    {
+      "name": "premise",
+      "label": "Scenario Premise",
+      "type": "string",
+      "default": "",
+      "description": "What-if scenario framing text",
+      "category": "premise",
+      "role": "input"
+    },
+    {
+      "name": "context",
+      "label": "Research Context",
+      "type": "string",
+      "default": "",
+      "description": "Rich factual background (web search results, research briefing) for agent grounding",
+      "category": "premise",
+      "role": "input"
+    },
+    {
+      "name": "region",
+      "label": "Region",
+      "type": "enum",
+      "default": "global",
+      "options": [
+        "east_asia",
+        "south_asia",
+        "middle_east",
+        "eastern_europe",
+        "western_europe",
+        "africa",
+        "latin_america",
+        "arctic",
+        "indo_pacific",
+        "global"
+      ],
+      "description": "Geographic region or theater of the geopolitical scenario",
+      "category": "scenario",
+      "role": "input"
+    },
+    {
+      "name": "crisis_type",
+      "label": "Crisis Type",
+      "type": "enum",
+      "default": "territorial_dispute",
+      "options": [
+        "territorial_dispute",
+        "trade_war",
+        "cyber_conflict",
+        "proxy_war",
+        "humanitarian",
+        "nuclear_proliferation",
+        "resource_competition",
+        "regime_change",
+        "alliance_crisis",
+        "climate_migration"
+      ],
+      "description": "Type of geopolitical crisis driving the scenario",
+      "category": "scenario",
+      "role": "input"
+    },
+    {
+      "name": "escalation_level",
+      "label": "Escalation Level",
+      "type": "enum",
+      "default": "diplomatic_tension",
+      "options": [
+        "diplomatic_tension",
+        "sanctions",
+        "military_posturing",
+        "proxy_engagement",
+        "direct_confrontation",
+        "brink_of_war"
+      ],
+      "description": "Current level of tension and escalation between parties",
+      "category": "scenario",
+      "role": "input"
+    },
+    {
+      "name": "nuclear_dimension",
+      "label": "Nuclear Dimension",
+      "type": "enum",
+      "default": "none",
+      "options": [
+        "none",
+        "background_deterrent",
+        "explicit_threat",
+        "active_crisis"
+      ],
+      "description": "Role of nuclear weapons in the crisis",
+      "category": "scenario",
+      "role": "input"
+    },
+    {
+      "name": "alliance_structure",
+      "label": "Alliance Structure",
+      "type": "enum",
+      "default": "multipolar",
+      "options": [
+        "unipolar",
+        "bipolar",
+        "multipolar",
+        "fragmented"
+      ],
+      "description": "Global power distribution and alliance configuration",
+      "category": "context",
+      "role": "structure"
+    },
+    {
+      "name": "un_involvement",
+      "label": "UN Involvement",
+      "type": "enum",
+      "default": "observer",
+      "options": [
+        "none",
+        "observer",
+        "mediating",
+        "sanctions_regime",
+        "peacekeepers"
+      ],
+      "description": "Level of United Nations engagement in the crisis",
+      "category": "context",
+      "role": "structure"
+    },
+    {
+      "name": "economic_interdependence",
+      "label": "Economic Interdependence",
+      "type": "enum",
+      "default": "moderate",
+      "options": [
+        "minimal",
+        "moderate",
+        "high",
+        "deeply_intertwined"
+      ],
+      "description": "Degree of economic ties between the involved nations",
+      "category": "context",
+      "role": "input"
+    },
+    {
+      "name": "media_pressure",
+      "label": "Media Pressure",
+      "type": "enum",
+      "default": "international_attention",
+      "options": [
+        "none",
+        "local_coverage",
+        "international_attention",
+        "24hr_news_cycle",
+        "viral_social_media"
+      ],
+      "description": "Intensity of media scrutiny on the crisis",
+      "category": "context",
+      "role": "input"
+    },
+    {
+      "name": "historical_grievances",
+      "label": "Historical Grievances",
+      "type": "enum",
+      "default": "living_memory",
+      "options": [
+        "none",
+        "distant_past",
+        "living_memory",
+        "ongoing_conflict"
+      ],
+      "description": "Depth of historical animosity between parties",
+      "category": "context",
+      "role": "input"
+    },
+    {
+      "name": "back_channel_diplomacy",
+      "label": "Back-Channel Diplomacy",
+      "type": "bool",
+      "default": true,
+      "description": "Whether secret diplomatic channels are active between parties",
+      "category": "context",
+      "role": "input"
+    },
+    {
+      "name": "election_year",
+      "label": "Election Year",
+      "type": "bool",
+      "default": false,
+      "description": "Whether any major power faces domestic elections",
+      "category": "context",
+      "role": "input"
+    },
+    {
+      "name": "energy_dependency",
+      "label": "Energy Dependency",
+      "type": "enum",
+      "default": "mutual",
+      "options": [
+        "none",
+        "one_sided",
+        "mutual",
+        "critical"
+      ],
+      "description": "Degree to which energy trade constrains geopolitical options",
+      "category": "context",
+      "role": "input"
+    }
+  ],
+  "termination_conditions": [
+    {
+      "name": "max_rounds",
+      "description": "End after N rounds of geopolitical interaction",
+      "check_type": "round_limit",
+      "params": {
+        "max_rounds": 25
+      },
+      "sub_conditions": []
+    },
+    {
+      "name": "stability_reached",
+      "description": "End when international relations have stabilized",
+      "check_type": "property_stable",
+      "params": {
+        "property": "diplomatic_influence",
+        "window": 4,
+        "threshold": 0.02
+      },
+      "sub_conditions": []
+    }
+  ]
+}

@@ -1,0 +1,123 @@
+{
+  "name": "Spades",
+  "description": "Classic 4-player partnership trick-taking. Two teams (N+S vs E+W), 13 cards each. Each player BIDS how many of the 13 tricks they'll take. Spades are always trump. Make your team's combined bid → score 10× the bid plus 1 per overtrick (\"bag\"). Miss your bid → lose 10× the bid. Bid 0 for a NIL (±100 to your team). Every 10 bags = −100 penalty. First team to the target score wins.",
+  "scenario_type": "competition",
+  "spatial": { "type": "none", "params": {} },
+  "temporal": {
+    "phases": [
+      {
+        "name": "playing",
+        "description": "Single phase. Spades module cycles bid → trick play → scoring internally.",
+        "active_roles": [],
+        "initiative_type": "fixed",
+        "initiative_descending": true,
+        "handler": null,
+        "handler_params": {},
+        "resolution_mode": "simultaneous"
+      }
+    ]
+  },
+  "entity_types": [
+    {
+      "name": "Player",
+      "role": "agent",
+      "description": "A Spades player. Bids tricks each hand and plays cards in clockwise order.",
+      "properties": [
+        {"name": "hand",   "type": "list",   "default": [], "description": "Cards currently in hand (hidden from opponents).", "hidden": true},
+        {"name": "team",   "type": "string", "default": "", "description": "NS or EW partnership.", "hidden": false},
+        {"name": "bid",    "type": "int",    "default": 0,  "description": "This hand's bid.",   "hidden": false},
+        {"name": "tricks", "type": "int",    "default": 0,  "description": "Tricks taken this hand.", "hidden": false},
+        {"name": "score",  "type": "int",    "default": 0,  "description": "Team's cumulative score.", "hidden": false}
+      ]
+    }
+  ],
+  "resource_types": [],
+  "relation_types": [],
+  "visibility_rules": [],
+  "actions": [
+    {
+      "name": "bid",
+      "description": "BID STAGE — declare the number of tricks (0–13) you'll take this hand. REQUIRED `amount`: integer 0 through 13. 0 is a NIL (brave: ±100 to your team). EXAMPLE: bid(amount=4).",
+      "actor_type": "Player",
+      "target_type": null,
+      "parameters": [
+        {"name": "amount", "type": "int", "default": 3, "min_value": 0, "max_value": 13, "description": "Tricks you commit to taking."}
+      ],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": [],
+      "broadcast": false,
+      "message_action": false
+    },
+    {
+      "name": "play_card",
+      "description": "PLAY STAGE — play one card from your hand on your turn. REQUIRED `card`: the EXACT card string. RULES: must follow led suit if possible; can't LEAD spades until broken; the 2 of clubs leads the first trick. EXAMPLE: play_card(card=\"A♠\").",
+      "actor_type": "Player",
+      "target_type": null,
+      "parameters": [
+        {"name": "card", "type": "string", "default": "", "description": "Card to play."}
+      ],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": [],
+      "broadcast": true,
+      "message_action": false
+    },
+    {
+      "name": "discuss",
+      "description": "Open table-talk. Signal to your partner, needle opponents, or just react to a play.",
+      "actor_type": "Player",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": [],
+      "broadcast": true,
+      "message_action": false
+    }
+  ],
+  "entities": [
+    {"id": "p_001", "name": "North", "entity_type": "Player", "properties": {}},
+    {"id": "p_002", "name": "East",  "entity_type": "Player", "properties": {}},
+    {"id": "p_003", "name": "South", "entity_type": "Player", "properties": {}},
+    {"id": "p_004", "name": "West",  "entity_type": "Player", "properties": {}}
+  ],
+  "resource_holdings": [],
+  "resource_unallocated": [],
+  "initial_relations": [],
+  "personas": [
+    {"entity_name": "North", "entity_type": "Player", "persona_text": "Disciplined partner. Bids accurately, plays straight tight Spades — values the bid, hates bags.", "goals": ["Hit the combined team bid exactly.", "Read partner's signals."], "personality_traits": ["disciplined", "communicative", "calculating"]},
+    {"entity_name": "East",  "entity_type": "Player", "persona_text": "Aggressive bidder. Loves big bids and Nil shots; tries to bait opponents into setting themselves.", "goals": ["Bid big when the hand justifies it.", "Disrupt opponents' bid math."], "personality_traits": ["aggressive", "bold", "creative"]},
+    {"entity_name": "South", "entity_type": "Player", "persona_text": "Quiet supporter. Plays around partner's bid; sandbags when bags are safe and dumps high cards when set risk is high.", "goals": ["Make partner's bid possible.", "Manage bag risk."], "personality_traits": ["analytical", "reactive", "calm"]},
+    {"entity_name": "West",  "entity_type": "Player", "persona_text": "Wildcard. Mixes safe play with the occasional speculative Nil. Hates being predictable.", "goals": ["Bag opponents.", "Threaten Nil to confuse the bid count."], "personality_traits": ["chaotic", "improvisational", "playful"]}
+  ],
+  "agent_archetypes": [],
+  "domain_modules": [
+    {"name": "spades", "params": {"target_score": 500}}
+  ],
+  "crowd_config": {},
+  "cognitive_config": {},
+  "social_config": {},
+  "runtime_parameters": [
+    {"name": "sample_size", "label": "Total Players", "type": "int", "default": 4, "min_value": 4, "max_value": 4, "description": "Spades is strictly 4 players in 2 fixed teams.", "category": "scale"},
+    {"name": "domain.spades.target_score", "label": "Target Score", "type": "int", "default": 500, "min_value": 100, "max_value": 1000, "description": "Match ends when any team reaches this score. Lower = shorter matches; 500 is classic.", "category": "rules"}
+  ],
+  "termination_conditions": [
+    {
+      "name": "match_over",
+      "description": "A team crossed the target.",
+      "check_type": "event_triggered",
+      "params": {
+        "event_type": "spades_match_over",
+        "count": 1
+      },
+      "sub_conditions": []
+    }
+  ]
+}

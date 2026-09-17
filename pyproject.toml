@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "fg-env"
-version = "0.4.10"
+version = "0.5.0"
 description = "The Environments SDK for AI agents: define an environment as one JSON contract, the engine runs it."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -63,6 +63,9 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
+# Generated compatibility copies preserve Fareground's source byte-for-byte
+# apart from the package import rewrite. They are retired as engines go native.
+"src/fg_env/engines/modules/*.py" = ["F401", "F541", "F841"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["fg_env"]
@@ -73,6 +76,7 @@ plugins = ["pydantic.mypy"]
 # type-check it. Not strict yet: legacy kernel code is annotated
 # incrementally. Tighten flags over time.
 files = ["src/fg_env"]
+exclude = ["src/fg_env/engines/modules/"]
 ignore_missing_imports = true
 no_strict_optional = true
 

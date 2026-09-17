@@ -1,0 +1,514 @@
+{
+  "name": "Mafia",
+  "description": "Classic hidden-role social deduction with a wildcard. 12 players: 3 Mafia, 1 Sheriff, 1 Doctor, 1 Serial Killer, 6 Citizens. Each player stakes into a pool that splits among the winning faction. Town wins by eliminating both Mafia AND the Serial Killer; Mafia wins at parity; the Serial Killer wins solo when only they remain.",
+  "scenario_type": "social_deduction",
+  "spatial": {
+    "type": "none",
+    "params": {}
+  },
+  "temporal": {
+    "phases": [
+      {
+        "name": "playing",
+        "description": "One engine round = one logical phase of the game-day (night / day / vote, cycled by the mafia domain module).",
+        "active_roles": [],
+        "initiative_type": "fixed",
+        "initiative_descending": true,
+        "handler": null,
+        "handler_params": {},
+        "resolution_mode": "simultaneous"
+      }
+    ]
+  },
+  "entity_types": [
+    {
+      "name": "Player",
+      "role": "agent",
+      "properties": [
+        {
+          "name": "status",
+          "type": "string",
+          "default": "alive",
+          "description": "alive | dead | lynched"
+        }
+      ],
+      "description": "A villager in the town. Hidden Mafia/Detective/Doctor/Villager role is assigned by the domain module."
+    }
+  ],
+  "resource_types": [],
+  "relation_types": [],
+  "visibility_rules": [
+    {
+      "observer_type": "*",
+      "visible_entity_types": [
+        "Player"
+      ],
+      "visible_properties": {
+        "Player": [
+          "status"
+        ]
+      },
+      "max_range": null,
+      "requires_same_location": false,
+      "see_relations_involving_self": false,
+      "see_all_relations": false,
+      "visible_resources": []
+    }
+  ],
+  "actions": [
+    {
+      "name": "kill",
+      "description": "Mafia-only, night action: choose a Town target to murder. All mafia kill picks are tallied; the plurality target dies unless the Doctor protects them.",
+      "actor_type": "Player",
+      "target_type": "Player",
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": [],
+      "broadcast": false,
+      "message_action": false
+    },
+    {
+      "name": "sk_kill",
+      "description": "Serial Killer-only, night action: kill one player. Independent of the Mafia kill \u2014 both can fire the same night unless the Doctor saves one of you.",
+      "actor_type": "Player",
+      "target_type": "Player",
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": [],
+      "broadcast": false,
+      "message_action": false
+    },
+    {
+      "name": "investigate",
+      "description": "Detective-only, night action: investigate one player and privately learn whether they are Mafia.",
+      "actor_type": "Player",
+      "target_type": "Player",
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": [],
+      "broadcast": false,
+      "message_action": false
+    },
+    {
+      "name": "protect",
+      "description": "Doctor-only, night action: protect one player. If they are tonight's Mafia target, the kill is prevented.",
+      "actor_type": "Player",
+      "target_type": "Player",
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": [],
+      "broadcast": false,
+      "message_action": false
+    },
+    {
+      "name": "discuss",
+      "description": "Day discussion: speak publicly. Use the speech field to address the town. Use this to make accusations, defend yourself, ask questions, or claim a role.",
+      "actor_type": "Player",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": [],
+      "broadcast": true,
+      "message_action": true
+    },
+    {
+      "name": "vote",
+      "description": "Day vote: cast your lynch vote on a player. Plurality target is eliminated. Speak (speech field) to justify your vote.",
+      "actor_type": "Player",
+      "target_type": "Player",
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": [],
+      "broadcast": true,
+      "message_action": false
+    }
+  ],
+  "entities": [
+    {
+      "id": "p_001",
+      "name": "Alice",
+      "entity_type": "Player",
+      "properties": {
+        "status": "alive"
+      }
+    },
+    {
+      "id": "p_002",
+      "name": "Bob",
+      "entity_type": "Player",
+      "properties": {
+        "status": "alive"
+      }
+    },
+    {
+      "id": "p_003",
+      "name": "Carol",
+      "entity_type": "Player",
+      "properties": {
+        "status": "alive"
+      }
+    },
+    {
+      "id": "p_004",
+      "name": "Dave",
+      "entity_type": "Player",
+      "properties": {
+        "status": "alive"
+      }
+    },
+    {
+      "id": "p_005",
+      "name": "Eve",
+      "entity_type": "Player",
+      "properties": {
+        "status": "alive"
+      }
+    },
+    {
+      "id": "p_006",
+      "name": "Frank",
+      "entity_type": "Player",
+      "properties": {
+        "status": "alive"
+      }
+    },
+    {
+      "id": "p_007",
+      "name": "Grace",
+      "entity_type": "Player",
+      "properties": {
+        "status": "alive"
+      }
+    },
+    {
+      "id": "p_008",
+      "name": "Henry",
+      "entity_type": "Player",
+      "properties": {
+        "status": "alive"
+      }
+    },
+    {
+      "id": "p_009",
+      "name": "Iris",
+      "entity_type": "Player",
+      "properties": {
+        "status": "alive"
+      }
+    },
+    {
+      "id": "p_010",
+      "name": "Jack",
+      "entity_type": "Player",
+      "properties": {
+        "status": "alive"
+      }
+    },
+    {
+      "id": "p_011",
+      "name": "Kate",
+      "entity_type": "Player",
+      "properties": {
+        "status": "alive"
+      }
+    },
+    {
+      "id": "p_012",
+      "name": "Liam",
+      "entity_type": "Player",
+      "properties": {
+        "status": "alive"
+      }
+    }
+  ],
+  "resource_holdings": [],
+  "resource_unallocated": [],
+  "initial_relations": [],
+  "personas": [
+    {
+      "entity_name": "Alice",
+      "entity_type": "Player",
+      "persona_text": "You are a town gossip \u2014 eager to share theories, quick to accuse, sometimes wrong. You think out loud and follow your gut.",
+      "goals": [
+        "Identify the mafia and lynch them.",
+        "Survive the night."
+      ],
+      "personality_traits": [
+        "talkative",
+        "intuitive",
+        "impulsive"
+      ]
+    },
+    {
+      "entity_name": "Bob",
+      "entity_type": "Player",
+      "persona_text": "You are a quiet observer who watches voting patterns and remembers who said what. You distrust loud accusers.",
+      "goals": [
+        "Identify the mafia from behavior, not claims.",
+        "Survive."
+      ],
+      "personality_traits": [
+        "observant",
+        "reserved",
+        "analytical"
+      ]
+    },
+    {
+      "entity_name": "Carol",
+      "entity_type": "Player",
+      "persona_text": "You are confident and persuasive. You like to lead discussions and rally the town around a target.",
+      "goals": [
+        "Build coalitions toward consensus lynches.",
+        "Survive."
+      ],
+      "personality_traits": [
+        "assertive",
+        "charismatic",
+        "decisive"
+      ]
+    },
+    {
+      "entity_name": "Dave",
+      "entity_type": "Player",
+      "persona_text": "You are skeptical and contrarian. You poke holes in popular theories and resist groupthink.",
+      "goals": [
+        "Avoid bad lynches.",
+        "Identify mafia by elimination."
+      ],
+      "personality_traits": [
+        "skeptical",
+        "contrarian",
+        "logical"
+      ]
+    },
+    {
+      "entity_name": "Eve",
+      "entity_type": "Player",
+      "persona_text": "You are protective of the vulnerable and quick to defend players being piled on. You distrust mob behavior.",
+      "goals": [
+        "Defend the innocent.",
+        "Find the mafia patiently."
+      ],
+      "personality_traits": [
+        "empathetic",
+        "defensive",
+        "deliberate"
+      ]
+    },
+    {
+      "entity_name": "Frank",
+      "entity_type": "Player",
+      "persona_text": "You are pragmatic and risk-averse. You vote for whoever has the strongest case, even if uncomfortable.",
+      "goals": [
+        "Eliminate mafia efficiently.",
+        "Avoid drawing attention."
+      ],
+      "personality_traits": [
+        "pragmatic",
+        "careful",
+        "low-key"
+      ]
+    },
+    {
+      "entity_name": "Grace",
+      "entity_type": "Player",
+      "persona_text": "You are intuitive and emotional. You read people by feel and trust your gut when it screams.",
+      "goals": [
+        "Sense who's lying.",
+        "Survive long enough to vote."
+      ],
+      "personality_traits": [
+        "intuitive",
+        "emotional",
+        "sincere"
+      ]
+    },
+    {
+      "entity_name": "Henry",
+      "entity_type": "Player",
+      "persona_text": "You are stoic and slow to speak, but when you do speak the room listens. You weigh evidence carefully.",
+      "goals": [
+        "Identify the threats and lynch them.",
+        "Survive long enough to vote."
+      ],
+      "personality_traits": [
+        "observant"
+      ]
+    },
+    {
+      "entity_name": "Iris",
+      "entity_type": "Player",
+      "persona_text": "You are nervous and second-guess yourself. Your suspicions are often right but you struggle to defend them.",
+      "goals": [
+        "Identify the threats and lynch them.",
+        "Survive long enough to vote."
+      ],
+      "personality_traits": [
+        "observant"
+      ]
+    },
+    {
+      "entity_name": "Jack",
+      "entity_type": "Player",
+      "persona_text": "You are charming and disarming. You use humor to deflect suspicion and probe others.",
+      "goals": [
+        "Identify the threats and lynch them.",
+        "Survive long enough to vote."
+      ],
+      "personality_traits": [
+        "observant"
+      ]
+    },
+    {
+      "entity_name": "Kate",
+      "entity_type": "Player",
+      "persona_text": "You are analytical and chart who-said-what across days. You catch contradictions.",
+      "goals": [
+        "Identify the threats and lynch them.",
+        "Survive long enough to vote."
+      ],
+      "personality_traits": [
+        "observant"
+      ]
+    },
+    {
+      "entity_name": "Liam",
+      "entity_type": "Player",
+      "persona_text": "You are bold and willing to make accusations without much evidence \u2014 for better or worse.",
+      "goals": [
+        "Identify the threats and lynch them.",
+        "Survive long enough to vote."
+      ],
+      "personality_traits": [
+        "observant"
+      ]
+    }
+  ],
+  "agent_archetypes": [],
+  "domain_modules": [
+    {
+      "name": "mafia",
+      "params": {}
+    }
+  ],
+  "crowd_config": null,
+  "cognitive_config": null,
+  "social_config": null,
+  "runtime_parameters": [
+    {
+      "name": "sample_size",
+      "label": "Number of Players",
+      "type": "int",
+      "default": 12,
+      "min_value": 5,
+      "max_value": 24,
+      "description": "Total players in the game (includes you).",
+      "category": "scale"
+    },
+    {
+      "name": "mafia_count",
+      "module": "mafia",
+      "label": "Mafia",
+      "type": "int",
+      "default": 3,
+      "min_value": 1,
+      "max_value": 8,
+      "description": "Number of Mafia players.",
+      "category": "roles"
+    },
+    {
+      "name": "sheriff_count",
+      "module": "mafia",
+      "label": "Sheriffs",
+      "type": "int",
+      "default": 1,
+      "min_value": 0,
+      "max_value": 2,
+      "description": "Number of Sheriff (investigator) players.",
+      "category": "roles"
+    },
+    {
+      "name": "doctor_count",
+      "module": "mafia",
+      "label": "Doctors",
+      "type": "int",
+      "default": 1,
+      "min_value": 0,
+      "max_value": 2,
+      "description": "Number of Doctor (protector) players.",
+      "category": "roles"
+    },
+    {
+      "name": "serial_killer_count",
+      "module": "mafia",
+      "label": "Serial Killers",
+      "type": "int",
+      "default": 1,
+      "min_value": 0,
+      "max_value": 2,
+      "description": "Number of Serial Killers (solo team).",
+      "category": "roles"
+    },
+    {
+      "name": "citizen_count",
+      "module": "mafia",
+      "label": "Citizens",
+      "type": "int",
+      "default": 6,
+      "min_value": 0,
+      "max_value": 20,
+      "description": "Number of plain Citizens with no power.",
+      "category": "roles"
+    }
+  ],
+  "termination_conditions": [
+    {
+      "name": "town_wins",
+      "description": "Town eliminates all Mafia and the Serial Killer",
+      "check_type": "event_triggered",
+      "params": {
+        "event_type": "town_victory",
+        "count": 1
+      },
+      "sub_conditions": []
+    },
+    {
+      "name": "mafia_wins",
+      "description": "Mafia reaches parity",
+      "check_type": "event_triggered",
+      "params": {
+        "event_type": "mafia_victory",
+        "count": 1
+      },
+      "sub_conditions": []
+    },
+    {
+      "name": "serial_killer_wins",
+      "description": "Serial Killer is the last threat standing",
+      "check_type": "event_triggered",
+      "params": {
+        "event_type": "serial_killer_victory",
+        "count": 1
+      },
+      "sub_conditions": []
+    }
+  ]
+}

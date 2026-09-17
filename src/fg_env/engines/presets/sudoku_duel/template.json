@@ -1,0 +1,236 @@
+{
+  "name": "Sudoku Duel",
+  "description": "Sealed-tick competitive Sudoku. Both players solve the SAME puzzle in parallel. Each round, both players submit a SINGLE (row, column, value) fill SEALED — neither sees the other's pick until both have submitted. Correct value (matches the puzzle's solution) → cell fills on your board. Wrong value → strike. Already-filled / given cells reject (defensive fallback picks a valid empty cell instead). First player to fully complete the grid wins; hitting `max_strikes` first = loss; same-round double-solve broken by fewer strikes. Chat is DISABLED — players can't see each other's reasoning. Configurable: grid size (4×4 / 6×6 / 9×9), max strikes (default 6), and best-of-N match length.",
+  "scenario_type": "competition",
+  "spatial": { "type": "none" },
+  "temporal": {
+    "phases": [
+      {
+        "name": "play",
+        "description": "Both players submit one cell fill per round. Round resolves when both have submitted.",
+        "active_roles": [],
+        "resolution_mode": "simultaneous"
+      }
+    ]
+  },
+  "entity_types": [
+    {
+      "name": "SudokuDuelPlayer",
+      "role": "agent",
+      "description": "A Sudoku Duel player. Sees their own grid (givens + cells they've correctly filled), their own strike count, and the list of (row, col) cells still empty. Picks ONE (row, col, value) per round.",
+      "properties": [
+        {
+          "name": "color",
+          "type": "string",
+          "default": "white",
+          "description": "Seat: 'white' (first-listed) or 'black' (second). Both players are equally active each round.",
+          "hidden": false
+        },
+        {
+          "name": "strikes",
+          "type": "int",
+          "default": 0,
+          "min_value": 0,
+          "max_value": 20,
+          "description": "Wrong-fill count for this player. At max_strikes the player loses.",
+          "hidden": false
+        },
+        {
+          "name": "cells_filled",
+          "type": "int",
+          "default": 0,
+          "min_value": 0,
+          "max_value": 81,
+          "description": "Number of empty cells this player has correctly filled this game.",
+          "hidden": false
+        },
+        {
+          "name": "solved",
+          "type": "bool",
+          "default": false,
+          "description": "True once this player has correctly filled every empty cell in the grid.",
+          "hidden": false
+        },
+        {
+          "name": "scan_thoroughness",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "0 = grabs the first plausible cell; 1 = scans the whole grid for the highest-confidence single-candidate cell each round.",
+          "hidden": true
+        },
+        {
+          "name": "guess_aversion",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "0 = takes flyers on weakly-constrained cells; 1 = only fills cells where the value is fully forced.",
+          "hidden": true
+        }
+      ]
+    }
+  ],
+  "resource_types": [],
+  "relation_types": [],
+  "visibility_rules": [],
+  "actions": [
+    {
+      "name": "fill_cell",
+      "description": "Submit a single cell fill for the current round. REQUIRED parameters: `row` (1-indexed, 1 to grid size), `col` (1-indexed), `value` (1 to grid size). Sealed: your opponent does NOT see your pick until both players have submitted. After both submit, both reveals happen simultaneously. A cell that's already a given OR you've already filled is rejected by the engine — pick an EMPTY cell every round. A wrong value (doesn't match the puzzle's solution) counts as a strike and the cell stays empty.",
+      "actor_type": "SudokuDuelPlayer",
+      "target_type": null,
+      "parameters": [
+        {
+          "name": "row",
+          "type": "int",
+          "default": 1,
+          "description": "Row index, 1-based (top row = 1)."
+        },
+        {
+          "name": "col",
+          "type": "int",
+          "default": 1,
+          "description": "Column index, 1-based (leftmost = 1)."
+        },
+        {
+          "name": "value",
+          "type": "int",
+          "default": 1,
+          "description": "Digit to place, 1 to grid_size."
+        }
+      ],
+      "preconditions": [],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [],
+      "effects_on_failure": []
+    }
+  ],
+  "entities": [],
+  "resource_holdings": [],
+  "resource_unallocated": [],
+  "initial_relations": [],
+  "personas": [],
+  "agent_archetypes": [
+    {
+      "name": "Constraint Solver",
+      "weight": 0.3,
+      "entity_type": "SudokuDuelPlayer",
+      "persona_hint": "Plays canonical sudoku technique — naked singles, hidden singles, box-line elimination. Every fill is fully forced by the constraints; almost never strikes. Slower per move but accurate.",
+      "property_distributions": {
+        "scan_thoroughness": { "type": "normal", "params": { "mean": 0.9, "std": 0.05, "min": 0.75, "max": 1.0 } },
+        "guess_aversion": { "type": "normal", "params": { "mean": 0.9, "std": 0.05, "min": 0.75, "max": 1.0 } }
+      }
+    },
+    {
+      "name": "Quick Scanner",
+      "weight": 0.25,
+      "entity_type": "SudokuDuelPlayer",
+      "persona_hint": "Glances at the grid, fills the first cell it can prove. Wins on easy puzzles by sheer speed; strikes when the puzzle requires deeper inference.",
+      "property_distributions": {
+        "scan_thoroughness": { "type": "normal", "params": { "mean": 0.3, "std": 0.08, "min": 0.1, "max": 0.5 } },
+        "guess_aversion": { "type": "normal", "params": { "mean": 0.55, "std": 0.1, "min": 0.4, "max": 0.7 } }
+      }
+    },
+    {
+      "name": "Balanced Solver",
+      "weight": 0.3,
+      "entity_type": "SudokuDuelPlayer",
+      "persona_hint": "Hybrid — scans the obvious singles first, falls back to a 2-3 candidate elimination once they run out. Trades a few extra rounds of thinking for accuracy.",
+      "property_distributions": {
+        "scan_thoroughness": { "type": "normal", "params": { "mean": 0.6, "std": 0.08, "min": 0.4, "max": 0.8 } },
+        "guess_aversion": { "type": "normal", "params": { "mean": 0.7, "std": 0.08, "min": 0.55, "max": 0.85 } }
+      }
+    },
+    {
+      "name": "Bold Guesser",
+      "weight": 0.15,
+      "entity_type": "SudokuDuelPlayer",
+      "persona_hint": "Takes flyers on weakly-constrained cells when the easy ones are gone — racing to fill the grid before the opponent. High-variance: solves fast or burns through strikes.",
+      "property_distributions": {
+        "scan_thoroughness": { "type": "normal", "params": { "mean": 0.45, "std": 0.1, "min": 0.3, "max": 0.65 } },
+        "guess_aversion": { "type": "normal", "params": { "mean": 0.2, "std": 0.08, "min": 0.05, "max": 0.35 } }
+      }
+    }
+  ],
+  "domain_modules": [
+    { "name": "sudoku_duel", "params": { "wins_needed": 2, "max_strikes": 6, "grid_size": 6, "difficulty": "hard" } }
+  ],
+  "crowd_config": {},
+  "cognitive_config": {},
+  "social_config": {},
+  "runtime_parameters": [
+    {
+      "name": "sample_size",
+      "label": "Number of Players",
+      "type": "int",
+      "default": 2,
+      "min_value": 2,
+      "max_value": 2,
+      "description": "Sudoku Duel is strictly 2 players.",
+      "category": "scale"
+    },
+    {
+      "name": "domain.grid_size",
+      "label": "Grid size",
+      "type": "int",
+      "default": 6,
+      "min_value": 4,
+      "max_value": 9,
+      "options": [4, 6, 9],
+      "description": "Sudoku grid edge length. 4 = 4×4 (2×2 boxes), 6 = 6×6 (2×3 boxes), 9 = 9×9 (classic).",
+      "category": "rules"
+    },
+    {
+      "name": "domain.difficulty",
+      "label": "Difficulty",
+      "type": "string",
+      "default": "hard",
+      "options": ["easy", "medium", "hard", "expert"],
+      "description": "Controls how many cells are removed from the solved grid. Easy = mostly naked singles; harder difficulties require constraint propagation. Expert approaches the unique-solution minimum.",
+      "category": "rules"
+    },
+    {
+      "name": "domain.max_strikes",
+      "label": "Max strikes per game",
+      "type": "int",
+      "default": 6,
+      "min_value": 4,
+      "max_value": 12,
+      "description": "Wrong-fill count that ends the game in a loss. Lower = punishing; higher = leans toward a slow grind.",
+      "category": "rules"
+    },
+    {
+      "name": "wins_needed",
+      "label": "Games to Win Match",
+      "type": "int",
+      "default": 2,
+      "min_value": 1,
+      "max_value": 5,
+      "description": "Games a player must win to take the match. 1 = best of 1, 2 = best of 3, 3 = best of 5. Tied best-of-N goes to sudden death.",
+      "category": "structure"
+    },
+    {
+      "name": "premise",
+      "label": "Scenario Premise",
+      "type": "string",
+      "default": "",
+      "description": "Optional framing — e.g. 'speed-deduction tournament' or 'inference championship'.",
+      "category": "premise"
+    }
+  ],
+  "termination_conditions": [
+    {
+      "name": "match_won",
+      "description": "End the match when a player clinches the best-of-N.",
+      "check_type": "event_triggered",
+      "params": {
+        "event_type": "sd_win",
+        "count": 1
+      },
+      "sub_conditions": []
+    }
+  ]
+}

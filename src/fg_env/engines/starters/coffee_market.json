@@ -1,0 +1,1509 @@
+{
+  "fg_env": "1",
+  "name": "City coffee market",
+  "description": "A month in a mid-sized city's coffee market: sampled households choose daily whether and where to buy; cafés reprice, promote and sell loyalty subscriptions weekly. Arm chain_launch opens a new chain with a launch promotion.",
+  "inputs": {
+    "households": {
+      "type": "table",
+      "description": "Survey household table. income = annual USD; weight = households in the city this row represents.",
+      "columns": {
+        "household_id": "text",
+        "income": "number",
+        "household_size": "int",
+        "neighborhood": "text",
+        "weight": "number"
+      },
+      "default": [
+        {
+          "household_id": "DT-01",
+          "income": 72000,
+          "household_size": 1,
+          "neighborhood": "Downtown",
+          "weight": 640
+        },
+        {
+          "household_id": "DT-02",
+          "income": 98000,
+          "household_size": 2,
+          "neighborhood": "Downtown",
+          "weight": 520
+        },
+        {
+          "household_id": "DT-03",
+          "income": 134000,
+          "household_size": 2,
+          "neighborhood": "Downtown",
+          "weight": 410
+        },
+        {
+          "household_id": "DT-04",
+          "income": 56000,
+          "household_size": 1,
+          "neighborhood": "Downtown",
+          "weight": 700
+        },
+        {
+          "household_id": "DT-05",
+          "income": 88000,
+          "household_size": 1,
+          "neighborhood": "Downtown",
+          "weight": 580
+        },
+        {
+          "household_id": "DT-06",
+          "income": 161000,
+          "household_size": 3,
+          "neighborhood": "Downtown",
+          "weight": 260
+        },
+        {
+          "household_id": "DT-07",
+          "income": 64000,
+          "household_size": 2,
+          "neighborhood": "Downtown",
+          "weight": 490
+        },
+        {
+          "household_id": "DT-08",
+          "income": 115000,
+          "household_size": 1,
+          "neighborhood": "Downtown",
+          "weight": 450
+        },
+        {
+          "household_id": "DT-09",
+          "income": 47000,
+          "household_size": 1,
+          "neighborhood": "Downtown",
+          "weight": 530
+        },
+        {
+          "household_id": "DT-10",
+          "income": 79000,
+          "household_size": 2,
+          "neighborhood": "Downtown",
+          "weight": 470
+        },
+        {
+          "household_id": "RV-01",
+          "income": 186000,
+          "household_size": 2,
+          "neighborhood": "Riverside",
+          "weight": 380
+        },
+        {
+          "household_id": "RV-02",
+          "income": 224000,
+          "household_size": 4,
+          "neighborhood": "Riverside",
+          "weight": 290
+        },
+        {
+          "household_id": "RV-03",
+          "income": 142000,
+          "household_size": 2,
+          "neighborhood": "Riverside",
+          "weight": 410
+        },
+        {
+          "household_id": "RV-04",
+          "income": 119000,
+          "household_size": 3,
+          "neighborhood": "Riverside",
+          "weight": 350
+        },
+        {
+          "household_id": "RV-05",
+          "income": 265000,
+          "household_size": 3,
+          "neighborhood": "Riverside",
+          "weight": 180
+        },
+        {
+          "household_id": "RV-06",
+          "income": 97000,
+          "household_size": 1,
+          "neighborhood": "Riverside",
+          "weight": 330
+        },
+        {
+          "household_id": "RV-07",
+          "income": 158000,
+          "household_size": 2,
+          "neighborhood": "Riverside",
+          "weight": 360
+        },
+        {
+          "household_id": "RV-08",
+          "income": 131000,
+          "household_size": 4,
+          "neighborhood": "Riverside",
+          "weight": 240
+        },
+        {
+          "household_id": "EA-01",
+          "income": 38000,
+          "household_size": 4,
+          "neighborhood": "Eastside",
+          "weight": 820
+        },
+        {
+          "household_id": "EA-02",
+          "income": 52000,
+          "household_size": 3,
+          "neighborhood": "Eastside",
+          "weight": 760
+        },
+        {
+          "household_id": "EA-03",
+          "income": 29000,
+          "household_size": 2,
+          "neighborhood": "Eastside",
+          "weight": 690
+        },
+        {
+          "household_id": "EA-04",
+          "income": 61000,
+          "household_size": 5,
+          "neighborhood": "Eastside",
+          "weight": 540
+        },
+        {
+          "household_id": "EA-05",
+          "income": 44000,
+          "household_size": 1,
+          "neighborhood": "Eastside",
+          "weight": 710
+        },
+        {
+          "household_id": "EA-06",
+          "income": 33000,
+          "household_size": 3,
+          "neighborhood": "Eastside",
+          "weight": 650
+        },
+        {
+          "household_id": "EA-07",
+          "income": 68000,
+          "household_size": 2,
+          "neighborhood": "Eastside",
+          "weight": 480
+        },
+        {
+          "household_id": "EA-08",
+          "income": 24000,
+          "household_size": 1,
+          "neighborhood": "Eastside",
+          "weight": 600
+        },
+        {
+          "household_id": "EA-09",
+          "income": 49000,
+          "household_size": 4,
+          "neighborhood": "Eastside",
+          "weight": 590
+        },
+        {
+          "household_id": "EA-10",
+          "income": 57000,
+          "household_size": 2,
+          "neighborhood": "Eastside",
+          "weight": 560
+        },
+        {
+          "household_id": "NG-01",
+          "income": 94000,
+          "household_size": 4,
+          "neighborhood": "Northgate",
+          "weight": 520
+        },
+        {
+          "household_id": "NG-02",
+          "income": 112000,
+          "household_size": 3,
+          "neighborhood": "Northgate",
+          "weight": 480
+        },
+        {
+          "household_id": "NG-03",
+          "income": 76000,
+          "household_size": 5,
+          "neighborhood": "Northgate",
+          "weight": 430
+        },
+        {
+          "household_id": "NG-04",
+          "income": 128000,
+          "household_size": 4,
+          "neighborhood": "Northgate",
+          "weight": 390
+        },
+        {
+          "household_id": "NG-05",
+          "income": 83000,
+          "household_size": 2,
+          "neighborhood": "Northgate",
+          "weight": 460
+        },
+        {
+          "household_id": "NG-06",
+          "income": 69000,
+          "household_size": 3,
+          "neighborhood": "Northgate",
+          "weight": 500
+        },
+        {
+          "household_id": "NG-07",
+          "income": 147000,
+          "household_size": 4,
+          "neighborhood": "Northgate",
+          "weight": 300
+        },
+        {
+          "household_id": "NG-08",
+          "income": 101000,
+          "household_size": 2,
+          "neighborhood": "Northgate",
+          "weight": 440
+        },
+        {
+          "household_id": "NG-09",
+          "income": 58000,
+          "household_size": 3,
+          "neighborhood": "Northgate",
+          "weight": 410
+        },
+        {
+          "household_id": "UN-01",
+          "income": 18000,
+          "household_size": 1,
+          "neighborhood": "University",
+          "weight": 900
+        },
+        {
+          "household_id": "UN-02",
+          "income": 26000,
+          "household_size": 3,
+          "neighborhood": "University",
+          "weight": 780
+        },
+        {
+          "household_id": "UN-03",
+          "income": 14000,
+          "household_size": 1,
+          "neighborhood": "University",
+          "weight": 860
+        },
+        {
+          "household_id": "UN-04",
+          "income": 42000,
+          "household_size": 2,
+          "neighborhood": "University",
+          "weight": 520
+        },
+        {
+          "household_id": "UN-05",
+          "income": 31000,
+          "household_size": 4,
+          "neighborhood": "University",
+          "weight": 610
+        },
+        {
+          "household_id": "UN-06",
+          "income": 22000,
+          "household_size": 2,
+          "neighborhood": "University",
+          "weight": 740
+        },
+        {
+          "household_id": "UN-07",
+          "income": 67000,
+          "household_size": 2,
+          "neighborhood": "University",
+          "weight": 350
+        },
+        {
+          "household_id": "UN-08",
+          "income": 12000,
+          "household_size": 1,
+          "neighborhood": "University",
+          "weight": 820
+        },
+        {
+          "household_id": "UN-09",
+          "income": 36000,
+          "household_size": 3,
+          "neighborhood": "University",
+          "weight": 560
+        },
+        {
+          "household_id": "UN-10",
+          "income": 54000,
+          "household_size": 1,
+          "neighborhood": "University",
+          "weight": 400
+        },
+        {
+          "household_id": "UN-11",
+          "income": 28000,
+          "household_size": 2,
+          "neighborhood": "University",
+          "weight": 650
+        }
+      ]
+    },
+    "sample_size": {
+      "type": "int",
+      "default": 150,
+      "min": 10,
+      "max": 2000,
+      "description": "Households drawn (weighted, with replacement) from the table."
+    },
+    "days": {
+      "type": "int",
+      "default": 28,
+      "min": 7,
+      "max": 120,
+      "unit": "day"
+    },
+    "launch_day": {
+      "type": "int",
+      "default": 10,
+      "min": 2,
+      "max": 60,
+      "unit": "day",
+      "description": "Day the new chain opens (chain_launch arm)."
+    },
+    "launch_promo": {
+      "type": "number",
+      "default": 0.2,
+      "min": 0,
+      "max": 0.5,
+      "description": "Launch discount off the chain's list price."
+    },
+    "launch_promo_days": {
+      "type": "int",
+      "default": 14,
+      "min": 1,
+      "max": 60,
+      "unit": "day"
+    },
+    "review_rate": {
+      "type": "number",
+      "default": 0.12,
+      "min": 0,
+      "max": 1,
+      "description": "Chance a served visit leaves a public review."
+    }
+  },
+  "brief": {
+    "situation": "A month in the city's coffee market. Households in five neighborhoods (Downtown, Riverside, Eastside, Northgate, University) buy coffee from a handful of cafés. Each café has a list price, a weekly promotion, a loyalty subscription (monthly fee for a per-cup discount), a daily cup capacity and a public star rating built from customer reviews.",
+    "rules": "Every day each household decides whether to buy coffee and where; a household buys one cup per member who wants one. Price matters more to lower-income households, distance matters to everyone, ratings and friends' habits spread by word of mouth. A café that has hit its daily capacity turns customers away. Every Monday (days 8, 15, 22 …) cafés see last week's results and may change price, promotion and subscription terms; changes apply from that day on.",
+    "roles": {
+      "household": "You are a household deciding on today's coffee. You want good coffee you can afford, close by; a subscription pays off only if you visit the same café often.",
+      "cafe": "You run a café. You want the most profit over the month (revenue minus cost of cups sold) without losing your regulars. Capacity is fixed: filling it at a good price beats discounting into a queue."
+    }
+  },
+  "clock": {
+    "rounds": "$inputs.days",
+    "unit": "day",
+    "start": "2026-03-02"
+  },
+  "space": {
+    "graph": {
+      "nodes": [
+        "Downtown",
+        "Riverside",
+        "Eastside",
+        "Northgate",
+        "University"
+      ],
+      "edges": [
+        {
+          "from": "Downtown",
+          "to": "Riverside",
+          "weight": 1.5
+        },
+        {
+          "from": "Downtown",
+          "to": "Eastside",
+          "weight": 2.0
+        },
+        {
+          "from": "Downtown",
+          "to": "Northgate",
+          "weight": 2.5
+        },
+        {
+          "from": "Downtown",
+          "to": "University",
+          "weight": 1.8
+        },
+        {
+          "from": "Riverside",
+          "to": "University",
+          "weight": 2.2
+        },
+        {
+          "from": "Eastside",
+          "to": "Northgate",
+          "weight": 2.4
+        },
+        {
+          "from": "Northgate",
+          "to": "University",
+          "weight": 3.0
+        }
+      ]
+    }
+  },
+  "world": {
+    "cups_today": {
+      "type": "int",
+      "default": 0,
+      "min": 0
+    },
+    "paid_today": {
+      "type": "number",
+      "default": 0,
+      "min": 0,
+      "description": "Per-cup revenue today (excludes subscription fees)."
+    },
+    "cups_total": {
+      "type": "int",
+      "default": 0,
+      "min": 0
+    },
+    "paid_total": {
+      "type": "number",
+      "default": 0,
+      "min": 0
+    },
+    "fees_total": {
+      "type": "number",
+      "default": 0,
+      "min": 0
+    },
+    "cups_yesterday": {
+      "type": "int",
+      "default": 0,
+      "min": 0
+    },
+    "paid_yesterday": {
+      "type": "number",
+      "default": 0,
+      "min": 0
+    }
+  },
+  "types": {
+    "household": {
+      "agent": true,
+      "policy": "habit",
+      "description": "A sampled city household.",
+      "props": {
+        "source_row": {
+          "type": "text",
+          "default": ""
+        },
+        "income": {
+          "type": "number",
+          "default": 60000,
+          "min": 0,
+          "private": true,
+          "description": "(USD/yr)"
+        },
+        "household_size": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 8
+        },
+        "neighborhood": {
+          "type": "text",
+          "default": "Downtown"
+        },
+        "drinker": {
+          "type": "bool",
+          "default": true,
+          "description": "Buys café coffee at all."
+        },
+        "habit": {
+          "type": "number",
+          "default": 0.5,
+          "min": 0,
+          "max": 1,
+          "description": "Chance of wanting café coffee on a weekday."
+        },
+        "price_sens": {
+          "type": "number",
+          "default": 1,
+          "min": 0.2,
+          "max": 3
+        },
+        "cups_per_visit": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 8
+        },
+        "spend": {
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "private": true
+        },
+        "cups": {
+          "type": "int",
+          "default": 0,
+          "min": 0
+        },
+        "last_cafe": {
+          "type": "text",
+          "default": "none"
+        },
+        "streak": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "description": "Consecutive visits to last_cafe."
+        },
+        "sub": {
+          "type": "text",
+          "default": "none",
+          "description": "Id of the café subscribed to, or none."
+        },
+        "sub_renew": {
+          "type": "int",
+          "default": 0
+        },
+        "ever_subscribed": {
+          "type": "bool",
+          "default": false
+        },
+        "tip": {
+          "type": "text",
+          "default": "none",
+          "description": "Café most of this household's friends went to lately."
+        },
+        "turned_away": {
+          "type": "int",
+          "default": 0,
+          "min": 0
+        },
+        "bought_today": {
+          "type": "bool",
+          "default": false
+        }
+      }
+    },
+    "cafe": {
+      "agent": true,
+      "description": "A café competing for the city's coffee spend.",
+      "props": {
+        "open": {
+          "type": "bool",
+          "default": true
+        },
+        "chain": {
+          "type": "bool",
+          "default": false
+        },
+        "price": {
+          "type": "number",
+          "default": 4,
+          "min": 1.5,
+          "max": 9,
+          "description": "(USD/cup)"
+        },
+        "promo": {
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "max": 0.5,
+          "description": "Discount off list price this week."
+        },
+        "launch_until": {
+          "type": "int",
+          "default": 0
+        },
+        "quality": {
+          "type": "number",
+          "default": 3.5,
+          "min": 1,
+          "max": 5,
+          "private": true
+        },
+        "unit_cost": {
+          "type": "number",
+          "default": 1.4,
+          "min": 0,
+          "private": true
+        },
+        "capacity": {
+          "type": "int",
+          "default": 40,
+          "min": 1
+        },
+        "sub_fee": {
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "max": 80,
+          "description": "Monthly subscription fee; 0 = no subscription offered."
+        },
+        "sub_discount": {
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "max": 0.6
+        },
+        "rating": {
+          "type": "number",
+          "default": 4,
+          "min": 1,
+          "max": 5
+        },
+        "reviews": {
+          "type": "int",
+          "default": 0,
+          "min": 0
+        },
+        "subscribers": {
+          "type": "int",
+          "default": 0,
+          "min": 0
+        },
+        "cups_today": {
+          "type": "int",
+          "default": 0,
+          "min": 0
+        },
+        "turned_away_today": {
+          "type": "int",
+          "default": 0,
+          "min": 0
+        },
+        "week_cups": {
+          "type": "int",
+          "default": 0,
+          "min": 0
+        },
+        "week_revenue": {
+          "type": "number",
+          "default": 0,
+          "min": 0
+        },
+        "week_turned_away": {
+          "type": "int",
+          "default": 0,
+          "min": 0
+        },
+        "last_week_cups": {
+          "type": "int",
+          "default": 0,
+          "min": 0
+        },
+        "prev_week_cups": {
+          "type": "int",
+          "default": 0,
+          "min": 0
+        },
+        "last_week_revenue": {
+          "type": "number",
+          "default": 0,
+          "min": 0
+        },
+        "last_week_turned_away": {
+          "type": "int",
+          "default": 0,
+          "min": 0
+        },
+        "cups_total": {
+          "type": "int",
+          "default": 0,
+          "min": 0
+        },
+        "revenue": {
+          "type": "number",
+          "default": 0,
+          "min": 0
+        },
+        "fee_revenue": {
+          "type": "number",
+          "default": 0,
+          "min": 0
+        },
+        "cost": {
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "private": true
+        }
+      }
+    }
+  },
+  "entities": {
+    "bean_there": {
+      "type": "cafe",
+      "name": "Bean There",
+      "at": "Downtown",
+      "props": {
+        "price": 4.25,
+        "quality": 3.8,
+        "unit_cost": 1.35,
+        "capacity": 42,
+        "rating": 4.0,
+        "sub_fee": 25,
+        "sub_discount": 0.2
+      }
+    },
+    "riverside_roasters": {
+      "type": "cafe",
+      "name": "Riverside Roasters",
+      "at": "Riverside",
+      "props": {
+        "price": 5.5,
+        "quality": 4.6,
+        "unit_cost": 1.9,
+        "capacity": 30,
+        "rating": 4.5,
+        "sub_fee": 45,
+        "sub_discount": 0.3
+      }
+    },
+    "daily_grind": {
+      "type": "cafe",
+      "name": "Daily Grind",
+      "at": "Eastside",
+      "props": {
+        "price": 3.1,
+        "quality": 3.1,
+        "unit_cost": 1.05,
+        "capacity": 48,
+        "rating": 3.6
+      }
+    },
+    "campus_brew": {
+      "type": "cafe",
+      "name": "Campus Brew",
+      "at": "University",
+      "props": {
+        "price": 3.6,
+        "quality": 3.5,
+        "unit_cost": 1.2,
+        "capacity": 38,
+        "rating": 3.9,
+        "sub_fee": 18,
+        "sub_discount": 0.25
+      }
+    },
+    "nova": {
+      "type": "cafe",
+      "name": "Nova Coffee Co.",
+      "at": "Northgate",
+      "props": {
+        "open": false,
+        "chain": true,
+        "price": 4.0,
+        "quality": 3.9,
+        "unit_cost": 1.15,
+        "capacity": 60,
+        "rating": 4.2,
+        "sub_fee": 20,
+        "sub_discount": 0.25
+      }
+    }
+  },
+  "population": [
+    {
+      "type": "household",
+      "from": "$inputs.households",
+      "count": "$inputs.sample_size",
+      "weight": "$row.weight",
+      "replace": true,
+      "id": "hh_{$i}",
+      "name": "Household {$i} ({$row.neighborhood})",
+      "at": "$row.neighborhood",
+      "props": {
+        "source_row": "$row.household_id",
+        "income": "$round($row.income * $lognormal(0, 0.12))",
+        "household_size": "$row.household_size",
+        "neighborhood": "$row.neighborhood",
+        "drinker": "$chance(0.84)",
+        "habit": "$clamp($normal(0.42, 0.16) + ($row.income - 70000) / 900000, 0.05, 0.95)",
+        "price_sens": "$clamp($normal(1, 0.25), 0.4, 1.8)",
+        "cups_per_visit": "$randint(1, $min($row.household_size, 2))"
+      }
+    }
+  ],
+  "relations": {
+    "friends": {
+      "symmetric": true,
+      "description": "Households that talk about where they get coffee."
+    }
+  },
+  "links": [
+    {
+      "relation": "friends",
+      "among": "household",
+      "graph": "small_world",
+      "degree": 4,
+      "p": 0.15
+    }
+  ],
+  "records": {
+    "reviews": {
+      "description": "Public café reviews.",
+      "fields": {
+        "cafe": "text",
+        "stars": "int",
+        "text": "text"
+      },
+      "show": "{stars}★ {$entity($it.cafe).name} (day {round}): {text}",
+      "keep": 120,
+      "notify": false
+    }
+  },
+  "actions": {
+    "buy": {
+      "by": "household",
+      "description": "Buy today's coffee at one open café (one cup per member who wants one). You pay the list price less any promotion, and less your subscription discount at the café you subscribe to. If the café is full you are turned away and your day's coffee is lost.",
+      "params": {
+        "cafe": {
+          "type": "entity",
+          "of": "cafe",
+          "where": "$it.open",
+          "description": "Café id."
+        },
+        "cups": {
+          "type": "int",
+          "min": 1,
+          "max": "$actor.household_size",
+          "default": 1
+        }
+      },
+      "when": [
+        {
+          "expr": "not $actor.bought_today",
+          "why": "You already had coffee today."
+        }
+      ],
+      "do": [
+        "$actor.bought_today = true",
+        "$disc = $params.cafe.sub_discount if $actor.sub == $params.cafe.id else 0",
+        "$unit = $round($params.cafe.price * (1 - $params.cafe.promo) * (1 - $disc), 2)",
+        {
+          "if": "$params.cafe.cups_today + $params.cups > $params.cafe.capacity",
+          "then": [
+            "$params.cafe.turned_away_today += 1",
+            "$params.cafe.week_turned_away += 1",
+            "$actor.turned_away += 1",
+            "$report = 'turned away: ' + $params.cafe.name + ' was full'"
+          ],
+          "else": [
+            "$paid = $unit * $params.cups",
+            "$params.cafe.cups_today += $params.cups",
+            "$params.cafe.week_cups += $params.cups",
+            "$params.cafe.cups_total += $params.cups",
+            "$params.cafe.revenue += $paid",
+            "$params.cafe.week_revenue += $paid",
+            "$params.cafe.cost += $params.cafe.unit_cost * $params.cups",
+            "$world.cups_today += $params.cups",
+            "$world.paid_today += $paid",
+            "$world.cups_total += $params.cups",
+            "$world.paid_total += $paid",
+            "$actor.spend += $paid",
+            "$actor.cups += $params.cups",
+            "$actor.streak = $actor.streak + 1 if $actor.last_cafe == $params.cafe.id else 1",
+            "$actor.last_cafe = $params.cafe.id",
+            "$report = 'served ' + $text($params.cups) + ' cup(s) at ' + $params.cafe.name + ' for $' + $text($round($paid, 2))",
+            {
+              "if": "$chance($inputs.review_rate)",
+              "then": [
+                "$crowd = 0.6 if $params.cafe.cups_today > 0.85 * $params.cafe.capacity else 0",
+                "$value = ($params.cafe.quality - 3.5) * 0.3 - ($unit - 4) * 0.25 * 70000 / $max($actor.income, 10000)",
+                "$stars = $clamp($round($params.cafe.quality + $value * 0.5 - $crowd + $normal(0, 0.7)), 1, 5)",
+                {
+                  "post": "reviews",
+                  "cafe": "$params.cafe.id",
+                  "stars": "$stars",
+                  "text": "['Never again.', 'Not worth the money.', 'Fine, nothing special.', 'Good coffee, will be back.', 'Best cup in the city.'][$stars - 1]"
+                },
+                "$params.cafe.rating = $round($params.cafe.rating * 0.92 + $stars * 0.08, 3)",
+                "$params.cafe.reviews += 1"
+              ]
+            }
+          ]
+        }
+      ],
+      "outcome": "{$report}",
+      "private": true,
+      "terminal": true
+    },
+    "skip": {
+      "by": "household",
+      "description": "No café coffee today.",
+      "when": [
+        {
+          "expr": "not $actor.bought_today",
+          "why": "You already had coffee today."
+        }
+      ],
+      "do": [
+        "$actor.bought_today = true"
+      ],
+      "outcome": "You skip café coffee today.",
+      "private": true,
+      "terminal": true
+    },
+    "subscribe": {
+      "by": "household",
+      "description": "Start a monthly loyalty subscription at a café: pay its monthly fee now (renews every 30 days) and get its per-cup discount on every visit there.",
+      "params": {
+        "cafe": {
+          "type": "entity",
+          "of": "cafe",
+          "where": "$it.open and $it.sub_fee > 0",
+          "description": "Café offering a subscription."
+        }
+      },
+      "when": [
+        {
+          "expr": "$actor.sub == 'none'",
+          "why": "You already have a subscription; cancel it first."
+        }
+      ],
+      "do": [
+        "$actor.sub = $params.cafe.id",
+        "$actor.sub_renew = $round + 30",
+        "$actor.ever_subscribed = true",
+        "$actor.spend += $params.cafe.sub_fee",
+        "$params.cafe.revenue += $params.cafe.sub_fee",
+        "$params.cafe.fee_revenue += $params.cafe.sub_fee",
+        "$params.cafe.week_revenue += $params.cafe.sub_fee",
+        "$params.cafe.subscribers += 1",
+        "$world.fees_total += $params.cafe.sub_fee"
+      ],
+      "outcome": "Subscribed to {$params.cafe.name} for {$params.cafe.sub_fee|money}/month: {$params.cafe.sub_discount|pct} off every cup there.",
+      "private": true,
+      "per_turn": 1
+    },
+    "cancel_subscription": {
+      "by": "household",
+      "description": "Cancel your subscription (no refund; the discount stops today).",
+      "when": [
+        {
+          "expr": "$actor.sub != 'none'",
+          "why": "You have no subscription."
+        }
+      ],
+      "do": [
+        {
+          "each": "cafe",
+          "where": "$it.id == $actor.sub",
+          "do": [
+            "$it.subscribers -= 1"
+          ]
+        },
+        "$actor.sub = 'none'"
+      ],
+      "outcome": "Subscription cancelled.",
+      "private": true,
+      "per_turn": 1
+    },
+    "set_price": {
+      "by": "cafe",
+      "description": "Set your list price per cup from today on.",
+      "params": {
+        "price": {
+          "type": "number",
+          "min": 1.5,
+          "max": 9,
+          "description": "USD per cup."
+        }
+      },
+      "when": [
+        "$actor.open"
+      ],
+      "do": [
+        "$old = $actor.price",
+        "$actor.price = $round($params.price, 2)"
+      ],
+      "outcome": "List price {$old|money} → {$actor.price|money}.",
+      "announce": "{$actor.name} changed its list price to {$actor.price|money}.",
+      "per_turn": 1
+    },
+    "set_promo": {
+      "by": "cafe",
+      "description": "Set this week's promotion: a discount off your list price for every customer (0 ends any promotion).",
+      "params": {
+        "discount": {
+          "type": "number",
+          "min": 0,
+          "max": 0.4,
+          "description": "Fraction off, e.g. 0.1 = 10% off."
+        }
+      },
+      "when": [
+        "$actor.open",
+        {
+          "expr": "$round >= $actor.launch_until",
+          "why": "Your launch promotion is locked in until its end day."
+        }
+      ],
+      "do": [
+        "$actor.promo = $params.discount"
+      ],
+      "outcome": "Promotion set to {$actor.promo|pct} off this week.",
+      "announce": "{$actor.name} is running {$actor.promo|pct} off this week.",
+      "per_turn": 1
+    },
+    "set_subscription": {
+      "by": "cafe",
+      "description": "Set loyalty subscription terms for new sign-ups and renewals: monthly fee and per-cup discount. Fee 0 stops offering it (existing subscribers keep their discount until they cancel).",
+      "params": {
+        "monthly_fee": {
+          "type": "number",
+          "min": 0,
+          "max": 80,
+          "description": "USD per month."
+        },
+        "discount": {
+          "type": "number",
+          "min": 0,
+          "max": 0.6,
+          "description": "Per-cup discount for subscribers, e.g. 0.25."
+        }
+      },
+      "when": [
+        "$actor.open"
+      ],
+      "do": [
+        {
+          "if": "$params.monthly_fee > 0 and $params.discount == 0",
+          "then": [
+            {
+              "fail": "A subscription with no discount sells nothing: give a discount above 0, or set the fee to 0 to stop offering one."
+            }
+          ]
+        },
+        "$actor.sub_fee = $params.monthly_fee",
+        "$actor.sub_discount = $params.discount"
+      ],
+      "outcome": "Subscription: {$actor.sub_fee|money}/month for {$actor.sub_discount|pct} off per cup.",
+      "announce": "{$actor.name} now offers a {$actor.sub_fee|money}/month subscription with {$actor.sub_discount|pct} off.",
+      "per_turn": 1
+    }
+  },
+  "stages": [
+    {
+      "name": "weekly_pricing",
+      "when": "$round > 1 and ($round - 1) % 7 == 0",
+      "turns": "simultaneous",
+      "who": "$it.type == cafe and $it.open",
+      "actions": {
+        "cafe": [
+          "set_price",
+          "set_promo",
+          "set_subscription"
+        ]
+      },
+      "max_actions": 3,
+      "max_calls": 10,
+      "brief": "Monday review for {name}: set this week's price, promotion and subscription terms (or keep them and end your turn)."
+    },
+    {
+      "name": "daily_purchase",
+      "turns": "simultaneous",
+      "order": "random",
+      "who": "$it.type == household",
+      "actions": {
+        "household": [
+          "cancel_subscription",
+          "subscribe",
+          "buy",
+          "skip"
+        ]
+      },
+      "max_actions": 3,
+      "max_calls": 6,
+      "brief": "Decide whether to buy coffee today, and where."
+    }
+  ],
+  "events": [
+    {
+      "name": "new_day",
+      "phase": "start",
+      "each": "cafe",
+      "do": [
+        "$it.cups_today = 0",
+        "$it.turned_away_today = 0",
+        {
+          "if": "$it.launch_until > 0 and $round == $it.launch_until",
+          "then": [
+            "$it.promo = 0"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "new_day_households",
+      "phase": "start",
+      "each": "household",
+      "do": [
+        "$it.bought_today = false"
+      ]
+    },
+    {
+      "name": "new_day_world",
+      "phase": "start",
+      "do": [
+        "$world.cups_yesterday = $world.cups_today",
+        "$world.paid_yesterday = $world.paid_today",
+        "$world.cups_today = 0",
+        "$world.paid_today = 0"
+      ]
+    },
+    {
+      "name": "week_close",
+      "phase": "start",
+      "when": "$round > 1 and ($round - 1) % 7 == 0",
+      "each": "cafe",
+      "do": [
+        "$it.prev_week_cups = $it.last_week_cups",
+        "$it.last_week_cups = $it.week_cups",
+        "$it.last_week_revenue = $it.week_revenue",
+        "$it.last_week_turned_away = $it.week_turned_away",
+        "$it.week_cups = 0",
+        "$it.week_revenue = 0",
+        "$it.week_turned_away = 0"
+      ]
+    },
+    {
+      "name": "chain_opens",
+      "arms": [
+        "chain_launch"
+      ],
+      "at": "$inputs.launch_day",
+      "phase": "start",
+      "each": "cafe",
+      "where": "$it.chain",
+      "do": [
+        "$it.open = true",
+        "$it.promo = $inputs.launch_promo",
+        "$it.launch_until = $inputs.launch_day + $inputs.launch_promo_days"
+      ],
+      "say": "Nova Coffee Co. opens in Northgate today with {$inputs.launch_promo|pct} off every cup for {$inputs.launch_promo_days} days."
+    },
+    {
+      "name": "subscription_renewal",
+      "phase": "end",
+      "each": "household",
+      "where": "$it.sub != 'none' and $round >= $it.sub_renew",
+      "do": [
+        {
+          "each": "cafe",
+          "as": "c",
+          "where": "$c.id == $it.sub",
+          "do": [
+            {
+              "if": "$c.sub_fee > 0",
+              "then": [
+                "$it.spend += $c.sub_fee",
+                "$c.revenue += $c.sub_fee",
+                "$c.fee_revenue += $c.sub_fee",
+                "$c.week_revenue += $c.sub_fee",
+                "$world.fees_total += $c.sub_fee",
+                "$it.sub_renew = $round + 30"
+              ],
+              "else": [
+                "$c.subscribers -= 1",
+                "$it.sub = 'none'"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "word_of_mouth",
+      "phase": "end",
+      "each": "household",
+      "do": [
+        "$heard = $filter($map($neighbors($it, friends), $it.last_cafe), $it != 'none')",
+        "$it.tip = $mode($heard) if $len($heard) > 0 else 'none'"
+      ]
+    }
+  ],
+  "views": {
+    "my_household": {
+      "for": "household",
+      "title": "Your household",
+      "show": "{household_size} {'person' if $actor.household_size == 1 else 'people'} in {neighborhood}, income {income|money}/yr · spent {spend|money} on coffee so far · subscription: {$entity($actor.sub).name if $actor.sub != 'none' else 'none'} · usual café: {$entity($actor.last_cafe).name if $actor.last_cafe != 'none' else 'none yet'} ({streak} visits in a row) · friends mostly go to: {$entity($actor.tip).name if $actor.tip != 'none' else 'no one yet'}"
+    },
+    "cafes_near_you": {
+      "for": "household",
+      "title": "Open cafés, nearest first",
+      "of": "cafe",
+      "where": "$it.open",
+      "sort": "$distance($actor, $it)",
+      "show": "[{id}] {name} ({$it.at}, {$distance($actor, $it)|1} km) · your price {$round($it.price * (1 - $it.promo) * (1 - ($it.sub_discount if $actor.sub == $it.id else 0)), 2)|money}/cup{' (' + $text($round($it.promo * 100)) + '% promo)' if $it.promo > 0 else ''} · {rating|1}★ · {'subscription $' + $text($it.sub_fee) + '/mo for ' + $text($round($it.sub_discount * 100)) + '% off' if $it.sub_fee > 0 else 'no subscription'}{' · was full yesterday' if $it.turned_away_today > 0 else ''}"
+    },
+    "recent_reviews": {
+      "for": "household",
+      "title": "Recent reviews",
+      "look": true,
+      "of": "$records(reviews)",
+      "sort": "$it.round",
+      "desc": true,
+      "limit": 8,
+      "show": "{stars}★ {$entity($it.cafe).name} (day {round}): {text}",
+      "empty": "No reviews yet."
+    },
+    "my_cafe": {
+      "for": "cafe",
+      "title": "Your café",
+      "show": "{name} in {$actor.at} · list {price|money}, promo {promo|pct}{' (launch promo locked until day ' + $text($actor.launch_until) + ')' if $actor.launch_until > $round else ''} · quality {quality|1}/5, rating {rating|1}★ ({reviews} reviews) · capacity {capacity} cups/day, cost {unit_cost|money}/cup · subscription {sub_fee|money}/mo for {sub_discount|pct} off, {subscribers} subscribers"
+    },
+    "my_last_week": {
+      "for": "cafe",
+      "title": "Your last week",
+      "show": "{last_week_cups} cups ({$pct($actor.last_week_cups, $actor.capacity * 7)|pct} of capacity; week before {prev_week_cups}) · revenue {last_week_revenue|money} · {last_week_turned_away} customers turned away · month so far: revenue {revenue|money} (fees {fee_revenue|money}), profit {$actor.revenue - $actor.cost|money}"
+    },
+    "competitors": {
+      "for": "cafe",
+      "title": "Competitors by last week's cups",
+      "of": "cafe",
+      "where": "$it.open and $it.id != $actor.id",
+      "sort": "$it.last_week_cups",
+      "desc": true,
+      "show": "[{id}] {name} ({$it.at}) · {last_week_cups} cups · list {price|money}{', ' + $text($round($it.promo * 100)) + '% promo' if $it.promo > 0 else ''} · {rating|1}★ · {'subscription $' + $text($it.sub_fee) + '/mo for ' + $text($round($it.sub_discount * 100)) + '% off' if $it.sub_fee > 0 else 'no subscription'}",
+      "empty": "No open competitors."
+    },
+    "market": {
+      "for": "cafe",
+      "title": "Market",
+      "show": "{$count(household, $it.drinker)} coffee-buying households sampled · yesterday {$world.cups_yesterday} cups sold at avg {$pct($world.paid_yesterday, $world.cups_yesterday)|money}/cup · {$count(household, $it.sub != 'none')} active subscriptions citywide"
+    },
+    "my_reviews": {
+      "for": "cafe",
+      "title": "Your latest reviews",
+      "of": "$records(reviews)",
+      "where": "$it.cafe == $actor.id",
+      "sort": "$it.round",
+      "desc": true,
+      "limit": 4,
+      "show": "{stars}★ day {round}: {text}",
+      "empty": "No reviews yet."
+    }
+  },
+  "policies": {
+    "habit": {
+      "repeat": true,
+      "rules": [
+        {
+          "when": "$actor.sub != 'none' and $actor.last_cafe != $actor.sub and $actor.streak >= 3",
+          "do": "cancel_subscription"
+        },
+        {
+          "when": "$actor.drinker and $actor.sub == 'none' and $actor.streak >= 4 and $actor.last_cafe != 'none' and $entity($actor.last_cafe).open and $entity($actor.last_cafe).sub_fee > 0 and 30 * $actor.habit * $actor.cups_per_visit * $entity($actor.last_cafe).price * (1 - $entity($actor.last_cafe).promo) * $entity($actor.last_cafe).sub_discount > $entity($actor.last_cafe).sub_fee * 1.1",
+          "do": "subscribe",
+          "with": {
+            "cafe": "$actor.last_cafe"
+          }
+        },
+        {
+          "when": "$actor.drinker and $chance($clamp($actor.habit * (1.25 if ($round - 1) % 7 >= 5 else 1) * (0.5 if $actor.turned_away > 0 and $actor.last_cafe == 'none' else 1), 0, 1))",
+          "do": "buy",
+          "with": {
+            "cafe": "$top(cafe, 1.3 * $it.rating - 0.9 * $actor.price_sens * $it.price * (1 - $it.promo) * (1 - ($it.sub_discount if $actor.sub == $it.id else 0)) / ($actor.income / 365) * 100 - 0.75 * $distance($actor, $it) + (1.2 if $actor.sub == $it.id else 0) + (0.25 * $min($actor.streak, 5) / 5 if $actor.last_cafe == $it.id else 0) + (0.5 if $actor.tip == $it.id else 0) - (0.8 if $it.turned_away_today > 2 else 0) + $normal(0, 0.7), 1, $it.open)[0]",
+            "cups": "$actor.cups_per_visit"
+          }
+        },
+        {
+          "do": "skip"
+        }
+      ]
+    },
+    "hold": {
+      "rules": [
+        {
+          "do": "pass"
+        }
+      ]
+    },
+    "yield_manager": {
+      "repeat": true,
+      "rules": [
+        {
+          "when": "$actor.last_week_turned_away > 10 or $actor.last_week_cups > 0.92 * $actor.capacity * 7",
+          "do": "set_price",
+          "with": {
+            "price": "$actor.price + 0.25"
+          }
+        },
+        {
+          "when": "$actor.last_week_cups < 0.5 * $actor.capacity * 7 and $actor.price * 0.95 > $actor.unit_cost * 2",
+          "do": "set_price",
+          "with": {
+            "price": "$actor.price * 0.95"
+          }
+        },
+        {
+          "when": "$actor.last_week_cups < 0.4 * $actor.capacity * 7 and $actor.promo == 0",
+          "do": "set_promo",
+          "with": {
+            "discount": 0.1
+          }
+        },
+        {
+          "when": "$actor.last_week_cups >= 0.4 * $actor.capacity * 7 and $actor.promo > 0",
+          "do": "set_promo",
+          "with": {
+            "discount": 0
+          }
+        },
+        {
+          "do": "pass"
+        }
+      ]
+    },
+    "defender": {
+      "repeat": true,
+      "rules": [
+        {
+          "when": "$actor.prev_week_cups > 0 and $actor.last_week_cups < 0.85 * $actor.prev_week_cups and $actor.promo < 0.15",
+          "do": "set_promo",
+          "with": {
+            "discount": 0.15
+          }
+        },
+        {
+          "when": "$actor.prev_week_cups > 0 and $actor.last_week_cups < 0.85 * $actor.prev_week_cups and $actor.sub_discount < 0.3",
+          "do": "set_subscription",
+          "with": {
+            "monthly_fee": "$max(15, $actor.sub_fee)",
+            "discount": 0.3
+          }
+        },
+        {
+          "when": "$actor.prev_week_cups > 0 and $actor.last_week_cups >= $actor.prev_week_cups and $actor.promo > 0",
+          "do": "set_promo",
+          "with": {
+            "discount": 0
+          }
+        },
+        {
+          "do": "pass"
+        }
+      ]
+    }
+  },
+  "metrics": {
+    "cups_sold": {
+      "expr": "$world.cups_today",
+      "unit": "cups/day"
+    },
+    "avg_paid_price": {
+      "expr": "$round($pct($world.paid_today, $world.cups_today), 2)",
+      "unit": "USD/cup",
+      "description": "Average price actually paid per cup today."
+    },
+    "avg_list_price": {
+      "expr": "$round($avg(cafe, $it.price * (1 - $it.promo), $it.open), 2)",
+      "unit": "USD/cup",
+      "description": "Mean promoted list price across open cafés."
+    },
+    "active_subscribers": "$count(household, $it.sub != 'none')",
+    "turned_away": "$sum(cafe, $it.turned_away_today)",
+    "share_bean_there": "$round($pct($entity(bean_there).cups_today, $world.cups_today), 4)",
+    "share_riverside_roasters": "$round($pct($entity(riverside_roasters).cups_today, $world.cups_today), 4)",
+    "share_daily_grind": "$round($pct($entity(daily_grind).cups_today, $world.cups_today), 4)",
+    "share_campus_brew": "$round($pct($entity(campus_brew).cups_today, $world.cups_today), 4)",
+    "share_nova": "$round($pct($entity(nova).cups_today, $world.cups_today), 4)",
+    "spend_share_of_income": {
+      "expr": "$round($avg(household, $pct($it.spend, $it.income * $round / 365)), 5)",
+      "description": "Mean household coffee spend so far as a share of income earned over the same days."
+    }
+  },
+  "outputs": {
+    "market_shares": {
+      "type": "list",
+      "description": "[café, share of all cups sold over the run], largest first.",
+      "expr": "$map($top(cafe, $it.cups_total), [$it.name, $round($pct($it.cups_total, $world.cups_total), 4)])"
+    },
+    "revenue_by_cafe": {
+      "type": "list",
+      "description": "[café, revenue USD incl. subscription fees, profit USD] over the run.",
+      "expr": "$map($top(cafe, $it.revenue), [$it.name, $round($it.revenue, 2), $round($it.revenue - $it.cost, 2)])"
+    },
+    "leader": {
+      "type": "text",
+      "expr": "$top(cafe, $it.cups_total, 1)[0].name"
+    },
+    "subscription_uptake": {
+      "type": "number",
+      "description": "Share of sampled households that subscribed at any point.",
+      "expr": "$round($pct($count(household, $it.ever_subscribed), $count(household)), 4)"
+    },
+    "active_subscribers_end": {
+      "type": "int",
+      "expr": "$metrics.active_subscribers"
+    },
+    "average_price_paid": {
+      "type": "number",
+      "description": "USD per cup actually paid over the run (excl. fees).",
+      "expr": "$round($pct($world.paid_total, $world.cups_total), 2)"
+    },
+    "average_list_price_over_run": {
+      "type": "number",
+      "expr": "$round($avg($series.avg_list_price, $it), 2)"
+    },
+    "coffee_spend_share_of_income": {
+      "type": "number",
+      "description": "Mean household coffee spend (cups + fees) over the run as a share of income for the same days.",
+      "expr": "$metrics.spend_share_of_income"
+    },
+    "turned_away_total": {
+      "type": "int",
+      "expr": "$sum($series.turned_away, $it)"
+    },
+    "nova_share_series": {
+      "type": "list",
+      "expr": "$series.share_nova"
+    }
+  },
+  "invariants": [
+    {
+      "expr": "$all(cafe, $it.cups_today <= $it.capacity)",
+      "why": "A café cannot serve beyond its daily capacity."
+    },
+    {
+      "expr": "$abs($sum(cafe, $it.revenue) - $sum(household, $it.spend)) < 0.01",
+      "why": "Every dollar a café earns is a dollar a household spent."
+    },
+    {
+      "expr": "$sum(cafe, $it.subscribers) == $count(household, $it.sub != 'none')",
+      "why": "Subscriber counts match household subscriptions."
+    },
+    {
+      "expr": "$sum(cafe, $it.cups_total) == $world.cups_total",
+      "why": "Cups are conserved."
+    }
+  ],
+  "end": [
+    {
+      "name": "market_collapse",
+      "when": "$round >= 7 and $metrics.cups_sold == 0",
+      "say": "Nobody bought coffee today: the market has collapsed."
+    }
+  ],
+  "arms": {
+    "baseline": {
+      "description": "The four incumbent cafés only."
+    },
+    "chain_launch": {
+      "description": "Nova Coffee Co. opens in Northgate on launch_day with a launch promotion."
+    }
+  }
+}

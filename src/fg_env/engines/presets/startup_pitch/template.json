@@ -1,0 +1,1466 @@
+{
+  "name": "Startup Pitch",
+  "description": "Startup pitch and VC funding simulation. Founders pitch their startups to investors who ask probing questions, conduct due diligence, and decide whether to invest. Participants negotiate terms, form syndicates, and compete for the best deals.",
+  "scenario_type": "economic",
+  "spatial": {
+    "type": "none"
+  },
+  "temporal": {
+    "phases": [
+      {
+        "name": "pitch_and_invest",
+        "description": "Founders pitch, investors evaluate, ask questions, negotiate terms, and make investment decisions",
+        "active_roles": []
+      }
+    ]
+  },
+  "entity_types": [
+    {
+      "name": "Participant",
+      "role": "agent",
+      "description": "A startup ecosystem participant — founder seeking funding or investor evaluating opportunities",
+      "properties": [
+        {
+          "name": "capital",
+          "type": "float",
+          "default": 100.0,
+          "min_value": 0.0,
+          "max_value": 100000000.0,
+          "description": "Available capital for investment or startup runway",
+          "hidden": false
+        },
+        {
+          "name": "technical_expertise",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Depth of technical knowledge and ability to evaluate technology",
+          "hidden": false
+        },
+        {
+          "name": "business_acumen",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Understanding of business models, markets, and financial strategy",
+          "hidden": false
+        },
+        {
+          "name": "charisma",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Ability to inspire, persuade, and captivate an audience",
+          "hidden": false
+        },
+        {
+          "name": "risk_appetite",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Willingness to take on high-risk high-reward investments",
+          "hidden": false
+        },
+        {
+          "name": "domain_knowledge",
+          "type": "float",
+          "default": 0.5,
+          "min_value": 0.0,
+          "max_value": 1.0,
+          "description": "Expertise in the specific industry or vertical being discussed",
+          "hidden": false
+        },
+        {
+          "name": "invested",
+          "type": "bool",
+          "default": false,
+          "description": "Whether this participant has committed capital in this round",
+          "hidden": false
+        },
+        {
+          "name": "passed",
+          "type": "bool",
+          "default": false,
+          "description": "Whether this participant has formally passed on the opportunity",
+          "hidden": false
+        },
+        {
+          "name": "commitments",
+          "type": "float",
+          "default": 0.0,
+          "min_value": 0.0,
+          "max_value": 1000.0,
+          "description": "Number of investors who have committed to this participant's round",
+          "hidden": false
+        }
+      ]
+    }
+  ],
+  "resource_types": [
+    {
+      "name": "capital",
+      "conservation": true,
+      "discrete": false,
+      "min_value": 0.0,
+      "max_value": null,
+      "description": "Investment capital that flows between participants"
+    }
+  ],
+  "relation_types": [
+    {
+      "name": "interest",
+      "symmetric": false,
+      "default_value": 0.0,
+      "min_value": 0.0,
+      "max_value": 1.0,
+      "description": "How interested one participant is in working with or investing in another"
+    }
+  ],
+  "visibility_rules": [
+    {
+      "observer_type": "*",
+      "visible_entity_types": [
+        "Participant"
+      ],
+      "visible_properties": {
+        "Participant": [
+          "capital",
+          "technical_expertise",
+          "business_acumen",
+          "charisma",
+          "risk_appetite",
+          "domain_knowledge",
+          "invested",
+          "passed",
+          "commitments"
+        ]
+      },
+      "max_range": null,
+      "requires_same_location": false,
+      "see_relations_involving_self": true,
+      "see_all_relations": false,
+      "visible_resources": [
+        "capital"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "name": "pitch_startup",
+      "description": "Deliver a startup pitch, presenting the vision, product, market opportunity, and ask",
+      "actor_type": "Participant",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "skill_check",
+      "resolution_params": {
+        "skill": "charisma",
+        "difficulty": 0.5
+      },
+      "message_action": true,
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "charisma",
+          "value": 0.02,
+          "description": "Successful pitch builds confidence and presence"
+        }
+      ],
+      "effects_on_failure": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "charisma",
+          "value": -0.02,
+          "description": "Fumbled pitch shakes confidence"
+        }
+      ]
+    },
+    {
+      "name": "ask_question",
+      "description": "Ask a probing question to test the founder's knowledge and preparedness",
+      "actor_type": "Participant",
+      "target_type": "Participant",
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "contest",
+      "resolution_params": {
+        "attacker_skill": "business_acumen",
+        "defender_skill": "technical_expertise"
+      },
+      "message_action": true,
+      "effects_on_success": [
+        {
+          "target": "target",
+          "operation": "add",
+          "field": "charisma",
+          "value": -0.03,
+          "description": "Tough question exposes weakness"
+        }
+      ],
+      "effects_on_failure": [
+        {
+          "target": "target",
+          "operation": "add",
+          "field": "charisma",
+          "value": 0.02,
+          "description": "Strong answer to tough question impresses"
+        }
+      ]
+    },
+    {
+      "name": "offer_term_sheet",
+      "description": "Present a formal term sheet with investment amount, valuation, and conditions",
+      "actor_type": "Participant",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "skill_check",
+      "resolution_params": {
+        "skill": "business_acumen",
+        "difficulty": 0.4
+      },
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "business_acumen",
+          "value": 0.01,
+          "description": "Crafting terms sharpens deal-making skill"
+        }
+      ],
+      "effects_on_failure": []
+    },
+    {
+      "name": "negotiate_terms",
+      "description": "Negotiate the terms of an investment deal — valuation, equity, board seats, and provisions",
+      "actor_type": "Participant",
+      "target_type": "Participant",
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "contest",
+      "resolution_params": {
+        "attacker_skill": "business_acumen",
+        "defender_skill": "business_acumen"
+      },
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "business_acumen",
+          "value": 0.02,
+          "description": "Winning negotiation builds deal-making confidence"
+        }
+      ],
+      "effects_on_failure": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "business_acumen",
+          "value": -0.01,
+          "description": "Losing negotiation ground is humbling"
+        }
+      ]
+    },
+    {
+      "name": "due_diligence",
+      "description": "Conduct technical and business due diligence on a startup or opportunity",
+      "actor_type": "Participant",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "skill_check",
+      "resolution_params": {
+        "skill": "technical_expertise",
+        "difficulty": 0.45
+      },
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "domain_knowledge",
+          "value": 0.03,
+          "description": "Thorough due diligence deepens domain expertise"
+        }
+      ],
+      "effects_on_failure": []
+    },
+    {
+      "name": "invest",
+      "description": "Commit capital to a startup, finalizing the investment (targets the founder being backed; final, one commitment per investor)",
+      "actor_type": "Participant",
+      "target_type": "Participant",
+      "parameters": [],
+      "preconditions": [
+        {
+          "subject": "actor",
+          "operator": "eq",
+          "field": "invested",
+          "value": false
+        }
+      ],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "set",
+          "field": "invested",
+          "value": true,
+          "description": "Investor's commitment is final"
+        },
+        {
+          "target": "target",
+          "operation": "add",
+          "field": "commitments",
+          "value": 1,
+          "description": "The founder's round gains a committed investor"
+        },
+        {
+          "target": "actor",
+          "operation": "emit_event",
+          "value": "investment_committed",
+          "description": "An investor committed capital to the round"
+        }
+      ],
+      "effects_on_failure": []
+    },
+    {
+      "name": "pass",
+      "description": "Decline to invest — pass on the opportunity",
+      "actor_type": "Participant",
+      "target_type": null,
+      "parameters": [],
+      "preconditions": [
+        {
+          "subject": "actor",
+          "operator": "eq",
+          "field": "invested",
+          "value": false
+        }
+      ],
+      "resolution_archetype": "deterministic",
+      "resolution_params": {},
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "set",
+          "field": "passed",
+          "value": true,
+          "description": "The pass is on the record"
+        },
+        {
+          "target": "actor",
+          "operation": "emit_event",
+          "value": "investor_passed",
+          "description": "An investor formally passed on the round"
+        }
+      ],
+      "effects_on_failure": []
+    },
+    {
+      "name": "counter_offer",
+      "description": "Respond to a term sheet with a counter-proposal on different terms",
+      "actor_type": "Participant",
+      "target_type": "Participant",
+      "parameters": [],
+      "preconditions": [],
+      "resolution_archetype": "contest",
+      "resolution_params": {
+        "attacker_skill": "business_acumen",
+        "defender_skill": "business_acumen"
+      },
+      "effects_on_success": [
+        {
+          "target": "actor",
+          "operation": "add",
+          "field": "business_acumen",
+          "value": 0.01,
+          "description": "Successful counter builds negotiation skill"
+        }
+      ],
+      "effects_on_failure": []
+    }
+  ],
+  "entities": [
+    {
+      "id": "tech_founder_01",
+      "name": "Tech Founder",
+      "entity_type": "Participant",
+      "location_id": null,
+      "properties": {
+        "capital": 50.0,
+        "technical_expertise": 0.9,
+        "business_acumen": 0.5,
+        "charisma": 0.6,
+        "risk_appetite": 0.8,
+        "domain_knowledge": 0.85
+      }
+    },
+    {
+      "id": "serial_entrepreneur_01",
+      "name": "Serial Entrepreneur",
+      "entity_type": "Participant",
+      "location_id": null,
+      "properties": {
+        "capital": 200.0,
+        "technical_expertise": 0.5,
+        "business_acumen": 0.85,
+        "charisma": 0.9,
+        "risk_appetite": 0.7,
+        "domain_knowledge": 0.6
+      }
+    },
+    {
+      "id": "lead_vc_01",
+      "name": "Lead VC Partner",
+      "entity_type": "Participant",
+      "location_id": null,
+      "properties": {
+        "capital": 5000.0,
+        "technical_expertise": 0.6,
+        "business_acumen": 0.9,
+        "charisma": 0.7,
+        "risk_appetite": 0.75,
+        "domain_knowledge": 0.65
+      }
+    },
+    {
+      "id": "angel_investor_01",
+      "name": "Angel Investor",
+      "entity_type": "Participant",
+      "location_id": null,
+      "properties": {
+        "capital": 500.0,
+        "technical_expertise": 0.55,
+        "business_acumen": 0.65,
+        "charisma": 0.5,
+        "risk_appetite": 0.6,
+        "domain_knowledge": 0.85
+      }
+    },
+    {
+      "id": "skeptical_lp_01",
+      "name": "Skeptical LP",
+      "entity_type": "Participant",
+      "location_id": null,
+      "properties": {
+        "capital": 10000.0,
+        "technical_expertise": 0.4,
+        "business_acumen": 0.85,
+        "charisma": 0.4,
+        "risk_appetite": 0.25,
+        "domain_knowledge": 0.5
+      }
+    }
+  ],
+  "resource_holdings": [
+    {
+      "entity_id": "tech_founder_01",
+      "resource": "capital",
+      "amount": 50
+    },
+    {
+      "entity_id": "serial_entrepreneur_01",
+      "resource": "capital",
+      "amount": 200
+    },
+    {
+      "entity_id": "lead_vc_01",
+      "resource": "capital",
+      "amount": 5000
+    },
+    {
+      "entity_id": "angel_investor_01",
+      "resource": "capital",
+      "amount": 500
+    },
+    {
+      "entity_id": "skeptical_lp_01",
+      "resource": "capital",
+      "amount": 10000
+    }
+  ],
+  "resource_unallocated": [],
+  "initial_relations": [],
+  "personas": [
+    {
+      "entity_name": "Tech Founder",
+      "entity_type": "Participant",
+      "persona_text": "You are a brilliant technical founder who built the product from scratch and understands every line of code. You sometimes struggle to translate deep technical insight into business language that investors understand. Your passion for the technology is infectious, but you need to learn to lead with the market opportunity rather than the architecture.",
+      "goals": [
+        "Secure funding at a fair valuation",
+        "Demonstrate technical differentiation and defensibility",
+        "Find investors who add strategic value beyond capital"
+      ],
+      "personality_traits": [
+        "technically brilliant",
+        "passionate",
+        "introverted",
+        "detail-oriented"
+      ],
+      "attribute_values": {}
+    },
+    {
+      "entity_name": "Serial Entrepreneur",
+      "entity_type": "Participant",
+      "persona_text": "You are a serial entrepreneur on your third startup, with two previous exits under your belt. You know exactly how to work a room, structure a pitch, and close a deal. Your charisma and track record open doors, but some investors wonder if you spread yourself too thin across ventures.",
+      "goals": [
+        "Raise a competitive round quickly and on favorable terms",
+        "Leverage track record to command premium valuation",
+        "Build a syndicate of complementary investors"
+      ],
+      "personality_traits": [
+        "charismatic",
+        "experienced",
+        "fast-moving",
+        "networked"
+      ],
+      "attribute_values": {}
+    },
+    {
+      "entity_name": "Lead VC Partner",
+      "entity_type": "Participant",
+      "persona_text": "You are a senior partner at a top-tier venture capital firm with deep pockets and a strong portfolio. You evaluate deals through a rigorous framework of market size, team quality, and competitive moats. You are decisive but thorough, and founders know that your term sheet signals quality to the entire market.",
+      "goals": [
+        "Identify breakout companies with 10x return potential",
+        "Negotiate favorable terms that protect downside",
+        "Build a portfolio of category-defining companies"
+      ],
+      "personality_traits": [
+        "analytical",
+        "decisive",
+        "strategic",
+        "demanding"
+      ],
+      "attribute_values": {}
+    },
+    {
+      "entity_name": "Angel Investor",
+      "entity_type": "Participant",
+      "persona_text": "You are an angel investor and former industry executive with deep domain expertise in the sector. You write smaller checks but bring invaluable industry connections and operational guidance. You invest based on gut feel backed by decades of industry pattern-matching.",
+      "goals": [
+        "Back exceptional founders early before they become obvious",
+        "Add value through domain expertise and introductions",
+        "Build a diversified angel portfolio across the sector"
+      ],
+      "personality_traits": [
+        "experienced",
+        "well-connected",
+        "mentor-oriented",
+        "intuitive"
+      ],
+      "attribute_values": {}
+    },
+    {
+      "entity_name": "Skeptical LP",
+      "entity_type": "Participant",
+      "persona_text": "You are a limited partner with significant capital who has been burned by overhyped startups before. You ask the hardest questions in the room and demand rigorous financial projections. You rarely invest directly but when you do, it signals extreme conviction in the opportunity.",
+      "goals": [
+        "Stress-test every assumption in the pitch",
+        "Only invest in opportunities with clear path to profitability",
+        "Avoid hype-driven investments with weak fundamentals"
+      ],
+      "personality_traits": [
+        "skeptical",
+        "rigorous",
+        "conservative",
+        "data-driven"
+      ],
+      "attribute_values": {}
+    }
+  ],
+  "agent_archetypes": [
+    {
+      "name": "Technical Founder",
+      "faction": "founders",
+      "weight": 0.08,
+      "entity_type": "Participant",
+      "persona_hint": "Deep technical founder who built the product, strong engineering skills but may struggle with business storytelling, passionate about the technology",
+      "property_distributions": {
+        "capital": {
+          "type": "normal",
+          "params": {
+            "mean": 50.0,
+            "std": 30.0,
+            "min": 10.0,
+            "max": 200.0
+          }
+        },
+        "technical_expertise": {
+          "type": "normal",
+          "params": {
+            "mean": 0.9,
+            "std": 0.05,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "business_acumen": {
+          "type": "normal",
+          "params": {
+            "mean": 0.45,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "charisma": {
+          "type": "normal",
+          "params": {
+            "mean": 0.55,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "risk_appetite": {
+          "type": "normal",
+          "params": {
+            "mean": 0.8,
+            "std": 0.08,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "domain_knowledge": {
+          "type": "normal",
+          "params": {
+            "mean": 0.85,
+            "std": 0.07,
+            "min": 0.0,
+            "max": 1.0
+          }
+        }
+      }
+    },
+    {
+      "name": "Business Founder",
+      "faction": "founders",
+      "weight": 0.08,
+      "entity_type": "Participant",
+      "persona_hint": "Business-oriented founder with strong go-to-market skills, excellent at pitching and fundraising, understands unit economics and market positioning",
+      "property_distributions": {
+        "capital": {
+          "type": "normal",
+          "params": {
+            "mean": 100.0,
+            "std": 50.0,
+            "min": 20.0,
+            "max": 500.0
+          }
+        },
+        "technical_expertise": {
+          "type": "normal",
+          "params": {
+            "mean": 0.4,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "business_acumen": {
+          "type": "normal",
+          "params": {
+            "mean": 0.85,
+            "std": 0.07,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "charisma": {
+          "type": "normal",
+          "params": {
+            "mean": 0.85,
+            "std": 0.07,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "risk_appetite": {
+          "type": "normal",
+          "params": {
+            "mean": 0.75,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "domain_knowledge": {
+          "type": "normal",
+          "params": {
+            "mean": 0.6,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        }
+      }
+    },
+    {
+      "name": "Domain Expert Founder",
+      "faction": "founders",
+      "weight": 0.04,
+      "entity_type": "Participant",
+      "persona_hint": "Industry veteran turned founder with deep domain expertise, credibility from years in the field, moderate technical and business skills but unmatched sector knowledge",
+      "property_distributions": {
+        "capital": {
+          "type": "normal",
+          "params": {
+            "mean": 150.0,
+            "std": 75.0,
+            "min": 25.0,
+            "max": 500.0
+          }
+        },
+        "technical_expertise": {
+          "type": "normal",
+          "params": {
+            "mean": 0.55,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "business_acumen": {
+          "type": "normal",
+          "params": {
+            "mean": 0.65,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "charisma": {
+          "type": "normal",
+          "params": {
+            "mean": 0.6,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "risk_appetite": {
+          "type": "normal",
+          "params": {
+            "mean": 0.65,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "domain_knowledge": {
+          "type": "normal",
+          "params": {
+            "mean": 0.95,
+            "std": 0.03,
+            "min": 0.0,
+            "max": 1.0
+          }
+        }
+      }
+    },
+    {
+      "name": "Angel Investor",
+      "faction": "investors",
+      "weight": 0.15,
+      "entity_type": "Participant",
+      "persona_hint": "Early-stage angel investor with smaller check sizes, higher risk tolerance, relies on pattern-matching and gut instinct",
+      "property_distributions": {
+        "capital": {
+          "type": "log_normal",
+          "params": {
+            "mu": 11.5,
+            "sigma": 0.7,
+            "min": 25000.0,
+            "max": 500000.0
+          }
+        },
+        "technical_expertise": {
+          "type": "normal",
+          "params": {
+            "mean": 0.5,
+            "std": 0.15,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "business_acumen": {
+          "type": "normal",
+          "params": {
+            "mean": 0.6,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "charisma": {
+          "type": "normal",
+          "params": {
+            "mean": 0.5,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "risk_appetite": {
+          "type": "normal",
+          "params": {
+            "mean": 0.7,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "domain_knowledge": {
+          "type": "normal",
+          "params": {
+            "mean": 0.7,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        }
+      }
+    },
+    {
+      "name": "VC Partner",
+      "faction": "investors",
+      "weight": 0.13,
+      "entity_type": "Participant",
+      "persona_hint": "Senior venture capital partner with large fund, highly analytical, focused on market size and exit potential",
+      "property_distributions": {
+        "capital": {
+          "type": "power_law",
+          "params": {
+            "alpha": 1.5,
+            "min": 500000.0,
+            "max": 50000000.0
+          }
+        },
+        "technical_expertise": {
+          "type": "normal",
+          "params": {
+            "mean": 0.6,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "business_acumen": {
+          "type": "normal",
+          "params": {
+            "mean": 0.9,
+            "std": 0.05,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "charisma": {
+          "type": "normal",
+          "params": {
+            "mean": 0.7,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "risk_appetite": {
+          "type": "normal",
+          "params": {
+            "mean": 0.6,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "domain_knowledge": {
+          "type": "normal",
+          "params": {
+            "mean": 0.7,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        }
+      }
+    },
+    {
+      "name": "Corporate Strategist",
+      "faction": "investors",
+      "weight": 0.08,
+      "entity_type": "Participant",
+      "persona_hint": "Corporate venture arm strategist with large budget, synergy-focused, conservative decision-making, slow due diligence",
+      "property_distributions": {
+        "capital": {
+          "type": "power_law",
+          "params": {
+            "alpha": 1.3,
+            "min": 1000000.0,
+            "max": 100000000.0
+          }
+        },
+        "technical_expertise": {
+          "type": "normal",
+          "params": {
+            "mean": 0.55,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "business_acumen": {
+          "type": "normal",
+          "params": {
+            "mean": 0.75,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "charisma": {
+          "type": "normal",
+          "params": {
+            "mean": 0.5,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "risk_appetite": {
+          "type": "normal",
+          "params": {
+            "mean": 0.3,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "domain_knowledge": {
+          "type": "normal",
+          "params": {
+            "mean": 0.65,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        }
+      }
+    },
+    {
+      "name": "Serial Entrepreneur-Investor",
+      "faction": "investors",
+      "weight": 0.12,
+      "entity_type": "Participant",
+      "persona_hint": "Experienced serial entrepreneur turned investor, high domain knowledge, mentor-oriented, moderate risk tolerance",
+      "property_distributions": {
+        "capital": {
+          "type": "log_normal",
+          "params": {
+            "mu": 12.5,
+            "sigma": 0.6,
+            "min": 100000.0,
+            "max": 2000000.0
+          }
+        },
+        "technical_expertise": {
+          "type": "normal",
+          "params": {
+            "mean": 0.7,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "business_acumen": {
+          "type": "normal",
+          "params": {
+            "mean": 0.8,
+            "std": 0.08,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "charisma": {
+          "type": "normal",
+          "params": {
+            "mean": 0.75,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "risk_appetite": {
+          "type": "normal",
+          "params": {
+            "mean": 0.55,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "domain_knowledge": {
+          "type": "normal",
+          "params": {
+            "mean": 0.85,
+            "std": 0.07,
+            "min": 0.0,
+            "max": 1.0
+          }
+        }
+      }
+    },
+    {
+      "name": "Impact Investor",
+      "faction": "investors",
+      "weight": 0.08,
+      "entity_type": "Participant",
+      "persona_hint": "Mission-driven impact investor focused on social or environmental value, moderate returns expectations, values alignment critical",
+      "property_distributions": {
+        "capital": {
+          "type": "log_normal",
+          "params": {
+            "mu": 12.0,
+            "sigma": 0.7,
+            "min": 50000.0,
+            "max": 5000000.0
+          }
+        },
+        "technical_expertise": {
+          "type": "normal",
+          "params": {
+            "mean": 0.45,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "business_acumen": {
+          "type": "normal",
+          "params": {
+            "mean": 0.6,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "charisma": {
+          "type": "normal",
+          "params": {
+            "mean": 0.6,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "risk_appetite": {
+          "type": "normal",
+          "params": {
+            "mean": 0.5,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "domain_knowledge": {
+          "type": "normal",
+          "params": {
+            "mean": 0.55,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        }
+      }
+    },
+    {
+      "name": "Skeptical LP",
+      "faction": "investors",
+      "weight": 0.12,
+      "entity_type": "Participant",
+      "persona_hint": "Very analytical limited partner, risk-averse, demands proof of track record and rigorous financial projections",
+      "property_distributions": {
+        "capital": {
+          "type": "power_law",
+          "params": {
+            "alpha": 1.4,
+            "min": 1000000.0,
+            "max": 50000000.0
+          }
+        },
+        "technical_expertise": {
+          "type": "normal",
+          "params": {
+            "mean": 0.4,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "business_acumen": {
+          "type": "normal",
+          "params": {
+            "mean": 0.85,
+            "std": 0.07,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "charisma": {
+          "type": "normal",
+          "params": {
+            "mean": 0.4,
+            "std": 0.1,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "risk_appetite": {
+          "type": "normal",
+          "params": {
+            "mean": 0.2,
+            "std": 0.08,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "domain_knowledge": {
+          "type": "normal",
+          "params": {
+            "mean": 0.5,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        }
+      }
+    },
+    {
+      "name": "FOMO Investor",
+      "faction": "investors",
+      "weight": 0.12,
+      "entity_type": "Participant",
+      "persona_hint": "Momentum-driven investor with high risk appetite, chases hot deals and trends, fear of missing out on the next big thing",
+      "property_distributions": {
+        "capital": {
+          "type": "log_normal",
+          "params": {
+            "mu": 12.0,
+            "sigma": 0.8,
+            "min": 50000.0,
+            "max": 5000000.0
+          }
+        },
+        "technical_expertise": {
+          "type": "normal",
+          "params": {
+            "mean": 0.45,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "business_acumen": {
+          "type": "normal",
+          "params": {
+            "mean": 0.5,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "charisma": {
+          "type": "normal",
+          "params": {
+            "mean": 0.6,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "risk_appetite": {
+          "type": "normal",
+          "params": {
+            "mean": 0.85,
+            "std": 0.07,
+            "min": 0.0,
+            "max": 1.0
+          }
+        },
+        "domain_knowledge": {
+          "type": "normal",
+          "params": {
+            "mean": 0.4,
+            "std": 0.12,
+            "min": 0.0,
+            "max": 1.0
+          }
+        }
+      }
+    }
+  ],
+  "domain_modules": [],
+  "crowd_config": {
+    "enabled": false
+  },
+  "cognitive_config": {
+    "enabled": false
+  },
+  "social_config": {
+    "enabled": false
+  },
+  "runtime_parameters": [
+    {
+      "name": "sample_size",
+      "label": "Participant Count",
+      "type": "int",
+      "default": 10,
+      "min_value": 3,
+      "max_value": 30,
+      "description": "Number of participants in the pitch session",
+      "category": "scale",
+      "role": "budget"
+    },
+    {
+      "name": "premise",
+      "label": "Scenario Premise",
+      "type": "string",
+      "default": "",
+      "description": "What-if scenario framing text for the pitch session",
+      "category": "premise",
+      "role": "input"
+    },
+    {
+      "name": "context",
+      "label": "Market Context",
+      "type": "string",
+      "default": "",
+      "description": "Rich factual background (industry trends, market data) for agent grounding",
+      "category": "premise",
+      "role": "input"
+    },
+    {
+      "name": "startup_name",
+      "label": "Startup Name",
+      "type": "string",
+      "default": "",
+      "description": "Name of the startup being pitched",
+      "category": "startup",
+      "role": "input"
+    },
+    {
+      "name": "industry",
+      "label": "Industry",
+      "type": "enum",
+      "default": "ai_ml",
+      "options": [
+        "ai_ml",
+        "fintech",
+        "healthtech",
+        "edtech",
+        "climate_tech",
+        "saas",
+        "consumer",
+        "biotech",
+        "hardware",
+        "marketplace",
+        "crypto_web3",
+        "space_tech",
+        "defense_tech"
+      ],
+      "description": "Industry vertical the startup operates in",
+      "category": "startup",
+      "role": "input"
+    },
+    {
+      "name": "funding_round",
+      "label": "Funding Round",
+      "type": "enum",
+      "default": "seed",
+      "options": [
+        "pre_seed",
+        "seed",
+        "series_a",
+        "series_b",
+        "series_c",
+        "bridge_round"
+      ],
+      "description": "Stage of funding being raised",
+      "category": "startup",
+      "role": "input"
+    },
+    {
+      "name": "ask_amount",
+      "label": "Ask Amount",
+      "type": "enum",
+      "default": "1m_5m",
+      "options": [
+        "under_500k",
+        "500k_1m",
+        "1m_5m",
+        "5m_15m",
+        "15m_50m",
+        "50m_plus"
+      ],
+      "description": "Amount of funding the startup is seeking",
+      "category": "startup",
+      "role": "input"
+    },
+    {
+      "name": "traction",
+      "label": "Traction",
+      "type": "enum",
+      "default": "early_users",
+      "options": [
+        "idea_only",
+        "prototype",
+        "early_users",
+        "product_market_fit",
+        "scaling",
+        "profitable"
+      ],
+      "description": "Current traction and validation level of the startup",
+      "category": "startup",
+      "role": "input"
+    },
+    {
+      "name": "team_background",
+      "label": "Team Background",
+      "type": "enum",
+      "default": "first_time_founders",
+      "options": [
+        "first_time_founders",
+        "repeat_founders",
+        "ex_big_tech",
+        "domain_experts",
+        "academic_spinout",
+        "celebrity_founded"
+      ],
+      "description": "Background and pedigree of the founding team",
+      "category": "startup",
+      "role": "input"
+    },
+    {
+      "name": "market_conditions",
+      "label": "Market Conditions",
+      "type": "enum",
+      "default": "normal",
+      "options": [
+        "funding_winter",
+        "cautious",
+        "normal",
+        "frothy",
+        "bubble"
+      ],
+      "description": "Overall venture market conditions affecting investor appetite",
+      "category": "context",
+      "role": "input"
+    },
+    {
+      "name": "competitive_landscape",
+      "label": "Competitive Landscape",
+      "type": "enum",
+      "default": "few_competitors",
+      "options": [
+        "blue_ocean",
+        "few_competitors",
+        "crowded",
+        "big_tech_adjacent",
+        "winner_take_all"
+      ],
+      "description": "Competitive dynamics in the startup's market",
+      "category": "market",
+      "role": "input"
+    },
+    {
+      "name": "revenue_model",
+      "label": "Revenue Model",
+      "type": "enum",
+      "default": "subscription",
+      "options": [
+        "pre_revenue",
+        "subscription",
+        "transaction_fee",
+        "advertising",
+        "enterprise_license",
+        "freemium",
+        "usage_based"
+      ],
+      "description": "How the startup generates or plans to generate revenue",
+      "category": "startup",
+      "role": "input"
+    },
+    {
+      "name": "demo_quality",
+      "label": "Demo Quality",
+      "type": "enum",
+      "default": "live_demo",
+      "options": [
+        "no_demo",
+        "slides_only",
+        "recorded_demo",
+        "live_demo",
+        "working_product"
+      ],
+      "description": "Quality and format of the product demonstration",
+      "category": "pitch",
+      "role": "input"
+    },
+    {
+      "name": "pitch_format",
+      "label": "Pitch Format",
+      "type": "enum",
+      "default": "10_minute_standard",
+      "options": [
+        "elevator_pitch",
+        "5_minute",
+        "10_minute_standard",
+        "20_minute_deep_dive",
+        "fireside_chat"
+      ],
+      "description": "Format and duration of the pitch session",
+      "category": "pitch",
+      "role": "structure"
+    },
+    {
+      "name": "investor_familiarity",
+      "label": "Investor Familiarity",
+      "type": "enum",
+      "default": "warm_intro",
+      "options": [
+        "cold_outreach",
+        "warm_intro",
+        "repeat_relationship",
+        "existing_investor"
+      ],
+      "description": "Prior relationship between founders and investors",
+      "category": "context",
+      "role": "structure"
+    },
+    {
+      "name": "term_sheet_pressure",
+      "label": "Term Sheet Pressure",
+      "type": "bool",
+      "default": false,
+      "description": "Whether there's a competing term sheet",
+      "category": "context",
+      "role": "structure"
+    }
+  ],
+  "termination_conditions": [
+    {
+      "name": "max_rounds",
+      "description": "End after N rounds of pitching and negotiation",
+      "check_type": "round_limit",
+      "params": {
+        "max_rounds": 15
+      },
+      "sub_conditions": []
+    }
+  ]
+}
