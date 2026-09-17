@@ -10,7 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Validate configured inputs with `check(inputs=...)`, `fg-env check --input`,
   and `fg-env check --inputs-file` before or during a smoke run.
 - Extend existing behavior checks with optional bounded sampling of nested input
-  boundaries: numeric limits, choices, and empty/short collections. Findings
+  boundaries: numeric limits, choices, empty/short collections, and table
+  reordering/duplicate rows. Findings
   include replayable input paths, values, seeds and explicit coverage limits.
 - Demonstrate short and empty schedules with an explicit missing-data policy in
   the executable authoring guide.

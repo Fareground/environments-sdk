@@ -19,6 +19,8 @@ def _values(spec: Any, value: Any, path: tuple) -> Iterator[Tuple[tuple, Any]]:
         choices = [0, low, high]
     elif spec.type in ("list", "table") and isinstance(value, list):
         choices = [[], value[:1]]
+        if spec.type == "table" and value:
+            choices += [list(reversed(value)), [*value, value[0]]]
     elif spec.type == "enum":
         choices = spec.values or []
     elif spec.type == "bool" and isinstance(value, bool):

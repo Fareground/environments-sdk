@@ -98,3 +98,17 @@ def test_boundary_checks_exercise_nested_empty_lists_and_keep_integer_bounds_val
     for maximum in (0, -1, True, 1.5):
         with pytest.raises(ValueError):
             fg_env.behavior_checks(c, boundaries=True, max_boundary_cases=maximum)
+
+
+def test_boundary_checks_find_display_labels_used_as_unique_entity_ids():
+    c = {'name': 'Editable rows', 'types': {'item': {}}, 'clock': {'rounds': 1},
+         'inputs': {'rows': {'type': 'table', 'fields': {'name': {'type': 'text'}},
+                            'default': [{'name': 'A'}, {'name': 'B'}]}},
+         'population': [{'type': 'item', 'from': '$inputs.rows', 'id': '{$row.name}', 'name': '{$row.name}'}],
+         'outputs': {'count': '$count(item)'}}
+    assert fg_env.behavior_checks(c, runs=1).ok
+    report = fg_env.behavior_checks(c, runs=1, boundaries=True)
+    failure = next(f for f in report.findings if f.code == 'input_boundary_failure')
+    assert failure.evidence['input_path'] == ['rows']
+    assert failure.evidence['value'] == [{'name': 'A'}, {'name': 'B'}, {'name': 'A'}]
+    assert 'already exists' in failure.evidence['error']

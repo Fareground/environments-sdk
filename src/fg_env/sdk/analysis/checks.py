@@ -123,7 +123,8 @@ def behavior_checks(contract: ContractLike, *, runs: int = 4, rounds: Optional[i
     host requests in every run.
     ``boundaries=True`` also samples declared zero/min/max values, choices, and empty/short collections,
     including fields in the first row/item. It varies configured inputs too, up to ``max_boundary_cases``
-    single-input cases. Findings include replayable paths/values and the sampling limit. This is not an
+    single-input cases, including reordered tables and an added duplicate row. Findings include
+    replayable paths/values and the sampling limit. This is not an
     exhaustive combination search or evidence that the business model matches its brief.
     """
     runner.check_positive_int("runs", runs)
