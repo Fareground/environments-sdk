@@ -44,3 +44,44 @@ def test_an_argument_whose_bound_reads_an_earlier_bad_argument_is_reported_not_c
     assert result.status == "completed", result.error
     assert "total must be a number" in told[0] and "part can be checked once total is corrected" in told[0]
     assert "not done" not in told[1]
+
+
+def test_entity_name_diagnostic_points_to_working_population_label():
+    contract = _contract(types={"player": {"agent": True, "props": {"name": "Label"}}})
+    issue = next(i for i in fg_env.check(contract) if i.path == "types.player.props.name")
+    assert "outside props" in issue.fix
+    contract["types"]["player"]["props"] = {}
+    contract["entities"] = {"ann": {"type": "player", "name": "Label"}}
+    assert not [i for i in fg_env.check(contract) if i.severity == "error"]
+    assert fg_env.load(contract).entity("ann")["name"] == "Label"
+
+
+def test_create_props_validate_new_entity_scope_without_leaking_into_outer_loop():
+    contract = {"name": "Creation scope", "clock": {"rounds": 1},
+                "types": {"source": {"props": {"order_index": 7}},
+                          "cohort": {"props": {"channel_order": 0, "twice": 0}}},
+                "entities": {"source": {"type": "source", "name": "Channel"}},
+                "world": {"after": 0},
+                "events": [{"each": "source", "do": [
+                    {"create": "cohort", "name": "{$it.name}",
+                     "props": {"channel_order": "$it.order_index", "twice": "$it.channel_order * 2"}},
+                    "$world.after = $it.order_index"]}],
+                "outputs": {"after": "$world.after", "created": "$sum(cohort, $it.twice)"}}
+    issues = fg_env.check(contract, rounds=0)
+    assert any(i.path.endswith("props.channel_order") and "cohort" in i.message
+               and "order_index" in i.message for i in issues)
+    contract["events"][0]["do"].insert(0, "$source = $it")
+    contract["events"][0]["do"][1]["props"]["channel_order"] = "$source.order_index"
+    assert not [i for i in fg_env.check(contract, rounds=0) if i.severity == "error"]
+    result = fg_env.run(contract)
+    assert result.ok and result.outputs == {"after": 7, "created": 14}
+
+
+def test_create_props_can_read_the_new_entity_without_an_outer_it():
+    contract = {"name": "Self initialization", "clock": {"rounds": 1},
+                "types": {"item": {"props": {"base": 0, "double": 0}}},
+                "events": [{"do": {"create": "item", "props": {"base": 3, "double": "$it.base * 2"}}}],
+                "outputs": {"value": "$sum(item, $it.double)"}}
+    assert not [i for i in fg_env.check(contract, rounds=0) if i.severity == "error"]
+    result = fg_env.run(contract)
+    assert result.ok and result.outputs == {"value": 6}

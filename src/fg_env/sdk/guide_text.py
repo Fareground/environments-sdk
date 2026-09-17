@@ -205,8 +205,9 @@ RECIPES = """\
   Field defaults are filled at load; required fields and bounds are validated before execution.
   Bind these values explicitly through `$inputs.shop.price`, entity defaults or population `from`.
   Choose `label`, `description`, `unit` and `display` (text, textarea, select, toggle, date, number,
-  slider, knob, table, object, list, json) for the host UI. Sliders/knobs require numeric min < max;
-  `step` suggests a numeric control increment. These hints do not alter simulation semantics.
+  slider, knob, table, object, list, json) for the host UI. Sliders/knobs require numeric min < max.
+  Bounds reject values: only add limits justified by the brief or domain, never to fit a control.
+  Otherwise use `display: number`. `step` suggests a control increment, not a validation rule.
 * Data files: `"inputs": {"households": {"type": "table", "source": "households.csv", "columns": {"income":
   "number", "size": "int"}}}` then `"population": [{"type": "person", "from": "$inputs.households"}]`. Files are
   read from the contract's folder (or `data_dir=`); undeclared CSV columns stay text. Also `.json` and `.jsonl`.

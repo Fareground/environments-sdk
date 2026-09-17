@@ -196,7 +196,8 @@ class EffectChecks:
                     if prop not in self.type_props[type_name]:
                         self.error(f"{path}.props.{prop}", f"'{type_name}' has no property '{prop}'",
                                    self._suggest(prop, self.type_props[type_name]))
-                    self.value(raw, f"{path}.props.{prop}", roots | {"i"}, types, params)
+                    self.value(raw, f"{path}.props.{prop}", roots | {"i", "it"},
+                               {**types, "it": {type_name}}, params)
             v("count")
             count = effect.get("count")
             if isinstance(count, int) and not isinstance(count, bool) and count > C.MAX_CREATE:

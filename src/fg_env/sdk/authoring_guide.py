@@ -3,12 +3,10 @@
 AUTHORING = '''\
 # Environments SDK: author a faithful scenario
 
-One JSON contract defines actors, inputs, timing, rules and outcomes. Separate
-facts from assumptions. Preserve requirements when fixing validation failures.
+One JSON contract defines the scenario. Separate facts from assumptions; preserve
+requirements when fixing failures.
 
 ## Small complete example: allocate a shared resource
-
-Each row becomes an entity; an operator allocates shared and per-item capacity.
 
 ```json
 {
@@ -49,14 +47,13 @@ Each row becomes an entity; an operator allocates shared and per-item capacity.
     "capacity": {"show": "Available capacity: {$world.available}"},
     "items": {"of": "item", "show": "{$it.id}: {$it.name}, pending {$it.pending}, completed {$it.completed}, allowance left today {$it.remaining_today}"}
   },
-  "metrics": {"completed": "$sum(item, $it.completed)"},
+  "metrics": {"completed": "$sum(item, $it.completed)", "pending": "$sum(item, $it.pending)"},
   "outputs": {"completed": "$sum(item, $it.completed)", "pending": "$sum(item, $it.pending)"},
   "invariants": [{"expr": "$world.available >= 0", "why": "Shared capacity cannot be overspent."}]
 }
 ```
 
-Save as `scenario.json`. Check syntax, preview participant information/tools,
-and run a known-answer case:
+Save as `scenario.json`; validate, preview and run:
 
 ```python
 import fg_env
@@ -76,6 +73,7 @@ result = fg_env.run("scenario.json", fixed_policy, seed=1)
 assert result.ok
 assert result.outputs == {"completed": 5, "pending": 0}
 assert result.series["completed"] == [4, 5]
+assert result.series["pending"] == [1, 0]
 short = fg_env.run("scenario.json", fixed_policy, inputs={"horizon": 1}, seed=1)
 assert short.ok and short.outputs == {"completed": 4, "pending": 1}
 preview = fg_env.load("scenario.json", inputs={"facility": {"priority": "smallest backlog"}}).preview("manager")
@@ -89,18 +87,15 @@ assert "Prioritize smallest backlog." in preview["brief"]
   Bind `$inputs` in defaults, `population.from`, actions or events. `display` may be
   text, textarea, number, select, toggle, date, slider, knob, table, object, list or
   json. Dropdowns use `type: "enum"`, `values: [...]`, `display: "select"`.
-  Roles use `brief.roles.<type>`; put selected goals there so the participant reads
-  their actual values. Action descriptions are static text, not templates.
+  Bind goals in `brief.roles.<type>` so participants read them. Action descriptions are static text, not templates.
   Slider/knob need numeric bounds. Bind a configurable duration with
   `"clock": {"rounds": "$inputs.horizon", "unit": "day"}`.
-  Hosts render hints using their existing UI.
 - Editable collections must remain data-driven: `population.from` creates one
   entity per row when count is omitted. Never hardcode rows 0, 1, 2. Test empty,
   added, removed and reordered rows. Use stable input IDs as entity IDs when the
   domain needs persistent identity; duplicate IDs are invalid.
 - Objects with independent lifecycles belong in entities (orders, accounts,
-  cohorts); simple settings belong in maps. Use relations for links and records
-  for history. Only decision-makers need `agent: true`; background processes use
+  cohorts); simple settings belong in maps. Use relations for links, records for history. Only decision-makers need `agent: true`; background processes use
   events. Use views to expose precisely what each role is allowed to know.
 - Order matters: start events, stages, end events, metrics. A round advances after
   stages, not after each action. Set `max_actions` explicitly for repeated choices. A per-round cap must track
@@ -115,27 +110,28 @@ assert "Prioritize smallest backlog." in preview["brief"]
   `{"after": n, "do": [...]}` needs integer rounds `n >= 1`; due effects run
   before start events/decisions. For zero delay, branch to immediate effects
   or constrain the input to start at 1 if same-round delivery is unsupported.
+- Entity `id`, `name`, `type`, `alive`, `at` are built in, not custom `props`.
+  Set display names on `entities`/`population` entries with `name`, outside `props`.
 - Property shorthand is a DEFAULT value: `"done": false` is Boolean; `"done":
   "bool"` is literal text. For explicit types use `{"type": "bool", "default": false}`.
 - Expressions read `$inputs`, `$world`, `$actor`, `$params`; `population` uses
-  `$row`; loops use `$it`. `{$...}` substitutes only in template fields (brief,
-  show, outcome, say), not stored strings. Look up unfamiliar syntax in a focused
-  guide; don't invent it or reload the manual.
+  `$row`; loops use `$it`. In `create.props`, `$it` is the NEW entity; capture
+  outer values in locals before `create` (e.g. `$delay = $it.delay`). `{$...}` substitutes only in template fields (brief,
+  show, outcome, say), not stored strings. Look up unfamiliar syntax in a focused guide.
 - Validation/random runs establish executability, not fidelity. Derive expected
   results from the brief BEFORE running, never from the contract or its output.
-  Show opening balances and receipts/payments. Check conservation, timing, zero
-  cases, sensitivity and audience/population overlap. Inputs must change rules,
+  Check balances, conservation, timing, zero cases, sensitivity and overlap. Inputs must change rules,
   not just reports.
-- Record every requested per-round measure in `metrics` and final measure in
-  `outputs`. Participant `views` are observations, not user reports.
+- Put per-round measures in `metrics`, final measures in `outputs`, not `views`.
+  Test intermediate balances: pending means ALL created but unsettled items,
+  not just those due after the horizon. Check created = settled + lost + pending.
 - Deliver assumptions, input controls, output meanings and tested limitations.
-  A runnable model is not proof of predictive accuracy. Keep omissions visible.
+  Running does not prove accuracy.
 
 ## Validate nested inputs
 
-Use `items` for list elements; `required: true` rejects null. `display` selects
-controls, not bounds. A horizon can outlast an editable schedule: choose and state
-the missing-data policy. Here `$get(list, index, 0)` means no arrivals after the
+List elements use `items`; `required: true` rejects null. For horizons beyond
+schedules, state a missing-data policy. Here `$get(list, index, 0)` means no arrivals after the
 list ends; direct indexing would fail. Test short/empty lists and longer horizons.
 
 ```python
@@ -165,9 +161,9 @@ for invalid in ([-1], ["invalid"], [None]):
         raise AssertionError("Invalid schedule was accepted")
 ```
 
-Defaults are not limits. Use `number` for fractional money/effort/rates, `int`
+Defaults are not bounds. Use `number` for fractional money/effort/rates, `int`
 for whole counts. Derive loops/buckets from inputs, not arbitrary fixed limits.
-Use number controls without a justified finite slider/knob range. Test zero,
+Bounds reject inputs. Never invent limits for controls; use `number` instead. Test zero,
 empty lists, duplicate names and changed row counts. Define zero-price/delay
 behavior; never hide it behind a nonzero divisor.
 
