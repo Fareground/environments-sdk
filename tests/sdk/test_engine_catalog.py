@@ -1,29 +1,36 @@
 import json
 
+import pytest
+
 import fg_env
 
 
-def test_catalog_contains_every_public_arena_game_and_behavioral_engine():
+ENGINE_IDS = {
+    "market", "council", "dispute", "exchange", "legislature", "judged_contest",
+    "deliberation", "negotiation", "population", "network", "matching", "strategy",
+}
+
+
+def test_catalog_contains_only_the_twelve_behavioral_engines():
     catalogue = fg_env.engines.catalog()
-    public_arena = {
-        preset.id
-        for engine in catalogue.list(product="arena")
-        for preset in engine.presets
-        if preset.product == "arena" and not preset.hidden
+    assert len(catalogue) == 12
+    assert {engine.id for engine in catalogue} == ENGINE_IDS
+    assert set(catalogue.to_dict()) == {"schema_version", "source", "engines"}
+    assert all("presets" not in engine.to_dict() for engine in catalogue)
+    assert all("products" not in engine.to_dict() for engine in catalogue)
+
+
+def test_catalog_distinguishes_available_engines_from_phase_two_work():
+    assert {engine.id for engine in fg_env.list_engines(available=True)} == {
+        "market", "council", "dispute", "exchange",
     }
-    assert len(public_arena) == 32
-    assert {"chess", "poker_tournament", "debate", "trading_crypto"} <= public_arena
-    assert {"process_flow", "system_dynamics"} == set(catalogue.excluded)
-    assert {"commodity_market", "crypto_market", "forex_market", "prediction_market",
-            "securities_trading", "stock_market", "courtroom_trial"} == set(catalogue.retired)
-    assert catalogue.replaced_by_native == ("exchange",)
-    assert {
-        "market", "council", "dispute", "exchange", "legislature", "judged_contest",
-        "deliberation", "negotiation", "population", "network", "matching", "strategy",
-    } <= {engine.id for engine in catalogue}
+    assert {engine.id for engine in fg_env.list_engines(available=False)} == {
+        "legislature", "judged_contest", "deliberation", "negotiation",
+        "population", "network", "matching", "strategy",
+    }
 
 
-def test_native_starter_can_clone_customize_and_run(tmp_path):
+def test_available_engine_can_clone_customize_and_run(tmp_path):
     target = fg_env.clone_engine("market", tmp_path / "custom_market.json", name="Custom market")
     contract = json.loads(target.read_text())
     assert contract["name"] == "Custom market"
@@ -32,12 +39,25 @@ def test_native_starter_can_clone_customize_and_run(tmp_path):
     assert result.rounds == 1 and result.status == "running"
 
 
-def test_native_starter_can_be_materialized_for_database_backed_builders():
-    contract = fg_env.get_engine("exchange").preset("sdk").materialized_source()
+@pytest.mark.parametrize("engine_id", ["market", "council", "dispute", "exchange"])
+def test_every_available_engine_loads_as_a_native_sdk_environment(engine_id):
+    env = fg_env.load_engine(engine_id, seed=3)
+    assert isinstance(env, fg_env.Env)
+
+
+def test_available_engine_can_be_materialized_for_database_backed_builders():
+    contract = fg_env.get_engine("exchange").materialized_source()
     assert "imports" not in contract
     assert "source" not in contract["inputs"]["history"]
     assert contract["inputs"]["history"]["default"]
     assert not [issue for issue in fg_env.check(contract) if issue.severity == "error"]
+
+
+def test_planned_engine_fails_with_an_actionable_message(tmp_path):
+    engine = fg_env.get_engine("legislature")
+    assert engine.available is False and engine.status == "planned"
+    with pytest.raises(fg_env.engines.EngineUnavailable, match="planned for Phase 2"):
+        fg_env.clone_engine("legislature", tmp_path / "legislature.json")
 
 
 def test_cloned_market_uses_sampled_personas_across_an_aggregated_batch(tmp_path):
@@ -57,31 +77,3 @@ def test_cloned_market_uses_sampled_personas_across_an_aggregated_batch(tmp_path
     assert all(run.status == "running" for run in result.arms["baseline"].runs)
     assert result.arms["baseline"].outputs
     assert cohort.provenance.selected == 10 and cohort.provenance.resampled is False
-
-
-def test_legacy_arena_engine_is_runnable_from_sdk():
-    world = fg_env.load_engine("tic_tac_toe", seed=3, max_rounds=1)
-    world.run()
-    assert world.current_round == 1
-
-
-def test_catalog_marks_compatibility_and_hides_retired_duplicates():
-    exchange = fg_env.get_engine("exchange")
-    assert exchange.status == "native"
-    assert exchange.preset("sdk").native
-    assert "stock_market" not in {preset.id for preset in exchange.presets}
-    assert "courtroom_trial" not in {
-        preset.id for engine in fg_env.list_engines() for preset in engine.presets
-    }
-    assert fg_env.get_engine("chess").status == "legacy_compatible"
-    assert fg_env.get_engine("avalon").preset().hidden
-
-
-def test_every_bundled_preset_has_a_runnable_sdk_entrypoint():
-    loaded = []
-    for engine in fg_env.list_engines():
-        for preset in engine.presets:
-            kwargs = {} if preset.native else {"max_rounds": 1}
-            fg_env.load_engine(engine.id, preset=preset.id, seed=0, **kwargs)
-            loaded.append((engine.id, preset.id))
-    assert len(loaded) == 58  # 54 compatibility presets + four native reference starters
