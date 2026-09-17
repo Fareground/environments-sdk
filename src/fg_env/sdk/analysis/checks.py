@@ -111,7 +111,8 @@ def _fingerprint(result: RunResult) -> str:
 def behavior_checks(contract: ContractLike, *, runs: int = 4, rounds: Optional[int] = None, seed: int = 0,
                     participants: Any = "random", inputs: Optional[Mapping[str, Any]] = None,
                     test_inputs: Optional[Sequence[str]] = None, perturb: float = 0.5,
-                    workers: int = 1, data_dir: Any = None, hosts: Any = None) -> CheckReport:
+                    workers: int = 1, data_dir: Any = None, hosts: Any = None,
+                    boundaries: bool = False, max_boundary_cases: int = 24) -> CheckReport:
     """Run ``runs`` seeds with random agents (plus one set per varied input) and report findings.
 
     ``test_inputs`` limits which inputs are varied (default: every number, whole number, yes/no
@@ -120,8 +121,14 @@ def behavior_checks(contract: ContractLike, *, runs: int = 4, rounds: Optional[i
     shorter runs are faster but can miss behaviour that only appears later, which the findings say.
     ``data_dir`` is where inputs with a ``source`` are read (default: the contract file's folder); ``hosts`` answers
     host requests in every run.
+    ``boundaries=True`` also samples declared zero/min/max values, choices, and empty/short collections,
+    including fields in the first row/item. It varies configured inputs too, up to ``max_boundary_cases``
+    single-input cases, including reordered tables and an added duplicate row. Findings include
+    replayable paths/values and the sampling limit. This is not an
+    exhaustive combination search or evidence that the business model matches its brief.
     """
     runner.check_positive_int("runs", runs)
+    runner.check_positive_int("max_boundary_cases", max_boundary_cases)
     if not 0 < perturb < 1:
         raise ValueError(f"perturb must be between 0 and 1, got {perturb}")
     parsed = runner.as_contract(contract, data_dir)
@@ -145,6 +152,33 @@ def behavior_checks(contract: ContractLike, *, runs: int = 4, rounds: Optional[i
     tested, untested, input_findings = _input_findings(parsed, base_inputs, baseline, seeds, test_inputs, perturb,
                                                        participants, rounds, workers, hosts)
     findings += input_findings
+    if boundaries:
+        from .input_boundaries import boundary_plan, override, subject
+
+        base, cases, limited = boundary_plan(parsed, base_inputs, test_inputs, max_boundary_cases)
+        for path, value in cases:
+            case_inputs = override(base, path, value)
+            jobs = [runner.Job(case_inputs, None, s) for s in seeds]
+            results = runner.run_jobs(parsed, jobs, participants=participants, rounds=rounds,
+                                      workers=workers, hosts=hosts, require_success=False)
+            failed = [r for r in results if r.status == "failed"]
+            if failed:
+                findings.append(Finding("input_boundary_failure", "error", subject(path),
+                    f"Setting this boundary value to {value!r} made a run fail: {failed[0].error}",
+                    {"input_path": list(path), "value": value, "seeds": [r.seed for r in failed],
+                     "error": failed[0].error}))
+            findings += _output_errors(results, case_inputs)
+            findings += _incomplete(results, subject(path))
+            if path[0] not in tested:
+                tested.append(path[0])
+            if path[0] in untested:
+                untested.remove(path[0])
+        findings.append(Finding("input_boundary_scope", "warning" if limited else "info", "inputs",
+            f"Sampled {len(cases)} single-input boundary cases, using the first row/item of collections. "
+            + ("Case limit reached; additional cases were not checked. " if limited else "")
+            + "Combinations, other rows and behavior beyond the round cap are not covered.",
+            {"cases": len(cases), "limit": max_boundary_cases, "limited": limited,
+             "rounds": rounds, "seeds": seeds}))
     order = {"error": 0, "warning": 1, "info": 2}
     findings.sort(key=lambda f: order[f.severity])
     return CheckReport(parsed.name, runs, rounds, findings, tested, untested)

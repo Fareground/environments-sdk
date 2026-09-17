@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.3] - 2026-09-17
+
+- Validate configured inputs with `check(inputs=...)`, `fg-env check --input`,
+  and `fg-env check --inputs-file` before or during a smoke run.
+- Extend existing behavior checks with optional bounded sampling of nested input
+  boundaries: numeric limits, choices, empty/short collections, and table
+  reordering/duplicate rows. Findings
+  include replayable input paths, values, seeds and explicit coverage limits.
+- Demonstrate short and empty schedules with an explicit missing-data policy in
+  the executable authoring guide.
+
 ## [0.4.2] - 2026-09-16
 
 - Extend the executable authoring guide with typed nested-list validation,

@@ -220,20 +220,27 @@ def _check_all(source: ContractLike, data_dir: DataDir = None) -> tuple[Optional
 
 
 def check(source: ContractLike, rounds: int = 1, seed: int = 0, *, data_dir: DataDir = None,
-          hosts: Any = None) -> List[Issue]:
+          hosts: Any = None, inputs: Optional[Mapping[str, Any]] = None) -> List[Issue]:
     """Every problem in a contract, errors first then warnings. Never raises for contract problems.
 
     A contract without errors is also built and played for ``rounds`` rounds (default 1; 0 checks statically only)
     with random agents that read everything they are shown, so problems that only appear with real values (sampling,
     first turns, views, outputs) are reported the same way. Inputs with a ``source`` are read from ``data_dir``
     (default: the contract file's folder); ``hosts`` answers what the contract asks of a host during that play.
+    ``inputs`` checks a configured scenario without editing its defaults. Supplied inputs are validated even
+    with ``rounds=0``; positive rounds also exercise them in the smoke run.
     """
     contract, issues = _check_all(source, data_dir)
     errors = [i for i in issues if i.severity == "error"]
+    if inputs is not None and rounds <= 0 and contract is not None and not errors:
+        try:
+            resolve_inputs(contract, inputs, default_data_dir(source, data_dir))
+        except ContractError as exc:
+            errors.extend(exc.issues)
     warnings_from_smoke: List[Issue] = []
     if rounds > 0 and contract is not None and not errors:
         try:
-            result = load(contract, seed=seed, hosts=hosts, calibrate=False).run(_smoke_participant(seed), rounds=rounds)
+            result = load(contract, inputs=inputs, seed=seed, hosts=hosts, calibrate=False).run(_smoke_participant(seed), rounds=rounds)
             if result.status == "failed":
                 errors.append(_run_issue(result.error or "the run failed"))
             for problem in result.output_issues:

@@ -3,10 +3,9 @@
 AUTHORING = '''\
 # Environments SDK: author a faithful scenario
 
-An environment is one JSON contract. Keep domain rules in that contract; the SDK
-executes them. Start from the user's decision, actors, inputs, timing and outcomes.
-Separate supplied facts from assumptions. Preserve each requirement; do not silently
-simplify it to make validation pass. No spatial model is needed for rounds-based work.
+An environment is one JSON contract of rules. Start from the user's decision,
+actors, inputs, timing and outcomes. Separate facts from assumptions. Preserve
+requirements; do not simplify them to pass validation. Rounds need no spatial model.
 
 ## Small complete example: allocate a shared resource
 
@@ -58,8 +57,8 @@ per-item allowances over a configurable horizon.
 }
 ```
 
-Save the JSON as `scenario.json`. Check syntax, inspect the participant's actual
-information and tools, then run a known-answer case:
+Save as `scenario.json`. Check syntax, preview participant information/tools,
+and run a known-answer case:
 
 ```python
 import fg_env
@@ -121,14 +120,13 @@ assert "Prioritize smallest backlog." in preview["brief"]
   "bool"` is literal text. For explicit types use `{"type": "bool", "default": false}`.
 - Expressions read `$inputs`, `$world`, `$actor`, `$params`; `population` uses
   `$row`; loops use `$it`. `{$...}` substitutes only in template fields (brief,
-  show, outcome, say), not ordinary stored strings. Read a focused guide when a
-  feature is unfamiliar; don't invent syntax or reload the whole manual.
-- Validation and random runs establish executability, not fidelity. For each
-  important requirement, calculate an expected observable result from the brief
-  BEFORE inspecting a run. State the opening balance and each receipt/payment;
-  do not copy the contract expression or observed output as the expected answer. Check conservation (cash, stock, capacity), timing, zero cases and
-  sensitivity. A declared input appearing only in an output is not a mechanism.
-  Check deduplication/overlap explicitly when combining audiences or populations.
+  show, outcome, say), not stored strings. Look up unfamiliar syntax in a focused
+  guide; don't invent it or reload the manual.
+- Validation/random runs establish executability, not fidelity. Derive expected
+  results from the brief BEFORE running, never from the contract or its output.
+  Show opening balances and receipts/payments. Check conservation, timing, zero
+  cases, sensitivity and audience/population overlap. Inputs must change rules,
+  not just reports.
 - Record every requested per-round measure in `metrics` and final measure in
   `outputs`. Participant `views` are observations, not user reports.
 - Deliver assumptions, input controls, output meanings and tested limitations.
@@ -136,9 +134,10 @@ assert "Prioritize smallest backlog." in preview["brief"]
 
 ## Validate nested inputs
 
-Use `items` to validate list elements, even inside table rows or objects;
-`required: true` rejects null elements. `display` chooses a control, not numerical
-bounds. Example: a nonnegative integer schedule in each editable row:
+Use `items` for list elements; `required: true` rejects null. `display` selects
+controls, not bounds. A horizon can outlast an editable schedule: choose and state
+the missing-data policy. Here `$get(list, index, 0)` means no arrivals after the
+list ends; direct indexing would fail. Test short/empty lists and longer horizons.
 
 ```python
 import fg_env
@@ -152,6 +151,12 @@ input_example = {"name": "Typed schedules", "types": {}, "inputs": {
 }}
 loaded = fg_env.load(input_example, inputs={"rows": [{"name": "A", "schedule": [0, 2]}]})
 assert loaded.inputs["rows"][0]["schedule"] == [0, 2]
+input_example.update(clock={"rounds": 4}, world={"total": 0},
+    events=[{"each": "$inputs.rows", "do": "$world.total += $get($it.schedule, $round - 1, 0)"}],
+    outputs={"total": "$world.total"})
+for schedule, total in (([0, 2], 2), ([], 0)):
+    result = fg_env.run(input_example, inputs={"rows": [{"name": "A", "schedule": schedule}]})
+    assert result.ok and result.outputs == {"total": total}
 for invalid in ([-1], ["invalid"], [None]):
     try:
         fg_env.load(input_example, inputs={"rows": [{"name": "A", "schedule": invalid}]})
@@ -167,9 +172,8 @@ behind an arbitrary nonzero divisor.
 
 ## Focused references
 
-`fg_env.guide(part)` or `fg-env guide PART`: inputs, population, actions, stages,
-events, views, expressions, effects, invariants, records, relations, running.
-`guide('core')` maps the full SDK; `guide('mechanisms')` lists reusable mechanisms.
-Use them when their semantics fit. Extend the contract with ordinary rules when
-needed; don't force a scenario into a preset. `fg_env.schema()` is the exact schema.
+`fg_env.guide(part)` / `fg-env guide PART`: inputs, population, actions, stages,
+events, views, expressions, effects, running. `core` maps the SDK; `mechanisms`
+lists reusable rules. Use only mechanisms that fit, otherwise compose rules.
+`fg_env.schema()` gives exact field definitions.
 '''

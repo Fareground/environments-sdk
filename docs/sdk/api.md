@@ -36,7 +36,7 @@ Load and run in one call: ``fg_env.run("shop.json", {"buyer": "policy:thrifty"},
 ## `check`
 
 ```python
-check(source: 'ContractLike', rounds: 'int' = 1, seed: 'int' = 0, *, data_dir: 'DataDir' = None, hosts: 'Any' = None) -> 'List[Issue]'
+check(source: 'ContractLike', rounds: 'int' = 1, seed: 'int' = 0, *, data_dir: 'DataDir' = None, hosts: 'Any' = None, inputs: 'Optional[Mapping[str, Any]]' = None) -> 'List[Issue]'
 ```
 
 Every problem in a contract, errors first then warnings. Never raises for contract problems.
@@ -45,6 +45,8 @@ A contract without errors is also built and played for ``rounds`` rounds (defaul
 with random agents that read everything they are shown, so problems that only appear with real values (sampling,
 first turns, views, outputs) are reported the same way. Inputs with a ``source`` are read from ``data_dir``
 (default: the contract file's folder); ``hosts`` answers what the contract asks of a host during that play.
+``inputs`` checks a configured scenario without editing its defaults. Supplied inputs are validated even
+with ``rounds=0``; positive rounds also exercise them in the smoke run.
 
 ## `parse`
 
@@ -494,7 +496,7 @@ target can be declared met, so a few identical early runs cannot end the search.
 ## `behavior_checks`
 
 ```python
-behavior_checks(contract: 'ContractLike', *, runs: 'int' = 4, rounds: 'Optional[int]' = None, seed: 'int' = 0, participants: 'Any' = 'random', inputs: 'Optional[Mapping[str, Any]]' = None, test_inputs: 'Optional[Sequence[str]]' = None, perturb: 'float' = 0.5, workers: 'int' = 1, data_dir: 'Any' = None, hosts: 'Any' = None) -> 'CheckReport'
+behavior_checks(contract: 'ContractLike', *, runs: 'int' = 4, rounds: 'Optional[int]' = None, seed: 'int' = 0, participants: 'Any' = 'random', inputs: 'Optional[Mapping[str, Any]]' = None, test_inputs: 'Optional[Sequence[str]]' = None, perturb: 'float' = 0.5, workers: 'int' = 1, data_dir: 'Any' = None, hosts: 'Any' = None, boundaries: 'bool' = False, max_boundary_cases: 'int' = 24) -> 'CheckReport'
 ```
 
 Run ``runs`` seeds with random agents (plus one set per varied input) and report findings.
@@ -505,6 +507,11 @@ choice) on the same seeds, so any difference comes from the input. ``rounds`` ca
 shorter runs are faster but can miss behaviour that only appears later, which the findings say.
 ``data_dir`` is where inputs with a ``source`` are read (default: the contract file's folder); ``hosts`` answers
 host requests in every run.
+``boundaries=True`` also samples declared zero/min/max values, choices, and empty/short collections,
+including fields in the first row/item. It varies configured inputs too, up to ``max_boundary_cases``
+single-input cases, including reordered tables and an added duplicate row. Findings include
+replayable paths/values and the sampling limit. This is not an
+exhaustive combination search or evidence that the business model matches its brief.
 
 ## `highlights`
 
