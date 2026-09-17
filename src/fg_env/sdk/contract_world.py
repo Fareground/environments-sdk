@@ -34,6 +34,7 @@ class InputSpec(_Model):
     required: bool = Field(False, description="The caller must supply it (no default).")
     min: Optional[float] = None
     max: Optional[float] = None
+    multiple_of: Optional[float] = Field(None, gt=0, allow_inf_nan=False, description="Require a multiple of this positive numeric increment, measured from zero; e.g. 0.01 for cents. Unlike step, validates supplied data.")
     values: Optional[List[Any]] = Field(None, description="Allowed values (type enum).")
     columns: Optional[Dict[str, str]] = Field(None, description="Column types (type table): {name: type}.")
     source: Optional[str] = Field(None, description="Load the value from a data file (.csv → table, .json, .jsonl) inside the data directory: the contract file's folder, or `data_dir=` at load. Undeclared CSV columns stay text.")
@@ -55,6 +56,8 @@ class InputSpec(_Model):
             raise ValueError(f"display '{self.display}' does not support type '{self.type}'")
         if self.display in {"slider", "knob"} and (self.min is None or self.max is None or self.min >= self.max):
             raise ValueError("slider and knob controls require min < max; use display=number for an input without justified finite bounds")
+        if self.multiple_of is not None and self.type not in {"number", "int"}:
+            raise ValueError("multiple_of only applies to numeric inputs")
         if self.step is not None and self.type not in {"number", "int"}:
             raise ValueError("step only applies to numeric inputs")
         if self.fields is not None and self.type not in {"map", "table"}:

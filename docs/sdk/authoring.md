@@ -41,9 +41,9 @@ import fg_env
 money = {
     "name": "Exact budget", "clock": {"rounds": 1},
     "inputs": {
-        "budget": {"type": "number", "default": 0.30, "min": 0, "step": 0.01,
+        "budget": {"type": "number", "default": 0.30, "min": 0, "step": 0.01, "multiple_of": 0.01,
                    "description": "Dollars, rounded to the nearest cent"},
-        "unit_cost": {"type": "number", "default": 0.10, "min": 0.01, "step": 0.01,
+        "unit_cost": {"type": "number", "default": 0.10, "min": 0.01, "step": 0.01, "multiple_of": 0.01,
                       "description": "Dollars, rounded to the nearest cent"}
     },
     "world": {"available_cents": "$round($inputs.budget * 100)",
@@ -162,4 +162,9 @@ validates and resolves values without requiring a UI. Supported displays are
 `number`, `text`, `textarea`, `select`, `toggle`, `date`, `slider`, `knob`,
 `table`, `object`, `list` and `json`. Sliders and knobs require numeric bounds.
 `step` is a presentation increment, not rounding or a constraint on the engine.
+Use `multiple_of` to validate numeric increments: `0.01` for whole-cent dollar
+inputs or `6` for packs of six. It applies to defaults and supplied values,
+including nested fields and list items, and is measured from zero independently
+of `min`. Invalid values are rejected, never rounded. Ordinary floating-point
+arithmetic noise within one billionth of an increment is tolerated.
 Old contracts need no changes; existing `columns` table declarations still work.

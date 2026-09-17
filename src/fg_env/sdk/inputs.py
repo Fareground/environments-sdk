@@ -8,6 +8,7 @@ import io
 import json
 import math
 import os
+from fractions import Fraction
 from difflib import get_close_matches
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Union
@@ -97,6 +98,12 @@ def check_value(type_name: str, value: Any, spec: Optional[InputSpec] = None) ->
             return f"must be ≥ {spec.min:g}, got {value}"
         if spec.max is not None and value > spec.max:
             return f"must be ≤ {spec.max:g}, got {value}"
+        if spec.multiple_of is not None:
+            # Decimal spelling avoids binary modulo errors; a tiny fraction of
+            # one increment tolerates ordinary arithmetic noise such as .1+.2.
+            units = Fraction(str(value)) / Fraction(str(spec.multiple_of))
+            if abs(units - round(units)) > Fraction(1, 1_000_000_000):
+                return f"must be a multiple of {spec.multiple_of:g}, got {value}"
     return None
 
 

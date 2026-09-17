@@ -81,28 +81,28 @@ assert "Prioritize smallest backlog." in preview["brief"]
 
 ## Compose without losing fidelity
 
-- Inputs are typed data and actual bindings, not labels. `map` + `fields` defines
+- Inputs are typed, bound data. `map` + `fields` defines
   nested objects; `table` + `fields` defines rows; `list` + `items` defines lists.
   Bind `$inputs` in defaults, `population.from`, actions or events. `display` may be
   text, textarea, number, select, toggle, date, slider, knob, table, object, list or
   json. Dropdowns use `type: "enum"`, `values: [...]`, `display: "select"`.
-  Bind goals in `brief.roles.<type>`. Action descriptions are static, not templates.
+  Bind goals in `brief.roles.<type>`. Action descriptions are static.
   Use number for open ranges; sliders/knobs need justified bounds. Bind duration with
   `"clock": {"rounds": "$inputs.horizon", "unit": "day"}`.
-- Editable collections must remain data-driven: `population.from` creates one
+- Keep editable collections data-driven: `population.from` creates one
   entity per row when count is omitted. Never hardcode rows 0, 1, 2. Test empty,
   added, removed and reordered rows. Use stable input IDs as entity IDs when the
   domain needs persistent identity; duplicate IDs are invalid.
 - Objects with independent lifecycles belong in entities (orders, accounts,
   cohorts); simple settings belong in maps. Use relations for links, records for history. Only decision-makers need `agent: true`; processes use events. Use views to expose precisely what each role is allowed to know.
-- Order matters: start events, stages, end events, metrics. A round advances after
-  stages, not after each action. Set `max_actions` explicitly for repeated choices. A per-round cap must track
+- Order matters: start events, stages, end events, metrics. Rounds advance after stages, not individual actions. Set `max_actions` explicitly for repeated choices. A per-round cap must track
   the total across ALL calls in that round and reset once; a parameter maximum
   only limits one call. Test a second action that tries to exceed the remaining cap.
   Charge a shared budget/capacity once, in the same atomic action as the outcome.
   Cash = opening + receipts - payments; deposits are liabilities.
-  Keep dollar inputs/outputs; compute budgets and floor ratios in integer cents
-  (`$round(value * 100)`). Money formats take dollars in reports AND receipts:
+  Use dollar inputs/outputs; compute budgets and floor ratios in cents
+  (`$round(value * 100)`). Validate cents with `multiple_of: 0.01`;
+  `step` is only a UI hint. Money formats take dollars in reports AND receipts:
   `"outcome": "Paid {$cost_cents / 100|money}." Test 0.10 + 0.20 under a 0.30 cap and
   0.30 buying three units at 0.10. Define refund, settlement and arrival timing.
   `{"after": n, "do": [...]}` needs integer rounds `n >= 1`; due effects run
@@ -111,7 +111,7 @@ assert "Prioritize smallest backlog." in preview["brief"]
 - Entity `id`, `name`, `type`, `alive`, `at` are built in, not custom `props`.
   Set display names on `entities`/`population` entries with `name`, outside `props`.
 - Property shorthand is a DEFAULT value: `"done": false` is Boolean; `"done":
-  "bool"` is literal text. For explicit types use `{"type": "bool", "default": false}`.
+  "bool"` is literal text. For types use `{"type": "bool", "default": false}`.
 - Expressions read `$inputs`, `$world`, `$actor`, `$params`; `population` uses
   `$row`; loops use `$it`. In `create.props`, `$it` is the NEW entity; capture
   outer values in locals before `create` (e.g. `$delay = $it.delay`). `{$...}` substitutes only in template fields (brief,
