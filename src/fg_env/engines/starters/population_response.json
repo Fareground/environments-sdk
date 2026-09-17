@@ -1,0 +1,70 @@
+{
+  "fg_env": "1",
+  "name": "Population Engine",
+  "description": "A reusable sampled-population response engine. People independently choose among configurable responses with private inclinations and report confidence; outcomes aggregate across people and experiment runs.",
+  "inputs": {
+    "question": {"type": "text", "default": "Would you adopt the proposed change?"},
+    "participants": {
+      "type": "table",
+      "description": "People supplied directly or by the shared persona sampler.",
+      "columns": {"id": "text", "name": "text", "segment": "text", "inclination": "number", "confidence": "number"},
+      "default": [
+        {"id": "p1", "name": "Person 1", "segment": "early", "inclination": 0.8, "confidence": 0.8},
+        {"id": "p2", "name": "Person 2", "segment": "middle", "inclination": 0.2, "confidence": 0.6},
+        {"id": "p3", "name": "Person 3", "segment": "late", "inclination": -0.5, "confidence": 0.7},
+        {"id": "p4", "name": "Person 4", "segment": "middle", "inclination": 0.5, "confidence": 0.5}
+      ]
+    }
+  },
+  "brief": {
+    "situation": "A population is independently responding to one shared situation: {$inputs.question}",
+    "rules": "Choose support, oppose, or undecided and state confidence. Responses are independent: you cannot see anyone else's response before submitting.",
+    "roles": {"person": "Respond as this person, using the supplied persona and private inclination as context rather than as a command."}
+  },
+  "clock": {"rounds": 1, "unit": "survey"},
+  "types": {
+    "person": {"agent": true, "policy": "baseline", "props": {
+      "segment": {"type": "text", "default": ""},
+      "inclination": {"type": "number", "default": 0, "min": -1, "max": 1, "private": true},
+      "default_confidence": {"type": "number", "default": 0.5, "min": 0, "max": 1, "private": true},
+      "response": {"type": "text", "default": "", "private": true},
+      "reported_confidence": {"type": "number", "default": 0, "min": 0, "max": 1, "private": true}
+    }}
+  },
+  "population": [{
+    "type": "person", "from": "$inputs.participants", "id": "{$row.id}", "name": "{$row.name}",
+    "props": {"segment": "$row.segment", "inclination": "$row.inclination", "default_confidence": "$row.confidence"}
+  }],
+  "records": {"responses": {"fields": {"choice": "text", "confidence": "number", "reason": "text"}, "visible": "false"}},
+  "actions": {
+    "respond": {
+      "by": "person", "description": "Submit your independent response.", "private": true, "terminal": true,
+      "params": {
+        "choice": {"type": "enum", "values": ["support", "oppose", "undecided"]},
+        "confidence": {"type": "number", "min": 0, "max": 1},
+        "reason": {"type": "text", "max_len": 400}
+      },
+      "when": [{"expr": "$actor.response == ''", "why": "You already responded."}],
+      "do": ["$actor.response = $params.choice", "$actor.reported_confidence = $params.confidence", {"post": "responses", "choice": "$params.choice", "confidence": "$params.confidence", "reason": "$params.reason"}]
+    }
+  },
+  "stages": [{"name": "respond", "turns": "simultaneous", "must_act": true}],
+  "views": {"private_context": {"for": "person", "show": "Segment: {segment}. Private inclination: {inclination|2}."}},
+  "policies": {"baseline": {"rules": [
+    {"when": "$actor.inclination > 0.25", "do": "respond", "with": {"choice": "support", "confidence": "$actor.default_confidence", "reason": "The change fits my priorities."}},
+    {"when": "$actor.inclination < -0.25", "do": "respond", "with": {"choice": "oppose", "confidence": "$actor.default_confidence", "reason": "The change conflicts with my priorities."}},
+    {"do": "respond", "with": {"choice": "undecided", "confidence": "$actor.default_confidence", "reason": "I would need more information."}}
+  ]}},
+  "metrics": {
+    "support_share": {"expr": "$count(person, $it.response == support) / $max(1, $count(person))"},
+    "response_rate": {"expr": "$count(person, $it.response != '') / $max(1, $count(person))"}
+  },
+  "outputs": {
+    "population_size": {"type": "int", "expr": "$count(person)"},
+    "support": {"type": "int", "expr": "$count(person, $it.response == support)"},
+    "oppose": {"type": "int", "expr": "$count(person, $it.response == oppose)"},
+    "undecided": {"type": "int", "expr": "$count(person, $it.response == undecided)"},
+    "support_share": {"type": "number", "expr": "$metrics.support_share"},
+    "average_confidence": {"type": "number", "expr": "$avg(person, $it.reported_confidence)"}
+  }
+}

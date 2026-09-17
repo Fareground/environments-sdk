@@ -1,0 +1,52 @@
+{
+  "fg_env": "1",
+  "name": "Judged Contest Engine",
+  "description": "A reusable contest engine in which participants submit performances and an impartial configurable rubric produces scores and a winner.",
+  "inputs": {
+    "prompt": {"type": "text", "default": "Present the strongest response to the challenge."},
+    "rounds": {"type": "int", "default": 2, "min": 1, "max": 10},
+    "participants": {
+      "type": "table",
+      "columns": {"id": "text", "name": "text", "approach": "text"},
+      "default": [
+        {"id": "c1", "name": "Contestant 1", "approach": "Prioritize clarity and evidence."},
+        {"id": "c2", "name": "Contestant 2", "approach": "Prioritize originality and persuasion."}
+      ]
+    }
+  },
+  "brief": {
+    "situation": "Participants respond to the same challenge: {$inputs.prompt}",
+    "rules": "Each participant submits once per round. Submissions are judged blind on the configured rubric. Scores accumulate and the highest total wins.",
+    "roles": {"contestant": "Create a strong submission using your assigned approach while responding directly to the challenge."}
+  },
+  "clock": {"rounds": "$inputs.rounds", "unit": "round"},
+  "types": {"contestant": {"agent": true, "policy": "baseline", "props": {
+    "approach": {"type": "text", "default": "", "private": true},
+    "score": {"type": "number", "default": 0}
+  }}},
+  "population": [{"type": "contestant", "from": "$inputs.participants", "id": "{$row.id}", "name": "{$row.name}", "props": {"approach": "$row.approach"}}],
+  "records": {"submissions": {"fields": {"text": "text"}, "show": "{author}: {text}"}},
+  "actions": {"submit": {
+    "by": "contestant", "description": "Submit your performance for this round.", "terminal": true,
+    "params": {"text": {"type": "text", "max_len": 1600}},
+    "do": [{"post": "submissions", "text": "$params.text"}]
+  }},
+  "stages": [{"name": "submissions", "turns": "simultaneous", "must_act": true}],
+  "mechanisms": {"judge": {
+    "kind": "host", "mode": "judge", "record": "submissions", "stage": "submissions", "who": "contestant", "into": "score",
+    "blind": true, "fallback": "midpoint", "instructions": "Judge the submission on its own merits against the shared prompt.",
+    "criteria": {
+      "quality": {"description": "Overall strength and execution.", "weight": 2},
+      "relevance": {"description": "Directly addresses the challenge.", "weight": 1},
+      "reasoning": {"description": "Coherent support for its claims or choices.", "weight": 1}
+    }
+  }},
+  "views": {"private_approach": {"for": "contestant", "show": "Your assigned approach: {approach}"}},
+  "policies": {"baseline": {"rules": [{"do": "submit", "with": {"text": "A concise response that addresses the challenge with a clear claim, supporting reason, and practical implication."}}]}},
+  "outputs": {
+    "winner": {"type": "text", "expr": "$top(contestant, $it.score, 1)[0].name"},
+    "winning_score": {"type": "number", "expr": "$max(contestant, $it.score)"},
+    "submissions": {"type": "int", "expr": "$count($records(submissions))"},
+    "contestants": {"type": "int", "expr": "$count(contestant)"}
+  }
+}

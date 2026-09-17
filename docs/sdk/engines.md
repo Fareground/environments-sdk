@@ -20,11 +20,14 @@ The engine catalog contains exactly these twelve boundaries:
 - **Matching** — preferences and eligibility produce selections or pairings.
 - **Strategy** — interdependent choices model cooperation, competition, and consequences.
 
-Market, Council, Dispute, Exchange, and Negotiation have native SDK implementations.
-The remaining seven are Phase 1 work: they are discoverable so builders can plan
-correctly, but cannot be cloned until their reusable mechanics are built.
-The SDK does not package existing Fareground environments or Arena games as a
-substitute for those missing implementations.
+All twelve have native SDK implementations. Every engine can be discovered,
+inspected, cloned, customized, loaded from the installed package, run with a
+deterministic seed, supplied with sampled or fixed people, and executed across
+an N-run experiment. The SDK packages reusable mechanics and neutral starters;
+it does not package finished Fareground environments or named Arena games.
+The detailed role, information, action, state, termination, output and extension
+contracts for the seven newly generalized engines are in
+[Behavioral engine contracts](engine-contracts.md).
 
 Game construction is a separate layer. Generic turn order, simultaneous moves,
 hidden information, boards, cards, roles, scoring, victory, and tournament
@@ -44,8 +47,26 @@ contract = fg_env.parse(path)
 ```
 
 Use `fg_env.list_engines(available=True)` when a builder needs a cloneable engine.
-Calling `clone_engine` or `load_engine` for a planned engine raises an actionable
-`EngineUnavailable` error instead of silently using an environment-specific script.
+`list_engines(available=True)` returns all twelve engines. The `available` filter
+is retained so builders remain compatible with older SDK releases that did not
+yet ship every implementation.
+
+## Engine selection
+
+- Use **Population** when people respond independently and the main result is an
+  aggregate distribution.
+- Use **Network** when explicit human ties, exposure, trust, or influence change
+  what people know or do.
+- Use **Deliberation** for reason exchange and view revision without a formal
+  institutional procedure; use **Council** for a bounded decision-making group.
+- Use **Legislature** when motions, seconds, amendments, quorum, thresholds, and
+  chamber procedure determine the result.
+- Use **Negotiation** for offers and concessions, **Matching** for preferences,
+  applications, eligibility, and capacity, and **Strategy** for repeated
+  interdependent choices and consequences.
+- Use **Judged Contest** when submissions or performances are evaluated by a
+  rubric. Keep the generic mechanism simple and configure the actual contest in
+  the product environment.
 
 Database-backed builders can use `engine.materialized_source()` to inline a
 native engine's bundled imports and tabular input files into one contract.

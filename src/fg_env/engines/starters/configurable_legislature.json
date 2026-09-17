@@ -1,0 +1,74 @@
+{
+  "fg_env": "1",
+  "name": "Legislature Engine",
+  "description": "A reusable configurable legislative body with sponsorship, recognition, debate, seconds, amendments, procedural voting, party positions, and recorded outcomes.",
+  "inputs": {
+    "body_name": {"type": "text", "default": "Legislative body"},
+    "bill": {"type": "text", "default": "Adopt the proposed measure."},
+    "members": {
+      "type": "table",
+      "columns": {"id": "text", "name": "text", "party": "text", "stance": "number", "sponsor": "bool"},
+      "default": [
+        {"id": "l1", "name": "Member 1", "party": "A", "stance": 0.9, "sponsor": true},
+        {"id": "l2", "name": "Member 2", "party": "A", "stance": 0.6, "sponsor": false},
+        {"id": "l3", "name": "Member 3", "party": "B", "stance": -0.7, "sponsor": false},
+        {"id": "l4", "name": "Member 4", "party": "C", "stance": 0.1, "sponsor": false}
+      ]
+    }
+  },
+  "brief": {
+    "situation": "{$inputs.body_name} is considering a measure: {$inputs.bill}",
+    "rules": "The presiding officer recognizes members. A sponsor introduces the measure, another member seconds it, members debate and may amend it, the chair calls the question, and members vote. Clone the engine to configure chamber-specific thresholds, quorum, floors, committees, vetoes, or multiple readings.",
+    "roles": {
+      "member": "Represent your constituency and party while exercising your own judgment under the body's procedure.",
+      "presiding_officer": "Apply procedure neutrally, recognize speakers, and bring a sufficiently debated question to a vote."
+    }
+  },
+  "clock": {"rounds": 5, "unit": "sitting"},
+  "types": {
+    "member": {"agent": true, "policy": "member_baseline", "props": {
+      "party": {"type": "text", "default": ""},
+      "stance": {"type": "number", "default": 0, "min": -1, "max": 1, "private": true},
+      "sponsor": {"type": "bool", "default": false}
+    }},
+    "presiding_officer": {"agent": true, "policy": "chair_baseline"}
+  },
+  "population": [{"type": "member", "from": "$inputs.members", "id": "{$row.id}", "name": "{$row.name}", "props": {"party": "$row.party", "stance": "$row.stance", "sponsor": "$row.sponsor"}}],
+  "entities": {"chair": {"type": "presiding_officer", "name": "Presiding Officer"}},
+  "mechanisms": {"chamber": {
+    "kind": "decision", "mode": "deliberation", "who": "member", "chair": "presiding_officer", "floor": true,
+    "speaker_limit": 1, "passes": 8, "method": "majority", "quorum": 0.5, "question": "$inputs.bill",
+    "motions": true, "second": true, "amendments": true, "private": false, "backstop": "vote", "end": "decision"
+  }},
+  "defs": {
+    "holds_floor": {"args": ["who"], "expr": "$world.chamber.floor == $who.id"},
+    "open_motion": "$pending_motion() != null and $pending_motion().status == open"
+  },
+  "policies": {
+    "chair_baseline": {"repeat": true, "rules": [
+      {"when": "$len($world.chamber.hands) > 0 and $world.chamber.floor == null", "do": "chamber_recognize", "with": {"who": "$world.chamber.hands[0]"}},
+      {"when": "$open_motion and $pending_motion().speeches >= 3", "do": "chamber_call_question"},
+      {"do": "pass"}
+    ]},
+    "member_baseline": {"repeat": true, "rules": [
+      {"when": "$world.chamber.phase == voting", "do": "chamber_vote", "with": {"choice": "$'yes' if $actor.stance >= 0 else 'no'"}},
+      {"when": "$holds_floor($actor) and $pending_motion() == null and $actor.sponsor", "do": "chamber_propose", "with": {"text": "$inputs.bill"}},
+      {"when": "$pending_motion() != null and $pending_motion().status == proposed and $pending_motion().mover != $actor.id and $actor.stance >= 0", "do": "chamber_second"},
+      {"when": "$holds_floor($actor) and $open_motion", "do": "chamber_speak", "with": {"text": "$'I support the measure and its intended benefits.' if $actor.stance >= 0 else 'I oppose the measure because its costs and risks are too high.'"}},
+      {"when": "not ($actor.id in $world.chamber.hands) and not $holds_floor($actor)", "do": "chamber_raise_hand"},
+      {"do": "pass"}
+    ]}
+  },
+  "metrics": {
+    "speeches": {"expr": "$count($records(chamber), $it.says == says)"},
+    "participation": {"expr": "$count(member, $it.id in $map($records(chamber), $it.author.id)) / $max(1, $count(member))"}
+  },
+  "outputs": {
+    "decided": {"type": "bool", "expr": "$len($decisions()) > 0"},
+    "passed": {"type": "bool", "expr": "$last($decisions()).passed if $len($decisions()) > 0 else null"},
+    "final_text": {"type": "text", "expr": "$last($decisions()).text if $len($decisions()) > 0 else null"},
+    "yes": {"type": "int", "expr": "$last($decisions()).counts.yes if $len($decisions()) > 0 else 0"},
+    "no": {"type": "int", "expr": "$last($decisions()).counts.no if $len($decisions()) > 0 else 0"},
+    "speeches": {"type": "int", "expr": "$metrics.speeches"}
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "fg_env": "1",
+  "name": "Network Engine",
+  "description": "A reusable human network engine for explicit relationships, trust-weighted exposure, influence, and behavioral adoption without geography or physical propagation.",
+  "inputs": {
+    "rounds": {"type": "int", "default": 5, "min": 1, "max": 50},
+    "participants": {
+      "type": "table",
+      "description": "People supplied directly or by the shared persona sampler.",
+      "columns": {"id": "text", "name": "text", "group": "text", "receptivity": "number"},
+      "default": [
+        {"id": "p1", "name": "Person 1", "group": "A", "receptivity": 0.8},
+        {"id": "p2", "name": "Person 2", "group": "A", "receptivity": 0.7},
+        {"id": "p3", "name": "Person 3", "group": "A", "receptivity": 0.5},
+        {"id": "p4", "name": "Person 4", "group": "B", "receptivity": 0.6},
+        {"id": "p5", "name": "Person 5", "group": "B", "receptivity": 0.4},
+        {"id": "p6", "name": "Person 6", "group": "B", "receptivity": 0.3}
+      ]
+    },
+    "ties": {
+      "type": "table",
+      "description": "Directed or symmetric human relationships with optional trust weights.",
+      "columns": {"from": "text", "to": "text", "value": "number"},
+      "default": [
+        {"from": "p1", "to": "p2", "value": 0.9}, {"from": "p2", "to": "p3", "value": 0.8},
+        {"from": "p3", "to": "p4", "value": 0.6}, {"from": "p4", "to": "p5", "value": 0.8},
+        {"from": "p5", "to": "p6", "value": 0.7}
+      ]
+    }
+  },
+  "brief": {
+    "situation": "An idea or behavior moves through an explicit human relationship network.",
+    "rules": "People may encounter the idea through their ties. Adoption depends on receptivity and exposure. This engine models human influence and information flow, not physical movement.",
+    "roles": {"person": "React to information through your relationships according to your persona, trust, and receptivity."}
+  },
+  "clock": {"rounds": "$inputs.rounds", "unit": "interaction"},
+  "types": {"person": {"agent": true, "props": {
+    "group": {"type": "text", "default": ""},
+    "receptivity": {"type": "number", "default": 0.5, "min": 0, "max": 1, "private": true},
+    "adoptions": {"type": "int", "default": 0}
+  }}},
+  "population": [{"type": "person", "from": "$inputs.participants", "id": "{$row.id}", "name": "{$row.name}", "props": {"group": "$row.group", "receptivity": "$row.receptivity"}}],
+  "relations": {"knows": {"symmetric": true}},
+  "links": [{"relation": "knows", "rows": "$inputs.ties"}],
+  "mechanisms": {"influence": {
+    "kind": "social", "mode": "diffusion", "who": "person", "over": "knows", "flow": "both", "model": "cascade",
+    "p": "0.15 + 0.75 * $to.receptivity", "seeds": {"proposal": ["p1"]}, "on_adopt": ["$it.adoptions += 1"]
+  }},
+  "views": {"exposure": {"for": "person", "title": "Your exposure", "of": "$heard($actor)", "show": "{item}: {state}; {exposures} exposure(s)"}},
+  "metrics": {
+    "reach": {"expr": "$reach(proposal)"},
+    "adoption_rate": {"expr": "$adopters(proposal) / $max(1, $count(person))"}
+  },
+  "outputs": {
+    "population_size": {"type": "int", "expr": "$count(person)"},
+    "reached": {"type": "int", "expr": "$reach(proposal)"},
+    "adopted": {"type": "int", "expr": "$adopters(proposal)"},
+    "adoption_rate": {"type": "number", "expr": "$metrics.adoption_rate"}
+  }
+}

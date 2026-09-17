@@ -39,19 +39,22 @@
       "id": "legislature",
       "title": "Legislature",
       "description": "Supports configurable legislative bodies with motions, amendments, debate, coalitions, procedure, and voting.",
-      "status": "planned"
+      "status": "native",
+      "path": "starters/configurable_legislature.json"
     },
     {
       "id": "judged_contest",
       "title": "Judged Contest",
       "description": "Supports participant submissions or performances followed by scoring, deliberation, and voting from human judges.",
-      "status": "planned"
+      "status": "native",
+      "path": "starters/judged_contest.json"
     },
     {
       "id": "deliberation",
       "title": "Deliberation",
       "description": "Simulates people exchanging reasons and evidence, revising views, and attempting to reach a collective conclusion.",
-      "status": "planned"
+      "status": "native",
+      "path": "starters/open_deliberation.json"
     },
     {
       "id": "negotiation",
@@ -64,25 +67,29 @@
       "id": "population",
       "title": "Population",
       "description": "Runs many sampled people through a shared situation and aggregates their individual responses and outcomes.",
-      "status": "planned"
+      "status": "native",
+      "path": "starters/population_response.json"
     },
     {
       "id": "network",
       "title": "Network",
       "description": "Simulates human influence, trust, information sharing, and behavioral change across explicit social or organizational ties.",
-      "status": "planned"
+      "status": "native",
+      "path": "starters/influence_network.json"
     },
     {
       "id": "matching",
       "title": "Matching",
       "description": "Simulates preferences, eligibility, applications, selection, pairing, and resulting human outcomes.",
-      "status": "planned"
+      "status": "native",
+      "path": "starters/capacity_matching.json"
     },
     {
       "id": "strategy",
       "title": "Strategy",
       "description": "Simulates interdependent human choices, incomplete information, cooperation, competition, and repeated consequences.",
-      "status": "planned"
+      "status": "native",
+      "path": "starters/repeated_strategy.json"
     }
   ]
 }
