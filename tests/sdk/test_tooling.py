@@ -207,7 +207,7 @@ def test_authoring_example_uses_every_input_row_and_shared_capacity(rows, capaci
     def greedy(wake):
         available = capacity
         for entity in env.entities('item'):
-            quantity = min(available, entity['props']['pending'])
+            quantity = min(available, entity['props']['pending'], entity['props']['remaining_today'])
             if quantity:
                 receipt = wake.call('allocate', {'item': entity['id'], 'quantity': quantity})
                 assert receipt.ok, receipt.text
