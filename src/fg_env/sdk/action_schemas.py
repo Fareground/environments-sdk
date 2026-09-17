@@ -12,7 +12,6 @@ from .action_params import TEXT_MAX_LEN, _LISTED_UNKNOWN, _STEP_TOLERANCE, _item
 from .assets.intake import file_schema
 from .contract import ParamSpec
 from .expr import ExprError, compile_expr, is_expr, resolve
-from .template import format_value
 from .tool_text import compact_ids, shared_description, shared_param, text_limit, usage_limits
 from .world import _plain
 
