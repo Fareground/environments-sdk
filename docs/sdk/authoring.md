@@ -30,7 +30,9 @@ Choose input types from the business units, not the example values. Money, effor
 Use integer minor units for accounting that must be exact. Dollar inputs and
 outputs can remain ordinary numbers: convert them to cents once, perform budget
 checks and whole-unit ratios in cents, then divide by 100 for reporting. A money
-format changes presentation, not numeric arithmetic. State the rounding policy.
+format changes presentation, not numeric arithmetic. The `money` formatter takes
+dollars in outputs, views and action receipts. Convert every cent-valued expression
+there, not only the final report. State the rounding policy.
 This example rounds inputs to cents and requires action amounts in whole cents.
 
 ```python
@@ -55,15 +57,17 @@ money = {
                               "max": "$world.available_cents / 100"}},
         "when": [{"expr": "$params.amount == $round($params.amount, 2)",
                   "why": "Use whole cents."}],
-        "do": ["$cents = $round($params.amount * 100)",
-               "$world.available_cents -= $cents", "$world.spent_cents += $cents"]
+        "do": ["$cost_cents = $round($params.amount * 100)",
+               "$world.available_cents -= $cost_cents", "$world.spent_cents += $cost_cents"],
+        "outcome": "Paid {$cost_cents / 100|money}."
     }},
     "outputs": {"spent": "$world.spent_cents / 100",
                 "units": "$world.spent_cents // $world.unit_cents"}
 }
 def spend_in_parts(wake):
-    assert wake.call("spend", {"amount": 0.10}).ok
-    assert wake.call("spend", {"amount": 0.20}).ok
+    for amount, receipt in [(0.10, "Paid $0.10."), (0.20, "Paid $0.20.")]:
+        paid = wake.call("spend", {"amount": amount})
+        assert paid.ok and paid.text == receipt
     assert not wake.call("spend", {"amount": 0.01}).ok
     wake.end()
 

@@ -94,16 +94,16 @@ assert "Prioritize smallest backlog." in preview["brief"]
   added, removed and reordered rows. Use stable input IDs as entity IDs when the
   domain needs persistent identity; duplicate IDs are invalid.
 - Objects with independent lifecycles belong in entities (orders, accounts,
-  cohorts); simple settings belong in maps. Use relations for links, records for history. Only decision-makers need `agent: true`; background processes use
-  events. Use views to expose precisely what each role is allowed to know.
+  cohorts); simple settings belong in maps. Use relations for links, records for history. Only decision-makers need `agent: true`; processes use events. Use views to expose precisely what each role is allowed to know.
 - Order matters: start events, stages, end events, metrics. A round advances after
   stages, not after each action. Set `max_actions` explicitly for repeated choices. A per-round cap must track
   the total across ALL calls in that round and reset once; a parameter maximum
   only limits one call. Test a second action that tries to exceed the remaining cap.
   Charge a shared budget/capacity once, in the same atomic action as the outcome.
-  Money: closing cash = opening cash + receipts - payments; deposits are liabilities.
+  Cash = opening + receipts - payments; deposits are liabilities.
   Keep dollar inputs/outputs; compute budgets and floor ratios in integer cents
-  (`$round(value * 100)`). `format: "money"` takes DOLLARS, never cents. Test 0.10 + 0.20 under a 0.30 cap and
+  (`$round(value * 100)`). Money formats take dollars in reports AND receipts:
+  `"outcome": "Paid {$cost_cents / 100|money}." Test 0.10 + 0.20 under a 0.30 cap and
   0.30 buying three units at 0.10. Define refund, settlement and arrival timing.
   `{"after": n, "do": [...]}` needs integer rounds `n >= 1`; due effects run
   before start events/decisions. For zero delay, branch to immediate effects
@@ -115,7 +115,7 @@ assert "Prioritize smallest backlog." in preview["brief"]
 - Expressions read `$inputs`, `$world`, `$actor`, `$params`; `population` uses
   `$row`; loops use `$it`. In `create.props`, `$it` is the NEW entity; capture
   outer values in locals before `create` (e.g. `$delay = $it.delay`). `{$...}` substitutes only in template fields (brief,
-  show, outcome, say), not stored strings. Look up unfamiliar syntax in a focused guide.
+  show, outcome, say), not stored strings. Use focused syntax references.
 - Validation/random runs establish executability, not fidelity. Derive expected
   results from the brief BEFORE running, never from the contract or its output.
   Check balances, conservation, timing, zero cases, sensitivity and overlap. Inputs must change rules,
