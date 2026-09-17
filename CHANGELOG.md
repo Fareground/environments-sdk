@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.7] - 2026-09-17
+
+- Add numeric input `multiple_of` validation for increments such as cents or pack
+  sizes, including nested fields/items, defaults and supplied data. Keep the
+  existing `step` UI hint unchanged. Document and test exact-money authoring.
+
 ## [0.4.6] - 2026-09-17
 
 - Use open-range number controls in the starting authoring example instead of
