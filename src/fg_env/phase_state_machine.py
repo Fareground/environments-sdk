@@ -2,7 +2,7 @@
 
 Replaces the bespoke phase-loop code in poker betting rounds, mafia
 day/night cycles, parliament debates, dispute_trial procedures,
-united_nations deliberation, judged_contest rounds — anywhere a game
+united_nations deliberation, contest rounds — anywhere a game
 has named steps that gate which actions are legal and that advance
 based on real conditions (everyone voted, N rounds elapsed, all
 folded but one, etc.).

@@ -43,11 +43,11 @@
       "path": "starters/configurable_legislature.json"
     },
     {
-      "id": "judged_contest",
-      "title": "Judged Contest",
+      "id": "contest",
+      "title": "Contest",
       "description": "Supports participant submissions or performances followed by scoring, deliberation, and voting from human judges.",
       "status": "native",
-      "path": "starters/judged_contest.json"
+      "path": "starters/contest.json"
     },
     {
       "id": "deliberation",

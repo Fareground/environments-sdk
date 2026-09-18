@@ -1,0 +1,12 @@
+{
+  "actions": 4,
+  "events": 5,
+  "events_sha256": "e19fd43894f1b633fee37b7f28630d237134fe91bdc7b1154e84cd9d0a8cb28b",
+  "metrics": {
+    "cash": 260.0,
+    "stock": 6
+  },
+  "rounds": 4,
+  "status": "completed",
+  "wakes": 4
+}
