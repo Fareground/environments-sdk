@@ -28,6 +28,10 @@ New environments should use JSON contracts through `fg_env.check`, `fg_env.load`
 
 ## Release discipline
 
-These pages describe 0.3.0. Pin the SDK version for deployed scenarios and store it with each run. Before an upgrade, run scenario acceptance cases, compare outputs, and test saved-state restoration. Do not assume snapshots are portable across all versions.
+These pages track the contract API on `main`. Pin the SDK version for deployed
+scenarios and store it with each run. Before an upgrade, read the
+[changelog](../../CHANGELOG.md), run scenario acceptance cases, compare
+outputs, and test saved-state restoration. Do not assume snapshots are
+portable across all versions.
 
 See the repository [changelog](https://github.com/Fareground/environments-sdk/blob/main/CHANGELOG.md) for release changes. Publishing a package and deploying a platform are separate operations; a new documentation page alone does not establish which version a host is running.

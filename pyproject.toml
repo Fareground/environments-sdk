@@ -33,7 +33,7 @@ dev = ["pytest>=8.0", "ruff==0.16.1", "mypy>=1.10", "build>=1.0"]
 [project.urls]
 Homepage = "https://github.com/Fareground/environments-sdk"
 Repository = "https://github.com/Fareground/environments-sdk"
-Documentation = "https://github.com/Fareground/environments-sdk/blob/main/docs/README.md"
+Documentation = "https://fareground.com/docs/env-kernel/"
 Changelog = "https://github.com/Fareground/environments-sdk/blob/main/CHANGELOG.md"
 Issues = "https://github.com/Fareground/environments-sdk/issues"
 
