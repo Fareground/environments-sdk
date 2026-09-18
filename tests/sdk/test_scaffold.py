@@ -38,6 +38,26 @@ def test_simulation_with_one_person_retains_wealth_without_needing_a_counterpart
     assert env.entities("person")[0]["props"]["wealth"] == 5
 
 
+def test_host_can_read_detached_record_streams():
+    contract = {
+        "name": "Journal",
+        "clock": {"rounds": 1},
+        "types": {"person": {"agent": True}},
+        "entities": {"writer": {"type": "person"}},
+        "records": {"journal": {"fields": {"text": "text"}}},
+        "actions": {"write": {"by": "person", "params": {},
+                                  "do": {"post": "journal", "text": "hello"}}},
+        "stages": [{"name": "writing", "actions": ["write"], "max_actions": 1}],
+    }
+    env = fg_env.load(contract, seed=3)
+    env.run(lambda wake: wake.call("write"))
+
+    rows = env.records("journal")
+    assert rows[0]["text"] == "hello"
+    rows[0]["text"] = "changed outside the engine"
+    assert env.records("journal")[0]["text"] == "hello"
+
+
 @pytest.mark.parametrize("people", [0, -1])
 def test_simulation_rejects_empty_populations_at_the_input(people):
     with pytest.raises(fg_env.ContractError, match="people"):
