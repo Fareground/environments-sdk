@@ -223,6 +223,17 @@ class Env(Copying, RunChecks, RunRounds, RunStages):
         return [entity_dict(e) for e in self.world.entities.values()
                 if (kinds is None or e.entity_type in kinds) and (e.alive or not alive)]
 
+    def records(self, name: str) -> List[Dict[str, Any]]:
+        """A detached, JSON-safe copy of a declared record stream.
+
+        Host applications use records to render engine-native timelines,
+        transcripts, market bars, and reports without reaching into the
+        runtime's internal world object. Private record visibility remains a
+        participant-view concern; this host-level method returns the complete
+        authoritative stream.
+        """
+        return [_plain(dict(entry)) for entry in self.world.records(name)]
+
     @property
     def props(self) -> Dict[str, Any]:
         """A copy of the world's global properties."""

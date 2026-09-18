@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.1
+
+- Add `Env.records(name)` so host applications can render authoritative
+  engine-native timelines, transcripts, and market bars without accessing
+  private runtime state.
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
