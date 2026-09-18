@@ -31,7 +31,7 @@ agent an appropriate view and typed tools, applies actions atomically, and retur
 
 Use this SDK when you need to simulate people interacting under explicit rules and run the same
 scenario repeatedly. Start from one of twelve reusable behavioral engines—Market, Council,
-Dispute, Exchange, Legislature, Judged Contest, Deliberation, Negotiation, Population, Network,
+Dispute, Exchange, Legislature, Contest, Deliberation, Negotiation, Population, Network,
 Matching, or Strategy—then customize the topic, participants, rules, information, and outcomes.
 
 Do not treat an engine as a finished scenario. Engines provide interaction mechanics; your

@@ -6,7 +6,7 @@ import fg_env
 
 
 ENGINE_IDS = {
-    "market", "council", "dispute", "exchange", "legislature", "judged_contest",
+    "market", "council", "dispute", "exchange", "legislature", "contest",
     "deliberation", "negotiation", "population", "network", "matching", "strategy",
 }
 
@@ -50,7 +50,7 @@ def test_available_engine_can_be_materialized_for_database_backed_builders():
 
 
 @pytest.mark.parametrize("engine_id", [
-    "legislature", "judged_contest", "deliberation", "population", "network", "matching", "strategy",
+    "legislature", "contest", "deliberation", "population", "network", "matching", "strategy",
 ])
 def test_new_native_engine_clones_runs_deterministically_and_aggregates(engine_id, tmp_path):
     target = fg_env.clone_engine(engine_id, tmp_path / f"{engine_id}.json", name=f"Custom {engine_id}")
@@ -94,7 +94,7 @@ def test_matching_engine_keeps_preferences_and_selector_thresholds_private():
 def test_each_new_engine_supports_nontrivial_scenario_customization(tmp_path):
     cases = {
         "legislature": ({"body_name": "School board", "bill": "Adopt a later school start time."}, "passed"),
-        "judged_contest": ({"prompt": "Pitch a neighborhood resilience program."}, "winner"),
+        "contest": ({"prompt": "Pitch a neighborhood resilience program."}, "winner"),
         "deliberation": ({"question": "Should the cooperative extend opening hours?"}, "decided"),
         "population": ({"question": "Would residents use a weekend shuttle?"}, "support_share"),
         "network": ({"rounds": 3}, "adoption_rate"),

@@ -20,7 +20,7 @@ Environment code must not reimplement the mechanics below.
 - **Extension points:** quorum, threshold, secret ballots, number of readings,
   chamber/committee procedures, veto and agenda rules.
 
-## Judged Contest
+## Contest
 
 - **Roles:** contestants plus one host judge or a configurable judge panel.
 - **Private/public information:** assigned approach may be private; submissions

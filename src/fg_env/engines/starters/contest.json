@@ -1,6 +1,6 @@
 {
   "fg_env": "1",
-  "name": "Judged Contest Engine",
+  "name": "Contest Engine",
   "description": "A reusable contest engine in which participants submit performances and an impartial configurable rubric produces scores and a winner.",
   "inputs": {
     "prompt": {"type": "text", "default": "Present the strongest response to the challenge."},

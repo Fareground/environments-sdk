@@ -12,7 +12,7 @@ The engine catalog contains exactly these twelve boundaries:
 - **Dispute** — opposing parties present claims and evidence toward a resolution.
 - **Exchange** — participants trade configurable assets under configurable rules.
 - **Legislature** — legislative bodies use motions, amendments, coalitions, and votes.
-- **Judged Contest** — participants submit or perform and human judges choose outcomes.
+- **Contest** — participants submit or perform and human judges choose outcomes.
 - **Deliberation** — people exchange reasons, revise views, and seek a conclusion.
 - **Negotiation** — parties make proposals, concessions, agreements, or walk away.
 - **Population** — sampled people independently respond and outcomes are aggregated.
@@ -64,7 +64,7 @@ yet ship every implementation.
 - Use **Negotiation** for offers and concessions, **Matching** for preferences,
   applications, eligibility, and capacity, and **Strategy** for repeated
   interdependent choices and consequences.
-- Use **Judged Contest** when submissions or performances are evaluated by a
+- Use **Contest** when submissions or performances are evaluated by a
   rubric. Keep the generic mechanism simple and configure the actual contest in
   the product environment.
 
