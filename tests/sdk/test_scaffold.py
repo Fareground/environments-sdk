@@ -58,6 +58,38 @@ def test_host_can_read_detached_record_streams():
     assert env.records("journal")[0]["text"] == "hello"
 
 
+def test_host_can_read_record_streams_after_a_failed_run():
+    contract = {
+        "name": "Failed journal",
+        "clock": {"rounds": 1},
+        "world": {"slots": {"type": "list", "default": [0]}},
+        "types": {"person": {"agent": True}},
+        "entities": {"writer": {"type": "person"}},
+        "records": {"journal": {"fields": {"text": "text"}}},
+        "actions": {
+            "write": {
+                "by": "person",
+                "params": {},
+                "do": {"post": "journal", "text": "preserved"},
+            },
+            "break": {"by": "person", "params": {}, "do": "$world.slots[2] = 1"},
+        },
+        "stages": [{"name": "writing", "actions": ["write", "break"], "max_actions": 2}],
+    }
+    env = fg_env.load(contract, seed=3)
+
+    def participant(wake):
+        wake.call("write")
+        wake.call("break")
+
+    result = env.run(participant)
+
+    assert result.status == "failed"
+    assert env.records("journal")[0]["text"] == "preserved"
+    with pytest.raises(fg_env.SnapshotError, match="failed during round 1"):
+        env.snapshot()
+
+
 @pytest.mark.parametrize("people", [0, -1])
 def test_simulation_rejects_empty_populations_at_the_input(people):
     with pytest.raises(fg_env.ContractError, match="people"):
