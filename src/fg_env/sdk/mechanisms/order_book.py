@@ -354,6 +354,45 @@ def release(world: Any, cfg: OrderBookConfig, v: Venue, name: str, order: Dict[s
              floor=0.0)
 
 
+def _reconcile_reservations(world: Any, cfg: OrderBookConfig, v: Venue, name: str,
+                            owner_ids: set[str]) -> None:
+    """Make touched accounts exactly match the authoritative resting book.
+
+    Large calibrated venues move values in the billions.  A resting order can
+    therefore be filled by many smaller orders and leave a few millionths of
+    currency in its reserve account through ordinary floating-point
+    subtraction.  The order book, rather than an accumulated float, is the
+    source of truth.  Recompute only the accounts touched by this operation
+    and move any numerical remainder back to the free balance while preserving
+    each account's total cash and shares.
+    """
+    if not owner_ids:
+        return
+    p = props_for(name)
+    required_cash = {owner_id: 0.0 for owner_id in owner_ids}
+    required_shares = {owner_id: 0.0 for owner_id in owner_ids}
+    for order in world.props.get(f"{name}_bids") or []:
+        if order["owner"] in required_cash:
+            required_cash[order["owner"]] += order["qty"] * order["price"] * (1 + v.maker)
+    for order in world.props.get(f"{name}_asks") or []:
+        if order["owner"] in required_shares:
+            required_shares[order["owner"]] += order["qty"]
+    for owner_id in owner_ids:
+        owner = world.entity(owner_id)
+        if owner is None:
+            raise RunError(f"order belongs to unknown trader {owner_id!r}", f"mechanisms.{name}")
+        cash = balance(world, Account(owner, cfg.currency))
+        reserved_cash = balance(world, Account(owner, p["reserved_cash"]))
+        shares = balance(world, Account(owner, p["shares"]))
+        reserved_shares = balance(world, Account(owner, p["reserved_shares"]))
+        expected_cash = clean(required_cash[owner_id])
+        expected_shares = clean(required_shares[owner_id])
+        world.set_prop(owner, p["reserved_cash"], expected_cash)
+        world.set_prop(owner, cfg.currency, clean(cash + reserved_cash - expected_cash))
+        world.set_prop(owner, p["reserved_shares"], expected_shares)
+        world.set_prop(owner, p["shares"], clean(shares + reserved_shares - expected_shares))
+
+
 def _insert(orders: List[Dict[str, Any]], order: Dict[str, Any], side: str) -> None:
     if side == "buy":
         at = bisect.bisect(orders, (-order["price"], order["seq"]), key=lambda o: (-o["price"], o["seq"]))
@@ -425,6 +464,7 @@ def place(world: Any, name: str, trader: Entity, side: str, qty: Any, price: Any
             raise Abort(f"Not enough free shares: you can sell at most {fmt(most, 6)}{short}; resting sells reserve shares.")
     fees = Account(None, f"{name}_fees")
     fills: List[_Fill] = []
+    touched_owners = {trader.id}
     left, spent, paid, prevented = size, 0.0, 0.0, 0
     ref = float(world.props.get(f"{name}_ref") or last)
     watch = v.halt_pct is not None and cfg.halt_check == "trade"
@@ -446,6 +486,7 @@ def place(world: Any, name: str, trader: Entity, side: str, qty: Any, price: Any
             if q <= 0:
                 break
         maker_entity = entity_of(world, best["owner"], f"mechanisms.{name}", "a trader")
+        touched_owners.add(maker_entity.id)
         notional = q * px
         if side == "buy":
             move(world, cash, Account(maker_entity, cfg.currency), notional, what="cash")
@@ -489,6 +530,7 @@ def place(world: Any, name: str, trader: Entity, side: str, qty: Any, price: Any
         world.set_world(f"{name}_{own_side}", own, trusted=True)
     if fills or prevented:
         world.set_world(f"{name}_{opposite_side}", opposite, trusted=True)
+    _reconcile_reservations(world, cfg, v, name, touched_owners)
     filled = clean(sum(f.qty for f in fills))
     if fills:
         _record_fills(world, name, fills, side, kind or str(trader.properties.get(p["strategy"]) or "agent"))
@@ -567,6 +609,7 @@ def cancel(world: Any, name: str, trader: Entity, order_id: Any) -> str:
                 release(world, cfg, v, name, order)
                 orders.pop(index)
                 world.set_world(f"{name}_{side}", orders, trusted=True)
+                _reconcile_reservations(world, cfg, v, name, {trader.id})
                 return _receipt(world, name, f"Cancelled {order['side']} {fmt(order['qty'], 6)} @ {fmt(order['price'], 4)}.")
     raise Abort(f"You have no resting order {order_id!r} in {cfg.instrument or name}.")
 
@@ -586,6 +629,7 @@ def cancel_all(world: Any, name: str, trader: Entity) -> str:
                 keep.append(order)
         if len(keep) != len(orders):
             world.set_world(f"{name}_{side}", keep, trusted=True)
+    _reconcile_reservations(world, cfg, v, name, {trader.id})
     return _receipt(world, name, f"Cancelled {count} order(s).")
 
 

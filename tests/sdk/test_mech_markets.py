@@ -92,6 +92,36 @@ def test_maker_and_taker_fees_settle_exactly():
     assert not order_book.audit(env.world, "acme")
 
 
+def test_large_fragmented_fill_clears_reserve_dust_without_breaking_conservation():
+    """A production-sized order may fill in many pieces without ghost reserves."""
+    price, total = 305.9825, 1_029_699_006
+    pieces = [27_569_486, 18_398_676, 42_734_007, 101_929_627, 121_745_742,
+              71_038_535, 109_451_567, 255_843_819, 213_283_669, 41_503_316,
+              21_643_251, 4_557_311]
+    contract = {
+        "name": "Large fragmented fill",
+        "clock": {"rounds": 1},
+        "types": {"trader": {"agent": True, "props": {"cash": 0}}},
+        "entities": {
+            "buyer": {"type": "trader", "props": {"cash": total * price * 2, "acme_shares": 0}},
+            "seller": {"type": "trader", "props": {"cash": 0, "acme_shares": total}},
+        },
+        "mechanisms": {"acme": {"kind": "market", "mode": "order_book", "who": "trader",
+                                  "start_price": price, "tick_size": 0.0001, "lot_size": 1}},
+    }
+    env = fg_env.load(contract, seed=1)
+    buyer, seller = env.world.entities["buyer"], env.world.entities["seller"]
+    starting_cash = buyer.properties["cash"] + seller.properties["cash"]
+    order_book.place(env.world, "acme", buyer, "buy", total, price)
+    for quantity in pieces:
+        order_book.place(env.world, "acme", seller, "sell", quantity)
+
+    assert env.props["acme_bids"] == []
+    assert buyer.properties["acme_reserved_cash"] == 0
+    assert buyer.properties["cash"] + seller.properties["cash"] == pytest.approx(starting_cash)
+    assert order_book.audit(env.world, "acme") == []
+
+
 def test_market_orders_stop_at_the_collar():
     env, replies = play(book(collar_pct=0.05), {
         (1, "a"): [("acme_sell", {"qty": 5, "price": 50})],
