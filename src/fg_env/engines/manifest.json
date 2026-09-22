@@ -5,21 +5,21 @@
     {
       "id": "market",
       "title": "Market",
-      "description": "Simulates human buyers and sellers forming demand, supply, prices, and responses to changing conditions.",
+      "description": "Simulates households choosing whether and where to buy each day while sellers set prices, promotions and subscriptions (repricing on demand by default).",
       "status": "native",
       "path": "starters/coffee_market.json"
     },
     {
       "id": "council",
       "title": "Council",
-      "description": "Simulates a bounded group sharing evidence, debating an agenda, and producing recommendations or decisions.",
+      "description": "Simulates a panel giving sealed probability forecasts, deliberating and forecasting again; scores the final forecasts (Brier) once the outcome is supplied and measures consensus by their spread.",
       "status": "native",
       "path": "starters/forecast_council.json"
     },
     {
       "id": "dispute",
       "title": "Dispute",
-      "description": "Simulates opposing human claims, evidence, arguments, rulings, and negotiated or adjudicated resolution.",
+      "description": "Simulates two sides offering, objecting to and cross-examining evidence before a judge; jurors weigh the total strength of what was admitted and vote on liability and damages.",
       "status": "native",
       "path": "starters/civil_trial.json"
     },
@@ -38,28 +38,28 @@
     {
       "id": "legislature",
       "title": "Legislature",
-      "description": "Supports configurable legislative bodies with motions, amendments, debate, coalitions, procedure, and voting.",
+      "description": "Simulates a legislative body moving, seconding, debating, amending and voting on a measure; records passed, rejected, or the status quo when nothing comes to a vote.",
       "status": "native",
       "path": "starters/configurable_legislature.json"
     },
     {
       "id": "contest",
       "title": "Contest",
-      "description": "Supports participant submissions or performances followed by scoring, deliberation, and voting from human judges.",
+      "description": "Simulates participants submitting each round while a host judge scores them on a weighted rubric; the single top scorer wins, a tie names no winner, and without a judge every entry ties and the run says so.",
       "status": "native",
       "path": "starters/contest.json"
     },
     {
       "id": "deliberation",
       "title": "Deliberation",
-      "description": "Simulates people exchanging reasons and evidence, revising views, and attempting to reach a collective conclusion.",
+      "description": "Simulates people exchanging reasons, proposing and amending a conclusion, and voting; records passed, rejected, or the status quo when nothing comes to a vote.",
       "status": "native",
       "path": "starters/open_deliberation.json"
     },
     {
       "id": "negotiation",
       "title": "Negotiation",
-      "description": "Simulates proposals, counteroffers, concessions, constraints, agreements, and walkaways between human parties.",
+      "description": "Simulates two parties exchanging complete multi-issue offers and counteroffers before a deadline; nobody can offer or accept terms worth less to them than their private walk-away value, and each party's surplus is reported.",
       "status": "native",
       "path": "starters/multi_issue_negotiation.json"
     },
@@ -73,7 +73,7 @@
     {
       "id": "network",
       "title": "Network",
-      "description": "Simulates human influence, trust, information sharing, and behavioral change across explicit social or organizational ties.",
+      "description": "Simulates an idea spreading over explicit ties: each round every adopter may convince each contact with a chance of trust times receptivity, so trust and time drive adoption.",
       "status": "native",
       "path": "starters/influence_network.json"
     },
@@ -87,7 +87,7 @@
     {
       "id": "strategy",
       "title": "Strategy",
-      "description": "Simulates interdependent human choices, incomplete information, cooperation, competition, and repeated consequences.",
+      "description": "Simulates repeated cooperate-or-compete choices among any number of players; each choice plays against every other player under a configurable payoff matrix, and a tie names no winner.",
       "status": "native",
       "path": "starters/repeated_strategy.json"
     }

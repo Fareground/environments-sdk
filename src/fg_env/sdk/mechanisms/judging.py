@@ -88,7 +88,7 @@ class JudgeConfig(BaseModel):
     blind: bool = Field(False, description="The judge sees 'Participant A/B/…' instead of names.")
     visible: str = Field("all", description="Who reads the scores: 'all' or an expression over $viewer and $it.")
     notify: bool = Field(True, description="Deliver scores to agents as news.")
-    fallback: Optional[Literal["midpoint"]] = Field(None, description="Without an evaluator: score every criterion at its midpoint (default: stop with an error).")
+    fallback: Optional[Literal["midpoint"]] = Field(None, description="Without an evaluator: score every criterion at its midpoint, so every entry ties; the run's diagnostics report it (default: stop with an error).")
 
 
 @dataclass

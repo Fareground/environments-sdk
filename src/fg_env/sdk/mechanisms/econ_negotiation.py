@@ -99,7 +99,7 @@ class NegotiationConfig(BaseModel):
     expires: Optional[int] = Field(None, ge=1, description="Rounds an offer stays open.")
     deadline: Union[int, str, None] = Field(None, description="Last round offers can be made or accepted (number or expression).")
     coalition: bool = Field(False, description="Offers go to several parties at once; all of them must accept.")
-    reservation: Union[float, str, None] = Field(None, description="Private walk-away value of each party (prop `<name>_reservation`).")
+    reservation: Union[float, str, None] = Field(None, description="Private walk-away value of each party (prop `<name>_reservation`); with `value`, no party offers or accepts terms worth less to it.")
     value: Optional[str] = Field(None, description="Worth of terms to a party, shown only to that party: expression over $party and $terms.")
     once: bool = Field(True, description="The first signed deal closes the negotiation.")
     obligations: List[ObligationSpec] = Field([], description="What a signed deal makes parties pay or deliver.")
@@ -126,7 +126,8 @@ register_config(NEGOTIATION, NegotiationConfig)
            "Negotiation over several issues: `<name>_propose`, `<name>_counter` (up to `max_depth`), `<name>_accept`, "
            "`<name>_reject` and `<name>_withdraw`, each offered only for offers open to you, with issue bounds as tool "
            "bounds, an optional deadline and expiry. Walk-away values stay private (`<name>_reservation`) and `value` "
-           "shows each party what terms are worth to it alone. A signed deal (`<name>_deal`) schedules `obligations` as "
+           "shows each party what terms are worth to it alone; with both, no party can offer or accept terms worth "
+           "less to it than its walk-away value. A signed deal (`<name>_deal`) schedules `obligations` as "
            "duties (`<name>_duty`) executed as conserved payments or deliveries; a duty not met by its due round is a "
            "breach with a penalty, optional termination and `on_breach` effects. `transfers` hand unique entities (a lot "
            "of phones) to a party at signing and `on_sign` effects settle the rest; a settlement that cannot happen "
@@ -275,8 +276,9 @@ def _actions(name: str, config: NegotiationConfig, parties: List[str], agents: L
             "do": [{"agreements": name, "action": "counter", "who": "$actor", "offer": "$params.offer", "terms": terms,
                     "note": "$params.note"}],
             "outcome": f"Counter-offer made: {{$terms_text({_terms_literal(config)}, '{name}')}}."}
+    acceptable = f" and ${name}_value($actor, $it.terms) >= $actor.{name}_reservation" if _walk_away(config) else ""
     for tool, where, description in (
-            ("accept", f"{open_to_me} and not ($actor.id in $it.accepted_by)", "Accept an offer made to you; it binds you once everyone it went to accepts."),
+            ("accept", f"{open_to_me} and not ($actor.id in $it.accepted_by){acceptable}", "Accept an offer made to you; it binds you once everyone it went to accepts."),
             ("reject", open_to_me, "Turn down an offer made to you."),
             ("withdraw", "$it.status == open and $it.sender == $actor.id", "Take back an offer you made.")):
         if tool in config.actions:
@@ -295,6 +297,26 @@ def _actions(name: str, config: NegotiationConfig, parties: List[str], agents: L
 
 def _terms_literal(config: NegotiationConfig) -> str:
     return "{" + ", ".join(f"'{issue}': $params.{issue}" for issue in config.issues) + "}"
+
+
+def _walk_away(config: NegotiationConfig) -> bool:
+    """Whether walk-away values bind: each party has one and terms have a worth to compare it with."""
+    return config.reservation is not None and config.value is not None
+
+
+def _require_worth(runner: Any, name: str, config: NegotiationConfig, party: Any, terms: Mapping[str, Any],
+                   doing: str) -> None:
+    """Refuse terms worth less to ``party`` than its walk-away value: nobody is bound below it."""
+    if config.reservation is None or config.value is None:
+        return
+    path = f"mechanisms.{name}.value"
+    worth = _eval(runner, config.value, {"party": party, "terms": dict(terms)}, path)
+    if isinstance(worth, bool) or not isinstance(worth, (int, float)):
+        raise RunError(f"the worth of terms must be a number, got {worth!r}", path)
+    floor = props(party)[f"{name}_reservation"]
+    if worth < floor:
+        raise Abort(f"You cannot {doing} terms worth {money(worth)} to you, below your walk-away value "
+                    f"{money(floor)}; change the terms or walk away.")
 
 
 # ---------------------------------------------------------------------------
@@ -381,6 +403,7 @@ def _offer(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str
     if deadline is not None and world.round > deadline:
         raise Abort(f"The deadline (round {deadline}) has passed.")
     terms = _check_terms(config, runner.eval(effect["terms"], vars))
+    _require_worth(runner, name, config, sender, terms, "offer")
     depth = 0
     if effect["action"] == "counter":
         answered = entity_of(world, runner.eval(effect["offer"], vars), where, "an offer")
@@ -446,6 +469,7 @@ def _answer_offer(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], whe
         raise Abort(f"The deadline (round {deadline}) has passed.")
     if who.id in p["accepted_by"]:
         raise Abort("You already accepted it.")
+    _require_worth(runner, name, config, who, p["terms"], "accept")
     accepted = list(p["accepted_by"]) + [who.id]
     world.set_prop(offer, "accepted_by", accepted)
     if set(accepted) != set(p["recipients"]):

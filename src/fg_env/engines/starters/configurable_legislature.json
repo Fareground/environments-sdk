@@ -65,6 +65,7 @@
   },
   "outputs": {
     "decided": {"type": "bool", "expr": "$len($decisions()) > 0"},
+    "outcome": {"type": "text", "expr": "('passed' if $last($decisions()).passed else 'rejected') if $len($decisions()) > 0 else 'status_quo'", "description": "passed, rejected, or status_quo when nothing came to a vote."},
     "passed": {"type": "bool", "expr": "$last($decisions()).passed if $len($decisions()) > 0 else null"},
     "final_text": {"type": "text", "expr": "$last($decisions()).text if $len($decisions()) > 0 else null"},
     "yes": {"type": "int", "expr": "$last($decisions()).counts.yes if $len($decisions()) > 0 else 0"},

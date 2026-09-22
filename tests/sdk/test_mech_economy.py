@@ -597,7 +597,7 @@ TRADE = {
         "money": {"kind": "economy", "mode": "ledger", "who": "country", "currencies": {"credits": {}}},
         "stock": {"kind": "economy", "mode": "inventory", "who": "country", "items": {"steel": {"value": 5}}},
         "trade": {"kind": "agreements", "mode": "negotiation", "who": "country", "deadline": 3, "max_depth": 2, "reservation": 10,
-                  "value": "$terms.price * $terms.quota * (1 if $party.id == 'ar' else -1)",
+                  "value": "$terms.price * $terms.quota if $party.id == 'ar' else (12 - $terms.price) * $terms.quota",
                   "issues": {"price": {"min": 1, "max": 20, "unit": "credits"}, "quota": {"type": "int", "min": 0, "max": 20},
                              "years": {"type": "int", "min": 1, "max": 3}},
                   "obligations": [
@@ -644,7 +644,7 @@ def test_offers_show_private_worth_and_walk_away_only_to_their_owner():
 
     ar, bo = seen("ar"), seen("bo")
     assert "Your walk-away value: 10" in ar and "worth 50 to you" in ar
-    assert "worth -50 to you" in bo and "price 10 credits, quota 5, years 1" in bo
+    assert "worth 10 to you" in bo and "price 10 credits, quota 5, years 1" in bo
     assert "worth 50" not in bo  # the other side's worth is never shown
     assert tool(env, "bo", "trade_accept")["offer"]["enum"] == ["trade_offer_1"]
     assert tool(env, "ar", "trade_accept")["offer"]["enum"] == []  # nothing is open to Arland
@@ -657,7 +657,7 @@ def test_a_refused_on_breach_hook_never_undoes_the_rest_of_the_negotiation_tick(
     env = fg_env.load(contract, seed=1)
     play = scripted({("ar", 1): [("trade_propose", {"to": "bo", "price": 10, "quota": 5, "years": 1})],
                      ("bo", 1): [("trade_accept", {"offer": "trade_offer_1"})],
-                     ("cy", 1): [("trade_propose", {"to": "ar", "price": 3, "quota": 1, "years": 1})]})
+                     ("cy", 1): [("trade_propose", {"to": "ar", "price": 2, "quota": 1, "years": 1})]})
     result = env.run(play, rounds=2)
     assert result.status != "failed", result.error
     assert env.entity("trade_offer_2")["props"]["status"] == "expired"  # unrelated work in the same tick stands
