@@ -2731,6 +2731,7 @@
             }
           ],
           "default": null,
+          "description": "Lowest allowed value: a write below it is refused, never clamped (saturate with $clamp).",
           "title": "Min"
         },
         "max": {
@@ -2743,6 +2744,7 @@
             }
           ],
           "default": null,
+          "description": "Highest allowed value: a write above it is refused, never clamped (saturate with $clamp).",
           "title": "Max"
         },
         "values": {

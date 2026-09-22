@@ -26,7 +26,7 @@ from .inputs import resolve_inputs
 from .links import _fields as link_fields
 from .seeds import SeedTree
 from .snapshot import KEEP_ARM, decode, encode, matching_contract, recording_start, restore_state, take_snapshot
-from .world import SdkWorld, _copy
+from .world import Abort, SdkWorld, _copy
 from .world_defaults import default_order
 
 if TYPE_CHECKING:
@@ -232,15 +232,15 @@ def _values(issues: List[Issue], specs: Mapping[str, PropSpec], values: Mapping[
 
 
 def _refused(probe: SdkWorld, spec: PropSpec, value: Any) -> Optional[str]:
-    try:
-        probe._coerce(spec, value, "fork")
-    except RunError as exc:
-        return str(exc).split(": ", 1)[-1]
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         if spec.min is not None and value < spec.min:
             return f"below the minimum {spec.min:g}"
         if spec.max is not None and value > spec.max:
             return f"above the maximum {spec.max:g}"
+    try:
+        probe._coerce(spec, value, "fork")
+    except RunError as exc:
+        return str(exc).split(": ", 1)[-1]
     return None
 
 
@@ -352,7 +352,10 @@ def _default(world: SdkWorld, spec: PropSpec, path: str, **vars: Any) -> Any:
         value = compile_expr(raw)(world.scope(**vars)) if is_expr(raw) else _copy(raw)
     except ExprError as exc:
         raise RunError(str(exc), f"{path}.default") from None
-    return world._coerce(spec, value, path)
+    try:
+        return world._coerce(spec, value, path)
+    except Abort as refusal:  # a new property's default outside its own bounds is a contract error
+        raise RunError(refusal.reason, f"{path}.default") from None
 
 
 def _physics_params(env: "Env", old: Contract, new: Contract) -> None:

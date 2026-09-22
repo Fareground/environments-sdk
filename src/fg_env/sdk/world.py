@@ -21,6 +21,7 @@ from .record_index import RecordAuthors, author_only
 from .record_events import RecordEvents
 from .seeds import SeedTree
 from .stdlib.dates import calendar_date
+from .template import format_value
 from .space import Spatial, position_of
 from .type_index import TypeIndex
 from . import links as _links, world_physics
@@ -437,7 +438,10 @@ class SdkWorld(World):
 
     # -- mutation (journaled) --------------------------------------------------
 
-    def _coerce(self, spec: Optional[PropSpec], value: Any, where: str) -> Any:
+    def _coerce(self, spec: Optional[PropSpec], value: Any, where: str, owner: str = "") -> Any:
+        """``value`` as ``spec`` stores it. A number past a declared min or max is refused (:class:`Abort`), never
+        clamped: an action is rolled back and its actor told why, like a transfer that does not fit. ``owner``
+        names who holds the property in that refusal."""
         if spec is None:
             return value
         kind = prop_type(spec)
@@ -446,10 +450,7 @@ class SdkWorld(World):
         if kind in ("number", "int"):
             if not _finite_number(value):
                 raise RunError(f"must be a finite number that fits in a float, got {_shown_value(value)}", where)
-            if spec.min is not None:
-                value = max(spec.min, value)
-            if spec.max is not None:
-                value = min(spec.max, value)
+            _within_bounds(spec, value, where, owner)
             if kind == "int":
                 if float(value) != int(value):
                     raise RunError(f"must be a whole number, got {value}", where)
@@ -478,7 +479,7 @@ class SdkWorld(World):
             known = ", ".join(specs) or "none"
             raise RunError(f"'{entity.entity_type}' has no property '{prop}' (declared: {known})", where)
         self.written.add(prop)
-        new = self._coerce(specs[prop], _plain(value), where)
+        new = self._coerce(specs[prop], _plain(value), where, entity.name)
         if self.buffer is not None:
             self.buffer.write(("prop", entity.id, prop), new, lambda: self.set_prop(entity, prop, new), where)
             return
@@ -566,7 +567,7 @@ class SdkWorld(World):
                 value = compile_expr(raw)(own) if expression else _copy(raw)
             except ExprError as exc:
                 raise RunError(str(exc), f"{where}.props.{prop}") from None
-            entity.properties[prop] = self._coerce(prop_spec, _plain(value), f"{where}.props.{prop}")
+            entity.properties[prop] = self._coerce(prop_spec, _plain(value), f"{where}.props.{prop}", entity.name)
         if entity.location_id is not None:
             self._make_room(entity, entity.location_id, "cannot be placed")
         self.entities[eid] = entity
@@ -772,8 +773,13 @@ class SdkWorld(World):
         world_physics.build_physics(self)
 
     def step_physics(self, elapsed: Optional[float] = None) -> List[Dict[str, Any]]:
-        """Advance physics one round, or by ``elapsed`` clock time on a continuous clock."""
-        return world_physics.step_physics(self, elapsed)
+        """Advance physics one round, or by ``elapsed`` clock time on a continuous clock. Integrated variables stay
+        inside their bounds; a formula written to a property past its bounds has nothing to refuse, so it fails."""
+        try:
+            return world_physics.step_physics(self, elapsed)
+        except Abort as refusal:
+            raise RunError(f"{refusal.reason} Keep the formula in range, e.g. with clamp(x, low, high)",
+                           "physics") from None
 
     # -- helpers ---------------------------------------------------------------
 
@@ -788,6 +794,19 @@ class SdkWorld(World):
 
 #: Def results that are immutable, so a cached value can be handed out again safely.
 _CACHEABLE = (int, float, bool, str, type(None), Entity)
+
+
+def _within_bounds(spec: PropSpec, value: Any, where: str, owner: str) -> None:
+    """Refuse a number past ``spec``'s min or max. Saturating is written out: ``$clamp(x, low, high)``."""
+    if spec.min is not None and value < spec.min:
+        limit = f"cannot go below {format_value(spec.min)}"
+    elif spec.max is not None and value > spec.max:
+        limit = f"cannot go above {format_value(spec.max)}"
+    else:
+        return
+    prop = where.rsplit(".", 1)[-1]
+    raise Abort(f"{owner}'s {prop} {limit}: it would be {format_value(value)}." if owner else
+                f"{prop} {limit}: it would be {format_value(value)}.")
 
 
 def _short(value: Optional[float]) -> str:
