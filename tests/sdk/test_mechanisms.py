@@ -35,6 +35,39 @@ def test_tally_methods():
     assert set(tied) == {"x", "y"}
 
 
+
+def test_passed_means_the_motion_listed_first_carried_and_decided_means_a_winner():
+    lost = tally("majority", {"a": "yes", "b": "no", "c": "no"}, ["yes", "no"])
+    assert lost["winner"] == "no" and lost["decided"] and not lost["passed"]
+    carried = tally("majority", {"a": "yes", "b": "yes", "c": "no"}, ["yes", "no"])
+    assert carried["winner"] == "yes" and carried["decided"] and carried["passed"]
+    deadlock = tally("majority", {"a": "yes", "b": "no"}, ["yes", "no"], ties="none")
+    assert deadlock["winner"] is None and not deadlock["decided"] and not deadlock["passed"]
+
+
+def test_a_ballot_for_an_option_not_on_the_ballot_is_refused():
+    with pytest.raises(ValueError, match="'maybe' is not on the ballot"):
+        tally("plurality", {"a": "yes", "b": "maybe"}, ["yes", "no"])
+    with pytest.raises(ValueError, match="'w' is not on the ballot"):
+        tally("ranked", [["x", "w"]], ["x", "y"])
+
+
+def test_weighted_votes_a_members_threshold_and_a_veto():
+    shares = tally("majority", {"a": "yes", "b": "no", "c": "no"}, ["yes", "no"], weights={"a": 60, "b": 25, "c": 15})
+    assert shares["passed"] and shares["share"] == pytest.approx(0.6) and shares["votes"] == 100
+    # cloture: three fifths of all members, not of those voting
+    members = {"a": "yes", "b": "yes", "c": "no"}
+    assert tally("supermajority", members, ["yes", "no"], threshold=0.6)["passed"]
+    short = tally("supermajority", members, ["yes", "no"], threshold=0.6, base=5)
+    assert not short["passed"] and short["share"] == pytest.approx(0.4)
+    assert tally("supermajority", {**members, "d": "yes"}, ["yes", "no"], threshold=0.6, base=5)["passed"]
+    # a veto-holder's vote against defeats the motion; its abstention does not
+    council = {"p1": "no", "p2": "yes", "e1": "yes", "e2": "yes"}
+    vetoed = tally("majority", council, ["yes", "no"], vetoers=["p1", "p2"])
+    assert not vetoed["passed"] and vetoed["decided"] and vetoed["winner"] == "no" and vetoed["vetoed"] == ["p1"]
+    assert tally("majority", {**council, "p1": "abstain"}, ["yes", "no"], vetoers=["p1", "p2"])["passed"]
+
+
 COUNCIL = {
     "name": "Budget council",
     "clock": {"rounds": 2},
@@ -113,6 +146,55 @@ def test_authors_override_generated_parts_and_arms_patch_mechanism_config():
     env.run(ayes, rounds=1)
     result = env.props["budget_result"]
     assert result["method"] == "supermajority" and result["share"] == 1 and result["winner"] == "approve"
+
+def _security_council(**config):
+    council = {"kind": "decision", "mode": "ballot", "who": "member", "options": ["adopt", "reject"],
+               "method": "supermajority", "threshold": 0.6, "threshold_of": "members", "veto": "$it.permanent", **config}
+    return {"name": "Council", "clock": {"rounds": 1},
+            "types": {"member": {"agent": True, "props": {"permanent": False, "shares": 1}}},
+            "entities": {**{p: {"type": "member", "props": {"permanent": True}} for p in ("p1", "p2")},
+                         **{e: {"type": "member"} for e in ("e1", "e2", "e3")}},
+            "mechanisms": {"resolution": council}}
+
+
+def _votes(choices):
+    def participant(wake):
+        choice = choices.get(wake.entity_id)
+        if choice == "abstain":
+            wake.call("resolution_abstain")
+        elif choice:
+            wake.call("resolution_vote", {"choice": choice})
+        wake.end()
+    return participant
+
+
+def test_ballot_weights_votes_measures_the_threshold_over_members_and_honours_a_veto():
+    def result(contract, choices):
+        env = fg_env.load(contract, seed=1)
+        assert env.run(_votes(choices)).status == "completed"
+        return env.props["resolution_result"]
+
+    yes = {"p1": "adopt", "p2": "adopt", "e1": "adopt", "e2": "reject"}
+    assert result(_security_council(), yes)["passed"]
+    vetoed = result(_security_council(), {**yes, "p1": "reject", "e3": "adopt"})
+    assert not vetoed["passed"] and vetoed["vetoed"] == ["p1"]
+    assert result(_security_council(), {**yes, "p1": "abstain", "e3": "adopt"})["passed"]
+    assert not result(_security_council(), {"p1": "adopt", "p2": "adopt", "e1": "reject"})["passed"]  # 2 of 5 members
+    shareholders = _security_council(method="majority", threshold=None, threshold_of="votes", veto=None, weight="$it.shares")
+    shareholders["entities"]["e3"]["props"] = {"shares": 10}
+    held = result(shareholders, {"p1": "adopt", "p2": "adopt", "e1": "adopt", "e2": "adopt", "e3": "reject"})
+    assert held["winner"] == "reject" and held["counts"] == {"reject": 10, "adopt": 4}
+    words = fg_env.load({**shareholders, "mechanisms": {"resolution": {**shareholders["mechanisms"]["resolution"],
+                                                                     "weight": "$it.name"}}}, seed=1).run(_votes({}))
+    assert words.status == "failed" and "a voter's weight must be a number ≥ 0, got 'p1'" in words.error
+
+
+def test_a_veto_or_members_threshold_that_cannot_apply_is_refused():
+    three = _issues(_security_council(options=["a", "b", "c"]))
+    assert any(i.path == "mechanisms.resolution.veto" and "two options" in i.message for i in three)
+    plurality = _issues(_security_council(method="plurality", threshold=None, veto=None))
+    assert any(i.path == "mechanisms.resolution.threshold_of" for i in plurality)
+
 
 def test_mechanism_runs_snapshot_and_resume_identically():
     straight = fg_env.load(COUNCIL, seed=5).run().to_dict()

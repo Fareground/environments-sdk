@@ -144,7 +144,9 @@ def _views(name: str, cfg: OrderBookConfig) -> Dict[str, Any]:
            "noise, passive) as subtypes `<name>_<strategy>`; any trader whose `<name>_strategy` prop names a strategy trades only "
            "through `<name>_algo` (the `<name>_algo` policy calls it). A strategy with a `stop_loss` param (in multiples of the "
            "per-round volatility) liquidates a losing position at market. $book(name).flow is the last round's aggressive "
-           "quantity by trader kind. Metrics <name>_price, _volume, _spread, _orders feed $market_realism.",
+           "quantity by trader kind. Fundamentalists estimate `fair_value`, by default $world.<name>_value: a random walk from the "
+           "start price at the book's `volatility`. Metrics <name>_price (last trade), _mid (mid quote: returns without the "
+           "bid-ask bounce), _volume, _spread, _orders feed $market_realism.",
            example={"who": "trader", "start_price": 50, "tick_size": 0.01, "taker_fee_bps": 5,
                     "halt_pct": 0.1, "crowd": {"market_maker": {"count": 2, "cash": 20000, "shares": 400},
                                                "noise": {"count": 6, "cash": 5000, "shares": 100}}}, was="order_book")
@@ -188,6 +190,9 @@ def _expand_order_book(name: str, cfg: OrderBookConfig, contract: Mapping[str, A
             f"{name}_flow": {"type": "map", "default": {}, "description": "Last round's aggressive quantity by trader kind."},
             f"{name}_liquidations": {"type": "int", "default": 0, "description": "Stop-loss liquidations so far."},
             f"{name}_receipt": {"type": "text", "default": ""},
+            **({f"{name}_value": {"type": "number", "default": cfg.start_price, "private": True,
+                                  "description": "The fair value fundamentalists estimate: a random walk from the start price "
+                                                 "at the book's volatility."}} if cfg.fair_value is None else {}),
         },
         "records": {
             f"{name}_tape": {"fields": {"price": "number", "qty": "number", "aggressor": "text"}, "keep": cfg.tape,
@@ -206,8 +211,8 @@ def _expand_order_book(name: str, cfg: OrderBookConfig, contract: Mapping[str, A
                    {"name": f"{name}_close", "phase": "end", "do": [{"market": name, "action": "close"}]}],
         "views": _views(name, cfg),
         "policies": {f"{name}_algo": {"rules": [{"do": f"{name}_algo"}, {"do": "pass"}]}},
-        "metrics": {f"{name}_price": f"$world.{name}_last", f"{name}_volume": f"$get($world.{name}_bar, volume, 0)",
-                    f"{name}_spread": f"$book({name}).spread or 0", f"{name}_orders": f"$book({name}).orders"},
+        "metrics": {f"{name}_price": f"$world.{name}_last", f"{name}_mid": f"$book({name}).mid",
+                    f"{name}_volume": f"$get($world.{name}_bar, volume, 0)", f"{name}_spread": f"$book({name}).spread or 0", f"{name}_orders": f"$book({name}).orders"},
         "outputs": {
             f"{name}_last_price": {"expr": f"$world.{name}_last", "type": "number", "description": f"Last {unit} price."},
             f"{name}_vwap": {"expr": f"$book({name}).vwap or $world.{name}_last", "type": "number",

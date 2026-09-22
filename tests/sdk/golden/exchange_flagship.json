@@ -3,6 +3,7 @@
   "events": 167,
   "events_sha256": "937c0daa772341c4f2b635ada360f80b412b39d7377963fc9c1949187a86cdc1",
   "metrics": {
+    "demo_mid": 100.325,
     "demo_orders": 183,
     "demo_price": 100.05,
     "demo_spread": 0.55,

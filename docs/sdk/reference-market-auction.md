@@ -11,14 +11,14 @@ Config:
 - `item` (default "lot"): What is sold, in plain words.
 - `house` (default null): Entity id of the auction house: sells its units and is paid; default: the mechanism itself (stock and revenue in world props).
 - `stock` (default 1): Units the house has to sell (number or expression).
-- `units` (default 1): Units in each lot (uniform), or the most units one bid or ask may carry (double).
+- `units` (default 1): Units in each lot (uniform; the last lot sells what is left), or the most units one bid or ask may carry (double).
 - `reserve` (default 0.0): Lowest acceptable price per unit (number or expression).
 - `start_price` (default null): dutch: where the clock starts.
 - `decrement` (default 1): dutch: how much the clock falls each round.
 - `increment` (default 1): english: minimum raise over the high bid.
 - `timeout` (default 1): english: rounds without a new bid before the lot closes.
 - `ties` (default "first"): Equal bids: the earliest wins, or a seeded random one.
-- `price_rule` (default "lowest_accepted"): uniform: the clearing price.
+- `price_rule` (default "lowest_accepted"): uniform: the clearing price — the lowest accepted bid, or the highest rejected one (the reserve when none was rejected).
 - `items` (default []): combinatorial: the distinct items for sale, bid on in packages.
 - `reserves` (default {}): combinatorial: reserve per item (number or expression); others use `reserve`.
 - `packages` (default 3): combinatorial: most package bids one bidder may hold (it wins at most one).
