@@ -3,7 +3,7 @@ typo'd settings, half-way rounding and stated word counts."""
 import pytest
 
 import fg_env
-from fg_env.sdk.errors import ContractError
+from fg_env.sdk.errors import ContractError, RunError
 from fg_env.sdk.tool_text import text_limit
 
 
@@ -69,8 +69,8 @@ def test_a_negative_repeat_is_refused_with_its_range():
 def test_a_repeat_count_that_comes_out_negative_fails_the_run_with_its_range():
     contract = _world(inputs={"zero": {"type": "int", "default": 0}},
                       events=[{"do": [{"repeat": "$inputs.zero - 1", "do": ["$entity(a).v += 1"]}]}])
-    result = fg_env.run(contract, seed=1)
-    assert result.status == "failed" and "from 0 to" in result.error
+    with pytest.raises(RunError, match="from 0 to"):
+        fg_env.run(contract, seed=1)
 
 
 # -- max_actions and max_calls take expressions over $inputs, like passes ---------------------------------------
