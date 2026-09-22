@@ -199,10 +199,10 @@ class ActionSchemas:
                 description = f"{description} Each item: {item_description}".strip()
         elif param.type == "entity":
             out["type"] = "string"
-            choices = self._choices(actor, action, pname, param)
+            choices = self._choices(actor, action, pname, param)  # every candidate when they depend on other arguments
             if self._depends_on_params(param):
                 description = (description + " Valid choices depend on the other arguments.").strip()
-            if len(choices) <= _ENUM_CHOICES and not self._depends_on_params(param):
+            if len(choices) <= _ENUM_CHOICES:
                 out["enum"] = [c.id for c in choices]
             if len(choices) <= _NAMED_CHOICES:
                 listing = "; ".join(f"{c.id} = {c.name}" for c in choices if c.name != c.id)
@@ -210,7 +210,7 @@ class ActionSchemas:
                     description = f"{description} Options: {listing}.".strip()
             else:
                 description = (description or f"Id of a {param.of}.").strip()
-                if "enum" not in out and not self._depends_on_params(param):
+                if "enum" not in out:
                     description += f" One of: {compact_ids([c.id for c in choices])}."
         if description:
             out["description"] = description

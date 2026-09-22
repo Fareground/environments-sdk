@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from ..entity import Entity
 from .action_params import MAX_SAFE_INT, TEXT_MAX_LEN, _tidy
@@ -164,6 +164,33 @@ class ActionBook(ActionSchemas, ActionValidation):
             except ExprError as exc:
                 raise RunError(str(exc), f"actions.{action}.params.{pname}.where") from None
         return out
+
+    def fill_dependent(self, actor: Entity, name: str, args: Dict[str, Any],
+                       pick: Callable[[List[Entity]], Optional[Entity]]) -> Dict[str, Any]:
+        """``args`` with each entity argument whose choices depend on earlier arguments set to ``pick`` of the
+        entities that qualify given them — for participants that choose arguments without reading the rules. It
+        stops at the first earlier argument that is missing or invalid: validation then says what to fix."""
+        spec = self.contract.actions[name]
+        if not any(p.type == "entity" and self._depends_on_params(p) for p in spec.params.values()):
+            return args
+        filled: Dict[str, Any] = dict(args)
+        params: Dict[str, Any] = {}
+        for pname, param in spec.params.items():
+            if param.type == "entity" and self._depends_on_params(param):
+                chosen = pick(self._choices(actor, name, pname, param, params))
+                if chosen is None:
+                    filled.pop(pname, None)
+                    break
+                params[pname], filled[pname] = chosen, chosen.id
+                continue
+            raw = filled.get(pname)
+            if raw is None:
+                break
+            value, problem = self._value(actor, name, pname, param, raw, params)
+            if problem:
+                break
+            params[pname] = value
+        return filled
 
     # -- apply ---------------------------------------------------------------------
 

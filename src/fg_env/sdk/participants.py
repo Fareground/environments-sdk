@@ -15,7 +15,7 @@ import math
 import random
 import threading
 import time
-from typing import TYPE_CHECKING, Any, Callable, Collection, Dict, List, Mapping, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Collection, Dict, List, Mapping, Optional, Set, Tuple, Union
 
 from .assets.multimodal import ANTHROPIC_MEDIA, OPENAI_MEDIA, anthropic_parts, media_set, openai_parts
 from .probability import is_probability
@@ -55,7 +55,7 @@ class RandomAgent:
             if not acts or wake.done or rng.random() < self.pass_rate:
                 break
             tool = rng.choice(acts)
-            result = wake.call(tool.name, sample_args(tool.input_schema, rng))
+            result = wake.call(tool.name, _fill_dependent(wake, tool.name, sample_args(tool.input_schema, rng), rng))
             if result.ended:
                 return
         if not wake.done:
@@ -94,6 +94,28 @@ def sample_args(schema: Mapping[str, Any], rng: random.Random) -> Dict[str, Any]
             if items is not None:
                 args[name] = items
     return args
+
+
+def _fill_dependent(wake: Wake, tool: str, args: Dict[str, Any], rng: random.Random) -> Dict[str, Any]:
+    """``args`` with each choice that depends on earlier arguments (``where: $it.id != $params.a.id``) drawn from
+    the entities that qualify given them: a schema can only list every candidate."""
+    from .errors import RunError
+
+    turn = wake._turn
+    actions = turn.env.actions
+    name, own = tool, args
+    if tool in actions.groups:  # a shared tool: its `action` argument names the action
+        name, own, problem = actions.route(tool, args, ())
+        if problem:
+            return args
+    if name not in turn.env.contract.actions:
+        return args
+    with turn.env._lock:
+        try:
+            filled = actions.fill_dependent(turn.actor, name, own, lambda found: rng.choice(found) if found else None)
+        except RunError:
+            return args  # the call reports the broken rule at its path
+    return {**filled, "action": args["action"]} if name != tool else filled
 
 
 def _sample_list(prop: Mapping[str, Any], rng: random.Random) -> Optional[List[Any]]:
@@ -141,6 +163,9 @@ class PolicyAgent:
         self.name = name
         self.spec = contract.policies[name]
         self.seed = seed
+        #: Rule path → (times its call was refused, the last refusal); and the rule paths that acted at least once.
+        self.refused: Dict[str, Tuple[int, str]] = {}
+        self.acted: Set[str] = set()
 
     def __call__(self, wake: Wake) -> None:
         rng = random.Random(_seed_for(self.seed, wake))
@@ -210,9 +235,15 @@ class PolicyAgent:
             return "skipped"
         with turn.env._lock:
             _, problem = turn.env.actions.validate(turn.actor, rule.do, args)
-        if problem:
-            return "skipped"  # this rule does not fit right now; try the next one
-        return "acted" if wake.call(rule.do, args).ok else "skipped"
+        if problem is None:
+            result = wake.call(rule.do, args)
+            if result.ok:
+                self.acted.add(path)
+                return "acted"
+            problem = result.text
+        count, _ = self.refused.get(path, (0, ""))
+        self.refused[path] = (count + 1, problem)
+        return "skipped"  # this rule does not fit right now; try the next one
 
     def __repr__(self) -> str:
         return f"PolicyAgent({self.name!r})"

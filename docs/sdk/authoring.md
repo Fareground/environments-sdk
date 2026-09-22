@@ -146,7 +146,7 @@ fg-env new blank scenario.json
 fg-env guide
 fg-env guide actions
 fg-env guide events
-fg-env check scenario.json --rounds 5
+fg-env check scenario.json
 fg-env preview scenario.json participant_id
 ```
 
