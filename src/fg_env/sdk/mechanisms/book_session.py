@@ -7,6 +7,7 @@ events run after the author's, and an author who needs the closed round (or bar)
 """
 from __future__ import annotations
 
+import math
 from typing import Any, Dict, List
 
 from .book_rules import CLOSES_WINDOW, Venue, venue
@@ -30,8 +31,9 @@ def start_price(world: Any, name: str) -> float:
 
 
 def open_round(world: Any, name: str) -> None:
-    """Start of a round: baseline supply and P&L (first round), resume after a halt, expire old orders, start a bar
-    when one is due, set the breaker's reference and reset the round's statistics."""
+    """Start of a round: baseline supply and P&L (first round) or a step of the default fair value, resume after a
+    halt, expire old orders, start a bar when one is due, set the breaker's reference and reset the round's
+    statistics."""
     if world.props.get(f"{name}_opened") == world.round:
         return
     world.set_world(f"{name}_opened", world.round)
@@ -43,6 +45,8 @@ def open_round(world: Any, name: str) -> None:
         rebase(world, name)
         for trader in world.entities_of(cfg.who):
             world.set_prop(trader, p["start_value"], account(world, name, trader)["equity"])
+    elif cfg.fair_value is None:  # the value starts at the start price and walks from the second round
+        _walk_value(world, name, cfg)
     if world.props.get(f"{name}_halted") and world.round > int(world.props.get(f"{name}_halt_until") or 0):
         world.set_world(f"{name}_halted", False)
         world.emit(f"{name}_resume", f"Trading in {cfg.instrument or name} resumes after the circuit-breaker halt.",
@@ -62,6 +66,14 @@ def open_round(world: Any, name: str) -> None:
         world.set_world(f"{name}_ref", closes[-back] if len(closes) >= back else closes[0] if closes else last)
     world.set_world(f"{name}_bar", {"open": last, "high": last, "low": last, "close": last, "volume": 0, "notional": 0,
                                     "trades": 0})
+
+
+def _walk_value(world: Any, name: str, cfg: OrderBookConfig) -> None:
+    """The default fair value: a driftless random walk at the book's per-round ``volatility``, so fundamentalists
+    anchor to a value that moves like a real one instead of pinning the price to where it started."""
+    sigma = number(world, cfg.volatility, f"mechanisms.{name}.volatility")
+    value = float(world.props.get(f"{name}_value") or start_price(world, name))
+    world.set_world(f"{name}_value", value * math.exp(world.rng.gauss(0.0, sigma) - sigma * sigma / 2))
 
 
 def _expire(world: Any, name: str, cfg: OrderBookConfig, v: Venue) -> None:

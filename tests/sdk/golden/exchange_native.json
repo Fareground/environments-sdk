@@ -3,6 +3,7 @@
   "events": 81,
   "events_sha256": "f4a7afc0cabfc540fe955db0e2a48901e82872672c9184aef66e57e0204dbae5",
   "metrics": {
+    "acme_mid": 49.84,
     "acme_orders": 18,
     "acme_price": 49.62,
     "acme_spread": 0.44,

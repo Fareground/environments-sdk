@@ -15,7 +15,8 @@ once the loss passes ``stop_loss`` × volatility (clamped to 2–15%) of the pos
   hedges with a market order past its inventory limit.
 * ``momentum`` — buys strength and sells weakness over a lookback; closes when the trend fades.
 * ``mean_reversion`` — fades stretched moves with limit orders inside the spread; exits on reversion.
-* ``fundamentalist`` — trades toward a noisy private estimate of the fair value; patient orders rest.
+* ``fundamentalist`` — trades toward a noisy private estimate of the fair value (the book's ``fair_value``, by
+  default a random walk at its ``volatility``); patient orders rest.
 * ``noise`` — random arrivals, mostly market orders, fat-tailed sizes, herding on the last move and the
   book's ``sentiment``.
 * ``passive`` — index-like flow: one random side per round, worked with market orders.
@@ -257,9 +258,7 @@ def _mean_reversion(v: _View, p: Dict[str, float], rng: Any) -> None:
 def _fair_value(v: _View) -> float:
     raw = v.cfg.fair_value
     if raw is None:
-        from .book_session import start_price
-
-        return start_price(v.world, v.name)
+        return float(v.world.props[f"{v.name}_value"])
     try:
         value = compile_expr(raw)(v.world.scope(actor=v.trader))
     except ExprError as exc:

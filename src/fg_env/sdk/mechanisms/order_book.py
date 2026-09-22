@@ -109,12 +109,14 @@ class OrderBookConfig(BaseModel):
                        + "; $book(name).bar is the bar in progress.")
     depth_levels: int = Field(5, ge=1, le=50, description="Price levels per side shown in the book view.")
     tape: int = Field(50, ge=1, description="Recent trades kept in the <name>_tape record.")
-    volatility: Union[float, str] = Field(0.02, description="Per-round return volatility coded strategies assume before the tape shows one (number or expression).")
+    volatility: Union[float, str] = Field(0.02, description="Per-round return volatility coded strategies assume before the tape shows one, and the default "
+                                                          "fair value walks at (number or expression).")
     measure_volatility: bool = Field(True, description="Coded strategies measure volatility from recent closes; false makes them always assume `volatility` (a calibrated value).")
     base_qty: Optional[Union[float, str]] = Field(None, description="Coded strategies' unit of order size (default 10 lots); an expression is read on every turn, so a controller can steer it.")
     flow_scale: Optional[str] = Field(None, description="Expression multiplying speculative order sizes (momentum, noise, passive); default 1.")
     sentiment: Optional[str] = Field(None, description="Expression for market sentiment in [-1, 1] that tilts noise traders toward buying or selling; default 0.")
-    fair_value: Optional[str] = Field(None, description="Expression for the true value fundamentalists estimate (default: the start price).")
+    fair_value: Optional[str] = Field(None, description="Expression for the true value fundamentalists estimate (default: "
+                                                        "$world.<name>_value, a random walk from the start price at `volatility`).")
     crowd: Dict[Literal["market_maker", "momentum", "mean_reversion", "fundamentalist", "noise", "passive"], CrowdSpec] = Field(
         {}, description="Coded traders by strategy: {market_maker: {count, cash, shares, params}}.")
     stage: Optional[str] = Field(None, description="Trade during this declared stage; default: a sequential stage named after the book.")

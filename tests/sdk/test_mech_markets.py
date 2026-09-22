@@ -1,6 +1,7 @@
 """Market mechanisms: order book, automated market makers, auctions, posted prices and analytics."""
 import json
 import math
+import statistics
 
 import pytest
 
@@ -240,29 +241,36 @@ def test_conservation_can_be_checked_after_every_action_every_round_or_at_the_en
     assert fg_env.parse(unchecked).invariants == []
 
 
-def test_coded_traders_produce_a_stylized_facts_tape():
+def test_coded_traders_produce_a_moving_stylized_facts_tape_across_seeds():
+    """The default crowd's price follows a fair value that walks at the book's volatility: it neither pins to the start
+    price nor bounces between bid and ask. One seed is not a claim, so the facts are medians over several."""
     crowd = {"market_maker": {"count": 3, "cash": 60000, "shares": 1200},
              "momentum": {"count": 4, "cash": 10000, "shares": 200},
              "mean_reversion": {"count": 4, "cash": 10000, "shares": 200},
              "fundamentalist": {"count": 4, "cash": 10000, "shares": 200},
              "noise": {"count": 8, "cash": 10000, "shares": 200}}
     reference = "{sigma: 0.01, kurtosis: 1, acf1: 0, acf_abs: 0.1, avg_volume: 60, vol_volume_corr: 0.3}"
-    contract = {"name": "Tape", "clock": {"rounds": 250}, "types": {"trader": {"agent": True}},
+    contract = {"name": "Tape", "clock": {"rounds": 200}, "types": {"trader": {"agent": True}},
                 "mechanisms": {"acme": {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 50,
-                                        "crowd": crowd}},
+                                        "volatility": 0.02, "crowd": crowd}},
                 "outputs": {"realism": {"expr": "$market_realism({prices: $series.acme_price, volumes: $series.acme_volume}, "
                                                 f"{reference})", "type": "map"}}}
-    result = fg_env.load(contract, seed=4).run()
-    assert result.status == "completed", result.error
-    prices, volumes, spreads = (result.series[f"acme_{k}"] for k in ("price", "volume", "spread"))
-    assert sum(1 for v in volumes if v > 0) >= 0.9 * len(volumes) and sum(volumes) / len(volumes) > 10
-    assert max(spreads) < 0.1 * min(prices) and sum(spreads) / len(spreads) < 0.02 * sum(prices) / len(prices)
-    stats = series_stats(prices, volumes)
-    assert stats["sigma"] > 0 and abs(stats["acf1"]) < 0.5
-    realism = result.outputs["realism"]
-    assert {c["key"] for c in realism["components"]} == {"volatility", "fat_tails", "no_return_memory",
-                                                         "volatility_clustering", "volume", "volume_volatility"}
-    assert 0 <= realism["score"] <= 1 and all(0 <= c["score"] <= 1 for c in realism["components"])
+    trade_acf, mid_sigma = [], []
+    for seed in range(1, 5):
+        result = fg_env.load(contract, seed=seed).run()
+        assert result.status == "completed", result.error
+        prices, mids, volumes, spreads = (result.series[f"acme_{k}"] for k in ("price", "mid", "volume", "spread"))
+        assert sum(1 for v in volumes if v > 0) >= 0.9 * len(volumes) and sum(volumes) / len(volumes) > 10
+        assert statistics.median(spreads) < 0.03 * statistics.median(prices)  # quotes widen with volatility
+        trade_acf.append(abs(series_stats(prices, volumes)["acf1"]))
+        mid_sigma.append(series_stats(mids, volumes)["sigma"])
+        realism = result.outputs["realism"]
+        assert {c["key"] for c in realism["components"]} == {"volatility", "fat_tails", "no_return_memory",
+                                                             "volatility_clustering", "volume", "volume_volatility"}
+        assert 0 <= realism["score"] <= 1 and all(0 <= c["score"] <= 1 for c in realism["components"])
+    # Anchored to the start price the mid moved 0.03% a round and trade returns bounced at acf1 ≈ -0.41 (24 seeds).
+    assert statistics.median(mid_sigma) > 0.02 / 8, mid_sigma
+    assert statistics.median(trade_acf) < 0.35, trade_acf
 
 
 def test_crowd_run_resumes_identically_after_a_snapshot():
