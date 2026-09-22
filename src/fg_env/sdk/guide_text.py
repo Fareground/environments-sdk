@@ -50,10 +50,21 @@ turn, uses `max_actions`, or runs out of `max_calls`.
   inside that change, so a `fail` in a hook refuses it. Entities made at build run on_create once the
   whole world exists, in creation order (`on_create_at_build: false` skips them). `$it` is the entity;
   in on_remove it is already no longer alive. Hooks setting off hooks stop at 16 levels.
-* Invariants are checked after every action and effect block: write them for states that must hold
-  at all times, not ones that only settle at the end of a stage. `"check": "round"` checks one only at
-  the end of every round (a conservation sum over a big crowd then costs one pass a round, not one per
-  change); `"check": "end"` once, when the run finishes.
+* Invariants are checked after every action and effect block (and after physics): write them for states that
+  must hold at all times, not ones that only settle at the end of a stage. An agent's action that breaks one —
+  itself or through the triggers and hooks its commit sets off — is refused and undone, and the agent is told the
+  invariant's `why` (give one: without it the agent only hears that a rule would break); the run goes on and its
+  diagnostics count it. A break by anything else (events, physics, the build) fails the run. `"check": "round"`
+  checks one only at the end of every round (a conservation sum over a big crowd then costs one pass a round, not
+  one per change) — a break found then fails the run, whatever caused it; `"check": "end"` once, when the run
+  finishes.
+* An agent's action is one undoable unit: the checks of its call (requirements, arguments), its effects, and the
+  hooks and triggers its commit sets off. A rule that fails anywhere in it (a division by zero, a number too large) refuses and undoes that action
+  alone — in a sealed stage when the choices commit, in an atomic turn the whole turn — and the agent is told the cause
+  without the rule or any hidden value. The run goes on; `result.diagnostics` names the failing rule with a fix and
+  `stats.faulted_actions` counts these refusals. Guard such rules (`min`/`max` on the parameter, or a `when` with a
+  `why`) so agents are told the limit up front. The same failure in events, world logic or physics fails the run, as
+  do a host that fails and a crash in a mechanism's own code, wherever they happen.
 * `end` conditions are checked after the start events, after each stage, and at the end of the round.
   `"check": "action"` also checks one the moment anything commits — an action, a sealed choice, an event or
   hook's effects — so a winning move ends the run before the next agent moves (in any kind of stage; sealed
@@ -522,5 +533,5 @@ CHECKLIST = """\
 * Measurement: metrics for the dynamics you care about; typed outputs for every result a caller
   needs; invariants for conservation laws.
 * Always: run `check` until clean, `preview` every agent type, run a few seeds, read
-  `result.stats` (invalid_rate and avg_update_tokens should stay low).
+  `result.stats` (invalid_rate and avg_update_tokens should stay low; faulted_actions should be 0).
 """

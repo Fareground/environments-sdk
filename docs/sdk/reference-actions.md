@@ -2,7 +2,7 @@
 
 ## `actions`: {action: ActionSpec}
 
-What agents can do: each is one typed tool with requirements and atomic effects.
+What agents can do: each is one typed tool with requirements and atomic effects. A rule that fails while an action applies (a division by zero, an overflow) refuses and undoes that action alone; the run goes on and its diagnostics name the rule.
 
 Roots (plus everywhere: $inputs $world $physics $clock $round $stage $metrics $series $arm $pattern):
 | where | extra roots |

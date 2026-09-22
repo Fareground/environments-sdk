@@ -51,6 +51,9 @@ class Stats:
     timeouts: int = 0
     #: Atomic turns undone because the whole turn was not `valid`.
     undone_turns: int = 0
+    #: Actions refused and undone because a rule failed or an invariant broke while they applied (also counted in
+    #: ``rejected_actions``): a contract bug, explained in the run's diagnostics.
+    faulted_actions: int = 0
 
     def add(self, other: "Stats") -> None:
         for name in self.__dataclass_fields__:

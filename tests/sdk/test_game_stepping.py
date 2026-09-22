@@ -200,14 +200,14 @@ def test_sample_legal_action_draws_the_same_call_from_stepped_and_piloted_states
 
 def test_a_stepped_state_that_fails_fails_like_a_piloted_one():
     broken = load_game("nim")
-    broken["invariants"] = [{"expr": "$world.stones == $inputs.stones", "why": "nobody may take a stone"}]
+    # Checked at the round's end, a break is the world's and fails the run (an action's own commit would be refused).
+    broken["invariants"] = [{"expr": "$world.stones == $inputs.stones", "why": "nobody may take a stone", "check": "round"}]
     stepped, piloted = _pair(broken)
     outcomes = []
     for subject in (stepped, piloted):
         state = subject.new_initial_state()
-        with pytest.raises(fg_env.RunError) as raised:
-            state.apply_action(state.legal_actions()[0])
-        outcomes.append((str(raised.value), state._run.read(lambda env: (env.status, env.error))))
+        state.apply_action(state.legal_actions()[0])
+        outcomes.append(state._run.read(lambda env: (env.status, env.error)))
         with pytest.raises(fg_env.RunError):
             state.is_terminal()
-    assert outcomes[0] == outcomes[1]
+    assert outcomes[0] == outcomes[1] and outcomes[0][0] == "failed"

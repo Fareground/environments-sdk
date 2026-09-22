@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from ..entity import Entity
+from .action_faults import fault_reason
 from .action_params import MAX_SAFE_INT, TEXT_MAX_LEN, _tidy
 from .action_schemas import ActionSchemas, ToolSpec
 from .action_validation import ActionValidation
@@ -266,6 +267,15 @@ class ActionBook(ActionSchemas, ActionValidation):
             stream.restore()
             world.chance_picker = picker
         return None if outcome.ok else outcome.text
+
+    def refusal(self, actor: Entity, name: str, params: Dict[str, Any],
+                stream: Optional["TrialStream"] = None) -> Optional[str]:
+        """:meth:`dry_run` for code that only asks whether a call would work (tool probes, legal-call listings): a rule
+        that fails for the call refuses it, as it would if an agent made it."""
+        try:
+            return self.dry_run(actor, name, params, stream)
+        except RunError as exc:
+            return fault_reason(exc)
 
     def _posted_since(self, record_mark: int) -> List[Tuple[RecordSpec, Dict[str, Any]]]:
         """Entries posted after ``record_mark``, with their record's spec."""

@@ -247,7 +247,7 @@ def sample_call(env: "Env", turn: "Turn", rng: random.Random, *, limit: int = CO
             if tool == END_TURN:
                 return tool, args
             params, problem = book.validate(actor, tool, args)
-            if problem is None and book.dry_run(actor, tool, params, stream) is None:
+            if problem is None and book.refusal(actor, tool, params, stream) is None:
                 return tool, args
     return None
 
@@ -284,7 +284,7 @@ def _walk(env: "Env", turn: "Turn", name: str, items: List[Tuple[str, ParamSpec]
     book, actor = env.actions, turn.actor
     if index == len(items):
         params, problem = book.validate(actor, name, raw)
-        if problem is None and (stream is None or book.dry_run(actor, name, params, stream) is None):
+        if problem is None and (stream is None or book.refusal(actor, name, params, stream) is None):
             if len(found) >= limit:
                 raise _Unlisted(f"more than {limit:,} legal combinations of arguments")
             found.append((name, dict(raw)))

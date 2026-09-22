@@ -269,7 +269,7 @@ def _family_op(spec: FamilySpec) -> OpSpec:
         return table[action], None
 
     def run(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-        from .errors import RunError  # imported late: errors imports nothing from here, but keep the registry import-light
+        from .errors import FatalRunError, RunError  # imported late: errors imports nothing from here, but keep the registry import-light
 
         chosen, problem = select(effect, runner.world.contract.mechanisms or {})
         if problem is not None:
@@ -282,8 +282,8 @@ def _family_op(spec: FamilySpec) -> OpSpec:
             chosen.run(runner, effect, vars, where)
         except _engine_errors():
             raise
-        except Exception as exc:  # the action crashed: its fault at this path, never the participant's
-            raise RunError(f"`{chosen.name}` failed: {type(exc).__name__}: {exc}", where) from exc
+        except Exception as exc:  # the action's code crashed: its fault at this path, never the participant's
+            raise FatalRunError(f"`{chosen.name}` failed: {type(exc).__name__}: {exc}", where) from exc
 
     example = f'{{"{name}": "<mechanism>", "action": "<action>", ...}}  (see guide("{name}"))'
     return replace(OpSpec(name, tuple(keys), run, example), literal=(name, "action"), select=select)

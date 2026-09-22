@@ -1,11 +1,11 @@
 """Run diagnostics: likely logic problems a run revealed, in plain words, each with a fix.
 
-A contract can pass every check and still not do what its author meant: a tool offered when none of its choices can
-work, sealed choices that overwrite each other, an agent type that never has anything to do, a stage that can never
-run, a measure that stays empty because nothing ever sets what it reads. These are read from what the run counted
-(:mod:`fg_env.sdk.run_diagnosis`) and reported on ``RunResult.diagnostics``, in ``result.summary()`` and as warnings
-from ``fg_env.check``. Each is reported only on evidence that random play cannot explain away, so a clean contract
-raises none.
+A contract can pass every check and still not do what its author meant: a rule that fails for some choice an agent
+can make, a tool offered when none of its choices can work, sealed choices that overwrite each other, an agent type
+that never has anything to do, a stage that can never run, a measure that stays empty because nothing ever sets what
+it reads. These are read from what the run counted (:mod:`fg_env.sdk.run_diagnosis`) and reported on
+``RunResult.diagnostics``, in ``result.summary()`` and as warnings from ``fg_env.check``. Each is reported only on
+evidence that random play cannot explain away, so a clean contract raises none.
 """
 from __future__ import annotations
 
@@ -39,8 +39,8 @@ _RULE_SECTIONS = ("actions", "stages", "events", "triggers", "blocks", "end", "f
 def diagnose(env: "Env", outputs: Dict[str, Any]) -> List[Dict[str, str]]:
     """Every likely logic problem the run so far shows, as ``{code, path, message, fix}``."""
     rules = _Rules(env)
-    return [*_arm_inputs(env), *_actions(env), *_overwrites(env), *_idle_agents(env), *_stages(env, rules),
-            *_stuck_measures(env, outputs, rules)]
+    return [*_arm_inputs(env), *_faults(env), *_actions(env), *_overwrites(env), *_idle_agents(env),
+            *_stages(env, rules), *_stuck_measures(env, outputs, rules)]
 
 
 def _arm_inputs(env: "Env") -> List[Dict[str, str]]:
@@ -59,6 +59,24 @@ def _finding(code: str, path: str, message: str, fix: str) -> Dict[str, str]:
 def _most_common(reasons: Dict[str, List[Any]]) -> str:
     count, text = max(reasons.values(), key=lambda entry: entry[0])
     return f"{text.rstrip('.')} ({count}×)"
+
+
+def _faults(env: "Env") -> List[Dict[str, str]]:
+    out = []
+    for path, (count, error) in env.diagnosis.faults.items():
+        if path.startswith("invariants["):
+            out.append(_finding("action_broke_invariant", path,
+                                f"agents' actions broke it {count} time(s); each was refused and undone: {error}",
+                                "refuse such actions before they apply: a `when` requirement (with a `why`) or parameter "
+                                "bounds on the action tell agents the rule up front; the invariant stays as the backstop"))
+        else:
+            out.append(_finding("action_rule_failed", path,
+                                f"failed {count} time(s) while an agent's action applied, so each such action was refused "
+                                f"and undone: {error}",
+                                "make the rule work for every choice agents can make: bound the parameter it reads (min, "
+                                "max, where) or add a `when` requirement with a `why`, so a choice it cannot handle is "
+                                "refused with a reason"))
+    return out
 
 
 def _actions(env: "Env") -> List[Dict[str, str]]:

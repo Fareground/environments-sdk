@@ -1570,7 +1570,7 @@
     },
     "InvariantSpec": {
       "additionalProperties": false,
-      "description": "Must always hold. A violation fails the run.",
+      "description": "Must always hold. Broken by an agent's action (with everything its commit sets off), that action is refused and\nundone and the agent told `why`; broken by anything else (events, physics, the build), the run fails.",
       "properties": {
         "expr": {
           "title": "Expr",

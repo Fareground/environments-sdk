@@ -14,6 +14,7 @@ fg-env trace run.jsonl
 | Unknown property or root | The issue path, the type's properties, and the roots available in that section |
 | Action never offered | Actor type, current stage, action requirements and argument bounds |
 | Call refused | `ToolResult.text`; distinguish malformed arguments from a business constraint |
+| Call refused with "Nothing changed" (divide by zero, number too large, a broken invariant) | A rule failed or an invariant broke while the action applied: `result.diagnostics` (`action_rule_failed`, `action_broke_invariant`) names the rule and `stats.faulted_actions` counts them; guard it with parameter bounds or a `when` with a `why` |
 | Output stays constant | Whether any rule changes its dependencies; run behavior checks |
 | Simultaneous decisions lose updates | Whether effects overwrite shared state; inspect settlement semantics |
 | Everyone sees confidential data | Public announcements, views, record visibility and recorded exposures |
@@ -45,6 +46,6 @@ Diagnostics include a code, path, message and suggested fix. They cover common a
 
 ## Errors
 
-`ContractError` identifies invalid contracts; `InputError` identifies bad inputs; `InvariantViolation` reports a broken declared rule; `RunError` covers execution failures; `SnapshotError` covers restoration problems. Preserve error details with the source version and a minimal reproduction.
+`ContractError` identifies invalid contracts; `InputError` identifies bad inputs; `InvariantViolation` reports a declared rule broken by world logic; `RunError` covers execution failures outside agents' actions (events, triggers, physics); `SnapshotError` covers restoration problems. A rule that fails, or an invariant that breaks, while an agent's action applies does not raise: that action is refused and undone and the run's diagnostics report it. Preserve error details with the source version and a minimal reproduction.
 
 For field-level help, use `fg-env guide <section>`. For full details, see [inspection](reference-inspect.md) and [running](reference-running.md).

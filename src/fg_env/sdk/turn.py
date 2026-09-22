@@ -10,10 +10,11 @@ import time
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Tuple
 
 from ..entity import Entity
+from .action_faults import guarded, refused_text
 from .action_schemas import _choice_names
 from .actions import ACTION_BUDGET, ToolSpec, stage_actions
 from .assets.delivery import Attachment
-from .contract import StageSpec
+from .contract import ActionSpec, StageSpec
 from .errors import RunError
 from .expr import ExprError, compile_expr, shared_budget, truthy
 from .measure import Stats
@@ -321,45 +322,66 @@ class Turn:
         if self.actions_left <= 0:
             self.stats.invalid_calls += 1
             return self._after(ToolResult(False, "You have no actions left this turn; call end_turn.", data=_INVALID))
+        acted, fault = guarded(env, lambda: self._act(name, spec, args))
+        if acted is None:
+            assert fault is not None
+            self.stats.rejected_actions += 1
+            self.stats.faulted_actions += 1
+            return self._after(ToolResult(False, refused_text(name, fault), data=_REJECTED))
+        result, applied = acted
+        if applied:
+            if self._mark is None:  # reactions wait for the commit (atomic turns: for the whole turn)
+                env.happenings.react(self.stage)
+            if result.ended or env.world.end_request is not None:
+                result.ended = True
+                why = self.settle()
+                if why is not None:
+                    return self._after(self._undone(why))
+        return self._after(result)
+
+    def _act(self, name: str, spec: ActionSpec, args: Any) -> Tuple[ToolResult, bool]:
+        """Check, then submit (sealed turns) or apply and commit one action call: its result, and whether it applied.
+        Runs inside :func:`guarded`, so the turn's own counts change only once nothing can fail any more."""
+        env = self.env
         blocked = env.actions.blocked(self.actor, name, self.used, env._used_round.get(self.actor.id, {}))
         if blocked:
             self.stats.invalid_calls += 1
-            return self._after(ToolResult(False, f"You cannot {name.replace('_', ' ')} now: {blocked}.", data=_INVALID))
+            return ToolResult(False, f"You cannot {name.replace('_', ' ')} now: {blocked}.", data=_INVALID), False
         args, cut = _cut(spec.params, args)
         params, problem = env.actions.validate(self.actor, name, args)
         if problem:
             self.stats.invalid_calls += 1
-            return self._after(ToolResult(False, f"{name} was not done: {problem}. Correct the arguments and call again.",
-                                          data=_INVALID))
+            return ToolResult(False, f"{name} was not done: {problem}. Correct the arguments and call again.",
+                              data=_INVALID), False
         if self.staged:
             refusal = env.actions.dry_run(self.actor, name, params)
             if refusal is not None:
                 self.stats.rejected_actions += 1
-                return self._after(ToolResult(False, refusal, data=_REJECTED))
+                return ToolResult(False, refusal, data=_REJECTED), False
+            ended = env.actions.ends_turn(self.actor, name, params)
             self.intents.append((name, dict(args or {})))
             self.pending.append({"action": name, **_plain(params)})
             self._count(name)
-            ended = env.actions.ends_turn(self.actor, name, params) or self.actions_left <= 0
             text = f"Submitted {name.replace('_', ' ')}{_args_text(params)}; it resolves when everyone has chosen.{cut}"
-            return self._after(ToolResult(True, text, ended))
+            return ToolResult(True, text, ended or self.actions_left <= 0), False
         outcome = env.actions.apply(self.actor, name, params)
         if not outcome.ok:
             self.stats.rejected_actions += 1
-            return self._after(ToolResult(False, outcome.text, data=_REJECTED))
+            return ToolResult(False, outcome.text, data=_REJECTED), False
+        self.pending.append({"action": name, **_plain(params)})  # what the commit's rules read as $pending
+        try:
+            elapsed = env.actions.duration(self.actor, name, params) if env.world.continuous else 0.0
+            self.committed(f"actions.{name}")
+            ended = env.actions.ends_turn(self.actor, name, params)
+        except BaseException:
+            self.pending.pop()
+            raise
         files = self.attachments(outcome.assets)
         self._count(name)
-        self.pending.append({"action": name, **_plain(params)})
-        if env.world.continuous:
-            self.elapsed += env.actions.duration(self.actor, name, params)
-        self.committed(f"actions.{name}", react=True)
+        self.elapsed += elapsed
         self.stats.actions += 1
-        ended = env.actions.ends_turn(self.actor, name, params) or self.actions_left <= 0 or env.world.end_request is not None
-        if ended:
-            why = self.settle()
-            if why is not None:
-                return self._after(self._undone(why))
-        return self._after(ToolResult(True, _with_references(outcome.text, files) + cut, ended,
-                                      {"success": outcome.success}, files))
+        return ToolResult(True, _with_references(outcome.text, files) + cut, ended or self.actions_left <= 0,
+                          {"success": outcome.success}, files), True
 
     def _must_act(self) -> bool:
         """The stage requires an action, the turn has taken none, and one is available."""
@@ -388,27 +410,35 @@ class Turn:
 
     # -- atomic turns ------------------------------------------------------------------
 
-    def committed(self, path: str, react: bool) -> None:
-        """A change inside the turn has applied: settle it now, or — atomic turns — when the turn ends."""
-        if self._mark is not None:
-            return
-        self.env._after_commit(path)
-        if react:
-            self.env.happenings.react(self.stage)
+    def committed(self, path: str) -> None:
+        """A change inside the turn has applied: settle it now, or — atomic turns — when the turn ends. Reactions it
+        asks for are the caller's to run, once nothing can undo the change any more."""
+        if self._mark is None:
+            self.env._after_commit(path)
 
     def settle(self) -> Optional[str]:
-        """Atomic turns: commit a turn that meets `valid` (then run what waited for it), or undo every
-        action of the turn and say why. A turn that took no action has nothing to check. Call under the lock."""
+        """Atomic turns: commit a turn that meets `valid` (then run what waited for it), or undo every action of the
+        turn and say why — also when a rule fails or an invariant breaks as it commits. A turn that took no action
+        has nothing to check. Call under the lock."""
         if self._mark is None:
             return None
-        why = self.invalid() if self._counted else None
+        why, fault = guarded(self.env, self._commit_turn, self._mark)
+        if fault is not None:
+            why = fault
+            self.stats.faulted_actions += 1
         if why is not None:
             self._undo()
             return why
         self._mark = None
-        self.env._after_commit(f"stages.{self.stage.name}")
         self.env.happenings.react(self.stage)
         return None
+
+    def _commit_turn(self) -> Optional[str]:
+        """Why the turn as played is not allowed, or None once it has committed."""
+        why = self.invalid() if self._counted else None
+        if why is None:
+            self.env._after_commit(f"stages.{self.stage.name}")
+        return why
 
     def settle_at_end(self) -> None:
         """Settle an atomic turn the participant left open (it returned, timed out or ran out of calls). An
