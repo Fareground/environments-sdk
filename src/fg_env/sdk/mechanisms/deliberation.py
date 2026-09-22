@@ -457,7 +457,7 @@ def _tally(world: Any, name: str, config: DeliberationConfig, state: Dict[str, A
     item = state["stack"].pop()
     eligible = len(_members(world, config))
     result = tally(config.method, state["ballots"], ["yes", "no"], config.threshold, "none", world.rng, eligible, config.quorum)
-    passed = result["winner"] == "yes"
+    passed = result["passed"]
     counts = {"yes": result["counts"].get("yes", 0), "no": result["counts"].get("no", 0),
               "abstain": result["cast"] - result["votes"]}
     detail = ", ".join(f"{k} {v}" for k, v in counts.items())
