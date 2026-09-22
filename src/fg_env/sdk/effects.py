@@ -378,6 +378,8 @@ class EffectRunner:
                     raise RunError(f"an effect is text or an object, got {effect!r}", f"{path}[{index}]")
             except ExprError as exc:
                 raise RunError(str(exc), f"{path}[{index}]") from None
+            except OverflowError:  # its own text varies by platform
+                raise RunError("arithmetic failed: the result is too large", f"{path}[{index}]") from None
             except ArithmeticError as exc:  # a contract rule's arithmetic failed: the rule's fault, never the participant's
                 raise RunError(f"arithmetic failed: {exc}", f"{path}[{index}]") from None
 

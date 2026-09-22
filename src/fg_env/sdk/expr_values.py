@@ -164,7 +164,9 @@ def _pow(a: Any, b: Any, source: str) -> Any:
             raise _too_big(bits, source)
     try:
         return _finite(a ** b, source)
-    except (OverflowError, ZeroDivisionError) as exc:
+    except OverflowError:  # its own text varies by platform ("Result too large", "Numerical result out of range")
+        raise ExprError("power failed: the result is too large", source) from None
+    except ZeroDivisionError as exc:
         raise ExprError(f"power failed: {exc}", source) from None
 
 
