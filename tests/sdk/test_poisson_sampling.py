@@ -94,7 +94,9 @@ def test_large_mean_failure_has_public_authored_context(pattern):
     c = {'name': 'Invalid demand', 'types': {'item': {}}, 'clock': {'rounds': 1}, 'world': {'draw': 0},
          'patterns': {'population': {'kind': 'draw', 'dist': 'poisson', 'mean': 2**53}},
          'events': [{'do': '$world.draw = ' + ('$pattern.population' if pattern else '$poisson(9007199254740992)')}]}
-    result = fg_env.run(c, seed=1)
+    with pytest.raises(fg_env.RunError) as failed:
+        fg_env.run(c, seed=1)
+    result = failed.value.result
     assert result.status == 'failed'
     assert 'Poisson mean must be' in result.error
     assert 'events[0]' in result.error or 'patterns.population' in result.error

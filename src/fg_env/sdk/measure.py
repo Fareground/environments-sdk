@@ -43,10 +43,12 @@ class Stats:
     auto_turns: int = 0
     #: Out-of-turn reaction turns (`wake` with `now`).
     reactions: int = 0
-    #: Turns a participant gave up after a provider error (``on_error="end_turn"``).
+    #: Turns an LLM participant lost because its provider still failed after every retry.
     forfeits: int = 0
     #: Model replies cut off at their output limit (reported by LLM participants).
     truncated: int = 0
+    #: Model replies the provider refused to give (reported by LLM participants).
+    refusals: int = 0
     #: Turns that ran past their time limit.
     timeouts: int = 0
     #: Atomic turns undone because the whole turn was not `valid`.

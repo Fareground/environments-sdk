@@ -86,7 +86,9 @@ def test_probabilities_computed_at_run_time_must_add_up():
     computed["world"]["p"] = 0.3
     for branch in computed["events"][0]["do"][0]["chance"]:
         branch["p"] = "$world.p"
-    result = fg_env.run(computed, seed=1)
+    with pytest.raises(fg_env.RunError) as failed:
+        fg_env.run(computed, seed=1)
+    result = failed.value.result
     assert result.status == "failed"
     assert "add up to 0.6, not 1" in result.error and "events[0].do[0].chance" in result.error
 

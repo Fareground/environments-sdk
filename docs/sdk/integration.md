@@ -53,7 +53,11 @@ participant = fg_env.participants.anthropic(
 result = fg_env.run("inventory.json", {"retailer": participant}, seed=7)
 ```
 
-Install the provider client separately (`python -m pip install anthropic`) and configure its credentials through your normal secret management. Environment seeds do not make remote model responses deterministic.
+Install the provider client separately (`python -m pip install anthropic`) and configure its credentials through your normal secret management. Pass the sync client (`anthropic.Anthropic()`, `openai.OpenAI()`); simultaneous turns already run in parallel. Environment seeds do not make remote model responses deterministic.
+
+Errors retrying cannot fix — a rejected API key, an unknown model, a bad request, a client that does not fit — fail the run at once: `fg_env.run` raises a `RunError` naming the participant, the provider's error and the fix, with the failed run in `error.result` (`env.run` returns it with `status="failed"`, and experiments keep it and carry on). Rate limits, timeouts and server errors are retried (`retries=4`); a turn whose retries all fail is forfeited, counted in `result.stats["forfeits"]` and reported as a `turns_forfeited` diagnostic. Replies the provider refuses count in `result.stats["refusals"]`.
+
+`max_tokens` caps each reply (OpenAI receives it as `max_completion_tokens`); `extra` adds request fields to every call, for example `extra={"temperature": 0}`, or `extra={"max_tokens": 1024}` for an OpenAI-compatible server that only knows the older field.
 
 ## Host responsibilities
 

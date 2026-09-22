@@ -5,7 +5,8 @@ can make, a tool offered when none of its choices can work, sealed choices that 
 that never has anything to do, a stage that can never run, a measure that stays empty because nothing ever sets what
 it reads. These are read from what the run counted (:mod:`fg_env.sdk.run_diagnosis`) and reported on
 ``RunResult.diagnostics``, in ``result.summary()`` and as warnings from ``fg_env.check``. Each is reported only on
-evidence that random play cannot explain away, so a clean contract raises none.
+evidence that random play cannot explain away, so a clean contract raises none. Turns an LLM participant forfeited to
+a failing model provider are reported too: such a run does not show how its agents play.
 """
 from __future__ import annotations
 
@@ -39,8 +40,19 @@ _RULE_SECTIONS = ("actions", "stages", "events", "triggers", "blocks", "end", "f
 def diagnose(env: "Env", outputs: Dict[str, Any]) -> List[Dict[str, str]]:
     """Every likely logic problem the run so far shows, as ``{code, path, message, fix}``."""
     rules = _Rules(env)
-    return [*_arm_inputs(env), *_faults(env), *_actions(env), *_overwrites(env), *_idle_agents(env),
+    return [*_forfeits(env), *_arm_inputs(env), *_faults(env), *_actions(env), *_overwrites(env), *_idle_agents(env),
             *_stages(env, rules), *_stuck_measures(env, outputs, rules)]
+
+
+def _forfeits(env: "Env") -> List[Dict[str, str]]:
+    lost = {agent: stats.forfeits for agent, stats in sorted(env.agent_stats.items()) if stats.forfeits}
+    if not lost:
+        return []
+    return [_finding("turns_forfeited", "participants",
+                     f"{sum(lost.values())} turn(s) were forfeited because the model provider still failed after every "
+                     f"retry ({', '.join(f'{agent} {count}' for agent, count in lost.items())}); those agents did "
+                     "nothing in them, so this run does not show how they play",
+                     "rerun when the provider is healthy, or give the participant more `retries`")]
 
 
 def _arm_inputs(env: "Env") -> List[Dict[str, str]]:

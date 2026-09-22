@@ -39,7 +39,9 @@ def test_invalid_literal_probabilities_are_rejected_at_the_authored_field(surfac
 @pytest.mark.parametrize('surface', ['event', 'policy', 'expression'])
 @pytest.mark.parametrize('value', [-0.1, 80, True])
 def test_dynamic_invalid_probability_fails_instead_of_running_a_different_model(surface, value):
-    result = fg_env.run(contract(surface, value, dynamic=True), seed=3)
+    with pytest.raises(fg_env.RunError) as failed:
+        fg_env.run(contract(surface, value, dynamic=True), seed=3)
+    result = failed.value.result
     assert result.status == 'failed', result.to_dict()
     assert result.error
     assert 'chance' in result.error or 'probability' in result.error

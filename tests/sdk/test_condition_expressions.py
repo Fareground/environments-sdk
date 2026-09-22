@@ -43,7 +43,9 @@ def test_false_repeat_condition_performs_no_iterations(condition):
 def test_repeat_still_stops_at_dynamic_condition_and_enforces_the_limit():
     result = fg_env.run(contract([{'repeat': 3, 'while': '$world.total < 2', 'do': ['$world.total += 1']}]))
     assert result.ok and result.outputs['total'] == 2
-    exhausted = fg_env.run(contract([{'repeat': 3, 'while': 'true', 'do': ['$world.total += 1']}]))
+    with pytest.raises(fg_env.RunError) as failed:
+        fg_env.run(contract([{'repeat': 3, 'while': 'true', 'do': ['$world.total += 1']}]))
+    exhausted = failed.value.result
     assert not exhausted.ok
     assert 'reached its limit' in exhausted.error
 

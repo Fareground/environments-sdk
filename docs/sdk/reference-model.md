@@ -71,7 +71,8 @@ What an agent reads:
   others' actions, outcomes of its own simultaneous actions, record entries, event news), then
   every declared view that applies. Text written by participants is wrapped «like this».
 * tools: one per legal action with a JSON Schema (entity choices as enums, numeric bounds when
-  they depend only on the actor), plus look/inspect/end_turn. Invalid calls return what to fix.
+  they depend only on the actor), plus look/inspect/end_turn. Invalid calls return what to fix. An action's name is
+  its tool's name, so it must be one providers accept (letters, digits, _ and -, at most 64) and not a built-in's.
 
 Unless an action is `private` or sets `announce`, others read a default line
 "Name: action (args)."; an action that posts to a record announces nothing extra (the entry

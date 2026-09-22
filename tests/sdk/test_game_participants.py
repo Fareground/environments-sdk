@@ -24,7 +24,9 @@ def test_mcts_does_not_lose_tic_tac_toe_to_random_and_replays_exactly():
 
 
 def test_search_participants_refuse_games_with_hidden_information():
-    result = fg_env.run(KUHN, {"p0": "mcts:10", "p1": "random"}, seed=1)
+    with pytest.raises(fg_env.RunError) as failed:
+        fg_env.run(KUHN, {"p0": "mcts:10", "p1": "random"}, seed=1)
+    result = failed.value.result
     assert result.status == "failed" and "hidden information" in result.error
 
 
@@ -38,7 +40,9 @@ def test_a_saved_cfr_policy_plays_its_seat_and_a_foreign_policy_is_refused(tmp_p
     assert played.ok and sum(played.returns.values()) == 0
     foreign = tmp_path / "foreign.json"
     TabularPolicy({"not-a-kuhn-state": {"bet": 1.0}}).save(foreign)
-    refused = fg_env.run(KUHN, {"p0": f"cfr:{foreign}", "p1": "random"}, seed=4)
+    with pytest.raises(fg_env.RunError) as failed:
+        fg_env.run(KUHN, {"p0": f"cfr:{foreign}", "p1": "random"}, seed=4)
+    refused = failed.value.result
     assert refused.status == "failed" and "no entry" in refused.error
 
 

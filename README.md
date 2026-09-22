@@ -144,7 +144,13 @@ Run it with an LLM — pass your own client:
 import anthropic
 claude = fg_env.participants.anthropic(anthropic.Anthropic(), "YOUR_AVAILABLE_MODEL_ID")
 result = fg_env.run(contract, {"player": claude}, seed=1)
+print(result.summary())      # outputs, plus a diagnostic if any turn was lost to the provider
 ```
+
+A run that cannot go on raises: a rejected API key, an unknown model or a participant that raises stops
+`fg_env.run` with a `RunError` naming the agent, the error and the fix (`error.result` is the failed run).
+Rate limits and server errors are retried; a turn that still fails is forfeited, counted in
+`result.stats["forfeits"]` and reported in `result.diagnostics`.
 
 Or with your own code. A participant is any function that takes a `Wake`:
 

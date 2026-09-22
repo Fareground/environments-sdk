@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
+
+if TYPE_CHECKING:
+    from .measure import RunResult
 
 __all__ = ["Issue", "ContractError", "InputError", "RunError", "InvariantViolation", "FatalRunError",
            "SnapshotError"]
@@ -49,6 +52,9 @@ class InputError(ContractError):
 
 class RunError(RuntimeError):
     """A run could not continue. ``path`` names the contract element that failed."""
+
+    #: The failed run, when :func:`fg_env.run` raised this (outputs so far, statistics, events).
+    result: Optional["RunResult"] = None
 
     def __init__(self, message: str, path: Optional[str] = None):
         self.path = path

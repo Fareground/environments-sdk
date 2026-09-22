@@ -42,6 +42,8 @@ def test_valid_delays_remain_runnable(delay):
 def test_dynamic_invalid_delay_still_fails_at_runtime():
     c = contract("$inputs.delay")
     assert not [i for i in fg_env.check(c, rounds=0) if i.severity == "error"]
-    r = fg_env.run(c, inputs={"delay": -1})
+    with pytest.raises(fg_env.RunError) as failed:
+        fg_env.run(c, inputs={"delay": -1})
+    r = failed.value.result
     assert r.status == "failed"
     assert "whole number of rounds" in r.error

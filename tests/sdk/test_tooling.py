@@ -160,7 +160,9 @@ def test_repeat_matches_until_the_book_is_uncrossed():
 def test_repeat_limit_is_an_error_not_a_silent_stop():
     looping = json.loads(json.dumps(REPEAT))
     looping["events"][0]["do"][0]["do"] = ["$world.trades += 1"]
-    result = fg_env.run(looping, seed=1)
+    with pytest.raises(fg_env.RunError) as failed:
+        fg_env.run(looping, seed=1)
+    result = failed.value.result
     assert result.status == "failed"
     assert "reached its limit of 10" in result.error
 

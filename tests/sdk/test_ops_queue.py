@@ -191,7 +191,9 @@ def test_config_mistakes_name_what_to_fix():
     no_length = centre(clock={"rounds": 3})
     assert any("needs `interval`" in i.message for i in fg_env.check(no_length, rounds=0))
     fractional = centre(servers={"agents": {"staff": 2.5}})
-    result = fg_env.run(fractional, seed=1)
+    with pytest.raises(fg_env.RunError) as failed:
+        fg_env.run(fractional, seed=1)
+    result = failed.value.result
     assert result.status == "failed" and "whole number of servers" in result.error
 
 

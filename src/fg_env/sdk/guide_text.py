@@ -76,7 +76,8 @@ What an agent reads:
   others' actions, outcomes of its own simultaneous actions, record entries, event news), then
   every declared view that applies. Text written by participants is wrapped «like this».
 * tools: one per legal action with a JSON Schema (entity choices as enums, numeric bounds when
-  they depend only on the actor), plus look/inspect/end_turn. Invalid calls return what to fix.
+  they depend only on the actor), plus look/inspect/end_turn. Invalid calls return what to fix. An action's name is
+  its tool's name, so it must be one providers accept (letters, digits, _ and -, at most 64) and not a built-in's.
 
 Unless an action is `private` or sets `announce`, others read a default line
 "Name: action (args)."; an action that posts to a record announces nothing extra (the entry
@@ -430,7 +431,9 @@ limit that ran out; snapshots keep it. `experiment` (with `branch_at` the shared
 run returns provisional outputs). `env.run(..., stop=lambda env: ...)` is checked before every round,
 stage, pass and sequential turn; the next `run` continues exactly where it stopped (finishing that
 round counts as one of `rounds`). Snapshots are taken between rounds. A participant that raises fails
-the run with its entity id; experiments keep such runs as `status="failed"` and carry on. Read state with `env.entity(id)`, `env.entities(type)`, `env.props`,
+the run with its entity id: `fg_env.run` raises the `RunError` (its `.result` is the failed run), `env.run` returns
+the run with `status="failed"` and `error`, and experiments keep such runs and carry on.
+Read state with `env.entity(id)`, `env.entities(type)`, `env.props`,
 `env.result()`, `env.finished`. `env.preview(id)` plays the start of the next round on a copy and shows
 exactly the turn the agent will get.
 
@@ -463,15 +466,20 @@ when the game is created (one per combination of listed argument values; free te
 parametric: apply them as `{"tool", "args"}`). `fg_env.load(..., chance=callable)` chooses chance outcomes.
 
 LLM participants: `fg_env.participants.anthropic(anthropic.Anthropic(), "claude-sonnet-5")` or
-`fg_env.participants.openai(client, model)`; they cache the brief and loop over tool calls, retry rate
-limits, timeouts and server errors (`retries=4`), then fail the run or, with `on_error="end_turn"`,
-forfeit the turn. Both take `max_tokens` (openai also `reasoning_effort`); a reply cut off at the limit
+`fg_env.participants.openai(client, model)` with the sync client; they cache the brief and loop over tool calls.
+Rate limits, timeouts and server errors are retried (`retries=4`), then the turn is forfeited (`forfeits`, and a
+`turns_forfeited` diagnostic). Any other error — a rejected API key, an unknown model, a bad request, an async or
+unfitting client — fails the run at once with the agent, the provider's error and the fix. A refused reply ends the
+turn (`refusals`); openai arguments that are not a JSON object count as invalid calls. Both take `max_tokens` (openai
+sends it as `max_completion_tokens`, and also takes `reasoning_effort`) and `extra`, more request fields sent with
+every call (`extra={"temperature": 0}`; `{"max_tokens": 1024}` for a server that only knows that field); a reply
+cut off at the limit
 counts in `truncated` and, when it called no tool, is asked once for a short tool call (`retry_truncated`).
 Every truncated reply wastes its whole output: for frequent decisions use `reasoning_effort="low"` (in a Hold'em
 evaluation it cut cost by 38% with no visible loss in play), or keep the default effort with a larger `max_tokens`
 (6,000 was cut off 9 times in 96 turns).
 Their real token usage is in `result.stats` (`llm_calls`, `input_tokens`, `output_tokens`,
-`cache_read_tokens`, `cache_write_tokens`, `llm_retries`, `forfeits`, `truncated`); your own
+`cache_read_tokens`, `cache_write_tokens`, `llm_retries`, `forfeits`, `truncated`, `refusals`); your own
 participants can add theirs with `wake.record_usage(...)`.
 Built-ins: `"random"`, `"idle"`, `"policy:<name>"`, and game algorithms `"mcts:N"`, `"ismcts:N"`, `"minimax[:depth]"`, `"cfr:<policy.json|iterations>"`.
 

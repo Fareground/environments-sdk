@@ -59,5 +59,7 @@ def test_a_world_list_that_changes_is_never_served_from_a_stale_index():
     ("$lookup([1, 2], sku, 1)", "row 0 is int 1, not a row with fields"),
 ])
 def test_lookup_mistakes_say_what_to_pass(source, message):
-    result = fg_env.run(_shop({}, events=[{"do": [f"$found = {source}"]}]), seed=1)
+    with pytest.raises(fg_env.RunError) as failed:
+        fg_env.run(_shop({}, events=[{"do": [f"$found = {source}"]}]), seed=1)
+    result = failed.value.result
     assert result.status == "failed" and message in result.error
