@@ -1,0 +1,714 @@
+[
+ {
+  "brief": "auction_house",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "token cap",
+  "writes": 7,
+  "clean_at": 3,
+  "final_clean": false,
+  "runs_ok": 0,
+  "runs": 6,
+  "checks_passed": 0,
+  "checks": 4,
+  "input_tokens": 556651,
+  "output_tokens": 71387,
+  "cost": 0.0556,
+  "wall_seconds": 1929.7,
+  "contract_lines": 563,
+  "guide_parts": [
+   "all",
+   "actions",
+   "stages",
+   "effects",
+   "events",
+   "functions",
+   "market.auction",
+   "market",
+   "population",
+   "inputs",
+   "views",
+   "outputs",
+   "functions.collections",
+   "expressions",
+   "types",
+   "entities",
+   "clock",
+   "brief",
+   "world",
+   "end",
+   "records",
+   "functions.world",
+   "mechanisms",
+   "model",
+   "policies"
+  ],
+  "check_errors": [
+   [
+    "(contract): not valid JSON"
+   ],
+   [
+    "invariants[0]: invariants[0]: invariant `$sum(collector, $it.cash) + $entity(house).cash == $world.cash_start` no longer holds after build (Cash only moves from collectors to the house.) \u2192 fix the rule at this path (found by a smoke run)"
+   ],
+   [],
+   [
+    "(contract): not valid JSON"
+   ],
+   [],
+   [],
+   [
+    "policies.prudent.rules[0].with.invalid_guard: 'submit_bid' has no parameter 'invalid_guard'"
+   ]
+  ],
+  "failed_checks": [
+   {
+    "check": "outputs_present",
+    "passed": false,
+    "why": "random runs fail"
+   },
+   {
+    "check": "auction_lots_are_well_formed",
+    "passed": false,
+    "why": "random runs fail"
+   },
+   {
+    "check": "auction_money_is_conserved",
+    "passed": false,
+    "why": "random runs fail"
+   },
+   {
+    "check": "auction_english_lots_sell",
+    "passed": false,
+    "why": "random runs fail"
+   }
+  ],
+  "run_errors": [
+   {
+    "participants": "random",
+    "seed": 1,
+    "ok": false,
+    "error": "ContractError: contract is invalid (1 error(s)):\n  - policies.prudent.rules[0].with.invalid_guard: 'submit_bid' has no parameter 'invalid_guard'"
+   },
+   {
+    "participants": "random",
+    "seed": 2,
+    "ok": false,
+    "error": "ContractError: contract is invalid (1 error(s)):\n  - policies.prudent.rules[0].with.invalid_guard: 'submit_bid' has no parameter 'invalid_guard'"
+   },
+   {
+    "participants": "random",
+    "seed": 3,
+    "ok": false,
+    "error": "ContractError: contract is invalid (1 error(s)):\n  - policies.prudent.rules[0].with.invalid_guard: 'submit_bid' has no parameter 'invalid_guard'"
+   },
+   {
+    "participants": {
+     "collector": "policy:prudent"
+    },
+    "seed": 1,
+    "ok": false,
+    "error": "ContractError: contract is invalid (1 error(s)):\n  - policies.prudent.rules[0].with.invalid_guard: 'submit_bid' has no parameter 'invalid_guard'"
+   },
+   {
+    "participants": {
+     "collector": "policy:prudent"
+    },
+    "seed": 2,
+    "ok": false,
+    "error": "ContractError: contract is invalid (1 error(s)):\n  - policies.prudent.rules[0].with.invalid_guard: 'submit_bid' has no parameter 'invalid_guard'"
+   },
+   {
+    "participants": {
+     "collector": "policy:prudent"
+    },
+    "seed": 3,
+    "ok": false,
+    "error": "ContractError: contract is invalid (1 error(s)):\n  - policies.prudent.rules[0].with.invalid_guard: 'submit_bid' has no parameter 'invalid_guard'"
+   }
+  ]
+ },
+ {
+  "brief": "beer_game",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "token cap",
+  "writes": 5,
+  "clean_at": 3,
+  "final_clean": false,
+  "runs_ok": 3,
+  "runs": 3,
+  "checks_passed": 5,
+  "checks": 6,
+  "input_tokens": 497565,
+  "output_tokens": 109466,
+  "cost": 0.0882,
+  "wall_seconds": 2124.2,
+  "contract_lines": 469,
+  "guide_parts": [
+   "all",
+   "effects",
+   "patterns",
+   "events",
+   "stages",
+   "functions",
+   "functions.collections",
+   "functions.lists",
+   "functions.stats",
+   "brief",
+   "inputs",
+   "views",
+   "outputs",
+   "metrics",
+   "expressions",
+   "functions.random",
+   "functions.world",
+   "effects",
+   "types",
+   "entities",
+   "population",
+   "actions",
+   "inspect"
+  ],
+  "check_errors": [
+   [
+    "(contract): not valid JSON"
+   ],
+   [
+    "outputs.bullwhip_ratio.format: must be text, got 2"
+   ],
+   [],
+   [],
+   [
+    "(contract): not valid JSON"
+   ]
+  ],
+  "failed_checks": [
+   {
+    "check": "beer_idle_team_pays_backlog",
+    "passed": false,
+    "why": "idle factory produced: [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4]"
+   }
+  ],
+  "run_errors": []
+ },
+ {
+  "brief": "classroom",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "token cap",
+  "writes": 6,
+  "clean_at": 3,
+  "final_clean": true,
+  "runs_ok": 12,
+  "runs": 12,
+  "checks_passed": 3,
+  "checks": 4,
+  "input_tokens": 600208,
+  "output_tokens": 34475,
+  "cost": 0.0402,
+  "wall_seconds": 993.6,
+  "contract_lines": 244,
+  "guide_parts": [
+   "all",
+   "patterns",
+   "functions",
+   "metrics",
+   "actions",
+   "stages",
+   "expr",
+   "functions.collections",
+   "expressions",
+   "effects",
+   "outputs",
+   "views",
+   "events",
+   "functions.random",
+   "functions.math",
+   "policies",
+   "inputs",
+   "types",
+   "population",
+   "entities"
+  ],
+  "check_errors": [
+   [
+    "brief.situation: $actor.weeks: student/teacher has no property 'weeks' \u2192 properties: last_effort, quiz_scores, understanding \u2014 in `$actor.weeks`"
+   ],
+   [
+    "invariants[2]: invariants[2]: cannot read '.understanding' of str 'fractions' \u2014 in `$all(student, $all($keys($it.understanding), $it.understanding[$it] >= 0 and $it.understanding[$it] <= 10))` \u2192 fix the rule at this path (found by a smoke run)"
+   ],
+   [],
+   [],
+   [],
+   []
+  ],
+  "failed_checks": [
+   {
+    "check": "class_scores_are_valid",
+    "passed": false,
+    "why": "1 students, expected 5"
+   }
+  ],
+  "run_errors": []
+ },
+ {
+  "brief": "ed_triage",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "done",
+  "writes": 7,
+  "clean_at": 1,
+  "final_clean": true,
+  "runs_ok": 3,
+  "runs": 3,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 587632,
+  "output_tokens": 49787,
+  "cost": 0.0366,
+  "wall_seconds": 1350.1,
+  "contract_lines": 330,
+  "guide_parts": [
+   "patterns",
+   "events",
+   "stages",
+   "functions",
+   "effects",
+   "actions",
+   "inputs",
+   "functions.random",
+   "functions.collections",
+   "population",
+   "metrics",
+   "views",
+   "functions.world",
+   "stages"
+  ],
+  "check_errors": [
+   [],
+   [],
+   [],
+   [],
+   [],
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "jury_trial",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "token cap",
+  "writes": 5,
+  "clean_at": 1,
+  "final_clean": true,
+  "runs_ok": 18,
+  "runs": 18,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 585714,
+  "output_tokens": 51578,
+  "cost": 0.0385,
+  "wall_seconds": 1227.2,
+  "contract_lines": 564,
+  "guide_parts": [
+   "all",
+   "actions",
+   "stages",
+   "events",
+   "types",
+   "brief",
+   "records",
+   "views",
+   "outputs",
+   "functions",
+   "functions.collections",
+   "model",
+   "inputs",
+   "metrics",
+   "authoring",
+   "inspect",
+   "policies"
+  ],
+  "check_errors": [
+   [],
+   [],
+   [],
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "labor_negotiation",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "token cap",
+  "writes": 5,
+  "clean_at": 3,
+  "final_clean": true,
+  "runs_ok": 21,
+  "runs": 21,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 469994,
+  "output_tokens": 138234,
+  "cost": 0.0656,
+  "wall_seconds": 1854.3,
+  "contract_lines": 673,
+  "guide_parts": [
+   "all",
+   "mechanisms.agreements.negotiation",
+   "actions",
+   "agreements.negotiation",
+   "stages",
+   "views",
+   "functions.collections",
+   "decision.ballot",
+   "model",
+   "population",
+   "inputs",
+   "records",
+   "events",
+   "invariants",
+   "outputs",
+   "policies",
+   "templates",
+   "entities",
+   "world",
+   "types",
+   "effects",
+   "authoring",
+   "inspect"
+  ],
+  "check_errors": [
+   [
+    "(contract): not valid JSON"
+   ],
+   [
+    "population[0].props.role: 'union_member' has no property 'role'"
+   ],
+   [],
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "sealed_tender",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "done",
+  "writes": 4,
+  "clean_at": 1,
+  "final_clean": true,
+  "runs_ok": 15,
+  "runs": 15,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 510794,
+  "output_tokens": 44126,
+  "cost": 0.0328,
+  "wall_seconds": 1304.9,
+  "contract_lines": 404,
+  "guide_parts": [
+   "all",
+   "stages",
+   "social",
+   "groups",
+   "records",
+   "model",
+   "end",
+   "functions",
+   "outputs",
+   "defs",
+   "functions.collections",
+   "functions.flow",
+   "actions",
+   "population",
+   "inputs",
+   "views",
+   "functions.world",
+   "events",
+   "types",
+   "policies",
+   "effects",
+   "mechanisms"
+  ],
+  "check_errors": [
+   [],
+   [],
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "sports_league",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "done",
+  "writes": 3,
+  "clean_at": 1,
+  "final_clean": true,
+  "runs_ok": 3,
+  "runs": 3,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 435031,
+  "output_tokens": 63931,
+  "cost": 0.0443,
+  "wall_seconds": 1634.5,
+  "contract_lines": 531,
+  "guide_parts": [
+   "all",
+   "patterns",
+   "actions",
+   "stages",
+   "effects",
+   "functions.collections",
+   "population",
+   "inputs",
+   "outputs",
+   "events",
+   "functions",
+   "functions.random",
+   "types",
+   "views",
+   "functions.world",
+   "clock",
+   "brief",
+   "metrics",
+   "defs",
+   "templates",
+   "expressions"
+  ],
+  "check_errors": [
+   [],
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "town_hall",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "token cap",
+  "writes": 8,
+  "clean_at": 3,
+  "final_clean": true,
+  "runs_ok": 15,
+  "runs": 15,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 580113,
+  "output_tokens": 60426,
+  "cost": 0.0393,
+  "wall_seconds": 831.7,
+  "contract_lines": 358,
+  "guide_parts": [
+   "all",
+   "actions",
+   "stages",
+   "functions.collections",
+   "types",
+   "outputs",
+   "expressions",
+   "effects",
+   "population",
+   "records",
+   "brief",
+   "inputs",
+   "model",
+   "policies"
+  ],
+  "check_errors": [
+   [
+    "stages[1].max_actions: must be a whole number, got the text \"$count(proposal)\" \u2192 write a whole number without quotes"
+   ],
+   [
+    "invariants[0]: $it.ballot: proposal has no property 'ballot' \u2192 properties: none \u2014 in `$all(resident, $all(proposal, $get($it.ballot, $outer.id, null) in ['yes', 'no', 'abstain', null]))`"
+   ],
+   [],
+   [],
+   [],
+   [],
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "treaty",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "token cap",
+  "writes": 6,
+  "clean_at": 1,
+  "final_clean": true,
+  "runs_ok": 15,
+  "runs": 15,
+  "checks_passed": 3,
+  "checks": 4,
+  "input_tokens": 592596,
+  "output_tokens": 40725,
+  "cost": 0.0386,
+  "wall_seconds": 1307.1,
+  "contract_lines": 365,
+  "guide_parts": [
+   "all",
+   "patterns",
+   "mechanisms",
+   "views",
+   "functions",
+   "records",
+   "effects",
+   "population",
+   "types",
+   "inputs",
+   "world",
+   "stages",
+   "end",
+   "actions",
+   "functions.collections",
+   "expressions",
+   "outputs",
+   "brief",
+   "policies",
+   "model"
+  ],
+  "check_errors": [
+   [],
+   [],
+   [],
+   [],
+   [],
+   []
+  ],
+  "failed_checks": [
+   {
+    "check": "treaty_respects_red_lines",
+    "passed": false,
+    "why": "red lines are the same every game"
+   }
+  ],
+  "run_errors": []
+ },
+ {
+  "brief": "weekly_inventory",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "token cap",
+  "writes": 4,
+  "clean_at": 1,
+  "final_clean": true,
+  "runs_ok": 9,
+  "runs": 9,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 568762,
+  "output_tokens": 50533,
+  "cost": 0.0336,
+  "wall_seconds": 942.9,
+  "contract_lines": 363,
+  "guide_parts": [
+   "all",
+   "patterns",
+   "population",
+   "effects",
+   "functions",
+   "expressions",
+   "inputs",
+   "events",
+   "patterns.counts",
+   "patterns.draw",
+   "patterns.noise",
+   "functions.collections",
+   "actions",
+   "stages",
+   "views",
+   "outputs",
+   "functions.random",
+   "patterns",
+   "types",
+   "invariants",
+   "metrics",
+   "brief",
+   "world",
+   "templates",
+   "policies",
+   "model",
+   "inspect",
+   "functions.world",
+   "functions.economy"
+  ],
+  "check_errors": [
+   [],
+   [],
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "werewolf",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "token cap",
+  "writes": 5,
+  "clean_at": 1,
+  "final_clean": true,
+  "runs_ok": 3,
+  "runs": 3,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 540524,
+  "output_tokens": 73526,
+  "cost": 0.0512,
+  "wall_seconds": 1993.3,
+  "contract_lines": 376,
+  "guide_parts": [
+   "actions",
+   "stages",
+   "events",
+   "views",
+   "effects",
+   "population",
+   "inputs",
+   "metrics",
+   "functions",
+   "functions.collections",
+   "patterns",
+   "mechanisms",
+   "groups",
+   "decision",
+   "flow",
+   "host",
+   "groups.roles",
+   "decision.ballot",
+   "flow.victory",
+   "world",
+   "outputs",
+   "social.channels",
+   "all",
+   "model",
+   "inspect",
+   "policies",
+   "recipes",
+   "end",
+   "records",
+   "brief",
+   "templates",
+   "triggers",
+   "expressions"
+  ],
+  "check_errors": [
+   [],
+   [],
+   [
+    "stages[0].on_exit[0]: $opts is not available here \u2192 available: $arm, $clock, $inputs, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world \u2014 in `$tally_votes('plurality', $world.ballots, $opts, null, 'none')`"
+   ],
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ }
+]

@@ -1,0 +1,1491 @@
+{
+ "model": "deepseek/deepseek-v4.1-flash",
+ "stop": "token cap",
+ "nudges": 0,
+ "messages": [
+  {
+   "role": "system",
+   "content": "(guide text)"
+  },
+  {
+   "role": "user",
+   "content": "# Werewolf\n\nMake a werewolf-style social deduction game for seven players, all AI agents. At the start, two players are secretly werewolves, one is the seer and the other four are villagers; the werewolves know each other, but nobody else knows anyone's role. Each night the werewolves agree on one living player to kill, and the seer privately learns the role of one living player of their choice. Each day the survivors discuss and then vote to eliminate one living player; the player with the most votes is eliminated, and on a tie nobody is. When a player dies or is eliminated, their role is not revealed. The village wins when both werewolves are gone; the werewolves win as soon as they are at least as many as everyone else alive. Stop after ten days if neither side has won.\n\n## Deliverables\n\nReport these outputs:\n- `winner` \u2014 \"village\", \"werewolves\", or null if nobody won.\n- `roles` \u2014 a map from each player's id to \"werewolf\", \"seer\" or \"villager\".\n- `eliminated` \u2014 a list of the ids of the players removed from the game (killed or voted out), in the order it happened.\n- `alive_end` \u2014 a list of the ids of the players alive at the end.\n\n\nBuild this environment. Save it with write_contract and use the other tools as you see fit. Reply without calling a tool when you are done."
+  },
+  {
+   "role": "assistant",
+   "content": "I'll start by reading the SDK guide to understand the mechanics available.",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_e2cec66f021d43598d2b4dca",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"actions\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_6ec7899aa71a4bacb3782f92",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"stages\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "call_36d8c19f7e7d4bd290f2a0d3",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"events\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "call_e5fcebce3ba44147b737093c",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"views\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_e2cec66f021d43598d2b4dca",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_6ec7899aa71a4bacb3782f92",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_36d8c19f7e7d4bd290f2a0d3",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_e5fcebce3ba44147b737093c",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_9cbfc590835042149e2a1271",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"effects\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_53e8e14756144e9180d13a95",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"population\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "call_e485d6d3a88e4ee58ed0abb7",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"inputs\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "call_96ff5b950a3a4f8983e2e9c4",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"metrics\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_9cbfc590835042149e2a1271",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_53e8e14756144e9180d13a95",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_e485d6d3a88e4ee58ed0abb7",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_96ff5b950a3a4f8983e2e9c4",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_fbbad382e4b74614a2cd9c65",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_21edaef8c1b14daeb5d807b9",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions.collections\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "call_ddf941ab523f4dbfb2b96485",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"patterns\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "call_26f9fcaae1c241b3abb7d6db",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"mechanisms\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_fbbad382e4b74614a2cd9c65",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_21edaef8c1b14daeb5d807b9",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_ddf941ab523f4dbfb2b96485",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_26f9fcaae1c241b3abb7d6db",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_bdd7736f578e4dcdbb95a4d7",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"groups\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_25e4819b82f64a6fa1b5da04",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"decision\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "call_cdef10bfa854467fbb886636",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"flow\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "call_791f4be58b284998bfc0a326",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"host\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_bdd7736f578e4dcdbb95a4d7",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_25e4819b82f64a6fa1b5da04",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_cdef10bfa854467fbb886636",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_791f4be58b284998bfc0a326",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_818ea872fb2a4bce989778f5",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"groups.roles\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_65b3f7c66571425587f5423d",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"decision.ballot\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "call_10b5e50d01344f49ba7a207d",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"flow.victory\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_818ea872fb2a4bce989778f5",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_65b3f7c66571425587f5423d",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_10b5e50d01344f49ba7a207d",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "Now let me look at a couple more references before drafting.",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_416db520472c40cab403b7d0",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"world\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_3bf7a7197ce142c2a23ce87a",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"outputs\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "call_a2d5b9d0ab7c4bcc9abeece2",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"social.channels\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_416db520472c40cab403b7d0",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_3bf7a7197ce142c2a23ce87a",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_a2d5b9d0ab7c4bcc9abeece2",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "Now let me look at the mechanics for outputs and briefly at `game`/`flow` to decide how to structure win conditions.",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_2d930d6e0ce4484992ac051c",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"all\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_2d930d6e0ce4484992ac051c",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "I have a good picture. Let me probe the `groups.roles` mechanism to see exactly what it generates before committing.\n\n",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_5da6e37433ff44f5892acaa1",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_5da6e37433ff44f5892acaa1",
+   "content": "Saved (14 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_b26495094dc344bfa4c13f42",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_5b4b21ffee204805ae357060",
+     "function": {
+      "name": "preview",
+      "arguments": "{\"agent\": \"p1\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_b26495094dc344bfa4c13f42",
+   "content": "[warning] outputs: no outputs declared \u2192 declare the typed results this environment produces"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_5b4b21ffee204805ae357060",
+   "content": "BRIEF:\n# probe roles\n\n## You\nYou are p1 (player, id p1).\nAct only through your tools. Your turn ends when you take a final action or call end_turn.\n\nUPDATE:\nRound 1 of 20 \u00b7 play\nNow: It is your turn.\n\nYour role: You are SEER (team village).\n\nPlayers:\n- [p1] p1 \u2014 in\n- [p2] p2 \u2014 in\n- [p3] p3 \u2014 in\n\nTOOLS:\n- inspect: Inspect. {\"type\": \"object\", \"properties\": {\"target\": {\"type\": \"string\", \"enum\": [\"p1\", \"p2\", \"p3\"]}}, \"additionalProperties\": false, \"required\": [\"target\"]}\n- inspect: Details of one entity by its id (shown in [brackets] after names). Free: up to 8 reads (looks and inspects) per turn do not use a tool call. {\"type\": \"object\", \"properties\": {\"id\": {\"type\": \"string\", \"enum\": [\"p1\", \"p2\", \"p3\"]}}, \"required\": [\"id\"], \"additionalProperties\": false}\n- end_turn: Finish your turn. {\"type\": \"object\", \"properties\": {}, \"additionalProperties\": false}"
+  },
+  {
+   "role": "assistant",
+   "content": "The roles mechanism works. Let me probe role reads, elimination behavior, and tallying with a fuller draft.",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_9d3fcf8c7e6d412899eab1ad",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_9d3fcf8c7e6d412899eab1ad",
+   "content": "Saved (25 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_d4d13969014349dfac1bef59",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_d4d13969014349dfac1bef59",
+   "content": "No issues."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_6ff6a751aede4e5e88e9cfc2",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 1}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_6ff6a751aede4e5e88e9cfc2",
+   "content": "completed after 20 rounds \u2014 ended by rounds (seed 1)\nroles: {\"p1\": \"seer\", \"p2\": \"villager\", \"p3\": \"werewolf\"}\ndead: []\nalive: [\"p2\", \"p3\"]\noutputs: {\"roles\": {\"p1\": \"seer\", \"p2\": \"villager\", \"p3\": \"werewolf\"}, \"dead\": [], \"alive\": [\"p2\", \"p3\"]}"
+  },
+  {
+   "role": "assistant",
+   "content": "Let me probe the pieces I need: tallying, null handling, list append, and end winner literals.",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_e969504590b94a80a6c4af9f",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_e969504590b94a80a6c4af9f",
+   "content": "Saved (16 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_acf08e6539044941a2d34eea",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_acf08e6539044941a2d34eea",
+   "content": "Saved (17 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_2171114f2e8647e4908196c7",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_2171114f2e8647e4908196c7",
+   "content": "No issues."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_58582a7a5db54c22a72b3028",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 3}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_58582a7a5db54c22a72b3028",
+   "content": "completed after 20 rounds \u2014 ended by rounds (seed 3)\nnote: \"tie\"\ndead: [\"p3\", \"p1\", \"p3\", \"p3\", \"p2\", \"p2\", \"p3\", \"p1\", \"p2\", \"p1\", \"p3\", \"p3\", \"p2\", \"p2\", \"p3\", \"p2\"]\nwinner: null\ndiagnostic: outputs.winner: is empty (null) at the end of the run: it reads only `$result.winner`, which no `end` condition or effect gives \u2192 set what it reads in an action or event, or read what the rules do change\noutputs: {\"note\": \"tie\", \"dead\": [\"p3\", \"p1\", \"p3\", \"p3\", \"p2\", \"p2\", \"p3\", \"p1\", \"p2\", \"p1\", \"p3\", \"p3\", \"p2\", \"p2\", \"p3\", \"p2\"], \"winner\": null}"
+  },
+  {
+   "role": "assistant",
+   "content": "Let me check what a custom policy receives (so I can write a role-aware test policy).",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_52bf180e3ba14158b6faf311",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"model\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_b43cc5a0c64740e2b496566c",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"inspect\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_52bf180e3ba14158b6faf311",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_b43cc5a0c64740e2b496566c",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_c1d2661217cc47df92fe840b",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"policies\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_4294e7a6f7474eef89e3cf4f",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"recipes\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_c1d2661217cc47df92fe840b",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_4294e7a6f7474eef89e3cf4f",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "Now let me read the remaining sections I need: `end`, `records`, `brief`, `templates`.",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_2fc0585f88b743cd85e18d8e",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"end\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_c7de7fa065de412a984f2ba8",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"records\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "call_160f7f7a81b94e9c9ba7507e",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"brief\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "call_0bb322d6b94643d9b4b5af4c",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"templates\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_2fc0585f88b743cd85e18d8e",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_c7de7fa065de412a984f2ba8",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_160f7f7a81b94e9c9ba7507e",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_0bb322d6b94643d9b4b5af4c",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_413ab4a762694f2785750d73",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"triggers\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_91810204e0e149529b4910a3",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"expressions\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_413ab4a762694f2785750d73",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_91810204e0e149529b4910a3",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "Now I have enough understanding. Let me write the full draft contract.",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_7e7c5271b30c479b8b790fd9",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_7e7c5271b30c479b8b790fd9",
+   "content": "Saved (205 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_d4fc22b407dd436fad057445",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_d4fc22b407dd436fad057445",
+   "content": "No issues."
+  }
+ ],
+ "writes": [
+  {
+   "name": "probe roles",
+   "types": {
+    "player": {
+     "agent": true,
+     "props": {
+      "living": true
+     }
+    }
+   },
+   "entities": {
+    "p1": {
+     "type": "player"
+    },
+    "p2": {
+     "type": "player"
+    },
+    "p3": {
+     "type": "player"
+    }
+   },
+   "mechanisms": {
+    "roles": {
+     "kind": "groups",
+     "mode": "roles",
+     "who": "player",
+     "deck": {
+      "werewolf": 1,
+      "seer": 1,
+      "villager": "rest"
+     },
+     "teams": {
+      "wolves": [
+       "werewolf"
+      ],
+      "village": [
+       "seer",
+       "villager"
+      ]
+     },
+     "know": [
+      "wolves"
+     ],
+     "reveal": "never",
+     "actions": {
+      "inspect": {
+       "roles": [
+        "seer"
+       ],
+       "params": {
+        "target": {
+         "type": "entity",
+         "of": "player"
+        }
+       },
+       "do": [],
+       "outcome": "{$params.target.name} is {$params.target.role}."
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "probe2",
+   "world": {
+    "dead_order": []
+   },
+   "types": {
+    "player": {
+     "agent": true,
+     "props": {
+      "living": true,
+      "kill_vote": ""
+     }
+    }
+   },
+   "entities": {
+    "p1": {
+     "type": "player"
+    },
+    "p2": {
+     "type": "player"
+    },
+    "p3": {
+     "type": "player"
+    }
+   },
+   "mechanisms": {
+    "roles": {
+     "kind": "groups",
+     "mode": "roles",
+     "who": "player",
+     "deck": {
+      "werewolf": 1,
+      "seer": 1,
+      "villager": "rest"
+     },
+     "teams": {
+      "wolves": [
+       "werewolf"
+      ],
+      "village": [
+       "seer",
+       "villager"
+      ]
+     },
+     "know": [
+      "wolves"
+     ],
+     "reveal": "never"
+    }
+   },
+   "actions": {
+    "probe": {
+     "by": "player",
+     "when": "$actor.role == werewolf",
+     "params": {
+      "t": {
+       "type": "entity",
+       "of": "player",
+       "where": "$it.living"
+      }
+     },
+     "do": [
+      "$actor.kill_vote = $params.t.id"
+     ],
+     "outcome": "target {$params.t.id}"
+    }
+   },
+   "events": [
+    {
+     "phase": "start",
+     "do": [
+      "$world.dead_order += $world.dead_order",
+      {
+       "groups": "roles",
+       "action": "eliminate",
+       "who": "$entity(p1)",
+       "say": "p1 out"
+      }
+     ]
+    }
+   ],
+   "outputs": {
+    "roles": "$dict(player, $it.id, $it.role)",
+    "dead": "$world.dead_order",
+    "alive": "$map($filter(player, $it.living), $it.id)"
+   }
+  },
+  {
+   "name": "probe3",
+   "world": {
+    "dead": [],
+    "ballots": {},
+    "note": ""
+   },
+   "types": {
+    "player": {
+     "agent": true,
+     "props": {
+      "living": true
+     }
+    }
+   },
+   "entities": {
+    "p1": {
+     "type": "player"
+    },
+    "p2": {
+     "type": "player"
+    },
+    "p3": {
+     "type": "player"
+    }
+   },
+   "actions": {
+    "vote": {
+     "by": "player",
+     "when": "$actor.living",
+     "params": {
+      "t": {
+       "type": "entity",
+       "of": "player",
+       "where": "$it.living"
+      }
+     },
+     "do": [
+      "$world.ballots[$actor.id] = $params.t.id"
+     ],
+     "private": true,
+     "outcome": "voted"
+    }
+   },
+   "stages": [
+    {
+     "name": "v",
+     "actions": [
+      "vote"
+     ],
+     "max_actions": 1,
+     "on_exit": [
+      "$res = $tally_votes('plurality', $world.ballots, $opts, null, 'none')",
+      "$world.note = $res.winner",
+      {
+       "if": "$res.winner == null",
+       "then": [
+        "$world.note = 'tie'"
+       ],
+       "else": [
+        "$world.dead += $res.winner"
+       ]
+      }
+     ]
+    }
+   ],
+   "outputs": {
+    "note": "$world.note",
+    "dead": "$world.dead",
+    "winner": "$result.winner"
+   }
+  },
+  {
+   "name": "probe3",
+   "world": {
+    "dead": [],
+    "ballots": {},
+    "note": ""
+   },
+   "types": {
+    "player": {
+     "agent": true,
+     "props": {
+      "living": true
+     }
+    }
+   },
+   "entities": {
+    "p1": {
+     "type": "player"
+    },
+    "p2": {
+     "type": "player"
+    },
+    "p3": {
+     "type": "player"
+    }
+   },
+   "actions": {
+    "vote": {
+     "by": "player",
+     "when": "$actor.living",
+     "params": {
+      "t": {
+       "type": "entity",
+       "of": "player",
+       "where": "$it.living"
+      }
+     },
+     "do": [
+      "$world.ballots[$actor.id] = $params.t.id"
+     ],
+     "private": true,
+     "outcome": "voted"
+    }
+   },
+   "stages": [
+    {
+     "name": "v",
+     "actions": [
+      "vote"
+     ],
+     "max_actions": 1,
+     "on_exit": [
+      "$opts = $map($filter(player, $it.living), $it.id)",
+      "$res = $tally_votes('plurality', $world.ballots, $opts, null, 'none')",
+      "$world.note = $res.winner",
+      {
+       "if": "$res.winner == null",
+       "then": [
+        "$world.note = 'tie'"
+       ],
+       "else": [
+        "$world.dead += $res.winner"
+       ]
+      }
+     ]
+    }
+   ],
+   "outputs": {
+    "note": "$world.note",
+    "dead": "$world.dead",
+    "winner": "$result.winner"
+   }
+  },
+  {
+   "name": "Werewolf",
+   "brief": {
+    "situation": "A village of seven: two secret werewolves hide among you. Each night the werewolves kill one living player; the seer privately learns one living player's role. Each day the survivors discuss, then vote to eliminate one of you. Roles are never revealed in death.",
+    "rules": "Night: if all living werewolves nominate the same living player, that player dies. Seer: privately inspect one living player's role each night. Day: each living player may speak, then vote for one living player; the player with the most votes is eliminated, but a tie eliminates nobody. Village wins when both werewolves are gone. Werewolves win when they are at least as many as everyone else alive. After {$inputs.days} days with no winner, nobody wins.",
+    "roles": {
+     "player": "You are {$actor.role} (team {$actor.team})."
+    }
+   },
+   "clock": {
+    "rounds": "$inputs.days",
+    "unit": "day"
+   },
+   "inputs": {
+    "days": {
+     "type": "int",
+     "default": 10,
+     "min": 1,
+     "display": "number",
+     "label": "Days before the game ends"
+    }
+   },
+   "world": {
+    "kill_votes": {},
+    "day_ballots": {},
+    "dead_order": []
+   },
+   "types": {
+    "player": {
+     "agent": true,
+     "props": {
+      "living": true
+     }
+    }
+   },
+   "entities": {
+    "p1": {
+     "type": "player",
+     "name": "Alex"
+    },
+    "p2": {
+     "type": "player",
+     "name": "Blair"
+    },
+    "p3": {
+     "type": "player",
+     "name": "Casey"
+    },
+    "p4": {
+     "type": "player",
+     "name": "Dana"
+    },
+    "p5": {
+     "type": "player",
+     "name": "Emery"
+    },
+    "p6": {
+     "type": "player",
+     "name": "Finley"
+    },
+    "p7": {
+     "type": "player",
+     "name": "Gray"
+    }
+   },
+   "mechanisms": {
+    "roles": {
+     "kind": "groups",
+     "mode": "roles",
+     "who": "player",
+     "deck": {
+      "werewolf": 2,
+      "seer": 1,
+      "villager": "rest"
+     },
+     "teams": {
+      "wolves": [
+       "werewolf"
+      ],
+      "village": [
+       "seer",
+       "villager"
+      ]
+     },
+     "know": [
+      "wolves"
+     ],
+     "reveal": "never",
+     "alive": "living"
+    }
+   },
+   "records": {
+    "talk": {
+     "fields": {
+      "text": "text"
+     },
+     "show": "{author}: {text}"
+    },
+    "wolf_chat": {
+     "fields": {
+      "text": "text"
+     },
+     "show": "{author}: {text}",
+     "visible": "$viewer.role == werewolf"
+    }
+   },
+   "actions": {
+    "choose_kill": {
+     "by": "player",
+     "description": "Nominate the living player the werewolves should kill tonight. All living werewolves must nominate the same player for the kill to succeed.",
+     "when": [
+      "$actor.living",
+      "$actor.role == werewolf"
+     ],
+     "params": {
+      "target": {
+       "type": "entity",
+       "of": "player",
+       "where": "$it.living and $it.id != $actor.id"
+      }
+     },
+     "do": [
+      "$world.kill_votes[$actor.id] = $params.target.id"
+     ],
+     "private": true,
+     "outcome": "You nominated {$params.target.name} for tonight's kill.",
+     "per_turn": 1
+    },
+    "inspect_role": {
+     "by": "player",
+     "description": "Privately learn the true role of one living player.",
+     "when": [
+      "$actor.living",
+      "$actor.role == seer"
+     ],
+     "params": {
+      "target": {
+       "type": "entity",
+       "of": "player",
+       "where": "$it.living and $it.id != $actor.id"
+      }
+     },
+     "do": [],
+     "private": true,
+     "outcome": "{$params.target.name} is {$params.target.role}.",
+     "per_turn": 1
+    },
+    "speak": {
+     "by": "player",
+     "description": "Say something to the surviving village. You may lie freely.",
+     "when": [
+      "$actor.living"
+     ],
+     "params": {
+      "text": {
+       "type": "text",
+       "max_len": 300
+      }
+     },
+     "do": [
+      {
+       "post": "talk",
+       "text": "$params.text"
+      }
+     ],
+     "outcome": "You spoke to the village.",
+     "per_turn": 2
+    },
+    "day_vote": {
+     "by": "player",
+     "description": "Cast your sealed vote to eliminate one living player today.",
+     "when": [
+      "$actor.living"
+     ],
+     "params": {
+      "target": {
+       "type": "entity",
+       "of": "player",
+       "where": "$it.living"
+      }
+     },
+     "do": [
+      "$world.day_ballots[$actor.id] = $params.target.id"
+     ],
+     "private": true,
+     "outcome": "You voted to eliminate {$params.target.name}.",
+     "per_turn": 1
+    },
+    "wolves_speak": {
+     "by": "player",
+     "description": "Speak privately to the other werewolf.",
+     "when": [
+      "$actor.living",
+      "$actor.role == werewolf"
+     ],
+     "params": {
+      "text": {
+       "type": "text",
+       "max_len": 200
+      }
+     },
+     "do": [
+      {
+       "post": "wolf_chat",
+       "text": "$params.text"
+      }
+     ],
+     "outcome": "You spoke to your pack.",
+     "per_turn": 2
+    }
+   },
+   "stages": [
+    {
+     "name": "night_wolves",
+     "when": "$count(player, $it.living and $it.role == werewolf) > 0",
+     "who": "$it.living and $it.role == werewolf",
+     "actions": [
+      "wolves_speak",
+      "choose_kill"
+     ],
+     "max_actions": 3,
+     "on_enter": [
+      "$world.kill_votes = {}"
+     ],
+     "on_exit": [
+      {
+       "if": "$world.kill_votes == {}",
+       "then": [],
+       "else": [
+        "$t = $tally($values($world.kill_votes))",
+        "$mx = $max($values($t))",
+        "$top = $filter($keys($t), $get($t, $it, 0) == $mx)",
+        {
+         "if": "$len($top) == 1",
+         "then": [
+          {
+           "each": "player",
+           "where": "$it.id == $top[0]",
+           "do": [
+            "$it.living = false"
+           ]
+          },
+          "$world.dead_order += $top[0]",
+          {
+           "emit": "news",
+           "say": "The werewolves killed {$entity($top[0]).name} in the night."
+          }
+         ],
+         "else": [
+          {
+           "emit": "news",
+           "say": "The werewolves could not agree; nobody died in the night."
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "name": "night_seer",
+     "when": "$count(player, $it.living and $it.role == seer) == 1",
+     "who": "$it.living and $it.role == seer",
+     "actions": [
+      "inspect_role"
+     ],
+     "max_actions": 1
+    },
+    {
+     "name": "day_discussion",
+     "who": "$it.living",
+     "actions": [
+      "speak"
+     ],
+     "max_actions": 2
+    },
+    {
+     "name": "day_vote",
+     "who": "$it.living",
+     "actions": [
+      "day_vote"
+     ],
+     "turns": "simultaneous",
+     "max_actions": 1,
+     "on_enter": [
+      "$world.day_ballots = {}"
+     ],
+     "on_exit": [
+      "$opts = $map($filter(player, $it.living), $it.id)",
+      "$res = $tally_votes('plurality', $world.day_ballots, $opts, null, 'none')",
+      {
+       "if": "$res.winner == null",
+       "then": [
+        {
+         "emit": "news",
+         "say": "The village vote was tied; nobody was eliminated."
+        }
+       ],
+       "else": [
+        {
+         "each": "player",
+         "where": "$it.id == $res.winner",
+         "do": [
+          "$it.living = false"
+         ]
+        },
+        "$world.dead_order += $res.winner",
+        {
+         "emit": "news",
+         "say": "By vote, {$entity($res.winner).name} was eliminated."
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "end": [
+    {
+     "name": "village_wins",
+     "when": "$count(player, $it.living and $it.role == werewolf) == 0",
+     "winner": "village",
+     "say": "Both werewolves are gone. The village wins!"
+    },
+    {
+     "name": "werewolves_win",
+     "when": "$count(player, $it.living and $it.role == werewolf) > 0 and $count(player, $it.living and $it.role == werewolf) >= $count(player, $it.living and $it.role != werewolf)",
+     "winner": "werewolves",
+     "say": "The werewolves equal or outnumber the rest. The werewolves win!"
+    }
+   ],
+   "views": {
+    "village": {
+     "of": "player",
+     "where": "$it.living",
+     "show": "[{id}] {name}"
+    },
+    "graveyard": {
+     "of": "player",
+     "where": "not $it.living",
+     "show": "[{id}] {name} \u2014 died",
+     "empty": "No one has died yet."
+    },
+    "day": {
+     "show": "Day {$round}. Alive: {$count(player, $it.living)}."
+    }
+   },
+   "metrics": {
+    "wolves_alive": "$count(player, $it.living and $it.role == werewolf)",
+    "village_alive": "$count(player, $it.living and $it.role != werewolf)"
+   },
+   "outputs": {
+    "winner": {
+     "expr": "$result.winner",
+     "type": "any"
+    },
+    "roles": {
+     "expr": "$dict(player, $it.id, $it.role)",
+     "type": "map"
+    },
+    "eliminated": {
+     "expr": "$world.dead_order",
+     "type": "list"
+    },
+    "alive_end": {
+     "expr": "$map($filter(player, $it.living), $it.id)",
+     "type": "list"
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$count(player, not $it.living) == $len($world.dead_order)",
+     "why": "Every dead player is recorded once.",
+     "check": "round"
+    }
+   ]
+  }
+ ],
+ "guide_parts": [
+  "actions",
+  "stages",
+  "events",
+  "views",
+  "effects",
+  "population",
+  "inputs",
+  "metrics",
+  "functions",
+  "functions.collections",
+  "patterns",
+  "mechanisms",
+  "groups",
+  "decision",
+  "flow",
+  "host",
+  "groups.roles",
+  "decision.ballot",
+  "flow.victory",
+  "world",
+  "outputs",
+  "social.channels",
+  "all",
+  "model",
+  "inspect",
+  "policies",
+  "recipes",
+  "end",
+  "records",
+  "brief",
+  "templates",
+  "triggers",
+  "expressions"
+ ],
+ "usage": {
+  "input_tokens": 540524,
+  "output_tokens": 73526,
+  "cost": 0.05124004,
+  "calls": 22
+ },
+ "wall_seconds": 1993.3
+}

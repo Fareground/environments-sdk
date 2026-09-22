@@ -1,0 +1,3477 @@
+{
+ "model": "deepseek/deepseek-v4.1-flash",
+ "stop": "token cap",
+ "nudges": 0,
+ "messages": [
+  {
+   "role": "system",
+   "content": "(guide text)"
+  },
+  {
+   "role": "user",
+   "content": "# Auction house\n\nAn auction house sells six paintings to six collectors, each an AI agent with $300 of cash and a private opinion of what each painting is worth to them. Lots 1 to 3 are sold by open ascending auction: collectors take turns raising the current high bid by at least $5, everyone can see the current high bid, and the lot closes once a full round passes with no new bid. Lots 4 to 6 are sold by sealed bid: every collector privately submits one bid and the highest bid wins and pays what it bid. If two sealed bids tie, the one submitted first wins. A collector can never bid more cash than it has left. Winners pay the house, and every painting is sold at most once. The house wants to know its revenue and who bought what.\n\n## Deliverables\n\nReport these outputs:\n- `lots` \u2014 a list with one entry per lot, each a map with `lot` (1 to 6), `format` (\"english\" or \"sealed\"), `winner` (the collector's id, or null if unsold) and `price` (null if unsold).\n- `house_revenue` \u2014 the total the house received.\n- `cash_start_total` \u2014 the collectors' total cash at the start.\n- `cash_end_total` \u2014 the collectors' total cash at the end.\n\n\nBuild this environment. Save it with write_contract and use the other tools as you see fit. Reply without calling a tool when you are done."
+  },
+  {
+   "role": "assistant",
+   "content": "I'll start by reading the SDK guide to understand the exact mechanics available.",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_1c31292b659d49859f5aef3f",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"all\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_0a424ee8b28045cb91931d84",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"actions\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "call_10fdd10a01ca447085560cf8",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"stages\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "call_2cdd8547e3c94a43b70f0547",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"effects\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 4,
+     "id": "call_68ddf68a76854906875ba65e",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"events\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 5,
+     "id": "call_27d2b518e89a404cab571ae2",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_1c31292b659d49859f5aef3f",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_0a424ee8b28045cb91931d84",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_10fdd10a01ca447085560cf8",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_2cdd8547e3c94a43b70f0547",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_68ddf68a76854906875ba65e",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_27d2b518e89a404cab571ae2",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_a5334598b8a14373b8679c9d",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"market.auction\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_f52d399e249242c1b3e1fa27",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"market\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "call_47f9c50483fe4141ad68fd36",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"population\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "call_483bd04e34d14bc0b70c7a7c",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"inputs\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 4,
+     "id": "call_fa2a7e9cbab0456c94a53ee7",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"views\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 5,
+     "id": "call_f76d5247d95d435e8f7315e6",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"outputs\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_a5334598b8a14373b8679c9d",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_f52d399e249242c1b3e1fa27",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_47f9c50483fe4141ad68fd36",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_483bd04e34d14bc0b70c7a7c",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_fa2a7e9cbab0456c94a53ee7",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_f76d5247d95d435e8f7315e6",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_28de82bdb8af48ba897f7dee",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions.collections\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_46a897e3adf4450480a03e75",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"expressions\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_28de82bdb8af48ba897f7dee",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_46a897e3adf4450480a03e75",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_be0915aa46324f5a96287bb1",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"types\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_5c2c169943604514a1eb71b7",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"entities\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "call_a3565ce97c3c4697a7e46448",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"clock\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "call_d002aa7f144a4745962a446a",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"brief\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 4,
+     "id": "call_1e0707bc2e6b4352ab904de5",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"world\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 5,
+     "id": "call_cb6baff34bb14655a63abcbc",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"end\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_be0915aa46324f5a96287bb1",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_5c2c169943604514a1eb71b7",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_a3565ce97c3c4697a7e46448",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_d002aa7f144a4745962a446a",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_1e0707bc2e6b4352ab904de5",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_cb6baff34bb14655a63abcbc",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_b4068ec3ab5648cc8c46d4dc",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"records\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_830000d908a34941a02e2b7c",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions.world\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "call_00d9db2daaad4e3ea4f37b36",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"mechanisms\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "call_479c819e88414bdaa02320de",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"model\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_b4068ec3ab5648cc8c46d4dc",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_830000d908a34941a02e2b7c",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_00d9db2daaad4e3ea4f37b36",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_479c819e88414bdaa02320de",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "Now I understand the mechanics. Let me author the auction house contract.",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_9160cd8633c044c5b5e36a66",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_9160cd8633c044c5b5e36a66",
+   "content": "Not valid JSON: Expecting ',' delimiter: line 144 column 65 (char 7165). Nothing saved."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_ad69d6eb922544f9832f570b",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_ad69d6eb922544f9832f570b",
+   "content": "Saved (205 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_6a01fcd456ad49659690836c",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_6a01fcd456ad49659690836c",
+   "content": "invariants[0]: invariants[0]: invariant `$sum(collector, $it.cash) + $entity(house).cash == $world.cash_start` no longer holds after build (Cash only moves from collectors to the house.) \u2192 fix the rule at this path (found by a smoke run)\n[warning] inputs.collectors.fields.values.items: has no default and is not required, so it may be null \u2192 give a default or set required: true"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_865c260571584305ba612d20",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_865c260571584305ba612d20",
+   "content": "Saved (204 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_34a496b0941e4583b5ea8d0c",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_34a496b0941e4583b5ea8d0c",
+   "content": "No issues."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_27a4b6c4a49a4a19bd3d2834",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 1}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_56f2ad36f7834691bce608a0",
+     "function": {
+      "name": "preview",
+      "arguments": "{\"agent\": \"ann\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_27a4b6c4a49a4a19bd3d2834",
+   "content": "completed after 6 rounds \u2014 ended by rounds (seed 1)\nlots: [{\"lot\": 1, \"format\": \"english\", \"winner\": \"dee\", \"price\": 300}, {\"lot\": 2, \"format\": \"english\", \"winner\": \"bob\", \"pr\u2026\nhouse_revenue: $1,511.00\ncash_start_total: $1,800.00\ncash_end_total: $289.00\noutputs: {\"lots\": [{\"lot\": 1, \"format\": \"english\", \"winner\": \"dee\", \"price\": 300}, {\"lot\": 2, \"format\": \"english\", \"winner\": \"bob\", \"price\": 296}, {\"lot\": 3, \"format\": \"english\", \"winner\": \"cid\", \"price\": 298}, {\"lot\": 4, \"format\": \"sealed\", \"winner\": \"fin\", \"price\": 213}, {\"lot\": 5, \"format\": \"sealed\", \"winner\": \"ann\", \"price\": 224}, {\"lot\": 6, \"format\": \"sealed\", \"winner\": \"eve\", \"price\": 180}], \"house_revenue\": 1511, \"cash_start_total\": 1800, \"cash_end_total\": 289}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_56f2ad36f7834691bce608a0",
+   "content": "BRIEF:\n# Auction house\nAn auction house is selling paintings to collectors. One lot comes under the hammer each round. Every collector, you among them, starts with the cash shown for it and a private opinion of what each painting is worth. Those private values are yours alone \u2014 nobody else can see them.\n\n## Rules\nLots 1 to 3 sell by open ascending auction: collectors take turns raising the standing high bid by at least $5.00; everyone can see the current high bid; the lot closes as soon as a full round of turns passes with no new bid, and the standing high bidder buys at that bid. Lots 4 to 6 sell by sealed bid: every collector privately submits at most one bid; the highest bid wins and pays exactly what it bid; if two bids tie, the one submitted first wins. You can never bid more cash than you hold. Winners pay the house. Every painting is sold at most once.\n\n## You\nYou are ann (collector, id ann).\nYou are a collector. Your private values for lots 1 to 6 are 80, 120, 60, 200, 90, 150 and you hold $300.00. Bid only up to what a painting is worth to you, and never more cash than you have.\nAct only through your tools. Your turn ends when you take a final action or call end_turn.\n\nUPDATE:\nRound 1 of 6 \u00b7 english\nLot 1 is open. Raise the high bid by at least $5.00, or end your turn. The lot closes after a full round with no new bid.\nNow: It is your turn.\n\nYou hold $300.00.\n\nYour private values \u2014 lot 1 $80.00, lot 2 $120.00, lot 3 $60.00, lot 4 $200.00, lot 5 $90.00, lot 6 $150.00.\n\nLot 1 under the hammer: high bid $0.00 by no one yet.\n\nLots:\n- Lot 1 (english): open \u2014 winner none, price 0.\n- Lot 2 (english): open \u2014 winner none, price 0.\n- Lot 3 (english): open \u2014 winner none, price 0.\n- Lot 4 (sealed): open \u2014 winner none, price 0.\n- Lot 5 (sealed): open \u2014 winner none, price 0.\n- Lot 6 (sealed): open \u2014 winner none, price 0.\n\nTOOLS:\n- bid: Raise the standing high bid on the painting now under the hammer. The bid must beat the current high bid by at least the increment and cannot exceed your cash. {\"type\": \"object\", \"properties\": {\"price\": {\"type\": \"integer\", \"minimum\": 5, \"maximum\": 300, \"description\": \"Your new high bid in dollars.\"}}, \"additionalProperties\": false, \"required\": [\"price\"]}\n- inspect: Details of one entity by its id (shown in [brackets] after names). Free: up to 8 reads (looks and inspects) per turn do not use a tool call. {\"type\": \"object\", \"properties\": {\"id\": {\"type\": \"string\", \"enum\": [\"house\", \"ann\", \"bob\", \"cid\", \"dee\", \"eve\", \"fin\", \"lot_1\", \"lot_2\", \"lot_3\", \"lot_4\", \"lot_5\", \"lot_6\"]}}, \"required\": [\"id\"], \"additionalProperties\": false}\n- end_turn: Finish your turn. {\"type\": \"object\", \"properties\": {}, \"additionalProperties\": false}"
+  },
+  {
+   "role": "assistant",
+   "content": "Works. Let me make the sealed-bid fields private and test some edge cases.",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_cf5bb3e82c704dfaa3ab88f1",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_cf5bb3e82c704dfaa3ab88f1",
+   "content": "Not valid JSON: Expecting ',' delimiter: line 143 column 65 (char 7162). Nothing saved."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_ed12c6630f494c8a9b168742",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_ed12c6630f494c8a9b168742",
+   "content": "Saved (200 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_f72a07d5bcb64f9ebd5b6d68",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_659d9ccf38ec48fe99a24d8a",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 7, \"participants\": {\"collector\": \"idle\"}}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_f72a07d5bcb64f9ebd5b6d68",
+   "content": "No issues."
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_659d9ccf38ec48fe99a24d8a",
+   "content": "completed after 6 rounds \u2014 ended by rounds (seed 7)\nlots: [{\"lot\": 1, \"format\": \"english\", \"winner\": null, \"price\": null}, {\"lot\": 2, \"format\": \"english\", \"winner\": null, \"pri\u2026\nhouse_revenue: $0.00\ncash_start_total: $1,800.00\ncash_end_total: $1,800.00\noutputs: {\"lots\": [{\"lot\": 1, \"format\": \"english\", \"winner\": null, \"price\": null}, {\"lot\": 2, \"format\": \"english\", \"winner\": null, \"price\": null}, {\"lot\": 3, \"format\": \"english\", \"winner\": null, \"price\": null}, {\"lot\": 4, \"format\": \"sealed\", \"winner\": null, \"price\": null}, {\"lot\": 5, \"format\": \"sealed\", \"winner\": null, \"price\": null}, {\"lot\": 6, \"format\": \"sealed\", \"winner\": null, \"price\": null}], \"house_revenue\": 0, \"cash_start_total\": 1800, \"cash_end_total\": 1800}"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_b3b6766dab054f748c3b0b53",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 2}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_64e2d29c363844c79078bc63",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 3}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "call_d89eade774a14d38ba0db8ca",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 5, \"participants\": {\"collector\": \"idle\", \"ann\": \"random\"}}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_b3b6766dab054f748c3b0b53",
+   "content": "completed after 6 rounds \u2014 ended by rounds (seed 2)\nlots: [{\"lot\": 1, \"format\": \"english\", \"winner\": \"fin\", \"price\": 299}, {\"lot\": 2, \"format\": \"english\", \"winner\": \"dee\", \"pr\u2026\nhouse_revenue: $1,391.00\ncash_start_total: $1,800.00\ncash_end_total: $409.00\noutputs: {\"lots\": [{\"lot\": 1, \"format\": \"english\", \"winner\": \"fin\", \"price\": 299}, {\"lot\": 2, \"format\": \"english\", \"winner\": \"dee\", \"price\": 300}, {\"lot\": 3, \"format\": \"english\", \"winner\": \"cid\", \"price\": 298}, {\"lot\": 4, \"format\": \"sealed\", \"winner\": \"bob\", \"price\": 207}, {\"lot\": 5, \"format\": \"sealed\", \"winner\": \"ann\", \"price\": 62}, {\"lot\": 6, \"format\": \"sealed\", \"winner\": \"ann\", \"price\": 225}], \"house_revenue\": 1391, \"cash_start_total\": 1800, \"cash_end_total\": 409}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_64e2d29c363844c79078bc63",
+   "content": "completed after 6 rounds \u2014 ended by rounds (seed 3)\nlots: [{\"lot\": 1, \"format\": \"english\", \"winner\": \"eve\", \"price\": 299}, {\"lot\": 2, \"format\": \"english\", \"winner\": \"cid\", \"pr\u2026\nhouse_revenue: $1,583.00\ncash_start_total: $1,800.00\ncash_end_total: $217.00\noutputs: {\"lots\": [{\"lot\": 1, \"format\": \"english\", \"winner\": \"eve\", \"price\": 299}, {\"lot\": 2, \"format\": \"english\", \"winner\": \"cid\", \"price\": 300}, {\"lot\": 3, \"format\": \"english\", \"winner\": \"dee\", \"price\": 297}, {\"lot\": 4, \"format\": \"sealed\", \"winner\": \"bob\", \"price\": 275}, {\"lot\": 5, \"format\": \"sealed\", \"winner\": \"fin\", \"price\": 273}, {\"lot\": 6, \"format\": \"sealed\", \"winner\": \"ann\", \"price\": 139}], \"house_revenue\": 1583, \"cash_start_total\": 1800, \"cash_end_total\": 217}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_d89eade774a14d38ba0db8ca",
+   "content": "completed after 6 rounds \u2014 ended by rounds (seed 5)\nlots: [{\"lot\": 1, \"format\": \"english\", \"winner\": \"ann\", \"price\": 147}, {\"lot\": 2, \"format\": \"english\", \"winner\": \"ann\", \"pr\u2026\nhouse_revenue: $300.00\ncash_start_total: $1,800.00\ncash_end_total: $1,500.00\noutputs: {\"lots\": [{\"lot\": 1, \"format\": \"english\", \"winner\": \"ann\", \"price\": 147}, {\"lot\": 2, \"format\": \"english\", \"winner\": \"ann\", \"price\": 61}, {\"lot\": 3, \"format\": \"english\", \"winner\": \"ann\", \"price\": 13}, {\"lot\": 4, \"format\": \"sealed\", \"winner\": \"ann\", \"price\": 50}, {\"lot\": 5, \"format\": \"sealed\", \"winner\": \"ann\", \"price\": 29}, {\"lot\": 6, \"format\": \"sealed\", \"winner\": null, \"price\": null}], \"house_revenue\": 300, \"cash_start_total\": 1800, \"cash_end_total\": 1500}"
+  },
+  {
+   "role": "assistant",
+   "content": "Cash is conserved in every run. One issue: I declared a `start_price` input that no rule actually reads. Let me remove that dead knob.",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_644b4c4844834e279432bf0e",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_644b4c4844834e279432bf0e",
+   "content": "Saved (199 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_0ca88766707d46d48369ecca",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"policies\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_0ca88766707d46d48369ecca",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "Let me add a coded baseline policy so behavior is reproducible and I can derive expected outcomes by hand.",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_aed8024905e945729e800ddf",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_aed8024905e945729e800ddf",
+   "content": "Saved (212 lines)."
+  }
+ ],
+ "writes": [
+  "{\n  \"name\": \"Auction house\",\n  \"clock\": {\"rounds\": \"$inputs.horizon\", \"unit\": \"round\"},\n  \"brief\": {\n    \"situation\": \"An auction house is selling paintings to collectors. One lot comes under the hammer each round. Every collector, you among them, starts with the cash shown for it and a private opinion of what each painting is worth. Those private values are yours alone \u2014 nobody else can see them.\",\n    \"rules\": \"Lots 1 to 3 sell by open ascending auction: collectors take turns raising the standing high bid by at least {$inputs.increment|money}; everyone can see the current high bid; the lot closes as soon as a full round of turns passes with no new bid, and the standing high bidder buys at that bid. Lots 4 to 6 sell by sealed bid: every collector privately submits at most one bid; the highest bid wins and pays exactly what it bid; if two bids tie, the one submitted first wins. You can never bid more cash than you hold. Winners pay the house. Every painting is sold at most once.\",\n    \"roles\": {\n      \"collector\": \"You are a collector. Your private values for lots 1 to 6 are {$actor.values|list} and you hold {$actor.cash|money}. Bid only up to what a painting is worth to you, and never more cash than you have.\"\n    }\n  },\n  \"inputs\": {\n    \"horizon\": {\"type\": \"int\", \"default\": 6, \"min\": 1, \"display\": \"number\", \"label\": \"Rounds (one lot per round)\"},\n    \"increment\": {\"type\": \"int\", \"default\": 5, \"min\": 1, \"display\": \"number\", \"label\": \"Minimum raise ($)\"},\n    \"start_price\": {\"type\": \"int\", \"default\": 5, \"min\": 0, \"display\": \"number\", \"label\": \"Opening bid ($)\"},\n    \"collectors\": {\"type\": \"table\", \"display\": \"table\", \"label\": \"Collectors\", \"fields\": {\n      \"name\": {\"type\": \"text\", \"required\": true},\n      \"cash\": {\"type\": \"int\", \"default\": 300, \"min\": 0},\n      \"values\": {\"type\": \"list\", \"required\": true, \"items\": {\"type\": \"int\", \"min\": 0}}\n    }, \"default\": [\n      {\"name\": \"ann\", \"cash\": 300, \"values\": [80, 120, 60, 200, 90, 150]},\n      {\"name\": \"bob\", \"cash\": 300, \"values\": [100, 90, 140, 70, 180, 60]},\n      {\"name\": \"cid\", \"cash\": 300, \"values\": [60, 60, 80, 150, 120, 210]},\n      {\"name\": \"dee\", \"cash\": 300, \"values\": [140, 70, 90, 60, 70, 100]},\n      {\"name\": \"eve\", \"cash\": 300, \"values\": [70, 150, 70, 110, 60, 80]},\n      {\"name\": \"fin\", \"cash\": 300, \"values\": [90, 100, 110, 90, 100, 90]}\n    ]},\n    \"lots\": {\"type\": \"table\", \"display\": \"table\", \"label\": \"Lots\", \"fields\": {\n      \"lot\": {\"type\": \"int\", \"required\": true},\n      \"format\": {\"type\": \"enum\", \"values\": [\"english\", \"sealed\"], \"default\": \"english\"}\n    }, \"default\": [\n      {\"lot\": 1, \"format\": \"english\"},\n      {\"lot\": 2, \"format\": \"english\"},\n      {\"lot\": 3, \"format\": \"english\"},\n      {\"lot\": 4, \"format\": \"sealed\"},\n      {\"lot\": 5, \"format\": \"sealed\"},\n      {\"lot\": 6, \"format\": \"sealed\"}\n    ]}\n  },\n  \"world\": {\n    \"active\": 0,\n    \"format\": \"\",\n    \"high_bid\": 0,\n    \"high_bidder\": {\"type\": \"any\", \"default\": null},\n    \"quiet_turns\": 0,\n    \"seal_seq\": 0,\n    \"turn_bid\": false,\n    \"cash_start\": 0\n  },\n  \"types\": {\n    \"collector\": {\n      \"agent\": true,\n      \"props\": {\n        \"cash\": {\"type\": \"int\", \"default\": 300, \"min\": 0},\n        \"values\": {\"type\": \"list\", \"default\": [], \"private\": true, \"description\": \"Private value per lot (index 0 = lot 1).\"},\n        \"sealed_bid\": {\"type\": \"int\", \"default\": 0, \"min\": 0},\n        \"sealed_seq\": {\"type\": \"int\", \"default\": 0, \"min\": 0}\n      }\n    },\n    \"lot\": {\n      \"props\": {\n        \"index\": {\"type\": \"int\", \"default\": 0},\n        \"format\": {\"type\": \"text\", \"default\": \"english\"},\n        \"status\": {\"type\": \"text\", \"default\": \"open\"},\n        \"winner\": {\"type\": \"any\", \"default\": null},\n        \"price\": {\"type\": \"any\", \"default\": null}\n      }\n    },\n    \"house\": {\n      \"props\": {\"cash\": {\"type\": \"int\", \"default\": 0, \"min\": 0}}\n    }\n  },\n  \"entities\": {\n    \"house\": {\"type\": \"house\", \"name\": \"Auction house\"}\n  },\n  \"population\": [\n    {\"type\": \"collector\", \"from\": \"$inputs.collectors\", \"id\": \"{$row.name}\", \"name\": \"{$row.name}\",\n     \"props\": {\"cash\": \"$row.cash\", \"values\": \"$row.values\"}},\n    {\"type\": \"lot\", \"from\": \"$inputs.lots\", \"id\": \"lot_{$row.lot}\", \"name\": \"Lot {$row.lot}\",\n     \"props\": {\"index\": \"$row.lot\", \"format\": \"$row.format\"}}\n  ],\n  \"stages\": [\n    {\n      \"name\": \"english\",\n      \"when\": \"$world.format == english\",\n      \"actions\": [\"bid\"],\n      \"turns\": \"sequential\",\n      \"who\": \"collector\",\n      \"order\": \"seat\",\n      \"max_actions\": 1,\n      \"max_calls\": 8,\n      \"until\": \"$world.quiet_turns >= $count(collector)\",\n      \"passes\": 40,\n      \"brief\": \"Lot {$world.active} is open. Raise the high bid by at least {$inputs.increment|money}, or end your turn. The lot closes after a full round with no new bid.\",\n      \"on_wake\": [\"$world.turn_bid = false\"],\n      \"on_turn_end\": [\"$world.quiet_turns = 0 if $world.turn_bid else $world.quiet_turns + 1\"],\n      \"on_exit\": [\n        {\"if\": \"$world.high_bidder == null\", \"then\": [\n          {\"each\": \"lot\", \"where\": \"$it.index == $world.active\", \"do\": [\n            \"$it.status = unsold\", \"$it.winner = null\", \"$it.price = null\"]}\n        ], \"else\": [\n          {\"transfer\": \"cash\", \"from\": \"$entity($world.high_bidder)\", \"to\": \"$entity(house)\", \"amount\": \"$world.high_bid\"},\n          {\"each\": \"lot\", \"where\": \"$it.index == $world.active\", \"do\": [\n            \"$it.status = sold\", \"$it.winner = $world.high_bidder\", \"$it.price = $world.high_bid\"]}\n        ]}\n      ]\n    },\n    {\n      \"name\": \"sealed\",\n      \"when\": \"$world.format == sealed\",\n      \"actions\": [\"submit_bid\"],\n      \"turns\": \"sequential\",\n      \"who\": \"collector\",\n      \"order\": \"seat\",\n      \"max_actions\": 1,\n      \"max_calls\": 8,\n      \"passes\": 1,\n      \"brief\": \"Lot {$world.active} is sold by sealed bid. Privately submit one bid, or end your turn without bidding. Highest bid wins and pays what it bid; ties go to the earliest submission.\"\n    }\n  ],\n  \"events\": [\n    {\"phase\": \"start\", \"at\": 1, \"do\": [\"$world.cash_start = $sum(collector, $it.cash)\"]},\n    {\"phase\": \"start\", \"do\": [\n      {\"if\": \"$round <= $len($inputs.lots)\", \"then\": [\n        \"$world.active = $round\",\n        \"$world.format = $inputs.lots[$round - 1].format\",\n        \"$world.high_bid = 0\",\n        \"$world.high_bidder = null\",\n        \"$world.quiet_turns = 0\",\n        \"$world.seal_seq = 0\",\n        \"$world.turn_bid = false\",\n        {\"each\": \"collector\", \"do\": [\"$it.sealed_bid = 0\", \"$it.sealed_seq = 0\"]},\n        {\"each\": \"lot\", \"where\": \"$it.index == $round\", \"do\": [\"$it.status = open\"]}\n      ]}\n    ]},\n    {\"phase\": \"end\", \"when\": \"$world.format == sealed\", \"do\": [\n      \"$winners = $top(collector, [$it.sealed_bid, -$it.sealed_seq], 1, $it.sealed_bid > 0)\",\n      {\"if\": \"$len($winners) == 0\", \"then\": [\n        {\"each\": \"lot\", \"where\": \"$it.index == $world.active\", \"do\": [\n          \"$it.status = unsold\", \"$it.winner = null\", \"$it.price = null\"]}\n      ], \"else\": [\n        \"$w = $winners[0]\",\n        {\"transfer\": \"cash\", \"from\": \"$w\", \"to\": \"$entity(house)\", \"amount\": \"$w.sealed_bid\"},\n        {\"each\": \"lot\", \"where\": \"$it.index == $world.active\", \"do\": [\n          \"$it.status = sold\", \"$it.winner = $w.id\", \"$it.price\": \"$w.sealed_bid\"]}\n      ]}\n    ]}\n  ],\n  \"actions\": {\n    \"bid\": {\n      \"by\": \"collector\",\n      \"description\": \"Raise the standing high bid on the painting now under the hammer. The bid must exceed the current high bid by at least the increment and cannot exceed your cash.\",\n      \"when\": [\n        \"$world.format == english\",\n        {\"expr\": \"$actor.id != $world.high_bidder\", \"why\": \"You already hold the standing high bid.\"},\n        {\"expr\": \"$actor.cash >= $world.high_bid + $inputs.increment\", \"why\": \"You cannot cover the minimum raise.\"}\n      ],\n      \"params\": {\n        \"price\": {\"type\": \"int\", \"min\": \"$world.high_bid + $inputs.increment\", \"max\": \"$actor.cash\",\n                  \"description\": \"Your new high bid in dollars.\"}\n      },\n      \"do\": [\"$world.high_bid = $params.price\", \"$world.high_bidder = $actor.id\", \"$world.turn_bid = true\"],\n      \"outcome\": \"You hold the high bid on lot {$world.active} at {$params.price|money}.\",\n      \"announce\": \"{$actor.name} bids {$params.price|money}.\"\n    },\n    \"submit_bid\": {\n      \"by\": \"collector\",\n      \"description\": \"Privately submit your one sealed bid for the painting on the block. It cannot exceed your cash.\",\n      \"when\": [\n        \"$world.format == sealed\",\n        {\"expr\": \"$actor.sealed_bid == 0\", \"why\": \"You have already submitted a bid for this lot.\"}\n      ],\n      \"params\": {\n        \"price\": {\"type\": \"int\", \"min\": 1, \"max\": \"$actor.cash\", \"description\": \"Your sealed bid in dollars.\"}\n      },\n      \"private\": true,\n      \"do\": [\"$world.seal_seq += 1\", \"$actor.sealed_bid = $params.price\", \"$actor.sealed_seq = $world.seal_seq\"],\n      \"outcome\": \"You sealed {$params.price|money} for lot {$world.active} (submitted {$world.seal_seq}).\"\n    }\n  },\n  \"views\": {\n    \"cash\": {\"show\": \"You hold {$actor.cash|money}.\"},\n    \"values\": {\"for\": \"collector\", \"show\": \"Your private values \u2014 lot 1 {$actor.values[0]|money}, lot 2 {$actor.values[1]|money}, lot 3 {$actor.values[2]|money}, lot 4 {$actor.values[3]|money}, lot 5 {$actor.values[4]|money}, lot 6 {$actor.values[5]|money}.\"},\n    \"high_bid\": {\"when\": \"$world.format == english\", \"show\": \"Lot {$world.active} under the hammer: high bid {$world.high_bid|money} by {$world.high_bidder or 'no one yet'}.\"},\n    \"board\": {\"title\": \"Lots\", \"of\": \"lot\", \"sort\": \"$it.index\",\n      \"show\": \"Lot {$it.index} ({$it.format}): {$it.status} \u2014 winner {$it.winner or 'none'}, price {$it.price or 0}.\"},\n    \"spectator\": {\"for\": \"spectator\", \"title\": \"Results\", \"of\": \"lot\", \"sort\": \"$it.index\",\n      \"show\": \"Lot {$it.index} ({$it.format}): {$it.status}, winner {$it.winner or 'none'} at {$it.price or 0}.\"}\n  },\n  \"metrics\": {\n    \"house_revenue\": \"$entity(house).cash\",\n    \"lots_sold\": \"$count(lot, $it.status == sold)\"\n  },\n  \"outputs\": {\n    \"lots\": {\"type\": \"list\", \"expr\": \"$map($sort(lot, $it.index), {lot: $it.index, format: $it.format, winner: $it.winner, price: $it.price})\"},\n    \"house_revenue\": {\"type\": \"number\", \"expr\": \"$entity(house).cash\", \"format\": \"money\"},\n    \"cash_start_total\": {\"type\": \"number\", \"expr\": \"$world.cash_start\", \"format\": \"money\"},\n    \"cash_end_total\": {\"type\": \"number\", \"expr\": \"$sum(collector, $it.cash)\", \"format\": \"money\"}\n  },\n  \"invariants\": [\n    {\"expr\": \"$sum(collector, $it.cash) + $entity(house).cash == $world.cash_start\",\n     \"why\": \"Cash only moves from collectors to the house.\", \"check\": \"round\"},\n    {\"expr\": \"$all(lot, $it.status != sold or $it.winner != null)\",\n     \"why\": \"A sold lot always names a winner.\", \"check\": \"round\"}\n  ]\n}",
+  {
+   "name": "Auction house",
+   "clock": {
+    "rounds": "$inputs.horizon",
+    "unit": "round"
+   },
+   "brief": {
+    "situation": "An auction house is selling paintings to collectors. One lot comes under the hammer each round. Every collector, you among them, starts with the cash shown for it and a private opinion of what each painting is worth. Those private values are yours alone \u2014 nobody else can see them.",
+    "rules": "Lots 1 to 3 sell by open ascending auction: collectors take turns raising the standing high bid by at least {$inputs.increment|money}; everyone can see the current high bid; the lot closes as soon as a full round of turns passes with no new bid, and the standing high bidder buys at that bid. Lots 4 to 6 sell by sealed bid: every collector privately submits at most one bid; the highest bid wins and pays exactly what it bid; if two bids tie, the one submitted first wins. You can never bid more cash than you hold. Winners pay the house. Every painting is sold at most once.",
+    "roles": {
+     "collector": "You are a collector. Your private values for lots 1 to 6 are {$actor.values|list} and you hold {$actor.cash|money}. Bid only up to what a painting is worth to you, and never more cash than you have."
+    }
+   },
+   "inputs": {
+    "horizon": {
+     "type": "int",
+     "default": 6,
+     "min": 1,
+     "display": "number",
+     "label": "Rounds (one lot per round)"
+    },
+    "increment": {
+     "type": "int",
+     "default": 5,
+     "min": 1,
+     "display": "number",
+     "label": "Minimum raise ($)"
+    },
+    "start_price": {
+     "type": "int",
+     "default": 5,
+     "min": 0,
+     "display": "number",
+     "label": "Opening bid ($)"
+    },
+    "collectors": {
+     "type": "table",
+     "display": "table",
+     "label": "Collectors",
+     "fields": {
+      "name": {
+       "type": "text",
+       "required": true
+      },
+      "cash": {
+       "type": "int",
+       "default": 300,
+       "min": 0
+      },
+      "values": {
+       "type": "list",
+       "required": true,
+       "items": {
+        "type": "int",
+        "min": 0
+       }
+      }
+     },
+     "default": [
+      {
+       "name": "ann",
+       "cash": 300,
+       "values": [
+        80,
+        120,
+        60,
+        200,
+        90,
+        150
+       ]
+      },
+      {
+       "name": "bob",
+       "cash": 300,
+       "values": [
+        100,
+        90,
+        140,
+        70,
+        180,
+        60
+       ]
+      },
+      {
+       "name": "cid",
+       "cash": 300,
+       "values": [
+        60,
+        60,
+        80,
+        150,
+        120,
+        210
+       ]
+      },
+      {
+       "name": "dee",
+       "cash": 300,
+       "values": [
+        140,
+        70,
+        90,
+        60,
+        70,
+        100
+       ]
+      },
+      {
+       "name": "eve",
+       "cash": 300,
+       "values": [
+        70,
+        150,
+        70,
+        110,
+        60,
+        80
+       ]
+      },
+      {
+       "name": "fin",
+       "cash": 300,
+       "values": [
+        90,
+        100,
+        110,
+        90,
+        100,
+        90
+       ]
+      }
+     ]
+    },
+    "lots": {
+     "type": "table",
+     "display": "table",
+     "label": "Lots",
+     "fields": {
+      "lot": {
+       "type": "int",
+       "required": true
+      },
+      "format": {
+       "type": "enum",
+       "values": [
+        "english",
+        "sealed"
+       ],
+       "default": "english"
+      }
+     },
+     "default": [
+      {
+       "lot": 1,
+       "format": "english"
+      },
+      {
+       "lot": 2,
+       "format": "english"
+      },
+      {
+       "lot": 3,
+       "format": "english"
+      },
+      {
+       "lot": 4,
+       "format": "sealed"
+      },
+      {
+       "lot": 5,
+       "format": "sealed"
+      },
+      {
+       "lot": 6,
+       "format": "sealed"
+      }
+     ]
+    }
+   },
+   "world": {
+    "active": 0,
+    "format": "",
+    "high_bid": 0,
+    "high_bidder": {
+     "type": "any",
+     "default": null
+    },
+    "quiet_turns": 0,
+    "seal_seq": 0,
+    "turn_bid": false,
+    "cash_start": 0
+   },
+   "types": {
+    "collector": {
+     "agent": true,
+     "props": {
+      "cash": {
+       "type": "int",
+       "default": 300,
+       "min": 0
+      },
+      "values": {
+       "type": "list",
+       "default": [],
+       "private": true,
+       "description": "Private value per lot (index 0 = lot 1)."
+      },
+      "sealed_bid": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "sealed_seq": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      }
+     }
+    },
+    "lot": {
+     "props": {
+      "index": {
+       "type": "int",
+       "default": 0
+      },
+      "format": {
+       "type": "text",
+       "default": "english"
+      },
+      "status": {
+       "type": "text",
+       "default": "open"
+      },
+      "winner": {
+       "type": "any",
+       "default": null
+      },
+      "price": {
+       "type": "any",
+       "default": null
+      }
+     }
+    },
+    "house": {
+     "props": {
+      "cash": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      }
+     }
+    }
+   },
+   "entities": {
+    "house": {
+     "type": "house",
+     "name": "Auction house"
+    }
+   },
+   "population": [
+    {
+     "type": "collector",
+     "from": "$inputs.collectors",
+     "id": "{$row.name}",
+     "name": "{$row.name}",
+     "props": {
+      "cash": "$row.cash",
+      "values": "$row.values"
+     }
+    },
+    {
+     "type": "lot",
+     "from": "$inputs.lots",
+     "id": "lot_{$row.lot}",
+     "name": "Lot {$row.lot}",
+     "props": {
+      "index": "$row.lot",
+      "format": "$row.format"
+     }
+    }
+   ],
+   "stages": [
+    {
+     "name": "english",
+     "when": "$world.format == english",
+     "actions": [
+      "bid"
+     ],
+     "turns": "sequential",
+     "who": "collector",
+     "order": "seat",
+     "max_actions": 1,
+     "max_calls": 8,
+     "until": "$world.quiet_turns >= $count(collector)",
+     "passes": 40,
+     "brief": "Lot {$world.active} is open. Raise the high bid by at least {$inputs.increment|money}, or end your turn. The lot closes after a full round with no new bid.",
+     "on_wake": [
+      "$world.turn_bid = false"
+     ],
+     "on_turn_end": [
+      "$world.quiet_turns = 0 if $world.turn_bid else $world.quiet_turns + 1"
+     ],
+     "on_exit": [
+      {
+       "if": "$world.high_bidder == null",
+       "then": [
+        {
+         "each": "lot",
+         "where": "$it.index == $world.active",
+         "do": [
+          "$it.status = unsold",
+          "$it.winner = null",
+          "$it.price = null"
+         ]
+        }
+       ],
+       "else": [
+        {
+         "transfer": "cash",
+         "from": "$entity($world.high_bidder)",
+         "to": "$entity(house)",
+         "amount": "$world.high_bid"
+        },
+        {
+         "each": "lot",
+         "where": "$it.index == $world.active",
+         "do": [
+          "$it.status = sold",
+          "$it.winner = $world.high_bidder",
+          "$it.price = $world.high_bid"
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "name": "sealed",
+     "when": "$world.format == sealed",
+     "actions": [
+      "submit_bid"
+     ],
+     "turns": "sequential",
+     "who": "collector",
+     "order": "seat",
+     "max_actions": 1,
+     "max_calls": 8,
+     "passes": 1,
+     "brief": "Lot {$world.active} is sold by sealed bid. Privately submit one bid, or end your turn without bidding. Highest bid wins and pays what it bid; ties go to the earliest submission."
+    }
+   ],
+   "events": [
+    {
+     "phase": "start",
+     "at": 1,
+     "do": [
+      "$world.cash_start = $sum(collector, $it.cash)"
+     ]
+    },
+    {
+     "phase": "start",
+     "do": [
+      {
+       "if": "$round <= $len($inputs.lots)",
+       "then": [
+        "$world.active = $round",
+        "$world.format = $inputs.lots[$round - 1].format",
+        "$world.high_bid = 0",
+        "$world.high_bidder = null",
+        "$world.quiet_turns = 0",
+        "$world.seal_seq = 0",
+        "$world.turn_bid = false",
+        {
+         "each": "collector",
+         "do": [
+          "$it.sealed_bid = 0",
+          "$it.sealed_seq = 0"
+         ]
+        },
+        {
+         "each": "lot",
+         "where": "$it.index == $round",
+         "do": [
+          "$it.status = open"
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "phase": "end",
+     "when": "$world.format == sealed",
+     "do": [
+      "$winners = $top(collector, [$it.sealed_bid, -$it.sealed_seq], 1, $it.sealed_bid > 0)",
+      {
+       "if": "$len($winners) == 0",
+       "then": [
+        {
+         "each": "lot",
+         "where": "$it.index == $world.active",
+         "do": [
+          "$it.status = unsold",
+          "$it.winner = null",
+          "$it.price = null"
+         ]
+        }
+       ],
+       "else": [
+        "$w = $winners[0]",
+        {
+         "transfer": "cash",
+         "from": "$w",
+         "to": "$entity(house)",
+         "amount": "$w.sealed_bid"
+        },
+        {
+         "each": "lot",
+         "where": "$it.index == $world.active",
+         "do": [
+          "$it.status = sold",
+          "$it.winner = $w.id",
+          "$it.price = $w.sealed_bid"
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "actions": {
+    "bid": {
+     "by": "collector",
+     "description": "Raise the standing high bid on the painting now under the hammer. The bid must beat the current high bid by at least the increment and cannot exceed your cash.",
+     "when": [
+      "$world.format == english",
+      {
+       "expr": "$actor.id != $world.high_bidder",
+       "why": "You already hold the standing high bid."
+      },
+      {
+       "expr": "$actor.cash >= $world.high_bid + $inputs.increment",
+       "why": "You cannot cover the minimum raise."
+      }
+     ],
+     "params": {
+      "price": {
+       "type": "int",
+       "min": "$world.high_bid + $inputs.increment",
+       "max": "$actor.cash",
+       "description": "Your new high bid in dollars."
+      }
+     },
+     "do": [
+      "$world.high_bid = $params.price",
+      "$world.high_bidder = $actor.id",
+      "$world.turn_bid = true"
+     ],
+     "outcome": "You hold the high bid on lot {$world.active} at {$params.price|money}.",
+     "announce": "{$actor.name} bids {$params.price|money}."
+    },
+    "submit_bid": {
+     "by": "collector",
+     "description": "Privately submit your one sealed bid for the painting on the block. It cannot exceed your cash.",
+     "when": [
+      "$world.format == sealed",
+      {
+       "expr": "$actor.sealed_bid == 0",
+       "why": "You have already submitted a bid for this lot."
+      }
+     ],
+     "params": {
+      "price": {
+       "type": "int",
+       "min": 1,
+       "max": "$actor.cash",
+       "description": "Your sealed bid in dollars."
+      }
+     },
+     "private": true,
+     "do": [
+      "$world.seal_seq += 1",
+      "$actor.sealed_bid = $params.price",
+      "$actor.sealed_seq = $world.seal_seq"
+     ],
+     "outcome": "You sealed {$params.price|money} for lot {$world.active} (submitted {$world.seal_seq})."
+    }
+   },
+   "views": {
+    "cash": {
+     "show": "You hold {$actor.cash|money}."
+    },
+    "values": {
+     "for": "collector",
+     "show": "Your private values \u2014 lot 1 {$actor.values[0]|money}, lot 2 {$actor.values[1]|money}, lot 3 {$actor.values[2]|money}, lot 4 {$actor.values[3]|money}, lot 5 {$actor.values[4]|money}, lot 6 {$actor.values[5]|money}."
+    },
+    "high_bid": {
+     "when": "$world.format == english",
+     "show": "Lot {$world.active} under the hammer: high bid {$world.high_bid|money} by {$world.high_bidder or 'no one yet'}."
+    },
+    "board": {
+     "title": "Lots",
+     "of": "lot",
+     "sort": "$it.index",
+     "show": "Lot {$it.index} ({$it.format}): {$it.status} \u2014 winner {$it.winner or 'none'}, price {$it.price or 0}."
+    },
+    "spectator": {
+     "for": "spectator",
+     "title": "Results",
+     "of": "lot",
+     "sort": "$it.index",
+     "show": "Lot {$it.index} ({$it.format}): {$it.status}, winner {$it.winner or 'none'} at {$it.price or 0}."
+    }
+   },
+   "metrics": {
+    "house_revenue": "$entity(house).cash",
+    "lots_sold": "$count(lot, $it.status == sold)"
+   },
+   "outputs": {
+    "lots": {
+     "type": "list",
+     "expr": "$map($sort(lot, $it.index), {lot: $it.index, format: $it.format, winner: $it.winner, price: $it.price})"
+    },
+    "house_revenue": {
+     "type": "number",
+     "expr": "$entity(house).cash",
+     "format": "money"
+    },
+    "cash_start_total": {
+     "type": "number",
+     "expr": "$world.cash_start",
+     "format": "money"
+    },
+    "cash_end_total": {
+     "type": "number",
+     "expr": "$sum(collector, $it.cash)",
+     "format": "money"
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$sum(collector, $it.cash) + $entity(house).cash == $world.cash_start",
+     "why": "Cash only moves from collectors to the house.",
+     "check": "round"
+    },
+    {
+     "expr": "$all(lot, $it.status != sold or $it.winner != null)",
+     "why": "A sold lot always names a winner.",
+     "check": "round"
+    }
+   ]
+  },
+  {
+   "name": "Auction house",
+   "clock": {
+    "rounds": "$inputs.horizon",
+    "unit": "round"
+   },
+   "brief": {
+    "situation": "An auction house is selling paintings to collectors. One lot comes under the hammer each round. Every collector, you among them, starts with the cash shown for it and a private opinion of what each painting is worth. Those private values are yours alone \u2014 nobody else can see them.",
+    "rules": "Lots 1 to 3 sell by open ascending auction: collectors take turns raising the standing high bid by at least {$inputs.increment|money}; everyone can see the current high bid; the lot closes as soon as a full round of turns passes with no new bid, and the standing high bidder buys at that bid. Lots 4 to 6 sell by sealed bid: every collector privately submits at most one bid; the highest bid wins and pays exactly what it bid; if two bids tie, the one submitted first wins. You can never bid more cash than you hold. Winners pay the house. Every painting is sold at most once.",
+    "roles": {
+     "collector": "You are a collector. Your private values for lots 1 to 6 are {$actor.values|list} and you hold {$actor.cash|money}. Bid only up to what a painting is worth to you, and never more cash than you have."
+    }
+   },
+   "inputs": {
+    "horizon": {
+     "type": "int",
+     "default": 6,
+     "min": 1,
+     "display": "number",
+     "label": "Rounds (one lot per round)"
+    },
+    "increment": {
+     "type": "int",
+     "default": 5,
+     "min": 1,
+     "display": "number",
+     "label": "Minimum raise ($)"
+    },
+    "start_price": {
+     "type": "int",
+     "default": 5,
+     "min": 0,
+     "display": "number",
+     "label": "Opening bid ($)"
+    },
+    "collectors": {
+     "type": "table",
+     "display": "table",
+     "label": "Collectors",
+     "fields": {
+      "name": {
+       "type": "text",
+       "required": true
+      },
+      "cash": {
+       "type": "int",
+       "default": 300,
+       "min": 0
+      },
+      "values": {
+       "type": "list",
+       "required": true,
+       "items": {
+        "type": "int",
+        "min": 0,
+        "required": true
+       }
+      }
+     },
+     "default": [
+      {
+       "name": "ann",
+       "cash": 300,
+       "values": [
+        80,
+        120,
+        60,
+        200,
+        90,
+        150
+       ]
+      },
+      {
+       "name": "bob",
+       "cash": 300,
+       "values": [
+        100,
+        90,
+        140,
+        70,
+        180,
+        60
+       ]
+      },
+      {
+       "name": "cid",
+       "cash": 300,
+       "values": [
+        60,
+        60,
+        80,
+        150,
+        120,
+        210
+       ]
+      },
+      {
+       "name": "dee",
+       "cash": 300,
+       "values": [
+        140,
+        70,
+        90,
+        60,
+        70,
+        100
+       ]
+      },
+      {
+       "name": "eve",
+       "cash": 300,
+       "values": [
+        70,
+        150,
+        70,
+        110,
+        60,
+        80
+       ]
+      },
+      {
+       "name": "fin",
+       "cash": 300,
+       "values": [
+        90,
+        100,
+        110,
+        90,
+        100,
+        90
+       ]
+      }
+     ]
+    },
+    "lots": {
+     "type": "table",
+     "display": "table",
+     "label": "Lots",
+     "fields": {
+      "lot": {
+       "type": "int",
+       "required": true
+      },
+      "format": {
+       "type": "enum",
+       "values": [
+        "english",
+        "sealed"
+       ],
+       "default": "english"
+      }
+     },
+     "default": [
+      {
+       "lot": 1,
+       "format": "english"
+      },
+      {
+       "lot": 2,
+       "format": "english"
+      },
+      {
+       "lot": 3,
+       "format": "english"
+      },
+      {
+       "lot": 4,
+       "format": "sealed"
+      },
+      {
+       "lot": 5,
+       "format": "sealed"
+      },
+      {
+       "lot": 6,
+       "format": "sealed"
+      }
+     ]
+    }
+   },
+   "world": {
+    "active": 0,
+    "format": "",
+    "high_bid": 0,
+    "high_bidder": {
+     "type": "any",
+     "default": null
+    },
+    "quiet_turns": 0,
+    "seal_seq": 0,
+    "turn_bid": false,
+    "cash_start": "$sum($inputs.collectors, $it.cash)"
+   },
+   "types": {
+    "collector": {
+     "agent": true,
+     "props": {
+      "cash": {
+       "type": "int",
+       "default": 300,
+       "min": 0
+      },
+      "values": {
+       "type": "list",
+       "default": [],
+       "private": true,
+       "description": "Private value per lot (index 0 = lot 1)."
+      },
+      "sealed_bid": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "sealed_seq": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      }
+     }
+    },
+    "lot": {
+     "props": {
+      "index": {
+       "type": "int",
+       "default": 0
+      },
+      "format": {
+       "type": "text",
+       "default": "english"
+      },
+      "status": {
+       "type": "text",
+       "default": "open"
+      },
+      "winner": {
+       "type": "any",
+       "default": null
+      },
+      "price": {
+       "type": "any",
+       "default": null
+      }
+     }
+    },
+    "house": {
+     "props": {
+      "cash": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      }
+     }
+    }
+   },
+   "entities": {
+    "house": {
+     "type": "house",
+     "name": "Auction house"
+    }
+   },
+   "population": [
+    {
+     "type": "collector",
+     "from": "$inputs.collectors",
+     "id": "{$row.name}",
+     "name": "{$row.name}",
+     "props": {
+      "cash": "$row.cash",
+      "values": "$row.values"
+     }
+    },
+    {
+     "type": "lot",
+     "from": "$inputs.lots",
+     "id": "lot_{$row.lot}",
+     "name": "Lot {$row.lot}",
+     "props": {
+      "index": "$row.lot",
+      "format": "$row.format"
+     }
+    }
+   ],
+   "stages": [
+    {
+     "name": "english",
+     "when": "$world.format == english",
+     "actions": [
+      "bid"
+     ],
+     "turns": "sequential",
+     "who": "collector",
+     "order": "seat",
+     "max_actions": 1,
+     "max_calls": 8,
+     "until": "$world.quiet_turns >= $count(collector)",
+     "passes": 40,
+     "brief": "Lot {$world.active} is open. Raise the high bid by at least {$inputs.increment|money}, or end your turn. The lot closes after a full round with no new bid.",
+     "on_wake": [
+      "$world.turn_bid = false"
+     ],
+     "on_turn_end": [
+      "$world.quiet_turns = 0 if $world.turn_bid else $world.quiet_turns + 1"
+     ],
+     "on_exit": [
+      {
+       "if": "$world.high_bidder == null",
+       "then": [
+        {
+         "each": "lot",
+         "where": "$it.index == $world.active",
+         "do": [
+          "$it.status = unsold",
+          "$it.winner = null",
+          "$it.price = null"
+         ]
+        }
+       ],
+       "else": [
+        {
+         "transfer": "cash",
+         "from": "$entity($world.high_bidder)",
+         "to": "$entity(house)",
+         "amount": "$world.high_bid"
+        },
+        {
+         "each": "lot",
+         "where": "$it.index == $world.active",
+         "do": [
+          "$it.status = sold",
+          "$it.winner = $world.high_bidder",
+          "$it.price = $world.high_bid"
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "name": "sealed",
+     "when": "$world.format == sealed",
+     "actions": [
+      "submit_bid"
+     ],
+     "turns": "sequential",
+     "who": "collector",
+     "order": "seat",
+     "max_actions": 1,
+     "max_calls": 8,
+     "passes": 1,
+     "brief": "Lot {$world.active} is sold by sealed bid. Privately submit one bid, or end your turn without bidding. Highest bid wins and pays what it bid; ties go to the earliest submission."
+    }
+   ],
+   "events": [
+    {
+     "phase": "start",
+     "do": [
+      {
+       "if": "$round <= $len($inputs.lots)",
+       "then": [
+        "$world.active = $round",
+        "$world.format = $inputs.lots[$round - 1].format",
+        "$world.high_bid = 0",
+        "$world.high_bidder = null",
+        "$world.quiet_turns = 0",
+        "$world.seal_seq = 0",
+        "$world.turn_bid = false",
+        {
+         "each": "collector",
+         "do": [
+          "$it.sealed_bid = 0",
+          "$it.sealed_seq = 0"
+         ]
+        },
+        {
+         "each": "lot",
+         "where": "$it.index == $round",
+         "do": [
+          "$it.status = open"
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "phase": "end",
+     "when": "$world.format == sealed",
+     "do": [
+      "$winners = $top(collector, [$it.sealed_bid, -$it.sealed_seq], 1, $it.sealed_bid > 0)",
+      {
+       "if": "$len($winners) == 0",
+       "then": [
+        {
+         "each": "lot",
+         "where": "$it.index == $world.active",
+         "do": [
+          "$it.status = unsold",
+          "$it.winner = null",
+          "$it.price = null"
+         ]
+        }
+       ],
+       "else": [
+        "$w = $winners[0]",
+        {
+         "transfer": "cash",
+         "from": "$w",
+         "to": "$entity(house)",
+         "amount": "$w.sealed_bid"
+        },
+        {
+         "each": "lot",
+         "where": "$it.index == $world.active",
+         "do": [
+          "$it.status = sold",
+          "$it.winner = $w.id",
+          "$it.price = $w.sealed_bid"
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "actions": {
+    "bid": {
+     "by": "collector",
+     "description": "Raise the standing high bid on the painting now under the hammer. The bid must beat the current high bid by at least the increment and cannot exceed your cash.",
+     "when": [
+      "$world.format == english",
+      {
+       "expr": "$actor.id != $world.high_bidder",
+       "why": "You already hold the standing high bid."
+      },
+      {
+       "expr": "$actor.cash >= $world.high_bid + $inputs.increment",
+       "why": "You cannot cover the minimum raise."
+      }
+     ],
+     "params": {
+      "price": {
+       "type": "int",
+       "min": "$world.high_bid + $inputs.increment",
+       "max": "$actor.cash",
+       "description": "Your new high bid in dollars."
+      }
+     },
+     "do": [
+      "$world.high_bid = $params.price",
+      "$world.high_bidder = $actor.id",
+      "$world.turn_bid = true"
+     ],
+     "outcome": "You hold the high bid on lot {$world.active} at {$params.price|money}.",
+     "announce": "{$actor.name} bids {$params.price|money}."
+    },
+    "submit_bid": {
+     "by": "collector",
+     "description": "Privately submit your one sealed bid for the painting on the block. It cannot exceed your cash.",
+     "when": [
+      "$world.format == sealed",
+      {
+       "expr": "$actor.sealed_bid == 0",
+       "why": "You have already submitted a bid for this lot."
+      }
+     ],
+     "params": {
+      "price": {
+       "type": "int",
+       "min": 1,
+       "max": "$actor.cash",
+       "description": "Your sealed bid in dollars."
+      }
+     },
+     "private": true,
+     "do": [
+      "$world.seal_seq += 1",
+      "$actor.sealed_bid = $params.price",
+      "$actor.sealed_seq = $world.seal_seq"
+     ],
+     "outcome": "You sealed {$params.price|money} for lot {$world.active} (submitted {$world.seal_seq})."
+    }
+   },
+   "views": {
+    "cash": {
+     "show": "You hold {$actor.cash|money}."
+    },
+    "values": {
+     "for": "collector",
+     "show": "Your private values \u2014 lot 1 {$actor.values[0]|money}, lot 2 {$actor.values[1]|money}, lot 3 {$actor.values[2]|money}, lot 4 {$actor.values[3]|money}, lot 5 {$actor.values[4]|money}, lot 6 {$actor.values[5]|money}."
+    },
+    "high_bid": {
+     "when": "$world.format == english",
+     "show": "Lot {$world.active} under the hammer: high bid {$world.high_bid|money} by {$world.high_bidder or 'no one yet'}."
+    },
+    "board": {
+     "title": "Lots",
+     "of": "lot",
+     "sort": "$it.index",
+     "show": "Lot {$it.index} ({$it.format}): {$it.status} \u2014 winner {$it.winner or 'none'}, price {$it.price or 0}."
+    },
+    "spectator": {
+     "for": "spectator",
+     "title": "Results",
+     "of": "lot",
+     "sort": "$it.index",
+     "show": "Lot {$it.index} ({$it.format}): {$it.status}, winner {$it.winner or 'none'} at {$it.price or 0}."
+    }
+   },
+   "metrics": {
+    "house_revenue": "$entity(house).cash",
+    "lots_sold": "$count(lot, $it.status == sold)"
+   },
+   "outputs": {
+    "lots": {
+     "type": "list",
+     "expr": "$map($sort(lot, $it.index), {lot: $it.index, format: $it.format, winner: $it.winner, price: $it.price})"
+    },
+    "house_revenue": {
+     "type": "number",
+     "expr": "$entity(house).cash",
+     "format": "money"
+    },
+    "cash_start_total": {
+     "type": "number",
+     "expr": "$world.cash_start",
+     "format": "money"
+    },
+    "cash_end_total": {
+     "type": "number",
+     "expr": "$sum(collector, $it.cash)",
+     "format": "money"
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$sum(collector, $it.cash) + $entity(house).cash == $world.cash_start",
+     "why": "Cash only moves from collectors to the house.",
+     "check": "round"
+    },
+    {
+     "expr": "$all(lot, $it.status != sold or $it.winner != null)",
+     "why": "A sold lot always names a winner.",
+     "check": "round"
+    }
+   ]
+  },
+  "{\n  \"name\": \"Auction house\",\n  \"clock\": {\"rounds\": \"$inputs.horizon\", \"unit\": \"round\"},\n  \"brief\": {\n    \"situation\": \"An auction house is selling paintings to collectors. One lot comes under the hammer each round. Every collector, you among them, starts with the cash shown for it and a private opinion of what each painting is worth. Those private values are yours alone \u2014 nobody else can see them.\",\n    \"rules\": \"Lots 1 to 3 sell by open ascending auction: collectors take turns raising the standing high bid by at least {$inputs.increment|money}; everyone can see the current high bid; the lot closes as soon as a full round of turns passes with no new bid, and the standing high bidder buys at that bid. Lots 4 to 6 sell by sealed bid: every collector privately submits at most one bid; the highest bid wins and pays exactly what it bid; if two bids tie, the one submitted first wins. You can never bid more cash than you hold. Winners pay the house. Every painting is sold at most once.\",\n    \"roles\": {\n      \"collector\": \"You are a collector. Your private values for lots 1 to 6 are {$actor.values|list} and you hold {$actor.cash|money}. Bid only up to what a painting is worth to you, and never more cash than you have.\"\n    }\n  },\n  \"inputs\": {\n    \"horizon\": {\"type\": \"int\", \"default\": 6, \"min\": 1, \"display\": \"number\", \"label\": \"Rounds (one lot per round)\"},\n    \"increment\": {\"type\": \"int\", \"default\": 5, \"min\": 1, \"display\": \"number\", \"label\": \"Minimum raise ($)\"},\n    \"start_price\": {\"type\": \"int\", \"default\": 5, \"min\": 0, \"display\": \"number\", \"label\": \"Opening bid ($)\"},\n    \"collectors\": {\"type\": \"table\", \"display\": \"table\", \"label\": \"Collectors\", \"fields\": {\n      \"name\": {\"type\": \"text\", \"required\": true},\n      \"cash\": {\"type\": \"int\", \"default\": 300, \"min\": 0},\n      \"values\": {\"type\": \"list\", \"required\": true, \"items\": {\"type\": \"int\", \"min\": 0, \"required\": true}}\n    }, \"default\": [\n      {\"name\": \"ann\", \"cash\": 300, \"values\": [80, 120, 60, 200, 90, 150]},\n      {\"name\": \"bob\", \"cash\": 300, \"values\": [100, 90, 140, 70, 180, 60]},\n      {\"name\": \"cid\", \"cash\": 300, \"values\": [60, 60, 80, 150, 120, 210]},\n      {\"name\": \"dee\", \"cash\": 300, \"values\": [140, 70, 90, 60, 70, 100]},\n      {\"name\": \"eve\", \"cash\": 300, \"values\": [70, 150, 70, 110, 60, 80]},\n      {\"name\": \"fin\", \"cash\": 300, \"values\": [90, 100, 110, 90, 100, 90]}\n    ]},\n    \"lots\": {\"type\": \"table\", \"display\": \"table\", \"label\": \"Lots\", \"fields\": {\n      \"lot\": {\"type\": \"int\", \"required\": true},\n      \"format\": {\"type\": \"enum\", \"values\": [\"english\", \"sealed\"], \"default\": \"english\"}\n    }, \"default\": [\n      {\"lot\": 1, \"format\": \"english\"},\n      {\"lot\": 2, \"format\": \"english\"},\n      {\"lot\": 3, \"format\": \"english\"},\n      {\"lot\": 4, \"format\": \"sealed\"},\n      {\"lot\": 5, \"format\": \"sealed\"},\n      {\"lot\": 6, \"format\": \"sealed\"}\n    ]}\n  },\n  \"world\": {\n    \"active\": 0,\n    \"format\": \"\",\n    \"high_bid\": 0,\n    \"high_bidder\": {\"type\": \"any\", \"default\": null},\n    \"quiet_turns\": 0,\n    \"seal_seq\": 0,\n    \"turn_bid\": false,\n    \"cash_start\": \"$sum($inputs.collectors, $it.cash)\"\n  },\n  \"types\": {\n    \"collector\": {\n      \"agent\": true,\n      \"props\": {\n        \"cash\": {\"type\": \"int\", \"default\": 300, \"min\": 0},\n        \"values\": {\"type\": \"list\", \"default\": [], \"private\": true, \"description\": \"Private value per lot (index 0 = lot 1).\"},\n        \"sealed_bid\": {\"type\": \"int\", \"default\": 0, \"min\": 0, \"private\": true},\n        \"sealed_seq\": {\"type\": \"int\", \"default\": 0, \"min\": 0, \"private\": true}\n      }\n    },\n    \"lot\": {\n      \"props\": {\n        \"index\": {\"type\": \"int\", \"default\": 0},\n        \"format\": {\"type\": \"text\", \"default\": \"english\"},\n        \"status\": {\"type\": \"text\", \"default\": \"open\"},\n        \"winner\": {\"type\": \"any\", \"default\": null},\n        \"price\": {\"type\": \"any\", \"default\": null}\n      }\n    },\n    \"house\": {\n      \"props\": {\"cash\": {\"type\": \"int\", \"default\": 0, \"min\": 0}}\n    }\n  },\n  \"entities\": {\n    \"house\": {\"type\": \"house\", \"name\": \"Auction house\"}\n  },\n  \"population\": [\n    {\"type\": \"collector\", \"from\": \"$inputs.collectors\", \"id\": \"{$row.name}\", \"name\": \"{$row.name}\",\n     \"props\": {\"cash\": \"$row.cash\", \"values\": \"$row.values\"}},\n    {\"type\": \"lot\", \"from\": \"$inputs.lots\", \"id\": \"lot_{$row.lot}\", \"name\": \"Lot {$row.lot}\",\n     \"props\": {\"index\": \"$row.lot\", \"format\": \"$row.format\"}}\n  ],\n  \"stages\": [\n    {\n      \"name\": \"english\",\n      \"when\": \"$world.format == english\",\n      \"actions\": [\"bid\"],\n      \"turns\": \"sequential\",\n      \"who\": \"collector\",\n      \"order\": \"seat\",\n      \"max_actions\": 1,\n      \"max_calls\": 8,\n      \"until\": \"$world.quiet_turns >= $count(collector)\",\n      \"passes\": 40,\n      \"brief\": \"Lot {$world.active} is open. Raise the high bid by at least {$inputs.increment|money}, or end your turn. The lot closes after a full round with no new bid.\",\n      \"on_wake\": [\"$world.turn_bid = false\"],\n      \"on_turn_end\": [\"$world.quiet_turns = 0 if $world.turn_bid else $world.quiet_turns + 1\"],\n      \"on_exit\": [\n        {\"if\": \"$world.high_bidder == null\", \"then\": [\n          {\"each\": \"lot\", \"where\": \"$it.index == $world.active\", \"do\": [\n            \"$it.status = unsold\", \"$it.winner = null\", \"$it.price = null\"]}\n        ], \"else\": [\n          {\"transfer\": \"cash\", \"from\": \"$entity($world.high_bidder)\", \"to\": \"$entity(house)\", \"amount\": \"$world.high_bid\"},\n          {\"each\": \"lot\", \"where\": \"$it.index == $world.active\", \"do\": [\n            \"$it.status = sold\", \"$it.winner = $world.high_bidder\", \"$it.price = $world.high_bid\"]}\n        ]}\n      ]\n    },\n    {\n      \"name\": \"sealed\",\n      \"when\": \"$world.format == sealed\",\n      \"actions\": [\"submit_bid\"],\n      \"turns\": \"sequential\",\n      \"who\": \"collector\",\n      \"order\": \"seat\",\n      \"max_actions\": 1,\n      \"max_calls\": 8,\n      \"passes\": 1,\n      \"brief\": \"Lot {$world.active} is sold by sealed bid. Privately submit one bid, or end your turn without bidding. Highest bid wins and pays what it bid; ties go to the earliest submission.\"\n    }\n  ],\n  \"events\": [\n    {\"phase\": \"start\", \"do\": [\n      {\"if\": \"$round <= $len($inputs.lots)\", \"then\": [\n        \"$world.active = $round\",\n        \"$world.format = $inputs.lots[$round - 1].format\",\n        \"$world.high_bid = 0\",\n        \"$world.high_bidder = null\",\n        \"$world.quiet_turns = 0\",\n        \"$world.seal_seq = 0\",\n        \"$world.turn_bid = false\",\n        {\"each\": \"collector\", \"do\": [\"$it.sealed_bid = 0\", \"$it.sealed_seq = 0\"]},\n        {\"each\": \"lot\", \"where\": \"$it.index == $round\", \"do\": [\"$it.status = open\"]}\n      ]}\n    ]},\n    {\"phase\": \"end\", \"when\": \"$world.format == sealed\", \"do\": [\n      \"$winners = $top(collector, [$it.sealed_bid, -$it.sealed_seq], 1, $it.sealed_bid > 0)\",\n      {\"if\": \"$len($winners) == 0\", \"then\": [\n        {\"each\": \"lot\", \"where\": \"$it.index == $world.active\", \"do\": [\n          \"$it.status = unsold\", \"$it.winner = null\", \"$it.price = null\"]}\n      ], \"else\": [\n        \"$w = $winners[0]\",\n        {\"transfer\": \"cash\", \"from\": \"$w\", \"to\": \"$entity(house)\", \"amount\": \"$w.sealed_bid\"},\n        {\"each\": \"lot\", \"where\": \"$it.index == $world.active\", \"do\": [\n          \"$it.status = sold\", \"$it.winner = $w.id\", \"$it.price\": \"$w.sealed_bid\"]}\n      ]}\n    ]}\n  ],\n  \"actions\": {\n    \"bid\": {\n      \"by\": \"collector\",\n      \"description\": \"Raise the standing high bid on the painting now under the hammer. The bid must beat the current high bid by at least the increment and cannot exceed your cash.\",\n      \"when\": [\n        \"$world.format == english\",\n        {\"expr\": \"$actor.id != $world.high_bidder\", \"why\": \"You already hold the standing high bid.\"},\n        {\"expr\": \"$actor.cash >= $world.high_bid + $inputs.increment\", \"why\": \"You cannot cover the minimum raise.\"}\n      ],\n      \"params\": {\n        \"price\": {\"type\": \"int\", \"min\": \"$world.high_bid + $inputs.increment\", \"max\": \"$actor.cash\",\n                  \"description\": \"Your new high bid in dollars.\"}\n      },\n      \"do\": [\"$world.high_bid = $params.price\", \"$world.high_bidder = $actor.id\", \"$world.turn_bid = true\"],\n      \"outcome\": \"You hold the high bid on lot {$world.active} at {$params.price|money}.\",\n      \"announce\": \"{$actor.name} bids {$params.price|money}.\"\n    },\n    \"submit_bid\": {\n      \"by\": \"collector\",\n      \"description\": \"Privately submit your one sealed bid for the painting on the block. It cannot exceed your cash.\",\n      \"when\": [\n        \"$world.format == sealed\",\n        {\"expr\": \"$actor.sealed_bid == 0\", \"why\": \"You have already submitted a bid for this lot.\"}\n      ],\n      \"params\": {\n        \"price\": {\"type\": \"int\", \"min\": 1, \"max\": \"$actor.cash\", \"description\": \"Your sealed bid in dollars.\"}\n      },\n      \"private\": true,\n      \"do\": [\"$world.seal_seq += 1\", \"$actor.sealed_bid = $params.price\", \"$actor.sealed_seq = $world.seal_seq\"],\n      \"outcome\": \"You sealed {$params.price|money} for lot {$world.active} (submitted {$world.seal_seq}).\"\n    }\n  },\n  \"views\": {\n    \"cash\": {\"show\": \"You hold {$actor.cash|money}.\"},\n    \"values\": {\"for\": \"collector\", \"show\": \"Your private values \u2014 lot 1 {$actor.values[0]|money}, lot 2 {$actor.values[1]|money}, lot 3 {$actor.values[2]|money}, lot 4 {$actor.values[3]|money}, lot 5 {$actor.values[4]|money}, lot 6 {$actor.values[5]|money}.\"},\n    \"high_bid\": {\"when\": \"$world.format == english\", \"show\": \"Lot {$world.active} under the hammer: high bid {$world.high_bid|money} by {$world.high_bidder or 'no one yet'}.\"},\n    \"board\": {\"title\": \"Lots\", \"of\": \"lot\", \"sort\": \"$it.index\",\n      \"show\": \"Lot {$it.index} ({$it.format}): {$it.status} \u2014 winner {$it.winner or 'none'}, price {$it.price or 0}.\"},\n    \"spectator\": {\"for\": \"spectator\", \"title\": \"Results\", \"of\": \"lot\", \"sort\": \"$it.index\",\n      \"show\": \"Lot {$it.index} ({$it.format}): {$it.status}, winner {$it.winner or 'none'} at {$it.price or 0}.\"}\n  },\n  \"metrics\": {\n    \"house_revenue\": \"$entity(house).cash\",\n    \"lots_sold\": \"$count(lot, $it.status == sold)\"\n  },\n  \"outputs\": {\n    \"lots\": {\"type\": \"list\", \"expr\": \"$map($sort(lot, $it.index), {lot: $it.index, format: $it.format, winner: $it.winner, price: $it.price})\"},\n    \"house_revenue\": {\"type\": \"number\", \"expr\": \"$entity(house).cash\", \"format\": \"money\"},\n    \"cash_start_total\": {\"type\": \"number\", \"expr\": \"$world.cash_start\", \"format\": \"money\"},\n    \"cash_end_total\": {\"type\": \"number\", \"expr\": \"$sum(collector, $it.cash)\", \"format\": \"money\"}\n  },\n  \"invariants\": [\n    {\"expr\": \"$sum(collector, $it.cash) + $entity(house).cash == $world.cash_start\",\n     \"why\": \"Cash only moves from collectors to the house.\", \"check\": \"round\"},\n    {\"expr\": \"$all(lot, $it.status != sold or $it.winner != null)\",\n     \"why\": \"A sold lot always names a winner.\", \"check\": \"round\"}\n  ]\n}",
+  {
+   "name": "Auction house",
+   "clock": {
+    "rounds": "$inputs.horizon",
+    "unit": "round"
+   },
+   "brief": {
+    "situation": "An auction house is selling paintings to collectors. One lot comes under the hammer each round. Every collector, you among them, starts with the cash shown for it and a private opinion of what each painting is worth. Those private values are yours alone \u2014 nobody else can see them.",
+    "rules": "Lots 1 to 3 sell by open ascending auction: collectors take turns raising the standing high bid by at least {$inputs.increment|money}; everyone can see the current high bid; the lot closes as soon as a full round of turns passes with no new bid, and the standing high bidder buys at that bid. Lots 4 to 6 sell by sealed bid: every collector privately submits at most one bid; the highest bid wins and pays exactly what it bid; if two bids tie, the one submitted first wins. You can never bid more cash than you hold. Winners pay the house. Every painting is sold at most once.",
+    "roles": {
+     "collector": "You are a collector. Your private values for lots 1 to 6 are {$actor.values|list} and you hold {$actor.cash|money}. Bid only up to what a painting is worth to you, and never more cash than you have."
+    }
+   },
+   "inputs": {
+    "horizon": {
+     "type": "int",
+     "default": 6,
+     "min": 1,
+     "display": "number",
+     "label": "Rounds (one lot per round)"
+    },
+    "increment": {
+     "type": "int",
+     "default": 5,
+     "min": 1,
+     "display": "number",
+     "label": "Minimum raise ($)"
+    },
+    "start_price": {
+     "type": "int",
+     "default": 5,
+     "min": 0,
+     "display": "number",
+     "label": "Opening bid ($)"
+    },
+    "collectors": {
+     "type": "table",
+     "display": "table",
+     "label": "Collectors",
+     "fields": {
+      "name": {
+       "type": "text",
+       "required": true
+      },
+      "cash": {
+       "type": "int",
+       "default": 300,
+       "min": 0
+      },
+      "values": {
+       "type": "list",
+       "required": true,
+       "items": {
+        "type": "int",
+        "min": 0,
+        "required": true
+       }
+      }
+     },
+     "default": [
+      {
+       "name": "ann",
+       "cash": 300,
+       "values": [
+        80,
+        120,
+        60,
+        200,
+        90,
+        150
+       ]
+      },
+      {
+       "name": "bob",
+       "cash": 300,
+       "values": [
+        100,
+        90,
+        140,
+        70,
+        180,
+        60
+       ]
+      },
+      {
+       "name": "cid",
+       "cash": 300,
+       "values": [
+        60,
+        60,
+        80,
+        150,
+        120,
+        210
+       ]
+      },
+      {
+       "name": "dee",
+       "cash": 300,
+       "values": [
+        140,
+        70,
+        90,
+        60,
+        70,
+        100
+       ]
+      },
+      {
+       "name": "eve",
+       "cash": 300,
+       "values": [
+        70,
+        150,
+        70,
+        110,
+        60,
+        80
+       ]
+      },
+      {
+       "name": "fin",
+       "cash": 300,
+       "values": [
+        90,
+        100,
+        110,
+        90,
+        100,
+        90
+       ]
+      }
+     ]
+    },
+    "lots": {
+     "type": "table",
+     "display": "table",
+     "label": "Lots",
+     "fields": {
+      "lot": {
+       "type": "int",
+       "required": true
+      },
+      "format": {
+       "type": "enum",
+       "values": [
+        "english",
+        "sealed"
+       ],
+       "default": "english"
+      }
+     },
+     "default": [
+      {
+       "lot": 1,
+       "format": "english"
+      },
+      {
+       "lot": 2,
+       "format": "english"
+      },
+      {
+       "lot": 3,
+       "format": "english"
+      },
+      {
+       "lot": 4,
+       "format": "sealed"
+      },
+      {
+       "lot": 5,
+       "format": "sealed"
+      },
+      {
+       "lot": 6,
+       "format": "sealed"
+      }
+     ]
+    }
+   },
+   "world": {
+    "active": 0,
+    "format": "",
+    "high_bid": 0,
+    "high_bidder": {
+     "type": "any",
+     "default": null
+    },
+    "quiet_turns": 0,
+    "seal_seq": 0,
+    "turn_bid": false,
+    "cash_start": "$sum($inputs.collectors, $it.cash)"
+   },
+   "types": {
+    "collector": {
+     "agent": true,
+     "props": {
+      "cash": {
+       "type": "int",
+       "default": 300,
+       "min": 0
+      },
+      "values": {
+       "type": "list",
+       "default": [],
+       "private": true,
+       "description": "Private value per lot (index 0 = lot 1)."
+      },
+      "sealed_bid": {
+       "type": "int",
+       "default": 0,
+       "min": 0,
+       "private": true
+      },
+      "sealed_seq": {
+       "type": "int",
+       "default": 0,
+       "min": 0,
+       "private": true
+      }
+     }
+    },
+    "lot": {
+     "props": {
+      "index": {
+       "type": "int",
+       "default": 0
+      },
+      "format": {
+       "type": "text",
+       "default": "english"
+      },
+      "status": {
+       "type": "text",
+       "default": "open"
+      },
+      "winner": {
+       "type": "any",
+       "default": null
+      },
+      "price": {
+       "type": "any",
+       "default": null
+      }
+     }
+    },
+    "house": {
+     "props": {
+      "cash": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      }
+     }
+    }
+   },
+   "entities": {
+    "house": {
+     "type": "house",
+     "name": "Auction house"
+    }
+   },
+   "population": [
+    {
+     "type": "collector",
+     "from": "$inputs.collectors",
+     "id": "{$row.name}",
+     "name": "{$row.name}",
+     "props": {
+      "cash": "$row.cash",
+      "values": "$row.values"
+     }
+    },
+    {
+     "type": "lot",
+     "from": "$inputs.lots",
+     "id": "lot_{$row.lot}",
+     "name": "Lot {$row.lot}",
+     "props": {
+      "index": "$row.lot",
+      "format": "$row.format"
+     }
+    }
+   ],
+   "stages": [
+    {
+     "name": "english",
+     "when": "$world.format == english",
+     "actions": [
+      "bid"
+     ],
+     "turns": "sequential",
+     "who": "collector",
+     "order": "seat",
+     "max_actions": 1,
+     "max_calls": 8,
+     "until": "$world.quiet_turns >= $count(collector)",
+     "passes": 40,
+     "brief": "Lot {$world.active} is open. Raise the high bid by at least {$inputs.increment|money}, or end your turn. The lot closes after a full round with no new bid.",
+     "on_wake": [
+      "$world.turn_bid = false"
+     ],
+     "on_turn_end": [
+      "$world.quiet_turns = 0 if $world.turn_bid else $world.quiet_turns + 1"
+     ],
+     "on_exit": [
+      {
+       "if": "$world.high_bidder == null",
+       "then": [
+        {
+         "each": "lot",
+         "where": "$it.index == $world.active",
+         "do": [
+          "$it.status = unsold"
+         ]
+        }
+       ],
+       "else": [
+        {
+         "transfer": "cash",
+         "from": "$entity($world.high_bidder)",
+         "to": "$entity(house)",
+         "amount": "$world.high_bid"
+        },
+        {
+         "each": "lot",
+         "where": "$it.index == $world.active",
+         "do": [
+          "$it.status = sold",
+          "$it.winner = $world.high_bidder",
+          "$it.price = $world.high_bid"
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "name": "sealed",
+     "when": "$world.format == sealed",
+     "actions": [
+      "submit_bid"
+     ],
+     "turns": "sequential",
+     "who": "collector",
+     "order": "seat",
+     "max_actions": 1,
+     "max_calls": 8,
+     "passes": 1,
+     "brief": "Lot {$world.active} is sold by sealed bid. Privately submit one bid, or end your turn without bidding. Highest bid wins and pays what it bid; ties go to the earliest submission."
+    }
+   ],
+   "events": [
+    {
+     "phase": "start",
+     "do": [
+      {
+       "if": "$round <= $len($inputs.lots)",
+       "then": [
+        "$world.active = $round",
+        "$world.format = $inputs.lots[$round - 1].format",
+        "$world.high_bid = 0",
+        "$world.high_bidder = null",
+        "$world.quiet_turns = 0",
+        "$world.seal_seq = 0",
+        "$world.turn_bid = false",
+        {
+         "each": "collector",
+         "do": [
+          "$it.sealed_bid = 0",
+          "$it.sealed_seq = 0"
+         ]
+        },
+        {
+         "each": "lot",
+         "where": "$it.index == $round",
+         "do": [
+          "$it.status = open"
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "phase": "end",
+     "when": "$world.format == sealed",
+     "do": [
+      "$winners = $top(collector, [$it.sealed_bid, -$it.sealed_seq], 1, $it.sealed_bid > 0)",
+      {
+       "if": "$len($winners) == 0",
+       "then": [
+        {
+         "each": "lot",
+         "where": "$it.index == $world.active",
+         "do": [
+          "$it.status = unsold"
+         ]
+        }
+       ],
+       "else": [
+        "$w = $winners[0]",
+        {
+         "transfer": "cash",
+         "from": "$w",
+         "to": "$entity(house)",
+         "amount": "$w.sealed_bid"
+        },
+        {
+         "each": "lot",
+         "where": "$it.index == $world.active",
+         "do": [
+          "$it.status = sold",
+          "$it.winner = $w.id",
+          "$it.price = $w.sealed_bid"
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "actions": {
+    "bid": {
+     "by": "collector",
+     "description": "Raise the standing high bid on the painting now under the hammer. The bid must beat the current high bid by at least the increment and cannot exceed your cash.",
+     "when": [
+      "$world.format == english",
+      {
+       "expr": "$actor.id != $world.high_bidder",
+       "why": "You already hold the standing high bid."
+      },
+      {
+       "expr": "$actor.cash >= $world.high_bid + $inputs.increment",
+       "why": "You cannot cover the minimum raise."
+      }
+     ],
+     "params": {
+      "price": {
+       "type": "int",
+       "min": "$world.high_bid + $inputs.increment",
+       "max": "$actor.cash",
+       "description": "Your new high bid in dollars."
+      }
+     },
+     "do": [
+      "$world.high_bid = $params.price",
+      "$world.high_bidder = $actor.id",
+      "$world.turn_bid = true"
+     ],
+     "outcome": "You hold the high bid on lot {$world.active} at {$params.price|money}.",
+     "announce": "{$actor.name} bids {$params.price|money}."
+    },
+    "submit_bid": {
+     "by": "collector",
+     "description": "Privately submit your one sealed bid for the painting on the block. It cannot exceed your cash.",
+     "when": [
+      "$world.format == sealed",
+      {
+       "expr": "$actor.sealed_bid == 0",
+       "why": "You have already submitted a bid for this lot."
+      }
+     ],
+     "params": {
+      "price": {
+       "type": "int",
+       "min": 1,
+       "max": "$actor.cash",
+       "description": "Your sealed bid in dollars."
+      }
+     },
+     "private": true,
+     "do": [
+      "$world.seal_seq += 1",
+      "$actor.sealed_bid = $params.price",
+      "$actor.sealed_seq = $world.seal_seq"
+     ],
+     "outcome": "You sealed {$params.price|money} for lot {$world.active} (submitted {$world.seal_seq})."
+    }
+   },
+   "views": {
+    "cash": {
+     "show": "You hold {$actor.cash|money}."
+    },
+    "values": {
+     "for": "collector",
+     "show": "Your private values \u2014 lot 1 {$actor.values[0]|money}, lot 2 {$actor.values[1]|money}, lot 3 {$actor.values[2]|money}, lot 4 {$actor.values[3]|money}, lot 5 {$actor.values[4]|money}, lot 6 {$actor.values[5]|money}."
+    },
+    "high_bid": {
+     "when": "$world.format == english",
+     "show": "Lot {$world.active} under the hammer: high bid {$world.high_bid|money} by {$world.high_bidder or 'no one yet'}."
+    },
+    "board": {
+     "title": "Lots",
+     "of": "lot",
+     "sort": "$it.index",
+     "show": "Lot {$it.index} ({$it.format}): {$it.status} \u2014 winner {$it.winner or 'none'}, price {$it.price or 0}."
+    },
+    "spectator": {
+     "for": "spectator",
+     "title": "Results",
+     "of": "lot",
+     "sort": "$it.index",
+     "show": "Lot {$it.index} ({$it.format}): {$it.status}, winner {$it.winner or 'none'} at {$it.price or 0}."
+    }
+   },
+   "metrics": {
+    "house_revenue": "$entity(house).cash",
+    "lots_sold": "$count(lot, $it.status == sold)"
+   },
+   "outputs": {
+    "lots": {
+     "type": "list",
+     "expr": "$map($sort(lot, $it.index), {lot: $it.index, format: $it.format, winner: $it.winner, price: $it.price})"
+    },
+    "house_revenue": {
+     "type": "number",
+     "expr": "$entity(house).cash",
+     "format": "money"
+    },
+    "cash_start_total": {
+     "type": "number",
+     "expr": "$world.cash_start",
+     "format": "money"
+    },
+    "cash_end_total": {
+     "type": "number",
+     "expr": "$sum(collector, $it.cash)",
+     "format": "money"
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$sum(collector, $it.cash) + $entity(house).cash == $world.cash_start",
+     "why": "Cash only moves from collectors to the house.",
+     "check": "round"
+    },
+    {
+     "expr": "$all(lot, $it.status != sold or $it.winner != null)",
+     "why": "A sold lot always names a winner.",
+     "check": "round"
+    }
+   ]
+  },
+  {
+   "name": "Auction house",
+   "clock": {
+    "rounds": "$inputs.horizon",
+    "unit": "round"
+   },
+   "brief": {
+    "situation": "An auction house is selling paintings to collectors. One lot comes under the hammer each round. Every collector, you among them, starts with the cash shown for it and a private opinion of what each painting is worth. Those private values are yours alone \u2014 nobody else can see them.",
+    "rules": "Lots 1 to 3 sell by open ascending auction: collectors take turns raising the standing high bid by at least {$inputs.increment|money}; everyone can see the current high bid; the lot closes as soon as a full round of turns passes with no new bid, and the standing high bidder buys at that bid. Lots 4 to 6 sell by sealed bid: every collector privately submits at most one bid; the highest bid wins and pays exactly what it bid; if two bids tie, the one submitted first wins. You can never bid more cash than you hold. Winners pay the house. Every painting is sold at most once.",
+    "roles": {
+     "collector": "You are a collector. Your private values for lots 1 to 6 are {$actor.values|list} and you hold {$actor.cash|money}. Bid only up to what a painting is worth to you, and never more cash than you have."
+    }
+   },
+   "inputs": {
+    "horizon": {
+     "type": "int",
+     "default": 6,
+     "min": 1,
+     "display": "number",
+     "label": "Rounds (one lot per round)"
+    },
+    "increment": {
+     "type": "int",
+     "default": 5,
+     "min": 1,
+     "display": "number",
+     "label": "Minimum raise ($)"
+    },
+    "collectors": {
+     "type": "table",
+     "display": "table",
+     "label": "Collectors",
+     "fields": {
+      "name": {
+       "type": "text",
+       "required": true
+      },
+      "cash": {
+       "type": "int",
+       "default": 300,
+       "min": 0
+      },
+      "values": {
+       "type": "list",
+       "required": true,
+       "items": {
+        "type": "int",
+        "min": 0,
+        "required": true
+       }
+      }
+     },
+     "default": [
+      {
+       "name": "ann",
+       "cash": 300,
+       "values": [
+        80,
+        120,
+        60,
+        200,
+        90,
+        150
+       ]
+      },
+      {
+       "name": "bob",
+       "cash": 300,
+       "values": [
+        100,
+        90,
+        140,
+        70,
+        180,
+        60
+       ]
+      },
+      {
+       "name": "cid",
+       "cash": 300,
+       "values": [
+        60,
+        60,
+        80,
+        150,
+        120,
+        210
+       ]
+      },
+      {
+       "name": "dee",
+       "cash": 300,
+       "values": [
+        140,
+        70,
+        90,
+        60,
+        70,
+        100
+       ]
+      },
+      {
+       "name": "eve",
+       "cash": 300,
+       "values": [
+        70,
+        150,
+        70,
+        110,
+        60,
+        80
+       ]
+      },
+      {
+       "name": "fin",
+       "cash": 300,
+       "values": [
+        90,
+        100,
+        110,
+        90,
+        100,
+        90
+       ]
+      }
+     ]
+    },
+    "lots": {
+     "type": "table",
+     "display": "table",
+     "label": "Lots",
+     "fields": {
+      "lot": {
+       "type": "int",
+       "required": true
+      },
+      "format": {
+       "type": "enum",
+       "values": [
+        "english",
+        "sealed"
+       ],
+       "default": "english"
+      }
+     },
+     "default": [
+      {
+       "lot": 1,
+       "format": "english"
+      },
+      {
+       "lot": 2,
+       "format": "english"
+      },
+      {
+       "lot": 3,
+       "format": "english"
+      },
+      {
+       "lot": 4,
+       "format": "sealed"
+      },
+      {
+       "lot": 5,
+       "format": "sealed"
+      },
+      {
+       "lot": 6,
+       "format": "sealed"
+      }
+     ]
+    }
+   },
+   "world": {
+    "active": 0,
+    "format": "",
+    "high_bid": 0,
+    "high_bidder": {
+     "type": "any",
+     "default": null
+    },
+    "quiet_turns": 0,
+    "seal_seq": 0,
+    "turn_bid": false,
+    "cash_start": "$sum($inputs.collectors, $it.cash)"
+   },
+   "types": {
+    "collector": {
+     "agent": true,
+     "props": {
+      "cash": {
+       "type": "int",
+       "default": 300,
+       "min": 0
+      },
+      "values": {
+       "type": "list",
+       "default": [],
+       "private": true,
+       "description": "Private value per lot (index 0 = lot 1)."
+      },
+      "sealed_bid": {
+       "type": "int",
+       "default": 0,
+       "min": 0,
+       "private": true
+      },
+      "sealed_seq": {
+       "type": "int",
+       "default": 0,
+       "min": 0,
+       "private": true
+      }
+     }
+    },
+    "lot": {
+     "props": {
+      "index": {
+       "type": "int",
+       "default": 0
+      },
+      "format": {
+       "type": "text",
+       "default": "english"
+      },
+      "status": {
+       "type": "text",
+       "default": "open"
+      },
+      "winner": {
+       "type": "any",
+       "default": null
+      },
+      "price": {
+       "type": "any",
+       "default": null
+      }
+     }
+    },
+    "house": {
+     "props": {
+      "cash": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      }
+     }
+    }
+   },
+   "entities": {
+    "house": {
+     "type": "house",
+     "name": "Auction house"
+    }
+   },
+   "population": [
+    {
+     "type": "collector",
+     "from": "$inputs.collectors",
+     "id": "{$row.name}",
+     "name": "{$row.name}",
+     "props": {
+      "cash": "$row.cash",
+      "values": "$row.values"
+     }
+    },
+    {
+     "type": "lot",
+     "from": "$inputs.lots",
+     "id": "lot_{$row.lot}",
+     "name": "Lot {$row.lot}",
+     "props": {
+      "index": "$row.lot",
+      "format": "$row.format"
+     }
+    }
+   ],
+   "stages": [
+    {
+     "name": "english",
+     "when": "$world.format == english",
+     "actions": [
+      "bid"
+     ],
+     "turns": "sequential",
+     "who": "collector",
+     "order": "seat",
+     "max_actions": 1,
+     "max_calls": 8,
+     "until": "$world.quiet_turns >= $count(collector)",
+     "passes": 40,
+     "brief": "Lot {$world.active} is open. Raise the high bid by at least {$inputs.increment|money}, or end your turn. The lot closes after a full round with no new bid.",
+     "on_wake": [
+      "$world.turn_bid = false"
+     ],
+     "on_turn_end": [
+      "$world.quiet_turns = 0 if $world.turn_bid else $world.quiet_turns + 1"
+     ],
+     "on_exit": [
+      {
+       "if": "$world.high_bidder == null",
+       "then": [
+        {
+         "each": "lot",
+         "where": "$it.index == $world.active",
+         "do": [
+          "$it.status = unsold"
+         ]
+        }
+       ],
+       "else": [
+        {
+         "transfer": "cash",
+         "from": "$entity($world.high_bidder)",
+         "to": "$entity(house)",
+         "amount": "$world.high_bid"
+        },
+        {
+         "each": "lot",
+         "where": "$it.index == $world.active",
+         "do": [
+          "$it.status = sold",
+          "$it.winner = $world.high_bidder",
+          "$it.price = $world.high_bid"
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "name": "sealed",
+     "when": "$world.format == sealed",
+     "actions": [
+      "submit_bid"
+     ],
+     "turns": "sequential",
+     "who": "collector",
+     "order": "seat",
+     "max_actions": 1,
+     "max_calls": 8,
+     "passes": 1,
+     "brief": "Lot {$world.active} is sold by sealed bid. Privately submit one bid, or end your turn without bidding. Highest bid wins and pays what it bid; ties go to the earliest submission."
+    }
+   ],
+   "events": [
+    {
+     "phase": "start",
+     "do": [
+      {
+       "if": "$round <= $len($inputs.lots)",
+       "then": [
+        "$world.active = $round",
+        "$world.format = $inputs.lots[$round - 1].format",
+        "$world.high_bid = 0",
+        "$world.high_bidder = null",
+        "$world.quiet_turns = 0",
+        "$world.seal_seq = 0",
+        "$world.turn_bid = false",
+        {
+         "each": "collector",
+         "do": [
+          "$it.sealed_bid = 0",
+          "$it.sealed_seq = 0"
+         ]
+        },
+        {
+         "each": "lot",
+         "where": "$it.index == $round",
+         "do": [
+          "$it.status = open"
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "phase": "end",
+     "when": "$world.format == sealed",
+     "do": [
+      "$winners = $top(collector, [$it.sealed_bid, -$it.sealed_seq], 1, $it.sealed_bid > 0)",
+      {
+       "if": "$len($winners) == 0",
+       "then": [
+        {
+         "each": "lot",
+         "where": "$it.index == $world.active",
+         "do": [
+          "$it.status = unsold"
+         ]
+        }
+       ],
+       "else": [
+        "$w = $winners[0]",
+        {
+         "transfer": "cash",
+         "from": "$w",
+         "to": "$entity(house)",
+         "amount": "$w.sealed_bid"
+        },
+        {
+         "each": "lot",
+         "where": "$it.index == $world.active",
+         "do": [
+          "$it.status = sold",
+          "$it.winner = $w.id",
+          "$it.price = $w.sealed_bid"
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "actions": {
+    "bid": {
+     "by": "collector",
+     "description": "Raise the standing high bid on the painting now under the hammer. The bid must beat the current high bid by at least the increment and cannot exceed your cash.",
+     "when": [
+      "$world.format == english",
+      {
+       "expr": "$actor.id != $world.high_bidder",
+       "why": "You already hold the standing high bid."
+      },
+      {
+       "expr": "$actor.cash >= $world.high_bid + $inputs.increment",
+       "why": "You cannot cover the minimum raise."
+      }
+     ],
+     "params": {
+      "price": {
+       "type": "int",
+       "min": "$world.high_bid + $inputs.increment",
+       "max": "$actor.cash",
+       "description": "Your new high bid in dollars."
+      }
+     },
+     "do": [
+      "$world.high_bid = $params.price",
+      "$world.high_bidder = $actor.id",
+      "$world.turn_bid = true"
+     ],
+     "outcome": "You hold the high bid on lot {$world.active} at {$params.price|money}.",
+     "announce": "{$actor.name} bids {$params.price|money}."
+    },
+    "submit_bid": {
+     "by": "collector",
+     "description": "Privately submit your one sealed bid for the painting on the block. It cannot exceed your cash.",
+     "when": [
+      "$world.format == sealed",
+      {
+       "expr": "$actor.sealed_bid == 0",
+       "why": "You have already submitted a bid for this lot."
+      }
+     ],
+     "params": {
+      "price": {
+       "type": "int",
+       "min": 1,
+       "max": "$actor.cash",
+       "description": "Your sealed bid in dollars."
+      }
+     },
+     "private": true,
+     "do": [
+      "$world.seal_seq += 1",
+      "$actor.sealed_bid = $params.price",
+      "$actor.sealed_seq = $world.seal_seq"
+     ],
+     "outcome": "You sealed {$params.price|money} for lot {$world.active} (submitted {$world.seal_seq})."
+    }
+   },
+   "views": {
+    "cash": {
+     "show": "You hold {$actor.cash|money}."
+    },
+    "values": {
+     "for": "collector",
+     "show": "Your private values \u2014 lot 1 {$actor.values[0]|money}, lot 2 {$actor.values[1]|money}, lot 3 {$actor.values[2]|money}, lot 4 {$actor.values[3]|money}, lot 5 {$actor.values[4]|money}, lot 6 {$actor.values[5]|money}."
+    },
+    "high_bid": {
+     "when": "$world.format == english",
+     "show": "Lot {$world.active} under the hammer: high bid {$world.high_bid|money} by {$world.high_bidder or 'no one yet'}."
+    },
+    "board": {
+     "title": "Lots",
+     "of": "lot",
+     "sort": "$it.index",
+     "show": "Lot {$it.index} ({$it.format}): {$it.status} \u2014 winner {$it.winner or 'none'}, price {$it.price or 0}."
+    },
+    "spectator": {
+     "for": "spectator",
+     "title": "Results",
+     "of": "lot",
+     "sort": "$it.index",
+     "show": "Lot {$it.index} ({$it.format}): {$it.status}, winner {$it.winner or 'none'} at {$it.price or 0}."
+    }
+   },
+   "metrics": {
+    "house_revenue": "$entity(house).cash",
+    "lots_sold": "$count(lot, $it.status == sold)"
+   },
+   "outputs": {
+    "lots": {
+     "type": "list",
+     "expr": "$map($sort(lot, $it.index), {lot: $it.index, format: $it.format, winner: $it.winner, price: $it.price})"
+    },
+    "house_revenue": {
+     "type": "number",
+     "expr": "$entity(house).cash",
+     "format": "money"
+    },
+    "cash_start_total": {
+     "type": "number",
+     "expr": "$world.cash_start",
+     "format": "money"
+    },
+    "cash_end_total": {
+     "type": "number",
+     "expr": "$sum(collector, $it.cash)",
+     "format": "money"
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$sum(collector, $it.cash) + $entity(house).cash == $world.cash_start",
+     "why": "Cash only moves from collectors to the house.",
+     "check": "round"
+    },
+    {
+     "expr": "$all(lot, $it.status != sold or $it.winner != null)",
+     "why": "A sold lot always names a winner.",
+     "check": "round"
+    }
+   ]
+  },
+  {
+   "name": "Auction house",
+   "clock": {
+    "rounds": "$inputs.horizon",
+    "unit": "round"
+   },
+   "brief": {
+    "situation": "An auction house is selling paintings to collectors. One lot comes under the hammer each round. Every collector, you among them, starts with the cash shown for it and a private opinion of what each painting is worth. Those private values are yours alone \u2014 nobody else can see them.",
+    "rules": "Lots 1 to 3 sell by open ascending auction: collectors take turns raising the standing high bid by at least {$inputs.increment|money}; everyone can see the current high bid; the lot closes as soon as a full round of turns passes with no new bid, and the standing high bidder buys at that bid. Lots 4 to 6 sell by sealed bid: every collector privately submits at most one bid; the highest bid wins and pays exactly what it bid; if two bids tie, the one submitted first wins. You can never bid more cash than you hold. Winners pay the house. Every painting is sold at most once.",
+    "roles": {
+     "collector": "You are a collector. Your private values for lots 1 to 6 are {$actor.values|list} and you hold {$actor.cash|money}. Bid only up to what a painting is worth to you, and never more cash than you have."
+    }
+   },
+   "inputs": {
+    "horizon": {
+     "type": "int",
+     "default": 6,
+     "min": 1,
+     "display": "number",
+     "label": "Rounds (one lot per round)"
+    },
+    "increment": {
+     "type": "int",
+     "default": 5,
+     "min": 1,
+     "display": "number",
+     "label": "Minimum raise ($)"
+    },
+    "collectors": {
+     "type": "table",
+     "display": "table",
+     "label": "Collectors",
+     "fields": {
+      "name": {
+       "type": "text",
+       "required": true
+      },
+      "cash": {
+       "type": "int",
+       "default": 300,
+       "min": 0
+      },
+      "values": {
+       "type": "list",
+       "required": true,
+       "items": {
+        "type": "int",
+        "min": 0,
+        "required": true
+       }
+      }
+     },
+     "default": [
+      {
+       "name": "ann",
+       "cash": 300,
+       "values": [
+        80,
+        120,
+        60,
+        200,
+        90,
+        150
+       ]
+      },
+      {
+       "name": "bob",
+       "cash": 300,
+       "values": [
+        100,
+        90,
+        140,
+        70,
+        180,
+        60
+       ]
+      },
+      {
+       "name": "cid",
+       "cash": 300,
+       "values": [
+        60,
+        60,
+        80,
+        150,
+        120,
+        210
+       ]
+      },
+      {
+       "name": "dee",
+       "cash": 300,
+       "values": [
+        140,
+        70,
+        90,
+        60,
+        70,
+        100
+       ]
+      },
+      {
+       "name": "eve",
+       "cash": 300,
+       "values": [
+        70,
+        150,
+        70,
+        110,
+        60,
+        80
+       ]
+      },
+      {
+       "name": "fin",
+       "cash": 300,
+       "values": [
+        90,
+        100,
+        110,
+        90,
+        100,
+        90
+       ]
+      }
+     ]
+    },
+    "lots": {
+     "type": "table",
+     "display": "table",
+     "label": "Lots",
+     "fields": {
+      "lot": {
+       "type": "int",
+       "required": true
+      },
+      "format": {
+       "type": "enum",
+       "values": [
+        "english",
+        "sealed"
+       ],
+       "default": "english"
+      }
+     },
+     "default": [
+      {
+       "lot": 1,
+       "format": "english"
+      },
+      {
+       "lot": 2,
+       "format": "english"
+      },
+      {
+       "lot": 3,
+       "format": "english"
+      },
+      {
+       "lot": 4,
+       "format": "sealed"
+      },
+      {
+       "lot": 5,
+       "format": "sealed"
+      },
+      {
+       "lot": 6,
+       "format": "sealed"
+      }
+     ]
+    }
+   },
+   "world": {
+    "active": 0,
+    "format": "",
+    "high_bid": 0,
+    "high_bidder": {
+     "type": "any",
+     "default": null
+    },
+    "quiet_turns": 0,
+    "seal_seq": 0,
+    "turn_bid": false,
+    "cash_start": "$sum($inputs.collectors, $it.cash)"
+   },
+   "types": {
+    "collector": {
+     "agent": true,
+     "props": {
+      "cash": {
+       "type": "int",
+       "default": 300,
+       "min": 0
+      },
+      "values": {
+       "type": "list",
+       "default": [],
+       "private": true,
+       "description": "Private value per lot (index 0 = lot 1)."
+      },
+      "sealed_bid": {
+       "type": "int",
+       "default": 0,
+       "min": 0,
+       "private": true
+      },
+      "sealed_seq": {
+       "type": "int",
+       "default": 0,
+       "min": 0,
+       "private": true
+      }
+     }
+    },
+    "lot": {
+     "props": {
+      "index": {
+       "type": "int",
+       "default": 0
+      },
+      "format": {
+       "type": "text",
+       "default": "english"
+      },
+      "status": {
+       "type": "text",
+       "default": "open"
+      },
+      "winner": {
+       "type": "any",
+       "default": null
+      },
+      "price": {
+       "type": "any",
+       "default": null
+      }
+     }
+    },
+    "house": {
+     "props": {
+      "cash": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      }
+     }
+    }
+   },
+   "entities": {
+    "house": {
+     "type": "house",
+     "name": "Auction house"
+    }
+   },
+   "population": [
+    {
+     "type": "collector",
+     "from": "$inputs.collectors",
+     "id": "{$row.name}",
+     "name": "{$row.name}",
+     "props": {
+      "cash": "$row.cash",
+      "values": "$row.values"
+     }
+    },
+    {
+     "type": "lot",
+     "from": "$inputs.lots",
+     "id": "lot_{$row.lot}",
+     "name": "Lot {$row.lot}",
+     "props": {
+      "index": "$row.lot",
+      "format": "$row.format"
+     }
+    }
+   ],
+   "stages": [
+    {
+     "name": "english",
+     "when": "$world.format == english",
+     "actions": [
+      "bid"
+     ],
+     "turns": "sequential",
+     "who": "collector",
+     "order": "seat",
+     "max_actions": 1,
+     "max_calls": 8,
+     "until": "$world.quiet_turns >= $count(collector)",
+     "passes": 40,
+     "brief": "Lot {$world.active} is open. Raise the high bid by at least {$inputs.increment|money}, or end your turn. The lot closes after a full round with no new bid.",
+     "on_wake": [
+      "$world.turn_bid = false"
+     ],
+     "on_turn_end": [
+      "$world.quiet_turns = 0 if $world.turn_bid else $world.quiet_turns + 1"
+     ],
+     "on_exit": [
+      {
+       "if": "$world.high_bidder == null",
+       "then": [
+        {
+         "each": "lot",
+         "where": "$it.index == $world.active",
+         "do": [
+          "$it.status = unsold"
+         ]
+        }
+       ],
+       "else": [
+        {
+         "transfer": "cash",
+         "from": "$entity($world.high_bidder)",
+         "to": "$entity(house)",
+         "amount": "$world.high_bid"
+        },
+        {
+         "each": "lot",
+         "where": "$it.index == $world.active",
+         "do": [
+          "$it.status = sold",
+          "$it.winner = $world.high_bidder",
+          "$it.price = $world.high_bid"
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "name": "sealed",
+     "when": "$world.format == sealed",
+     "actions": [
+      "submit_bid"
+     ],
+     "turns": "sequential",
+     "who": "collector",
+     "order": "seat",
+     "max_actions": 1,
+     "max_calls": 8,
+     "passes": 1,
+     "brief": "Lot {$world.active} is sold by sealed bid. Privately submit one bid, or end your turn without bidding. Highest bid wins and pays what it bid; ties go to the earliest submission."
+    }
+   ],
+   "events": [
+    {
+     "phase": "start",
+     "do": [
+      {
+       "if": "$round <= $len($inputs.lots)",
+       "then": [
+        "$world.active = $round",
+        "$world.format = $inputs.lots[$round - 1].format",
+        "$world.high_bid = 0",
+        "$world.high_bidder = null",
+        "$world.quiet_turns = 0",
+        "$world.seal_seq = 0",
+        "$world.turn_bid = false",
+        {
+         "each": "collector",
+         "do": [
+          "$it.sealed_bid = 0",
+          "$it.sealed_seq = 0"
+         ]
+        },
+        {
+         "each": "lot",
+         "where": "$it.index == $round",
+         "do": [
+          "$it.status = open"
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "phase": "end",
+     "when": "$world.format == sealed",
+     "do": [
+      "$winners = $top(collector, [$it.sealed_bid, -$it.sealed_seq], 1, $it.sealed_bid > 0)",
+      {
+       "if": "$len($winners) == 0",
+       "then": [
+        {
+         "each": "lot",
+         "where": "$it.index == $world.active",
+         "do": [
+          "$it.status = unsold"
+         ]
+        }
+       ],
+       "else": [
+        "$w = $winners[0]",
+        {
+         "transfer": "cash",
+         "from": "$w",
+         "to": "$entity(house)",
+         "amount": "$w.sealed_bid"
+        },
+        {
+         "each": "lot",
+         "where": "$it.index == $world.active",
+         "do": [
+          "$it.status = sold",
+          "$it.winner = $w.id",
+          "$it.price = $w.sealed_bid"
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "actions": {
+    "bid": {
+     "by": "collector",
+     "description": "Raise the standing high bid on the painting now under the hammer. The bid must beat the current high bid by at least the increment and cannot exceed your cash.",
+     "when": [
+      "$world.format == english",
+      {
+       "expr": "$actor.id != $world.high_bidder",
+       "why": "You already hold the standing high bid."
+      },
+      {
+       "expr": "$actor.cash >= $world.high_bid + $inputs.increment",
+       "why": "You cannot cover the minimum raise."
+      }
+     ],
+     "params": {
+      "price": {
+       "type": "int",
+       "min": "$world.high_bid + $inputs.increment",
+       "max": "$actor.cash",
+       "description": "Your new high bid in dollars."
+      }
+     },
+     "do": [
+      "$world.high_bid = $params.price",
+      "$world.high_bidder = $actor.id",
+      "$world.turn_bid = true"
+     ],
+     "outcome": "You hold the high bid on lot {$world.active} at {$params.price|money}.",
+     "announce": "{$actor.name} bids {$params.price|money}."
+    },
+    "submit_bid": {
+     "by": "collector",
+     "description": "Privately submit your one sealed bid for the painting on the block. It cannot exceed your cash.",
+     "when": [
+      "$world.format == sealed",
+      {
+       "expr": "$actor.sealed_bid == 0",
+       "why": "You have already submitted a bid for this lot."
+      }
+     ],
+     "params": {
+      "price": {
+       "type": "int",
+       "min": 1,
+       "max": "$actor.cash",
+       "description": "Your sealed bid in dollars."
+      }
+     },
+     "private": true,
+     "do": [
+      "$world.seal_seq += 1",
+      "$actor.sealed_bid = $params.price",
+      "$actor.sealed_seq = $world.seal_seq"
+     ],
+     "outcome": "You sealed {$params.price|money} for lot {$world.active} (submitted {$world.seal_seq})."
+    }
+   },
+   "policies": {
+    "prudent": {
+     "repeat": true,
+     "rules": [
+      {
+       "when": "$world.format == sealed",
+       "do": "submit_bid",
+       "with": {
+        "price": "$min($actor.cash, $actor.values[$world.active - 1])",
+        "invalid_guard": 0
+       }
+      },
+      {
+       "when": "$world.format == english and $actor.id != $world.high_bidder",
+       "do": "bid",
+       "with": {
+        "price": "$min($actor.cash, $actor.values[$world.active - 1], $world.high_bid + $inputs.increment)"
+       }
+      },
+      {
+       "when": "true",
+       "do": "pass"
+      }
+     ]
+    }
+   },
+   "views": {
+    "cash": {
+     "show": "You hold {$actor.cash|money}."
+    },
+    "values": {
+     "for": "collector",
+     "show": "Your private values \u2014 lot 1 {$actor.values[0]|money}, lot 2 {$actor.values[1]|money}, lot 3 {$actor.values[2]|money}, lot 4 {$actor.values[3]|money}, lot 5 {$actor.values[4]|money}, lot 6 {$actor.values[5]|money}."
+    },
+    "high_bid": {
+     "when": "$world.format == english",
+     "show": "Lot {$world.active} under the hammer: high bid {$world.high_bid|money} by {$world.high_bidder or 'no one yet'}."
+    },
+    "board": {
+     "title": "Lots",
+     "of": "lot",
+     "sort": "$it.index",
+     "show": "Lot {$it.index} ({$it.format}): {$it.status} \u2014 winner {$it.winner or 'none'}, price {$it.price or 0}."
+    },
+    "spectator": {
+     "for": "spectator",
+     "title": "Results",
+     "of": "lot",
+     "sort": "$it.index",
+     "show": "Lot {$it.index} ({$it.format}): {$it.status}, winner {$it.winner or 'none'} at {$it.price or 0}."
+    }
+   },
+   "metrics": {
+    "house_revenue": "$entity(house).cash",
+    "lots_sold": "$count(lot, $it.status == sold)"
+   },
+   "outputs": {
+    "lots": {
+     "type": "list",
+     "expr": "$map($sort(lot, $it.index), {lot: $it.index, format: $it.format, winner: $it.winner, price: $it.price})"
+    },
+    "house_revenue": {
+     "type": "number",
+     "expr": "$entity(house).cash",
+     "format": "money"
+    },
+    "cash_start_total": {
+     "type": "number",
+     "expr": "$world.cash_start",
+     "format": "money"
+    },
+    "cash_end_total": {
+     "type": "number",
+     "expr": "$sum(collector, $it.cash)",
+     "format": "money"
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$sum(collector, $it.cash) + $entity(house).cash == $world.cash_start",
+     "why": "Cash only moves from collectors to the house.",
+     "check": "round"
+    },
+    {
+     "expr": "$all(lot, $it.status != sold or $it.winner != null)",
+     "why": "A sold lot always names a winner.",
+     "check": "round"
+    }
+   ]
+  }
+ ],
+ "guide_parts": [
+  "all",
+  "actions",
+  "stages",
+  "effects",
+  "events",
+  "functions",
+  "market.auction",
+  "market",
+  "population",
+  "inputs",
+  "views",
+  "outputs",
+  "functions.collections",
+  "expressions",
+  "types",
+  "entities",
+  "clock",
+  "brief",
+  "world",
+  "end",
+  "records",
+  "functions.world",
+  "mechanisms",
+  "model",
+  "policies"
+ ],
+ "usage": {
+  "input_tokens": 556651,
+  "output_tokens": 71387,
+  "cost": 0.055585470000000005,
+  "calls": 18
+ },
+ "wall_seconds": 1929.7
+}
