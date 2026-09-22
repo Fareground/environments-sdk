@@ -1,7 +1,7 @@
 # social / feed
 
 ### `social.feed`
-A social network: posts (type `<name>_post`), replies, reposts, reactions, follows, friend requests, blocks and mutes (relations `<name>_follows`, `<name>_friends`, `<name>_blocks` …), a ranked feed view per account, trending, reputation moved by engagement, and moderator labels that downrank posts. Read it with $feed(viewer, n?), $trending(n?), $following(a), $followers(a), $influence(a), $insularity(a?), $homophily(prop).
+A social network: posts (type `<name>_post`), replies, reposts, reactions, follows, friend requests, blocks and mutes (relations `<name>_follows`, `<name>_friends`, `<name>_blocks` …), a ranked feed view per account, trending, reputation moved by engagement, and moderator labels that downrank posts. Read it with $feed(viewer, n?), $trending(n?), $following(a), $followers(a), $influence(a), $insularity(a?), $homophily(prop); with several feeds, name one as the last argument ($following($actor, 'net')).
 
 Config:
 - `who` (required): Agent type that has an account (subtypes included).

@@ -37,7 +37,7 @@ from ..registry import MechanismError, family_action, mode
 from ..template import format_value
 from ..world import Abort
 from ._common import ToolsSetting, tools_field
-from ._social import props, check_expr, config_of, entity, only_use, require_type, single_use_check
+from ._social import props, check_expr, config_of, entity, named_use, require_type
 from .voting import tally
 
 __all__ = ["DeliberationConfig"]
@@ -73,7 +73,7 @@ class DeliberationConfig(BaseModel):
     ready_when_silent: bool = Field(True, description="Ending a discussion turn without acting marks the member ready.")
     vote_when_ready: bool = Field(True, description="When every member is ready, an open question goes to a vote.")
     backstop: Literal["adjourn", "vote"] = Field("adjourn", description="When the pass cap is hit: adjourn to the next round, or vote on the open question.")
-    end: Literal["decision", "adoption", "never"] = Field("decision", description="End the run once a main motion is decided, only once one passes, or never.")
+    end: Literal["never", "decision", "adoption"] = Field("never", description="never (the run goes on) | decision: end the run once a main motion is decided | adoption: once one passes.")
     when: Optional[str] = Field(None, description="Hold the discussion only when true (e.g. \"$round <= 5\").")
     tools: ToolsSetting = tools_field()
 
@@ -121,38 +121,38 @@ def _person(world: Any, entity_id: Optional[str]) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _use(call: Call) -> Any:
+def _use(call: Call, index: int) -> Any:
     world: Any = call.scope.world
-    name = only_use(world, KIND, call.source)
+    name = named_use(call, KIND, index)
     return world, name, config_of(world, name, KIND, DeliberationConfig)
 
 
-@function("pending_motion()", "The question before the body (the top motion or amendment) as {id, kind, text, mover, "
-          "seconder, status, speeches, target}, or null (deliberation mechanism).", min_args=0, max_args=0)
+@function("pending_motion(mechanism?)", "The question before the body (the top motion or amendment) as {id, kind, text, "
+          "mover, seconder, status, speeches, target}, or null (deliberation mechanism).", min_args=0, max_args=1)
 def _pending_fn(call: Call) -> Optional[Dict[str, Any]]:
-    world, name, _ = _use(call)
+    world, name, _ = _use(call, 0)
     stack = (world.props.get(name) or _fresh())["stack"]
     return dict(stack[-1]) if stack else None
 
 
-@function("discussion_over()", "True when the discussion should stop this round: a vote is due, or every member (the last "
-          "speaker aside) is ready.",
-          min_args=0, max_args=0)
+@function("discussion_over(mechanism?)", "True when the discussion should stop this round: a vote is due, or every member "
+          "(the last speaker aside) is ready.", min_args=0, max_args=1)
 def _over_fn(call: Call) -> bool:
-    world, name, config = _use(call)
+    world, name, config = _use(call, 0)
     return bool((world.props.get(name) or _fresh())["phase"] == "voting" or _all_ready(world, name, config))
 
 
-@function("decisions()", "Decided main motions, oldest first: [{id, text, passed, counts, round}].", min_args=0, max_args=0)
+@function("decisions(mechanism?)", "Decided main motions, oldest first: [{id, text, passed, counts, round}].",
+          min_args=0, max_args=1)
 def _decisions_fn(call: Call) -> List[Dict[str, Any]]:
-    world, name, _ = _use(call)
+    world, name, _ = _use(call, 0)
     return [dict(d) for d in (world.props.get(name) or _fresh())["decisions"]]
 
 
-@function("house(viewer)", "The state of the deliberation as the viewer should read it: question, floor, hands, readiness.",
-          min_args=1, max_args=1)
+@function("house(viewer, mechanism?)", "The state of the deliberation as the viewer should read it: question, floor, hands, "
+          "readiness.", min_args=1, max_args=2)
 def _house_fn(call: Call) -> str:
-    world, name, config = _use(call)
+    world, name, config = _use(call, 1)
     viewer = world.entity(call.arg(0).id if isinstance(call.arg(0), Entity) else call.arg(0))
     return _house(world, name, config, viewer)
 
@@ -493,11 +493,12 @@ def _record(world: Any, name: str, actor: Entity, says: str, text: Any, motion: 
            "A deliberating body: a discussion stage `<name>` that repeats passes until every member is ready (or the pass "
            "cap), optional chair with floor control (raise hand, recognize, speaker limits), motions with seconds, "
            "amendments, calling the question, and a vote stage `<name>_vote` counted by majority or supermajority. "
-           "Read state with $pending_motion(), $decisions(), $discussion_over(), $house(viewer).",
+           "Read state with $pending_motion(), $decisions(), $discussion_over(), $house(viewer); with several deliberations, "
+           "name one as the last argument ($decisions('committee')). The run ends on a decision only with `end`.",
            example={"who": "resident", "chair": "moderator", "floor": True,
-                    "question": "Should the town build a skate park?", "passes": 8}, was="deliberation")
+                    "question": "Should the town build a skate park?", "passes": 8}, was="deliberation",
+           ends=lambda config: config.end != "never")
 def _expand(name: str, config: DeliberationConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
-    single_use_check(KIND, contract)
     require_type(contract, config.who, "who", agent=True)
     require_type(contract, config.chair, "chair", agent=True)
     if config.floor and config.chair is None:
@@ -518,7 +519,7 @@ def _expand(name: str, config: DeliberationConfig, contract: Mapping[str, Any]) 
         return {"by": by, "description": description, "params": params or {}, "when": when,
                 "do": [{"decision": name, **do}], **extra}
 
-    top = "$pending_motion()"
+    top = f"$pending_motion('{name}')"
     actions: Dict[str, Any] = {
         f"{name}_speak": act(members, "Speak to the body.", {"action": "speak", "text": "$params.text"}, open_debate + floor,
                              {"text": {**text, "description": "Your speech."}}, outcome="You spoke."),
@@ -578,7 +579,7 @@ def _expand(name: str, config: DeliberationConfig, contract: Mapping[str, Any]) 
     talk_names = [a for a in actions if a not in vote_names]
     discussion: Dict[str, Any] = {
         "name": name, "turns": "sequential", "actions": talk_names, "quiet": "skip", "passes": config.passes,
-        "until": "$discussion_over()", "max_actions": 2,
+        "until": f"$discussion_over('{name}')", "max_actions": 2,
         "brief": "Discuss. Anything said clears everyone's readiness; end your turn (or say you are ready) when you have "
                  "nothing to add.",
         "on_enter": [{"decision": name, "action": "open"}], "on_exit": [{"decision": name, "action": "close"}]}
@@ -601,5 +602,5 @@ def _expand(name: str, config: DeliberationConfig, contract: Mapping[str, Any]) 
                    {"name": f"{name}_vote", "turns": "simultaneous", "actions": vote_names,
                     "when": f"$world.{name}.phase == 'voting'", "brief": "Vote yes, no or abstain on the question before the body.",
                     "on_exit": [{"decision": name, "action": "tally"}]}],
-        "views": {f"{name}_house": {"for": viewers, "title": "The floor", "show": "{$house($actor)}"}},
+        "views": {f"{name}_house": {"for": viewers, "title": "The floor", "show": f"{{$house($actor, '{name}')}}"}},
     }

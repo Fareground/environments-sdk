@@ -69,6 +69,8 @@ class ModeSpec:
     #: ``expand(use_name, config, contract_so_far)`` → a fragment of contract sections.
     expand: Callable[[str, Any, Mapping[str, Any]], Dict[str, Any]]
     example: Dict[str, Any] = field(default_factory=dict)
+    #: ``ends(config)`` → whether this use can end the run early (``fg-env check`` lists the ones that can).
+    ends: Callable[[Any], bool] = lambda config: False
 
     @property
     def key(self) -> str:
@@ -176,11 +178,12 @@ def family(name: str, doc: str, shared: Optional[Mapping[str, str]] = None) -> F
 
 
 def mode(family_name: str, mode: str, config: Type[BaseModel], doc: str, example: Optional[Dict[str, Any]] = None, *,
-         was: Optional[str] = None) -> Callable[[Callable[..., Dict[str, Any]]], Callable[..., Dict[str, Any]]]:
+         was: Optional[str] = None, ends: Callable[[Any], bool] = lambda config: False
+         ) -> Callable[[Callable[..., Dict[str, Any]]], Callable[..., Dict[str, Any]]]:
     """Register a mode of a family: ``@mode("market", "auction", AuctionConfig, doc, example)``.
 
     ``example`` is the config without ``kind`` and ``mode``; ``was`` names the kind this mode replaces,
-    so a contract still using it gets a clear error."""
+    so a contract still using it gets a clear error; ``ends(config)`` says whether a use can end the run."""
 
     def register(expand: Callable[..., Dict[str, Any]]) -> Callable[..., Dict[str, Any]]:
         spec = FAMILIES.get(family_name)
@@ -192,7 +195,7 @@ def mode(family_name: str, mode: str, config: Type[BaseModel], doc: str, example
             if key in config.model_fields:
                 raise ValueError(f"{family_name}.{mode}: a config cannot have a field named '{key}'")
         full_example = {"kind": family_name, "mode": mode, **(example or {})}
-        spec.modes[mode] = ModeSpec(family_name, mode, doc, config, expand, full_example)
+        spec.modes[mode] = ModeSpec(family_name, mode, doc, config, expand, full_example, ends)
         spec.actions.setdefault(mode, {})
         if was is not None:
             RENAMED_KINDS[was] = (family_name, mode)

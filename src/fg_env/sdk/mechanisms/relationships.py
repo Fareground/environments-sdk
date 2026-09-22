@@ -30,7 +30,7 @@ from ..expr import Call, ExprError, function
 from ..registry import MechanismError, config_data, family_action, mode
 from ..world import Abort
 from ._common import ToolsSetting, tools_field
-from ._social import NAME, check_expr, config_of, eid, entity, only_use, require_type, seat_order, single_use_check
+from ._social import NAME, check_expr, config_of, eid, entity, named_use, require_type, seat_order
 
 __all__ = ["RelationshipsConfig", "FactionsConfig"]
 
@@ -253,31 +253,32 @@ def allies(world: Any, name: str, a: str, b: str) -> bool:
     return any(f == g or g in factions[f]["allies"] for f in mine for g in theirs)
 
 
-@function("allies(a, b)", "True when a and b share a faction or belong to allied factions (groups factions mode).",
-          min_args=2, max_args=2)
+@function("allies(a, b, mechanism?)", "True when a and b share a faction or belong to allied factions (groups factions mode).",
+          min_args=2, max_args=3)
 def _allies_fn(call: Call) -> bool:
     world: Any = call.scope.world
-    name = only_use(world, FACTIONS, call.source)
+    name = named_use(call, FACTIONS, 2)
     return allies(world, name, eid(call.arg(0), call.source), eid(call.arg(1), call.source))
 
 
-@function("faction_of(agent)", "Ids of the factions the agent belongs to.", min_args=1, max_args=1)
+@function("faction_of(agent, mechanism?)", "Ids of the factions the agent belongs to.", min_args=1, max_args=2)
 def _faction_of_fn(call: Call) -> List[str]:
     world: Any = call.scope.world
-    return _mine(_factions(world, only_use(world, FACTIONS, call.source)), eid(call.arg(0), call.source))
+    return _mine(_factions(world, named_use(call, FACTIONS, 1)), eid(call.arg(0), call.source))
 
 
-@function("factions()", "Every faction: [{id, title, members, allies, open}].", min_args=0, max_args=0)
+@function("factions(mechanism?)", "Every faction: [{id, title, members, allies, open}].", min_args=0, max_args=1)
 def _factions_fn(call: Call) -> List[Dict[str, Any]]:
     world: Any = call.scope.world
     return [{"id": f, "title": spec["title"], "members": list(spec["members"]), "allies": list(spec["allies"]),
-             "open": spec["open"]} for f, spec in _factions(world, only_use(world, FACTIONS, call.source)).items()]
+             "open": spec["open"]} for f, spec in _factions(world, named_use(call, FACTIONS, 0)).items()]
 
 
-@function("joinable(agent)", "Factions the agent may join now: open ones and those it was invited to.", min_args=1, max_args=1)
+@function("joinable(agent, mechanism?)", "Factions the agent may join now: open ones and those it was invited to.",
+          min_args=1, max_args=2)
 def _joinable_fn(call: Call) -> List[str]:
     world: Any = call.scope.world
-    name = only_use(world, FACTIONS, call.source)
+    name = named_use(call, FACTIONS, 1)
     config = config_of(world, name, FACTIONS, FactionsConfig)
     agent = eid(call.arg(0), call.source)
     factions = _factions(world, name)
@@ -432,11 +433,11 @@ _FACTION_LINE = ("{id}{$' — ' if $it.title else ''}{$it.title or ''}: {$len($i
       "Factions and alliances: membership with invitations (or open factions), founding, and alliances that form when "
       "both factions propose them. State in the world prop `<name>`; tools `<name>_join`, `<name>_leave`, "
       "`<name>_invite`, `<name>_found`, `<name>_ally`, `<name>_break_alliance`, and the same actions of the `groups` op "
-      "for effects. Read with $allies(a, b), $faction_of(agent), $factions(), $joinable(agent).",
+      "for effects. Read with $allies(a, b), $faction_of(agent), $factions(), $joinable(agent); with several factions "
+      "mechanisms, name one as the last argument ($factions('guilds')).",
       example={"who": "nation", "factions": {"entente": {"members": ["fr", "uk"]}, "central": {"members": ["de"]}}},
       was="factions")
 def _expand_factions(name: str, config: FactionsConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
-    single_use_check(FACTIONS, contract)
     require_type(contract, config.who, "who", agent=True)
     state: Dict[str, Any] = {}
     for fid, spec in config.factions.items():
@@ -461,17 +462,17 @@ def _expand_factions(name: str, config: FactionsConfig, contract: Mapping[str, A
     actions: Dict[str, Any] = {}
     if config.joining:
         actions[f"{name}_join"] = {"by": members, "description": "Join a faction that is open or invited you.",
-                                   "params": {"faction": {"type": "enum", "values": "$joinable($actor)"}},
-                                   "when": [{"expr": "$len($joinable($actor)) > 0", "why": "No faction will take you now."}],
+                                   "params": {"faction": {"type": "enum", "values": f"$joinable($actor, '{name}')"}},
+                                   "when": [{"expr": f"$len($joinable($actor, '{name}')) > 0", "why": "No faction will take you now."}],
                                    "do": [{"groups": name, "action": "join", "in": "$params.faction"}]}
         actions[f"{name}_leave"] = {"by": members, "description": "Leave a faction.",
-                                    "params": {"faction": {"type": "enum", "values": "$faction_of($actor)"}},
-                                    "when": [{"expr": "$len($faction_of($actor)) > 0", "why": "You are in no faction."}],
+                                    "params": {"faction": {"type": "enum", "values": f"$faction_of($actor, '{name}')"}},
+                                    "when": [{"expr": f"$len($faction_of($actor, '{name}')) > 0", "why": "You are in no faction."}],
                                     "do": [{"groups": name, "action": "leave", "in": "$params.faction"}]}
         actions[f"{name}_invite"] = {"by": members, "description": "Invite someone into your faction.",
-                                     "params": {"faction": {"type": "enum", "values": "$faction_of($actor)"},
+                                     "params": {"faction": {"type": "enum", "values": f"$faction_of($actor, '{name}')"},
                                                 "guest": {"type": "entity", "of": members, "description": "Who to invite."}},
-                                     "when": [{"expr": "$len($faction_of($actor)) > 0", "why": "You are in no faction."}],
+                                     "when": [{"expr": f"$len($faction_of($actor, '{name}')) > 0", "why": "You are in no faction."}],
                                      "do": [{"groups": name, "action": "invite", "in": "$params.faction", "guest": "$params.guest"}],
                                      "private": True, "outcome": "Invitation sent to {$params.guest.name}."}
     if config.found:
@@ -479,21 +480,21 @@ def _expand_factions(name: str, config: FactionsConfig, contract: Mapping[str, A
                                     "params": {"title": {"type": "text", "max_len": 60, "default": ""}},
                                     "do": [{"groups": name, "action": "found", "title": "$params.title"}], "per_round": 1}
     if config.alliances:
-        mine = "$faction_of($actor)"
+        mine = f"$faction_of($actor, '{name}')"
         actions[f"{name}_ally"] = {
             "by": members, "description": "Propose an alliance between your faction and another, or accept one proposed to you.",
             "params": {"faction": {"type": "enum", "values": mine},
-                       "other": {"type": "enum", "values": f"$filter($map($factions(), $it.id), not ($it in {mine}))"}},
-            "when": [{"expr": f"$len({mine}) > 0 and $len($factions()) > 1", "why": "You need a faction and another to ally with."}],
+                       "other": {"type": "enum", "values": f"$filter($map($factions('{name}'), $it.id), not ($it in {mine}))"}},
+            "when": [{"expr": f"$len({mine}) > 0 and $len($factions('{name}')) > 1", "why": "You need a faction and another to ally with."}],
             "do": [{"groups": name, "action": "ally", "in": "$params.faction", "other": "$params.other"}]}
         actions[f"{name}_break_alliance"] = {
             "by": members, "description": "End an alliance of your faction.",
             "params": {"faction": {"type": "enum", "values": mine},
-                       "other": {"type": "enum", "values": f"$flatten($map($filter($factions(), $it.id in {mine}), $it.allies))"}},
-            "when": [{"expr": f"$len($flatten($map($filter($factions(), $it.id in {mine}), $it.allies))) > 0",
+                       "other": {"type": "enum", "values": f"$flatten($map($filter($factions('{name}'), $it.id in {mine}), $it.allies))"}},
+            "when": [{"expr": f"$len($flatten($map($filter($factions('{name}'), $it.id in {mine}), $it.allies))) > 0",
                       "why": "Your faction has no alliances."}],
             "do": [{"groups": name, "action": "break_alliance", "in": "$params.faction", "other": "$params.other"}]}
     return {"world": {name: {"type": "map", "default": state, "description": "Factions: members, invitations, alliances."}},
             "actions": actions,
-            "views": {name: {"for": members, "title": "Factions", "of": "$factions()", "show": _FACTION_LINE,
+            "views": {name: {"for": members, "title": "Factions", "of": f"$factions('{name}')", "show": _FACTION_LINE,
                              "empty": "There are no factions."}}}

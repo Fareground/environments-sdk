@@ -110,7 +110,7 @@ class ProcedureConfig(Config):
       example={"phases": {
           "debate": {"stages": [{"actions": ["speak"]}], "next": [{"to": "vote", "after": 2}]},
           "vote": {"stages": [{"actions": ["vote"], "turns": "simultaneous"}], "terminal": True}}},
-      was="procedure")
+      was="procedure", ends=lambda cfg: any(phase.terminal for phase in cfg.phases.values()))
 def _expand(name: str, cfg: ProcedureConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     if not cfg.phases and cfg.stack is None:
         raise MechanismError("a procedure needs phases, a stack, or both", 'e.g. "phases": {"debate": {...}} or "stack": {...}',

@@ -4,7 +4,11 @@
 
 Declare `"mechanisms": {name: {"kind": <family>, "mode": <mode>, ...config}}`. Each expands into
 ordinary actions, stages, world props and events you can read, preview and override (declare the same
-name yourself to replace a generated part); `fg-env check` lists what each one generated and
+name yourself to replace a generated part; two mechanisms generating one name is an error). Combine
+them freely, several of one mode included: a function reading a mechanism takes its name as the last
+argument (`$decisions('committee')`), optional while the contract has only one of that mode. Only a
+mechanism made to end the run does (victory, a board's game over, a terminal phase, a deliberation with
+`end`): `fg-env check` lists what each one generated, and which can end the run, and
 `fg-env expand file.json --mechanisms` shows all of it. A family has one effect op:
 `{"<family>": "<mechanism name>", "action": "<action>", ...}`. Read a family with
 `guide("<family>")` and one mode with `guide("<family>.<mode>")`.

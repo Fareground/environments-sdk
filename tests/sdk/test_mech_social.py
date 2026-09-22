@@ -203,8 +203,6 @@ def test_channel_config_errors_say_what_to_fix():
     assert any("declared twice" in e for e in errors(bad))
     bad["mechanisms"]["chat"].update(rooms=["plaza"], who="resident")
     assert any("who 'resident' is not a declared type" in e for e in errors(bad))
-    twice = {**CHAT, "mechanisms": {"a": CHAT["mechanisms"]["chat"], "b": CHAT["mechanisms"]["chat"]}}
-    assert any("at most one `social.channels`" in e for e in errors(twice))
     op = {**CHAT, "events": [{"do": [{"social": "chatter", "action": "say", "channel": "plaza", "text": "hi"}]}]}
     assert any("`social` names a declared social mechanism, got 'chatter' → did you mean 'chat'?" in e for e in errors(op))
 
@@ -262,7 +260,8 @@ HALL = {
     "population": [{"type": "resident", "count": 4, "id": "r{$i}", "name": "R{$i}"}],
     "entities": {"mod": {"type": "moderator", "name": "Mod"}},
     "mechanisms": {"hall": {"kind": "decision", "mode": "deliberation", "who": "resident", "chair": "moderator",
-                            "floor": True, "speaker_limit": 2, "passes": 8, "question": "Build a skate park?"}},
+                            "floor": True, "speaker_limit": 2, "passes": 8, "question": "Build a skate park?",
+                            "end": "decision"}},
     "outputs": {"decided": {"expr": "$len($decisions())", "type": "int"}},
 }
 
