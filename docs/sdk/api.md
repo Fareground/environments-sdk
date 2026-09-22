@@ -655,6 +655,84 @@ every run: pair *i* is ``results[2i]`` (focal) and ``results[2i + 1]`` (baseline
 shared by all their runs; with ``workers > 1`` runs go to threads, or to processes when every participant is
 given by name.
 
+## `EngineNotFound`
+
+An engine id is absent from the installed SDK catalog.
+
+## `EngineUnavailable`
+
+An engine is defined but its reusable implementation is not shipped yet.
+
+## `list_engines`
+
+```python
+list_engines(*, available: 'Optional[bool]' = None) -> 'list[EngineSpec]'
+```
+
+List behavioral engines, optionally filtered by implementation availability.
+
+## `get_engine`
+
+```python
+get_engine(engine_id: 'str') -> 'EngineSpec'
+```
+
+Resolve one behavioral engine by its stable id.
+
+## `clone_engine`
+
+```python
+clone_engine(engine_id: 'str', destination: 'Union[str, Path]', *, name: 'Optional[str]' = None, overwrite: 'bool' = False) -> 'Path'
+```
+
+Clone a reusable engine contract into a project-owned JSON file.
+
+## `load_engine`
+
+```python
+load_engine(engine_id: 'str', *, inputs: 'Optional[Mapping[str, Any]]' = None, seed: 'int' = 0) -> 'Any'
+```
+
+Load a reusable engine as :class:`fg_env.Env`.
+
+## `PersonaSample`
+
+```python
+PersonaSample(people: 'Tuple[Dict[str, Any], ...]', provenance: 'SamplingProvenance') -> None
+```
+
+PersonaSample(people: 'Tuple[Dict[str, Any], ...]', provenance: 'SamplingProvenance')
+
+## `SamplingProvenance`
+
+```python
+SamplingProvenance(source: 'str', source_version: 'Optional[str]', seed: 'int', run: 'int', resampled: 'bool', requested: 'int', selected: 'int', pool_size: 'int', constraints: 'Dict[str, Any]', group_by: 'Optional[str]', weight_field: 'Optional[str]', fixed_ids: 'Tuple[str, ...]', sampled_ids: 'Tuple[str, ...]') -> None
+```
+
+SamplingProvenance(source: 'str', source_version: 'Optional[str]', seed: 'int', run: 'int', resampled: 'bool', requested: 'int', selected: 'int', pool_size: 'int', constraints: 'Dict[str, Any]', group_by: 'Optional[str]', weight_field: 'Optional[str]', fixed_ids: 'Tuple[str, ...]', sampled_ids: 'Tuple[str, ...]')
+
+## `sample_records`
+
+```python
+sample_records(records: 'Iterable[Mapping[str, Any]]', *, size: 'int', seed: 'int' = 0, run: 'int' = 0, resample: 'bool' = True, constraints: 'Optional[Mapping[str, Constraint]]' = None, fixed: 'Optional[Iterable[Mapping[str, Any]]]' = None, id_field: 'str' = 'id', group_by: 'Optional[str]' = None, weight_field: 'Optional[str]' = None, source: 'str' = 'records', source_version: 'Optional[str]' = None) -> 'PersonaSample'
+```
+
+Sample role-neutral personas with replacement disabled and full provenance.
+
+``fixed`` participants are always first and count toward ``size``.  ``group_by``
+keeps related records together in draw order (Market uses household ids).  A
+group may be truncated at the requested cohort size; no record is duplicated.
+``run`` only changes the draw when ``resample`` is true, allowing experiments
+to choose fixed-cohort repetition or a fresh cohort per run explicitly.
+
+## `assign_labels`
+
+```python
+assign_labels(records: 'Iterable[Mapping[str, Any]]', labels: 'Sequence[Tuple[str, float]]', *, field: 'str' = 'role', seed: 'int' = 0) -> 'List[Dict[str, Any]]'
+```
+
+Assign labels by proportional shares using largest remainder, then shuffle.
+
 ## `conformance`
 
 ```python

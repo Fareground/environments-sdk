@@ -7,6 +7,7 @@ Generated from the installed source models, expression registry and authoring gu
 ## Guide sections
 
 - [core](reference-core.md)
+- [authoring](reference-authoring.md)
 - [model](reference-model.md)
 - [brief](reference-brief.md)
 - [clock](reference-clock.md)
