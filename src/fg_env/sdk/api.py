@@ -18,6 +18,7 @@ from .macros import expand_macros
 from .measure import RunResult
 from .runtime import Env
 from .seeds import mint_seed
+from .smoke import run_issue, smoke_issues
 
 __all__ = ["ContractLike", "DataDir", "parse", "located", "check", "load", "run", "apply_arm", "expand"]
 
@@ -220,64 +221,39 @@ def _check_all(source: ContractLike, data_dir: DataDir = None) -> tuple[Optional
     return contract, check_contract(contract)
 
 
-def check(source: ContractLike, rounds: int = 1, seed: int = 0, *, data_dir: DataDir = None,
+def check(source: ContractLike, rounds: Optional[int] = None, seed: int = 0, *, data_dir: DataDir = None,
           hosts: Any = None, inputs: Optional[Mapping[str, Any]] = None) -> List[Issue]:
     """Every problem in a contract, errors first then warnings. Never raises for contract problems.
 
-    A contract without errors is also built and played for ``rounds`` rounds (default 1; 0 checks statically only)
-    with random agents that read everything they are shown, so problems that only appear with real values (sampling,
-    first turns, views, outputs) are reported the same way. Inputs with a ``source`` are read from ``data_dir``
-    (default: the contract file's folder); ``hosts`` answers what the contract asks of a host during that play.
-    ``inputs`` checks a configured scenario without editing its defaults. Supplied inputs are validated even
-    with ``rounds=0``; positive rounds also exercise them in the smoke run.
+    A contract without errors is also built and played, so problems that only appear with real values (sampling,
+    later rounds, views, outputs, a policy's own rules) are reported the same way: once with random agents that read
+    everything they are shown, then once per declared policy, played by the agent types whose default it is (or else
+    those that can take every action it takes). By default each play lasts up to 12 rounds (fewer when the run ends
+    sooner) and all of them share a few seconds; ``rounds`` plays exactly that many rounds instead (0 checks
+    statically only). Inputs with a ``source`` are read from ``data_dir`` (default: the contract file's folder);
+    ``hosts`` answers what the contract asks of a host during those plays. ``inputs`` checks a configured scenario
+    without editing its defaults; supplied inputs are validated even with ``rounds=0``, and the plays exercise them.
     """
     contract, issues = _check_all(source, data_dir)
     errors = [i for i in issues if i.severity == "error"]
-    if inputs is not None and rounds <= 0 and contract is not None and not errors:
+    static = rounds is not None and rounds <= 0
+    if inputs is not None and static and contract is not None and not errors:
         try:
             resolve_inputs(contract, inputs, default_data_dir(source, data_dir))
         except ContractError as exc:
             errors.extend(exc.issues)
     warnings_from_smoke: List[Issue] = []
-    if rounds > 0 and contract is not None and not errors:
+    if not static and contract is not None and not errors:
+        built = contract
         try:
-            result = load(contract, inputs=inputs, seed=seed, hosts=hosts, calibrate=False).run(_smoke_participant(seed), rounds=rounds)
-            if result.status == "failed":
-                errors.append(_run_issue(result.error or "the run failed"))
-            for problem in result.output_issues:
-                warnings_from_smoke.append(Issue(problem["path"], f"{problem['message']} after {rounds} smoke round(s)",
-                                                 "fine if it only has a value later in a run; otherwise guard it", "warning"))
-            for found in result.diagnostics:
-                warnings_from_smoke.append(Issue(found["path"], f"{found['message']} (smoke run of {rounds} round(s), "
-                                                 "random agents)", found["fix"], "warning"))
+            found, warnings_from_smoke = smoke_issues(
+                built, lambda: load(built, inputs=inputs, seed=seed, hosts=hosts, calibrate=False), rounds, seed)
+            errors.extend(found)
         except ContractError as exc:
             errors.extend(exc.issues)
         except RunError as exc:
-            errors.append(_run_issue(str(exc), exc.path))
+            errors.append(run_issue(str(exc), exc.path))
     return errors + [i for i in issues if i.severity != "error"] + warnings_from_smoke
-
-
-def _smoke_participant(seed: int) -> Any:
-    """Reads everything an agent would read (brief, update, tools), then acts at random,
-    so a smoke run exercises every view and template, not just the rules."""
-    from .participants import RandomAgent
-
-    random_agent = RandomAgent(seed)
-
-    def participant(wake: Any) -> None:
-        wake.brief
-        wake.update
-        random_agent(wake)
-
-    return participant
-
-
-def _run_issue(message: str, path: Optional[str] = None) -> Issue:
-    if path is None and ": " in message:
-        head, _, rest = message.partition(": ")
-        if " " not in head:
-            path, message = head, rest
-    return Issue(path or "(run)", message, "fix the rule at this path (found by a smoke run)")
 
 
 def apply_arm(contract: Contract, arm: str) -> Contract:
@@ -335,7 +311,7 @@ def load(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, se
     default: drawn from the seeded stream) or a callable given each :class:`~fg_env.sdk.chance.ChanceNode`
     that returns the index of the outcome to take (a fixed deal, duplicate formats); :func:`fg_env.game`
     enumerates chance for search. A contract with a ``calibration`` section fits its inputs with pilot sessions first
-    (``env.calibration`` is the report); ``calibrate=False`` skips that, as ``fg_env.check``'s smoke round does.
+    (``env.calibration`` is the report); ``calibrate=False`` skips that, as ``fg_env.check``'s smoke play does.
     """
     contract, issues = _check_all(source, data_dir)
     blocking = [i for i in issues if i.severity == "error" or strict]

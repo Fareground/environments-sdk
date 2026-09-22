@@ -185,7 +185,7 @@ class ActionValidation:
                 return by_name[0], None
             listing = ", ".join(c.id for c in choices[:8]) + (" …" if len(choices) > 8 else "")
             shown = f"'{raw}'" if len(raw) <= 60 else _preview(raw)
-            return None, f"{shown} is not a valid {param.of} here (valid: {listing or 'none'})"
+            return None, f"{shown} is not a valid {param.of} {_given(param, params)} (valid: {listing or 'none'})"
         raise RunError(f"unknown parameter type '{kind}'", f"actions.{action}.params.{pname}")
 
     def _chosen(self: "ActionBook", actor: Entity, param: ParamSpec, raw: Any, params: Dict[str, Any]) -> Optional[Entity]:  # type: ignore[misc]
@@ -260,6 +260,16 @@ def _number_arg(raw: Any) -> Any:
     if isinstance(raw, bool) or not isinstance(raw, (int, float)):
         return None
     return raw
+
+
+def _given(param: ParamSpec, params: Dict[str, Any]) -> str:
+    """Where an entity choice was refused: "here", or the earlier arguments its `where` reads ("given a=b1")."""
+    read = sorted({path[1] for path in compile_expr(param.where).paths if path[0] == "params" and len(path) > 1}) \
+        if param.where is not None else []
+    if not read:
+        return "here"
+    shown = [f"{name}={format_value(getattr(params.get(name), 'id', params.get(name)))}" for name in read]
+    return "given " + ", ".join(shown)
 
 
 def _waiting_on(pname: str, failed: List[str]) -> str:

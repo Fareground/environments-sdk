@@ -3,7 +3,7 @@
 ## Start with the smallest evidence
 
 ```bash
-fg-env check inventory.json --rounds 5
+fg-env check inventory.json
 fg-env preview inventory.json shop
 fg-env run inventory.json --seed 7 --agent retailer=policy:steady --trace run.jsonl
 fg-env trace run.jsonl
@@ -15,6 +15,8 @@ fg-env trace run.jsonl
 | Action never offered | Actor type, current stage, action requirements and argument bounds |
 | Call refused | `ToolResult.text`; distinguish malformed arguments from a business constraint |
 | Call refused with "Nothing changed" (divide by zero, number too large, a broken invariant) | A rule failed or an invariant broke while the action applied: `result.diagnostics` (`action_rule_failed`, `action_broke_invariant`) names the rule and `stats.faulted_actions` counts them; guard it with parameter bounds or a `when` with a `why` |
+| `check` warns a policy rule was refused every time | The refusal it quotes; the rule's `with` builds arguments the action never accepts |
+| A choice depends on another argument | The schema lists every candidate; a call with a combination the `where` rules out is refused with the valid choices given the other arguments |
 | Output stays constant | Whether any rule changes its dependencies; run behavior checks |
 | Simultaneous decisions lose updates | Whether effects overwrite shared state; inspect settlement semantics |
 | Everyone sees confidential data | Public announcements, views, record visibility and recorded exposures |

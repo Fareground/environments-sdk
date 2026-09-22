@@ -18,7 +18,9 @@ Stored values stay exact.
 * host answers that were the contract's fallback stand-ins because no host was bound;
 * with model participants, an action that was mostly refused.
 
-`fg-env check` reports the smoke round's diagnostics as warnings; `--rounds 5` plays longer for more evidence.
+`fg-env check` plays up to 12 rounds with random agents and again with each policy, and reports what those plays
+reveal: crashes as errors (naming the policy that ran into one), diagnostics and always-refused policy rules as warnings.
+`--rounds 30` plays exactly that many for more evidence.
 
 `result.events` is the log in order: `{seq, round, stage, kind, actor, text, data}`. Its kinds are `action`,
 `outcome` (a sealed choice's result), `record`, `news`, `refused`, `timeout` and `end`. For example:

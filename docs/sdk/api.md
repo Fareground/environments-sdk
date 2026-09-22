@@ -23,7 +23,7 @@ contract that calls ``$seen`` records it anyway. ``chance`` decides `chance` eff
 default: drawn from the seeded stream) or a callable given each :class:`~fg_env.sdk.chance.ChanceNode`
 that returns the index of the outcome to take (a fixed deal, duplicate formats); :func:`fg_env.game`
 enumerates chance for search. A contract with a ``calibration`` section fits its inputs with pilot sessions first
-(``env.calibration`` is the report); ``calibrate=False`` skips that, as ``fg_env.check``'s smoke round does.
+(``env.calibration`` is the report); ``calibrate=False`` skips that, as ``fg_env.check``'s smoke play does.
 
 ## `run`
 
@@ -40,17 +40,19 @@ request — raises :class:`RunError` saying what failed and how to fix it; its `
 ## `check`
 
 ```python
-check(source: 'ContractLike', rounds: 'int' = 1, seed: 'int' = 0, *, data_dir: 'DataDir' = None, hosts: 'Any' = None, inputs: 'Optional[Mapping[str, Any]]' = None) -> 'List[Issue]'
+check(source: 'ContractLike', rounds: 'Optional[int]' = None, seed: 'int' = 0, *, data_dir: 'DataDir' = None, hosts: 'Any' = None, inputs: 'Optional[Mapping[str, Any]]' = None) -> 'List[Issue]'
 ```
 
 Every problem in a contract, errors first then warnings. Never raises for contract problems.
 
-A contract without errors is also built and played for ``rounds`` rounds (default 1; 0 checks statically only)
-with random agents that read everything they are shown, so problems that only appear with real values (sampling,
-first turns, views, outputs) are reported the same way. Inputs with a ``source`` are read from ``data_dir``
-(default: the contract file's folder); ``hosts`` answers what the contract asks of a host during that play.
-``inputs`` checks a configured scenario without editing its defaults. Supplied inputs are validated even
-with ``rounds=0``; positive rounds also exercise them in the smoke run.
+A contract without errors is also built and played, so problems that only appear with real values (sampling,
+later rounds, views, outputs, a policy's own rules) are reported the same way: once with random agents that read
+everything they are shown, then once per declared policy, played by the agent types whose default it is (or else
+those that can take every action it takes). By default each play lasts up to 12 rounds (fewer when the run ends
+sooner) and all of them share a few seconds; ``rounds`` plays exactly that many rounds instead (0 checks
+statically only). Inputs with a ``source`` are read from ``data_dir`` (default: the contract file's folder);
+``hosts`` answers what the contract asks of a host during those plays. ``inputs`` checks a configured scenario
+without editing its defaults; supplied inputs are validated even with ``rounds=0``, and the plays exercise them.
 
 ## `parse`
 

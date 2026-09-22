@@ -138,7 +138,7 @@ Built-ins: `"random"`, `"idle"`, `"policy:<name>"`, and game algorithms `"mcts:N
 `record` (data: record, entry, fields), `news` (event `say`), any `emit` name, or `end` (data: ended_by, winner).
 `result.winner` is set by `end` conditions or effects that give `winner`.
 
-CLI: `fg-env check file.json` (static check plus one played round; `--rounds 0` for static only),
+CLI: `fg-env check file.json` (static check, then up to 12 rounds with random agents and with each policy; `--rounds 0` for static only),
 `fg-env preview file.json agent_id --rounds 5 --agent trader=policy:quote` (see a mid-run turn),
 `fg-env bench [files] --rounds 20` (ms per round, rounds per second and time per phase; no files: the
 reference agent-based models), `fg-env check|run|preview|experiment|tournament|evaluate|trace|guide|schema` (`fg-env run file.json --seed 1

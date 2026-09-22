@@ -29,7 +29,7 @@ def _codes(result):
 def test_a_tool_offered_when_no_choice_can_succeed_is_reported_by_check_with_the_refusal():
     warnings = [i for i in fg_env.check(SHOP) if i.path == "actions.buy"]
     assert len(warnings) == 1 and warnings[0].severity == "warning"
-    assert warnings[0].message.startswith("was offered 2 time(s) when none of its choices could succeed; refused with: "
+    assert warnings[0].message.startswith("was offered 6 time(s) when none of its choices could succeed; refused with: "
                                           "buy was not done: You cannot afford that")
     assert "`when` over $actor" in warnings[0].fix
 

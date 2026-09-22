@@ -205,7 +205,7 @@ fg-env guide market       # a mechanism family; fg-env guide market.auction for 
 ## Tooling
 
 ```bash
-fg-env check shop.json                    # every problem with its path and a fix, plus a smoke round
+fg-env check shop.json                    # every problem with its path and a fix, then plays it with random agents and each policy
 fg-env expand shop.json --mechanisms       # the contract with every mechanism expanded into plain sections
 fg-env preview shop.json shopper_1        # exactly what that agent reads, its tools, token estimates
 fg-env preview shop.json shopper_1 --rounds 5 --agent shopper=policy:thrifty
