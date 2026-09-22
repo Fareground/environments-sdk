@@ -1,7 +1,11 @@
 {
   "fg_env": "1",
   "name": "Rate Decision Forecasting Council",
-  "description": "Seven expert panelists forecast whether the central bank cuts rates at its next meeting: sealed initial ballot, open deliberation until everyone is ready, sealed final ballot.",
+  "description": "Seven expert panelists forecast whether the central bank cuts rates at its next meeting: sealed initial ballot, open deliberation until everyone is ready, sealed final ballot. Give the resolved outcome to score the final ballots (Brier score); consensus means the final ballots lie within consensus_within points.",
+  "inputs": {
+    "outcome": {"type": "bool", "default": null, "description": "Whether the bank did cut, once known; null leaves the forecasts unscored."},
+    "consensus_within": {"type": "number", "default": 10, "min": 0, "max": 100, "unit": "points", "description": "Largest spread of final ballots that counts as consensus."}
+  },
   "brief": {
     "situation": "You sit on a forecasting council of seven experts. The question: will the central bank cut its policy rate at its next meeting, three weeks from now? Public briefing: policy rate 4.50%, unchanged for the last two meetings. Headline CPI 2.9% y/y (down from 3.4% six months ago); core CPI 3.1% and sticky in services. Unemployment 4.3%, up from 3.9% over six months; payroll growth has slowed to roughly a third of last year's pace. GDP grew 0.3% q/q last quarter. The last statement dropped the phrase 'further tightening may be warranted' and said risks are 'more balanced' and decisions are 'data-dependent'. Rate futures imply about a 55% chance of a cut. One CPI print and one jobs report land before the meeting.",
     "rules": "The session has three stages. 1) Initial ballot: privately submit your probability (0-100%) that the bank cuts, with a one-line rationale. 2) Discussion: the initial ballots are revealed and the council talks in a shared chat over several passes. On your turn you may post a message, revise your working estimate, and mark yourself ready. Any new message un-readies everyone, so the discussion ends when a full pass goes by with everyone ready and no new messages, or when the pass cap is reached. 3) Final ballot: privately submit your final probability. Some panelists hold private information that only they can see; you decide whether and how to share yours. You are scored on the accuracy of your final ballot, not on agreeing with anyone.",
@@ -16,6 +20,7 @@
   "types": {
     "panelist": {
       "agent": true,
+      "policy": "averager",
       "description": "An expert on the forecasting council.",
       "props": {
         "expertise": {
@@ -474,10 +479,20 @@
       "expr": "$map($filter(panelist, $len($it.abstained) > 0), $it.name + ' (' + $join($it.abstained) + ')')",
       "description": "Ballots filled in by default because a panelist did not vote."
     },
-    "consensus_reached": {
+    "discussion_settled": {
       "type": "bool",
       "expr": "$all(panelist, $it.ready)",
       "description": "Everyone marked ready before the pass cap."
+    },
+    "consensus_reached": {
+      "type": "bool",
+      "expr": "$outputs.final_range <= $inputs.consensus_within",
+      "description": "The final ballots lie within consensus_within points of each other."
+    },
+    "final_brier": {
+      "type": "number",
+      "expr": "$avg(panelist, ($it.final / 100 - (1 if $inputs.outcome else 0)) ** 2) if $inputs.outcome != null else null",
+      "description": "Mean Brier score of the final ballots against the outcome (0 is perfect, lower is better), or null while unresolved."
     }
   },
   "policies": {

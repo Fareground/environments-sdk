@@ -1,7 +1,7 @@
 {
   "fg_env": "1",
   "name": "Contest Engine",
-  "description": "A reusable contest engine in which participants submit performances and an impartial configurable rubric produces scores and a winner.",
+  "description": "A reusable contest engine in which participants submit performances and a host judge scores them on a configurable rubric; the highest total wins. Without a bound judge every submission is scored at the rubric midpoint, so the contest ties (winner null) and the run's diagnostics say so.",
   "inputs": {
     "prompt": {"type": "text", "default": "Present the strongest response to the challenge."},
     "rounds": {"type": "int", "default": 2, "min": 1, "max": 10},
@@ -44,7 +44,7 @@
   "views": {"private_approach": {"for": "contestant", "show": "Your assigned approach: {approach}"}},
   "policies": {"baseline": {"rules": [{"do": "submit", "with": {"text": "A concise response that addresses the challenge with a clear claim, supporting reason, and practical implication."}}]}},
   "outputs": {
-    "winner": {"type": "text", "expr": "$top(contestant, $it.score, 1)[0].name"},
+    "winner": {"type": "text", "expr": "$first($filter(contestant, $it.score == $max(contestant, $it.score))).name if $count(contestant, $it.score == $max(contestant, $it.score)) == 1 else null", "description": "The single top scorer, or null on a tie."},
     "winning_score": {"type": "number", "expr": "$max(contestant, $it.score)"},
     "submissions": {"type": "int", "expr": "$count($records(submissions))"},
     "contestants": {"type": "int", "expr": "$count(contestant)"}

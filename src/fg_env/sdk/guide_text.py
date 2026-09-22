@@ -486,6 +486,7 @@ Stored values stay exact.
 * sealed choices that overwrite each other's values;
 * an agent type that never had an action it could take;
 * a stage that can never run, or a measure that reads only what no rule changes;
+* host answers that were the contract's fallback stand-ins because no host was bound;
 * with model participants, an action that was mostly refused.
 
 `fg-env check` reports the smoke round's diagnostics as warnings; `--rounds 5` plays longer for more evidence.

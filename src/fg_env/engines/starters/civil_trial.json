@@ -1307,9 +1307,7 @@
               "each": "juror",
               "as": "j",
               "do": [
-                "$p = $avg(impression, $it.score, $it.juror == $j.id and $it.sign == 1)",
-                "$d = $avg(impression, $it.score, $it.juror == $j.id and $it.sign == -1)",
-                "$j.lean = (0 if $p == null else $p) - (0 if $d == null else $d) + 0.3 * $j.bias - 0.05"
+                "$j.lean = $sum(impression, $it.score * $it.sign, $it.juror == $j.id) + 0.3 * $j.bias - 0.05"
               ]
             }
           ],

@@ -12,7 +12,9 @@ travels along a link: ``along`` (from → to), ``against`` (to → from: a follo
 followed account adopted) or ``both``.
 
 * cascade — each new adopter gets one chance, at the next step, to convince each unaware or
-  exposed neighbour with probability ``p`` (an expression over ``$from``, ``$to``, ``$item``).
+  exposed neighbour with probability ``p`` (an expression over ``$from``, ``$to``, ``$item``);
+  with ``persistent`` every adopter keeps trying at every step, so the item goes on spreading
+  for as long as the run lasts.
 * threshold — an agent adopts when the (link-weighted, with ``weighted``) share of its
   informing neighbours who adopted reaches its threshold (a number, an expression over ``$it``
   and ``$item``, or ``"random"``: drawn once per agent and item from the run's seed).
@@ -49,6 +51,7 @@ class DiffusionConfig(BaseModel):
     flow: Literal["along", "against", "both"] = Field("both", description="along: from → to; against: to → from (followers hear the followed); both.")
     model: Literal["cascade", "threshold"] = Field("cascade", description="cascade (independent cascade) | threshold (linear threshold).")
     p: Union[float, str] = Field(0.1, description="Cascade: chance one adopter convinces one neighbour (number or expression over $from, $to, $item).")
+    persistent: bool = Field(False, description="Cascade: every adopter keeps trying to convince its neighbours at every step (default: one chance, right after adopting).")
     threshold: Union[float, str] = Field(0.5, description="Threshold: share of informing neighbours needed (number, expression over $it and $item, or \"random\").")
     weighted: bool = Field(False, description="Threshold: weigh neighbours by link value.")
     seeds: Dict[str, List[str]] = Field(default_factory=dict, description="Items adopted from the start: {item: [ids]}.")
@@ -278,7 +281,7 @@ def _cascade(runner: Any, name: str, config: DiffusionConfig, state: Dict[str, A
     world = runner.world
     p_expr = compile_expr(config.p) if isinstance(config.p, str) else None
     convinced: Dict[str, Optional[str]] = {}
-    for source in state["frontier"]:
+    for source in list(state["adopted"]) if config.persistent else state["frontier"]:
         if source not in state["adopted"] or not _eligible(world, config, source):
             continue
         for target in _informers(world, config, source, towards=True):

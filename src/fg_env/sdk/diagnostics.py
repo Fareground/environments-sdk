@@ -2,7 +2,8 @@
 
 A contract can pass every check and still not do what its author meant: a tool offered when none of its choices can
 work, sealed choices that overwrite each other, an agent type that never has anything to do, a stage that can never
-run, a measure that stays empty because nothing ever sets what it reads. These are read from what the run counted
+run, a measure that stays empty because nothing ever sets what it reads, a host's answers that were the contract's
+fallback stand-ins because no host was bound. These are read from what the run counted
 (:mod:`fg_env.sdk.run_diagnosis`) and reported on ``RunResult.diagnostics``, in ``result.summary()`` and as warnings
 from ``fg_env.check``. Each is reported only on evidence that random play cannot explain away, so a clean contract
 raises none.
@@ -39,8 +40,8 @@ _RULE_SECTIONS = ("actions", "stages", "events", "triggers", "blocks", "end", "f
 def diagnose(env: "Env", outputs: Dict[str, Any]) -> List[Dict[str, str]]:
     """Every likely logic problem the run so far shows, as ``{code, path, message, fix}``."""
     rules = _Rules(env)
-    return [*_arm_inputs(env), *_actions(env), *_overwrites(env), *_idle_agents(env), *_stages(env, rules),
-            *_stuck_measures(env, outputs, rules)]
+    return [*_arm_inputs(env), *_host_fallbacks(env), *_actions(env), *_overwrites(env), *_idle_agents(env),
+            *_stages(env, rules), *_stuck_measures(env, outputs, rules)]
 
 
 def _arm_inputs(env: "Env") -> List[Dict[str, str]]:
@@ -50,6 +51,23 @@ def _arm_inputs(env: "Env") -> List[Dict[str, str]]:
                      override_message(str(env.arm), name, arm_value, given),
                      "leave that input out when running the arm (the caller's inputs win over an arm's), or change the arm")
             for name, arm_value, given in arm_input_overrides(env.contract, env.arm, env.inputs)]
+
+
+def _host_fallbacks(env: "Env") -> List[Dict[str, str]]:
+    from .host.tape import TAPE
+
+    tape = env.world.props.get(TAPE)
+    counts: Dict[Tuple[str, str], int] = {}
+    for entry in tape.values() if isinstance(tape, dict) else ():
+        if isinstance(entry, dict) and entry.get("fallback"):
+            key = (str(entry.get("site")), str(entry.get("service")))
+            counts[key] = counts.get(key, 0) + 1
+    return [_finding("host_fallback", site,
+                     f"{count} answer(s) meant for the host '{service}' were the contract's fallback because no host was "
+                     "bound: whatever depends on them is a stand-in, not the host's answer",
+                     f"bind the host for real answers (fg_env.sdk.host.load(..., hosts={{'{service}': ...}})), or replay "
+                     "a recorded tape")
+            for (site, service), count in counts.items()]
 
 
 def _finding(code: str, path: str, message: str, fix: str) -> Dict[str, str]:

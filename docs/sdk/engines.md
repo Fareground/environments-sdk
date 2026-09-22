@@ -8,17 +8,17 @@ measurements.
 The engine catalog contains exactly these twelve boundaries:
 
 - **Market** — buyers and sellers form demand, supply, prices, and responses.
-- **Council** — a bounded group debates an agenda and makes a collective decision.
+- **Council** — a panel forecasts, deliberates and forecasts again; final forecasts are scored against a supplied outcome.
 - **Dispute** — opposing parties present claims and evidence toward a resolution.
 - **Exchange** — participants trade configurable assets under configurable rules.
 - **Legislature** — legislative bodies use motions, amendments, coalitions, and votes.
-- **Contest** — participants submit or perform and human judges choose outcomes.
+- **Contest** — participants submit and a host judge scores them on a rubric; a tie names no winner.
 - **Deliberation** — people exchange reasons, revise views, and seek a conclusion.
-- **Negotiation** — parties make proposals, concessions, agreements, or walk away.
+- **Negotiation** — parties make proposals, concessions and agreements, never below their walk-away values.
 - **Population** — sampled people independently respond and outcomes are aggregated.
 - **Network** — behavior and information spread through explicit human relationships.
 - **Matching** — preferences and eligibility produce selections or pairings.
-- **Strategy** — interdependent choices model cooperation, competition, and consequences.
+- **Strategy** — any number of players' choices play against each other, round-robin, with configurable payoffs.
 
 All twelve have native SDK implementations. Every engine can be discovered,
 inspected, cloned, customized, loaded from the installed package, run with a

@@ -20,7 +20,7 @@ Config:
 - `blind` (default false): The judge sees 'Participant A/B/…' instead of names.
 - `visible` (default "all"): Who reads the scores: 'all' or an expression over $viewer and $it.
 - `notify` (default true): Deliver scores to agents as news.
-- `fallback` (default null): Without an evaluator: score every criterion at its midpoint (default: stop with an error).
+- `fallback` (default null): Without an evaluator: score every criterion at its midpoint, so every entry ties; the run's diagnostics report it (default: stop with an error).
 
 Nested config:
 **Criterion** — One rubric criterion.

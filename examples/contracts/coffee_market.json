@@ -598,6 +598,7 @@
     },
     "cafe": {
       "agent": true,
+      "policy": "yield_manager",
       "description": "A café competing for the city's coffee spend.",
       "props": {
         "open": {
