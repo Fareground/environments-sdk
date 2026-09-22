@@ -16,7 +16,7 @@ DUEL = {
     "entities": {"a": {"type": "gunner", "props": {"seat": 0}}, "b": {"type": "gunner", "props": {"seat": 1}}},
     "actions": {"shoot": {"by": "gunner", "terminal": True, "private": True, "do": [
         {"chance": [{"p": 0.25, "label": "hit", "do": ["$actor.hit = true"]}, {"p": 0.75, "label": "miss"}]}]}},
-    "stages": [{"name": "fire", "turns": "simultaneous", "must_act": True}],
+    "stages": [{"name": "fire", "turns": "simultaneous", "must_act": True, "order": "seat"}],  # a's roll comes first
     "game": {"players": "gunner", "seat": "$it.seat", "returns": "1 if $actor.hit else 0"},
     "outputs": {"hits": {"expr": "$count(gunner, $it.hit)", "type": "int"}},
 }

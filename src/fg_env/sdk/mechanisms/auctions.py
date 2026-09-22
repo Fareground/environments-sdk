@@ -69,7 +69,7 @@ class AuctionConfig(BaseModel):
     decrement: float = Field(1, gt=0, description="dutch: how much the clock falls each round.")
     increment: float = Field(1, gt=0, description="english: minimum raise over the high bid.")
     timeout: int = Field(1, ge=1, description="english: rounds without a new bid before the lot closes.")
-    ties: Literal["first", "random"] = Field("first", description="Equal bids: the earliest wins, or a seeded random one.")
+    ties: Literal["first", "random"] = Field("first", description="Equal bids: the earliest wins (sealed bids arrive in their stage's commit order: random unless it sets `order`), or a seeded random one.")
     price_rule: Literal["lowest_accepted", "highest_rejected"] = Field(
         "lowest_accepted", description="uniform: the clearing price — the lowest accepted bid, or the highest rejected one "
                                        "(the reserve when none was rejected).")

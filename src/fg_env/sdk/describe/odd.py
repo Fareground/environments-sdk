@@ -134,7 +134,7 @@ def _process(contract: C.Contract, metadata: Mapping[str, Any]) -> List[str]:
              "entity is created or removed.", ""]
     lines += _table(["#", "stage", "turns", "who acts", "order", "runs when", "repeats until", "atomic", "time limit (s)",
                      "actions offered"], [
-        [i + 1, s.name, s.turns, s.who or "every agent", s.order, s.when or "every round", s.until or "",
+        [i + 1, s.name, s.turns, s.who or "every agent", _stage_order(s), s.when or "every round", s.until or "",
          "yes" if s.atomic or s.valid else "", "" if s.time_limit is None else s.time_limit,
          s.actions if isinstance(s.actions, str) else json.dumps(s.actions)]
         for i, s in enumerate(contract.stage_list())])
@@ -149,6 +149,12 @@ def _process(contract: C.Contract, metadata: Mapping[str, Any]) -> List[str]:
     lines += ["The run ends:", ""] + _bullets(ends + [f"after {contract.clock.rounds} rounds at the latest"
                                                       if contract.clock.mode == "rounds" else "at the time horizon"], "")
     return lines
+
+
+def _stage_order(stage: C.StageSpec) -> str:
+    if stage.order is not None:
+        return stage.order
+    return "seat; choices commit in random order" if stage.turns == "simultaneous" else "seat"
 
 
 def _fires(event: C.EventSpec) -> str:

@@ -393,7 +393,8 @@ def test_sealed_auctions_pick_the_highest_bid_and_price_by_format(fmt, pays):
 
 def test_ties_go_to_the_earliest_bid_or_a_seeded_draw_and_a_lone_vickrey_bid_pays_the_reserve():
     plan = {(1, "a"): [("house_bid", {"price": 60})], (1, "b"): [("house_bid", {"price": 60})]}
-    env, _ = play(house("first_price"), plan)
+    seated = {**house("first_price", stage="bids"), "stages": [{"name": "bids", "turns": "simultaneous", "order": "seat"}]}
+    env, _ = play(seated, plan)  # sealed bids commit in seat order only when the stage says so
     assert env.world.records("house_results")[-1]["winner"] == "a"
     winners = {play(house("first_price", ties="random"), plan, seed=s)[0].world.records("house_results")[-1]["winner"]
                for s in range(12)}

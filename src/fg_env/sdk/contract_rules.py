@@ -114,7 +114,7 @@ class StageSpec(_Model):
     turns: str = Field("sequential", description="sequential (one after another, effects immediate) | simultaneous (same picture, committed together) | scheduled (continuous clock: each agent whose wake time has come, earliest first).")
     interval: Union[float, str, None] = Field(None, description="Scheduled turns: time until an agent that took no timed action is woken again (number or expression over $actor; default clock.tick).")
     first_wake: Union[float, str, None] = Field(None, description="Scheduled turns: each agent's first wake time (number or expression over $it, $i; default 0).")
-    order: str = Field("seat", description="seat | random | expression over $it (lowest first).")
+    order: Optional[str] = Field(None, description="seat | random | expression over $it (lowest first): the order agents take turns in, and a simultaneous stage's choices commit in. Default: seat; a simultaneous stage's choices then commit in a random order drawn anew each time, so no seat always wins a contested item.")
     who: Optional[str] = Field(None, description="Which agents are woken ($it); e.g. $it.alive && $chance(0.3).")
     until: Optional[str] = Field(None, description="Repeat turns within the round until true.")
     passes: Union[int, str, None] = Field(None, description="Max passes through the agents (default 1, or 10 with until): a number ≥ 1 or an expression over $inputs.")

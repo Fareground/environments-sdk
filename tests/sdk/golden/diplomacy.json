@@ -1,7 +1,7 @@
 {
   "actions": 15,
   "events": 30,
-  "events_sha256": "6fd9848e947552b1f28443d9b7f72ffe680a5dd9bc65dcfef3c3b1ce8a9ed1be",
+  "events_sha256": "a19d633955d116dc4435692951b785e640684786c19d7318fec69dc19f4709f3",
   "metrics": {
     "armies": 15,
     "betrayals": 0,

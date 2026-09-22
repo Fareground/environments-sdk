@@ -6,8 +6,9 @@ parameter limits both share in :mod:`.action_params`.
 from __future__ import annotations
 
 import math
+from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple
 
 from ..entity import Entity
 from .action_faults import fault_reason
@@ -283,19 +284,37 @@ class ActionBook(ActionSchemas, ActionValidation):
         except ExprError as exc:
             raise RunError(str(exc), f"actions.{name}.terminal") from None
 
-    def dry_run(self, actor: Entity, name: str, params: Dict[str, Any]) -> Optional[str]:
-        """Apply and roll back, to catch a doomed sealed choice at submit. Returns the refusal, or None. The rollback
-        gives back the action's draws too, so the real call rolls what the dry run rolled."""
+    @contextmanager
+    def trying(self) -> Iterator[None]:
+        """Nothing done inside the block stays: its changes are undone on the way out, draws included, so the real
+        call rolls what a trial rolled; a trial's chance rolls are sampled, never asked for."""
         world = self.world
         mark = world.journal.mark()
-        picker, world.chance_picker = world.chance_picker, None  # a trial roll is sampled, never asked for
+        picker, world.chance_picker = world.chance_picker, None
         try:
-            with shared_budget(ACTION_BUDGET, f"actions.{name}"):
-                outcome = self._apply(actor, name, params, trial=True)
+            yield
         finally:
             world.journal.rollback(mark)
             world.chance_picker = picker
+
+    def trial(self, actor: Entity, name: str, params: Dict[str, Any]) -> Optional[str]:
+        """Apply inside :meth:`trying`, to catch a doomed call before it is made: the refusal, or None."""
+        with shared_budget(ACTION_BUDGET, f"actions.{name}"):
+            outcome = self._apply(actor, name, params, trial=True)
         return None if outcome.ok else outcome.text
+
+    def dry_run(self, actor: Entity, name: str, params: Dict[str, Any]) -> Optional[str]:
+        """:meth:`trial` and roll back: the refusal, or None."""
+        with self.trying():
+            return self.trial(actor, name, params)
+
+    def replay(self, actor: Entity, intents: Sequence[Tuple[str, Dict[str, Any]]]) -> None:
+        """Apply ``actor``'s sealed choices inside :meth:`trying`, as their commit will, so its next choice is tried
+        against the state they leave (two buys cannot spend the same coins)."""
+        for name, args in intents:
+            params, problem = self.validate(actor, name, args)
+            if not problem:
+                self.trial(actor, name, params)
 
     def refusal(self, actor: Entity, name: str, params: Dict[str, Any]) -> Optional[str]:
         """:meth:`dry_run` for code that only asks whether a call would work (tool probes, legal-call listings): a rule
