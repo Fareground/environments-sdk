@@ -69,6 +69,8 @@ Every run is now either correct or fails loudly (T-797 phase 1). Several default
   bound (T-802).
 
 ### Fixed
+- Entity choices and tool schemas are worked out once per world state instead of up to six times per turn: a
+  crowd of 3000 random agents with an entity parameter runs about 3.5x faster; outputs are unchanged (T-810).
 - Stated word counts in text-length hints use one consistent ratio (T-804).
 - An example contract with no golden now fails `tests/sdk/test_examples.py` instead of silently writing one. Added
   the missing `weekly_inventory` golden. Regenerated the stale reference docs.
