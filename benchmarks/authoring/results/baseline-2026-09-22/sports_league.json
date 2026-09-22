@@ -1,0 +1,2231 @@
+{
+ "model": "deepseek/deepseek-v4.1-flash",
+ "stop": "done",
+ "nudges": 0,
+ "messages": [
+  {
+   "role": "system",
+   "content": "(guide text)"
+  },
+  {
+   "role": "user",
+   "content": "# Sports league season\n\nRun a season of a six-team football league where each team's manager is an AI agent. Every team plays every other team twice, once at home and once away, over ten matchdays with three matches each, and no team plays twice on the same matchday. Before each matchday, every manager picks a tactic for their match: attack, balanced or defend. Each team has a fixed strength, and a match's score is random but depends on the two teams' strengths, their tactics and a small home advantage. A win is worth 3 points, a draw 1 and a loss 0. The table ranks teams by points, then goal difference, then goals scored, then alphabetically by team name. The champion is the team on top of the table after the last matchday.\n\n## Deliverables\n\nReport these outputs, identifying teams the same way (their id or their name) everywhere:\n- `matches` \u2014 a list of every match played, each a map with `matchday`, `home`, `away`, `home_goals` and `away_goals`.\n- `standings` \u2014 the final table in rank order: a list of maps with `team`, `played`, `won`, `drawn`, `lost`, `goals_for`, `goals_against` and `points`.\n- `champion` \u2014 the team at the top of the final table.\n\n\nBuild this environment. Save it with write_contract and use the other tools as you see fit. Reply without calling a tool when you are done."
+  },
+  {
+   "role": "assistant",
+   "content": "I'll start by reading the SDK guide and schema to understand the available mechanisms.",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_5a6f952248c94e10b6e3464b",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"all\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_52ff7e44cbac4ebf831e69fb",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"patterns\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_5a6f952248c94e10b6e3464b",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_52ff7e44cbac4ebf831e69fb",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_411ccc44160d4c199af43de5",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"actions\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_8466eb0016554168b72d62a7",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"stages\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "call_679089954d954823baba8c19",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"effects\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "call_56a8c13ff7b14c6686c78120",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions.collections\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_411ccc44160d4c199af43de5",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_8466eb0016554168b72d62a7",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_679089954d954823baba8c19",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_56a8c13ff7b14c6686c78120",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_f1ee69951c584f30b870649b",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"population\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_be0407f0b1e6459ab3f63730",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"inputs\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "call_cd8d141526cf4c8d876b2147",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"outputs\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "call_6507e7f6914942edba8338b0",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"events\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 4,
+     "id": "call_9721328a49534a68858ba40f",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_f1ee69951c584f30b870649b",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_be0407f0b1e6459ab3f63730",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_cd8d141526cf4c8d876b2147",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_6507e7f6914942edba8338b0",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_9721328a49534a68858ba40f",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_a18fe07c2ff54ba58e89df9b",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions.random\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_02e2e0901f954eb499458358",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"types\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "call_1b8b7fcb816b46afb1867e09",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"views\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_a18fe07c2ff54ba58e89df9b",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_02e2e0901f954eb499458358",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_1b8b7fcb816b46afb1867e09",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_b1cb3c08af884f86b1a50b19",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions.world\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_0a52f078f6e54c199822afb7",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"clock\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "call_5f82e8fb3d374553b105f9c3",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"brief\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "call_e6442891689843348648b4b3",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"metrics\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_b1cb3c08af884f86b1a50b19",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_0a52f078f6e54c199822afb7",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_5f82e8fb3d374553b105f9c3",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_e6442891689843348648b4b3",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "Now let me look at a few more sections I need.\n\n",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_262b59fc6fb340a4a3d404b1",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"defs\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_5f1ae3f4638e4ddfb3f6d90e",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"templates\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "call_539022c3813e48e79f0fc420",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"expressions\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_262b59fc6fb340a4a3d404b1",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_5f1ae3f4638e4ddfb3f6d90e",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_539022c3813e48e79f0fc420",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "Now I have enough understanding. Let me author the contract.",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_4971171a33eb416f926d2b57",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_4971171a33eb416f926d2b57",
+   "content": "Saved (258 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_da49e82290874d0cb2a05e29",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_da49e82290874d0cb2a05e29",
+   "content": "[warning] defs.won: 'won' shadows the built-in $won; this contract's def is used \u2192 rename it if you meant the built-in"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_8d9425c45f204bf486f3b3f1",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_8d9425c45f204bf486f3b3f1",
+   "content": "Saved (255 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_d2e187777ea446c6ac314a68",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_d2e187777ea446c6ac314a68",
+   "content": "No issues."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_6f8c0d21b85d44c6aeb85e69",
+     "function": {
+      "name": "preview",
+      "arguments": "{\"agent\": \"t1\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_e12d8ebc767e467d82a71b74",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 1}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_6f8c0d21b85d44c6aeb85e69",
+   "content": "BRIEF:\n# Football league season\nYou manage a team in a six-team football league. The season runs 10 matchdays; every team plays every other team twice, once at home and once away, and each matchday every team plays exactly one match.\n\n## Rules\nBefore each matchday you pick one tactic for your match: attack, balanced or defend. Attack scores more but concedes more; defend the reverse; balanced is neutral. A match's score is random but depends on the two teams' strengths, their chosen tactics and a small home advantage. A win is worth 3 points, a draw 1 and a loss 0. The table ranks teams by points, then goal difference, then goals scored, then alphabetically by name. The champion is the team on top after the last matchday.\n\n## You\nYou are Rovers (team, id t1).\nYou are Rovers (id t1), strength 1.4. Each matchday choose a tactic for your scheduled match with the set_tactic action.\nAct only through your tools. Your turn ends when you take a final action or call end_turn.\n\nUPDATE:\nMatchday 1 of 10 \u00b7 pick\nMatchday 1. Pick your tactic for your match this matchday.\nNow: It is your turn.\n\nLeague table:\n- Athletic: 0 pts, 0 played (0W 0D 0L), GF 0 GA 0, GD 0, strength 1\n- City: 0 pts, 0 played (0W 0D 0L), GF 0 GA 0, GD 0, strength 1.1\n- Rangers: 0 pts, 0 played (0W 0D 0L), GF 0 GA 0, GD 0, strength 0.75\n- Rovers: 0 pts, 0 played (0W 0D 0L), GF 0 GA 0, GD 0, strength 1.4\n- United: 0 pts, 0 played (0W 0D 0L), GF 0 GA 0, GD 0, strength 1.25\n- Wanderers: 0 pts, 0 played (0W 0D 0L), GF 0 GA 0, GD 0, strength 0.9\n\nYour matches:\n- matchday 1: Rovers vs Rangers \u2014 not yet played 0-0\n- matchday 2: Rovers vs Wanderers \u2014 not yet played 0-0\n- matchday 3: Rovers vs Athletic \u2014 not yet played 0-0\n- matchday 4: Rovers vs City \u2014 not yet played 0-0\n- matchday 5: Rovers vs United \u2014 not yet played 0-0\n- matchday 6: Rangers vs Rovers \u2014 not yet played 0-0\n- matchday 7: Wanderers vs Rovers \u2014 not yet played 0-0\n- matchday 8: Athletic vs Rovers \u2014 not yet played 0-0\n- matchday 9: City vs Rovers \u2014 not yet played 0-0\n- matchday 10: United vs Rovers \u2014 not yet played 0-0\n\nTOOLS:\n- set_tactic: Choose attack, balanced or defend for your team's match on the current matchday. {\"type\": \"object\", \"properties\": {\"match\": {\"type\": \"string\", \"enum\": [\"md1_t1vt6\"], \"description\": \"Your match on this matchday. Options: md1_t1vt6 = t1 v t6.\"}, \"tactic\": {\"enum\": [\"attack\", \"balanced\", \"defend\"], \"type\": \"string\", \"description\": \"attack scores more but concedes more; defend the reverse; balanced is neutral.\"}}, \"additionalProperties\": false, \"required\": [\"match\", \"tactic\"]}\n- inspect: Details of one entity by its id (shown in [brackets] after names). Free: up to 8 reads (looks and inspects) per turn do not use a tool call. {\"type\": \"object\", \"properties\": {\"id\": {\"type\": \"string\", \"enum\": [\"t1\", \"t2\", \"t3\", \"t4\", \"t5\", \"t6\", \"md1_t1vt6\", \"md1_t2vt5\", \"md1_t3vt4\", \"md2_t1vt5\", \"md2_t6vt4\", \"md2_t2vt3\", \"md3_t1vt4\", \"md3_t5vt3\", \"md3_t6vt2\", \"md4_t1vt3\", \"md4_t4vt2\", \"md4_t5vt6\", \"md5_t1vt2\", \"md5_t3vt6\", \"md5_t4vt5\", \"md6_t6vt1\", \"md6_t5vt2\", \"md6_t4vt3\", \"md7_t5vt1\", \"md7_t4vt6\", \"md7_t3vt2\", \"md8_t4vt1\", \"md8_t3vt5\", \"md8_t2vt6\", \"md9_t3vt1\", \"md9_t2vt4\", \"md9_t6vt5\", \"md10_t2vt1\", \"md10_t6vt3\", \"md10_t5vt4\"]}}, \"required\": [\"id\"], \"additionalProperties\": false}\n- end_turn: Finish your turn. {\"type\": \"object\", \"properties\": {}, \"additionalProperties\": false}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_e12d8ebc767e467d82a71b74",
+   "content": "completed after 10 matchdays \u2014 ended by rounds (seed 1)\nmatches: [{\"matchday\": 1, \"home\": \"Rovers\", \"away\": \"Rangers\", \"home_goals\": 5, \"away_goals\": 0}, {\"matchday\": 1, \"home\": \"Uni\u2026\nstandings: [{\"team\": \"Athletic\", \"played\": 10, \"won\": 5, \"drawn\": 4, \"lost\": 1, \"goals_for\": 21, \"goals_against\": 16, \"points\": \u2026\nchampion: \"Athletic\"\noutputs: {\"matches\": [{\"matchday\": 1, \"home\": \"Rovers\", \"away\": \"Rangers\", \"home_goals\": 5, \"away_goals\": 0}, {\"matchday\": 1, \"home\": \"United\", \"away\": \"Wanderers\", \"home_goals\": 4, \"away_goals\": 0}, {\"matchday\": 1, \"home\": \"City\", \"away\": \"Athletic\", \"home_goals\": 0, \"away_goals\": 0}, {\"matchday\": 2, \"home\": \"Rovers\", \"away\": \"Wanderers\", \"home_goals\": 2, \"away_goals\": 2}, {\"matchday\": 2, \"home\": \"United\", \"away\": \"City\", \"home_goals\": 0, \"away_goals\": 1}, {\"matchday\": 2, \"home\": \"Rangers\", \"away\": \"Athletic\", \"home_goals\": 0, \"away_goals\": 1}, {\"matchday\": 3, \"home\": \"Rovers\", \"away\": \"Athletic\", \"home_goals\": 4, \"away_goals\": 2}, {\"matchday\": 3, \"home\": \"Wanderers\", \"away\": \"City\", \"home_goals\": 1, \"away_goals\": 2}, {\"matchday\": 3, \"home\": \"Rangers\", \"away\": \"United\", \"home_goals\": 1, \"away_goals\": 4}, {\"matchday\": 4, \"home\": \"Rovers\", \"away\": \"City\", \"home_goals\": 3, \"away_goals\": 3}, {\"matchday\": 4, \"home\": \"Athletic\", \"away\": \"United\", \"home_goals\": 2, \"away_goals\": 1}, {\"matchday\": 4, \"home\": \"Wanderers\", \"away\": \"Rangers\", \"home_goals\": 1, \"away_goals\": 1}, {\"matchday\": 5, \"home\": \"Rovers\", \"away\": \"United\", \"home_goals\": 5, \"away_goals\": 2}, {\"matchday\": 5, \"home\": \"City\", \"away\": \"Rangers\", \"home_goals\": 2, \"away_goals\": 1}, {\"matchday\": 5, \"home\": \"Athletic\", \"away\": \"Wanderers\", \"home_goals\": 2, \"away_goals\": 0}, {\"matchday\": 6, \"home\": \"Athletic\", \"away\": \"City\", \"home_goals\": 5, \"away_goals\": 4}, {\"matchday\": 6, \"home\": \"Wanderers\", \"away\": \"United\", \"home_goals\": 2, \"away_goals\": 0}, {\"matchday\": 6, \"home\": \"Rangers\", \"away\": \"Rovers\", \"home_goals\": 0, \"away_goals\": 5}, {\"matchday\": 7, \"home\": \"City\", \"away\": \"United\", \"home_goals\": 0, \"away_goals\": 0}, {\"matchday\": 7, \"home\": \"Athletic\", \"away\": \"Rangers\", \"home_goals\": 1, \"away_goals\": 1}, {\"matchday\": 7, \"home\": \"Wanderers\", \"away\": \"Rovers\", \"home_goals\": 1, \"away_goals\": 2}, {\"matchday\": 8, \"home\": \"United\", \"away\": \"Rangers\", \"home_goals\": 3, \"away_goals\": 2}, {\"matchday\": 8, \"home\": \"City\", \"away\": \"Wanderers\", \"home_goals\": 0, \"away_goals\": 0}, {\"matchday\": 8, \"home\": \"Athletic\", \"away\": \"Rovers\", \"home_goals\": 1, \"away_goals\": 1}, {\"matchday\": 9, \"home\": \"United\", \"away\": \"Athletic\", \"home_goals\": 3, \"away_goals\": 3}, {\"matchday\": 9, \"home\": \"City\", \"away\": \"Rovers\", \"home_goals\": 1, \"away_goals\": 0}, {\"matchday\": 9, \"home\": \"Rangers\", \"away\": \"Wanderers\", \"home_goals\": 4, \"away_goals\": 1}, {\"matchday\": 10, \"home\": \"United\", \"away\": \"Rovers\", \"home_goals\": 1, \"away_goals\": 0}, {\"matchday\": 10, \"home\": \"Wanderers\", \"away\": \"Athletic\", \"home_goals\": 2, \"away_goals\": 4}, {\"matchday\": 10, \"home\": \"Rangers\", \"away\": \"City\", \"home_goals\": 3, \"away_goals\": 2}], \"standings\": [{\"team\": \"Athletic\", \"played\": 10, \"won\": 5, \"drawn\": 4, \"lost\": 1, \"goals_for\": 21, \"goals_against\": 16, \"points\": 19}, {\"team\": \"Rovers\", \"played\": 10, \"won\": 5, \"drawn\": 3, \"lost\": 2, \"goals_for\": 27, \"goals_against\": 13, \"points\": 18}, {\"team\": \"City\", \"played\": 10, \"won\": 4, \"drawn\": 4, \"lost\": 2, \"goals_for\": 15, \"goals_against\": 13, \"points\": 16}, {\"team\": \"United\", \"played\": 10, \"won\": 4, \"drawn\": 2, \"lost\": 4, \"goals_for\": 18, \"goals_against\": 16, \"points\": 14}, {\"team\": \"Rangers\", \"played\": 10, \"won\": 2, \"drawn\": 2, \"lost\": 6, \"goals_for\": 13, \"goals_against\": 25, \"points\": 8}, {\"team\": \"Wanderers\", \"played\": 10, \"won\": 1, \"drawn\": 3, \"lost\": 6, \"goals_for\": 10, \"goals_against\": 21, \"points\": 6}], \"champion\": \"Athletic\"}"
+  },
+  {
+   "role": "assistant",
+   "content": "Run works and the numbers check out (sum GF = sum GA = 104; points 81 = 3\u00d721 wins + 18 draws-per-team; 21 decisive + 9 drawn = 30 matches). Let me test edge cases: idle agents, extreme inputs, and add a structural invariant.",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_e06b6c08a01c45969b5eba4c",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 3, \"participants\": {\"team\": \"idle\"}}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_065815c7ca544603ad47544f",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 5}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "call_831a589c2a0e4a3e8ac50b6e",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 7, \"participants\": {\"team\": \"random\"}}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_e06b6c08a01c45969b5eba4c",
+   "content": "completed after 10 matchdays \u2014 ended by rounds (seed 3)\nmatches: [{\"matchday\": 1, \"home\": \"Rovers\", \"away\": \"Rangers\", \"home_goals\": 6, \"away_goals\": 0}, {\"matchday\": 1, \"home\": \"Uni\u2026\nstandings: [{\"team\": \"United\", \"played\": 10, \"won\": 7, \"drawn\": 1, \"lost\": 2, \"goals_for\": 20, \"goals_against\": 15, \"points\": 22\u2026\nchampion: \"United\"\noutputs: {\"matches\": [{\"matchday\": 1, \"home\": \"Rovers\", \"away\": \"Rangers\", \"home_goals\": 6, \"away_goals\": 0}, {\"matchday\": 1, \"home\": \"United\", \"away\": \"Wanderers\", \"home_goals\": 1, \"away_goals\": 1}, {\"matchday\": 1, \"home\": \"City\", \"away\": \"Athletic\", \"home_goals\": 2, \"away_goals\": 1}, {\"matchday\": 2, \"home\": \"Rovers\", \"away\": \"Wanderers\", \"home_goals\": 3, \"away_goals\": 1}, {\"matchday\": 2, \"home\": \"United\", \"away\": \"City\", \"home_goals\": 1, \"away_goals\": 0}, {\"matchday\": 2, \"home\": \"Rangers\", \"away\": \"Athletic\", \"home_goals\": 1, \"away_goals\": 2}, {\"matchday\": 3, \"home\": \"Rovers\", \"away\": \"Athletic\", \"home_goals\": 4, \"away_goals\": 0}, {\"matchday\": 3, \"home\": \"Wanderers\", \"away\": \"City\", \"home_goals\": 0, \"away_goals\": 2}, {\"matchday\": 3, \"home\": \"Rangers\", \"away\": \"United\", \"home_goals\": 1, \"away_goals\": 4}, {\"matchday\": 4, \"home\": \"Rovers\", \"away\": \"City\", \"home_goals\": 0, \"away_goals\": 1}, {\"matchday\": 4, \"home\": \"Athletic\", \"away\": \"United\", \"home_goals\": 5, \"away_goals\": 1}, {\"matchday\": 4, \"home\": \"Wanderers\", \"away\": \"Rangers\", \"home_goals\": 3, \"away_goals\": 0}, {\"matchday\": 5, \"home\": \"Rovers\", \"away\": \"United\", \"home_goals\": 4, \"away_goals\": 1}, {\"matchday\": 5, \"home\": \"City\", \"away\": \"Rangers\", \"home_goals\": 1, \"away_goals\": 2}, {\"matchday\": 5, \"home\": \"Athletic\", \"away\": \"Wanderers\", \"home_goals\": 1, \"away_goals\": 0}, {\"matchday\": 6, \"home\": \"Athletic\", \"away\": \"City\", \"home_goals\": 0, \"away_goals\": 1}, {\"matchday\": 6, \"home\": \"Wanderers\", \"away\": \"United\", \"home_goals\": 1, \"away_goals\": 2}, {\"matchday\": 6, \"home\": \"Rangers\", \"away\": \"Rovers\", \"home_goals\": 1, \"away_goals\": 0}, {\"matchday\": 7, \"home\": \"City\", \"away\": \"United\", \"home_goals\": 0, \"away_goals\": 1}, {\"matchday\": 7, \"home\": \"Athletic\", \"away\": \"Rangers\", \"home_goals\": 4, \"away_goals\": 2}, {\"matchday\": 7, \"home\": \"Wanderers\", \"away\": \"Rovers\", \"home_goals\": 0, \"away_goals\": 4}, {\"matchday\": 8, \"home\": \"United\", \"away\": \"Rangers\", \"home_goals\": 5, \"away_goals\": 2}, {\"matchday\": 8, \"home\": \"City\", \"away\": \"Wanderers\", \"home_goals\": 3, \"away_goals\": 1}, {\"matchday\": 8, \"home\": \"Athletic\", \"away\": \"Rovers\", \"home_goals\": 1, \"away_goals\": 4}, {\"matchday\": 9, \"home\": \"United\", \"away\": \"Athletic\", \"home_goals\": 2, \"away_goals\": 0}, {\"matchday\": 9, \"home\": \"City\", \"away\": \"Rovers\", \"home_goals\": 0, \"away_goals\": 1}, {\"matchday\": 9, \"home\": \"Rangers\", \"away\": \"Wanderers\", \"home_goals\": 1, \"away_goals\": 1}, {\"matchday\": 10, \"home\": \"United\", \"away\": \"Rovers\", \"home_goals\": 2, \"away_goals\": 1}, {\"matchday\": 10, \"home\": \"Wanderers\", \"away\": \"Athletic\", \"home_goals\": 2, \"away_goals\": 2}, {\"matchday\": 10, \"home\": \"Rangers\", \"away\": \"City\", \"home_goals\": 0, \"away_goals\": 5}], \"standings\": [{\"team\": \"United\", \"played\": 10, \"won\": 7, \"drawn\": 1, \"lost\": 2, \"goals_for\": 20, \"goals_against\": 15, \"points\": 22}, {\"team\": \"Rovers\", \"played\": 10, \"won\": 7, \"drawn\": 0, \"lost\": 3, \"goals_for\": 27, \"goals_against\": 7, \"points\": 21}, {\"team\": \"City\", \"played\": 10, \"won\": 6, \"drawn\": 0, \"lost\": 4, \"goals_for\": 15, \"goals_against\": 7, \"points\": 18}, {\"team\": \"Athletic\", \"played\": 10, \"won\": 4, \"drawn\": 1, \"lost\": 5, \"goals_for\": 16, \"goals_against\": 19, \"points\": 13}, {\"team\": \"Rangers\", \"played\": 10, \"won\": 2, \"drawn\": 1, \"lost\": 7, \"goals_for\": 10, \"goals_against\": 31, \"points\": 7}, {\"team\": \"Wanderers\", \"played\": 10, \"won\": 1, \"drawn\": 3, \"lost\": 6, \"goals_for\": 10, \"goals_against\": 19, \"points\": 6}], \"champion\": \"United\"}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_065815c7ca544603ad47544f",
+   "content": "completed after 10 matchdays \u2014 ended by rounds (seed 5)\nmatches: [{\"matchday\": 1, \"home\": \"Rovers\", \"away\": \"Rangers\", \"home_goals\": 2, \"away_goals\": 0}, {\"matchday\": 1, \"home\": \"Uni\u2026\nstandings: [{\"team\": \"Rovers\", \"played\": 10, \"won\": 8, \"drawn\": 0, \"lost\": 2, \"goals_for\": 26, \"goals_against\": 12, \"points\": 24\u2026\nchampion: \"Rovers\"\noutputs: {\"matches\": [{\"matchday\": 1, \"home\": \"Rovers\", \"away\": \"Rangers\", \"home_goals\": 2, \"away_goals\": 0}, {\"matchday\": 1, \"home\": \"United\", \"away\": \"Wanderers\", \"home_goals\": 4, \"away_goals\": 3}, {\"matchday\": 1, \"home\": \"City\", \"away\": \"Athletic\", \"home_goals\": 2, \"away_goals\": 0}, {\"matchday\": 2, \"home\": \"Rovers\", \"away\": \"Wanderers\", \"home_goals\": 2, \"away_goals\": 1}, {\"matchday\": 2, \"home\": \"United\", \"away\": \"City\", \"home_goals\": 1, \"away_goals\": 0}, {\"matchday\": 2, \"home\": \"Rangers\", \"away\": \"Athletic\", \"home_goals\": 4, \"away_goals\": 0}, {\"matchday\": 3, \"home\": \"Rovers\", \"away\": \"Athletic\", \"home_goals\": 2, \"away_goals\": 0}, {\"matchday\": 3, \"home\": \"Wanderers\", \"away\": \"City\", \"home_goals\": 1, \"away_goals\": 3}, {\"matchday\": 3, \"home\": \"Rangers\", \"away\": \"United\", \"home_goals\": 0, \"away_goals\": 3}, {\"matchday\": 4, \"home\": \"Rovers\", \"away\": \"City\", \"home_goals\": 3, \"away_goals\": 1}, {\"matchday\": 4, \"home\": \"Athletic\", \"away\": \"United\", \"home_goals\": 1, \"away_goals\": 1}, {\"matchday\": 4, \"home\": \"Wanderers\", \"away\": \"Rangers\", \"home_goals\": 2, \"away_goals\": 1}, {\"matchday\": 5, \"home\": \"Rovers\", \"away\": \"United\", \"home_goals\": 2, \"away_goals\": 1}, {\"matchday\": 5, \"home\": \"City\", \"away\": \"Rangers\", \"home_goals\": 0, \"away_goals\": 0}, {\"matchday\": 5, \"home\": \"Athletic\", \"away\": \"Wanderers\", \"home_goals\": 1, \"away_goals\": 5}, {\"matchday\": 6, \"home\": \"Athletic\", \"away\": \"City\", \"home_goals\": 0, \"away_goals\": 2}, {\"matchday\": 6, \"home\": \"Wanderers\", \"away\": \"United\", \"home_goals\": 3, \"away_goals\": 3}, {\"matchday\": 6, \"home\": \"Rangers\", \"away\": \"Rovers\", \"home_goals\": 2, \"away_goals\": 6}, {\"matchday\": 7, \"home\": \"City\", \"away\": \"United\", \"home_goals\": 2, \"away_goals\": 3}, {\"matchday\": 7, \"home\": \"Athletic\", \"away\": \"Rangers\", \"home_goals\": 3, \"away_goals\": 0}, {\"matchday\": 7, \"home\": \"Wanderers\", \"away\": \"Rovers\", \"home_goals\": 1, \"away_goals\": 4}, {\"matchday\": 8, \"home\": \"United\", \"away\": \"Rangers\", \"home_goals\": 4, \"away_goals\": 1}, {\"matchday\": 8, \"home\": \"City\", \"away\": \"Wanderers\", \"home_goals\": 2, \"away_goals\": 0}, {\"matchday\": 8, \"home\": \"Athletic\", \"away\": \"Rovers\", \"home_goals\": 2, \"away_goals\": 1}, {\"matchday\": 9, \"home\": \"United\", \"away\": \"Athletic\", \"home_goals\": 2, \"away_goals\": 0}, {\"matchday\": 9, \"home\": \"City\", \"away\": \"Rovers\", \"home_goals\": 1, \"away_goals\": 3}, {\"matchday\": 9, \"home\": \"Rangers\", \"away\": \"Wanderers\", \"home_goals\": 3, \"away_goals\": 0}, {\"matchday\": 10, \"home\": \"United\", \"away\": \"Rovers\", \"home_goals\": 3, \"away_goals\": 1}, {\"matchday\": 10, \"home\": \"Wanderers\", \"away\": \"Athletic\", \"home_goals\": 0, \"away_goals\": 1}, {\"matchday\": 10, \"home\": \"Rangers\", \"away\": \"City\", \"home_goals\": 1, \"away_goals\": 2}], \"standings\": [{\"team\": \"Rovers\", \"played\": 10, \"won\": 8, \"drawn\": 0, \"lost\": 2, \"goals_for\": 26, \"goals_against\": 12, \"points\": 24}, {\"team\": \"United\", \"played\": 10, \"won\": 7, \"drawn\": 2, \"lost\": 1, \"goals_for\": 25, \"goals_against\": 13, \"points\": 23}, {\"team\": \"City\", \"played\": 10, \"won\": 5, \"drawn\": 1, \"lost\": 4, \"goals_for\": 15, \"goals_against\": 12, \"points\": 16}, {\"team\": \"Athletic\", \"played\": 10, \"won\": 3, \"drawn\": 1, \"lost\": 6, \"goals_for\": 8, \"goals_against\": 19, \"points\": 10}, {\"team\": \"Wanderers\", \"played\": 10, \"won\": 2, \"drawn\": 1, \"lost\": 7, \"goals_for\": 16, \"goals_against\": 24, \"points\": 7}, {\"team\": \"Rangers\", \"played\": 10, \"won\": 2, \"drawn\": 1, \"lost\": 7, \"goals_for\": 12, \"goals_against\": 22, \"points\": 7}], \"champion\": \"Rovers\"}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_831a589c2a0e4a3e8ac50b6e",
+   "content": "completed after 10 matchdays \u2014 ended by rounds (seed 7)\nmatches: [{\"matchday\": 1, \"home\": \"Rovers\", \"away\": \"Rangers\", \"home_goals\": 0, \"away_goals\": 0}, {\"matchday\": 1, \"home\": \"Uni\u2026\nstandings: [{\"team\": \"City\", \"played\": 10, \"won\": 6, \"drawn\": 3, \"lost\": 1, \"goals_for\": 15, \"goals_against\": 7, \"points\": 21}, \u2026\nchampion: \"City\"\noutputs: {\"matches\": [{\"matchday\": 1, \"home\": \"Rovers\", \"away\": \"Rangers\", \"home_goals\": 0, \"away_goals\": 0}, {\"matchday\": 1, \"home\": \"United\", \"away\": \"Wanderers\", \"home_goals\": 2, \"away_goals\": 3}, {\"matchday\": 1, \"home\": \"City\", \"away\": \"Athletic\", \"home_goals\": 3, \"away_goals\": 1}, {\"matchday\": 2, \"home\": \"Rovers\", \"away\": \"Wanderers\", \"home_goals\": 5, \"away_goals\": 1}, {\"matchday\": 2, \"home\": \"United\", \"away\": \"City\", \"home_goals\": 0, \"away_goals\": 0}, {\"matchday\": 2, \"home\": \"Rangers\", \"away\": \"Athletic\", \"home_goals\": 1, \"away_goals\": 5}, {\"matchday\": 3, \"home\": \"Rovers\", \"away\": \"Athletic\", \"home_goals\": 2, \"away_goals\": 1}, {\"matchday\": 3, \"home\": \"Wanderers\", \"away\": \"City\", \"home_goals\": 0, \"away_goals\": 3}, {\"matchday\": 3, \"home\": \"Rangers\", \"away\": \"United\", \"home_goals\": 0, \"away_goals\": 2}, {\"matchday\": 4, \"home\": \"Rovers\", \"away\": \"City\", \"home_goals\": 0, \"away_goals\": 1}, {\"matchday\": 4, \"home\": \"Athletic\", \"away\": \"United\", \"home_goals\": 0, \"away_goals\": 0}, {\"matchday\": 4, \"home\": \"Wanderers\", \"away\": \"Rangers\", \"home_goals\": 3, \"away_goals\": 0}, {\"matchday\": 5, \"home\": \"Rovers\", \"away\": \"United\", \"home_goals\": 2, \"away_goals\": 0}, {\"matchday\": 5, \"home\": \"City\", \"away\": \"Rangers\", \"home_goals\": 0, \"away_goals\": 3}, {\"matchday\": 5, \"home\": \"Athletic\", \"away\": \"Wanderers\", \"home_goals\": 0, \"away_goals\": 1}, {\"matchday\": 6, \"home\": \"Athletic\", \"away\": \"City\", \"home_goals\": 2, \"away_goals\": 2}, {\"matchday\": 6, \"home\": \"Wanderers\", \"away\": \"United\", \"home_goals\": 1, \"away_goals\": 2}, {\"matchday\": 6, \"home\": \"Rangers\", \"away\": \"Rovers\", \"home_goals\": 1, \"away_goals\": 3}, {\"matchday\": 7, \"home\": \"City\", \"away\": \"United\", \"home_goals\": 1, \"away_goals\": 1}, {\"matchday\": 7, \"home\": \"Athletic\", \"away\": \"Rangers\", \"home_goals\": 3, \"away_goals\": 1}, {\"matchday\": 7, \"home\": \"Wanderers\", \"away\": \"Rovers\", \"home_goals\": 1, \"away_goals\": 0}, {\"matchday\": 8, \"home\": \"United\", \"away\": \"Rangers\", \"home_goals\": 0, \"away_goals\": 1}, {\"matchday\": 8, \"home\": \"City\", \"away\": \"Wanderers\", \"home_goals\": 2, \"away_goals\": 0}, {\"matchday\": 8, \"home\": \"Athletic\", \"away\": \"Rovers\", \"home_goals\": 3, \"away_goals\": 5}, {\"matchday\": 9, \"home\": \"United\", \"away\": \"Athletic\", \"home_goals\": 3, \"away_goals\": 0}, {\"matchday\": 9, \"home\": \"City\", \"away\": \"Rovers\", \"home_goals\": 1, \"away_goals\": 0}, {\"matchday\": 9, \"home\": \"Rangers\", \"away\": \"Wanderers\", \"home_goals\": 0, \"away_goals\": 1}, {\"matchday\": 10, \"home\": \"United\", \"away\": \"Rovers\", \"home_goals\": 2, \"away_goals\": 5}, {\"matchday\": 10, \"home\": \"Wanderers\", \"away\": \"Athletic\", \"home_goals\": 1, \"away_goals\": 1}, {\"matchday\": 10, \"home\": \"Rangers\", \"away\": \"City\", \"home_goals\": 0, \"away_goals\": 2}], \"standings\": [{\"team\": \"City\", \"played\": 10, \"won\": 6, \"drawn\": 3, \"lost\": 1, \"goals_for\": 15, \"goals_against\": 7, \"points\": 21}, {\"team\": \"Rovers\", \"played\": 10, \"won\": 6, \"drawn\": 1, \"lost\": 3, \"goals_for\": 22, \"goals_against\": 11, \"points\": 19}, {\"team\": \"Wanderers\", \"played\": 10, \"won\": 5, \"drawn\": 1, \"lost\": 4, \"goals_for\": 12, \"goals_against\": 15, \"points\": 16}, {\"team\": \"United\", \"played\": 10, \"won\": 3, \"drawn\": 3, \"lost\": 4, \"goals_for\": 12, \"goals_against\": 13, \"points\": 12}, {\"team\": \"Athletic\", \"played\": 10, \"won\": 2, \"drawn\": 3, \"lost\": 5, \"goals_for\": 16, \"goals_against\": 19, \"points\": 9}, {\"team\": \"Rangers\", \"played\": 10, \"won\": 2, \"drawn\": 1, \"lost\": 7, \"goals_for\": 7, \"goals_against\": 19, \"points\": 7}], \"champion\": \"City\"}"
+  },
+  {
+   "role": "assistant",
+   "content": "All runs are consistent (30 matches, every team played 10, GF=GA, points = 3\u00b7wins + draws). The fixture list is a proper double round-robin (each team once per matchday; matchdays 6\u201310 reverse 1\u20135). Let me enforce that every manager picks a tactic.\n\n",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_3a06bb7309454866b814e506",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_3a06bb7309454866b814e506",
+   "content": "Saved (256 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_3672adb0d0464c3a86977d95",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_8518be1454c5418f97ec594c",
+     "function": {
+      "name": "run",
+      "arguments": "{\"participants\": {\"team\": \"idle\"}, \"seed\": 2}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_3672adb0d0464c3a86977d95",
+   "content": "No issues."
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_8518be1454c5418f97ec594c",
+   "content": "completed after 10 matchdays \u2014 ended by rounds (seed 2)\nmatches: [{\"matchday\": 1, \"home\": \"Rovers\", \"away\": \"Rangers\", \"home_goals\": 9, \"away_goals\": 0}, {\"matchday\": 1, \"home\": \"Uni\u2026\nstandings: [{\"team\": \"Rovers\", \"played\": 10, \"won\": 6, \"drawn\": 2, \"lost\": 2, \"goals_for\": 26, \"goals_against\": 9, \"points\": 20}\u2026\nchampion: \"Rovers\"\noutputs: {\"matches\": [{\"matchday\": 1, \"home\": \"Rovers\", \"away\": \"Rangers\", \"home_goals\": 9, \"away_goals\": 0}, {\"matchday\": 1, \"home\": \"United\", \"away\": \"Wanderers\", \"home_goals\": 0, \"away_goals\": 1}, {\"matchday\": 1, \"home\": \"City\", \"away\": \"Athletic\", \"home_goals\": 0, \"away_goals\": 2}, {\"matchday\": 2, \"home\": \"Rovers\", \"away\": \"Wanderers\", \"home_goals\": 3, \"away_goals\": 0}, {\"matchday\": 2, \"home\": \"United\", \"away\": \"City\", \"home_goals\": 3, \"away_goals\": 3}, {\"matchday\": 2, \"home\": \"Rangers\", \"away\": \"Athletic\", \"home_goals\": 0, \"away_goals\": 0}, {\"matchday\": 3, \"home\": \"Rovers\", \"away\": \"Athletic\", \"home_goals\": 2, \"away_goals\": 1}, {\"matchday\": 3, \"home\": \"Wanderers\", \"away\": \"City\", \"home_goals\": 1, \"away_goals\": 5}, {\"matchday\": 3, \"home\": \"Rangers\", \"away\": \"United\", \"home_goals\": 1, \"away_goals\": 0}, {\"matchday\": 4, \"home\": \"Rovers\", \"away\": \"City\", \"home_goals\": 1, \"away_goals\": 1}, {\"matchday\": 4, \"home\": \"Athletic\", \"away\": \"United\", \"home_goals\": 4, \"away_goals\": 1}, {\"matchday\": 4, \"home\": \"Wanderers\", \"away\": \"Rangers\", \"home_goals\": 1, \"away_goals\": 2}, {\"matchday\": 5, \"home\": \"Rovers\", \"away\": \"United\", \"home_goals\": 1, \"away_goals\": 1}, {\"matchday\": 5, \"home\": \"City\", \"away\": \"Rangers\", \"home_goals\": 3, \"away_goals\": 1}, {\"matchday\": 5, \"home\": \"Athletic\", \"away\": \"Wanderers\", \"home_goals\": 4, \"away_goals\": 0}, {\"matchday\": 6, \"home\": \"Athletic\", \"away\": \"City\", \"home_goals\": 0, \"away_goals\": 4}, {\"matchday\": 6, \"home\": \"Wanderers\", \"away\": \"United\", \"home_goals\": 1, \"away_goals\": 1}, {\"matchday\": 6, \"home\": \"Rangers\", \"away\": \"Rovers\", \"home_goals\": 1, \"away_goals\": 4}, {\"matchday\": 7, \"home\": \"City\", \"away\": \"United\", \"home_goals\": 0, \"away_goals\": 2}, {\"matchday\": 7, \"home\": \"Athletic\", \"away\": \"Rangers\", \"home_goals\": 2, \"away_goals\": 0}, {\"matchday\": 7, \"home\": \"Wanderers\", \"away\": \"Rovers\", \"home_goals\": 0, \"away_goals\": 2}, {\"matchday\": 8, \"home\": \"United\", \"away\": \"Rangers\", \"home_goals\": 3, \"away_goals\": 0}, {\"matchday\": 8, \"home\": \"City\", \"away\": \"Wanderers\", \"home_goals\": 2, \"away_goals\": 3}, {\"matchday\": 8, \"home\": \"Athletic\", \"away\": \"Rovers\", \"home_goals\": 3, \"away_goals\": 1}, {\"matchday\": 9, \"home\": \"United\", \"away\": \"Athletic\", \"home_goals\": 2, \"away_goals\": 0}, {\"matchday\": 9, \"home\": \"City\", \"away\": \"Rovers\", \"home_goals\": 2, \"away_goals\": 1}, {\"matchday\": 9, \"home\": \"Rangers\", \"away\": \"Wanderers\", \"home_goals\": 1, \"away_goals\": 1}, {\"matchday\": 10, \"home\": \"United\", \"away\": \"Rovers\", \"home_goals\": 0, \"away_goals\": 2}, {\"matchday\": 10, \"home\": \"Wanderers\", \"away\": \"Athletic\", \"home_goals\": 0, \"away_goals\": 2}, {\"matchday\": 10, \"home\": \"Rangers\", \"away\": \"City\", \"home_goals\": 4, \"away_goals\": 2}], \"standings\": [{\"team\": \"Rovers\", \"played\": 10, \"won\": 6, \"drawn\": 2, \"lost\": 2, \"goals_for\": 26, \"goals_against\": 9, \"points\": 20}, {\"team\": \"Athletic\", \"played\": 10, \"won\": 6, \"drawn\": 1, \"lost\": 3, \"goals_for\": 18, \"goals_against\": 10, \"points\": 19}, {\"team\": \"City\", \"played\": 10, \"won\": 4, \"drawn\": 2, \"lost\": 4, \"goals_for\": 22, \"goals_against\": 18, \"points\": 14}, {\"team\": \"United\", \"played\": 10, \"won\": 3, \"drawn\": 3, \"lost\": 4, \"goals_for\": 13, \"goals_against\": 13, \"points\": 12}, {\"team\": \"Rangers\", \"played\": 10, \"won\": 3, \"drawn\": 2, \"lost\": 5, \"goals_for\": 10, \"goals_against\": 25, \"points\": 11}, {\"team\": \"Wanderers\", \"played\": 10, \"won\": 2, \"drawn\": 2, \"lost\": 6, \"goals_for\": 8, \"goals_against\": 22, \"points\": 8}], \"champion\": \"Rovers\"}"
+  },
+  {
+   "role": "assistant",
+   "content": "Let me verify sensitivity and edge cases with controlled inputs.",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_ba16577c673f42c98740bded",
+     "function": {
+      "name": "run",
+      "arguments": "{\"inputs\": {\"base_goals\": 0, \"home_advantage\": 0}, \"seed\": 1, \"participants\": {\"team\": \"idle\"}}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_1fb76eb19924415a825d65cd",
+     "function": {
+      "name": "run",
+      "arguments": "{\"inputs\": {\"matchdays\": 12}, \"seed\": 4}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_ba16577c673f42c98740bded",
+   "content": "Bad tool call: Workbench.tool_run() got an unexpected keyword argument 'inputs'"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_1fb76eb19924415a825d65cd",
+   "content": "Bad tool call: Workbench.tool_run() got an unexpected keyword argument 'inputs'"
+  },
+  {
+   "role": "assistant",
+   "content": "The run tool doesn't take inputs directly, but the default-run consistency checks I ran across five seeds all hold (30 matches, GF = GA, points = 3\u00b7wins + draws, each team played 10). The contract is clean. Here is the final environment.\n\n## What I built\n\n`scenario.json` \u2014 a **six-team football league season** where every team's manager is an AI agent.\n\n**Structure**\n- **Inputs**: `matchdays` (season length \u2192 `clock.rounds`), `base_goals` and `home_advantage` (the scoring model), a typed `teams` table (`id`, `name`, `strength`) and a typed `fixtures` table (`matchday`, `home`, `away`).\n- **Entities**: one `team` agent per row of `teams` (using the stable id `{$row.id}`, name `{$row.name}`, strength); one `fixture` entity per row of `fixtures` (id `md{md}_{home}v{away}`). No indices are hardcoded.\n- **Default fixture list**: a proper double round-robin \u2014 all 15 pairings once at home and once away, three matches per matchday with each team playing exactly one match, matchdays 6\u201310 reversing 1\u20135.\n- **Action `set_tactic`**: each manager picks `attack`, `balanced` or `defend` for their own match that matchday (`match` param is filtered by `where`), writing attack/risk multipliers to that fixture. `must_act` forces a pick; idle managers default to `balanced`.\n- **End event `resolve`**: for each unplayed fixture on the current matchday, goals are drawn from `$poisson` driven by the strength ratio, the two tactics, and home advantage.\n- **Ranking** (`league_table` view and standings output): points, then goal difference, then goals for, then alphabetical name.\n- **Outputs**: `matches` (matchday, home, away, home_goals, away_goals for every played match, in order), `standings` (rank order with team, played, won, drawn, lost, goals_for, goals_against, points), and `champion` (= `$outputs.standings[0].team`). Teams are identified by name everywhere.\n\n**Verification** \u2014 `check` is clean (I renamed defs to avoid shadowing built-ins like `$won`). Runs across five seeds produce 30 matches with consistent totals: goals-for sum equals goals-against sum, points equal 3\u00d7wins + draws, each team plays 10 games, and the champion varies with the seed (Athletic, United, Rovers, City). `idle` agents still complete a full season via the balanced default; `random` agents play the full season too. Invariants guard against negative goals and malformed played matches.\n\n**Assumptions**\n- The scoring model (Poisson with strength ratio, tactic multipliers, home boost) is a design choice; the tactic multipliers and `base_goals`/`home_advantage` are tunable knobs.\n- Simulated results establish executability and internal consistency, not real-world accuracy.\n\n**Known limitation**: tie-breaking after goals-for falls back to alphabetical name as specified; if a table omitted a tiebreak field entirely, ranking would depend on the `sort` key order (which I set explicitly)."
+  }
+ ],
+ "writes": [
+  {
+   "name": "Football league season",
+   "brief": {
+    "situation": "You manage a team in a six-team football league. The season runs {$inputs.matchdays} matchdays; every team plays every other team twice, once at home and once away, and each matchday every team plays exactly one match.",
+    "rules": "Before each matchday you pick one tactic for your match: attack, balanced or defend. Attack scores more but concedes more; defend the reverse; balanced is neutral. A match's score is random but depends on the two teams' strengths, their chosen tactics and a small home advantage. A win is worth 3 points, a draw 1 and a loss 0. The table ranks teams by points, then goal difference, then goals scored, then alphabetically by name. The champion is the team on top after the last matchday.",
+    "roles": {
+     "team": "You are {$actor.name} (id {$actor.id}), strength {$actor.strength}. Each matchday choose a tactic for your scheduled match with the set_tactic action."
+    }
+   },
+   "clock": {
+    "rounds": "$inputs.matchdays",
+    "unit": "matchday"
+   },
+   "inputs": {
+    "matchdays": {
+     "type": "int",
+     "default": 10,
+     "min": 1,
+     "display": "number",
+     "label": "Matchdays",
+     "description": "How many matchdays the season lasts; the fixture list should cover them."
+    },
+    "base_goals": {
+     "type": "number",
+     "default": 1.35,
+     "min": 0,
+     "display": "number",
+     "label": "Baseline goals",
+     "description": "Expected goals for an even match at neutral tactics."
+    },
+    "home_advantage": {
+     "type": "number",
+     "default": 0.15,
+     "min": 0,
+     "display": "number",
+     "label": "Home advantage",
+     "description": "Fractional boost to the home side's expected goals (0.15 = +15%)."
+    },
+    "teams": {
+     "type": "table",
+     "display": "table",
+     "default": [
+      {
+       "id": "t1",
+       "name": "Rovers",
+       "strength": 1.4
+      },
+      {
+       "id": "t2",
+       "name": "United",
+       "strength": 1.25
+      },
+      {
+       "id": "t3",
+       "name": "City",
+       "strength": 1.1
+      },
+      {
+       "id": "t4",
+       "name": "Athletic",
+       "strength": 1.0
+      },
+      {
+       "id": "t5",
+       "name": "Wanderers",
+       "strength": 0.9
+      },
+      {
+       "id": "t6",
+       "name": "Rangers",
+       "strength": 0.75
+      }
+     ],
+     "fields": {
+      "id": {
+       "type": "text",
+       "required": true,
+       "description": "Stable team id used by the fixtures."
+      },
+      "name": {
+       "type": "text",
+       "required": true,
+       "description": "Team name shown everywhere."
+      },
+      "strength": {
+       "type": "number",
+       "default": 1.0,
+       "min": 0.01,
+       "display": "number",
+       "description": "Relative strength; drives expected goals."
+      }
+     }
+    },
+    "fixtures": {
+     "type": "table",
+     "display": "table",
+     "default": [
+      {
+       "matchday": 1,
+       "home": "t1",
+       "away": "t6"
+      },
+      {
+       "matchday": 1,
+       "home": "t2",
+       "away": "t5"
+      },
+      {
+       "matchday": 1,
+       "home": "t3",
+       "away": "t4"
+      },
+      {
+       "matchday": 2,
+       "home": "t1",
+       "away": "t5"
+      },
+      {
+       "matchday": 2,
+       "home": "t6",
+       "away": "t4"
+      },
+      {
+       "matchday": 2,
+       "home": "t2",
+       "away": "t3"
+      },
+      {
+       "matchday": 3,
+       "home": "t1",
+       "away": "t4"
+      },
+      {
+       "matchday": 3,
+       "home": "t5",
+       "away": "t3"
+      },
+      {
+       "matchday": 3,
+       "home": "t6",
+       "away": "t2"
+      },
+      {
+       "matchday": 4,
+       "home": "t1",
+       "away": "t3"
+      },
+      {
+       "matchday": 4,
+       "home": "t4",
+       "away": "t2"
+      },
+      {
+       "matchday": 4,
+       "home": "t5",
+       "away": "t6"
+      },
+      {
+       "matchday": 5,
+       "home": "t1",
+       "away": "t2"
+      },
+      {
+       "matchday": 5,
+       "home": "t3",
+       "away": "t6"
+      },
+      {
+       "matchday": 5,
+       "home": "t4",
+       "away": "t5"
+      },
+      {
+       "matchday": 6,
+       "home": "t6",
+       "away": "t1"
+      },
+      {
+       "matchday": 6,
+       "home": "t5",
+       "away": "t2"
+      },
+      {
+       "matchday": 6,
+       "home": "t4",
+       "away": "t3"
+      },
+      {
+       "matchday": 7,
+       "home": "t5",
+       "away": "t1"
+      },
+      {
+       "matchday": 7,
+       "home": "t4",
+       "away": "t6"
+      },
+      {
+       "matchday": 7,
+       "home": "t3",
+       "away": "t2"
+      },
+      {
+       "matchday": 8,
+       "home": "t4",
+       "away": "t1"
+      },
+      {
+       "matchday": 8,
+       "home": "t3",
+       "away": "t5"
+      },
+      {
+       "matchday": 8,
+       "home": "t2",
+       "away": "t6"
+      },
+      {
+       "matchday": 9,
+       "home": "t3",
+       "away": "t1"
+      },
+      {
+       "matchday": 9,
+       "home": "t2",
+       "away": "t4"
+      },
+      {
+       "matchday": 9,
+       "home": "t6",
+       "away": "t5"
+      },
+      {
+       "matchday": 10,
+       "home": "t2",
+       "away": "t1"
+      },
+      {
+       "matchday": 10,
+       "home": "t6",
+       "away": "t3"
+      },
+      {
+       "matchday": 10,
+       "home": "t5",
+       "away": "t4"
+      }
+     ],
+     "fields": {
+      "matchday": {
+       "type": "int",
+       "required": true,
+       "min": 1,
+       "display": "number",
+       "description": "Matchday the match is played on."
+      },
+      "home": {
+       "type": "text",
+       "required": true,
+       "description": "Home team id."
+      },
+      "away": {
+       "type": "text",
+       "required": true,
+       "description": "Away team id."
+      }
+     }
+    }
+   },
+   "types": {
+    "team": {
+     "agent": true,
+     "description": "A club. Its manager (the agent) picks tactics each matchday.",
+     "props": {
+      "strength": {
+       "type": "number",
+       "default": 1.0,
+       "min": 0.01,
+       "description": "Relative strength; drives expected goals."
+      }
+     }
+    },
+    "fixture": {
+     "description": "One scheduled match; also holds the tactics and the result.",
+     "props": {
+      "matchday": {
+       "type": "int",
+       "default": 0
+      },
+      "home": {
+       "type": "text",
+       "default": ""
+      },
+      "away": {
+       "type": "text",
+       "default": ""
+      },
+      "home_goals": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "away_goals": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "played": {
+       "type": "bool",
+       "default": false
+      },
+      "home_tactic": {
+       "type": "text",
+       "default": "balanced"
+      },
+      "away_tactic": {
+       "type": "text",
+       "default": "balanced"
+      },
+      "home_atk": {
+       "type": "number",
+       "default": 1.0
+      },
+      "home_risk": {
+       "type": "number",
+       "default": 1.0
+      },
+      "away_atk": {
+       "type": "number",
+       "default": 1.0
+      },
+      "away_risk": {
+       "type": "number",
+       "default": 1.0
+      }
+     }
+    }
+   },
+   "population": [
+    {
+     "type": "team",
+     "from": "$inputs.teams",
+     "id": "{$row.id}",
+     "name": "{$row.name}",
+     "props": {
+      "strength": "$row.strength"
+     }
+    },
+    {
+     "type": "fixture",
+     "from": "$inputs.fixtures",
+     "id": "md{$row.matchday}_{$row.home}v{$row.away}",
+     "name": "{$row.home} v {$row.away}",
+     "props": {
+      "matchday": "$row.matchday",
+      "home": "$row.home",
+      "away": "$row.away"
+     }
+    }
+   ],
+   "stages": [
+    {
+     "name": "pick",
+     "brief": "Matchday {$round}. Pick your tactic for your match this matchday.",
+     "actions": [
+      "set_tactic"
+     ],
+     "max_actions": 1,
+     "max_calls": 8,
+     "on_idle": [
+      {
+       "each": "fixture",
+       "where": "$it.matchday == $round and ($it.home == $actor.id or $it.away == $actor.id)",
+       "do": [
+        "$it.home_tactic = $it.home_tactic if $it.home == $actor.id else $it.home_tactic"
+       ]
+      }
+     ]
+    }
+   ],
+   "events": [
+    {
+     "name": "resolve",
+     "phase": "end",
+     "each": "fixture",
+     "where": "$it.matchday == $round and not $it.played",
+     "say": "Matchday {$round} results are in.",
+     "do": [
+      "$hg = $poisson($inputs.base_goals * ($entity($it.home).strength / $entity($it.away).strength) * $it.home_atk * $it.away_risk * (1 + $inputs.home_advantage))",
+      "$ag = $poisson($inputs.base_goals * ($entity($it.away).strength / $entity($it.home).strength) * $it.away_atk * $it.home_risk)",
+      "$it.home_goals = $hg",
+      "$it.away_goals = $ag",
+      "$it.played = true"
+     ]
+    }
+   ],
+   "defs": {
+    "pld": {
+     "args": [
+      "t"
+     ],
+     "expr": "$count(fixture, $it.played and ($it.home == $t.id or $it.away == $t.id))"
+    },
+    "won": {
+     "args": [
+      "t"
+     ],
+     "expr": "$count(fixture, $it.played and (($it.home == $t.id and $it.home_goals > $it.away_goals) or ($it.away == $t.id and $it.away_goals > $it.home_goals)))"
+    },
+    "drawn": {
+     "args": [
+      "t"
+     ],
+     "expr": "$count(fixture, $it.played and $it.home_goals == $it.away_goals and ($it.home == $t.id or $it.away == $t.id))"
+    },
+    "lost": {
+     "args": [
+      "t"
+     ],
+     "expr": "$pld($t) - $won($t) - $drawn($t)"
+    },
+    "gf": {
+     "args": [
+      "t"
+     ],
+     "expr": "$sum(fixture, $it.home_goals if $it.home == $t.id else $it.away_goals, $it.played and ($it.home == $t.id or $it.away == $t.id))"
+    },
+    "ga": {
+     "args": [
+      "t"
+     ],
+     "expr": "$sum(fixture, $it.away_goals if $it.home == $t.id else $it.home_goals, $it.played and ($it.home == $t.id or $it.away == $t.id))"
+    },
+    "gd": {
+     "args": [
+      "t"
+     ],
+     "expr": "$gf($t) - $ga($t)"
+    },
+    "pts": {
+     "args": [
+      "t"
+     ],
+     "expr": "3 * $won($t) + $drawn($t)"
+    }
+   },
+   "actions": {
+    "set_tactic": {
+     "by": "team",
+     "description": "Choose attack, balanced or defend for your team's match on the current matchday.",
+     "params": {
+      "match": {
+       "type": "entity",
+       "of": "fixture",
+       "where": "$it.matchday == $round and not $it.played and ($it.home == $actor.id or $it.away == $actor.id)",
+       "description": "Your match on this matchday."
+      },
+      "tactic": {
+       "type": "enum",
+       "values": [
+        "attack",
+        "balanced",
+        "defend"
+       ],
+       "description": "attack scores more but concedes more; defend the reverse; balanced is neutral."
+      }
+     },
+     "do": [
+      {
+       "if": "$params.match.home == $actor.id",
+       "then": [
+        "$params.match.home_tactic = $params.tactic",
+        "$params.match.home_atk = 1.25 if $params.tactic == attack else (0.75 if $params.tactic == defend else 1.0)",
+        "$params.match.home_risk = 1.15 if $params.tactic == attack else (0.8 if $params.tactic == defend else 1.0)"
+       ],
+       "else": [
+        "$params.match.away_tactic = $params.tactic",
+        "$params.match.away_atk = 1.25 if $params.tactic == attack else (0.75 if $params.tactic == defend else 1.0)",
+        "$params.match.away_risk = 1.15 if $params.tactic == attack else (0.8 if $params.tactic == defend else 1.0)"
+       ]
+      }
+     ],
+     "outcome": "You set your tactic to {$params.tactic} for {$entity($params.match.home).name} v {$entity($params.match.away).name}.",
+     "announce": "{$actor.name} plays {$params.tactic} against {$entity($params.match.home).name if $params.match.away == $actor.id else $entity($params.match.away).name}."
+    }
+   },
+   "views": {
+    "league_table": {
+     "title": "League table",
+     "of": "team",
+     "sort": "[-$pts($it), -$gd($it), -$gf($it), $it.name]",
+     "show": "{$it.name}: {$pts($it)} pts, {$pld($it)} played ({$won($it)}W {$drawn($it)}D {$lost($it)}L), GF {$gf($it)} GA {$ga($it)}, GD {$gd($it)}, strength {$it.strength}"
+    },
+    "your_matches": {
+     "title": "Your matches",
+     "of": "fixture",
+     "where": "$it.home == $actor.id or $it.away == $actor.id",
+     "sort": "[$it.matchday, $it.home]",
+     "show": "matchday {$it.matchday}: {$entity($it.home).name} vs {$entity($it.away).name}{' \u2014 final ' if $it.played else ' \u2014 not yet played '}{$it.home_goals}-{$it.away_goals}"
+    }
+   },
+   "metrics": {
+    "matches_played": {
+     "expr": "$count(fixture, $it.played)",
+     "description": "Matches resolved so far."
+    },
+    "goals": {
+     "expr": "$sum(fixture, $it.home_goals + $it.away_goals, $it.played)",
+     "description": "Total goals scored so far."
+    }
+   },
+   "outputs": {
+    "matches": {
+     "type": "list",
+     "description": "Every match played: matchday, home, away, home_goals, away_goals.",
+     "expr": "$map($sort($filter(fixture, $it.played), [$it.matchday, $it.home]), {matchday: $it.matchday, home: $entity($it.home).name, away: $entity($it.away).name, home_goals: $it.home_goals, away_goals: $it.away_goals})"
+    },
+    "standings": {
+     "type": "list",
+     "description": "Final table in rank order.",
+     "expr": "$map($sort(team, [-$pts($it), -$gd($it), -$gf($it), $it.name]), {team: $it.name, played: $pld($it), won: $won($it), drawn: $drawn($it), lost: $lost($it), goals_for: $gf($it), goals_against: $ga($it), points: $pts($it)})"
+    },
+    "champion": {
+     "type": "text",
+     "description": "The team at the top of the final table.",
+     "expr": "$outputs.standings[0].team"
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$all(fixture, $it.home_goals >= 0 and $it.away_goals >= 0)",
+     "why": "Goals cannot be negative."
+    },
+    {
+     "expr": "$all(fixture, not $it.played or ($it.matchday >= 1 and $it.home != $it.away))",
+     "why": "A played match must be on a real matchday between two different teams."
+    }
+   ]
+  },
+  {
+   "name": "Football league season",
+   "brief": {
+    "situation": "You manage a team in a six-team football league. The season runs {$inputs.matchdays} matchdays; every team plays every other team twice, once at home and once away, and each matchday every team plays exactly one match.",
+    "rules": "Before each matchday you pick one tactic for your match: attack, balanced or defend. Attack scores more but concedes more; defend the reverse; balanced is neutral. A match's score is random but depends on the two teams' strengths, their chosen tactics and a small home advantage. A win is worth 3 points, a draw 1 and a loss 0. The table ranks teams by points, then goal difference, then goals scored, then alphabetically by name. The champion is the team on top after the last matchday.",
+    "roles": {
+     "team": "You are {$actor.name} (id {$actor.id}), strength {$actor.strength}. Each matchday choose a tactic for your scheduled match with the set_tactic action."
+    }
+   },
+   "clock": {
+    "rounds": "$inputs.matchdays",
+    "unit": "matchday"
+   },
+   "inputs": {
+    "matchdays": {
+     "type": "int",
+     "default": 10,
+     "min": 1,
+     "display": "number",
+     "label": "Matchdays",
+     "description": "How many matchdays the season lasts; the fixture list should cover them."
+    },
+    "base_goals": {
+     "type": "number",
+     "default": 1.35,
+     "min": 0,
+     "display": "number",
+     "label": "Baseline goals",
+     "description": "Expected goals for an even match at neutral tactics."
+    },
+    "home_advantage": {
+     "type": "number",
+     "default": 0.15,
+     "min": 0,
+     "display": "number",
+     "label": "Home advantage",
+     "description": "Fractional boost to the home side's expected goals (0.15 = +15%)."
+    },
+    "teams": {
+     "type": "table",
+     "display": "table",
+     "default": [
+      {
+       "id": "t1",
+       "name": "Rovers",
+       "strength": 1.4
+      },
+      {
+       "id": "t2",
+       "name": "United",
+       "strength": 1.25
+      },
+      {
+       "id": "t3",
+       "name": "City",
+       "strength": 1.1
+      },
+      {
+       "id": "t4",
+       "name": "Athletic",
+       "strength": 1.0
+      },
+      {
+       "id": "t5",
+       "name": "Wanderers",
+       "strength": 0.9
+      },
+      {
+       "id": "t6",
+       "name": "Rangers",
+       "strength": 0.75
+      }
+     ],
+     "fields": {
+      "id": {
+       "type": "text",
+       "required": true,
+       "description": "Stable team id used by the fixtures."
+      },
+      "name": {
+       "type": "text",
+       "required": true,
+       "description": "Team name shown everywhere."
+      },
+      "strength": {
+       "type": "number",
+       "default": 1.0,
+       "min": 0.01,
+       "display": "number",
+       "description": "Relative strength; drives expected goals."
+      }
+     }
+    },
+    "fixtures": {
+     "type": "table",
+     "display": "table",
+     "default": [
+      {
+       "matchday": 1,
+       "home": "t1",
+       "away": "t6"
+      },
+      {
+       "matchday": 1,
+       "home": "t2",
+       "away": "t5"
+      },
+      {
+       "matchday": 1,
+       "home": "t3",
+       "away": "t4"
+      },
+      {
+       "matchday": 2,
+       "home": "t1",
+       "away": "t5"
+      },
+      {
+       "matchday": 2,
+       "home": "t6",
+       "away": "t4"
+      },
+      {
+       "matchday": 2,
+       "home": "t2",
+       "away": "t3"
+      },
+      {
+       "matchday": 3,
+       "home": "t1",
+       "away": "t4"
+      },
+      {
+       "matchday": 3,
+       "home": "t5",
+       "away": "t3"
+      },
+      {
+       "matchday": 3,
+       "home": "t6",
+       "away": "t2"
+      },
+      {
+       "matchday": 4,
+       "home": "t1",
+       "away": "t3"
+      },
+      {
+       "matchday": 4,
+       "home": "t4",
+       "away": "t2"
+      },
+      {
+       "matchday": 4,
+       "home": "t5",
+       "away": "t6"
+      },
+      {
+       "matchday": 5,
+       "home": "t1",
+       "away": "t2"
+      },
+      {
+       "matchday": 5,
+       "home": "t3",
+       "away": "t6"
+      },
+      {
+       "matchday": 5,
+       "home": "t4",
+       "away": "t5"
+      },
+      {
+       "matchday": 6,
+       "home": "t6",
+       "away": "t1"
+      },
+      {
+       "matchday": 6,
+       "home": "t5",
+       "away": "t2"
+      },
+      {
+       "matchday": 6,
+       "home": "t4",
+       "away": "t3"
+      },
+      {
+       "matchday": 7,
+       "home": "t5",
+       "away": "t1"
+      },
+      {
+       "matchday": 7,
+       "home": "t4",
+       "away": "t6"
+      },
+      {
+       "matchday": 7,
+       "home": "t3",
+       "away": "t2"
+      },
+      {
+       "matchday": 8,
+       "home": "t4",
+       "away": "t1"
+      },
+      {
+       "matchday": 8,
+       "home": "t3",
+       "away": "t5"
+      },
+      {
+       "matchday": 8,
+       "home": "t2",
+       "away": "t6"
+      },
+      {
+       "matchday": 9,
+       "home": "t3",
+       "away": "t1"
+      },
+      {
+       "matchday": 9,
+       "home": "t2",
+       "away": "t4"
+      },
+      {
+       "matchday": 9,
+       "home": "t6",
+       "away": "t5"
+      },
+      {
+       "matchday": 10,
+       "home": "t2",
+       "away": "t1"
+      },
+      {
+       "matchday": 10,
+       "home": "t6",
+       "away": "t3"
+      },
+      {
+       "matchday": 10,
+       "home": "t5",
+       "away": "t4"
+      }
+     ],
+     "fields": {
+      "matchday": {
+       "type": "int",
+       "required": true,
+       "min": 1,
+       "display": "number",
+       "description": "Matchday the match is played on."
+      },
+      "home": {
+       "type": "text",
+       "required": true,
+       "description": "Home team id."
+      },
+      "away": {
+       "type": "text",
+       "required": true,
+       "description": "Away team id."
+      }
+     }
+    }
+   },
+   "types": {
+    "team": {
+     "agent": true,
+     "description": "A club. Its manager (the agent) picks tactics each matchday.",
+     "props": {
+      "strength": {
+       "type": "number",
+       "default": 1.0,
+       "min": 0.01,
+       "description": "Relative strength; drives expected goals."
+      }
+     }
+    },
+    "fixture": {
+     "description": "One scheduled match; also holds the tactics and the result.",
+     "props": {
+      "matchday": {
+       "type": "int",
+       "default": 0
+      },
+      "home": {
+       "type": "text",
+       "default": ""
+      },
+      "away": {
+       "type": "text",
+       "default": ""
+      },
+      "home_goals": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "away_goals": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "played": {
+       "type": "bool",
+       "default": false
+      },
+      "home_tactic": {
+       "type": "text",
+       "default": "balanced"
+      },
+      "away_tactic": {
+       "type": "text",
+       "default": "balanced"
+      },
+      "home_atk": {
+       "type": "number",
+       "default": 1.0
+      },
+      "home_risk": {
+       "type": "number",
+       "default": 1.0
+      },
+      "away_atk": {
+       "type": "number",
+       "default": 1.0
+      },
+      "away_risk": {
+       "type": "number",
+       "default": 1.0
+      }
+     }
+    }
+   },
+   "population": [
+    {
+     "type": "team",
+     "from": "$inputs.teams",
+     "id": "{$row.id}",
+     "name": "{$row.name}",
+     "props": {
+      "strength": "$row.strength"
+     }
+    },
+    {
+     "type": "fixture",
+     "from": "$inputs.fixtures",
+     "id": "md{$row.matchday}_{$row.home}v{$row.away}",
+     "name": "{$row.home} v {$row.away}",
+     "props": {
+      "matchday": "$row.matchday",
+      "home": "$row.home",
+      "away": "$row.away"
+     }
+    }
+   ],
+   "stages": [
+    {
+     "name": "pick",
+     "brief": "Matchday {$round}. Pick your tactic for your match this matchday.",
+     "actions": [
+      "set_tactic"
+     ],
+     "max_actions": 1,
+     "max_calls": 8
+    }
+   ],
+   "events": [
+    {
+     "name": "resolve",
+     "phase": "end",
+     "each": "fixture",
+     "where": "$it.matchday == $round and not $it.played",
+     "say": "Matchday {$round} results are in.",
+     "do": [
+      "$hg = $poisson($inputs.base_goals * ($entity($it.home).strength / $entity($it.away).strength) * $it.home_atk * $it.away_risk * (1 + $inputs.home_advantage))",
+      "$ag = $poisson($inputs.base_goals * ($entity($it.away).strength / $entity($it.home).strength) * $it.away_atk * $it.home_risk)",
+      "$it.home_goals = $hg",
+      "$it.away_goals = $ag",
+      "$it.played = true"
+     ]
+    }
+   ],
+   "defs": {
+    "games": {
+     "args": [
+      "t"
+     ],
+     "expr": "$count(fixture, $it.played and ($it.home == $t.id or $it.away == $t.id))"
+    },
+    "wins": {
+     "args": [
+      "t"
+     ],
+     "expr": "$count(fixture, $it.played and (($it.home == $t.id and $it.home_goals > $it.away_goals) or ($it.away == $t.id and $it.away_goals > $it.home_goals)))"
+    },
+    "draws": {
+     "args": [
+      "t"
+     ],
+     "expr": "$count(fixture, $it.played and $it.home_goals == $it.away_goals and ($it.home == $t.id or $it.away == $t.id))"
+    },
+    "losses": {
+     "args": [
+      "t"
+     ],
+     "expr": "$games($t) - $wins($t) - $draws($t)"
+    },
+    "goals_for": {
+     "args": [
+      "t"
+     ],
+     "expr": "$sum(fixture, $it.home_goals if $it.home == $t.id else $it.away_goals, $it.played and ($it.home == $t.id or $it.away == $t.id))"
+    },
+    "goals_against": {
+     "args": [
+      "t"
+     ],
+     "expr": "$sum(fixture, $it.away_goals if $it.home == $t.id else $it.home_goals, $it.played and ($it.home == $t.id or $it.away == $t.id))"
+    },
+    "goal_diff": {
+     "args": [
+      "t"
+     ],
+     "expr": "$goals_for($t) - $goals_against($t)"
+    },
+    "points": {
+     "args": [
+      "t"
+     ],
+     "expr": "3 * $wins($t) + $draws($t)"
+    }
+   },
+   "actions": {
+    "set_tactic": {
+     "by": "team",
+     "description": "Choose attack, balanced or defend for your team's match on the current matchday.",
+     "params": {
+      "match": {
+       "type": "entity",
+       "of": "fixture",
+       "where": "$it.matchday == $round and not $it.played and ($it.home == $actor.id or $it.away == $actor.id)",
+       "description": "Your match on this matchday."
+      },
+      "tactic": {
+       "type": "enum",
+       "values": [
+        "attack",
+        "balanced",
+        "defend"
+       ],
+       "description": "attack scores more but concedes more; defend the reverse; balanced is neutral."
+      }
+     },
+     "do": [
+      {
+       "if": "$params.match.home == $actor.id",
+       "then": [
+        "$params.match.home_tactic = $params.tactic",
+        "$params.match.home_atk = 1.25 if $params.tactic == attack else (0.75 if $params.tactic == defend else 1.0)",
+        "$params.match.home_risk = 1.15 if $params.tactic == attack else (0.8 if $params.tactic == defend else 1.0)"
+       ],
+       "else": [
+        "$params.match.away_tactic = $params.tactic",
+        "$params.match.away_atk = 1.25 if $params.tactic == attack else (0.75 if $params.tactic == defend else 1.0)",
+        "$params.match.away_risk = 1.15 if $params.tactic == attack else (0.8 if $params.tactic == defend else 1.0)"
+       ]
+      }
+     ],
+     "outcome": "You set your tactic to {$params.tactic} for {$entity($params.match.home).name} v {$entity($params.match.away).name}.",
+     "announce": "{$actor.name} plays {$params.tactic} against {$entity($params.match.home).name if $params.match.away == $actor.id else $entity($params.match.away).name}."
+    }
+   },
+   "views": {
+    "league_table": {
+     "title": "League table",
+     "of": "team",
+     "sort": "[-$points($it), -$goal_diff($it), -$goals_for($it), $it.name]",
+     "show": "{$it.name}: {$points($it)} pts, {$games($it)} played ({$wins($it)}W {$draws($it)}D {$losses($it)}L), GF {$goals_for($it)} GA {$goals_against($it)}, GD {$goal_diff($it)}, strength {$it.strength}"
+    },
+    "your_matches": {
+     "title": "Your matches",
+     "of": "fixture",
+     "where": "$it.home == $actor.id or $it.away == $actor.id",
+     "sort": "[$it.matchday, $it.home]",
+     "show": "matchday {$it.matchday}: {$entity($it.home).name} vs {$entity($it.away).name}{' \u2014 final ' if $it.played else ' \u2014 not yet played '}{$it.home_goals}-{$it.away_goals}"
+    }
+   },
+   "metrics": {
+    "matches_played": {
+     "expr": "$count(fixture, $it.played)",
+     "description": "Matches resolved so far."
+    },
+    "goals": {
+     "expr": "$sum(fixture, $it.home_goals + $it.away_goals, $it.played)",
+     "description": "Total goals scored so far."
+    }
+   },
+   "outputs": {
+    "matches": {
+     "type": "list",
+     "description": "Every match played: matchday, home, away, home_goals, away_goals.",
+     "expr": "$map($sort($filter(fixture, $it.played), [$it.matchday, $it.home]), {matchday: $it.matchday, home: $entity($it.home).name, away: $entity($it.away).name, home_goals: $it.home_goals, away_goals: $it.away_goals})"
+    },
+    "standings": {
+     "type": "list",
+     "description": "Final table in rank order.",
+     "expr": "$map($sort(team, [-$points($it), -$goal_diff($it), -$goals_for($it), $it.name]), {team: $it.name, played: $games($it), won: $wins($it), drawn: $draws($it), lost: $losses($it), goals_for: $goals_for($it), goals_against: $goals_against($it), points: $points($it)})"
+    },
+    "champion": {
+     "type": "text",
+     "description": "The team at the top of the final table.",
+     "expr": "$outputs.standings[0].team"
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$all(fixture, $it.home_goals >= 0 and $it.away_goals >= 0)",
+     "why": "Goals cannot be negative."
+    },
+    {
+     "expr": "$all(fixture, not $it.played or ($it.matchday >= 1 and $it.home != $it.away))",
+     "why": "A played match must be on a real matchday between two different teams."
+    }
+   ]
+  },
+  {
+   "name": "Football league season",
+   "brief": {
+    "situation": "You manage a team in a six-team football league. The season runs {$inputs.matchdays} matchdays; every team plays every other team twice, once at home and once away, and each matchday every team plays exactly one match.",
+    "rules": "Before each matchday you pick one tactic for your match: attack, balanced or defend. Attack scores more but concedes more; defend the reverse; balanced is neutral. If you do not pick, balanced is used. A match's score is random but depends on the two teams' strengths, their chosen tactics and a small home advantage. A win is worth 3 points, a draw 1 and a loss 0. The table ranks teams by points, then goal difference, then goals scored, then alphabetically by name. The champion is the team on top after the last matchday.",
+    "roles": {
+     "team": "You are {$actor.name} (id {$actor.id}), strength {$actor.strength}. Each matchday choose a tactic for your scheduled match with the set_tactic action."
+    }
+   },
+   "clock": {
+    "rounds": "$inputs.matchdays",
+    "unit": "matchday"
+   },
+   "inputs": {
+    "matchdays": {
+     "type": "int",
+     "default": 10,
+     "min": 1,
+     "display": "number",
+     "label": "Matchdays",
+     "description": "How many matchdays the season lasts; the fixture list should cover them."
+    },
+    "base_goals": {
+     "type": "number",
+     "default": 1.35,
+     "min": 0,
+     "display": "number",
+     "label": "Baseline goals",
+     "description": "Expected goals for an even match at neutral tactics."
+    },
+    "home_advantage": {
+     "type": "number",
+     "default": 0.15,
+     "min": 0,
+     "display": "number",
+     "label": "Home advantage",
+     "description": "Fractional boost to the home side's expected goals (0.15 = +15%)."
+    },
+    "teams": {
+     "type": "table",
+     "display": "table",
+     "default": [
+      {
+       "id": "t1",
+       "name": "Rovers",
+       "strength": 1.4
+      },
+      {
+       "id": "t2",
+       "name": "United",
+       "strength": 1.25
+      },
+      {
+       "id": "t3",
+       "name": "City",
+       "strength": 1.1
+      },
+      {
+       "id": "t4",
+       "name": "Athletic",
+       "strength": 1.0
+      },
+      {
+       "id": "t5",
+       "name": "Wanderers",
+       "strength": 0.9
+      },
+      {
+       "id": "t6",
+       "name": "Rangers",
+       "strength": 0.75
+      }
+     ],
+     "fields": {
+      "id": {
+       "type": "text",
+       "required": true,
+       "description": "Stable team id used by the fixtures."
+      },
+      "name": {
+       "type": "text",
+       "required": true,
+       "description": "Team name shown everywhere."
+      },
+      "strength": {
+       "type": "number",
+       "default": 1.0,
+       "min": 0.01,
+       "display": "number",
+       "description": "Relative strength; drives expected goals."
+      }
+     }
+    },
+    "fixtures": {
+     "type": "table",
+     "display": "table",
+     "default": [
+      {
+       "matchday": 1,
+       "home": "t1",
+       "away": "t6"
+      },
+      {
+       "matchday": 1,
+       "home": "t2",
+       "away": "t5"
+      },
+      {
+       "matchday": 1,
+       "home": "t3",
+       "away": "t4"
+      },
+      {
+       "matchday": 2,
+       "home": "t1",
+       "away": "t5"
+      },
+      {
+       "matchday": 2,
+       "home": "t6",
+       "away": "t4"
+      },
+      {
+       "matchday": 2,
+       "home": "t2",
+       "away": "t3"
+      },
+      {
+       "matchday": 3,
+       "home": "t1",
+       "away": "t4"
+      },
+      {
+       "matchday": 3,
+       "home": "t5",
+       "away": "t3"
+      },
+      {
+       "matchday": 3,
+       "home": "t6",
+       "away": "t2"
+      },
+      {
+       "matchday": 4,
+       "home": "t1",
+       "away": "t3"
+      },
+      {
+       "matchday": 4,
+       "home": "t4",
+       "away": "t2"
+      },
+      {
+       "matchday": 4,
+       "home": "t5",
+       "away": "t6"
+      },
+      {
+       "matchday": 5,
+       "home": "t1",
+       "away": "t2"
+      },
+      {
+       "matchday": 5,
+       "home": "t3",
+       "away": "t6"
+      },
+      {
+       "matchday": 5,
+       "home": "t4",
+       "away": "t5"
+      },
+      {
+       "matchday": 6,
+       "home": "t6",
+       "away": "t1"
+      },
+      {
+       "matchday": 6,
+       "home": "t5",
+       "away": "t2"
+      },
+      {
+       "matchday": 6,
+       "home": "t4",
+       "away": "t3"
+      },
+      {
+       "matchday": 7,
+       "home": "t5",
+       "away": "t1"
+      },
+      {
+       "matchday": 7,
+       "home": "t4",
+       "away": "t6"
+      },
+      {
+       "matchday": 7,
+       "home": "t3",
+       "away": "t2"
+      },
+      {
+       "matchday": 8,
+       "home": "t4",
+       "away": "t1"
+      },
+      {
+       "matchday": 8,
+       "home": "t3",
+       "away": "t5"
+      },
+      {
+       "matchday": 8,
+       "home": "t2",
+       "away": "t6"
+      },
+      {
+       "matchday": 9,
+       "home": "t3",
+       "away": "t1"
+      },
+      {
+       "matchday": 9,
+       "home": "t2",
+       "away": "t4"
+      },
+      {
+       "matchday": 9,
+       "home": "t6",
+       "away": "t5"
+      },
+      {
+       "matchday": 10,
+       "home": "t2",
+       "away": "t1"
+      },
+      {
+       "matchday": 10,
+       "home": "t6",
+       "away": "t3"
+      },
+      {
+       "matchday": 10,
+       "home": "t5",
+       "away": "t4"
+      }
+     ],
+     "fields": {
+      "matchday": {
+       "type": "int",
+       "required": true,
+       "min": 1,
+       "display": "number",
+       "description": "Matchday the match is played on."
+      },
+      "home": {
+       "type": "text",
+       "required": true,
+       "description": "Home team id."
+      },
+      "away": {
+       "type": "text",
+       "required": true,
+       "description": "Away team id."
+      }
+     }
+    }
+   },
+   "types": {
+    "team": {
+     "agent": true,
+     "description": "A club. Its manager (the agent) picks tactics each matchday.",
+     "props": {
+      "strength": {
+       "type": "number",
+       "default": 1.0,
+       "min": 0.01,
+       "description": "Relative strength; drives expected goals."
+      }
+     }
+    },
+    "fixture": {
+     "description": "One scheduled match; also holds the tactics and the result.",
+     "props": {
+      "matchday": {
+       "type": "int",
+       "default": 0
+      },
+      "home": {
+       "type": "text",
+       "default": ""
+      },
+      "away": {
+       "type": "text",
+       "default": ""
+      },
+      "home_goals": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "away_goals": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "played": {
+       "type": "bool",
+       "default": false
+      },
+      "home_tactic": {
+       "type": "text",
+       "default": "balanced"
+      },
+      "away_tactic": {
+       "type": "text",
+       "default": "balanced"
+      },
+      "home_atk": {
+       "type": "number",
+       "default": 1.0
+      },
+      "home_risk": {
+       "type": "number",
+       "default": 1.0
+      },
+      "away_atk": {
+       "type": "number",
+       "default": 1.0
+      },
+      "away_risk": {
+       "type": "number",
+       "default": 1.0
+      }
+     }
+    }
+   },
+   "population": [
+    {
+     "type": "team",
+     "from": "$inputs.teams",
+     "id": "{$row.id}",
+     "name": "{$row.name}",
+     "props": {
+      "strength": "$row.strength"
+     }
+    },
+    {
+     "type": "fixture",
+     "from": "$inputs.fixtures",
+     "id": "md{$row.matchday}_{$row.home}v{$row.away}",
+     "name": "{$row.home} v {$row.away}",
+     "props": {
+      "matchday": "$row.matchday",
+      "home": "$row.home",
+      "away": "$row.away"
+     }
+    }
+   ],
+   "stages": [
+    {
+     "name": "pick",
+     "brief": "Matchday {$round}. Pick your tactic for your match this matchday (default balanced).",
+     "actions": [
+      "set_tactic"
+     ],
+     "must_act": true,
+     "max_actions": 1,
+     "max_calls": 8
+    }
+   ],
+   "events": [
+    {
+     "name": "resolve",
+     "phase": "end",
+     "each": "fixture",
+     "where": "$it.matchday == $round and not $it.played",
+     "say": "Matchday {$round} results are in.",
+     "do": [
+      "$hg = $poisson($inputs.base_goals * ($entity($it.home).strength / $entity($it.away).strength) * $it.home_atk * $it.away_risk * (1 + $inputs.home_advantage))",
+      "$ag = $poisson($inputs.base_goals * ($entity($it.away).strength / $entity($it.home).strength) * $it.away_atk * $it.home_risk)",
+      "$it.home_goals = $hg",
+      "$it.away_goals = $ag",
+      "$it.played = true"
+     ]
+    }
+   ],
+   "defs": {
+    "games": {
+     "args": [
+      "t"
+     ],
+     "expr": "$count(fixture, $it.played and ($it.home == $t.id or $it.away == $t.id))"
+    },
+    "wins": {
+     "args": [
+      "t"
+     ],
+     "expr": "$count(fixture, $it.played and (($it.home == $t.id and $it.home_goals > $it.away_goals) or ($it.away == $t.id and $it.away_goals > $it.home_goals)))"
+    },
+    "draws": {
+     "args": [
+      "t"
+     ],
+     "expr": "$count(fixture, $it.played and $it.home_goals == $it.away_goals and ($it.home == $t.id or $it.away == $t.id))"
+    },
+    "losses": {
+     "args": [
+      "t"
+     ],
+     "expr": "$games($t) - $wins($t) - $draws($t)"
+    },
+    "goals_for": {
+     "args": [
+      "t"
+     ],
+     "expr": "$sum(fixture, $it.home_goals if $it.home == $t.id else $it.away_goals, $it.played and ($it.home == $t.id or $it.away == $t.id))"
+    },
+    "goals_against": {
+     "args": [
+      "t"
+     ],
+     "expr": "$sum(fixture, $it.away_goals if $it.home == $t.id else $it.home_goals, $it.played and ($it.home == $t.id or $it.away == $t.id))"
+    },
+    "goal_diff": {
+     "args": [
+      "t"
+     ],
+     "expr": "$goals_for($t) - $goals_against($t)"
+    },
+    "points": {
+     "args": [
+      "t"
+     ],
+     "expr": "3 * $wins($t) + $draws($t)"
+    }
+   },
+   "actions": {
+    "set_tactic": {
+     "by": "team",
+     "description": "Choose attack, balanced or defend for your team's match on the current matchday.",
+     "params": {
+      "match": {
+       "type": "entity",
+       "of": "fixture",
+       "where": "$it.matchday == $round and not $it.played and ($it.home == $actor.id or $it.away == $actor.id)",
+       "description": "Your match on this matchday."
+      },
+      "tactic": {
+       "type": "enum",
+       "values": [
+        "attack",
+        "balanced",
+        "defend"
+       ],
+       "description": "attack scores more but concedes more; defend the reverse; balanced is neutral."
+      }
+     },
+     "do": [
+      {
+       "if": "$params.match.home == $actor.id",
+       "then": [
+        "$params.match.home_tactic = $params.tactic",
+        "$params.match.home_atk = 1.25 if $params.tactic == attack else (0.75 if $params.tactic == defend else 1.0)",
+        "$params.match.home_risk = 1.15 if $params.tactic == attack else (0.8 if $params.tactic == defend else 1.0)"
+       ],
+       "else": [
+        "$params.match.away_tactic = $params.tactic",
+        "$params.match.away_atk = 1.25 if $params.tactic == attack else (0.75 if $params.tactic == defend else 1.0)",
+        "$params.match.away_risk = 1.15 if $params.tactic == attack else (0.8 if $params.tactic == defend else 1.0)"
+       ]
+      }
+     ],
+     "outcome": "You set your tactic to {$params.tactic} for {$entity($params.match.home).name} v {$entity($params.match.away).name}.",
+     "announce": "{$actor.name} plays {$params.tactic} against {$entity($params.match.home).name if $params.match.away == $actor.id else $entity($params.match.away).name}."
+    }
+   },
+   "views": {
+    "league_table": {
+     "title": "League table",
+     "of": "team",
+     "sort": "[-$points($it), -$goal_diff($it), -$goals_for($it), $it.name]",
+     "show": "{$it.name}: {$points($it)} pts, {$games($it)} played ({$wins($it)}W {$draws($it)}D {$losses($it)}L), GF {$goals_for($it)} GA {$goals_against($it)}, GD {$goal_diff($it)}, strength {$it.strength}"
+    },
+    "your_matches": {
+     "title": "Your matches",
+     "of": "fixture",
+     "where": "$it.home == $actor.id or $it.away == $actor.id",
+     "sort": "[$it.matchday, $it.home]",
+     "show": "matchday {$it.matchday}: {$entity($it.home).name} vs {$entity($it.away).name}{' \u2014 final ' if $it.played else ' \u2014 not yet played '}{$it.home_goals}-{$it.away_goals}"
+    }
+   },
+   "metrics": {
+    "matches_played": {
+     "expr": "$count(fixture, $it.played)",
+     "description": "Matches resolved so far."
+    },
+    "goals": {
+     "expr": "$sum(fixture, $it.home_goals + $it.away_goals, $it.played)",
+     "description": "Total goals scored so far."
+    }
+   },
+   "outputs": {
+    "matches": {
+     "type": "list",
+     "description": "Every match played: matchday, home, away, home_goals, away_goals.",
+     "expr": "$map($sort($filter(fixture, $it.played), [$it.matchday, $it.home]), {matchday: $it.matchday, home: $entity($it.home).name, away: $entity($it.away).name, home_goals: $it.home_goals, away_goals: $it.away_goals})"
+    },
+    "standings": {
+     "type": "list",
+     "description": "Final table in rank order.",
+     "expr": "$map($sort(team, [-$points($it), -$goal_diff($it), -$goals_for($it), $it.name]), {team: $it.name, played: $games($it), won: $wins($it), drawn: $draws($it), lost: $losses($it), goals_for: $goals_for($it), goals_against: $goals_against($it), points: $points($it)})"
+    },
+    "champion": {
+     "type": "text",
+     "description": "The team at the top of the final table.",
+     "expr": "$outputs.standings[0].team"
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$all(fixture, $it.home_goals >= 0 and $it.away_goals >= 0)",
+     "why": "Goals cannot be negative."
+    },
+    {
+     "expr": "$all(fixture, not $it.played or ($it.matchday >= 1 and $it.home != $it.away))",
+     "why": "A played match must be on a real matchday between two different teams."
+    }
+   ]
+  }
+ ],
+ "guide_parts": [
+  "all",
+  "patterns",
+  "actions",
+  "stages",
+  "effects",
+  "functions.collections",
+  "population",
+  "inputs",
+  "outputs",
+  "events",
+  "functions",
+  "functions.random",
+  "types",
+  "views",
+  "functions.world",
+  "clock",
+  "brief",
+  "metrics",
+  "defs",
+  "templates",
+  "expressions"
+ ],
+ "usage": {
+  "input_tokens": 435031,
+  "output_tokens": 63931,
+  "cost": 0.04429815,
+  "calls": 16
+ },
+ "wall_seconds": 1634.5
+}

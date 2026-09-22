@@ -1,0 +1,2185 @@
+{
+ "model": "deepseek/deepseek-v4.1-flash",
+ "stop": "token cap",
+ "nudges": 0,
+ "messages": [
+  {
+   "role": "system",
+   "content": "(guide text)"
+  },
+  {
+   "role": "user",
+   "content": "# Corner shop inventory\n\nA small coffee shop sells three products: coffee beans (cost $6, price $10), mugs (cost $4, price $9) and paper filters (cost $1, price $3). The owner, an AI agent, decides every week how many units of each product to order from the supplier. Orders are paid for when placed and arrive at the start of the following week. The shop opens with $500 in cash and 10 units of each product. Each week customers want a random number of each product, and anything the shop cannot supply is a lost sale; unsold stock simply stays on the shelf. The owner can never spend more cash than the shop has. Customer demand must not depend on the owner's choices, so two ordering strategies can be compared on exactly the same weeks. Run it for twelve weeks.\n\n## Deliverables\n\nReport these outputs, using `beans`, `mugs` and `filters` as the keys of every per-product map:\n- `cash_end` \u2014 cash at the end.\n- `units_ordered` \u2014 per product, the total units ordered.\n- `units_sold` \u2014 per product, the total units sold.\n- `units_on_hand_end` \u2014 per product, the stock on the shelf at the end.\n- `units_on_order_end` \u2014 per product, units ordered but not yet arrived at the end.\n- `lost_sales` \u2014 per product, total units customers wanted but could not get.\n- `demand_by_week` \u2014 per product, a list of the units customers wanted each week, in order.\n\n\nBuild this environment. Save it with write_contract and use the other tools as you see fit. Reply without calling a tool when you are done."
+  },
+  {
+   "role": "assistant",
+   "content": "I'll start by reading the SDK guide and schema to get the exact mechanics right.\n\n",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-a268b5558cac4a40",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"all\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-b63f04b2cd7a0637",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"patterns\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "chatcmpl-tool-b4a00015fe07cc52",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"population\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "chatcmpl-tool-a1430d8db40f7284",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"effects\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a268b5558cac4a40",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b63f04b2cd7a0637",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b4a00015fe07cc52",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a1430d8db40f7284",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-a11574cfe994de8a",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-bc081eaca34d4c0f",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"expressions\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "chatcmpl-tool-b0d3efb018e2107c",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"inputs\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "chatcmpl-tool-a70b9f419372c17f",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"events\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a11574cfe994de8a",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-bc081eaca34d4c0f",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b0d3efb018e2107c",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a70b9f419372c17f",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-b80d99ed23386490",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"patterns.counts\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-97890624a778f0da",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"patterns.draw\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "chatcmpl-tool-b1c4ae903618db66",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"patterns.noise\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "chatcmpl-tool-ae2e6053c30ec036",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions.collections\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 4,
+     "id": "chatcmpl-tool-b2410fee961e694e",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"actions\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 5,
+     "id": "chatcmpl-tool-a1315251cc979b9a",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"stages\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 6,
+     "id": "chatcmpl-tool-ad7313cd09795119",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"views\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 7,
+     "id": "chatcmpl-tool-a7cfd21a96f3accc",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"outputs\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b80d99ed23386490",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-97890624a778f0da",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b1c4ae903618db66",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-ae2e6053c30ec036",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b2410fee961e694e",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a1315251cc979b9a",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-ad7313cd09795119",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a7cfd21a96f3accc",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-8ab594912f4b5800",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions.random\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-b03139dbe9498e37",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"patterns\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "chatcmpl-tool-849647bfebafc96f",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"types\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "chatcmpl-tool-a6e7af7eeed86dc4",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"invariants\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 4,
+     "id": "chatcmpl-tool-81aa602eab70e944",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"metrics\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 5,
+     "id": "chatcmpl-tool-866f8692ebfc1c92",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"brief\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 6,
+     "id": "chatcmpl-tool-be6f56b8bd0aba13",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"world\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 7,
+     "id": "chatcmpl-tool-881a35689cc133ed",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"templates\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-8ab594912f4b5800",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b03139dbe9498e37",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-849647bfebafc96f",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a6e7af7eeed86dc4",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-81aa602eab70e944",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-866f8692ebfc1c92",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-be6f56b8bd0aba13",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-881a35689cc133ed",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "Let me read a few more sections before writing.\n\n",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-a0fe7e743ac3e01f",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"policies\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-a54a2aade075d6f3",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"model\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "chatcmpl-tool-a86061c958df03e2",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"inspect\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "chatcmpl-tool-b3629214a3e10ab1",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions.world\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 4,
+     "id": "chatcmpl-tool-b540b49d3e3c99e1",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions.economy\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a0fe7e743ac3e01f",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a54a2aade075d6f3",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a86061c958df03e2",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b3629214a3e10ab1",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b540b49d3e3c99e1",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "Now I'll write the contract.",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_c7cc7799c035497c8c78a9a8",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_c7cc7799c035497c8c78a9a8",
+   "content": "Saved (146 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-a458ebd44186503b",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a458ebd44186503b",
+   "content": "[warning] inputs.products.fields.cost: has no default and is not required, so it may be null \u2192 give a default or set required: true\n[warning] inputs.products.fields.price: has no default and is not required, so it may be null \u2192 give a default or set required: true\n[warning] inputs.products.fields.demand_mean: has no default and is not required, so it may be null \u2192 give a default or set required: true\n[warning] inputs.products.fields.opening_stock: has no default and is not required, so it may be null \u2192 give a default or set required: true"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-a40d9a363a541032",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a40d9a363a541032",
+   "content": "Saved (147 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-b0c6d53e794da8fa",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b0c6d53e794da8fa",
+   "content": "No issues."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-91bb4396801cec80",
+     "function": {
+      "name": "preview",
+      "arguments": "{\"agent\": \"owner\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-92cffd698e1e7d25",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 1}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-91bb4396801cec80",
+   "content": "BRIEF:\n# Corner shop inventory\nYou run a small coffee shop. You stock coffee beans, mugs and paper filters. You start with $500.00 in cash and 10 units of each product. Each week some customers turn up wanting a random number of each product.\n\n## Rules\nEvery week you may order units of each product from the supplier. An order is paid for immediately when placed (the cash leaves the till that day) and the goods arrive at the start of the FOLLOWING week. You can never spend more cash than the shop has. Demand comes from the customers, not from you: the same weeks bring the same customers whatever you order. Whatever customers want but you cannot supply is a lost sale (gone for good). Unsold stock simply stays on the shelf.\n\n## You\nYou are The owner (owner, id owner).\nPlace orders with the 'order' tool: pick a product and a quantity. Unit cost and selling price are shown in your product list. Order early enough that stock arrives before you need it, but do not run out of cash.\nAct only through your tools. Your turn ends when you take a final action or call end_turn.\n\nUPDATE:\nWeek 1 of 12 \u00b7 order\nNow: It is your turn.\n\nSince your last turn:\n- Orders placed last week arrive on the shelf.\n\nCash in the till: $500.00\n\nProducts:\n- beans: on the shelf 4, arriving next week 0, cost $6.00 each, sells at $10.00, customers want about 6 a week\n- filters: on the shelf 4, arriving next week 0, cost $1.00 each, sells at $3.00, customers want about 8 a week\n- mugs: on the shelf 8, arriving next week 0, cost $4.00 each, sells at $9.00, customers want about 4 a week\n\nCustomers' demand so far:\n- beans: weekly demand so far 6\n- filters: weekly demand so far 6\n- mugs: weekly demand so far 2\n\nTOOLS:\n- order: Order units of one product from the supplier. Paid for now; arrives at the start of next week. {\"type\": \"object\", \"properties\": {\"product\": {\"type\": \"string\", \"enum\": [\"beans\", \"mugs\", \"filters\"]}, \"quantity\": {\"type\": \"integer\", \"minimum\": 1, \"description\": \"How many units to order (bounded by the cash you have).\"}}, \"additionalProperties\": false, \"required\": [\"product\", \"quantity\"]}\n- inspect: Details of one entity by its id (shown in [brackets] after names). Free: up to 15 reads (looks and inspects) per turn do not use a tool call. {\"type\": \"object\", \"properties\": {\"id\": {\"type\": \"string\", \"enum\": [\"owner\", \"beans\", \"mugs\", \"filters\"]}}, \"required\": [\"id\"], \"additionalProperties\": false}\n- end_turn: Finish your turn. {\"type\": \"object\", \"properties\": {}, \"additionalProperties\": false}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-92cffd698e1e7d25",
+   "content": "completed after 12 weeks \u2014 ended by rounds (seed 1)\ncash_end: $213.00\nunits_ordered: {\"beans\": 28, \"mugs\": 27, \"filters\": 11}\nunits_sold: {\"beans\": 38, \"mugs\": 28, \"filters\": 19}\nunits_on_hand_end: {\"beans\": 0, \"mugs\": 9, \"filters\": 0}\nunits_on_order_end: {\"beans\": 0, \"mugs\": 0, \"filters\": 2}\nlost_sales: {\"beans\": 25, \"mugs\": 23, \"filters\": 75}\ndemand_by_week: {\"beans\": [6, 6, 4, 4, 7, 6, 6, 7, 5, 3, 5, 4], \"mugs\": [2, 2, 3, 6, 5, 3, 7, 5, 4, 3, 10, 1], \"filters\": [6, 5, 7, 1\u2026\noutputs: {\"cash_end\": 213, \"units_ordered\": {\"beans\": 28, \"mugs\": 27, \"filters\": 11}, \"units_sold\": {\"beans\": 38, \"mugs\": 28, \"filters\": 19}, \"units_on_hand_end\": {\"beans\": 0, \"mugs\": 9, \"filters\": 0}, \"units_on_order_end\": {\"beans\": 0, \"mugs\": 0, \"filters\": 2}, \"lost_sales\": {\"beans\": 25, \"mugs\": 23, \"filters\": 75}, \"demand_by_week\": {\"beans\": [6, 6, 4, 4, 7, 6, 6, 7, 5, 3, 5, 4], \"mugs\": [2, 2, 3, 6, 5, 3, 7, 5, 4, 3, 10, 1], \"filters\": [6, 5, 7, 11, 14, 9, 8, 10, 7, 2, 11, 4]}}"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-8285f5279c53601b",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 1, \"participants\": {\"owner\": \"idle\"}}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-8576d2e5e30beaa0",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 7, \"participants\": {\"owner\": \"idle\"}}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-8285f5279c53601b",
+   "content": "completed after 12 weeks \u2014 ended by rounds (seed 1)\ncash_end: $500.00\nunits_ordered: {\"beans\": 0, \"mugs\": 0, \"filters\": 0}\nunits_sold: {\"beans\": 10, \"mugs\": 10, \"filters\": 10}\nunits_on_hand_end: {\"beans\": 0, \"mugs\": 0, \"filters\": 0}\nunits_on_order_end: {\"beans\": 0, \"mugs\": 0, \"filters\": 0}\nlost_sales: {\"beans\": 53, \"mugs\": 41, \"filters\": 84}\ndemand_by_week: {\"beans\": [6, 6, 4, 4, 7, 6, 6, 7, 5, 3, 5, 4], \"mugs\": [2, 2, 3, 6, 5, 3, 7, 5, 4, 3, 10, 1], \"filters\": [6, 5, 7, 1\u2026\noutputs: {\"cash_end\": 500, \"units_ordered\": {\"beans\": 0, \"mugs\": 0, \"filters\": 0}, \"units_sold\": {\"beans\": 10, \"mugs\": 10, \"filters\": 10}, \"units_on_hand_end\": {\"beans\": 0, \"mugs\": 0, \"filters\": 0}, \"units_on_order_end\": {\"beans\": 0, \"mugs\": 0, \"filters\": 0}, \"lost_sales\": {\"beans\": 53, \"mugs\": 41, \"filters\": 84}, \"demand_by_week\": {\"beans\": [6, 6, 4, 4, 7, 6, 6, 7, 5, 3, 5, 4], \"mugs\": [2, 2, 3, 6, 5, 3, 7, 5, 4, 3, 10, 1], \"filters\": [6, 5, 7, 11, 14, 9, 8, 10, 7, 2, 11, 4]}}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-8576d2e5e30beaa0",
+   "content": "completed after 12 weeks \u2014 ended by rounds (seed 7)\ncash_end: $500.00\nunits_ordered: {\"beans\": 0, \"mugs\": 0, \"filters\": 0}\nunits_sold: {\"beans\": 10, \"mugs\": 10, \"filters\": 10}\nunits_on_hand_end: {\"beans\": 0, \"mugs\": 0, \"filters\": 0}\nunits_on_order_end: {\"beans\": 0, \"mugs\": 0, \"filters\": 0}\nlost_sales: {\"beans\": 68, \"mugs\": 31, \"filters\": 100}\ndemand_by_week: {\"beans\": [4, 8, 12, 3, 6, 11, 5, 5, 11, 2, 9, 2], \"mugs\": [2, 5, 1, 4, 5, 2, 5, 3, 2, 2, 3, 7], \"filters\": [11, 7, 7\u2026\noutputs: {\"cash_end\": 500, \"units_ordered\": {\"beans\": 0, \"mugs\": 0, \"filters\": 0}, \"units_sold\": {\"beans\": 10, \"mugs\": 10, \"filters\": 10}, \"units_on_hand_end\": {\"beans\": 0, \"mugs\": 0, \"filters\": 0}, \"units_on_order_end\": {\"beans\": 0, \"mugs\": 0, \"filters\": 0}, \"lost_sales\": {\"beans\": 68, \"mugs\": 31, \"filters\": 100}, \"demand_by_week\": {\"beans\": [4, 8, 12, 3, 6, 11, 5, 5, 11, 2, 9, 2], \"mugs\": [2, 5, 1, 4, 5, 2, 5, 3, 2, 2, 3, 7], \"filters\": [11, 7, 7, 8, 6, 9, 10, 12, 3, 15, 13, 9]}}"
+  },
+  {
+   "role": "assistant",
+   "content": "Now let me add coded baseline policies so the two ordering strategies can be compared on identical weeks (and so I can hand-verify the arithmetic).\n\n",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-aa0b1afa2558ae75",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-aa0b1afa2558ae75",
+   "content": "Saved (171 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-a692ed00a30904c8",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a692ed00a30904c8",
+   "content": "No issues."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-9f906e27c05a7c52",
+     "function": {
+      "name": "run",
+      "arguments": "{\"participants\": {\"owner\": \"policy:steady\"}, \"seed\": 1}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-a1a390e62151c072",
+     "function": {
+      "name": "run",
+      "arguments": "{\"participants\": {\"owner\": \"policy:restock\"}, \"seed\": 1}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-9f906e27c05a7c52",
+   "content": "completed after 12 weeks \u2014 ended by rounds (seed 1)\ncash_end: $0.00\nunits_ordered: {\"beans\": 51, \"mugs\": 32, \"filters\": 66}\nunits_sold: {\"beans\": 61, \"mugs\": 42, \"filters\": 76}\nunits_on_hand_end: {\"beans\": 0, \"mugs\": 0, \"filters\": 0}\nunits_on_order_end: {\"beans\": 0, \"mugs\": 0, \"filters\": 0}\nlost_sales: {\"beans\": 2, \"mugs\": 9, \"filters\": 18}\ndemand_by_week: {\"beans\": [6, 6, 4, 4, 7, 6, 6, 7, 5, 3, 5, 4], \"mugs\": [2, 2, 3, 6, 5, 3, 7, 5, 4, 3, 10, 1], \"filters\": [6, 5, 7, 1\u2026\noutputs: {\"cash_end\": 0.0, \"units_ordered\": {\"beans\": 51, \"mugs\": 32, \"filters\": 66}, \"units_sold\": {\"beans\": 61, \"mugs\": 42, \"filters\": 76}, \"units_on_hand_end\": {\"beans\": 0, \"mugs\": 0, \"filters\": 0}, \"units_on_order_end\": {\"beans\": 0, \"mugs\": 0, \"filters\": 0}, \"lost_sales\": {\"beans\": 2, \"mugs\": 9, \"filters\": 18}, \"demand_by_week\": {\"beans\": [6, 6, 4, 4, 7, 6, 6, 7, 5, 3, 5, 4], \"mugs\": [2, 2, 3, 6, 5, 3, 7, 5, 4, 3, 10, 1], \"filters\": [6, 5, 7, 11, 14, 9, 8, 10, 7, 2, 11, 4]}}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a1a390e62151c072",
+   "content": "completed after 12 weeks \u2014 ended by rounds (seed 1)\ncash_end: $0.00\nunits_ordered: {\"beans\": 50, \"mugs\": 31, \"filters\": 76}\nunits_sold: {\"beans\": 60, \"mugs\": 41, \"filters\": 86}\nunits_on_hand_end: {\"beans\": 0, \"mugs\": 0, \"filters\": 0}\nunits_on_order_end: {\"beans\": 0, \"mugs\": 0, \"filters\": 0}\nlost_sales: {\"beans\": 3, \"mugs\": 10, \"filters\": 8}\ndemand_by_week: {\"beans\": [6, 6, 4, 4, 7, 6, 6, 7, 5, 3, 5, 4], \"mugs\": [2, 2, 3, 6, 5, 3, 7, 5, 4, 3, 10, 1], \"filters\": [6, 5, 7, 1\u2026\noutputs: {\"cash_end\": 0.0, \"units_ordered\": {\"beans\": 50, \"mugs\": 31, \"filters\": 76}, \"units_sold\": {\"beans\": 60, \"mugs\": 41, \"filters\": 86}, \"units_on_hand_end\": {\"beans\": 0, \"mugs\": 0, \"filters\": 0}, \"units_on_order_end\": {\"beans\": 0, \"mugs\": 0, \"filters\": 0}, \"lost_sales\": {\"beans\": 3, \"mugs\": 10, \"filters\": 8}, \"demand_by_week\": {\"beans\": [6, 6, 4, 4, 7, 6, 6, 7, 5, 3, 5, 4], \"mugs\": [2, 2, 3, 6, 5, 3, 7, 5, 4, 3, 10, 1], \"filters\": [6, 5, 7, 11, 14, 9, 8, 10, 7, 2, 11, 4]}}"
+  },
+  {
+   "role": "assistant",
+   "content": "Found a real bug: sales revenue was never credited to the till. Fixing it, plus adding a cash-conservation invariant.\n\n",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-bbb9c8ede5e3a320",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-bbb9c8ede5e3a320",
+   "content": "Saved (178 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-8e4acec2114809d4",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-8e4acec2114809d4",
+   "content": "No issues."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-a85de155232960f1",
+     "function": {
+      "name": "run",
+      "arguments": "{\"participants\": {\"owner\": \"idle\"}, \"seed\": 1}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-be384933304ae437",
+     "function": {
+      "name": "run",
+      "arguments": "{\"participants\": {\"owner\": \"policy:steady\"}, \"seed\": 1}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a85de155232960f1",
+   "content": "completed after 12 weeks \u2014 ended by rounds (seed 1)\ncash_end: $720.00\nunits_ordered: {\"beans\": 0, \"mugs\": 0, \"filters\": 0}\nunits_sold: {\"beans\": 10, \"mugs\": 10, \"filters\": 10}\nunits_on_hand_end: {\"beans\": 0, \"mugs\": 0, \"filters\": 0}\nunits_on_order_end: {\"beans\": 0, \"mugs\": 0, \"filters\": 0}\nlost_sales: {\"beans\": 53, \"mugs\": 41, \"filters\": 84}\ndemand_by_week: {\"beans\": [6, 6, 4, 4, 7, 6, 6, 7, 5, 3, 5, 4], \"mugs\": [2, 2, 3, 6, 5, 3, 7, 5, 4, 3, 10, 1], \"filters\": [6, 5, 7, 1\u2026\noutputs: {\"cash_end\": 720, \"units_ordered\": {\"beans\": 0, \"mugs\": 0, \"filters\": 0}, \"units_sold\": {\"beans\": 10, \"mugs\": 10, \"filters\": 10}, \"units_on_hand_end\": {\"beans\": 0, \"mugs\": 0, \"filters\": 0}, \"units_on_order_end\": {\"beans\": 0, \"mugs\": 0, \"filters\": 0}, \"lost_sales\": {\"beans\": 53, \"mugs\": 41, \"filters\": 84}, \"demand_by_week\": {\"beans\": [6, 6, 4, 4, 7, 6, 6, 7, 5, 3, 5, 4], \"mugs\": [2, 2, 3, 6, 5, 3, 7, 5, 4, 3, 10, 1], \"filters\": [6, 5, 7, 11, 14, 9, 8, 10, 7, 2, 11, 4]}}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-be384933304ae437",
+   "content": "completed after 12 weeks \u2014 ended by rounds (seed 1)\ncash_end: $1,139.00\nunits_ordered: {\"beans\": 72, \"mugs\": 48, \"filters\": 96}\nunits_sold: {\"beans\": 63, \"mugs\": 51, \"filters\": 90}\nunits_on_hand_end: {\"beans\": 13, \"mugs\": 3, \"filters\": 8}\nunits_on_order_end: {\"beans\": 6, \"mugs\": 4, \"filters\": 8}\nlost_sales: {\"beans\": 0, \"mugs\": 0, \"filters\": 4}\ndemand_by_week: {\"beans\": [6, 6, 4, 4, 7, 6, 6, 7, 5, 3, 5, 4], \"mugs\": [2, 2, 3, 6, 5, 3, 7, 5, 4, 3, 10, 1], \"filters\": [6, 5, 7, 1\u2026\noutputs: {\"cash_end\": 1139, \"units_ordered\": {\"beans\": 72, \"mugs\": 48, \"filters\": 96}, \"units_sold\": {\"beans\": 63, \"mugs\": 51, \"filters\": 90}, \"units_on_hand_end\": {\"beans\": 13, \"mugs\": 3, \"filters\": 8}, \"units_on_order_end\": {\"beans\": 6, \"mugs\": 4, \"filters\": 8}, \"lost_sales\": {\"beans\": 0, \"mugs\": 0, \"filters\": 4}, \"demand_by_week\": {\"beans\": [6, 6, 4, 4, 7, 6, 6, 7, 5, 3, 5, 4], \"mugs\": [2, 2, 3, 6, 5, 3, 7, 5, 4, 3, 10, 1], \"filters\": [6, 5, 7, 11, 14, 9, 8, 10, 7, 2, 11, 4]}}"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-a6d5f80c28d44580",
+     "function": {
+      "name": "run",
+      "arguments": "{\"participants\": {\"owner\": \"policy:restock\"}, \"seed\": 1}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-9b2c9d2346aebd28",
+     "function": {
+      "name": "run",
+      "arguments": "{\"participants\": {\"owner\": \"policy:steady\"}, \"seed\": 3}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a6d5f80c28d44580",
+   "content": "completed after 12 weeks \u2014 ended by rounds (seed 1)\ncash_end: $1,175.00\nunits_ordered: {\"beans\": 65, \"mugs\": 47, \"filters\": 100}\nunits_sold: {\"beans\": 63, \"mugs\": 49, \"filters\": 94}\nunits_on_hand_end: {\"beans\": 8, \"mugs\": 7, \"filters\": 12}\nunits_on_order_end: {\"beans\": 4, \"mugs\": 1, \"filters\": 4}\nlost_sales: {\"beans\": 0, \"mugs\": 2, \"filters\": 0}\ndemand_by_week: {\"beans\": [6, 6, 4, 4, 7, 6, 6, 7, 5, 3, 5, 4], \"mugs\": [2, 2, 3, 6, 5, 3, 7, 5, 4, 3, 10, 1], \"filters\": [6, 5, 7, 1\u2026\noutputs: {\"cash_end\": 1175, \"units_ordered\": {\"beans\": 65, \"mugs\": 47, \"filters\": 100}, \"units_sold\": {\"beans\": 63, \"mugs\": 49, \"filters\": 94}, \"units_on_hand_end\": {\"beans\": 8, \"mugs\": 7, \"filters\": 12}, \"units_on_order_end\": {\"beans\": 4, \"mugs\": 1, \"filters\": 4}, \"lost_sales\": {\"beans\": 0, \"mugs\": 2, \"filters\": 0}, \"demand_by_week\": {\"beans\": [6, 6, 4, 4, 7, 6, 6, 7, 5, 3, 5, 4], \"mugs\": [2, 2, 3, 6, 5, 3, 7, 5, 4, 3, 10, 1], \"filters\": [6, 5, 7, 11, 14, 9, 8, 10, 7, 2, 11, 4]}}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-9b2c9d2346aebd28",
+   "content": "completed after 12 weeks \u2014 ended by rounds (seed 3)\ncash_end: $1,218.00\nunits_ordered: {\"beans\": 72, \"mugs\": 48, \"filters\": 96}\nunits_sold: {\"beans\": 76, \"mugs\": 45, \"filters\": 91}\nunits_on_hand_end: {\"beans\": 0, \"mugs\": 9, \"filters\": 7}\nunits_on_order_end: {\"beans\": 6, \"mugs\": 4, \"filters\": 8}\nlost_sales: {\"beans\": 6, \"mugs\": 0, \"filters\": 8}\ndemand_by_week: {\"beans\": [7, 10, 2, 6, 7, 10, 3, 6, 9, 4, 11, 7], \"mugs\": [4, 6, 6, 1, 3, 1, 4, 2, 6, 4, 3, 5], \"filters\": [9, 15, 8\u2026\noutputs: {\"cash_end\": 1218, \"units_ordered\": {\"beans\": 72, \"mugs\": 48, \"filters\": 96}, \"units_sold\": {\"beans\": 76, \"mugs\": 45, \"filters\": 91}, \"units_on_hand_end\": {\"beans\": 0, \"mugs\": 9, \"filters\": 7}, \"units_on_order_end\": {\"beans\": 6, \"mugs\": 4, \"filters\": 8}, \"lost_sales\": {\"beans\": 6, \"mugs\": 0, \"filters\": 8}, \"demand_by_week\": {\"beans\": [7, 10, 2, 6, 7, 10, 3, 6, 9, 4, 11, 7], \"mugs\": [4, 6, 6, 1, 3, 1, 4, 2, 6, 4, 3, 5], \"filters\": [9, 15, 8, 10, 5, 4, 6, 7, 7, 8, 15, 5]}}"
+  }
+ ],
+ "writes": [
+  {
+   "name": "Corner shop inventory",
+   "clock": {
+    "rounds": "$inputs.horizon",
+    "unit": "week"
+   },
+   "brief": {
+    "situation": "You run a small coffee shop. You stock coffee beans, mugs and paper filters. You start with {$inputs.opening_cash|money} in cash and {$inputs.products[0].opening_stock} units of each product. Each week some customers turn up wanting a random number of each product.",
+    "rules": "Every week you may order units of each product from the supplier. An order is paid for immediately when placed (cash leaves the till that day) and the goods arrive at the start of the FOLLOWING week. You can never spend more cash than the shop has. Demand comes from the customers, not from you: the same weeks bring the same customers whatever you order. Whatever customers want but you cannot supply is a lost sale (gone for good). Unsold stock simply stays on the shelf.",
+    "roles": {
+     "owner": "Place orders with the 'order' tool: pick a product and a quantity. Cost per unit and selling price are shown in your product list. Order early enough that stock arrives before you need it, but do not run out of cash."
+    }
+   },
+   "inputs": {
+    "horizon": {
+     "type": "int",
+     "default": 12,
+     "min": 1,
+     "display": "number",
+     "label": "Weeks"
+    },
+    "opening_cash": {
+     "type": "number",
+     "default": 500,
+     "min": 0,
+     "multiple_of": 0.01,
+     "display": "number",
+     "label": "Opening cash ($)"
+    },
+    "products": {
+     "type": "table",
+     "display": "table",
+     "label": "Products",
+     "default": [
+      {
+       "name": "beans",
+       "cost": 6,
+       "price": 10,
+       "demand_mean": 6,
+       "opening_stock": 10
+      },
+      {
+       "name": "mugs",
+       "cost": 4,
+       "price": 9,
+       "demand_mean": 4,
+       "opening_stock": 10
+      },
+      {
+       "name": "filters",
+       "cost": 1,
+       "price": 3,
+       "demand_mean": 8,
+       "opening_stock": 10
+      }
+     ],
+     "fields": {
+      "name": {
+       "type": "text",
+       "required": true
+      },
+      "cost": {
+       "type": "number",
+       "min": 0.01,
+       "multiple_of": 0.01,
+       "label": "Unit cost ($)"
+      },
+      "price": {
+       "type": "number",
+       "min": 0.01,
+       "multiple_of": 0.01,
+       "label": "Selling price ($)"
+      },
+      "demand_mean": {
+       "type": "int",
+       "min": 0,
+       "label": "Average units wanted per week"
+      },
+      "opening_stock": {
+       "type": "int",
+       "min": 0,
+       "label": "Opening stock"
+      }
+     }
+    }
+   },
+   "patterns": {
+    "demand": {
+     "kind": "counts",
+     "dist": "poisson",
+     "table": "$inputs.products",
+     "column": "name",
+     "description": "Units customers want of each product each week; drawn independently of what the shop orders."
+    }
+   },
+   "world": {},
+   "types": {
+    "owner": {
+     "agent": true,
+     "props": {
+      "cash": {
+       "type": "number",
+       "default": "$inputs.opening_cash",
+       "min": 0
+      }
+     }
+    },
+    "product": {
+     "props": {
+      "cost": {
+       "type": "number",
+       "default": 0,
+       "min": 0.01
+      },
+      "price": {
+       "type": "number",
+       "default": 0,
+       "min": 0.01
+      },
+      "demand_mean": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "on_hand": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "on_order": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "ordered": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "sold": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "lost": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "demand": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "demand_weeks": {
+       "type": "list",
+       "default": []
+      }
+     }
+    }
+   },
+   "entities": {
+    "owner": {
+     "type": "owner",
+     "name": "The owner"
+    }
+   },
+   "population": [
+    {
+     "type": "product",
+     "from": "$inputs.products",
+     "id": "{$row.name}",
+     "name": "{$row.name}",
+     "props": {
+      "cost": "$row.cost",
+      "price": "$row.price",
+      "demand_mean": "$row.demand_mean",
+      "on_hand": "$row.opening_stock"
+     }
+    }
+   ],
+   "stages": [
+    {
+     "name": "order",
+     "actions": [
+      "order"
+     ],
+     "max_actions": 3,
+     "max_calls": 15
+    }
+   ],
+   "events": [
+    {
+     "name": "deliveries",
+     "phase": "start",
+     "each": "product",
+     "do": [
+      "$it.on_hand += $it.on_order",
+      "$it.on_order = 0"
+     ],
+     "say": "Orders ordered last week arrive on the shelf."
+    },
+    {
+     "name": "demand",
+     "phase": "start",
+     "each": "product",
+     "do": [
+      "$it.demand = $pattern.demand($it.demand_mean, $it.id)",
+      "$it.demand_weeks += $it.demand",
+      "$it.sold += $min($it.demand, $it.on_hand)",
+      "$it.lost += $max(0, $it.demand - $it.on_hand)",
+      "$it.on_hand -= $min($it.demand, $it.on_hand)"
+     ]
+    }
+   ],
+   "actions": {
+    "order": {
+     "by": "owner",
+     "description": "Order units of one product from the supplier. Paid for now; arrives at the start of next week.",
+     "params": {
+      "product": {
+       "type": "entity",
+       "of": "product"
+      },
+      "quantity": {
+       "type": "int",
+       "min": 1,
+       "max": "$floor($actor.cash / $params.product.cost)",
+       "description": "How many units to order (bounded by the cash you have)."
+      }
+     },
+     "outcome": "Ordered {$params.quantity} \u00d7 {$params.product.name} for {$params.quantity * $params.product.cost|money}; arriving next week.",
+     "announce": "{$actor.name} ordered {$params.quantity} \u00d7 {$params.product.name}.",
+     "do": [
+      "$actor.cash -= $params.quantity * $params.product.cost",
+      "$params.product.on_order += $params.quantity",
+      "$params.product.ordered += $params.quantity"
+     ]
+    }
+   },
+   "views": {
+    "cash": {
+     "for": "owner",
+     "show": "Cash in the till: {$actor.cash|money}"
+    },
+    "products": {
+     "for": "owner",
+     "of": "product",
+     "title": "Products",
+     "sort": "$it.id",
+     "show": "{id}: on the shelf {on_hand}, arriving next week {on_order}, cost {cost|money} each, sell at {price|money}, customers want about {demand_mean} a week"
+    },
+    "demand_history": {
+     "for": "owner",
+     "of": "product",
+     "title": "Customers' demand so far",
+     "sort": "$it.id",
+     "show": "{id}: weekly demand so far {demand_weeks|list}"
+    }
+   },
+   "metrics": {
+    "cash": "$sum(owner, $it.cash)",
+    "units_sold": "$sum(product, $it.sold)",
+    "units_on_hand": "$sum(product, $it.on_hand)"
+   },
+   "outputs": {
+    "cash_end": {
+     "expr": "$sum(owner, $it.cash)",
+     "type": "number",
+     "format": "money",
+     "description": "Cash at the end."
+    },
+    "units_ordered": {
+     "expr": "$dict(product, $it.id, $it.ordered)",
+     "type": "map",
+     "description": "Per product: total units ordered over the run."
+    },
+    "units_sold": {
+     "expr": "$dict(product, $it.id, $it.sold)",
+     "type": "map",
+     "description": "Per product: total units sold."
+    },
+    "units_on_hand_end": {
+     "expr": "$dict(product, $it.id, $it.on_hand)",
+     "type": "map",
+     "description": "Per product: stock on the shelf at the end."
+    },
+    "units_on_order_end": {
+     "expr": "$dict(product, $it.id, $it.on_order)",
+     "type": "map",
+     "description": "Per product: units ordered but not yet arrived at the end."
+    },
+    "lost_sales": {
+     "expr": "$dict(product, $it.id, $it.lost)",
+     "type": "map",
+     "description": "Per product: units customers wanted but could not get."
+    },
+    "demand_by_week": {
+     "expr": "$dict(product, $it.id, $it.demand_weeks)",
+     "type": "map",
+     "description": "Per product: units customers wanted each week, in order."
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$sum(owner, $it.cash) >= 0",
+     "why": "The owner can never spend more cash than the shop has."
+    },
+    {
+     "expr": "$all(product, $it.on_hand >= 0 and $it.on_order >= 0)",
+     "why": "Stock and incoming orders cannot be negative."
+    },
+    {
+     "expr": "$sum(product, $it.ordered) >= $sum(product, $it.sold) - $inputs.products[0].opening_stock * 3 or true",
+     "why": "placeholder",
+     "check": "end"
+    }
+   ]
+  },
+  {
+   "name": "Corner shop inventory",
+   "clock": {
+    "rounds": "$inputs.horizon",
+    "unit": "week"
+   },
+   "brief": {
+    "situation": "You run a small coffee shop. You stock coffee beans, mugs and paper filters. You start with {$inputs.opening_cash|money} in cash and {$inputs.products[0].opening_stock} units of each product. Each week some customers turn up wanting a random number of each product.",
+    "rules": "Every week you may order units of each product from the supplier. An order is paid for immediately when placed (the cash leaves the till that day) and the goods arrive at the start of the FOLLOWING week. You can never spend more cash than the shop has. Demand comes from the customers, not from you: the same weeks bring the same customers whatever you order. Whatever customers want but you cannot supply is a lost sale (gone for good). Unsold stock simply stays on the shelf.",
+    "roles": {
+     "owner": "Place orders with the 'order' tool: pick a product and a quantity. Unit cost and selling price are shown in your product list. Order early enough that stock arrives before you need it, but do not run out of cash."
+    }
+   },
+   "inputs": {
+    "horizon": {
+     "type": "int",
+     "default": 12,
+     "min": 1,
+     "display": "number",
+     "label": "Weeks"
+    },
+    "opening_cash": {
+     "type": "number",
+     "default": 500,
+     "min": 0,
+     "multiple_of": 0.01,
+     "display": "number",
+     "label": "Opening cash ($)"
+    },
+    "products": {
+     "type": "table",
+     "display": "table",
+     "label": "Products",
+     "default": [
+      {
+       "name": "beans",
+       "cost": 6,
+       "price": 10,
+       "demand_mean": 6,
+       "opening_stock": 10
+      },
+      {
+       "name": "mugs",
+       "cost": 4,
+       "price": 9,
+       "demand_mean": 4,
+       "opening_stock": 10
+      },
+      {
+       "name": "filters",
+       "cost": 1,
+       "price": 3,
+       "demand_mean": 8,
+       "opening_stock": 10
+      }
+     ],
+     "fields": {
+      "name": {
+       "type": "text",
+       "required": true
+      },
+      "cost": {
+       "type": "number",
+       "min": 0.01,
+       "multiple_of": 0.01,
+       "default": 1,
+       "label": "Unit cost ($)"
+      },
+      "price": {
+       "type": "number",
+       "min": 0.01,
+       "multiple_of": 0.01,
+       "default": 2,
+       "label": "Selling price ($)"
+      },
+      "demand_mean": {
+       "type": "int",
+       "min": 0,
+       "default": 0,
+       "label": "Average units wanted per week"
+      },
+      "opening_stock": {
+       "type": "int",
+       "min": 0,
+       "default": 0,
+       "label": "Opening stock"
+      }
+     }
+    }
+   },
+   "patterns": {
+    "demand": {
+     "kind": "counts",
+     "dist": "poisson",
+     "table": "$inputs.products",
+     "column": "name",
+     "description": "Units customers want of each product each week; drawn independently of what the shop orders."
+    }
+   },
+   "world": {},
+   "types": {
+    "owner": {
+     "agent": true,
+     "props": {
+      "cash": {
+       "type": "number",
+       "default": "$inputs.opening_cash",
+       "min": 0
+      }
+     }
+    },
+    "product": {
+     "props": {
+      "cost": {
+       "type": "number",
+       "default": 1,
+       "min": 0.01
+      },
+      "price": {
+       "type": "number",
+       "default": 2,
+       "min": 0.01
+      },
+      "demand_mean": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "on_hand": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "on_order": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "ordered": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "sold": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "lost": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "demand": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "demand_weeks": {
+       "type": "list",
+       "default": []
+      }
+     }
+    }
+   },
+   "entities": {
+    "owner": {
+     "type": "owner",
+     "name": "The owner"
+    }
+   },
+   "population": [
+    {
+     "type": "product",
+     "from": "$inputs.products",
+     "id": "{$row.name}",
+     "name": "{$row.name}",
+     "props": {
+      "cost": "$row.cost",
+      "price": "$row.price",
+      "demand_mean": "$row.demand_mean",
+      "on_hand": "$row.opening_stock"
+     }
+    }
+   ],
+   "stages": [
+    {
+     "name": "order",
+     "actions": [
+      "order"
+     ],
+     "max_actions": 3,
+     "max_calls": 15
+    }
+   ],
+   "events": [
+    {
+     "name": "deliveries",
+     "phase": "start",
+     "each": "product",
+     "do": [
+      "$it.on_hand += $it.on_order",
+      "$it.on_order = 0"
+     ],
+     "say": "Orders placed last week arrive on the shelf."
+    },
+    {
+     "name": "demand",
+     "phase": "start",
+     "each": "product",
+     "do": [
+      "$it.demand = $pattern.demand($it.demand_mean, $it.id)",
+      "$it.demand_weeks += $it.demand",
+      "$it.sold += $min($it.demand, $it.on_hand)",
+      "$it.lost += $max(0, $it.demand - $it.on_hand)",
+      "$it.on_hand -= $min($it.demand, $it.on_hand)"
+     ]
+    }
+   ],
+   "actions": {
+    "order": {
+     "by": "owner",
+     "description": "Order units of one product from the supplier. Paid for now; arrives at the start of next week.",
+     "params": {
+      "product": {
+       "type": "entity",
+       "of": "product"
+      },
+      "quantity": {
+       "type": "int",
+       "min": 1,
+       "max": "$floor($actor.cash / $params.product.cost)",
+       "description": "How many units to order (bounded by the cash you have)."
+      }
+     },
+     "outcome": "Ordered {$params.quantity} \u00d7 {$params.product.name} for {$params.quantity * $params.product.cost|money}; arriving next week.",
+     "announce": "{$actor.name} ordered {$params.quantity} \u00d7 {$params.product.name}.",
+     "do": [
+      "$actor.cash -= $params.quantity * $params.product.cost",
+      "$params.product.on_order += $params.quantity",
+      "$params.product.ordered += $params.quantity"
+     ]
+    }
+   },
+   "views": {
+    "cash": {
+     "for": "owner",
+     "show": "Cash in the till: {$actor.cash|money}"
+    },
+    "products": {
+     "for": "owner",
+     "of": "product",
+     "title": "Products",
+     "sort": "$it.id",
+     "show": "{id}: on the shelf {on_hand}, arriving next week {on_order}, cost {cost|money} each, sells at {price|money}, customers want about {demand_mean} a week"
+    },
+    "demand_history": {
+     "for": "owner",
+     "of": "product",
+     "title": "Customers' demand so far",
+     "sort": "$it.id",
+     "show": "{id}: weekly demand so far {demand_weeks|list}"
+    }
+   },
+   "metrics": {
+    "cash": "$sum(owner, $it.cash)",
+    "units_sold": "$sum(product, $it.sold)",
+    "units_on_hand": "$sum(product, $it.on_hand)"
+   },
+   "outputs": {
+    "cash_end": {
+     "expr": "$sum(owner, $it.cash)",
+     "type": "number",
+     "format": "money",
+     "description": "Cash at the end."
+    },
+    "units_ordered": {
+     "expr": "$dict(product, $it.id, $it.ordered)",
+     "type": "map",
+     "description": "Per product: total units ordered over the run."
+    },
+    "units_sold": {
+     "expr": "$dict(product, $it.id, $it.sold)",
+     "type": "map",
+     "description": "Per product: total units sold."
+    },
+    "units_on_hand_end": {
+     "expr": "$dict(product, $it.id, $it.on_hand)",
+     "type": "map",
+     "description": "Per product: stock on the shelf at the end."
+    },
+    "units_on_order_end": {
+     "expr": "$dict(product, $it.id, $it.on_order)",
+     "type": "map",
+     "description": "Per product: units ordered but not yet arrived at the end."
+    },
+    "lost_sales": {
+     "expr": "$dict(product, $it.id, $it.lost)",
+     "type": "map",
+     "description": "Per product: units customers wanted but could not get."
+    },
+    "demand_by_week": {
+     "expr": "$dict(product, $it.id, $it.demand_weeks)",
+     "type": "map",
+     "description": "Per product: units customers wanted each week, in order."
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$sum(owner, $it.cash) >= 0",
+     "why": "The owner can never spend more cash than the shop has."
+    },
+    {
+     "expr": "$all(product, $it.on_hand >= 0 and $it.on_order >= 0)",
+     "why": "Stock on the shelf and stock on order cannot be negative."
+    },
+    {
+     "expr": "$all(product, $it.ordered >= $it.on_order)",
+     "why": "Units still on order can never exceed units ordered."
+    },
+    {
+     "expr": "$all(product, $it.sold + $it.lost == $sum($it.demand_weeks))",
+     "why": "Every unit customers wanted is either sold or a lost sale."
+    }
+   ]
+  },
+  {
+   "name": "Corner shop inventory",
+   "clock": {
+    "rounds": "$inputs.horizon",
+    "unit": "week"
+   },
+   "brief": {
+    "situation": "You run a small coffee shop. You stock coffee beans, mugs and paper filters. You start with {$inputs.opening_cash|money} in cash and {$inputs.products[0].opening_stock} units of each product. Each week some customers turn up wanting a random number of each product.",
+    "rules": "Every week you may order units of each product from the supplier. An order is paid for immediately when placed (the cash leaves the till that day) and the goods arrive at the start of the FOLLOWING week. You can never spend more cash than the shop has. Demand comes from the customers, not from you: the same weeks bring the same customers whatever you order, so two ordering strategies can be compared on exactly the same weeks. Whatever customers want but you cannot supply is a lost sale (gone for good). Unsold stock simply stays on the shelf.",
+    "roles": {
+     "owner": "Place orders with the 'order' tool: pick a product and a quantity. Unit cost and selling price are shown in your product list. Order early enough that stock arrives before you need it, but do not run out of cash."
+    }
+   },
+   "inputs": {
+    "horizon": {
+     "type": "int",
+     "default": 12,
+     "min": 1,
+     "display": "number",
+     "label": "Weeks"
+    },
+    "opening_cash": {
+     "type": "number",
+     "default": 500,
+     "min": 0,
+     "multiple_of": 0.01,
+     "display": "number",
+     "label": "Opening cash ($)"
+    },
+    "products": {
+     "type": "table",
+     "display": "table",
+     "label": "Products",
+     "default": [
+      {
+       "name": "beans",
+       "cost": 6,
+       "price": 10,
+       "demand_mean": 6,
+       "opening_stock": 10
+      },
+      {
+       "name": "mugs",
+       "cost": 4,
+       "price": 9,
+       "demand_mean": 4,
+       "opening_stock": 10
+      },
+      {
+       "name": "filters",
+       "cost": 1,
+       "price": 3,
+       "demand_mean": 8,
+       "opening_stock": 10
+      }
+     ],
+     "fields": {
+      "name": {
+       "type": "text",
+       "required": true
+      },
+      "cost": {
+       "type": "number",
+       "min": 0.01,
+       "multiple_of": 0.01,
+       "default": 1,
+       "label": "Unit cost ($)"
+      },
+      "price": {
+       "type": "number",
+       "min": 0.01,
+       "multiple_of": 0.01,
+       "default": 2,
+       "label": "Selling price ($)"
+      },
+      "demand_mean": {
+       "type": "int",
+       "min": 0,
+       "default": 0,
+       "label": "Average units wanted per week"
+      },
+      "opening_stock": {
+       "type": "int",
+       "min": 0,
+       "default": 0,
+       "label": "Opening stock"
+      }
+     }
+    }
+   },
+   "patterns": {
+    "demand": {
+     "kind": "counts",
+     "dist": "poisson",
+     "table": "$inputs.products",
+     "column": "name",
+     "description": "Units customers want of each product each week; drawn from the customers, independently of what the shop orders."
+    }
+   },
+   "world": {},
+   "types": {
+    "owner": {
+     "agent": true,
+     "props": {
+      "cash": {
+       "type": "number",
+       "default": "$inputs.opening_cash",
+       "min": 0
+      }
+     }
+    },
+    "product": {
+     "props": {
+      "cost": {
+       "type": "number",
+       "default": 1,
+       "min": 0.01
+      },
+      "price": {
+       "type": "number",
+       "default": 2,
+       "min": 0.01
+      },
+      "demand_mean": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "on_hand": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "on_order": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "ordered": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "sold": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "lost": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "demand": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "demand_weeks": {
+       "type": "list",
+       "default": []
+      }
+     }
+    }
+   },
+   "entities": {
+    "owner": {
+     "type": "owner",
+     "name": "The owner"
+    }
+   },
+   "population": [
+    {
+     "type": "product",
+     "from": "$inputs.products",
+     "id": "{$row.name}",
+     "name": "{$row.name}",
+     "props": {
+      "cost": "$row.cost",
+      "price": "$row.price",
+      "demand_mean": "$row.demand_mean",
+      "on_hand": "$row.opening_stock"
+     }
+    }
+   ],
+   "stages": [
+    {
+     "name": "order",
+     "actions": [
+      "order"
+     ],
+     "max_actions": 3,
+     "max_calls": 15
+    }
+   ],
+   "events": [
+    {
+     "name": "deliveries",
+     "phase": "start",
+     "each": "product",
+     "do": [
+      "$it.on_hand += $it.on_order",
+      "$it.on_order = 0"
+     ],
+     "say": "Orders placed last week arrive on the shelf."
+    },
+    {
+     "name": "demand",
+     "phase": "start",
+     "each": "product",
+     "do": [
+      "$it.demand = $pattern.demand($it.demand_mean, $it.id)",
+      "$it.demand_weeks += $it.demand",
+      "$it.sold += $min($it.demand, $it.on_hand)",
+      "$it.lost += $max(0, $it.demand - $it.on_hand)",
+      "$it.on_hand -= $min($it.demand, $it.on_hand)"
+     ]
+    }
+   ],
+   "actions": {
+    "order": {
+     "by": "owner",
+     "description": "Order units of one product from the supplier. Paid for now; arrives at the start of next week.",
+     "params": {
+      "product": {
+       "type": "entity",
+       "of": "product"
+      },
+      "quantity": {
+       "type": "int",
+       "min": 1,
+       "max": "$floor($actor.cash / $params.product.cost)",
+       "description": "How many units to order (bounded by the cash you have)."
+      }
+     },
+     "outcome": "Ordered {$params.quantity} \u00d7 {$params.product.name} for {$params.quantity * $params.product.cost|money}; arriving next week.",
+     "announce": "{$actor.name} ordered {$params.quantity} \u00d7 {$params.product.name}.",
+     "do": [
+      "$actor.cash -= $params.quantity * $params.product.cost",
+      "$params.product.on_order += $params.quantity",
+      "$params.product.ordered += $params.quantity"
+     ]
+    }
+   },
+   "policies": {
+    "steady": {
+     "rules": [
+      {
+       "each": "product",
+       "when": "$actor.cash >= $it.cost and $it.demand_mean > 0",
+       "do": "order",
+       "with": {
+        "product": "$it",
+        "quantity": "$min($it.demand_mean, $floor($actor.cash / $it.cost))"
+       }
+      }
+     ],
+     "repeat": true
+    },
+    "restock": {
+     "rules": [
+      {
+       "each": "product",
+       "when": "$it.on_hand + $it.on_order < 2 * $it.demand_mean and $actor.cash >= $it.cost",
+       "do": "order",
+       "with": {
+        "product": "$it",
+        "quantity": "$min(2 * $it.demand_mean - $it.on_hand - $it.on_order, $floor($actor.cash / $it.cost))"
+       }
+      }
+     ],
+     "repeat": true
+    }
+   },
+   "views": {
+    "cash": {
+     "for": "owner",
+     "show": "Cash in the till: {$actor.cash|money}"
+    },
+    "products": {
+     "for": "owner",
+     "of": "product",
+     "title": "Products",
+     "sort": "$it.id",
+     "show": "{id}: on the shelf {on_hand}, arriving next week {on_order}, cost {cost|money} each, sells at {price|money}, customers want about {demand_mean} a week"
+    },
+    "demand_history": {
+     "for": "owner",
+     "of": "product",
+     "title": "Customers' demand so far",
+     "sort": "$it.id",
+     "show": "{id}: weekly demand so far {demand_weeks|list}"
+    }
+   },
+   "metrics": {
+    "cash": "$sum(owner, $it.cash)",
+    "units_sold": "$sum(product, $it.sold)",
+    "units_on_hand": "$sum(product, $it.on_hand)"
+   },
+   "outputs": {
+    "cash_end": {
+     "expr": "$sum(owner, $it.cash)",
+     "type": "number",
+     "format": "money",
+     "description": "Cash at the end."
+    },
+    "units_ordered": {
+     "expr": "$dict(product, $it.id, $it.ordered)",
+     "type": "map",
+     "description": "Per product: total units ordered over the run."
+    },
+    "units_sold": {
+     "expr": "$dict(product, $it.id, $it.sold)",
+     "type": "map",
+     "description": "Per product: total units sold."
+    },
+    "units_on_hand_end": {
+     "expr": "$dict(product, $it.id, $it.on_hand)",
+     "type": "map",
+     "description": "Per product: stock on the shelf at the end."
+    },
+    "units_on_order_end": {
+     "expr": "$dict(product, $it.id, $it.on_order)",
+     "type": "map",
+     "description": "Per product: units ordered but not yet arrived at the end."
+    },
+    "lost_sales": {
+     "expr": "$dict(product, $it.id, $it.lost)",
+     "type": "map",
+     "description": "Per product: units customers wanted but could not get."
+    },
+    "demand_by_week": {
+     "expr": "$dict(product, $it.id, $it.demand_weeks)",
+     "type": "map",
+     "description": "Per product: units customers wanted each week, in order."
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$sum(owner, $it.cash) >= 0",
+     "why": "The owner can never spend more cash than the shop has."
+    },
+    {
+     "expr": "$all(product, $it.on_hand >= 0 and $it.on_order >= 0)",
+     "why": "Stock on the shelf and stock on order cannot be negative."
+    },
+    {
+     "expr": "$all(product, $it.ordered >= $it.on_order)",
+     "why": "Units still on order can never exceed units ordered."
+    },
+    {
+     "expr": "$all(product, $it.sold + $it.lost == $sum($it.demand_weeks))",
+     "why": "Every unit customers wanted is either sold or a lost sale."
+    }
+   ]
+  },
+  {
+   "name": "Corner shop inventory",
+   "clock": {
+    "rounds": "$inputs.horizon",
+    "unit": "week"
+   },
+   "brief": {
+    "situation": "You run a small coffee shop. You stock coffee beans, mugs and paper filters. You start with {$inputs.opening_cash|money} in cash and {$inputs.products[0].opening_stock} units of each product. Each week some customers turn up wanting a random number of each product.",
+    "rules": "Every week you may order units of each product from the supplier. An order is paid for immediately when placed (the cash leaves the till that day) and the goods arrive at the start of the FOLLOWING week. You can never spend more cash than the shop has. Demand comes from the customers, not from you: the same weeks bring the same customers whatever you order, so two ordering strategies can be compared on exactly the same weeks. Whatever customers want but you cannot supply is a lost sale (gone for good). Unsold stock simply stays on the shelf.",
+    "roles": {
+     "owner": "Place orders with the 'order' tool: pick a product and a quantity. Unit cost and selling price are shown in your product list. Order early enough that stock arrives before you need it, but do not run out of cash."
+    }
+   },
+   "inputs": {
+    "horizon": {
+     "type": "int",
+     "default": 12,
+     "min": 1,
+     "display": "number",
+     "label": "Weeks"
+    },
+    "opening_cash": {
+     "type": "number",
+     "default": 500,
+     "min": 0,
+     "multiple_of": 0.01,
+     "display": "number",
+     "label": "Opening cash ($)"
+    },
+    "products": {
+     "type": "table",
+     "display": "table",
+     "label": "Products",
+     "default": [
+      {
+       "name": "beans",
+       "cost": 6,
+       "price": 10,
+       "demand_mean": 6,
+       "opening_stock": 10
+      },
+      {
+       "name": "mugs",
+       "cost": 4,
+       "price": 9,
+       "demand_mean": 4,
+       "opening_stock": 10
+      },
+      {
+       "name": "filters",
+       "cost": 1,
+       "price": 3,
+       "demand_mean": 8,
+       "opening_stock": 10
+      }
+     ],
+     "fields": {
+      "name": {
+       "type": "text",
+       "required": true
+      },
+      "cost": {
+       "type": "number",
+       "min": 0.01,
+       "multiple_of": 0.01,
+       "default": 1,
+       "label": "Unit cost ($)"
+      },
+      "price": {
+       "type": "number",
+       "min": 0.01,
+       "multiple_of": 0.01,
+       "default": 2,
+       "label": "Selling price ($)"
+      },
+      "demand_mean": {
+       "type": "int",
+       "min": 0,
+       "default": 0,
+       "label": "Average units wanted per week"
+      },
+      "opening_stock": {
+       "type": "int",
+       "min": 0,
+       "default": 0,
+       "label": "Opening stock"
+      }
+     }
+    }
+   },
+   "patterns": {
+    "demand": {
+     "kind": "counts",
+     "dist": "poisson",
+     "table": "$inputs.products",
+     "column": "name",
+     "description": "Units customers want of each product each week; drawn from the customers, independently of what the shop orders."
+    }
+   },
+   "world": {},
+   "types": {
+    "owner": {
+     "agent": true,
+     "props": {
+      "cash": {
+       "type": "number",
+       "default": "$inputs.opening_cash",
+       "min": 0
+      }
+     }
+    },
+    "product": {
+     "props": {
+      "cost": {
+       "type": "number",
+       "default": 1,
+       "min": 0.01
+      },
+      "price": {
+       "type": "number",
+       "default": 2,
+       "min": 0.01
+      },
+      "demand_mean": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "on_hand": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "on_order": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "ordered": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "sold": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "lost": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "demand": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "demand_weeks": {
+       "type": "list",
+       "default": []
+      }
+     }
+    }
+   },
+   "entities": {
+    "owner": {
+     "type": "owner",
+     "name": "The owner"
+    }
+   },
+   "population": [
+    {
+     "type": "product",
+     "from": "$inputs.products",
+     "id": "{$row.name}",
+     "name": "{$row.name}",
+     "props": {
+      "cost": "$row.cost",
+      "price": "$row.price",
+      "demand_mean": "$row.demand_mean",
+      "on_hand": "$row.opening_stock"
+     }
+    }
+   ],
+   "stages": [
+    {
+     "name": "order",
+     "actions": [
+      "order"
+     ],
+     "max_actions": 3,
+     "max_calls": 15
+    }
+   ],
+   "events": [
+    {
+     "name": "deliveries",
+     "phase": "start",
+     "each": "product",
+     "do": [
+      "$it.on_hand += $it.on_order",
+      "$it.on_order = 0"
+     ],
+     "say": "Orders placed last week arrive on the shelf."
+    },
+    {
+     "name": "demand",
+     "phase": "start",
+     "each": "product",
+     "do": [
+      "$it.demand = $pattern.demand($it.demand_mean, $it.id)",
+      "$it.demand_weeks += $it.demand",
+      "$sold = $min($it.demand, $it.on_hand)",
+      "$it.sold += $sold",
+      "$it.lost += $it.demand - $sold",
+      "$it.on_hand -= $sold",
+      "$entity(owner).cash += $sold * $it.price"
+     ],
+     "say": "Customers buy what is on the shelf; anything they wanted but could not get is a lost sale."
+    }
+   ],
+   "actions": {
+    "order": {
+     "by": "owner",
+     "description": "Order units of one product from the supplier. Paid for now; arrives at the start of next week.",
+     "params": {
+      "product": {
+       "type": "entity",
+       "of": "product"
+      },
+      "quantity": {
+       "type": "int",
+       "min": 1,
+       "max": "$floor($actor.cash / $params.product.cost)",
+       "description": "How many units to order (bounded by the cash you have)."
+      }
+     },
+     "outcome": "Ordered {$params.quantity} \u00d7 {$params.product.name} for {$params.quantity * $params.product.cost|money}; arriving next week.",
+     "announce": "{$actor.name} ordered {$params.quantity} \u00d7 {$params.product.name}.",
+     "do": [
+      "$actor.cash -= $params.quantity * $params.product.cost",
+      "$params.product.on_order += $params.quantity",
+      "$params.product.ordered += $params.quantity"
+     ]
+    }
+   },
+   "policies": {
+    "steady": {
+     "rules": [
+      {
+       "each": "product",
+       "when": "$actor.cash >= $it.cost and $it.demand_mean > 0",
+       "do": "order",
+       "with": {
+        "product": "$it",
+        "quantity": "$min($it.demand_mean, $floor($actor.cash / $it.cost))"
+       }
+      }
+     ],
+     "repeat": true
+    },
+    "restock": {
+     "rules": [
+      {
+       "each": "product",
+       "when": "$it.on_hand + $it.on_order < 2 * $it.demand_mean and $actor.cash >= $it.cost",
+       "do": "order",
+       "with": {
+        "product": "$it",
+        "quantity": "$min(2 * $it.demand_mean - $it.on_hand - $it.on_order, $floor($actor.cash / $it.cost))"
+       }
+      }
+     ],
+     "repeat": true
+    }
+   },
+   "views": {
+    "cash": {
+     "for": "owner",
+     "show": "Cash in the till: {$actor.cash|money}"
+    },
+    "products": {
+     "for": "owner",
+     "of": "product",
+     "title": "Products",
+     "sort": "$it.id",
+     "show": "{id}: on the shelf {on_hand}, arriving next week {on_order}, cost {cost|money} each, sells at {price|money}, customers want about {demand_mean} a week"
+    },
+    "demand_history": {
+     "for": "owner",
+     "of": "product",
+     "title": "Customers' demand so far",
+     "sort": "$it.id",
+     "show": "{id}: weekly demand so far {demand_weeks|list}"
+    }
+   },
+   "metrics": {
+    "cash": "$sum(owner, $it.cash)",
+    "units_sold": "$sum(product, $it.sold)",
+    "units_on_hand": "$sum(product, $it.on_hand)"
+   },
+   "outputs": {
+    "cash_end": {
+     "expr": "$sum(owner, $it.cash)",
+     "type": "number",
+     "format": "money",
+     "description": "Cash at the end."
+    },
+    "units_ordered": {
+     "expr": "$dict(product, $it.id, $it.ordered)",
+     "type": "map",
+     "description": "Per product: total units ordered over the run."
+    },
+    "units_sold": {
+     "expr": "$dict(product, $it.id, $it.sold)",
+     "type": "map",
+     "description": "Per product: total units sold."
+    },
+    "units_on_hand_end": {
+     "expr": "$dict(product, $it.id, $it.on_hand)",
+     "type": "map",
+     "description": "Per product: stock on the shelf at the end."
+    },
+    "units_on_order_end": {
+     "expr": "$dict(product, $it.id, $it.on_order)",
+     "type": "map",
+     "description": "Per product: units ordered but not yet arrived at the end."
+    },
+    "lost_sales": {
+     "expr": "$dict(product, $it.id, $it.lost)",
+     "type": "map",
+     "description": "Per product: units customers wanted but could not get."
+    },
+    "demand_by_week": {
+     "expr": "$dict(product, $it.id, $it.demand_weeks)",
+     "type": "map",
+     "description": "Per product: units customers wanted each week, in order."
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$sum(owner, $it.cash) >= 0",
+     "why": "The owner can never spend more cash than the shop has."
+    },
+    {
+     "expr": "$all(product, $it.on_hand >= 0 and $it.on_order >= 0)",
+     "why": "Stock on the shelf and stock on order cannot be negative."
+    },
+    {
+     "expr": "$all(product, $it.ordered >= $it.on_order)",
+     "why": "Units still on order can never exceed units ordered."
+    },
+    {
+     "expr": "$all(product, $it.sold + $it.lost == $sum($it.demand_weeks))",
+     "why": "Every unit customers wanted is either sold or a lost sale."
+    },
+    {
+     "expr": "$round($sum(owner, $it.cash) - ($inputs.opening_cash - $sum(product, $it.ordered * $it.cost) + $sum(product, $it.sold * $it.price)), 6) == 0",
+     "why": "Cash is opening cash, minus everything paid to the supplier, plus everything customers paid."
+    }
+   ]
+  }
+ ],
+ "guide_parts": [
+  "all",
+  "patterns",
+  "population",
+  "effects",
+  "functions",
+  "expressions",
+  "inputs",
+  "events",
+  "patterns.counts",
+  "patterns.draw",
+  "patterns.noise",
+  "functions.collections",
+  "actions",
+  "stages",
+  "views",
+  "outputs",
+  "functions.random",
+  "patterns",
+  "types",
+  "invariants",
+  "metrics",
+  "brief",
+  "world",
+  "templates",
+  "policies",
+  "model",
+  "inspect",
+  "functions.world",
+  "functions.economy"
+ ],
+ "usage": {
+  "input_tokens": 568762,
+  "output_tokens": 50533,
+  "cost": 0.03364365119999999,
+  "calls": 18
+ },
+ "wall_seconds": 942.9
+}

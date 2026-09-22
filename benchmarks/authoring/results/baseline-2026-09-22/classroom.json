@@ -1,0 +1,2617 @@
+{
+ "model": "deepseek/deepseek-v4.1-flash",
+ "stop": "token cap",
+ "nudges": 0,
+ "messages": [
+  {
+   "role": "system",
+   "content": "(guide text)"
+  },
+  {
+   "role": "user",
+   "content": "# Classroom with weekly quizzes\n\nSimulate a six-week course with one teacher and five students, all AI agents. The course covers three topics: fractions, decimals and percentages. Every week the teacher chooses one topic to teach, and each student chooses whether to study hard or take it easy that week. A student's understanding of a topic grows when it is taught and grows more when they study. At the end of every week there is a quiz on that week's topic, scored from 0 to 10, based on the student's understanding of the topic plus some luck. Students see only their own quiz scores; the teacher sees everyone's. A student's final grade is the average of their quiz scores.\n\n## Deliverables\n\nReport these outputs:\n- `quiz_scores` \u2014 a map from each student's id to the list of their quiz scores, one per week in order.\n- `final_grades` \u2014 a map from each student's id to their final grade.\n- `class_average` \u2014 the average of the final grades.\n\n\nBuild this environment. Save it with write_contract and use the other tools as you see fit. Reply without calling a tool when you are done."
+  },
+  {
+   "role": "assistant",
+   "content": "I'll start by studying the SDK guide and schema for the features I need (randomness, list handling, outputs, per-week stages).",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_e985d8db0a5546f1b0841d7c",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"all\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_8b9b2a137fae44ebbe089b2a",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"patterns\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "call_288e34abdf514bf79f8508ea",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "call_05de47af5583446098c43b0f",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"metrics\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_e985d8db0a5546f1b0841d7c",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_8b9b2a137fae44ebbe089b2a",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_288e34abdf514bf79f8508ea",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_05de47af5583446098c43b0f",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_90740d5a9d62426993c9575e",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"actions\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_7abf75fb6ac3402c90f4f2c1",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"stages\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "call_dcbf29ef8a5441c7812fa8c6",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"expr\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "call_636d6377da9d45d2a512f684",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions.collections\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_90740d5a9d62426993c9575e",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_7abf75fb6ac3402c90f4f2c1",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_dcbf29ef8a5441c7812fa8c6",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_636d6377da9d45d2a512f684",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_fc077f82ac73432ea90b2afd",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"expressions\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_caf29ef7c3fb44c0937dc786",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"effects\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "call_172f2b4eb50a4d6fb437f6da",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"outputs\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "call_3f01a97b03504177984e9af9",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"views\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 4,
+     "id": "call_b36e1194d44d437f84f398d9",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"events\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_fc077f82ac73432ea90b2afd",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_caf29ef7c3fb44c0937dc786",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_172f2b4eb50a4d6fb437f6da",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_3f01a97b03504177984e9af9",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_b36e1194d44d437f84f398d9",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_ecc8aaa7e37f41ea8334cf63",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions.random\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_5a5e377684c5428081dd8aa1",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions.math\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "call_e65a71f54a804cd59924508f",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"policies\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "call_5aff3d5576754153848cf068",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"inputs\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 4,
+     "id": "call_9b5d9d405d5b4d9caba25759",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"types\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 5,
+     "id": "call_e9d1c5c993b241cd9ed80692",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"population\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_ecc8aaa7e37f41ea8334cf63",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_5a5e377684c5428081dd8aa1",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_e65a71f54a804cd59924508f",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_5aff3d5576754153848cf068",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_9b5d9d405d5b4d9caba25759",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_e9d1c5c993b241cd9ed80692",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "Now let me author the contract.",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_929789b1a6d54df087c6508d",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_929789b1a6d54df087c6508d",
+   "content": "Saved (114 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_b5c033f2f22b4d679ac59dae",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_b5c033f2f22b4d679ac59dae",
+   "content": "brief.situation: $actor.weeks: student/teacher has no property 'weeks' \u2192 properties: last_effort, quiz_scores, understanding \u2014 in `$actor.weeks`"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_fa9cc310f59d4a42b3b1fa14",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_fa9cc310f59d4a42b3b1fa14",
+   "content": "Saved (114 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_721c64661ea347cbad84c04c",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_721c64661ea347cbad84c04c",
+   "content": "invariants[2]: invariants[2]: cannot read '.understanding' of str 'fractions' \u2014 in `$all(student, $all($keys($it.understanding), $it.understanding[$it] >= 0 and $it.understanding[$it] <= 10))` \u2192 fix the rule at this path (found by a smoke run)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_5178718f48f942e58730be1e",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_5178718f48f942e58730be1e",
+   "content": "Saved (114 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_c68310606934422abfe358a1",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_c68310606934422abfe358a1",
+   "content": "No issues."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_4af8b6a60ed641ceb10a1c28",
+     "function": {
+      "name": "preview",
+      "arguments": "{\"agent\": \"Ana\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_e21973d021c8467c88cf7867",
+     "function": {
+      "name": "preview",
+      "arguments": "{\"agent\": \"teacher\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_4af8b6a60ed641ceb10a1c28",
+   "content": "BRIEF:\n# Classroom with weekly quizzes\nA 6-week course covers three topics: fractions, decimals and percentages. Every week the teacher teaches one topic, each student decides how hard to study that topic, and the week ends with a quiz on it.\n\n## Rules\nTeaching a topic raises EVERY student's understanding of it; a student who studies hard raises their own understanding of the taught topic further. Each week ends with a quiz on that week's topic, scored 0 to 10 from the student's understanding of the topic plus luck. Understanding of a topic carries over from week to week (it is capped at 10). A student's final grade is the average of their weekly quiz scores. Students see only their own quiz scores; the teacher sees everyone's.\n\n## You\nYou are Ana (student, id Ana).\nEach week, choose whether to study hard or take it easy on the topic being taught. You see only your own quiz scores.\nAct only through your tools. Your turn ends when you take a final action or call end_turn.\n\nUPDATE:\nWeek 1 of 6 \u00b7 study\nChoose how hard to study fractions this week.\nNow: It is your turn.\nYou have 4 tool calls this turn, and up to 4 free reads (look and inspect) that do not use them.\n\nSince your last turn:\n- This week's topic: fractions.\n\nWeek 1 of 6: this week's topic is fractions.\n\nYour quiz scores so far (oldest first): .\n\nYour understanding \u2014 fractions 2, decimals 0, percentages 0 (out of 10).\n\nTOOLS:\n- study: Decide how hard to study this week's topic. Studying hard raises your understanding of it further. {\"type\": \"object\", \"properties\": {\"effort\": {\"enum\": [\"study hard\", \"take it easy\"], \"type\": \"string\", \"description\": \"How hard to work on {$world.taught_topic} this week.\"}}, \"additionalProperties\": false, \"required\": [\"effort\"]}\n- inspect: Details of one entity by its id (shown in [brackets] after names). Free: up to 4 reads (looks and inspects) per turn do not use a tool call. {\"type\": \"object\", \"properties\": {\"id\": {\"type\": \"string\", \"enum\": [\"Ana\"]}}, \"required\": [\"id\"], \"additionalProperties\": false}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_e21973d021c8467c88cf7867",
+   "content": "BRIEF:\n# Classroom with weekly quizzes\nA 6-week course covers three topics: fractions, decimals and percentages. Every week the teacher teaches one topic, each student decides how hard to study that topic, and the week ends with a quiz on it.\n\n## Rules\nTeaching a topic raises EVERY student's understanding of it; a student who studies hard raises their own understanding of the taught topic further. Each week ends with a quiz on that week's topic, scored 0 to 10 from the student's understanding of the topic plus luck. Understanding of a topic carries over from week to week (it is capped at 10). A student's final grade is the average of their weekly quiz scores. Students see only their own quiz scores; the teacher sees everyone's.\n\n## You\nYou are $inputs.teacher_name (teacher, id teacher).\nEach week, choose exactly one topic to teach: fractions, decimals or percentages. You see every student's quiz scores.\nAct only through your tools. Your turn ends when you take a final action or call end_turn.\n\nUPDATE:\nWeek 1 of 6 \u00b7 teach\nChoose the topic to teach this week.\nNow: It is your turn.\nYou have 4 tool calls this turn, and up to 4 free reads (look and inspect) that do not use them.\n\nWeek 1 of 6: this week's topic is fractions.\n\nClass understanding:\n- Ana: understanding fractions 0, decimals 0, percentages 0.\n- Ben: understanding fractions 0, decimals 0, percentages 0.\n- Cara: understanding fractions 0, decimals 0, percentages 0.\n- Dan: understanding fractions 0, decimals 0, percentages 0.\n- Eve: understanding fractions 0, decimals 0, percentages 0.\n\nClass scores:\n- Ana: quiz scores .\n- Ben: quiz scores .\n- Cara: quiz scores .\n- Dan: quiz scores .\n- Eve: quiz scores .\n\nTOOLS:\n- teach: Choose this week's topic to teach. Every student's understanding of it rises; a quiz on it follows at the end of the week. {\"type\": \"object\", \"properties\": {\"topic\": {\"enum\": [\"fractions\", \"decimals\", \"percentages\"], \"type\": \"string\", \"description\": \"Topic to teach this week.\"}}, \"additionalProperties\": false, \"required\": [\"topic\"]}"
+  },
+  {
+   "role": "assistant",
+   "content": "The teacher's name template didn't substitute inside `entities`. Let me check the `entities` section docs and fix.",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_0fa4d01a50b74b758399ec75",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"entities\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_0fa4d01a50b74b758399ec75",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "`entities.name` isn't templated, so I'll hardcode the teacher's name.",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_bb1ff6fa833b4c5cbae83365",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_bb1ff6fa833b4c5cbae83365",
+   "content": "Saved (113 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_7451eef60e4a40afa9c3658d",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 1, \"participants\": {\"teacher\": \"policy:teach_fractions\", \"student\": \"policy:study_hard\"}}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_7451eef60e4a40afa9c3658d",
+   "content": "completed after 6 weeks \u2014 ended by rounds (seed 1)\nquiz_scores: {\"Ana\": [6, 8, 10, 10, 10, 10], \"Ben\": [5, 10, 10, 10, 10, 9], \"Cara\": [6, 10, 10, 9, 9, 10], \"Dan\": [4, 10, 10, 9, 1\u2026\nfinal_grades: {\"Ana\": 9.0, \"Ben\": 9.0, \"Cara\": 9.0, \"Dan\": 8.67, \"Eve\": 8.5}\nclass_average: 8.83\noutputs: {\"quiz_scores\": {\"Ana\": [6, 8, 10, 10, 10, 10], \"Ben\": [5, 10, 10, 10, 10, 9], \"Cara\": [6, 10, 10, 9, 9, 10], \"Dan\": [4, 10, 10, 9, 10, 9], \"Eve\": [5, 8, 10, 9, 10, 9]}, \"final_grades\": {\"Ana\": 9.0, \"Ben\": 9.0, \"Cara\": 9.0, \"Dan\": 8.67, \"Eve\": 8.5}, \"class_average\": 8.83}"
+  },
+  {
+   "role": "assistant",
+   "content": "`class_average` = 8.83 but I noticed outputs show correct structure. Let me verify with `luck_sd = 0` against hand-derived expectations.",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_0b27f2de758a47e1bd6cf7dc",
+     "function": {
+      "name": "run",
+      "arguments": "{\"participants\": {\"teacher\": \"policy:teach_cycle\", \"student\": \"policy:study_hard\"}, \"seed\": 1}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_0b27f2de758a47e1bd6cf7dc",
+   "content": "completed after 6 weeks \u2014 ended by rounds (seed 1)\nquiz_scores: {\"Ana\": [6, 8, 5, 10, 6, 10], \"Ben\": [5, 10, 7, 10, 5, 9], \"Cara\": [6, 10, 5, 9, 4, 10], \"Dan\": [4, 10, 6, 9, 5, 9], \u2026\nfinal_grades: {\"Ana\": 7.5, \"Ben\": 7.67, \"Cara\": 7.33, \"Dan\": 7.17, \"Eve\": 6.83}\nclass_average: 7.3\noutputs: {\"quiz_scores\": {\"Ana\": [6, 8, 5, 10, 6, 10], \"Ben\": [5, 10, 7, 10, 5, 9], \"Cara\": [6, 10, 5, 9, 4, 10], \"Dan\": [4, 10, 6, 9, 5, 9], \"Eve\": [5, 8, 5, 9, 5, 9]}, \"final_grades\": {\"Ana\": 7.5, \"Ben\": 7.67, \"Cara\": 7.33, \"Dan\": 7.17, \"Eve\": 6.83}, \"class_average\": 7.3}"
+  },
+  {
+   "role": "assistant",
+   "content": "Let me verify determinism with a temporary variant (luck_sd = 0) against hand-derived expectations.",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_ccc3416647c6416f8ca0e6ec",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_ccc3416647c6416f8ca0e6ec",
+   "content": "Saved (87 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-a83587a1825a4044",
+     "function": {
+      "name": "run",
+      "arguments": "{\"participants\": {\"teacher\": \"policy:teach_fractions\", \"student\": \"policy:study_hard\"}, \"seed\": 1}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-977bfd03ab4b05f9",
+     "function": {
+      "name": "run",
+      "arguments": "{\"participants\": {\"teacher\": \"policy:teach_cycle\", \"student\": \"policy:study_hard\"}, \"seed\": 1}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a83587a1825a4044",
+   "content": "completed after 6 weeks \u2014 ended by rounds (seed 1)\nquiz_scores: {\"Ana\": [5, 10, 10, 10, 10, 10], \"Ben\": [5, 10, 10, 10, 10, 10], \"Cara\": [5, 10, 10, 10, 10, 10], \"Dan\": [5, 10, 10, \u2026\nfinal_grades: {\"Ana\": 9.17, \"Ben\": 9.17, \"Cara\": 9.17, \"Dan\": 9.17, \"Eve\": 9.17}\nclass_average: 9.17\noutputs: {\"quiz_scores\": {\"Ana\": [5, 10, 10, 10, 10, 10], \"Ben\": [5, 10, 10, 10, 10, 10], \"Cara\": [5, 10, 10, 10, 10, 10], \"Dan\": [5, 10, 10, 10, 10, 10], \"Eve\": [5, 10, 10, 10, 10, 10]}, \"final_grades\": {\"Ana\": 9.17, \"Ben\": 9.17, \"Cara\": 9.17, \"Dan\": 9.17, \"Eve\": 9.17}, \"class_average\": 9.17}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-977bfd03ab4b05f9",
+   "content": "completed after 6 weeks \u2014 ended by rounds (seed 1)\nquiz_scores: {\"Ana\": [5, 10, 5, 10, 5, 10], \"Ben\": [5, 10, 5, 10, 5, 10], \"Cara\": [5, 10, 5, 10, 5, 10], \"Dan\": [5, 10, 5, 10, 5, \u2026\nfinal_grades: {\"Ana\": 7.5, \"Ben\": 7.5, \"Cara\": 7.5, \"Dan\": 7.5, \"Eve\": 7.5}\nclass_average: 7.5\noutputs: {\"quiz_scores\": {\"Ana\": [5, 10, 5, 10, 5, 10], \"Ben\": [5, 10, 5, 10, 5, 10], \"Cara\": [5, 10, 5, 10, 5, 10], \"Dan\": [5, 10, 5, 10, 5, 10], \"Eve\": [5, 10, 5, 10, 5, 10]}, \"final_grades\": {\"Ana\": 7.5, \"Ben\": 7.5, \"Cara\": 7.5, \"Dan\": 7.5, \"Eve\": 7.5}, \"class_average\": 7.5}"
+  },
+  {
+   "role": "assistant",
+   "content": "Hand-derived expectations match exactly. Now zero-case and sensitivity tests.\n\n",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-b5eeb09b57e70a68",
+     "function": {
+      "name": "run",
+      "arguments": "{\"participants\": {\"teacher\": \"policy:teach_fractions\", \"student\": \"policy:study_easy\"}, \"seed\": 1}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-b9c6207391148278",
+     "function": {
+      "name": "run",
+      "arguments": "{\"participants\": {\"teacher\": \"policy:teach_fractions\", \"Ana\": \"policy:study_hard\", \"Ben\": \"policy:study_hard\", \"Cara\": \"policy:study_easy\", \"Dan\": \"policy:study_easy\", \"Eve\": \"policy:study_easy\"}, \"seed\": 7}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b5eeb09b57e70a68",
+   "content": "completed after 6 weeks \u2014 ended by rounds (seed 1)\nquiz_scores: {\"Ana\": [2, 4, 6, 8, 10, 10], \"Ben\": [2, 4, 6, 8, 10, 10], \"Cara\": [2, 4, 6, 8, 10, 10], \"Dan\": [2, 4, 6, 8, 10, 10],\u2026\nfinal_grades: {\"Ana\": 6.67, \"Ben\": 6.67, \"Cara\": 6.67, \"Dan\": 6.67, \"Eve\": 6.67}\nclass_average: 6.67\noutputs: {\"quiz_scores\": {\"Ana\": [2, 4, 6, 8, 10, 10], \"Ben\": [2, 4, 6, 8, 10, 10], \"Cara\": [2, 4, 6, 8, 10, 10], \"Dan\": [2, 4, 6, 8, 10, 10], \"Eve\": [2, 4, 6, 8, 10, 10]}, \"final_grades\": {\"Ana\": 6.67, \"Ben\": 6.67, \"Cara\": 6.67, \"Dan\": 6.67, \"Eve\": 6.67}, \"class_average\": 6.67}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b9c6207391148278",
+   "content": "completed after 6 weeks \u2014 ended by rounds (seed 7)\nquiz_scores: {\"Ana\": [5, 10, 10, 10, 10, 10], \"Ben\": [5, 10, 10, 10, 10, 10], \"Cara\": [2, 4, 6, 8, 10, 10], \"Dan\": [2, 4, 6, 8, 10\u2026\nfinal_grades: {\"Ana\": 9.17, \"Ben\": 9.17, \"Cara\": 6.67, \"Dan\": 6.67, \"Eve\": 6.67}\nclass_average: 7.67\noutputs: {\"quiz_scores\": {\"Ana\": [5, 10, 10, 10, 10, 10], \"Ben\": [5, 10, 10, 10, 10, 10], \"Cara\": [2, 4, 6, 8, 10, 10], \"Dan\": [2, 4, 6, 8, 10, 10], \"Eve\": [2, 4, 6, 8, 10, 10]}, \"final_grades\": {\"Ana\": 9.17, \"Ben\": 9.17, \"Cara\": 6.67, \"Dan\": 6.67, \"Eve\": 6.67}, \"class_average\": 7.67}"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-ac97e2699f3c593c",
+     "function": {
+      "name": "run",
+      "arguments": "{\"participants\": {\"teacher\": \"policy:teach_fractions\", \"student\": \"policy:study_hard\"}, \"seed\": 1}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-ac97e2699f3c593c",
+   "content": "completed after 6 weeks \u2014 ended by rounds (seed 1)\nquiz_scores: {\"Ana\": [5, 10, 10, 10, 10, 10], \"Ben\": [5, 10, 10, 10, 10, 10], \"Cara\": [5, 10, 10, 10, 10, 10], \"Dan\": [5, 10, 10, \u2026\nfinal_grades: {\"Ana\": 9.17, \"Ben\": 9.17, \"Cara\": 9.17, \"Dan\": 9.17, \"Eve\": 9.17}\nclass_average: 9.17\noutputs: {\"quiz_scores\": {\"Ana\": [5, 10, 10, 10, 10, 10], \"Ben\": [5, 10, 10, 10, 10, 10], \"Cara\": [5, 10, 10, 10, 10, 10], \"Dan\": [5, 10, 10, 10, 10, 10], \"Eve\": [5, 10, 10, 10, 10, 10]}, \"final_grades\": {\"Ana\": 9.17, \"Ben\": 9.17, \"Cara\": 9.17, \"Dan\": 9.17, \"Eve\": 9.17}, \"class_average\": 9.17}"
+  },
+  {
+   "role": "assistant",
+   "content": "Now let me test input edge cases (1 week, empty roster) via temporary variants.\n\n",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-8ea7f9225e9e4ead",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-8ea7f9225e9e4ead",
+   "content": "Saved (86 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-933583d1699d1979",
+     "function": {
+      "name": "run",
+      "arguments": "{\"participants\": {\"teacher\": \"policy:teach_fractions\", \"student\": \"policy:study_hard\"}, \"seed\": 1}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-840d072fdcbc8d23",
+     "function": {
+      "name": "run",
+      "arguments": "{\"participants\": {\"teacher\": \"policy:teach_fractions\", \"student\": \"policy:study_easy\"}, \"seed\": 1}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-933583d1699d1979",
+   "content": "completed after 1 week \u2014 ended by rounds (seed 1)\nquiz_scores: {\"Solo\": [5]}\nfinal_grades: {\"Solo\": 5.0}\nclass_average: 5.0\noutputs: {\"quiz_scores\": {\"Solo\": [5]}, \"final_grades\": {\"Solo\": 5.0}, \"class_average\": 5.0}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-840d072fdcbc8d23",
+   "content": "completed after 1 week \u2014 ended by rounds (seed 1)\nquiz_scores: {\"Solo\": [2]}\nfinal_grades: {\"Solo\": 2.0}\nclass_average: 2.0\noutputs: {\"quiz_scores\": {\"Solo\": [2]}, \"final_grades\": {\"Solo\": 2.0}, \"class_average\": 2.0}"
+  }
+ ],
+ "writes": [
+  {
+   "name": "Classroom with weekly quizzes",
+   "clock": {
+    "rounds": "$inputs.weeks",
+    "unit": "week"
+   },
+   "brief": {
+    "situation": "A {weeks}-week course covers three topics: fractions, decimals and percentages. Every week the teacher teaches one topic, each student decides how hard to study that topic, and the week ends with a quiz on it.",
+    "rules": "Teaching a topic raises EVERY student's understanding of it; a student who studies hard raises their own understanding of the taught topic further. Each week ends with a quiz on that week's topic, scored 0 to 10 from the student's understanding of the topic plus luck. Understanding of a topic carries over from week to week (it is capped at 10). A student's final grade is the average of their weekly quiz scores. Students see only their own quiz scores; the teacher sees everyone's.",
+    "roles": {
+     "teacher": "Each week, choose exactly one topic to teach: fractions, decimals or percentages. You see every student's quiz scores.",
+     "student": "Each week, choose whether to study hard or take it easy on the topic being taught. You see only your own quiz scores."
+    }
+   },
+   "inputs": {
+    "weeks": {
+     "type": "int",
+     "default": 6,
+     "min": 1,
+     "max": 52,
+     "display": "number",
+     "label": "Weeks in the course",
+     "description": "Number of weeks, i.e. of quizzes."
+    },
+    "teach_gain": {
+     "type": "number",
+     "default": 2,
+     "min": 0,
+     "display": "number",
+     "label": "Understanding gained when taught",
+     "description": "Added to every student's understanding of the taught topic each week."
+    },
+    "study_bonus": {
+     "type": "number",
+     "default": 3,
+     "min": 0,
+     "display": "number",
+     "label": "Extra understanding from studying hard",
+     "description": "Added to a student's understanding of the taught topic when they study hard."
+    },
+    "luck_sd": {
+     "type": "number",
+     "default": 1,
+     "min": 0,
+     "display": "number",
+     "label": "Luck spread on the quiz",
+     "description": "Standard deviation of the luck added to a quiz score. 0 makes quizzes a pure function of understanding."
+    },
+    "students": {
+     "type": "table",
+     "display": "table",
+     "label": "Students",
+     "fields": {
+      "name": {
+       "type": "text",
+       "required": true,
+       "label": "Name (used as the student's id)"
+      }
+     },
+     "default": [
+      {
+       "name": "Ana"
+      },
+      {
+       "name": "Ben"
+      },
+      {
+       "name": "Cara"
+      },
+      {
+       "name": "Dan"
+      },
+      {
+       "name": "Eve"
+      }
+     ]
+    },
+    "teacher_name": {
+     "type": "text",
+     "default": "Ms. Rivera",
+     "display": "text",
+     "label": "Teacher"
+    }
+   },
+   "world": {
+    "taught_topic": "fractions"
+   },
+   "types": {
+    "teacher": {
+     "agent": true,
+     "description": "Runs the class and quizzes."
+    },
+    "student": {
+     "agent": true,
+     "description": "Learns each week's topic and is quizzed on it.",
+     "inspect": "$viewer.id == $it.id",
+     "props": {
+      "understanding": {
+       "type": "map",
+       "default": {
+        "fractions": 0,
+        "decimals": 0,
+        "percentages": 0
+       },
+       "description": "Understanding of each topic, 0 to 10."
+      },
+      "quiz_scores": {
+       "type": "list",
+       "default": [],
+       "description": "Quiz scores, one per week in order."
+      },
+      "last_effort": {
+       "type": "text",
+       "default": "none",
+       "description": "What the student chose last week."
+      }
+     }
+    }
+   },
+   "entities": {
+    "teacher": {
+     "type": "teacher",
+     "name": "$inputs.teacher_name"
+    }
+   },
+   "population": [
+    {
+     "type": "student",
+     "from": "$inputs.students",
+     "id": "{$row.name}",
+     "name": "{$row.name}"
+    }
+   ],
+   "stages": [
+    {
+     "name": "teach",
+     "actions": [
+      "teach"
+     ],
+     "who": "teacher",
+     "turns": "sequential",
+     "max_actions": 1,
+     "max_calls": 4,
+     "must_act": true,
+     "brief": "Choose the topic to teach this week."
+    },
+    {
+     "name": "study",
+     "actions": [
+      "study"
+     ],
+     "who": "student",
+     "turns": "sequential",
+     "max_actions": 1,
+     "max_calls": 4,
+     "must_act": true,
+     "brief": "Choose how hard to study {$world.taught_topic} this week."
+    }
+   ],
+   "actions": {
+    "teach": {
+     "by": "teacher",
+     "description": "Choose this week's topic to teach. Every student's understanding of it rises; a quiz on it follows at the end of the week.",
+     "params": {
+      "topic": {
+       "type": "enum",
+       "values": [
+        "fractions",
+        "decimals",
+        "percentages"
+       ],
+       "description": "Topic to teach this week."
+      }
+     },
+     "do": [
+      "$world.taught_topic = $params.topic",
+      {
+       "each": "student",
+       "do": "$it.understanding[$params.topic] = $clamp($it.understanding[$params.topic] + $inputs.teach_gain, 0, 10)"
+      }
+     ],
+     "outcome": "You taught {$params.topic} this week. Every student's understanding of {$params.topic} rose by {$inputs.teach_gain}.",
+     "announce": "This week's topic: {$params.topic}."
+    },
+    "study": {
+     "by": "student",
+     "description": "Decide how hard to study this week's topic. Studying hard raises your understanding of it further.",
+     "params": {
+      "effort": {
+       "type": "enum",
+       "values": [
+        "study hard",
+        "take it easy"
+       ],
+       "description": "How hard to work on {$world.taught_topic} this week."
+      }
+     },
+     "do": [
+      "$actor.last_effort = $params.effort",
+      {
+       "if": "$params.effort == 'study hard'",
+       "then": [
+        "$actor.understanding[$world.taught_topic] = $clamp($actor.understanding[$world.taught_topic] + $inputs.study_bonus, 0, 10)"
+       ]
+      }
+     ],
+     "outcome": "You chose to {$params.effort} on {$world.taught_topic}. Your understanding of {$world.taught_topic} is now {$actor.understanding[$world.taught_topic]}.",
+     "private": true
+    }
+   },
+   "events": [
+    {
+     "name": "quiz",
+     "phase": "end",
+     "each": "student",
+     "do": [
+      "$score = $round($it.understanding[$world.taught_topic] + $inputs.luck_sd * $normal(0, 1))",
+      "$it.quiz_scores += $clamp($score, 0, 10)"
+     ]
+    }
+   ],
+   "views": {
+    "week": {
+     "show": "Week {$round} of {$inputs.weeks}: this week's topic is {$world.taught_topic}."
+    },
+    "my_scores": {
+     "for": "student",
+     "show": "Your quiz scores so far (oldest first): {$actor.quiz_scores|list}."
+    },
+    "my_understanding": {
+     "for": "student",
+     "show": "Your understanding \u2014 fractions {$actor.understanding.fractions}, decimals {$actor.understanding.decimals}, percentages {$actor.understanding.percentages} (out of 10)."
+    },
+    "class_understanding": {
+     "for": "teacher",
+     "of": "student",
+     "sort": "$it.id",
+     "show": "{$it.name}: understanding fractions {$it.understanding.fractions}, decimals {$it.understanding.decimals}, percentages {$it.understanding.percentages}."
+    },
+    "class_scores": {
+     "for": "teacher",
+     "of": "student",
+     "sort": "$it.id",
+     "show": "{$it.name}: quiz scores {$it.quiz_scores|list}."
+    }
+   },
+   "metrics": {
+    "class_average": {
+     "expr": "$round($avg(student, $avg($it.quiz_scores) or 0), 2)",
+     "description": "Average of the students' averages so far."
+    }
+   },
+   "outputs": {
+    "quiz_scores": {
+     "expr": "$dict(student, $it.id, $it.quiz_scores)",
+     "type": "map",
+     "description": "Each student's quiz scores, one per week in order."
+    },
+    "final_grades": {
+     "expr": "$dict(student, $it.id, $round($avg($it.quiz_scores) or 0, 2))",
+     "type": "map",
+     "description": "Each student's final grade: the average of their quiz scores."
+    },
+    "class_average": {
+     "expr": "$round($avg(student, $avg($it.quiz_scores) or 0), 2)",
+     "type": "number",
+     "description": "Average of the final grades."
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$all(student, $all($it.quiz_scores, $it >= 0 and $it <= 10))",
+     "why": "Quiz scores are between 0 and 10."
+    },
+    {
+     "expr": "$all(student, $len($it.quiz_scores) <= $round)",
+     "why": "A student has at most one quiz score per week so far."
+    },
+    {
+     "expr": "$all(student, $all($keys($it.understanding), $it.understanding[$it] >= 0 and $it.understanding[$it] <= 10))",
+     "why": "Understanding stays within 0 to 10."
+    }
+   ],
+   "policies": {
+    "teach_fractions": {
+     "rules": [
+      {
+       "when": "true",
+       "do": "teach",
+       "with": {
+        "topic": "fractions"
+       }
+      }
+     ]
+    },
+    "teach_cycle": {
+     "rules": [
+      {
+       "when": "$round <= 2",
+       "do": "teach",
+       "with": {
+        "topic": "fractions"
+       }
+      },
+      {
+       "when": "$round <= 4",
+       "do": "teach",
+       "with": {
+        "topic": "decimals"
+       }
+      },
+      {
+       "when": "true",
+       "do": "teach",
+       "with": {
+        "topic": "percentages"
+       }
+      }
+     ]
+    },
+    "study_hard": {
+     "rules": [
+      {
+       "when": "true",
+       "do": "study",
+       "with": {
+        "effort": "study hard"
+       }
+      }
+     ]
+    },
+    "study_easy": {
+     "rules": [
+      {
+       "when": "true",
+       "do": "study",
+       "with": {
+        "effort": "take it easy"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "Classroom with weekly quizzes",
+   "clock": {
+    "rounds": "$inputs.weeks",
+    "unit": "week"
+   },
+   "brief": {
+    "situation": "A {$inputs.weeks}-week course covers three topics: fractions, decimals and percentages. Every week the teacher teaches one topic, each student decides how hard to study that topic, and the week ends with a quiz on it.",
+    "rules": "Teaching a topic raises EVERY student's understanding of it; a student who studies hard raises their own understanding of the taught topic further. Each week ends with a quiz on that week's topic, scored 0 to 10 from the student's understanding of the topic plus luck. Understanding of a topic carries over from week to week (it is capped at 10). A student's final grade is the average of their weekly quiz scores. Students see only their own quiz scores; the teacher sees everyone's.",
+    "roles": {
+     "teacher": "Each week, choose exactly one topic to teach: fractions, decimals or percentages. You see every student's quiz scores.",
+     "student": "Each week, choose whether to study hard or take it easy on the topic being taught. You see only your own quiz scores."
+    }
+   },
+   "inputs": {
+    "weeks": {
+     "type": "int",
+     "default": 6,
+     "min": 1,
+     "max": 52,
+     "display": "number",
+     "label": "Weeks in the course",
+     "description": "Number of weeks, i.e. of quizzes."
+    },
+    "teach_gain": {
+     "type": "number",
+     "default": 2,
+     "min": 0,
+     "display": "number",
+     "label": "Understanding gained when taught",
+     "description": "Added to every student's understanding of the taught topic each week."
+    },
+    "study_bonus": {
+     "type": "number",
+     "default": 3,
+     "min": 0,
+     "display": "number",
+     "label": "Extra understanding from studying hard",
+     "description": "Added to a student's understanding of the taught topic when they study hard."
+    },
+    "luck_sd": {
+     "type": "number",
+     "default": 1,
+     "min": 0,
+     "display": "number",
+     "label": "Luck spread on the quiz",
+     "description": "Standard deviation of the luck added to a quiz score. 0 makes quizzes a pure function of understanding."
+    },
+    "students": {
+     "type": "table",
+     "display": "table",
+     "label": "Students",
+     "fields": {
+      "name": {
+       "type": "text",
+       "required": true,
+       "label": "Name (used as the student's id)"
+      }
+     },
+     "default": [
+      {
+       "name": "Ana"
+      },
+      {
+       "name": "Ben"
+      },
+      {
+       "name": "Cara"
+      },
+      {
+       "name": "Dan"
+      },
+      {
+       "name": "Eve"
+      }
+     ]
+    },
+    "teacher_name": {
+     "type": "text",
+     "default": "Ms. Rivera",
+     "display": "text",
+     "label": "Teacher"
+    }
+   },
+   "world": {
+    "taught_topic": "fractions"
+   },
+   "types": {
+    "teacher": {
+     "agent": true,
+     "description": "Runs the class and quizzes."
+    },
+    "student": {
+     "agent": true,
+     "description": "Learns each week's topic and is quizzed on it.",
+     "inspect": "$viewer.id == $it.id",
+     "props": {
+      "understanding": {
+       "type": "map",
+       "default": {
+        "fractions": 0,
+        "decimals": 0,
+        "percentages": 0
+       },
+       "description": "Understanding of each topic, 0 to 10."
+      },
+      "quiz_scores": {
+       "type": "list",
+       "default": [],
+       "description": "Quiz scores, one per week in order."
+      },
+      "last_effort": {
+       "type": "text",
+       "default": "none",
+       "description": "What the student chose last week."
+      }
+     }
+    }
+   },
+   "entities": {
+    "teacher": {
+     "type": "teacher",
+     "name": "$inputs.teacher_name"
+    }
+   },
+   "population": [
+    {
+     "type": "student",
+     "from": "$inputs.students",
+     "id": "{$row.name}",
+     "name": "{$row.name}"
+    }
+   ],
+   "stages": [
+    {
+     "name": "teach",
+     "actions": [
+      "teach"
+     ],
+     "who": "teacher",
+     "turns": "sequential",
+     "max_actions": 1,
+     "max_calls": 4,
+     "must_act": true,
+     "brief": "Choose the topic to teach this week."
+    },
+    {
+     "name": "study",
+     "actions": [
+      "study"
+     ],
+     "who": "student",
+     "turns": "sequential",
+     "max_actions": 1,
+     "max_calls": 4,
+     "must_act": true,
+     "brief": "Choose how hard to study {$world.taught_topic} this week."
+    }
+   ],
+   "actions": {
+    "teach": {
+     "by": "teacher",
+     "description": "Choose this week's topic to teach. Every student's understanding of it rises; a quiz on it follows at the end of the week.",
+     "params": {
+      "topic": {
+       "type": "enum",
+       "values": [
+        "fractions",
+        "decimals",
+        "percentages"
+       ],
+       "description": "Topic to teach this week."
+      }
+     },
+     "do": [
+      "$world.taught_topic = $params.topic",
+      {
+       "each": "student",
+       "do": "$it.understanding[$params.topic] = $clamp($it.understanding[$params.topic] + $inputs.teach_gain, 0, 10)"
+      }
+     ],
+     "outcome": "You taught {$params.topic} this week. Every student's understanding of {$params.topic} rose by {$inputs.teach_gain}.",
+     "announce": "This week's topic: {$params.topic}."
+    },
+    "study": {
+     "by": "student",
+     "description": "Decide how hard to study this week's topic. Studying hard raises your understanding of it further.",
+     "params": {
+      "effort": {
+       "type": "enum",
+       "values": [
+        "study hard",
+        "take it easy"
+       ],
+       "description": "How hard to work on {$world.taught_topic} this week."
+      }
+     },
+     "do": [
+      "$actor.last_effort = $params.effort",
+      {
+       "if": "$params.effort == 'study hard'",
+       "then": [
+        "$actor.understanding[$world.taught_topic] = $clamp($actor.understanding[$world.taught_topic] + $inputs.study_bonus, 0, 10)"
+       ]
+      }
+     ],
+     "outcome": "You chose to {$params.effort} on {$world.taught_topic}. Your understanding of {$world.taught_topic} is now {$actor.understanding[$world.taught_topic]}.",
+     "private": true
+    }
+   },
+   "events": [
+    {
+     "name": "quiz",
+     "phase": "end",
+     "each": "student",
+     "do": [
+      "$score = $round($it.understanding[$world.taught_topic] + $inputs.luck_sd * $normal(0, 1))",
+      "$it.quiz_scores += $clamp($score, 0, 10)"
+     ]
+    }
+   ],
+   "views": {
+    "week": {
+     "show": "Week {$round} of {$inputs.weeks}: this week's topic is {$world.taught_topic}."
+    },
+    "my_scores": {
+     "for": "student",
+     "show": "Your quiz scores so far (oldest first): {$actor.quiz_scores|list}."
+    },
+    "my_understanding": {
+     "for": "student",
+     "show": "Your understanding \u2014 fractions {$actor.understanding.fractions}, decimals {$actor.understanding.decimals}, percentages {$actor.understanding.percentages} (out of 10)."
+    },
+    "class_understanding": {
+     "for": "teacher",
+     "of": "student",
+     "sort": "$it.id",
+     "show": "{$it.name}: understanding fractions {$it.understanding.fractions}, decimals {$it.understanding.decimals}, percentages {$it.understanding.percentages}."
+    },
+    "class_scores": {
+     "for": "teacher",
+     "of": "student",
+     "sort": "$it.id",
+     "show": "{$it.name}: quiz scores {$it.quiz_scores|list}."
+    }
+   },
+   "metrics": {
+    "class_average": {
+     "expr": "$round($avg(student, $avg($it.quiz_scores) or 0), 2)",
+     "description": "Average of the students' averages so far."
+    }
+   },
+   "outputs": {
+    "quiz_scores": {
+     "expr": "$dict(student, $it.id, $it.quiz_scores)",
+     "type": "map",
+     "description": "Each student's quiz scores, one per week in order."
+    },
+    "final_grades": {
+     "expr": "$dict(student, $it.id, $round($avg($it.quiz_scores) or 0, 2))",
+     "type": "map",
+     "description": "Each student's final grade: the average of their quiz scores."
+    },
+    "class_average": {
+     "expr": "$round($avg(student, $avg($it.quiz_scores) or 0), 2)",
+     "type": "number",
+     "description": "Average of the final grades."
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$all(student, $all($it.quiz_scores, $it >= 0 and $it <= 10))",
+     "why": "Quiz scores are between 0 and 10."
+    },
+    {
+     "expr": "$all(student, $len($it.quiz_scores) <= $round)",
+     "why": "A student has at most one quiz score per week so far."
+    },
+    {
+     "expr": "$all(student, $all($keys($it.understanding), $it.understanding[$it] >= 0 and $it.understanding[$it] <= 10))",
+     "why": "Understanding stays within 0 to 10."
+    }
+   ],
+   "policies": {
+    "teach_fractions": {
+     "rules": [
+      {
+       "when": "true",
+       "do": "teach",
+       "with": {
+        "topic": "fractions"
+       }
+      }
+     ]
+    },
+    "teach_cycle": {
+     "rules": [
+      {
+       "when": "$round <= 2",
+       "do": "teach",
+       "with": {
+        "topic": "fractions"
+       }
+      },
+      {
+       "when": "$round <= 4",
+       "do": "teach",
+       "with": {
+        "topic": "decimals"
+       }
+      },
+      {
+       "when": "true",
+       "do": "teach",
+       "with": {
+        "topic": "percentages"
+       }
+      }
+     ]
+    },
+    "study_hard": {
+     "rules": [
+      {
+       "when": "true",
+       "do": "study",
+       "with": {
+        "effort": "study hard"
+       }
+      }
+     ]
+    },
+    "study_easy": {
+     "rules": [
+      {
+       "when": "true",
+       "do": "study",
+       "with": {
+        "effort": "take it easy"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "Classroom with weekly quizzes",
+   "clock": {
+    "rounds": "$inputs.weeks",
+    "unit": "week"
+   },
+   "brief": {
+    "situation": "A {$inputs.weeks}-week course covers three topics: fractions, decimals and percentages. Every week the teacher teaches one topic, each student decides how hard to study that topic, and the week ends with a quiz on it.",
+    "rules": "Teaching a topic raises EVERY student's understanding of it; a student who studies hard raises their own understanding of the taught topic further. Each week ends with a quiz on that week's topic, scored 0 to 10 from the student's understanding of the topic plus luck. Understanding of a topic carries over from week to week (it is capped at 10). A student's final grade is the average of their weekly quiz scores. Students see only their own quiz scores; the teacher sees everyone's.",
+    "roles": {
+     "teacher": "Each week, choose exactly one topic to teach: fractions, decimals or percentages. You see every student's quiz scores.",
+     "student": "Each week, choose whether to study hard or take it easy on the topic being taught. You see only your own quiz scores."
+    }
+   },
+   "inputs": {
+    "weeks": {
+     "type": "int",
+     "default": 6,
+     "min": 1,
+     "max": 52,
+     "display": "number",
+     "label": "Weeks in the course",
+     "description": "Number of weeks, i.e. of quizzes."
+    },
+    "teach_gain": {
+     "type": "number",
+     "default": 2,
+     "min": 0,
+     "display": "number",
+     "label": "Understanding gained when taught",
+     "description": "Added to every student's understanding of the taught topic each week."
+    },
+    "study_bonus": {
+     "type": "number",
+     "default": 3,
+     "min": 0,
+     "display": "number",
+     "label": "Extra understanding from studying hard",
+     "description": "Added to a student's understanding of the taught topic when they study hard."
+    },
+    "luck_sd": {
+     "type": "number",
+     "default": 1,
+     "min": 0,
+     "display": "number",
+     "label": "Luck spread on the quiz",
+     "description": "Standard deviation of the luck added to a quiz score. 0 makes quizzes a pure function of understanding."
+    },
+    "students": {
+     "type": "table",
+     "display": "table",
+     "label": "Students",
+     "fields": {
+      "name": {
+       "type": "text",
+       "required": true,
+       "label": "Name (used as the student's id)"
+      }
+     },
+     "default": [
+      {
+       "name": "Ana"
+      },
+      {
+       "name": "Ben"
+      },
+      {
+       "name": "Cara"
+      },
+      {
+       "name": "Dan"
+      },
+      {
+       "name": "Eve"
+      }
+     ]
+    },
+    "teacher_name": {
+     "type": "text",
+     "default": "Ms. Rivera",
+     "display": "text",
+     "label": "Teacher"
+    }
+   },
+   "world": {
+    "taught_topic": "fractions"
+   },
+   "types": {
+    "teacher": {
+     "agent": true,
+     "description": "Runs the class and quizzes."
+    },
+    "student": {
+     "agent": true,
+     "description": "Learns each week's topic and is quizzed on it.",
+     "inspect": "$viewer.id == $it.id",
+     "props": {
+      "understanding": {
+       "type": "map",
+       "default": {
+        "fractions": 0,
+        "decimals": 0,
+        "percentages": 0
+       },
+       "description": "Understanding of each topic, 0 to 10."
+      },
+      "quiz_scores": {
+       "type": "list",
+       "default": [],
+       "description": "Quiz scores, one per week in order."
+      },
+      "last_effort": {
+       "type": "text",
+       "default": "none",
+       "description": "What the student chose last week."
+      }
+     }
+    }
+   },
+   "entities": {
+    "teacher": {
+     "type": "teacher",
+     "name": "$inputs.teacher_name"
+    }
+   },
+   "population": [
+    {
+     "type": "student",
+     "from": "$inputs.students",
+     "id": "{$row.name}",
+     "name": "{$row.name}"
+    }
+   ],
+   "stages": [
+    {
+     "name": "teach",
+     "actions": [
+      "teach"
+     ],
+     "who": "teacher",
+     "turns": "sequential",
+     "max_actions": 1,
+     "max_calls": 4,
+     "must_act": true,
+     "brief": "Choose the topic to teach this week."
+    },
+    {
+     "name": "study",
+     "actions": [
+      "study"
+     ],
+     "who": "student",
+     "turns": "sequential",
+     "max_actions": 1,
+     "max_calls": 4,
+     "must_act": true,
+     "brief": "Choose how hard to study {$world.taught_topic} this week."
+    }
+   ],
+   "actions": {
+    "teach": {
+     "by": "teacher",
+     "description": "Choose this week's topic to teach. Every student's understanding of it rises; a quiz on it follows at the end of the week.",
+     "params": {
+      "topic": {
+       "type": "enum",
+       "values": [
+        "fractions",
+        "decimals",
+        "percentages"
+       ],
+       "description": "Topic to teach this week."
+      }
+     },
+     "do": [
+      "$world.taught_topic = $params.topic",
+      {
+       "each": "student",
+       "do": "$it.understanding[$params.topic] = $clamp($it.understanding[$params.topic] + $inputs.teach_gain, 0, 10)"
+      }
+     ],
+     "outcome": "You taught {$params.topic} this week. Every student's understanding of {$params.topic} rose by {$inputs.teach_gain}.",
+     "announce": "This week's topic: {$params.topic}."
+    },
+    "study": {
+     "by": "student",
+     "description": "Decide how hard to study this week's topic. Studying hard raises your understanding of it further.",
+     "params": {
+      "effort": {
+       "type": "enum",
+       "values": [
+        "study hard",
+        "take it easy"
+       ],
+       "description": "How hard to work on {$world.taught_topic} this week."
+      }
+     },
+     "do": [
+      "$actor.last_effort = $params.effort",
+      {
+       "if": "$params.effort == 'study hard'",
+       "then": [
+        "$actor.understanding[$world.taught_topic] = $clamp($actor.understanding[$world.taught_topic] + $inputs.study_bonus, 0, 10)"
+       ]
+      }
+     ],
+     "outcome": "You chose to {$params.effort} on {$world.taught_topic}. Your understanding of {$world.taught_topic} is now {$actor.understanding[$world.taught_topic]}.",
+     "private": true
+    }
+   },
+   "events": [
+    {
+     "name": "quiz",
+     "phase": "end",
+     "each": "student",
+     "do": [
+      "$score = $round($it.understanding[$world.taught_topic] + $inputs.luck_sd * $normal(0, 1))",
+      "$it.quiz_scores += $clamp($score, 0, 10)"
+     ]
+    }
+   ],
+   "views": {
+    "week": {
+     "show": "Week {$round} of {$inputs.weeks}: this week's topic is {$world.taught_topic}."
+    },
+    "my_scores": {
+     "for": "student",
+     "show": "Your quiz scores so far (oldest first): {$actor.quiz_scores|list}."
+    },
+    "my_understanding": {
+     "for": "student",
+     "show": "Your understanding \u2014 fractions {$actor.understanding.fractions}, decimals {$actor.understanding.decimals}, percentages {$actor.understanding.percentages} (out of 10)."
+    },
+    "class_understanding": {
+     "for": "teacher",
+     "of": "student",
+     "sort": "$it.id",
+     "show": "{$it.name}: understanding fractions {$it.understanding.fractions}, decimals {$it.understanding.decimals}, percentages {$it.understanding.percentages}."
+    },
+    "class_scores": {
+     "for": "teacher",
+     "of": "student",
+     "sort": "$it.id",
+     "show": "{$it.name}: quiz scores {$it.quiz_scores|list}."
+    }
+   },
+   "metrics": {
+    "class_average": {
+     "expr": "$round($avg(student, $avg($it.quiz_scores) or 0), 2)",
+     "description": "Average of the students' averages so far."
+    }
+   },
+   "outputs": {
+    "quiz_scores": {
+     "expr": "$dict(student, $it.id, $it.quiz_scores)",
+     "type": "map",
+     "description": "Each student's quiz scores, one per week in order."
+    },
+    "final_grades": {
+     "expr": "$dict(student, $it.id, $round($avg($it.quiz_scores) or 0, 2))",
+     "type": "map",
+     "description": "Each student's final grade: the average of their quiz scores."
+    },
+    "class_average": {
+     "expr": "$round($avg(student, $avg($it.quiz_scores) or 0), 2)",
+     "type": "number",
+     "description": "Average of the final grades."
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$all(student, $all($it.quiz_scores, $it >= 0 and $it <= 10))",
+     "why": "Quiz scores are between 0 and 10."
+    },
+    {
+     "expr": "$all(student, $len($it.quiz_scores) <= $round)",
+     "why": "A student has at most one quiz score per week so far."
+    },
+    {
+     "expr": "$all(student, $all($keys($it.understanding), $outer.understanding[$it] >= 0 and $outer.understanding[$it] <= 10))",
+     "why": "Understanding stays within 0 to 10."
+    }
+   ],
+   "policies": {
+    "teach_fractions": {
+     "rules": [
+      {
+       "when": "true",
+       "do": "teach",
+       "with": {
+        "topic": "fractions"
+       }
+      }
+     ]
+    },
+    "teach_cycle": {
+     "rules": [
+      {
+       "when": "$round <= 2",
+       "do": "teach",
+       "with": {
+        "topic": "fractions"
+       }
+      },
+      {
+       "when": "$round <= 4",
+       "do": "teach",
+       "with": {
+        "topic": "decimals"
+       }
+      },
+      {
+       "when": "true",
+       "do": "teach",
+       "with": {
+        "topic": "percentages"
+       }
+      }
+     ]
+    },
+    "study_hard": {
+     "rules": [
+      {
+       "when": "true",
+       "do": "study",
+       "with": {
+        "effort": "study hard"
+       }
+      }
+     ]
+    },
+    "study_easy": {
+     "rules": [
+      {
+       "when": "true",
+       "do": "study",
+       "with": {
+        "effort": "take it easy"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "Classroom with weekly quizzes",
+   "clock": {
+    "rounds": "$inputs.weeks",
+    "unit": "week"
+   },
+   "brief": {
+    "situation": "A {$inputs.weeks}-week course covers three topics: fractions, decimals and percentages. Every week the teacher teaches one topic, each student decides how hard to study that topic, and the week ends with a quiz on it.",
+    "rules": "Teaching a topic raises EVERY student's understanding of it; a student who studies hard raises their own understanding of the taught topic further. Each week ends with a quiz on that week's topic, scored 0 to 10 from the student's understanding of the topic plus luck. Understanding of a topic carries over from week to week (it is capped at 10). A student's final grade is the average of their weekly quiz scores. Students see only their own quiz scores; the teacher sees everyone's.",
+    "roles": {
+     "teacher": "Each week, choose exactly one topic to teach: fractions, decimals or percentages. You see every student's quiz scores.",
+     "student": "Each week, choose whether to study hard or take it easy on the topic being taught. You see only your own quiz scores."
+    }
+   },
+   "inputs": {
+    "weeks": {
+     "type": "int",
+     "default": 6,
+     "min": 1,
+     "max": 52,
+     "display": "number",
+     "label": "Weeks in the course",
+     "description": "Number of weeks, i.e. of quizzes."
+    },
+    "teach_gain": {
+     "type": "number",
+     "default": 2,
+     "min": 0,
+     "display": "number",
+     "label": "Understanding gained when taught",
+     "description": "Added to every student's understanding of the taught topic each week."
+    },
+    "study_bonus": {
+     "type": "number",
+     "default": 3,
+     "min": 0,
+     "display": "number",
+     "label": "Extra understanding from studying hard",
+     "description": "Added to a student's understanding of the taught topic when they study hard."
+    },
+    "luck_sd": {
+     "type": "number",
+     "default": 1,
+     "min": 0,
+     "display": "number",
+     "label": "Luck spread on the quiz",
+     "description": "Standard deviation of the luck added to a quiz score. 0 makes quizzes a pure function of understanding."
+    },
+    "students": {
+     "type": "table",
+     "display": "table",
+     "label": "Students",
+     "fields": {
+      "name": {
+       "type": "text",
+       "required": true,
+       "label": "Name (used as the student's id)"
+      }
+     },
+     "default": [
+      {
+       "name": "Ana"
+      },
+      {
+       "name": "Ben"
+      },
+      {
+       "name": "Cara"
+      },
+      {
+       "name": "Dan"
+      },
+      {
+       "name": "Eve"
+      }
+     ]
+    }
+   },
+   "world": {
+    "taught_topic": "fractions"
+   },
+   "types": {
+    "teacher": {
+     "agent": true,
+     "description": "Runs the class and quizzes."
+    },
+    "student": {
+     "agent": true,
+     "description": "Learns each week's topic and is quizzed on it.",
+     "inspect": "$viewer.id == $it.id",
+     "props": {
+      "understanding": {
+       "type": "map",
+       "default": {
+        "fractions": 0,
+        "decimals": 0,
+        "percentages": 0
+       },
+       "description": "Understanding of each topic, 0 to 10."
+      },
+      "quiz_scores": {
+       "type": "list",
+       "default": [],
+       "description": "Quiz scores, one per week in order."
+      },
+      "last_effort": {
+       "type": "text",
+       "default": "none",
+       "description": "What the student chose last week."
+      }
+     }
+    }
+   },
+   "entities": {
+    "teacher": {
+     "type": "teacher",
+     "name": "Ms. Rivera"
+    }
+   },
+   "population": [
+    {
+     "type": "student",
+     "from": "$inputs.students",
+     "id": "{$row.name}",
+     "name": "{$row.name}"
+    }
+   ],
+   "stages": [
+    {
+     "name": "teach",
+     "actions": [
+      "teach"
+     ],
+     "who": "teacher",
+     "turns": "sequential",
+     "max_actions": 1,
+     "max_calls": 4,
+     "must_act": true,
+     "brief": "Choose the topic to teach this week."
+    },
+    {
+     "name": "study",
+     "actions": [
+      "study"
+     ],
+     "who": "student",
+     "turns": "sequential",
+     "max_actions": 1,
+     "max_calls": 4,
+     "must_act": true,
+     "brief": "Choose how hard to study {$world.taught_topic} this week."
+    }
+   ],
+   "actions": {
+    "teach": {
+     "by": "teacher",
+     "description": "Choose this week's topic to teach. Every student's understanding of it rises; a quiz on it follows at the end of the week.",
+     "params": {
+      "topic": {
+       "type": "enum",
+       "values": [
+        "fractions",
+        "decimals",
+        "percentages"
+       ],
+       "description": "Topic to teach this week."
+      }
+     },
+     "do": [
+      "$world.taught_topic = $params.topic",
+      {
+       "each": "student",
+       "do": "$it.understanding[$params.topic] = $clamp($it.understanding[$params.topic] + $inputs.teach_gain, 0, 10)"
+      }
+     ],
+     "outcome": "You taught {$params.topic} this week. Every student's understanding of {$params.topic} rose by {$inputs.teach_gain}.",
+     "announce": "This week's topic: {$params.topic}."
+    },
+    "study": {
+     "by": "student",
+     "description": "Decide how hard to study this week's topic. Studying hard raises your understanding of it further.",
+     "params": {
+      "effort": {
+       "type": "enum",
+       "values": [
+        "study hard",
+        "take it easy"
+       ],
+       "description": "How hard to work on {$world.taught_topic} this week."
+      }
+     },
+     "do": [
+      "$actor.last_effort = $params.effort",
+      {
+       "if": "$params.effort == 'study hard'",
+       "then": [
+        "$actor.understanding[$world.taught_topic] = $clamp($actor.understanding[$world.taught_topic] + $inputs.study_bonus, 0, 10)"
+       ]
+      }
+     ],
+     "outcome": "You chose to {$params.effort} on {$world.taught_topic}. Your understanding of {$world.taught_topic} is now {$actor.understanding[$world.taught_topic]}.",
+     "private": true
+    }
+   },
+   "events": [
+    {
+     "name": "quiz",
+     "phase": "end",
+     "each": "student",
+     "do": [
+      "$score = $round($it.understanding[$world.taught_topic] + $inputs.luck_sd * $normal(0, 1))",
+      "$it.quiz_scores += $clamp($score, 0, 10)"
+     ]
+    }
+   ],
+   "views": {
+    "week": {
+     "show": "Week {$round} of {$inputs.weeks}: this week's topic is {$world.taught_topic}."
+    },
+    "my_scores": {
+     "for": "student",
+     "show": "Your quiz scores so far (oldest first): {$actor.quiz_scores|list}."
+    },
+    "my_understanding": {
+     "for": "student",
+     "show": "Your understanding \u2014 fractions {$actor.understanding.fractions}, decimals {$actor.understanding.decimals}, percentages {$actor.understanding.percentages} (out of 10)."
+    },
+    "class_understanding": {
+     "for": "teacher",
+     "of": "student",
+     "sort": "$it.id",
+     "show": "{$it.name}: understanding fractions {$it.understanding.fractions}, decimals {$it.understanding.decimals}, percentages {$it.understanding.percentages}."
+    },
+    "class_scores": {
+     "for": "teacher",
+     "of": "student",
+     "sort": "$it.id",
+     "show": "{$it.name}: quiz scores {$it.quiz_scores|list}."
+    }
+   },
+   "metrics": {
+    "class_average": {
+     "expr": "$round($avg(student, $avg($it.quiz_scores) or 0), 2)",
+     "description": "Average of the students' averages so far."
+    }
+   },
+   "outputs": {
+    "quiz_scores": {
+     "expr": "$dict(student, $it.id, $it.quiz_scores)",
+     "type": "map",
+     "description": "Each student's quiz scores, one per week in order."
+    },
+    "final_grades": {
+     "expr": "$dict(student, $it.id, $round($avg($it.quiz_scores) or 0, 2))",
+     "type": "map",
+     "description": "Each student's final grade: the average of their quiz scores."
+    },
+    "class_average": {
+     "expr": "$round($avg(student, $avg($it.quiz_scores) or 0), 2)",
+     "type": "number",
+     "description": "Average of the final grades."
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$all(student, $all($it.quiz_scores, $it >= 0 and $it <= 10))",
+     "why": "Quiz scores are between 0 and 10."
+    },
+    {
+     "expr": "$all(student, $len($it.quiz_scores) <= $round)",
+     "why": "A student has at most one quiz score per week so far."
+    },
+    {
+     "expr": "$all(student, $all($keys($it.understanding), $outer.understanding[$it] >= 0 and $outer.understanding[$it] <= 10))",
+     "why": "Understanding stays within 0 to 10."
+    }
+   ],
+   "policies": {
+    "teach_fractions": {
+     "rules": [
+      {
+       "when": "true",
+       "do": "teach",
+       "with": {
+        "topic": "fractions"
+       }
+      }
+     ]
+    },
+    "teach_cycle": {
+     "rules": [
+      {
+       "when": "$round <= 2",
+       "do": "teach",
+       "with": {
+        "topic": "fractions"
+       }
+      },
+      {
+       "when": "$round <= 4",
+       "do": "teach",
+       "with": {
+        "topic": "decimals"
+       }
+      },
+      {
+       "when": "true",
+       "do": "teach",
+       "with": {
+        "topic": "percentages"
+       }
+      }
+     ]
+    },
+    "study_hard": {
+     "rules": [
+      {
+       "when": "true",
+       "do": "study",
+       "with": {
+        "effort": "study hard"
+       }
+      }
+     ]
+    },
+    "study_easy": {
+     "rules": [
+      {
+       "when": "true",
+       "do": "study",
+       "with": {
+        "effort": "take it easy"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "Classroom with weekly quizzes",
+   "clock": {
+    "rounds": "$inputs.weeks",
+    "unit": "week"
+   },
+   "brief": {
+    "situation": "A {$inputs.weeks}-week course covers three topics: fractions, decimals and percentages. Every week the teacher teaches one topic, each student decides how hard to study that topic, and the week ends with a quiz on it.",
+    "rules": "Teaching a topic raises EVERY student's understanding of it; a student who studies hard raises their own understanding of the taught topic further. Each week ends with a quiz on that week's topic, scored 0 to 10 from the student's understanding of the topic plus luck. Understanding of a topic carries over from week to week (it is capped at 10). A student's final grade is the average of their weekly quiz scores. Students see only their own quiz scores; the teacher sees everyone's.",
+    "roles": {
+     "teacher": "Each week, choose exactly one topic to teach: fractions, decimals or percentages. You see every student's quiz scores.",
+     "student": "Each week, choose whether to study hard or take it easy on the topic being taught. You see only your own quiz scores."
+    }
+   },
+   "inputs": {
+    "weeks": {
+     "type": "int",
+     "default": 6,
+     "min": 1,
+     "max": 52,
+     "display": "number",
+     "label": "Weeks in the course"
+    },
+    "teach_gain": {
+     "type": "number",
+     "default": 2,
+     "min": 0,
+     "display": "number",
+     "label": "Understanding gained when taught"
+    },
+    "study_bonus": {
+     "type": "number",
+     "default": 3,
+     "min": 0,
+     "display": "number",
+     "label": "Extra understanding from studying hard"
+    },
+    "luck_sd": {
+     "type": "number",
+     "default": 0,
+     "min": 0,
+     "display": "number",
+     "label": "Luck spread on the quiz"
+    },
+    "students": {
+     "type": "table",
+     "display": "table",
+     "label": "Students",
+     "fields": {
+      "name": {
+       "type": "text",
+       "required": true,
+       "label": "Name"
+      }
+     },
+     "default": [
+      {
+       "name": "Ana"
+      },
+      {
+       "name": "Ben"
+      },
+      {
+       "name": "Cara"
+      },
+      {
+       "name": "Dan"
+      },
+      {
+       "name": "Eve"
+      }
+     ]
+    }
+   },
+   "world": {
+    "taught_topic": "fractions"
+   },
+   "types": {
+    "teacher": {
+     "agent": true
+    },
+    "student": {
+     "agent": true,
+     "inspect": "$viewer.id == $it.id",
+     "props": {
+      "understanding": {
+       "type": "map",
+       "default": {
+        "fractions": 0,
+        "decimals": 0,
+        "percentages": 0
+       }
+      },
+      "quiz_scores": {
+       "type": "list",
+       "default": []
+      },
+      "last_effort": {
+       "type": "text",
+       "default": "none"
+      }
+     }
+    }
+   },
+   "entities": {
+    "teacher": {
+     "type": "teacher",
+     "name": "Ms. Rivera"
+    }
+   },
+   "population": [
+    {
+     "type": "student",
+     "from": "$inputs.students",
+     "id": "{$row.name}",
+     "name": "{$row.name}"
+    }
+   ],
+   "stages": [
+    {
+     "name": "teach",
+     "actions": [
+      "teach"
+     ],
+     "who": "teacher",
+     "max_actions": 1,
+     "max_calls": 4,
+     "must_act": true
+    },
+    {
+     "name": "study",
+     "actions": [
+      "study"
+     ],
+     "who": "student",
+     "max_actions": 1,
+     "max_calls": 4,
+     "must_act": true
+    }
+   ],
+   "actions": {
+    "teach": {
+     "by": "teacher",
+     "params": {
+      "topic": {
+       "type": "enum",
+       "values": [
+        "fractions",
+        "decimals",
+        "percentages"
+       ]
+      }
+     },
+     "do": [
+      "$world.taught_topic = $params.topic",
+      {
+       "each": "student",
+       "do": "$it.understanding[$params.topic] = $clamp($it.understanding[$params.topic] + $inputs.teach_gain, 0, 10)"
+      }
+     ],
+     "announce": "This week's topic: {$params.topic}."
+    },
+    "study": {
+     "by": "student",
+     "params": {
+      "effort": {
+       "type": "enum",
+       "values": [
+        "study hard",
+        "take it easy"
+       ]
+      }
+     },
+     "do": [
+      "$actor.last_effort = $params.effort",
+      {
+       "if": "$params.effort == 'study hard'",
+       "then": [
+        "$actor.understanding[$world.taught_topic] = $clamp($actor.understanding[$world.taught_topic] + $inputs.study_bonus, 0, 10)"
+       ]
+      }
+     ],
+     "private": true
+    }
+   },
+   "events": [
+    {
+     "name": "quiz",
+     "phase": "end",
+     "each": "student",
+     "do": [
+      "$score = $round($it.understanding[$world.taught_topic] + $inputs.luck_sd * $normal(0, 1))",
+      "$it.quiz_scores += $clamp($score, 0, 10)"
+     ]
+    }
+   ],
+   "outputs": {
+    "quiz_scores": {
+     "expr": "$dict(student, $it.id, $it.quiz_scores)",
+     "type": "map"
+    },
+    "final_grades": {
+     "expr": "$dict(student, $it.id, $round($avg($it.quiz_scores) or 0, 2))",
+     "type": "map"
+    },
+    "class_average": {
+     "expr": "$round($avg(student, $avg($it.quiz_scores) or 0), 2)",
+     "type": "number"
+    }
+   },
+   "policies": {
+    "teach_fractions": {
+     "rules": [
+      {
+       "when": "true",
+       "do": "teach",
+       "with": {
+        "topic": "fractions"
+       }
+      }
+     ]
+    },
+    "teach_cycle": {
+     "rules": [
+      {
+       "when": "$round <= 2",
+       "do": "teach",
+       "with": {
+        "topic": "fractions"
+       }
+      },
+      {
+       "when": "$round <= 4",
+       "do": "teach",
+       "with": {
+        "topic": "decimals"
+       }
+      },
+      {
+       "when": "true",
+       "do": "teach",
+       "with": {
+        "topic": "percentages"
+       }
+      }
+     ]
+    },
+    "study_hard": {
+     "rules": [
+      {
+       "when": "true",
+       "do": "study",
+       "with": {
+        "effort": "study hard"
+       }
+      }
+     ]
+    },
+    "study_easy": {
+     "rules": [
+      {
+       "when": "true",
+       "do": "study",
+       "with": {
+        "effort": "take it easy"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "Classroom with weekly quizzes",
+   "clock": {
+    "rounds": "$inputs.weeks",
+    "unit": "week"
+   },
+   "brief": {
+    "situation": "A {$inputs.weeks}-week course covers three topics: fractions, decimals and percentages. Every week the teacher teaches one topic, each student decides how hard to study that topic, and the week ends with a quiz on it.",
+    "rules": "Teaching a topic raises EVERY student's understanding of it; a student who studies hard raises their own understanding of the taught topic further. Each week ends with a quiz on that week's topic, scored 0 to 10 from the student's understanding of the topic plus luck. Understanding of a topic carries over from week to week (it is capped at 10). A student's final grade is the average of their weekly quiz scores. Students see only their own quiz scores; the teacher sees everyone's.",
+    "roles": {
+     "teacher": "Each week, choose exactly one topic to teach: fractions, decimals or percentages. You see every student's quiz scores.",
+     "student": "Each week, choose whether to study hard or take it easy on the topic being taught. You see only your own quiz scores."
+    }
+   },
+   "inputs": {
+    "weeks": {
+     "type": "int",
+     "default": 1,
+     "min": 1,
+     "max": 52,
+     "display": "number",
+     "label": "Weeks in the course"
+    },
+    "teach_gain": {
+     "type": "number",
+     "default": 2,
+     "min": 0,
+     "display": "number",
+     "label": "Understanding gained when taught"
+    },
+    "study_bonus": {
+     "type": "number",
+     "default": 3,
+     "min": 0,
+     "display": "number",
+     "label": "Extra understanding from studying hard"
+    },
+    "luck_sd": {
+     "type": "number",
+     "default": 0,
+     "min": 0,
+     "display": "number",
+     "label": "Luck spread on the quiz"
+    },
+    "students": {
+     "type": "table",
+     "display": "table",
+     "label": "Students",
+     "fields": {
+      "name": {
+       "type": "text",
+       "required": true,
+       "label": "Name"
+      }
+     },
+     "default": [
+      {
+       "name": "Solo"
+      }
+     ]
+    }
+   },
+   "world": {
+    "taught_topic": "fractions"
+   },
+   "types": {
+    "teacher": {
+     "agent": true
+    },
+    "student": {
+     "agent": true,
+     "inspect": "$viewer.id == $it.id",
+     "props": {
+      "understanding": {
+       "type": "map",
+       "default": {
+        "fractions": 0,
+        "decimals": 0,
+        "percentages": 0
+       }
+      },
+      "quiz_scores": {
+       "type": "list",
+       "default": []
+      },
+      "last_effort": {
+       "type": "text",
+       "default": "none"
+      }
+     }
+    }
+   },
+   "entities": {
+    "teacher": {
+     "type": "teacher",
+     "name": "Ms. Rivera"
+    }
+   },
+   "population": [
+    {
+     "type": "student",
+     "from": "$inputs.students",
+     "id": "{$row.name}",
+     "name": "{$row.name}"
+    }
+   ],
+   "stages": [
+    {
+     "name": "teach",
+     "actions": [
+      "teach"
+     ],
+     "who": "teacher",
+     "max_actions": 1,
+     "max_calls": 4,
+     "must_act": true
+    },
+    {
+     "name": "study",
+     "actions": [
+      "study"
+     ],
+     "who": "student",
+     "max_actions": 1,
+     "max_calls": 4,
+     "must_act": true
+    }
+   ],
+   "actions": {
+    "teach": {
+     "by": "teacher",
+     "params": {
+      "topic": {
+       "type": "enum",
+       "values": [
+        "fractions",
+        "decimals",
+        "percentages"
+       ]
+      }
+     },
+     "do": [
+      "$world.taught_topic = $params.topic",
+      {
+       "each": "student",
+       "do": "$it.understanding[$params.topic] = $clamp($it.understanding[$params.topic] + $inputs.teach_gain, 0, 10)"
+      }
+     ],
+     "announce": "This week's topic: {$params.topic}."
+    },
+    "study": {
+     "by": "student",
+     "params": {
+      "effort": {
+       "type": "enum",
+       "values": [
+        "study hard",
+        "take it easy"
+       ]
+      }
+     },
+     "do": [
+      "$actor.last_effort = $params.effort",
+      {
+       "if": "$params.effort == 'study hard'",
+       "then": [
+        "$actor.understanding[$world.taught_topic] = $clamp($actor.understanding[$world.taught_topic] + $inputs.study_bonus, 0, 10)"
+       ]
+      }
+     ],
+     "private": true
+    }
+   },
+   "events": [
+    {
+     "name": "quiz",
+     "phase": "end",
+     "each": "student",
+     "do": [
+      "$score = $round($it.understanding[$world.taught_topic] + $inputs.luck_sd * $normal(0, 1))",
+      "$it.quiz_scores += $clamp($score, 0, 10)"
+     ]
+    }
+   ],
+   "outputs": {
+    "quiz_scores": {
+     "expr": "$dict(student, $it.id, $it.quiz_scores)",
+     "type": "map"
+    },
+    "final_grades": {
+     "expr": "$dict(student, $it.id, $round($avg($it.quiz_scores) or 0, 2))",
+     "type": "map"
+    },
+    "class_average": {
+     "expr": "$round($avg(student, $avg($it.quiz_scores) or 0), 2)",
+     "type": "number"
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$all(student, $all($it.quiz_scores, $it >= 0 and $it <= 10))",
+     "why": "Quiz scores are between 0 and 10."
+    },
+    {
+     "expr": "$all(student, $len($it.quiz_scores) <= $round)",
+     "why": "One quiz per week."
+    }
+   ],
+   "policies": {
+    "teach_fractions": {
+     "rules": [
+      {
+       "when": "true",
+       "do": "teach",
+       "with": {
+        "topic": "fractions"
+       }
+      }
+     ]
+    },
+    "study_hard": {
+     "rules": [
+      {
+       "when": "true",
+       "do": "study",
+       "with": {
+        "effort": "study hard"
+       }
+      }
+     ]
+    },
+    "study_easy": {
+     "rules": [
+      {
+       "when": "true",
+       "do": "study",
+       "with": {
+        "effort": "take it easy"
+       }
+      }
+     ]
+    }
+   }
+  }
+ ],
+ "guide_parts": [
+  "all",
+  "patterns",
+  "functions",
+  "metrics",
+  "actions",
+  "stages",
+  "expr",
+  "functions.collections",
+  "expressions",
+  "effects",
+  "outputs",
+  "views",
+  "events",
+  "functions.random",
+  "functions.math",
+  "policies",
+  "inputs",
+  "types",
+  "population",
+  "entities"
+ ],
+ "usage": {
+  "input_tokens": 600208,
+  "output_tokens": 34475,
+  "cost": 0.040232928,
+  "calls": 21
+ },
+ "wall_seconds": 993.6
+}

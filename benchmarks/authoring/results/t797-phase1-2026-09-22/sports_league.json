@@ -1,0 +1,1097 @@
+{
+ "model": "deepseek/deepseek-v4.1-flash",
+ "stop": "done",
+ "nudges": 0,
+ "messages": [
+  {
+   "role": "system",
+   "content": "(guide text)"
+  },
+  {
+   "role": "user",
+   "content": "# Sports league season\n\nRun a season of a six-team football league where each team's manager is an AI agent. Every team plays every other team twice, once at home and once away, over ten matchdays with three matches each, and no team plays twice on the same matchday. Before each matchday, every manager picks a tactic for their match: attack, balanced or defend. Each team has a fixed strength, and a match's score is random but depends on the two teams' strengths, their tactics and a small home advantage. A win is worth 3 points, a draw 1 and a loss 0. The table ranks teams by points, then goal difference, then goals scored, then alphabetically by team name. The champion is the team on top of the table after the last matchday.\n\n## Deliverables\n\nReport these outputs, identifying teams the same way (their id or their name) everywhere:\n- `matches` \u2014 a list of every match played, each a map with `matchday`, `home`, `away`, `home_goals` and `away_goals`.\n- `standings` \u2014 the final table in rank order: a list of maps with `team`, `played`, `won`, `drawn`, `lost`, `goals_for`, `goals_against` and `points`.\n- `champion` \u2014 the team at the top of the final table.\n\n\nBuild this environment. Save it with write_contract and use the other tools as you see fit. Reply without calling a tool when you are done."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_edd42c03640d4f289acbd50a",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"all\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_43e411a5450f4b3286edc41d",
+     "function": {
+      "name": "fg_env.schema",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_edd42c03640d4f289acbd50a",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_43e411a5450f4b3286edc41d",
+   "content": "Bad tool call: 'Workbench' object has no attribute 'tool_fg_env.schema'"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_c5df808dba9a4cbe9177d7dc",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"patterns\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_adc6628975ac43de8c4eb37d",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"expressions\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_c5df808dba9a4cbe9177d7dc",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_adc6628975ac43de8c4eb37d",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_fe21d4dc4f2e43629a6894d9",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"effects\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_a54a42b4b60746218b1e6213",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"outputs\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "call_1764405f1f19403abb7c9133",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"events\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "call_33108577e3664fc29aff111d",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"stages\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_fe21d4dc4f2e43629a6894d9",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_a54a42b4b60746218b1e6213",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_1764405f1f19403abb7c9133",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_33108577e3664fc29aff111d",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_e429d5606cee4ed49fac017f",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"population\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_8df5e8610c264f83836a9ee6",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"inputs\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "call_45482d5e56c44f6e95fc8ec7",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"types\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "call_f57cd9673151411ba4d505ea",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"metrics\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_e429d5606cee4ed49fac017f",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_8df5e8610c264f83836a9ee6",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_45482d5e56c44f6e95fc8ec7",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_f57cd9673151411ba4d505ea",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_6ab33df972cf4da281fbfaa2",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"patterns.counts\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_35cb94123a3b49d9ab60f452",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions.collections\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_6ab33df972cf4da281fbfaa2",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_35cb94123a3b49d9ab60f452",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_1bad04cfe3224b5e894d45f2",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"views\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_8469ab8bb8224f739e526c44",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"brief\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "call_9707c697a3f745f0975a06cf",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"defs\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "call_57d38424841241bd8a28b093",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions.stats\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_1bad04cfe3224b5e894d45f2",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_8469ab8bb8224f739e526c44",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_9707c697a3f745f0975a06cf",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_57d38424841241bd8a28b093",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_0111df0e80b340029f324b3e",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"counts\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_b115b6c43b1740568b74f6eb",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "call_752368dfb37f4feb81c74975",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions.random\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_0111df0e80b340029f324b3e",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_b115b6c43b1740568b74f6eb",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_752368dfb37f4feb81c74975",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_eb97b47f5be2481c90a1a1f3",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_eb97b47f5be2481c90a1a1f3",
+   "content": "Saved (225 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_04e7ff43e1c94f49ac859748",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_04e7ff43e1c94f49ac859748",
+   "content": "No issues."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_ae9313afc77d4f5ba8541400",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 1}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_ae9313afc77d4f5ba8541400",
+   "content": "completed after 10 matchdays \u2014 ended by rounds (seed 1)\nmatches: [{\"matchday\": 1, \"home\": \"Alpha\", \"away\": \"Foxtrot\", \"home_goals\": 1, \"away_goals\": 0}, {\"matchday\": 1, \"home\": \"Brav\u2026\nstandings: [{\"team\": \"Delta\", \"played\": 10, \"won\": 8, \"drawn\": 0, \"lost\": 2, \"goals_for\": 23, \"goals_against\": 12, \"points\": 24}\u2026\nchampion: \"Delta\"\noutputs: {\"matches\": [{\"matchday\": 1, \"home\": \"Alpha\", \"away\": \"Foxtrot\", \"home_goals\": 1, \"away_goals\": 0}, {\"matchday\": 1, \"home\": \"Bravo\", \"away\": \"Echo\", \"home_goals\": 3, \"away_goals\": 2}, {\"matchday\": 1, \"home\": \"Charlie\", \"away\": \"Delta\", \"home_goals\": 2, \"away_goals\": 3}, {\"matchday\": 2, \"home\": \"Alpha\", \"away\": \"Echo\", \"home_goals\": 3, \"away_goals\": 1}, {\"matchday\": 2, \"home\": \"Bravo\", \"away\": \"Charlie\", \"home_goals\": 0, \"away_goals\": 0}, {\"matchday\": 2, \"home\": \"Foxtrot\", \"away\": \"Delta\", \"home_goals\": 3, \"away_goals\": 5}, {\"matchday\": 3, \"home\": \"Alpha\", \"away\": \"Delta\", \"home_goals\": 1, \"away_goals\": 2}, {\"matchday\": 3, \"home\": \"Echo\", \"away\": \"Charlie\", \"home_goals\": 2, \"away_goals\": 3}, {\"matchday\": 3, \"home\": \"Foxtrot\", \"away\": \"Bravo\", \"home_goals\": 1, \"away_goals\": 2}, {\"matchday\": 4, \"home\": \"Alpha\", \"away\": \"Charlie\", \"home_goals\": 3, \"away_goals\": 0}, {\"matchday\": 4, \"home\": \"Delta\", \"away\": \"Bravo\", \"home_goals\": 5, \"away_goals\": 1}, {\"matchday\": 4, \"home\": \"Echo\", \"away\": \"Foxtrot\", \"home_goals\": 4, \"away_goals\": 2}, {\"matchday\": 5, \"home\": \"Alpha\", \"away\": \"Bravo\", \"home_goals\": 0, \"away_goals\": 1}, {\"matchday\": 5, \"home\": \"Charlie\", \"away\": \"Foxtrot\", \"home_goals\": 0, \"away_goals\": 1}, {\"matchday\": 5, \"home\": \"Delta\", \"away\": \"Echo\", \"home_goals\": 1, \"away_goals\": 0}, {\"matchday\": 6, \"home\": \"Delta\", \"away\": \"Charlie\", \"home_goals\": 4, \"away_goals\": 2}, {\"matchday\": 6, \"home\": \"Echo\", \"away\": \"Bravo\", \"home_goals\": 2, \"away_goals\": 1}, {\"matchday\": 6, \"home\": \"Foxtrot\", \"away\": \"Alpha\", \"home_goals\": 0, \"away_goals\": 2}, {\"matchday\": 7, \"home\": \"Charlie\", \"away\": \"Bravo\", \"home_goals\": 2, \"away_goals\": 4}, {\"matchday\": 7, \"home\": \"Delta\", \"away\": \"Foxtrot\", \"home_goals\": 0, \"away_goals\": 1}, {\"matchday\": 7, \"home\": \"Echo\", \"away\": \"Alpha\", \"home_goals\": 1, \"away_goals\": 2}, {\"matchday\": 8, \"home\": \"Bravo\", \"away\": \"Foxtrot\", \"home_goals\": 1, \"away_goals\": 1}, {\"matchday\": 8, \"home\": \"Charlie\", \"away\": \"Echo\", \"home_goals\": 0, \"away_goals\": 0}, {\"matchday\": 8, \"home\": \"Delta\", \"away\": \"Alpha\", \"home_goals\": 1, \"away_goals\": 0}, {\"matchday\": 9, \"home\": \"Bravo\", \"away\": \"Delta\", \"home_goals\": 1, \"away_goals\": 0}, {\"matchday\": 9, \"home\": \"Charlie\", \"away\": \"Alpha\", \"home_goals\": 1, \"away_goals\": 0}, {\"matchday\": 9, \"home\": \"Foxtrot\", \"away\": \"Echo\", \"home_goals\": 0, \"away_goals\": 2}, {\"matchday\": 10, \"home\": \"Bravo\", \"away\": \"Alpha\", \"home_goals\": 0, \"away_goals\": 2}, {\"matchday\": 10, \"home\": \"Echo\", \"away\": \"Delta\", \"home_goals\": 1, \"away_goals\": 2}, {\"matchday\": 10, \"home\": \"Foxtrot\", \"away\": \"Charlie\", \"home_goals\": 1, \"away_goals\": 1}], \"standings\": [{\"team\": \"Delta\", \"played\": 10, \"won\": 8, \"drawn\": 0, \"lost\": 2, \"goals_for\": 23, \"goals_against\": 12, \"points\": 24}, {\"team\": \"Alpha\", \"played\": 10, \"won\": 6, \"drawn\": 0, \"lost\": 4, \"goals_for\": 14, \"goals_against\": 7, \"points\": 18}, {\"team\": \"Bravo\", \"played\": 10, \"won\": 5, \"drawn\": 2, \"lost\": 3, \"goals_for\": 14, \"goals_against\": 15, \"points\": 17}, {\"team\": \"Echo\", \"played\": 10, \"won\": 3, \"drawn\": 1, \"lost\": 6, \"goals_for\": 15, \"goals_against\": 17, \"points\": 10}, {\"team\": \"Charlie\", \"played\": 10, \"won\": 2, \"drawn\": 3, \"lost\": 5, \"goals_for\": 11, \"goals_against\": 18, \"points\": 9}, {\"team\": \"Foxtrot\", \"played\": 10, \"won\": 2, \"drawn\": 2, \"lost\": 6, \"goals_for\": 10, \"goals_against\": 18, \"points\": 8}], \"champion\": \"Delta\"}"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_568abdd393c44d2081788b89",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 7, \"participants\": {\"team\": \"random\"}}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_568abdd393c44d2081788b89",
+   "content": "completed after 10 matchdays \u2014 ended by rounds (seed 7)\nmatches: [{\"matchday\": 1, \"home\": \"Alpha\", \"away\": \"Foxtrot\", \"home_goals\": 1, \"away_goals\": 0}, {\"matchday\": 1, \"home\": \"Brav\u2026\nstandings: [{\"team\": \"Alpha\", \"played\": 10, \"won\": 5, \"drawn\": 4, \"lost\": 1, \"goals_for\": 15, \"goals_against\": 10, \"points\": 19}\u2026\nchampion: \"Alpha\"\noutputs: {\"matches\": [{\"matchday\": 1, \"home\": \"Alpha\", \"away\": \"Foxtrot\", \"home_goals\": 1, \"away_goals\": 0}, {\"matchday\": 1, \"home\": \"Bravo\", \"away\": \"Echo\", \"home_goals\": 1, \"away_goals\": 0}, {\"matchday\": 1, \"home\": \"Charlie\", \"away\": \"Delta\", \"home_goals\": 1, \"away_goals\": 0}, {\"matchday\": 2, \"home\": \"Alpha\", \"away\": \"Echo\", \"home_goals\": 2, \"away_goals\": 1}, {\"matchday\": 2, \"home\": \"Bravo\", \"away\": \"Charlie\", \"home_goals\": 1, \"away_goals\": 0}, {\"matchday\": 2, \"home\": \"Foxtrot\", \"away\": \"Delta\", \"home_goals\": 4, \"away_goals\": 1}, {\"matchday\": 3, \"home\": \"Alpha\", \"away\": \"Delta\", \"home_goals\": 2, \"away_goals\": 2}, {\"matchday\": 3, \"home\": \"Echo\", \"away\": \"Charlie\", \"home_goals\": 0, \"away_goals\": 2}, {\"matchday\": 3, \"home\": \"Foxtrot\", \"away\": \"Bravo\", \"home_goals\": 3, \"away_goals\": 1}, {\"matchday\": 4, \"home\": \"Alpha\", \"away\": \"Charlie\", \"home_goals\": 2, \"away_goals\": 0}, {\"matchday\": 4, \"home\": \"Delta\", \"away\": \"Bravo\", \"home_goals\": 0, \"away_goals\": 1}, {\"matchday\": 4, \"home\": \"Echo\", \"away\": \"Foxtrot\", \"home_goals\": 4, \"away_goals\": 0}, {\"matchday\": 5, \"home\": \"Alpha\", \"away\": \"Bravo\", \"home_goals\": 3, \"away_goals\": 1}, {\"matchday\": 5, \"home\": \"Charlie\", \"away\": \"Foxtrot\", \"home_goals\": 1, \"away_goals\": 0}, {\"matchday\": 5, \"home\": \"Delta\", \"away\": \"Echo\", \"home_goals\": 0, \"away_goals\": 0}, {\"matchday\": 6, \"home\": \"Delta\", \"away\": \"Charlie\", \"home_goals\": 4, \"away_goals\": 2}, {\"matchday\": 6, \"home\": \"Echo\", \"away\": \"Bravo\", \"home_goals\": 1, \"away_goals\": 0}, {\"matchday\": 6, \"home\": \"Foxtrot\", \"away\": \"Alpha\", \"home_goals\": 0, \"away_goals\": 1}, {\"matchday\": 7, \"home\": \"Charlie\", \"away\": \"Bravo\", \"home_goals\": 0, \"away_goals\": 1}, {\"matchday\": 7, \"home\": \"Delta\", \"away\": \"Foxtrot\", \"home_goals\": 2, \"away_goals\": 0}, {\"matchday\": 7, \"home\": \"Echo\", \"away\": \"Alpha\", \"home_goals\": 2, \"away_goals\": 2}, {\"matchday\": 8, \"home\": \"Bravo\", \"away\": \"Foxtrot\", \"home_goals\": 2, \"away_goals\": 3}, {\"matchday\": 8, \"home\": \"Charlie\", \"away\": \"Echo\", \"home_goals\": 0, \"away_goals\": 1}, {\"matchday\": 8, \"home\": \"Delta\", \"away\": \"Alpha\", \"home_goals\": 0, \"away_goals\": 0}, {\"matchday\": 9, \"home\": \"Bravo\", \"away\": \"Delta\", \"home_goals\": 5, \"away_goals\": 2}, {\"matchday\": 9, \"home\": \"Charlie\", \"away\": \"Alpha\", \"home_goals\": 1, \"away_goals\": 1}, {\"matchday\": 9, \"home\": \"Foxtrot\", \"away\": \"Echo\", \"home_goals\": 0, \"away_goals\": 2}, {\"matchday\": 10, \"home\": \"Bravo\", \"away\": \"Alpha\", \"home_goals\": 3, \"away_goals\": 1}, {\"matchday\": 10, \"home\": \"Echo\", \"away\": \"Delta\", \"home_goals\": 1, \"away_goals\": 0}, {\"matchday\": 10, \"home\": \"Foxtrot\", \"away\": \"Charlie\", \"home_goals\": 1, \"away_goals\": 0}], \"standings\": [{\"team\": \"Alpha\", \"played\": 10, \"won\": 5, \"drawn\": 4, \"lost\": 1, \"goals_for\": 15, \"goals_against\": 10, \"points\": 19}, {\"team\": \"Bravo\", \"played\": 10, \"won\": 6, \"drawn\": 0, \"lost\": 4, \"goals_for\": 16, \"goals_against\": 13, \"points\": 18}, {\"team\": \"Echo\", \"played\": 10, \"won\": 5, \"drawn\": 2, \"lost\": 3, \"goals_for\": 12, \"goals_against\": 7, \"points\": 17}, {\"team\": \"Foxtrot\", \"played\": 10, \"won\": 4, \"drawn\": 0, \"lost\": 6, \"goals_for\": 11, \"goals_against\": 15, \"points\": 12}, {\"team\": \"Charlie\", \"played\": 10, \"won\": 3, \"drawn\": 1, \"lost\": 6, \"goals_for\": 7, \"goals_against\": 11, \"points\": 10}, {\"team\": \"Delta\", \"played\": 10, \"won\": 2, \"drawn\": 3, \"lost\": 5, \"goals_for\": 11, \"goals_against\": 16, \"points\": 9}], \"champion\": \"Alpha\"}"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_68ff5011ba3e47cc9a722dde",
+     "function": {
+      "name": "preview",
+      "arguments": "{\"agent\": \"T1\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_68ff5011ba3e47cc9a722dde",
+   "content": "BRIEF:\n# Football league season\nYou manage one of six football clubs in a double round-robin league: every club plays every other club twice, once at home and once away, over ten matchdays with three matches each. No club plays twice on the same matchday.\n\n## Rules\nBefore each matchday every manager picks a tactic (attack, balanced or defend) for their club's match. Scores are random but driven by the two clubs' fixed strengths, their tactics and a small home advantage. A win is worth 3 points, a draw 1 and a loss 0. The table ranks clubs by points, then goal difference, then goals scored, then alphabetically by name. After the last matchday the club on top is champion.\n\n## You\nYou are Alpha (team, id T1).\nYou are the manager of Alpha (strength 1.2). Each matchday, pick your tactic with pick_tactic before the matches are played. Attacking raises your scoring but also how much you concede; defending does the opposite.\nAct only through your tools. Your turn ends when you take a final action or call end_turn.\n\nUPDATE:\nMatchday 1 of 10 \u00b7 pick_tactics\nMatchday 1. Pick your tactic for today's match. The fixtures view shows your opponent.\nNow: It is your turn.\nYou have 6 tool calls this turn, and up to 6 free reads (look and inspect) that do not use them.\n\nToday's matchday:\n- Alpha (home) vs Foxtrot (away)\n- Bravo (home) vs Echo (away)\n- Charlie (home) vs Delta (away)\n\nYour match:\n- Matchday 1: Alpha (home, strength 1.2) vs Foxtrot (away, strength 0.85)\n\nTable:\n- Foxtrot: 0 played, 0 pts, GF 0, GA 0, GD 0\n- Echo: 0 played, 0 pts, GF 0, GA 0, GD 0\n- Delta: 0 played, 0 pts, GF 0, GA 0, GD 0\n- Charlie: 0 played, 0 pts, GF 0, GA 0, GD 0\n- Bravo: 0 played, 0 pts, GF 0, GA 0, GD 0\n- Alpha: 0 played, 0 pts, GF 0, GA 0, GD 0\n\nTOOLS:\n- pick_tactic: Choose your tactics for this matchday's match: attack (score more, concede more), balanced, or defend (score less, concede less). {\"type\": \"object\", \"properties\": {\"tactic\": {\"enum\": [\"attack\", \"balanced\", \"defend\"], \"type\": \"string\", \"default\": \"balanced\"}}, \"additionalProperties\": false}\n- inspect: Details of one entity by its id (shown in [brackets] after names). Free: up to 6 reads (looks and inspects) per turn do not use a tool call. {\"type\": \"object\", \"properties\": {\"id\": {\"type\": \"string\", \"enum\": [\"T1\"]}}, \"required\": [\"id\"], \"additionalProperties\": false}\n- end_turn: Finish your turn. {\"type\": \"object\", \"properties\": {}, \"additionalProperties\": false}"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_3bb8a0752d2741af9f44c74c",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 3, \"participants\": {\"team\": \"idle\"}}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_3bb8a0752d2741af9f44c74c",
+   "content": "completed after 10 matchdays \u2014 ended by rounds (seed 3)\nmatches: [{\"matchday\": 1, \"home\": \"Alpha\", \"away\": \"Foxtrot\", \"home_goals\": 2, \"away_goals\": 0}, {\"matchday\": 1, \"home\": \"Brav\u2026\nstandings: [{\"team\": \"Delta\", \"played\": 10, \"won\": 5, \"drawn\": 3, \"lost\": 2, \"goals_for\": 18, \"goals_against\": 14, \"points\": 18}\u2026\nchampion: \"Delta\"\noutputs: {\"matches\": [{\"matchday\": 1, \"home\": \"Alpha\", \"away\": \"Foxtrot\", \"home_goals\": 2, \"away_goals\": 0}, {\"matchday\": 1, \"home\": \"Bravo\", \"away\": \"Echo\", \"home_goals\": 4, \"away_goals\": 0}, {\"matchday\": 1, \"home\": \"Charlie\", \"away\": \"Delta\", \"home_goals\": 4, \"away_goals\": 2}, {\"matchday\": 2, \"home\": \"Alpha\", \"away\": \"Echo\", \"home_goals\": 1, \"away_goals\": 1}, {\"matchday\": 2, \"home\": \"Bravo\", \"away\": \"Charlie\", \"home_goals\": 0, \"away_goals\": 0}, {\"matchday\": 2, \"home\": \"Foxtrot\", \"away\": \"Delta\", \"home_goals\": 2, \"away_goals\": 2}, {\"matchday\": 3, \"home\": \"Alpha\", \"away\": \"Delta\", \"home_goals\": 0, \"away_goals\": 1}, {\"matchday\": 3, \"home\": \"Echo\", \"away\": \"Charlie\", \"home_goals\": 5, \"away_goals\": 0}, {\"matchday\": 3, \"home\": \"Foxtrot\", \"away\": \"Bravo\", \"home_goals\": 3, \"away_goals\": 1}, {\"matchday\": 4, \"home\": \"Alpha\", \"away\": \"Charlie\", \"home_goals\": 2, \"away_goals\": 2}, {\"matchday\": 4, \"home\": \"Delta\", \"away\": \"Bravo\", \"home_goals\": 5, \"away_goals\": 2}, {\"matchday\": 4, \"home\": \"Echo\", \"away\": \"Foxtrot\", \"home_goals\": 5, \"away_goals\": 1}, {\"matchday\": 5, \"home\": \"Alpha\", \"away\": \"Bravo\", \"home_goals\": 2, \"away_goals\": 1}, {\"matchday\": 5, \"home\": \"Charlie\", \"away\": \"Foxtrot\", \"home_goals\": 2, \"away_goals\": 0}, {\"matchday\": 5, \"home\": \"Delta\", \"away\": \"Echo\", \"home_goals\": 1, \"away_goals\": 1}, {\"matchday\": 6, \"home\": \"Delta\", \"away\": \"Charlie\", \"home_goals\": 2, \"away_goals\": 1}, {\"matchday\": 6, \"home\": \"Echo\", \"away\": \"Bravo\", \"home_goals\": 1, \"away_goals\": 0}, {\"matchday\": 6, \"home\": \"Foxtrot\", \"away\": \"Alpha\", \"home_goals\": 1, \"away_goals\": 2}, {\"matchday\": 7, \"home\": \"Charlie\", \"away\": \"Bravo\", \"home_goals\": 0, \"away_goals\": 0}, {\"matchday\": 7, \"home\": \"Delta\", \"away\": \"Foxtrot\", \"home_goals\": 1, \"away_goals\": 0}, {\"matchday\": 7, \"home\": \"Echo\", \"away\": \"Alpha\", \"home_goals\": 2, \"away_goals\": 1}, {\"matchday\": 8, \"home\": \"Bravo\", \"away\": \"Foxtrot\", \"home_goals\": 3, \"away_goals\": 1}, {\"matchday\": 8, \"home\": \"Charlie\", \"away\": \"Echo\", \"home_goals\": 0, \"away_goals\": 0}, {\"matchday\": 8, \"home\": \"Delta\", \"away\": \"Alpha\", \"home_goals\": 1, \"away_goals\": 1}, {\"matchday\": 9, \"home\": \"Bravo\", \"away\": \"Delta\", \"home_goals\": 2, \"away_goals\": 1}, {\"matchday\": 9, \"home\": \"Charlie\", \"away\": \"Alpha\", \"home_goals\": 0, \"away_goals\": 0}, {\"matchday\": 9, \"home\": \"Foxtrot\", \"away\": \"Echo\", \"home_goals\": 3, \"away_goals\": 0}, {\"matchday\": 10, \"home\": \"Bravo\", \"away\": \"Alpha\", \"home_goals\": 0, \"away_goals\": 0}, {\"matchday\": 10, \"home\": \"Echo\", \"away\": \"Delta\", \"home_goals\": 1, \"away_goals\": 2}, {\"matchday\": 10, \"home\": \"Foxtrot\", \"away\": \"Charlie\", \"home_goals\": 0, \"away_goals\": 0}], \"standings\": [{\"team\": \"Delta\", \"played\": 10, \"won\": 5, \"drawn\": 3, \"lost\": 2, \"goals_for\": 18, \"goals_against\": 14, \"points\": 18}, {\"team\": \"Echo\", \"played\": 10, \"won\": 4, \"drawn\": 3, \"lost\": 3, \"goals_for\": 16, \"goals_against\": 13, \"points\": 15}, {\"team\": \"Alpha\", \"played\": 10, \"won\": 3, \"drawn\": 5, \"lost\": 2, \"goals_for\": 11, \"goals_against\": 9, \"points\": 14}, {\"team\": \"Bravo\", \"played\": 10, \"won\": 3, \"drawn\": 3, \"lost\": 4, \"goals_for\": 13, \"goals_against\": 13, \"points\": 12}, {\"team\": \"Charlie\", \"played\": 10, \"won\": 2, \"drawn\": 6, \"lost\": 2, \"goals_for\": 9, \"goals_against\": 11, \"points\": 12}, {\"team\": \"Foxtrot\", \"played\": 10, \"won\": 2, \"drawn\": 2, \"lost\": 6, \"goals_for\": 11, \"goals_against\": 18, \"points\": 8}], \"champion\": \"Delta\"}"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_09b5b7b4293b49e8a03c4a58",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 5}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_09b5b7b4293b49e8a03c4a58",
+   "content": "completed after 10 matchdays \u2014 ended by rounds (seed 5)\nmatches: [{\"matchday\": 1, \"home\": \"Alpha\", \"away\": \"Foxtrot\", \"home_goals\": 2, \"away_goals\": 3}, {\"matchday\": 1, \"home\": \"Brav\u2026\nstandings: [{\"team\": \"Charlie\", \"played\": 10, \"won\": 5, \"drawn\": 3, \"lost\": 2, \"goals_for\": 14, \"goals_against\": 13, \"points\": 1\u2026\nchampion: \"Charlie\"\noutputs: {\"matches\": [{\"matchday\": 1, \"home\": \"Alpha\", \"away\": \"Foxtrot\", \"home_goals\": 2, \"away_goals\": 3}, {\"matchday\": 1, \"home\": \"Bravo\", \"away\": \"Echo\", \"home_goals\": 0, \"away_goals\": 1}, {\"matchday\": 1, \"home\": \"Charlie\", \"away\": \"Delta\", \"home_goals\": 1, \"away_goals\": 3}, {\"matchday\": 2, \"home\": \"Alpha\", \"away\": \"Echo\", \"home_goals\": 1, \"away_goals\": 2}, {\"matchday\": 2, \"home\": \"Bravo\", \"away\": \"Charlie\", \"home_goals\": 0, \"away_goals\": 2}, {\"matchday\": 2, \"home\": \"Foxtrot\", \"away\": \"Delta\", \"home_goals\": 0, \"away_goals\": 3}, {\"matchday\": 3, \"home\": \"Alpha\", \"away\": \"Delta\", \"home_goals\": 2, \"away_goals\": 0}, {\"matchday\": 3, \"home\": \"Echo\", \"away\": \"Charlie\", \"home_goals\": 0, \"away_goals\": 1}, {\"matchday\": 3, \"home\": \"Foxtrot\", \"away\": \"Bravo\", \"home_goals\": 5, \"away_goals\": 2}, {\"matchday\": 4, \"home\": \"Alpha\", \"away\": \"Charlie\", \"home_goals\": 1, \"away_goals\": 1}, {\"matchday\": 4, \"home\": \"Delta\", \"away\": \"Bravo\", \"home_goals\": 1, \"away_goals\": 1}, {\"matchday\": 4, \"home\": \"Echo\", \"away\": \"Foxtrot\", \"home_goals\": 2, \"away_goals\": 1}, {\"matchday\": 5, \"home\": \"Alpha\", \"away\": \"Bravo\", \"home_goals\": 2, \"away_goals\": 1}, {\"matchday\": 5, \"home\": \"Charlie\", \"away\": \"Foxtrot\", \"home_goals\": 1, \"away_goals\": 0}, {\"matchday\": 5, \"home\": \"Delta\", \"away\": \"Echo\", \"home_goals\": 0, \"away_goals\": 1}, {\"matchday\": 6, \"home\": \"Delta\", \"away\": \"Charlie\", \"home_goals\": 1, \"away_goals\": 1}, {\"matchday\": 6, \"home\": \"Echo\", \"away\": \"Bravo\", \"home_goals\": 2, \"away_goals\": 0}, {\"matchday\": 6, \"home\": \"Foxtrot\", \"away\": \"Alpha\", \"home_goals\": 4, \"away_goals\": 2}, {\"matchday\": 7, \"home\": \"Charlie\", \"away\": \"Bravo\", \"home_goals\": 2, \"away_goals\": 2}, {\"matchday\": 7, \"home\": \"Delta\", \"away\": \"Foxtrot\", \"home_goals\": 1, \"away_goals\": 1}, {\"matchday\": 7, \"home\": \"Echo\", \"away\": \"Alpha\", \"home_goals\": 0, \"away_goals\": 2}, {\"matchday\": 8, \"home\": \"Bravo\", \"away\": \"Foxtrot\", \"home_goals\": 2, \"away_goals\": 1}, {\"matchday\": 8, \"home\": \"Charlie\", \"away\": \"Echo\", \"home_goals\": 1, \"away_goals\": 0}, {\"matchday\": 8, \"home\": \"Delta\", \"away\": \"Alpha\", \"home_goals\": 0, \"away_goals\": 0}, {\"matchday\": 9, \"home\": \"Bravo\", \"away\": \"Delta\", \"home_goals\": 5, \"away_goals\": 1}, {\"matchday\": 9, \"home\": \"Charlie\", \"away\": \"Alpha\", \"home_goals\": 1, \"away_goals\": 5}, {\"matchday\": 9, \"home\": \"Foxtrot\", \"away\": \"Echo\", \"home_goals\": 0, \"away_goals\": 0}, {\"matchday\": 10, \"home\": \"Bravo\", \"away\": \"Alpha\", \"home_goals\": 1, \"away_goals\": 0}, {\"matchday\": 10, \"home\": \"Echo\", \"away\": \"Delta\", \"home_goals\": 1, \"away_goals\": 3}, {\"matchday\": 10, \"home\": \"Foxtrot\", \"away\": \"Charlie\", \"home_goals\": 1, \"away_goals\": 3}], \"standings\": [{\"team\": \"Charlie\", \"played\": 10, \"won\": 5, \"drawn\": 3, \"lost\": 2, \"goals_for\": 14, \"goals_against\": 13, \"points\": 18}, {\"team\": \"Echo\", \"played\": 10, \"won\": 5, \"drawn\": 1, \"lost\": 4, \"goals_for\": 9, \"goals_against\": 9, \"points\": 16}, {\"team\": \"Alpha\", \"played\": 10, \"won\": 4, \"drawn\": 2, \"lost\": 4, \"goals_for\": 17, \"goals_against\": 13, \"points\": 14}, {\"team\": \"Delta\", \"played\": 10, \"won\": 3, \"drawn\": 4, \"lost\": 3, \"goals_for\": 13, \"goals_against\": 13, \"points\": 13}, {\"team\": \"Foxtrot\", \"played\": 10, \"won\": 3, \"drawn\": 2, \"lost\": 5, \"goals_for\": 16, \"goals_against\": 18, \"points\": 11}, {\"team\": \"Bravo\", \"played\": 10, \"won\": 3, \"drawn\": 2, \"lost\": 5, \"goals_for\": 14, \"goals_against\": 17, \"points\": 11}], \"champion\": \"Charlie\"}"
+  },
+  {
+   "role": "assistant",
+   "content": "I've built and verified the environment. Here's a summary.\n\n## What was saved\n\nA single `scenario.json` contract implementing a six-team double round-robin football season.\n\n**Structure**\n\n- **Clock**: `clock.rounds = $inputs.matchdays` (100\u201310), `unit: \"matchday\"` \u2014 one round = one matchday.\n- **Entities**: `team` (agent, one per `$inputs.teams` row, id/name from the row) and `match` (one per `$inputs.schedule` row). The schedule input is the full ten-matchday fixture list, each team playing every other home and away, three matches per matchday, no team twice on a day.\n- **Agent action**: `pick_tactic` (enum attack/balanced/defend) in a sequential `pick_tactics` stage; tactics reset to `balanced` each matchday via a start event.\n- **Match resolution**: an end-of-round event loops over the matchday's fixtures and draws each side's goals from `$poisson`, with a mean built from `$inputs.base_goals`, the two strengths, each tactic's multiplier (`attack_factor`/`defend_factor`) and `$inputs.home_advantage`. It then updates won/drawn/lost, goals for/against and points atomically.\n- **Inputs**: `matchdays`, `base_goals`, `home_advantage`, `attack_factor`, `defend_factor`, plus the `teams` and `schedule` tables (all editable data).\n\n**Outputs**\n\n- `matches` \u2014 every played match as `{matchday, home, away, home_goals, away_goals}`.\n- `standings` \u2014 ranked `{team, played, won, drawn, lost, goals_for, goals_against, points}` using the required order: points, goal difference, goals scored, then name.\n- `champion` \u2014 the top team's name.\n\nTeams are identified by **name** consistently across all three outputs (and ids are used internally for entity links).\n\n**Invariants**: appearances = 2 \u00d7 played matches, goals scored = goals conceded, one team entity per team row, one match entity per schedule row.\n\n## Verification\n- `check` \u2192 no issues.\n- Multiple seeded runs (random, idle, and mixed policies) complete all 10 matchdays; outputs always contain 30 matches, six realistic standings rows with consistent arithmetic, and a champion.\n- `preview T1` shows the manager reads the fixtures, its own match, the table, and the tactic tool with a clean brief.\n- I verified the schedule by hand: all 15 pairings appear exactly once as home and once as away across the 10 matchdays, with each team playing once per matchday. Tie-breaks were confirmed (e.g. equal points decided by goal difference).\n\nOne deliberate assumption worth noting: the \"no team plays twice on a matchday\" and correct double round-robin properties are guaranteed by the supplied `schedule`; if a host edits that table, they must keep it valid."
+  }
+ ],
+ "writes": [
+  {
+   "name": "Football league season",
+   "clock": {
+    "rounds": "$inputs.matchdays",
+    "unit": "matchday"
+   },
+   "brief": {
+    "situation": "You manage one of six football clubs in a double round-robin league: every club plays every other club twice, once at home and once away, over ten matchdays with three matches each. No club plays twice on the same matchday.",
+    "rules": "Before each matchday every manager picks a tactic (attack, balanced or defend) for their club's match. Scores are random but driven by the two clubs' fixed strengths, their tactics and a small home advantage. A win is worth 3 points, a draw 1 and a loss 0. The table ranks clubs by points, then goal difference, then goals scored, then alphabetically by name. After the last matchday the club on top is champion.",
+    "roles": {
+     "team": "You are the manager of {name} (strength {strength}). Each matchday, pick your tactic with pick_tactic before the matches are played. Attacking raises your scoring but also how much you concede; defending does the opposite."
+    }
+   },
+   "inputs": {
+    "matchdays": {
+     "type": "int",
+     "default": 10,
+     "min": 1,
+     "max": 10,
+     "display": "number",
+     "label": "Matchdays",
+     "description": "How many matchdays of the schedule are played."
+    },
+    "base_goals": {
+     "type": "number",
+     "default": 1.3,
+     "min": 0.0,
+     "display": "number",
+     "label": "Base goals",
+     "description": "Baseline expected goals per club per match before strength, tactic and venue effects."
+    },
+    "home_advantage": {
+     "type": "number",
+     "default": 1.25,
+     "min": 0.0,
+     "display": "number",
+     "label": "Home advantage",
+     "description": "Multiplier applied to the home club's expected goals."
+    },
+    "attack_factor": {
+     "type": "number",
+     "default": 1.3,
+     "min": 0.0,
+     "display": "number",
+     "label": "Attack factor",
+     "description": "Expected-goals multiplier for a club playing attack."
+    },
+    "defend_factor": {
+     "type": "number",
+     "default": 0.7,
+     "min": 0.0,
+     "display": "number",
+     "label": "Defend factor",
+     "description": "Expected-goals multiplier for a club playing defend."
+    },
+    "teams": {
+     "type": "table",
+     "display": "table",
+     "label": "Clubs",
+     "fields": {
+      "id": {
+       "type": "text",
+       "required": true
+      },
+      "name": {
+       "type": "text",
+       "required": true
+      },
+      "strength": {
+       "type": "number",
+       "default": 1.0,
+       "min": 0.1,
+       "display": "number"
+      }
+     },
+     "default": [
+      {
+       "id": "T1",
+       "name": "Alpha",
+       "strength": 1.2
+      },
+      {
+       "id": "T2",
+       "name": "Bravo",
+       "strength": 1.1
+      },
+      {
+       "id": "T3",
+       "name": "Charlie",
+       "strength": 1.0
+      },
+      {
+       "id": "T4",
+       "name": "Delta",
+       "strength": 0.95
+      },
+      {
+       "id": "T5",
+       "name": "Echo",
+       "strength": 0.9
+      },
+      {
+       "id": "T6",
+       "name": "Foxtrot",
+       "strength": 0.85
+      }
+     ]
+    },
+    "schedule": {
+     "type": "table",
+     "display": "table",
+     "label": "Schedule",
+     "fields": {
+      "matchday": {
+       "type": "int",
+       "required": true,
+       "min": 1
+      },
+      "home": {
+       "type": "text",
+       "required": true
+      },
+      "away": {
+       "type": "text",
+       "required": true
+      }
+     },
+     "default": [
+      {
+       "matchday": 1,
+       "home": "T1",
+       "away": "T6"
+      },
+      {
+       "matchday": 1,
+       "home": "T2",
+       "away": "T5"
+      },
+      {
+       "matchday": 1,
+       "home": "T3",
+       "away": "T4"
+      },
+      {
+       "matchday": 2,
+       "home": "T1",
+       "away": "T5"
+      },
+      {
+       "matchday": 2,
+       "home": "T6",
+       "away": "T4"
+      },
+      {
+       "matchday": 2,
+       "home": "T2",
+       "away": "T3"
+      },
+      {
+       "matchday": 3,
+       "home": "T1",
+       "away": "T4"
+      },
+      {
+       "matchday": 3,
+       "home": "T5",
+       "away": "T3"
+      },
+      {
+       "matchday": 3,
+       "home": "T6",
+       "away": "T2"
+      },
+      {
+       "matchday": 4,
+       "home": "T1",
+       "away": "T3"
+      },
+      {
+       "matchday": 4,
+       "home": "T4",
+       "away": "T2"
+      },
+      {
+       "matchday": 4,
+       "home": "T5",
+       "away": "T6"
+      },
+      {
+       "matchday": 5,
+       "home": "T1",
+       "away": "T2"
+      },
+      {
+       "matchday": 5,
+       "home": "T3",
+       "away": "T6"
+      },
+      {
+       "matchday": 5,
+       "home": "T4",
+       "away": "T5"
+      },
+      {
+       "matchday": 6,
+       "home": "T6",
+       "away": "T1"
+      },
+      {
+       "matchday": 6,
+       "home": "T5",
+       "away": "T2"
+      },
+      {
+       "matchday": 6,
+       "home": "T4",
+       "away": "T3"
+      },
+      {
+       "matchday": 7,
+       "home": "T5",
+       "away": "T1"
+      },
+      {
+       "matchday": 7,
+       "home": "T4",
+       "away": "T6"
+      },
+      {
+       "matchday": 7,
+       "home": "T3",
+       "away": "T2"
+      },
+      {
+       "matchday": 8,
+       "home": "T4",
+       "away": "T1"
+      },
+      {
+       "matchday": 8,
+       "home": "T3",
+       "away": "T5"
+      },
+      {
+       "matchday": 8,
+       "home": "T2",
+       "away": "T6"
+      },
+      {
+       "matchday": 9,
+       "home": "T3",
+       "away": "T1"
+      },
+      {
+       "matchday": 9,
+       "home": "T2",
+       "away": "T4"
+      },
+      {
+       "matchday": 9,
+       "home": "T6",
+       "away": "T5"
+      },
+      {
+       "matchday": 10,
+       "home": "T2",
+       "away": "T1"
+      },
+      {
+       "matchday": 10,
+       "home": "T6",
+       "away": "T3"
+      },
+      {
+       "matchday": 10,
+       "home": "T5",
+       "away": "T4"
+      }
+     ]
+    }
+   },
+   "defs": {
+    "attack_mult": {
+     "args": [
+      "t"
+     ],
+     "expr": "$inputs.attack_factor if $t == attack else ($inputs.defend_factor if $t == defend else 1.0)",
+     "description": "How much a club's tactic multiplies its own expected goals."
+    },
+    "concede_mult": {
+     "args": [
+      "t"
+     ],
+     "expr": "$inputs.attack_factor if $t == attack else ($inputs.defend_factor if $t == defend else 1.0)",
+     "description": "How much a club's tactic multiplies the opponent's expected goals."
+    },
+    "goal_mean": {
+     "args": [
+      "h",
+      "a"
+     ],
+     "expr": "$inputs.base_goals * ($h.strength / $a.strength) * $attack_mult($h.tactic) * $concede_mult($a.tactic)",
+     "description": "Expected goals for club h against club a, before home advantage."
+    }
+   },
+   "types": {
+    "team": {
+     "agent": true,
+     "props": {
+      "strength": {
+       "type": "number",
+       "default": 1.0,
+       "min": 0.1
+      },
+      "tactic": {
+       "type": "text",
+       "default": "balanced",
+       "values": [
+        "attack",
+        "balanced",
+        "defend"
+       ]
+      },
+      "played": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "won": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "drawn": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "lost": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "goals_for": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "goals_against": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "points": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      }
+     }
+    },
+    "match": {
+     "props": {
+      "matchday": {
+       "type": "int",
+       "default": 0
+      },
+      "home": {
+       "type": "text",
+       "default": ""
+      },
+      "away": {
+       "type": "text",
+       "default": ""
+      },
+      "home_goals": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "away_goals": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "played": {
+       "type": "bool",
+       "default": false
+      }
+     }
+    }
+   },
+   "population": [
+    {
+     "type": "team",
+     "from": "$inputs.teams",
+     "id": "{$row.id}",
+     "name": "{$row.name}",
+     "props": {
+      "strength": "$row.strength"
+     }
+    },
+    {
+     "type": "match",
+     "from": "$inputs.schedule",
+     "props": {
+      "matchday": "$row.matchday",
+      "home": "$row.home",
+      "away": "$row.away"
+     }
+    }
+   ],
+   "stages": [
+    {
+     "name": "pick_tactics",
+     "actions": [
+      "pick_tactic"
+     ],
+     "who": "team",
+     "order": "seat",
+     "turns": "sequential",
+     "max_actions": 1,
+     "max_calls": 6,
+     "brief": "Matchday {$round}. Pick your tactic for today's match. The fixtures view shows your opponent."
+    }
+   ],
+   "events": [
+    {
+     "phase": "start",
+     "name": "reset_tactics",
+     "do": [
+      {
+       "each": "team",
+       "do": "$it.tactic = balanced"
+      }
+     ]
+    },
+    {
+     "phase": "end",
+     "name": "play_matches",
+     "each": "$filter(match, $it.matchday == $round and not $it.played)",
+     "do": [
+      "$h = $entity($it.home)",
+      "$a = $entity($it.away)",
+      "$hg = $poisson($goal_mean($h, $a) * $inputs.home_advantage)",
+      "$ag = $poisson($goal_mean($a, $h))",
+      "$it.home_goals = $hg",
+      "$it.away_goals = $ag",
+      "$it.played = true",
+      "$h.played += 1",
+      "$h.goals_for += $hg",
+      "$h.goals_against += $ag",
+      "$a.played += 1",
+      "$a.goals_for += $ag",
+      "$a.goals_against += $hg",
+      {
+       "if": "$hg > $ag",
+       "then": [
+        "$h.won += 1",
+        "$h.points += 3",
+        "$a.lost += 1"
+       ],
+       "else": [
+        {
+         "if": "$hg == $ag",
+         "then": [
+          "$h.drawn += 1",
+          "$a.drawn += 1",
+          "$h.points += 1",
+          "$a.points += 1"
+         ],
+         "else": [
+          "$a.won += 1",
+          "$a.points += 3",
+          "$h.lost += 1"
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "actions": {
+    "pick_tactic": {
+     "by": "team",
+     "description": "Choose your tactics for this matchday's match: attack (score more, concede more), balanced, or defend (score less, concede less).",
+     "params": {
+      "tactic": {
+       "type": "enum",
+       "values": [
+        "attack",
+        "balanced",
+        "defend"
+       ],
+       "default": "balanced"
+      }
+     },
+     "do": [
+      "$actor.tactic = $params.tactic"
+     ],
+     "outcome": "{$actor.name} will play {$params.tactic}."
+    }
+   },
+   "views": {
+    "fixtures": {
+     "title": "Today's matchday",
+     "of": "match",
+     "where": "$it.matchday == $round",
+     "sort": "$it.home",
+     "show": "{$entity($it.home).name} (home) vs {$entity($it.away).name} (away)"
+    },
+    "my_match": {
+     "title": "Your match",
+     "of": "match",
+     "where": "$it.matchday == $round and ($it.home == $actor.id or $it.away == $actor.id)",
+     "show": "Matchday {$it.matchday}: {$entity($it.home).name} (home, strength {$entity($it.home).strength}) vs {$entity($it.away).name} (away, strength {$entity($it.away).strength})"
+    },
+    "table": {
+     "title": "Table",
+     "of": "team",
+     "sort": "$it.points",
+     "desc": true,
+     "show": "{$it.name}: {$it.played} played, {$it.points} pts, GF {$it.goals_for}, GA {$it.goals_against}, GD {($it.goals_for - $it.goals_against)}"
+    },
+    "results": {
+     "title": "Results so far",
+     "of": "match",
+     "where": "$it.played",
+     "sort": "$it.matchday",
+     "show": "MD{$it.matchday}: {$entity($it.home).name} {$it.home_goals}-{$it.away_goals} {$entity($it.away).name}"
+    }
+   },
+   "metrics": {
+    "matches_played": "$count(match, $it.played)",
+    "goals_total": "$sum(match, $it.home_goals + $it.away_goals)"
+   },
+   "outputs": {
+    "matches": {
+     "type": "list",
+     "description": "Every match played, in matchday order.",
+     "expr": "$map($sort($filter(match, $it.played), [$it.matchday, $it.home]), {matchday: $it.matchday, home: $entity($it.home).name, away: $entity($it.away).name, home_goals: $it.home_goals, away_goals: $it.away_goals})"
+    },
+    "standings": {
+     "type": "list",
+     "description": "Final table ranked by points, goal difference, goals scored, then name.",
+     "expr": "$map($sort(team, [-$it.points, -($it.goals_for - $it.goals_against), -$it.goals_for, $it.name]), {team: $it.name, played: $it.played, won: $it.won, drawn: $it.drawn, lost: $it.lost, goals_for: $it.goals_for, goals_against: $it.goals_against, points: $it.points})"
+    },
+    "champion": {
+     "type": "text",
+     "description": "The club on top of the final table.",
+     "expr": "$first($sort(team, [-$it.points, -($it.goals_for - $it.goals_against), -$it.goals_for, $it.name])).name"
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$sum(team, $it.played) == 2 * $count(match, $it.played)",
+     "why": "Every played match contributes exactly one appearance to each of its two clubs."
+    },
+    {
+     "expr": "$sum(team, $it.goals_for) == $sum(team, $it.goals_against)",
+     "why": "Every goal scored is a goal conceded."
+    },
+    {
+     "expr": "$count(team) == $len($inputs.teams)",
+     "why": "One club entity per club row."
+    },
+    {
+     "expr": "$count(match) == $len($inputs.schedule)",
+     "why": "One match entity per schedule row."
+    }
+   ]
+  }
+ ],
+ "guide_parts": [
+  "all",
+  "patterns",
+  "expressions",
+  "effects",
+  "outputs",
+  "events",
+  "stages",
+  "population",
+  "inputs",
+  "types",
+  "metrics",
+  "patterns.counts",
+  "functions.collections",
+  "views",
+  "brief",
+  "defs",
+  "functions.stats",
+  "counts",
+  "functions",
+  "functions.random"
+ ],
+ "usage": {
+  "input_tokens": 321816,
+  "output_tokens": 43163,
+  "cost": 0.033388919999999996,
+  "calls": 15
+ },
+ "wall_seconds": 427.3
+}
