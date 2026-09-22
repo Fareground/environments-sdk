@@ -63,7 +63,8 @@ def test_triggers_and_invariants_wait_for_the_whole_turn():
     loose = copy.deepcopy(contract)
     del loose["stages"][0]["valid"]
     result = fg_env.load(loose, seed=1).run({"ann": two_steps, "bo": "idle"})
-    assert result.status == "failed" and "invariant" in result.error
+    assert result.ok and result.stats["faulted_actions"] == 2  # each step breaks it at once: refused and undone
+    assert any(d["code"] == "action_broke_invariant" for d in result.diagnostics)
 
 
 def test_an_open_turn_left_invalid_is_undone_when_the_participant_returns():

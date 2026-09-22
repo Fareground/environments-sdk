@@ -106,7 +106,8 @@ def test_link_errors_say_what_to_fix():
             wake.end()
 
         result = env.run(play, rounds=1)
-        assert result.status == "failed" and message in result.error, (action, result.error)
+        assert result.error is None, action  # an agent's action whose rule fails is refused; the run goes on
+        assert any(message in d["message"] for d in result.diagnostics), (action, result.diagnostics)
 
 
 def test_links_lists_outgoing_links_for_views_and_rules():

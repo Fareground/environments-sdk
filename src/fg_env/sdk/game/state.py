@@ -403,7 +403,7 @@ class GameState:
                     if problem is not None:
                         return problem
                     params, problem = env.actions.validate(turn.actor, tool, checked)
-                    return problem or env.actions.dry_run(turn.actor, tool, params)
+                    return problem or env.actions.refusal(turn.actor, tool, params)
 
             problem = self._run.read(check)
             if problem is None:

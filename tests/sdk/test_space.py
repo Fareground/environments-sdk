@@ -58,8 +58,10 @@ def test_a_torus_wraps_moves_and_takes_the_short_way():
 
 def test_positions_off_a_board_that_does_not_wrap_are_errors():
     env = fg_env.load(_grid(), seed=1)
-    result = env.run(lambda wake: wake.call("step", {"to": [9, 9]}) and wake.end(), rounds=1)
-    assert result.status == "failed" and "position [9, 9] is off the 5x5 grid" in result.error
+    seen = []
+    result = env.run(lambda wake: seen.append(wake.call("step", {"to": [9, 9]})), rounds=1)
+    assert not seen[0].ok and result.error is None  # an agent's move the rules did not bound is refused and undone
+    assert any("position [9, 9] is off the 5x5 grid" in d["message"] for d in result.diagnostics)
 
 
 def test_queries_find_who_is_where_in_creation_order():

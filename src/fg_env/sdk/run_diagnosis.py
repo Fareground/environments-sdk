@@ -1,8 +1,9 @@
 """What a run notices about its own rules while it plays, read by :mod:`fg_env.sdk.diagnostics`.
 
-Only counts: how often each action was refused and why, whether a refused tool had any choice that could have
-worked, which stages were reached, ran and woke agents, whether each agent type ever had an action it could take,
-which properties were written, and sealed choices that replaced each other's writes. It is saved in snapshots, so
+Only counts: how often each action was refused and why, rules that failed while an agent's action applied, whether a
+refused tool had any choice that could have worked, which stages were reached, ran and woke agents, whether each agent
+type ever had an action it could take, which properties were written, and sealed choices that replaced each other's
+writes. It is saved in snapshots, so
 a resumed run reports exactly what a straight run does.
 """
 from __future__ import annotations
@@ -54,6 +55,8 @@ class Diagnosis:
         self.overwrites: Dict[str, List[Any]] = {}
         #: `each` effect path → [overwrites, first example]
         self.loop_overwrites: Dict[str, List[Any]] = {}
+        #: Path of a rule that failed (or invariant that broke) while an agent's action applied → [times, first error]
+        self.faults: Dict[str, List[Any]] = {}
         #: Names of properties written since the world was built (shared with the world, which adds to it).
         self.written = written
         #: The turn number and actions already probed in it (not saved: snapshots fall between turns).
@@ -86,6 +89,12 @@ class Diagnosis:
         entry = self._action(name)
         entry["refused"] += 1
         _tally(entry["reasons"], text)
+
+    def faulted(self, path: str, error: str) -> None:
+        """A rule at ``path`` failed, or the invariant at ``path`` broke, while an agent's action applied (which was
+        refused and undone)."""
+        entry = self.faults.setdefault(path, [0, error])
+        entry[0] += 1
 
     def _action(self, name: str) -> Dict[str, Any]:
         return self.actions.setdefault(name, {"calls": 0, "refused": 0, "reasons": {}, "unusable": 0, "stuck": {}})
@@ -137,7 +146,7 @@ class Diagnosis:
     def to_dict(self) -> Dict[str, Any]:
         return {"actions": _copy(self.actions), "stages": _copy(self.stages), "agents": _copy(self.agents),
                 "overwrites": _copy(self.overwrites), "loop_overwrites": _copy(self.loop_overwrites),
-                "written": sorted(self.written)}
+                "faults": _copy(self.faults), "written": sorted(self.written)}
 
     def load(self, data: Optional[Dict[str, Any]]) -> None:
         """Take the counts of :meth:`to_dict` (the written names in place: the world holds the same set)."""
@@ -145,6 +154,7 @@ class Diagnosis:
         self.actions, self.stages = _copy(data.get("actions", {})), _copy(data.get("stages", {}))
         self.agents, self.overwrites = _copy(data.get("agents", {})), _copy(data.get("overwrites", {}))
         self.loop_overwrites = _copy(data.get("loop_overwrites", {}))
+        self.faults = _copy(data.get("faults", {}))
         self.written.clear()
         self.written.update(data.get("written", []))
 
@@ -177,7 +187,7 @@ def usable(turn: "Turn", name: str) -> Optional[bool]:
             return None
         args = {key: value for key, value in zip(keys, values) if value is not _OMITTED}
         params, problem = env.actions.validate(actor, name, args)
-        if problem is None and env.actions.dry_run(actor, name, params) is None:
+        if problem is None and env.actions.refusal(actor, name, params) is None:
             return True
     return False if complete else None
 

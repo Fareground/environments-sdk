@@ -357,8 +357,8 @@ def test_effect_results_past_the_size_limits_are_errors():
             wake.end()
 
         result = env.run(play, rounds=1)
-        assert result.status == "failed", action
-        return result.error or ""
+        assert result.error is None and result.stats["faulted_actions"], action  # refused; the run goes on
+        return " ".join(d["message"] for d in result.diagnostics if d["code"] == "action_rule_failed")
 
     assert "bits" in failure("square", n=2 ** (MAX_INT_BITS - 10))
     assert "limit" in failure("grow", xs=list(range(600_000)))
@@ -412,7 +412,8 @@ def test_nested_write_errors_are_precise():
         wake.end()
 
     result = env.run(play)
-    assert result.status == "failed" and "index 5 is out of range for a list of 2" in (result.error or "")
+    assert not texts[0].ok and result.error is None
+    assert any("index 5 is out of range for a list of 2" in d["message"] for d in result.diagnostics)
     bad = {**NESTED, "actions": {"x": {"by": "hero", "do": ["$world.grid[0]..y = 1"]}}}
     assert any("property name" in i.message for i in fg_env.check(bad))
 
@@ -434,6 +435,7 @@ def test_arithmetic_overflow_in_a_rule_is_the_rule_s_error_not_the_participant_s
             wake.end()
 
         result = env.run(play)
-        assert result.status == "failed", action
-        assert expected in result.error and "participant" not in result.error, (action, result.error)
-        assert "digits" not in result.error and len(result.error) < 400, result.error
+        assert result.error is None, action  # the action is refused and undone: the rule's error, reported to its author
+        message = next(d["message"] for d in result.diagnostics if d["code"] == "action_rule_failed")
+        assert expected in message and "participant" not in message, (action, message)
+        assert "digits" not in message and len(message) < 400, message

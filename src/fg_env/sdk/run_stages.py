@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from ..entity import Entity
+from .action_faults import guarded
 from .actions import stage_actions
 from .budget import is_seconds
 from .build import whole_setting
@@ -312,51 +313,76 @@ class RunStages:
 
     def _settle_choices(self: "Env", turn: Turn, mark: int, applied: int) -> bool:  # type: ignore[misc]
         """An atomic simultaneous stage: keep one agent's committed choices when they meet `valid`, else undo
-        them all and tell the agent why. True when the agent's choices stand."""
+        them all and tell the agent why — also when a rule fails or an invariant breaks as they commit. True when
+        the agent's choices stand."""
         world, stage = self.world, turn.stage
-        with self._lock:
+
+        def commit() -> Optional[str]:
             with world.turn_context(None, turn.pending):
                 why = turn.invalid() if applied else None
             if why is None:
                 self._after_commit(f"stages.{stage.name}")
+            return why
+
+        with self._lock:
+            why, fault = guarded(self, commit, mark)
+            if fault is not None:
+                why = fault
+            if why is None:
                 self.happenings.react(stage)
                 return bool(turn.intents)
             world.journal.rollback(mark)
             world.emit("outcome", f"Your choices were undone: {why}.", actor=turn.actor.id, to=(turn.actor.id,),
                        data={"ok": False, "undone": True})
             world.journal.clear()
-            self._tally(turn.actor.id, Stats(actions=-applied, rejected_actions=applied, undone_turns=1))
+            self._tally(turn.actor.id, Stats(actions=-applied, rejected_actions=applied, undone_turns=1,
+                                             faulted_actions=int(fault is not None)))
             turn.stats.undone_turns = 1
         return False
 
     def _commit_intent(self: "Env", turn: Turn, name: str, args: Dict[str, Any], deferred: bool = False) -> int:  # type: ignore[misc]
         """Apply one sealed choice; 1 when it applied. ``deferred`` (atomic stages) leaves the commit to the
-        whole turn's settling."""
+        whole turn's settling. A rule that fails or an invariant it breaks refuses the choice alone."""
+        actor, world = turn.actor, self.world
+        with self._lock:
+            applied, fault = guarded(self, lambda: self._apply_intent(turn, name, args, deferred))
+            if applied is None:
+                assert fault is not None
+                world.emit("outcome", f"Your {name.replace('_', ' ')} did not happen: {fault}.",
+                           actor=actor.id, to=(actor.id,), data={"action": name, "ok": False})
+                self.diagnosis.refused_at_commit(name, fault)
+                if not deferred:
+                    world.journal.clear()
+                self._tally(actor.id, Stats(rejected_actions=1, faulted_actions=1))
+                return 0
+            if applied and not deferred:
+                self.happenings.react(turn.stage)
+            return applied
+
+    def _apply_intent(self: "Env", turn: Turn, name: str, args: Dict[str, Any], deferred: bool) -> int:  # type: ignore[misc]
         actor, world = turn.actor, self.world
         blocked = self.actions.blocked(actor, name, {}, {}) if actor.alive else "you are no longer active"
         params, problem = ({}, blocked) if blocked else self.actions.validate(actor, name, args)
         verb = name.replace("_", " ")
-        with self._lock:
-            if problem:
-                world.emit("outcome", f"Your {verb} did not happen: {str(problem).rstrip('.')}.",
-                           actor=actor.id, to=(actor.id,), data={"action": name, "ok": False})
-                self.diagnosis.refused_at_commit(name, str(problem))
-                if not deferred:
-                    world.journal.clear()
-                self._tally(actor.id, Stats(rejected_actions=1))
-                return 0
-            outcome = self.actions.apply(actor, name, params)
-            text = outcome.text if outcome.ok else f"Your {verb} failed: {outcome.text}"
-            data = {"action": name, "ok": outcome.ok, **({"assets": outcome.assets} if outcome.assets else {})}
-            world.emit("outcome", text, actor=actor.id, to=(actor.id,), data=data)
-            if not outcome.ok:
-                self.diagnosis.refused_at_commit(name, outcome.text)
-                self._tally(actor.id, Stats(rejected_actions=1))
-                if not deferred:
-                    world.journal.clear()
-                return 0
-            self._tally(actor.id, Stats(actions=1))
+        if problem:
+            world.emit("outcome", f"Your {verb} did not happen: {str(problem).rstrip('.')}.",
+                       actor=actor.id, to=(actor.id,), data={"action": name, "ok": False})
+            self.diagnosis.refused_at_commit(name, str(problem))
             if not deferred:
-                self._after_commit(f"actions.{name}")
-                self.happenings.react(turn.stage)
-            return 1
+                world.journal.clear()
+            self._tally(actor.id, Stats(rejected_actions=1))
+            return 0
+        outcome = self.actions.apply(actor, name, params)
+        text = outcome.text if outcome.ok else f"Your {verb} failed: {outcome.text}"
+        data = {"action": name, "ok": outcome.ok, **({"assets": outcome.assets} if outcome.assets else {})}
+        world.emit("outcome", text, actor=actor.id, to=(actor.id,), data=data)
+        if not outcome.ok:
+            self.diagnosis.refused_at_commit(name, outcome.text)
+            self._tally(actor.id, Stats(rejected_actions=1))
+            if not deferred:
+                world.journal.clear()
+            return 0
+        if not deferred:
+            self._after_commit(f"actions.{name}")
+        self._tally(actor.id, Stats(actions=1))
+        return 1

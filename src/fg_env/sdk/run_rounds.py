@@ -74,6 +74,7 @@ class RunRounds:
             with self._lock:
                 world.step_physics(elapsed)
                 world.journal.clear()
+            self._check_invariants("physics")
             self.happenings.check_triggers("physics")
             if self._ended():
                 self._finish()
@@ -90,6 +91,7 @@ class RunRounds:
                 world.step_physics()
             world.journal.clear()
         if elapsed is None:
+            self._check_invariants("physics")
             self.happenings.check_triggers("physics")
         if self._ended():
             self._finish()

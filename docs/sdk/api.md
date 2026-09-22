@@ -298,10 +298,11 @@ A run could not continue. ``path`` names the contract element that failed.
 ## `InvariantViolation`
 
 ```python
-InvariantViolation(message: 'str', path: 'Optional[str]' = None)
+InvariantViolation(message: 'str', path: 'Optional[str]' = None, why: 'str' = '')
 ```
 
-A declared invariant stopped holding; the run fails closed.
+A declared invariant stopped holding. Broken by an agent's action, the action is refused and undone; broken by
+anything else, the run fails closed. ``why`` is the invariant's own reason (empty when it gives none).
 
 ## `SnapshotError`
 

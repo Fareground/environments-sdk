@@ -72,17 +72,12 @@ def test_host_can_read_record_streams_after_a_failed_run():
                 "params": {},
                 "do": {"post": "journal", "text": "preserved"},
             },
-            "break": {"by": "person", "params": {}, "do": "$world.slots[2] = 1"},
         },
-        "stages": [{"name": "writing", "actions": ["write", "break"], "max_actions": 2}],
+        "events": [{"phase": "end", "do": "$world.slots[2] = 1"}],
+        "stages": [{"name": "writing", "actions": ["write"], "max_actions": 1}],
     }
     env = fg_env.load(contract, seed=3)
-
-    def participant(wake):
-        wake.call("write")
-        wake.call("break")
-
-    result = env.run(participant)
+    result = env.run(lambda wake: wake.call("write"))
 
     assert result.status == "failed"
     assert env.records("journal")[0]["text"] == "preserved"

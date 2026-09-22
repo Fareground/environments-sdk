@@ -80,7 +80,8 @@ END_CHECKS = ("stage", "action")
 
 
 class InvariantSpec(_ExprShorthand):
-    """Must always hold. A violation fails the run."""
+    """Must always hold. Broken by an agent's action (with everything its commit sets off), that action is refused and
+    undone and the agent told `why`; broken by anything else (events, physics, the build), the run fails."""
 
     expr: str
     why: str = ""

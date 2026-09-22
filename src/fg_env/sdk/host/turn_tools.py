@@ -16,6 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Optional, Tuple
 
+from ..action_faults import guarded, refused_text
 from ..actions import ACTION_BUDGET, ToolSpec
 from ..errors import RunError
 from ..expr import ExprError, shared_budget
@@ -154,6 +155,17 @@ class HostWake(Wake):
         return ToolSpec(spec.name, spec.description, spec.input_schema, "look", False)
 
     def _apply(self, name: str, params: Dict[str, Any]) -> ToolResult:
+        """Apply and commit the call; a rule that fails or an invariant it breaks refuses it (see :mod:`..action_faults`)."""
+        turn = self._turn
+        result, fault = guarded(turn.env, lambda: self._commit(name, params))
+        if result is None:
+            assert fault is not None
+            turn.stats.rejected_actions += 1
+            turn.stats.faulted_actions += 1
+            return ToolResult(False, refused_text(name, fault), data={"error": "rejected"})
+        return result
+
+    def _commit(self, name: str, params: Dict[str, Any]) -> ToolResult:
         turn, env = self._turn, self._turn.env
         world, spec, path = env.world, env.contract.actions[name], f"actions.{name}"
         vars: Dict[str, Any] = {"actor": turn.actor, "params": params}
@@ -173,8 +185,8 @@ class HostWake(Wake):
         except BaseException:
             world.journal.rollback(mark)
             raise
+        turn.committed(path)
         self._used[name] = self._used.get(name, 0) + 1
-        turn.committed(path, react=False)
         return ToolResult(True, text)
 
 

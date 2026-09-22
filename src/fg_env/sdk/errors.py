@@ -4,7 +4,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Optional
 
-__all__ = ["Issue", "ContractError", "InputError", "RunError", "InvariantViolation", "SnapshotError"]
+__all__ = ["Issue", "ContractError", "InputError", "RunError", "InvariantViolation", "FatalRunError",
+           "SnapshotError"]
 
 
 @dataclass(frozen=True)
@@ -55,7 +56,18 @@ class RunError(RuntimeError):
 
 
 class InvariantViolation(RunError):
-    """A declared invariant stopped holding; the run fails closed."""
+    """A declared invariant stopped holding. Broken by an agent's action, the action is refused and undone; broken by
+    anything else, the run fails closed. ``why`` is the invariant's own reason (empty when it gives none)."""
+
+    def __init__(self, message: str, path: Optional[str] = None, why: str = ""):
+        self.why = why
+        super().__init__(message, path)
+
+
+class FatalRunError(RunError):
+    """A failure outside the contract's rules — a host failed or cannot be asked, a replay stopped matching its
+    recording, a mechanism's code crashed. Unlike a rule failing inside an agent's action, it fails the run wherever
+    it happens."""
 
 
 class SnapshotError(ValueError):

@@ -195,13 +195,14 @@ def _copy_world(source: SdkWorld) -> SdkWorld:
 
 def _copy_diagnosis(source: Diagnosis, written: Set[str]) -> Diagnosis:
     """The run's diagnostic counts, sharing the copied world's set of written properties as the original does."""
-    unknown = set(vars(source)) - {"actions", "stages", "agents", "overwrites", "loop_overwrites", "written", "_probed"}
+    unknown = set(vars(source)) - {"actions", "stages", "agents", "overwrites", "loop_overwrites", "faults", "written",
+                                   "_probed"}
     if unknown:
         raise NotCopyable(f"the run's diagnosis has attributes a copy does not carry: {sorted(unknown)}")
     diagnosis = Diagnosis(written)
     diagnosis.actions, diagnosis.stages = _copy_counts(source.actions), _copy_counts(source.stages)
     diagnosis.agents, diagnosis.overwrites = _copy_counts(source.agents), _copy_counts(source.overwrites)
-    diagnosis.loop_overwrites = _copy_counts(source.loop_overwrites)
+    diagnosis.loop_overwrites, diagnosis.faults = _copy_counts(source.loop_overwrites), _copy_counts(source.faults)
     diagnosis._probed = (source._probed[0], set(source._probed[1]))
     return diagnosis
 

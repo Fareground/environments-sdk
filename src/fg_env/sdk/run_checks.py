@@ -48,7 +48,7 @@ class RunChecks:
             if not holds:
                 why = f" ({invariant.why})" if invariant.why else ""
                 raise InvariantViolation(f"invariant `{invariant.expr}` no longer holds after {path}{why}",
-                                         f"invariants[{index}]")
+                                         f"invariants[{index}]", invariant.why)
             unseen = world.exposures is None  # `$seen` reads a log that is not part of the state version
             fresh = unseen and world.draws() == drawn and world.state_version() == state
             self._invariant_held[index] = state if fresh else None

@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Optional, Tuple
 
 from ..chance import ChanceNode, sample
-from ..errors import RunError, SnapshotError
+from ..errors import FatalRunError, RunError, SnapshotError
 from ..measure import RunResult
 from ..participants import Participant, resolve_participant
 from ..replay import apply_step
@@ -47,7 +47,7 @@ _QUOTE = 120
 _ENDING = ("status", "ended_by", "rounds", "winner", "outputs", "returns", "metrics", "series", "error")
 
 
-class ReplayDivergence(RunError):
+class ReplayDivergence(FatalRunError):
     """The replay stopped matching its recording; ``divergence`` says where and how."""
 
     def __init__(self, divergence: Dict[str, Any]):

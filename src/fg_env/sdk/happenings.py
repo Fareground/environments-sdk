@@ -168,8 +168,11 @@ class Happenings:
             self._trigger_depth -= 1
 
     def react(self, stage: Optional[StageSpec]) -> None:
-        """Give every agent asked to react (`wake` with `now`) a turn right away, in the current stage."""
+        """Give every agent asked to react (`wake` with `now`) a turn right away, in the current stage. While an
+        agent's action is still committing (and could yet be undone), they wait for it to finish."""
         env, world = self.env, self.env.world
+        if world.journal.holding:
+            return
         while world.reactions and not env._ended():
             entity_id, why = world.reactions.pop(0)
             actor = world.entities.get(entity_id)

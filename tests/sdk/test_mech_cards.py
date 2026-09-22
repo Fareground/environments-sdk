@@ -533,7 +533,8 @@ def test_a_moved_card_must_belong_to_the_deck_the_action_names():
         wake.end()
 
     result = env.run(turn, rounds=1)
-    assert result.status == "failed" and "is not a card of chips" in result.error
+    assert "was not done" in seen[0] and result.error is None  # refused and undone: the run goes on
+    assert any("is not a card of chips" in d["message"] for d in result.diagnostics)
 
 
 def test_tools_one_offers_every_betting_move_as_one_tool():

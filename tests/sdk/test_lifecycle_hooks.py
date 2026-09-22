@@ -86,9 +86,11 @@ def test_hooks_that_keep_creating_their_own_type_stop_with_a_clear_error():
     contract = copy.deepcopy(FIRMS)
     contract["types"]["firm"]["on_create"] = [{"create": "firm"}]
     contract["types"]["firm"]["on_create_at_build"] = False
-    result = _run(contract, {1: [("found", {})]}, expect_ok=False).result()
-    assert result.status == "failed"
-    assert "on_create hooks set each other off more than 16 levels deep" in result.error
+    env = _run(contract, {1: [("found", {})]}, expect_ok=False)
+    result = env.result()
+    assert result.error is None and len(env.entities("firm")) == 3  # the action that set them off was undone
+    assert any("on_create hooks set each other off more than 16 levels deep" in d["message"]
+               for d in result.diagnostics)
 
 
 def test_a_run_split_by_a_snapshot_ends_exactly_like_a_straight_run():

@@ -17,7 +17,7 @@ import math
 import threading
 from typing import Any, Callable, Dict, Mapping, Optional
 
-from ..errors import RunError
+from ..errors import FatalRunError
 from ..expr import Untrusted
 from .hosts import hosts_for
 from .protocols import HostError
@@ -84,28 +84,28 @@ def consult(world: Any, *, service: str, method: str, site: str, identity: Any, 
     if adapter is None:
         if fallback is None:
             if hosts is not None and not hosts.live:
-                raise RunError(f"this needs the host '{service}' ({method}), and the replay tape has no answer for "
-                               "this call (the run diverged from the recorded one, or the tape is from another run)",
-                               site)
-            raise RunError(f"this needs the host '{service}' ({method}), but no answer is recorded and no host is "
-                           f"bound; load with fg_env.sdk.host.load(..., hosts={{'{service}': ...}}), replay a tape, "
-                           "or declare a fallback", site)
+                raise FatalRunError(f"this needs the host '{service}' ({method}), and the replay tape has no answer "
+                                    "for this call (the run diverged from the recorded one, or the tape is from "
+                                    "another run)", site)
+            raise FatalRunError(f"this needs the host '{service}' ({method}), but no answer is recorded and no host "
+                                f"is bound; load with fg_env.sdk.host.load(..., hosts={{'{service}': ...}}), replay a "
+                                "tape, or declare a fallback", site)
         answer = fallback()
     else:
         if not callable(getattr(adapter, method, None)):
-            raise RunError(f"the host '{service}' ({type(adapter).__name__}) has no {method}() method", site)
+            raise FatalRunError(f"the host '{service}' ({type(adapter).__name__}) has no {method}() method", site)
         try:
             answer = ask(adapter)
         except HostError as exc:
-            raise RunError(f"host '{service}' failed: {exc}", site) from None
+            raise FatalRunError(f"host '{service}' failed: {exc}", site) from None
         except Exception as exc:  # an adapter defect or provider error: surfaced with its type, never swallowed
-            raise RunError(f"host '{service}' raised {type(exc).__name__}: {exc}", site) from exc
+            raise FatalRunError(f"host '{service}' raised {type(exc).__name__}: {exc}", site) from exc
     try:
         answer = _json_safe(answer)
         if validate is not None and adapter is not None:  # fallbacks are the engine's own answers
             answer = validate(answer)
     except HostError as exc:
-        raise RunError(f"host '{service}' answered outside its protocol: {exc}", site) from None
+        raise FatalRunError(f"host '{service}' answered outside its protocol: {exc}", site) from None
     entry: Dict[str, Any] = {"service": service, "site": site, "round": world.round, "actor": actor,
                              "response": answer}
     if adapter is None:
@@ -144,7 +144,7 @@ def tape_of(source: Any) -> Dict[str, Dict[str, Any]]:
 def _tape(world: Any, site: str) -> Dict[str, Any]:
     tape = world.props.get(TAPE)
     if not isinstance(tape, dict):
-        raise RunError(f"the world property '{TAPE}' is missing; host mechanisms declare it", site)
+        raise FatalRunError(f"the world property '{TAPE}' is missing; host mechanisms declare it", site)
     return tape
 
 

@@ -2,8 +2,9 @@
 `$clock` views expressions read."""
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, List, Optional, Tuple
 
 from .expr import ExprError
 
@@ -130,6 +131,9 @@ class Journal:
         self._undo: List[Callable[[], object]] = []
         #: Bumped by every change and every undo: equal versions mean an unchanged world.
         self.version = 0
+        #: Open :meth:`held` blocks, and whether a :meth:`clear` inside them waits for them to finish.
+        self.holding = 0
+        self._clear_due = False
 
     def mark(self) -> int:
         return len(self._undo)
@@ -144,4 +148,25 @@ class Journal:
             self.version += 1
 
     def clear(self) -> None:
+        if self.holding:
+            self._clear_due = True
+            return
         self._undo.clear()
+        self._clear_due = False
+
+    @contextmanager
+    def held(self) -> Iterator[None]:
+        """Keep every change made inside the block undoable until it ends: commits inside it (an agent's action and
+        the triggers it sets off) clear the journal only once the block finishes without an error, so a failure
+        anywhere in it can still undo all of it."""
+        self.holding += 1
+        try:
+            yield
+        except BaseException:
+            self.holding -= 1
+            if not self.holding:
+                self._clear_due = False  # the caller undoes the block instead
+            raise
+        self.holding -= 1
+        if not self.holding and self._clear_due:
+            self.clear()
