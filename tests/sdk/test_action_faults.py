@@ -135,7 +135,7 @@ SEALED = {
     "types": {"p": {"agent": True, "props": {"c": 0}}},
     "entities": {"a": {"type": "p"}, "b": {"type": "p"}},
     "invariants": [{"expr": "$entity(a).c + $entity(b).c <= 5", "why": "the pot holds at most 5"}],
-    "stages": [{"name": "bid", "turns": "simultaneous"}],
+    "stages": [{"name": "bid", "turns": "simultaneous", "order": "seat"}],  # a commits first
     "actions": {
         "add": {"by": "p", "params": {"n": {"type": "int", "min": 1, "max": 5}}, "do": "$actor.c += $params.n"},
         "div": {"by": "p", "params": {"n": "number"}, "do": ["$actor.c += 1", "$world.x = 10 / ($params.n - $actor.c)"]},

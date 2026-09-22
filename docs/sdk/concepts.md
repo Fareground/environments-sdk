@@ -24,6 +24,17 @@ Start events run, then each stage runs in order, then end events and metrics. En
 
 Use **sequential** stages when later participants should see earlier decisions. Use **simultaneous** stages when decisions should be made from the same view, such as sealed bids. In simultaneous stages, choices are submitted before they are committed; do not assume a successful submission is already a settled outcome.
 
+Submitted choices commit one agent after another. Without an `order`, that order is drawn at random from the seed each time, so no seat always wins a contested item. A choice is tried when it is submitted, after the agent's own earlier choices in the stage, so two purchases cannot spend the same money. When choices must be resolved together, such as a sealed-bid auction or a pro-rata allocation, let the action only record the choice and resolve all of them in the stage's `on_exit`:
+
+```json
+"actions": {"bid": {"by": "bidder", "private": true, "params": {"amount": "number"},
+                    "do": ["$actor.bid = $params.amount"]}},
+"stages": [{"name": "bid", "turns": "simultaneous", "on_enter": [{"each": "bidder", "do": ["$it.bid = 0"]}],
+            "on_exit": ["$top = $max(bidder, $it.bid)",
+                        {"if": "$top > 0", "then": ["$winner = $choice($filter(bidder, $it.bid == $top))",
+                                                    "$winner.won = $winner.won + 1"]}]}]
+```
+
 See [stages](reference-stages.md), [events](reference-events.md) and [end conditions](reference-end.md) for exact fields.
 
 ## Actions and atomicity

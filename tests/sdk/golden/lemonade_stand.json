@@ -1,7 +1,7 @@
 {
   "actions": 8,
   "events": 16,
-  "events_sha256": "f748dd996a249086e0d11a056c57ff4ad26cdcfa6f30bc13d8f1dbcc14d1eefd",
+  "events_sha256": "edd46658ebef8625cb13695ae43018c6d186452ad39a5872f9778174baadac1f",
   "metrics": {
     "avg_price": 1.435
   },

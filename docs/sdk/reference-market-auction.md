@@ -17,7 +17,7 @@ Config:
 - `decrement` (default 1): dutch: how much the clock falls each round.
 - `increment` (default 1): english: minimum raise over the high bid.
 - `timeout` (default 1): english: rounds without a new bid before the lot closes.
-- `ties` (default "first"): Equal bids: the earliest wins, or a seeded random one.
+- `ties` (default "first"): Equal bids: the earliest wins (sealed bids arrive in their stage's commit order: random unless it sets `order`), or a seeded random one.
 - `price_rule` (default "lowest_accepted"): uniform: the clearing price — the lowest accepted bid, or the highest rejected one (the reserve when none was rejected).
 - `items` (default []): combinatorial: the distinct items for sale, bid on in packages.
 - `reserves` (default {}): combinatorial: reserve per item (number or expression); others use `reserve`.

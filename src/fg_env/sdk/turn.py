@@ -7,7 +7,8 @@ and invariants wait, and a turn that breaks the stage's `valid` rules is undone 
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Tuple
+from contextlib import contextmanager
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Mapping, Optional, Tuple
 
 from ..entity import Entity
 from .action_faults import guarded, refused_text
@@ -346,6 +347,21 @@ class Turn:
     def _act(self, name: str, spec: ActionSpec, args: Any) -> Tuple[ToolResult, bool]:
         """Check, then submit (sealed turns) or apply and commit one action call: its result, and whether it applied.
         Runs inside :func:`guarded`, so the turn's own counts change only once nothing can fail any more."""
+        with self.after_choices():
+            return self._checked_act(name, spec, args)
+
+    @contextmanager
+    def after_choices(self) -> Iterator[None]:
+        """The world as this turn's next sealed choice will meet it when it commits: after the choices the turn
+        already submitted, undone on the way out (two buys cannot spend the same coins). Blocks do not nest."""
+        if not self.intents:
+            yield
+            return
+        with self.env.actions.trying():
+            self.env.actions.replay(self.actor, self.intents)
+            yield
+
+    def _checked_act(self, name: str, spec: ActionSpec, args: Any) -> Tuple[ToolResult, bool]:
         env = self.env
         blocked = env.actions.blocked(self.actor, name, self.used, env._used_round.get(self.actor.id, {}))
         if blocked:

@@ -89,9 +89,8 @@ class RunStages:
             if not ordered:
                 return agents
             if stage.order == "random":
-                with world.drawing_at(f"{path}.order"):
-                    world.rng.shuffle(agents)
-            elif stage.order != "seat":
+                self._shuffle(stage, agents)
+            elif stage.order is not None and stage.order != "seat":
                 key = compile_expr(stage.order)
                 keyed = [(key(world.scope(it=a, i=i)), i, a) for i, a in enumerate(agents)]
                 keyed.sort(key=lambda t: (t[0], t[1]))
@@ -101,6 +100,12 @@ class RunStages:
         except TypeError:
             raise RunError("`order` must give comparable values (numbers or text)", f"{path}.order") from None
         return agents
+
+    def _shuffle(self: "Env", stage: StageSpec, agents: List[Any]) -> None:  # type: ignore[misc]
+        """Put ``agents`` (or their turns) in a random order drawn from the stage's own stream."""
+        with self.world.drawing_at(f"stages.{stage.name}.order"):
+            self.world.rng.shuffle(agents)
+        self.world.journal.clear()  # the draw is the round's: nothing undoes it, and the run may pause after it
 
     def _reason(self: "Env", actor: Entity, stage: StageSpec, pass_index: int) -> Optional[str]:  # type: ignore[misc]
         requested = self.world.wake_requests.pop(actor.id, None)
@@ -283,7 +288,11 @@ class RunStages:
         self._flush_events()
 
     def _commit_choices(self: "Env", stage: StageSpec, turns: List[Turn]) -> _Steps:  # type: ignore[misc]
-        """Commit each agent's sealed choices in turn order; atomic stages commit or undo each agent's as a whole."""
+        """Commit each agent's sealed choices in turn order — without an `order`, in a random order, since the first to
+        commit wins a contested item; atomic stages commit or undo each agent's as a whole."""
+        if stage.order is None and len(turns) > 1:
+            turns = list(turns)
+            self._shuffle(stage, turns)
         atomic = stage.atomic or bool(stage.valid)
         writes = self.world.watched_writes = SealedWrites(stage.name, self.diagnosis)
         try:

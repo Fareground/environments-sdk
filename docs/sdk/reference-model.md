@@ -12,8 +12,16 @@ brief + update, calls tools (legal actions, `look`, `inspect`, `end_turn`) until
 turn, uses `max_actions`, or runs out of `max_calls`.
 * `turns: sequential` — one agent at a time; actions apply immediately and the tool result is
   the actual outcome.
-* `turns: simultaneous` — everyone sees the same state; actions are submitted, then committed in
-  order after all have chosen (sealed bids, votes, simultaneous moves). Outcomes arrive as news.
+* `turns: simultaneous` — everyone sees the same state; actions are submitted, then committed one agent
+  after another once all have chosen (sealed bids, votes, simultaneous moves). Outcomes arrive as news.
+  Without an `order`, choices commit in a random order drawn from the seed each time, so when two agents
+  take the last item, either may get it. A choice is tried at submit after the agent's own earlier
+  choices in the stage (two buys cannot spend the same coins).
+* Choices that decide together (highest bid wins, pro-rata fills, rock–paper–scissors): the action only
+  records the choice (`"private": true, "do": ["$actor.bid = $params.amount"]`) and the stage's `on_exit`
+  resolves them all at once: `"$top = $max(bidder, $it.bid)"`, `"$winner = $choice($filter(bidder, $it.bid
+  == $top))"` (ties at random); pro rata: `"$fill = $min(1, $world.stock / $max($sum(buyer, $it.want), 1))"`,
+  `{"each": "buyer", "do": ["$it.got = $it.want * $fill"]}`. Clear the recorded choices in `on_enter`.
 * `until` repeats passes within the round (deliberation until everyone is ready).
 * `quiet: skip` skips agents with nothing new since their last turn (from the second pass on;
   the first pass always wakes everyone).
@@ -63,7 +71,7 @@ turn, uses `max_actions`, or runs out of `max_calls`.
 * `end` conditions are checked after the start events, after each stage, and at the end of the round.
   `"check": "action"` also checks one the moment anything commits — an action, a sealed choice, an event or
   hook's effects — so a winning move ends the run before the next agent moves (in any kind of stage; sealed
-  choices commit in turn order, so later ones are not applied). The `end` effect inside an action does the same.
+  choices commit one after another, so later ones are not applied). The `end` effect inside an action does the same.
 
 What an agent reads:
 * brief (static, cacheable): name, situation, rules, its identity and role text.

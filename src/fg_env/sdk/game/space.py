@@ -239,7 +239,7 @@ def sample_call(env: "Env", turn: "Turn", rng: random.Random, *, limit: int = CO
     if not dry_run:
         return candidates[order[0]] if order else None
     book, actor = env.actions, turn.actor
-    with env._lock, as_turn(env, turn):
+    with env._lock, as_turn(env, turn), turn.after_choices():
         for index in order:
             tool, args = candidates[index]
             if tool == END_TURN:
@@ -253,12 +253,13 @@ def sample_call(env: "Env", turn: "Turn", rng: random.Random, *, limit: int = CO
 def legal_calls(env: "Env", turn: "Turn", *, limit: int = COMBINATION_LIMIT,
                 dry_run: bool = True) -> Tuple[List[Tuple[str, Dict[str, Any]]], Dict[str, str]]:
     """``(calls, unlisted)``: every legal tool call of ``turn`` whose arguments can be listed, and the
-    legal actions whose calls cannot, with the reason. Runs on the run's thread."""
+    legal actions whose calls cannot, with the reason — after the turn's sealed choices, as the turn checks a call.
+    Runs on the run's thread."""
     if turn.done:
         return [], {}
     calls: List[Tuple[str, Dict[str, Any]]] = []
     unlisted: Dict[str, str] = {}
-    with env._lock, as_turn(env, turn):
+    with env._lock, as_turn(env, turn), turn.after_choices():
         names = turn._legal()
         acted = turn.actions_left < turn.max_actions or bool(turn.intents)
         if not (turn.stage.must_act and not acted and names):

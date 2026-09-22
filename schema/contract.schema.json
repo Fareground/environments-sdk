@@ -3100,10 +3100,17 @@
           "title": "First Wake"
         },
         "order": {
-          "default": "seat",
-          "description": "seat | random | expression over $it (lowest first).",
-          "title": "Order",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "seat | random | expression over $it (lowest first): the order agents take turns in, and a simultaneous stage's choices commit in. Default: seat; a simultaneous stage's choices then commit in a random order drawn anew each time, so no seat always wins a contested item.",
+          "title": "Order"
         },
         "who": {
           "anyOf": [

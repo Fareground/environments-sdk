@@ -38,8 +38,8 @@ def my_agent(wake):
 `Wake`: `entity_id name type round stage reason me` (own props), `brief`, `update`, `tools` (each a
 `ToolSpec`: name, description, input_schema, kind act|look|end, terminal), `tools_for("anthropic"|"openai")`,
 `call(name, args)` → `ToolResult(ok, text, ended, data)` (`data.error` is `invalid` or `rejected`),
-`end()`, `done`, `calls_left`, `actions_left`. In a simultaneous stage a choice is tried at submit, so
-a choice that could not happen is refused immediately and does not use up the turn.
+`end()`, `done`, `calls_left`, `actions_left`. In a simultaneous stage a choice is tried at submit (after the agent's
+own earlier choices), so a choice that could not happen is refused immediately and does not use up the turn.
 Async participants: an `async def` (or an object with an async `__call__`, or a function that returns an
 awaitable) works everywhere, and a simultaneous stage runs them concurrently with the same deterministic
 result. Inside an event loop use `result = await env.arun(participants, ...)`: participants run on that loop,
