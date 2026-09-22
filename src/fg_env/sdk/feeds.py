@@ -20,6 +20,7 @@ from .expr import ExprError, Untrusted, compile_expr, resolve, truthy
 from .host.protocols import HostError
 from .host.tape import TAPE, consult, plain, request_key
 from .props import prop_type
+from .world import Abort
 
 if TYPE_CHECKING:
     from .runtime import Env
@@ -109,6 +110,8 @@ def _validate(world: "SdkWorld", owner: str, target: str, answer: Any) -> Any:
             return world._coerce(world.contract.world[target], answer, f"world.{target}")
         except RunError as exc:
             raise HostError(str(exc)) from None
+        except Abort as refusal:  # an answer outside the property's bounds is as unusable as one of the wrong type
+            raise HostError(refusal.reason) from None
     fields = world.contract.records[target].fields
     entries = _entries(answer)
     if entries is None:

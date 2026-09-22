@@ -165,8 +165,8 @@ class PropSpec(_Model):
 
     type: Optional[TypeName] = Field(None, description="One of: " + ", ".join(PROP_TYPES) + " (inferred from default).")
     default: Any = Field(None, description="Literal or expression (evaluated when the entity is created).")
-    min: Optional[float] = None
-    max: Optional[float] = None
+    min: Optional[float] = Field(None, description="Lowest allowed value: a write below it is refused, never clamped (saturate with $clamp).")
+    max: Optional[float] = Field(None, description="Highest allowed value: a write above it is refused, never clamped (saturate with $clamp).")
     values: Optional[List[Any]] = None
     private: bool = Field(False, description="Hidden from other agents' inspect tool.")
     description: str = ""

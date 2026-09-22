@@ -53,9 +53,9 @@
               "sources": {"allowance": {"to": "household", "amount": "$it.allowance", "every": 30, "mode": "reset",
                                         "say": "A new month: allowances are paid."}}},
     "goods": {"kind": "economy", "mode": "inventory", "who": ["household", "shop"], "capacity": 20,
-              "items": {"bread": {"value": 3, "shelf_life": 4, "on_consume": ["$actor.hunger -= 3 * $qty"]},
-                        "milk": {"value": 2, "shelf_life": 6, "on_consume": ["$actor.hunger -= $qty"]},
-                        "apples": {"value": 1, "shelf_life": 10, "on_consume": ["$actor.hunger -= $qty"]}},
+              "items": {"bread": {"value": 3, "shelf_life": 4, "on_consume": ["$actor.hunger = $max(0, $actor.hunger - 3 * $qty)"]},
+                        "milk": {"value": 2, "shelf_life": 6, "on_consume": ["$actor.hunger = $max(0, $actor.hunger - $qty)"]},
+                        "apples": {"value": 1, "shelf_life": 10, "on_consume": ["$actor.hunger = $max(0, $actor.hunger - $qty)"]}},
               "actions": ["consume"]},
     "coffee": {"kind": "agreements", "mode": "subscriptions", "who": "household", "currency": "cash", "providers": "cafe",
                "price_min": 10, "price_max": 80,
@@ -102,12 +102,12 @@
     "dine_out": {
       "by": "household", "private": true, "description": "Mark a night out (after a served booking) — it lifts your mood and fills you up.",
       "when": [{"expr": "$any(dining_booking, $it.guest == $actor.id and $it.status == served and $it.slot == $round)", "why": "You have no table tonight."}],
-      "do": ["$actor.outings += 1", "$actor.hunger -= 4"], "per_round": 1, "outcome": "A good night out."
+      "do": ["$actor.outings += 1", "$actor.hunger = $max(0, $actor.hunger - 4)"], "per_round": 1, "outcome": "A good night out."
     }
   },
   "events": [
     {"name": "new day", "phase": "start", "each": "shop", "do": ["$it.served_today = 0"]},
-    {"name": "hunger", "phase": "end", "each": "household", "do": ["$it.hunger += 1"]},
+    {"name": "hunger", "phase": "end", "each": "household", "do": ["$it.hunger = $min(10, $it.hunger + 1)"]},
     {"name": "coffee price hike", "arms": ["price_hike"], "at": "$inputs.hike_day", "phase": "start",
      "do": [{"agreements": "coffee", "action": "set_price", "plan": "coffee_club", "price": "$inputs.hike_price"}],
      "say": "Bean Bar announces a new Coffee Club price of {$inputs.hike_price|money} a month."}
