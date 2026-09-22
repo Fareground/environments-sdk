@@ -22,7 +22,6 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple
 
 from ...entity import Entity
-from ..actions import TrialStream
 from ..contract import ParamSpec
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, is_expr
@@ -241,13 +240,12 @@ def sample_call(env: "Env", turn: "Turn", rng: random.Random, *, limit: int = CO
         return candidates[order[0]] if order else None
     book, actor = env.actions, turn.actor
     with env._lock, as_turn(env, turn):
-        stream = TrialStream(env.world)
         for index in order:
             tool, args = candidates[index]
             if tool == END_TURN:
                 return tool, args
             params, problem = book.validate(actor, tool, args)
-            if problem is None and book.refusal(actor, tool, params, stream) is None:
+            if problem is None and book.refusal(actor, tool, params) is None:
                 return tool, args
     return None
 
@@ -265,11 +263,10 @@ def legal_calls(env: "Env", turn: "Turn", *, limit: int = COMBINATION_LIMIT,
         acted = turn.actions_left < turn.max_actions or bool(turn.intents)
         if not (turn.stage.must_act and not acted and names):
             calls.append((END_TURN, {}))
-        stream = TrialStream(env.world) if dry_run else None
         for name in names:
             found: List[Tuple[str, Dict[str, Any]]] = []
             try:
-                _walk(env, turn, name, list(env.contract.actions[name].params.items()), 0, {}, {}, found, limit, stream)
+                _walk(env, turn, name, list(env.contract.actions[name].params.items()), 0, {}, {}, found, limit, dry_run)
             except _Unlisted as reason:
                 unlisted[name] = str(reason)
                 continue
@@ -279,12 +276,12 @@ def legal_calls(env: "Env", turn: "Turn", *, limit: int = COMBINATION_LIMIT,
 
 def _walk(env: "Env", turn: "Turn", name: str, items: List[Tuple[str, ParamSpec]], index: int, raw: Dict[str, Any],
           resolved: Dict[str, Any], found: List[Tuple[str, Dict[str, Any]]], limit: int,
-          stream: Optional[TrialStream]) -> None:
-    """Every call of ``name`` from here on; ``stream`` is the saved random stream when calls are dry-run, else None."""
+          dry_run: bool) -> None:
+    """Every call of ``name`` from here on, each dry-run unless ``dry_run`` is false."""
     book, actor = env.actions, turn.actor
     if index == len(items):
         params, problem = book.validate(actor, name, raw)
-        if problem is None and (stream is None or book.refusal(actor, name, params, stream) is None):
+        if problem is None and (not dry_run or book.refusal(actor, name, params) is None):
             if len(found) >= limit:
                 raise _Unlisted(f"more than {limit:,} legal combinations of arguments")
             found.append((name, dict(raw)))
@@ -292,12 +289,12 @@ def _walk(env: "Env", turn: "Turn", name: str, items: List[Tuple[str, ParamSpec]
     pname, param = items[index]
     for value in _choices(env, turn, name, pname, param, resolved, limit):
         if value is None:
-            _walk(env, turn, name, items, index + 1, raw, resolved, found, limit, stream)
+            _walk(env, turn, name, items, index + 1, raw, resolved, found, limit, dry_run)
             continue
         typed, problem = book._value(actor, name, pname, param, value, resolved)
         if problem is None:
             _walk(env, turn, name, items, index + 1, {**raw, pname: value}, {**resolved, pname: typed}, found, limit,
-                  stream)
+                  dry_run)
 
 
 def _choices(env: "Env", turn: "Turn", name: str, pname: str, param: ParamSpec, resolved: Dict[str, Any],

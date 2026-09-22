@@ -1,16 +1,16 @@
 {
   "actions": 7,
-  "events": 12,
-  "events_sha256": "1908f13951858c2346ddeef2b113d94927f7ca499053ff326df7b930167ee5e0",
+  "events": 13,
+  "events_sha256": "aa0359e70b51b08b8e032106053c86a122ca46942acd49b57c57269c56f8613c",
   "metrics": {
-    "busy_drivers": 7,
-    "completed_trips": 0,
-    "downtown_surge": 1.0,
-    "idle_drivers": 23,
-    "max_surge": 1.0,
-    "open_requests": 0
+    "busy_drivers": 6,
+    "completed_trips": 1,
+    "downtown_surge": 1,
+    "idle_drivers": 24,
+    "max_surge": 1,
+    "open_requests": 1
   },
   "rounds": 4,
   "status": "running",
-  "wakes": 112
+  "wakes": 110
 }

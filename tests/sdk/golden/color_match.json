@@ -1,7 +1,7 @@
 {
   "actions": 16,
   "events": 17,
-  "events_sha256": "b896f1fdbd7aac24a690d38e8ff39afa3c8be2fceaa9941c2f67da484dc80dad",
+  "events_sha256": "0a732e55d1cfe53e52b7b117db702503b14974b7ef7751c5e1c7f772c82ee829",
   "metrics": {
     "cards_in_hands": 30,
     "draw_pile": 50

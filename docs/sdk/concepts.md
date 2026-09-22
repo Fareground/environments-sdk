@@ -46,4 +46,4 @@ A host that loads the environment can inspect its full state. Participant visibi
 
 ## Determinism
 
-Seeded engine randomness supports repeatable runs. Reproduction also requires the same contract, inputs, participant decisions and external responses. An LLM call may produce a different decision even with the same environment seed. Record exposures and replay calls when you need to reproduce those runs.
+Seeded engine randomness supports repeatable runs. Each event, trigger, stage hook and agent's action draws from its own stream, keyed by where it is written in the contract and the round. With the same seed and contract, the world's draws are the same whatever the participants choose, so policies and arms compare on the same luck. A refused action gives its draws back, so a retry in the same round rolls the same luck. Reproducing a whole run also requires the same inputs, participant decisions and external responses. An LLM call may produce a different decision even with the same environment seed. Record exposures and replay calls when you need to reproduce those runs.

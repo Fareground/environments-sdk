@@ -233,8 +233,19 @@ fg-env run examples/contracts/werewolf.json --seed 3
 ## Determinism
 
 Every random draw comes from one seed tree per run, so a run is reproducible exactly from its seed.
-Adding an event with a chance roll never changes how the population was sampled. Runs snapshot to
-JSON between rounds and resume identically.
+Each block of logic draws from its own stream, keyed by where it is written (`events[0]`, a trigger, a
+stage hook, an action and the agent taking it) and the round. What that guarantees:
+
+- Same seed and same contract ⇒ the same world draws (arrivals, shocks, an event's chance rolls),
+  whatever the participants choose. One agent's actions never shift another agent's luck either. That
+  is why policies and experiment arms can be compared run by run.
+- A block's own draws still follow what it does: a roll per waiting patient rolls once per patient
+  still waiting, and that number depends on the policy.
+- A refused action gives its draws back, so retrying it in the same round rolls the same luck.
+- Adding a rule at the end of a list changes no other draw. Inserting one earlier renumbers the ones
+  after it (`events[2]` becomes `events[3]`), and they draw anew.
+
+Runs snapshot to JSON between rounds and resume identically.
 
 ## Template API
 

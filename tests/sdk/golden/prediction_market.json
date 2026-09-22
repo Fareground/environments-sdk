@@ -1,11 +1,11 @@
 {
   "actions": 36,
   "events": 36,
-  "events_sha256": "c50a7ba5875a5284d8ced22c207bddc2615bcf97c587dd7edd2bbc55746e29f8",
+  "events_sha256": "c08b3657b91d4d0c6d7c7aa2b2e16d323577e4b37486b1c52ba804763f5320a7",
   "metrics": {
-    "election_p_ada": 0.1909534502,
-    "election_p_bo": 0.1256809373,
-    "election_p_cy": 0.6833656124
+    "election_p_ada": 0.2428391056,
+    "election_p_bo": 0.1337182679,
+    "election_p_cy": 0.6234426266
   },
   "rounds": 4,
   "status": "running",

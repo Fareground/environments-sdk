@@ -3,8 +3,8 @@
   "events": 0,
   "events_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "metrics": {
-    "happy": 0.9375,
-    "segregation": 0.7220572917
+    "happy": 0.946875,
+    "segregation": 0.737671131
   },
   "rounds": 4,
   "status": "running",

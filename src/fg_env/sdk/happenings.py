@@ -55,38 +55,43 @@ class Happenings:
                 continue
             if event.once and index in env._fired_once:
                 continue
-            if not self._due(event, path):
-                continue
-            if event.once:
-                env._fired_once.add(index)
-            if event.each is not None:
-                item_name = event.as_ or "it"
-                try:
-                    items = world.entities_of(event.each) if event.each in env.contract.types else \
-                        compile_expr(event.each)(world.scope())
-                    items = self._ordered(event, list(items or []), item_name, path)
-                    if event.sync:
-                        run_sync(env, event, items, item_name, path)
-                        items = []
-                    for position, item in enumerate(items):
-                        inner = {item_name: item, "i": position}
-                        if event.where is not None and not truthy(compile_expr(event.where)(world.scope(**inner))):
-                            continue
-                        env._atomic(event.do, inner, f"{path}.do")
-                except ExprError as exc:
-                    raise RunError(str(exc), path) from None
-            else:
-                env._atomic(event.do, {}, f"{path}.do")
-            if event.say:
-                try:
-                    text = compile_template(event.say, None).render(world.scope())
-                except ExprError as exc:
-                    raise RunError(str(exc), f"{path}.say") from None
-                if text.strip():
-                    world.emit("news", text, data={"event": event.name or index})
-                world.journal.clear()
+            with world.drawing_at(path):  # its own luck: no other event's draws, nor any agent's, shift it
+                self._fire(index, event, path)
             if env._ended():
                 return
+
+    def _fire(self, index: int, event: Any, path: str) -> None:
+        env, world = self.env, self.env.world
+        if not self._due(event, path):
+            return
+        if event.once:
+            env._fired_once.add(index)
+        if event.each is not None:
+            item_name = event.as_ or "it"
+            try:
+                items = world.entities_of(event.each) if event.each in env.contract.types else \
+                    compile_expr(event.each)(world.scope())
+                items = self._ordered(event, list(items or []), item_name, path)
+                if event.sync:
+                    run_sync(env, event, items, item_name, path)
+                    items = []
+                for position, item in enumerate(items):
+                    inner = {item_name: item, "i": position}
+                    if event.where is not None and not truthy(compile_expr(event.where)(world.scope(**inner))):
+                        continue
+                    env._atomic(event.do, inner, f"{path}.do")
+            except ExprError as exc:
+                raise RunError(str(exc), path) from None
+        else:
+            env._atomic(event.do, {}, f"{path}.do")
+        if event.say:
+            try:
+                text = compile_template(event.say, None).render(world.scope())
+            except ExprError as exc:
+                raise RunError(str(exc), f"{path}.say") from None
+            if text.strip():
+                world.emit("news", text, data={"event": event.name or index})
+            world.journal.clear()
 
     def _ordered(self, event: Any, items: List[Any], name: str, path: str) -> List[Any]:
         """An `each` event's items in its `order`: shuffled from the run's seed, or by a key (lowest first)."""
@@ -144,7 +149,8 @@ class Happenings:
                     continue
                 where = f"triggers[{index}]"
                 try:
-                    holds = truthy(compile_expr(trigger.when)(world.scope()))
+                    with world.drawing_at(f"{where}.when"):
+                        holds = truthy(compile_expr(trigger.when)(world.scope()))
                 except ExprError as exc:
                     raise RunError(str(exc), f"{where}.when") from None
                 was = env._trigger_armed.get(index, False)

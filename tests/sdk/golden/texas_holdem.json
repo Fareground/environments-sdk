@@ -1,7 +1,7 @@
 {
   "actions": 6,
   "events": 13,
-  "events_sha256": "1f67d4afde2d8334924473fef660717d57f3a4929b5f65de71f0d3e61c558710",
+  "events_sha256": "62dbc6ed6992a141c12a8e0035507463d320d0ae271abc77ea709ca83e13f282",
   "metrics": {
     "chip_leader_stack": 3000,
     "players_left": 1,

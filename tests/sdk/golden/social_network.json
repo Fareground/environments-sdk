@@ -1,12 +1,12 @@
 {
-  "actions": 78,
-  "events": 162,
-  "events_sha256": "2362648b441be053731c99648940ecf78643ec723a5a40656da7e57304c9ad73",
+  "actions": 80,
+  "events": 169,
+  "events_sha256": "28c908893b66d097dc2c852fd1901a8f556d9ddca9164f62c065b6e915f9e0f9",
   "metrics": {
-    "believers": 15,
+    "believers": 26,
     "insularity": 0.06195506346,
-    "reach": 73,
-    "rumor_posts": 12
+    "reach": 95,
+    "rumor_posts": 22
   },
   "rounds": 4,
   "status": "running",

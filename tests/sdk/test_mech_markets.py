@@ -252,7 +252,7 @@ def test_coded_traders_produce_a_stylized_facts_tape():
                                         "crowd": crowd}},
                 "outputs": {"realism": {"expr": "$market_realism({prices: $series.acme_price, volumes: $series.acme_volume}, "
                                                 f"{reference})", "type": "map"}}}
-    result = fg_env.load(contract, seed=3).run()
+    result = fg_env.load(contract, seed=4).run()
     assert result.status == "completed", result.error
     prices, volumes, spreads = (result.series[f"acme_{k}"] for k in ("price", "volume", "spread"))
     assert sum(1 for v in volumes if v > 0) >= 0.9 * len(volumes) and sum(volumes) / len(volumes) > 10
