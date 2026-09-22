@@ -31,6 +31,11 @@ Every run is now either correct or fails loudly (T-797 phase 1). Several default
 - Inventory maps keep every declared stackable item, at 0 when none are held. `$round` rounds halves away from zero.
   A literal 0 for `passes`, `max_actions` or `max_calls` is an error. A bare-word stage `order` other than
   `seat`/`random` is an error. `and or not in if else true false null` are refused as type names and entity ids (T-804).
+- Random draws come from a stream per piece of logic (where it is written, the round, how often it drew), so the
+  same seed gives the same world draws whatever participants choose, and one agent's actions never shift another's
+  luck. A refused action gives its draws back, so retrying it in the same turn rolls the same luck. Every example
+  that draws in world logic produces different numbers than before. Snapshot version 3: older snapshots are refused
+  (T-803).
 - `fg_env.check` plays up to 12 rounds by default (about 2s in total) instead of 1. It also plays every declared
   policy (T-805).
 
