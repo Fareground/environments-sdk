@@ -144,6 +144,9 @@ class SdkWorld(World):
         self._def_cache: Dict[Any, Any] = {}
         self._def_cache_state: Any = None
         self._def_cache_on = False
+        #: What :meth:`remembered` worked out for the current world state.
+        self._remembered: Dict[Any, Any] = {}
+        self._remembered_state: Any = None
         self._subtypes = {t: set(contract.subtypes(t)) for t in contract.types}
         #: The living entities of every type, kept current by create and remove.
         self.types = TypeIndex(contract)
@@ -345,6 +348,21 @@ class SdkWorld(World):
         # drew nothing takes the same path again, so its value is exactly what a fresh call would return.
         if key is not None and self.draws() == drawn and self.state_version() == state and isinstance(value, _CACHEABLE):
             self._def_cache[key] = value
+        return value
+
+    def remembered(self, key: Tuple[Any, ...], work: Callable[[], Any]) -> Any:
+        """``work()``, reused under ``key`` while the world stays as it is: one turn asks for the same choices and
+        tools several times (legality, its tools, validating a call, diagnostics). Work that drew at random is never
+        reused."""
+        state = self.state_version()
+        if state != self._remembered_state:
+            self._remembered, self._remembered_state = {}, state
+        elif key in self._remembered:
+            return self._remembered[key]
+        drawn = self.draws()
+        value = work()
+        if self.draws() == drawn and self.state_version() == state:
+            self._remembered[key] = value
         return value
 
     def enable_def_cache(self) -> None:

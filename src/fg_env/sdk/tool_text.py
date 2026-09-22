@@ -158,26 +158,43 @@ def _narrower(schema: Dict[str, Any], merged: Dict[str, Any]) -> str:
 def compact_ids(ids: Sequence[str]) -> str:
     """Ids as short text: runs of numbered ids become ranges (``u1–u150``); a very long listing is cut with a count."""
     parts: List[str] = []
-    run: List[Tuple[str, int, str]] = []
-
-    def flush() -> None:
-        if len(run) > 2:
-            parts.append(f"{run[0][2]}–{run[-1][2]}")
-        else:
-            parts.extend(item[2] for item in run)
-        run.clear()
-
+    first = last = prefix = ""  # the current run of consecutive numbered ids: its ends, their text and last number
+    number = length = 0
     for key in ids:
-        match = _NUMBERED.match(key)
-        if match is None or match.group(2).startswith("0") and match.group(2) != "0":
-            flush()
-            parts.append(key)
+        stem, digits = _numbered(key)
+        if digits and (digits[0] != "0" or digits == "0"):
+            value = int(digits)
+            if length and stem == prefix and value == number + 1:
+                last, number, length = key, value, length + 1
+                continue
+            _close_run(parts, first, last, length)
+            first = last = key
+            prefix, number, length = stem, value, 1
             continue
-        prefix, number = match.group(1), int(match.group(2))
-        if run and not (run[-1][0] == prefix and run[-1][1] + 1 == number):
-            flush()
-        run.append((prefix, number, key))
-    flush()
+        _close_run(parts, first, last, length)
+        length = 0
+        parts.append(key)
+    _close_run(parts, first, last, length)
     if len(parts) > _LISTED_IDS:
         return ", ".join(parts[:_LISTED_IDS]) + f" and {len(parts) - _LISTED_IDS} more"
     return ", ".join(parts)
+
+
+def _close_run(parts: List[str], first: str, last: str, length: int) -> None:
+    """A run of more than two consecutive ids as a range; a shorter one id by id."""
+    if length > 2:
+        parts.append(f"{first}–{last}")
+    elif length == 2:
+        parts += (first, last)
+    elif length == 1:
+        parts.append(first)
+
+
+def _numbered(key: str) -> Tuple[str, str]:
+    """``key`` split into its text and its trailing digits ("" when it has none) — without a pattern match for the
+    usual ASCII digits: a listing splits every candidate's id."""
+    stem = key.rstrip("0123456789")
+    if stem and stem[-1].isdecimal():  # digits of another script before or instead of them: the pattern decides
+        match = _NUMBERED.match(key)
+        return (match.group(1), match.group(2)) if match else (key, "")
+    return stem, key[len(stem):]
