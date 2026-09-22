@@ -428,6 +428,25 @@ def test_uniform_price_auction_sells_units_to_the_highest_bids_at_one_price(rule
     assert props(env, "c")["cash"] == 100 and env.props["house_revenue"] == 3 * price
 
 
+@pytest.mark.parametrize("rule, price", [("lowest_accepted", 80), ("highest_rejected", 10)])
+def test_uniform_price_with_units_left_over_prices_at_the_reserve_when_no_bid_is_rejected(rule, price):
+    env, _ = play(house("uniform", units=3, stock=3, reserve=10, price_rule=rule), {
+        (1, "a"): [("house_bid", {"price": 100, "qty": 1})], (1, "b"): [("house_bid", {"price": 80, "qty": 1})]})
+    assert [(r["winner"], r["price"]) for r in env.world.records("house_results")] == [("a", price), ("b", price)]
+    assert env.props["house_stock"] == 1 and env.props["house_revenue"] == 2 * price
+
+
+def test_uniform_auction_sells_what_is_left_when_the_stock_is_smaller_than_a_lot():
+    env, _ = play(house("uniform", units=3, stock=4, reserve=10, price_rule="highest_rejected"), {
+        (1, "a"): [("house_bid", {"price": 30, "qty": 3})],
+        (2, "b"): [("house_bid", {"price": 40, "qty": 2})], (2, "c"): [("house_bid", {"price": 30, "qty": 1})]}, rounds=3)
+    first, last = env.world.records("house_results")
+    assert (first["winner"], first["qty"], first["price"]) == ("a", 3, 10)
+    assert (last["winner"], last["qty"], last["price"]) == ("b", 1, 40)  # one unit left: b's other unit is rejected
+    assert env.props["house_stock"] == 0 and props(env, "c")["cash"] == 100
+    assert not auctions.audit(env.world, "house")
+
+
 def dealers(contract):
     contract["types"]["dealer"] = {"agent": True, "props": {"cash": 0}}
     contract["entities"].update({s: {"type": "dealer", "props": {"house_units": 2}} for s in ("s", "t")})

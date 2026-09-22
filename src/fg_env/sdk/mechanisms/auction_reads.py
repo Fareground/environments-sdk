@@ -24,7 +24,7 @@ def describe(world: Any, name: str, viewer: Optional[Entity]) -> str:
              "second_price": "Sealed-bid Vickrey auction (highest bid wins and pays the second-highest bid)",
              "english": "English auction (open ascending bids)", "dutch": "Dutch auction (falling clock; first taker wins)",
              "double": "Double auction (sealed bids and asks cleared at one price)",
-             "uniform": f"Uniform-price auction ({cfg.units} units to the highest bids at one price)",
+             "uniform": f"Uniform-price auction ({lot.get('units') or cfg.units} units to the highest bids at one price)",
              "combinatorial": "Combinatorial auction (sealed package bids; you win at most one package; winners pay "
                               + ("VCG prices)" if cfg.payment == "vcg" else "their bids)")}[cfg.format]
     if not lot.get("open"):

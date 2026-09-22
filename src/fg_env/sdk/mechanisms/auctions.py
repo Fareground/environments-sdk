@@ -6,9 +6,9 @@ until it closes:
 
 * ``first_price`` / ``second_price`` / ``uniform`` / ``double`` — sealed: bids are placed in a
   simultaneous stage and cleared at its end. First price pays its bid; second price pays the
-  highest losing bid (or the reserve); uniform sells ``units`` to the highest bids at one price
-  (the lowest accepted bid, or with ``price_rule: highest_rejected`` the highest rejected one);
-  double matches buyers' bids with sellers' asks at the midpoint of the marginal pair.
+  highest losing bid (or the reserve); uniform sells ``units`` (or what stock is left, if less) to
+  the highest bids at one price (the lowest accepted bid, or with ``price_rule: highest_rejected``
+  the highest rejected one, or the reserve when no bid was rejected); double matches buyers' bids with sellers' asks at the midpoint of the marginal pair.
 * ``english`` — open ascending: each bid beats the high bid by at least ``increment``; the lot
   closes when ``timeout`` rounds pass without a new bid. The winner pays its bid.
 * ``dutch`` — a descending clock starts at ``start_price`` and falls by ``decrement`` each round;
@@ -62,14 +62,17 @@ class AuctionConfig(BaseModel):
     house: Optional[str] = Field(None, description="Entity id of the auction house: sells its units and is paid; default: the "
                                                    "mechanism itself (stock and revenue in world props).")
     stock: Union[int, str] = Field(1, description="Units the house has to sell (number or expression).")
-    units: int = Field(1, ge=1, description="Units in each lot (uniform), or the most units one bid or ask may carry (double).")
+    units: int = Field(1, ge=1, description="Units in each lot (uniform; the last lot sells what is left), or the most units "
+                                            "one bid or ask may carry (double).")
     reserve: Union[float, str] = Field(0.0, description="Lowest acceptable price per unit (number or expression).")
     start_price: Optional[Union[float, str]] = Field(None, description="dutch: where the clock starts.")
     decrement: float = Field(1, gt=0, description="dutch: how much the clock falls each round.")
     increment: float = Field(1, gt=0, description="english: minimum raise over the high bid.")
     timeout: int = Field(1, ge=1, description="english: rounds without a new bid before the lot closes.")
     ties: Literal["first", "random"] = Field("first", description="Equal bids: the earliest wins, or a seeded random one.")
-    price_rule: Literal["lowest_accepted", "highest_rejected"] = Field("lowest_accepted", description="uniform: the clearing price.")
+    price_rule: Literal["lowest_accepted", "highest_rejected"] = Field(
+        "lowest_accepted", description="uniform: the clearing price — the lowest accepted bid, or the highest rejected one "
+                                       "(the reserve when none was rejected).")
     items: List[str] = Field(default_factory=list, description="combinatorial: the distinct items for sale, bid on in packages.")
     reserves: Dict[str, Union[float, str]] = Field(default_factory=dict, description="combinatorial: reserve per item (number or expression); others use `reserve`.")
     packages: int = Field(3, ge=1, le=8, description="combinatorial: most package bids one bidder may hold (it wins at most one).")
@@ -139,17 +142,21 @@ def open_lot(world: Any, name: str) -> None:
         return
     if cfg.when is not None and not truthy(compile_expr(cfg.when)(world.scope())):
         return
+    units = 1
     if cfg.format != "double":
         _, source = _payee(world, name, cfg)
-        if balance(world, source) < (cfg.units if cfg.format == "uniform" else 1):
+        left = int(balance(world, source))
+        if left < 1:
             return
+        if cfg.format == "uniform":
+            units = min(cfg.units, left)  # the last lot sells what is left
     price = 0.0
     if cfg.format == "dutch":
         price = number(world, cfg.start_price, f"mechanisms.{name}.start_price")
     elif cfg.format == "english":
         price = _reserve(world, name, cfg)
     world.set_world(f"{name}_lot", {"open": True, "number": int(lot.get("number", 0)) + 1, "opened": world.round,
-                                    "price": price, "leader": None, "last_bid": world.round, "bids": []})
+                                    "price": price, "leader": None, "last_bid": world.round, "units": units, "bids": []})
 
 
 def bid(world: Any, name: str, trader: Entity, side: str, price: Any, qty: Any = 1, items: Any = None) -> str:
@@ -276,7 +283,7 @@ def close_sealed(world: Any, name: str) -> None:
         _clear_packages(world, name, cfg, lot)
         return
     reserve = _reserve(world, name, cfg)
-    supply = cfg.units if cfg.format == "uniform" else 1
+    supply = int(lot["units"])
     allocation: List[Tuple[Dict[str, Any], int]] = []
     left = supply
     rejected: List[float] = []
@@ -298,7 +305,7 @@ def close_sealed(world: Any, name: str) -> None:
         prices = [max([reserve] + [b["price"] for b in bids[1:]][:1])]
     else:
         lowest = min(e["price"] for e, _ in allocation)
-        prices = [max(reserve, max(rejected)) if cfg.price_rule == "highest_rejected" and rejected else lowest]
+        prices = [max([reserve, *rejected]) if cfg.price_rule == "highest_rejected" else lowest]
     winners: List[Tuple[str, int, float]] = []
     for entry, take in allocation:
         price = prices[0]
