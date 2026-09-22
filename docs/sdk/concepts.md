@@ -42,6 +42,14 @@ Properties hold values. Expressions read those values; effects change them. For 
 
 A participant receives a static brief, an update and typed tools. Private properties and record visibility determine what is available to each viewer. Preview every role, and inspect recorded exposures when information boundaries matter. Keep secret values out of public announcement templates.
 
+The defaults keep hidden information hidden:
+
+- The `inspect` tool shows an agent only its own entity. Set `inspect: true` (or an expression over `$viewer` and `$it`) on a type whose entities agents may look at; inspect then shows every property that is not private.
+- In a simultaneous stage, others learn that an agent acted, not what it chose (`Ada: bid.`). Write an `announce` template to reveal the choice.
+- A view that lists every entity with a private property and no `where`, and an entity choice whose `where` reads another agent's private property, are check errors: both would reveal the value.
+- Text a participant writes is shown «quoted» on one line, so it cannot pass for a heading or a new section of another agent's update.
+- A refusal tells the actor something. A `when` or `fail` that reads hidden state reveals it through the refusal; if the rule itself should stay secret, accept the action and settle the hidden part in `do`.
+
 A host that loads the environment can inspect its full state. Participant visibility is not a security boundary against the host itself.
 
 ## Determinism

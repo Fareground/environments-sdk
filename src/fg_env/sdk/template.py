@@ -29,6 +29,9 @@ __all__ = ["Template", "compile_template", "render", "format_value", "apply_form
 _FIELD = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*|\[\d+\])*$")
 #: A placeholder wrapped in «» by the template itself: participant text already renders inside «».
 _REQUOTED = re.compile(r"«\s*(\{[^{}]*\})\s*»")
+#: Line breaks inside participant text, with the spaces around them: quoted text reads on one line, so it cannot open
+#: a heading or a line of its own in what another agent reads.
+_BREAKS = re.compile(r"\s*[\r\n\v\f\x1c-\x1e\x85\u2028\u2029]\s*")
 #: While an agent's reading renders: which entities show their [id] handle after their name.
 _HANDLES: ContextVar[Optional[Callable[[Any], bool]]] = ContextVar("fg_env_entity_handles", default=None)
 
@@ -52,7 +55,7 @@ def format_value(value: Any) -> str:
     if value is None:
         return "—"
     if isinstance(value, Untrusted):
-        return "«" + str.__str__(value).replace("«", "‹").replace("»", "›") + "»"
+        return "«" + _BREAKS.sub(" ", str.__str__(value)).replace("«", "‹").replace("»", "›") + "»"
     if isinstance(value, bool):
         return "yes" if value else "no"
     if isinstance(value, float):

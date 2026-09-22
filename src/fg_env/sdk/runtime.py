@@ -113,6 +113,7 @@ class Env(Copying, RunChecks, RunRounds, RunStages):
         self._triggers_fired: set = set()
         self._in_round = False
         self.origin = Origin(contract)  # what copies of this run replay from (see replay.py)
+        #: Whether some type lets agents inspect entities besides themselves (whose [id] handles then show).
         self._inspectable = any(self._inspect_rule(kind) is not False for kind in contract.types)
         #: The state each invariant was last found to hold in (see _check_invariants).
         self._invariant_held: Dict[int, Any] = {}

@@ -43,11 +43,12 @@ _SUGGEST_CUTOFF = 0.6
 
 
 def inspect_rule(contract: Any, type_name: str) -> Any:
-    """The inspect rule for a type, inherited through `extends`: true (default), false, or an expression."""
+    """The inspect rule for a type, inherited through `extends`: false (default: only itself), true, or an
+    expression."""
     for kind in reversed(contract.lineage(type_name)):
         if "inspect" in contract.types[kind].model_fields_set:
             return contract.types[kind].inspect
-    return True
+    return False
 
 
 def may_inspect(env: "Env", viewer: Entity, target: Entity) -> bool:

@@ -223,11 +223,10 @@ class Turn:
         looks = env.perception.look_views(self.actor, self.stage)
         if looks:
             tools.append(look_tool([(name, env.contract.views[name].title) for name in looks], self.max_calls))
-        if env._inspectable:
-            with env._lock:
-                inspect = inspect_tool(env, self.actor, self.max_calls)
-            if inspect is not None:
-                tools.append(inspect)
+        with env._lock:
+            inspect = inspect_tool(env, self.actor, self.max_calls)
+        if inspect is not None:
+            tools.append(inspect)
         if not self._must_act_now(tools):
             if self.staged:
                 end_text = "Finish your turn (your choices are submitted)."

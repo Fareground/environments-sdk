@@ -23,7 +23,7 @@ WORLD = {
     "name": "Hardening",
     "clock": {"rounds": 2},
     "types": {
-        "person": {"agent": True, "props": {
+        "person": {"agent": True, "inspect": True, "props": {
             "cash": 10,
             "notes": {"type": "map", "default": {}},
             "secret": {"type": "int", "default": 1, "min": 0, "max": 9, "private": True},

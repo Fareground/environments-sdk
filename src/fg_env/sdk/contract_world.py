@@ -168,7 +168,7 @@ class PropSpec(_Model):
     min: Optional[float] = Field(None, description="Lowest allowed value: a write below it is refused, never clamped (saturate with $clamp).")
     max: Optional[float] = Field(None, description="Highest allowed value: a write above it is refused, never clamped (saturate with $clamp).")
     values: Optional[List[Any]] = None
-    private: bool = Field(False, description="Hidden from other agents' inspect tool.")
+    private: bool = Field(False, description="Hidden from other agents' inspect tool; a view listing it for every entity, or another agent's in an entity choice's `where`, is a check error.")
     description: str = ""
     unit: str = ""
 
@@ -192,7 +192,7 @@ class TypeSpec(_Model):
     description: str = ""
     props: Dict[str, PropSpec] = Field(default_factory=dict)
     policy: Optional[str] = Field(None, description="Default coded policy for agents of this type.")
-    inspect: Union[bool, str] = Field(True, description="Whether agents may inspect these entities: true, false, or an expression over $viewer and $it.")
+    inspect: Union[bool, str] = Field(False, description="Whether agents may inspect these entities (each agent may always inspect itself): false (default), true, or an expression over $viewer and $it. Inspect shows every property that is not private.")
     on_create: Effects = Field(default_factory=list, description="Effects run for every entity of this type (subtypes too) the moment it is created ($it), atomically with whatever created it; an ancestor's hooks run first.")
     on_remove: Effects = Field(default_factory=list, description="Effects run for every entity of this type (subtypes too) the moment it is removed ($it, already no longer alive), atomically with the removal.")
     on_create_at_build: bool = Field(True, description="Also run on_create for entities made when the world is built (once the whole world exists, in creation order); false runs it only for entities created during the run. The nearest declaration in the type's lineage wins.")

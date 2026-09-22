@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from typing import TYPE_CHECKING, Any, List, Mapping, Set
+from typing import TYPE_CHECKING, Any, Iterable, List, Mapping, Optional, Set
 
 from . import contract as C
 from .check_params import check_param_bounds
@@ -11,7 +11,7 @@ from .probability import check_literal_probability
 from .check_roots import BASE
 from .check_turns import check_spectator_view, check_stage_turns, spectator_audience_issues
 from .contract import Contract
-from .expr import ExprError
+from .expr import Expr, ExprError, compile_expr
 from .perception import SPECTATOR
 from .reads import READS
 from .session import END_TURN
@@ -57,6 +57,7 @@ class ActionChecks:
                     elif self._type(param.of, f"{ppath}.of"):
                         self.expr(param.where, f"{ppath}.where", BASE | {"actor", "it", "i", "params"},
                                   {"actor": by_types, "it": {param.of}}, spec.params)
+                        self._private_filter(param.where, param.of, f"{ppath}.where")
                 elif param.type == "list":
                     self._list_param(param, ppath, by_types, types, spec.params)
                 elif param.type == "enum":
@@ -169,6 +170,7 @@ class ActionChecks:
             elif self._type(entity_of, f"{ppath}.of"):
                 self.expr(where, f"{ppath}.where", BASE | {"actor", "it", "i", "params"},
                           {"actor": by_types, "it": {entity_of}}, params)
+                self._private_filter(where, entity_of, f"{ppath}.where")
         values = item.values if item is not None and item.type == "enum" else (param.values if item is None else None)
         if item is not None and item.type == "enum" and values is None:
             self.error(f"{ppath}.items", "enum items need `values`")
@@ -260,17 +262,35 @@ class ActionChecks:
                 self.error(f"{path}.limit", "must be at least 1")
 
     def _private_listing(self: "_Checker", show: str, of: str, path: str) -> None:  # type: ignore[misc]
-        """Warn when a view lists every entity of a type with a private property: each reader sees everyone's."""
+        """A view listing every entity of a type with a private property shows each reader everyone's."""
         try:
             compiled = compile_template(show, "it")
         except ExprError:
             return  # already reported by the template check
-        specs = self.c.props_of(of)
-        shown = sorted({chain[1] for expr in compiled.expressions for chain in expr.paths
-                        if len(chain) > 1 and chain[0] == "it" and chain[1] in specs and specs[chain[1]].private})
+        shown = self._private_fields(compiled.expressions, of)
         if shown:
-            self.warn(path, f"shows private {', '.join(shown)} of every {of} to each reader",
-                      "add a `where` choosing whose to show (e.g. `$it.id == $actor.id`), or leave the private field out")
+            self.error(path, f"shows private {', '.join(shown)} of every {of} to each reader",
+                       "add a `where` choosing whose to show (e.g. `$it.id == $actor.id`), or leave the private field out")
+
+    def _private_filter(self: "_Checker", where: Optional[str], of: str, path: str) -> None:  # type: ignore[misc]
+        """A choice filtered by another agent's private property reveals it: the tool lists only who passes."""
+        if where is None or not self.c.is_agent(of):
+            return
+        try:
+            shown = self._private_fields([compile_expr(where)], of)
+        except ExprError:
+            return  # already reported by the expression check
+        if shown:
+            self.error(path, f"filters the choices by private {', '.join(shown)} of other {of} agents: the "
+                             "tool's list of choices would reveal it to the actor",
+                       "filter by what the actor may know (public properties, its own, a relation or a function such "
+                       "as $known_role), or accept any choice and decide in `do`")
+
+    def _private_fields(self: "_Checker", expressions: Iterable[Expr], of: str) -> List[str]:  # type: ignore[misc]
+        """The private properties of ``of`` that ``expressions`` read from ``$it``."""
+        specs = self.c.props_of(of)
+        return sorted({chain[1] for expr in expressions for chain in expr.paths
+                       if len(chain) > 1 and chain[0] == "it" and chain[1] in specs and specs[chain[1]].private})
 
 
 def _stage_action_names(stage: C.StageSpec, contract: Contract, raw: bool = False) -> List[str]:

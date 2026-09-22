@@ -36,8 +36,11 @@
   "villager": "rest"}, "teams": {...}, "know": [...]}` deals private roles, tells teammates, gates role actions and
   eliminates and reveals players (guide('groups.roles')). An entity's built-in `alive` turns false only when it is
   removed; a player the mechanism eliminates stays in the world with its `living` prop false.
-* Hidden information: `private` props (hidden from others' inspect), per-type views, record
-  `visible` rules, `to` on posts/emits, `private: true` actions (no announcement). Visibility shapes only what an
+* Hidden information: `private` props, per-type views, record `visible` rules, `to` on posts/emits,
+  `private: true` actions (no announcement). `inspect` shows an agent only itself unless a type sets `inspect`.
+  A view listing every entity with a private prop and no `where`, or an entity choice whose `where` reads another
+  agent's private prop, is a check error: it would reveal the value. A refusal is information too — a `when` or
+  `fail` that reads hidden state tells the actor something about it. Visibility shapes only what an
   agent is shown or offered (brief, updates, views, tool choices, outcome text, its policy); game logic — action
   `when`/`do`, events, triggers, stages, `end`, metrics, outputs, invariants — reads every record entry and event,
   so an auditor's `accuse` can count messages it never saw. To ask what one agent can see inside logic, filter
@@ -107,8 +110,8 @@
   was created, is counted and connected; closing one lays off its jobs.
 * Reusable logic: `defs` for formulas (`"utility": {"args": ["side", "offer"], "expr": "..."}`) and
   `blocks` for effect lists (`{"block": "match", "with": {"order": "$made"}}`).
-* Scoping inspection: `types.X.inspect: false` (or an expression over `$viewer` and `$it`) hides
-  entities from the inspect tool; `private` props hide single values.
+* Inspection: each agent may inspect itself; `types.X.inspect: true` (or an expression over `$viewer` and `$it`)
+  lets agents inspect those entities too, showing every prop that is not `private`.
 * Boards and tables in views: `"bullet": false` prints lines without "- ". View titles are templates.
 * Participants keyed by a parent type (`{"tier": ...}`) and `policy` on a parent type reach every subtype.
 * Calendars: `clock.start` with unit day, week, month, year, hour or minute adds the date to the time label, and may
