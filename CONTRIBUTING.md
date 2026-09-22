@@ -71,8 +71,9 @@ in the commit message.
 
 1. Write `examples/contracts/<name>.json`, working from `fg-env guide`.
 2. Make it check clean: `fg-env check examples/contracts/<name>.json`.
-3. Run `tests/sdk/test_examples.py`. A missing golden is written on the first run; run
-   again to confirm it reproduces, then commit `tests/sdk/golden/<name>.json` with the contract.
+3. Write its golden with `FG_ENV_UPDATE_GOLDEN=1 PYTHONPATH=src python -m pytest tests/sdk/test_examples.py -q`,
+   run the test again without it to confirm it reproduces, then commit `tests/sdk/golden/<name>.json` with the
+   contract. A contract with no golden fails the test.
 4. List it in the README examples section and the CHANGELOG.
 
 ### Contract JSON Schema

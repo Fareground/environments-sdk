@@ -49,8 +49,9 @@ def test_example_contract(path: Path) -> None:
     again = fg_env.load(path, seed=7).run(rounds=ROUNDS)
     assert _fingerprint(again) == _fingerprint(result)  # deterministic under a seed
     golden = GOLDEN / f"{path.stem}.json"
-    if os.environ.get("FG_ENV_UPDATE_GOLDEN") or not golden.exists():
+    if os.environ.get("FG_ENV_UPDATE_GOLDEN"):
         golden.write_text(json.dumps(_fingerprint(result), indent=2, sort_keys=True, default=str) + "\n")
+    assert golden.exists(), f"no golden for {path.name}: write it with FG_ENV_UPDATE_GOLDEN=1, then commit it"
     assert _fingerprint(result) == json.loads(golden.read_text())
 
 
