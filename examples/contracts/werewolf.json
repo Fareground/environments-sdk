@@ -64,7 +64,7 @@
         "choose_victim": {
           "roles": ["werewolf"],
           "description": "At night: name the villager the pack should kill tonight. If the pack disagrees, one of its choices is picked by chance.",
-          "params": {"target": {"type": "entity", "of": "player", "where": "$it.living and $it.team != wolves", "description": "The player to kill."}},
+          "params": {"target": {"type": "entity", "of": "player", "where": "$it.living and $known_role($actor, $it) != werewolf", "description": "The player to kill."}},
           "do": ["$actor.nomination = $params.target.id"],
           "outcome": "You chose {$params.target.name} as tonight's victim.",
           "terminal": true

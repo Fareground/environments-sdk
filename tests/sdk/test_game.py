@@ -256,7 +256,10 @@ def test_observations_are_what_the_seat_reads_and_what_it_may_see():
     acting, waiting = state.observation(0, "struct"), state.observation(1, "struct")
     assert len(acting["actions"]) == 9 and waiting["actions"] is None
     assert acting["views"]["board"].startswith("You play x. Board") and acting["me"]["id"] == "x"
-    kuhn = fg_env.game(KUHN).new_initial_state()
+    assert acting["entities"] == []  # nobody else is inspectable by default
+    open_kuhn = copy.deepcopy(KUHN)
+    open_kuhn["types"]["player"]["inspect"] = True
+    kuhn = fg_env.game(open_kuhn).new_initial_state()
     kuhn.apply_action(0)
     kuhn.apply_action(0)
     other = kuhn.observation(0, "struct")["entities"]

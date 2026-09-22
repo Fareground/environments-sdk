@@ -365,7 +365,7 @@ def test_texas_holdem_example_conserves_chips_and_finishes(seed):
 
 VILLAGE = {
     "name": "Village", "clock": {"rounds": 2},
-    "types": {"player": {"agent": True, "props": {"seat": 0}}},
+    "types": {"player": {"agent": True, "inspect": True, "props": {"seat": 0}}},
     "entities": _seats(6),
     "mechanisms": {"roles": {"kind": "groups", "mode": "roles", "who": "player", "deck": {"wolf": 2, "seer": 1, "villager": "rest"},
                              "teams": {"pack": ["wolf"], "town": ["seer", "villager"]}, "know": ["pack"],

@@ -235,7 +235,7 @@ class ActionBook(ActionSchemas, ActionValidation):
                     self._render(announce, vars, f"{path}.announce")
                 world.touch()  # the announcement would have changed the state version
             elif not spec.private:
-                public = self._public_params(params, self._posted_since(record_mark))
+                public = {} if self._sealed() else self._public_params(params, self._posted_since(record_mark))
                 if announce is not None:
                     line = self._render(announce, vars, f"{path}.announce")
                 elif _notified_since(world, log_mark):
@@ -316,6 +316,12 @@ class ActionBook(ActionSchemas, ActionValidation):
                     break
                 posted.append((spec, entry))
         return posted
+
+    def _sealed(self) -> bool:
+        """Whether actions now commit as a simultaneous stage's sealed choices: announced without their arguments,
+        so a losing sealed bid stays sealed unless the action's `announce` says otherwise."""
+        stage = self.world.stage
+        return any(spec.name == stage and spec.turns == "simultaneous" for spec in self.contract.stage_list())
 
     @staticmethod
     def _public_params(params: Dict[str, Any], posted: Sequence[Tuple[RecordSpec, Dict[str, Any]]]) -> Dict[str, Any]:

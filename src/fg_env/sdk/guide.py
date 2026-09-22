@@ -81,8 +81,8 @@ holds, an `end` effect runs, or the rounds are used up. `end` conditions are che
 * A turn ends after `max_actions` actions (default 1), when the agent calls `end_turn`, or after `max_calls` calls.
   `terminal: true` ends it early when a stage allows more than one action.
 * An action is atomic: if an effect `fail`s or a `transfer` lacks funds, all of it is undone and the agent is told why.
-* Others read "Name: action (args)." unless the action is `private` or sets `announce`. Text an agent writes is
-  always shown «quoted».
+* Others read "Name: action (args)." (in a simultaneous stage "Name: action.") unless the action is `private` or
+  sets `announce`. Text an agent writes is always shown «quoted», on one line.
 
 ## Sections
 

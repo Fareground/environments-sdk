@@ -32,7 +32,8 @@ EXPRESSION_WORDS = frozenset({"and", "or", "not", "in", "if", "else", "true", "f
 
 class Untrusted(str):
     """Text written by a participant. It keeps that provenance wherever it is stored and
-    renders wrapped in «» so other agents read it as information, never instructions.
+    renders wrapped in «» and on one line, so other agents read it as information, never instructions or the
+    SDK's own layout.
 
     ``str(value)`` keeps the marker, so code that normalises keys or values with ``str()``
     cannot silently launder participant text; ``str.__str__(value)`` gives the plain text."""

@@ -16,7 +16,7 @@ NIM = {
     "name": "Nim",
     "clock": {"rounds": 30},
     "world": {"stones": {"type": "int", "default": 10, "min": 0}},
-    "types": {"player": {"agent": True, "props": {"taken": 0}}},
+    "types": {"player": {"agent": True, "inspect": True, "props": {"taken": 0}}},
     "entities": {"ann": {"type": "player"}, "bob": {"type": "player"}},
     "actions": {"take": {"by": "player", "params": {"n": {"type": "int", "min": 1, "max": 3}},
                          "when": "$world.stones > 0", "terminal": True,

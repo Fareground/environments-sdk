@@ -6,10 +6,10 @@ CONTRACT = {
     "clock": {"rounds": 1},
     "world": {"open": True},
     "types": {
-        "viewer": {"agent": True, "props": {"zero": 0}},
-        "public": {"props": {"zero": 0, "flag": False}},
-        "blank": {"props": {"label": ""}},
-        "secret": {"props": {"note": {"type": "text", "default": "hidden", "private": True}}},
+        "viewer": {"agent": True, "inspect": True, "props": {"zero": 0}},
+        "public": {"inspect": True, "props": {"zero": 0, "flag": False}},
+        "blank": {"inspect": True, "props": {"label": ""}},
+        "secret": {"inspect": True, "props": {"note": {"type": "text", "default": "hidden", "private": True}}},
         "child": {"extends": "secret", "props": {"note": "still hidden"}},
         "gated": {"inspect": "$world.open and $it.owner == $viewer.id", "props": {"owner": "a"}},
         "hidden": {"agent": True, "inspect": False, "props": {"label": "self only"}},
@@ -55,9 +55,9 @@ def test_shared_listing_invalidates_on_changes_and_rollback_and_keeps_schemas_se
 
     contract = {
         "name": "Shared listing invalidation",
-        "types": {"person": {"props": {"zero": 0}},
-                  "blank": {"props": {"label": ""}},
-                  "private": {"props": {"secret": {"default": "private", "private": True}}},
+        "types": {"person": {"inspect": True, "props": {"zero": 0}},
+                  "blank": {"inspect": True, "props": {"label": ""}},
+                  "private": {"inspect": True, "props": {"secret": {"default": "private", "private": True}}},
                   "hidden": {"inspect": False, "props": {"label": "hidden"}}},
         "entities": {"a": {"type": "person"}, "b": {"type": "person"}, "empty": {"type": "blank"},
                      "p": {"type": "private"}, "h": {"type": "hidden"}},

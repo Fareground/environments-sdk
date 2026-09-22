@@ -12,7 +12,7 @@ DUEL = {
     "name": "Duel",
     "clock": {"rounds": 1},
     "world": {"idle": 0},
-    "types": {"player": {"agent": True, "props": {"score": 0}}},
+    "types": {"player": {"agent": True, "inspect": True, "props": {"score": 0}}},
     "entities": {"ann": {"type": "player", "name": "Ann"}, "ben": {"type": "player", "name": "Ben"}},
     "actions": {
         "move": {"by": "player", "params": {"to": {"type": "int", "min": 1, "max": 3}},
@@ -213,8 +213,9 @@ def test_inspect_offers_its_ids_finds_a_name_and_suggests_the_closest_id():
 
 
 def test_inspect_offers_only_entities_with_something_to_show_and_skips_empty_values():
-    contract = {**DUEL, "types": {"player": {"agent": True, "props": {"score": 0, "note": {"type": "text", "default": ""}}},
-                                  "desk": {}},
+    contract = {**DUEL, "types": {"player": {"agent": True, "inspect": True,
+                                             "props": {"score": 0, "note": {"type": "text", "default": ""}}},
+                                  "desk": {"inspect": True}},
                 "entities": {**DUEL["entities"], "desk": {"type": "desk", "name": "Fact desk"}}}
     seen = {}
 

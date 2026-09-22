@@ -158,7 +158,7 @@ def test_no_seat_ever_receives_a_file_the_rules_hide_from_it(tmp_path, seed):
 
 
 def test_inspect_shows_public_asset_properties_and_never_another_entitys_private_one(tmp_path):
-    contract = patched(types={**TRIAL["types"], "poster": {"props": {"image": {"type": "asset", "default": "photos/dock.png"}}}},
+    contract = patched(types={**TRIAL["types"], "poster": {"inspect": True, "props": {"image": {"type": "asset", "default": "photos/dock.png"}}}},
                        entities={**TRIAL["entities"], "board": {"type": "poster"}})
     env = _load(tmp_path, contract, seed=1)
     seen = {}

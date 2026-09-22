@@ -10,6 +10,7 @@ import re
 from typing import Any, Dict, FrozenSet, Iterable, List, Mapping, Optional, Set, Tuple, Union
 
 from ..contract import Contract, ParamSpec
+from ..reads import inspect_rule
 from ..returns import utility_class
 from . import walk
 
@@ -190,7 +191,7 @@ def _information(contract: Contract, scan: _Scan) -> Tuple[str, List[str]]:
     if hiding:
         return "imperfect", hiding
     unknown = [f"entities of type {name} cannot be inspected, and the scan does not check that views show their state"
-               for name, spec in contract.types.items() if spec.inspect is False]
+               for name in contract.types if inspect_rule(contract, name) is False]
     unseen = sorted(scan.rule_world - scan.shown_world)
     if unseen:
         unknown.append("world props the rules read but no view, brief or message shows: " + ", ".join(unseen))
@@ -358,12 +359,8 @@ def _observations(contract: Contract) -> Dict[str, Any]:
                for name, r in contract.records.items()}
     inspect: Dict[str, str] = {}
     for kind in contract.types:
-        rule: Any = True
-        for ancestor in reversed(contract.lineage(kind)):
-            if "inspect" in contract.types[ancestor].model_fields_set:
-                rule = contract.types[ancestor].inspect
-                break
-        inspect[kind] = "everyone" if rule is True else "no one" if rule is False else f"only when `{rule}`"
+        rule = inspect_rule(contract, kind)
+        inspect[kind] = "everyone" if rule is True else "only itself" if rule is False else f"only when `{rule}`"
     return {"text": True, "struct": False, "tensor": False, "views": views, "records": records, "inspect": inspect,
             "spectator": [name for name, view in contract.views.items() if _spectator(view)]}
 
