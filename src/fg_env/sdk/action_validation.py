@@ -50,7 +50,7 @@ class ActionValidation:
             if raw is None:
                 if param.default is not None:
                     try:
-                        raw = compile_expr(param.default)(self.world.scope(actor=actor, params=params)) \
+                        raw = compile_expr(param.default)(self.world.scope(actor=actor, viewer=actor, params=params)) \
                             if is_expr(param.default) else param.default
                     except ExprError as exc:
                         if failed:
@@ -74,7 +74,7 @@ class ActionValidation:
                 try:
                     shown = Untrusted(raw) if isinstance(raw, str) else raw
                     problem = compile_template(param.invalid, None).render(
-                        self.world.scope(actor=actor, params=params, value=shown))
+                        self.world.scope(actor=actor, viewer=actor, params=params, value=shown))
                 except ExprError as exc:
                     raise RunError(str(exc), f"actions.{name}.params.{pname}.invalid") from None
                 problems.append(problem.rstrip("."))
@@ -110,7 +110,7 @@ class ActionValidation:
                     continue
                 try:
                     if is_expr(bound):
-                        scope = scope or self.world.scope(actor=actor, params=params)
+                        scope = scope or self.world.scope(actor=actor, viewer=actor, params=params)
                         limit = compile_expr(bound)(scope)
                     else:
                         limit = bound
@@ -122,7 +122,7 @@ class ActionValidation:
                 if limit is not None and bad(value, limit):
                     return None, f"must be {label} {_preview(limit)} (got {_preview(value)})"
             if param.step is not None:
-                base = compile_expr(param.min)(scope or self.world.scope(actor=actor, params=params)) \
+                base = compile_expr(param.min)(scope or self.world.scope(actor=actor, viewer=actor, params=params)) \
                     if is_expr(param.min) else param.min
                 offset = (value - (base or 0)) / param.step
                 if abs(offset - round(offset)) > _STEP_TOLERANCE:
@@ -150,7 +150,7 @@ class ActionValidation:
             values = param.values
             if isinstance(values, str):
                 try:
-                    values = compile_expr(values)(self.world.scope(actor=actor, params=params))
+                    values = compile_expr(values)(self.world.scope(actor=actor, viewer=actor, params=params))
                 except ExprError as exc:
                     raise RunError(str(exc), f"actions.{action}.params.{pname}.values") from None
             if values is not None and not isinstance(values, (list, tuple)):
@@ -208,7 +208,7 @@ class ActionValidation:
         state = rng.getstate()
         drawn = world.draws()
         try:
-            holds = truthy(expr(world.scope(actor=actor, params=params).child(it=entity)))
+            holds = truthy(expr(world.scope(actor=actor, viewer=actor, params=params).child(it=entity)))
         except ExprError:
             holds = False  # the full listing reports it
         if world.draws() != drawn:

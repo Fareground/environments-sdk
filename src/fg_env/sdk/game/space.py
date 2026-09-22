@@ -184,7 +184,7 @@ def _per_actor(world: Any, raw: Any, actors: Sequence[Entity], add: Any) -> Tupl
     out = []
     for actor in actors:
         try:
-            add(expr(world.scope(actor=actor)), out)
+            add(expr(world.scope(actor=actor, viewer=actor)), out)
         except ExprError:
             return None, "its choices cannot be worked out at the start of the game"
     return _unique(out), ""
@@ -307,7 +307,7 @@ def _choices(env: "Env", turn: "Turn", name: str, pname: str, param: ParamSpec, 
     path = f"actions.{name}.params.{pname}"
 
     def scope() -> Any:  # built only for a domain that is an expression
-        return world.scope(actor=actor, params=resolved)
+        return world.scope(actor=actor, viewer=actor, params=resolved)
 
     try:
         if param.type == "bool":

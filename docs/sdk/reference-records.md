@@ -13,7 +13,7 @@ Roots (plus everywhere: $inputs $world $physics $clock $round $stage $metrics $s
 **RecordSpec** — An append-only log (chat, reviews, bids, transcript). New entries reach agents as news.
 - `fields`: object — {field: type}; text fields written by agents are marked untrusted.
 - `show`: text — How one entry reads: '{author}: {text}'.
-- `visible`: text = "all" — 'all' or an expression over $viewer and $it (the entry).
+- `visible`: text = "all" — 'all' or an expression over $viewer and $it (the entry). It filters what agents are shown or offered; game logic reads every entry.
 - `keep`: int — Keep only the latest N entries.
 - `notify`: bool = true — Deliver new entries to agents in 'since your last turn'.
 - `description`: text

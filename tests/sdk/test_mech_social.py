@@ -124,8 +124,7 @@ def test_private_group_and_dm_never_leak_to_non_members():
         surfaces += env.perception.news(viewer, 0)[0]
         surfaces += [env.perception.render_view(n, v, viewer) or "" for n, v in env.contract.views.items()]
         surfaces.append(json.dumps(env.preview(outsider), default=str))
-        for scope in ({"viewer": viewer}, {"actor": viewer}):
-            surfaces.append(json.dumps(ev(env, "$records(chat)", **scope), default=str))
+        surfaces.append(json.dumps(ev(env, "$records(chat)", viewer=viewer), default=str))
         surfaces.append(json.dumps([e.to_dict() for e in ev(env, "$events()", viewer=viewer)], default=str))
         if viewer.entity_type == "citizen":
             surfaces.append(json.dumps(ev(env, "[$inbox($it), $recent_messages($it), $inbox_channels($it), $groups($it)]",

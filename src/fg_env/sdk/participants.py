@@ -149,7 +149,7 @@ class PolicyAgent:
             acted = False
             for index, rule in enumerate(self.spec.rules):
                 path = f"policies.{self.name}.rules[{index}]"
-                scope = turn.env.world.scope(actor=turn.actor)
+                scope = turn.env.world.scope(actor=turn.actor, viewer=turn.actor)
                 if rule.each is None:
                     outcome = self._try(wake, rule, scope, rng, path)
                     if outcome == "passed":

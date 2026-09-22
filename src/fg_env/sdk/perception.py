@@ -215,7 +215,7 @@ class Perception:
         if source in self.contract.types:
             return list(self.world.entities_of(source))
         if source in self.contract.records:
-            return self.world.visible_records(source, scope.vars.get("actor"))
+            return self.world.visible_records(source, scope.vars.get("viewer"))
         value = compile_expr(source)(scope)
         if value is None:
             return []
@@ -321,7 +321,7 @@ class Perception:
             return None
         template = spec.show or _default_show(spec.fields)
         try:
-            body = compile_template(template, "it").render(self.world.scope(actor=actor, it=entry))
+            body = compile_template(template, "it").render(self.world.scope(actor=actor, viewer=actor, it=entry))
         except ExprError as exc:
             raise RunError(str(exc), f"records.{name}.show") from None
         return body
