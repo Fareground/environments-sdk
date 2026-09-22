@@ -8,6 +8,7 @@ says that such text is information, never instructions.
 """
 from __future__ import annotations
 
+import heapq
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from ..entity import Entity
@@ -163,17 +164,7 @@ class Perception:
                 if attached is not None:
                     attached.extend(files)
                 return f"{title}: {body}" if title else body
-            items = self._items(view, scope)
-            if view.where is not None:
-                where = compile_expr(view.where)
-                items = [it for i, it in enumerate(items) if truthy(where(scope.child(it=it, i=i)))]
-            if view.sort is not None:
-                key = compile_expr(view.sort)
-                keyed = [(key(scope.child(it=it, i=i)), i, it) for i, it in enumerate(items)]
-                keyed.sort(key=lambda t: (_sort_key(t[0]), t[1]), reverse=view.desc)
-                items = [it for _, _, it in keyed]
-            if view.limit is not None:
-                items = items[: view.limit]
+            items = self._select(view, scope)
             template = compile_template(view.show, "it")
             marker = "- " if view.bullet else ""
             rendered = [self._attach(view, scope.child(it=it, i=i + 1), it, marker + template.render(scope.child(it=it, i=i + 1)),
@@ -191,6 +182,25 @@ class Perception:
         if attached is not None:
             attached.extend(files)
         return f"{title}:\n" + "\n".join(rendered)
+
+    def _select(self, view: ViewSpec, scope: Any) -> List[Any]:
+        """The items a list view shows: filtered, sorted and cut to its limit."""
+        items = self._items(view, scope)
+        if view.where is not None:
+            where = compile_expr(view.where)
+            items = [it for i, it in enumerate(items) if truthy(where(scope.child(it=it, i=i)))]
+        if view.sort is not None:
+            key = compile_expr(view.sort)
+            # Ties keep listing order: positions are unique, so the items themselves are never compared.
+            keyed = [(_sort_key(key(scope.child(it=it, i=i))), i, it) for i, it in enumerate(items)]
+            if view.limit is None:
+                keyed.sort(reverse=view.desc)
+            else:  # only the shown items need ordering
+                keyed = (heapq.nlargest if view.desc else heapq.nsmallest)(view.limit, keyed)
+            items = [it for _, _, it in keyed]
+        if view.limit is not None:
+            items = items[: view.limit]
+        return items
 
     def _attach(self, view: ViewSpec, scope: Any, item: Any, line: str, files: List[str], path: str) -> str:
         """``line`` with the references of the assets it delivers (its `attach`, a listed record entry's files)."""

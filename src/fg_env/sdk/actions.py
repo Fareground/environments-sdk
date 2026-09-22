@@ -148,8 +148,15 @@ class ActionBook(ActionSchemas, ActionValidation):
         if param.where is None:
             return items
         expr = compile_expr(param.where)
-        if "params" in expr.roots and params is None:
-            return items
+        if "params" in expr.roots:
+            return items if params is None else self._qualifying(actor, action, pname, expr, items, params, first)
+        if first:
+            return self._qualifying(actor, action, pname, expr, items, None, first)
+        return list(self.world.remembered(("choices", action, pname, actor.id, param.of, param.where),
+                                          lambda: self._qualifying(actor, action, pname, expr, items, None, False)))
+
+    def _qualifying(self, actor: Entity, action: str, pname: str, expr: Any, items: List[Entity],
+                    params: Optional[Dict[str, Any]], first: bool) -> List[Entity]:
         out = []
         base = self.world.scope(actor=actor, viewer=actor, params=params or {})
         ruled_out = expr.rules_out(base)

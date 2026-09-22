@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import re
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple
 
@@ -113,6 +114,10 @@ class ActionSchemas:
         return name, given, None
 
     def tool(self: "ActionBook", actor: Entity, name: str, staged: bool = False) -> ToolSpec:  # type: ignore[misc]
+        # A copy: callers may change the schema they are given (the remembered one is listed again this turn).
+        return deepcopy(self.world.remembered(("tool", actor.id, name, staged), lambda: self._tool(actor, name, staged)))
+
+    def _tool(self: "ActionBook", actor: Entity, name: str, staged: bool) -> ToolSpec:  # type: ignore[misc]
         spec = self.contract.actions[name]
         properties: Dict[str, Any] = {}
         required: List[str] = []
