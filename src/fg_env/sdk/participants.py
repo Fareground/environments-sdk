@@ -10,6 +10,7 @@ Built in:
 """
 from __future__ import annotations
 
+import inspect
 import json
 import math
 import random
@@ -18,6 +19,7 @@ import time
 from typing import TYPE_CHECKING, Any, Callable, Collection, Dict, List, Mapping, Optional, Union
 
 from .assets.multimodal import ANTHROPIC_MEDIA, OPENAI_MEDIA, anthropic_parts, media_set, openai_parts
+from .errors import RunError
 from .probability import is_probability
 from .expr import ExprError, compile_expr, resolve, truthy
 from .session import END_TURN, ToolResult, Wake
@@ -174,8 +176,6 @@ class PolicyAgent:
 
     @staticmethod
     def _items(turn: Any, each: str, scope: Any, path: str) -> List[Any]:
-        from .errors import RunError
-
         world = turn.env.world
         try:
             items = world.entities_of(each) if each in turn.env.contract.types else compile_expr(each)(scope)
@@ -200,8 +200,6 @@ class PolicyAgent:
                 return "passed"
             args = resolve(rule.with_, scope)
         except ExprError as exc:
-            from .errors import RunError
-
             raise RunError(str(exc), path) from None
         args = {k: (v.id if hasattr(v, "entity_type") else v) for k, v in args.items()}
         with turn.env._lock:  # legality without building tool schemas: coded crowds never read them
@@ -267,6 +265,7 @@ class _LLMUsage:
         self.retries = 0
         self.forfeits = 0
         self.truncated = 0
+        self.refusals = 0
 
     def to_dict(self) -> Dict[str, int]:
         return dict(self.__dict__)
@@ -312,6 +311,19 @@ def _retryable(exc: BaseException) -> bool:
     return any(part in type(exc).__name__ for part in _RETRY_NAMES)
 
 
+def _permanent_fix(exc: BaseException, client: str, model: str) -> str:
+    """How to fix a provider error that retrying cannot."""
+    status, name = getattr(exc, "status_code", None), type(exc).__name__
+    if status in (401, 403) or "Authentication" in name or "PermissionDenied" in name:
+        return f"Check the API key your client was made with, and that the account may use model '{model}'."
+    if status == 404 or "NotFound" in name:
+        return f"Check that the model id '{model}' is right and available to your account."
+    if isinstance(status, int):
+        return ("The provider rejected the request; fix what its message names (for instance a field passed in "
+                "`extra` that this model does not accept).")
+    return f"The call itself failed: pass the sync client, {client}, or one with its interface; or fix the code."
+
+
 def _retry_after(exc: BaseException) -> Optional[float]:
     headers = getattr(getattr(exc, "response", None), "headers", None)
     try:
@@ -321,17 +333,32 @@ def _retry_after(exc: BaseException) -> Optional[float]:
     return value if value is not None and value >= 0 else None
 
 
-class _ProviderFailed(Exception):
-    """A provider call still failed after its retries."""
+class _Forfeit(Exception):
+    """A provider call still failed after its retries: the turn is lost, not the run."""
+
+
+def _extra(extra: Optional[Mapping[str, Any]], sent: Collection[str]) -> Dict[str, Any]:
+    """The ``extra`` request fields, refusing any of the fields the participant sends itself (``sent``)."""
+    if extra is None:
+        return {}
+    if not isinstance(extra, Mapping):
+        raise ValueError(f"extra must be a mapping of request fields, such as {{'temperature': 0}}; got {extra!r}")
+    clash = [key for key in extra if key in sent]
+    if clash:
+        raise ValueError(f"extra cannot set {', '.join(map(repr, clash))}: the participant sends it itself (the model, "
+                         "system prompt, max_tokens and reasoning_effort are its own arguments)")
+    return dict(extra)
 
 
 class _LLMParticipant:
-    """The shared tool loop: retries, usage accounting, the error policy."""
+    """The shared tool loop: retries, usage accounting, failing loudly on errors retrying cannot fix."""
 
-    def __init__(self, client: Any, model: str, max_steps: int, system: str, retries: int, on_error: str,
-                 media: frozenset = frozenset(), retry_truncated: bool = True):
-        if on_error not in ("fail", "end_turn"):
-            raise ValueError(f"on_error must be 'fail' or 'end_turn', got {on_error!r}")
+    #: The provider's sync client, and the call the loop makes on it (named in error messages).
+    CLIENT = ""
+    CALL = ""
+
+    def __init__(self, client: Any, model: str, max_steps: int, system: str, retries: int,
+                 media: frozenset = frozenset(), retry_truncated: bool = True, extra: Optional[Dict[str, Any]] = None):
         if isinstance(retries, bool) or not isinstance(retries, int) or retries < 0:
             raise ValueError(f"retries must be a whole number ≥ 0, got {retries!r}")
         if isinstance(max_steps, bool) or not isinstance(max_steps, int) or max_steps < 1:
@@ -341,7 +368,8 @@ class _LLMParticipant:
         self.max_steps = max_steps
         self.system = system
         self.retries = retries
-        self.on_error = on_error
+        #: More request fields sent with every call (``extra``).
+        self.extra = extra or {}
         #: Attachment types sent as real content; the rest reach the model as their text references only.
         self.media = media
         #: A reply cut off at the output limit without a tool call is asked once more for a short tool call.
@@ -352,10 +380,7 @@ class _LLMParticipant:
     def __call__(self, wake: Wake) -> None:
         try:
             self._turn(wake)
-        except _ProviderFailed as failure:
-            cause = failure.__cause__ or failure
-            if self.on_error == "fail":
-                raise cause
+        except _Forfeit:
             self._record(wake, forfeits=1)
         if not wake.done and _may_end(wake):
             wake.end()  # in a must-act stage the engine closes the turn instead, and reports that the agent did not act
@@ -371,7 +396,7 @@ class _LLMParticipant:
         return _TRUNCATED if truncated else _nudge(wake)
 
     @staticmethod
-    def _dispatch(wake: Wake, name: str, args: Any) -> Optional[ToolResult]:
+    def _dispatch(wake: Wake, name: Any, args: Any) -> Optional[ToolResult]:
         """Run one tool call of a reply, or None when an earlier call of the same reply ended the turn: leftover
         calls are answered without reaching the engine, so they are never counted."""
         if wake.done:
@@ -379,16 +404,34 @@ class _LLMParticipant:
         return wake.call(name, args)
 
     def _create(self, wake: Wake, request: Callable[[], Any]) -> Any:
+        """One provider call. Rate limits, timeouts, overload and server errors are retried; when the retries run out
+        the turn is forfeited. Any other error fails the run: retrying would send the same request again."""
         for attempt in range(self.retries + 1):
             try:
-                return request()
+                response = request()
             except Exception as exc:
-                if attempt >= self.retries or not _retryable(exc):
-                    raise _ProviderFailed(f"{type(exc).__name__}: {exc}") from exc
+                if not _retryable(exc):
+                    raise self._failure(wake, exc) from exc
+                if attempt >= self.retries:
+                    raise _Forfeit() from exc
                 self._record(wake, llm_retries=1)
                 delay = _retry_after(exc)
                 time.sleep(min(_MAX_BACKOFF_SECONDS, delay if delay is not None else 2.0 ** attempt))
+                continue
+            if inspect.isawaitable(response):
+                if inspect.iscoroutine(response):
+                    response.close()  # never awaited: closed so it does not linger
+                raise RunError(f"{self.CALL} returned an awaitable, so this is an async client. Pass the sync client, "
+                               f"{self.CLIENT}: simultaneous turns already run in parallel, and `await env.arun(...)` "
+                               "keeps your event loop free while the run plays", f"participant:{wake.entity_id}")
+            return response
         raise AssertionError("unreachable")
+
+    def _failure(self, wake: Wake, exc: BaseException) -> RunError:
+        status = getattr(exc, "status_code", None)
+        shown = f"{type(exc).__name__} (HTTP {status})" if isinstance(status, int) else type(exc).__name__
+        return RunError(f"{self.CALL} failed with {shown}: {exc}. {_permanent_fix(exc, self.CLIENT, self.model)}",
+                        f"participant:{wake.entity_id}")
 
     def _record(self, wake: Wake, **counts: int) -> None:
         wake.record_usage(**counts)
@@ -400,9 +443,13 @@ class _LLMParticipant:
 
 
 class _Anthropic(_LLMParticipant):
+    CLIENT = "anthropic.Anthropic()"
+    CALL = "client.messages.create"
+
     def __init__(self, client: Any, model: str, max_tokens: int, max_steps: int, system: str, retries: int,
-                 on_error: str, media: frozenset, retry_truncated: bool = True):
-        super().__init__(client, model, max_steps, system, retries, on_error, media, retry_truncated)
+                 media: frozenset, retry_truncated: bool, extra: Optional[Mapping[str, Any]]):
+        sent = ("model", "messages", "tools", "system", "max_tokens")
+        super().__init__(client, model, max_steps, system, retries, media, retry_truncated, _extra(extra, sent))
         self.max_tokens = max_tokens
 
     def _turn(self, wake: Wake) -> None:
@@ -417,8 +464,12 @@ class _Anthropic(_LLMParticipant):
                 return
             tools = wake.tools_for("anthropic")
             response = self._create(wake, lambda: self.client.messages.create(
-                model=self.model, max_tokens=self.max_tokens, system=system, tools=tools, messages=messages))
+                model=self.model, max_tokens=self.max_tokens, system=system, tools=tools, messages=messages,
+                **self.extra))
             self._count(wake, getattr(response, "usage", None))
+            if getattr(response, "stop_reason", None) == "refusal":
+                self._record(wake, refusals=1)
+                return  # asking again after a refusal only invites another
             truncated = getattr(response, "stop_reason", None) == "max_tokens"
             if truncated:
                 self._record(wake, truncated=1)
@@ -437,8 +488,7 @@ class _Anthropic(_LLMParticipant):
             messages.append({"role": "assistant", "content": content})
             results = []
             for block in calls:
-                args = block.get("input")
-                result = self._dispatch(wake, str(block.get("name")), args if isinstance(args, dict) else None)
+                result = self._dispatch(wake, block.get("name"), block.get("input"))
                 if result is None:
                     results.append({"type": "tool_result", "tool_use_id": block.get("id"), "content": _NOT_RUN,
                                     "is_error": True})
@@ -476,18 +526,23 @@ def _field(block: Any, name: str) -> Any:
 
 
 def anthropic(client: Any, model: str, *, max_tokens: int = 1024, max_steps: int = 8, system: str = "",
-              retries: int = 4, on_error: str = "fail", media: Optional[Collection[str]] = None,
-              retry_truncated: bool = True) -> Participant:
+              retries: int = 4, media: Optional[Collection[str]] = None, retry_truncated: bool = True,
+              extra: Optional[Mapping[str, Any]] = None) -> Participant:
     """An LLM participant using an ``anthropic.Anthropic()`` client. The brief is prompt-cached.
 
     Files the agent receives are sent as image and document blocks after the text (``media``: the attachment types
     sent as content, default image, pdf and text; ``media=()`` for a text-only model, which reads each file's
     reference — its caption and alt text — in the text only). See :mod:`fg_env.sdk.assets.multimodal`.
 
-    Rate limits, timeouts, overload and server errors are retried ``retries`` times with backoff
-    (honouring ``retry-after``). If a call still fails, ``on_error="fail"`` fails the run with that
-    error and ``"end_turn"`` forfeits the turn and counts it in ``stats["forfeits"]``. Real token
-    usage lands in the run's statistics and in ``participant.usage``.
+    ``extra`` holds more request fields sent with every call, such as ``{"temperature": 0}``. Pass the sync
+    client: an async client fails the run saying so.
+
+    Rate limits, timeouts, overload and server errors are retried ``retries`` times with backoff (honouring
+    ``retry-after``); if a call still fails, the turn is forfeited, counted in ``stats["forfeits"]`` and reported in
+    the run's diagnostics. Any other error — a rejected API key, an unknown model, a bad request, a client that does
+    not fit — fails the run at once, naming the agent, the provider's error and the fix. A reply the provider refused
+    ends the turn and counts in ``stats["refusals"]``. Real token usage lands in the run's statistics and in
+    ``participant.usage``.
 
     A reply cut off at ``max_tokens`` counts in ``stats["truncated"]``; when it called no tool, the model is asked
     once for a short tool call (``retry_truncated=False`` ends the turn instead). Any other reply that calls no tool
@@ -495,22 +550,27 @@ def anthropic(client: Any, model: str, *, max_tokens: int = 1024, max_steps: int
     stage where the agent must act, the participant never ends the turn itself: the engine closes it and reports
     that the agent did not act.
     """
-    return _Anthropic(client, model, max_tokens, max_steps, system, retries, on_error,
-                      media_set(media, ANTHROPIC_MEDIA, ANTHROPIC_MEDIA), retry_truncated)
+    return _Anthropic(client, model, max_tokens, max_steps, system, retries,
+                      media_set(media, ANTHROPIC_MEDIA, ANTHROPIC_MEDIA), retry_truncated, extra)
 
 
 class _OpenAI(_LLMParticipant):
+    CLIENT = "openai.OpenAI()"
+    CALL = "client.chat.completions.create"
+
     def __init__(self, client: Any, model: str, max_tokens: Optional[int], reasoning_effort: Optional[str],
-                 max_steps: int, system: str, retries: int, on_error: str, media: frozenset, retry_truncated: bool):
-        super().__init__(client, model, max_steps, system, retries, on_error, media, retry_truncated)
+                 max_steps: int, system: str, retries: int, media: frozenset, retry_truncated: bool,
+                 extra: Optional[Mapping[str, Any]]):
         if max_tokens is not None and (isinstance(max_tokens, bool) or not isinstance(max_tokens, int) or max_tokens < 1):
             raise ValueError(f"max_tokens must be a whole number ≥ 1 (or None), got {max_tokens!r}")
         if reasoning_effort is not None and not isinstance(reasoning_effort, str):
             raise ValueError(f"reasoning_effort must be text such as 'low' (or None), got {reasoning_effort!r}")
         #: Sent only when set, so a client that does not know a field never receives it.
-        self.options: Dict[str, Any] = {key: value for key, value in (("max_tokens", max_tokens),
+        self.options: Dict[str, Any] = {key: value for key, value in (("max_completion_tokens", max_tokens),
                                                                       ("reasoning_effort", reasoning_effort))
                                         if value is not None}
+        sent = ["model", "messages", "tools", *self.options, *(["max_tokens"] if max_tokens is not None else [])]
+        super().__init__(client, model, max_steps, system, retries, media, retry_truncated, _extra(extra, sent))
 
     def _turn(self, wake: Wake) -> None:
         parts = openai_parts(wake.attachments, self.media) if self.media else []
@@ -524,15 +584,19 @@ class _OpenAI(_LLMParticipant):
                 return
             tools = wake.tools_for("openai")
             response = self._create(wake, lambda: self.client.chat.completions.create(
-                model=self.model, messages=messages, tools=tools, **self.options))
+                model=self.model, messages=messages, tools=tools, **self.options, **self.extra))
             self._count(wake, getattr(response, "usage", None))
             choices = getattr(response, "choices", None) or []
             if not choices:
                 return
-            truncated = getattr(choices[0], "finish_reason", None) == "length"
+            finish = getattr(choices[0], "finish_reason", None)
+            message = choices[0].message
+            if getattr(message, "refusal", None) or finish == "content_filter":
+                self._record(wake, refusals=1)
+                return  # asking again after a refusal only invites another
+            truncated = finish == "length"
             if truncated:
                 self._record(wake, truncated=1)
-            message = choices[0].message
             calls = list(getattr(message, "tool_calls", None) or [])
             assistant: Dict[str, Any] = {"role": "assistant", "content": getattr(message, "content", None) or ""}
             if not calls:
@@ -551,14 +615,11 @@ class _OpenAI(_LLMParticipant):
                 try:
                     args = json.loads(c.function.arguments or "{}")
                 except (json.JSONDecodeError, TypeError):
-                    args = None
-                if not isinstance(args, dict):
-                    text = "The arguments were not a JSON object of named values; call the tool again with valid JSON."
-                else:
-                    result = self._dispatch(wake, c.function.name, args)
-                    text = _NOT_RUN if result is None else result.text
-                    if result is not None and self.media and result.attachments:
-                        files += openai_parts(result.attachments, self.media)
+                    args = c.function.arguments  # not JSON: the engine refuses it and counts it invalid
+                result = self._dispatch(wake, c.function.name, args)
+                text = _NOT_RUN if result is None else result.text
+                if result is not None and self.media and result.attachments:
+                    files += openai_parts(result.attachments, self.media)
                 messages.append({"role": "tool", "tool_call_id": c.id, "content": text})
             if files:  # tool messages carry text only: the files follow in one user message
                 messages.append({"role": "user", "content": [{"type": "text", "text": "Files from the tool results above:"},
@@ -575,18 +636,21 @@ class _OpenAI(_LLMParticipant):
 
 
 def openai(client: Any, model: str, *, max_tokens: Optional[int] = None, reasoning_effort: Optional[str] = None,
-           max_steps: int = 8, system: str = "", retries: int = 4, on_error: str = "fail",
-           media: Optional[Collection[str]] = None, retry_truncated: bool = True) -> Participant:
+           max_steps: int = 8, system: str = "", retries: int = 4, media: Optional[Collection[str]] = None,
+           retry_truncated: bool = True, extra: Optional[Mapping[str, Any]] = None) -> Participant:
     """An LLM participant using an ``openai.OpenAI()``-compatible client (chat completions + tools).
 
-    ``max_tokens`` caps each reply and ``reasoning_effort`` (``"low"``, ``"medium"``, ``"high"``) is passed on to
-    reasoning models; each is sent only when given. Retries, ``on_error``, usage accounting, truncated replies
-    (``finish_reason`` ``length``) and ``retry_truncated`` work as for :func:`anthropic`. Files are sent as
+    ``max_tokens`` caps each reply (sent as ``max_completion_tokens``) and ``reasoning_effort`` (``"low"``,
+    ``"medium"``, ``"high"``) is passed on to reasoning models; each is sent only when given. A server that knows only
+    the older ``max_tokens`` field takes ``extra={"max_tokens": 1024}`` instead. Retries, failures, refusals (a
+    ``refusal`` message or ``finish_reason`` ``content_filter``), ``extra``, usage accounting, truncated replies
+    (``finish_reason`` ``length``) and ``retry_truncated`` work as for :func:`anthropic`; arguments that are not a
+    JSON object are refused and counted as invalid calls. Files are sent as
     ``image_url`` data URLs, ``file`` and ``input_audio`` parts (``media``: default image, pdf, audio and text; ``()``
     for text only); files from tool results follow the tool messages in one user message.
     """
-    return _OpenAI(client, model, max_tokens, reasoning_effort, max_steps, system, retries, on_error,
-                   media_set(media, OPENAI_MEDIA, OPENAI_MEDIA), retry_truncated)
+    return _OpenAI(client, model, max_tokens, reasoning_effort, max_steps, system, retries,
+                   media_set(media, OPENAI_MEDIA, OPENAI_MEDIA), retry_truncated, extra)
 
 
 ParticipantsArg = Union[None, Participant, str, Mapping[str, Any]]

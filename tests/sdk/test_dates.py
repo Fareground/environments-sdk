@@ -43,8 +43,8 @@ def test_calendar_functions_move_and_take_apart_iso_dates(source, expected):
     ("$is_holiday('2026-09-14', [3])", "holidays must be ISO date texts or rows with a date field"),
 ])
 def test_calendar_mistakes_say_what_to_pass(source, message):
-    result = fg_env.run({"name": "x", "clock": {"rounds": 1}, "types": {"t": {"props": {"v": 0}}},
-                         "events": [{"do": [f"$value = {source}"]}]}, seed=1)
+    result = fg_env.load({"name": "x", "clock": {"rounds": 1}, "types": {"t": {"props": {"v": 0}}},
+                          "events": [{"do": [f"$value = {source}"]}]}, seed=1).run()
     assert result.status == "failed" and message in result.error
 
 

@@ -33,6 +33,10 @@ run(source: 'ContractLike', participants: 'Any' = None, *, inputs: 'Optional[Map
 
 Load and run in one call: ``fg_env.run("shop.json", {"buyer": "policy:thrifty"}, seed=1)``.
 
+A run that fails — a rule that cannot be evaluated, a participant that raises, a model provider that refuses the
+request — raises :class:`RunError` saying what failed and how to fix it; its ``result`` is the failed run.
+(``env.run`` returns a failed run instead, and experiments keep failed runs and carry on.)
+
 ## `check`
 
 ```python

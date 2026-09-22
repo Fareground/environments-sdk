@@ -295,8 +295,8 @@ class Turn:
                                           data=_INVALID))
         if args is not None and not isinstance(args, Mapping):
             self.stats.invalid_calls += 1
-            return self._after(ToolResult(False, f"{name} was not done: arguments must be an object of named values, "
-                                                 f"got {type(args).__name__}.", data=_INVALID))
+            return self._after(ToolResult(False, f"{name} was not done: arguments must be a JSON object of named "
+                                                 f"values, got {type(args).__name__}.", data=_INVALID))
         if name == END_TURN:
             if self._must_act():
                 self.stats.invalid_calls += 1
@@ -487,7 +487,7 @@ class Turn:
             return ToolResult(False, reads_refused(allowance, self._must_act(), stopped), stopped, dict(_INVALID))
         if args is not None and not isinstance(args, Mapping):
             self.stats.invalid_calls += 1
-            return ToolResult(False, f"{name} was not done: arguments must be an object of named values, "
+            return ToolResult(False, f"{name} was not done: arguments must be a JSON object of named values, "
                                      f"got {type(args).__name__}.", data=_INVALID)
         result = self._look(args) if name == "look" else self._inspect(args)
         if result.ok:

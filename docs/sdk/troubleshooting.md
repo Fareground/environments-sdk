@@ -17,6 +17,7 @@ fg-env trace run.jsonl
 | Output stays constant | Whether any rule changes its dependencies; run behavior checks |
 | Simultaneous decisions lose updates | Whether effects overwrite shared state; inspect settlement semantics |
 | Everyone sees confidential data | Public announcements, views, record visibility and recorded exposures |
+| Turns forfeited (`turns_forfeited`) | The model provider kept failing after retries; rerun or raise `retries` |
 | Model keeps making invalid calls | Tool descriptions, legal bounds, role brief and trace of rejected calls |
 | Resume differs | Contract/version mismatch, external responses or different participant decisions |
 | Results look plausible but wrong | Hand-check units, timing, balances, allocation and omitted causal effects |
@@ -45,6 +46,6 @@ Diagnostics include a code, path, message and suggested fix. They cover common a
 
 ## Errors
 
-`ContractError` identifies invalid contracts; `InputError` identifies bad inputs; `InvariantViolation` reports a broken declared rule; `RunError` covers execution failures; `SnapshotError` covers restoration problems. Preserve error details with the source version and a minimal reproduction.
+`ContractError` identifies invalid contracts; `InputError` identifies bad inputs; `InvariantViolation` reports a broken declared rule; `RunError` covers execution failures (`fg_env.run` raises it for a failed run, with the run in `error.result`); `SnapshotError` covers restoration problems. Preserve error details with the source version and a minimal reproduction.
 
 For field-level help, use `fg-env guide <section>`. For full details, see [inspection](reference-inspect.md) and [running](reference-running.md).

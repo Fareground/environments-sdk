@@ -11,6 +11,7 @@ from .assets.catalog import resolve_assets
 from .check import check_contract, parse_contract
 from .contract import Contract
 from .errors import ContractError, Issue, RunError
+from .expr import ExprError
 from .inputs import resolve_inputs
 from .load_calibration import calibrate_at_load
 from .macros import expand_macros
@@ -380,7 +381,22 @@ def run(source: ContractLike, participants: Any = None, *, inputs: Optional[Mapp
         on_event: Any = None, strict: bool = False, data_dir: DataDir = None,
         hosts: Any = None, time_limit: Optional[float] = None, exposures: bool = False,
         budget: Optional[Mapping[str, Any]] = None) -> RunResult:
-    """Load and run in one call: ``fg_env.run("shop.json", {"buyer": "policy:thrifty"}, seed=1)``."""
+    """Load and run in one call: ``fg_env.run("shop.json", {"buyer": "policy:thrifty"}, seed=1)``.
+
+    A run that fails — a rule that cannot be evaluated, a participant that raises, a model provider that refuses the
+    request — raises :class:`RunError` saying what failed and how to fix it; its ``result`` is the failed run.
+    (``env.run`` returns a failed run instead, and experiments keep failed runs and carry on.)"""
     env = load(source, inputs=inputs, seed=seed, arm=arm, strict=strict, data_dir=data_dir, hosts=hosts,
                exposures=exposures)
-    return env.run(participants, rounds=rounds, on_event=on_event, time_limit=time_limit, budget=budget)
+    try:
+        return env.run(participants, rounds=rounds, on_event=on_event, time_limit=time_limit, budget=budget,
+                       raise_errors=True)
+    except ExprError as exc:
+        raise _failed(RunError(str(exc)), env) from exc
+    except RunError as exc:
+        raise _failed(exc, env)
+
+
+def _failed(error: RunError, env: Env) -> RunError:
+    error.result = env.result()
+    return error

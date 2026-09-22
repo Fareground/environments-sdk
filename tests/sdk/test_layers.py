@@ -118,12 +118,16 @@ def test_layer_mistakes_are_reported_with_a_path():
     assert ("events[0].do[0].diffuse", "`diffuse` needs a number layer; 'sugar' is int") in issues
     assert ("events[0].do[1].layer", "'smell' is not a declared layer") in issues
     assert ("events[0].do[2].at", "`at` goes with `set`, not `decay`") in issues
-    result = fg_env.run(_with([{"do": [{"layer": "scent", "decay": 2}]}]), "idle", seed=1)
+    with pytest.raises(fg_env.RunError) as failed:
+        fg_env.run(_with([{"do": [{"layer": "scent", "decay": 2}]}]), "idle", seed=1)
+    result = failed.value.result
     assert result.status == "failed" and "`decay` is a share from 0 to 1" in result.error
 
 
 def test_a_value_of_the_wrong_type_is_an_error_naming_the_layer():
-    result = fg_env.run(_with([{"do": [{"layer": "alive", "at": [0, 0], "set": 3}]}]), "idle", seed=1)
+    with pytest.raises(fg_env.RunError) as failed:
+        fg_env.run(_with([{"do": [{"layer": "alive", "at": [0, 0], "set": 3}]}]), "idle", seed=1)
+    result = failed.value.result
     assert result.status == "failed" and "layer 'alive' holds true or false" in result.error
 
 

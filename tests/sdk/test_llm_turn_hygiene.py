@@ -73,10 +73,10 @@ def test_without_retry_a_truncated_reply_ends_the_turn_and_max_tokens_and_effort
     agent = participants.openai(client, "m", max_tokens=900, reasoning_effort="low", retry_truncated=False)
     fg_env.run(DUEL, {"ann": agent, "ben": "random"}, seed=1)
     assert len(client.requests) == 1
-    assert client.requests[0]["max_tokens"] == 900 and client.requests[0]["reasoning_effort"] == "low"
+    assert client.requests[0]["max_completion_tokens"] == 900 and client.requests[0]["reasoning_effort"] == "low"
     plain = FakeOpenAI([[("move", {"to": 2})]])
     fg_env.run(DUEL, {"ann": participants.openai(plain, "m"), "ben": "random"}, seed=1)
-    assert "max_tokens" not in plain.requests[0] and "reasoning_effort" not in plain.requests[0]
+    assert "max_completion_tokens" not in plain.requests[0] and "reasoning_effort" not in plain.requests[0]
 
 
 def test_the_anthropic_participant_counts_a_reply_stopped_at_max_tokens():

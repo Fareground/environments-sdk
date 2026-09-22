@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from typing import TYPE_CHECKING, List, Mapping, Set
 
 from . import contract as C
@@ -12,6 +13,8 @@ from .check_turns import check_spectator_view, check_stage_turns, spectator_audi
 from .contract import Contract
 from .expr import ExprError
 from .perception import SPECTATOR
+from .reads import READS
+from .session import END_TURN
 from .template import compile_template
 
 if TYPE_CHECKING:
@@ -19,6 +22,11 @@ if TYPE_CHECKING:
     from .check_roots import Types
 
 __all__ = ["ActionChecks"]
+
+#: Tools every turn may offer beside the actions.
+BUILT_IN_TOOLS = (*READS, END_TURN)
+#: The tool names model providers accept (Anthropic and OpenAI alike).
+_PROVIDER_NAME = re.compile(r"[a-zA-Z0-9_-]{1,64}")
 
 
 class ActionChecks:
@@ -33,7 +41,9 @@ class ActionChecks:
             by = [spec.by] if isinstance(spec.by, str) else spec.by
             by_types = {t for t in by if self._type(t, f"{path}.by", agent=True)}
             types: Types = {"actor": by_types}
-            if spec.tool is not None:
+            if spec.tool is None:
+                self._tool_name(name, path)
+            else:
                 self._tool_group(spec, path)
             for pname, param in spec.params.items():
                 ppath = f"{path}.params.{pname}"
@@ -118,11 +128,20 @@ class ActionChecks:
             self.error(f"{path}.tool", f"'{tool}' is not a tool name", "use letters, digits and _, starting with a letter")
         elif tool in self.c.actions:
             self.error(f"{path}.tool", f"'{tool}' is also the name of an action", "give the shared tool another name")
-        elif tool in ("look", "inspect", "end_turn"):
-            self.error(f"{path}.tool", f"'{tool}' is a built-in tool", "give the shared tool another name")
+        else:
+            self._tool_name(tool, f"{path}.tool")
         if "action" in spec.params:
             self.error(f"{path}.params.action", "an action inside a shared tool cannot take a parameter named `action`",
                        "the tool's `action` argument picks the action; rename the parameter")
+
+    def _tool_name(self: "_Checker", name: str, path: str) -> None:  # type: ignore[misc]
+        """A name offered to models as a tool: not a built-in tool's, and one every provider accepts."""
+        if name in BUILT_IN_TOOLS:
+            self.error(path, f"'{name}' is a built-in tool, so a model could never call this one",
+                       f"rename it, e.g. '{name}_action'")
+        elif not _PROVIDER_NAME.fullmatch(name):
+            self.error(path, f"'{name}' is not a tool name model providers accept: letters, digits, _ and - only, at "
+                       "most 64 characters", f"rename it, e.g. '{_provider_name(name)}'")
 
     def _list_param(self: "_Checker", param: C.ParamSpec, ppath: str, by_types: Set[str], types: Types,  # type: ignore[misc]
                     params: Mapping[str, C.ParamSpec]) -> None:
@@ -255,3 +274,9 @@ def _stage_action_names(stage: C.StageSpec, contract: Contract, raw: bool = Fals
     if isinstance(stage.actions, dict):
         return [a for names in stage.actions.values() for a in names]
     return []
+
+
+def _provider_name(name: str) -> str:
+    """``name`` made into a tool name providers accept: accents dropped, other characters as _, at most 64."""
+    plain = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
+    return re.sub(r"[^a-zA-Z0-9_-]+", "_", plain).strip("_")[:64] or "action"

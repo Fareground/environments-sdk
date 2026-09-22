@@ -102,5 +102,5 @@ def test_check_reports_bad_shared_tools():
     clash["stages"][0]["actions"] = "all"
     messages = {(i.path, i.message) for i in fg_env.check(clash, rounds=0) if i.severity == "error"}
     assert ("actions.shop_sell.tool", "'shop' is also the name of an action") in messages
-    assert ("actions.shop_buy.tool", "'end_turn' is a built-in tool") in messages
+    assert ("actions.shop_buy.tool", "'end_turn' is a built-in tool, so a model could never call this one") in messages
     assert any(path == "actions.shop_bag.params.action" for path, _ in messages)

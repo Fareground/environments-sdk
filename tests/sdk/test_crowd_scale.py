@@ -102,10 +102,10 @@ def test_equality_guards_skip_items_with_the_same_results_and_draws(monkeypatch,
 def test_equality_guards_keep_errors_of_the_items_they_would_evaluate(monkeypatch):
     broken = {**GUARDED, "events": [{"phase": "end", "each": "owner",
                                      "do": ["$it.cash += $count(item, $it.owner == $outer.id and $it.tag.x > 0)"]}]}
-    guarded = fg_env.run(broken, seed=5)
+    guarded = fg_env.load(broken, seed=5).run()
     assert guarded.status == "failed" and "cannot read '.x' of null" in guarded.error
     monkeypatch.setattr(expr.EqualityGuard, "key", lambda self, scope: expr._NO_KEY)
-    assert fg_env.run(broken, seed=5).to_dict() == guarded.to_dict()
+    assert fg_env.load(broken, seed=5).run().to_dict() == guarded.to_dict()
 
 
 def _validation_listings(monkeypatch, contract):
@@ -152,7 +152,7 @@ BALANCE = {
 
 
 def test_an_action_invariant_fails_the_moment_a_change_breaks_it():
-    result = fg_env.run(BALANCE, seed=1)
+    result = fg_env.load(BALANCE, seed=1).run()
     assert result.status == "failed" and "after events[0].do" in result.error and "the books balance" in result.error
 
 
@@ -165,7 +165,7 @@ def test_a_round_invariant_only_needs_to_hold_when_the_round_ends():
 def test_an_end_invariant_is_checked_once_when_the_run_finishes():
     contract = json.loads(json.dumps(BALANCE))
     contract["invariants"] = [{"expr": "$world.a > 2", "check": "end"}]
-    failed = fg_env.run(contract, seed=1)
+    failed = fg_env.load(contract, seed=1).run()
     assert failed.status == "failed" and "after the run" in failed.error
     contract["clock"]["rounds"] = 2
     assert fg_env.run(contract, seed=1).status == "completed"

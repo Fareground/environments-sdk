@@ -1,6 +1,8 @@
 """Sync events read the world as it was before the event and land every write together; `order` orders items."""
 import json
 
+import pytest
+
 import fg_env
 from fg_env.sdk.check import parse_contract
 from fg_env.sdk.runtime import Env
@@ -55,7 +57,9 @@ def _row(event):
 
 
 def test_two_items_writing_different_values_to_one_property_is_an_error_naming_both():
-    result = fg_env.run(_row({"sync": True, "do": ["$world.total = $it.x"]}), seed=1)
+    with pytest.raises(fg_env.RunError) as failed:
+        fg_env.run(_row({"sync": True, "do": ["$world.total = $it.x"]}), seed=1)
+    result = failed.value.result
     assert result.status == "failed"
     assert "'box_1' and 'box_2' write different values to $world.total" in result.error
 
