@@ -67,6 +67,7 @@ class RunRounds:
                 self._final_event()
                 return False
         world.round += 1
+        world.firings.clear()
         world.stage = None
         self._used_round.clear()
         # Continuous dynamics belong to the interval that just elapsed. Boundary
@@ -195,7 +196,8 @@ class RunRounds:
     def _atomic(self: "Env", effects: List[Any], vars: Dict[str, Any], path: str) -> bool:  # type: ignore[misc]
         if not effects:
             return True
-        with self._lock:
+        actor = vars.get("actor")
+        with self._lock, self.world.drawing_at(f"{path}@{actor.id}" if isinstance(actor, Entity) else path):
             mark = self.world.journal.mark()
             try:
                 with shared_budget(ACTION_BUDGET, path):

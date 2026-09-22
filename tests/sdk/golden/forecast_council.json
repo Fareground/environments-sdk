@@ -1,12 +1,12 @@
 {
   "actions": 41,
   "events": 64,
-  "events_sha256": "7e238c9f71bb594d2a8004691b894101dee097a1ec4f724cd063d1b1b0bf1ef5",
+  "events_sha256": "518a1d5fa9c4026e225718dbf31f51506cc869074eda73a49655c0e6f7e7238c",
   "metrics": {
     "messages": 7,
     "ready_count": 7
   },
   "rounds": 1,
   "status": "completed",
-  "wakes": 28
+  "wakes": 27
 }

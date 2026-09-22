@@ -6,7 +6,7 @@ import heapq
 import threading
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Iterator, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, ContextManager, Dict, Iterable, Iterator, List, Optional, Tuple
 
 from ..entity import Entity
 from ..physics import PhysicsModel, _CompiledExpr
@@ -19,7 +19,7 @@ from .expr import ExprError, FUNCTIONS, Scope, Untrusted, World, compile_expr, i
 from .props import finite_number as _finite_number, prop_type, shown_value as _shown_value
 from .record_index import RecordAuthors, author_only
 from .record_events import RecordEvents
-from .seeds import SeedTree
+from .seeds import DrawSite, SeedTree
 from .stdlib.dates import calendar_date
 from .template import format_value
 from .space import Spatial, position_of
@@ -74,6 +74,8 @@ class SdkWorld(World):
         self.arm = arm
         self._local = threading.local()
         self.rng = seeds.rng("world")
+        #: How many times each draw site has drawn this round (see :class:`~fg_env.sdk.seeds.DrawSite`).
+        self.firings: Dict[str, int] = {}
         self.entities: Dict[str, Entity] = {}
         self.props: Dict[str, Any] = {}
         self.links: Dict[str, Dict[Tuple[str, str], float]] = {name: {} for name in contract.relations}
@@ -150,11 +152,15 @@ class SdkWorld(World):
 
     @property  # type: ignore[override]
     def rng(self) -> Any:
-        """The random stream for the current context: a turn's own stream while an agent's turn
-        runs (so concurrent turns never race for draws), otherwise the run's main stream."""
+        """The random stream for the current context: the draw site's while a block of logic runs, a turn's own
+        stream while an agent's turn runs outside one (so concurrent turns never race for draws), otherwise the
+        run's main stream."""
         local = self._here()
         local.draws = getattr(local, "draws", 0) + 1
-        return getattr(local, "rng", None) or self._rng
+        rng = getattr(local, "rng", None)
+        if rng.__class__ is DrawSite:
+            return rng.open(self)
+        return rng or self._rng
 
     @rng.setter
     def rng(self, value: Any) -> None:
@@ -182,13 +188,19 @@ class SdkWorld(World):
 
     @contextmanager
     def drawing_from(self, rng: Any) -> Iterator[None]:
-        """Inside the block this thread draws from ``rng``, then from the stream it used before."""
-        previous = getattr(self._local, "rng", None)
-        self._local.rng = rng
+        """Inside the block this thread or turn draws from ``rng``, then from the stream it used before."""
+        local = self._here()
+        previous = getattr(local, "rng", None)
+        local.rng = rng
         try:
             yield
         finally:
-            self._local.rng = previous
+            local.rng = previous
+
+    def drawing_at(self, site: str) -> ContextManager[None]:
+        """:meth:`drawing_from` the stream of ``site``: where a block of logic is written, with the actor whose
+        action it is (see :class:`~fg_env.sdk.seeds.DrawSite`)."""
+        return self.drawing_from(DrawSite(site))
 
     # -- expression interface ------------------------------------------------
 

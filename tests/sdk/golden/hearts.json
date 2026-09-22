@@ -1,9 +1,9 @@
 {
   "actions": 16,
   "events": 21,
-  "events_sha256": "f93aea8ae4ce7e068bca0372b12fc50450eabba0ab833c9591eed7e47be6b691",
+  "events_sha256": "2771174ab1a06ed784ae4ac5f6498e1e1f7dcbbc09de953332d574a9c0f21418",
   "metrics": {
-    "hearts_broken": 0,
+    "hearts_broken": 1,
     "leader_score": 0
   },
   "rounds": 4,

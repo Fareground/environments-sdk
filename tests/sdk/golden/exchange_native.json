@@ -1,16 +1,16 @@
 {
   "actions": 80,
   "events": 81,
-  "events_sha256": "c96f5c52e027d05f4d2d18e74ba334583943803a83be6f67e57e96bca49727d2",
+  "events_sha256": "f4a7afc0cabfc540fe955db0e2a48901e82872672c9184aef66e57e0204dbae5",
   "metrics": {
-    "acme_orders": 14,
-    "acme_price": 49.83,
-    "acme_spread": 0.51,
-    "acme_volume": 54.0,
+    "acme_orders": 18,
+    "acme_price": 49.62,
+    "acme_spread": 0.44,
+    "acme_volume": 3.0,
     "fair_value": 50,
-    "pnl_market_maker": -258.66761,
-    "pnl_momentum": -272.0,
-    "pnl_value": -289.94575
+    "pnl_market_maker": -575.64813,
+    "pnl_momentum": -608.0,
+    "pnl_value": -649.32917
   },
   "rounds": 4,
   "status": "running",

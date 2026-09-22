@@ -46,7 +46,7 @@ _WORLD_FIELDS = frozenset({
     "contract", "inputs", "seeds", "arm", "_local", "_rng", "entities", "props", "links", "link_fields", "adjacent",
     "records_store", "entry_by_seq", "record_authors", "record_events", "entity_briefs", "log", "physics", "physics_writes", "entity_dynamics", "round",
     "stage", "rounds", "metrics", "series", "scheduled", "wake_requests", "reactions", "time", "horizon", "start", "wake_at",
-    "_schedule_seq", "space", "buffer", "end_request", "chance_picker", "counters", "journal", "lifecycle",
+    "_schedule_seq", "space", "buffer", "end_request", "chance_picker", "counters", "firings", "journal", "lifecycle",
     "exposures", "written", "watched_writes", "diagnosis", "_seq", "_record_seq", "_props_view", "_physics_view", "_clock_view",
     "_type_props", "_def_cache", "_def_cache_state", "_def_cache_on", "_subtypes", "types", "assets", "patterns"})
 #: Mechanisms keep plain data of their own on the world under these prefixes.
@@ -182,7 +182,7 @@ def _copy_world(source: SdkWorld) -> SdkWorld:
         horizon=source.horizon, start=source.start, wake_at=dict(source.wake_at), _schedule_seq=source._schedule_seq,
         space=None,
         buffer=None, end_request=_copy(source.end_request), chance_picker=None, counters=dict(source.counters),
-        journal=journal, lifecycle=None, exposures=_copy_exposures(source.exposures), written=set(source.written),
+        firings=dict(source.firings), journal=journal, lifecycle=None, exposures=_copy_exposures(source.exposures), written=set(source.written),
         watched_writes=None, diagnosis=None, _seq=source._seq,
         _record_seq=source._record_seq, _type_props=source._type_props, _def_cache={}, _def_cache_state=None,
         _def_cache_on=source._def_cache_on, _subtypes=source._subtypes, types=types, assets=source.assets.copy())

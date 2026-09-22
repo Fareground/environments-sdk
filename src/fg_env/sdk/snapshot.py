@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 __all__ = ["SNAPSHOT_VERSION", "KEEP_ARM", "contract_hash", "run_identity", "encode", "decode", "take_snapshot", "restore_env",
            "restore_state", "matching_contract", "check_snapshot", "recording_start"]
 
-SNAPSHOT_VERSION = 2
+SNAPSHOT_VERSION = 3
 
 _E = TypeVar("_E", bound="Env")
 
@@ -116,7 +116,7 @@ def take_snapshot(env: "Env") -> Dict[str, Any]:
         "schedule_seq": w._schedule_seq,
         "wake_requests": encode(w.wake_requests),
         "time": w.time, "horizon": w.horizon, "wake_at": dict(w.wake_at),
-        "counters": dict(w.counters), "end_request": encode(w.end_request),
+        "counters": dict(w.counters), "firings": dict(w.firings), "end_request": encode(w.end_request),
         "fired_once": sorted(env._fired_once),
         "turn_count": env._turn_count,
         "triggers": {"armed": {str(k): v for k, v in env._trigger_armed.items()}, "fired": sorted(env._triggers_fired)},
@@ -206,7 +206,8 @@ def check_snapshot(snapshot: Any) -> None:
         raise SnapshotError(f"a snapshot is a mapping (from env.snapshot()), got {type(snapshot).__name__}")
     version = snapshot.get("fg_env_snapshot")
     if version != SNAPSHOT_VERSION:
-        raise SnapshotError(f"unsupported snapshot version {version!r} (this engine reads version {SNAPSHOT_VERSION})")
+        raise SnapshotError(f"unsupported snapshot version {version!r} (this engine reads version {SNAPSHOT_VERSION}); "
+                            "rerun from the snapshot's seed and take a new one")
     if "run" in snapshot and snapshot["run"] != run_identity(snapshot.get("seed"), snapshot.get("arm"),
                                                              snapshot.get("inputs")):
         raise SnapshotError("the snapshot's seed, arm or inputs were changed after it was taken, so it no longer "
@@ -284,6 +285,7 @@ def _restore(cls: Type[_E], contract: Contract, snapshot: Mapping[str, Any], par
     w.time, w.horizon = float(snapshot["time"]), snapshot.get("horizon")
     w.wake_at = {str(k): float(v) for k, v in snapshot["wake_at"].items()}
     w.counters = dict(snapshot["counters"])
+    w.firings = {str(k): int(v) for k, v in snapshot["firings"].items()}
     w.end_request = decode(snapshot.get("end_request"))
     w.round, w.rounds = snapshot["round"], snapshot["rounds"]
     w.stage = None

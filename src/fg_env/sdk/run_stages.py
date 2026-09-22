@@ -89,7 +89,8 @@ class RunStages:
             if not ordered:
                 return agents
             if stage.order == "random":
-                world.rng.shuffle(agents)
+                with world.drawing_at(f"{path}.order"):
+                    world.rng.shuffle(agents)
             elif stage.order != "seat":
                 key = compile_expr(stage.order)
                 keyed = [(key(world.scope(it=a, i=i)), i, a) for i, a in enumerate(agents)]

@@ -23,6 +23,7 @@ from expr_oracle import compile_oracle
 from fg_env.sdk import expr_compile
 from fg_env.sdk.expr_base import _BUDGET, ExprError
 from fg_env.sdk.mechanisms import turn_order
+from fg_env.sdk.seeds import DrawSite
 from fg_env.sdk.stdlib import tables
 
 #: Every difference found: ``(expression, what differed)``.
@@ -57,6 +58,8 @@ def _streams(world: Any) -> List[Any]:
     if hasattr(world, "_here"):
         candidates += [getattr(world._here(), "rng", None), getattr(world._local, "rng", None)]
     for rng in candidates:
+        if isinstance(rng, DrawSite):
+            rng = rng.stream
         if rng is not None and hasattr(rng, "getstate") and not any(rng is known for known in found):
             found.append(rng)
     return found
@@ -69,6 +72,9 @@ def _capture(world: Any) -> Dict[str, Any]:
     state["streams"] = [(rng, rng.getstate()) for rng in _streams(world)]
     if hasattr(world, "_here"):
         local = world._here()
+        site = getattr(local, "rng", None)
+        if isinstance(site, DrawSite):  # a draw site opens at its first draw, counting it and journaling the count
+            state["site"] = (site, site.stream, dict(world.firings), world.journal.mark())
         state["counters"] = (local, getattr(local, "draws", _UNSET), getattr(local, "depth", _UNSET))
         state["defs"] = (dict(world._def_cache), world._def_cache_state)
         # Caches that evaluate expressions or charge work when they miss: both evaluators start from the same ones.
@@ -89,6 +95,11 @@ def _restore(world: Any, state: Dict[str, Any]) -> None:
         setattr(_BUDGET, name, value)
     if world is None:
         return
+    if "site" in state:
+        site, site.stream, firings, mark = state["site"]
+        world.firings.clear()
+        world.firings.update(firings)
+        del world.journal._undo[mark:]
     for rng, saved in state["streams"]:
         rng.setstate(saved)
     if "counters" in state:

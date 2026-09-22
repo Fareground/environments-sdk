@@ -1,20 +1,20 @@
 {
-  "actions": 147,
-  "events": 147,
-  "events_sha256": "74e587baf47db9574e0fe2a9e0bba5e213513edcb21fba68f818d1c71d226434",
+  "actions": 167,
+  "events": 167,
+  "events_sha256": "937c0daa772341c4f2b635ada360f80b412b39d7377963fc9c1949187a86cdc1",
   "metrics": {
-    "demo_orders": 177,
-    "demo_price": 100.87,
-    "demo_spread": 0.5,
-    "demo_volume": 50842.0,
-    "depth": 80080.0,
+    "demo_orders": 183,
+    "demo_price": 100.05,
+    "demo_spread": 0.55,
+    "demo_volume": 25798.0,
+    "depth": 83670.0,
     "flow_scale": 1,
     "fundamental": 99.56660027,
     "sentiment": 0,
     "size_scale": 1,
-    "spread_bps": 49.69191016
+    "spread_bps": 54.82182906
   },
   "rounds": 4,
   "status": "running",
-  "wakes": 147
+  "wakes": 167
 }

@@ -1,18 +1,18 @@
 {
-  "actions": 301,
-  "events": 602,
-  "events_sha256": "9e485ced36632b20dfac275b16d4405b23148828ffb94b7a669076b126fe6bc0",
+  "actions": 601,
+  "events": 1202,
+  "events_sha256": "f7c28681b2ffc8472c7cb6c10c8634830505bf75436bc91b7fafa271dc529eed",
   "metrics": {
     "active": 11,
-    "budget": 59100,
-    "compliance": 0.7966666667,
+    "budget": 58200,
+    "compliance": 0.77,
     "dead": 0,
-    "hospital_load": 0.1413124032,
+    "hospital_load": 0.2145513512,
     "lockdown": 1,
-    "new_cases": 1,
-    "recovered": 2
+    "new_cases": 0,
+    "recovered": 3
   },
   "rounds": 4,
   "status": "running",
-  "wakes": 304
+  "wakes": 604
 }
