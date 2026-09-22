@@ -151,7 +151,7 @@ class ActionBook(ActionSchemas, ActionValidation):
         if "params" in expr.roots and params is None:
             return items
         out = []
-        base = self.world.scope(actor=actor, params=params or {})
+        base = self.world.scope(actor=actor, viewer=actor, params=params or {})
         ruled_out = expr.rules_out(base)
         for position, item in enumerate(items):
             if ruled_out is not None and ruled_out(item):
@@ -192,7 +192,7 @@ class ActionBook(ActionSchemas, ActionValidation):
                     raise RunError(f"chance must be a number from 0 to 1, got {probability!r}", f"{path}.chance")
                 success = world.rng.random() < probability
             self.effects.run(spec.do if success else spec.otherwise, vars, f"{path}.{'do' if success else 'otherwise'}")
-            text = self._render(spec.outcome, vars, f"{path}.outcome") if spec.outcome else \
+            text = self._render(spec.outcome, {**vars, "viewer": actor}, f"{path}.outcome") if spec.outcome else \
                 "" if trial else self._default_outcome(name, params, success)
             assets = attached_ids(world, spec.attach, world.scope(**vars), f"{path}.attach") if spec.attach else []
             announce = spec.announce

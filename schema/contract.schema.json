@@ -2840,7 +2840,7 @@
         },
         "visible": {
           "default": "all",
-          "description": "'all' or an expression over $viewer and $it (the entry).",
+          "description": "'all' or an expression over $viewer and $it (the entry). It filters what agents are shown or offered; game logic reads every entry.",
           "title": "Visible",
           "type": "string"
         },

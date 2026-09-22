@@ -143,7 +143,7 @@ class ActionSchemas:
         if "params" in expr.roots:
             return None
         try:
-            return expr(self.world.scope(actor=actor))
+            return expr(self.world.scope(actor=actor, viewer=actor))
         except ExprError:
             return None
 
@@ -227,7 +227,7 @@ class ActionSchemas:
             return None
         if _mentions_expr(raw):
             try:
-                raw = resolve(raw, self.world.scope(actor=actor))
+                raw = resolve(raw, self.world.scope(actor=actor, viewer=actor))
             except ExprError:
                 return None
             if _mentions_expr(raw):

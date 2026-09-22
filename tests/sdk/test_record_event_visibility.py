@@ -46,17 +46,17 @@ def test_normal_update_does_not_reveal_private_payload_or_omitted_count():
     assert len(env.world.events("record")) == 1  # omniscient analysis retains the full log
 
 
-@pytest.mark.parametrize("root", ["viewer", "actor"])
-def test_event_expressions_follow_the_reader_even_without_an_explicit_viewer(root):
+def test_event_expressions_follow_the_viewer_and_logic_reads_them_all():
     env, _ = run()
     for who, expected in [("a", 1), ("b", 0)]:
-        scope = env.world.scope(**{root: env.world.entities[who]})
+        scope = env.world.scope(viewer=env.world.entities[who])
         assert len(evaluate("$events(record)", scope)) == expected
         records = [e for e in evaluate("$events()", scope) if e.kind == "record"]
         assert len(records) == expected
+        assert len(evaluate("$events(record)", env.world.scope(actor=env.world.entities[who]))) == 1
     assert len(evaluate("$events(record)", env.world.scope())) == 1
     scope = env.world.scope(actor=env.world.entities["a"], viewer=env.world.entities["b"])
-    assert evaluate("$events(record)", scope) == []  # the explicit reader takes precedence
+    assert evaluate("$events(record)", scope) == []  # rendering for b hides a's private entry
 
 
 @pytest.mark.parametrize("limit", [0, 1, 30, None])

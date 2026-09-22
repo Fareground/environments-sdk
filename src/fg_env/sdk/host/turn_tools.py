@@ -161,7 +161,8 @@ class HostWake(Wake):
         try:
             with shared_budget(ACTION_BUDGET, path):
                 env.effects.run(spec.do, vars, f"{path}.do")
-                text = compile_template(spec.outcome, None).render(world.scope(**vars)) if spec.outcome else "Done."
+                text = compile_template(spec.outcome, None).render(world.scope(viewer=turn.actor, **vars)) \
+                    if spec.outcome else "Done."
         except Abort as abort:
             world.journal.rollback(mark)
             turn.stats.rejected_actions += 1

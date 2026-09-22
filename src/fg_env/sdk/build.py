@@ -54,7 +54,7 @@ def build_world(contract: Contract, inputs: Dict[str, Any], seeds: SeedTree, arm
             actor = world.entities[entity_id]
             try:
                 world.entity_briefs[entity_id] = compile_template(template, "actor").render(
-                    world.scope(actor=actor, **vars)).strip()
+                    world.scope(actor=actor, viewer=actor, **vars)).strip()
             except ExprError as exc:
                 raise RunError(str(exc), path) from None
         _build_hooks(world)

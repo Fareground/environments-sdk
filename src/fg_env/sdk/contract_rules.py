@@ -31,7 +31,8 @@ class RecordSpec(_Model):
 
     fields: Dict[str, TypeName] = Field(default_factory=lambda: {"text": "text"}, description="{field: type}; text fields written by agents are marked untrusted.")
     show: Optional[str] = Field(None, description="How one entry reads: '{author}: {text}'.")
-    visible: str = Field("all", description="'all' or an expression over $viewer and $it (the entry).")
+    visible: str = Field("all", description="'all' or an expression over $viewer and $it (the entry). It filters "
+                         "what agents are shown or offered; game logic reads every entry.")
     keep: Optional[int] = Field(None, description="Keep only the latest N entries.")
     notify: bool = Field(True, description="Deliver new entries to agents in 'since your last turn'.")
     description: str = ""

@@ -330,11 +330,12 @@ def _exists(call: Call) -> bool:
     return bool(found is not None and found.alive)
 
 
-@function("records(name, where?)", "Entries of a declared record, oldest first.",
+@function("records(name, where?)", "Entries of a declared record, oldest first. Game logic reads every entry; what an "
+          "agent is shown or offered reads only those the record's `visible` rule lets it see.",
           min_args=1, max_args=2, lazy=[1])
 def _records(call: Call) -> List[Any]:
-    # Visibility follows whoever is looking ($viewer, else $actor); metrics and outputs see all.
-    viewer = call.scope.vars.get("viewer") or call.scope.vars.get("actor")
+    # $viewer is bound only while rendering for, or offering choices to, one agent.
+    viewer = call.scope.vars.get("viewer")
     name = str(call.arg(0))
     rows = _held(lambda: call.scope.world.visible_records(name, viewer))  # evaluates `visible` per entry
     charge(len(rows), call.source)
@@ -343,12 +344,12 @@ def _records(call: Call) -> List[Any]:
     return [row for i, row in enumerate(rows) if truthy(call.each(1, row, i))]
 
 
-@function("events(kind?, where?)", "Events so far (optionally of one kind), oldest first. Reads follow $viewer, else "
-          "$actor; with neither, all events. Record events obey their retained entry's visibility.",
-          min_args=0, max_args=2, lazy=[1])
+@function("events(kind?, where?)", "Events so far (optionally of one kind), oldest first. Game logic reads every event; "
+          "what an agent is shown or offered reads only those it may know of (a record event follows its entry's "
+          "`visible` rule).", min_args=0, max_args=2, lazy=[1])
 def _events(call: Call) -> List[Any]:
     kind = call.arg(0) if len(call) else None
-    viewer = call.scope.vars.get("viewer") or call.scope.vars.get("actor")
+    viewer = call.scope.vars.get("viewer")
     rows = _held(lambda: call.scope.world.events(kind, viewer))
     charge(len(rows), call.source)
     if len(call) < 2:

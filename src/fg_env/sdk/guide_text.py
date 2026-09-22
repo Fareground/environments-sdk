@@ -251,7 +251,11 @@ RECIPES = """\
   eliminates and reveals players (guide('groups.roles')). An entity's built-in `alive` turns false only when it is
   removed; a player the mechanism eliminates stays in the world with its `living` prop false.
 * Hidden information: `private` props (hidden from others' inspect), per-type views, record
-  `visible` rules, `to` on posts/emits, `private: true` actions (no announcement).
+  `visible` rules, `to` on posts/emits, `private: true` actions (no announcement). Visibility shapes only what an
+  agent is shown or offered (brief, updates, views, tool choices, outcome text, its policy); game logic — action
+  `when`/`do`, events, triggers, stages, `end`, metrics, outputs, invariants — reads every record entry and event,
+  so an auditor's `accuse` can count messages it never saw. To ask what one agent can see inside logic, filter
+  explicitly: `$records(chat, $it.author == $actor or $actor.id in ($it.to or []))`.
 * Spaces (agent-based models): `"space": {"grid": {"rows": "$inputs.size", "cols": "$inputs.size",
   "neighborhood": "moore", "torus": true}, "capacity": 1}` — `von_neumann` (4 neighbours), `moore` (8) or `hex`
   (6, axial [r, q]); sizes may read `$inputs` so they can be swept. Entities with `at` are indexed: `$at(pos, type?)`,
