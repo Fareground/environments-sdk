@@ -52,7 +52,7 @@ _WORLD_FIELDS = frozenset({
 #: Mechanisms keep plain data of their own on the world under these prefixes.
 _WORLD_STORES = ("_channel_visible:",)
 _TURN_FIELDS = frozenset({
-    "env", "actor", "stage", "reason", "staged", "peek", "round", "_since", "_views", "_brief", "_update", "calls_left",
+    "env", "actor", "stage", "reason", "staged", "peek", "round", "_since", "_views", "_brief", "_update", "max_actions", "max_calls", "calls_left",
     "reads_left", "_reads", "did_not_act", "actions_left", "done", "used", "intents", "pending", "stats", "elapsed", "_offered", "_tools", "time_limit",
     "deadline", "timed_out", "closed", "busy", "tallied", "atomic", "_mark", "_counted", "number", "exposure",
     "_delivered"})

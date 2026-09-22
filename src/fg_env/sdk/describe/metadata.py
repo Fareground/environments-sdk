@@ -277,8 +277,9 @@ def _length(contract: Contract, scan: _Scan, probe: Any, players: Optional[int])
         evidence.append(f"{wakes[0]} wakes agents for extra turns")
     elif any(stage.valid for stage in acting):
         evidence.append(f"stage {next(s.name for s in acting if s.valid)} replays a turn that breaks `valid`")
-    elif any(isinstance(stage.passes, str) for stage in acting):
-        evidence.append(f"stage {next(s.name for s in acting if isinstance(s.passes, str))} makes as many passes as its inputs give")
+    elif any(isinstance(stage.passes, str) or isinstance(stage.max_actions, str) for stage in acting):
+        counted = next(s.name for s in acting if isinstance(s.passes, str) or isinstance(s.max_actions, str))
+        evidence.append(f"stage {counted} takes as many passes and actions per turn as its inputs give")
     elif players is None:
         evidence.append("the number of players is not fixed")
     else:

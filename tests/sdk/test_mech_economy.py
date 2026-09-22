@@ -135,7 +135,7 @@ def test_needs_use_up_goods_every_round_and_perishables_spoil_oldest_first():
     env = fg_env.load(PANTRY, seed=1)
     result = env.run("idle")
     assert result.status == "completed", result.error
-    assert env.entity("cy")["props"]["food"] == {}
+    assert env.entity("cy")["props"]["food"] == {"bread": 0}  # used up, still listed
     assert env.entity("cy")["props"]["hunger"] == 2
     assert env.props["food_flows"] == {"needs": {"bread": -2}, "spoiled": {"bread": -2}}
     assert any(e["kind"] == "food_spoiled" and "2 bread" in e["text"] for e in result.events)
@@ -389,7 +389,7 @@ def test_production_lists_makeable_recipes_runs_jobs_in_slots_and_levels_skills(
     assert not busy.ok and "must be one of chop" in busy.text  # the only slot is taken
     assert fine.ok, fine.text
     ivy = env.entity("ivy")["props"]
-    assert ivy["goods"] == {"flour": 3, "wood": 1}
+    assert ivy["goods"] == {"grain": 0, "flour": 3, "wood": 1}
     assert ivy["skills"] == {"milling": 1} and ivy["skill_xp"] == {"milling": 2}
     assert env.props["goods_flows"] == {"chop": {"wood": 1}, "mill": {"grain": -4, "flour": 2},
                                         "fine_mill": {"grain": -1, "flour": 1}}
@@ -421,7 +421,7 @@ def test_a_finished_job_waits_while_its_output_does_not_fit():
     assert [j["props"]["status"] for j in env.entities("craft_job")] == ["waiting"]
     assert any(e["kind"] == "craft_waiting" and "has room for only" in e["text"] for e in result.events)
     env.run("idle", rounds=1)
-    assert env.entities("craft_job") == [] and env.entity("ivy")["props"]["goods"] == {"grain": 1, "flour": 2}
+    assert env.entities("craft_job") == [] and env.entity("ivy")["props"]["goods"] == {"grain": 1, "flour": 2, "wood": 0}
 
 
 def test_production_config_errors_say_what_to_fix():
@@ -811,7 +811,7 @@ def test_supply_chain_ships_backlogs_and_costs_with_goods_conserved_in_pipelines
     result = env.run("idle", rounds=4)
     assert result.status != "failed", result.error
     shop, plant = env.entity("shop")["props"], env.entity("plant")["props"]
-    assert (env.props["flow_sold"], shop["stock"], plant["stock"]) == (14, {}, {"widget": 5})
+    assert (env.props["flow_sold"], shop["stock"], plant["stock"]) == (14, {"widget": 0}, {"widget": 5})
     assert (shop["flow_backlog"], shop["flow_peak_backlog"], shop["flow_cost"], plant["flow_cost"]) == (4, 4, 14, 10)
     assert env.props["stock_flows"] == {"sold": {"widget": -14}}
 

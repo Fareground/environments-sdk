@@ -9,7 +9,7 @@ Named the same in every mode:
 - `tools`: how generated tools are offered: each (one tool per action, the default) | one (one tool named after the mechanism, with an `action` argument listing the actions legal now) | auto (one tool only when every action takes the same arguments)
 
 Modes (`"kind": "economy", "mode": ...`; read one with `guide('economy.<mode>')`):
-- `inventory`: Goods held by entities: stackable items in a map property (`$actor.goods.bread`) and unique items as entities with an owner.
+- `inventory`: Goods held by entities: stackable items in a map property listing each one (`$actor.goods.bread`, 0 when none are held) and unique items as entities with an owner.
 - `ledger`: Money: each currency is a number property of every holder (`$actor.cash`) with an optional credit limit.
 - `production`: Recipes that turn goods into goods: inputs used up, outputs made, optional skill level, tools held, place, money cost and production time.
 - `supply_chain`: A serial supply chain (the beer game as data): each round every node receives what reached it, gets its order (customers' demand at the first node), ships what it can toward that order plus backlog and pays holding and backlog costs; then nodes order from the node upstream (the producer starts a batch) with `<name>_order`, one order a round.

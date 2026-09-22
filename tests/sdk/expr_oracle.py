@@ -2,7 +2,7 @@
 
 This is the closure compiler the language shipped with before expressions were compiled to Python code, kept
 verbatim: one closure per syntax node, evaluated by calling them. It shares only what the compiled language did
-not replace — parsing (``_preprocess``, the node whitelist) and the value helpers (``attr``, the operators,
+not replace — parsing (``_preprocess``, ``_restore_words``, the node whitelist) and the value helpers (``attr``, the operators,
 ``Call``) — so a difference between the two is a difference in compilation, never in a helper both call.
 Used by the differential tests only.
 """
@@ -15,7 +15,7 @@ from typing import Any, FrozenSet, List, Mapping, Optional, Sequence, Tuple
 from fg_env.sdk.expr_base import _BUDGET, EVAL_BUDGET, ExprError, charge, truthy
 from fg_env.sdk.expr_calls import FUNCTIONS, Call, EqualityGuard, Evaluator
 from fg_env.sdk.expr_codegen import _FUNC_PREFIX, _LITERAL_NAMES, _ROOT_PREFIX, _chain
-from fg_env.sdk.expr_compile import _ALLOWED, _MAX_NODES, _MAX_SOURCE, _preprocess
+from fg_env.sdk.expr_compile import _ALLOWED, _MAX_NODES, _MAX_SOURCE, _preprocess, _restore_words
 from fg_env.sdk.expr_scope import Scope
 from fg_env.sdk.expr_values import _BINARY, _COMPARE, _describe, _number, attr
 from fg_env.sdk.syntax_hints import syntax_message
@@ -75,6 +75,7 @@ def compile_oracle(source: str) -> OracleExpr:
     nodes = list(ast.walk(tree))
     if len(nodes) > _MAX_NODES:
         raise ExprError("expression is too large", source)
+    _restore_words(nodes)
     for node in nodes:
         if not isinstance(node, _ALLOWED):
             raise ExprError(f"unsupported syntax ({type(node).__name__})", source)

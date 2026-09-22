@@ -129,6 +129,17 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, RuleChecks):
         hint = get_close_matches(name, list(options), n=1)
         return f"did you mean '{hint[0]}'?" if hint else None
 
+    def order_setting(self, order: Optional[str], path: str, words: Tuple[str, ...], roots: Iterable[str],
+                      types: Optional[Types] = None) -> None:
+        """An `order` setting: one of ``words``, or an expression (lowest first). A bare word is never an expression."""
+        if order is None or order in words:
+            return
+        if not is_expr(order):
+            self.error(path, f"unknown order '{order}'",
+                       self._suggest(order, words) or f"use {' or '.join(words)}, or an expression like $it.priority")
+            return
+        self.expr(order, path, roots, types)
+
     def _hint(self, name: str, options: Iterable[str], what: str) -> str:
         """Did-you-mean when a name is close, otherwise the names there are to choose from."""
         listed = list(options)

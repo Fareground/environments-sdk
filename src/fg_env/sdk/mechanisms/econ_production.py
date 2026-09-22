@@ -88,7 +88,7 @@ def _expand_production(name: str, config: ProductionConfig, contract: Mapping[st
     for recipe, spec in config.recipes.items():
         path = f"recipes.{recipe}"
         if not valid_name(recipe):
-            raise MechanismError(f"recipe '{recipe}' is not a valid name", "use letters, digits and _ (not a Python keyword)", path)
+            raise MechanismError(f"recipe '{recipe}' is not a valid name", "use letters, digits and _ (not a word expressions use, like in or not)", path)
         for field, goods in (("inputs", spec.inputs), ("outputs", spec.outputs), ("tools", spec.tools)):
             for item in goods:
                 if item not in items:

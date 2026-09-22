@@ -74,7 +74,7 @@ def _expand_subscriptions(name: str, config: SubscriptionsConfig, contract: Mapp
     entities: Dict[str, Any] = {}
     for plan_id, spec in config.plans.items():
         if not valid_name(plan_id):
-            raise MechanismError(f"plan id '{plan_id}' is not a valid id", "use letters, digits and _ (not a Python keyword)", f"plans.{plan_id}")
+            raise MechanismError(f"plan id '{plan_id}' is not a valid id", "use letters, digits and _ (not a word expressions use, like in or not)", f"plans.{plan_id}")
         entities[plan_id] = {"type": plan, "name": spec.name or plan_id.replace("_", " ").title(), "props": {
             "provider": spec.provider, "price": spec.price, "period": spec.period, "trial": spec.trial,
             "description": spec.description}}

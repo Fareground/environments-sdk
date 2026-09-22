@@ -6,7 +6,8 @@ Any string containing `$name` is an expression; other strings are literal text.
 * Roots: `$actor`, `$params`, `$it`, `$inputs`, `$world`, … (which ones depend on where — see below).
 * Functions: `$count(buyer, $it.cash > 0)`. Per-item arguments bind `$it` (and `$i`).
 * Bare words are text: `$actor.status == open`, `$count(offer)`. `true false null` are literals.
-  Quote text with spaces: `$actor.mood == 'very happy'`.
+  Quote text with spaces: `$actor.mood == 'very happy'`. Any word may name a type, entity, property or item
+  (`class`, `from` and `def` too) except the language's own `and or not in if else true false null`.
 * Operators: `+ - * / // % **`, `== != < <= > >=`, `and or not` (`&& || !`), `in`,
   `a if cond else b`, lists `[1, 2]`, indexing `$top(offer, $it.price, 1)[0]`.
 * Entities expose `id name type alive at` and their props. Comparing an entity with an id works.

@@ -28,7 +28,8 @@ class RuleChecks:
         for index, event in enumerate(self.c.events):
             path = f"events[{index}]"
             if event.phase not in ("start", "end"):
-                self.error(f"{path}.phase", f"unknown phase '{event.phase}'", "start or end")
+                self.error(f"{path}.phase", f"unknown phase '{event.phase}'",
+                           self._suggest(event.phase, ("start", "end")) or "start or end")
             for arm in event.arms or []:
                 if arm not in self.c.arms:
                     self.error(f"{path}.arms", f"'{arm}' is not a declared arm", self._hint(arm, self.c.arms, "arms"))

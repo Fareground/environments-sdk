@@ -7,7 +7,6 @@ props and entities and changes only through the world's journaled API.
 """
 from __future__ import annotations
 
-import keyword
 import math
 import re
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Type, Union, cast
@@ -16,7 +15,7 @@ from pydantic import BaseModel, ValidationError
 
 from ...entity import Entity
 from ..errors import RunError
-from ..expr import ExprError, compile_expr
+from ..expr import EXPRESSION_WORDS, ExprError, compile_expr
 from ..registry import MechanismError, config_data, describe, use_key
 from ..world import Abort
 
@@ -44,8 +43,8 @@ CONFIG_MODELS: Dict[str, Type[BaseModel]] = {}
 
 
 def valid_name(name: str) -> bool:
-    """Letters, digits and _, starting with a letter, and not a Python keyword: expressions read names as attributes."""
-    return bool(NAME.match(name)) and not keyword.iskeyword(name)
+    """Letters, digits and _, starting with a letter, and not a word expressions use themselves (`in`, `not`)."""
+    return bool(NAME.match(name)) and name not in EXPRESSION_WORDS
 
 
 def register_config(kind: str, model: Type[BaseModel]) -> None:

@@ -262,7 +262,7 @@ def legal_calls(env: "Env", turn: "Turn", *, limit: int = COMBINATION_LIMIT,
     unlisted: Dict[str, str] = {}
     with env._lock, as_turn(env, turn):
         names = turn._legal()
-        acted = turn.actions_left < turn.stage.max_actions or bool(turn.intents)
+        acted = turn.actions_left < turn.max_actions or bool(turn.intents)
         if not (turn.stage.must_act and not acted and names):
             calls.append((END_TURN, {}))
         stream = TrialStream(env.world) if dry_run else None

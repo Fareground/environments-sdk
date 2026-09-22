@@ -78,7 +78,7 @@ def _expand_bookings(name: str, config: BookingsConfig, contract: Mapping[str, A
     entities: Dict[str, Any] = {}
     for rid, spec in config.resources.items():
         if not valid_name(rid):
-            raise MechanismError(f"resource id '{rid}' is not a valid id", "use letters, digits and _ (not a Python keyword)", f"resources.{rid}")
+            raise MechanismError(f"resource id '{rid}' is not a valid id", "use letters, digits and _ (not a word expressions use, like in or not)", f"resources.{rid}")
         if spec.price > 0 and (config.currency is None or spec.provider is None):
             raise MechanismError(f"resource '{rid}' has a price but no currency or provider",
                                  "set the mechanism's `currency` and the resource's `provider`", f"resources.{rid}")

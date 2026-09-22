@@ -765,14 +765,14 @@ class EffectRunner:
 
     def _op_repeat(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
         limit = self._eval(effect["repeat"], vars)
-        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= REPEAT_CEILING:
-            raise RunError(f"`repeat` needs a whole-number limit from 1 to {REPEAT_CEILING}, got {limit!r}", where)
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 0 <= limit <= REPEAT_CEILING:
+            raise RunError(f"`repeat` needs a whole-number limit from 0 to {REPEAT_CEILING}, got {limit!r}", where)
         condition = effect.get("while")
         for _ in range(limit):
             if condition is not None and not self._condition(condition, vars):
                 return
             self.run(effect.get("do") or [], vars, f"{where}.do")
-        if condition is not None and self._condition(condition, vars):
+        if limit and condition is not None and self._condition(condition, vars):
             raise RunError(f"`repeat` reached its limit of {limit} while `{condition}` still holds", where)
 
 

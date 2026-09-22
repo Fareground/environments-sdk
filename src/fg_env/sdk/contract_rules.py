@@ -116,10 +116,10 @@ class StageSpec(_Model):
     order: str = Field("seat", description="seat | random | expression over $it (lowest first).")
     who: Optional[str] = Field(None, description="Which agents are woken ($it); e.g. $it.alive && $chance(0.3).")
     until: Optional[str] = Field(None, description="Repeat turns within the round until true.")
-    passes: Union[int, str, None] = Field(None, description="Max passes through the agents (default 1, or 10 with until): a number or an expression over $inputs.")
+    passes: Union[int, str, None] = Field(None, description="Max passes through the agents (default 1, or 10 with until): a number ≥ 1 or an expression over $inputs.")
     quiet: str = Field("wake", description="wake | skip — skip agents with nothing new since their last turn.")
-    max_actions: int = Field(1, description="Actions an agent may take per turn.")
-    max_calls: int = Field(8, description="Tool calls (including looks) per turn.")
+    max_actions: Union[int, str] = Field(1, description="Actions an agent may take per turn: a number or an expression over $inputs.")
+    max_calls: Union[int, str] = Field(8, description="Tool calls (including looks) per turn: a number or an expression over $inputs.")
     brief: str = Field("", description="Instruction shown during this stage (template).")
     must_act: bool = Field(False, description="While an action is available, the agent cannot just end its turn.")
     on_idle: Effects = Field(default_factory=list, description="Effects for each agent that ends its turn without acting ($actor): a forfeit, a default move.")
@@ -147,12 +147,12 @@ class StageSpec(_Model):
 
     @field_validator("max_calls")
     @classmethod
-    def _calls_ceiling(cls, value: int) -> int:
+    def _calls_ceiling(cls, value: Any) -> Any:
         return _ceiling(value, MAX_TURN_CALLS, "allow fewer tool calls per turn")
 
     @field_validator("max_actions")
     @classmethod
-    def _actions_ceiling(cls, value: int) -> int:
+    def _actions_ceiling(cls, value: Any) -> Any:
         return _ceiling(value, MAX_TURN_ACTIONS, "allow fewer actions per turn")
 
 

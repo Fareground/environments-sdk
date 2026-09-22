@@ -1,4 +1,4 @@
-"""Reserved-word names, refusals inside events, and arguments whose checks read an earlier bad argument."""
+"""Expression-word names, refusals inside events, and arguments whose checks read an earlier bad argument."""
 import fg_env
 
 BASE = {"name": "Edges", "clock": {"rounds": 1},
@@ -11,12 +11,12 @@ def _contract(**sections):
     return {**BASE, **sections}
 
 
-def test_reserved_word_names_are_errors_because_expressions_cannot_read_them():
+def test_expression_word_names_are_errors_but_other_python_keywords_are_fine():
     contract = _contract(types={"player": {"agent": True, "props": {"from": "", "cash": 10}}},
                          actions={"pay": {"by": "player", "params": {"in": {"type": "int"}}, "do": []}})
     errors = [str(i) for i in fg_env.check(contract) if i.severity == "error"]
-    assert any("types.player.props.from" in e and "reserved word" in e for e in errors)
-    assert any("actions.pay.params.in" in e and "reserved word" in e for e in errors)
+    assert not any("types.player.props.from" in e for e in errors)
+    assert any("actions.pay.params.in" in e and "word expressions use" in e for e in errors)
 
 
 def test_a_refusal_inside_an_event_is_logged_for_the_record_and_shown_to_no_agent():
@@ -135,14 +135,9 @@ def test_dependent_step_schema_does_not_advertise_false_zero_based_multiples():
     assert "steps of 0.002 from 0.001" in schema["description"]
 
 
-def test_integer_only_stage_fields_do_not_suggest_expressions():
-    import fg_env
-
-    contract = {"name": "Stage bounds", "types": {}, "stages": [
+def test_stage_turn_limits_take_numbers_or_expressions_over_inputs():
+    contract = {"name": "Stage bounds", "types": {}, "inputs": {"size": {"type": "int", "default": 2}}, "stages": [
         {"name": "work", "max_actions": "$inputs.size", "max_calls": "$inputs.size + 1"}]}
-    issues = fg_env.check(contract, rounds=0)
-    for path in ("stages[0].max_actions", "stages[0].max_calls"):
-        issue = next(item for item in issues if item.path == path)
-        assert issue.fix == "write a whole number without quotes"
+    assert not [issue for issue in fg_env.check(contract, rounds=0) if issue.severity == "error"]
     contract["stages"][0].update(max_actions=2, max_calls=3)
     assert not [issue for issue in fg_env.check(contract, rounds=0) if issue.severity == "error"]

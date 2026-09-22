@@ -308,9 +308,9 @@ class EffectChecks:
         elif op == "repeat":
             v("repeat")
             limit = effect.get("repeat")
-            if isinstance(limit, int) and not isinstance(limit, bool) and not 1 <= limit <= REPEAT_CEILING:
-                self.error(f"{path}.repeat", f"is {limit:,}; a repeat limit runs from 1 to {REPEAT_CEILING:,}",
-                           "use a smaller limit; a loop that needs more never settles")
+            if isinstance(limit, int) and not isinstance(limit, bool) and not 0 <= limit <= REPEAT_CEILING:
+                fix = "use 0 to run nothing" if limit < 0 else "use a smaller limit; a loop that needs more never settles"
+                self.error(f"{path}.repeat", f"is {limit:,}; a repeat limit runs from 0 (run nothing) to {REPEAT_CEILING:,}", fix)
             self.expr(effect.get("while"), f"{path}.while", roots, types, params)
             body_types = dict(types)
             roots |= self.effects(effect.get("do", []), f"{path}.do", roots, body_types, params)

@@ -39,7 +39,7 @@ def test_text_limits_are_stated_in_words_and_usage_caps_before_the_first_call():
     assert say.input_schema["properties"]["text"]["description"] == "What you say. Up to 400 characters (about 50 words)."
     from fg_env.sdk.tool_text import text_limit
 
-    assert text_limit(600) == "Up to 600 characters (about 70 words)." and text_limit(4) == "Up to 4 characters (about 1 word)."
+    assert text_limit(600) == "Up to 600 characters (about 75 words)." and text_limit(4) == "Up to 4 characters (about 1 word)."
 
 
 def test_holdem_says_whether_a_hand_uses_the_hole_cards_or_is_on_the_board():

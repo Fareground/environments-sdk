@@ -2,13 +2,12 @@
 message delivery."""
 from __future__ import annotations
 
-import keyword
 import re
 from typing import TYPE_CHECKING, Any, Dict, FrozenSet, Iterable, List, Mapping, Optional, Set
 
 from .contract import EntityDynamics, FeedSpec, InputSpec, ParamSpec, PropSpec
 from .entity_physics import MATH_NAMES
-from .expr import is_expr
+from .expr import EXPRESSION_WORDS, is_expr
 from .feeds import feed_target
 from .host.tape import TAPE
 from .inputs import check_value
@@ -102,8 +101,9 @@ def check_relation_fields(checker: "_Checker", base: FrozenSet[str]) -> None:
             path = f"relations.{kind}.props.{name}"
             if name in LINK_ATTRS:
                 checker.error(path, f"'{name}' is built into every link", "choose another field name")
-            elif not _FIELD_NAME.match(name) or keyword.iskeyword(name):
-                checker.error(path, f"'{name}' cannot be read as $link(...).{name}", "use letters, digits and _, not a reserved word")
+            elif not _FIELD_NAME.match(name) or name in EXPRESSION_WORDS:
+                checker.error(path, f"'{name}' cannot be read as $link(...).{name}",
+                              "use letters, digits and _, not a word expressions use (and, or, not, in, if, else, true, false, null)")
             checker._prop_spec(prop, path, base - {"metrics", "series"} | {"from", "to"},
                                {"from": every_type, "to": every_type})
     for index, entry in enumerate(checker.c.links):
