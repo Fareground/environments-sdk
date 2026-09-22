@@ -28,11 +28,10 @@ _SENTENCE_END = re.compile(r"[.!?…][\"'»”’)\]]*(?=\s|$)")
 
 
 def text_limit(max_len: int, overflow: str = "refuse") -> str:
-    """``Up to 400 characters (about 50 words).`` — the word count rounded down to its leading digit; with
-    ``overflow="truncate"`` it adds that longer text is cut."""
-    words = int(max_len / CHARS_PER_WORD)
-    step = 10 ** max(0, len(str(words)) - 1)
-    rounded = max(1, words // step * step)
+    """``Up to 400 characters (about 50 words).`` — the word count at one ratio, rounded down to a multiple of 5
+    from 10 words up; with ``overflow="truncate"`` it adds that longer text is cut."""
+    words = max_len // CHARS_PER_WORD
+    rounded = max(1, words if words < 10 else words // 5 * 5)
     limit = f"Up to {max_len} characters (about {rounded} word{'s' if rounded != 1 else ''})"
     if overflow == "truncate":
         return limit + "; longer text is cut after the last full sentence that fits."

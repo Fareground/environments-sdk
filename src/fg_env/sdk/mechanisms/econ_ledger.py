@@ -119,7 +119,7 @@ def _expand_ledger(name: str, config: LedgerConfig, contract: Mapping[str, Any])
     holder_props: Dict[str, Any] = {}
     for currency, spec in config.currencies.items():
         if not valid_name(currency):
-            raise MechanismError(f"currency '{currency}' is not a valid name", "use letters, digits and _ (not a Python keyword)", f"currencies.{currency}")
+            raise MechanismError(f"currency '{currency}' is not a valid name", "use letters, digits and _ (not a word expressions use, like in or not)", f"currencies.{currency}")
         holder_props[currency] = {"type": "number", "default": spec.start, "unit": spec.unit,
                                   "description": spec.description or f"Money held ({currency})."}
         if spec.credit is not None:

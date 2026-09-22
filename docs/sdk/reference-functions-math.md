@@ -35,7 +35,7 @@
 - `$pct(part, whole)` — part / whole, or 0 when whole is 0.
 - `$pi()` — The constant pi (3.14159…).
 - `$pow(x, y)` — x to the power y (like x ** y).
-- `$round(x, digits?)` — Round to `digits` decimals (default 0 → whole number).
+- `$round(x, digits?)` — Round to `digits` decimals (default 0 → whole number); a half rounds away from zero, as money does: 2.5 → 3, 0.125 → 0.13 (a number rounds as it is written).
 - `$sigmoid(x)` — Logistic function 1 / (1 + e^-x), in (0, 1).
 - `$sign(x)` — -1, 0 or 1 by the sign of x.
 - `$sin(x)` — Sine of x (radians).

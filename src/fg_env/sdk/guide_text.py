@@ -96,7 +96,8 @@ Any string containing `$name` is an expression; other strings are literal text.
 * Roots: `$actor`, `$params`, `$it`, `$inputs`, `$world`, … (which ones depend on where — see below).
 * Functions: `$count(buyer, $it.cash > 0)`. Per-item arguments bind `$it` (and `$i`).
 * Bare words are text: `$actor.status == open`, `$count(offer)`. `true false null` are literals.
-  Quote text with spaces: `$actor.mood == 'very happy'`.
+  Quote text with spaces: `$actor.mood == 'very happy'`. Any word may name a type, entity, property or item
+  (`class`, `from` and `def` too) except the language's own `and or not in if else true false null`.
 * Operators: `+ - * / // % **`, `== != < <= > >=`, `and or not` (`&& || !`), `in`,
   `a if cond else b`, lists `[1, 2]`, indexing `$top(offer, $it.price, 1)[0]`.
 * Entities expose `id name type alive at` and their props. Comparing an entity with an id works.
@@ -219,7 +220,7 @@ EFFECT_EXAMPLES = {
     "end": '{"end": "bankrupt", "winner": "$top(player, $it.score, 1)[0]", "say": "..."}',
     "after": '{"after": 3, "do": [...]}  (runs 3 rounds later with the same locals; on a continuous clock, 3 time units later)',
     "wake": '{"wake": "$params.who", "why": "{$actor.name} asked you a question."}  (a turn later; "now": true — they react right away, before this turn continues; "in": 5 — continuous clock, that much later; "drop": 0.2 — the wake may be lost)',
-    "repeat": '{"repeat": "$max(1, $count(order))", "while": "$count(order) > 1", "do": [...]}  (limit may be an expression; derive it from the data, not an arbitrary constant; error if still true at the limit)',
+    "repeat": '{"repeat": "$count(order)", "while": "$count(order) > 1", "do": [...]}  (limit may be an expression; derive it from the data, not an arbitrary constant; 0 runs nothing; error if still true at the limit)',
     "block": '{"block": "settle", "with": {"buyer": "$actor", "qty": "$params.qty"}}  (runs a named effect list from `blocks`)',
     "chance": '{"chance": [{"p": 0.5, "label": "heads", "do": [...]}, {"p": 0.5, "label": "tails", "do": [...]}], '
               '"as": "coin"} or {"chance": "deal", "outcomes": "$world.deck", "weight": "1", "as": "card", "do": [...]}  '

@@ -117,7 +117,7 @@ class Diagnosis:
 
     def offered(self, turn: "Turn", has_action: bool) -> None:
         """A fresh turn's tools were read: note whether the agent had any action it could take, and if not why."""
-        if turn.actions_left < turn.stage.max_actions or turn.intents:
+        if turn.actions_left < turn.max_actions or turn.intents:
             return
         entry = self.agents.setdefault(turn.actor.entity_type,
                                        {"wakes": 0, "able": 0, "rounds": 0, "last_round": 0, "reasons": {}})

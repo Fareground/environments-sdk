@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+from decimal import ROUND_HALF_UP, Context, Decimal
 from typing import Any, Dict, Iterable, List, Tuple
 
 from .poisson import sample_poisson
@@ -438,11 +439,28 @@ _unary("exp", "e to the power x.", math.exp)
 _unary("log", "Natural logarithm.", math.log)
 
 
-@function("round(x, digits?)", "Round to `digits` decimals (default 0 → whole number).", min_args=1, max_args=2)
+#: Enough digits for any whole number an expression may hold (MAX_INT_BITS) and any float.
+_ROUND_CONTEXT = Context(prec=1_300, rounding=ROUND_HALF_UP)
+
+
+@function("round(x, digits?)", "Round to `digits` decimals (default 0 → whole number); a half rounds away from zero, "
+          "as money does: 2.5 → 3, 0.125 → 0.13 (a number rounds as it is written).", min_args=1, max_args=2)
 def _round(call: Call) -> Any:
-    digits = int(call.number(1, 0))
-    value = round(call.number(0), digits)
-    return int(value) if digits == 0 else value
+    return _half_up(call.number(0), int(call.number(1, 0)))
+
+
+def _half_up(value: Any, digits: int) -> Any:
+    """``value`` to ``digits`` decimals, halves away from zero. A float rounds as the decimal it is written as, so
+    1.005 → 1.01 even though its binary value is a hair below. Whole numbers come back as ints when digits ≤ 0."""
+    if isinstance(value, int) and digits >= 0:
+        return value
+    if isinstance(value, float) and value.is_integer() and digits >= 0:
+        return int(value) if digits == 0 else value
+    exact = Decimal(value) if isinstance(value, int) else Decimal(repr(value))
+    exponent = exact.as_tuple().exponent  # an int: the value is finite
+    if isinstance(exponent, int) and exponent < -digits:  # more decimals than asked for
+        exact = exact.quantize(Decimal(1).scaleb(-digits), context=_ROUND_CONTEXT)
+    return int(exact) if digits == 0 or isinstance(value, int) else float(exact)
 
 
 @function("clamp(x, low, high)", "x limited to the range [low, high].", min_args=3, max_args=3)

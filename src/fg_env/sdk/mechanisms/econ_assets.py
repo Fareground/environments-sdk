@@ -251,10 +251,7 @@ def take_items(world: Any, entity: Entity, item: str, qty: int, where: str) -> L
     have = stock.get(name, 0)
     if have < qty:
         raise Abort(f"{entity.name} has only {have} {name}; {qty} are needed.")
-    if have == qty:
-        stock.pop(name, None)
-    else:
-        stock[name] = have - qty
+    stock[name] = have - qty  # a used-up item stays listed at 0, so `$it.goods.bread` still reads a count
     world.set_prop(entity, prop, stock)
     taken: List[List[int]] = []
     if spec.shelf_life is not None:

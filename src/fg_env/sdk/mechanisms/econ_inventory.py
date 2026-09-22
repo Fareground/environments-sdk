@@ -82,11 +82,13 @@ def baseline(contract: Mapping[str, Any], holders: List[str], assets_: List[str]
     return "{" + ", ".join(parts) + "}"
 
 
-def _start_default(start: Dict[str, Union[int, str]]) -> Any:
-    """Starting goods: a literal map, or an expression building one when a quantity is an expression."""
-    if not any(isinstance(qty, str) for qty in start.values()):
-        return dict(start)
-    return "{" + ", ".join(f"'{item}': ({qty})" for item, qty in start.items()) + "}"
+def _start_default(start: Dict[str, Union[int, str]], stackable: List[str]) -> Any:
+    """Starting goods, every stackable item listed (0 unless started) so `$it.goods.bread` always reads a count:
+    a literal map, or an expression building one when a quantity is an expression."""
+    full = {item: start.get(item, 0) for item in stackable}
+    if not any(isinstance(qty, str) for qty in full.values()):
+        return full
+    return "{" + ", ".join(f"'{item}': ({qty})" for item, qty in full.items()) + "}"
 
 
 def _other_names(contract: Mapping[str, Any], name: str) -> Dict[str, str]:
@@ -95,7 +97,8 @@ def _other_names(contract: Mapping[str, Any], name: str) -> Dict[str, str]:
 
 
 @mode("economy", "inventory", InventoryConfig,
-      "Goods held by entities: stackable items in a map property (`$actor.goods.bread`) and unique items as "
+      "Goods held by entities: stackable items in a map property listing each one (`$actor.goods.bread`, 0 when "
+      "none are held) and unique items as "
       "entities with an owner. Generates `<name>_give`, `<name>_consume`, `<name>_drop` and `<name>_pickup` tools "
       "listing only goods you hold, capacity limits, recurring needs and spoilage, and the invariant "
       "`$conserved(<name>)`: goods change only by moves or by named sources and sinks (the `make` and `use` actions). "
@@ -108,11 +111,11 @@ def _expand_inventory(name: str, config: InventoryConfig, contract: Mapping[str,
     require_types(contract, holders, "who")
     prop = config.prop or name
     if not valid_name(prop):
-        raise MechanismError(f"prop '{prop}' is not a property name", "use letters, digits and _ (not a Python keyword)", "prop")
+        raise MechanismError(f"prop '{prop}' is not a property name", "use letters, digits and _ (not a word expressions use, like in or not)", "prop")
     taken = _other_names(contract, name)
     for item, spec in config.items.items():
         if not valid_name(item):
-            raise MechanismError(f"item '{item}' is not a valid name", "use letters, digits and _ (not a Python keyword)", f"items.{item}")
+            raise MechanismError(f"item '{item}' is not a valid name", "use letters, digits and _ (not a word expressions use, like in or not)", f"items.{item}")
         if item in taken:
             raise MechanismError(f"'{item}' is already declared by '{taken[item]}'", "give every item and currency its own name",
                                  f"items.{item}")
@@ -132,8 +135,9 @@ def _expand_inventory(name: str, config: InventoryConfig, contract: Mapping[str,
             if item not in config.items or config.items[item].unique:
                 raise MechanismError(f"needs: '{item}' is not a stackable item of this inventory", None, f"needs.{type_name}.{item}")
 
-    holder_props: Dict[str, Any] = {prop: {"type": "map", "default": _start_default(config.start),
-                                           "description": f"Goods held ({name}): {{item: quantity}}."}}
+    stackable = [i for i, s in config.items.items() if not s.unique]
+    holder_props: Dict[str, Any] = {prop: {"type": "map", "default": _start_default(config.start, stackable),
+                                           "description": f"Goods held ({name}): {{item: quantity}}, every stackable item listed."}}
     if config.capacity is not None:
         holder_props[f"{prop}_capacity"] = {"type": "number", "default": config.capacity, "min": 0,
                                             "description": f"Space for {name} goods."}
@@ -146,7 +150,6 @@ def _expand_inventory(name: str, config: InventoryConfig, contract: Mapping[str,
             types[item] = {"description": spec.description or f"A {item}.",
                            "props": {"owner": {"type": "text", "default": "", "description": "Id of the holder."},
                                      "made": {"type": "int", "default": 0}, **spec.props}}
-    stackable = [i for i, s in config.items.items() if not s.unique]
     world: Dict[str, Any] = {
         f"{name}_supply": {"type": "map", "default": baseline(contract, holders, list(config.items), name),
                            "description": f"Goods of {name} in existence: {{item: quantity}}."},

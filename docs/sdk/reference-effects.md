@@ -29,7 +29,7 @@ Operation objects (exactly one operation key each):
 - `end`: {"end": "bankrupt", "winner": "$top(player, $it.score, 1)[0]", "say": "..."}
 - `after`: {"after": 3, "do": [...]}  (runs 3 rounds later with the same locals; on a continuous clock, 3 time units later)
 - `wake`: {"wake": "$params.who", "why": "{$actor.name} asked you a question."}  (a turn later; "now": true — they react right away, before this turn continues; "in": 5 — continuous clock, that much later; "drop": 0.2 — the wake may be lost)
-- `repeat`: {"repeat": "$max(1, $count(order))", "while": "$count(order) > 1", "do": [...]}  (limit may be an expression; derive it from the data, not an arbitrary constant; error if still true at the limit)
+- `repeat`: {"repeat": "$count(order)", "while": "$count(order) > 1", "do": [...]}  (limit may be an expression; derive it from the data, not an arbitrary constant; 0 runs nothing; error if still true at the limit)
 - `block`: {"block": "settle", "with": {"buyer": "$actor", "qty": "$params.qty"}}  (runs a named effect list from `blocks`)
 - `chance`: {"chance": [{"p": 0.5, "label": "heads", "do": [...]}, {"p": 0.5, "label": "tails", "do": [...]}], "as": "coin"} or {"chance": "deal", "outcomes": "$world.deck", "weight": "1", "as": "card", "do": [...]}  (picks one outcome from the listed distribution, logged as a `chance` event; `fg_env.game` can enumerate and choose outcomes instead of sampling them)
 - `layer`: {"layer": "sugar", "set": "$min($value + 1, 4)"}  (every cell: `$cell` is its position, `$value` its value, all reading the old values; `"at": "$it.at"` sets one cell, `"where"` limits which) · {"layer": "scent", "diffuse": 0.1} (each cell hands that share out to its neighbours) · {"layer": "scent", "decay": 0.05}

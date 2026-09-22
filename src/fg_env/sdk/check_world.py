@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import datetime as _dt
 import json
-import keyword
 import re
 from pathlib import PurePath
 from typing import TYPE_CHECKING, Iterable, Optional, Set
@@ -14,7 +13,7 @@ from . import contract as C
 from .check_roots import BASE, ENTITY_FIELDS, ENTRY_FIELDS, RECORD_FIELD_TYPES
 from .check_space import check_space
 from .effects import POST_KEYS
-from .expr import is_expr
+from .expr import EXPRESSION_WORDS, is_expr
 from .inputs import DATA_SUFFIXES, check_value
 from .world_defaults import default_order
 
@@ -113,14 +112,17 @@ class WorldChecks:
         self.value(spec.default, f"{path}.default", roots, types or {})
 
     def _keyword_names(self: "_Checker") -> None:  # type: ignore[misc]
-        """Names read as `$x.name` cannot be Python keywords (`$it.from`, `$params.in` do not parse)."""
-        named = [(f"types.{t}.props.{p}", p) for t, spec in self.c.types.items() for p in spec.props]
+        """Names expressions read cannot be the language's own words (`$count(in)`, `$it.not`)."""
+        named = [(f"types.{t}", t) for t in self.c.types]
+        named += [(f"entities.{e}", e) for e in self.c.entities]
+        named += [(f"types.{t}.props.{p}", p) for t, spec in self.c.types.items() for p in spec.props]
         named += [(f"world.{p}", p) for p in self.c.world]
         named += [(f"inputs.{p}", p) for p in self.c.inputs]
         named += [(f"actions.{a}.params.{p}", p) for a, spec in self.c.actions.items() for p in spec.params]
         for path, name in named:
-            if keyword.iskeyword(name):
-                self.error(path, f"'{name}' is a reserved word, so expressions cannot read it", f"rename it, e.g. '{name}_'")
+            if name in EXPRESSION_WORDS:
+                self.error(path, f"'{name}' is a word expressions use themselves, so they cannot name it",
+                           f"rename it, e.g. '{name}_'")
 
     def _types_and_world(self: "_Checker") -> None:  # type: ignore[misc]
         for name, spec in self.c.types.items():

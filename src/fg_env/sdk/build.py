@@ -8,7 +8,8 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from ..entity import Entity
 from .assets.store import AssetStore
-from .contract import MAX_POPULATION, MAX_ROUNDS, MAX_STAGE_PASSES, Contract, LinkSpec, PopulationSpec
+from .contract import (MAX_POPULATION, MAX_ROUNDS, MAX_STAGE_PASSES, MAX_TURN_ACTIONS, MAX_TURN_CALLS, Contract, LinkSpec,
+                       PopulationSpec)
 from .effects import EffectRunner
 from .errors import RunError
 from .expr import ExprError, compile_expr, is_expr, resolve, truthy  # noqa: F401
@@ -121,8 +122,8 @@ def _clock_start(world: SdkWorld) -> Optional[str]:
 
 
 def whole_setting(world: SdkWorld, raw: Any, path: str, limit: Optional[int] = None) -> Optional[int]:
-    """A count setting (a stage's `passes`, an event's `every`): a literal as written, or an expression over
-    $inputs giving a whole number ≥ 1. Inputs never change during a run, so reading it again gives the same number."""
+    """A count setting (a stage's `passes`, `max_actions` or `max_calls`, an event's `every`): a literal as written,
+    or an expression over $inputs giving a whole number ≥ 1. Inputs never change during a run, so reading it again gives the same number."""
     if not isinstance(raw, str):
         return raw
     try:
@@ -142,6 +143,8 @@ def _count_settings(world: SdkWorld) -> None:
     """Expression counts fail at load, not in the round that first reads them."""
     for stage in world.contract.stage_list():
         whole_setting(world, stage.passes, f"stages.{stage.name}.passes", MAX_STAGE_PASSES)
+        whole_setting(world, stage.max_actions, f"stages.{stage.name}.max_actions", MAX_TURN_ACTIONS)
+        whole_setting(world, stage.max_calls, f"stages.{stage.name}.max_calls", MAX_TURN_CALLS)
     for index, event in enumerate(world.contract.events):
         whole_setting(world, event.every, f"events[{index}].every")
 

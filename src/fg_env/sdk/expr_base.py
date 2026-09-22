@@ -8,7 +8,7 @@ from typing import Any, Callable, Mapping, Optional
 
 __all__ = [
     "EVAL_BUDGET", "MAX_INT_BITS", "MAX_LIST_LEN", "MAX_RANGE", "MAX_TEXT_LEN", "Untrusted", "tainted", "derived",
-    "ExprError", "charge", "check_size", "shared_budget", "nested_free", "is_expr", "truthy",
+    "ExprError", "charge", "check_size", "shared_budget", "nested_free", "is_expr", "truthy", "EXPRESSION_WORDS",
 ]
 
 _EXPR_MARK = re.compile(r"\$[A-Za-z_]")
@@ -25,6 +25,9 @@ MAX_LIST_LEN = 1_000_000
 MAX_TEXT_LEN = 1_000_000
 #: Largest whole number (in bits) ``*`` and ``**`` may produce.
 MAX_INT_BITS = 4_096
+#: Words the expression language itself uses, so they cannot name a type, entity, property or item: `$count(in)`
+#: could not tell the name from the operator. Every other word works, Python keywords included (`$count(class)`).
+EXPRESSION_WORDS = frozenset({"and", "or", "not", "in", "if", "else", "true", "false", "null", "True", "False", "None"})
 
 
 class Untrusted(str):

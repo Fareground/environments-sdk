@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from typing import TYPE_CHECKING, List, Mapping, Set
+from typing import TYPE_CHECKING, Any, List, Mapping, Set
 
 from . import contract as C
 from .check_params import check_param_bounds
@@ -27,6 +27,7 @@ __all__ = ["ActionChecks"]
 BUILT_IN_TOOLS = (*READS, END_TURN)
 #: The tool names model providers accept (Anthropic and OpenAI alike).
 _PROVIDER_NAME = re.compile(r"[a-zA-Z0-9_-]{1,64}")
+_TURNS = ("sequential", "simultaneous", "scheduled")
 
 
 class ActionChecks:
@@ -190,8 +191,9 @@ class ActionChecks:
                     self._type(type_name, f"{path}.actions.{type_name}", agent=True)
             elif isinstance(stage.actions, str) and stage.actions != "all":
                 self.error(f"{path}.actions", "use 'all', a list of action names, or {type: [actions]}")
-            if stage.turns not in ("sequential", "simultaneous", "scheduled"):
-                self.error(f"{path}.turns", f"unknown turns '{stage.turns}'", "sequential, simultaneous or scheduled")
+            if stage.turns not in _TURNS:
+                self.error(f"{path}.turns", f"unknown turns '{stage.turns}'",
+                           self._suggest(stage.turns, _TURNS) or "sequential, simultaneous or scheduled")
             continuous = self.c.clock.mode == "continuous"
             if stage.turns == "scheduled" and not continuous:
                 self.error(f"{path}.turns", "scheduled turns need a continuous clock", "set clock.mode to continuous")
@@ -200,23 +202,28 @@ class ActionChecks:
             self.value(stage.interval, f"{path}.interval", BASE | {"actor"}, {"actor": set(self.agents)})
             self.value(stage.first_wake, f"{path}.first_wake", BASE | {"it", "i"}, {"it": set(self.agents)})
             if stage.quiet not in ("wake", "skip"):
-                self.error(f"{path}.quiet", f"unknown quiet '{stage.quiet}'", "wake or skip")
-            if stage.max_actions < 1 or stage.max_calls < 1:
-                self.error(path, "max_actions and max_calls must be at least 1")
+                self.error(f"{path}.quiet", f"unknown quiet '{stage.quiet}'",
+                           self._suggest(stage.quiet, ("wake", "skip")) or "wake or skip")
+            for setting in ("passes", "max_actions", "max_calls"):
+                self._count(getattr(stage, setting), f"{path}.{setting}")
             agent_types: Types = {"it": set(self.agents)}
-            if stage.order not in ("seat", "random"):
-                self.expr(stage.order, f"{path}.order", BASE | {"it", "i"}, agent_types)
+            self.order_setting(stage.order, f"{path}.order", ("seat", "random"), BASE | {"it", "i"}, agent_types)
             self.expr(stage.who, f"{path}.who", BASE | {"it", "i"}, agent_types)
             self.expr(stage.until, f"{path}.until", BASE)
             self.expr(stage.when, f"{path}.when", BASE)
-            if isinstance(stage.passes, str):
-                self.expr(stage.passes, f"{path}.passes", {"inputs"})
             self.template(stage.brief or None, f"{path}.brief", "actor", BASE | {"actor"}, {"actor": set(self.agents)})
             self.effects(stage.on_enter, f"{path}.on_enter", set(BASE), {})
             self.effects(stage.on_exit, f"{path}.on_exit", set(BASE), {})
             for hook in ("on_idle", "on_wake", "on_turn_end"):
                 self.effects(getattr(stage, hook), f"{path}.{hook}", set(BASE) | {"actor"}, {"actor": set(self.agents)})
             check_stage_turns(self, stage, path, BASE)
+
+    def _count(self: "_Checker", value: Any, path: str) -> None:  # type: ignore[misc]
+        """A stage count setting: a whole number ≥ 1, or an expression over $inputs giving one."""
+        if isinstance(value, str):
+            self.expr(value, path, {"inputs"})
+        elif isinstance(value, int) and value < 1:
+            self.error(path, f"is {value}; it must be at least 1", "remove it for the default")
 
     def _views(self: "_Checker") -> None:  # type: ignore[misc]
         if SPECTATOR in self.c.types:

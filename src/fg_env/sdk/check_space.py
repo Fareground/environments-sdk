@@ -102,8 +102,7 @@ def check_event_order(checker: "_Checker", event: EventSpec, path: str, roots: F
             if key in event.model_fields_set:
                 checker.error(f"{path}.{key}", f"`{key}` needs `each`", "add `each`, or remove it")
         return
-    if event.order is not None and event.order != "random":
-        checker.expr(event.order, f"{path}.order", roots, types)
+    checker.order_setting(event.order, f"{path}.order", ("random",), roots, types)
     if event.sync:
         _sync_effects(checker, event.do, f"{path}.do")
 

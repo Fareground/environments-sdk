@@ -14,7 +14,8 @@ from .action_faults import guarded, refused_text
 from .action_schemas import _choice_names
 from .actions import ACTION_BUDGET, ToolSpec, stage_actions
 from .assets.delivery import Attachment
-from .contract import ActionSpec, StageSpec
+from .build import whole_setting
+from .contract import MAX_TURN_ACTIONS, MAX_TURN_CALLS, ActionSpec, StageSpec
 from .errors import RunError
 from .expr import ExprError, compile_expr, shared_budget, truthy
 from .measure import Stats
@@ -73,15 +74,19 @@ class Turn:
         self._update: Optional[str] = None
         #: The assets delivered with the brief and with the update.
         self._delivered: List[str] = []
-        self.calls_left = stage.max_calls
+        path = f"stages.{stage.name}"
+        #: The stage's `max_actions` and `max_calls` (either may be an expression over $inputs).
+        self.max_actions = whole_setting(env.world, stage.max_actions, f"{path}.max_actions", MAX_TURN_ACTIONS)
+        self.max_calls = whole_setting(env.world, stage.max_calls, f"{path}.max_calls", MAX_TURN_CALLS)
+        self.calls_left = self.max_calls
         #: Looks and inspects that do not spend a call (see :mod:`fg_env.sdk.reads`); below zero, the refused ones.
-        self.reads_left = stage.max_calls
+        self.reads_left = self.max_calls
         #: What this turn's reads returned, to answer a repeated read that it is unchanged.
         self._reads: List[str] = []
         #: An action was available and the agent took none, in a stage that required one or with its calls used up
         #: (set when the turn is finished).
         self.did_not_act = False
-        self.actions_left = stage.max_actions
+        self.actions_left = self.max_actions
         self.done = False
         self.used: Dict[str, int] = {}
         self.intents: List[Tuple[str, Dict[str, Any]]] = []
@@ -190,7 +195,7 @@ class Turn:
     def call_limit(self) -> bool:
         """Whether the stage allows fewer calls than stages usually do: then the update states the budget (a larger
         `max_calls` is a backstop the agent never needs to plan around)."""
-        return self.stage.max_calls < type(self.stage).model_fields["max_calls"].default
+        return self.max_calls < type(self.stage).model_fields["max_calls"].default
 
     def attachments(self, ids: Optional[List[str]] = None) -> List[Attachment]:
         """The files delivered with the brief and update (or the assets ``ids``), as participants receive them."""
@@ -217,10 +222,10 @@ class Turn:
             tools = env.actions.tools(self.actor, self._legal(), self.staged)
         looks = env.perception.look_views(self.actor, self.stage)
         if looks:
-            tools.append(look_tool([(name, env.contract.views[name].title) for name in looks], self.stage.max_calls))
+            tools.append(look_tool([(name, env.contract.views[name].title) for name in looks], self.max_calls))
         if env._inspectable:
             with env._lock:
-                inspect = inspect_tool(env, self.actor, self.stage.max_calls)
+                inspect = inspect_tool(env, self.actor, self.max_calls)
             if inspect is not None:
                 tools.append(inspect)
         if not self._must_act_now(tools):
@@ -241,7 +246,7 @@ class Turn:
         return tools
 
     def _must_act_now(self, tools: List[ToolSpec]) -> bool:
-        acted = self.actions_left < self.stage.max_actions or bool(self.intents)
+        acted = self.actions_left < self.max_actions or bool(self.intents)
         return self.stage.must_act and not acted and any(t.kind == "act" for t in tools)
 
     # -- calls -------------------------------------------------------------------
@@ -269,10 +274,10 @@ class Turn:
         if self.done:
             limit = ""
             if self.actions_left <= 0:
-                count = self.stage.max_actions
+                count = self.max_actions
                 limit = f" The '{self.stage.name}' stage allows {count} action{'s' if count != 1 else ''} per turn; none remain."
             elif self.calls_left <= 0:
-                count = self.stage.max_calls
+                count = self.max_calls
                 limit = f" The '{self.stage.name}' stage allows {count} tool call{'s' if count != 1 else ''} per turn; none remain."
             text = f"Your turn is already over.{limit} Nothing was done." if limit else "Your turn is already over; nothing was done."
             return ToolResult(False, text, True, dict(_ENDED))
@@ -385,7 +390,7 @@ class Turn:
 
     def _must_act(self) -> bool:
         """The stage requires an action, the turn has taken none, and one is available."""
-        return (self.stage.must_act and self.actions_left == self.stage.max_actions and not self.intents
+        return (self.stage.must_act and self.actions_left == self.max_actions and not self.intents
                 and bool(self._legal()))
 
     def _offer(self) -> str:
@@ -479,7 +484,7 @@ class Turn:
         self._counted.clear()
         self.used.clear()
         del self.pending[:]  # the same list $pending reads
-        self.actions_left = self.stage.max_actions
+        self.actions_left = self.max_actions
         self.elapsed = 0.0
         self.stats.actions -= undone
         self.stats.rejected_actions += undone
@@ -505,7 +510,7 @@ class Turn:
 
     def _read(self, name: str, args: Any) -> ToolResult:
         """A look or an inspect: free within the turn's allowance, refused past it without spending a call."""
-        allowance = self.stage.max_calls
+        allowance = self.max_calls
         self.reads_left -= 1
         self.stats.calls += 1
         if self.reads_left < 0:

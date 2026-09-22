@@ -6,11 +6,12 @@ The parser uses Python's ``ast`` module purely as a grammar: only whitelisted no
 from __future__ import annotations
 
 import ast
+import keyword
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any, Callable, FrozenSet, List, Optional, Tuple
 
-from .expr_base import _BUDGET, EVAL_BUDGET, ExprError, charge, nested_free
+from .expr_base import _BUDGET, EVAL_BUDGET, EXPRESSION_WORDS, ExprError, charge, nested_free
 from .expr_calls import _NO_KEY, EqualityGuard, Evaluator
 from .expr_codegen import _FUNC_PREFIX, _LITERAL_NAMES, _ROOT_PREFIX, Codegen
 from .expr_scope import Scope
@@ -28,10 +29,13 @@ _ALLOWED = (
     ast.USub, ast.UAdd, ast.Not, ast.And, ast.Or, ast.Eq, ast.NotEq, ast.Lt, ast.LtE,
     ast.Gt, ast.GtE, ast.In, ast.NotIn,
 )
+#: Marks a bare word or field that is a Python keyword (`class`, `$it.from`) so Python's parser takes it as a name.
+_WORD_PREFIX = "__w_"
 
 
 def _preprocess(source: str) -> str:
-    """Map ``$root`` → ``__r_root``, ``$fn(`` → ``__f_fn(`` and C-style boolean operators."""
+    """Map ``$root`` → ``__r_root``, ``$fn(`` → ``__f_fn(``, C-style boolean operators, and names that are Python
+    keywords but not expression words → ``__w_name`` (a field after ``.`` is always a name: ``$it.in``)."""
     out: List[str] = []
     i, n, quote = 0, len(source), None
     while i < n:
@@ -65,6 +69,15 @@ def _preprocess(source: str) -> str:
             while k < n and source[k] == " ":
                 k += 1
             out.append((_FUNC_PREFIX if k < n and source[k] == "(" else _ROOT_PREFIX) + name)
+            i = j
+            continue
+        if (ch.isalpha() or ch == "_") and not (i and (source[i - 1].isalnum() or source[i - 1] == "_")):
+            j = i + 1
+            while j < n and (source[j].isalnum() or source[j] == "_"):
+                j += 1
+            word = source[i:j]
+            field = i and source[i - 1] == "."
+            out.append(_WORD_PREFIX + word if keyword.iskeyword(word) and (field or word not in EXPRESSION_WORDS) else word)
             i = j
             continue
         if source.startswith("&&", i):
@@ -164,6 +177,7 @@ def compile_expr(source: str) -> Expr:
     nodes = list(ast.walk(tree))
     if len(nodes) > _MAX_NODES:
         raise ExprError("expression is too large", source)
+    _restore_words(nodes)
     for node in nodes:
         if not isinstance(node, _ALLOWED):
             raise ExprError(f"unsupported syntax ({type(node).__name__})", source)
@@ -188,6 +202,15 @@ def compile_expr(source: str) -> Expr:
                 frozenset(compiler.symbols), frozenset(compiler.paths), frozenset(compiler.calls),
                 frozenset(compiler.item_paths), frozenset(compiler.comparisons),
                 frozenset(compiler.item_comparisons), frozenset(compiler.arity_errors), frozenset(compiler.methods))
+
+
+def _restore_words(nodes: List[ast.AST]) -> None:
+    """Give names and fields marked by :func:`_preprocess` their own spelling back (the tree is never run by Python)."""
+    for node in nodes:
+        if isinstance(node, ast.Name) and node.id.startswith(_WORD_PREFIX):
+            node.id = node.id[len(_WORD_PREFIX):]
+        elif isinstance(node, ast.Attribute) and node.attr.startswith(_WORD_PREFIX):
+            node.attr = node.attr[len(_WORD_PREFIX):]
 
 
 def _root_method(func: ast.AST) -> bool:
