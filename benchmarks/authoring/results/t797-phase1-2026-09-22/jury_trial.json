@@ -1,0 +1,4151 @@
+{
+ "model": "deepseek/deepseek-v4.1-flash",
+ "stop": "token cap",
+ "nudges": 0,
+ "messages": [
+  {
+   "role": "system",
+   "content": "(guide text)"
+  },
+  {
+   "role": "user",
+   "content": "# Jury trial\n\nI want to simulate a short criminal jury trial where every participant is an AI agent: a prosecutor, a defense attorney, a judge and six jurors. The prosecution has four exhibits it can offer (a CCTV still, a till receipt, a witness statement and a phone record) and the defense has two (an alibi letter and a bank statement). Each exhibit has a short description of what it shows. When one side offers an exhibit, the other side may object, and the judge then sustains or overrules the objection. An exhibit that nobody objects to, or whose objection is overruled, is admitted and the jurors get to read what it shows. A sustained objection keeps that exhibit out for good, and the jurors must never see its contents. Give the evidence phase a few rounds, then each lawyer makes a closing statement. Finally each juror votes guilty or not guilty. A guilty or a not-guilty verdict needs all six jurors to agree; anything else is a hung jury.\n\n## Deliverables\n\nReport these outputs:\n- `verdict` \u2014 exactly \"guilty\", \"not guilty\" or \"hung\".\n- `juror_votes` \u2014 a map from each juror's id to \"guilty\" or \"not guilty\" (null for a juror who never voted).\n- `admitted_exhibits` \u2014 a list of the names of the exhibits that were admitted.\n- `excluded_exhibits` \u2014 a list of the names of the exhibits kept out by a sustained objection.\n- `objections_sustained` \u2014 how many objections the judge sustained.\n\n\nBuild this environment. Save it with write_contract and use the other tools as you see fit. Reply without calling a tool when you are done."
+  },
+  {
+   "role": "assistant",
+   "content": "I'll start by reading the relevant SDK guide parts.",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_40e8cb15651d4b6e99d0d70a",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"all\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_70cb02a230c54237be840819",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"actions\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_40e8cb15651d4b6e99d0d70a",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_70cb02a230c54237be840819",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_d5577f7c76094e79a22bef88",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"stages\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_9a78babcf38844e7bbf4667a",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"events\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_d5577f7c76094e79a22bef88",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_9a78babcf38844e7bbf4667a",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_453880260cb84169b64e9f26",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions.collections\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_1662aaeb1c31466eb92b3f9d",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"views\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_453880260cb84169b64e9f26",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_1662aaeb1c31466eb92b3f9d",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_609658e540aa48ae8ab7e088",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"brief\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_dbfd4fb53f424283a856c7dc",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"outputs\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_609658e540aa48ae8ab7e088",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_dbfd4fb53f424283a856c7dc",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "Now let me check the population and expressions references before writing.",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_45d109556f7d4a979810d4bd",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"population\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_f600a0d07842406c95fa6461",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"inputs\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_45d109556f7d4a979810d4bd",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_f600a0d07842406c95fa6461",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_77c28afcb8f44ddab1f5a30e",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"expressions\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_f144297a4f13484b8cc7373f",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_77c28afcb8f44ddab1f5a30e",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_f144297a4f13484b8cc7373f",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "Now I'll author the contract.",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_258a5c7b543143a2a29aa443",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_258a5c7b543143a2a29aa443",
+   "content": "Saved (261 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_0e862a94f59c413c8dd5d6f9",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_005dd8ddffa3450a9ebe435f",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 1}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_0e862a94f59c413c8dd5d6f9",
+   "content": "outputs.verdict: syntax error: expected 'else' after 'if' expression \u2192 expression: \"guilty\" if $all(juror, $it.has_voted and $it.vote == guilty) else (\"not guilty\" if $all(juror, $it.has_voted and $it.vote == not guilty) else \"hung\")\ninvariants[1]: syntax error: invalid syntax \u2192 expression: $all(juror, not $it.has_voted or $it.vote == guilty or $it.vote == not guilty)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_005dd8ddffa3450a9ebe435f",
+   "content": "ContractError: contract is invalid (2 error(s)):\n  - outputs.verdict: syntax error: expected 'else' after 'if' expression \u2192 expression: \"guilty\" if $all(juror, $it.has_voted and $it.vote == guilty) else (\"not guilty\" if $all(juror, $it.has_voted and $it.vote == not guilty) else \"hung\")\n  - invariants[1]: syntax error: invalid syntax \u2192 expression: $all(juror, not $it.has_voted or $it.vote == guilty or $it.vote == not guilty)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_e8016901dbc3458aa1e2a875",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_e8016901dbc3458aa1e2a875",
+   "content": "Saved (261 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_be668e34f9c9402d9648a6e5",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_13dbe726fc5943dab9ec0847",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 1}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_be668e34f9c9402d9648a6e5",
+   "content": "No issues."
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_13dbe726fc5943dab9ec0847",
+   "content": "completed after 5 days \u2014 ended by rounds (seed 1)\nverdict: \"hung\"\njuror_votes: {\"juror_1\": \"not guilty\", \"juror_2\": \"guilty\", \"juror_3\": \"guilty\", \"juror_4\": \"not guilty\", \"juror_5\": \"not guilty\",\u2026\nadmitted_exhibits: [\"CCTV still\", \"Till receipt\", \"Witness statement\", \"Alibi letter\", \"Bank statement\"]\nexcluded_exhibits: []\nobjections_sustained: 0\noutputs: {\"verdict\": \"hung\", \"juror_votes\": {\"juror_1\": \"not guilty\", \"juror_2\": \"guilty\", \"juror_3\": \"guilty\", \"juror_4\": \"not guilty\", \"juror_5\": \"not guilty\", \"juror_6\": \"not guilty\"}, \"admitted_exhibits\": [\"CCTV still\", \"Till receipt\", \"Witness statement\", \"Alibi letter\", \"Bank statement\"], \"excluded_exhibits\": [], \"objections_sustained\": 0}"
+  },
+  {
+   "role": "assistant",
+   "content": "Let me check the model guide to understand policies and how to test deterministically.",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_2ee09871f7844786a712f744",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"model\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_9d9b1cb1bad14e6792e9d8e5",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"inspect\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_2ee09871f7844786a712f744",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_9d9b1cb1bad14e6792e9d8e5",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_d151a6d4336040ce895bcf1d",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"policies\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_80724182742d415695fb32cb",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"authoring\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_d151a6d4336040ce895bcf1d",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_80724182742d415695fb32cb",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "The contract validates and runs. Let me test edge behaviors with idle participants.",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_8471d8ff14a2413eb5e91ee9",
+     "function": {
+      "name": "run",
+      "arguments": "{\"participants\": {\"judge\": \"idle\"}, \"seed\": 2}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_76461de3d39c49458edd84b6",
+     "function": {
+      "name": "run",
+      "arguments": "{\"participants\": {\"juror\": \"idle\"}, \"seed\": 3}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_8471d8ff14a2413eb5e91ee9",
+   "content": "completed after 5 days \u2014 ended by rounds (seed 2)\nverdict: \"hung\"\njuror_votes: {\"juror_1\": \"guilty\", \"juror_2\": \"not guilty\", \"juror_3\": \"guilty\", \"juror_4\": \"guilty\", \"juror_5\": \"guilty\", \"juror_\u2026\nadmitted_exhibits: [\"CCTV still\", \"Witness statement\", \"Phone record\", \"Alibi letter\", \"Bank statement\"]\nexcluded_exhibits: []\nobjections_sustained: 0\noutputs: {\"verdict\": \"hung\", \"juror_votes\": {\"juror_1\": \"guilty\", \"juror_2\": \"not guilty\", \"juror_3\": \"guilty\", \"juror_4\": \"guilty\", \"juror_5\": \"guilty\", \"juror_6\": \"not guilty\"}, \"admitted_exhibits\": [\"CCTV still\", \"Witness statement\", \"Phone record\", \"Alibi letter\", \"Bank statement\"], \"excluded_exhibits\": [], \"objections_sustained\": 0}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_76461de3d39c49458edd84b6",
+   "content": "completed after 5 days \u2014 ended by rounds (seed 3)\nverdict: \"hung\"\njuror_votes: {\"juror_1\": null, \"juror_2\": null, \"juror_3\": null, \"juror_4\": null, \"juror_5\": null, \"juror_6\": null}\nadmitted_exhibits: [\"Witness statement\", \"Phone record\"]\nexcluded_exhibits: [\"Till receipt\", \"Alibi letter\", \"Bank statement\"]\nobjections_sustained: 3\noutputs: {\"verdict\": \"hung\", \"juror_votes\": {\"juror_1\": null, \"juror_2\": null, \"juror_3\": null, \"juror_4\": null, \"juror_5\": null, \"juror_6\": null}, \"admitted_exhibits\": [\"Witness statement\", \"Phone record\"], \"excluded_exhibits\": [\"Till receipt\", \"Alibi letter\", \"Bank statement\"], \"objections_sustained\": 3}"
+  },
+  {
+   "role": "assistant",
+   "content": "Let me add baseline policies so I can test the semantics deterministically.\n\n",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_99d1a8973c4d460fb1dde4f5",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_99d1a8973c4d460fb1dde4f5",
+   "content": "Saved (280 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_ce1eab5680e24b3682e960cc",
+     "function": {
+      "name": "run",
+      "arguments": "{\"participants\": {\"lawyer\": \"policy:lawyer\", \"judge\": \"policy:judge_sustain\", \"juror\": \"policy:juror_guilty\"}, \"seed\": 1}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_001f92f20aec43a792585e14",
+     "function": {
+      "name": "run",
+      "arguments": "{\"participants\": {\"lawyer\": \"policy:lawyer_object\", \"judge\": \"policy:judge_overrule\", \"juror\": \"policy:juror_notguilty\"}, \"seed\": 1}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_ce1eab5680e24b3682e960cc",
+   "content": "completed after 5 days \u2014 ended by rounds (seed 1)\nverdict: \"guilty\"\njuror_votes: {\"juror_1\": \"guilty\", \"juror_2\": \"guilty\", \"juror_3\": \"guilty\", \"juror_4\": \"guilty\", \"juror_5\": \"guilty\", \"juror_6\": \u2026\nadmitted_exhibits: [\"CCTV still\", \"Till receipt\", \"Witness statement\", \"Alibi letter\", \"Bank statement\"]\nexcluded_exhibits: []\nobjections_sustained: 0\noutputs: {\"verdict\": \"guilty\", \"juror_votes\": {\"juror_1\": \"guilty\", \"juror_2\": \"guilty\", \"juror_3\": \"guilty\", \"juror_4\": \"guilty\", \"juror_5\": \"guilty\", \"juror_6\": \"guilty\"}, \"admitted_exhibits\": [\"CCTV still\", \"Till receipt\", \"Witness statement\", \"Alibi letter\", \"Bank statement\"], \"excluded_exhibits\": [], \"objections_sustained\": 0}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_001f92f20aec43a792585e14",
+   "content": "completed after 5 days \u2014 ended by rounds (seed 1)\nverdict: \"not guilty\"\njuror_votes: {\"juror_1\": \"not guilty\", \"juror_2\": \"not guilty\", \"juror_3\": \"not guilty\", \"juror_4\": \"not guilty\", \"juror_5\": \"not \u2026\nadmitted_exhibits: [\"CCTV still\", \"Till receipt\", \"Witness statement\", \"Alibi letter\", \"Bank statement\"]\nexcluded_exhibits: []\nobjections_sustained: 0\noutputs: {\"verdict\": \"not guilty\", \"juror_votes\": {\"juror_1\": \"not guilty\", \"juror_2\": \"not guilty\", \"juror_3\": \"not guilty\", \"juror_4\": \"not guilty\", \"juror_5\": \"not guilty\", \"juror_6\": \"not guilty\"}, \"admitted_exhibits\": [\"CCTV still\", \"Till receipt\", \"Witness statement\", \"Alibi letter\", \"Bank statement\"], \"excluded_exhibits\": [], \"objections_sustained\": 0}"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_cd053f9a219c4a7e82f7e4ab",
+     "function": {
+      "name": "run",
+      "arguments": "{\"participants\": {\"lawyer\": \"policy:lawyer_object\", \"judge\": \"policy:judge_sustain\", \"juror\": \"policy:juror_guilty\"}, \"seed\": 1}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_aa1606b6a8764849b2edf5b7",
+     "function": {
+      "name": "run",
+      "arguments": "{\"participants\": {\"lawyer\": \"policy:lawyer_object\", \"judge\": \"policy:judge_overrule\", \"juror\": \"policy:juror_guilty\"}, \"seed\": 1}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_cd053f9a219c4a7e82f7e4ab",
+   "content": "completed after 5 days \u2014 ended by rounds (seed 1)\nverdict: \"guilty\"\njuror_votes: {\"juror_1\": \"guilty\", \"juror_2\": \"guilty\", \"juror_3\": \"guilty\", \"juror_4\": \"guilty\", \"juror_5\": \"guilty\", \"juror_6\": \u2026\nadmitted_exhibits: []\nexcluded_exhibits: [\"CCTV still\", \"Till receipt\", \"Witness statement\", \"Alibi letter\", \"Bank statement\"]\nobjections_sustained: 5\noutputs: {\"verdict\": \"guilty\", \"juror_votes\": {\"juror_1\": \"guilty\", \"juror_2\": \"guilty\", \"juror_3\": \"guilty\", \"juror_4\": \"guilty\", \"juror_5\": \"guilty\", \"juror_6\": \"guilty\"}, \"admitted_exhibits\": [], \"excluded_exhibits\": [\"CCTV still\", \"Till receipt\", \"Witness statement\", \"Alibi letter\", \"Bank statement\"], \"objections_sustained\": 5}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_aa1606b6a8764849b2edf5b7",
+   "content": "completed after 5 days \u2014 ended by rounds (seed 1)\nverdict: \"guilty\"\njuror_votes: {\"juror_1\": \"guilty\", \"juror_2\": \"guilty\", \"juror_3\": \"guilty\", \"juror_4\": \"guilty\", \"juror_5\": \"guilty\", \"juror_6\": \u2026\nadmitted_exhibits: [\"CCTV still\", \"Till receipt\", \"Witness statement\", \"Alibi letter\", \"Bank statement\"]\nexcluded_exhibits: []\nobjections_sustained: 0\noutputs: {\"verdict\": \"guilty\", \"juror_votes\": {\"juror_1\": \"guilty\", \"juror_2\": \"guilty\", \"juror_3\": \"guilty\", \"juror_4\": \"guilty\", \"juror_5\": \"guilty\", \"juror_6\": \"guilty\"}, \"admitted_exhibits\": [\"CCTV still\", \"Till receipt\", \"Witness statement\", \"Alibi letter\", \"Bank statement\"], \"excluded_exhibits\": [], \"objections_sustained\": 0}"
+  },
+  {
+   "role": "assistant",
+   "content": "Only 5 of 6 exhibits can be offered with 3 days (prosecution has 4). Let me set the default to 4 evidence days so every exhibit can be offered, and test more cases.",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_be7e4f591af346d6a6db54c1",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_be7e4f591af346d6a6db54c1",
+   "content": "Saved (281 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_2f36b97fc125418694fcb838",
+     "function": {
+      "name": "run",
+      "arguments": "{\"participants\": {\"lawyer\": \"policy:lawyer\", \"judge\": \"policy:judge_sustain\", \"juror\": \"random\"}, \"seed\": 4}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_2cda24c9c51040daa8fe91c4",
+     "function": {
+      "name": "run",
+      "arguments": "{\"participants\": {\"lawyer\": \"policy:lawyer_object\", \"judge\": \"policy:judge_sustain\"}, \"seed\": 1}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_2f36b97fc125418694fcb838",
+   "content": "completed after 6 days \u2014 ended by rounds (seed 4)\nverdict: \"hung\"\njuror_votes: {\"juror_1\": \"guilty\", \"juror_2\": \"guilty\", \"juror_3\": \"guilty\", \"juror_4\": \"guilty\", \"juror_5\": \"not guilty\", \"juror_\u2026\nadmitted_exhibits: [\"CCTV still\", \"Till receipt\", \"Witness statement\", \"Phone record\", \"Alibi letter\", \"Bank statement\"]\nexcluded_exhibits: []\nobjections_sustained: 0\noutputs: {\"verdict\": \"hung\", \"juror_votes\": {\"juror_1\": \"guilty\", \"juror_2\": \"guilty\", \"juror_3\": \"guilty\", \"juror_4\": \"guilty\", \"juror_5\": \"not guilty\", \"juror_6\": \"not guilty\"}, \"admitted_exhibits\": [\"CCTV still\", \"Till receipt\", \"Witness statement\", \"Phone record\", \"Alibi letter\", \"Bank statement\"], \"excluded_exhibits\": [], \"objections_sustained\": 0}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_2cda24c9c51040daa8fe91c4",
+   "content": "completed after 6 days \u2014 ended by rounds (seed 1)\nverdict: \"hung\"\njuror_votes: {\"juror_1\": \"not guilty\", \"juror_2\": \"guilty\", \"juror_3\": \"not guilty\", \"juror_4\": \"not guilty\", \"juror_5\": \"not guil\u2026\nadmitted_exhibits: []\nexcluded_exhibits: [\"CCTV still\", \"Till receipt\", \"Witness statement\", \"Phone record\", \"Alibi letter\", \"Bank statement\"]\nobjections_sustained: 6\noutputs: {\"verdict\": \"hung\", \"juror_votes\": {\"juror_1\": \"not guilty\", \"juror_2\": \"guilty\", \"juror_3\": \"not guilty\", \"juror_4\": \"not guilty\", \"juror_5\": \"not guilty\", \"juror_6\": \"guilty\"}, \"admitted_exhibits\": [], \"excluded_exhibits\": [\"CCTV still\", \"Till receipt\", \"Witness statement\", \"Phone record\", \"Alibi letter\", \"Bank statement\"], \"objections_sustained\": 6}"
+  },
+  {
+   "role": "assistant",
+   "content": "Let me add a mixed policy to test asymmetric objecting, and verify juror visibility via preview.",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_675046acdd9a459f839f1778",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_675046acdd9a459f839f1778",
+   "content": "Saved (287 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_717b76f81c88429b8b12bafd",
+     "function": {
+      "name": "run",
+      "arguments": "{\"participants\": {\"lawyer\": \"policy:lawyer_pros_object\", \"judge\": \"policy:judge_sustain\"}, \"seed\": 5}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "call_e76988d021994e0c914cc291",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_717b76f81c88429b8b12bafd",
+   "content": "completed after 6 days \u2014 ended by rounds (seed 5)\nverdict: \"hung\"\njuror_votes: {\"juror_1\": \"guilty\", \"juror_2\": \"not guilty\", \"juror_3\": \"not guilty\", \"juror_4\": \"guilty\", \"juror_5\": \"guilty\", \"ju\u2026\nadmitted_exhibits: [\"Alibi letter\", \"Bank statement\"]\nexcluded_exhibits: [\"CCTV still\", \"Till receipt\", \"Witness statement\", \"Phone record\"]\nobjections_sustained: 4\noutputs: {\"verdict\": \"hung\", \"juror_votes\": {\"juror_1\": \"guilty\", \"juror_2\": \"not guilty\", \"juror_3\": \"not guilty\", \"juror_4\": \"guilty\", \"juror_5\": \"guilty\", \"juror_6\": \"guilty\"}, \"admitted_exhibits\": [\"Alibi letter\", \"Bank statement\"], \"excluded_exhibits\": [\"CCTV still\", \"Till receipt\", \"Witness statement\", \"Phone record\"], \"objections_sustained\": 4}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_e76988d021994e0c914cc291",
+   "content": "No issues."
+  },
+  {
+   "role": "assistant",
+   "content": "Let me verify the horizon input actually changes behavior by temporarily setting the default to 1.",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_e77b80e6c5204264919fb0d3",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_e77b80e6c5204264919fb0d3",
+   "content": "Saved (281 lines)."
+  }
+ ],
+ "writes": [
+  {
+   "name": "Jury trial",
+   "clock": {
+    "rounds": "$inputs.hearing_rounds + 2",
+    "unit": "day"
+   },
+   "brief": {
+    "situation": "A short criminal jury trial. The prosecution and the defence each have exhibits they want the jury to see. Each evidence day a lawyer may offer an exhibit; the other side may object; the judge rules. After the evidence days both sides close, and then the jury votes.",
+    "rules": "Evidence days 1 to {$inputs.hearing_rounds}: each lawyer may offer at most one of their own exhibits per day. When an exhibit is offered, the other side may object or waive its objection. A waived exhibit is admitted at once, and its contents go to the jury. The judge then rules on every objection: sustain keeps the exhibit out for good (its contents are never shown to the jury), overrule admits it. After the evidence days each lawyer makes one closing statement, then each juror votes guilty or not guilty. A guilty or a not-guilty verdict requires every juror to agree; anything else is a hung jury.",
+    "roles": {
+     "lawyer": "You are the {$actor.side} lawyer. Offer your side's exhibits, object to the other side's exhibits when they are unreliable, and make your closing statement to the jury.",
+     "judge": "You are the judge. Rule on each objection: sustain keeps the exhibit out of evidence, overrule admits it. Rule even-handedly on the law and the evidence.",
+     "juror": "You are a juror. You see only exhibits that were admitted and the lawyers' closing statements. Weigh them and vote guilty or not guilty; the verdict must be unanimous."
+    }
+   },
+   "inputs": {
+    "hearing_rounds": {
+     "type": "int",
+     "default": 3,
+     "min": 1,
+     "max": 6,
+     "display": "number",
+     "label": "Evidence days",
+     "description": "How many rounds the evidence phase lasts."
+    },
+    "exhibits": {
+     "type": "table",
+     "display": "table",
+     "label": "Exhibits",
+     "fields": {
+      "name": {
+       "type": "text",
+       "required": true
+      },
+      "side": {
+       "type": "enum",
+       "values": [
+        "prosecution",
+        "defense"
+       ],
+       "default": "prosecution",
+       "display": "select"
+      },
+      "contents": {
+       "type": "text",
+       "required": true,
+       "display": "textarea"
+      }
+     },
+     "default": [
+      {
+       "name": "CCTV still",
+       "side": "prosecution",
+       "contents": "A grainy still showing a person in a dark jacket entering the corner shop at 21:58."
+      },
+      {
+       "name": "Till receipt",
+       "side": "prosecution",
+       "contents": "A receipt from the corner shop timed 22:04, paid in cash."
+      },
+      {
+       "name": "Witness statement",
+       "side": "prosecution",
+       "contents": "The shopkeeper says he recognised the defendant's voice during the robbery."
+      },
+      {
+       "name": "Phone record",
+       "side": "prosecution",
+       "contents": "Cell-site data placing the defendant's phone near the shop at 22:00."
+      },
+      {
+       "name": "Alibi letter",
+       "side": "defense",
+       "contents": "A signed letter from the defendant's employer saying he was at work until 22:30."
+      },
+      {
+       "name": "Bank statement",
+       "side": "defense",
+       "contents": "A statement showing a cash withdrawal of 200 pounds at 21:40 across town."
+      }
+     ]
+    }
+   },
+   "types": {
+    "lawyer": {
+     "agent": true,
+     "props": {
+      "side": {
+       "type": "text",
+       "default": "prosecution"
+      },
+      "closing": {
+       "type": "text",
+       "default": ""
+      }
+     }
+    },
+    "judge": {
+     "agent": true,
+     "props": {}
+    },
+    "juror": {
+     "agent": true,
+     "props": {
+      "vote": {
+       "type": "text",
+       "default": "undecided"
+      },
+      "has_voted": {
+       "type": "bool",
+       "default": false
+      }
+     }
+    },
+    "exhibit": {
+     "props": {
+      "side": {
+       "type": "text",
+       "default": "prosecution"
+      },
+      "contents": {
+       "type": "text",
+       "default": ""
+      },
+      "status": {
+       "type": "text",
+       "default": "unoffered"
+      },
+      "objected": {
+       "type": "bool",
+       "default": false
+      },
+      "sustained": {
+       "type": "bool",
+       "default": false
+      },
+      "offered_round": {
+       "type": "int",
+       "default": 0
+      },
+      "admitted_round": {
+       "type": "int",
+       "default": 0
+      }
+     }
+    }
+   },
+   "entities": {
+    "prosecutor": {
+     "type": "lawyer",
+     "name": "Prosecutor",
+     "props": {
+      "side": "prosecution"
+     }
+    },
+    "defense": {
+     "type": "lawyer",
+     "name": "Defence counsel",
+     "props": {
+      "side": "defense"
+     }
+    },
+    "judge": {
+     "type": "judge",
+     "name": "Judge"
+    }
+   },
+   "population": [
+    {
+     "type": "exhibit",
+     "from": "$inputs.exhibits",
+     "id": "ex_{$i}",
+     "name": "{$row.name}",
+     "props": {
+      "side": "$row.side",
+      "contents": "$row.contents"
+     }
+    },
+    {
+     "type": "juror",
+     "count": 6,
+     "id": "juror_{$i}",
+     "name": "Juror {$i}"
+    }
+   ],
+   "actions": {
+    "offer_exhibit": {
+     "by": "lawyer",
+     "description": "Offer one of your own side's exhibits into evidence. The other side may object. You may offer at most one exhibit per evidence day; end your turn to offer none.",
+     "params": {
+      "exhibit": {
+       "type": "entity",
+       "of": "exhibit",
+       "where": "$it.side == $actor.side and $it.status == unoffered",
+       "description": "One of your side's exhibits not yet offered."
+      }
+     },
+     "when": [
+      "$round <= $inputs.hearing_rounds"
+     ],
+     "per_round": 1,
+     "do": [
+      "$params.exhibit.status = offered",
+      "$params.exhibit.offered_round = $round"
+     ],
+     "outcome": "You offer \"{$params.exhibit.name}\". It shows: {$params.exhibit.contents}",
+     "announce": "{$actor.name} offers exhibit \"{$params.exhibit.name}\".",
+     "terminal": true
+    },
+    "object": {
+     "by": "lawyer",
+     "description": "Object to an exhibit the other side has offered. The judge will rule on your objection; a sustained objection keeps the exhibit out.",
+     "params": {
+      "exhibit": {
+       "type": "entity",
+       "of": "exhibit",
+       "where": "$it.status == offered and $it.side != $actor.side",
+       "description": "An exhibit the other side offered that is waiting for a response."
+      }
+     },
+     "when": [
+      "$round <= $inputs.hearing_rounds"
+     ],
+     "do": [
+      "$params.exhibit.status = objected",
+      "$params.exhibit.objected = true"
+     ],
+     "outcome": "You object to \"{$params.exhibit.name}\".",
+     "announce": "{$actor.name} objects to exhibit \"{$params.exhibit.name}\".",
+     "terminal": true
+    },
+    "waive_objection": {
+     "by": "lawyer",
+     "description": "Decline to object to an exhibit the other side has offered. It is admitted immediately and the jury will read it.",
+     "params": {
+      "exhibit": {
+       "type": "entity",
+       "of": "exhibit",
+       "where": "$it.status == offered and $it.side != $actor.side",
+       "description": "An exhibit the other side offered that is waiting for a response."
+      }
+     },
+     "when": [
+      "$round <= $inputs.hearing_rounds"
+     ],
+     "do": [
+      "$params.exhibit.status = admitted",
+      "$params.exhibit.admitted_round = $round"
+     ],
+     "outcome": "You waive objection to \"{$params.exhibit.name}\"; it is admitted.",
+     "announce": "{$actor.name} raises no objection to exhibit \"{$params.exhibit.name}\"; it is admitted.",
+     "terminal": true
+    },
+    "rule": {
+     "by": "judge",
+     "description": "Rule on an objection that has been made. Sustain keeps the exhibit out of evidence for good; overrule admits it and the jury will read it.",
+     "params": {
+      "exhibit": {
+       "type": "entity",
+       "of": "exhibit",
+       "where": "$it.status == objected",
+       "description": "An exhibit with an objection waiting for your ruling."
+      },
+      "ruling": {
+       "type": "enum",
+       "values": [
+        "sustain",
+        "overrule"
+       ],
+       "description": "sustain to keep the exhibit out, overrule to admit it."
+      }
+     },
+     "when": [
+      "$round <= $inputs.hearing_rounds"
+     ],
+     "do": [
+      {
+       "if": "$params.ruling == sustain",
+       "then": [
+        "$params.exhibit.status = excluded",
+        "$params.exhibit.sustained = true"
+       ],
+       "else": [
+        "$params.exhibit.status = admitted",
+        "$params.exhibit.admitted_round = $round"
+       ]
+      }
+     ],
+     "outcome": "You rule {$params.ruling} on the objection to \"{$params.exhibit.name}\".",
+     "announce": "The judge {$params.ruling}s the objection to exhibit \"{$params.exhibit.name}\".",
+     "terminal": true
+    },
+    "closing_statement": {
+     "by": "lawyer",
+     "description": "Make your closing statement to the jury. One per side. Argue the admitted evidence and ask the jury for your verdict.",
+     "params": {
+      "text": {
+       "type": "text",
+       "required": true,
+       "max_len": 1000,
+       "overflow": "truncate",
+       "description": "Your closing argument."
+      }
+     },
+     "when": [
+      "$round == ($inputs.hearing_rounds + 1)"
+     ],
+     "per_round": 1,
+     "do": [
+      "$actor.closing = $params.text"
+     ],
+     "outcome": "Your closing statement: \"{$params.text}\"",
+     "announce": "{$actor.name} closes: \"{$params.text}\"",
+     "terminal": true
+    },
+    "vote": {
+     "by": "juror",
+     "description": "Cast your verdict in this case: guilty or not guilty. The verdict must be unanimous.",
+     "params": {
+      "choice": {
+       "type": "enum",
+       "values": [
+        "guilty",
+        "not guilty"
+       ],
+       "description": "Your verdict."
+      }
+     },
+     "when": [
+      "$round == ($inputs.hearing_rounds + 2)"
+     ],
+     "do": [
+      "$actor.vote = $params.choice",
+      "$actor.has_voted = true"
+     ],
+     "outcome": "You vote {$params.choice}.",
+     "announce": "{$actor.name} has voted.",
+     "terminal": true
+    }
+   },
+   "stages": [
+    {
+     "name": "evidence_offer",
+     "when": "$round <= $inputs.hearing_rounds",
+     "who": "$it.type == lawyer",
+     "actions": [
+      "offer_exhibit"
+     ],
+     "turns": "sequential",
+     "max_actions": 1,
+     "max_calls": 4,
+     "brief": "Evidence day {$round} of {$inputs.hearing_rounds}. You may offer one of your own exhibits, or end your turn to offer none."
+    },
+    {
+     "name": "objections",
+     "when": "$round <= $inputs.hearing_rounds",
+     "who": "$it.type == lawyer",
+     "actions": [
+      "object",
+      "waive_objection"
+     ],
+     "turns": "sequential",
+     "until": "not $any(exhibit, $it.status == offered)",
+     "passes": "$len($inputs.exhibits) + 2",
+     "max_actions": 1,
+     "max_calls": 4,
+     "must_act": true,
+     "brief": "An exhibit offered by the other side is awaiting your response. Object to it, or waive your objection (which admits it).",
+     "on_exit": [
+      {
+       "each": "exhibit",
+       "where": "$it.status == offered",
+       "do": [
+        "$it.status = admitted",
+        "$it.admitted_round = $round"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "ruling",
+     "when": "$round <= $inputs.hearing_rounds",
+     "who": "$it.type == judge",
+     "actions": [
+      "rule"
+     ],
+     "turns": "sequential",
+     "until": "not $any(exhibit, $it.status == objected)",
+     "passes": "$len($inputs.exhibits) + 2",
+     "max_actions": 1,
+     "max_calls": 4,
+     "must_act": true,
+     "brief": "Rule on each objection that has been made: sustain keeps the exhibit out, overrule admits it.",
+     "on_exit": [
+      {
+       "each": "exhibit",
+       "where": "$it.status == objected",
+       "do": [
+        "$it.status = admitted",
+        "$it.admitted_round = $round"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "closing",
+     "when": "$round == ($inputs.hearing_rounds + 1)",
+     "who": "$it.type == lawyer",
+     "actions": [
+      "closing_statement"
+     ],
+     "turns": "sequential",
+     "max_actions": 1,
+     "max_calls": 4,
+     "brief": "The evidence is closed. Make your closing statement to the jury."
+    },
+    {
+     "name": "verdict",
+     "when": "$round == ($inputs.hearing_rounds + 2)",
+     "who": "$it.type == juror",
+     "actions": [
+      "vote"
+     ],
+     "turns": "simultaneous",
+     "max_actions": 1,
+     "max_calls": 4,
+     "brief": "Deliberation is over. Weigh only the admitted exhibits and the closing statements, and vote guilty or not guilty. The verdict must be unanimous."
+    }
+   ],
+   "views": {
+    "docket": {
+     "for": [
+      "lawyer",
+      "judge"
+     ],
+     "of": "exhibit",
+     "title": "Exhibits",
+     "sort": "$it.id",
+     "show": "{$it.name} [{$it.side}] \u2014 status: {$it.status}. It shows: {$it.contents}"
+    },
+    "admitted_evidence": {
+     "for": [
+      "juror"
+     ],
+     "of": "exhibit",
+     "where": "$it.status == admitted",
+     "title": "Admitted evidence",
+     "sort": "$it.id",
+     "show": "\"{$it.name}\" \u2014 {$it.contents}",
+     "empty": "No evidence has been admitted."
+    },
+    "closings": {
+     "for": [
+      "juror"
+     ],
+     "of": "lawyer",
+     "where": "$it.closing != ''",
+     "title": "Closing statements",
+     "sort": "$it.id",
+     "show": "{$it.name} ({$it.side}): {$it.closing}",
+     "empty": "No closing statements yet."
+    }
+   },
+   "metrics": {
+    "admitted": "$count(exhibit, $it.status == admitted)",
+    "excluded": "$count(exhibit, $it.status == excluded)",
+    "sustained": "$count(exhibit, $it.sustained)",
+    "votes_cast": "$count(juror, $it.has_voted)"
+   },
+   "outputs": {
+    "verdict": {
+     "expr": "\"guilty\" if $all(juror, $it.has_voted and $it.vote == guilty) else (\"not guilty\" if $all(juror, $it.has_voted and $it.vote == not guilty) else \"hung\")",
+     "type": "text"
+    },
+    "juror_votes": {
+     "expr": "$dict(juror, $it.id, $it.vote if $it.has_voted else null)",
+     "type": "map"
+    },
+    "admitted_exhibits": {
+     "expr": "$map($filter(exhibit, $it.status == admitted), $it.name)",
+     "type": "list"
+    },
+    "excluded_exhibits": {
+     "expr": "$map($filter(exhibit, $it.sustained), $it.name)",
+     "type": "list"
+    },
+    "objections_sustained": {
+     "expr": "$count(exhibit, $it.sustained)",
+     "type": "int"
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$all(exhibit, not $it.sustained or $it.status == excluded)",
+     "why": "A sustained objection must keep the exhibit out of evidence for good."
+    },
+    {
+     "expr": "$all(juror, not $it.has_voted or $it.vote == guilty or $it.vote == not guilty)",
+     "why": "A juror who voted must have voted guilty or not guilty."
+    }
+   ]
+  },
+  {
+   "name": "Jury trial",
+   "clock": {
+    "rounds": "$inputs.hearing_rounds + 2",
+    "unit": "day"
+   },
+   "brief": {
+    "situation": "A short criminal jury trial. The prosecution and the defence each have exhibits they want the jury to see. Each evidence day a lawyer may offer an exhibit; the other side may object; the judge rules. After the evidence days both sides close, and then the jury votes.",
+    "rules": "Evidence days 1 to {$inputs.hearing_rounds}: each lawyer may offer at most one of their own exhibits per day. When an exhibit is offered, the other side may object or waive its objection. A waived exhibit is admitted at once, and its contents go to the jury. The judge then rules on every objection: sustain keeps the exhibit out for good (its contents are never shown to the jury), overrule admits it. After the evidence days each lawyer makes one closing statement, then each juror votes guilty or not guilty. A guilty or a not-guilty verdict requires every juror to agree; anything else is a hung jury.",
+    "roles": {
+     "lawyer": "You are the {$actor.side} lawyer. Offer your side's exhibits, object to the other side's exhibits when they are unreliable, and make your closing statement to the jury.",
+     "judge": "You are the judge. Rule on each objection: sustain keeps the exhibit out of evidence, overrule admits it. Rule even-handedly on the law and the evidence.",
+     "juror": "You are a juror. You see only exhibits that were admitted and the lawyers' closing statements. Weigh them and vote guilty or not guilty; the verdict must be unanimous."
+    }
+   },
+   "inputs": {
+    "hearing_rounds": {
+     "type": "int",
+     "default": 3,
+     "min": 1,
+     "max": 6,
+     "display": "number",
+     "label": "Evidence days",
+     "description": "How many rounds the evidence phase lasts."
+    },
+    "exhibits": {
+     "type": "table",
+     "display": "table",
+     "label": "Exhibits",
+     "fields": {
+      "name": {
+       "type": "text",
+       "required": true
+      },
+      "side": {
+       "type": "enum",
+       "values": [
+        "prosecution",
+        "defense"
+       ],
+       "default": "prosecution",
+       "display": "select"
+      },
+      "contents": {
+       "type": "text",
+       "required": true,
+       "display": "textarea"
+      }
+     },
+     "default": [
+      {
+       "name": "CCTV still",
+       "side": "prosecution",
+       "contents": "A grainy still showing a person in a dark jacket entering the corner shop at 21:58."
+      },
+      {
+       "name": "Till receipt",
+       "side": "prosecution",
+       "contents": "A receipt from the corner shop timed 22:04, paid in cash."
+      },
+      {
+       "name": "Witness statement",
+       "side": "prosecution",
+       "contents": "The shopkeeper says he recognised the defendant's voice during the robbery."
+      },
+      {
+       "name": "Phone record",
+       "side": "prosecution",
+       "contents": "Cell-site data placing the defendant's phone near the shop at 22:00."
+      },
+      {
+       "name": "Alibi letter",
+       "side": "defense",
+       "contents": "A signed letter from the defendant's employer saying he was at work until 22:30."
+      },
+      {
+       "name": "Bank statement",
+       "side": "defense",
+       "contents": "A statement showing a cash withdrawal of 200 pounds at 21:40 across town."
+      }
+     ]
+    }
+   },
+   "types": {
+    "lawyer": {
+     "agent": true,
+     "props": {
+      "side": {
+       "type": "text",
+       "default": "prosecution"
+      },
+      "closing": {
+       "type": "text",
+       "default": ""
+      }
+     }
+    },
+    "judge": {
+     "agent": true,
+     "props": {}
+    },
+    "juror": {
+     "agent": true,
+     "props": {
+      "vote": {
+       "type": "text",
+       "default": "undecided"
+      },
+      "has_voted": {
+       "type": "bool",
+       "default": false
+      }
+     }
+    },
+    "exhibit": {
+     "props": {
+      "side": {
+       "type": "text",
+       "default": "prosecution"
+      },
+      "contents": {
+       "type": "text",
+       "default": ""
+      },
+      "status": {
+       "type": "text",
+       "default": "unoffered"
+      },
+      "objected": {
+       "type": "bool",
+       "default": false
+      },
+      "sustained": {
+       "type": "bool",
+       "default": false
+      },
+      "offered_round": {
+       "type": "int",
+       "default": 0
+      },
+      "admitted_round": {
+       "type": "int",
+       "default": 0
+      }
+     }
+    }
+   },
+   "entities": {
+    "prosecutor": {
+     "type": "lawyer",
+     "name": "Prosecutor",
+     "props": {
+      "side": "prosecution"
+     }
+    },
+    "defense": {
+     "type": "lawyer",
+     "name": "Defence counsel",
+     "props": {
+      "side": "defense"
+     }
+    },
+    "judge": {
+     "type": "judge",
+     "name": "Judge"
+    }
+   },
+   "population": [
+    {
+     "type": "exhibit",
+     "from": "$inputs.exhibits",
+     "id": "ex_{$i}",
+     "name": "{$row.name}",
+     "props": {
+      "side": "$row.side",
+      "contents": "$row.contents"
+     }
+    },
+    {
+     "type": "juror",
+     "count": 6,
+     "id": "juror_{$i}",
+     "name": "Juror {$i}"
+    }
+   ],
+   "actions": {
+    "offer_exhibit": {
+     "by": "lawyer",
+     "description": "Offer one of your own side's exhibits into evidence. The other side may object. You may offer at most one exhibit per evidence day; end your turn to offer none.",
+     "params": {
+      "exhibit": {
+       "type": "entity",
+       "of": "exhibit",
+       "where": "$it.side == $actor.side and $it.status == unoffered",
+       "description": "One of your side's exhibits not yet offered."
+      }
+     },
+     "when": [
+      "$round <= $inputs.hearing_rounds"
+     ],
+     "per_round": 1,
+     "do": [
+      "$params.exhibit.status = offered",
+      "$params.exhibit.offered_round = $round"
+     ],
+     "outcome": "You offer \"{$params.exhibit.name}\". It shows: {$params.exhibit.contents}",
+     "announce": "{$actor.name} offers exhibit \"{$params.exhibit.name}\".",
+     "terminal": true
+    },
+    "object": {
+     "by": "lawyer",
+     "description": "Object to an exhibit the other side has offered. The judge will rule on your objection; a sustained objection keeps the exhibit out.",
+     "params": {
+      "exhibit": {
+       "type": "entity",
+       "of": "exhibit",
+       "where": "$it.status == offered and $it.side != $actor.side",
+       "description": "An exhibit the other side offered that is waiting for a response."
+      }
+     },
+     "when": [
+      "$round <= $inputs.hearing_rounds"
+     ],
+     "do": [
+      "$params.exhibit.status = objected",
+      "$params.exhibit.objected = true"
+     ],
+     "outcome": "You object to \"{$params.exhibit.name}\".",
+     "announce": "{$actor.name} objects to exhibit \"{$params.exhibit.name}\".",
+     "terminal": true
+    },
+    "waive_objection": {
+     "by": "lawyer",
+     "description": "Decline to object to an exhibit the other side has offered. It is admitted immediately and the jury will read it.",
+     "params": {
+      "exhibit": {
+       "type": "entity",
+       "of": "exhibit",
+       "where": "$it.status == offered and $it.side != $actor.side",
+       "description": "An exhibit the other side offered that is waiting for a response."
+      }
+     },
+     "when": [
+      "$round <= $inputs.hearing_rounds"
+     ],
+     "do": [
+      "$params.exhibit.status = admitted",
+      "$params.exhibit.admitted_round = $round"
+     ],
+     "outcome": "You waive objection to \"{$params.exhibit.name}\"; it is admitted.",
+     "announce": "{$actor.name} raises no objection to exhibit \"{$params.exhibit.name}\"; it is admitted.",
+     "terminal": true
+    },
+    "rule": {
+     "by": "judge",
+     "description": "Rule on an objection that has been made. Sustain keeps the exhibit out of evidence for good; overrule admits it and the jury will read it.",
+     "params": {
+      "exhibit": {
+       "type": "entity",
+       "of": "exhibit",
+       "where": "$it.status == objected",
+       "description": "An exhibit with an objection waiting for your ruling."
+      },
+      "ruling": {
+       "type": "enum",
+       "values": [
+        "sustain",
+        "overrule"
+       ],
+       "description": "sustain to keep the exhibit out, overrule to admit it."
+      }
+     },
+     "when": [
+      "$round <= $inputs.hearing_rounds"
+     ],
+     "do": [
+      {
+       "if": "$params.ruling == sustain",
+       "then": [
+        "$params.exhibit.status = excluded",
+        "$params.exhibit.sustained = true"
+       ],
+       "else": [
+        "$params.exhibit.status = admitted",
+        "$params.exhibit.admitted_round = $round"
+       ]
+      }
+     ],
+     "outcome": "You rule {$params.ruling} on the objection to \"{$params.exhibit.name}\".",
+     "announce": "The judge {$params.ruling}s the objection to exhibit \"{$params.exhibit.name}\".",
+     "terminal": true
+    },
+    "closing_statement": {
+     "by": "lawyer",
+     "description": "Make your closing statement to the jury. One per side. Argue the admitted evidence and ask the jury for your verdict.",
+     "params": {
+      "text": {
+       "type": "text",
+       "required": true,
+       "max_len": 1000,
+       "overflow": "truncate",
+       "description": "Your closing argument."
+      }
+     },
+     "when": [
+      "$round == ($inputs.hearing_rounds + 1)"
+     ],
+     "per_round": 1,
+     "do": [
+      "$actor.closing = $params.text"
+     ],
+     "outcome": "Your closing statement: \"{$params.text}\"",
+     "announce": "{$actor.name} closes: \"{$params.text}\"",
+     "terminal": true
+    },
+    "vote": {
+     "by": "juror",
+     "description": "Cast your verdict in this case: guilty or not guilty. The verdict must be unanimous.",
+     "params": {
+      "choice": {
+       "type": "enum",
+       "values": [
+        "guilty",
+        "not guilty"
+       ],
+       "description": "Your verdict."
+      }
+     },
+     "when": [
+      "$round == ($inputs.hearing_rounds + 2)"
+     ],
+     "do": [
+      "$actor.vote = $params.choice",
+      "$actor.has_voted = true"
+     ],
+     "outcome": "You vote {$params.choice}.",
+     "announce": "{$actor.name} has voted.",
+     "terminal": true
+    }
+   },
+   "stages": [
+    {
+     "name": "evidence_offer",
+     "when": "$round <= $inputs.hearing_rounds",
+     "who": "$it.type == lawyer",
+     "actions": [
+      "offer_exhibit"
+     ],
+     "turns": "sequential",
+     "max_actions": 1,
+     "max_calls": 4,
+     "brief": "Evidence day {$round} of {$inputs.hearing_rounds}. You may offer one of your own exhibits, or end your turn to offer none."
+    },
+    {
+     "name": "objections",
+     "when": "$round <= $inputs.hearing_rounds",
+     "who": "$it.type == lawyer",
+     "actions": [
+      "object",
+      "waive_objection"
+     ],
+     "turns": "sequential",
+     "until": "not $any(exhibit, $it.status == offered)",
+     "passes": "$len($inputs.exhibits) + 2",
+     "max_actions": 1,
+     "max_calls": 4,
+     "must_act": true,
+     "brief": "An exhibit offered by the other side is awaiting your response. Object to it, or waive your objection (which admits it).",
+     "on_exit": [
+      {
+       "each": "exhibit",
+       "where": "$it.status == offered",
+       "do": [
+        "$it.status = admitted",
+        "$it.admitted_round = $round"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "ruling",
+     "when": "$round <= $inputs.hearing_rounds",
+     "who": "$it.type == judge",
+     "actions": [
+      "rule"
+     ],
+     "turns": "sequential",
+     "until": "not $any(exhibit, $it.status == objected)",
+     "passes": "$len($inputs.exhibits) + 2",
+     "max_actions": 1,
+     "max_calls": 4,
+     "must_act": true,
+     "brief": "Rule on each objection that has been made: sustain keeps the exhibit out, overrule admits it.",
+     "on_exit": [
+      {
+       "each": "exhibit",
+       "where": "$it.status == objected",
+       "do": [
+        "$it.status = admitted",
+        "$it.admitted_round = $round"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "closing",
+     "when": "$round == ($inputs.hearing_rounds + 1)",
+     "who": "$it.type == lawyer",
+     "actions": [
+      "closing_statement"
+     ],
+     "turns": "sequential",
+     "max_actions": 1,
+     "max_calls": 4,
+     "brief": "The evidence is closed. Make your closing statement to the jury."
+    },
+    {
+     "name": "verdict",
+     "when": "$round == ($inputs.hearing_rounds + 2)",
+     "who": "$it.type == juror",
+     "actions": [
+      "vote"
+     ],
+     "turns": "simultaneous",
+     "max_actions": 1,
+     "max_calls": 4,
+     "brief": "Deliberation is over. Weigh only the admitted exhibits and the closing statements, and vote guilty or not guilty. The verdict must be unanimous."
+    }
+   ],
+   "views": {
+    "docket": {
+     "for": [
+      "lawyer",
+      "judge"
+     ],
+     "of": "exhibit",
+     "title": "Exhibits",
+     "sort": "$it.id",
+     "show": "{$it.name} [{$it.side}] \u2014 status: {$it.status}. It shows: {$it.contents}"
+    },
+    "admitted_evidence": {
+     "for": [
+      "juror"
+     ],
+     "of": "exhibit",
+     "where": "$it.status == admitted",
+     "title": "Admitted evidence",
+     "sort": "$it.id",
+     "show": "\"{$it.name}\" \u2014 {$it.contents}",
+     "empty": "No evidence has been admitted."
+    },
+    "closings": {
+     "for": [
+      "juror"
+     ],
+     "of": "lawyer",
+     "where": "$it.closing != ''",
+     "title": "Closing statements",
+     "sort": "$it.id",
+     "show": "{$it.name} ({$it.side}): {$it.closing}",
+     "empty": "No closing statements yet."
+    }
+   },
+   "metrics": {
+    "admitted": "$count(exhibit, $it.status == admitted)",
+    "excluded": "$count(exhibit, $it.status == excluded)",
+    "sustained": "$count(exhibit, $it.sustained)",
+    "votes_cast": "$count(juror, $it.has_voted)"
+   },
+   "outputs": {
+    "verdict": {
+     "expr": "'guilty' if $all(juror, $it.has_voted and $it.vote == 'guilty') else ('not guilty' if $all(juror, $it.has_voted and $it.vote == 'not guilty') else 'hung')",
+     "type": "text"
+    },
+    "juror_votes": {
+     "expr": "$dict(juror, $it.id, $it.vote if $it.has_voted else null)",
+     "type": "map"
+    },
+    "admitted_exhibits": {
+     "expr": "$map($filter(exhibit, $it.status == admitted), $it.name)",
+     "type": "list"
+    },
+    "excluded_exhibits": {
+     "expr": "$map($filter(exhibit, $it.sustained), $it.name)",
+     "type": "list"
+    },
+    "objections_sustained": {
+     "expr": "$count(exhibit, $it.sustained)",
+     "type": "int"
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$all(exhibit, not $it.sustained or $it.status == excluded)",
+     "why": "A sustained objection must keep the exhibit out of evidence for good."
+    },
+    {
+     "expr": "$all(juror, not $it.has_voted or $it.vote == 'guilty' or $it.vote == 'not guilty')",
+     "why": "A juror who voted must have voted guilty or not guilty."
+    }
+   ]
+  },
+  {
+   "name": "Jury trial",
+   "clock": {
+    "rounds": "$inputs.hearing_rounds + 2",
+    "unit": "day"
+   },
+   "brief": {
+    "situation": "A short criminal jury trial. The prosecution and the defence each have exhibits they want the jury to see. Each evidence day a lawyer may offer an exhibit; the other side may object; the judge rules. After the evidence days both sides close, and then the jury votes.",
+    "rules": "Evidence days 1 to {$inputs.hearing_rounds}: each lawyer may offer at most one of their own exhibits per day. When an exhibit is offered, the other side may object or waive its objection. A waived exhibit is admitted at once, and its contents go to the jury. The judge then rules on every objection: sustain keeps the exhibit out for good (its contents are never shown to the jury), overrule admits it. After the evidence days each lawyer makes one closing statement, then each juror votes guilty or not guilty. A guilty or a not-guilty verdict requires every juror to agree; anything else is a hung jury.",
+    "roles": {
+     "lawyer": "You are the {$actor.side} lawyer. Offer your side's exhibits, object to the other side's exhibits when they are unreliable, and make your closing statement to the jury.",
+     "judge": "You are the judge. Rule on each objection: sustain keeps the exhibit out of evidence, overrule admits it. Rule even-handedly on the law and the evidence.",
+     "juror": "You are a juror. You see only exhibits that were admitted and the lawyers' closing statements. Weigh them and vote guilty or not guilty; the verdict must be unanimous."
+    }
+   },
+   "inputs": {
+    "hearing_rounds": {
+     "type": "int",
+     "default": 3,
+     "min": 1,
+     "max": 6,
+     "display": "number",
+     "label": "Evidence days",
+     "description": "How many rounds the evidence phase lasts."
+    },
+    "exhibits": {
+     "type": "table",
+     "display": "table",
+     "label": "Exhibits",
+     "fields": {
+      "name": {
+       "type": "text",
+       "required": true
+      },
+      "side": {
+       "type": "enum",
+       "values": [
+        "prosecution",
+        "defense"
+       ],
+       "default": "prosecution",
+       "display": "select"
+      },
+      "contents": {
+       "type": "text",
+       "required": true,
+       "display": "textarea"
+      }
+     },
+     "default": [
+      {
+       "name": "CCTV still",
+       "side": "prosecution",
+       "contents": "A grainy still showing a person in a dark jacket entering the corner shop at 21:58."
+      },
+      {
+       "name": "Till receipt",
+       "side": "prosecution",
+       "contents": "A receipt from the corner shop timed 22:04, paid in cash."
+      },
+      {
+       "name": "Witness statement",
+       "side": "prosecution",
+       "contents": "The shopkeeper says he recognised the defendant's voice during the robbery."
+      },
+      {
+       "name": "Phone record",
+       "side": "prosecution",
+       "contents": "Cell-site data placing the defendant's phone near the shop at 22:00."
+      },
+      {
+       "name": "Alibi letter",
+       "side": "defense",
+       "contents": "A signed letter from the defendant's employer saying he was at work until 22:30."
+      },
+      {
+       "name": "Bank statement",
+       "side": "defense",
+       "contents": "A statement showing a cash withdrawal of 200 pounds at 21:40 across town."
+      }
+     ]
+    }
+   },
+   "types": {
+    "lawyer": {
+     "agent": true,
+     "props": {
+      "side": {
+       "type": "text",
+       "default": "prosecution"
+      },
+      "closing": {
+       "type": "text",
+       "default": ""
+      }
+     }
+    },
+    "judge": {
+     "agent": true,
+     "props": {}
+    },
+    "juror": {
+     "agent": true,
+     "props": {
+      "vote": {
+       "type": "text",
+       "default": "undecided"
+      },
+      "has_voted": {
+       "type": "bool",
+       "default": false
+      }
+     }
+    },
+    "exhibit": {
+     "props": {
+      "side": {
+       "type": "text",
+       "default": "prosecution"
+      },
+      "contents": {
+       "type": "text",
+       "default": ""
+      },
+      "status": {
+       "type": "text",
+       "default": "unoffered"
+      },
+      "objected": {
+       "type": "bool",
+       "default": false
+      },
+      "sustained": {
+       "type": "bool",
+       "default": false
+      },
+      "offered_round": {
+       "type": "int",
+       "default": 0
+      },
+      "admitted_round": {
+       "type": "int",
+       "default": 0
+      }
+     }
+    }
+   },
+   "entities": {
+    "prosecutor": {
+     "type": "lawyer",
+     "name": "Prosecutor",
+     "props": {
+      "side": "prosecution"
+     }
+    },
+    "defense": {
+     "type": "lawyer",
+     "name": "Defence counsel",
+     "props": {
+      "side": "defense"
+     }
+    },
+    "judge": {
+     "type": "judge",
+     "name": "Judge"
+    }
+   },
+   "population": [
+    {
+     "type": "exhibit",
+     "from": "$inputs.exhibits",
+     "id": "ex_{$i}",
+     "name": "{$row.name}",
+     "props": {
+      "side": "$row.side",
+      "contents": "$row.contents"
+     }
+    },
+    {
+     "type": "juror",
+     "count": 6,
+     "id": "juror_{$i}",
+     "name": "Juror {$i}"
+    }
+   ],
+   "actions": {
+    "offer_exhibit": {
+     "by": "lawyer",
+     "description": "Offer one of your own side's exhibits into evidence. The other side may object. You may offer at most one exhibit per evidence day; end your turn to offer none.",
+     "params": {
+      "exhibit": {
+       "type": "entity",
+       "of": "exhibit",
+       "where": "$it.side == $actor.side and $it.status == unoffered",
+       "description": "One of your side's exhibits not yet offered."
+      }
+     },
+     "when": [
+      "$round <= $inputs.hearing_rounds"
+     ],
+     "per_round": 1,
+     "do": [
+      "$params.exhibit.status = offered",
+      "$params.exhibit.offered_round = $round"
+     ],
+     "outcome": "You offer \"{$params.exhibit.name}\". It shows: {$params.exhibit.contents}",
+     "announce": "{$actor.name} offers exhibit \"{$params.exhibit.name}\".",
+     "terminal": true
+    },
+    "object": {
+     "by": "lawyer",
+     "description": "Object to an exhibit the other side has offered. The judge will rule on your objection; a sustained objection keeps the exhibit out.",
+     "params": {
+      "exhibit": {
+       "type": "entity",
+       "of": "exhibit",
+       "where": "$it.status == offered and $it.side != $actor.side",
+       "description": "An exhibit the other side offered that is waiting for a response."
+      }
+     },
+     "when": [
+      "$round <= $inputs.hearing_rounds"
+     ],
+     "do": [
+      "$params.exhibit.status = objected",
+      "$params.exhibit.objected = true"
+     ],
+     "outcome": "You object to \"{$params.exhibit.name}\".",
+     "announce": "{$actor.name} objects to exhibit \"{$params.exhibit.name}\".",
+     "terminal": true
+    },
+    "waive_objection": {
+     "by": "lawyer",
+     "description": "Decline to object to an exhibit the other side has offered. It is admitted immediately and the jury will read it.",
+     "params": {
+      "exhibit": {
+       "type": "entity",
+       "of": "exhibit",
+       "where": "$it.status == offered and $it.side != $actor.side",
+       "description": "An exhibit the other side offered that is waiting for a response."
+      }
+     },
+     "when": [
+      "$round <= $inputs.hearing_rounds"
+     ],
+     "do": [
+      "$params.exhibit.status = admitted",
+      "$params.exhibit.admitted_round = $round"
+     ],
+     "outcome": "You waive objection to \"{$params.exhibit.name}\"; it is admitted.",
+     "announce": "{$actor.name} raises no objection to exhibit \"{$params.exhibit.name}\"; it is admitted.",
+     "terminal": true
+    },
+    "rule": {
+     "by": "judge",
+     "description": "Rule on an objection that has been made. Sustain keeps the exhibit out of evidence for good; overrule admits it and the jury will read it.",
+     "params": {
+      "exhibit": {
+       "type": "entity",
+       "of": "exhibit",
+       "where": "$it.status == objected",
+       "description": "An exhibit with an objection waiting for your ruling."
+      },
+      "ruling": {
+       "type": "enum",
+       "values": [
+        "sustain",
+        "overrule"
+       ],
+       "description": "sustain to keep the exhibit out, overrule to admit it."
+      }
+     },
+     "when": [
+      "$round <= $inputs.hearing_rounds"
+     ],
+     "do": [
+      {
+       "if": "$params.ruling == sustain",
+       "then": [
+        "$params.exhibit.status = excluded",
+        "$params.exhibit.sustained = true"
+       ],
+       "else": [
+        "$params.exhibit.status = admitted",
+        "$params.exhibit.admitted_round = $round"
+       ]
+      }
+     ],
+     "outcome": "You rule {$params.ruling} on the objection to \"{$params.exhibit.name}\".",
+     "announce": "The judge {$params.ruling}s the objection to exhibit \"{$params.exhibit.name}\".",
+     "terminal": true
+    },
+    "closing_statement": {
+     "by": "lawyer",
+     "description": "Make your closing statement to the jury. One per side. Argue the admitted evidence and ask the jury for your verdict.",
+     "params": {
+      "text": {
+       "type": "text",
+       "required": true,
+       "max_len": 1000,
+       "overflow": "truncate",
+       "description": "Your closing argument."
+      }
+     },
+     "when": [
+      "$round == ($inputs.hearing_rounds + 1)"
+     ],
+     "per_round": 1,
+     "do": [
+      "$actor.closing = $params.text"
+     ],
+     "outcome": "Your closing statement: \"{$params.text}\"",
+     "announce": "{$actor.name} closes: \"{$params.text}\"",
+     "terminal": true
+    },
+    "vote": {
+     "by": "juror",
+     "description": "Cast your verdict in this case: guilty or not guilty. The verdict must be unanimous.",
+     "params": {
+      "choice": {
+       "type": "enum",
+       "values": [
+        "guilty",
+        "not guilty"
+       ],
+       "description": "Your verdict."
+      }
+     },
+     "when": [
+      "$round == ($inputs.hearing_rounds + 2)"
+     ],
+     "do": [
+      "$actor.vote = $params.choice",
+      "$actor.has_voted = true"
+     ],
+     "outcome": "You vote {$params.choice}.",
+     "announce": "{$actor.name} has voted.",
+     "terminal": true
+    }
+   },
+   "stages": [
+    {
+     "name": "evidence_offer",
+     "when": "$round <= $inputs.hearing_rounds",
+     "who": "$it.type == lawyer",
+     "actions": [
+      "offer_exhibit"
+     ],
+     "turns": "sequential",
+     "max_actions": 1,
+     "max_calls": 4,
+     "brief": "Evidence day {$round} of {$inputs.hearing_rounds}. You may offer one of your own exhibits, or end your turn to offer none."
+    },
+    {
+     "name": "objections",
+     "when": "$round <= $inputs.hearing_rounds",
+     "who": "$it.type == lawyer",
+     "actions": [
+      "object",
+      "waive_objection"
+     ],
+     "turns": "sequential",
+     "until": "not $any(exhibit, $it.status == offered)",
+     "passes": "$len($inputs.exhibits) + 2",
+     "max_actions": 1,
+     "max_calls": 4,
+     "must_act": true,
+     "brief": "An exhibit offered by the other side is awaiting your response. Object to it, or waive your objection (which admits it).",
+     "on_exit": [
+      {
+       "each": "exhibit",
+       "where": "$it.status == offered",
+       "do": [
+        "$it.status = admitted",
+        "$it.admitted_round = $round"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "ruling",
+     "when": "$round <= $inputs.hearing_rounds",
+     "who": "$it.type == judge",
+     "actions": [
+      "rule"
+     ],
+     "turns": "sequential",
+     "until": "not $any(exhibit, $it.status == objected)",
+     "passes": "$len($inputs.exhibits) + 2",
+     "max_actions": 1,
+     "max_calls": 4,
+     "must_act": true,
+     "brief": "Rule on each objection that has been made: sustain keeps the exhibit out, overrule admits it.",
+     "on_exit": [
+      {
+       "each": "exhibit",
+       "where": "$it.status == objected",
+       "do": [
+        "$it.status = admitted",
+        "$it.admitted_round = $round"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "closing",
+     "when": "$round == ($inputs.hearing_rounds + 1)",
+     "who": "$it.type == lawyer",
+     "actions": [
+      "closing_statement"
+     ],
+     "turns": "sequential",
+     "max_actions": 1,
+     "max_calls": 4,
+     "brief": "The evidence is closed. Make your closing statement to the jury."
+    },
+    {
+     "name": "verdict",
+     "when": "$round == ($inputs.hearing_rounds + 2)",
+     "who": "$it.type == juror",
+     "actions": [
+      "vote"
+     ],
+     "turns": "simultaneous",
+     "max_actions": 1,
+     "max_calls": 4,
+     "brief": "Deliberation is over. Weigh only the admitted exhibits and the closing statements, and vote guilty or not guilty. The verdict must be unanimous."
+    }
+   ],
+   "views": {
+    "docket": {
+     "for": [
+      "lawyer",
+      "judge"
+     ],
+     "of": "exhibit",
+     "title": "Exhibits",
+     "sort": "$it.id",
+     "show": "{$it.name} [{$it.side}] \u2014 status: {$it.status}. It shows: {$it.contents}"
+    },
+    "admitted_evidence": {
+     "for": [
+      "juror"
+     ],
+     "of": "exhibit",
+     "where": "$it.status == admitted",
+     "title": "Admitted evidence",
+     "sort": "$it.id",
+     "show": "\"{$it.name}\" \u2014 {$it.contents}",
+     "empty": "No evidence has been admitted."
+    },
+    "closings": {
+     "for": [
+      "juror"
+     ],
+     "of": "lawyer",
+     "where": "$it.closing != ''",
+     "title": "Closing statements",
+     "sort": "$it.id",
+     "show": "{$it.name} ({$it.side}): {$it.closing}",
+     "empty": "No closing statements yet."
+    }
+   },
+   "metrics": {
+    "admitted": "$count(exhibit, $it.status == admitted)",
+    "excluded": "$count(exhibit, $it.sustained)",
+    "votes_cast": "$count(juror, $it.has_voted)"
+   },
+   "outputs": {
+    "verdict": {
+     "expr": "'guilty' if $all(juror, $it.has_voted and $it.vote == 'guilty') else ('not guilty' if $all(juror, $it.has_voted and $it.vote == 'not guilty') else 'hung')",
+     "type": "text"
+    },
+    "juror_votes": {
+     "expr": "$dict(juror, $it.id, $it.vote if $it.has_voted else null)",
+     "type": "map"
+    },
+    "admitted_exhibits": {
+     "expr": "$map($filter(exhibit, $it.status == admitted), $it.name)",
+     "type": "list"
+    },
+    "excluded_exhibits": {
+     "expr": "$map($filter(exhibit, $it.sustained), $it.name)",
+     "type": "list"
+    },
+    "objections_sustained": {
+     "expr": "$count(exhibit, $it.sustained)",
+     "type": "int"
+    }
+   },
+   "policies": {
+    "lawyer": {
+     "repeat": true,
+     "rules": [
+      {
+       "each": "exhibit",
+       "when": "$round <= $inputs.hearing_rounds and $it.side == $actor.side and $it.status == unoffered",
+       "do": "offer_exhibit",
+       "with": {
+        "exhibit": "$it"
+       }
+      },
+      {
+       "each": "exhibit",
+       "when": "$it.status == offered and $it.side != $actor.side",
+       "do": "waive_objection",
+       "with": {
+        "exhibit": "$it"
+       }
+      },
+      {
+       "when": "$round == ($inputs.hearing_rounds + 1)",
+       "do": "closing_statement",
+       "with": {
+        "text": "Please weigh only the evidence that was admitted and return the just verdict."
+       }
+      }
+     ]
+    },
+    "lawyer_object": {
+     "repeat": true,
+     "rules": [
+      {
+       "each": "exhibit",
+       "when": "$round <= $inputs.hearing_rounds and $it.side == $actor.side and $it.status == unoffered",
+       "do": "offer_exhibit",
+       "with": {
+        "exhibit": "$it"
+       }
+      },
+      {
+       "each": "exhibit",
+       "when": "$it.status == offered and $it.side != $actor.side",
+       "do": "object",
+       "with": {
+        "exhibit": "$it"
+       }
+      },
+      {
+       "when": "$round == ($inputs.hearing_rounds + 1)",
+       "do": "closing_statement",
+       "with": {
+        "text": "The other side's case rests on unreliable evidence."
+       }
+      }
+     ]
+    },
+    "judge_sustain": {
+     "repeat": true,
+     "rules": [
+      {
+       "each": "exhibit",
+       "when": "$it.status == objected",
+       "do": "rule",
+       "with": {
+        "exhibit": "$it",
+        "ruling": "sustain"
+       }
+      }
+     ]
+    },
+    "judge_overrule": {
+     "repeat": true,
+     "rules": [
+      {
+       "each": "exhibit",
+       "when": "$it.status == objected",
+       "do": "rule",
+       "with": {
+        "exhibit": "$it",
+        "ruling": "overrule"
+       }
+      }
+     ]
+    },
+    "juror_guilty": {
+     "rules": [
+      {
+       "when": "$round == ($inputs.hearing_rounds + 2)",
+       "do": "vote",
+       "with": {
+        "choice": "guilty"
+       }
+      }
+     ]
+    },
+    "juror_notguilty": {
+     "rules": [
+      {
+       "when": "$round == ($inputs.hearing_rounds + 2)",
+       "do": "vote",
+       "with": {
+        "choice": "not guilty"
+       }
+      }
+     ]
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$all(exhibit, not $it.sustained or $it.status == excluded)",
+     "why": "A sustained objection must keep the exhibit out of evidence for good."
+    },
+    {
+     "expr": "$all(juror, not $it.has_voted or $it.vote == 'guilty' or $it.vote == 'not guilty')",
+     "why": "A juror who voted must have voted guilty or not guilty."
+    }
+   ]
+  },
+  {
+   "name": "Jury trial",
+   "clock": {
+    "rounds": "$inputs.hearing_rounds + 2",
+    "unit": "day"
+   },
+   "brief": {
+    "situation": "A short criminal jury trial. The prosecution and the defence each have exhibits they want the jury to see. Each evidence day a lawyer may offer an exhibit; the other side may object; the judge rules. After the evidence days both sides close, and then the jury votes.",
+    "rules": "Evidence days 1 to {$inputs.hearing_rounds}: each lawyer may offer at most one of their own exhibits per day. When an exhibit is offered, the other side may object or waive its objection. A waived exhibit is admitted at once, and its contents go to the jury. The judge then rules on every objection: sustain keeps the exhibit out for good (its contents are never shown to the jury), overrule admits it. After the evidence days each lawyer makes one closing statement, then each juror votes guilty or not guilty. A guilty or a not-guilty verdict requires every juror to agree; anything else is a hung jury.",
+    "roles": {
+     "lawyer": "You are the {$actor.side} lawyer. Offer your side's exhibits, object to the other side's exhibits when they are unreliable, and make your closing statement to the jury.",
+     "judge": "You are the judge. Rule on each objection: sustain keeps the exhibit out of evidence, overrule admits it. Rule even-handedly on the law and the evidence.",
+     "juror": "You are a juror. You see only exhibits that were admitted and the lawyers' closing statements. Weigh them and vote guilty or not guilty; the verdict must be unanimous."
+    }
+   },
+   "inputs": {
+    "hearing_rounds": {
+     "type": "int",
+     "default": 4,
+     "min": 1,
+     "max": 6,
+     "display": "number",
+     "label": "Evidence days",
+     "description": "How many rounds the evidence phase lasts. One exhibit may be offered per side per day; with the default 6 exhibits, 4 days lets every exhibit be offered."
+    },
+    "exhibits": {
+     "type": "table",
+     "display": "table",
+     "label": "Exhibits",
+     "fields": {
+      "name": {
+       "type": "text",
+       "required": true
+      },
+      "side": {
+       "type": "enum",
+       "values": [
+        "prosecution",
+        "defense"
+       ],
+       "default": "prosecution",
+       "display": "select"
+      },
+      "contents": {
+       "type": "text",
+       "required": true,
+       "display": "textarea"
+      }
+     },
+     "default": [
+      {
+       "name": "CCTV still",
+       "side": "prosecution",
+       "contents": "A grainy still showing a person in a dark jacket entering the corner shop at 21:58."
+      },
+      {
+       "name": "Till receipt",
+       "side": "prosecution",
+       "contents": "A receipt from the corner shop timed 22:04, paid in cash."
+      },
+      {
+       "name": "Witness statement",
+       "side": "prosecution",
+       "contents": "The shopkeeper says he recognised the defendant's voice during the robbery."
+      },
+      {
+       "name": "Phone record",
+       "side": "prosecution",
+       "contents": "Cell-site data placing the defendant's phone near the shop at 22:00."
+      },
+      {
+       "name": "Alibi letter",
+       "side": "defense",
+       "contents": "A signed letter from the defendant's employer saying he was at work until 22:30."
+      },
+      {
+       "name": "Bank statement",
+       "side": "defense",
+       "contents": "A statement showing a cash withdrawal of 200 pounds at 21:40 across town."
+      }
+     ]
+    }
+   },
+   "types": {
+    "lawyer": {
+     "agent": true,
+     "props": {
+      "side": {
+       "type": "text",
+       "default": "prosecution"
+      },
+      "closing": {
+       "type": "text",
+       "default": ""
+      }
+     }
+    },
+    "judge": {
+     "agent": true,
+     "props": {}
+    },
+    "juror": {
+     "agent": true,
+     "props": {
+      "vote": {
+       "type": "text",
+       "default": "undecided"
+      },
+      "has_voted": {
+       "type": "bool",
+       "default": false
+      }
+     }
+    },
+    "exhibit": {
+     "props": {
+      "side": {
+       "type": "text",
+       "default": "prosecution"
+      },
+      "contents": {
+       "type": "text",
+       "default": ""
+      },
+      "status": {
+       "type": "text",
+       "default": "unoffered"
+      },
+      "objected": {
+       "type": "bool",
+       "default": false
+      },
+      "sustained": {
+       "type": "bool",
+       "default": false
+      },
+      "offered_round": {
+       "type": "int",
+       "default": 0
+      },
+      "admitted_round": {
+       "type": "int",
+       "default": 0
+      }
+     }
+    }
+   },
+   "entities": {
+    "prosecutor": {
+     "type": "lawyer",
+     "name": "Prosecutor",
+     "props": {
+      "side": "prosecution"
+     }
+    },
+    "defense": {
+     "type": "lawyer",
+     "name": "Defence counsel",
+     "props": {
+      "side": "defense"
+     }
+    },
+    "judge": {
+     "type": "judge",
+     "name": "Judge"
+    }
+   },
+   "population": [
+    {
+     "type": "exhibit",
+     "from": "$inputs.exhibits",
+     "id": "ex_{$i}",
+     "name": "{$row.name}",
+     "props": {
+      "side": "$row.side",
+      "contents": "$row.contents"
+     }
+    },
+    {
+     "type": "juror",
+     "count": 6,
+     "id": "juror_{$i}",
+     "name": "Juror {$i}"
+    }
+   ],
+   "actions": {
+    "offer_exhibit": {
+     "by": "lawyer",
+     "description": "Offer one of your own side's exhibits into evidence. The other side may object. You may offer at most one exhibit per evidence day; end your turn to offer none.",
+     "params": {
+      "exhibit": {
+       "type": "entity",
+       "of": "exhibit",
+       "where": "$it.side == $actor.side and $it.status == unoffered",
+       "description": "One of your side's exhibits not yet offered."
+      }
+     },
+     "when": [
+      "$round <= $inputs.hearing_rounds"
+     ],
+     "per_round": 1,
+     "do": [
+      "$params.exhibit.status = offered",
+      "$params.exhibit.offered_round = $round"
+     ],
+     "outcome": "You offer \"{$params.exhibit.name}\". It shows: {$params.exhibit.contents}",
+     "announce": "{$actor.name} offers exhibit \"{$params.exhibit.name}\".",
+     "terminal": true
+    },
+    "object": {
+     "by": "lawyer",
+     "description": "Object to an exhibit the other side has offered. The judge will rule on your objection; a sustained objection keeps the exhibit out.",
+     "params": {
+      "exhibit": {
+       "type": "entity",
+       "of": "exhibit",
+       "where": "$it.status == offered and $it.side != $actor.side",
+       "description": "An exhibit the other side offered that is waiting for a response."
+      }
+     },
+     "when": [
+      "$round <= $inputs.hearing_rounds"
+     ],
+     "do": [
+      "$params.exhibit.status = objected",
+      "$params.exhibit.objected = true"
+     ],
+     "outcome": "You object to \"{$params.exhibit.name}\".",
+     "announce": "{$actor.name} objects to exhibit \"{$params.exhibit.name}\".",
+     "terminal": true
+    },
+    "waive_objection": {
+     "by": "lawyer",
+     "description": "Decline to object to an exhibit the other side has offered. It is admitted immediately and the jury will read it.",
+     "params": {
+      "exhibit": {
+       "type": "entity",
+       "of": "exhibit",
+       "where": "$it.status == offered and $it.side != $actor.side",
+       "description": "An exhibit the other side offered that is waiting for a response."
+      }
+     },
+     "when": [
+      "$round <= $inputs.hearing_rounds"
+     ],
+     "do": [
+      "$params.exhibit.status = admitted",
+      "$params.exhibit.admitted_round = $round"
+     ],
+     "outcome": "You waive objection to \"{$params.exhibit.name}\"; it is admitted.",
+     "announce": "{$actor.name} raises no objection to exhibit \"{$params.exhibit.name}\"; it is admitted.",
+     "terminal": true
+    },
+    "rule": {
+     "by": "judge",
+     "description": "Rule on an objection that has been made. Sustain keeps the exhibit out of evidence for good; overrule admits it and the jury will read it.",
+     "params": {
+      "exhibit": {
+       "type": "entity",
+       "of": "exhibit",
+       "where": "$it.status == objected",
+       "description": "An exhibit with an objection waiting for your ruling."
+      },
+      "ruling": {
+       "type": "enum",
+       "values": [
+        "sustain",
+        "overrule"
+       ],
+       "description": "sustain to keep the exhibit out, overrule to admit it."
+      }
+     },
+     "when": [
+      "$round <= $inputs.hearing_rounds"
+     ],
+     "do": [
+      {
+       "if": "$params.ruling == sustain",
+       "then": [
+        "$params.exhibit.status = excluded",
+        "$params.exhibit.sustained = true"
+       ],
+       "else": [
+        "$params.exhibit.status = admitted",
+        "$params.exhibit.admitted_round = $round"
+       ]
+      }
+     ],
+     "outcome": "You rule {$params.ruling} on the objection to \"{$params.exhibit.name}\".",
+     "announce": "The judge {$params.ruling}s the objection to exhibit \"{$params.exhibit.name}\".",
+     "terminal": true
+    },
+    "closing_statement": {
+     "by": "lawyer",
+     "description": "Make your closing statement to the jury. One per side. Argue the admitted evidence and ask the jury for your verdict.",
+     "params": {
+      "text": {
+       "type": "text",
+       "required": true,
+       "max_len": 1000,
+       "overflow": "truncate",
+       "description": "Your closing argument."
+      }
+     },
+     "when": [
+      "$round == ($inputs.hearing_rounds + 1)"
+     ],
+     "per_round": 1,
+     "do": [
+      "$actor.closing = $params.text"
+     ],
+     "outcome": "Your closing statement: \"{$params.text}\"",
+     "announce": "{$actor.name} closes: \"{$params.text}\"",
+     "terminal": true
+    },
+    "vote": {
+     "by": "juror",
+     "description": "Cast your verdict in this case: guilty or not guilty. The verdict must be unanimous.",
+     "params": {
+      "choice": {
+       "type": "enum",
+       "values": [
+        "guilty",
+        "not guilty"
+       ],
+       "description": "Your verdict."
+      }
+     },
+     "when": [
+      "$round == ($inputs.hearing_rounds + 2)"
+     ],
+     "do": [
+      "$actor.vote = $params.choice",
+      "$actor.has_voted = true"
+     ],
+     "outcome": "You vote {$params.choice}.",
+     "announce": "{$actor.name} has voted.",
+     "terminal": true
+    }
+   },
+   "stages": [
+    {
+     "name": "evidence_offer",
+     "when": "$round <= $inputs.hearing_rounds",
+     "who": "$it.type == lawyer",
+     "actions": [
+      "offer_exhibit"
+     ],
+     "turns": "sequential",
+     "max_actions": 1,
+     "max_calls": 4,
+     "brief": "Evidence day {$round} of {$inputs.hearing_rounds}. You may offer one of your own exhibits, or end your turn to offer none."
+    },
+    {
+     "name": "objections",
+     "when": "$round <= $inputs.hearing_rounds",
+     "who": "$it.type == lawyer",
+     "actions": [
+      "object",
+      "waive_objection"
+     ],
+     "turns": "sequential",
+     "until": "not $any(exhibit, $it.status == offered)",
+     "passes": "$len($inputs.exhibits) + 2",
+     "max_actions": 1,
+     "max_calls": 4,
+     "must_act": true,
+     "brief": "An exhibit offered by the other side is awaiting your response. Object to it, or waive your objection (which admits it).",
+     "on_exit": [
+      {
+       "each": "exhibit",
+       "where": "$it.status == offered",
+       "do": [
+        "$it.status = admitted",
+        "$it.admitted_round = $round"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "ruling",
+     "when": "$round <= $inputs.hearing_rounds",
+     "who": "$it.type == judge",
+     "actions": [
+      "rule"
+     ],
+     "turns": "sequential",
+     "until": "not $any(exhibit, $it.status == objected)",
+     "passes": "$len($inputs.exhibits) + 2",
+     "max_actions": 1,
+     "max_calls": 4,
+     "must_act": true,
+     "brief": "Rule on each objection that has been made: sustain keeps the exhibit out, overrule admits it.",
+     "on_exit": [
+      {
+       "each": "exhibit",
+       "where": "$it.status == objected",
+       "do": [
+        "$it.status = admitted",
+        "$it.admitted_round = $round"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "closing",
+     "when": "$round == ($inputs.hearing_rounds + 1)",
+     "who": "$it.type == lawyer",
+     "actions": [
+      "closing_statement"
+     ],
+     "turns": "sequential",
+     "max_actions": 1,
+     "max_calls": 4,
+     "brief": "The evidence is closed. Make your closing statement to the jury."
+    },
+    {
+     "name": "verdict",
+     "when": "$round == ($inputs.hearing_rounds + 2)",
+     "who": "$it.type == juror",
+     "actions": [
+      "vote"
+     ],
+     "turns": "simultaneous",
+     "max_actions": 1,
+     "max_calls": 4,
+     "brief": "Deliberation is over. Weigh only the admitted exhibits and the closing statements, and vote guilty or not guilty. The verdict must be unanimous."
+    }
+   ],
+   "views": {
+    "docket": {
+     "for": [
+      "lawyer",
+      "judge"
+     ],
+     "of": "exhibit",
+     "title": "Exhibits",
+     "sort": "$it.id",
+     "show": "{$it.name} [{$it.side}] \u2014 status: {$it.status}. It shows: {$it.contents}"
+    },
+    "admitted_evidence": {
+     "for": [
+      "juror"
+     ],
+     "of": "exhibit",
+     "where": "$it.status == admitted",
+     "title": "Admitted evidence",
+     "sort": "$it.id",
+     "show": "\"{$it.name}\" \u2014 {$it.contents}",
+     "empty": "No evidence has been admitted."
+    },
+    "closings": {
+     "for": [
+      "juror"
+     ],
+     "of": "lawyer",
+     "where": "$it.closing != ''",
+     "title": "Closing statements",
+     "sort": "$it.id",
+     "show": "{$it.name} ({$it.side}): {$it.closing}",
+     "empty": "No closing statements yet."
+    }
+   },
+   "metrics": {
+    "admitted": "$count(exhibit, $it.status == admitted)",
+    "excluded": "$count(exhibit, $it.sustained)",
+    "unoffered": "$count(exhibit, $it.status == unoffered)",
+    "votes_cast": "$count(juror, $it.has_voted)"
+   },
+   "outputs": {
+    "verdict": {
+     "expr": "'guilty' if $all(juror, $it.has_voted and $it.vote == 'guilty') else ('not guilty' if $all(juror, $it.has_voted and $it.vote == 'not guilty') else 'hung')",
+     "type": "text"
+    },
+    "juror_votes": {
+     "expr": "$dict(juror, $it.id, $it.vote if $it.has_voted else null)",
+     "type": "map"
+    },
+    "admitted_exhibits": {
+     "expr": "$map($filter(exhibit, $it.status == admitted), $it.name)",
+     "type": "list"
+    },
+    "excluded_exhibits": {
+     "expr": "$map($filter(exhibit, $it.sustained), $it.name)",
+     "type": "list"
+    },
+    "objections_sustained": {
+     "expr": "$count(exhibit, $it.sustained)",
+     "type": "int"
+    }
+   },
+   "policies": {
+    "lawyer": {
+     "repeat": true,
+     "rules": [
+      {
+       "each": "exhibit",
+       "when": "$round <= $inputs.hearing_rounds and $it.side == $actor.side and $it.status == unoffered",
+       "do": "offer_exhibit",
+       "with": {
+        "exhibit": "$it"
+       }
+      },
+      {
+       "each": "exhibit",
+       "when": "$it.status == offered and $it.side != $actor.side",
+       "do": "waive_objection",
+       "with": {
+        "exhibit": "$it"
+       }
+      },
+      {
+       "when": "$round == ($inputs.hearing_rounds + 1)",
+       "do": "closing_statement",
+       "with": {
+        "text": "Please weigh only the evidence that was admitted and return the just verdict."
+       }
+      }
+     ]
+    },
+    "lawyer_object": {
+     "repeat": true,
+     "rules": [
+      {
+       "each": "exhibit",
+       "when": "$round <= $inputs.hearing_rounds and $it.side == $actor.side and $it.status == unoffered",
+       "do": "offer_exhibit",
+       "with": {
+        "exhibit": "$it"
+       }
+      },
+      {
+       "each": "exhibit",
+       "when": "$it.status == offered and $it.side != $actor.side",
+       "do": "object",
+       "with": {
+        "exhibit": "$it"
+       }
+      },
+      {
+       "when": "$round == ($inputs.hearing_rounds + 1)",
+       "do": "closing_statement",
+       "with": {
+        "text": "The other side's case rests on unreliable evidence."
+       }
+      }
+     ]
+    },
+    "judge_sustain": {
+     "repeat": true,
+     "rules": [
+      {
+       "each": "exhibit",
+       "when": "$it.status == objected",
+       "do": "rule",
+       "with": {
+        "exhibit": "$it",
+        "ruling": "sustain"
+       }
+      }
+     ]
+    },
+    "judge_overrule": {
+     "repeat": true,
+     "rules": [
+      {
+       "each": "exhibit",
+       "when": "$it.status == objected",
+       "do": "rule",
+       "with": {
+        "exhibit": "$it",
+        "ruling": "overrule"
+       }
+      }
+     ]
+    },
+    "juror_guilty": {
+     "rules": [
+      {
+       "when": "$round == ($inputs.hearing_rounds + 2)",
+       "do": "vote",
+       "with": {
+        "choice": "guilty"
+       }
+      }
+     ]
+    },
+    "juror_notguilty": {
+     "rules": [
+      {
+       "when": "$round == ($inputs.hearing_rounds + 2)",
+       "do": "vote",
+       "with": {
+        "choice": "not guilty"
+       }
+      }
+     ]
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$all(exhibit, not $it.sustained or $it.status == excluded)",
+     "why": "A sustained objection must keep the exhibit out of evidence for good."
+    },
+    {
+     "expr": "$all(juror, not $it.has_voted or $it.vote == 'guilty' or $it.vote == 'not guilty')",
+     "why": "A juror who voted must have voted guilty or not guilty."
+    }
+   ]
+  },
+  {
+   "name": "Jury trial",
+   "clock": {
+    "rounds": "$inputs.hearing_rounds + 2",
+    "unit": "day"
+   },
+   "brief": {
+    "situation": "A short criminal jury trial. The prosecution and the defence each have exhibits they want the jury to see. Each evidence day a lawyer may offer an exhibit; the other side may object; the judge rules. After the evidence days both sides close, and then the jury votes.",
+    "rules": "Evidence days 1 to {$inputs.hearing_rounds}: each lawyer may offer at most one of their own exhibits per day. When an exhibit is offered, the other side may object or waive its objection. A waived exhibit is admitted at once, and its contents go to the jury. The judge then rules on every objection: sustain keeps the exhibit out for good (its contents are never shown to the jury), overrule admits it. After the evidence days each lawyer makes one closing statement, then each juror votes guilty or not guilty. A guilty or a not-guilty verdict requires every juror to agree; anything else is a hung jury.",
+    "roles": {
+     "lawyer": "You are the {$actor.side} lawyer. Offer your side's exhibits, object to the other side's exhibits when they are unreliable, and make your closing statement to the jury.",
+     "judge": "You are the judge. Rule on each objection: sustain keeps the exhibit out of evidence, overrule admits it. Rule even-handedly on the law and the evidence.",
+     "juror": "You are a juror. You see only exhibits that were admitted and the lawyers' closing statements. Weigh them and vote guilty or not guilty; the verdict must be unanimous."
+    }
+   },
+   "inputs": {
+    "hearing_rounds": {
+     "type": "int",
+     "default": 4,
+     "min": 1,
+     "max": 6,
+     "display": "number",
+     "label": "Evidence days",
+     "description": "How many rounds the evidence phase lasts. One exhibit may be offered per side per day; with the default 6 exhibits, 4 days lets every exhibit be offered."
+    },
+    "exhibits": {
+     "type": "table",
+     "display": "table",
+     "label": "Exhibits",
+     "fields": {
+      "name": {
+       "type": "text",
+       "required": true
+      },
+      "side": {
+       "type": "enum",
+       "values": [
+        "prosecution",
+        "defense"
+       ],
+       "default": "prosecution",
+       "display": "select"
+      },
+      "contents": {
+       "type": "text",
+       "required": true,
+       "display": "textarea"
+      }
+     },
+     "default": [
+      {
+       "name": "CCTV still",
+       "side": "prosecution",
+       "contents": "A grainy still showing a person in a dark jacket entering the corner shop at 21:58."
+      },
+      {
+       "name": "Till receipt",
+       "side": "prosecution",
+       "contents": "A receipt from the corner shop timed 22:04, paid in cash."
+      },
+      {
+       "name": "Witness statement",
+       "side": "prosecution",
+       "contents": "The shopkeeper says he recognised the defendant's voice during the robbery."
+      },
+      {
+       "name": "Phone record",
+       "side": "prosecution",
+       "contents": "Cell-site data placing the defendant's phone near the shop at 22:00."
+      },
+      {
+       "name": "Alibi letter",
+       "side": "defense",
+       "contents": "A signed letter from the defendant's employer saying he was at work until 22:30."
+      },
+      {
+       "name": "Bank statement",
+       "side": "defense",
+       "contents": "A statement showing a cash withdrawal of 200 pounds at 21:40 across town."
+      }
+     ]
+    }
+   },
+   "types": {
+    "lawyer": {
+     "agent": true,
+     "props": {
+      "side": {
+       "type": "text",
+       "default": "prosecution"
+      },
+      "closing": {
+       "type": "text",
+       "default": ""
+      }
+     }
+    },
+    "judge": {
+     "agent": true,
+     "props": {}
+    },
+    "juror": {
+     "agent": true,
+     "props": {
+      "vote": {
+       "type": "text",
+       "default": "undecided"
+      },
+      "has_voted": {
+       "type": "bool",
+       "default": false
+      }
+     }
+    },
+    "exhibit": {
+     "props": {
+      "side": {
+       "type": "text",
+       "default": "prosecution"
+      },
+      "contents": {
+       "type": "text",
+       "default": ""
+      },
+      "status": {
+       "type": "text",
+       "default": "unoffered"
+      },
+      "objected": {
+       "type": "bool",
+       "default": false
+      },
+      "sustained": {
+       "type": "bool",
+       "default": false
+      },
+      "offered_round": {
+       "type": "int",
+       "default": 0
+      },
+      "admitted_round": {
+       "type": "int",
+       "default": 0
+      }
+     }
+    }
+   },
+   "entities": {
+    "prosecutor": {
+     "type": "lawyer",
+     "name": "Prosecutor",
+     "props": {
+      "side": "prosecution"
+     }
+    },
+    "defense": {
+     "type": "lawyer",
+     "name": "Defence counsel",
+     "props": {
+      "side": "defense"
+     }
+    },
+    "judge": {
+     "type": "judge",
+     "name": "Judge"
+    }
+   },
+   "population": [
+    {
+     "type": "exhibit",
+     "from": "$inputs.exhibits",
+     "id": "ex_{$i}",
+     "name": "{$row.name}",
+     "props": {
+      "side": "$row.side",
+      "contents": "$row.contents"
+     }
+    },
+    {
+     "type": "juror",
+     "count": 6,
+     "id": "juror_{$i}",
+     "name": "Juror {$i}"
+    }
+   ],
+   "actions": {
+    "offer_exhibit": {
+     "by": "lawyer",
+     "description": "Offer one of your own side's exhibits into evidence. The other side may object. You may offer at most one exhibit per evidence day; end your turn to offer none.",
+     "params": {
+      "exhibit": {
+       "type": "entity",
+       "of": "exhibit",
+       "where": "$it.side == $actor.side and $it.status == unoffered",
+       "description": "One of your side's exhibits not yet offered."
+      }
+     },
+     "when": [
+      "$round <= $inputs.hearing_rounds"
+     ],
+     "per_round": 1,
+     "do": [
+      "$params.exhibit.status = offered",
+      "$params.exhibit.offered_round = $round"
+     ],
+     "outcome": "You offer \"{$params.exhibit.name}\". It shows: {$params.exhibit.contents}",
+     "announce": "{$actor.name} offers exhibit \"{$params.exhibit.name}\".",
+     "terminal": true
+    },
+    "object": {
+     "by": "lawyer",
+     "description": "Object to an exhibit the other side has offered. The judge will rule on your objection; a sustained objection keeps the exhibit out.",
+     "params": {
+      "exhibit": {
+       "type": "entity",
+       "of": "exhibit",
+       "where": "$it.status == offered and $it.side != $actor.side",
+       "description": "An exhibit the other side offered that is waiting for a response."
+      }
+     },
+     "when": [
+      "$round <= $inputs.hearing_rounds"
+     ],
+     "do": [
+      "$params.exhibit.status = objected",
+      "$params.exhibit.objected = true"
+     ],
+     "outcome": "You object to \"{$params.exhibit.name}\".",
+     "announce": "{$actor.name} objects to exhibit \"{$params.exhibit.name}\".",
+     "terminal": true
+    },
+    "waive_objection": {
+     "by": "lawyer",
+     "description": "Decline to object to an exhibit the other side has offered. It is admitted immediately and the jury will read it.",
+     "params": {
+      "exhibit": {
+       "type": "entity",
+       "of": "exhibit",
+       "where": "$it.status == offered and $it.side != $actor.side",
+       "description": "An exhibit the other side offered that is waiting for a response."
+      }
+     },
+     "when": [
+      "$round <= $inputs.hearing_rounds"
+     ],
+     "do": [
+      "$params.exhibit.status = admitted",
+      "$params.exhibit.admitted_round = $round"
+     ],
+     "outcome": "You waive objection to \"{$params.exhibit.name}\"; it is admitted.",
+     "announce": "{$actor.name} raises no objection to exhibit \"{$params.exhibit.name}\"; it is admitted.",
+     "terminal": true
+    },
+    "rule": {
+     "by": "judge",
+     "description": "Rule on an objection that has been made. Sustain keeps the exhibit out of evidence for good; overrule admits it and the jury will read it.",
+     "params": {
+      "exhibit": {
+       "type": "entity",
+       "of": "exhibit",
+       "where": "$it.status == objected",
+       "description": "An exhibit with an objection waiting for your ruling."
+      },
+      "ruling": {
+       "type": "enum",
+       "values": [
+        "sustain",
+        "overrule"
+       ],
+       "description": "sustain to keep the exhibit out, overrule to admit it."
+      }
+     },
+     "when": [
+      "$round <= $inputs.hearing_rounds"
+     ],
+     "do": [
+      {
+       "if": "$params.ruling == sustain",
+       "then": [
+        "$params.exhibit.status = excluded",
+        "$params.exhibit.sustained = true"
+       ],
+       "else": [
+        "$params.exhibit.status = admitted",
+        "$params.exhibit.admitted_round = $round"
+       ]
+      }
+     ],
+     "outcome": "You rule {$params.ruling} on the objection to \"{$params.exhibit.name}\".",
+     "announce": "The judge {$params.ruling}s the objection to exhibit \"{$params.exhibit.name}\".",
+     "terminal": true
+    },
+    "closing_statement": {
+     "by": "lawyer",
+     "description": "Make your closing statement to the jury. One per side. Argue the admitted evidence and ask the jury for your verdict.",
+     "params": {
+      "text": {
+       "type": "text",
+       "required": true,
+       "max_len": 1000,
+       "overflow": "truncate",
+       "description": "Your closing argument."
+      }
+     },
+     "when": [
+      "$round == ($inputs.hearing_rounds + 1)"
+     ],
+     "per_round": 1,
+     "do": [
+      "$actor.closing = $params.text"
+     ],
+     "outcome": "Your closing statement: \"{$params.text}\"",
+     "announce": "{$actor.name} closes: \"{$params.text}\"",
+     "terminal": true
+    },
+    "vote": {
+     "by": "juror",
+     "description": "Cast your verdict in this case: guilty or not guilty. The verdict must be unanimous.",
+     "params": {
+      "choice": {
+       "type": "enum",
+       "values": [
+        "guilty",
+        "not guilty"
+       ],
+       "description": "Your verdict."
+      }
+     },
+     "when": [
+      "$round == ($inputs.hearing_rounds + 2)"
+     ],
+     "do": [
+      "$actor.vote = $params.choice",
+      "$actor.has_voted = true"
+     ],
+     "outcome": "You vote {$params.choice}.",
+     "announce": "{$actor.name} has voted.",
+     "terminal": true
+    }
+   },
+   "stages": [
+    {
+     "name": "evidence_offer",
+     "when": "$round <= $inputs.hearing_rounds",
+     "who": "$it.type == lawyer",
+     "actions": [
+      "offer_exhibit"
+     ],
+     "turns": "sequential",
+     "max_actions": 1,
+     "max_calls": 4,
+     "brief": "Evidence day {$round} of {$inputs.hearing_rounds}. You may offer one of your own exhibits, or end your turn to offer none."
+    },
+    {
+     "name": "objections",
+     "when": "$round <= $inputs.hearing_rounds",
+     "who": "$it.type == lawyer",
+     "actions": [
+      "object",
+      "waive_objection"
+     ],
+     "turns": "sequential",
+     "until": "not $any(exhibit, $it.status == offered)",
+     "passes": "$len($inputs.exhibits) + 2",
+     "max_actions": 1,
+     "max_calls": 4,
+     "must_act": true,
+     "brief": "An exhibit offered by the other side is awaiting your response. Object to it, or waive your objection (which admits it).",
+     "on_exit": [
+      {
+       "each": "exhibit",
+       "where": "$it.status == offered",
+       "do": [
+        "$it.status = admitted",
+        "$it.admitted_round = $round"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "ruling",
+     "when": "$round <= $inputs.hearing_rounds",
+     "who": "$it.type == judge",
+     "actions": [
+      "rule"
+     ],
+     "turns": "sequential",
+     "until": "not $any(exhibit, $it.status == objected)",
+     "passes": "$len($inputs.exhibits) + 2",
+     "max_actions": 1,
+     "max_calls": 4,
+     "must_act": true,
+     "brief": "Rule on each objection that has been made: sustain keeps the exhibit out, overrule admits it.",
+     "on_exit": [
+      {
+       "each": "exhibit",
+       "where": "$it.status == objected",
+       "do": [
+        "$it.status = admitted",
+        "$it.admitted_round = $round"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "closing",
+     "when": "$round == ($inputs.hearing_rounds + 1)",
+     "who": "$it.type == lawyer",
+     "actions": [
+      "closing_statement"
+     ],
+     "turns": "sequential",
+     "max_actions": 1,
+     "max_calls": 4,
+     "brief": "The evidence is closed. Make your closing statement to the jury."
+    },
+    {
+     "name": "verdict",
+     "when": "$round == ($inputs.hearing_rounds + 2)",
+     "who": "$it.type == juror",
+     "actions": [
+      "vote"
+     ],
+     "turns": "simultaneous",
+     "max_actions": 1,
+     "max_calls": 4,
+     "brief": "Deliberation is over. Weigh only the admitted exhibits and the closing statements, and vote guilty or not guilty. The verdict must be unanimous."
+    }
+   ],
+   "views": {
+    "docket": {
+     "for": [
+      "lawyer",
+      "judge"
+     ],
+     "of": "exhibit",
+     "title": "Exhibits",
+     "sort": "$it.id",
+     "show": "{$it.name} [{$it.side}] \u2014 status: {$it.status}. It shows: {$it.contents}"
+    },
+    "admitted_evidence": {
+     "for": [
+      "juror"
+     ],
+     "of": "exhibit",
+     "where": "$it.status == admitted",
+     "title": "Admitted evidence",
+     "sort": "$it.id",
+     "show": "\"{$it.name}\" \u2014 {$it.contents}",
+     "empty": "No evidence has been admitted."
+    },
+    "closings": {
+     "for": [
+      "juror"
+     ],
+     "of": "lawyer",
+     "where": "$it.closing != ''",
+     "title": "Closing statements",
+     "sort": "$it.id",
+     "show": "{$it.name} ({$it.side}): {$it.closing}",
+     "empty": "No closing statements yet."
+    }
+   },
+   "metrics": {
+    "admitted": "$count(exhibit, $it.status == admitted)",
+    "excluded": "$count(exhibit, $it.sustained)",
+    "unoffered": "$count(exhibit, $it.status == unoffered)",
+    "votes_cast": "$count(juror, $it.has_voted)"
+   },
+   "outputs": {
+    "verdict": {
+     "expr": "'guilty' if $all(juror, $it.has_voted and $it.vote == 'guilty') else ('not guilty' if $all(juror, $it.has_voted and $it.vote == 'not guilty') else 'hung')",
+     "type": "text"
+    },
+    "juror_votes": {
+     "expr": "$dict(juror, $it.id, $it.vote if $it.has_voted else null)",
+     "type": "map"
+    },
+    "admitted_exhibits": {
+     "expr": "$map($filter(exhibit, $it.status == admitted), $it.name)",
+     "type": "list"
+    },
+    "excluded_exhibits": {
+     "expr": "$map($filter(exhibit, $it.sustained), $it.name)",
+     "type": "list"
+    },
+    "objections_sustained": {
+     "expr": "$count(exhibit, $it.sustained)",
+     "type": "int"
+    }
+   },
+   "policies": {
+    "lawyer": {
+     "repeat": true,
+     "rules": [
+      {
+       "each": "exhibit",
+       "when": "$round <= $inputs.hearing_rounds and $it.side == $actor.side and $it.status == unoffered",
+       "do": "offer_exhibit",
+       "with": {
+        "exhibit": "$it"
+       }
+      },
+      {
+       "each": "exhibit",
+       "when": "$it.status == offered and $it.side != $actor.side",
+       "do": "waive_objection",
+       "with": {
+        "exhibit": "$it"
+       }
+      },
+      {
+       "when": "$round == ($inputs.hearing_rounds + 1)",
+       "do": "closing_statement",
+       "with": {
+        "text": "Please weigh only the evidence that was admitted and return the just verdict."
+       }
+      }
+     ]
+    },
+    "lawyer_object": {
+     "repeat": true,
+     "rules": [
+      {
+       "each": "exhibit",
+       "when": "$round <= $inputs.hearing_rounds and $it.side == $actor.side and $it.status == unoffered",
+       "do": "offer_exhibit",
+       "with": {
+        "exhibit": "$it"
+       }
+      },
+      {
+       "each": "exhibit",
+       "when": "$it.status == offered and $it.side != $actor.side",
+       "do": "object",
+       "with": {
+        "exhibit": "$it"
+       }
+      },
+      {
+       "when": "$round == ($inputs.hearing_rounds + 1)",
+       "do": "closing_statement",
+       "with": {
+        "text": "The other side's case rests on unreliable evidence."
+       }
+      }
+     ]
+    },
+    "lawyer_pros_object": {
+     "repeat": true,
+     "rules": [
+      {
+       "each": "exhibit",
+       "when": "$round <= $inputs.hearing_rounds and $it.side == $actor.side and $it.status == unoffered",
+       "do": "offer_exhibit",
+       "with": {
+        "exhibit": "$it"
+       }
+      },
+      {
+       "each": "exhibit",
+       "when": "$it.status == offered and $it.side == prosecution",
+       "do": "object",
+       "with": {
+        "exhibit": "$it"
+       }
+      },
+      {
+       "each": "exhibit",
+       "when": "$it.status == offered and $it.side == defense",
+       "do": "waive_objection",
+       "with": {
+        "exhibit": "$it"
+       }
+      },
+      {
+       "when": "$round == ($inputs.hearing_rounds + 1)",
+       "do": "closing_statement",
+       "with": {
+        "text": "The prosecution's exhibits are the reliable core of this case."
+       }
+      }
+     ]
+    },
+    "judge_sustain": {
+     "repeat": true,
+     "rules": [
+      {
+       "each": "exhibit",
+       "when": "$it.status == objected",
+       "do": "rule",
+       "with": {
+        "exhibit": "$it",
+        "ruling": "sustain"
+       }
+      }
+     ]
+    },
+    "judge_overrule": {
+     "repeat": true,
+     "rules": [
+      {
+       "each": "exhibit",
+       "when": "$it.status == objected",
+       "do": "rule",
+       "with": {
+        "exhibit": "$it",
+        "ruling": "overrule"
+       }
+      }
+     ]
+    },
+    "juror_guilty": {
+     "rules": [
+      {
+       "when": "$round == ($inputs.hearing_rounds + 2)",
+       "do": "vote",
+       "with": {
+        "choice": "guilty"
+       }
+      }
+     ]
+    },
+    "juror_notguilty": {
+     "rules": [
+      {
+       "when": "$round == ($inputs.hearing_rounds + 2)",
+       "do": "vote",
+       "with": {
+        "choice": "not guilty"
+       }
+      }
+     ]
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$all(exhibit, not $it.sustained or $it.status == excluded)",
+     "why": "A sustained objection must keep the exhibit out of evidence for good."
+    },
+    {
+     "expr": "$all(juror, not $it.has_voted or $it.vote == 'guilty' or $it.vote == 'not guilty')",
+     "why": "A juror who voted must have voted guilty or not guilty."
+    }
+   ]
+  },
+  {
+   "name": "Jury trial",
+   "clock": {
+    "rounds": "$inputs.hearing_rounds + 2",
+    "unit": "day"
+   },
+   "brief": {
+    "situation": "A short criminal jury trial. The prosecution and the defence each have exhibits they want the jury to see. Each evidence day a lawyer may offer an exhibit; the other side may object; the judge rules. After the evidence days both sides close, and then the jury votes.",
+    "rules": "Evidence days 1 to {$inputs.hearing_rounds}: each lawyer may offer at most one of their own exhibits per day. When an exhibit is offered, the other side may object or waive its objection. A waived exhibit is admitted at once, and its contents go to the jury. The judge then rules on every objection: sustain keeps the exhibit out for good (its contents are never shown to the jury), overrule admits it. After the evidence days each lawyer makes one closing statement, then each juror votes guilty or not guilty. A guilty or a not-guilty verdict requires every juror to agree; anything else is a hung jury.",
+    "roles": {
+     "lawyer": "You are the {$actor.side} lawyer. Offer your side's exhibits, object to the other side's exhibits when they are unreliable, and make your closing statement to the jury.",
+     "judge": "You are the judge. Rule on each objection: sustain keeps the exhibit out of evidence, overrule admits it. Rule even-handedly on the law and the evidence.",
+     "juror": "You are a juror. You see only exhibits that were admitted and the lawyers' closing statements. Weigh them and vote guilty or not guilty; the verdict must be unanimous."
+    }
+   },
+   "inputs": {
+    "hearing_rounds": {
+     "type": "int",
+     "default": 1,
+     "min": 1,
+     "max": 6,
+     "display": "number",
+     "label": "Evidence days",
+     "description": "How many rounds the evidence phase lasts. One exhibit may be offered per side per day; with the default 6 exhibits, 4 days lets every exhibit be offered."
+    },
+    "exhibits": {
+     "type": "table",
+     "display": "table",
+     "label": "Exhibits",
+     "fields": {
+      "name": {
+       "type": "text",
+       "required": true
+      },
+      "side": {
+       "type": "enum",
+       "values": [
+        "prosecution",
+        "defense"
+       ],
+       "default": "prosecution",
+       "display": "select"
+      },
+      "contents": {
+       "type": "text",
+       "required": true,
+       "display": "textarea"
+      }
+     },
+     "default": [
+      {
+       "name": "CCTV still",
+       "side": "prosecution",
+       "contents": "A grainy still showing a person in a dark jacket entering the corner shop at 21:58."
+      },
+      {
+       "name": "Till receipt",
+       "side": "prosecution",
+       "contents": "A receipt from the corner shop timed 22:04, paid in cash."
+      },
+      {
+       "name": "Witness statement",
+       "side": "prosecution",
+       "contents": "The shopkeeper says he recognised the defendant's voice during the robbery."
+      },
+      {
+       "name": "Phone record",
+       "side": "prosecution",
+       "contents": "Cell-site data placing the defendant's phone near the shop at 22:00."
+      },
+      {
+       "name": "Alibi letter",
+       "side": "defense",
+       "contents": "A signed letter from the defendant's employer saying he was at work until 22:30."
+      },
+      {
+       "name": "Bank statement",
+       "side": "defense",
+       "contents": "A statement showing a cash withdrawal of 200 pounds at 21:40 across town."
+      }
+     ]
+    }
+   },
+   "types": {
+    "lawyer": {
+     "agent": true,
+     "props": {
+      "side": {
+       "type": "text",
+       "default": "prosecution"
+      },
+      "closing": {
+       "type": "text",
+       "default": ""
+      }
+     }
+    },
+    "judge": {
+     "agent": true,
+     "props": {}
+    },
+    "juror": {
+     "agent": true,
+     "props": {
+      "vote": {
+       "type": "text",
+       "default": "undecided"
+      },
+      "has_voted": {
+       "type": "bool",
+       "default": false
+      }
+     }
+    },
+    "exhibit": {
+     "props": {
+      "side": {
+       "type": "text",
+       "default": "prosecution"
+      },
+      "contents": {
+       "type": "text",
+       "default": ""
+      },
+      "status": {
+       "type": "text",
+       "default": "unoffered"
+      },
+      "objected": {
+       "type": "bool",
+       "default": false
+      },
+      "sustained": {
+       "type": "bool",
+       "default": false
+      },
+      "offered_round": {
+       "type": "int",
+       "default": 0
+      },
+      "admitted_round": {
+       "type": "int",
+       "default": 0
+      }
+     }
+    }
+   },
+   "entities": {
+    "prosecutor": {
+     "type": "lawyer",
+     "name": "Prosecutor",
+     "props": {
+      "side": "prosecution"
+     }
+    },
+    "defense": {
+     "type": "lawyer",
+     "name": "Defence counsel",
+     "props": {
+      "side": "defense"
+     }
+    },
+    "judge": {
+     "type": "judge",
+     "name": "Judge"
+    }
+   },
+   "population": [
+    {
+     "type": "exhibit",
+     "from": "$inputs.exhibits",
+     "id": "ex_{$i}",
+     "name": "{$row.name}",
+     "props": {
+      "side": "$row.side",
+      "contents": "$row.contents"
+     }
+    },
+    {
+     "type": "juror",
+     "count": 6,
+     "id": "juror_{$i}",
+     "name": "Juror {$i}"
+    }
+   ],
+   "actions": {
+    "offer_exhibit": {
+     "by": "lawyer",
+     "description": "Offer one of your own side's exhibits into evidence. The other side may object. You may offer at most one exhibit per evidence day; end your turn to offer none.",
+     "params": {
+      "exhibit": {
+       "type": "entity",
+       "of": "exhibit",
+       "where": "$it.side == $actor.side and $it.status == unoffered",
+       "description": "One of your side's exhibits not yet offered."
+      }
+     },
+     "when": [
+      "$round <= $inputs.hearing_rounds"
+     ],
+     "per_round": 1,
+     "do": [
+      "$params.exhibit.status = offered",
+      "$params.exhibit.offered_round = $round"
+     ],
+     "outcome": "You offer \"{$params.exhibit.name}\". It shows: {$params.exhibit.contents}",
+     "announce": "{$actor.name} offers exhibit \"{$params.exhibit.name}\".",
+     "terminal": true
+    },
+    "object": {
+     "by": "lawyer",
+     "description": "Object to an exhibit the other side has offered. The judge will rule on your objection; a sustained objection keeps the exhibit out.",
+     "params": {
+      "exhibit": {
+       "type": "entity",
+       "of": "exhibit",
+       "where": "$it.status == offered and $it.side != $actor.side",
+       "description": "An exhibit the other side offered that is waiting for a response."
+      }
+     },
+     "when": [
+      "$round <= $inputs.hearing_rounds"
+     ],
+     "do": [
+      "$params.exhibit.status = objected",
+      "$params.exhibit.objected = true"
+     ],
+     "outcome": "You object to \"{$params.exhibit.name}\".",
+     "announce": "{$actor.name} objects to exhibit \"{$params.exhibit.name}\".",
+     "terminal": true
+    },
+    "waive_objection": {
+     "by": "lawyer",
+     "description": "Decline to object to an exhibit the other side has offered. It is admitted immediately and the jury will read it.",
+     "params": {
+      "exhibit": {
+       "type": "entity",
+       "of": "exhibit",
+       "where": "$it.status == offered and $it.side != $actor.side",
+       "description": "An exhibit the other side offered that is waiting for a response."
+      }
+     },
+     "when": [
+      "$round <= $inputs.hearing_rounds"
+     ],
+     "do": [
+      "$params.exhibit.status = admitted",
+      "$params.exhibit.admitted_round = $round"
+     ],
+     "outcome": "You waive objection to \"{$params.exhibit.name}\"; it is admitted.",
+     "announce": "{$actor.name} raises no objection to exhibit \"{$params.exhibit.name}\"; it is admitted.",
+     "terminal": true
+    },
+    "rule": {
+     "by": "judge",
+     "description": "Rule on an objection that has been made. Sustain keeps the exhibit out of evidence for good; overrule admits it and the jury will read it.",
+     "params": {
+      "exhibit": {
+       "type": "entity",
+       "of": "exhibit",
+       "where": "$it.status == objected",
+       "description": "An exhibit with an objection waiting for your ruling."
+      },
+      "ruling": {
+       "type": "enum",
+       "values": [
+        "sustain",
+        "overrule"
+       ],
+       "description": "sustain to keep the exhibit out, overrule to admit it."
+      }
+     },
+     "when": [
+      "$round <= $inputs.hearing_rounds"
+     ],
+     "do": [
+      {
+       "if": "$params.ruling == sustain",
+       "then": [
+        "$params.exhibit.status = excluded",
+        "$params.exhibit.sustained = true"
+       ],
+       "else": [
+        "$params.exhibit.status = admitted",
+        "$params.exhibit.admitted_round = $round"
+       ]
+      }
+     ],
+     "outcome": "You rule {$params.ruling} on the objection to \"{$params.exhibit.name}\".",
+     "announce": "The judge {$params.ruling}s the objection to exhibit \"{$params.exhibit.name}\".",
+     "terminal": true
+    },
+    "closing_statement": {
+     "by": "lawyer",
+     "description": "Make your closing statement to the jury. One per side. Argue the admitted evidence and ask the jury for your verdict.",
+     "params": {
+      "text": {
+       "type": "text",
+       "required": true,
+       "max_len": 1000,
+       "overflow": "truncate",
+       "description": "Your closing argument."
+      }
+     },
+     "when": [
+      "$round == ($inputs.hearing_rounds + 1)"
+     ],
+     "per_round": 1,
+     "do": [
+      "$actor.closing = $params.text"
+     ],
+     "outcome": "Your closing statement: \"{$params.text}\"",
+     "announce": "{$actor.name} closes: \"{$params.text}\"",
+     "terminal": true
+    },
+    "vote": {
+     "by": "juror",
+     "description": "Cast your verdict in this case: guilty or not guilty. The verdict must be unanimous.",
+     "params": {
+      "choice": {
+       "type": "enum",
+       "values": [
+        "guilty",
+        "not guilty"
+       ],
+       "description": "Your verdict."
+      }
+     },
+     "when": [
+      "$round == ($inputs.hearing_rounds + 2)"
+     ],
+     "do": [
+      "$actor.vote = $params.choice",
+      "$actor.has_voted = true"
+     ],
+     "outcome": "You vote {$params.choice}.",
+     "announce": "{$actor.name} has voted.",
+     "terminal": true
+    }
+   },
+   "stages": [
+    {
+     "name": "evidence_offer",
+     "when": "$round <= $inputs.hearing_rounds",
+     "who": "$it.type == lawyer",
+     "actions": [
+      "offer_exhibit"
+     ],
+     "turns": "sequential",
+     "max_actions": 1,
+     "max_calls": 4,
+     "brief": "Evidence day {$round} of {$inputs.hearing_rounds}. You may offer one of your own exhibits, or end your turn to offer none."
+    },
+    {
+     "name": "objections",
+     "when": "$round <= $inputs.hearing_rounds",
+     "who": "$it.type == lawyer",
+     "actions": [
+      "object",
+      "waive_objection"
+     ],
+     "turns": "sequential",
+     "until": "not $any(exhibit, $it.status == offered)",
+     "passes": "$len($inputs.exhibits) + 2",
+     "max_actions": 1,
+     "max_calls": 4,
+     "must_act": true,
+     "brief": "An exhibit offered by the other side is awaiting your response. Object to it, or waive your objection (which admits it).",
+     "on_exit": [
+      {
+       "each": "exhibit",
+       "where": "$it.status == offered",
+       "do": [
+        "$it.status = admitted",
+        "$it.admitted_round = $round"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "ruling",
+     "when": "$round <= $inputs.hearing_rounds",
+     "who": "$it.type == judge",
+     "actions": [
+      "rule"
+     ],
+     "turns": "sequential",
+     "until": "not $any(exhibit, $it.status == objected)",
+     "passes": "$len($inputs.exhibits) + 2",
+     "max_actions": 1,
+     "max_calls": 4,
+     "must_act": true,
+     "brief": "Rule on each objection that has been made: sustain keeps the exhibit out, overrule admits it.",
+     "on_exit": [
+      {
+       "each": "exhibit",
+       "where": "$it.status == objected",
+       "do": [
+        "$it.status = admitted",
+        "$it.admitted_round = $round"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "closing",
+     "when": "$round == ($inputs.hearing_rounds + 1)",
+     "who": "$it.type == lawyer",
+     "actions": [
+      "closing_statement"
+     ],
+     "turns": "sequential",
+     "max_actions": 1,
+     "max_calls": 4,
+     "brief": "The evidence is closed. Make your closing statement to the jury."
+    },
+    {
+     "name": "verdict",
+     "when": "$round == ($inputs.hearing_rounds + 2)",
+     "who": "$it.type == juror",
+     "actions": [
+      "vote"
+     ],
+     "turns": "simultaneous",
+     "max_actions": 1,
+     "max_calls": 4,
+     "brief": "Deliberation is over. Weigh only the admitted exhibits and the closing statements, and vote guilty or not guilty. The verdict must be unanimous."
+    }
+   ],
+   "views": {
+    "docket": {
+     "for": [
+      "lawyer",
+      "judge"
+     ],
+     "of": "exhibit",
+     "title": "Exhibits",
+     "sort": "$it.id",
+     "show": "{$it.name} [{$it.side}] \u2014 status: {$it.status}. It shows: {$it.contents}"
+    },
+    "admitted_evidence": {
+     "for": [
+      "juror"
+     ],
+     "of": "exhibit",
+     "where": "$it.status == admitted",
+     "title": "Admitted evidence",
+     "sort": "$it.id",
+     "show": "\"{$it.name}\" \u2014 {$it.contents}",
+     "empty": "No evidence has been admitted."
+    },
+    "closings": {
+     "for": [
+      "juror"
+     ],
+     "of": "lawyer",
+     "where": "$it.closing != ''",
+     "title": "Closing statements",
+     "sort": "$it.id",
+     "show": "{$it.name} ({$it.side}): {$it.closing}",
+     "empty": "No closing statements yet."
+    }
+   },
+   "metrics": {
+    "admitted": "$count(exhibit, $it.status == admitted)",
+    "excluded": "$count(exhibit, $it.sustained)",
+    "unoffered": "$count(exhibit, $it.status == unoffered)",
+    "votes_cast": "$count(juror, $it.has_voted)"
+   },
+   "outputs": {
+    "verdict": {
+     "expr": "'guilty' if $all(juror, $it.has_voted and $it.vote == 'guilty') else ('not guilty' if $all(juror, $it.has_voted and $it.vote == 'not guilty') else 'hung')",
+     "type": "text"
+    },
+    "juror_votes": {
+     "expr": "$dict(juror, $it.id, $it.vote if $it.has_voted else null)",
+     "type": "map"
+    },
+    "admitted_exhibits": {
+     "expr": "$map($filter(exhibit, $it.status == admitted), $it.name)",
+     "type": "list"
+    },
+    "excluded_exhibits": {
+     "expr": "$map($filter(exhibit, $it.sustained), $it.name)",
+     "type": "list"
+    },
+    "objections_sustained": {
+     "expr": "$count(exhibit, $it.sustained)",
+     "type": "int"
+    }
+   },
+   "policies": {
+    "lawyer": {
+     "repeat": true,
+     "rules": [
+      {
+       "each": "exhibit",
+       "when": "$round <= $inputs.hearing_rounds and $it.side == $actor.side and $it.status == unoffered",
+       "do": "offer_exhibit",
+       "with": {
+        "exhibit": "$it"
+       }
+      },
+      {
+       "each": "exhibit",
+       "when": "$it.status == offered and $it.side != $actor.side",
+       "do": "waive_objection",
+       "with": {
+        "exhibit": "$it"
+       }
+      },
+      {
+       "when": "$round == ($inputs.hearing_rounds + 1)",
+       "do": "closing_statement",
+       "with": {
+        "text": "Please weigh only the evidence that was admitted and return the just verdict."
+       }
+      }
+     ]
+    },
+    "lawyer_object": {
+     "repeat": true,
+     "rules": [
+      {
+       "each": "exhibit",
+       "when": "$round <= $inputs.hearing_rounds and $it.side == $actor.side and $it.status == unoffered",
+       "do": "offer_exhibit",
+       "with": {
+        "exhibit": "$it"
+       }
+      },
+      {
+       "each": "exhibit",
+       "when": "$it.status == offered and $it.side != $actor.side",
+       "do": "object",
+       "with": {
+        "exhibit": "$it"
+       }
+      },
+      {
+       "when": "$round == ($inputs.hearing_rounds + 1)",
+       "do": "closing_statement",
+       "with": {
+        "text": "The other side's case rests on unreliable evidence."
+       }
+      }
+     ]
+    },
+    "judge_sustain": {
+     "repeat": true,
+     "rules": [
+      {
+       "each": "exhibit",
+       "when": "$it.status == objected",
+       "do": "rule",
+       "with": {
+        "exhibit": "$it",
+        "ruling": "sustain"
+       }
+      }
+     ]
+    },
+    "judge_overrule": {
+     "repeat": true,
+     "rules": [
+      {
+       "each": "exhibit",
+       "when": "$it.status == objected",
+       "do": "rule",
+       "with": {
+        "exhibit": "$it",
+        "ruling": "overrule"
+       }
+      }
+     ]
+    },
+    "juror_guilty": {
+     "rules": [
+      {
+       "when": "$round == ($inputs.hearing_rounds + 2)",
+       "do": "vote",
+       "with": {
+        "choice": "guilty"
+       }
+      }
+     ]
+    },
+    "juror_notguilty": {
+     "rules": [
+      {
+       "when": "$round == ($inputs.hearing_rounds + 2)",
+       "do": "vote",
+       "with": {
+        "choice": "not guilty"
+       }
+      }
+     ]
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$all(exhibit, not $it.sustained or $it.status == excluded)",
+     "why": "A sustained objection must keep the exhibit out of evidence for good."
+    },
+    {
+     "expr": "$all(juror, not $it.has_voted or $it.vote == 'guilty' or $it.vote == 'not guilty')",
+     "why": "A juror who voted must have voted guilty or not guilty."
+    }
+   ]
+  }
+ ],
+ "guide_parts": [
+  "all",
+  "actions",
+  "stages",
+  "events",
+  "functions.collections",
+  "views",
+  "brief",
+  "outputs",
+  "population",
+  "inputs",
+  "expressions",
+  "functions",
+  "model",
+  "inspect",
+  "policies",
+  "authoring"
+ ],
+ "usage": {
+  "input_tokens": 519785,
+  "output_tokens": 83995,
+  "cost": 0.061413530000000015,
+  "calls": 21
+ },
+ "wall_seconds": 631.5
+}

@@ -1,0 +1,2470 @@
+{
+ "model": "deepseek/deepseek-v4.1-flash",
+ "stop": "token cap",
+ "nudges": 1,
+ "messages": [
+  {
+   "role": "system",
+   "content": "(guide text)"
+  },
+  {
+   "role": "user",
+   "content": "# Union contract negotiation\n\nA union and a company negotiate a new contract, with the union's negotiator and the company's negotiator both played by AI agents. The only open issue is the wage increase, in percent. They take turns: each round one side proposes a wage increase and the other side accepts it or rejects it, with the union proposing in odd rounds and the company in even rounds. From round 4 on, the union may call a strike, and once on strike it can call it off at any time. Every round spent on strike costs the company $200,000 in lost revenue and costs the workers $50,000 in lost wages. When a negotiator accepts a proposal it becomes a tentative agreement, and the union's five members, also AI agents, then vote to ratify it; a majority yes ratifies it, ends any strike and ends the negotiation. A rejected tentative agreement means talks continue. If there is no ratified deal after 12 rounds, the talks fail.\n\n## Deliverables\n\nReport these outputs:\n- `agreed` \u2014 true if a deal was ratified.\n- `wage_increase` \u2014 the ratified wage increase in percent, or null.\n- `strike_rounds` \u2014 how many rounds were spent on strike.\n- `company_losses` \u2014 the company's total lost revenue from strikes.\n- `worker_lost_wages` \u2014 the workers' total lost wages from strikes.\n- `ratification_votes` \u2014 a map from each union member's id to their vote on the ratified deal, \"yes\" or \"no\" (null for everyone if there was none).\n\n\nBuild this environment. Save it with write_contract and use the other tools as you see fit. Reply without calling a tool when you are done."
+  },
+  {
+   "role": "assistant",
+   "content": "I'll start by reading the SDK guide and schema to ground the design.\n\n",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-98cbe66160e5165a",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"all\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-8d841b0eefa03857",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"actions\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-98cbe66160e5165a",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-8d841b0eefa03857",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-b6bda199f0ad0268",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"stages\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-967a9fbf8bc796fb",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"events\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "chatcmpl-tool-be78b0ee99431906",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"outputs\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "chatcmpl-tool-b874b988db605f05",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"effects\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b6bda199f0ad0268",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-967a9fbf8bc796fb",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-be78b0ee99431906",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b874b988db605f05",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-b3930cd138f55223",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"inputs\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-b2b5dfbeab4ff297",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"agreements.negotiation\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "chatcmpl-tool-93eac48b4ffa0494",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions.collections\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b3930cd138f55223",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b2b5dfbeab4ff297",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-93eac48b4ffa0494",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-be41840d0784960f",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"population\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-b9b1f3f5204dd4a3",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"brief\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "chatcmpl-tool-b04699d07326cb95",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"views\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "chatcmpl-tool-a504a9d5e8e3ae97",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"model\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-be41840d0784960f",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b9b1f3f5204dd4a3",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b04699d07326cb95",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a504a9d5e8e3ae97",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-b3b57857a570a1eb",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"entities\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-a3b80d238a545cc1",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"types\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "chatcmpl-tool-a25214ae9435b680",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"invariants\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "chatcmpl-tool-a74b4736ac0e2ba4",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"world\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b3b57857a570a1eb",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a3b80d238a545cc1",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a25214ae9435b680",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a74b4736ac0e2ba4",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-afa620d55d7246e3",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"records\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-8d40a8a65f430d8c",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"templates\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "chatcmpl-tool-850bb900eb09a3e0",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"end\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "chatcmpl-tool-b8c274fffdd4ec5c",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"expressions\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-afa620d55d7246e3",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-8d40a8a65f430d8c",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-850bb900eb09a3e0",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b8c274fffdd4ec5c",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": ""
+  },
+  {
+   "role": "user",
+   "content": "No contract is saved yet. Save it with write_contract (keep replies short; put the contract in the tool call)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-85db55135d773add",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-85db55135d773add",
+   "content": "Saved (221 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-af364f2e44cdd308",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-af364f2e44cdd308",
+   "content": "[warning] actions.call_strike.description: action descriptions are static: {$...} remains literal \u2192 Put dynamic instructions in brief.roles.<actor type> or views.show; inspect env.preview(actor_id) to verify the actual text"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-a6c9134d705c8fc2",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a6c9134d705c8fc2",
+   "content": "Saved (221 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-b369f4e1e1cf0eac",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b369f4e1e1cf0eac",
+   "content": "No issues."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-a21960ab1d38d5e3",
+     "function": {
+      "name": "preview",
+      "arguments": "{\"agent\": \"union_rep\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-aa4917b09a01bba1",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 1}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a21960ab1d38d5e3",
+   "content": "BRIEF:\n# Union contract negotiation\nA union and a company are negotiating a new contract. The only open issue is the wage increase, in percent. The union's negotiator and the company's negotiator are the two sides at the table; the union's 5 members must ratify any deal they reach.\n\n## Rules\nThe sides take turns. In odd rounds the union's negotiator proposes a wage increase and the company's negotiator accepts or rejects it; in even rounds the company's negotiator proposes and the union's negotiator accepts or rejects it. An accepted proposal becomes a tentative agreement, and the members then vote yes or no: a majority of yes ratifies it, which ends any strike and ends the negotiation, while a rejected tentative agreement means talks continue. From round 4 the union may call a strike and may call it off at any time; every round spent on strike costs the company $200,000.00 in lost revenue and the workers $50,000.00 in lost wages. If no deal is ratified by the end of round 12, the talks fail.\n\n## You\nYou are Dana, union negotiator (negotiator, id union_rep).\nYou are the union negotiator. Propose a wage increase in percent when it is your turn to propose, and accept or reject the other side's proposal when it is your turn to answer. Only the union's negotiator may call a strike or call it off, and only from round 4 on.\nAct only through your tools. Your turn ends when you take a final action or call end_turn.\n\nUPDATE:\nRound 1 of 12 \u00b7 union_moves\nNow: It is your turn.\n\nStatus: Round 1 of 12 \u00b7 strike: no \u00b7 strike rounds so far: 0 \u00b7 company losses: $0.00 \u00b7 workers' lost wages: $0.00\n\nWhose turn: This is round 1: the union negotiator proposes, then the company negotiator accepts or rejects.\n\nTOOLS:\n- propose_wage: Propose a wage increase in percent. The union negotiator proposes in odd rounds; the company negotiator proposes in even rounds. It replaces any proposal already on the table. {\"type\": \"object\", \"properties\": {\"increase\": {\"type\": \"number\", \"minimum\": 0, \"maximum\": 20, \"multipleOf\": 0.1, \"description\": \"Wage increase in percent In steps of 0.1 from 0.\"}}, \"additionalProperties\": false, \"required\": [\"increase\"]}\n- inspect: Details of one entity by its id (shown in [brackets] after names). Free: up to 8 reads (looks and inspects) per turn do not use a tool call. {\"type\": \"object\", \"properties\": {\"id\": {\"type\": \"string\", \"enum\": [\"union_rep\"]}}, \"required\": [\"id\"], \"additionalProperties\": false}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-aa4917b09a01bba1",
+   "content": "ended after 1 round \u2014 ended by ratified (seed 1)\nagreed: true\nwage_increase: 9.1\nstrike_rounds: 0\ncompany_losses: $0.00\nworker_lost_wages: $0.00\nratification_votes: {\"m1\": \"no\", \"m2\": \"yes\", \"m3\": \"yes\", \"m4\": \"no\", \"m5\": \"yes\"}\noutputs: {\"agreed\": true, \"wage_increase\": 9.1, \"strike_rounds\": 0, \"company_losses\": 0, \"worker_lost_wages\": 0, \"ratification_votes\": {\"m1\": \"no\", \"m2\": \"yes\", \"m3\": \"yes\", \"m4\": \"no\", \"m5\": \"yes\"}}"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-a267b5812b32eea4",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 3, \"participants\": {\"member\": \"idle\"}}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a267b5812b32eea4",
+   "content": "ended after 12 rounds \u2014 ended by talks_failed (seed 3)\nagreed: false\nwage_increase: null\nstrike_rounds: 6\ncompany_losses: $1,200,000.00\nworker_lost_wages: $300,000.00\nratification_votes: {\"m1\": null, \"m2\": null, \"m3\": null, \"m4\": null, \"m5\": null}\noutputs: {\"agreed\": false, \"wage_increase\": null, \"strike_rounds\": 6, \"company_losses\": 1200000, \"worker_lost_wages\": 300000, \"ratification_votes\": {\"m1\": null, \"m2\": null, \"m3\": null, \"m4\": null, \"m5\": null}}"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-b52769e381d535cc",
+     "function": {
+      "name": "run",
+      "arguments": "{\"participants\": {\"union_rep\": \"idle\", \"company_rep\": \"idle\"}, \"seed\": 5}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-8fd9775ce6bef21e",
+     "function": {
+      "name": "run",
+      "arguments": "{\"participants\": {\"company_rep\": \"idle\"}, \"seed\": 7}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b52769e381d535cc",
+   "content": "ended after 12 rounds \u2014 ended by talks_failed (seed 5)\nagreed: false\nwage_increase: null\nstrike_rounds: 0\ncompany_losses: $0.00\nworker_lost_wages: $0.00\nratification_votes: {\"m1\": null, \"m2\": null, \"m3\": null, \"m4\": null, \"m5\": null}\noutputs: {\"agreed\": false, \"wage_increase\": null, \"strike_rounds\": 0, \"company_losses\": 0, \"worker_lost_wages\": 0, \"ratification_votes\": {\"m1\": null, \"m2\": null, \"m3\": null, \"m4\": null, \"m5\": null}}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-8fd9775ce6bef21e",
+   "content": "ended after 12 rounds \u2014 ended by talks_failed (seed 7)\nagreed: false\nwage_increase: null\nstrike_rounds: 9\ncompany_losses: $1,800,000.00\nworker_lost_wages: $450,000.00\nratification_votes: {\"m1\": null, \"m2\": null, \"m3\": null, \"m4\": null, \"m5\": null}\noutputs: {\"agreed\": false, \"wage_increase\": null, \"strike_rounds\": 9, \"company_losses\": 1800000, \"worker_lost_wages\": 450000, \"ratification_votes\": {\"m1\": null, \"m2\": null, \"m3\": null, \"m4\": null, \"m5\": null}}"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-a8756fdd12de3fa2",
+     "function": {
+      "name": "preview",
+      "arguments": "{\"agent\": \"m1\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-a5cfe20cdfc00e37",
+     "function": {
+      "name": "preview",
+      "arguments": "{\"agent\": \"company_rep\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a8756fdd12de3fa2",
+   "content": "BRIEF:\n# Union contract negotiation\nA union and a company are negotiating a new contract. The only open issue is the wage increase, in percent. The union's negotiator and the company's negotiator are the two sides at the table; the union's 5 members must ratify any deal they reach.\n\n## Rules\nThe sides take turns. In odd rounds the union's negotiator proposes a wage increase and the company's negotiator accepts or rejects it; in even rounds the company's negotiator proposes and the union's negotiator accepts or rejects it. An accepted proposal becomes a tentative agreement, and the members then vote yes or no: a majority of yes ratifies it, which ends any strike and ends the negotiation, while a rejected tentative agreement means talks continue. From round 4 the union may call a strike and may call it off at any time; every round spent on strike costs the company $200,000.00 in lost revenue and the workers $50,000.00 in lost wages. If no deal is ratified by the end of round 12, the talks fail.\n\n## You\nYou are Ada (member, id m1).\nYou are a union member. When a tentative agreement is reached, vote yes or no on it; a majority of yes ratifies it and ends the negotiation.\nAct only through your tools. Your turn ends when you take a final action or call end_turn.\n\nUPDATE:\nRound 1 of 12 \u00b7 ratification\nNow: Everyone chooses at the same time.\n\nSince your last turn:\n- Dana, union negotiator proposes a 9.1% wage increase.\n- Ivo, company negotiator accepts the 9.1% proposal: a tentative agreement.\n\nStatus: Round 1 of 12 \u00b7 strike: no \u00b7 strike rounds so far: 0 \u00b7 company losses: $0.00 \u00b7 workers' lost wages: $0.00\n\nWhose turn: This is round 1: the union negotiator proposes, then the company negotiator accepts or rejects.\n\nTentative agreement: Tentative agreement at 9.1% \u2014 the members vote now, and a majority of yes ratifies it.\n\nTOOLS:\n- vote: Vote on the tentative agreement. A majority of yes among the members ratifies it; a rejected tentative agreement means talks continue. (Committed when everyone has chosen.) {\"type\": \"object\", \"properties\": {\"choice\": {\"enum\": [\"yes\", \"no\"], \"type\": \"string\", \"description\": \"Your vote on the tentative agreement\"}}, \"additionalProperties\": false, \"required\": [\"choice\"]}\n- inspect: Details of one entity by its id (shown in [brackets] after names). Free: up to 8 reads (looks and inspects) per turn do not use a tool call. {\"type\": \"object\", \"properties\": {\"id\": {\"type\": \"string\", \"enum\": [\"m1\"]}}, \"required\": [\"id\"], \"additionalProperties\": false}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a5cfe20cdfc00e37",
+   "content": "BRIEF:\n# Union contract negotiation\nA union and a company are negotiating a new contract. The only open issue is the wage increase, in percent. The union's negotiator and the company's negotiator are the two sides at the table; the union's 5 members must ratify any deal they reach.\n\n## Rules\nThe sides take turns. In odd rounds the union's negotiator proposes a wage increase and the company's negotiator accepts or rejects it; in even rounds the company's negotiator proposes and the union's negotiator accepts or rejects it. An accepted proposal becomes a tentative agreement, and the members then vote yes or no: a majority of yes ratifies it, which ends any strike and ends the negotiation, while a rejected tentative agreement means talks continue. From round 4 the union may call a strike and may call it off at any time; every round spent on strike costs the company $200,000.00 in lost revenue and the workers $50,000.00 in lost wages. If no deal is ratified by the end of round 12, the talks fail.\n\n## You\nYou are Ivo, company negotiator (negotiator, id company_rep).\nYou are the company negotiator. Propose a wage increase in percent when it is your turn to propose, and accept or reject the other side's proposal when it is your turn to answer. Only the union's negotiator may call a strike or call it off, and only from round 4 on.\nAct only through your tools. Your turn ends when you take a final action or call end_turn.\n\nUPDATE:\nRound 1 of 12 \u00b7 company_answers\nNow: It is your turn.\n\nSince your last turn:\n- Dana, union negotiator proposes a 9.1% wage increase.\n\nStatus: Round 1 of 12 \u00b7 strike: no \u00b7 strike rounds so far: 0 \u00b7 company losses: $0.00 \u00b7 workers' lost wages: $0.00\n\nWhose turn: This is round 1: the union negotiator proposes, then the company negotiator accepts or rejects.\n\nOn the table: The union side proposes a 9.1% wage increase; the other side must accept or reject it.\n\nTOOLS:\n- accept_proposal: Accept the proposal on the table. It becomes a tentative agreement, which the union's members then vote on. {\"type\": \"object\", \"properties\": {}, \"additionalProperties\": false}\n- reject_proposal: Reject the proposal on the table. Talks continue. {\"type\": \"object\", \"properties\": {}, \"additionalProperties\": false}\n- inspect: Details of one entity by its id (shown in [brackets] after names). Free: up to 8 reads (looks and inspects) per turn do not use a tool call. {\"type\": \"object\", \"properties\": {\"id\": {\"type\": \"string\", \"enum\": [\"company_rep\"]}}, \"required\": [\"id\"], \"additionalProperties\": false}"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-91529d55fb79b2db",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"authoring\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-abfcd4c805b34a67",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"inspect\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-91529d55fb79b2db",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-abfcd4c805b34a67",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-8396d7ff873cf8df",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 11}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-a319419f12af0592",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 17}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "chatcmpl-tool-a5853b023bebb424",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 23}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-8396d7ff873cf8df",
+   "content": "ended after 1 round \u2014 ended by ratified (seed 11)\nagreed: true\nwage_increase: 6.2\nstrike_rounds: 0\ncompany_losses: $0.00\nworker_lost_wages: $0.00\nratification_votes: {\"m1\": \"yes\", \"m2\": \"yes\", \"m3\": \"yes\", \"m4\": \"no\", \"m5\": \"no\"}\noutputs: {\"agreed\": true, \"wage_increase\": 6.2, \"strike_rounds\": 0, \"company_losses\": 0, \"worker_lost_wages\": 0, \"ratification_votes\": {\"m1\": \"yes\", \"m2\": \"yes\", \"m3\": \"yes\", \"m4\": \"no\", \"m5\": \"no\"}}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a319419f12af0592",
+   "content": "ended after 2 rounds \u2014 ended by ratified (seed 17)\nagreed: true\nwage_increase: 9.5\nstrike_rounds: 0\ncompany_losses: $0.00\nworker_lost_wages: $0.00\nratification_votes: {\"m1\": \"yes\", \"m2\": \"yes\", \"m3\": \"no\", \"m4\": \"yes\", \"m5\": \"yes\"}\noutputs: {\"agreed\": true, \"wage_increase\": 9.5, \"strike_rounds\": 0, \"company_losses\": 0, \"worker_lost_wages\": 0, \"ratification_votes\": {\"m1\": \"yes\", \"m2\": \"yes\", \"m3\": \"no\", \"m4\": \"yes\", \"m5\": \"yes\"}}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a5853b023bebb424",
+   "content": "ended after 2 rounds \u2014 ended by ratified (seed 23)\nagreed: true\nwage_increase: 4.4\nstrike_rounds: 0\ncompany_losses: $0.00\nworker_lost_wages: $0.00\nratification_votes: {\"m1\": \"no\", \"m2\": \"yes\", \"m3\": \"yes\", \"m4\": \"yes\", \"m5\": \"no\"}\noutputs: {\"agreed\": true, \"wage_increase\": 4.4, \"strike_rounds\": 0, \"company_losses\": 0, \"worker_lost_wages\": 0, \"ratification_votes\": {\"m1\": \"no\", \"m2\": \"yes\", \"m3\": \"yes\", \"m4\": \"yes\", \"m5\": \"no\"}}"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-872b8e9d49beffa2",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 31}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-a1b2a6ee48d0be7f",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 37}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "chatcmpl-tool-b0b959bff2712d18",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 41}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "chatcmpl-tool-8c1ee26a890b1a1a",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 43}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-872b8e9d49beffa2",
+   "content": "ended after 2 rounds \u2014 ended by ratified (seed 31)\nagreed: true\nwage_increase: 19.5\nstrike_rounds: 0\ncompany_losses: $0.00\nworker_lost_wages: $0.00\nratification_votes: {\"m1\": \"no\", \"m2\": \"yes\", \"m3\": \"yes\", \"m4\": \"yes\", \"m5\": \"no\"}\noutputs: {\"agreed\": true, \"wage_increase\": 19.5, \"strike_rounds\": 0, \"company_losses\": 0, \"worker_lost_wages\": 0, \"ratification_votes\": {\"m1\": \"no\", \"m2\": \"yes\", \"m3\": \"yes\", \"m4\": \"yes\", \"m5\": \"no\"}}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a1b2a6ee48d0be7f",
+   "content": "ended after 10 rounds \u2014 ended by ratified (seed 37)\nagreed: true\nwage_increase: 6.7\nstrike_rounds: 5\ncompany_losses: $1,000,000.00\nworker_lost_wages: $250,000.00\nratification_votes: {\"m1\": \"yes\", \"m2\": \"no\", \"m3\": \"yes\", \"m4\": \"yes\", \"m5\": \"no\"}\noutputs: {\"agreed\": true, \"wage_increase\": 6.7, \"strike_rounds\": 5, \"company_losses\": 1000000, \"worker_lost_wages\": 250000, \"ratification_votes\": {\"m1\": \"yes\", \"m2\": \"no\", \"m3\": \"yes\", \"m4\": \"yes\", \"m5\": \"no\"}}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b0b959bff2712d18",
+   "content": "ended after 6 rounds \u2014 ended by ratified (seed 41)\nagreed: true\nwage_increase: 8.5\nstrike_rounds: 2\ncompany_losses: $400,000.00\nworker_lost_wages: $100,000.00\nratification_votes: {\"m1\": \"no\", \"m2\": \"yes\", \"m3\": \"yes\", \"m4\": \"yes\", \"m5\": \"no\"}\noutputs: {\"agreed\": true, \"wage_increase\": 8.5, \"strike_rounds\": 2, \"company_losses\": 400000, \"worker_lost_wages\": 100000, \"ratification_votes\": {\"m1\": \"no\", \"m2\": \"yes\", \"m3\": \"yes\", \"m4\": \"yes\", \"m5\": \"no\"}}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-8c1ee26a890b1a1a",
+   "content": "ended after 9 rounds \u2014 ended by ratified (seed 43)\nagreed: true\nwage_increase: 6.0\nstrike_rounds: 5\ncompany_losses: $1,000,000.00\nworker_lost_wages: $250,000.00\nratification_votes: {\"m1\": \"yes\", \"m2\": \"yes\", \"m3\": \"yes\", \"m4\": \"no\", \"m5\": \"no\"}\noutputs: {\"agreed\": true, \"wage_increase\": 6.0, \"strike_rounds\": 5, \"company_losses\": 1000000, \"worker_lost_wages\": 250000, \"ratification_votes\": {\"m1\": \"yes\", \"m2\": \"yes\", \"m3\": \"yes\", \"m4\": \"no\", \"m5\": \"no\"}}"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-912f27a6d8701d1a",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"policies\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-912f27a6d8701d1a",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-915f5281da6d1edb",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-915f5281da6d1edb",
+   "content": "Saved (237 lines)."
+  }
+ ],
+ "writes": [
+  {
+   "name": "Union contract negotiation",
+   "clock": {
+    "rounds": "$inputs.horizon",
+    "unit": "round"
+   },
+   "brief": {
+    "situation": "A union and a company are negotiating a new contract. The only open issue is the wage increase, in percent. The union's negotiator and the company's negotiator are the two sides at the table; the union's {$count(member)} members must ratify any deal they reach.",
+    "rules": "The sides take turns. In odd rounds the union's negotiator proposes a wage increase and the company's negotiator accepts or rejects it; in even rounds the company's negotiator proposes and the union's negotiator accepts or rejects it. An accepted proposal becomes a tentative agreement, and the members then vote yes or no: a majority of yes ratifies it, which ends any strike and ends the negotiation, while a rejected tentative agreement means talks continue. From round {$inputs.strike_from_round} the union may call a strike and may call it off at any time; every round spent on strike costs the company {$inputs.company_cost_per_round|money} in lost revenue and the workers {$inputs.worker_cost_per_round|money} in lost wages. If no deal is ratified by the end of round {$inputs.horizon}, the talks fail.",
+    "roles": {
+     "negotiator": "You are the {$actor.side} negotiator. Propose a wage increase in percent when it is your turn to propose, and accept or reject the other side's proposal when it is your turn to answer. Only the union's negotiator may call a strike or call it off.",
+     "member": "You are a union member. When a tentative agreement is reached, vote yes or no on it; a majority of yes ratifies it and ends the negotiation."
+    }
+   },
+   "inputs": {
+    "horizon": {
+     "type": "int",
+     "default": 12,
+     "min": 1,
+     "display": "number",
+     "label": "Rounds of talks",
+     "description": "The talks fail if no deal is ratified by the end of this round."
+    },
+    "wage_min": {
+     "type": "number",
+     "default": 0,
+     "min": 0,
+     "display": "number",
+     "label": "Lowest wage increase (%)",
+     "description": "Lower bound of any proposed wage increase, in percent."
+    },
+    "wage_max": {
+     "type": "number",
+     "default": 20,
+     "min": 0,
+     "display": "number",
+     "label": "Highest wage increase (%)",
+     "description": "Upper bound of any proposed wage increase, in percent."
+    },
+    "strike_from_round": {
+     "type": "int",
+     "default": 4,
+     "min": 1,
+     "display": "number",
+     "label": "First round the union may strike"
+    },
+    "company_cost_per_round": {
+     "type": "number",
+     "default": 200000,
+     "min": 0,
+     "display": "number",
+     "label": "Company lost revenue per strike round ($)"
+    },
+    "worker_cost_per_round": {
+     "type": "number",
+     "default": 50000,
+     "min": 0,
+     "display": "number",
+     "label": "Workers' lost wages per strike round ($)"
+    },
+    "members": {
+     "type": "table",
+     "display": "table",
+     "label": "Union members",
+     "fields": {
+      "id": {
+       "type": "text",
+       "required": true,
+       "description": "Stable id of the member, used in the ratification vote report."
+      },
+      "name": {
+       "type": "text",
+       "required": true
+      }
+     },
+     "default": [
+      {
+       "id": "m1",
+       "name": "Ada"
+      },
+      {
+       "id": "m2",
+       "name": "Bo"
+      },
+      {
+       "id": "m3",
+       "name": "Cy"
+      },
+      {
+       "id": "m4",
+       "name": "Dee"
+      },
+      {
+       "id": "m5",
+       "name": "Eli"
+      }
+     ]
+    }
+   },
+   "world": {
+    "proposal_open": false,
+    "proposal": 0,
+    "proposal_by": "none",
+    "tentative": false,
+    "tentative_wage": 0,
+    "ratified": false,
+    "agreed_wage": 0,
+    "ratified_votes": {},
+    "on_strike": false,
+    "struck_this_round": false,
+    "strike_rounds": 0,
+    "company_losses": 0,
+    "worker_lost_wages": 0,
+    "talks_failed": false
+   },
+   "types": {
+    "negotiator": {
+     "agent": true,
+     "props": {
+      "side": {
+       "type": "text",
+       "default": "union",
+       "description": "union or company"
+      }
+     }
+    },
+    "member": {
+     "agent": true,
+     "props": {
+      "vote": {
+       "type": "text",
+       "default": "",
+       "description": "This member's vote on the current tentative agreement."
+      },
+      "voted": {
+       "type": "bool",
+       "default": false
+      }
+     }
+    }
+   },
+   "entities": {
+    "union_rep": {
+     "type": "negotiator",
+     "name": "Dana, union negotiator",
+     "props": {
+      "side": "union"
+     }
+    },
+    "company_rep": {
+     "type": "negotiator",
+     "name": "Ivo, company negotiator",
+     "props": {
+      "side": "company"
+     }
+    }
+   },
+   "population": [
+    {
+     "type": "member",
+     "from": "$inputs.members",
+     "id": "{$row.id}",
+     "name": "{$row.name}"
+    }
+   ],
+   "stages": [
+    {
+     "name": "union_moves",
+     "when": "$round % 2 == 1",
+     "who": "$it.type == negotiator and $it.side == union",
+     "actions": [
+      "propose_wage"
+     ],
+     "max_actions": 1,
+     "must_act": true
+    },
+    {
+     "name": "company_answers",
+     "when": "$round % 2 == 1 and $world.proposal_open",
+     "who": "$it.type == negotiator and $it.side == company",
+     "actions": [
+      "accept_proposal",
+      "reject_proposal"
+     ],
+     "max_actions": 1,
+     "must_act": true
+    },
+    {
+     "name": "company_moves",
+     "when": "$round % 2 == 0",
+     "who": "$it.type == negotiator and $it.side == company",
+     "actions": [
+      "propose_wage"
+     ],
+     "max_actions": 1,
+     "must_act": true
+    },
+    {
+     "name": "union_answers",
+     "when": "$round % 2 == 0 and $world.proposal_open",
+     "who": "$it.type == negotiator and $it.side == union",
+     "actions": [
+      "accept_proposal",
+      "reject_proposal"
+     ],
+     "max_actions": 1,
+     "must_act": true
+    },
+    {
+     "name": "union_strike",
+     "when": "$round >= $inputs.strike_from_round and $world.tentative == false and $world.ratified == false",
+     "who": "$it.type == negotiator and $it.side == union",
+     "actions": [
+      "call_strike",
+      "call_off_strike"
+     ],
+     "max_actions": 1
+    },
+    {
+     "name": "ratification",
+     "when": "$world.tentative and $world.ratified == false",
+     "who": "$it.type == member",
+     "actions": [
+      "vote"
+     ],
+     "turns": "simultaneous",
+     "max_actions": 1,
+     "must_act": true
+    }
+   ],
+   "events": [
+    {
+     "name": "strike_clock",
+     "phase": "start",
+     "do": "$world.struck_this_round = $world.on_strike"
+    },
+    {
+     "name": "tally",
+     "phase": "end",
+     "when": "$world.tentative and $world.ratified == false",
+     "do": [
+      "$yes = $count(member, $it.vote == yes)",
+      {
+       "if": "$yes * 2 > $count(member)",
+       "then": [
+        "$world.ratified = true",
+        "$world.agreed_wage = $world.tentative_wage",
+        "$world.ratified_votes = $dict(member, $it.id, $it.vote)",
+        "$world.on_strike = false"
+       ],
+       "else": []
+      },
+      "$world.tentative = false",
+      "$world.proposal_open = false",
+      {
+       "each": "member",
+       "do": [
+        "$it.vote = ''",
+        "$it.voted = false"
+       ]
+      }
+     ],
+     "say": "The members vote on the tentative agreement."
+    },
+    {
+     "name": "strike_costs",
+     "phase": "end",
+     "when": "$world.struck_this_round",
+     "do": [
+      "$world.strike_rounds += 1",
+      "$world.company_losses += $inputs.company_cost_per_round",
+      "$world.worker_lost_wages += $inputs.worker_cost_per_round",
+      "$world.struck_this_round = false"
+     ]
+    },
+    {
+     "name": "deadline",
+     "phase": "end",
+     "when": "$world.ratified == false and $round >= $inputs.horizon",
+     "do": "$world.talks_failed = true"
+    }
+   ],
+   "actions": {
+    "propose_wage": {
+     "by": "negotiator",
+     "description": "Propose a wage increase in percent. The union negotiator proposes in odd rounds; the company negotiator proposes in even rounds. It replaces any proposal already on the table.",
+     "params": {
+      "increase": {
+       "type": "number",
+       "min": "$inputs.wage_min",
+       "max": "$inputs.wage_max",
+       "step": 0.1,
+       "description": "Wage increase in percent"
+      }
+     },
+     "when": [
+      {
+       "expr": "$world.ratified == false and $world.talks_failed == false",
+       "why": "The negotiation is over."
+      },
+      {
+       "expr": "($actor.side == union and $round % 2 == 1) or ($actor.side == company and $round % 2 == 0)",
+       "why": "It is not your turn to propose: the union proposes in odd rounds and the company in even rounds."
+      }
+     ],
+     "do": [
+      "$world.proposal = $params.increase",
+      "$world.proposal_by = $actor.side",
+      "$world.proposal_open = true",
+      "$world.tentative = false"
+     ],
+     "outcome": "You propose a {$params.increase}% wage increase. The other side must accept or reject it.",
+     "announce": "{$actor.name} proposes a {$params.increase}% wage increase."
+    },
+    "accept_proposal": {
+     "by": "negotiator",
+     "description": "Accept the proposal on the table. It becomes a tentative agreement, which the union's members then vote on.",
+     "when": [
+      {
+       "expr": "$world.ratified == false",
+       "why": "The negotiation is over."
+      },
+      {
+       "expr": "$world.proposal_open",
+       "why": "There is no proposal on the table to accept."
+      },
+      {
+       "expr": "$world.proposal_by != $actor.side",
+       "why": "You cannot accept your own proposal."
+      }
+     ],
+     "do": [
+      "$world.tentative = true",
+      "$world.tentative_wage = $world.proposal",
+      "$world.proposal_open = false"
+     ],
+     "outcome": "You accept: a tentative agreement at {$world.proposal}%, pending the members' vote.",
+     "announce": "{$actor.name} accepts the {$world.proposal}% proposal: a tentative agreement."
+    },
+    "reject_proposal": {
+     "by": "negotiator",
+     "description": "Reject the proposal on the table. Talks continue.",
+     "when": [
+      {
+       "expr": "$world.ratified == false",
+       "why": "The negotiation is over."
+      },
+      {
+       "expr": "$world.proposal_open",
+       "why": "There is no proposal on the table to reject."
+      },
+      {
+       "expr": "$world.proposal_by != $actor.side",
+       "why": "You cannot reject your own proposal."
+      }
+     ],
+     "do": [
+      "$world.proposal_open = false"
+     ],
+     "outcome": "You reject the {$world.proposal}% proposal. Talks continue.",
+     "announce": "{$actor.name} rejects the {$world.proposal}% proposal; talks continue."
+    },
+    "call_strike": {
+     "by": "negotiator",
+     "description": "Call a strike (union negotiator only, from round {$inputs.strike_from_round} on).",
+     "when": [
+      {
+       "expr": "$actor.side == union",
+       "why": "Only the union's negotiator may call a strike."
+      },
+      {
+       "expr": "$round >= $inputs.strike_from_round",
+       "why": "The union may not strike before round {$inputs.strike_from_round}."
+      },
+      {
+       "expr": "$world.on_strike == false",
+       "why": "The union is already on strike."
+      },
+      {
+       "expr": "$world.tentative == false and $world.ratified == false",
+       "why": "The negotiation is over or a tentative agreement is already waiting on the members' vote."
+      }
+     ],
+     "do": [
+      "$world.on_strike = true",
+      "$world.struck_this_round = true"
+     ],
+     "outcome": "You call a strike: no work until a deal is ratified.",
+     "announce": "{$actor.name} calls a strike: no work until a deal is ratified."
+    },
+    "call_off_strike": {
+     "by": "negotiator",
+     "description": "Call off the strike (union negotiator only).",
+     "when": [
+      {
+       "expr": "$actor.side == union",
+       "why": "Only the union's negotiator may call off a strike."
+      },
+      {
+       "expr": "$world.on_strike",
+       "why": "The union is not on strike."
+      },
+      {
+       "expr": "$world.tentative == false and $world.ratified == false",
+       "why": "The negotiation is over or a tentative agreement is already waiting on the members' vote."
+      }
+     ],
+     "do": [
+      "$world.on_strike = false"
+     ],
+     "outcome": "You call off the strike; the workers return while talks continue.",
+     "announce": "{$actor.name} calls off the strike."
+    },
+    "vote": {
+     "by": "member",
+     "description": "Vote on the tentative agreement. A majority of yes among the members ratifies it; a rejected tentative agreement means talks continue.",
+     "params": {
+      "choice": {
+       "type": "enum",
+       "values": [
+        "yes",
+        "no"
+       ],
+       "description": "Your vote on the tentative agreement"
+      }
+     },
+     "when": [
+      {
+       "expr": "$world.tentative and $world.ratified == false",
+       "why": "There is no tentative agreement to vote on."
+      },
+      {
+       "expr": "$actor.voted == false",
+       "why": "You have already voted on this tentative agreement."
+      }
+     ],
+     "do": [
+      "$actor.vote = $params.choice",
+      "$actor.voted = true"
+     ],
+     "outcome": "You voted {$params.choice} on the {$world.tentative_wage}% tentative agreement.",
+     "private": true
+    }
+   },
+   "views": {
+    "status": {
+     "title": "Status",
+     "show": "Round {$round} of {$inputs.horizon} \u00b7 strike: {$'yes' if $world.on_strike else 'no'} \u00b7 strike rounds so far: {$world.strike_rounds} \u00b7 company losses: {$world.company_losses|money} \u00b7 workers' lost wages: {$world.worker_lost_wages|money}"
+    },
+    "turn": {
+     "title": "Whose turn",
+     "show": "This is round {$round}: {$'the union negotiator proposes, then the company negotiator accepts or rejects.' if $round % 2 == 1 else 'the company negotiator proposes, then the union negotiator accepts or rejects.'}"
+    },
+    "on_the_table": {
+     "when": "$world.proposal_open",
+     "title": "On the table",
+     "show": "The {$world.proposal_by} side proposes a {$world.proposal}% wage increase; the other side must accept or reject it."
+    },
+    "tentative": {
+     "when": "$world.tentative",
+     "title": "Tentative agreement",
+     "show": "Tentative agreement at {$world.tentative_wage}% \u2014 the members vote now, and a majority of yes ratifies it."
+    },
+    "strike": {
+     "when": "$world.on_strike",
+     "title": "Strike",
+     "show": "The union is on strike: each round on strike costs the company {$inputs.company_cost_per_round|money} and the workers {$inputs.worker_cost_per_round|money}."
+    },
+    "members": {
+     "for": "spectator",
+     "of": "member",
+     "title": "Members",
+     "show": "{id}: {name} \u2014 vote {vote}"
+    }
+   },
+   "metrics": {
+    "strike_rounds": "$world.strike_rounds",
+    "company_losses": "$world.company_losses",
+    "worker_lost_wages": "$world.worker_lost_wages",
+    "on_strike": "$world.on_strike",
+    "ratified": "$world.ratified"
+   },
+   "outputs": {
+    "agreed": {
+     "expr": "$world.ratified",
+     "type": "bool",
+     "description": "True if a deal was ratified."
+    },
+    "wage_increase": {
+     "expr": "$world.agreed_wage if $world.ratified else null",
+     "type": "number",
+     "description": "The ratified wage increase in percent, or null."
+    },
+    "strike_rounds": {
+     "expr": "$world.strike_rounds",
+     "type": "int",
+     "description": "Rounds spent on strike."
+    },
+    "company_losses": {
+     "expr": "$world.company_losses",
+     "type": "number",
+     "format": "money",
+     "description": "The company's total lost revenue from strikes."
+    },
+    "worker_lost_wages": {
+     "expr": "$world.worker_lost_wages",
+     "type": "number",
+     "format": "money",
+     "description": "The workers' total lost wages from strikes."
+    },
+    "ratification_votes": {
+     "expr": "$world.ratified_votes if $world.ratified else $dict(member, $it.id, null)",
+     "type": "map",
+     "description": "Each union member's id mapped to their vote on the ratified deal, null for everyone if there was none."
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$world.company_losses == $world.strike_rounds * $inputs.company_cost_per_round",
+     "why": "The company's losses must be one strike round's cost for every round spent on strike."
+    },
+    {
+     "expr": "$world.worker_lost_wages == $world.strike_rounds * $inputs.worker_cost_per_round",
+     "why": "The workers' lost wages must be one strike round's cost for every round spent on strike."
+    },
+    {
+     "expr": "$world.ratified == false or $world.on_strike == false",
+     "why": "A ratified deal ends any strike."
+    },
+    {
+     "expr": "$world.strike_rounds <= $inputs.horizon",
+     "why": "There cannot be more strike rounds than rounds played."
+    }
+   ],
+   "end": [
+    {
+     "name": "ratified",
+     "when": "$world.ratified",
+     "say": "The members ratified a {$world.agreed_wage}% wage increase; the negotiation is over."
+    },
+    {
+     "name": "talks_failed",
+     "when": "$world.talks_failed",
+     "say": "Round {$inputs.horizon} passed with no ratified deal; the talks fail."
+    }
+   ]
+  },
+  {
+   "name": "Union contract negotiation",
+   "clock": {
+    "rounds": "$inputs.horizon",
+    "unit": "round"
+   },
+   "brief": {
+    "situation": "A union and a company are negotiating a new contract. The only open issue is the wage increase, in percent. The union's negotiator and the company's negotiator are the two sides at the table; the union's {$count(member)} members must ratify any deal they reach.",
+    "rules": "The sides take turns. In odd rounds the union's negotiator proposes a wage increase and the company's negotiator accepts or rejects it; in even rounds the company's negotiator proposes and the union's negotiator accepts or rejects it. An accepted proposal becomes a tentative agreement, and the members then vote yes or no: a majority of yes ratifies it, which ends any strike and ends the negotiation, while a rejected tentative agreement means talks continue. From round {$inputs.strike_from_round} the union may call a strike and may call it off at any time; every round spent on strike costs the company {$inputs.company_cost_per_round|money} in lost revenue and the workers {$inputs.worker_cost_per_round|money} in lost wages. If no deal is ratified by the end of round {$inputs.horizon}, the talks fail.",
+    "roles": {
+     "negotiator": "You are the {$actor.side} negotiator. Propose a wage increase in percent when it is your turn to propose, and accept or reject the other side's proposal when it is your turn to answer. Only the union's negotiator may call a strike or call it off, and only from round {$inputs.strike_from_round} on.",
+     "member": "You are a union member. When a tentative agreement is reached, vote yes or no on it; a majority of yes ratifies it and ends the negotiation."
+    }
+   },
+   "inputs": {
+    "horizon": {
+     "type": "int",
+     "default": 12,
+     "min": 1,
+     "display": "number",
+     "label": "Rounds of talks",
+     "description": "The talks fail if no deal is ratified by the end of this round."
+    },
+    "wage_min": {
+     "type": "number",
+     "default": 0,
+     "min": 0,
+     "display": "number",
+     "label": "Lowest wage increase (%)",
+     "description": "Lower bound of any proposed wage increase, in percent."
+    },
+    "wage_max": {
+     "type": "number",
+     "default": 20,
+     "min": 0,
+     "display": "number",
+     "label": "Highest wage increase (%)",
+     "description": "Upper bound of any proposed wage increase, in percent."
+    },
+    "strike_from_round": {
+     "type": "int",
+     "default": 4,
+     "min": 1,
+     "display": "number",
+     "label": "First round the union may strike"
+    },
+    "company_cost_per_round": {
+     "type": "number",
+     "default": 200000,
+     "min": 0,
+     "display": "number",
+     "label": "Company lost revenue per strike round ($)"
+    },
+    "worker_cost_per_round": {
+     "type": "number",
+     "default": 50000,
+     "min": 0,
+     "display": "number",
+     "label": "Workers' lost wages per strike round ($)"
+    },
+    "members": {
+     "type": "table",
+     "display": "table",
+     "label": "Union members",
+     "fields": {
+      "id": {
+       "type": "text",
+       "required": true,
+       "description": "Stable id of the member, used in the ratification vote report."
+      },
+      "name": {
+       "type": "text",
+       "required": true
+      }
+     },
+     "default": [
+      {
+       "id": "m1",
+       "name": "Ada"
+      },
+      {
+       "id": "m2",
+       "name": "Bo"
+      },
+      {
+       "id": "m3",
+       "name": "Cy"
+      },
+      {
+       "id": "m4",
+       "name": "Dee"
+      },
+      {
+       "id": "m5",
+       "name": "Eli"
+      }
+     ]
+    }
+   },
+   "world": {
+    "proposal_open": false,
+    "proposal": 0,
+    "proposal_by": "none",
+    "tentative": false,
+    "tentative_wage": 0,
+    "ratified": false,
+    "agreed_wage": 0,
+    "ratified_votes": {},
+    "on_strike": false,
+    "struck_this_round": false,
+    "strike_rounds": 0,
+    "company_losses": 0,
+    "worker_lost_wages": 0,
+    "talks_failed": false
+   },
+   "types": {
+    "negotiator": {
+     "agent": true,
+     "props": {
+      "side": {
+       "type": "text",
+       "default": "union",
+       "description": "union or company"
+      }
+     }
+    },
+    "member": {
+     "agent": true,
+     "props": {
+      "vote": {
+       "type": "text",
+       "default": "",
+       "description": "This member's vote on the current tentative agreement."
+      },
+      "voted": {
+       "type": "bool",
+       "default": false
+      }
+     }
+    }
+   },
+   "entities": {
+    "union_rep": {
+     "type": "negotiator",
+     "name": "Dana, union negotiator",
+     "props": {
+      "side": "union"
+     }
+    },
+    "company_rep": {
+     "type": "negotiator",
+     "name": "Ivo, company negotiator",
+     "props": {
+      "side": "company"
+     }
+    }
+   },
+   "population": [
+    {
+     "type": "member",
+     "from": "$inputs.members",
+     "id": "{$row.id}",
+     "name": "{$row.name}"
+    }
+   ],
+   "stages": [
+    {
+     "name": "union_moves",
+     "when": "$round % 2 == 1",
+     "who": "$it.type == negotiator and $it.side == union",
+     "actions": [
+      "propose_wage"
+     ],
+     "max_actions": 1,
+     "must_act": true
+    },
+    {
+     "name": "company_answers",
+     "when": "$round % 2 == 1 and $world.proposal_open",
+     "who": "$it.type == negotiator and $it.side == company",
+     "actions": [
+      "accept_proposal",
+      "reject_proposal"
+     ],
+     "max_actions": 1,
+     "must_act": true
+    },
+    {
+     "name": "company_moves",
+     "when": "$round % 2 == 0",
+     "who": "$it.type == negotiator and $it.side == company",
+     "actions": [
+      "propose_wage"
+     ],
+     "max_actions": 1,
+     "must_act": true
+    },
+    {
+     "name": "union_answers",
+     "when": "$round % 2 == 0 and $world.proposal_open",
+     "who": "$it.type == negotiator and $it.side == union",
+     "actions": [
+      "accept_proposal",
+      "reject_proposal"
+     ],
+     "max_actions": 1,
+     "must_act": true
+    },
+    {
+     "name": "union_strike",
+     "when": "$round >= $inputs.strike_from_round and $world.tentative == false and $world.ratified == false",
+     "who": "$it.type == negotiator and $it.side == union",
+     "actions": [
+      "call_strike",
+      "call_off_strike"
+     ],
+     "max_actions": 1
+    },
+    {
+     "name": "ratification",
+     "when": "$world.tentative and $world.ratified == false",
+     "who": "$it.type == member",
+     "actions": [
+      "vote"
+     ],
+     "turns": "simultaneous",
+     "max_actions": 1,
+     "must_act": true
+    }
+   ],
+   "events": [
+    {
+     "name": "strike_clock",
+     "phase": "start",
+     "do": "$world.struck_this_round = $world.on_strike"
+    },
+    {
+     "name": "tally",
+     "phase": "end",
+     "when": "$world.tentative and $world.ratified == false",
+     "do": [
+      "$yes = $count(member, $it.vote == yes)",
+      {
+       "if": "$yes * 2 > $count(member)",
+       "then": [
+        "$world.ratified = true",
+        "$world.agreed_wage = $world.tentative_wage",
+        "$world.ratified_votes = $dict(member, $it.id, $it.vote)",
+        "$world.on_strike = false"
+       ],
+       "else": []
+      },
+      "$world.tentative = false",
+      "$world.proposal_open = false",
+      {
+       "each": "member",
+       "do": [
+        "$it.vote = ''",
+        "$it.voted = false"
+       ]
+      }
+     ],
+     "say": "The members vote on the tentative agreement."
+    },
+    {
+     "name": "strike_costs",
+     "phase": "end",
+     "when": "$world.struck_this_round",
+     "do": [
+      "$world.strike_rounds += 1",
+      "$world.company_losses += $inputs.company_cost_per_round",
+      "$world.worker_lost_wages += $inputs.worker_cost_per_round",
+      "$world.struck_this_round = false"
+     ]
+    },
+    {
+     "name": "deadline",
+     "phase": "end",
+     "when": "$world.ratified == false and $round >= $inputs.horizon",
+     "do": "$world.talks_failed = true"
+    }
+   ],
+   "actions": {
+    "propose_wage": {
+     "by": "negotiator",
+     "description": "Propose a wage increase in percent. The union negotiator proposes in odd rounds; the company negotiator proposes in even rounds. It replaces any proposal already on the table.",
+     "params": {
+      "increase": {
+       "type": "number",
+       "min": "$inputs.wage_min",
+       "max": "$inputs.wage_max",
+       "step": 0.1,
+       "description": "Wage increase in percent"
+      }
+     },
+     "when": [
+      {
+       "expr": "$world.ratified == false and $world.talks_failed == false",
+       "why": "The negotiation is over."
+      },
+      {
+       "expr": "($actor.side == union and $round % 2 == 1) or ($actor.side == company and $round % 2 == 0)",
+       "why": "It is not your turn to propose: the union proposes in odd rounds and the company in even rounds."
+      }
+     ],
+     "do": [
+      "$world.proposal = $params.increase",
+      "$world.proposal_by = $actor.side",
+      "$world.proposal_open = true",
+      "$world.tentative = false"
+     ],
+     "outcome": "You propose a {$params.increase}% wage increase. The other side must accept or reject it.",
+     "announce": "{$actor.name} proposes a {$params.increase}% wage increase."
+    },
+    "accept_proposal": {
+     "by": "negotiator",
+     "description": "Accept the proposal on the table. It becomes a tentative agreement, which the union's members then vote on.",
+     "when": [
+      {
+       "expr": "$world.ratified == false",
+       "why": "The negotiation is over."
+      },
+      {
+       "expr": "$world.proposal_open",
+       "why": "There is no proposal on the table to accept."
+      },
+      {
+       "expr": "$world.proposal_by != $actor.side",
+       "why": "You cannot accept your own proposal."
+      }
+     ],
+     "do": [
+      "$world.tentative = true",
+      "$world.tentative_wage = $world.proposal",
+      "$world.proposal_open = false"
+     ],
+     "outcome": "You accept: a tentative agreement at {$world.proposal}%, pending the members' vote.",
+     "announce": "{$actor.name} accepts the {$world.proposal}% proposal: a tentative agreement."
+    },
+    "reject_proposal": {
+     "by": "negotiator",
+     "description": "Reject the proposal on the table. Talks continue.",
+     "when": [
+      {
+       "expr": "$world.ratified == false",
+       "why": "The negotiation is over."
+      },
+      {
+       "expr": "$world.proposal_open",
+       "why": "There is no proposal on the table to reject."
+      },
+      {
+       "expr": "$world.proposal_by != $actor.side",
+       "why": "You cannot reject your own proposal."
+      }
+     ],
+     "do": [
+      "$world.proposal_open = false"
+     ],
+     "outcome": "You reject the {$world.proposal}% proposal. Talks continue.",
+     "announce": "{$actor.name} rejects the {$world.proposal}% proposal; talks continue."
+    },
+    "call_strike": {
+     "by": "negotiator",
+     "description": "Call a strike (union negotiator only, from the round set in the brief on).",
+     "when": [
+      {
+       "expr": "$actor.side == union",
+       "why": "Only the union's negotiator may call a strike."
+      },
+      {
+       "expr": "$round >= $inputs.strike_from_round",
+       "why": "The union may not strike before round {$inputs.strike_from_round}."
+      },
+      {
+       "expr": "$world.on_strike == false",
+       "why": "The union is already on strike."
+      },
+      {
+       "expr": "$world.tentative == false and $world.ratified == false",
+       "why": "The negotiation is over or a tentative agreement is already waiting on the members' vote."
+      }
+     ],
+     "do": [
+      "$world.on_strike = true",
+      "$world.struck_this_round = true"
+     ],
+     "outcome": "You call a strike: no work until a deal is ratified.",
+     "announce": "{$actor.name} calls a strike: no work until a deal is ratified."
+    },
+    "call_off_strike": {
+     "by": "negotiator",
+     "description": "Call off the strike (union negotiator only).",
+     "when": [
+      {
+       "expr": "$actor.side == union",
+       "why": "Only the union's negotiator may call off a strike."
+      },
+      {
+       "expr": "$world.on_strike",
+       "why": "The union is not on strike."
+      },
+      {
+       "expr": "$world.tentative == false and $world.ratified == false",
+       "why": "The negotiation is over or a tentative agreement is already waiting on the members' vote."
+      }
+     ],
+     "do": [
+      "$world.on_strike = false"
+     ],
+     "outcome": "You call off the strike; the workers return while talks continue.",
+     "announce": "{$actor.name} calls off the strike."
+    },
+    "vote": {
+     "by": "member",
+     "description": "Vote on the tentative agreement. A majority of yes among the members ratifies it; a rejected tentative agreement means talks continue.",
+     "params": {
+      "choice": {
+       "type": "enum",
+       "values": [
+        "yes",
+        "no"
+       ],
+       "description": "Your vote on the tentative agreement"
+      }
+     },
+     "when": [
+      {
+       "expr": "$world.tentative and $world.ratified == false",
+       "why": "There is no tentative agreement to vote on."
+      },
+      {
+       "expr": "$actor.voted == false",
+       "why": "You have already voted on this tentative agreement."
+      }
+     ],
+     "do": [
+      "$actor.vote = $params.choice",
+      "$actor.voted = true"
+     ],
+     "outcome": "You voted {$params.choice} on the {$world.tentative_wage}% tentative agreement.",
+     "private": true
+    }
+   },
+   "views": {
+    "status": {
+     "title": "Status",
+     "show": "Round {$round} of {$inputs.horizon} \u00b7 strike: {$'yes' if $world.on_strike else 'no'} \u00b7 strike rounds so far: {$world.strike_rounds} \u00b7 company losses: {$world.company_losses|money} \u00b7 workers' lost wages: {$world.worker_lost_wages|money}"
+    },
+    "turn": {
+     "title": "Whose turn",
+     "show": "This is round {$round}: {$'the union negotiator proposes, then the company negotiator accepts or rejects.' if $round % 2 == 1 else 'the company negotiator proposes, then the union negotiator accepts or rejects.'}"
+    },
+    "on_the_table": {
+     "when": "$world.proposal_open",
+     "title": "On the table",
+     "show": "The {$world.proposal_by} side proposes a {$world.proposal}% wage increase; the other side must accept or reject it."
+    },
+    "tentative": {
+     "when": "$world.tentative",
+     "title": "Tentative agreement",
+     "show": "Tentative agreement at {$world.tentative_wage}% \u2014 the members vote now, and a majority of yes ratifies it."
+    },
+    "strike": {
+     "when": "$world.on_strike",
+     "title": "Strike",
+     "show": "The union is on strike: each round on strike costs the company {$inputs.company_cost_per_round|money} and the workers {$inputs.worker_cost_per_round|money}."
+    },
+    "members": {
+     "for": "spectator",
+     "of": "member",
+     "title": "Members",
+     "show": "{id}: {name} \u2014 vote {vote}"
+    }
+   },
+   "metrics": {
+    "strike_rounds": "$world.strike_rounds",
+    "company_losses": "$world.company_losses",
+    "worker_lost_wages": "$world.worker_lost_wages",
+    "on_strike": "$world.on_strike",
+    "ratified": "$world.ratified"
+   },
+   "outputs": {
+    "agreed": {
+     "expr": "$world.ratified",
+     "type": "bool",
+     "description": "True if a deal was ratified."
+    },
+    "wage_increase": {
+     "expr": "$world.agreed_wage if $world.ratified else null",
+     "type": "number",
+     "description": "The ratified wage increase in percent, or null."
+    },
+    "strike_rounds": {
+     "expr": "$world.strike_rounds",
+     "type": "int",
+     "description": "Rounds spent on strike."
+    },
+    "company_losses": {
+     "expr": "$world.company_losses",
+     "type": "number",
+     "format": "money",
+     "description": "The company's total lost revenue from strikes."
+    },
+    "worker_lost_wages": {
+     "expr": "$world.worker_lost_wages",
+     "type": "number",
+     "format": "money",
+     "description": "The workers' total lost wages from strikes."
+    },
+    "ratification_votes": {
+     "expr": "$world.ratified_votes if $world.ratified else $dict(member, $it.id, null)",
+     "type": "map",
+     "description": "Each union member's id mapped to their vote on the ratified deal, null for everyone if there was none."
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$world.company_losses == $world.strike_rounds * $inputs.company_cost_per_round",
+     "why": "The company's losses must be one strike round's cost for every round spent on strike."
+    },
+    {
+     "expr": "$world.worker_lost_wages == $world.strike_rounds * $inputs.worker_cost_per_round",
+     "why": "The workers' lost wages must be one strike round's cost for every round spent on strike."
+    },
+    {
+     "expr": "$world.ratified == false or $world.on_strike == false",
+     "why": "A ratified deal ends any strike."
+    },
+    {
+     "expr": "$world.strike_rounds <= $inputs.horizon",
+     "why": "There cannot be more strike rounds than rounds played."
+    }
+   ],
+   "end": [
+    {
+     "name": "ratified",
+     "when": "$world.ratified",
+     "say": "The members ratified a {$world.agreed_wage}% wage increase; the negotiation is over."
+    },
+    {
+     "name": "talks_failed",
+     "when": "$world.talks_failed",
+     "say": "Round {$inputs.horizon} passed with no ratified deal; the talks fail."
+    }
+   ]
+  },
+  {
+   "name": "Union contract negotiation",
+   "clock": {
+    "rounds": "$inputs.horizon",
+    "unit": "round"
+   },
+   "brief": {
+    "situation": "A union and a company are negotiating a new contract. The only open issue is the wage increase, in percent. The union's negotiator and the company's negotiator are the two sides at the table; the union's {$count(member)} members must ratify any deal they reach.",
+    "rules": "The sides take turns. In odd rounds the union's negotiator proposes a wage increase and the company's negotiator accepts or rejects it; in even rounds the company's negotiator proposes and the union's negotiator accepts or rejects it. An accepted proposal becomes a tentative agreement, and the members then vote yes or no: a majority of yes ratifies it, which ends any strike and ends the negotiation, while a rejected tentative agreement means talks continue. From round {$inputs.strike_from_round} the union may call a strike and may call it off at any time; a round counts as a round spent on strike when the union is on strike at any point in it, and every round spent on strike costs the company {$inputs.company_cost_per_round|money} in lost revenue and the workers {$inputs.worker_cost_per_round|money} in lost wages. If no deal is ratified by the end of round {$inputs.horizon}, the talks fail.",
+    "roles": {
+     "negotiator": "You are the {$actor.side} negotiator. Propose a wage increase in percent when it is your turn to propose, and accept or reject the other side's proposal when it is your turn to answer. Only the union's negotiator may call a strike or call it off, and only from round {$inputs.strike_from_round} on.",
+     "member": "You are a union member. When a tentative agreement is reached, vote yes or no on it; a majority of yes ratifies it and ends the negotiation."
+    }
+   },
+   "inputs": {
+    "horizon": {
+     "type": "int",
+     "default": 12,
+     "min": 1,
+     "display": "number",
+     "label": "Rounds of talks",
+     "description": "The talks fail if no deal is ratified by the end of this round."
+    },
+    "wage_min": {
+     "type": "number",
+     "default": 0,
+     "min": 0,
+     "display": "number",
+     "label": "Lowest wage increase (%)",
+     "description": "Lower bound of any proposed wage increase, in percent."
+    },
+    "wage_max": {
+     "type": "number",
+     "default": 20,
+     "min": 0,
+     "display": "number",
+     "label": "Highest wage increase (%)",
+     "description": "Upper bound of any proposed wage increase, in percent."
+    },
+    "strike_from_round": {
+     "type": "int",
+     "default": 4,
+     "min": 1,
+     "display": "number",
+     "label": "First round the union may strike"
+    },
+    "company_cost_per_round": {
+     "type": "number",
+     "default": 200000,
+     "min": 0,
+     "display": "number",
+     "label": "Company lost revenue per strike round ($)"
+    },
+    "worker_cost_per_round": {
+     "type": "number",
+     "default": 50000,
+     "min": 0,
+     "display": "number",
+     "label": "Workers' lost wages per strike round ($)"
+    },
+    "members": {
+     "type": "table",
+     "display": "table",
+     "label": "Union members",
+     "fields": {
+      "id": {
+       "type": "text",
+       "required": true,
+       "description": "Stable id of the member, used in the ratification vote report."
+      },
+      "name": {
+       "type": "text",
+       "required": true
+      }
+     },
+     "default": [
+      {
+       "id": "m1",
+       "name": "Ada"
+      },
+      {
+       "id": "m2",
+       "name": "Bo"
+      },
+      {
+       "id": "m3",
+       "name": "Cy"
+      },
+      {
+       "id": "m4",
+       "name": "Dee"
+      },
+      {
+       "id": "m5",
+       "name": "Eli"
+      }
+     ]
+    }
+   },
+   "world": {
+    "proposal_open": false,
+    "proposal": 0,
+    "proposal_by": "none",
+    "tentative": false,
+    "tentative_wage": 0,
+    "ratified": false,
+    "agreed_wage": 0,
+    "ratified_votes": {},
+    "on_strike": false,
+    "struck_this_round": false,
+    "strike_rounds": 0,
+    "company_losses": 0,
+    "worker_lost_wages": 0,
+    "talks_failed": false
+   },
+   "types": {
+    "negotiator": {
+     "agent": true,
+     "props": {
+      "side": {
+       "type": "text",
+       "default": "union",
+       "description": "union or company"
+      }
+     }
+    },
+    "member": {
+     "agent": true,
+     "props": {
+      "vote": {
+       "type": "text",
+       "default": "",
+       "description": "This member's vote on the current tentative agreement."
+      },
+      "voted": {
+       "type": "bool",
+       "default": false
+      }
+     }
+    }
+   },
+   "entities": {
+    "union_rep": {
+     "type": "negotiator",
+     "name": "Dana, union negotiator",
+     "props": {
+      "side": "union"
+     }
+    },
+    "company_rep": {
+     "type": "negotiator",
+     "name": "Ivo, company negotiator",
+     "props": {
+      "side": "company"
+     }
+    }
+   },
+   "population": [
+    {
+     "type": "member",
+     "from": "$inputs.members",
+     "id": "{$row.id}",
+     "name": "{$row.name}"
+    }
+   ],
+   "stages": [
+    {
+     "name": "union_moves",
+     "when": "$round % 2 == 1",
+     "who": "$it.type == negotiator and $it.side == union",
+     "actions": [
+      "propose_wage"
+     ],
+     "max_actions": 1,
+     "must_act": true
+    },
+    {
+     "name": "company_answers",
+     "when": "$round % 2 == 1 and $world.proposal_open",
+     "who": "$it.type == negotiator and $it.side == company",
+     "actions": [
+      "accept_proposal",
+      "reject_proposal"
+     ],
+     "max_actions": 1,
+     "must_act": true
+    },
+    {
+     "name": "company_moves",
+     "when": "$round % 2 == 0",
+     "who": "$it.type == negotiator and $it.side == company",
+     "actions": [
+      "propose_wage"
+     ],
+     "max_actions": 1,
+     "must_act": true
+    },
+    {
+     "name": "union_answers",
+     "when": "$round % 2 == 0 and $world.proposal_open",
+     "who": "$it.type == negotiator and $it.side == union",
+     "actions": [
+      "accept_proposal",
+      "reject_proposal"
+     ],
+     "max_actions": 1,
+     "must_act": true
+    },
+    {
+     "name": "union_strike",
+     "when": "$round >= $inputs.strike_from_round and $world.tentative == false and $world.ratified == false",
+     "who": "$it.type == negotiator and $it.side == union",
+     "actions": [
+      "call_strike",
+      "call_off_strike"
+     ],
+     "max_actions": 1
+    },
+    {
+     "name": "ratification",
+     "when": "$world.tentative and $world.ratified == false",
+     "who": "$it.type == member",
+     "actions": [
+      "vote"
+     ],
+     "turns": "simultaneous",
+     "max_actions": 1,
+     "must_act": true
+    }
+   ],
+   "events": [
+    {
+     "name": "strike_clock",
+     "phase": "start",
+     "do": "$world.struck_this_round = $world.on_strike"
+    },
+    {
+     "name": "tally",
+     "phase": "end",
+     "when": "$world.tentative and $world.ratified == false",
+     "do": [
+      "$yes = $count(member, $it.vote == yes)",
+      {
+       "if": "$yes * 2 > $count(member)",
+       "then": [
+        "$world.ratified = true",
+        "$world.agreed_wage = $world.tentative_wage",
+        "$world.ratified_votes = $dict(member, $it.id, $it.vote)",
+        "$world.on_strike = false"
+       ],
+       "else": []
+      },
+      "$world.tentative = false",
+      "$world.proposal_open = false",
+      {
+       "each": "member",
+       "do": [
+        "$it.vote = ''",
+        "$it.voted = false"
+       ]
+      }
+     ],
+     "say": "The members vote on the tentative agreement."
+    },
+    {
+     "name": "strike_costs",
+     "phase": "end",
+     "when": "$world.struck_this_round or $world.on_strike",
+     "do": [
+      "$world.strike_rounds += 1",
+      "$world.company_losses += $inputs.company_cost_per_round",
+      "$world.worker_lost_wages += $inputs.worker_cost_per_round",
+      "$world.struck_this_round = false"
+     ]
+    },
+    {
+     "name": "deadline",
+     "phase": "end",
+     "when": "$world.ratified == false and $round >= $inputs.horizon",
+     "do": "$world.talks_failed = true"
+    }
+   ],
+   "actions": {
+    "propose_wage": {
+     "by": "negotiator",
+     "description": "Propose a wage increase in percent. The union negotiator proposes in odd rounds; the company negotiator proposes in even rounds. It replaces any proposal already on the table.",
+     "params": {
+      "increase": {
+       "type": "number",
+       "min": "$inputs.wage_min",
+       "max": "$inputs.wage_max",
+       "step": 0.1,
+       "description": "Wage increase in percent"
+      }
+     },
+     "when": [
+      {
+       "expr": "$world.ratified == false and $world.talks_failed == false",
+       "why": "The negotiation is over."
+      },
+      {
+       "expr": "($actor.side == union and $round % 2 == 1) or ($actor.side == company and $round % 2 == 0)",
+       "why": "It is not your turn to propose: the union proposes in odd rounds and the company in even rounds."
+      }
+     ],
+     "do": [
+      "$world.proposal = $params.increase",
+      "$world.proposal_by = $actor.side",
+      "$world.proposal_open = true",
+      "$world.tentative = false"
+     ],
+     "outcome": "You propose a {$params.increase}% wage increase. The other side must accept or reject it.",
+     "announce": "{$actor.name} proposes a {$params.increase}% wage increase."
+    },
+    "accept_proposal": {
+     "by": "negotiator",
+     "description": "Accept the proposal on the table. It becomes a tentative agreement, which the union's members then vote on.",
+     "when": [
+      {
+       "expr": "$world.ratified == false",
+       "why": "The negotiation is over."
+      },
+      {
+       "expr": "$world.proposal_open",
+       "why": "There is no proposal on the table to accept."
+      },
+      {
+       "expr": "$world.proposal_by != $actor.side",
+       "why": "You cannot accept your own proposal."
+      }
+     ],
+     "do": [
+      "$world.tentative = true",
+      "$world.tentative_wage = $world.proposal",
+      "$world.proposal_open = false"
+     ],
+     "outcome": "You accept: a tentative agreement at {$world.proposal}%, pending the members' vote.",
+     "announce": "{$actor.name} accepts the {$world.proposal}% proposal: a tentative agreement."
+    },
+    "reject_proposal": {
+     "by": "negotiator",
+     "description": "Reject the proposal on the table. Talks continue.",
+     "when": [
+      {
+       "expr": "$world.ratified == false",
+       "why": "The negotiation is over."
+      },
+      {
+       "expr": "$world.proposal_open",
+       "why": "There is no proposal on the table to reject."
+      },
+      {
+       "expr": "$world.proposal_by != $actor.side",
+       "why": "You cannot reject your own proposal."
+      }
+     ],
+     "do": [
+      "$world.proposal_open = false"
+     ],
+     "outcome": "You reject the {$world.proposal}% proposal. Talks continue.",
+     "announce": "{$actor.name} rejects the {$world.proposal}% proposal; talks continue."
+    },
+    "call_strike": {
+     "by": "negotiator",
+     "description": "Call a strike (union negotiator only, from the round set in the brief on). The round it is called counts as a round spent on strike.",
+     "when": [
+      {
+       "expr": "$actor.side == union",
+       "why": "Only the union's negotiator may call a strike."
+      },
+      {
+       "expr": "$round >= $inputs.strike_from_round",
+       "why": "The union may not strike before round {$inputs.strike_from_round}."
+      },
+      {
+       "expr": "$world.on_strike == false",
+       "why": "The union is already on strike."
+      },
+      {
+       "expr": "$world.tentative == false and $world.ratified == false",
+       "why": "The negotiation is over or a tentative agreement is already waiting on the members' vote."
+      }
+     ],
+     "do": [
+      "$world.on_strike = true",
+      "$world.struck_this_round = true"
+     ],
+     "outcome": "You call a strike: no work until a deal is ratified. This round counts as a round spent on strike.",
+     "announce": "{$actor.name} calls a strike: no work until a deal is ratified."
+    },
+    "call_off_strike": {
+     "by": "negotiator",
+     "description": "Call off the strike (union negotiator only). The round it is called off still counts as a round spent on strike.",
+     "when": [
+      {
+       "expr": "$actor.side == union",
+       "why": "Only the union's negotiator may call off a strike."
+      },
+      {
+       "expr": "$world.on_strike",
+       "why": "The union is not on strike."
+      },
+      {
+       "expr": "$world.tentative == false and $world.ratified == false",
+       "why": "The negotiation is over or a tentative agreement is already waiting on the members' vote."
+      }
+     ],
+     "do": [
+      "$world.on_strike = false"
+     ],
+     "outcome": "You call off the strike; the workers return while talks continue.",
+     "announce": "{$actor.name} calls off the strike."
+    },
+    "vote": {
+     "by": "member",
+     "description": "Vote on the tentative agreement. A majority of yes among the members ratifies it; a rejected tentative agreement means talks continue.",
+     "params": {
+      "choice": {
+       "type": "enum",
+       "values": [
+        "yes",
+        "no"
+       ],
+       "description": "Your vote on the tentative agreement"
+      }
+     },
+     "when": [
+      {
+       "expr": "$world.tentative and $world.ratified == false",
+       "why": "There is no tentative agreement to vote on."
+      },
+      {
+       "expr": "$actor.voted == false",
+       "why": "You have already voted on this tentative agreement."
+      }
+     ],
+     "do": [
+      "$actor.vote = $params.choice",
+      "$actor.voted = true"
+     ],
+     "outcome": "You voted {$params.choice} on the {$world.tentative_wage}% tentative agreement.",
+     "private": true
+    }
+   },
+   "policies": {
+    "union_hard_line": {
+     "rules": [
+      {
+       "when": "$world.on_strike and $round >= 7",
+       "do": "call_off_strike"
+      },
+      {
+       "when": "$world.proposal_open and $world.proposal_by == company and $world.proposal >= 6",
+       "do": "accept_proposal"
+      },
+      {
+       "when": "$round % 2 == 1",
+       "do": "propose_wage",
+       "with": {
+        "increase": 15
+       }
+      },
+      {
+       "when": "$round >= $inputs.strike_from_round and $round <= 6",
+       "do": "call_strike"
+      }
+     ]
+    },
+    "company_line": {
+     "rules": [
+      {
+       "when": "$world.proposal_open and $world.proposal_by == union and $world.proposal <= 5",
+       "do": "accept_proposal"
+      },
+      {
+       "when": "$world.proposal_open and $world.proposal_by == union",
+       "do": "reject_proposal"
+      },
+      {
+       "when": "$round % 2 == 0",
+       "do": "propose_wage",
+       "with": {
+        "increase": 3
+       }
+      }
+     ]
+    },
+    "yes_member": {
+     "rules": [
+      {
+       "when": "$world.tentative",
+       "do": "vote",
+       "with": {
+        "choice": "yes"
+       }
+      }
+     ]
+    }
+   },
+   "views": {
+    "status": {
+     "title": "Status",
+     "show": "Round {$round} of {$inputs.horizon} \u00b7 strike: {$'yes' if $world.on_strike else 'no'} \u00b7 strike rounds so far: {$world.strike_rounds} \u00b7 company losses: {$world.company_losses|money} \u00b7 workers' lost wages: {$world.worker_lost_wages|money}"
+    },
+    "turn": {
+     "title": "Whose turn",
+     "show": "This is round {$round}: {$'the union negotiator proposes, then the company negotiator accepts or rejects.' if $round % 2 == 1 else 'the company negotiator proposes, then the union negotiator accepts or rejects.'}"
+    },
+    "on_the_table": {
+     "when": "$world.proposal_open",
+     "title": "On the table",
+     "show": "The {$world.proposal_by} side proposes a {$world.proposal}% wage increase; the other side must accept or reject it."
+    },
+    "tentative": {
+     "when": "$world.tentative",
+     "title": "Tentative agreement",
+     "show": "Tentative agreement at {$world.tentative_wage}% \u2014 the members vote now, and a majority of yes ratifies it."
+    },
+    "strike": {
+     "when": "$world.on_strike",
+     "title": "Strike",
+     "show": "The union is on strike: each round on strike costs the company {$inputs.company_cost_per_round|money} and the workers {$inputs.worker_cost_per_round|money}."
+    },
+    "members": {
+     "for": "spectator",
+     "of": "member",
+     "title": "Members",
+     "show": "{id}: {name} \u2014 vote {vote}"
+    }
+   },
+   "metrics": {
+    "strike_rounds": "$world.strike_rounds",
+    "company_losses": "$world.company_losses",
+    "worker_lost_wages": "$world.worker_lost_wages",
+    "on_strike": "$world.on_strike",
+    "ratified": "$world.ratified"
+   },
+   "outputs": {
+    "agreed": {
+     "expr": "$world.ratified",
+     "type": "bool",
+     "description": "True if a deal was ratified."
+    },
+    "wage_increase": {
+     "expr": "$world.agreed_wage if $world.ratified else null",
+     "type": "number",
+     "description": "The ratified wage increase in percent, or null."
+    },
+    "strike_rounds": {
+     "expr": "$world.strike_rounds",
+     "type": "int",
+     "description": "Rounds spent on strike."
+    },
+    "company_losses": {
+     "expr": "$world.company_losses",
+     "type": "number",
+     "format": "money",
+     "description": "The company's total lost revenue from strikes."
+    },
+    "worker_lost_wages": {
+     "expr": "$world.worker_lost_wages",
+     "type": "number",
+     "format": "money",
+     "description": "The workers' total lost wages from strikes."
+    },
+    "ratification_votes": {
+     "expr": "$world.ratified_votes if $world.ratified else $dict(member, $it.id, null)",
+     "type": "map",
+     "description": "Each union member's id mapped to their vote on the ratified deal, null for everyone if there was none."
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$world.company_losses == $world.strike_rounds * $inputs.company_cost_per_round",
+     "why": "The company's losses must be one strike round's cost for every round spent on strike."
+    },
+    {
+     "expr": "$world.worker_lost_wages == $world.strike_rounds * $inputs.worker_cost_per_round",
+     "why": "The workers' lost wages must be one strike round's cost for every round spent on strike."
+    },
+    {
+     "expr": "$world.ratified == false or $world.on_strike == false",
+     "why": "A ratified deal ends any strike."
+    },
+    {
+     "expr": "$world.strike_rounds <= $inputs.horizon",
+     "why": "There cannot be more strike rounds than rounds played."
+    }
+   ],
+   "end": [
+    {
+     "name": "ratified",
+     "when": "$world.ratified",
+     "say": "The members ratified a {$world.agreed_wage}% wage increase; the negotiation is over."
+    },
+    {
+     "name": "talks_failed",
+     "when": "$world.talks_failed",
+     "say": "Round {$inputs.horizon} passed with no ratified deal; the talks fail."
+    }
+   ]
+  }
+ ],
+ "guide_parts": [
+  "all",
+  "actions",
+  "stages",
+  "events",
+  "outputs",
+  "effects",
+  "inputs",
+  "agreements.negotiation",
+  "functions.collections",
+  "population",
+  "brief",
+  "views",
+  "model",
+  "entities",
+  "types",
+  "invariants",
+  "world",
+  "records",
+  "templates",
+  "end",
+  "expressions",
+  "authoring",
+  "inspect",
+  "policies"
+ ],
+ "usage": {
+  "input_tokens": 516462,
+  "output_tokens": 123366,
+  "cost": 0.06058572799999999,
+  "calls": 20
+ },
+ "wall_seconds": 1726.7
+}

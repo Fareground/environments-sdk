@@ -1,0 +1,2205 @@
+{
+ "model": "deepseek/deepseek-v4.1-flash",
+ "stop": "token cap",
+ "nudges": 0,
+ "messages": [
+  {
+   "role": "system",
+   "content": "(guide text)"
+  },
+  {
+   "role": "user",
+   "content": "# Emergency department shift\n\nSimulate a twelve-hour night shift in a hospital emergency department, one round per hour. Patients arrive at random, on average about five an hour, and each has an urgency level from 1 (most urgent) to 5. A triage nurse, played by an AI agent, sees new arrivals and puts them in the waiting queue. Two doctors, also AI agents, each choose which waiting patient to see next; a doctor treats one patient at a time, and treatment takes one hour for levels 4 and 5, two hours for level 3 and three hours for levels 1 and 2. A patient who has waited more than four hours without being seen leaves without being seen. The number and timing of arrivals must not depend on what the staff do, so different staffing strategies can be compared on the same night. I care about how many patients get treated, how many walk out, and how long people wait.\n\n## Deliverables\n\nReport these outputs:\n- `arrivals_by_hour` \u2014 a list with the number of patients who arrived in each hour, in order.\n- `patients_arrived` \u2014 the total number of patients who arrived.\n- `patients_treated` \u2014 how many finished treatment.\n- `patients_left_without_being_seen` \u2014 how many walked out.\n- `patients_in_department_at_end` \u2014 how many were still waiting or being treated when the shift ended.\n- `mean_wait_hours` \u2014 the average wait before being seen, over the patients who were seen (null if nobody was).\n\n\nBuild this environment. Save it with write_contract and use the other tools as you see fit. Reply without calling a tool when you are done."
+  },
+  {
+   "role": "assistant",
+   "content": "I'll start by reading the SDK guide and schema.\n\n",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-bf9e78d4d1dc9f88",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"all\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-9ad192db38f30c4c",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"patterns\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-bf9e78d4d1dc9f88",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-9ad192db38f30c4c",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-b30905937e3966ec",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"operations.queue\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-b720fb2a020383bb",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"effects\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b30905937e3966ec",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b720fb2a020383bb",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-a5bd5b2126bd62c1",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-aa8ef9294891491a",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions.collections\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "chatcmpl-tool-b078993099d71985",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"expressions\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "chatcmpl-tool-9b97d0630d432eeb",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"inputs\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a5bd5b2126bd62c1",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-aa8ef9294891491a",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b078993099d71985",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-9b97d0630d432eeb",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-b993ee42cdd62287",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions.random\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-8b3b7d9e802a434f",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"model\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b993ee42cdd62287",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-8b3b7d9e802a434f",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-bea5b02b791b83a0",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"invariants\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-a4f64d41995b9531",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"events\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "chatcmpl-tool-a57bc9c1c0f52d7f",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"population\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "chatcmpl-tool-a4e5d86982abea95",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"views\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 4,
+     "id": "chatcmpl-tool-8c3d1ca26d3affd2",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"stages\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 5,
+     "id": "chatcmpl-tool-9184a7046ccd8276",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"actions\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 6,
+     "id": "chatcmpl-tool-b76c25c049b7e37c",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"outputs\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 7,
+     "id": "chatcmpl-tool-bedc991bb789be57",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"clock\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-bea5b02b791b83a0",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a4f64d41995b9531",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a57bc9c1c0f52d7f",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a4e5d86982abea95",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-8c3d1ca26d3affd2",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-9184a7046ccd8276",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b76c25c049b7e37c",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-bedc991bb789be57",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "I'll read a couple more sections, then author the contract.\n\n",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-9d7077306dcacc29",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"metrics\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-a70d04408e779d53",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"types\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-9d7077306dcacc29",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a70d04408e779d53",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-94e72189bbe62db5",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"patterns.draw\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-a91bf82544af32e7",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"defs\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-94e72189bbe62db5",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a91bf82544af32e7",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "Now I'll author the contract.\n\n",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-a2027c31bca18b9a",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a2027c31bca18b9a",
+   "content": "Saved (180 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-b87eece014a7caeb",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b87eece014a7caeb",
+   "content": "[warning] inputs.service_hours.items: has no default and is not required, so it may be null \u2192 give a default or set required: true\n[warning] inputs.urgency_weights.items: has no default and is not required, so it may be null \u2192 give a default or set required: true"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-991a7abcc70930d7",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-991a7abcc70930d7",
+   "content": "Saved (180 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-9721af748614e2ed",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-9721af748614e2ed",
+   "content": "No issues."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-8958514fb5daa72c",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 1}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-af74768b43c6a461",
+     "function": {
+      "name": "preview",
+      "arguments": "{\"agent\": \"nurse_1\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-8958514fb5daa72c",
+   "content": "completed after 12 hours \u2014 ended by rounds (seed 1)\narrivals_by_hour: [4, 7, 2, 3, 3, 7, 4, 7, 2, 5, 3, 7]\npatients_arrived: 54\npatients_treated: 10\npatients_left_without_being_seen: 22\npatients_in_department_at_end: 22\nmean_wait_hours: 1.00\noutputs: {\"arrivals_by_hour\": [4, 7, 2, 3, 3, 7, 4, 7, 2, 5, 3, 7], \"patients_arrived\": 54, \"patients_treated\": 10, \"patients_left_without_being_seen\": 22, \"patients_in_department_at_end\": 22, \"mean_wait_hours\": 1.0}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-af74768b43c6a461",
+   "content": "BRIEF:\n# Emergency department night shift\nA hospital emergency department runs a twelve-hour night shift; one round is one hour. Patients arrive at random, on average about five an hour, each with an urgency level from 1 (most urgent) to 5 (least urgent). The hour's arrivals are drawn before anyone acts and never depend on what the staff do, so different staffing strategies can be compared on exactly the same night.\n\n## Rules\nEach hour runs in this order: (1) the hour's arrivals are drawn and appear as patients; (2) the triage nurse sees the new arrivals and puts them in the waiting queue \u2014 a patient not yet triaged is in the department but no doctor can pick them; (3) each doctor, while free, may start treating one waiting patient. Treatment takes 1 hour for urgency 4 or 5, 2 hours for urgency 3 and 3 hours for urgency 1 or 2; a doctor is busy for that whole time and treats one patient at a time. At the end of every hour, treatments whose time is up are finished, and any patient who has waited more than four hours without being seen leaves without being seen. Patients still waiting or still being treated when the shift ends stay in the department. Waiting time is counted from the hour a patient arrives.\n\n## You\nYou are Triage nurse (triage_nurse, id nurse_1).\nYou are the triage nurse. Every hour, triage the patients who have just arrived so they join the waiting queue; triage up to 25 patients an hour. Anyone you do not triage stays in the department untriaged: no doctor can pick them, and they still walk out after four hours of waiting.\nAct only through your tools. Your turn ends when you take a final action or call end_turn.\n\nUPDATE:\nHour 1 of 12 \u00b7 triage_stage\nHour 1: triage the patients who have just arrived so they join the waiting queue.\nNow: It is your turn.\n\nSince your last turn:\n- Hour 1: 4 patient(s) arrive.\n\nWaiting queue:\n- patient_2 Patient 2: urgency 2, arrived hour 1, waited 0h \u2014 not yet triaged\n- patient_1 Patient 1: urgency 3, arrived hour 1, waited 0h \u2014 not yet triaged\n- patient_3 Patient 3: urgency 3, arrived hour 1, waited 0h \u2014 not yet triaged\n- patient_4 Patient 4: urgency 4, arrived hour 1, waited 0h \u2014 not yet triaged\n\nArrived this hour, not yet triaged:\n- patient_2 Patient 2: urgency 2\n- patient_1 Patient 1: urgency 3\n- patient_3 Patient 3: urgency 3\n- patient_4 Patient 4: urgency 4\n\nDoctors:\n- Dr. 1: free 0\n- Dr. 2: free 0\n\nTOOLS:\n- triage: See a patient who has just arrived and put them in the waiting queue so a doctor can pick them. {\"type\": \"object\", \"properties\": {\"patient\": {\"type\": \"string\", \"enum\": [\"patient_1\", \"patient_2\", \"patient_3\", \"patient_4\"], \"description\": \"A patient who has just arrived and has not been triaged yet. Options: patient_1 = Patient 1; patient_2 = Patient 2; patient_3 = Patient 3; patient_4 = Patient 4.\"}}, \"additionalProperties\": false, \"required\": [\"patient\"]}\n- end_turn: Finish your turn. {\"type\": \"object\", \"properties\": {}, \"additionalProperties\": false}"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-8d2a8ecba9248564",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 2}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-b9c16e2c2f23590d",
+     "function": {
+      "name": "preview",
+      "arguments": "{\"agent\": \"doctor_1\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-8d2a8ecba9248564",
+   "content": "completed after 12 hours \u2014 ended by rounds (seed 2)\narrivals_by_hour: [7, 8, 7, 4, 3, 4, 4, 2, 4, 7, 5, 7]\npatients_arrived: 62\npatients_treated: 10\npatients_left_without_being_seen: 28\npatients_in_department_at_end: 24\nmean_wait_hours: 1.92\noutputs: {\"arrivals_by_hour\": [7, 8, 7, 4, 3, 4, 4, 2, 4, 7, 5, 7], \"patients_arrived\": 62, \"patients_treated\": 10, \"patients_left_without_being_seen\": 28, \"patients_in_department_at_end\": 24, \"mean_wait_hours\": 1.9166666666666667}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b9c16e2c2f23590d",
+   "content": "BRIEF:\n# Emergency department night shift\nA hospital emergency department runs a twelve-hour night shift; one round is one hour. Patients arrive at random, on average about five an hour, each with an urgency level from 1 (most urgent) to 5 (least urgent). The hour's arrivals are drawn before anyone acts and never depend on what the staff do, so different staffing strategies can be compared on exactly the same night.\n\n## Rules\nEach hour runs in this order: (1) the hour's arrivals are drawn and appear as patients; (2) the triage nurse sees the new arrivals and puts them in the waiting queue \u2014 a patient not yet triaged is in the department but no doctor can pick them; (3) each doctor, while free, may start treating one waiting patient. Treatment takes 1 hour for urgency 4 or 5, 2 hours for urgency 3 and 3 hours for urgency 1 or 2; a doctor is busy for that whole time and treats one patient at a time. At the end of every hour, treatments whose time is up are finished, and any patient who has waited more than four hours without being seen leaves without being seen. Patients still waiting or still being treated when the shift ends stay in the department. Waiting time is counted from the hour a patient arrives.\n\n## You\nYou are Dr. 1 (doctor, id doctor_1).\nYou are a doctor. Every hour, while you are free, choose at most one waiting (triaged) patient to start treating. You are then busy for that patient's whole treatment: 1 hour for urgency 4-5, 2 hours for urgency 3, 3 hours for urgency 1-2. Pick the most urgent first \u2014 a patient who waits more than four hours walks out without being seen.\nAct only through your tools. Your turn ends when you take a final action or call end_turn.\n\nUPDATE:\nHour 1 of 12 \u00b7 doctor_stage\nHour 1: if you are free, start treating the most urgent waiting patient.\nNow: It is your turn.\n\nSince your last turn:\n- Hour 1: 4 patient(s) arrive.\n- Triage nurse: triage (patient=Patient 1).\n\nWaiting queue:\n- patient_2 Patient 2: urgency 2, arrived hour 1, waited 0h \u2014 not yet triaged\n- patient_1 Patient 1: urgency 3, arrived hour 1, waited 0h \u2014 waiting (triaged)\n- patient_3 Patient 3: urgency 3, arrived hour 1, waited 0h \u2014 not yet triaged\n- patient_4 Patient 4: urgency 4, arrived hour 1, waited 0h \u2014 not yet triaged\n\nDoctors:\n- Dr. 1: free 0\n- Dr. 2: free 0\n\nTOOLS:\n- start_treatment: Start treating one waiting patient. You are busy for the treatment's whole duration (1 hour for urgency 4-5, 2 for urgency 3, 3 for urgency 1-2) and cannot start another patient until it finishes. {\"type\": \"object\", \"properties\": {\"patient\": {\"type\": \"string\", \"enum\": [\"patient_1\"], \"description\": \"A triaged patient who is still waiting to be seen. Options: patient_1 = Patient 1.\"}}, \"additionalProperties\": false, \"required\": [\"patient\"]}\n- inspect: Details of one entity by its id (shown in [brackets] after names). Free: up to 8 reads (looks and inspects) per turn do not use a tool call. {\"type\": \"object\", \"properties\": {\"id\": {\"type\": \"string\", \"enum\": [\"doctor_1\"]}}, \"required\": [\"id\"], \"additionalProperties\": false}\n- end_turn: Finish your turn. {\"type\": \"object\", \"properties\": {}, \"additionalProperties\": false}"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-b96b9c0cf4b31644",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"policies\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b96b9c0cf4b31644",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-a7d6a8cfd70d6b0e",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a7d6a8cfd70d6b0e",
+   "content": "Saved (193 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-af7010440ed07337",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-af7010440ed07337",
+   "content": "policies.doctor.rules[0].with.patient: $it is not available here \u2192 available: $actor, $arm, $clock, $inputs, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world \u2014 in `$best(patient, [$it.urgency, $it.arrived_round, $it.id], 1, $it.triaged and $is_waiting($it))[0].id`\npolicies.doctor.rules[0].with.patient: wrong number of arguments: $best(items, by, ties?) \u2192 in `$best(patient, [$it.urgency, $it.arrived_round, $it.id], 1, $it.triaged and $is_waiting($it))[0].id`"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-8667ae6f5c8324ba",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-8667ae6f5c8324ba",
+   "content": "Saved (193 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-80b224d97f348657",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-80b224d97f348657",
+   "content": "policies.doctor.rules[0]: patient 'patient_2' has no property '0' (has: arrived_round, left, left_round, seen_round, treated, treated_round, treating_from, triaged, urgency) \u2014 in `$best($filter(patient, $it.triaged and $is_waiting($it)), [$it.urgency, $it.arrived_round, $it.id])[0].id` (smoke run of 1 round(s), policy 'doctor' playing doctor) \u2192 fix the rule at this path (found by a smoke run)"
+  }
+ ],
+ "writes": [
+  {
+   "name": "Emergency department night shift",
+   "brief": {
+    "situation": "A hospital emergency department runs a twelve-hour night shift; one round is one hour. Patients arrive at random, on average about five an hour, each with an urgency level from 1 (most urgent) to 5 (least urgent). The hour's arrivals are drawn before anyone acts and never depend on what the staff do, so different staffing strategies can be compared on exactly the same night.",
+    "rules": "Each hour runs in this order: (1) the hour's arrivals are drawn and appear as patients; (2) the triage nurse sees the new arrivals and puts them in the waiting queue \u2014 a patient not yet triaged is in the department but no doctor can pick them; (3) each doctor, while free, may start treating one waiting patient. Treatment takes 1 hour for urgency 4 or 5, 2 hours for urgency 3 and 3 hours for urgency 1 or 2; a doctor is busy for that whole time and treats one patient at a time. At the end of every hour, treatments whose time is up are finished, and any patient who has waited more than four hours without being seen leaves without being seen. Patients still waiting or still being treated when the shift ends stay in the department. Waiting time is counted from the hour a patient arrives.",
+    "roles": {
+     "triage_nurse": "You are the triage nurse. Every hour, triage the patients who have just arrived so they join the waiting queue; triage up to {$inputs.triage_capacity} patients an hour. Anyone you do not triage stays in the department untriaged: no doctor can pick them, and they still walk out after four hours of waiting.",
+     "doctor": "You are a doctor. Every hour, while you are free, choose at most one waiting (triaged) patient to start treating. You are then busy for that patient's whole treatment: 1 hour for urgency 4-5, 2 hours for urgency 3, 3 hours for urgency 1-2. Pick the most urgent first \u2014 a patient who waits more than four hours walks out without being seen."
+    }
+   },
+   "clock": {
+    "rounds": "$inputs.horizon",
+    "unit": "hour"
+   },
+   "inputs": {
+    "horizon": {
+     "type": "int",
+     "default": 12,
+     "min": 1,
+     "max": 48,
+     "display": "number",
+     "label": "Shift length (hours)"
+    },
+    "arrival_rate": {
+     "type": "number",
+     "default": 5,
+     "min": 0,
+     "max": 40,
+     "display": "number",
+     "label": "Mean arrivals per hour"
+    },
+    "doctors": {
+     "type": "int",
+     "default": 2,
+     "min": 0,
+     "max": 8,
+     "display": "number",
+     "label": "Doctors on duty"
+    },
+    "triage_capacity": {
+     "type": "int",
+     "default": 25,
+     "min": 1,
+     "max": 60,
+     "display": "number",
+     "label": "Patients the nurse can triage per hour"
+    },
+    "abandon_after": {
+     "type": "int",
+     "default": 4,
+     "min": 0,
+     "max": 24,
+     "display": "number",
+     "label": "Hours of waiting before a patient walks out"
+    },
+    "service_hours": {
+     "type": "list",
+     "items": {
+      "type": "int",
+      "min": 1,
+      "max": 24
+     },
+     "default": [
+      3,
+      3,
+      2,
+      1,
+      1
+     ],
+     "display": "list",
+     "label": "Treatment hours for urgency 1,2,3,4,5",
+     "description": "Index 0 is urgency 1 (most urgent), index 4 is urgency 5."
+    },
+    "urgency_weights": {
+     "type": "list",
+     "items": {
+      "type": "number",
+      "min": 0
+     },
+     "default": [
+      1,
+      1,
+      1,
+      1,
+      1
+     ],
+     "display": "list",
+     "label": "Relative chance of urgency 1,2,3,4,5"
+    }
+   },
+   "world": {
+    "arrivals_this_hour": 0,
+    "arrived_total": 0,
+    "arrivals_by_hour": [],
+    "seen_total": 0,
+    "treated_total": 0,
+    "left_total": 0
+   },
+   "defs": {
+    "treatment_hours": {
+     "args": [
+      "urgency"
+     ],
+     "expr": "$get($inputs.service_hours, $urgency - 1, 1)",
+     "description": "Treatment length in hours for an urgency level."
+    },
+    "is_waiting": {
+     "args": [
+      "p"
+     ],
+     "expr": "not $p.treated and not $p.left and $p.treating_from == 0",
+     "description": "In the department and waiting to be seen."
+    },
+    "in_department": {
+     "args": [
+      "p"
+     ],
+     "expr": "not $p.treated and not $p.left",
+     "description": "Still waiting or still being treated."
+    },
+    "wait_hours": {
+     "args": [
+      "p"
+     ],
+     "expr": "$round - $p.arrived_round",
+     "description": "Hours waited so far (from arrival hour to the current hour)."
+    }
+   },
+   "types": {
+    "patient": {
+     "props": {
+      "urgency": 3,
+      "arrived_round": 0,
+      "triaged": false,
+      "treating_from": 0,
+      "treated_round": 0,
+      "treated": false,
+      "seen_round": 0,
+      "left": false,
+      "left_round": 0
+     }
+    },
+    "triage_nurse": {
+     "agent": true
+    },
+    "doctor": {
+     "agent": true,
+     "props": {
+      "busy_until": 0
+     }
+    }
+   },
+   "entities": {
+    "nurse_1": {
+     "type": "triage_nurse",
+     "name": "Triage nurse"
+    }
+   },
+   "population": [
+    {
+     "type": "doctor",
+     "count": "$inputs.doctors",
+     "id": "doctor_{$i}",
+     "name": "Dr. {$i}"
+    }
+   ],
+   "stages": [
+    {
+     "name": "triage_stage",
+     "actions": [
+      "triage"
+     ],
+     "max_actions": "$inputs.triage_capacity",
+     "max_calls": "$inputs.triage_capacity + 6",
+     "brief": "Hour {$round}: triage the patients who have just arrived so they join the waiting queue."
+    },
+    {
+     "name": "doctor_stage",
+     "actions": [
+      "start_treatment"
+     ],
+     "max_actions": 1,
+     "brief": "Hour {$round}: if you are free, start treating the most urgent waiting patient."
+    },
+    {
+     "name": "hour_end",
+     "actions": [],
+     "on_enter": [
+      {
+       "each": "patient",
+       "where": "$it.treating_from > 0 and not $it.treated and $it.treated_round <= $round",
+       "do": [
+        "$it.treated = true",
+        "$world.treated_total += 1"
+       ]
+      },
+      {
+       "each": "patient",
+       "where": "$is_waiting($it) and $round - $it.arrived_round > $inputs.abandon_after",
+       "do": [
+        "$it.left = true",
+        "$it.left_round = $round",
+        "$world.left_total += 1"
+       ]
+      }
+     ]
+    }
+   ],
+   "events": [
+    {
+     "name": "arrivals",
+     "phase": "start",
+     "do": [
+      "$world.arrivals_this_hour = $poisson($inputs.arrival_rate)",
+      "$world.arrived_total += $world.arrivals_this_hour",
+      "$world.arrivals_by_hour += $world.arrivals_this_hour",
+      {
+       "create": "patient",
+       "count": "$world.arrivals_this_hour",
+       "name": "Patient {$world.arrived_total - $world.arrivals_this_hour + $i}",
+       "props": {
+        "urgency": "$choice([1, 2, 3, 4, 5], $get($inputs.urgency_weights, $it - 1, 1))",
+        "arrived_round": "$round"
+       }
+      }
+     ],
+     "say": "Hour {$round}: {$world.arrivals_this_hour} patient(s) arrive."
+    }
+   ],
+   "actions": {
+    "triage": {
+     "by": "triage_nurse",
+     "description": "See a patient who has just arrived and put them in the waiting queue so a doctor can pick them.",
+     "params": {
+      "patient": {
+       "type": "entity",
+       "of": "patient",
+       "where": "$it.triaged == false and not $it.left",
+       "description": "A patient who has just arrived and has not been triaged yet."
+      }
+     },
+     "do": [
+      "$params.patient.triaged = true"
+     ],
+     "outcome": "Triaged {$params.patient.name} (urgency {$params.patient.urgency}) into the waiting queue."
+    },
+    "start_treatment": {
+     "by": "doctor",
+     "description": "Start treating one waiting patient. You are busy for the treatment's whole duration (1 hour for urgency 4-5, 2 for urgency 3, 3 for urgency 1-2) and cannot start another patient until it finishes.",
+     "params": {
+      "patient": {
+       "type": "entity",
+       "of": "patient",
+       "where": "$it.triaged and $is_waiting($it)",
+       "description": "A triaged patient who is still waiting to be seen."
+      }
+     },
+     "when": [
+      {
+       "expr": "$actor.busy_until <= $round",
+       "why": "You are still treating a patient."
+      }
+     ],
+     "do": [
+      "$params.patient.treating_from = $round",
+      "$params.patient.seen_round = $round",
+      "$params.patient.treated_round = $round + $treatment_hours($params.patient.urgency)",
+      "$actor.busy_until = $params.patient.treated_round",
+      "$world.seen_total += 1"
+     ],
+     "outcome": "Started treating {$params.patient.name} (urgency {$params.patient.urgency}); treatment finishes at the end of hour {$params.patient.treated_round}."
+    }
+   },
+   "views": {
+    "queue": {
+     "for": [
+      "triage_nurse",
+      "doctor"
+     ],
+     "title": "Waiting queue",
+     "of": "patient",
+     "where": "not $it.treated and not $it.left",
+     "sort": "[$it.urgency, $it.arrived_round]",
+     "show": "{$it.id} {$it.name}: urgency {$it.urgency}, arrived hour {$it.arrived_round}, waited {$round - $it.arrived_round}h \u2014 {('being treated, free at end of hour ' if $it.treating_from > 0 else ('waiting (triaged)' if $it.triaged else 'not yet triaged'))}",
+     "empty": "Nobody is in the department."
+    },
+    "new_arrivals": {
+     "for": "triage_nurse",
+     "title": "Arrived this hour, not yet triaged",
+     "of": "patient",
+     "where": "$it.triaged == false and not $it.left",
+     "sort": "$it.urgency",
+     "show": "{$it.id} {$it.name}: urgency {$it.urgency}",
+     "empty": "No new patient is waiting to be triaged."
+    },
+    "doctors": {
+     "for": [
+      "triage_nurse",
+      "doctor"
+     ],
+     "title": "Doctors",
+     "of": "doctor",
+     "show": "{$it.name}: {('free' if $it.busy_until <= $round else 'treating a patient until the end of hour')} {$it.busy_until}",
+     "empty": "No doctor is on duty."
+    },
+    "department": {
+     "for": "spectator",
+     "title": "Department at the end of the hour",
+     "of": "patient",
+     "where": "not $it.left",
+     "sort": "[$it.urgency, $it.arrived_round]",
+     "show": "{$it.id} {$it.name}: urgency {$it.urgency}, arrived hour {$it.arrived_round}, waited {$round - $it.arrived_round}h, {('treated at the end of hour ' if $it.treated else ('being treated, free at end of hour ' if $it.treating_from > 0 else ('waiting (triaged)' if $it.triaged else 'not yet triaged')))} {$it.treated_round}",
+     "empty": "The department is empty."
+    }
+   },
+   "metrics": {
+    "arrivals_this_hour": "$world.arrivals_this_hour",
+    "arrived_total": "$world.arrived_total",
+    "waiting": "$count(patient, $is_waiting($it))",
+    "in_treatment": "$count(patient, $it.treating_from > 0 and not $it.treated)",
+    "treated_total": "$count(patient, $it.treated)",
+    "left_total": "$count(patient, $it.left)",
+    "in_department": "$count(patient, $in_department($it))",
+    "mean_wait_hours": "$avg(patient, $it.seen_round - $it.arrived_round, $it.treating_from > 0)"
+   },
+   "outputs": {
+    "arrivals_by_hour": {
+     "expr": "$world.arrivals_by_hour",
+     "type": "list",
+     "description": "Patients who arrived in each hour of the shift, in order."
+    },
+    "patients_arrived": {
+     "expr": "$world.arrived_total",
+     "type": "int",
+     "description": "Total patients who arrived during the shift."
+    },
+    "patients_treated": {
+     "expr": "$count(patient, $it.treated)",
+     "type": "int",
+     "description": "Patients whose treatment finished before the shift ended."
+    },
+    "patients_left_without_being_seen": {
+     "expr": "$count(patient, $it.left)",
+     "type": "int",
+     "description": "Patients who waited more than four hours and walked out."
+    },
+    "patients_in_department_at_end": {
+     "expr": "$count(patient, $in_department($it))",
+     "type": "int",
+     "description": "Patients still waiting or still being treated when the shift ended."
+    },
+    "mean_wait_hours": {
+     "expr": "$avg(patient, $it.seen_round - $it.arrived_round, $it.treating_from > 0)",
+     "format": "2",
+     "description": "Average hours waited before being seen, over the patients who were seen (null if nobody was seen)."
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$world.arrived_total == $sum($world.arrivals_by_hour)",
+     "why": "Arrival bookkeeping must agree with the hourly arrival list.",
+     "check": "round"
+    },
+    {
+     "expr": "$count(patient, $it.treated and $it.left) == 0",
+     "why": "A patient cannot both finish treatment and walk out.",
+     "check": "round"
+    },
+    {
+     "expr": "$count(patient, $it.treated) + $count(patient, $it.left) + $count(patient, $in_department($it)) == $world.arrived_total",
+     "why": "Every patient who arrived was treated, walked out, or is still in the department.",
+     "check": "end"
+    }
+   ]
+  },
+  {
+   "name": "Emergency department night shift",
+   "brief": {
+    "situation": "A hospital emergency department runs a twelve-hour night shift; one round is one hour. Patients arrive at random, on average about five an hour, each with an urgency level from 1 (most urgent) to 5 (least urgent). The hour's arrivals are drawn before anyone acts and never depend on what the staff do, so different staffing strategies can be compared on exactly the same night.",
+    "rules": "Each hour runs in this order: (1) the hour's arrivals are drawn and appear as patients; (2) the triage nurse sees the new arrivals and puts them in the waiting queue \u2014 a patient not yet triaged is in the department but no doctor can pick them; (3) each doctor, while free, may start treating one waiting patient. Treatment takes 1 hour for urgency 4 or 5, 2 hours for urgency 3 and 3 hours for urgency 1 or 2; a doctor is busy for that whole time and treats one patient at a time. At the end of every hour, treatments whose time is up are finished, and any patient who has waited more than four hours without being seen leaves without being seen. Patients still waiting or still being treated when the shift ends stay in the department. Waiting time is counted from the hour a patient arrives.",
+    "roles": {
+     "triage_nurse": "You are the triage nurse. Every hour, triage the patients who have just arrived so they join the waiting queue; triage up to {$inputs.triage_capacity} patients an hour. Anyone you do not triage stays in the department untriaged: no doctor can pick them, and they still walk out after four hours of waiting.",
+     "doctor": "You are a doctor. Every hour, while you are free, choose at most one waiting (triaged) patient to start treating. You are then busy for that patient's whole treatment: 1 hour for urgency 4-5, 2 hours for urgency 3, 3 hours for urgency 1-2. Pick the most urgent first \u2014 a patient who waits more than four hours walks out without being seen."
+    }
+   },
+   "clock": {
+    "rounds": "$inputs.horizon",
+    "unit": "hour"
+   },
+   "inputs": {
+    "horizon": {
+     "type": "int",
+     "default": 12,
+     "min": 1,
+     "max": 48,
+     "display": "number",
+     "label": "Shift length (hours)"
+    },
+    "arrival_rate": {
+     "type": "number",
+     "default": 5,
+     "min": 0,
+     "max": 40,
+     "display": "number",
+     "label": "Mean arrivals per hour"
+    },
+    "doctors": {
+     "type": "int",
+     "default": 2,
+     "min": 0,
+     "max": 8,
+     "display": "number",
+     "label": "Doctors on duty"
+    },
+    "triage_capacity": {
+     "type": "int",
+     "default": 25,
+     "min": 1,
+     "max": 60,
+     "display": "number",
+     "label": "Patients the nurse can triage per hour"
+    },
+    "abandon_after": {
+     "type": "int",
+     "default": 4,
+     "min": 0,
+     "max": 24,
+     "display": "number",
+     "label": "Hours of waiting before a patient walks out"
+    },
+    "service_hours": {
+     "type": "list",
+     "items": {
+      "type": "int",
+      "min": 1,
+      "max": 24,
+      "default": 1
+     },
+     "default": [
+      3,
+      3,
+      2,
+      1,
+      1
+     ],
+     "display": "list",
+     "label": "Treatment hours for urgency 1,2,3,4,5",
+     "description": "Index 0 is urgency 1 (most urgent), index 4 is urgency 5."
+    },
+    "urgency_weights": {
+     "type": "list",
+     "items": {
+      "type": "number",
+      "min": 0,
+      "default": 1
+     },
+     "default": [
+      1,
+      1,
+      1,
+      1,
+      1
+     ],
+     "display": "list",
+     "label": "Relative chance of urgency 1,2,3,4,5"
+    }
+   },
+   "world": {
+    "arrivals_this_hour": 0,
+    "arrived_total": 0,
+    "arrivals_by_hour": [],
+    "seen_total": 0,
+    "treated_total": 0,
+    "left_total": 0
+   },
+   "defs": {
+    "treatment_hours": {
+     "args": [
+      "urgency"
+     ],
+     "expr": "$get($inputs.service_hours, $urgency - 1, 1)",
+     "description": "Treatment length in hours for an urgency level."
+    },
+    "is_waiting": {
+     "args": [
+      "p"
+     ],
+     "expr": "not $p.treated and not $p.left and $p.treating_from == 0",
+     "description": "In the department and waiting to be seen."
+    },
+    "in_department": {
+     "args": [
+      "p"
+     ],
+     "expr": "not $p.treated and not $p.left",
+     "description": "Still waiting or still being treated."
+    },
+    "wait_hours": {
+     "args": [
+      "p"
+     ],
+     "expr": "$round - $p.arrived_round",
+     "description": "Hours waited so far (from arrival hour to the current hour)."
+    }
+   },
+   "types": {
+    "patient": {
+     "props": {
+      "urgency": 3,
+      "arrived_round": 0,
+      "triaged": false,
+      "treating_from": 0,
+      "treated_round": 0,
+      "treated": false,
+      "seen_round": 0,
+      "left": false,
+      "left_round": 0
+     }
+    },
+    "triage_nurse": {
+     "agent": true
+    },
+    "doctor": {
+     "agent": true,
+     "props": {
+      "busy_until": 0
+     }
+    }
+   },
+   "entities": {
+    "nurse_1": {
+     "type": "triage_nurse",
+     "name": "Triage nurse"
+    }
+   },
+   "population": [
+    {
+     "type": "doctor",
+     "count": "$inputs.doctors",
+     "id": "doctor_{$i}",
+     "name": "Dr. {$i}"
+    }
+   ],
+   "stages": [
+    {
+     "name": "triage_stage",
+     "actions": [
+      "triage"
+     ],
+     "max_actions": "$inputs.triage_capacity",
+     "max_calls": "$inputs.triage_capacity + 6",
+     "brief": "Hour {$round}: triage the patients who have just arrived so they join the waiting queue."
+    },
+    {
+     "name": "doctor_stage",
+     "actions": [
+      "start_treatment"
+     ],
+     "max_actions": 1,
+     "brief": "Hour {$round}: if you are free, start treating the most urgent waiting patient."
+    },
+    {
+     "name": "hour_end",
+     "actions": [],
+     "on_enter": [
+      {
+       "each": "patient",
+       "where": "$it.treating_from > 0 and not $it.treated and $it.treated_round <= $round",
+       "do": [
+        "$it.treated = true",
+        "$world.treated_total += 1"
+       ]
+      },
+      {
+       "each": "patient",
+       "where": "$is_waiting($it) and $round - $it.arrived_round > $inputs.abandon_after",
+       "do": [
+        "$it.left = true",
+        "$it.left_round = $round",
+        "$world.left_total += 1"
+       ]
+      }
+     ]
+    }
+   ],
+   "events": [
+    {
+     "name": "arrivals",
+     "phase": "start",
+     "do": [
+      "$world.arrivals_this_hour = $poisson($inputs.arrival_rate)",
+      "$world.arrived_total += $world.arrivals_this_hour",
+      "$world.arrivals_by_hour += $world.arrivals_this_hour",
+      {
+       "create": "patient",
+       "count": "$world.arrivals_this_hour",
+       "name": "Patient {$world.arrived_total - $world.arrivals_this_hour + $i}",
+       "props": {
+        "urgency": "$choice([1, 2, 3, 4, 5], $get($inputs.urgency_weights, $it - 1, 1))",
+        "arrived_round": "$round"
+       }
+      }
+     ],
+     "say": "Hour {$round}: {$world.arrivals_this_hour} patient(s) arrive."
+    }
+   ],
+   "actions": {
+    "triage": {
+     "by": "triage_nurse",
+     "description": "See a patient who has just arrived and put them in the waiting queue so a doctor can pick them.",
+     "params": {
+      "patient": {
+       "type": "entity",
+       "of": "patient",
+       "where": "$it.triaged == false and not $it.left",
+       "description": "A patient who has just arrived and has not been triaged yet."
+      }
+     },
+     "do": [
+      "$params.patient.triaged = true"
+     ],
+     "outcome": "Triaged {$params.patient.name} (urgency {$params.patient.urgency}) into the waiting queue."
+    },
+    "start_treatment": {
+     "by": "doctor",
+     "description": "Start treating one waiting patient. You are busy for the treatment's whole duration (1 hour for urgency 4-5, 2 for urgency 3, 3 for urgency 1-2) and cannot start another patient until it finishes.",
+     "params": {
+      "patient": {
+       "type": "entity",
+       "of": "patient",
+       "where": "$it.triaged and $is_waiting($it)",
+       "description": "A triaged patient who is still waiting to be seen."
+      }
+     },
+     "when": [
+      {
+       "expr": "$actor.busy_until <= $round",
+       "why": "You are still treating a patient."
+      }
+     ],
+     "do": [
+      "$params.patient.treating_from = $round",
+      "$params.patient.seen_round = $round",
+      "$params.patient.treated_round = $round + $treatment_hours($params.patient.urgency)",
+      "$actor.busy_until = $params.patient.treated_round",
+      "$world.seen_total += 1"
+     ],
+     "outcome": "Started treating {$params.patient.name} (urgency {$params.patient.urgency}); treatment finishes at the end of hour {$params.patient.treated_round}."
+    }
+   },
+   "views": {
+    "queue": {
+     "for": [
+      "triage_nurse",
+      "doctor"
+     ],
+     "title": "Waiting queue",
+     "of": "patient",
+     "where": "not $it.treated and not $it.left",
+     "sort": "[$it.urgency, $it.arrived_round]",
+     "show": "{$it.id} {$it.name}: urgency {$it.urgency}, arrived hour {$it.arrived_round}, waited {$round - $it.arrived_round}h \u2014 {('being treated, free at end of hour ' if $it.treating_from > 0 else ('waiting (triaged)' if $it.triaged else 'not yet triaged'))}",
+     "empty": "Nobody is in the department."
+    },
+    "new_arrivals": {
+     "for": "triage_nurse",
+     "title": "Arrived this hour, not yet triaged",
+     "of": "patient",
+     "where": "$it.triaged == false and not $it.left",
+     "sort": "$it.urgency",
+     "show": "{$it.id} {$it.name}: urgency {$it.urgency}",
+     "empty": "No new patient is waiting to be triaged."
+    },
+    "doctors": {
+     "for": [
+      "triage_nurse",
+      "doctor"
+     ],
+     "title": "Doctors",
+     "of": "doctor",
+     "show": "{$it.name}: {('free' if $it.busy_until <= $round else 'treating a patient until the end of hour')} {$it.busy_until}",
+     "empty": "No doctor is on duty."
+    },
+    "department": {
+     "for": "spectator",
+     "title": "Department at the end of the hour",
+     "of": "patient",
+     "where": "not $it.left",
+     "sort": "[$it.urgency, $it.arrived_round]",
+     "show": "{$it.id} {$it.name}: urgency {$it.urgency}, arrived hour {$it.arrived_round}, waited {$round - $it.arrived_round}h, {('treated at the end of hour ' if $it.treated else ('being treated, free at end of hour ' if $it.treating_from > 0 else ('waiting (triaged)' if $it.triaged else 'not yet triaged')))} {$it.treated_round}",
+     "empty": "The department is empty."
+    }
+   },
+   "metrics": {
+    "arrivals_this_hour": "$world.arrivals_this_hour",
+    "arrived_total": "$world.arrived_total",
+    "waiting": "$count(patient, $is_waiting($it))",
+    "in_treatment": "$count(patient, $it.treating_from > 0 and not $it.treated)",
+    "treated_total": "$count(patient, $it.treated)",
+    "left_total": "$count(patient, $it.left)",
+    "in_department": "$count(patient, $in_department($it))",
+    "mean_wait_hours": "$avg(patient, $it.seen_round - $it.arrived_round, $it.treating_from > 0)"
+   },
+   "outputs": {
+    "arrivals_by_hour": {
+     "expr": "$world.arrivals_by_hour",
+     "type": "list",
+     "description": "Patients who arrived in each hour of the shift, in order."
+    },
+    "patients_arrived": {
+     "expr": "$world.arrived_total",
+     "type": "int",
+     "description": "Total patients who arrived during the shift."
+    },
+    "patients_treated": {
+     "expr": "$count(patient, $it.treated)",
+     "type": "int",
+     "description": "Patients whose treatment finished before the shift ended."
+    },
+    "patients_left_without_being_seen": {
+     "expr": "$count(patient, $it.left)",
+     "type": "int",
+     "description": "Patients who waited more than four hours and walked out."
+    },
+    "patients_in_department_at_end": {
+     "expr": "$count(patient, $in_department($it))",
+     "type": "int",
+     "description": "Patients still waiting or still being treated when the shift ended."
+    },
+    "mean_wait_hours": {
+     "expr": "$avg(patient, $it.seen_round - $it.arrived_round, $it.treating_from > 0)",
+     "format": "2",
+     "description": "Average hours waited before being seen, over the patients who were seen (null if nobody was seen)."
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$world.arrived_total == $sum($world.arrivals_by_hour)",
+     "why": "Arrival bookkeeping must agree with the hourly arrival list.",
+     "check": "round"
+    },
+    {
+     "expr": "$count(patient, $it.treated and $it.left) == 0",
+     "why": "A patient cannot both finish treatment and walk out.",
+     "check": "round"
+    },
+    {
+     "expr": "$count(patient, $it.treated) + $count(patient, $it.left) + $count(patient, $in_department($it)) == $world.arrived_total",
+     "why": "Every patient who arrived was treated, walked out, or is still in the department.",
+     "check": "end"
+    }
+   ]
+  },
+  {
+   "name": "Emergency department night shift",
+   "brief": {
+    "situation": "A hospital emergency department runs a twelve-hour night shift; one round is one hour. Patients arrive at random, on average about five an hour, each with an urgency level from 1 (most urgent) to 5 (least urgent). The hour's arrivals are drawn before anyone acts and never depend on what the staff do, so different staffing strategies can be compared on exactly the same night.",
+    "rules": "Each hour runs in this order: (1) the hour's arrivals are drawn and appear as patients; (2) the triage nurse sees the new arrivals and puts them in the waiting queue \u2014 a patient not yet triaged is in the department but no doctor can pick them; (3) each doctor, while free, may start treating one waiting patient. Treatment takes 1 hour for urgency 4 or 5, 2 hours for urgency 3 and 3 hours for urgency 1 or 2; a doctor is busy for that whole time and treats one patient at a time. At the end of every hour, treatments whose time is up are finished, and any patient who has waited more than four hours without being seen leaves without being seen. Patients still waiting or still being treated when the shift ends stay in the department. Waiting time is counted from the hour a patient arrives.",
+    "roles": {
+     "triage_nurse": "You are the triage nurse. Every hour, triage the patients who have just arrived so they join the waiting queue; triage up to {$inputs.triage_capacity} patients an hour. Anyone you do not triage stays in the department untriaged: no doctor can pick them, and they still walk out after four hours of waiting.",
+     "doctor": "You are a doctor. Every hour, while you are free, choose at most one waiting (triaged) patient to start treating. You are then busy for that patient's whole treatment: 1 hour for urgency 4-5, 2 hours for urgency 3, 3 hours for urgency 1-2. Pick the most urgent first \u2014 a patient who waits more than four hours walks out without being seen."
+    }
+   },
+   "clock": {
+    "rounds": "$inputs.horizon",
+    "unit": "hour"
+   },
+   "inputs": {
+    "horizon": {
+     "type": "int",
+     "default": 12,
+     "min": 1,
+     "max": 48,
+     "display": "number",
+     "label": "Shift length (hours)"
+    },
+    "arrival_rate": {
+     "type": "number",
+     "default": 5,
+     "min": 0,
+     "max": 40,
+     "display": "number",
+     "label": "Mean arrivals per hour"
+    },
+    "doctors": {
+     "type": "int",
+     "default": 2,
+     "min": 0,
+     "max": 8,
+     "display": "number",
+     "label": "Doctors on duty"
+    },
+    "triage_capacity": {
+     "type": "int",
+     "default": 25,
+     "min": 1,
+     "max": 60,
+     "display": "number",
+     "label": "Patients the nurse can triage per hour"
+    },
+    "abandon_after": {
+     "type": "int",
+     "default": 4,
+     "min": 0,
+     "max": 24,
+     "display": "number",
+     "label": "Hours of waiting before a patient walks out"
+    },
+    "service_hours": {
+     "type": "list",
+     "items": {
+      "type": "int",
+      "min": 1,
+      "max": 24,
+      "default": 1
+     },
+     "default": [
+      3,
+      3,
+      2,
+      1,
+      1
+     ],
+     "display": "list",
+     "label": "Treatment hours for urgency 1,2,3,4,5",
+     "description": "Index 0 is urgency 1 (most urgent), index 4 is urgency 5."
+    },
+    "urgency_weights": {
+     "type": "list",
+     "items": {
+      "type": "number",
+      "min": 0,
+      "default": 1
+     },
+     "default": [
+      1,
+      1,
+      1,
+      1,
+      1
+     ],
+     "display": "list",
+     "label": "Relative chance of urgency 1,2,3,4,5"
+    }
+   },
+   "world": {
+    "arrivals_this_hour": 0,
+    "arrived_total": 0,
+    "arrivals_by_hour": [],
+    "seen_total": 0,
+    "treated_total": 0,
+    "left_total": 0
+   },
+   "defs": {
+    "treatment_hours": {
+     "args": [
+      "urgency"
+     ],
+     "expr": "$get($inputs.service_hours, $urgency - 1, 1)",
+     "description": "Treatment length in hours for an urgency level."
+    },
+    "is_waiting": {
+     "args": [
+      "p"
+     ],
+     "expr": "not $p.treated and not $p.left and $p.treating_from == 0",
+     "description": "In the department and waiting to be seen."
+    },
+    "in_department": {
+     "args": [
+      "p"
+     ],
+     "expr": "not $p.treated and not $p.left",
+     "description": "Still waiting or still being treated."
+    },
+    "wait_hours": {
+     "args": [
+      "p"
+     ],
+     "expr": "$round - $p.arrived_round",
+     "description": "Hours waited so far (from arrival hour to the current hour)."
+    }
+   },
+   "types": {
+    "patient": {
+     "props": {
+      "urgency": 3,
+      "arrived_round": 0,
+      "triaged": false,
+      "treating_from": 0,
+      "treated_round": 0,
+      "treated": false,
+      "seen_round": 0,
+      "left": false,
+      "left_round": 0
+     }
+    },
+    "triage_nurse": {
+     "agent": true
+    },
+    "doctor": {
+     "agent": true,
+     "props": {
+      "busy_until": 0
+     }
+    }
+   },
+   "entities": {
+    "nurse_1": {
+     "type": "triage_nurse",
+     "name": "Triage nurse"
+    }
+   },
+   "population": [
+    {
+     "type": "doctor",
+     "count": "$inputs.doctors",
+     "id": "doctor_{$i}",
+     "name": "Dr. {$i}"
+    }
+   ],
+   "stages": [
+    {
+     "name": "triage_stage",
+     "actions": [
+      "triage"
+     ],
+     "max_actions": "$inputs.triage_capacity",
+     "max_calls": "$inputs.triage_capacity + 6",
+     "brief": "Hour {$round}: triage the patients who have just arrived so they join the waiting queue."
+    },
+    {
+     "name": "doctor_stage",
+     "actions": [
+      "start_treatment"
+     ],
+     "max_actions": 1,
+     "brief": "Hour {$round}: if you are free, start treating the most urgent waiting patient."
+    },
+    {
+     "name": "hour_end",
+     "actions": [],
+     "on_enter": [
+      {
+       "each": "patient",
+       "where": "$it.treating_from > 0 and not $it.treated and $it.treated_round <= $round",
+       "do": [
+        "$it.treated = true",
+        "$world.treated_total += 1"
+       ]
+      },
+      {
+       "each": "patient",
+       "where": "$is_waiting($it) and $round - $it.arrived_round > $inputs.abandon_after",
+       "do": [
+        "$it.left = true",
+        "$it.left_round = $round",
+        "$world.left_total += 1"
+       ]
+      }
+     ]
+    }
+   ],
+   "events": [
+    {
+     "name": "arrivals",
+     "phase": "start",
+     "do": [
+      "$world.arrivals_this_hour = $poisson($inputs.arrival_rate)",
+      "$world.arrived_total += $world.arrivals_this_hour",
+      "$world.arrivals_by_hour += $world.arrivals_this_hour",
+      {
+       "create": "patient",
+       "count": "$world.arrivals_this_hour",
+       "name": "Patient {$world.arrived_total - $world.arrivals_this_hour + $i}",
+       "props": {
+        "urgency": "$choice([1, 2, 3, 4, 5], $get($inputs.urgency_weights, $it - 1, 1))",
+        "arrived_round": "$round"
+       }
+      }
+     ],
+     "say": "Hour {$round}: {$world.arrivals_this_hour} patient(s) arrive."
+    }
+   ],
+   "actions": {
+    "triage": {
+     "by": "triage_nurse",
+     "description": "See a patient who has just arrived and put them in the waiting queue so a doctor can pick them.",
+     "params": {
+      "patient": {
+       "type": "entity",
+       "of": "patient",
+       "where": "$it.triaged == false and not $it.left",
+       "description": "A patient who has just arrived and has not been triaged yet."
+      }
+     },
+     "do": [
+      "$params.patient.triaged = true"
+     ],
+     "outcome": "Triaged {$params.patient.name} (urgency {$params.patient.urgency}) into the waiting queue."
+    },
+    "start_treatment": {
+     "by": "doctor",
+     "description": "Start treating one waiting patient. You are busy for the treatment's whole duration (1 hour for urgency 4-5, 2 for urgency 3, 3 for urgency 1-2) and cannot start another patient until it finishes.",
+     "params": {
+      "patient": {
+       "type": "entity",
+       "of": "patient",
+       "where": "$it.triaged and $is_waiting($it)",
+       "description": "A triaged patient who is still waiting to be seen."
+      }
+     },
+     "when": [
+      {
+       "expr": "$actor.busy_until <= $round",
+       "why": "You are still treating a patient."
+      }
+     ],
+     "do": [
+      "$params.patient.treating_from = $round",
+      "$params.patient.seen_round = $round",
+      "$params.patient.treated_round = $round + $treatment_hours($params.patient.urgency)",
+      "$actor.busy_until = $params.patient.treated_round",
+      "$world.seen_total += 1"
+     ],
+     "outcome": "Started treating {$params.patient.name} (urgency {$params.patient.urgency}); treatment finishes at the end of hour {$params.patient.treated_round}."
+    }
+   },
+   "policies": {
+    "nurse": {
+     "rules": [
+      {
+       "each": "patient",
+       "when": "$it.triaged == false and not $it.left",
+       "do": "triage",
+       "with": {
+        "patient": "$it.id"
+       }
+      }
+     ],
+     "repeat": true
+    },
+    "doctor": {
+     "rules": [
+      {
+       "when": "$actor.busy_until <= $round and $count(patient, $it.triaged and $is_waiting($it)) > 0",
+       "do": "start_treatment",
+       "with": {
+        "patient": "$best(patient, [$it.urgency, $it.arrived_round, $it.id], 1, $it.triaged and $is_waiting($it))[0].id"
+       }
+      }
+     ]
+    }
+   },
+   "views": {
+    "queue": {
+     "for": [
+      "triage_nurse",
+      "doctor"
+     ],
+     "title": "Waiting queue",
+     "of": "patient",
+     "where": "not $it.treated and not $it.left",
+     "sort": "[$it.urgency, $it.arrived_round]",
+     "show": "{$it.id} {$it.name}: urgency {$it.urgency}, arrived hour {$it.arrived_round}, waited {$round - $it.arrived_round}h \u2014 {('being treated, free at end of hour ' if $it.treating_from > 0 else ('waiting (triaged)' if $it.triaged else 'not yet triaged'))}",
+     "empty": "Nobody is in the department."
+    },
+    "new_arrivals": {
+     "for": "triage_nurse",
+     "title": "Arrived this hour, not yet triaged",
+     "of": "patient",
+     "where": "$it.triaged == false and not $it.left",
+     "sort": "$it.urgency",
+     "show": "{$it.id} {$it.name}: urgency {$it.urgency}",
+     "empty": "No new patient is waiting to be triaged."
+    },
+    "doctors": {
+     "for": [
+      "triage_nurse",
+      "doctor"
+     ],
+     "title": "Doctors",
+     "of": "doctor",
+     "show": "{$it.name}: {('free' if $it.busy_until <= $round else 'treating a patient until the end of hour')} {$it.busy_until}",
+     "empty": "No doctor is on duty."
+    },
+    "department": {
+     "for": "spectator",
+     "title": "Department at the end of the hour",
+     "of": "patient",
+     "where": "not $it.left",
+     "sort": "[$it.urgency, $it.arrived_round]",
+     "show": "{$it.id} {$it.name}: urgency {$it.urgency}, arrived hour {$it.arrived_round}, waited {$round - $it.arrived_round}h, {('treated at the end of hour ' if $it.treated else ('being treated, free at end of hour ' if $it.treating_from > 0 else ('waiting (triaged)' if $it.triaged else 'not yet triaged')))} {$it.treated_round}",
+     "empty": "The department is empty."
+    }
+   },
+   "metrics": {
+    "arrivals_this_hour": "$world.arrivals_this_hour",
+    "arrived_total": "$world.arrived_total",
+    "waiting": "$count(patient, $is_waiting($it))",
+    "in_treatment": "$count(patient, $it.treating_from > 0 and not $it.treated)",
+    "treated_total": "$count(patient, $it.treated)",
+    "left_total": "$count(patient, $it.left)",
+    "in_department": "$count(patient, $in_department($it))",
+    "mean_wait_hours": "$avg(patient, $it.seen_round - $it.arrived_round, $it.treating_from > 0)"
+   },
+   "outputs": {
+    "arrivals_by_hour": {
+     "expr": "$world.arrivals_by_hour",
+     "type": "list",
+     "description": "Patients who arrived in each hour of the shift, in order."
+    },
+    "patients_arrived": {
+     "expr": "$world.arrived_total",
+     "type": "int",
+     "description": "Total patients who arrived during the shift."
+    },
+    "patients_treated": {
+     "expr": "$count(patient, $it.treated)",
+     "type": "int",
+     "description": "Patients whose treatment finished before the shift ended."
+    },
+    "patients_left_without_being_seen": {
+     "expr": "$count(patient, $it.left)",
+     "type": "int",
+     "description": "Patients who waited more than four hours and walked out."
+    },
+    "patients_in_department_at_end": {
+     "expr": "$count(patient, $in_department($it))",
+     "type": "int",
+     "description": "Patients still waiting or still being treated when the shift ended."
+    },
+    "mean_wait_hours": {
+     "expr": "$avg(patient, $it.seen_round - $it.arrived_round, $it.treating_from > 0)",
+     "format": "2",
+     "description": "Average hours waited before being seen, over the patients who were seen (null if nobody was seen)."
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$world.arrived_total == $sum($world.arrivals_by_hour)",
+     "why": "Arrival bookkeeping must agree with the hourly arrival list.",
+     "check": "round"
+    },
+    {
+     "expr": "$count(patient, $it.treated and $it.left) == 0",
+     "why": "A patient cannot both finish treatment and walk out.",
+     "check": "round"
+    },
+    {
+     "expr": "$count(patient, $it.treated) + $count(patient, $it.left) + $count(patient, $in_department($it)) == $world.arrived_total",
+     "why": "Every patient who arrived was treated, walked out, or is still in the department.",
+     "check": "end"
+    }
+   ]
+  },
+  {
+   "name": "Emergency department night shift",
+   "brief": {
+    "situation": "A hospital emergency department runs a twelve-hour night shift; one round is one hour. Patients arrive at random, on average about five an hour, each with an urgency level from 1 (most urgent) to 5 (least urgent). The hour's arrivals are drawn before anyone acts and never depend on what the staff do, so different staffing strategies can be compared on exactly the same night.",
+    "rules": "Each hour runs in this order: (1) the hour's arrivals are drawn and appear as patients; (2) the triage nurse sees the new arrivals and puts them in the waiting queue \u2014 a patient not yet triaged is in the department but no doctor can pick them; (3) each doctor, while free, may start treating one waiting patient. Treatment takes 1 hour for urgency 4 or 5, 2 hours for urgency 3 and 3 hours for urgency 1 or 2; a doctor is busy for that whole time and treats one patient at a time. At the end of every hour, treatments whose time is up are finished, and any patient who has waited more than four hours without being seen leaves without being seen. Patients still waiting or still being treated when the shift ends stay in the department. Waiting time is counted from the hour a patient arrives.",
+    "roles": {
+     "triage_nurse": "You are the triage nurse. Every hour, triage the patients who have just arrived so they join the waiting queue; triage up to {$inputs.triage_capacity} patients an hour. Anyone you do not triage stays in the department untriaged: no doctor can pick them, and they still walk out after four hours of waiting.",
+     "doctor": "You are a doctor. Every hour, while you are free, choose at most one waiting (triaged) patient to start treating. You are then busy for that patient's whole treatment: 1 hour for urgency 4-5, 2 hours for urgency 3, 3 hours for urgency 1-2. Pick the most urgent first \u2014 a patient who waits more than four hours walks out without being seen."
+    }
+   },
+   "clock": {
+    "rounds": "$inputs.horizon",
+    "unit": "hour"
+   },
+   "inputs": {
+    "horizon": {
+     "type": "int",
+     "default": 12,
+     "min": 1,
+     "max": 48,
+     "display": "number",
+     "label": "Shift length (hours)"
+    },
+    "arrival_rate": {
+     "type": "number",
+     "default": 5,
+     "min": 0,
+     "max": 40,
+     "display": "number",
+     "label": "Mean arrivals per hour"
+    },
+    "doctors": {
+     "type": "int",
+     "default": 2,
+     "min": 0,
+     "max": 8,
+     "display": "number",
+     "label": "Doctors on duty"
+    },
+    "triage_capacity": {
+     "type": "int",
+     "default": 25,
+     "min": 1,
+     "max": 60,
+     "display": "number",
+     "label": "Patients the nurse can triage per hour"
+    },
+    "abandon_after": {
+     "type": "int",
+     "default": 4,
+     "min": 0,
+     "max": 24,
+     "display": "number",
+     "label": "Hours of waiting before a patient walks out"
+    },
+    "service_hours": {
+     "type": "list",
+     "items": {
+      "type": "int",
+      "min": 1,
+      "max": 24,
+      "default": 1
+     },
+     "default": [
+      3,
+      3,
+      2,
+      1,
+      1
+     ],
+     "display": "list",
+     "label": "Treatment hours for urgency 1,2,3,4,5",
+     "description": "Index 0 is urgency 1 (most urgent), index 4 is urgency 5."
+    },
+    "urgency_weights": {
+     "type": "list",
+     "items": {
+      "type": "number",
+      "min": 0,
+      "default": 1
+     },
+     "default": [
+      1,
+      1,
+      1,
+      1,
+      1
+     ],
+     "display": "list",
+     "label": "Relative chance of urgency 1,2,3,4,5"
+    }
+   },
+   "world": {
+    "arrivals_this_hour": 0,
+    "arrived_total": 0,
+    "arrivals_by_hour": [],
+    "seen_total": 0,
+    "treated_total": 0,
+    "left_total": 0
+   },
+   "defs": {
+    "treatment_hours": {
+     "args": [
+      "urgency"
+     ],
+     "expr": "$get($inputs.service_hours, $urgency - 1, 1)",
+     "description": "Treatment length in hours for an urgency level."
+    },
+    "is_waiting": {
+     "args": [
+      "p"
+     ],
+     "expr": "not $p.treated and not $p.left and $p.treating_from == 0",
+     "description": "In the department and waiting to be seen."
+    },
+    "in_department": {
+     "args": [
+      "p"
+     ],
+     "expr": "not $p.treated and not $p.left",
+     "description": "Still waiting or still being treated."
+    },
+    "wait_hours": {
+     "args": [
+      "p"
+     ],
+     "expr": "$round - $p.arrived_round",
+     "description": "Hours waited so far (from arrival hour to the current hour)."
+    }
+   },
+   "types": {
+    "patient": {
+     "props": {
+      "urgency": 3,
+      "arrived_round": 0,
+      "triaged": false,
+      "treating_from": 0,
+      "treated_round": 0,
+      "treated": false,
+      "seen_round": 0,
+      "left": false,
+      "left_round": 0
+     }
+    },
+    "triage_nurse": {
+     "agent": true
+    },
+    "doctor": {
+     "agent": true,
+     "props": {
+      "busy_until": 0
+     }
+    }
+   },
+   "entities": {
+    "nurse_1": {
+     "type": "triage_nurse",
+     "name": "Triage nurse"
+    }
+   },
+   "population": [
+    {
+     "type": "doctor",
+     "count": "$inputs.doctors",
+     "id": "doctor_{$i}",
+     "name": "Dr. {$i}"
+    }
+   ],
+   "stages": [
+    {
+     "name": "triage_stage",
+     "actions": [
+      "triage"
+     ],
+     "max_actions": "$inputs.triage_capacity",
+     "max_calls": "$inputs.triage_capacity + 6",
+     "brief": "Hour {$round}: triage the patients who have just arrived so they join the waiting queue."
+    },
+    {
+     "name": "doctor_stage",
+     "actions": [
+      "start_treatment"
+     ],
+     "max_actions": 1,
+     "brief": "Hour {$round}: if you are free, start treating the most urgent waiting patient."
+    },
+    {
+     "name": "hour_end",
+     "actions": [],
+     "on_enter": [
+      {
+       "each": "patient",
+       "where": "$it.treating_from > 0 and not $it.treated and $it.treated_round <= $round",
+       "do": [
+        "$it.treated = true",
+        "$world.treated_total += 1"
+       ]
+      },
+      {
+       "each": "patient",
+       "where": "$is_waiting($it) and $round - $it.arrived_round > $inputs.abandon_after",
+       "do": [
+        "$it.left = true",
+        "$it.left_round = $round",
+        "$world.left_total += 1"
+       ]
+      }
+     ]
+    }
+   ],
+   "events": [
+    {
+     "name": "arrivals",
+     "phase": "start",
+     "do": [
+      "$world.arrivals_this_hour = $poisson($inputs.arrival_rate)",
+      "$world.arrived_total += $world.arrivals_this_hour",
+      "$world.arrivals_by_hour += $world.arrivals_this_hour",
+      {
+       "create": "patient",
+       "count": "$world.arrivals_this_hour",
+       "name": "Patient {$world.arrived_total - $world.arrivals_this_hour + $i}",
+       "props": {
+        "urgency": "$choice([1, 2, 3, 4, 5], $get($inputs.urgency_weights, $it - 1, 1))",
+        "arrived_round": "$round"
+       }
+      }
+     ],
+     "say": "Hour {$round}: {$world.arrivals_this_hour} patient(s) arrive."
+    }
+   ],
+   "actions": {
+    "triage": {
+     "by": "triage_nurse",
+     "description": "See a patient who has just arrived and put them in the waiting queue so a doctor can pick them.",
+     "params": {
+      "patient": {
+       "type": "entity",
+       "of": "patient",
+       "where": "$it.triaged == false and not $it.left",
+       "description": "A patient who has just arrived and has not been triaged yet."
+      }
+     },
+     "do": [
+      "$params.patient.triaged = true"
+     ],
+     "outcome": "Triaged {$params.patient.name} (urgency {$params.patient.urgency}) into the waiting queue."
+    },
+    "start_treatment": {
+     "by": "doctor",
+     "description": "Start treating one waiting patient. You are busy for the treatment's whole duration (1 hour for urgency 4-5, 2 for urgency 3, 3 for urgency 1-2) and cannot start another patient until it finishes.",
+     "params": {
+      "patient": {
+       "type": "entity",
+       "of": "patient",
+       "where": "$it.triaged and $is_waiting($it)",
+       "description": "A triaged patient who is still waiting to be seen."
+      }
+     },
+     "when": [
+      {
+       "expr": "$actor.busy_until <= $round",
+       "why": "You are still treating a patient."
+      }
+     ],
+     "do": [
+      "$params.patient.treating_from = $round",
+      "$params.patient.seen_round = $round",
+      "$params.patient.treated_round = $round + $treatment_hours($params.patient.urgency)",
+      "$actor.busy_until = $params.patient.treated_round",
+      "$world.seen_total += 1"
+     ],
+     "outcome": "Started treating {$params.patient.name} (urgency {$params.patient.urgency}); treatment finishes at the end of hour {$params.patient.treated_round}."
+    }
+   },
+   "policies": {
+    "nurse": {
+     "rules": [
+      {
+       "each": "patient",
+       "when": "$it.triaged == false and not $it.left",
+       "do": "triage",
+       "with": {
+        "patient": "$it.id"
+       }
+      }
+     ],
+     "repeat": true
+    },
+    "doctor": {
+     "rules": [
+      {
+       "when": "$actor.busy_until <= $round and $count(patient, $it.triaged and $is_waiting($it)) > 0",
+       "do": "start_treatment",
+       "with": {
+        "patient": "$best($filter(patient, $it.triaged and $is_waiting($it)), [$it.urgency, $it.arrived_round, $it.id])[0].id"
+       }
+      }
+     ]
+    }
+   },
+   "views": {
+    "queue": {
+     "for": [
+      "triage_nurse",
+      "doctor"
+     ],
+     "title": "Waiting queue",
+     "of": "patient",
+     "where": "not $it.treated and not $it.left",
+     "sort": "[$it.urgency, $it.arrived_round]",
+     "show": "{$it.id} {$it.name}: urgency {$it.urgency}, arrived hour {$it.arrived_round}, waited {$round - $it.arrived_round}h \u2014 {('being treated, free at end of hour ' if $it.treating_from > 0 else ('waiting (triaged)' if $it.triaged else 'not yet triaged'))}",
+     "empty": "Nobody is in the department."
+    },
+    "new_arrivals": {
+     "for": "triage_nurse",
+     "title": "Arrived this hour, not yet triaged",
+     "of": "patient",
+     "where": "$it.triaged == false and not $it.left",
+     "sort": "$it.urgency",
+     "show": "{$it.id} {$it.name}: urgency {$it.urgency}",
+     "empty": "No new patient is waiting to be triaged."
+    },
+    "doctors": {
+     "for": [
+      "triage_nurse",
+      "doctor"
+     ],
+     "title": "Doctors",
+     "of": "doctor",
+     "show": "{$it.name}: {('free' if $it.busy_until <= $round else 'treating a patient until the end of hour')} {$it.busy_until}",
+     "empty": "No doctor is on duty."
+    },
+    "department": {
+     "for": "spectator",
+     "title": "Department at the end of the hour",
+     "of": "patient",
+     "where": "not $it.left",
+     "sort": "[$it.urgency, $it.arrived_round]",
+     "show": "{$it.id} {$it.name}: urgency {$it.urgency}, arrived hour {$it.arrived_round}, waited {$round - $it.arrived_round}h, {('treated at the end of hour ' if $it.treated else ('being treated, free at end of hour ' if $it.treating_from > 0 else ('waiting (triaged)' if $it.triaged else 'not yet triaged')))} {$it.treated_round}",
+     "empty": "The department is empty."
+    }
+   },
+   "metrics": {
+    "arrivals_this_hour": "$world.arrivals_this_hour",
+    "arrived_total": "$world.arrived_total",
+    "waiting": "$count(patient, $is_waiting($it))",
+    "in_treatment": "$count(patient, $it.treating_from > 0 and not $it.treated)",
+    "treated_total": "$count(patient, $it.treated)",
+    "left_total": "$count(patient, $it.left)",
+    "in_department": "$count(patient, $in_department($it))",
+    "mean_wait_hours": "$avg(patient, $it.seen_round - $it.arrived_round, $it.treating_from > 0)"
+   },
+   "outputs": {
+    "arrivals_by_hour": {
+     "expr": "$world.arrivals_by_hour",
+     "type": "list",
+     "description": "Patients who arrived in each hour of the shift, in order."
+    },
+    "patients_arrived": {
+     "expr": "$world.arrived_total",
+     "type": "int",
+     "description": "Total patients who arrived during the shift."
+    },
+    "patients_treated": {
+     "expr": "$count(patient, $it.treated)",
+     "type": "int",
+     "description": "Patients whose treatment finished before the shift ended."
+    },
+    "patients_left_without_being_seen": {
+     "expr": "$count(patient, $it.left)",
+     "type": "int",
+     "description": "Patients who waited more than four hours and walked out."
+    },
+    "patients_in_department_at_end": {
+     "expr": "$count(patient, $in_department($it))",
+     "type": "int",
+     "description": "Patients still waiting or still being treated when the shift ended."
+    },
+    "mean_wait_hours": {
+     "expr": "$avg(patient, $it.seen_round - $it.arrived_round, $it.treating_from > 0)",
+     "format": "2",
+     "description": "Average hours waited before being seen, over the patients who were seen (null if nobody was seen)."
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$world.arrived_total == $sum($world.arrivals_by_hour)",
+     "why": "Arrival bookkeeping must agree with the hourly arrival list.",
+     "check": "round"
+    },
+    {
+     "expr": "$count(patient, $it.treated and $it.left) == 0",
+     "why": "A patient cannot both finish treatment and walk out.",
+     "check": "round"
+    },
+    {
+     "expr": "$count(patient, $it.treated) + $count(patient, $it.left) + $count(patient, $in_department($it)) == $world.arrived_total",
+     "why": "Every patient who arrived was treated, walked out, or is still in the department.",
+     "check": "end"
+    }
+   ]
+  }
+ ],
+ "guide_parts": [
+  "all",
+  "patterns",
+  "operations.queue",
+  "effects",
+  "functions",
+  "functions.collections",
+  "expressions",
+  "inputs",
+  "functions.random",
+  "model",
+  "invariants",
+  "events",
+  "population",
+  "views",
+  "stages",
+  "actions",
+  "outputs",
+  "clock",
+  "metrics",
+  "types",
+  "patterns.draw",
+  "defs",
+  "policies"
+ ],
+ "usage": {
+  "input_tokens": 499227,
+  "output_tokens": 105214,
+  "cost": 0.0533475544,
+  "calls": 18
+ },
+ "wall_seconds": 1508.3
+}
