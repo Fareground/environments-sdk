@@ -27,7 +27,7 @@ from ..expr import Call, ExprError, function
 from ..registry import MechanismError, family_action, mode
 from ..template import format_value
 from ..world import Abort
-from ._social import props, config_of, eid, entity, ids, only_use, require_type, single_use_check
+from ._social import props, config_of, eid, entity, ids, named_use, require_type
 
 __all__ = ["BeliefsConfig"]
 
@@ -53,9 +53,9 @@ class BeliefsConfig(BaseModel):
     phase: Literal["start", "end"] = Field("end", description="When beliefs decay each round.")
 
 
-def _use(world: Any, source: Optional[str]) -> tuple:
-    name = only_use(world, KIND, source)
-    return name, config_of(world, name, KIND, BeliefsConfig)
+def _use(call: Call, index: int) -> tuple:
+    name = named_use(call, KIND, index)
+    return name, config_of(call.scope.world, name, KIND, BeliefsConfig)
 
 
 def _map(holder: Entity, name: str) -> Dict[str, Any]:
@@ -109,35 +109,36 @@ def _agent(call: Call) -> Entity:
     return found  # type: ignore[no-any-return]
 
 
-@function("believes(agent, key, value?)", "True when the agent holds a belief about key (and, given a value, believes "
-          "exactly that) (beliefs mechanism).", min_args=2, max_args=3)
+@function("believes(agent, key, value?, mechanism?)", "True when the agent holds a belief about key (and, given a value, "
+          "believes exactly that) (beliefs mechanism).", min_args=2, max_args=4)
 def _believes_fn(call: Call) -> bool:
-    name, _ = _use(call.scope.world, call.source)
+    name, _ = _use(call, 3)
     held = _map(_agent(call), name).get(_key(call.arg(1), call.source))
     if held is None:
         return False
-    return len(call) < 3 or held["value"] == _plain(call.arg(2))
+    return call.arg(2) is None or held["value"] == _plain(call.arg(2))
 
 
-@function("belief(agent, key)", "The agent's belief about key: {value, confidence, source, told_by, round}, or null.",
-          min_args=2, max_args=2)
+@function("belief(agent, key, mechanism?)", "The agent's belief about key: {value, confidence, source, told_by, round}, or "
+          "null.", min_args=2, max_args=3)
 def _belief_fn(call: Call) -> Optional[Dict[str, Any]]:
-    name, _ = _use(call.scope.world, call.source)
+    name, _ = _use(call, 2)
     held = _map(_agent(call), name).get(_key(call.arg(1), call.source))
     return dict(held) if held is not None else None
 
 
-@function("confidence(agent, key)", "How sure the agent is about key (0 when it holds no belief).", min_args=2, max_args=2)
+@function("confidence(agent, key, mechanism?)", "How sure the agent is about key (0 when it holds no belief).",
+          min_args=2, max_args=3)
 def _confidence_fn(call: Call) -> float:
-    name, _ = _use(call.scope.world, call.source)
+    name, _ = _use(call, 2)
     held = _map(_agent(call), name).get(_key(call.arg(1), call.source))
     return float(held["confidence"]) if held is not None else 0.0
 
 
-@function("beliefs_of(agent)", "The agent's beliefs, most confident first: [{key, value, confidence, source, told_by, round}].",
-          min_args=1, max_args=1)
+@function("beliefs_of(agent, mechanism?)", "The agent's beliefs, most confident first: [{key, value, confidence, source, "
+          "told_by, round}].", min_args=1, max_args=2)
 def _beliefs_of_fn(call: Call) -> List[Dict[str, Any]]:
-    name, _ = _use(call.scope.world, call.source)
+    name, _ = _use(call, 1)
     rows = [{"key": key, **held} for key, held in _map(_agent(call), name).items()]
     rows.sort(key=lambda r: -r["confidence"])
     return rows
@@ -269,10 +270,10 @@ def _decay(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str
            "A private world model per agent: beliefs {key: {value, confidence, source, told_by, round}} in the private prop "
            "`<name>`, changed by the `learn`, `tell` and `forget` actions, decaying every round. Told beliefs arrive at "
            "secondhand confidence (scaled by trust). Read with $believes(agent, key, value?), $belief(agent, key), "
-           "$confidence(agent, key), $beliefs_of(agent).",
+           "$confidence(agent, key), $beliefs_of(agent); with several beliefs mechanisms, name one as the last argument "
+           "($beliefs_of($actor, 'rumours')).",
            example={"who": "villager", "decay": 0.1, "secondhand": 0.6, "share": True}, was="beliefs")
 def _expand(name: str, config: BeliefsConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
-    single_use_check(KIND, contract)
     require_type(contract, config.who, "who")
     if config.trust is not None and config.trust not in (contract.get("relations") or {}):
         raise MechanismError(f"trust '{config.trust}' is not a declared relation", "declare it under relations", "trust")
@@ -282,7 +283,7 @@ def _expand(name: str, config: BeliefsConfig, contract: Mapping[str, Any]) -> Di
         "events": [{"name": f"{name}_decay", "phase": config.phase, "do": [{"mind": name, "action": "decay"}]}],
     }
     if config.views:
-        fragment["views"] = {name: {"for": config.who, "title": "What you believe", "of": "$beliefs_of($actor)",
+        fragment["views"] = {name: {"for": config.who, "title": "What you believe", "of": f"$beliefs_of($actor, '{name}')",
                                     "limit": config.view_limit, "empty": "You hold no beliefs yet.",
                                     "show": "{key}: {value} ({confidence|pct} sure, {$'seen yourself' if $it.source == 'direct' "
                                             "else 'told by ' + $text($entity($it.told_by))})"}}

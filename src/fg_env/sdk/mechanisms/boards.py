@@ -574,7 +574,8 @@ piece per cell (no stacks), dice are not built in."""
 
 
 @mode("game", "board", BoardConfig, _DOC, example={
-    "size": [3, 3], "sides": ["x", "o"], "pieces": {"mark": {}}, "place": {}, "line": 3, "no_moves": "draw"}, was="board")
+    "size": [3, 3], "sides": ["x", "o"], "pieces": {"mark": {}}, "place": {}, "line": 3, "no_moves": "draw"}, was="board",
+      ends=lambda config: True)
 def _expand_board(name: str, config: BoardConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     rules = compile_rules(name, config)
     _check_shared_types(name, config, contract)

@@ -30,7 +30,7 @@ from ..registry import MechanismError, family_action, mode
 from ..template import format_value
 from ..world import Abort
 from ._common import ToolsSetting, tools_field
-from ._social import props, NAME, cache, config_of, eid, entity, ids, only_use, require_type, single_use_check
+from ._social import props, NAME, cache, config_of, eid, entity, ids, named_use, require_type
 
 __all__ = ["ChannelsConfig", "MAX_MENTIONS"]
 
@@ -80,9 +80,9 @@ class ChannelsConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _use(world: Any, source: Optional[str]) -> Tuple[str, ChannelsConfig]:
-    name = only_use(world, KIND, source)
-    return name, config_of(world, name, KIND, ChannelsConfig)
+def _use(call: Call, index: int) -> Tuple[str, ChannelsConfig]:
+    name = named_use(call, KIND, index)
+    return name, config_of(call.scope.world, name, KIND, ChannelsConfig)
 
 
 def _groups(world: Any, name: str) -> Dict[str, Dict[str, Any]]:
@@ -181,33 +181,34 @@ def _agent(call: Call, index: int = 0) -> Entity:
     return found  # type: ignore[no-any-return]
 
 
-@function("channels(agent)", "Rooms and groups an agent may post in (social channels mechanism).", min_args=1, max_args=1)
+@function("channels(agent, mechanism?)", "Rooms and groups an agent may post in (social channels mechanism).",
+          min_args=1, max_args=2)
 def _channels_fn(call: Call) -> List[str]:
-    name, config = _use(call.scope.world, call.source)
+    name, config = _use(call, 1)
     return _postable(call.scope.world, name, config, _agent(call))
 
 
-@function("inbox_channels(agent)", "Every channel an agent can read: rooms, its groups and its direct-message threads (@id).",
-          min_args=1, max_args=1)
+@function("inbox_channels(agent, mechanism?)", "Every channel an agent can read: rooms, its groups and its direct-message "
+          "threads (@id).", min_args=1, max_args=2)
 def _inbox_channels_fn(call: Call) -> List[str]:
-    name, config = _use(call.scope.world, call.source)
+    name, config = _use(call, 1)
     return _readable(call.scope.world, name, config, _agent(call))
 
 
-@function("unread(agent, channel?)", "Unread messages for an agent, in one channel (a room, group or @id) or in all.",
-          min_args=1, max_args=2)
+@function("unread(agent, channel?, mechanism?)", "Unread messages for an agent, in one channel (a room, group or @id) or in "
+          "all.", min_args=1, max_args=3)
 def _unread_fn(call: Call) -> int:
-    name, _ = _use(call.scope.world, call.source)
+    name, _ = _use(call, 2)
     counts = _unread_counts(call.scope.world, name, _agent(call))
     channel = call.arg(1)
     return counts.get(str(channel), 0) if channel is not None else sum(counts.values())
 
 
-@function("channel_log(agent, channel, n?)", "The latest n messages of a channel as the agent reads them (default: the read limit).",
-          min_args=2, max_args=3)
+@function("channel_log(agent, channel, n?, mechanism?)", "The latest n messages of a channel as the agent reads them "
+          "(default: the read limit).", min_args=2, max_args=4)
 def _channel_log_fn(call: Call) -> str:
     world: Any = call.scope.world
-    name, config = _use(world, call.source)
+    name, config = _use(call, 3)
     viewer = _agent(call)
     return _log(world, name, config, viewer, str(call.arg(1)), call.arg(2))
 
@@ -222,36 +223,39 @@ def _log(world: Any, name: str, config: ChannelsConfig, viewer: Entity, key: str
     return f"{_label(world, key)}:\n" + "\n".join(_line(world, e, viewer) for e in rows)
 
 
-@function("recent_messages(agent, n?)", "Sequence numbers of the latest messages an agent can read and did not write.",
-          min_args=1, max_args=2)
+@function("recent_messages(agent, n?, mechanism?)", "Sequence numbers of the latest messages an agent can read and did not "
+          "write.", min_args=1, max_args=3)
 def _recent_fn(call: Call) -> List[int]:
     world: Any = call.scope.world
-    name, config = _use(world, call.source)
+    name, config = _use(call, 2)
     viewer = _agent(call)
-    n = call.arg(1, config.recent)
+    n = call.arg(1)
+    n = config.recent if n is None else n
     rows = [e["seq"] for e in _visible(world, name, viewer) if e.get("author") != viewer.id]
     return rows[-n:] if isinstance(n, int) and n > 0 else []
 
 
-@function("groups(agent)", "Private groups the agent belongs to (social channels mechanism).", min_args=1, max_args=1)
+@function("groups(agent, mechanism?)", "Private groups the agent belongs to (social channels mechanism).",
+          min_args=1, max_args=2)
 def _groups_fn(call: Call) -> List[str]:
-    name, _ = _use(call.scope.world, call.source)
+    name, _ = _use(call, 1)
     agent_id = eid(call.arg(0), call.source)
     return [g for g, spec in _groups(call.scope.world, name).items() if agent_id in spec["members"]]
 
 
-@function("invites(agent)", "Private groups the agent has been invited to and not joined.", min_args=1, max_args=1)
+@function("invites(agent, mechanism?)", "Private groups the agent has been invited to and not joined.",
+          min_args=1, max_args=2)
 def _invites_fn(call: Call) -> List[str]:
-    name, _ = _use(call.scope.world, call.source)
+    name, _ = _use(call, 1)
     agent_id = eid(call.arg(0), call.source)
     return [g for g, spec in _groups(call.scope.world, name).items() if agent_id in spec["invited"]]
 
 
-@function("inbox(agent)", "The agent's channels with unread counts: [{channel, label, title, unread, status}].",
-          min_args=1, max_args=1)
+@function("inbox(agent, mechanism?)", "The agent's channels with unread counts: [{channel, label, title, unread, status}].",
+          min_args=1, max_args=2)
 def _inbox_fn(call: Call) -> List[Dict[str, Any]]:
     world: Any = call.scope.world
-    name, config = _use(world, call.source)
+    name, config = _use(call, 1)
     viewer = _agent(call)
     counts = _unread_counts(world, name, viewer)
     groups = _groups(world, name)
@@ -513,12 +517,12 @@ def _membership(world: Any, name: str, config: ChannelsConfig, agent: Entity, ac
            "groups you are in), `<name>_dm`, `<name>_reply`, `<name>_read`, `<name>_broadcast`, and group tools. "
            "Messages are entries of the record `<name>` delivered only to their audience; @mentions wake the "
            "mentioned agent. Read state with $channels(agent), $unread(agent, channel?), $inbox(agent), "
-           "$channel_log(agent, channel), $groups(agent), $invites(agent).",
+           "$channel_log(agent, channel), $groups(agent), $invites(agent); with several channels mechanisms, name one as the "
+           "last argument ($channels($actor, 'chat')).",
            example={"who": "citizen", "rooms": ["plaza"],
                     "groups": {"council": {"members": ["ana", "ben"], "title": "Budget committee"}},
                     "per_turn": 2, "max_chars": 400}, was="channels")
 def _expand(name: str, config: ChannelsConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
-    single_use_check(KIND, contract)
     require_type(contract, config.who, "who", agent=True)
     require_type(contract, config.broadcast, "broadcast", agent=True)
     _check_names(config, contract)
@@ -527,17 +531,17 @@ def _expand(name: str, config: ChannelsConfig, contract: Mapping[str, Any]) -> D
     text = {"type": "text", "max_len": config.max_chars, "description": f"Your message (at most {config.max_chars} characters). Write @id to wake someone."}
     actions: Dict[str, Any] = {
         f"{name}_say": {"by": members, "description": "Post a message in a room or in a private group you belong to.",
-                        "params": {"channel": {"type": "enum", "values": "$channels($actor)", "description": "Where to post."},
+                        "params": {"channel": {"type": "enum", "values": f"$channels($actor, '{name}')", "description": "Where to post."},
                                    "text": text},
-                        "when": [{"expr": "$len($channels($actor)) > 0", "why": "You are in no room or group."}],
+                        "when": [{"expr": f"$len($channels($actor, '{name}')) > 0", "why": "You are in no room or group."}],
                         "do": [{"social": name, "action": "say", "channel": "$params.channel", "text": "$params.text"}],
                         "outcome": "Posted in {$params.channel}.", "private": True, **rate},
         f"{name}_read": {"by": members, "description": "Read the latest messages of one of your channels and mark it read.",
-                         "params": {"channel": {"type": "enum", "values": "$inbox_channels($actor)",
+                         "params": {"channel": {"type": "enum", "values": f"$inbox_channels($actor, '{name}')",
                                                 "description": "A room, a group, or @id for a direct-message thread."}},
-                         "when": [{"expr": "$len($inbox_channels($actor)) > 0", "why": "You have no channels."}],
+                         "when": [{"expr": f"$len($inbox_channels($actor, '{name}')) > 0", "why": "You have no channels."}],
                          "do": [{"social": name, "action": "read", "channel": "$params.channel"}],
-                         "outcome": "{$channel_log($actor, $params.channel)}", "private": True},
+                         "outcome": f"{{$channel_log($actor, $params.channel, null, '{name}')}}", "private": True},
     }
     if config.dm:
         actions[f"{name}_dm"] = {"by": members, "description": "Send a private message only the recipient reads.",
@@ -547,9 +551,9 @@ def _expand(name: str, config: ChannelsConfig, contract: Mapping[str, Any]) -> D
                                  "outcome": "Message sent to {$params.to.name}.", "private": True, **rate}
     if config.replies:
         actions[f"{name}_reply"] = {"by": members, "description": "Reply to a recent message by its [number], in the same channel.",
-                                    "params": {"message": {"type": "enum", "values": "$recent_messages($actor)",
+                                    "params": {"message": {"type": "enum", "values": f"$recent_messages($actor, null, '{name}')",
                                                            "description": "The [number] of the message."}, "text": text},
-                                    "when": [{"expr": "$len($recent_messages($actor)) > 0", "why": "There is nothing to reply to."}],
+                                    "when": [{"expr": f"$len($recent_messages($actor, null, '{name}')) > 0", "why": "There is nothing to reply to."}],
                                     "do": [{"social": name, "action": "reply", "message": "$params.message", "text": "$params.text"}],
                                     "outcome": "Replied to [{$params.message}].", "private": True, **rate}
     if config.broadcast:
@@ -569,7 +573,7 @@ def _expand(name: str, config: ChannelsConfig, contract: Mapping[str, Any]) -> D
                            "fields": {"kind": "text", "channel": "text", "text": "text", "reply_to": "int", "mentions": "list"},
                            "show": _SHOW, "notify": config.notify, **({"keep": config.keep} if config.keep else {})}},
         "actions": actions,
-        "views": {f"{name}_inbox": {"for": members, "title": "Your channels", "of": "$inbox($actor)",
+        "views": {f"{name}_inbox": {"for": members, "title": "Your channels", "of": f"$inbox($actor, '{name}')",
                                     "show": "{label}{$' — ' if $it.title else ''}{$it.title or ''} · {status}",
                                     "empty": "You are in no channels."}},
     }
@@ -591,19 +595,19 @@ def _group_actions(name: str, config: ChannelsConfig) -> Dict[str, Any]:
     members = config.who
     actions: Dict[str, Any] = {
         f"{name}_invite": {"by": members, "description": "Invite someone to a private group you belong to.",
-                           "params": {"group": {"type": "enum", "values": "$groups($actor)"},
+                           "params": {"group": {"type": "enum", "values": f"$groups($actor, '{name}')"},
                                       "guest": {"type": "entity", "of": members}},
-                           "when": [{"expr": "$len($groups($actor)) > 0", "why": "You are in no group."}],
+                           "when": [{"expr": f"$len($groups($actor, '{name}')) > 0", "why": "You are in no group."}],
                            "do": [{"social": name, "action": "invite", "group": "$params.group", "guest": "$params.guest"}],
                            "outcome": "Invited {$params.guest.name} to {$params.group}.", "private": True},
         f"{name}_join": {"by": members, "description": "Join a private group you were invited to.",
-                         "params": {"group": {"type": "enum", "values": "$invites($actor)"}},
-                         "when": [{"expr": "$len($invites($actor)) > 0", "why": "You have no invitations."}],
+                         "params": {"group": {"type": "enum", "values": f"$invites($actor, '{name}')"}},
+                         "when": [{"expr": f"$len($invites($actor, '{name}')) > 0", "why": "You have no invitations."}],
                          "do": [{"social": name, "action": "join", "group": "$params.group"}],
                          "outcome": "You joined {$params.group}.", "private": True},
         f"{name}_leave": {"by": members, "description": "Leave a private group.",
-                          "params": {"group": {"type": "enum", "values": "$groups($actor)"}},
-                          "when": [{"expr": "$len($groups($actor)) > 0", "why": "You are in no group."}],
+                          "params": {"group": {"type": "enum", "values": f"$groups($actor, '{name}')"}},
+                          "when": [{"expr": f"$len($groups($actor, '{name}')) > 0", "why": "You are in no group."}],
                           "do": [{"social": name, "action": "leave", "group": "$params.group"}],
                           "outcome": "You left {$params.group}.", "private": True},
     }

@@ -177,6 +177,11 @@ def slug(text: str) -> str:
     return re.sub(r"[^A-Za-z0-9]+", "_", text).strip("_").lower() or "card"
 
 
+def id_prefix(deck: str, decks: int) -> str:
+    """What a deck's card ids start with: its name when the contract has several decks, so no two decks share an id."""
+    return f"{deck}_" if decks > 1 else ""
+
+
 # ---------------------------------------------------------------------------
 # Decks of a running contract
 # ---------------------------------------------------------------------------
@@ -375,11 +380,12 @@ def create_personal_cards(world: Any, deck: Deck, where: str) -> None:
     entries = deck.config.deck if isinstance(deck.config.deck, list) else []
     players = list(world.entities_of(deck.who))
     scope = world.scope()
+    prefix = id_prefix(deck.name, len(decks(world)[0]))
     for entry in (e for e in entries if e.per_player):
         for player in players:
             for name, rank, suit in card_family(entry):
                 for copy in range(1, entry.copies + 1):
-                    card_id = f"{slug(name)}_{player.id}" + (f"_{copy}" if copy > 1 else "")
+                    card_id = f"{prefix}{slug(name)}_{player.id}" + (f"_{copy}" if copy > 1 else "")
                     if card_id in world.entities:
                         continue
                     zone = _zone(deck, entry.zone, where)

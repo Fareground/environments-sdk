@@ -9,8 +9,9 @@
 config the rest of the entry is. A mechanism expands into ordinary contract sections — actions,
 stages, world props, events, views, defs — backed by native functions and effect ops. Everything the engine does (checking,
 preview, atomic actions, snapshots, determinism) therefore applies to it unchanged. Anything
-the author declares under a generated name wins, so generated parts can be overridden; types
-the author declares gain the mechanism's properties without losing their own. A mechanism may
+the author declares under a generated name wins, so generated parts can be overridden, while two
+mechanisms generating different entries under one name is an error naming both; types the author
+declares gain the mechanism's properties without losing their own. A mechanism may
 extend declared actions (``action_hooks``) and stages (``stage_hooks``), and generate other mechanisms.
 """
 from __future__ import annotations
@@ -65,6 +66,7 @@ def expand_mechanisms(data: Mapping[str, Any], generated: Optional[Dict[str, Dic
     out: Dict[str, Any] = copy.deepcopy(dict(data))
     issues: List[Issue] = []
     expanded: List[str] = []
+    owners: Dict[Tuple[str, str], str] = {}  # (section, name) → the mechanism that generated it
     while True:  # generated mechanisms are expanded too, until nothing new appears
         todo = [(name, use) for name, use in out["mechanisms"].items() if name not in expanded]
         if not todo:
@@ -75,7 +77,7 @@ def expand_mechanisms(data: Mapping[str, Any], generated: Optional[Dict[str, Dic
         for name, use in todo:
             expanded.append(name)
             before = _names(out) if generated is not None else {}
-            issues.extend(_expand_one(out, name, use))
+            issues.extend(_expand_one(out, name, use, owners))
             if generated is not None:
                 generated[str(name)] = _added(before, _names(out))
     return out, issues
@@ -113,24 +115,35 @@ def _added(before: Mapping[str, List[str]], after: Mapping[str, List[str]]) -> D
 
 
 def generated_summary(data: Mapping[str, Any]) -> List[str]:
-    """One compact line per declared mechanism naming what it generated, e.g.
+    """One compact line per declared mechanism naming what it generated (and whether it can end the run), e.g.
     ``sale (market.auction): actions sale_bid · stages sale · outputs sale_sold, sale_revenue · 2 events``."""
     uses = data.get("mechanisms")
     if not isinstance(uses, Mapping) or not uses:
         return []
     generated: Dict[str, Dict[str, List[str]]] = {}
-    expand_mechanisms(data, generated)
+    out, _ = expand_mechanisms(data, generated)
     lines = []
     for name, parts in generated.items():
         use = (data.get("mechanisms") or {}).get(name)
         label = f"{use.get('kind')}.{use.get('mode')}" if isinstance(use, Mapping) and use.get("mode") else "generated"
         shown = [f"{section} {', '.join(names)}" if section in _NAMED else f"{len(names)} {section}"
                  for section, names in parts.items()]
-        lines.append(f"{name} ({label}): {' · '.join(shown) or 'extends declared parts only'}")
+        ends = " · can end the run" if _can_end(out["mechanisms"].get(name)) else ""
+        lines.append(f"{name} ({label}): {' · '.join(shown) or 'extends declared parts only'}{ends}")
     return lines
 
 
-def _expand_one(out: Dict[str, Any], name: Any, use: Any) -> List[Issue]:
+def _can_end(use: Any) -> bool:
+    found = _spec(use, "") if isinstance(use, Mapping) and "kind" in use else None
+    if not isinstance(found, tuple):
+        return False
+    try:
+        return found[0].ends(found[0].config.model_validate(config_data(use)))
+    except ValidationError:
+        return False
+
+
+def _expand_one(out: Dict[str, Any], name: Any, use: Any, owners: Dict[Tuple[str, str], str]) -> List[Issue]:
     """Validate one declared mechanism and merge what it generates into ``out``."""
     path = f"mechanisms.{name}"
     if not isinstance(name, str) or not _NAME.match(name):
@@ -148,6 +161,9 @@ def _expand_one(out: Dict[str, Any], name: Any, use: Any) -> List[Issue]:
         return [_config_issue(path, label, spec.config, error) for error in exc.errors()]
     try:
         fragment = _group_tools(name, config, spec.expand(name, config, out))
+        clash = _claim(out, name, fragment, owners)
+        if clash is not None:
+            return [clash]
         merge_sections(out, fragment)
     except MechanismError as exc:
         return [Issue(f"{path}.{exc.path}" if exc.path else path, str(exc), exc.fix)]
@@ -155,6 +171,35 @@ def _expand_one(out: Dict[str, Any], name: Any, use: Any) -> List[Issue]:
         return [Issue(path, f"the {label} mechanism failed to expand: {type(exc).__name__}: {exc}",
                       "this is a bug in the mechanism; report it with the contract")]
     return []
+
+
+#: Sections whose generated entries are claimed by name: two mechanisms must not generate different ones alike.
+_CLAIMED = (*_KEYED, "stages", "entities", "mechanisms")
+
+
+def _claim(out: Mapping[str, Any], name: str, fragment: Mapping[str, Any], owners: Dict[Tuple[str, str], str]
+           ) -> Optional[Issue]:
+    """Record the names ``fragment`` generates as ``name``'s; a different entry another mechanism generated under
+    one of them is a clash (the author's own entries are not claimed: declaring one overrides the generated one)."""
+    claims = []
+    for section in _CLAIMED:
+        present = _entries(out, section)
+        for key, item in _entries(fragment, section).items():
+            other = owners.get((section, key))
+            if other is not None and other != name and _canonical(present.get(key)) != _canonical(item):
+                return Issue(f"mechanisms.{name}", f"'{other}' and '{name}' both generate {section} '{key}'",
+                             "configure one of them to generate a different name, or keep only one of them")
+            if key not in present:
+                claims.append((section, key))
+    owners.update((claim, name) for claim in claims)
+    return None
+
+
+def _entries(data: Mapping[str, Any], section: str) -> Mapping[str, Any]:
+    value = data.get(section)
+    if section == "stages" and isinstance(value, list):
+        return {str(s.get("name")): s for s in value if isinstance(s, Mapping)}
+    return value if isinstance(value, Mapping) else {}
 
 
 #: The former `dynamics` family and its old kind names, and what replaced each.

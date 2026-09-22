@@ -1,7 +1,7 @@
 # social / channels
 
 ### `social.channels`
-Rooms, private groups, direct messages and broadcasts: tools `<name>_say` (channel enum of the rooms and groups you are in), `<name>_dm`, `<name>_reply`, `<name>_read`, `<name>_broadcast`, and group tools. Messages are entries of the record `<name>` delivered only to their audience; @mentions wake the mentioned agent. Read state with $channels(agent), $unread(agent, channel?), $inbox(agent), $channel_log(agent, channel), $groups(agent), $invites(agent).
+Rooms, private groups, direct messages and broadcasts: tools `<name>_say` (channel enum of the rooms and groups you are in), `<name>_dm`, `<name>_reply`, `<name>_read`, `<name>_broadcast`, and group tools. Messages are entries of the record `<name>` delivered only to their audience; @mentions wake the mentioned agent. Read state with $channels(agent), $unread(agent, channel?), $inbox(agent), $channel_log(agent, channel), $groups(agent), $invites(agent); with several channels mechanisms, name one as the last argument ($channels($actor, 'chat')).
 
 Config:
 - `who` (required): Agent type that chats (subtypes included).

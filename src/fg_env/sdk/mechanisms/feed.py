@@ -32,7 +32,7 @@ from ..expr import Call, ExprError, function
 from ..registry import MechanismError, family_action, mode
 from ..world import Abort
 from ._common import ToolsSetting, tools_field
-from ._social import props, cache, config_of, edges, eid, entity, only_use, require_type, seat_order, single_use_check
+from ._social import props, cache, config_of, edges, eid, entity, named_use, require_type, seat_order
 
 __all__ = ["FeedConfig", "feed"]
 
@@ -111,9 +111,9 @@ class FeedConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _use(world: Any, source: Optional[str]) -> Tuple[str, FeedConfig]:
-    name = only_use(world, KIND, source)
-    return name, config_of(world, name, KIND, FeedConfig)
+def _use(call: Call, index: int) -> Tuple[str, FeedConfig]:
+    name = named_use(call, KIND, index)
+    return name, config_of(call.scope.world, name, KIND, FeedConfig)
 
 
 def _out(world: Any, relation: str, account: str) -> List[str]:
@@ -219,59 +219,60 @@ def _account(call: Call, index: int = 0) -> Entity:
 
 
 def _size(call: Call, index: int, default: int) -> int:
-    value = call.arg(index, default)
+    value = call.arg(index)
+    value = default if value is None else value
     if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 1000:
         raise ExprError(f"${call.name}: n must be a whole number from 0 to 1000, got {value!r}", call.source)
     return value
 
 
-@function("feed(viewer, n?)", "The viewer's ranked feed: up to n posts (default feed_size) from the social feed mechanism.",
-          min_args=1, max_args=2)
+@function("feed(viewer, n?, mechanism?)", "The viewer's ranked feed: up to n posts (default feed_size) from the social feed "
+          "mechanism.", min_args=1, max_args=3)
 def _feed_fn(call: Call) -> List[Entity]:
     world: Any = call.scope.world
-    name, config = _use(world, call.source)
+    name, config = _use(call, 2)
     return feed(world, name, config, _account(call), _size(call, 1, config.feed_size))
 
 
-@function("trending(n?)", "Recent posts with the most engagement per round of age (reposts count toward the original).",
-          min_args=0, max_args=1)
+@function("trending(n?, mechanism?)", "Recent posts with the most engagement per round of age (reposts count toward the "
+          "original).", min_args=0, max_args=2)
 def _trending_fn(call: Call) -> List[Entity]:
     world: Any = call.scope.world
-    name, config = _use(world, call.source)
+    name, config = _use(call, 1)
     return _trending(world, name, config, _size(call, 0, config.trending_size))
 
 
-@function("following(account)", "Ids of the accounts this account follows.", min_args=1, max_args=1)
+@function("following(account, mechanism?)", "Ids of the accounts this account follows.", min_args=1, max_args=2)
 def _following_fn(call: Call) -> List[str]:
     world: Any = call.scope.world
-    name, _ = _use(world, call.source)
+    name, _ = _use(call, 1)
     return list(_out(world, f"{name}_follows", eid(call.arg(0), call.source)))
 
 
-@function("followers(account)", "Ids of the accounts that follow this account.", min_args=1, max_args=1)
+@function("followers(account, mechanism?)", "Ids of the accounts that follow this account.", min_args=1, max_args=2)
 def _followers_fn(call: Call) -> List[str]:
     world: Any = call.scope.world
-    name, _ = _use(world, call.source)
+    name, _ = _use(call, 1)
     return list(_in(world, f"{name}_follows", eid(call.arg(0), call.source)))
 
 
-@function("influence(account)", "Followers + friends + reposts received: how far an account's voice carries.",
-          min_args=1, max_args=1)
+@function("influence(account, mechanism?)", "Followers + friends + reposts received: how far an account's voice carries.",
+          min_args=1, max_args=2)
 def _influence_fn(call: Call) -> float:
     world: Any = call.scope.world
-    name, config = _use(world, call.source)
+    name, config = _use(call, 1)
     account = _account(call)
     friends = len(_out(world, f"{name}_friends", account.id)) if config.friends else 0
     return float(len(_in(world, f"{name}_follows", account.id)) + friends
                  + int(props(account).get(f"{name}_reposts_received", 0)))
 
 
-@function("insularity(account?)", "Share of an account's connections that are connected to each other (0 diverse – 1 echo "
-          "chamber); without an account, the mean over accounts with at least two connections.", min_args=0, max_args=1)
+@function("insularity(account?, mechanism?)", "Share of an account's connections that are connected to each other (0 diverse "
+          "– 1 echo chamber); without an account, the mean over accounts with at least two connections.", min_args=0, max_args=2)
 def _insularity_fn(call: Call) -> float:
     world: Any = call.scope.world
-    name, config = _use(world, call.source)
-    if len(call):
+    name, config = _use(call, 1)
+    if call.arg(0) is not None:
         return _insularity(world, name, config, eid(call.arg(0), call.source))
     scores = [_insularity(world, name, config, a.id) for a in world.entities_of(config.who)
               if len(_connections(world, name, config, a.id)) >= 2]
@@ -286,11 +287,11 @@ def _insularity(world: Any, name: str, config: FeedConfig, account: str) -> floa
     return ties / (len(linked) * (len(linked) - 1))
 
 
-@function("homophily(prop)", "Share of follow links joining accounts with the same value of `prop` (null without links).",
-          min_args=1, max_args=1)
+@function("homophily(prop, mechanism?)", "Share of follow links joining accounts with the same value of `prop` (null "
+          "without links).", min_args=1, max_args=2)
 def _homophily_fn(call: Call) -> Optional[float]:
     world: Any = call.scope.world
-    name, config = _use(world, call.source)
+    name, config = _use(call, 1)
     prop = str(call.arg(0))
     same = total = 0
     for a, b in world.links.get(f"{name}_follows", {}):
@@ -536,18 +537,18 @@ _FEED_LINE = ("[{id}] {$entity($it.author)}{$' reposted ' + $text($entity($it.or
            "A social network: posts (type `<name>_post`), replies, reposts, reactions, follows, friend requests, blocks and "
            "mutes (relations `<name>_follows`, `<name>_friends`, `<name>_blocks` …), a ranked feed view per account, "
            "trending, reputation moved by engagement, and moderator labels that downrank posts. Read it with "
-           "$feed(viewer, n?), $trending(n?), $following(a), $followers(a), $influence(a), $insularity(a?), $homophily(prop).",
+           "$feed(viewer, n?), $trending(n?), $following(a), $followers(a), $influence(a), $insularity(a?), $homophily(prop); "
+           "with several feeds, name one as the last argument ($following($actor, 'net')).",
            example={"who": "account", "feed_size": 6, "moderators": "moderator",
                     "downrank": {"labels": ["misleading"], "factor": 0.2}}, was="social_graph")
 def _expand(name: str, config: FeedConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
-    single_use_check(KIND, contract)
     require_type(contract, config.who, "who", agent=True)
     require_type(contract, config.moderators, "moderators", agent=True)
     if f"{name}_post" in (contract.get("types") or {}):
         raise MechanismError(f"type '{name}_post' is generated by this mechanism", "rename your type", "")
     accounts, post_type = config.who, f"{name}_post"
     rate: Dict[str, Any] = {"per_turn": config.per_turn} if config.per_turn else {}
-    visible = "$union($ids($feed($actor)), $ids($trending()))"  # every post the account is shown: its feed and trending
+    visible = f"$union($ids($feed($actor, null, '{name}')), $ids($trending(null, '{name}')))"  # every post the account is shown: its feed and trending
     in_feed = {"type": "enum", "values": visible, "description": "The [id] of a post in your feed or trending."}
     feed_when = [{"expr": f"$len({visible}) > 0", "why": "There is no post to see: your feed and trending are empty."}]
     text = {"type": "text", "max_len": config.max_chars}
@@ -582,8 +583,8 @@ def _expand(name: str, config: FeedConfig, contract: Mapping[str, Any]) -> Dict[
         actions[f"{name}_follow"] = act("Follow an account: its posts reach your feed.", {"action": "follow", "account": "$params.who"},
                                         {"who": who}, outcome="You follow {$params.who.name}.")
         actions[f"{name}_unfollow"] = act("Stop following an account.", {"action": "unfollow", "account": "$params.who"},
-                                          {"who": {"type": "enum", "values": "$following($actor)", "description": "An account you follow."}},
-                                          [{"expr": "$len($following($actor)) > 0", "why": "You follow nobody."}],
+                                          {"who": {"type": "enum", "values": f"$following($actor, '{name}')", "description": "An account you follow."}},
+                                          [{"expr": f"$len($following($actor, '{name}')) > 0", "why": "You follow nobody."}],
                                           outcome="You unfollowed {$params.who}.")
     if config.friends:
         actions[f"{name}_befriend"] = act("Send a friend request, or accept one sent to you.", {"action": "befriend", "account": "$params.who"},
@@ -623,17 +624,17 @@ def _expand(name: str, config: FeedConfig, contract: Mapping[str, Any]) -> Dict[
                       f"{name}_mutes": {"description": "from muted to."}},
         "actions": actions,
         "views": {
-            f"{name}_feed": {"for": accounts, "title": "Your feed", "of": "$feed($actor)", "show": _FEED_LINE,
+            f"{name}_feed": {"for": accounts, "title": "Your feed", "of": f"$feed($actor, null, '{name}')", "show": _FEED_LINE,
                              "empty": "Nothing new from the accounts you follow."},
-            f"{name}_profile": {"for": accounts, "show": f"You have {{$len($followers($actor))}} followers, follow "
-                                                        f"{{$len($following($actor))}}, reputation {{{name}_reputation|pct}}."},
+            f"{name}_profile": {"for": accounts, "show": f"You have {{$len($followers($actor, '{name}'))}} followers, follow "
+                                                        f"{{$len($following($actor, '{name}'))}}, reputation {{{name}_reputation|pct}}."},
             f"{name}_trending": {"for": [accounts] + ([config.moderators] if config.moderators else []), "title": "Trending",
-                                 "of": "$trending()", "show": _FEED_LINE, "empty": "Nothing is trending.", "look": True},
+                                 "of": f"$trending(null, '{name}')", "show": _FEED_LINE, "empty": "Nothing is trending.", "look": True},
         },
     }
     if config.moderators:
         fragment["views"][f"{name}_queue"] = {"for": config.moderators, "title": "Most engaged recent posts",
-                                              "of": "$trending(10)", "show": _FEED_LINE, "empty": "Nothing to review."}
+                                              "of": f"$trending(10, '{name}')", "show": _FEED_LINE, "empty": "Nothing to review."}
     names = list(actions)
     if not names:
         return fragment

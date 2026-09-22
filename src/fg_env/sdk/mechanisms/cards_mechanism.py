@@ -4,8 +4,8 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
-from ..registry import MechanismError, mode
-from .cards import CardActionConfig, CardsConfig, Zone, card_family, slug, standard_cards, zones_for
+from ..registry import MechanismError, mode, use_key
+from .cards import KEY, CardActionConfig, CardsConfig, Zone, card_family, id_prefix, slug, standard_cards, zones_for
 
 __all__: List[str] = []
 
@@ -37,13 +37,14 @@ def _prop_default(value: Any) -> Dict[str, Any]:
     return {"type": "any", "default": None}
 
 
-def _card_entities(config: CardsConfig, zones: Mapping[str, Zone], taken: Mapping[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+def _card_entities(config: CardsConfig, zones: Mapping[str, Zone], taken: Mapping[str, Any], prefix: str
+                   ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """Shared card entities (per-player cards are created in round 1) and the props their entries use."""
     entities: Dict[str, Any] = {}
     props: Dict[str, Any] = {}
     if config.deck == "standard":
         for order, (card_id, name, rank, suit) in enumerate(standard_cards(config.jokers)):
-            entities[card_id] = {"type": config.type, "name": name, "props": {"rank": rank, "suit": suit, "order": order}}
+            entities[prefix + card_id] = {"type": config.type, "name": name, "props": {"rank": rank, "suit": suit, "order": order}}
     else:
         for index, entry in enumerate(config.deck):
             zone = zones.get(entry.zone)
@@ -61,7 +62,7 @@ def _card_entities(config: CardsConfig, zones: Mapping[str, Zone], taken: Mappin
                 continue
             for name, rank, suit in card_family(entry):
                 for _ in range(entry.copies):
-                    base = slug(name)
+                    base = prefix + slug(name)
                     card_id, n = base, 1
                     while card_id in entities:
                         n += 1
@@ -182,7 +183,12 @@ def _expand_cards(name: str, config: CardsConfig, contract: Mapping[str, Any]) -
     zones = zones_for(config)
     if not zones["hand"].owned or zones["hand"].visible == "public":
         raise MechanismError("the hand zone must stay owned and not public", "declare another zone instead", "zones.hand")
-    entities, entry_props = _card_entities(config, zones, contract.get("entities") or {})
+    decks = [n for n, use in (contract.get("mechanisms") or {}).items() if use_key(use) == KEY]
+    for other in decks[:decks.index(name)]:
+        if ((contract["mechanisms"][other].get("type") or CardsConfig.model_fields["type"].default) == config.type):
+            raise MechanismError(f"decks '{other}' and '{name}' both hold cards of type '{config.type}'",
+                                 f"give each deck its own card type, e.g. \"type\": \"{name}_card\"", "type")
+    entities, entry_props = _card_entities(config, zones, contract.get("entities") or {}, id_prefix(name, len(decks)))
     props = {**_BASE_PROPS, **entry_props, **config.props}
     fragment: Dict[str, Any] = {
         "types": {config.type: {"description": f"A card of the {name} deck.", "props": props, "inspect": _INSPECT}},

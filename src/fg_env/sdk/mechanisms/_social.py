@@ -15,7 +15,7 @@ from ..errors import RunError
 from ..expr import ExprError, compile_expr
 from ..registry import MechanismError, config_data, describe, use_key
 
-__all__ = ["NAME", "props", "cache", "config_of", "uses_of", "only_use", "single_use_check", "eid", "ids", "entity",
+__all__ = ["NAME", "props", "cache", "config_of", "uses_of", "named_use", "eid", "ids", "entity",
            "require_type", "check_expr", "edges", "seat_order"]
 
 #: A generated identifier (room, group, faction, item): letters, digits and _, starting with a letter.
@@ -62,20 +62,20 @@ def uses_of(mechanisms: Mapping[str, Any], kind: str) -> List[str]:
     return [n for n, use in (mechanisms or {}).items() if use_key(use) == kind]
 
 
-def only_use(world: Any, kind: str, source: Optional[str]) -> str:
-    """The name of the contract's single mechanism of ``kind`` (functions that take no name use it)."""
-    names = uses_of(world.contract.mechanisms, kind)
+def named_use(call: Any, kind: str, index: int) -> str:
+    """The mechanism a function reads: the name passed as argument ``index``, else the contract's only one of ``kind``."""
+    names = uses_of(call.scope.world.contract.mechanisms, kind)
+    given = call.arg(index)
+    if given is not None:
+        if given not in names:
+            raise ExprError(f"${call.name}: '{given}' is not a declared {describe(kind)} mechanism "
+                            f"({describe(kind)} mechanisms: {', '.join(names) or 'none declared'})", call.source)
+        return str(given)
     if len(names) != 1:
-        raise ExprError(f"this function needs exactly one `{kind}` mechanism in the contract (found {len(names)})", source)
+        raise ExprError(f"${call.name}: " + (f"no {describe(kind)} mechanism is declared" if not names else
+                        f"there are several {describe(kind)} mechanisms ({', '.join(names)}): name one as the last argument"),
+                        call.source)
     return names[0]
-
-
-def single_use_check(kind: str, contract: Mapping[str, Any]) -> None:
-    """Refuse a second mechanism of a kind whose functions address the contract's only one."""
-    names = uses_of(contract.get("mechanisms") or {}, kind)
-    if len(names) > 1:
-        raise MechanismError(f"a contract declares at most one `{kind}` mechanism (found {', '.join(names)})",
-                             "merge them into one")
 
 
 def eid(value: Any, source: Optional[str] = None) -> str:
