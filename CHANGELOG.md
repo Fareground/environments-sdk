@@ -1,15 +1,64 @@
 # Changelog
 
-## 0.7.1
-
-- Add `Env.records(name)` so host applications can render authoritative
-  engine-native timelines, transcripts, and market bars without accessing
-  private runtime state.
-
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+Every run is now either correct or fails loudly (T-797 phase 1). Several defaults changed.
+
+### Breaking
+- Game logic reads the true state. `$records` and `$events` filter by `$viewer` only, never the acting agent, so
+  action `when`/`do`, stage hooks and other rules see every entry. Agent-facing text (views, updates, outcome text,
+  tool choices) and policies still see only what their agent may see (T-798).
+- A numeric property written past its declared `min`/`max` is refused, never clamped. An agent's action is rolled
+  back with a reason. World logic (an event, a stage hook) that does it fails the run at its path. Starting values
+  outside the bounds are a contract error. To saturate a value, write `$clamp(x, low, high)` (T-799).
+- A rule that fails while an agent's action applies (division by zero, overflow, a broken invariant) refuses and
+  undoes that action, including the triggers it set off, and the run continues. The same failure in world logic
+  still fails the run. There is a new `FatalRunError` for host, replay and mechanism-code failures (T-800).
+- `fg_env.run` raises `RunError` for a failed run, with the run on `error.result`. `env.run` and `experiment` still
+  return failed runs (T-801).
+- LLM participants: permanent provider errors (auth, bad request, unknown model, a bug in the caller's code) fail the
+  run with a fix. Only retryable errors that exhaust their retries forfeit a turn. `on_error` is removed. An async
+  client raises a clear error. The OpenAI adapter sends `max_completion_tokens` (T-801).
+- Engines never fabricate results. Contest and Strategy report a null winner on a tie. Strategy pays every player
+  (round-robin) and drops its `seat` input column. Network adoption depends on tie trust and keeps spreading.
+  Dispute jurors sum evidence strength, like its ground-truth metric. Council `consensus_reached` is based on the
+  spread of forecasts. Negotiations with `reservation` and `value` refuse terms below a party's walk-away (T-802).
+- Inventory maps keep every declared stackable item, at 0 when none are held. `$round` rounds halves away from zero.
+  A literal 0 for `passes`, `max_actions` or `max_calls` is an error. A bare-word stage `order` other than
+  `seat`/`random` is an error. `and or not in if else true false null` are refused as type names and entity ids (T-804).
+- `fg_env.check` plays up to 12 rounds by default (about 2s in total) instead of 1. It also plays every declared
+  policy (T-805).
+
+### Added
+- `extra=` request fields on `participants.anthropic` / `participants.openai`; `stats.refusals`;
+  `stats.faulted_actions`; diagnostics `turns_forfeited`, `host_fallback`, `action_rule_failed` and
+  `action_broke_invariant` (T-800, T-801, T-802).
+- `check` reports errors for action names that clash with built-in tools (`look`, `inspect`, `end_turn`) or break
+  provider tool-name rules, and it reports crashes and always-refused rules in declared policies (T-801, T-805).
+- `repeat: 0` runs nothing. `max_actions` and `max_calls` accept expressions over `$inputs`. Python keywords such as
+  `def` and `class` work as ids (T-804).
+- Entity parameters whose `where` depends on earlier arguments list their candidates in the tool schema, and random
+  agents fill them correctly (T-805).
+- Engines: Council `outcome`, `final_brier`, `consensus_within`; Negotiation `surplus`; Legislature and Deliberation
+  `outcome` (`status_quo` when nothing came to a vote); diffusion option `persistent`; sensible default policies are
+  bound (T-802).
+
+### Fixed
+- Stated word counts in text-length hints use one consistent ratio (T-804).
+- An example contract with no golden now fails `tests/sdk/test_examples.py` instead of silently writing one. Added
+  the missing `weekly_inventory` golden. Regenerated the stale reference docs.
+
+## [0.7.1] - 2026-09-17
+
+### Added
+- Add `Env.records(name)` so host applications can render authoritative
+  engine-native timelines, transcripts, and market bars without accessing
+  private runtime state.
 
 ## [0.7.0] - 2026-09-17
 
