@@ -49,6 +49,10 @@ Every run is now either correct or fails loudly (T-797 phase 1). Several default
 - Ballot results carry `decided`. `passed` means the first listed option won, so list the "yes" option first. A
   choice that is not on the ballot is refused. Uniform auctions price at the reserve when no bid is rejected, and
   they sell a short last lot. The order book's default fair value is a random walk at `volatility` (T-811).
+- Simultaneous stages without an `order` commit their choices in a seeded random order, not seat order, so no
+  seat wins every contested item; set `order: "seat"` for the old behaviour. A sealed choice is checked at submit
+  after the agent's own earlier choices in that stage. Resolving all choices together is written in the stage's
+  `on_exit`; the guide shows a sealed bid, a pro-rata split and rock-paper-scissors (T-807).
 
 ### Added
 - Several deliberation, channels, feed, beliefs or factions mechanisms in one contract. Their functions take an
