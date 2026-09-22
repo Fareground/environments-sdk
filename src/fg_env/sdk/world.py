@@ -58,6 +58,12 @@ class Abort(Exception):
         super().__init__(reason)
 
 
+class OutOfBounds(Abort):
+    """A number past a property's declared min or max. An agent's action is refused like any :class:`Abort`; world
+    logic (an event, a stage hook, a trigger no action set off) that does it fails the run, because that is a
+    contract bug no agent can fix."""
+
+
 class SdkWorld(World):
     """World store for one run. Expressions read it through the :class:`World` interface."""
 
@@ -805,7 +811,7 @@ def _within_bounds(spec: PropSpec, value: Any, where: str, owner: str) -> None:
     else:
         return
     prop = where.rsplit(".", 1)[-1]
-    raise Abort(f"{owner}'s {prop} {limit}: it would be {format_value(value)}." if owner else
+    raise OutOfBounds(f"{owner}'s {prop} {limit}: it would be {format_value(value)}." if owner else
                 f"{prop} {limit}: it would be {format_value(value)}.")
 
 

@@ -182,7 +182,8 @@ Assignment text:
 * Links: `"$link($actor, $params.who, trusts).value += 0.1"`, `"$link($actor, $params.who, trusts).since = $round"`
   (the link must exist; its value is clamped to the relation's min/max, fields are typed like props).
 * A write past a numeric prop's min/max is refused, like a transfer that does not fit: an action is rolled
-  back and its actor told why; an event is refused and logged. To saturate, say so: `$clamp(x, low, high)`.
+  back and its actor told why; world logic (an event, a stage hook) that does it fails the run at its path.
+  To saturate, say so: `$clamp(x, low, high)`.
   Types are enforced.
 
 Operation objects (exactly one operation key each):

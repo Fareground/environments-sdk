@@ -85,13 +85,24 @@ def test_sealed_choices_that_only_cross_together_refuse_the_later_one_at_commit(
     assert len(failed) == 1 and "stock cannot go below 0" in failed[0]["text"]
 
 
-def test_an_event_that_pushes_a_property_past_its_bound_is_refused_and_reported():
+def test_an_event_that_pushes_a_property_past_its_bound_fails_the_run_at_its_path():
+    """No agent caused it, so no agent can fix it: it is a contract bug, reported where it is written."""
     drain = {**SHOP, "stages": [], "events": [{"phase": "end", "do": ["$world.stock -= 5"]}]}
-    result = fg_env.run(drain, seed=1)
-    assert result.status == "completed", result.error
-    refused = [e for e in result.events if e["kind"] == "refused"]
-    assert refused and refused[0]["data"]["path"] == "events[0].do"
-    assert "stock cannot go below 0: it would be -2" in refused[0]["text"]
+    with pytest.raises(RunError, match=r"events\[0\]\.do.*stock cannot go below 0: it would be -2.*\$clamp"):
+        fg_env.run(drain, seed=1)
+
+
+def test_a_trigger_an_action_sets_off_that_crosses_a_bound_refuses_the_action():
+    guarded = {**SHOP, "triggers": [{"when": "$world.stock < 3", "do": ["$world.stock -= 10"]}]}
+    env = fg_env.load(guarded, seed=1)
+
+    def participant(wake):
+        result = wake.call("take", {"n": 1})
+        assert not result.ok and "Nothing changed" in result.text
+        wake.end()
+
+    result = env.run(participant, rounds=1)
+    assert result.status == "completed" and env.props["stock"] == 3
 
 
 def test_saturating_is_written_with_clamp():

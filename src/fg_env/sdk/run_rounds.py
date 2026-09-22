@@ -13,7 +13,8 @@ from .expr import shared_budget
 from .feeds import run_feeds
 from .measure import sample_metrics
 from .turn import Turn
-from .world import Abort
+from .errors import RunError
+from .world import Abort, OutOfBounds
 
 if TYPE_CHECKING:
     from .runtime import Env
@@ -199,6 +200,10 @@ class RunRounds:
             try:
                 with shared_budget(ACTION_BUDGET, path):
                     self.effects.run(effects, dict(vars), path)
+            except OutOfBounds as refusal:
+                self.world.journal.rollback(mark)
+                raise RunError(f"{refusal.reason} Keep it in range where it is written, e.g. with "
+                               "$clamp(x, low, high), or guard the write with an `if`", path) from None
             except Abort as refusal:
                 self.world.journal.rollback(mark)
                 self.world.emit("refused", f"{path} was refused: {refusal.reason}", to=[],
