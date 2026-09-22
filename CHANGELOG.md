@@ -39,7 +39,22 @@ Every run is now either correct or fails loudly (T-797 phase 1). Several default
 - `fg_env.check` plays up to 12 rounds by default (about 2s in total) instead of 1. It also plays every declared
   policy (T-805).
 
+- Hidden information stays hidden by default. In a simultaneous stage, the default announcement says who acted
+  but not the arguments. Agents can inspect only themselves unless a type sets `inspect`. Filtering an entity
+  choice by another agent's private property is a check error. A view listing a private property for every entity
+  is now an error rather than a warning. Quoted participant text is shown on one line (T-806).
+- Deliberation's `end` defaults to `never`: a mechanism ends the run only when the contract asks it to. Two
+  mechanisms that generate different entries under one name are an error instead of a silent drop. With more than
+  one card deck, card ids start with the deck name (T-809).
+- Ballot results carry `decided`. `passed` means the first listed option won, so list the "yes" option first. A
+  choice that is not on the ballot is refused. Uniform auctions price at the reserve when no bid is rejected, and
+  they sell a short last lot. The order book's default fair value is a random walk at `volatility` (T-811).
+
 ### Added
+- Several deliberation, channels, feed, beliefs or factions mechanisms in one contract. Their functions take an
+  optional trailing mechanism name (T-809).
+- Ballot `weight`, `veto` and `threshold_of: members`; order book `$world.<name>_value` and a `<name>_mid` metric
+  (T-811).
 - `extra=` request fields on `participants.anthropic` / `participants.openai`; `stats.refusals`;
   `stats.faulted_actions`; diagnostics `turns_forfeited`, `host_fallback`, `action_rule_failed` and
   `action_broke_invariant` (T-800, T-801, T-802).
