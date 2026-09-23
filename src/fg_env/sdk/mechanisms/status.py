@@ -90,8 +90,7 @@ def _carrier_types(cfg: StatusConfig) -> List[str]:
       example={"who": "unit", "statuses": {
           "poison": {"duration": 3, "max_stacks": 3, "tick": ["$it.hp -= 2 * $stacks"]},
           "stun": {"duration": 1, "blocks": ["attack"], "blocked_why": "you are stunned"},
-          "shield": {"duration": 2, "modifiers": {"armor": 3}, "immune": ["poison"]}}},
-      was="status_effects")
+          "shield": {"duration": 2, "modifiers": {"armor": 3}, "immune": ["poison"]}}})
 def _expand(name: str, cfg: StatusConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     on = common.types_in(contract, cfg.who, "who")
     _unique_statuses(name, cfg, contract)
@@ -248,7 +247,7 @@ def _check_apply(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[
 
 
 @family_action("conditions", ("status",), "apply", keys=("status", "who", "rounds", "stacks", "source"),
-               required=("status", "who"), literal=("status",), check=_check_apply, was=("apply",),
+               required=("status", "who"), literal=("status",), check=_check_apply,
                example='{"conditions": "conditions", "action": "apply", "status": "poison", "who": "$params.target", '
                        '"rounds": 3, "stacks": 1}  (rounds and stacks are optional; source defaults to $actor)')
 def _apply_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -273,7 +272,7 @@ def _check_cleanse(checker: Any, effect: Dict[str, Any], path: str) -> List[Tupl
 
 
 @family_action("conditions", ("status",), "cleanse", keys=("status", "who"), required=("status", "who"),
-               literal=("status",), check=_check_cleanse, was=("cleanse",),
+               literal=("status",), check=_check_cleanse,
                example='{"conditions": "conditions", "action": "cleanse", "status": "poison", "who": "$params.ally"}  '
                        '(a status, a list, or "all" for every cleansable one; on_expire does not run)')
 def _cleanse_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -318,7 +317,7 @@ def _check_rules(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[
     return []
 
 
-@family_action("conditions", ("status",), "tick", check=_check_rules, internal=True, was=("status_tick",),
+@family_action("conditions", ("status",), "tick", check=_check_rules, internal=True,
                example='{"conditions": "conditions", "action": "tick"}  (run every active status\'s tick effects now; '
                        'generated each round)')
 def _tick_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -340,7 +339,7 @@ def _tick_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: s
                        f"mechanisms.{mech}.statuses.{status}.tick")
 
 
-@family_action("conditions", ("status",), "expire", check=_check_rules, internal=True, was=("status_expire",),
+@family_action("conditions", ("status",), "expire", check=_check_rules, internal=True,
                example='{"conditions": "conditions", "action": "expire"}  (end statuses whose time is up; generated at '
                        'the end of each round)')
 def _expire_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:

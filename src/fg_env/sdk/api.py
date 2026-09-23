@@ -309,7 +309,7 @@ def load(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, se
     ``exposures=True`` records what every agent was shown on every wake (``result.exposures``); a
     contract that calls ``$seen`` records it anyway. ``chance`` decides `chance` effects: ``"sampled"`` (the
     default: drawn from the seeded stream) or a callable given each :class:`~fg_env.sdk.chance.ChanceNode`
-    that returns the index of the outcome to take (a fixed deal, duplicate formats); :func:`fg_env.game`
+    that returns the index of the outcome to take (a fixed deal, duplicate formats); :func:`fg_env.rl.game`
     enumerates chance for search. A contract with a ``calibration`` section fits its inputs with pilot sessions first
     (``env.calibration`` is the report); ``calibrate=False`` skips that, as ``fg_env.check``'s smoke play does.
     """

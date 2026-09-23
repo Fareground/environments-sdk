@@ -1,4 +1,4 @@
-"""Reports a manager or an owner can act on: ``fg_env.report(result, audience="owner")``.
+"""Reports a manager or an owner can act on: ``fg_env.analysis.report(result, audience="owner")``.
 
 A report turns a run, an experiment, a sweep, a validation or an optimisation into short sentences and a few compact
 tables, in the clock's own terms (half-hours, days, weeks): the recommended decision and its expected outcome with
@@ -12,7 +12,7 @@ output of every option, and the full validation, sweep and optimisation reports.
 A decision rule picks among an experiment's or a sweep's options: ``objective="min:centre_cost"`` and
 ``require={"centre_service_level": ">= 0.8"}`` (requirements on the mean over runs). A contract with a service queue
 whose channels set a `target` gets that rule by default: the cheapest staffing that meets the target on average. An
-optimisation (``fg_env.optimise``) brings its own rule; pass it as the source, or as ``optimisation=`` next to an
+optimisation (``fg_env.analysis.optimise``) brings its own rule; pass it as the source, or as ``optimisation=`` next to an
 experiment that plays its decision, and the report says how sure the optimiser is.
 """
 from __future__ import annotations

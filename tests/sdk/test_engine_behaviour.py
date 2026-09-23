@@ -10,7 +10,7 @@ SEEDS = range(6)
 
 
 def run(engine_id, participants=None, *, seed=0, inputs=None):
-    return fg_env.load_engine(engine_id, inputs=inputs, seed=seed).run(participants)
+    return fg_env.engines.load(engine_id, inputs=inputs, seed=seed).run(participants)
 
 
 def test_contest_without_a_judge_names_no_winner_and_says_why():
@@ -38,7 +38,7 @@ def _adoption(inputs):
 
 
 def test_network_trust_and_time_drive_adoption():
-    ties = fg_env.get_engine("network").source()["inputs"]["ties"]["default"]
+    ties = fg_env.engines.get("network").source()["inputs"]["ties"]["default"]
     weak = [{**tie, "value": 0.05} for tie in ties]
     assert _adoption({"ties": weak}) < _adoption({"ties": ties}) - 0.1
     assert _adoption({"rounds": 3}) < _adoption({"rounds": 20}) - 0.1
@@ -58,7 +58,7 @@ def test_council_scores_forecasts_against_the_outcome_and_measures_consensus_by_
     unresolved = run("council").outputs
     assert unresolved["final_brier"] is None
 
-    env = fg_env.load_engine("council", inputs={"outcome": True})
+    env = fg_env.engines.load("council", inputs={"outcome": True})
     resolved = env.run().outputs
     finals = [panelist.properties["final"] / 100 for panelist in env.world.entities_of("panelist")]
     assert resolved["final_brier"] == pytest.approx(statistics.fmean((1 - final) ** 2 for final in finals))
@@ -86,7 +86,7 @@ def test_a_body_that_never_votes_records_the_status_quo(engine_id):
 
 @pytest.mark.parametrize("engine_id", sorted(engine.id for engine in fg_env.list_engines()))
 def test_every_engine_that_ships_policies_binds_one_to_each_acting_type(engine_id):
-    contract = fg_env.get_engine(engine_id).source()
+    contract = fg_env.engines.get(engine_id).source()
     if not contract.get("policies"):
         pytest.skip("no coded policies")
     unbound = [name for name, spec in contract["types"].items() if spec.get("agent") and not spec.get("policy")]

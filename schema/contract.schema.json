@@ -426,7 +426,7 @@
         },
         "targets": {
           "additionalProperties": true,
-          "description": "{output or metric: target} as fg_env.calibrate takes them; a number (or a stat target's `value`) may be an expression over $inputs and $world, read from the world this session builds.",
+          "description": "{output or metric: target} as fg_env.analysis.calibrate takes them; a number (or a stat target's `value`) may be an expression over $inputs and $world, read from the world this session builds.",
           "minProperties": 1,
           "title": "Targets",
           "type": "object"
@@ -463,7 +463,7 @@
         },
         "method": {
           "default": "auto",
-          "description": "Search method (see fg_env.calibrate).",
+          "description": "Search method (see fg_env.analysis.calibrate).",
           "enum": [
             "auto",
             "bisection",
@@ -1064,7 +1064,7 @@
     },
     "GameSpec": {
       "additionalProperties": false,
-      "description": "Who the players are and what each one scores, for `RunResult.returns`, `fg_env.game` and `fg_env.gym`.",
+      "description": "Who the players are and what each one scores, for `RunResult.returns`, `fg_env.rl.game` and `fg_env.rl.gym`.",
       "properties": {
         "players": {
           "anyOf": [
@@ -3790,7 +3790,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -4016,7 +4016,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -4276,7 +4276,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -4502,7 +4502,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -4647,7 +4647,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -4829,7 +4829,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -5076,7 +5076,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -5287,7 +5287,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -5498,7 +5498,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -5947,7 +5947,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -6293,7 +6293,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -6512,7 +6512,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -6747,7 +6747,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -6933,7 +6933,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -7190,7 +7190,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -7406,7 +7406,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -7609,7 +7609,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -7783,7 +7783,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -7979,7 +7979,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -8224,7 +8224,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -8401,7 +8401,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -8633,7 +8633,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -8841,7 +8841,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -9057,7 +9057,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -9257,7 +9257,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -9504,7 +9504,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -9789,7 +9789,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -9945,7 +9945,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -10159,7 +10159,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -10538,7 +10538,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -10707,7 +10707,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -10907,7 +10907,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -11106,7 +11106,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -11353,7 +11353,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {
@@ -11590,7 +11590,7 @@
             }
           ],
           "default": null,
-          "description": "Estimate its parameters from data with fg_env.fit_patterns."
+          "description": "Estimate its parameters from data with fg_env.analysis.fit_patterns."
         },
         "uncertainty": {
           "additionalProperties": {

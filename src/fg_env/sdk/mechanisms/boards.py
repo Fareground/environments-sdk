@@ -295,7 +295,7 @@ def _mover(runner: Any, rules: Rules, state: _State, vars: Dict[str, Any]) -> in
     return side
 
 
-@family_action("game", ("board",), "move", keys=("text",), required=("text",), was=("board_move",),
+@family_action("game", ("board",), "move", keys=("text",), required=("text",),
                example='{"game": "chess", "action": "move", "text": "$params.move"}  (play a legal move for the side to '
                        'move: captures, promotion, capture rules, chains, turn, and game-end detection; fails if illegal)')
 def _move_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -323,7 +323,7 @@ def _find(moves: List[Move], text: Any) -> Optional[Move]:
     return folded[0] if len(folded) == 1 else None
 
 
-@family_action("game", ("board",), "pass", was=("board_pass",),
+@family_action("game", ("board",), "pass",
                example='{"game": "go", "action": "pass"}  (the side to move passes; enough passes in a row end the game by score)')
 def _pass_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     rules = _op_rules(runner, effect["game"], where)
@@ -349,7 +349,7 @@ def _pass_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: s
         _next_turn(world, rules, after)
 
 
-@family_action("game", ("board",), "setup", keys=("position", "turn"), required=("position",), was=("board_setup",),
+@family_action("game", ("board",), "setup", keys=("position", "turn"), required=("position",),
                example='{"game": "chess", "action": "setup", "position": "$inputs.start", "turn": "black"}  (replace every '
                        'piece with a position — board-symbol rows or {side: {kind: [cells]}} — and restart the game state)')
 def _setup_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -574,7 +574,7 @@ piece per cell (no stacks), dice are not built in."""
 
 
 @mode("game", "board", BoardConfig, _DOC, example={
-    "size": [3, 3], "sides": ["x", "o"], "pieces": {"mark": {}}, "place": {}, "line": 3, "no_moves": "draw"}, was="board",
+    "size": [3, 3], "sides": ["x", "o"], "pieces": {"mark": {}}, "place": {}, "line": 3, "no_moves": "draw"},
       ends=lambda config: True)
 def _expand_board(name: str, config: BoardConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     rules = compile_rules(name, config)

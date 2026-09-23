@@ -128,7 +128,7 @@ def _relate_check(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple
 
 
 @family_action("groups", ("relationships",), "relate", keys=("relation", "from", "to", "add", "set"),
-               required=("relation", "from", "to"), literal=("relation",), check=_relate_check, was=("relate",),
+               required=("relation", "from", "to"), literal=("relation",), check=_relate_check,
                example='{"groups": "bonds", "action": "relate", "relation": "trust", "from": "$actor", "to": "$params.partner", '
                        '"add": 0.2}  (change a relation by `add` or replace it with `set`; a missing link starts at its '
                        'baseline; thresholds fire)')
@@ -154,7 +154,7 @@ def _relate_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where:
     _check_thresholds(runner, name, relation, spec, key[0], key[1], where)
 
 
-@family_action("groups", ("relationships",), "tick", internal=True, was=("relations_tick",),
+@family_action("groups", ("relationships",), "tick", internal=True,
                example='{"groups": "bonds", "action": "tick"}  (one round of decay toward baselines, then thresholds; '
                        'generated for you)')
 def _tick_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -180,7 +180,7 @@ def _tick_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: s
       "(news and effects with $from, $to, $value) when crossed. Change them with the `relate` action; read them with "
       "$relation(a, b, kind).",
       example={"relations": {"trust": {"baseline": 0, "decay": 0.1, "thresholds": [
-          {"at": 0.7, "say": "{$from.name} now trusts {$to.name}."}]}}}, was="relationships")
+          {"at": 0.7, "say": "{$from.name} now trusts {$to.name}."}]}}})
 def _expand_relationships(name: str, config: RelationshipsConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     relations: Dict[str, Any] = {}
     for relation, spec in config.relations.items():
@@ -357,8 +357,7 @@ def _faction_runner(action: str) -> Callable[[Any, Dict[str, Any], Dict[str, Any
 def _register_faction_actions() -> None:
     for action, (needs, takes, fields, doc) in _FACTION_ACTIONS.items():
         example = '{"groups": "blocs", "action": "' + action + '", ' + fields + f"}}  ({doc})"
-        family_action("groups", ("factions",), action, keys=(*needs, *takes, "who"), required=needs,
-                      was=("faction",), example=example)(_faction_runner(action))
+        family_action("groups", ("factions",), action, keys=(*needs, *takes, "who"), required=needs, example=example)(_faction_runner(action))
 
 
 _register_faction_actions()
@@ -435,8 +434,7 @@ _FACTION_LINE = ("{id}{$' — ' if $it.title else ''}{$it.title or ''}: {$len($i
       "`<name>_invite`, `<name>_found`, `<name>_ally`, `<name>_break_alliance`, and the same actions of the `groups` op "
       "for effects. Read with $allies(a, b), $faction_of(agent), $factions(), $joinable(agent); with several factions "
       "mechanisms, name one as the last argument ($factions('guilds')).",
-      example={"who": "nation", "factions": {"entente": {"members": ["fr", "uk"]}, "central": {"members": ["de"]}}},
-      was="factions")
+      example={"who": "nation", "factions": {"entente": {"members": ["fr", "uk"]}, "central": {"members": ["de"]}}})
 def _expand_factions(name: str, config: FactionsConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     require_type(contract, config.who, "who", agent=True)
     state: Dict[str, Any] = {}

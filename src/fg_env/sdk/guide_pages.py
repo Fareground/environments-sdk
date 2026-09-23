@@ -137,7 +137,7 @@ _CORE_GROUPS = {
 }
 _MODULE_GROUPS = {
     "stdlib.mathx": "math", "stdlib.linalg": "math", "stdlib.dists": "random", "stdlib.strings": "text",
-    "stdlib.words": "text", "stdlib.dates": "dates", "stdlib.lists": "lists", "stdlib.tables": "lists", "stdlib.sets": "lists", "stdlib.stats": "stats",
+    "stdlib.words": "game", "stdlib.dates": "dates", "stdlib.lists": "lists", "stdlib.tables": "lists", "stdlib.sets": "lists", "stdlib.stats": "stats",
     "stdlib.scoring": "stats", "space_functions": "space", "networks": "space", "stdlib.puzzles": "game",
     "mechanisms._common": "conditions", "mechanisms.card_scoring": "game", "mechanisms.cards": "game",
     "mechanisms.econ_assets": "economy", "mechanisms.econ_replenishment_rules": "economy", "mechanisms.market_stats": "market",
@@ -152,7 +152,7 @@ FUNCTION_GROUPS = {
     "world": "entities, records, events and what agents were shown",
     "math": "arithmetic, trigonometry, interpolation, linear algebra",
     "random": "seeded draws and distributions",
-    "text": "text, formatting and word games",
+    "text": "text and formatting",
     "dates": "calendar arithmetic and parts of ISO dates",
     "lists": "list and map manipulation, sets",
     "stats": "statistics, time series and forecast scores",
@@ -183,10 +183,15 @@ def function_groups() -> Dict[str, List[FunctionSpec]]:
 
 def functions_index() -> str:
     lines = ["## Functions", "", "Every function by group. Read one group's signatures and docs with "
-             "`guide('functions.<group>')` (a mechanism family's functions are also on its page).", ""]
-    for group, specs in function_groups().items():
-        about = FUNCTION_GROUPS.get(group) or (FAMILIES[group].doc if group in FAMILIES else "")
-        lines.append(f"- `{group}` ({about.rstrip('.')}): " + " ".join(f"${s.name}" for s in specs))
+             "`guide('functions.<group>')`.", "", "Core functions, for any contract:", ""]
+    groups = function_groups()
+    for group in [g for g in groups if g in FUNCTION_GROUPS]:
+        lines.append(f"- `{group}` ({FUNCTION_GROUPS[group]}): " + " ".join(f"${s.name}" for s in groups[group]))
+    lines += ["", "Mechanism functions, for reading a mechanism family's state (a board, a deck, a market …); each "
+              "group is also on its family's page:", ""]
+    for group in [g for g in groups if g not in FUNCTION_GROUPS]:
+        about = FAMILIES[group].doc if group in FAMILIES else ""
+        lines.append(f"- `{group}` ({about.rstrip('.')}): " + " ".join(f"${s.name}" for s in groups[group]))
     return "\n".join(lines)
 
 

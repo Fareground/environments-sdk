@@ -102,5 +102,5 @@ def test_a_chance_chooser_given_at_load_decides_every_outcome_and_copies_keep_it
     copy_of_env = env.clone()
     assert env.run().outputs["heads"] == 0
     assert copy_of_env.run().outputs["heads"] == 0
-    with pytest.raises(ValueError, match="fg_env.game"):
+    with pytest.raises(ValueError, match="fg_env.rl.game"):
         fg_env.load(COIN, chance="explicit")

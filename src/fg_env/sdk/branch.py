@@ -328,7 +328,7 @@ def use_chance(env: Env, chance: Any) -> None:
         return
     if chance == "explicit":
         raise ValueError("explicit chance needs something to choose each outcome: enumerate and choose them with "
-                         "fg_env.game(..., chance='explicit'), or pass a callable to chance=")
+                         "fg_env.rl.game(..., chance='explicit'), or pass a callable to chance=")
     if not callable(chance):
         raise ValueError(f"chance must be 'sampled' or a callable choosing each outcome, got {chance!r}")
 

@@ -67,4 +67,4 @@
 
 ## How well it matched the data
 
-- Not checked against data here: pass validation=fg_env.validate(contract, cases).
+- Not checked against data here: pass validation=fg_env.analysis.validate(contract, cases).

@@ -151,7 +151,7 @@ def mirror(wake: Wake, game: Game) -> GameState:
         _reach_turn_of(state, seat)
         if state.information_state_string(seat) != target:
             raise RunError("the run's log does not rebuild what this seat knows (its calls' arguments or its luck "
-                           "differ from the game's); play this contract through fg_env.game with IS-MCTS directly",
+                           "differ from the game's); play this contract through fg_env.rl.game with IS-MCTS directly",
                            "participants.ismcts")
     except (ValueError, RunError) as exc:
         state.close()

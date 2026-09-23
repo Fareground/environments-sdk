@@ -31,7 +31,7 @@ def test_search_participants_refuse_games_with_hidden_information():
 
 
 def test_a_saved_cfr_policy_plays_its_seat_and_a_foreign_policy_is_refused(tmp_path):
-    game = fg_env.game(KUHN)
+    game = fg_env.rl.game(KUHN)
     policy = CFRSolver(game, plus=True).iterate(300).average_policy()
     path = tmp_path / "kuhn.json"
     policy.save(path)
@@ -47,7 +47,7 @@ def test_a_saved_cfr_policy_plays_its_seat_and_a_foreign_policy_is_refused(tmp_p
 
 
 def test_a_cfr_policy_chooses_by_the_information_state_the_game_tree_uses():
-    game = fg_env.game(KUHN)
+    game = fg_env.rl.game(KUHN)
     tree_policy = CFRSolver(game, plus=True).iterate(200).average_policy()
     always_pass = TabularPolicy({key: {text: (1.0 if text == "pass" else 0.0) for text in value}
                                  for key, value in tree_policy.table.items()})

@@ -244,9 +244,9 @@ def test_clones_and_forks_keep_the_catalog(tmp_path):
 def test_a_replay_matches_and_reports_a_file_changed_since_the_recording(tmp_path):
     path = trial(tmp_path)
     recorded = fg_env.load(path, seed=3, exposures=True).run(Reader(3), rounds=2)
-    assert fg_env.trace(recorded).replay(path).ok
+    assert fg_env.analysis.trace(recorded).replay(path).ok
     (tmp_path / "files" / "photos" / "seam.png").write_bytes(png(color=(1, 2, 3)))
-    replay = fg_env.trace(recorded).replay(path)
+    replay = fg_env.analysis.trace(recorded).replay(path)
     assert not replay.ok and replay.divergence["what"] == "assets" and "photos/seam.png" in replay.message
 
 
@@ -263,7 +263,7 @@ def test_a_saved_run_carries_its_files_and_replays_where_they_were_never_read(tm
         blobs.read(result.assets["assets"][0]["hash"])
     loaded = fg_env.RunResult.load(tmp_path / "run.json")
     assert blobs.read(result.assets["assets"][0]["hash"])
-    assert fg_env.trace(loaded).replay(path).ok
+    assert fg_env.analysis.trace(loaded).replay(path).ok
 
 
 def test_a_changed_file_is_never_passed_off_as_the_recorded_one(tmp_path):

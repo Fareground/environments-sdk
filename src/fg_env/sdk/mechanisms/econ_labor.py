@@ -70,7 +70,7 @@ register_config(LABOR, LaborConfig)
            "`firm`, each employer makes output from its workers (and inputs) at the end of each round and posts a price. "
            "Entities: `<name>_posting`, `<name>_application`, `<name>_job`; totals in $world.<name>_stats.",
            example={"who": "person", "employers": "bakery", "currency": "cash", "wage_min": 5, "wage_max": 30,
-                    "inventory": "goods", "firm": {"output": "bread", "per_worker": 4, "inputs": {"flour": 1}, "price": 3}}, was="labor")
+                    "inventory": "goods", "firm": {"output": "bread", "per_worker": 4, "inputs": {"flour": 1}, "price": 3}})
 def _expand_labor(name: str, config: LaborConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     workers, employers = type_list(config.who), type_list(config.employers)
     require_types(contract, workers, "who")
@@ -244,7 +244,7 @@ def _end(world: Any, name: str, job: Any, reason: str) -> None:
     emit_to(world, f"{name}_ended", text, [employer if reason == "quit" else worker], why=text)
 
 
-@family_action("agreements", ("labor",), "hire", keys=("application",), required=("application",), was=("hire",),
+@family_action("agreements", ("labor",), "hire", keys=("application",), required=("application",),
                example='{"agreements": "jobs", "action": "hire", "application": "$params.application"}  '
                        '(turn a pending application into a job)')
 def _hire_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -256,13 +256,13 @@ def _hire_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: s
     _hire(world, name, config_of(world, name, LABOR, where), application, where)
 
 
-@family_action("agreements", ("labor",), "quit", keys=("job",), required=("job",), was=("end_job",),
+@family_action("agreements", ("labor",), "quit", keys=("job",), required=("job",),
                example='{"agreements": "jobs", "action": "quit", "job": "$params.job"}  (the worker leaves: wages stop)')
 def _quit(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     _end_job(runner, effect, vars, where, "quit")
 
 
-@family_action("agreements", ("labor",), "fire", keys=("job",), required=("job",), was=("end_job",),
+@family_action("agreements", ("labor",), "fire", keys=("job",), required=("job",),
                example='{"agreements": "jobs", "action": "fire", "job": "$params.job"}  (the employer lets the worker go: wages stop)')
 def _fire(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     _end_job(runner, effect, vars, where, "fired")
@@ -277,7 +277,7 @@ def _end_job(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: s
     _end(world, name, job, reason)
 
 
-@family_action("agreements", ("labor",), "tick", internal=True, was=("labor_tick",),
+@family_action("agreements", ("labor",), "tick", internal=True,
                example='{"agreements": "jobs", "action": "tick"}  (rule hiring: fill open postings from pending applicants by rank)')
 def _labor_tick(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
@@ -312,7 +312,7 @@ def _rank(world: Any, config: LaborConfig, application: Any, where: str) -> floa
     return float(value)
 
 
-@family_action("agreements", ("labor",), "payday", internal=True, was=("labor_payday",),
+@family_action("agreements", ("labor",), "payday", internal=True,
                example='{"agreements": "jobs", "action": "payday"}  (firms produce with their workers, then wages are paid)')
 def _labor_payday(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world

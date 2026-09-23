@@ -149,7 +149,7 @@ def _views(name: str, cfg: OrderBookConfig) -> Dict[str, Any]:
            "bid-ask bounce), _volume, _spread, _orders feed $market_realism.",
            example={"who": "trader", "start_price": 50, "tick_size": 0.01, "taker_fee_bps": 5,
                     "halt_pct": 0.1, "crowd": {"market_maker": {"count": 2, "cash": 20000, "shares": 400},
-                                               "noise": {"count": 6, "cash": 5000, "shares": 100}}}, was="order_book")
+                                               "noise": {"count": 6, "cash": 5000, "shares": 100}}})
 def _expand_order_book(name: str, cfg: OrderBookConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     types = contract.get("types") or {}
     if cfg.who not in types:

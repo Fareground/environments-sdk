@@ -248,11 +248,11 @@ def test_abilities_snapshot_and_resume_identically():
     assert restored.run(play, rounds=4).to_dict() == straight
 
 
-def test_an_old_condition_kind_says_the_new_kind_and_mode():
+def test_a_condition_mode_written_as_the_kind_names_the_family():
     old = json.loads(json.dumps(ARENA))
-    old["mechanisms"]["conditions"] = {"kind": "status_effects", "on": "fighter", "statuses": {}}
+    old["mechanisms"]["conditions"] = {"kind": "status", "on": "fighter", "statuses": {}}
     issue = next(i for i in _errors(old) if i.path == "mechanisms.conditions.kind")
-    assert issue.message == "'status_effects' is now kind 'conditions' with mode 'status'"
+    assert issue.message == "'status' is a mode of kind 'conditions'"
     renamed = json.loads(json.dumps(ARENA))
     renamed["mechanisms"]["conditions"]["on"] = renamed["mechanisms"]["conditions"].pop("who")
     typo = next(i for i in _errors(renamed) if i.path == "mechanisms.conditions.on")
@@ -276,8 +276,8 @@ def test_condition_actions_check_their_own_keys():
     assert fix == "did you mean 'interrupt'?"
     path, message, fix = issues({"conditions": "abilities", "action": "reset", "ability": "zapp"})[0]
     assert path.endswith(".ability") and message == "'zapp' is not an action of abilities" and fix == "did you mean 'zap'?"
-    _, _, fix = issues({"start_cooldown": "zap"})[0]
-    assert fix.startswith('`start_cooldown` is now the `conditions` op: {"conditions": "<mechanism>", "action": "start"')
+    _, _, fix = issues({"reset": "zap"})[0]
+    assert fix.startswith('`reset` is an action of the `conditions` op: {"conditions": "<mechanism>", "action": "reset"')
 
 
 # ---------------------------------------------------------------------------
@@ -523,9 +523,9 @@ def test_victory_fills_the_game_section_with_seats_and_returns():
 
 def test_flow_kinds_fields_and_actions_say_what_to_fix():
     old = json.loads(json.dumps(TABLE))
-    old["mechanisms"]["seats"] = {"kind": "turn_order", "among": "player"}
+    old["mechanisms"]["seats"] = {"kind": "order", "among": "player"}
     issue = next(i for i in _errors(old) if i.path == "mechanisms.seats.kind")
-    assert issue.message == "'turn_order' is now kind 'flow' with mode 'order'"
+    assert issue.message == "'order' is a mode of kind 'flow'"
     typo = json.loads(json.dumps(TABLE))
     typo["mechanisms"]["seats"]["among"] = "player"
     issue = next(i for i in _errors(typo) if i.path == "mechanisms.seats.among")

@@ -12,15 +12,24 @@ for part in parts:
  (out/f"reference-{part.replace('.', '-')}.md").write_text(f'# {title}\n\n'+text+'\n')
  index.append(f'- [{title}](reference-{part.replace(chr(46), chr(45))}.md)')
 (out/'reference.md').write_text('\n'.join(index)+'\n')
-api=['# Python API reference','','Generated from public exports in `fg_env`. Start with `check`, `load`, `run` and `experiment`. A source may be a contract dictionary, JSON text, file path or parsed `Contract`.','','## Entry points','']
+api=['# Python API reference','','Generated from public exports in `fg_env`. Start with `check`, `load`, `run` and `experiment`; everything else is in a subpackage below. A source may be a contract dictionary, JSON text, file path or parsed `Contract`.','','## Entry points','']
+def entry(heading,name,obj):
+ out=[f'{heading} `{name}`','']
+ try: out += ['```python',f'{name.rpartition(".")[2]}{inspect.signature(obj)}','```','']
+ except (ValueError,TypeError): pass
+ doc=inspect.getdoc(obj)
+ return out+([doc,''] if doc else [])
+public=lambda obj: inspect.isfunction(obj) or inspect.isclass(obj)
 for name in fg_env.__all__:
  obj=getattr(fg_env,name)
- if inspect.isfunction(obj) or inspect.isclass(obj):
-  api += [f'## `{name}`','']
-  try: api += ['```python',f'{name}{inspect.signature(obj)}','```','']
-  except (ValueError,TypeError): pass
-  doc=inspect.getdoc(obj)
-  if doc: api += [doc,'']
+ if public(obj): api += entry('##',name,obj)
+for name in fg_env.__all__:
+ module=getattr(fg_env,name)
+ if inspect.ismodule(module):
+  api += [f'## `fg_env.{name}`','',inspect.getdoc(module) or '','']
+  for export in module.__all__:
+   obj=getattr(module,export)
+   if public(obj): api += entry('###',f'{name}.{export}',obj)
 api += ['## Environment methods','']
 for name in ['preview','run','arun','step','snapshot','restore','clone','fork','entity','entities','result','spectate']:
  obj=getattr(fg_env.Env,name)

@@ -23,7 +23,7 @@ def test_end_after_automatic_completion_is_a_noop_including_recording(simultaneo
     first = fg_env.load(c, seed=1, exposures=True).run(baseline)
     second = fg_env.load(c, seed=1, exposures=True).run(redundant)
     assert first.to_dict() == second.to_dict()
-    replay = fg_env.trace(second).replay(c)
+    replay = fg_env.analysis.trace(second).replay(c)
     assert replay.ok, replay.message
 
 

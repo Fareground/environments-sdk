@@ -128,7 +128,7 @@ def test_the_history_record_holds_what_fit_patterns_reads_and_the_elasticity_is_
     guess["patterns"]["price_effect"]["elasticity"] = -0.5
     guess["patterns"]["demand"]["fit"] = {"data": "$inputs.history", "value": "units", "time": "time", "key": "item",
                                           "censored": "stockout", "noise": "sales", "x": {"price_effect": "price_effect"}}
-    fitted = fg_env.fit_patterns(guess).contract["inputs"]
+    fitted = fg_env.analysis.fit_patterns(guess).contract["inputs"]
     assert abs(fitted["price_effect_elasticity"]["default"] + 1.3) < 3 * fitted["price_effect_elasticity_se"]["default"]
 
 

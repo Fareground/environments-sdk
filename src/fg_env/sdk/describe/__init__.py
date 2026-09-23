@@ -1,6 +1,6 @@
 """Self-description: an ODD-protocol document and game metadata, both derived from a contract.
 
-``fg_env.describe(contract)`` returns a :class:`Description` with ``markdown`` (ODD: purpose, entities and
+``fg_env.analysis.describe(contract)`` returns a :class:`Description` with ``markdown`` (ODD: purpose, entities and
 state variables, process and scheduling, design concepts, initialisation, inputs, submodels) and ``metadata``
 (dynamics, chance mode, information, utility, players, length, action space, observations, concepts, and
 the evidence for each). ``check_claims`` compares properties a contract asserts about itself with the

@@ -574,7 +574,7 @@ def _register_actions() -> None:
     for action, (keys, required, internal, fields, doc) in _ACTIONS.items():
         example = '{"market": "house", "action": "' + action + '"' + (f", {fields}" if fields else "") + f"}}  ({doc})"
         family_action("market", ("auction",), action, keys=keys, required=required, internal=internal, example=example,
-                      check=_format_check(action) if action in ("bid", "ask") else None, was=("auction",))(_runner(action))
+                      check=_format_check(action) if action in ("bid", "ask") else None)(_runner(action))
 
 
 _register_actions()
@@ -617,8 +617,7 @@ def _check_packages(cfg: AuctionConfig) -> None:
            "$world.<name>_revenue. Each closed lot is posted to the `<name>_results` record (winner, price, qty, lot, note): read the "
            "last sale as $auction(<name>).last.winner and .price: null before the first lot closes, kept until another "
            "closes. The other fields of $auction(name) describe the open lot; $auction_text(name, viewer) describes it.",
-           example={"format": "second_price", "who": "collector", "item": "a painting", "stock": 3, "reserve": 50},
-           was="auction")
+           example={"format": "second_price", "who": "collector", "item": "a painting", "stock": 3, "reserve": 50})
 def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     types = contract.get("types") or {}
     for field, kind in (("who", cfg.who), ("sellers", cfg.sellers)):

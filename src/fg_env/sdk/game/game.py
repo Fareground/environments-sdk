@@ -1,4 +1,4 @@
-"""``fg_env.game``: any contract as a game for search, solving and learning code (OpenSpiel-style)."""
+"""``fg_env.rl.game``: any contract as a game for search, solving and learning code (OpenSpiel-style)."""
 from __future__ import annotations
 
 import json
@@ -31,7 +31,7 @@ LEGAL_MEMORY = 200_000
 class Game:
     """A contract as a game: seats, a numbered action space, and states to search from.
 
-    Create with :func:`fg_env.game`. States pause at every decision of a seat (and at every chance
+    Create with :func:`fg_env.rl.game`. States pause at every decision of a seat (and at every chance
     node when chance is explicit); agents that are not seats are played by ``others``.
     """
 

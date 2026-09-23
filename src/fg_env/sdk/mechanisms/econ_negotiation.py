@@ -137,7 +137,7 @@ register_config(NEGOTIATION, NegotiationConfig)
                     "reservation": 40, "value": "$party.weight * $terms.quota - $terms.tariff",
                     "obligations": [{"from": "$acceptor", "to": "$proposer", "pay": "credits", "amount": "$terms.quota",
                                      "times": 4}],
-                    "breach": {"penalty": 100, "terminate": True}}, was="negotiation")
+                    "breach": {"penalty": 100, "terminate": True}})
 def _expand_negotiation(name: str, config: NegotiationConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     parties = type_list(config.who)
     require_types(contract, parties, "who")
@@ -384,11 +384,10 @@ def _check_terms(config: NegotiationConfig, terms: Any) -> Dict[str, Any]:
 
 
 @family_action("agreements", ("negotiation",), "counter", keys=("who", "offer", "terms", "note"),
-               required=("who", "offer", "terms"), was=("propose_terms",),
+               required=("who", "offer", "terms"),
                example='{"agreements": "trade", "action": "counter", "who": "$actor", "offer": "$params.offer", '
                        '"terms": {"tariff": 12, "quota": 150}}  (answer an offer made to you with other terms; it replaces that offer)')
 @family_action("agreements", ("negotiation",), "propose", keys=("who", "to", "terms", "note"), required=("who", "to", "terms"),
-               was=("propose_terms",),
                example='{"agreements": "trade", "action": "propose", "who": "$actor", "to": "$params.to", '
                        '"terms": {"tariff": 10, "quota": 200}}  (an offer to a party; a list of parties for a coalition)')
 def _offer(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -483,7 +482,6 @@ def _register_answers() -> None:
     for answer, doc in (("accept", "accept an offer made to you; it binds once everyone it went to accepts"),
                         ("reject", "turn down an offer made to you"), ("withdraw", "take back an offer you made")):
         family_action("agreements", ("negotiation",), answer, keys=("who", "offer"), required=("who", "offer"),
-                      was=("answer_offer",),
                       example=f'{{"agreements": "trade", "action": "{answer}", "who": "$actor", "offer": "$params.offer"}}  '
                               f'({doc})')(_answer_offer)
 
@@ -567,7 +565,7 @@ def _perform(world: Any, duty: Any, where: str) -> None:
     world.set_prop(duty, "status", "done")
 
 
-@family_action("agreements", ("negotiation",), "fulfill", keys=("who", "duty"), required=("who", "duty"), was=("fulfill_duty",),
+@family_action("agreements", ("negotiation",), "fulfill", keys=("who", "duty"), required=("who", "duty"),
                example='{"agreements": "trade", "action": "fulfill", "who": "$actor", "duty": "$params.duty"}  '
                        '(pay or deliver an installment you owe)')
 def _fulfill_duty(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -622,7 +620,7 @@ def _currencies(world: Any) -> List[str]:
     return list(assets(world).currencies)
 
 
-@family_action("agreements", ("negotiation",), "tick", internal=True, was=("negotiation_tick",),
+@family_action("agreements", ("negotiation",), "tick", internal=True,
                example='{"agreements": "trade", "action": "tick"}  (expire offers, carry out due installments, detect breaches)')
 def _negotiation_tick(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world

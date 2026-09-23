@@ -44,7 +44,7 @@ from .delivery import dropped, send
 from .expr import MAX_INT_BITS, Expr, ExprError, attr, check_size, compile_expr, is_expr, resolve, truthy
 from .template import compile_template, format_value
 from .links import Link
-from .registry import OPS, OpSpec, renamed_op_hint
+from .registry import OPS, OpSpec, family_action_hint
 from .world import Abort, SdkWorld
 from .world_parts import PhysicsView, PropsView
 
@@ -534,11 +534,11 @@ class EffectRunner:
         if len(ops) != 1:
             if not ops:
                 keys = ", ".join(effect)
-                renamed = renamed_op_hint(effect)
+                action = family_action_hint(effect)
                 hint = get_close_matches(next(iter(effect), ""), list(all_ops()), n=1)
                 raise RunError(
                     f"unknown effect with keys ({keys})"
-                    + (f" — {renamed}" if renamed else f" — did you mean '{hint[0]}'?" if hint else "")
+                    + (f" — {action}" if action else f" — did you mean '{hint[0]}'?" if hint else "")
                     + f"; effects are: {', '.join(all_ops())}",
                     where,
                 )

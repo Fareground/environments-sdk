@@ -56,7 +56,7 @@ def _filled(length: Union[int, str], flow: Union[float, str]) -> str:
       "_shipped, _last_order, _round_cost, _cost, _peak_backlog; $pipeline(agent, chain) lists goods on the way.",
       example={"inventory": "stock", "item": "beer",
                "nodes": ["retailer", "wholesaler", "distributor", "factory"], "demand": "4 if $round < 5 else 8",
-               "initial_flow": 4, "holding_cost": 0.5, "backlog_cost": 1}, was="supply_chain")
+               "initial_flow": 4, "holding_cost": 0.5, "backlog_cost": 1})
 def _expand_supply_chain(name: str, config: SupplyChainConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     inventory = declared_use(contract, config.inventory, INVENTORY, "inventory")
     items = inventory.get("items") or {}
@@ -172,7 +172,7 @@ def _push(pipe: List[int], qty: int) -> List[int]:
     return pipe[:-1] + [pipe[-1] + qty] if pipe else [qty]
 
 
-@family_action("economy", ("supply_chain",), "tick", internal=True, was=("supply_chain_tick",),
+@family_action("economy", ("supply_chain",), "tick", internal=True,
                example='{"economy": "beer", "action": "tick"}  (demand, arrivals, orders received, shipping and costs for every node)')
 def _supply_chain_tick(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
@@ -248,7 +248,7 @@ def _place(runner: Any, name: str, config: SupplyChainConfig, node: Any, qty: in
     world.set_prop(node, f"{name}_ordered", True)
 
 
-@family_action("economy", ("supply_chain",), "order", keys=("who", "qty"), required=("who", "qty"), was=("place_order",),
+@family_action("economy", ("supply_chain",), "order", keys=("who", "qty"), required=("who", "qty"),
                example='{"economy": "beer", "action": "order", "who": "$actor", "qty": 8}  '
                        '(a node orders from upstream; the producer starts a batch)')
 def _place_order(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -259,7 +259,7 @@ def _place_order(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], wher
     _place(runner, name, config, node, whole(runner.eval(effect["qty"], vars), where, "qty"), where)
 
 
-@family_action("economy", ("supply_chain",), "close", internal=True, was=("supply_chain_close",),
+@family_action("economy", ("supply_chain",), "close", internal=True,
                example='{"economy": "beer", "action": "close"}  (place the default order for every node that placed none)')
 def _supply_chain_close(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world

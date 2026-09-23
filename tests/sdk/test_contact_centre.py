@@ -46,7 +46,7 @@ def test_the_bundled_history_is_exactly_what_the_truth_arm_records(history):
 def test_the_model_estimated_from_six_weeks_recovers_the_truth(history):
     generator = _example("contact_centre_history")
     shipped = _contract()["inputs"]
-    fitted = fg_env.fit_patterns(CONTRACT).contract["inputs"]
+    fitted = fg_env.analysis.fit_patterns(CONTRACT).contract["inputs"]
     for name in ("calls_scale", "weekday_profile", "hours_profile"):
         assert fitted[name]["default"] == pytest.approx(shipped[name]["default"], rel=1e-9), name
     assert generator.average_handle_time(history) == pytest.approx(shipped["aht_sec"]["default"], abs=0.05)
@@ -56,8 +56,8 @@ def test_the_model_estimated_from_six_weeks_recovers_the_truth(history):
     true_uplifts = [uplift for day, (_, uplift) in generator.OUTAGES.items() if day < generator.TRAIN_END]
     assert shipped["outage_uplift_estimate"]["default"] == pytest.approx(statistics.fmean(true_uplifts), rel=0.25)
     for index in (0, 3, 12, 23):  # the fitted forecast of a Monday's half-hours against the true expected calls
-        fitted_calls = fg_env.decompose(CONTRACT, "calls", rounds=[index + 1], inputs={"parameter_uncertainty": 0}).rows[0]
-        true_calls = fg_env.decompose(fg_env.sdk.api.apply_arm(fg_env.parse(CONTRACT), "truth"), "calls", rounds=[index + 1],
+        fitted_calls = fg_env.analysis.decompose(CONTRACT, "calls", rounds=[index + 1], inputs={"parameter_uncertainty": 0}).rows[0]
+        true_calls = fg_env.analysis.decompose(fg_env.sdk.api.apply_arm(fg_env.parse(CONTRACT), "truth"), "calls", rounds=[index + 1],
                                       data_dir=FOLDER.parent).rows[0]
         assert fitted_calls["total"] == pytest.approx(true_calls["total"], rel=0.12), index
 
@@ -77,7 +77,7 @@ def test_the_owner_report_of_the_plan_says_it_holds_with_confidence_and_names_it
     from fg_env.sdk.analysis.optimise_result import OptimisationResult
 
     kept = OptimisationResult(**json.loads((FOLDER / "plan.json").read_text()))
-    text = fg_env.report(kept, contract=CONTRACT).markdown
+    text = fg_env.analysis.report(kept, contract=CONTRACT).markdown
     assert "met with 90% confidence" in text and "; tightest: " in text
     assert "borderline" not in text and "No decision tried" not in text
 
@@ -95,7 +95,7 @@ def test_an_outage_cuts_service_and_callbacks_that_keep_agents_free_cut_abandonm
 
 def test_the_owner_report_names_the_plan_the_monday_peak_and_the_outage():
     exp = fg_env.experiment(CONTRACT, arms=["recommended", "current", "outage"], runs=4, seed=7)
-    written = fg_env.report(exp, contract=CONTRACT, control="recommended")
+    written = fg_env.analysis.report(exp, contract=CONTRACT, control="recommended")
     text = written.markdown
     assert "Staff between" in text or "Staff " in text
     assert "day of the week (Monday) adds" in text

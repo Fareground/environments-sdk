@@ -569,14 +569,14 @@ def errors_of(contract):
 
 
 @pytest.mark.parametrize("old, contract, mode", [("order_book", book(), "order_book"), ("auction", house("first_price"), "auction"),
-                                                 ("prediction_market", market("lmsr"), "prediction"),
-                                                 ("posted_market", farm(), "posted")])
-def test_an_old_market_kind_says_the_family_and_mode(old, contract, mode):
+                                                 ("prediction", market("lmsr"), "prediction"),
+                                                 ("posted", farm(), "posted")])
+def test_a_market_mode_written_as_the_kind_names_the_family(old, contract, mode):
     name, config = next(iter(contract["mechanisms"].items()))
     config = {key: value for key, value in config.items() if key != "mode"}
     issue = next(i for i in errors_of({**contract, "mechanisms": {name: {**config, "kind": old}}})
                  if i.path == f"mechanisms.{name}.kind")
-    assert issue.message == f"'{old}' is now kind 'market' with mode '{mode}'"
+    assert issue.message == f"'{old}' is a mode of kind 'market'"
 
 
 def test_a_market_field_typo_or_an_old_field_name_names_the_mode_and_its_fields():
@@ -602,8 +602,8 @@ def test_market_actions_check_their_own_keys():
     assert fix == "actions: buy, sell, cancel, cancel_all, algo, rebase, open, close"
     _, _, fix = _op_issues(book(), {"market": "acmee", "action": "rebase"})[0]
     assert fix == "did you mean 'acme'?"
-    _, _, fix = _op_issues(book(), {"book": "acme", "action": "rebase"})[0]
-    assert fix.startswith('`book` is now the `market` op: {"market": "<mechanism>", "action": <action>')
+    _, _, fix = _op_issues(book(), {"buy": "acme", "qty": 1})[0]
+    assert fix.startswith('`buy` is an action of the `market` op: {"market": "<mechanism>", "action": "buy"')
     assert any(m == "a first_price auction takes no asks" for _, m, _ in _op_issues(
         house("first_price"), {"market": "house", "action": "ask", "price": 10}))
     assert any(m == "`items` belongs to a combinatorial auction, not a first_price auction" for _, m, _ in _op_issues(

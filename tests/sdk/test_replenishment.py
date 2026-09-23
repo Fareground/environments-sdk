@@ -138,7 +138,7 @@ def test_lead_times_drawn_per_order_are_recorded_and_fitted_back_from_the_orders
     fit = copy.deepcopy(contract)
     fit["inputs"]["orders"] = {"type": "table", "default": rows}
     fit["patterns"]["lead_noise"] = {"kind": "noise", "dist": "lognormal", "fit": {"data": "$inputs.orders", "value": "factor"}}
-    fitted = fg_env.fit_patterns(fit).contract["inputs"]
+    fitted = fg_env.analysis.fit_patterns(fit).contract["inputs"]
     assert fitted["lead_noise_sd"]["default"] == pytest.approx(0.3, abs=0.03)
     assert fitted["lead_noise_mean"]["default"] == pytest.approx(0.0, abs=0.03)
 

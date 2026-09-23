@@ -464,7 +464,7 @@ def test_config_mistakes_are_reported_with_what_to_fix():
     old = json.loads(json.dumps(VILLAGE))
     old["mechanisms"]["roles"] = {**{k: v for k, v in old["mechanisms"]["roles"].items() if k not in ("mode", "who")},
                                   "kind": "roles", "players": "player"}
-    assert any(i.message == "'roles' is now kind 'groups' with mode 'roles'" for i in _errors(old))
+    assert any(i.message == "'roles' is a mode of kind 'groups'" for i in _errors(old))
     unnamed = {**VILLAGE, "events": [{"do": [{"groups": "roles", "action": "eliminate", "say": "Gone."}]}]}
     assert any(i.message == "`groups.eliminate` needs `who`" for i in _errors(unnamed))
     seated = {**VILLAGE, "types": {**VILLAGE["types"], "ghost": {"agent": True}}, "entities": {**VILLAGE["entities"],
@@ -492,7 +492,7 @@ def test_old_card_pot_and_slots_kinds_name_their_game_mode():
                          ("slots", {"workers": "player", "spaces": {"a": {}}})):
         contract = {**_card_game(), "mechanisms": {"old": {"kind": kind, **config}}}
         issue = next(i for i in _errors(contract) if i.path == "mechanisms.old.kind")
-        assert issue.message == f"'{kind}' is now kind 'game' with mode '{kind}'"
+        assert issue.message == f"'{kind}' is a mode of kind 'game'"
 
 
 def test_a_renamed_card_field_names_the_new_one():
@@ -512,12 +512,12 @@ def test_card_and_pot_actions_check_their_own_keys():
     path, _, fix = op(cards, {"game": "cards", "action": "shufle"})[0]
     assert path.endswith(".action") and fix == "did you mean 'shuffle'?"
     _, _, fix = op(cards, {"deal": "cards", "count": 2})[0]
-    assert fix.startswith('`deal` is now the `game` op: {"game": "<mechanism>", "action": "deal"')
+    assert fix.startswith('`deal` is an action of the `game` op: {"game": "<mechanism>", "action": "deal"')
     table = _table([10, 10])
     assert any(m == "`game.raise` needs `to`" for _, m, _ in op(table, {"game": "table", "action": "raise"}))
     assert any(m == "'amount' is not part of `game.fold`" for _, m, _ in op(table, {"game": "table", "action": "fold", "amount": 1}))
-    _, _, fix = op(table, {"wager": "table", "action": "call"})[0]
-    assert fix.startswith('`wager` is now the `game` op: {"game": "<mechanism>", "action": <action>')
+    _, _, fix = op(table, {"call": "table"})[0]
+    assert fix.startswith('`call` is an action of the `game` or `host` op: {"game": "<mechanism>", "action": "call"')
 
 
 def test_a_moved_card_must_belong_to_the_deck_the_action_names():

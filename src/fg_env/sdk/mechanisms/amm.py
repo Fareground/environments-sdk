@@ -447,7 +447,7 @@ def _register_actions() -> None:
     for action, (keys, required, internal, fields, doc) in _ACTIONS.items():
         example = '{"market": "election", "action": "' + action + '"' + (f", {fields}" if fields else "") + f"}}  ({doc})"
         family_action("market", ("prediction",), action, keys=keys, required=required, internal=internal, example=example,
-                      check=_size_check if action in ("buy", "sell") else None, was=("amm",))(_runner(action))
+                      check=_size_check if action in ("buy", "sell") else None)(_runner(action))
 
 
 _register_actions()
@@ -464,7 +464,7 @@ def _metric_key(outcome: str) -> str:
            "\"outcome\": ...}). Read it with $amm(name), $amm_outcomes(name, viewer) and $amm_cost(name, outcome, shares); "
            "metrics <name>_p_<outcome> track prices.",
            example={"who": "forecaster", "outcomes": ["yes", "no"], "maker": "lmsr", "liquidity": 50,
-                    "question": "Will the bill pass?", "resolve_at": 5, "outcome": "$world.truth"}, was="prediction_market")
+                    "question": "Will the bill pass?", "resolve_at": 5, "outcome": "$world.truth"})
 def _expand_market(name: str, cfg: PredictionMarketConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     types = contract.get("types") or {}
     if cfg.who not in types:

@@ -39,7 +39,7 @@ from .decisions import DecisionSpace, Point, parse_decisions
 from .draws import parameter_draws, with_draws
 from .goals import Objective, dominates, paired, parse_objectives
 from .optimise_result import OptimisationResult
-from .optimize import BudgetExhausted
+from .unit_search import BudgetExhausted
 
 __all__ = ["optimise", "OptimisationResult", "SEARCH_MARGIN", "CONFIRMATION_GROWTH"]
 

@@ -35,7 +35,7 @@ result = fg_env.run(
 )
 print(result.summary())
 print(result.diagnostics)
-trace = fg_env.trace(result)
+trace = fg_env.analysis.trace(result)
 print(trace.overview())
 print(trace.invalid())
 result.save("run.jsonl")
@@ -45,7 +45,7 @@ Diagnostics include a code, path, message and suggested fix. They cover common a
 
 ## Replay and privacy
 
-`fg_env.trace("run.jsonl").replay("inventory.json")` replays recorded calls and reports a divergence. Keep traces within the appropriate access boundary: they may contain participant-visible private data and host responses.
+`fg_env.analysis.trace("run.jsonl").replay("inventory.json")` replays recorded calls and reports a divergence. Keep traces within the appropriate access boundary: they may contain participant-visible private data and host responses.
 
 ## Errors
 

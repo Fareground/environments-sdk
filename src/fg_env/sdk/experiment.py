@@ -330,7 +330,7 @@ def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = N
     ``participants_for(job)`` builds fresh participants per job; a job's own ``participants`` replace
     the batch's for that job; ``events=False`` drops event logs; ``budget`` caps each run on its own
     (every run has the whole budget: :mod:`fg_env.sdk.budget`); ``exposures=True`` records what agents saw in every
-    run's ``exposures``, events kept, so each run is a trace to read or replay (:func:`fg_env.trace`).
+    run's ``exposures``, events kept, so each run is a trace to read or replay (:func:`fg_env.analysis.trace`).
     Inputs with a ``source`` read their files from ``data_dir`` (default: the contract file's folder); ``hosts``
     answers the contract's host requests (feeds, judges) and keeps runs in this process (threads).
     """

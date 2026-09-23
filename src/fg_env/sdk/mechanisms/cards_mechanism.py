@@ -166,7 +166,7 @@ def _events(name: str, config: CardsConfig) -> List[Dict[str, Any]]:
       "$trick_winner, $follow_suit.",
       example={"who": "player", "hand_size": 7, "keep_top": True,
                "play": {"where": "$it.suit == $top_card(discard).suit or $it.rank == $top_card(discard).rank"},
-               "draw": True}, was="cards")
+               "draw": True})
 def _expand_cards(name: str, config: CardsConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     types = contract.get("types") or {}
     if config.who not in types:

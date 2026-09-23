@@ -35,7 +35,7 @@ def test_experiment_runs_keep_recordings_that_replay():
     result = fg_env.experiment(SHOP, runs=2, seed=3, participants=overreacher, exposures=True)
     run = _first_arm(result.arms).runs[1]
     assert run.exposures["wakes"] and run.events
-    assert fg_env.trace(run).replay(SHOP).ok
+    assert fg_env.analysis.trace(run).replay(SHOP).ok
     assert _first_arm(result.to_dict()["arms"])["runs"][0]["events"]
 
 
@@ -44,19 +44,19 @@ def test_a_branched_experiments_recordings_replay_from_the_shared_history():
                                exposures=True)
     discount = result.arms["discount"].runs[0]
     assert discount.exposures["start"]["arm"] == "discount"
-    replayed = fg_env.trace(discount).replay(PRICES)
+    replayed = fg_env.analysis.trace(discount).replay(PRICES)
     assert replayed.ok, replayed.message
 
 
 def test_a_tournament_passes_its_budget_and_recording_to_every_game():
-    result = fg_env.tournament(RPS, {"rock": "policy:rock", "paper": "policy:paper"}, budget={"seconds": 60},
+    result = fg_env.rl.tournament(RPS, {"rock": "policy:rock", "paper": "policy:paper"}, budget={"seconds": 60},
                                exposures=True)
     assert all(run.budget["limits"] == {"seconds": 60} for run in result.runs)
     assert all(run.exposures["wakes"] and run.events for run in result.runs)
 
 
 def test_an_evaluation_keeps_every_run_and_records_exposures_when_asked():
-    result = fg_env.evaluate(PUBLIC_GOODS, focal="policy:free_ride", background="policy:cooperate", score=SCORE,
+    result = fg_env.rl.evaluate(PUBLIC_GOODS, focal="policy:free_ride", background="policy:cooperate", score=SCORE,
                              runs=2, exposures=True)
     assert len(result.results) == 2 * len(result.pairs)
     assert result.results[0].seed == result.pairs[0]["seed"] == result.results[1].seed

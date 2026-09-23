@@ -8,14 +8,14 @@ three of them with a network outage, and records every half-hour the way a conta
 calls offered, answered, abandoned and answered within 20 seconds, average handle and wait times, agents on duty.
 The model is then estimated from the first six weeks only (the last two are kept for validation):
 
-* arrivals — the day-of-week and time-of-day indexes and the base volume, fitted jointly by ``fg_env.fit_patterns``
+* arrivals — the day-of-week and time-of-day indexes and the base volume, fitted jointly by ``fg_env.analysis.fit_patterns``
   from the days without an outage;
 * average handle time — the answered-weighted mean of the half-hourly averages;
 * an outage's peak uplift — the first outage half-hour's calls over the fitted forecast, averaged over the outages;
 * patience — the simulated method of moments: the patience at which abandonment over the calibration days, each
   replayed with the agents it actually had and pooled on common seeds, equals the recorded abandonment (found by
   bisection, since more patience always means fewer callers giving up). Weighing matters: fitting each day's rate by
-  its relative error lets the quietest days' noise count most (``fg_env.calibrate`` on per-day relative errors lands
+  its relative error lets the quietest days' noise count most (``fg_env.analysis.calibrate`` on per-day relative errors lands
   near 270 s here, against a true 160 s, and its pooled check says so); giving each day's calls as the target's
   ``count``, or ``"pool": true``, recovers 160–167 s.
 """
@@ -99,7 +99,7 @@ def outage_uplift(contract: Dict[str, Any], rows: List[Dict[str, str]]) -> float
         if day >= TRAIN_END:
             continue
         index = (int(start[:2]) - 8) * 2 + int(start[3:]) // 30
-        forecast = fg_env.decompose(contract, "calls", rounds=[index + 1], data_dir=CONTRACT.parent,
+        forecast = fg_env.analysis.decompose(contract, "calls", rounds=[index + 1], data_dir=CONTRACT.parent,
                                     inputs={"day": f"{day}T08:00", "parameter_uncertainty": 0}).rows[0]["total"]
         offered = int(by_day(rows)[day][index]["offered"])
         ratios.append(offered / forecast - 1)
@@ -137,7 +137,7 @@ def patience(contract: Dict[str, Any], rows: List[Dict[str, str]]) -> float:
 
 def estimate(rows: List[Dict[str, str]]) -> Dict[str, Any]:
     """The contract estimated from ``rows`` (already written to the history file)."""
-    fitted = fg_env.fit_patterns(CONTRACT)
+    fitted = fg_env.analysis.fit_patterns(CONTRACT)
     contract = fitted.contract
     inputs = contract["inputs"]
     inputs["aht_sec"]["default"] = round(average_handle_time(rows), 1)

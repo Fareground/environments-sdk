@@ -261,7 +261,7 @@ def test_an_old_procedure_kind_or_field_names_the_new_one():
     old = json.loads(json.dumps(DUEL))
     old["mechanisms"]["spells"] = {"kind": "procedure", "stack": {"players": "wizard", "kinds": {"bolt": {}}}}
     issue = next(i for i in fg_env.check(old) if i.path == "mechanisms.spells.kind")
-    assert issue.message == "'procedure' is now kind 'flow' with mode 'procedure'"
+    assert issue.message == "'procedure' is a mode of kind 'flow'"
     typo = json.loads(json.dumps(DUEL))
     typo["mechanisms"]["spells"]["stack"]["players"] = typo["mechanisms"]["spells"]["stack"].pop("who")
     issue = next(i for i in fg_env.check(typo) if i.path == "mechanisms.spells.stack.players")
@@ -279,8 +279,8 @@ def test_procedure_actions_check_their_own_keys():
     assert issues({"flow": "spells", "action": "pass", "kind": "bolt"})[0][1] == "'kind' is not part of `flow.pass`"
     path, _, fix = issues({"flow": "spells", "action": "psh", "item": "bolt"})[0]
     assert path.endswith(".action") and fix == "did you mean 'push'?"
-    _, _, fix = issues({"procedure": "spells", "step": "pass"})[0]
-    assert fix.startswith('`procedure` is now the `flow` op: {"flow": "<mechanism>", "action": <action>')
+    _, _, fix = issues({"push": "spells", "item": "bolt"})[0]
+    assert fix.startswith('`push` is an action of the `flow` op: {"flow": "<mechanism>", "action": "push"')
 
 
 def test_tools_one_offers_the_stack_as_one_tool():

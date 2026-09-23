@@ -46,7 +46,7 @@ def test_fitted_profile_and_runtime_use_the_same_slot_assignment():
         {"t": t, "y": 10 * (t % 49 + 1)} for t in range(98)]}}
     c["patterns"]["season"]["fit"] = {"data": "$inputs.history", "time": "t", "value": "y"}
     c["metrics"]["value"] = "250 * $pattern.season"
-    fitted = fg_env.fit_patterns(c)
+    fitted = fg_env.analysis.fit_patterns(c)
     result = fg_env.run(fitted.contract, seed=1, inputs={"parameter_uncertainty": 0})
     assert result.status == "completed", result.error
     assert result.series["value"] == pytest.approx([10 * (t % 49 + 1) for t in range(196)])

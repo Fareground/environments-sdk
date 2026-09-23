@@ -234,7 +234,7 @@ EFFECT_EXAMPLES = {
     "block": '{"block": "settle", "with": {"buyer": "$actor", "qty": "$params.qty"}}  (runs a named effect list from `blocks`)',
     "chance": '{"chance": [{"p": 0.5, "label": "heads", "do": [...]}, {"p": 0.5, "label": "tails", "do": [...]}], '
               '"as": "coin"} or {"chance": "deal", "outcomes": "$world.deck", "weight": "1", "as": "card", "do": [...]}  '
-              '(picks one outcome from the listed distribution, logged as a `chance` event; `fg_env.game` can '
+              '(picks one outcome from the listed distribution, logged as a `chance` event; `fg_env.rl.game` can '
               'enumerate and choose outcomes instead of sampling them)',
 }
 
@@ -386,20 +386,20 @@ result.outputs, result.metrics, result.series, result.stats, result.events, resu
 snap = env.snapshot(); env2 = fg_env.Env.restore("shop.json", snap)   # between rounds or stopped mid-round; JSON-safe
 exp = fg_env.experiment("shop.json", runs=20, arms=["control", "promo"]); print(exp.table())
 exp.deltas("control")   # paired promo − control per output: mean, sd, ci95, clear (CI excludes 0)
-print(fg_env.report(exp, contract="shop.json", objective="max:profit", require={"fill_rate": ">= 0.95"}))
+print(fg_env.analysis.report(exp, contract="shop.json", objective="max:profit", require={"fill_rate": ">= 0.95"}))
 # plain words for an owner: the choice and its outcome with 80% ranges, drivers, risks, assumptions, fit to data
 # (audience="analyst" adds the method; validation=, a run, a sweep or a validation also work; fg-env report file.json)
-fg_env.sweep("shop.json", {"price": {"low": 1, "high": 5, "steps": 5}}, runs=10).table()   # also sensitivity, calibrate, backtest
+fg_env.analysis.sweep("shop.json", {"price": {"low": 1, "high": 5, "steps": 5}}, runs=10).table()   # also sensitivity, calibrate, backtest
 # every check, experiment and analysis reads data files beside the contract file (or data_dir=) and takes hosts=
-v = fg_env.validate("shop.json", [{"name": "Q1", "inputs": {"start": "2026-01-05"}, "actuals": {"units_by_sku": {...}}}],
+v = fg_env.analysis.validate("shop.json", [{"name": "Q1", "inputs": {"start": "2026-01-05"}, "actuals": {"units_by_sku": {...}}}],
                     runs=20, season=4); print(v.report())   # bias, MAPE/WAPE per key, interval coverage, baselines
-cal = fg_env.calibrate("shop.json", cases, {"demand_scale": {"low": 0.5, "high": 2}})   # cases: {name, inputs, targets}
+cal = fg_env.analysis.calibrate("shop.json", cases, {"demand_scale": {"low": 0.5, "high": 2}})   # cases: {name, inputs, targets}
 # a rate per case: {"value": 0.03, "count": calls} weighs it by its data; "pool": true matches the cases together
-fg_env.validate("shop.json", cases, uncertainty=cal)   # also experiment, sweep, backtest: draw params per run
-fg_env.behavior_checks("shop.json")   # constant outputs, inputs that change nothing, actions and stages never used
-fg_env.tournament("duel.json", {"greedy": "policy:greedy", "llm": my_agent}, games=20).summary()
+fg_env.analysis.validate("shop.json", cases, uncertainty=cal)   # also experiment, sweep, backtest: draw params per run
+fg_env.analysis.behavior_checks("shop.json")   # constant outputs, inputs that change nothing, actions and stages never used
+fg_env.rl.tournament("duel.json", {"greedy": "policy:greedy", "llm": my_agent}, games=20).summary()
 # seats rotate and share seeds; Elo with intervals, Glicko-2, Nash average, α-Rank, votes, cost per entrant
-d = fg_env.describe("duel.json"); d.markdown, d.metadata   # ODD description; turns, chance, information, players, length
+d = fg_env.analysis.describe("duel.json"); d.markdown, d.metadata   # ODD description; turns, chance, information, players, length
 
 ```
 
@@ -428,7 +428,7 @@ take `exposures=True` too, every run keeping its own (`--exposures` with `--json
 `env.spectate()` give the spectator views (`fg-env run file.json --frames frames.json` saves them).
 
 Traces: a run with `exposures=True` is a trace (`fg-env run file.json --trace run.jsonl`); `result.save("run.json")`
-or `.jsonl`, `fg_env.RunResult.load(path)`. `t = fg_env.trace(result_or_file)`: `t.overview()` (per agent: turns,
+or `.jsonl`, `fg_env.RunResult.load(path)`. `t = fg_env.analysis.trace(result_or_file)`: `t.overview()` (per agent: turns,
 calls, invalid rate, timeouts, tokens), `t.turn(7)` or `t.turn("ana", 3)` (what the agent read, the tools offered,
 every call with its result), `t.timeline("ana")`, `t.search("bribe")` (in what agents read or wrote), `t.invalid()`
 (refused calls with the correction given), `t.agent("ana")`; each has `.data` and prints as text
@@ -438,7 +438,7 @@ update text, the tools offered, a call result, an event or the ending; `fallback
 (`fg-env trace run.jsonl replay shop.json`, exit 1 on a divergence). Each wake's `steps` are what it replays.
 Outcomes a `chance=` chooser picked are recorded (`exposures.chance`) and replayed without it (a changed chance
 node is a divergence); a forked run replays from the snapshot it continued from (`exposures.start`).
-Evaluation: `fg_env.evaluate(suite, focal=my_agent, background="policy:reciprocate", seats="villager",
+Evaluation: `fg_env.rl.evaluate(suite, focal=my_agent, background="policy:reciprocate", seats="villager",
 score="$outputs.cash[$seat]", modes={"resident": 0.75, "visitor": 0.25}, runs=20).summary()` runs every scenario and
 mode with `focal` in a seeded draw of the seats and again with `baseline` (default: the background) in the same seats
 on the same seed: focal score per focal seat, the baseline's, the paired difference with a 95% interval and cost, per
@@ -471,17 +471,17 @@ with wake.clone() as branch:          # inside a turn: a private copy paused rig
     branch.call("buy", {"offer": "latte", "qty": 2}); outcome = branch.run("random")   # the real run never changes
 twin = env.clone()                    # between rounds or stopped mid-round: continues exactly like env
 what_if = env.fork(arm="promo", patch={...}, effects=["$world.tax = 0.2"])   # between rounds; refuses what cannot follow
-game = fg_env.game("kuhn_poker.json"); state = game.new_initial_state()    # OpenSpiel-style
+game = fg_env.rl.game("kuhn_poker.json"); state = game.new_initial_state()    # OpenSpiel-style
 state.current_player(), state.legal_actions(), state.chance_outcomes(), state.child(action), state.returns()
 state.information_state(seat), state.observation(seat, "struct"), state.apply_actions({0: a, 1: b})
-env = fg_env.gym("nim.json", "a", others="random"); obs, info = env.reset(seed=1)
+env = fg_env.rl.gym("nim.json", "a", others="random"); obs, info = env.reset(seed=1)
 obs, reward, terminated, truncated, info = env.step({"tool": "take", "args": {"count": 2}})
-fg_env.conformance("kuhn_poker.json", sims=20).summary()   # legal calls, chance, clone, serialize, returns, replay, resume, leaks
-print(fg_env.playthrough("kuhn_poker.json", seed=1))       # every seat's reading at every decision: a golden text to diff
+fg_env.rl.conformance("kuhn_poker.json", sims=20).summary()   # legal calls, chance, clone, serialize, returns, replay, resume, leaks
+print(fg_env.rl.playthrough("kuhn_poker.json", seed=1))       # every seat's reading at every decision: a golden text to diff
 from fg_env.sdk.game.algorithms import CFRSolver, exploitability, minimax, MCTSBot
 policy = CFRSolver(game, plus=True).iterate(1000).average_policy(); exploitability(game, policy)
 fg_env.run("tic_tac_toe.json", {"x": "mcts:200", "o": "minimax"})   # also "ismcts:200", "cfr:policy.json", "cfr:1000"
-aec = fg_env.pettingzoo_aec("kuhn_poker.json", seed=1)     # PettingZoo AEC (reward since last turn); pettingzoo_parallel too
+aec = fg_env.rl.pettingzoo_aec("kuhn_poker.json", seed=1)     # PettingZoo AEC (reward since last turn); pettingzoo_parallel too
 ```
 Games transform into ordinary contracts: `fg_env.sdk.game.repeated(contract, 10)`, `misere`, `zerosum`;
 `game.start_at(steps)` starts part-way. Known-answer games live in `examples/contracts/games`.
@@ -553,7 +553,7 @@ reveal: crashes as errors (naming the policy that ran into one), diagnostics and
 
 What agents saw:
 * `env.preview("ann")` shows the next turn exactly as ann will get it.
-* A recorded run holds every turn: `result = fg_env.run(c, seed=1, exposures=True)`, then `t = fg_env.trace(result)`.
+* A recorded run holds every turn: `result = fg_env.run(c, seed=1, exposures=True)`, then `t = fg_env.analysis.trace(result)`.
 * `t.overview()` gives turns, calls, invalid rate and tokens per agent.
 * `t.turn("ann", 3)` shows what ann read, the tools she was offered, and every call with its result.
 * `t.invalid()` lists refused calls with the correction given; `t.search("bribe")` searches the text.

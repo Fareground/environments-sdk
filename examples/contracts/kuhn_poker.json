@@ -1,7 +1,7 @@
 {
   "fg_env": "1",
   "name": "Kuhn poker",
-  "description": "The smallest poker: three cards, one each, one bet. Its equilibrium value for the first player is -1/18, so solvers can check themselves against it (fg_env.game).",
+  "description": "The smallest poker: three cards, one each, one bet. Its equilibrium value for the first player is -1/18, so solvers can check themselves against it (fg_env.rl.game).",
   "brief": {
     "situation": "Two players, a deck of three cards (1, 2, 3), one card each, ante 1.",
     "rules": "P0 acts first: pass or bet 1. A bet facing a bet calls; a pass facing a bet folds. If both pass, or both bet, the higher card wins the pot."

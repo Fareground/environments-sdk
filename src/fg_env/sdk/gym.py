@@ -1,4 +1,4 @@
-"""``fg_env.gym``: one agent of a contract as a Gymnasium-style environment.
+"""``fg_env.rl.gym``: one agent of a contract as a Gymnasium-style environment.
 
 ``reset(seed=...)`` starts an episode and returns ``(observation, info)``; ``step(action)`` makes one
 tool call as the agent and returns ``(observation, reward, terminated, truncated, info)``. Every other
@@ -37,7 +37,7 @@ except ImportError:  # pragma: no cover - exercised when gymnasium is absent
 
 
 class GymEnv(_Base):  # type: ignore[misc]
-    """One agent of a contract as a Gymnasium-style environment. Create with :func:`fg_env.gym`."""
+    """One agent of a contract as a Gymnasium-style environment. Create with :func:`fg_env.rl.gym`."""
 
     metadata = {"render_modes": ["ansi"]}
 
@@ -142,7 +142,7 @@ class GymEnv(_Base):  # type: ignore[misc]
     def _call(self, action: Any) -> Tuple[str, Dict[str, Any]]:
         if isinstance(action, int) and not isinstance(action, bool):
             if self._space is None:
-                raise ValueError("action ids need fg_env.gym(..., action_ids=True)")
+                raise ValueError("action ids need fg_env.rl.gym(..., action_ids=True)")
             return self._space.decode(action)
         if isinstance(action, str):
             return action, {}
@@ -199,7 +199,7 @@ def gym(source: ContractLike, agent: str, *, others: Any = None, inputs: Optiona
 
     ``seed`` seeds the episodes (``reset(seed=...)`` reseeds them); ``max_steps`` truncates an episode after
     that many calls; ``action_ids=True`` accepts integer action ids and adds ``legal_actions`` and
-    ``action_mask`` to ``info`` (see :func:`fg_env.game` for how ids are numbered).
+    ``action_mask`` to ``info`` (see :func:`fg_env.rl.game` for how ids are numbered).
     """
     if max_steps is not None and (isinstance(max_steps, bool) or not isinstance(max_steps, int) or max_steps < 1):
         raise ValueError(f"max_steps must be a whole number ≥ 1, got {max_steps!r}")

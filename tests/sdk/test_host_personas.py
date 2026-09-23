@@ -60,7 +60,7 @@ def test_persona_config_is_checked():
         fg_env.load(_with(who="ghost"))
     with pytest.raises(fg_env.ContractError, match="prompt"):
         fg_env.load(_with(prompt="A {age shopper"))
-    with pytest.raises(fg_env.ContractError, match="'personas' is now kind 'mind' with mode 'personas'"):
+    with pytest.raises(fg_env.ContractError, match="'personas' is a mode of kind 'mind'"):
         fg_env.load({**MARKET, "mechanisms": {"lives": {"kind": "personas", "of": "shopper", "prompt": "A shopper."}}})
     with pytest.raises(fg_env.ContractError, match="`of` is not a field of `mind` mode `personas`"):
         fg_env.load(_with(of="shopper"))

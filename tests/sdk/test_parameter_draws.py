@@ -26,7 +26,7 @@ def test_every_arm_draws_the_same_parameters_for_run_i():
 
 
 def test_priors_clip_into_range_round_whole_numbers_and_pick_listed_values():
-    swept = fg_env.sweep(LINEAR, {"scale": [10, 20]}, runs=20,
+    swept = fg_env.analysis.sweep(LINEAR, {"scale": [10, 20]}, runs=20,
                          uncertainty={"p": {"dist": "normal", "mean": 1.0, "sd": 5, "min": 0.8, "max": 1.2},
                                       "k": {"dist": "triangular", "low": 0, "mode": 4, "high": 9}})
     first, second = (cell.runs for cell in swept.cells)
@@ -37,7 +37,7 @@ def test_priors_clip_into_range_round_whole_numbers_and_pick_listed_values():
 
 
 def test_a_calibrations_plausible_points_are_drawn_whole():
-    fitted = fg_env.calibrate(LINEAR, {"y": 12}, {"p": {"low": 0.5, "high": 2}}, runs=1, budget=30)
+    fitted = fg_env.analysis.calibrate(LINEAR, {"y": 12}, {"p": {"low": 0.5, "high": 2}}, runs=1, budget=30)
     assert fitted.params in fitted.plausible and fitted.to_dict()["plausible"] == fitted.plausible
     result = fg_env.experiment(LINEAR, arms=["base"], runs=5, uncertainty=fitted)
     assert {r.inputs["p"] for r in result.arms["base"].runs} <= {point["p"] for point in fitted.plausible}
@@ -47,8 +47,8 @@ def test_a_calibrations_plausible_points_are_drawn_whole():
 
 
 def test_parameter_uncertainty_widens_intervals_until_they_hold_the_actual_values():
-    known = fg_env.validate(LINEAR, QUARTERS, runs=40, levels=(0.8,), baselines=())
-    drawn = fg_env.validate(LINEAR, QUARTERS, runs=40, levels=(0.8,), baselines=(),
+    known = fg_env.analysis.validate(LINEAR, QUARTERS, runs=40, levels=(0.8,), baselines=())
+    drawn = fg_env.analysis.validate(LINEAR, QUARTERS, runs=40, levels=(0.8,), baselines=(),
                             uncertainty={"p": {"dist": "normal", "mean": 1.0, "sd": 0.1}})
     assert known.measures["y"]["overall"]["coverage"]["0.8"]["coverage"] == pytest.approx(0.1)
     assert any("intervals held 1 of 10" in warning for warning in known.warnings)
@@ -58,7 +58,7 @@ def test_parameter_uncertainty_widens_intervals_until_they_hold_the_actual_value
 
 def test_a_drawn_input_also_set_by_the_case_is_refused_by_name():
     with pytest.raises(ValueError) as excinfo:
-        fg_env.backtest(LINEAR, [{"name": "a", "inputs": {"p": 1}, "outcome": 10}], "y", runs=2,
+        fg_env.analysis.backtest(LINEAR, [{"name": "a", "inputs": {"p": 1}, "outcome": 10}], "y", runs=2,
                         uncertainty={"p": {"values": [1, 2]}})
     assert "p is set for these runs and also drawn from uncertainty" in str(excinfo.value)
 
@@ -88,7 +88,7 @@ def test_calibration_names_the_target_traded_away_when_the_others_count_for_more
               "targets": {"sl": {"value": 0.85 + 0.03 * day, "scale": 0.85 + 0.03 * day},
                           "abandon": {"value": 0.05 + 0.01 * day, "scale": 0.05 + 0.01 * day}}}
              for i, day in enumerate([-1, -0.5, 0, 0.5, 1])]
-    result = fg_env.calibrate(CENTRE, cases, {"p": {"low": 0, "high": 1}}, runs=1, budget=40, method="golden")
+    result = fg_env.analysis.calibrate(CENTRE, cases, {"p": {"low": 0, "high": 1}}, runs=1, budget=40, method="golden")
     [note] = [n for n in result.notes if "of the misfit" in n]
     assert note.startswith("sl carries") and "the search traded it away" in note
 

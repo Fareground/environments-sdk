@@ -20,7 +20,7 @@ def contract(expr="$round == 0 or $inputs.capacity == 10"):
 @pytest.mark.parametrize("at_build", [False, True])
 def test_all_failed_variants_keep_the_real_cause(at_build):
     c = contract("$inputs.capacity == 10") if at_build else contract()
-    report = fg_env.behavior_checks(c, runs=2)
+    report = fg_env.analysis.behavior_checks(c, runs=2)
     finding = next(f for f in report.findings if f.code == "input_breaks_runs")
     assert finding.subject == "inputs.capacity"
     assert "capacity must match staffed capacity" in finding.message
@@ -39,7 +39,7 @@ def test_failed_baseline_participants_are_not_run_again_for_diagnostics():
         calls.append(wake.entity_id)
         raise ValueError("participant adapter unavailable")
 
-    report = fg_env.behavior_checks(c, runs=2, participants=broken)
+    report = fg_env.analysis.behavior_checks(c, runs=2, participants=broken)
     assert not report.ok
     assert "participant adapter unavailable" in report.report()
     assert calls == ["staff", "staff"]
@@ -64,7 +64,7 @@ def test_other_analyses_still_reject_all_failed_ensembles():
 
 
 def test_all_failed_builds_are_an_actionable_behavior_report():
-    report = fg_env.behavior_checks(contract("false"), runs=2)
+    report = fg_env.analysis.behavior_checks(contract("false"), runs=2)
     assert not report.ok
     assert "invariants[0]" in report.report()
     assert "capacity must match staffed capacity" in report.report()
@@ -73,7 +73,7 @@ def test_all_failed_builds_are_an_actionable_behavior_report():
 
 
 def test_mixed_variant_outcomes_preserve_failure_and_do_not_claim_no_effect():
-    report = fg_env.behavior_checks(contract("$inputs.capacity >= 10"), runs=2)
+    report = fg_env.analysis.behavior_checks(contract("$inputs.capacity >= 10"), runs=2)
     found = [f for f in report.findings if f.subject == "inputs.capacity"]
     assert len(found) == 1 and found[0].code == "input_breaks_runs"
     assert found[0].evidence["value"] == 5

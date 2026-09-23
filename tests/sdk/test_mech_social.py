@@ -213,9 +213,9 @@ def _event(contract, *effects):
 
 def test_an_old_social_kind_or_a_field_typo_says_what_to_write():
     old = {**CHAT, "mechanisms": {"chat": {"kind": "channels", "members": "citizen"}}}
-    assert any("mechanisms.chat.kind: 'channels' is now kind 'social' with mode 'channels'" in e for e in errors(old))
-    graph = {**NET, "mechanisms": {"net": {"kind": "social_graph", "accounts": "account"}}}
-    assert any("'social_graph' is now kind 'social' with mode 'feed'" in e for e in errors(graph))
+    assert any("mechanisms.chat.kind: 'channels' is a mode of kind 'social'" in e for e in errors(old))
+    graph = {**NET, "mechanisms": {"net": {"kind": "feed", "accounts": "account"}}}
+    assert any("'feed' is a mode of kind 'social'" in e for e in errors(graph))
     typo = {**CHAT, "mechanisms": {"chat": {**CHAT["mechanisms"]["chat"], "room": ["plaza"]}}}
     assert any("`room` is not a field of `social` mode `channels` → did you mean 'rooms'?" in e for e in errors(typo))
     foreign = {**CHAT, "mechanisms": {"chat": {**CHAT["mechanisms"]["chat"], "feed_size": 3}}}
@@ -228,8 +228,8 @@ def test_social_actions_check_their_own_keys():
                for e in _event(CHAT, {"social": "chat", "action": "say", "in": "plaza", "channel": "plaza", "text": "hi"}))
     assert any("'shout' is not an action of chat (social channels)" in e
                for e in _event(CHAT, {"social": "chat", "action": "shout"}))
-    assert any('`channel` is now the `social` op: {"social": "<mechanism>", "action": <action>' in e
-               for e in _event(CHAT, {"channel": "chat", "act": "say"}))
+    assert any('`say` is an action of the `social` op: {"social": "<mechanism>", "action": "say"' in e
+               for e in _event(CHAT, {"say": "chat", "channel": "plaza", "text": "hi"}))
     assert any("`social.follow` needs `account`" in e for e in _event(NET, {"social": "net", "action": "follow", "who": "a"}))
     assert any("did you mean 'repost'" in e for e in _event(NET, {"social": "net", "action": "repost_it", "target": "x"}))
     assert any("`social.adopt` needs `who`" in e for e in _event(LINE, {"social": "rumor", "action": "adopt", "item": "moon"}))
@@ -616,7 +616,7 @@ def test_beliefs_config_and_actions_say_what_to_fix():
 
     assert errors(with_config(decay_curve="linear")) == []
     assert any("`holders` is not a field of `mind` mode `beliefs`" in e for e in errors(with_config(holders="villager")))
-    assert any("'beliefs' is now kind 'mind' with mode 'beliefs'" in e
+    assert any("'beliefs' is a mode of kind 'mind'" in e
                for e in errors({**VILLAGE, "mechanisms": {"memory": {"kind": "beliefs", "holders": "villager"}}}))
 
     def op(*effects):
@@ -625,7 +625,7 @@ def test_beliefs_config_and_actions_say_what_to_fix():
     assert any("`mind.tell` needs `to`" in e for e in op({"mind": "memory", "action": "tell", "key": "wolf"}))
     assert any("'from' is not part of `mind.tell`" in e
                for e in op({"mind": "memory", "action": "tell", "key": "wolf", "to": "ben", "from": "ana"}))
-    assert any('`learn` is now the `mind` op: {"mind": "<mechanism>", "action": "learn"' in e for e in op({"learn": "wolf"}))
+    assert any('`learn` is an action of the `mind` op: {"mind": "<mechanism>", "action": "learn"' in e for e in op({"learn": "wolf"}))
 
 
 # ---------------------------------------------------------------------------
@@ -703,16 +703,16 @@ def test_relationship_and_faction_actions_check_their_own_keys():
     assert any("`groups.invite` needs `guest`" in e for e in op({"groups": "blocs", "action": "invite", "in": "entente"}))
     assert any("did you mean 'break_alliance'" in e
                for e in op({"groups": "blocs", "action": "break_aliance", "in": "entente", "other": "central"}))
-    assert any("`faction` is now the `groups` op" in e for e in op({"faction": "blocs", "act": "join", "in": "central"}))
-    assert any("`relate` is now the `groups` op" in e for e in op({"relate": "trust", "from": "fr", "to": "uk", "by": 1}))
+    assert any("`join` is an action of the `groups` or `social` op" in e for e in op({"join": "blocs", "in": "central"}))
+    assert any("`relate` is an action of the `groups` op" in e for e in op({"relate": "trust", "from": "fr", "to": "uk", "by": 1}))
 
 
-def test_old_relationships_and_factions_kinds_name_their_groups_mode():
+def test_relationships_and_factions_written_as_kinds_name_their_groups_family():
     old = {**BONDS, "mechanisms": {"bonds": {**BONDS["mechanisms"]["bonds"], "kind": "relationships"},
                                    "blocs": {"kind": "factions", "members": "nation"}}}
     found = errors(old)
-    assert any("'relationships' is now kind 'groups' with mode 'relationships'" in e for e in found)
-    assert any("'factions' is now kind 'groups' with mode 'factions'" in e for e in found)
+    assert any("'relationships' is a mode of kind 'groups'" in e for e in found)
+    assert any("'factions' is a mode of kind 'groups'" in e for e in found)
     renamed = errors({**BONDS, "mechanisms": {"blocs": {"kind": "groups", "mode": "factions", "members": "nation"}}})
     assert any("`members` is not a field of `groups` mode `factions`" in e for e in renamed)
 

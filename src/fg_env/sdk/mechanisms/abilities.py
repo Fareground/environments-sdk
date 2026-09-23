@@ -75,7 +75,7 @@ class CooldownConfig(Config):
       "Per-action cooldowns and charges with regeneration. Each listed action is offered only when ready, and "
       "starts its cooldown (spends a charge) when taken. Read with $ready(entity, action), $charges(entity, action), "
       "$cooldown_left(entity, action); the `reset` action makes one ready again.",
-      example={"actions": {"fireball": {"cooldown": 2}, "heal": {"charges": 2, "recharge": 3}}}, was="cooldowns")
+      example={"actions": {"fireball": {"cooldown": 2}, "heal": {"charges": 2, "recharge": 3}}})
 def _expand_cooldowns(name: str, cfg: CooldownConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     _unique_actions(name, COOLDOWNS, cfg.actions, contract)
     declared = contract.get("actions") or {}
@@ -257,7 +257,7 @@ def _listed(world: Any, mech: str, cfg: Any, names: List[str], where: str) -> No
 
 
 @family_action("conditions", ("cooldowns",), "start", keys=("ability", "who"), required=("ability",), literal=("ability",),
-               check=_check_abilities(COOLDOWNS, CooldownConfig, False), internal=True, was=("start_cooldown",),
+               check=_check_abilities(COOLDOWNS, CooldownConfig, False), internal=True,
                example='{"conditions": "abilities", "action": "start", "ability": "fireball", "who": "$actor"}  '
                        '(start the cooldown; added to each limited action)')
 def _start_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -282,7 +282,7 @@ def _start_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: 
 
 
 @family_action("conditions", ("cooldowns",), "reset", keys=("ability", "who"), required=("ability",), literal=("ability",),
-               check=_check_abilities(COOLDOWNS, CooldownConfig, True), was=("reset_cooldown",),
+               check=_check_abilities(COOLDOWNS, CooldownConfig, True),
                example='{"conditions": "abilities", "action": "reset", "ability": "all", "who": "$params.ally"}  '
                        '(an action, a list, or all: ready with full charges; who defaults to $actor)')
 def _reset_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -340,7 +340,7 @@ class ChannelConfig(Config):
       "A `fail` in resolve fizzles it with every change rolled back. $channeling(entity) is the channel in progress "
       "({action, params, started, completes}) or null.",
       example={"actions": {"meteor": {"rounds": 2, "resolve": ["$params.target.hp -= 12"], "interrupt": "$actor.hp < 5",
-                                      "say": "A meteor strikes!"}}}, was="channeling")
+                                      "say": "A meteor strikes!"}}})
 def _expand_channeling(name: str, cfg: ChannelConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     _unique_actions(name, CHANNELING, cfg.actions, contract)
     declared = contract.get("actions") or {}
@@ -395,7 +395,7 @@ def _channeling(call: Call) -> Optional[Dict[str, Any]]:
 
 
 @family_action("conditions", ("channeling",), "start", keys=("ability",), required=("ability",), literal=("ability",),
-               check=_check_abilities(CHANNELING, ChannelConfig, False), internal=True, was=("start_channel",),
+               check=_check_abilities(CHANNELING, ChannelConfig, False), internal=True,
                example='{"conditions": "spells", "action": "start", "ability": "meteor"}  (start channeling with this '
                        'action\'s $actor and $params; added to each channeled action)')
 def _channel_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -414,7 +414,7 @@ def _channel_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where
                                  "capture_version": common.CAPTURE_VERSION, "started": world.round, "completes": world.round + rounds})
 
 
-@family_action("conditions", ("channeling",), "interrupt", keys=("who",), required=("who",), was=("interrupt_channel",),
+@family_action("conditions", ("channeling",), "interrupt", keys=("who",), required=("who",),
                example='{"conditions": "spells", "action": "interrupt", "who": "$params.target"}  (break the entity\'s '
                        'channel now: on_interrupt runs)')
 def _interrupt_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -472,7 +472,7 @@ def _check_step(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[s
     return []
 
 
-@family_action("conditions", ("channeling",), "step", check=_check_step, internal=True, was=("channel_step",),
+@family_action("conditions", ("channeling",), "step", check=_check_step, internal=True,
                example='{"conditions": "spells", "action": "step"}  (break or complete channels now; generated at the '
                        'start of each round)')
 def _step_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:

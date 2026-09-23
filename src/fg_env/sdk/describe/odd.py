@@ -57,7 +57,7 @@ def _bullets(items: List[str], empty: str) -> List[str]:
 
 def odd_markdown(contract: C.Contract, metadata: Mapping[str, Any]) -> str:
     lines = [f"# {contract.name} — ODD description", "",
-             "_Written from the contract by `fg_env.describe`, following the ODD protocol (Overview, Design concepts, "
+             "_Written from the contract by `fg_env.analysis.describe`, following the ODD protocol (Overview, Design concepts, "
              "Details). Participants — LLM agents, coded policies or people — are attached when the environment runs, "
              "so their decision making is outside this description._", ""]
     for section in (_purpose, _entities, _process, _concepts, _initialisation, _inputs, _submodels):

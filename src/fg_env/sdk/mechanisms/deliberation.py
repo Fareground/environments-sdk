@@ -245,7 +245,7 @@ def _register_actions() -> None:
     for action, (keys, internal, fields, doc) in _ACTIONS.items():
         example = '{"decision": "hall", "action": "' + action + '"' + (f", {fields}" if fields else "") + f"}}  ({doc})"
         family_action("decision", ("deliberation",), action, keys=keys, required=keys, internal=internal,
-                      example=example, was=("deliberate",))(_runner(action))
+                      example=example)(_runner(action))
 
 
 _register_actions()
@@ -496,7 +496,7 @@ def _record(world: Any, name: str, actor: Entity, says: str, text: Any, motion: 
            "Read state with $pending_motion(), $decisions(), $discussion_over(), $house(viewer); with several deliberations, "
            "name one as the last argument ($decisions('committee')). The run ends on a decision only with `end`.",
            example={"who": "resident", "chair": "moderator", "floor": True,
-                    "question": "Should the town build a skate park?", "passes": 8}, was="deliberation",
+                    "question": "Should the town build a skate park?", "passes": 8},
            ends=lambda config: config.end != "never")
 def _expand(name: str, config: DeliberationConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     require_type(contract, config.who, "who", agent=True)

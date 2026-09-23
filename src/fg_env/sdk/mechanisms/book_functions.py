@@ -121,7 +121,7 @@ def _register_actions() -> None:
     for action, (keys, required, internal, fields, doc) in _ACTIONS.items():
         example = '{"market": "acme", "action": "' + action + '"' + (f", {fields}" if fields else "") + f"}}  ({doc})"
         family_action("market", ("order_book",), action, keys=keys, required=required, internal=internal,
-                      example=example, was=("book",))(_runner(action))
+                      example=example)(_runner(action))
 
 
 _register_actions()

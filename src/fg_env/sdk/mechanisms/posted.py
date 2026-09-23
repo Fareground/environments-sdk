@@ -412,8 +412,7 @@ def _register_actions() -> None:
         taken = () if internal else ("who", *required)
         listing = "" if internal else ', "listing": "$params.listing"'
         example = '{"market": "market", "action": "' + action + '"' + listing + (f", {fields}" if fields else "") + f"}}  ({doc})"
-        family_action("market", ("posted",), action, keys=taken, required=required, internal=internal, example=example,
-                      was=("posted",))(_runner(action))
+        family_action("market", ("posted",), action, keys=taken, required=required, internal=internal, example=example)(_runner(action))
 
 
 _register_actions()
@@ -427,7 +426,7 @@ _register_actions()
            "({item: count}). Read the ranked shelf with $shelf(name, item?), prices with $posted_price(name, listing).",
            example={"who": "shopper", "sellers": "farmer",
                     "listings": {"apples": {"seller": "ana", "item": "apples", "price": 3, "stock": 40, "negotiable": True,
-                                            "floor": 2.5}}}, was="posted_market")
+                                            "floor": 2.5}}})
 def _expand_posted(name: str, cfg: PostedMarketConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     types = contract.get("types") or {}
     entities = contract.get("entities") or {}

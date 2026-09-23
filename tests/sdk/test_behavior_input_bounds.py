@@ -18,7 +18,7 @@ def test_integer_variations_stay_within_fractional_bounds(base, lower, upper, ex
          'inputs': {'staff': {'type': 'int', 'default': base, 'min': lower, 'max': upper}},
          'outputs': {'constant': '1'}}
     assert not [i for i in fg_env.check(c, rounds=0) if i.severity == 'error']
-    report = fg_env.behavior_checks(c, runs=1)
+    report = fg_env.analysis.behavior_checks(c, runs=1)
     assert report.ok
     if expected:
         finding = next(f for f in report.findings if f.code == 'input_has_no_effect')
@@ -43,7 +43,7 @@ def test_variations_preserve_one_sided_integer_and_continuous_ranges(kind, base,
         spec['max'] = upper
     c = {'name': 'Bounded inputs', 'clock': {'rounds': 1}, 'types': {'worker': {}},
          'inputs': {'value': spec}, 'outputs': {'constant': '1'}}
-    report = fg_env.behavior_checks(c, runs=1)
+    report = fg_env.analysis.behavior_checks(c, runs=1)
     assert report.ok
     finding = next(f for f in report.findings if f.code == 'input_has_no_effect')
     assert finding.evidence['tried'] == expected
@@ -58,9 +58,9 @@ def test_boundary_checks_find_nested_configured_input_failures_and_preserve_data
          'outputs': {'total': '$world.total'}}
     supplied = {'rows': [{'settings': {'scale': 3}}]}
     original, original_inputs = copy.deepcopy(c), copy.deepcopy(supplied)
-    ordinary = fg_env.behavior_checks(c, inputs=supplied, runs=1)
+    ordinary = fg_env.analysis.behavior_checks(c, inputs=supplied, runs=1)
     assert ordinary.ok and ordinary.untested_inputs == ['rows']
-    report = fg_env.behavior_checks(c, inputs=supplied, runs=2, boundaries=True)
+    report = fg_env.analysis.behavior_checks(c, inputs=supplied, runs=2, boundaries=True)
     failures = [f for f in report.findings if f.code == 'input_boundary_failure']
     assert not report.ok and len(failures) == 1
     failure = failures[0]
@@ -70,7 +70,7 @@ def test_boundary_checks_find_nested_configured_input_failures_and_preserve_data
     assert len(failure.evidence['seeds']) == 2
     assert report.tested_inputs == ['rows'] and report.untested_inputs == []
     assert c == original and supplied == original_inputs
-    limited = fg_env.behavior_checks(c, runs=1, boundaries=True, max_boundary_cases=1)
+    limited = fg_env.analysis.behavior_checks(c, runs=1, boundaries=True, max_boundary_cases=1)
     scope = next(f for f in limited.findings if f.code == 'input_boundary_scope')
     assert scope.severity == 'warning' and scope.evidence['limited']
     assert scope.evidence['cases'] == 1
@@ -90,14 +90,14 @@ def test_boundary_checks_exercise_nested_empty_lists_and_keep_integer_bounds_val
              'mode': {'type': 'enum', 'values': ['a', 'b'], 'default': 'a'}}}},
          'events': [{'do': '$world.value = $inputs.settings.schedule[$round - 1]'}],
          'outputs': {'value': '$world.value'}}
-    report = fg_env.behavior_checks(c, runs=1, boundaries=True)
+    report = fg_env.analysis.behavior_checks(c, runs=1, boundaries=True)
     failures = [f for f in report.findings if f.code == 'input_boundary_failure']
     assert {tuple(f.evidence['value']) for f in failures} == {(), (2,)}
     assert all(f.subject == 'inputs.settings.schedule' for f in failures)
     assert not any('must be' in f.message for f in failures)
     for maximum in (0, -1, True, 1.5):
         with pytest.raises(ValueError):
-            fg_env.behavior_checks(c, boundaries=True, max_boundary_cases=maximum)
+            fg_env.analysis.behavior_checks(c, boundaries=True, max_boundary_cases=maximum)
 
 
 def test_boundary_checks_find_display_labels_used_as_unique_entity_ids():
@@ -106,8 +106,8 @@ def test_boundary_checks_find_display_labels_used_as_unique_entity_ids():
                             'default': [{'name': 'A'}, {'name': 'B'}]}},
          'population': [{'type': 'item', 'from': '$inputs.rows', 'id': '{$row.name}', 'name': '{$row.name}'}],
          'outputs': {'count': '$count(item)'}}
-    assert fg_env.behavior_checks(c, runs=1).ok
-    report = fg_env.behavior_checks(c, runs=1, boundaries=True)
+    assert fg_env.analysis.behavior_checks(c, runs=1).ok
+    report = fg_env.analysis.behavior_checks(c, runs=1, boundaries=True)
     failure = next(f for f in report.findings if f.code == 'input_boundary_failure')
     assert failure.evidence['input_path'] == ['rows']
     assert failure.evidence['value'] == [{'name': 'A'}, {'name': 'B'}, {'name': 'A'}]

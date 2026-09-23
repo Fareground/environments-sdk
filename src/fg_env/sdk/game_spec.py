@@ -11,7 +11,7 @@ UTILITIES = ("zero_sum", "constant_sum", "general_sum", "identical")
 
 
 class GameSpec(BaseModel):
-    """Who the players are and what each one scores, for `RunResult.returns`, `fg_env.game` and `fg_env.gym`."""
+    """Who the players are and what each one scores, for `RunResult.returns`, `fg_env.rl.game` and `fg_env.rl.gym`."""
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 

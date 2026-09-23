@@ -98,7 +98,7 @@ class MemoryConfig(BaseModel):
            "and optional host reflections; importance fades with `half_life`. `recall(query)` returns the most "
            "relevant memories (lexical, or host-scored) and strengthens them; a view shows the strongest within "
            "`budget` tokens ($memories). Stored in the private property <name> of each agent.",
-           example={"who": "panelist", "half_life": 5, "budget": 250}, was="memory")
+           example={"who": "panelist", "half_life": 5, "budget": 250})
 def _expand_memory(name: str, config: MemoryConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     agents = type_list(contract, config.who, "who")
     by: Union[str, List[str]] = agents if len(agents) > 1 else agents[0]
@@ -237,7 +237,7 @@ def _actor(vars: Dict[str, Any], action: str, where: str) -> Entity:
     return actor
 
 
-@family_action("mind", ("memory",), "capture", internal=True, was=("memory_capture",),
+@family_action("mind", ("memory",), "capture", internal=True,
                example='{"mind": "memory", "action": "capture"}  (remember what each agent did and read since the last capture)')
 def _capture(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     from ..perception import Perception
@@ -281,7 +281,7 @@ def _did(event: Any) -> str:
     return f"You did: {action}" + (f" ({args})" if args else "") + failed
 
 
-@family_action("mind", ("memory",), "note", keys=("text",), required=("text",), was=("memory_note",),
+@family_action("mind", ("memory",), "note", keys=("text",), required=("text",),
                example='{"mind": "memory", "action": "note", "text": "$params.text"}  (add a note to the actor\'s memory)')
 def _note(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
@@ -294,7 +294,7 @@ def _note(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str)
     _add(world, actor, name, config, [("note", clip(text, config.max_chars))])
 
 
-@family_action("mind", ("memory",), "recall", keys=("query",), required=("query",), was=("memory_recall",),
+@family_action("mind", ("memory",), "recall", keys=("query",), required=("query",),
                example='{"mind": "memory", "action": "recall", "query": "$params.query"}  (the actor\'s most relevant '
                        "memories as text in $actor.memory_recalled; recalled memories strengthen)")
 def _recall(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -329,7 +329,7 @@ def _skip() -> None:
     return None
 
 
-@family_action("mind", ("memory",), "reflect", internal=True, was=("memory_reflect",),
+@family_action("mind", ("memory",), "reflect", internal=True,
                example='{"mind": "memory", "action": "reflect"}  (each agent reflects on its recent memories with the host writer)')
 def _reflect(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
@@ -414,7 +414,7 @@ class RecapConfig(BaseModel):
 @mode("host", "recap", RecapConfig,
            "A \"story so far\" of a long record every N rounds, written by a host writer from the entries since "
            "the last recap and posted to the record <name> (delivered as news, recorded for replay).",
-           example={"record": "board", "every": 3, "fallback": "extract"}, was="recap")
+           example={"record": "board", "every": 3, "fallback": "extract"})
 def _expand_recap(name: str, config: RecapConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     records = contract.get("records") or {}
     source = records.get(config.record)
@@ -434,7 +434,7 @@ def _expand_recap(name: str, config: RecapConfig, contract: Mapping[str, Any]) -
     }
 
 
-@family_action("host", ("recap",), "write", was=("recap",),
+@family_action("host", ("recap",), "write",
                example='{"host": "story", "action": "write"}  (recap the new entries of the record now; generated every N rounds)')
 def _recap_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world

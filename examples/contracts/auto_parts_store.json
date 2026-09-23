@@ -1,7 +1,7 @@
 {
   "fg_env": "1",
   "name": "Auto parts store: demand patterns and reorder policies",
-  "description": "A parts store's weekly trade in 12 SKUs (brake pads, batteries and wiper blades for two makes, each in a premium and a value tier), on the economy demand and replenishment modes. Demand per SKU is a fitted base × a trend × a per-category season × a price response × a promotion with a dip after it × substitution between the tiers, drawn as negative-binomial counts; sales are capped by stock, part of a premium stockout buys the value tier, and orders arrive after a lead time drawn per order. The demand patterns are fitted from auto_parts_store/history.csv (fg_env.fit_patterns; examples/auto_parts_history.py regenerates the history from the `truth` arm and refits). Arms compare the store's lean reorder rule with a service-level policy; examples/auto_parts_policies.py compares them, optimises a service level per category and validates the forecast on held-out quarters.",
+  "description": "A parts store's weekly trade in 12 SKUs (brake pads, batteries and wiper blades for two makes, each in a premium and a value tier), on the economy demand and replenishment modes. Demand per SKU is a fitted base × a trend × a per-category season × a price response × a promotion with a dip after it × substitution between the tiers, drawn as negative-binomial counts; sales are capped by stock, part of a premium stockout buys the value tier, and orders arrive after a lead time drawn per order. The demand patterns are fitted from auto_parts_store/history.csv (fg_env.analysis.fit_patterns; examples/auto_parts_history.py regenerates the history from the `truth` arm and refits). Arms compare the store's lean reorder rule with a service-level policy; examples/auto_parts_policies.py compares them, optimises a service level per category and validates the forecast on held-out quarters.",
   "brief": {
     "situation": "A car-parts store deciding how to keep its shelves stocked."
   },
@@ -111,7 +111,7 @@
     "service_level_by_category": {
       "type": "map",
       "default": {},
-      "description": "A service level per category, {category: level}; categories left out use service_level. A decision fg_env.optimise can search."
+      "description": "A service level per category, {category: level}; categories left out use service_level. A decision fg_env.analysis.optimise can search."
     },
     "holding_rate": {
       "type": "number",
@@ -187,7 +187,7 @@
     "growth_rate": {
       "type": "number",
       "default": 0.0010158770049397668,
-      "description": "Pattern 'growth', rate: fitted by fg_env.fit_patterns from $inputs.history (joint count regression)."
+      "description": "Pattern 'growth', rate: fitted by fg_env.analysis.fit_patterns from $inputs.history (joint count regression)."
     },
     "growth_rate_se": {
       "type": "number",
@@ -197,7 +197,7 @@
     "promo_lift": {
       "type": "number",
       "default": 1.336400198765003,
-      "description": "Pattern 'promo', lift: fitted by fg_env.fit_patterns from $inputs.history (joint count regression)."
+      "description": "Pattern 'promo', lift: fitted by fg_env.analysis.fit_patterns from $inputs.history (joint count regression)."
     },
     "promo_lift_se": {
       "type": "number",
@@ -207,7 +207,7 @@
     "sales_dispersion": {
       "type": "number",
       "default": 5.315918011636734,
-      "description": "Pattern 'sales', dispersion: fitted by fg_env.fit_patterns from $inputs.history (method of moments around the fitted means)."
+      "description": "Pattern 'sales', dispersion: fitted by fg_env.analysis.fit_patterns from $inputs.history (method of moments around the fitted means)."
     },
     "season_fit": {
       "type": "table",
@@ -306,7 +306,7 @@
           ]
         }
       ],
-      "description": "Pattern 'season', one row per key: profile fitted by fg_env.fit_patterns from $inputs.history (joint count regression)."
+      "description": "Pattern 'season', one row per key: profile fitted by fg_env.analysis.fit_patterns from $inputs.history (joint count regression)."
     },
     "price_effect_fit": {
       "type": "table",
@@ -327,7 +327,7 @@
           "elasticity_se": 0.3387085638812004
         }
       ],
-      "description": "Pattern 'price_effect', one row per key: elasticity fitted by fg_env.fit_patterns from $inputs.history (joint count regression)."
+      "description": "Pattern 'price_effect', one row per key: elasticity fitted by fg_env.analysis.fit_patterns from $inputs.history (joint count regression)."
     },
     "demand_fit": {
       "type": "table",
@@ -405,12 +405,12 @@
           "scale_se": 0.4962799068804074
         }
       ],
-      "description": "Pattern 'demand', one row per key: scale fitted by fg_env.fit_patterns from $inputs.history (joint count regression)."
+      "description": "Pattern 'demand', one row per key: scale fitted by fg_env.analysis.fit_patterns from $inputs.history (joint count regression)."
     },
     "lead_noise_mean": {
       "type": "number",
       "default": 0.005867781736690959,
-      "description": "Pattern 'lead_noise', mean: fitted by fg_env.fit_patterns from $inputs.orders (method of moments)."
+      "description": "Pattern 'lead_noise', mean: fitted by fg_env.analysis.fit_patterns from $inputs.orders (method of moments)."
     },
     "lead_noise_mean_se": {
       "type": "number",
@@ -420,7 +420,7 @@
     "lead_noise_sd": {
       "type": "number",
       "default": 0.29788047876877144,
-      "description": "Pattern 'lead_noise', sd: fitted by fg_env.fit_patterns from $inputs.orders (method of moments)."
+      "description": "Pattern 'lead_noise', sd: fitted by fg_env.analysis.fit_patterns from $inputs.orders (method of moments)."
     }
   },
   "types": {

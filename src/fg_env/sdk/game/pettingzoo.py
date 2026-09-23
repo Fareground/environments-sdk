@@ -8,7 +8,7 @@
   env.step({agent: action})``; agents that are not deciding at that moment have their actions ignored.
 
 Observations are ``{"observation": the text the seat reads, "action_mask": 1 per legal action id}``; actions are
-action ids (see :func:`fg_env.game`) or tool calls. Chance is drawn from the environment's seed. A termination is
+action ids (see :func:`fg_env.rl.game`) or tool calls. Chance is drawn from the environment's seed. A termination is
 the end of the game; a truncation is ``max_steps`` decisions. When PettingZoo is installed the environments are
 ``pettingzoo.AECEnv`` / ``pettingzoo.ParallelEnv``; when Gymnasium is, ``action_space(agent)`` is ``Discrete`` and
 ``observation_space(agent)`` a ``Dict`` of ``Text`` and ``MultiBinary``.

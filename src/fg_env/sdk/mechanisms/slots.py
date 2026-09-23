@@ -89,7 +89,7 @@ def open_spaces(world: Any, name: str, config: SlotsConfig, player: Entity) -> L
     return out
 
 
-@family_action("game", ("slots",), "place", keys=("space", "who"), required=("space",), was=("place_worker",),
+@family_action("game", ("slots",), "place", keys=("space", "who"), required=("space",),
                example='{"game": "farm", "action": "place", "space": "$params.space"}  (claim a space for $actor or `who`; '
                        'fails when it is full)')
 def _place_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -112,7 +112,7 @@ def _place_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: 
     world.set_prop(player, f"{name}_workers", _props(player)[f"{name}_workers"] - 1)
 
 
-@family_action("game", ("slots",), "reset", internal=True, was=("reset_slots",),
+@family_action("game", ("slots",), "reset", internal=True,
                example='{"game": "farm", "action": "reset"}  (empty every space and give each player their workers back; '
                        'generated every round)')
 def _reset_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -168,8 +168,7 @@ def _slot_board_function(call: Call) -> List[str]:
       "board. Functions: $open_spaces, $claims.",
       example={"who": "farmer", "per_round": 2,
                "spaces": {"forest": {"capacity": 1, "description": "+2 wood", "do": ["$actor.wood += 2"]},
-                          "market": {"capacity": 2, "when": "$actor.wood >= 1", "do": ["$actor.wood -= 1", "$actor.coins += 3"]}}},
-      was="slots")
+                          "market": {"capacity": 2, "when": "$actor.wood >= 1", "do": ["$actor.wood -= 1", "$actor.coins += 3"]}}})
 def _expand_slots(name: str, config: SlotsConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     types = contract.get("types") or {}
     if config.who not in types:

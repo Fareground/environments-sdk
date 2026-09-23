@@ -16,19 +16,19 @@ def contract(output):
 @pytest.mark.parametrize("output", ["null", "$choice([null, 20])", "1e309"])
 def test_missing_or_wrongly_typed_outputs_cannot_be_scored(outcome, threshold, output):
     with pytest.raises(AnalysisError, match="launch-week.*forecast output.*missing or invalid"):
-        fg_env.backtest(contract(output), [{"name": "launch-week", "outcome": outcome}], "demand",
+        fg_env.analysis.backtest(contract(output), [{"name": "launch-week", "outcome": outcome}], "demand",
                         runs=12, seed=7, threshold=threshold)
 
 
 @pytest.mark.parametrize("threshold", [math.nan, math.inf, -math.inf, True, "10"])
 def test_invalid_thresholds_fail_before_running(threshold):
     with pytest.raises(ValueError, match="threshold must be a finite number"):
-        fg_env.backtest(contract(20), [{"outcome": True}], "demand", runs=1, threshold=threshold)
+        fg_env.analysis.backtest(contract(20), [{"outcome": True}], "demand", runs=1, threshold=threshold)
 
 
 def test_categorical_outcomes_cannot_silently_ignore_a_threshold():
     with pytest.raises(ValueError, match="not categorical outcomes"):
-        fg_env.backtest(contract("'high'"), [{"outcome": "high"}], "demand", threshold=10, runs=1)
+        fg_env.analysis.backtest(contract("'high'"), [{"outcome": "high"}], "demand", threshold=10, runs=1)
 
 
 @pytest.mark.parametrize("output, outcome, threshold, expected", [
@@ -37,6 +37,6 @@ def test_categorical_outcomes_cannot_silently_ignore_a_threshold():
     ("'high'", "high", None, {"high": 1.0}), (20, 20, None, [20.0] * 3),
 ])
 def test_valid_forecast_types_and_legitimate_zero_still_score(output, outcome, threshold, expected):
-    result = fg_env.backtest(contract(output), [{"outcome": outcome}], "demand", runs=3, threshold=threshold)
+    result = fg_env.analysis.backtest(contract(output), [{"outcome": outcome}], "demand", runs=3, threshold=threshold)
     assert result.cases[0]["forecast"] == expected
     assert result.cases[0]["runs"] == 3

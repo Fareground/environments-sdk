@@ -88,7 +88,7 @@ def test_keyed_inputs_and_nested_products_preserve_independent_residuals():
     result = env.run()
     assert result.ok and result.outputs['values'] == {'a': 2, 'b': 6}
     assert restored.run().to_dict() == result.to_dict()
-    assert fg_env.decompose(env, 'net', key='a').rows[0]['total'] == 1
+    assert fg_env.analysis.decompose(env, 'net', key='a').rows[0]['total'] == 1
 
 
 def test_input_what_if_recomputes_residual_without_changing_parent_history():

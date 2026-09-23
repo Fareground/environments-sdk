@@ -32,12 +32,12 @@ def test_named_output_access_excludes_error_without_masking_healthy_outputs_or_m
 
 
 def test_sweep_summary_and_report_cannot_recommend_the_invalid_higher_number():
-    sweep = fg_env.sweep(contract(), {'sales': [6, 7]}, runs=2)
+    sweep = fg_env.analysis.sweep(contract(), {'sales': [6, 7]}, runs=2)
     assert sweep.cells[0].summary['units'].mean == 3
     assert sweep.cells[1].summary['units'].n == 0
     assert sweep.cells[1].summary['sales'].mean == 7
     assert 'output issues' in sweep.report()
-    report = fg_env.report(sweep, objective='max:units').markdown
+    report = fg_env.analysis.report(sweep, objective='max:units').markdown
     assert 'Choose sales=6.' in report
     assert 'Choose sales=7.' not in report
     assert 'outputs.units' in report and 'Invalid values were excluded' in report
@@ -48,7 +48,7 @@ def test_experiment_report_uses_valid_raw_observations_too():
     c = contract()
     c['arms'] = {'control': {'inputs': {'sales': 6}}, 'promo': {'inputs': {'sales': 7}}}
     experiment = fg_env.experiment(c, runs=2, arms=['control', 'promo'])
-    report = fg_env.report(experiment, objective='max:units').markdown
+    report = fg_env.analysis.report(experiment, objective='max:units').markdown
     assert 'Choose control.' in report
     assert 'Choose promo.' not in report
     assert 'outputs.units' in report
@@ -56,7 +56,7 @@ def test_experiment_report_uses_valid_raw_observations_too():
 
 @pytest.mark.parametrize('objective', ['maximise units', 'maximise $outputs.units * 2'])
 def test_optimizer_does_not_choose_a_candidate_using_rejected_values(objective):
-    optimum = fg_env.optimise(contract(), {'sales': [6, 7]}, objective, runs=2, holdout_seeds=0)
+    optimum = fg_env.analysis.optimise(contract(), {'sales': [6, 7]}, objective, runs=2, holdout_seeds=0)
     assert optimum.best == {'sales': 6}
 
 
@@ -81,10 +81,10 @@ def test_keyed_constraints_treat_invalid_and_missing_values_as_unavailable():
 
 def test_drivers_require_usable_outcome_values_and_filter_invalid_predictors():
     runs = [result(6, seed=i) for i in range(4)] + [result(7, seed=i+4) for i in range(4)]
-    found = fg_env.drivers(runs, 'units', permutations=10)
+    found = fg_env.analysis.drivers(runs, 'units', permutations=10)
     assert found.n == 4
     with pytest.raises(ValueError, match='at least 4'):
-        fg_env.drivers(runs[1:], 'units', permutations=10)
+        fg_env.analysis.drivers(runs[1:], 'units', permutations=10)
     features = _features(runs[-1], 'sales', ('outputs',))
     assert 'outputs.units' not in features
 
@@ -161,7 +161,7 @@ def test_unrelated_output_errors_do_not_hide_formula_authoring_errors(expression
 
 
 def test_healthy_formula_optimizer_can_use_run_with_an_unrelated_output_error():
-    optimum = fg_env.optimise(contract(), {'sales': [6, 7]}, 'maximise $outputs.sales * 2',
+    optimum = fg_env.analysis.optimise(contract(), {'sales': [6, 7]}, 'maximise $outputs.sales * 2',
                              runs=2, holdout_seeds=0)
     assert optimum.best == {'sales': 7}
 

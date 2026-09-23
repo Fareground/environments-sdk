@@ -146,7 +146,7 @@ def _errors(contract):
 def test_memory_config_and_actions_say_what_to_fix():
     old = copy.deepcopy(NOTEBOOK)
     old["mechanisms"]["memory"] = {"kind": "memory", "agents": "person"}
-    assert any("'memory' is now kind 'mind' with mode 'memory'" in e for e in _errors(old))
+    assert any("'memory' is a mode of kind 'mind'" in e for e in _errors(old))
     assert any("`max_char` is not a field of `mind` mode `memory` → did you mean 'max_chars'?" in e
                for e in _errors(_with(max_char=40)))
 
@@ -157,7 +157,7 @@ def test_memory_config_and_actions_say_what_to_fix():
     assert any("'query' is not part of `mind.note`" in e for e in op({"mind": "memory", "action": "note", "text": "a", "query": "b"}))
     assert any("'remember' is not an action of memory (mind memory)" in e and "actions: note, recall" in e
                for e in op({"mind": "memory", "action": "remember"}))
-    assert any('`memory_note` is now the `mind` op: {"mind": "<mechanism>", "action": "note"' in e
-               for e in op({"memory_note": "memory", "text": "a"}))
+    assert any('`note` is an action of the `mind` op: {"mind": "<mechanism>", "action": "note"' in e
+               for e in op({"note": "memory", "text": "a"}))
     page = fg_env.guide("mind.memory")
     assert page.startswith("### `mind.memory`") and "- `recall` — takes `query`" in page and "- `reflect`" not in page

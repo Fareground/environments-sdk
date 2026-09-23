@@ -28,7 +28,7 @@ reveal: crashes as errors (naming the policy that ran into one), diagnostics and
 
 What agents saw:
 * `env.preview("ann")` shows the next turn exactly as ann will get it.
-* A recorded run holds every turn: `result = fg_env.run(c, seed=1, exposures=True)`, then `t = fg_env.trace(result)`.
+* A recorded run holds every turn: `result = fg_env.run(c, seed=1, exposures=True)`, then `t = fg_env.analysis.trace(result)`.
 * `t.overview()` gives turns, calls, invalid rate and tokens per agent.
 * `t.turn("ann", 3)` shows what ann read, the tools she was offered, and every call with its result.
 * `t.invalid()` lists refused calls with the correction given; `t.search("bribe")` searches the text.

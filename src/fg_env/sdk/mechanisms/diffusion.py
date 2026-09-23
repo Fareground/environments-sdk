@@ -188,8 +188,7 @@ def _register_actions() -> None:
     for action, (needs, may, doc) in _ACTIONS.items():
         fields = "".join(f', "{key}": "{"moon" if key == "item" else "$params.who"}"' for key in (*needs, *may))
         example = '{"social": "rumor", "action": "' + action + f'"{fields}}}  ({doc})'
-        family_action("social", ("diffusion",), action, keys=(*needs, *may), required=needs, example=example,
-                      was=("spread",))(_runner(action))
+        family_action("social", ("diffusion",), action, keys=(*needs, *may), required=needs, example=example)(_runner(action))
 
 
 _register_actions()
@@ -359,7 +358,7 @@ def _threshold_of(world: Any, name: str, config: DiffusionConfig, state: Dict[st
            "every round (in `phase`) or on demand with the `step` action; `on_adopt` effects run per adopter. Read it with "
            "$reach(item), $adopters(item), $spread_state(agent, item), $exposures(agent, item), $heard(agent).",
            example={"who": "account", "over": "follows", "flow": "against", "model": "cascade", "p": 0.1,
-                    "seeds": {"rumor": ["u1"]}}, was="diffusion")
+                    "seeds": {"rumor": ["u1"]}})
 def _expand(name: str, config: DiffusionConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     require_type(contract, config.who, "who")
     check_expr(config.p, "p", ("from", "to", "item"))

@@ -459,7 +459,7 @@ def _zone_check(*zone_keys: str) -> Callable[[Any, Dict[str, Any], str], List[Tu
     return check
 
 
-@family_action("game", ("cards",), "shuffle", keys=("zone", "owner"), check=_zone_check("zone"), was=("shuffle",),
+@family_action("game", ("cards",), "shuffle", keys=("zone", "owner"), check=_zone_check("zone"),
                example='{"game": "cards", "action": "shuffle", "zone": "deck"}  (random order, face down; an owned zone '
                        'shuffles each pile, or only `owner`\'s)')
 def _shuffle_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -468,7 +468,7 @@ def _shuffle_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where
             _owner(runner, effect.get("owner"), vars, where), where)
 
 
-@family_action("game", ("cards",), "collect", keys=("zones",), was=("collect",),
+@family_action("game", ("cards",), "collect", keys=("zones",),
                example='{"game": "cards", "action": "collect"}  (every card back into the draw pile, face down, shuffled; '
                        '`zones` limits which)')
 def _collect_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -480,7 +480,6 @@ def _collect_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where
 
 
 @family_action("game", ("cards",), "deal", keys=("qty", "to", "zone", "face_up", "from"), check=_zone_check("zone", "from"),
-               was=("deal",),
                example='{"game": "cards", "action": "deal", "qty": 2, "to": "$filter(player, $it.chips > 0)"}  (round-robin '
                        'from the top; no `to`: every player, or the zone itself when it is shared: '
                        '{"game": "cards", "action": "deal", "qty": 3, "zone": "board"})')
@@ -493,7 +492,7 @@ def _deal_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: s
          _name(runner, effect.get("from", "deck"), vars, where, "from"), where)
 
 
-@family_action("game", ("cards",), "draw", keys=("qty", "who", "zone", "face_up"), check=_zone_check("zone"), was=("draw",),
+@family_action("game", ("cards",), "draw", keys=("qty", "who", "zone", "face_up"), check=_zone_check("zone"),
                example='{"game": "cards", "action": "draw", "qty": 1}  (for $actor, or `who`; an empty draw pile is refilled '
                        'from the discard pile; the cards are in $world.<deck>_drawn)')
 def _draw_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -508,7 +507,7 @@ def _draw_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: s
          "deck", where)
 
 
-@family_action("game", ("cards",), "burn", keys=("qty",), was=("burn",),
+@family_action("game", ("cards",), "burn", keys=("qty",),
                example='{"game": "cards", "action": "burn", "qty": 1}  (top cards of the draw pile to the hidden burn zone)')
 def _burn_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     deck = deck_named(runner.world, effect["game"], where)
@@ -516,7 +515,7 @@ def _burn_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: s
 
 
 @family_action("game", ("cards",), "move", keys=("cards", "to", "owner", "face_up", "bottom"), required=("cards", "to"),
-               check=_zone_check("to"), was=("move_cards",),
+               check=_zone_check("to"),
                example='{"game": "cards", "action": "move", "cards": "$params.card", "to": "tableau", "owner": "$actor", '
                        '"face_up": true}  (onto the top, or the bottom)')
 def _move_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -528,7 +527,6 @@ def _move_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: s
 
 
 @family_action("game", ("cards",), "play", keys=("cards", "to"), required=("cards",), check=_zone_check("to"),
-               was=("play_cards",),
                example='{"game": "cards", "action": "play", "cards": "$params.card", "to": "trick"}  (face up onto a zone; '
                        'default the discard pile)')
 def _play_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -540,7 +538,7 @@ def _play_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: s
           next(iter(owners)) if len(owners) == 1 else None, where, face_up=True)
 
 
-@family_action("game", ("cards",), "discard", keys=("cards",), required=("cards",), was=("discard",),
+@family_action("game", ("cards",), "discard", keys=("cards",), required=("cards",),
                example='{"game": "cards", "action": "discard", "cards": "$params.card"}  (onto the discard pile; its '
                        'owner\'s pile with personal decks)')
 def _discard_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -551,7 +549,6 @@ def _discard_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where
 
 
 @family_action("game", ("cards",), "give", keys=("cards", "to", "zone"), required=("cards", "to"), check=_zone_check("zone"),
-               was=("pass_cards",),
                example='{"game": "cards", "action": "give", "cards": "$params.card", "to": "$params.to"}  (into another '
                        'player\'s hand; only the two of them see which)')
 def _give_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -597,7 +594,6 @@ def _reveal(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: st
 
 
 @family_action("game", ("cards",), "reveal", keys=("cards", "to", "say"), required=("cards",), templates=("say",),
-               was=("reveal",),
                example='{"game": "cards", "action": "reveal", "cards": "$hand($it)"}  (face up for everyone; with `to`, '
                        'shown only to those players)')
 def _reveal_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -605,7 +601,6 @@ def _reveal_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where:
 
 
 @family_action("game", ("cards",), "peek", keys=("cards", "to", "say"), required=("cards",), templates=("say",),
-               was=("peek",),
                example='{"game": "cards", "action": "peek", "cards": "$top_cards(deck, 3)", "to": "$actor"}  (only `to` '
                        '(default $actor) sees the cards, from now on)')
 def _peek_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -615,7 +610,7 @@ def _peek_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: s
     _reveal(runner, effect, vars, where, viewers)
 
 
-@family_action("game", ("cards",), "setup", internal=True, was=("setup_cards",),
+@family_action("game", ("cards",), "setup", internal=True,
                example='{"game": "cards", "action": "setup"}  (create per-player cards and shuffle every draw pile; '
                        'generated for round 1)')
 def _setup_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:

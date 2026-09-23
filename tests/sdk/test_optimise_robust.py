@@ -63,7 +63,7 @@ def test_a_search_margin_asks_more_than_the_confidence_of_the_same_runs():
 
 
 def test_each_key_must_hold_with_confidence_and_the_tightest_keys_are_named_as_binding():
-    result = fg_env.optimise(SLOTS, STAFF, "minimise cost", ["each sl_by_slot >= 0.9"], runs=12, budget=120,
+    result = fg_env.analysis.optimise(SLOTS, STAFF, "minimise cost", ["each sl_by_slot >= 0.9"], runs=12, budget=120,
                              holdout_seeds=20)
     assert result.verdict == "feasible" and result.holdout["verdict"] == "feasible"
     staff = result.best["staff"]
@@ -75,8 +75,8 @@ def test_each_key_must_hold_with_confidence_and_the_tightest_keys_are_named_as_b
 
 
 def test_at_most_some_keys_may_miss_so_the_plan_is_cheaper_than_one_where_each_holds():
-    each = fg_env.optimise(SLOTS, STAFF, "minimise cost", ["each sl_by_slot >= 0.9"], runs=12, budget=120)
-    some = fg_env.optimise(SLOTS, STAFF, "minimise cost", ["at most 1 of sl_by_slot < 0.9"], runs=12, budget=120)
+    each = fg_env.analysis.optimise(SLOTS, STAFF, "minimise cost", ["each sl_by_slot >= 0.9"], runs=12, budget=120)
+    some = fg_env.analysis.optimise(SLOTS, STAFF, "minimise cost", ["at most 1 of sl_by_slot < 0.9"], runs=12, budget=120)
     assert some.verdict == "feasible" and some.estimates["objectives"][0]["value"] < each.estimates["objectives"][0]["value"]
     (row,) = some.estimates["constraints"]
     assert row["keys_needed"] == 3 and row["value"] <= 1
@@ -90,11 +90,11 @@ def test_at_most_some_keys_may_miss_so_the_plan_is_cheaper_than_one_where_each_h
 ])
 def test_per_key_and_confidence_mistakes_say_what_to_fix(constraint, message):
     with pytest.raises(ValueError, match=message):
-        fg_env.optimise(SLOTS, STAFF, "minimise cost", [constraint], runs=2, budget=4)
+        fg_env.analysis.optimise(SLOTS, STAFF, "minimise cost", [constraint], runs=2, budget=4)
 
 
 def test_positions_that_only_improve_together_are_moved_as_a_block():
-    result = fg_env.optimise(SLOTS, {"v": {"length": 3, "low": 0, "high": 5, "step": 1, "start": [1, 1, 1]}},
+    result = fg_env.analysis.optimise(SLOTS, {"v": {"length": 3, "low": 0, "high": 5, "step": 1, "start": [1, 1, 1]}},
                              "maximise together", runs=1, budget=60, method="local")
     assert result.best == {"v": [5, 5, 5]}
 
@@ -120,8 +120,8 @@ def _cheapest(service):
 def test_a_refined_frontier_finds_more_truly_optimal_decisions_than_sampling_on_the_same_budget():
     decisions = {"v": {"length": 3, "low": 0, "high": 6, "step": 1}}
     objectives = ["minimise spend", "maximise service"]
-    refined = fg_env.optimise(SLOTS, decisions, objectives, runs=1, budget=120, holdout_seeds=0)
-    sampled = fg_env.optimise(SLOTS, decisions, objectives, runs=1, budget=120, holdout_seeds=0, method="lhs")
+    refined = fg_env.analysis.optimise(SLOTS, decisions, objectives, runs=1, budget=120, holdout_seeds=0)
+    sampled = fg_env.analysis.optimise(SLOTS, decisions, objectives, runs=1, budget=120, holdout_seeds=0, method="lhs")
 
     def optimal(result):
         return sum(1 for row in result.frontier
@@ -129,4 +129,4 @@ def test_a_refined_frontier_finds_more_truly_optimal_decisions_than_sampling_on_
 
     assert refined.method == "frontier" and optimal(refined) > optimal(sampled)
     with pytest.raises(ValueError, match="traces a Pareto frontier"):
-        fg_env.optimise(SLOTS, decisions, "minimise spend", runs=1, method="frontier")
+        fg_env.analysis.optimise(SLOTS, decisions, "minimise spend", runs=1, method="frontier")

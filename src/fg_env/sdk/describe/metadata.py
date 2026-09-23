@@ -138,7 +138,7 @@ def _chance(contract: Contract, scan: _Scan) -> Tuple[str, List[str], List[str]]
     nodes: List[str] = []
     for path, node in scan.effects:
         if "chance" in node:
-            nodes.append(f"{path} is a chance node with listed outcomes (fg_env.game enumerates them)")
+            nodes.append(f"{path} is a chance node with listed outcomes (fg_env.rl.game enumerates them)")
         for op in sorted(walk.ops_in(node) & ops - {"chance"}):
             play.append(f"{path} uses the {op} op, which draws at random")
         if _lossy(node):

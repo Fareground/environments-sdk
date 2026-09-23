@@ -107,7 +107,7 @@ def _money_left(currency: str, spec: CurrencySpec) -> str:
       "proves balances equal $world.<name>_supply; $world.<name>_flows totals every source and sink.",
       example={"who": ["household", "shop"], "currencies": {"cash": {"start": 100, "credit": 20}},
                "sources": {"allowance": {"to": "household", "amount": 300, "every": 30, "mode": "reset"}},
-               "taxes": {"sales_tax": {"rate": 0.08, "on": "payer"}}}, was="ledger")
+               "taxes": {"sales_tax": {"rate": 0.08, "on": "payer"}}})
 def _expand_ledger(name: str, config: LedgerConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     holders = type_list(config.who)
     require_types(contract, holders, "who")
@@ -266,7 +266,7 @@ def _check_loans(checker: Any, effect: Dict[str, Any], path: str) -> list:
 
 
 @family_action("economy", ("ledger",), "lend", keys=("from", "to", "amount", "rate", "term"), required=("from", "to", "amount", "term"),
-               check=_check_loans, was=("lend",),
+               check=_check_loans,
                example='{"economy": "money", "action": "lend", "from": "$params.bank", "to": "$actor", "amount": 100, "term": 6}  '
                        '(a loan: pays the principal now; rate defaults to the lender\'s posted rate)')
 def _lend(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -296,7 +296,6 @@ def _lend(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str)
 
 
 @family_action("economy", ("ledger",), "repay", keys=("loan", "amount"), required=("loan", "amount"), check=_check_loans,
-               was=("repay",),
                example='{"economy": "money", "action": "repay", "loan": "$params.loan", "amount": 50}  '
                        '(pays a loan down; the borrower pays, never on credit)')
 def _repay(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -329,7 +328,7 @@ def _count(world: Any, name: str, key: str, value: float) -> None:
     world.set_world(f"{name}_loans", totals)
 
 
-@family_action("economy", ("ledger",), "tick", internal=True, was=("ledger_tick",),
+@family_action("economy", ("ledger",), "tick", internal=True,
                example='{"economy": "money", "action": "tick"}  (accrue loan interest, collect loans that are due, default unpaid ones)')
 def _ledger_tick(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world

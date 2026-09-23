@@ -141,7 +141,7 @@ def test_recorded_branch_replays_with_its_effective_contract(patched):
     root.run(rounds=1)
     branch = root.fork(patch={'events': rules(2)}) if patched else root.fork(inputs={'demand': 4})
     result = branch.run()
-    replayed = fg_env.trace(result).replay(branch.contract)
+    replayed = fg_env.analysis.trace(result).replay(branch.contract)
     assert replayed.ok, replayed.message
     assert replayed.result.outputs == result.outputs
 
@@ -154,7 +154,7 @@ def test_replay_against_intentionally_changed_rules_still_reports_divergence():
     changed = contract_source(branch.contract)
     changed['events'] = rules(100)
     changed['arms']['red']['patch']['events'] = rules(100)
-    replayed = fg_env.trace(result).replay(changed)
+    replayed = fg_env.analysis.trace(result).replay(changed)
     assert not replayed.ok
     assert 'outputs.total' in replayed.message
 
