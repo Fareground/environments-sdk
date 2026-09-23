@@ -89,7 +89,9 @@ class Perception:
                 lines.append("Attached: " + references(self.world.assets, ids))
                 if attached is not None:
                     attached.extend(ids)
-        lines.append("Act only through your tools. Your turn ends when you take a final action or call end_turn.")
+        may_pass = not all(stage.must_act for stage in c.stage_list())  # a must-act stage offers end_turn only after acting
+        lines.append("Act only through your tools. Your turn ends when you take a final action"
+                     + (" or call end_turn." if may_pass else "."))
         if self._takes_text:
             lines.append(_UNTRUSTED_NOTE)
         return "\n".join(lines)
@@ -113,7 +115,7 @@ class Perception:
                          "not use them.")
         news, hidden = self.news(actor, since, DELTA_LIMIT, shown, attached)
         if news or hidden:
-            lines += ["", "Since your last turn:"]
+            lines += ["", "Since your last turn:" if since else "So far:"]
             if hidden:
                 lines.append(f"- ({hidden} more items not shown)")
             lines += [f"- {line}" for line in news]

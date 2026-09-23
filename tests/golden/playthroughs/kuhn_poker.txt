@@ -14,7 +14,7 @@ Action space: 3 ids
   | 
   | ## You
   | You are P0 (player, id p0).
-  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+  | Act only through your tools. Your turn ends when you take a final action.
 
 ## Brief of seat 1 (p1)
   | # Kuhn poker
@@ -25,7 +25,7 @@ Action space: 3 ids
   | 
   | ## You
   | You are P1 (player, id p1).
-  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+  | Act only through your tools. Your turn ends when you take a final action.
 
 # State 0
 Current player: chance
@@ -34,12 +34,12 @@ Seat 0 (p0) reads:
   | Hand 1 of 1 · betting
   | 
   | Your card: 0. Betting so far (P0 first): none.
-Seat 0 information state: f66a2bda11728954
+Seat 0 information state: 9a77a51cfc8b863a
 Seat 1 (p1) reads:
   | Hand 1 of 1 · betting
   | 
   | Your card: 0. Betting so far (P0 first): none.
-Seat 1 information state: fd1f9612bd87a9b3
+Seat 1 information state: 041e77783cd90f90
 Returns: [0, 0]
 Chosen: deal p0: 2
 Step: {"chance": 1}
@@ -51,12 +51,12 @@ Seat 0 (p0) reads:
   | Hand 1 of 1 · betting
   | 
   | Your card: 2. Betting so far (P0 first): none.
-Seat 0 information state: f6ad431830c0e871
+Seat 0 information state: ec0897cb949a2541
 Seat 1 (p1) reads:
   | Hand 1 of 1 · betting
   | 
   | Your card: 0. Betting so far (P0 first): none.
-Seat 1 information state: fd1f9612bd87a9b3
+Seat 1 information state: 041e77783cd90f90
 Returns: [0, 0]
 Chosen: deal p1: 3
 Step: {"chance": 1}
@@ -69,12 +69,12 @@ Seat 0 (p0) reads:
   | Now: It is your turn.
   | 
   | Your card: 2. Betting so far (P0 first): none.
-Seat 0 information state: f6ad431830c0e871
+Seat 0 information state: ec0897cb949a2541
 Seat 1 (p1) reads:
   | Hand 1 of 1 · betting
   | 
   | Your card: 3. Betting so far (P0 first): none.
-Seat 1 information state: 574cc81ab3d58b3a
+Seat 1 information state: dce1e170c810b158
 Returns: [0, 0]
 Chosen: seat 0: bet
 Step: {"args": {}, "seat": 0, "tool": "bet"}
@@ -86,16 +86,16 @@ Seat 0 (p0) reads:
   | Hand 1 of 1 · betting
   | 
   | Your card: 2. Betting so far (P0 first): bet.
-Seat 0 information state: f1934ac2f8ea5f97
+Seat 0 information state: 63529991cd42978e
 Seat 1 (p1) reads:
   | Hand 1 of 1 · betting
-  | Now: Your turn again.
+  | Now: It is your turn.
   | 
-  | Since your last turn:
+  | So far:
   | - P0: bet.
   | 
   | Your card: 3. Betting so far (P0 first): bet.
-Seat 1 information state: 24aedfe7ef141653
+Seat 1 information state: 1006ab25b2d9e4fb
 Returns: [0, 0]
 Chosen: seat 1: bet
 Step: {"args": {}, "seat": 1, "tool": "bet"}

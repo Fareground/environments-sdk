@@ -82,7 +82,8 @@ turn, uses `max_actions`, or runs out of `max_calls`.
 
 What an agent reads:
 * brief (static, cacheable): name, situation, rules, its identity and role text.
-* update: time label and stage, why it is acting, "Since your last turn" (announcements of
+* update: time label and stage, why it is acting ("Your turn again." only when it already had a turn in this stage
+  this round), "Since your last turn" ("So far" on its first turn; announcements of
   others' actions, outcomes of its own simultaneous actions, record entries, event news; in a busy round what is
   addressed to it is always shown, then the newest news, then the newest of others' actions, and the rest counted),
   then every declared view that applies. Text written by participants is wrapped «like this».
@@ -524,10 +525,13 @@ counts in `truncated` and, when it called no tool, is asked once for a short too
 Every truncated reply wastes its whole output: for frequent decisions use `reasoning_effort="low"` (in a Hold'em
 evaluation it cut cost by 38% with no visible loss in play), or keep the default effort with a larger `max_tokens`
 (6,000 was cut off 9 times in 96 turns).
-Their real token usage is in `result.stats` (`llm_calls`, `input_tokens`, `output_tokens`,
-`cache_read_tokens`, `cache_write_tokens`, `llm_retries`, `forfeits`, `truncated`, `refusals`, and `out_of_steps`:
-turns that used all `max_steps` model calls); a seat most of whose turns fail degrades the run; your own
-participants can add theirs with `wake.record_usage(...)`.
+A reply that still calls no tool after one reminder ends the turn (`no_tool_replies`), and a turn with no action to
+take ends without a model call. Retries never wait past the turn's time limit, and a token budget counts cache writes
+in full and cache reads at a tenth; under one, parallel turns wait while the calls under way may spend what is left.
+Their real token usage is in `result.stats` (`llm_calls`, `input_tokens` (not read from cache), `output_tokens`,
+`cache_read_tokens`, `cache_write_tokens`, `llm_retries`, `forfeits`, `truncated`, `refusals`, `no_tool_replies`,
+and `out_of_steps`: turns that used all `max_steps` model calls); a seat most of whose turns fail degrades the run;
+your own participants can add theirs with `wake.record_usage(...)`.
 Built-ins: `"random"`, `"idle"`, `"policy:<name>"`, and game algorithms `"mcts:N"`, `"ismcts:N"`, `"minimax[:depth]"`, `"cfr:<policy.json|iterations>"`.
 
 `result.events` is the ordered log: `{seq, round, kind, text, actor, to, stage, data}` where kind is

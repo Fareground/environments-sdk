@@ -7,8 +7,8 @@ binding is held here, keyed weakly by the run's world.
 The model tokens a host call spends join the stats — and so the token budget — of the run that made the call, at the
 run's safe points and when its result is read. The reference adapters report each call's tokens as they make it
 (:func:`credit_tokens`), so runs in parallel that share one adapter each count exactly their own; an adapter of your
-own is counted by how much its ``usage`` counters (``input_tokens``, ``output_tokens``) grew during the call, which is
-exact unless parallel runs share it.
+own is counted by how much its ``usage`` counters (``input_tokens``, ``output_tokens``, ``cache_read_tokens``,
+``cache_write_tokens``) grew during the call, which is exact unless parallel runs share it.
 """
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 __all__ = ["Hosts", "HostsLike", "as_hosts", "bind", "hosts_for", "count_host_tokens", "counting", "credit_tokens"]
 
 #: The counters of a host's ``usage`` that are model tokens.
-_TOKENS = ("input_tokens", "output_tokens")
+_TOKENS = ("input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens")
 
 
 class Hosts:
@@ -145,13 +145,16 @@ def counting(world: Any, adapter: Any) -> Iterator[None]:
                 pending[:] = [total + more for total, more in zip(pending, spent)]
 
 
-def credit_tokens(input_tokens: int = 0, output_tokens: int = 0) -> None:
+def credit_tokens(input_tokens: int = 0, output_tokens: int = 0, cache_read_tokens: int = 0,
+                  cache_write_tokens: int = 0) -> None:
     """Report the tokens one model call of a host adapter spent, toward the run whose host call is in progress on this
-    thread (the reference adapters call it; outside a host call it does nothing)."""
+    thread (the reference adapters call it; outside a host call it does nothing). ``input_tokens`` are the fresh ones,
+    not read from the provider's prompt cache."""
     reported = getattr(_CALL, "reported", None)
     if reported is not None:
-        reported["input_tokens"] = reported.get("input_tokens", 0) + input_tokens
-        reported["output_tokens"] = reported.get("output_tokens", 0) + output_tokens
+        spent = zip(_TOKENS, (input_tokens, output_tokens, cache_read_tokens, cache_write_tokens))
+        for key, value in spent:
+            reported[key] = reported.get(key, 0) + value
 
 
 #: The host call in progress on this thread, and the tokens each run's host calls spent since it last counted them.

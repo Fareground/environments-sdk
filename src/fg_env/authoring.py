@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 
 from .api import ContractLike, check, load, parse
+from .budget import CACHED_WEIGHT
 from .contract import Contract
 from .diagnostics import DEGRADING
 from .guides import guide
@@ -43,11 +44,8 @@ from .session import Wake
 __all__ = ["author", "AuthorResult"]
 
 #: What a brief may spend unless ``budget`` says otherwise: model tokens (input + output, cache reads weighted by
-#: :data:`CACHED_WEIGHT`) and model calls.
+#: :data:`~fg_env.budget.CACHED_WEIGHT`, as in a run's token budget) and model calls.
 DEFAULT_BUDGET = {"tokens": 600_000, "calls": 30}
-#: What an input token read from the provider's prompt cache counts for in the budget: providers bill it at a small
-#: fraction of a fresh one (a tenth on Anthropic, a tenth to a half on OpenAI-compatible servers).
-CACHED_WEIGHT = 0.1
 #: Most contract revisions the model may save (a write that saves nothing, such as invalid JSON, is not one).
 MAX_REVISIONS = 8
 #: Seeds every saved contract is run on, with random agents and with idle ones.

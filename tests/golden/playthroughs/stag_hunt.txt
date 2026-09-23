@@ -15,7 +15,7 @@ Returns between: 0 and 4
   | 
   | ## You
   | You are A (player, id a).
-  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+  | Act only through your tools. Your turn ends when you take a final action.
 
 ## Brief of seat 1 (b)
   | # Stag hunt
@@ -26,7 +26,7 @@ Returns between: 0 and 4
   | 
   | ## You
   | You are B (player, id b).
-  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+  | Act only through your tools. Your turn ends when you take a final action.
 
 # State 0
 Current player: simultaneous 0, 1
@@ -35,10 +35,10 @@ Legal calls of seat 1: [1] hunt(move=stag); [2] hunt(move=hare)
 Seat 0 (a) reads:
   | Round 1 of 1 · hunt
   | Now: Everyone chooses at the same time.
-Seat 0 information state: 2845e50e960e09e2
+Seat 0 information state: f673309a7564959e
 Seat 1 (b) reads:
   | Round 1 of 1 · hunt
-Seat 1 information state: dd920c39001feb48
+Seat 1 information state: 9f65bae780194939
 Returns: [0, 0]
 Chosen: seat 0: hunt(move=stag); seat 1: hunt(move=hare)
 Step: {"joint": {"0": {"args": {"move": "stag"}, "tool": "hunt"}, "1": {"args": {"move": "hare"}, "tool": "hunt"}}}

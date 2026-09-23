@@ -341,9 +341,11 @@ anthropic(client: 'Any', model: 'str', *, max_tokens: 'int' = 16000, max_steps: 
 
 An LLM participant using an ``anthropic.Anthropic()`` client.
 
-The system prompt (``system`` and the brief) is marked for prompt caching. Anthropic caches the tools ahead of
-it, and the tools are the actions legal right now with their live choices, so a call reads the cache only when
-the agent is offered the same tools as in an earlier call (typically in a phase it has been in before).
+Two prompt-cache breakpoints: the system prompt (``system`` and the brief), and the latest message, so each model
+call of a turn reads the one before it from the cache. Anthropic caches the tools ahead of both, and the tools are
+the actions legal right now with their live choices, so a call reads the cache only when the agent is offered the
+same tools as in the earlier call. A prompt shorter than the model's minimum is simply not cached (no charge).
+When the agent has no action it could take, the model is not called and the turn ends.
 
 Files the agent receives are sent as image and document blocks after the text (``media``: the attachment types
 sent as content, default image, pdf and text; ``media=()`` for a text-only model, which reads each file's
@@ -353,7 +355,8 @@ reference — its caption and alt text — in the text only). See :mod:`fg_env.a
 client: an async client fails the run saying so.
 
 Rate limits, timeouts, overload and server errors are retried ``retries`` times with backoff (honouring
-``retry-after``); if a call still fails, the turn is forfeited, counted in ``stats["forfeits"]`` and reported in
+``retry-after``, never past the turn's time limit: once the turn is over no call is made); if a call still fails,
+the turn is forfeited, counted in ``stats["forfeits"]`` and reported in
 the run's diagnostics. Any other error — a rejected API key, an unknown model, a bad request, a client that does
 not fit — fails the run at once, naming the agent, the provider's error and the fix. A reply the provider refused
 ends the turn and counts in ``stats["refusals"]``. Real token usage lands in the run's statistics and in
@@ -361,8 +364,10 @@ ends the turn and counts in ``stats["refusals"]``. Real token usage lands in the
 
 A reply cut off at ``max_tokens`` (default 16000: room for a model that thinks before it answers) counts in
 ``stats["truncated"]``; when it called no tool, the model is asked once for a short tool call
-(``retry_truncated=False`` ends the turn instead). Any other reply that calls no tool is reminded once of the tools
-offered. A turn that makes all ``max_steps`` model calls ends there and counts in ``stats["out_of_steps"]``. Calls
+(``retry_truncated=False`` ends the turn instead); its tool calls, whose arguments may be cut off, are not made.
+Any other reply that calls no tool is reminded once of the tools offered; a reply that still calls none ends the
+turn, and in a turn that took no action counts in ``stats["no_tool_replies"]`` (with an action open, a failed
+turn). A turn that makes all ``max_steps`` model calls ends there and counts in ``stats["out_of_steps"]``. Calls
 left in a reply after one of them ended the turn are not made. In a stage where the agent must act, the
 participant never ends the turn itself: the engine closes it and reports that the agent did not act.
 
@@ -376,7 +381,8 @@ An LLM participant using an ``openai.OpenAI()``-compatible client (chat completi
 
 ``max_tokens`` caps each reply (sent as ``max_completion_tokens``) and ``reasoning_effort`` (``"low"``,
 ``"medium"``, ``"high"``) is passed on to reasoning models; each is sent only when given. A server that knows only
-the older ``max_tokens`` field takes ``extra={"max_tokens": 1024}`` instead. Retries, failures, refusals (a
+the older ``max_tokens`` field takes ``extra={"max_tokens": 1024}`` instead. A response with no choices in it
+(OpenRouter sends one now and then) is retried like an overload. Retries, failures, refusals (a
 ``refusal`` message or ``finish_reason`` ``content_filter``), ``extra``, usage accounting, truncated replies
 (``finish_reason`` ``length``) and ``retry_truncated`` work as for :func:`anthropic`; arguments that are not a
 JSON object are refused and counted as invalid calls. Files are sent as

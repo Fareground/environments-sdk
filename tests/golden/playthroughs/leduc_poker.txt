@@ -15,7 +15,7 @@ Returns between: -13 and 13
   | 
   | ## You
   | You are P0 (player, id p0).
-  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+  | Act only through your tools. Your turn ends when you take a final action.
 
 ## Brief of seat 1 (p1)
   | # Leduc poker
@@ -26,7 +26,7 @@ Returns between: -13 and 13
   | 
   | ## You
   | You are P1 (player, id p1).
-  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+  | Act only through your tools. Your turn ends when you take a final action.
 
 # State 0
 Current player: chance
@@ -35,12 +35,12 @@ Seat 0 (p0) reads:
   | Hand 1 of 1 · betting
   | 
   | Your card: none. Public card: none. Betting round 1. Chips in: you 1, opponent 1. Raises this round: 0.
-Seat 0 information state: c182b6a723eecbdf
+Seat 0 information state: 9892252517f1d94e
 Seat 1 (p1) reads:
   | Hand 1 of 1 · betting
   | 
   | Your card: none. Public card: none. Betting round 1. Chips in: you 1, opponent 1. Raises this round: 0.
-Seat 1 information state: fee6aa0007a3e5d2
+Seat 1 information state: cdb5ce48ca54ed50
 Returns: [0, 0]
 Chosen: deal p0: 4
 Step: {"chance": 3}
@@ -52,12 +52,12 @@ Seat 0 (p0) reads:
   | Hand 1 of 1 · betting
   | 
   | Your card: Q. Public card: none. Betting round 1. Chips in: you 1, opponent 1. Raises this round: 0.
-Seat 0 information state: 3da500e0c8bc474d
+Seat 0 information state: 533a0a852cad2855
 Seat 1 (p1) reads:
   | Hand 1 of 1 · betting
   | 
   | Your card: none. Public card: none. Betting round 1. Chips in: you 1, opponent 1. Raises this round: 0.
-Seat 1 information state: fee6aa0007a3e5d2
+Seat 1 information state: cdb5ce48ca54ed50
 Returns: [0, 0]
 Chosen: deal p1: 6
 Step: {"chance": 4}
@@ -70,12 +70,12 @@ Seat 0 (p0) reads:
   | Now: It is your turn.
   | 
   | Your card: Q. Public card: none. Betting round 1. Chips in: you 1, opponent 1. Raises this round: 0.
-Seat 0 information state: 3da500e0c8bc474d
+Seat 0 information state: 533a0a852cad2855
 Seat 1 (p1) reads:
   | Hand 1 of 1 · betting
   | 
   | Your card: K. Public card: none. Betting round 1. Chips in: you 1, opponent 1. Raises this round: 0.
-Seat 1 information state: 22491d58b95c07af
+Seat 1 information state: 07992e4d3a75c644
 Returns: [0, 0]
 Chosen: seat 0: raise
 Step: {"args": {}, "seat": 0, "tool": "raise"}
@@ -87,16 +87,16 @@ Seat 0 (p0) reads:
   | Hand 1 of 1 · betting
   | 
   | Your card: Q. Public card: none. Betting round 1. Chips in: you 3, opponent 1. Raises this round: 1.
-Seat 0 information state: 32f425482298159d
+Seat 0 information state: 0fcc196f9ea0615e
 Seat 1 (p1) reads:
   | Hand 1 of 1 · betting
-  | Now: Your turn again.
+  | Now: It is your turn.
   | 
-  | Since your last turn:
+  | So far:
   | - P0: raise.
   | 
   | Your card: K. Public card: none. Betting round 1. Chips in: you 1, opponent 3. Raises this round: 1.
-Seat 1 information state: d954b8200912724b
+Seat 1 information state: 95dde81b075fd47d
 Returns: [0, 0]
 Chosen: seat 1: call
 Step: {"args": {}, "seat": 1, "tool": "call"}
@@ -108,15 +108,15 @@ Seat 0 (p0) reads:
   | Hand 1 of 1 · betting
   | 
   | Your card: Q. Public card: none. Betting round 2. Chips in: you 3, opponent 3. Raises this round: 0.
-Seat 0 information state: 52f19c3d0229d242
+Seat 0 information state: 76c20f2f0b767bbc
 Seat 1 (p1) reads:
   | Hand 1 of 1 · betting
   | 
-  | Since your last turn:
+  | So far:
   | - P0: raise.
   | 
   | Your card: K. Public card: none. Betting round 2. Chips in: you 3, opponent 3. Raises this round: 0.
-Seat 1 information state: 9470c280931aad58
+Seat 1 information state: be79107e6640a2dc
 Returns: [0, 0]
 Chosen: public card: 1
 Step: {"chance": 0}
@@ -133,12 +133,12 @@ Seat 0 (p0) reads:
   | - The public card is J.
   | 
   | Your card: Q. Public card: J. Betting round 2. Chips in: you 3, opponent 3. Raises this round: 0.
-Seat 0 information state: 149bc7e86bffb549
+Seat 0 information state: 00ad64e1b97eb574
 Seat 1 (p1) reads:
   | Hand 1 of 1 · betting
   | 
   | Your card: K. Public card: J. Betting round 2. Chips in: you 3, opponent 3. Raises this round: 0.
-Seat 1 information state: 3ae6f1e78aa80457
+Seat 1 information state: 67e9e2e1aa875c79
 Returns: [0, 0]
 Chosen: seat 0: raise
 Step: {"args": {}, "seat": 0, "tool": "raise"}
@@ -150,7 +150,7 @@ Seat 0 (p0) reads:
   | Hand 1 of 1 · betting
   | 
   | Your card: Q. Public card: J. Betting round 2. Chips in: you 7, opponent 3. Raises this round: 1.
-Seat 0 information state: 88cc0f9165c98d6a
+Seat 0 information state: aa60a297f4e8ed07
 Seat 1 (p1) reads:
   | Hand 1 of 1 · betting
   | Now: Your turn again.
@@ -159,7 +159,7 @@ Seat 1 (p1) reads:
   | - P0: raise.
   | 
   | Your card: K. Public card: J. Betting round 2. Chips in: you 3, opponent 7. Raises this round: 1.
-Seat 1 information state: b81f2b51e850bf41
+Seat 1 information state: 391bbe9f29455e6f
 Returns: [0, 0]
 Chosen: seat 1: raise
 Step: {"args": {}, "seat": 1, "tool": "raise"}
@@ -175,12 +175,12 @@ Seat 0 (p0) reads:
   | - P1: raise.
   | 
   | Your card: Q. Public card: J. Betting round 2. Chips in: you 7, opponent 11. Raises this round: 2.
-Seat 0 information state: dd0b889f8b7da244
+Seat 0 information state: 74bb734c9b572b8f
 Seat 1 (p1) reads:
   | Hand 1 of 1 · betting
   | 
   | Your card: K. Public card: J. Betting round 2. Chips in: you 11, opponent 7. Raises this round: 2.
-Seat 1 information state: d0158b0ebf7ec665
+Seat 1 information state: ca4c40e3e7107144
 Returns: [0, 0]
 Chosen: seat 0: fold
 Step: {"args": {}, "seat": 0, "tool": "fold"}

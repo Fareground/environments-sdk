@@ -200,6 +200,7 @@ def test_inspect_offers_its_ids_finds_a_name_and_suggests_the_closest_id():
     def agent(wake):
         tool = next(t for t in wake.tools if t.name == "inspect")
         seen["enum"] = tool.input_schema["properties"]["id"]["enum"]
+        seen["description"] = tool.description
         seen["by_name"] = wake.call("inspect", {"id": "Ben"}).text
         seen["typo"] = wake.call("inspect", {"id": "bem"}).text
         seen["update"] = wake.update
@@ -207,6 +208,7 @@ def test_inspect_offers_its_ids_finds_a_name_and_suggests_the_closest_id():
 
     fg_env.run(DUEL, {"ann": agent, "ben": "idle"}, seed=1)
     assert seen["enum"] == ["ann", "ben"]
+    assert seen["description"].startswith("Details of one entity by its id: one of the ids listed.")  # the schema's
     assert seen["by_name"].startswith("Ben [ben] (player)")
     assert seen["typo"] == "No entity with that id is available to inspect. Did you mean 'ben'?"
     assert "Ben [ben]: 0" in seen["update"] and "Ann: 0" in seen["update"]  # no handle for yourself
@@ -262,3 +264,43 @@ def test_a_crowded_update_keeps_the_latest_news_and_says_how_much_it_left_out():
     env.run({"*": lambda w: w.call("work", {})}, rounds=1)
     update = env.preview("p0")["update"]
     assert "more items not shown" in update and "p299: work." in update and len(update) < 5000
+
+
+FIVE_DUELS = {**DUEL, "clock": {"rounds": 5}}
+
+
+def test_a_model_that_stops_calling_tools_fails_its_turns_and_degrades_the_run():
+    client = FakeOpenAI([[("move", {"to": 1})]])  # acts once, then only replies in text
+    result = fg_env.run(FIVE_DUELS, {"ann": participants.openai(client, "m"), "ben": "random"}, seed=1)
+    ann = result.agent_stats["ann"]
+    assert ann["actions"] == 1 and ann["no_tool_replies"] == 4 and ann["failed_turns"] == 4
+    assert "agents_mostly_failed" in [d["code"] for d in result.diagnostics] and not result.ok
+
+
+def test_a_turn_with_no_action_to_take_ends_without_asking_the_model():
+    contract = {**DUEL, "actions": {"move": {**DUEL["actions"]["move"], "when": "$round > 1"}},
+                "clock": {"rounds": 2}}
+    client = FakeOpenAI([[("move", {"to": 2})]])
+    result = fg_env.run(contract, {"ann": participants.openai(client, "m"), "ben": "idle"}, seed=1)
+    assert len(client.requests) == 1 and "Round 2" in client.requests[0]["messages"][1]["content"]
+    assert result.agent_stats["ann"]["failed_turns"] == 0 and result.agent_stats["ann"]["actions"] == 1
+
+
+def test_empty_text_is_not_sent_back_and_a_tool_call_cut_off_at_max_tokens_is_not_made():
+    class Replies(FakeAnthropic):
+        def create(self, **request):
+            self.requests.append(json.loads(json.dumps(request, default=str)))
+            stop, blocks = self.replies.pop(0)
+            return NS(content=blocks, stop_reason=stop, usage=NS(input_tokens=10, output_tokens=5))
+
+    look = NS(type="tool_use", id="t0", name="inspect", input={"id": "ben"})
+    cut = NS(type="tool_use", id="t1", name="move", input={"to": 3})  # its arguments may be cut off: never made
+    client = Replies([("tool_use", [NS(type="text", text=""), look]),
+                      ("max_tokens", [NS(type="text", text="Let me think"), cut]),
+                      ("tool_use", [NS(type="tool_use", id="t2", name="move", input={"to": 1})])])
+    env = fg_env.load(DUEL, seed=1)
+    result = env.run({"ann": participants.anthropic(client, "m"), "ben": "idle"})
+    assert env.world.entities["ann"].properties["score"] == 1 and result.agent_stats["ann"]["actions"] == 1
+    sent = [[block for block in m["content"]] for m in client.requests[2]["messages"] if m["role"] == "assistant"]
+    assert [[block["type"] for block in content] for content in sent] == [["tool_use"], ["text"]]
+    assert sent[1][0]["text"] == "Let me think"
