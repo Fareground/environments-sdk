@@ -5,7 +5,7 @@
   "inputs": {
     "households": {
       "type": "table",
-      "description": "Survey household table. income = annual USD; weight = households in the city this row represents.",
+      "description": "Survey household table. income = annual USD; weight = households in the city this row represents (their total is the city the sample stands for).",
       "columns": {
         "household_id": "text",
         "income": "number",
@@ -357,7 +357,7 @@
       "default": 150,
       "min": 10,
       "max": 2000,
-      "description": "Households drawn (weighted, with replacement) from the table."
+      "description": "Households drawn (weighted, with replacement) from the table. The sample stands for the whole city: café capacities are scaled to it and extensive outputs are reported at city scale, so a bigger sample is a finer estimate of the same market, not a bigger market."
     },
     "days": {
       "type": "int",
@@ -372,21 +372,22 @@
       "min": 2,
       "max": 60,
       "unit": "day",
-      "description": "Day the new chain opens (chain_launch arm)."
+      "description": "Day the new chain opens; only the chain_launch arm opens it (arm='chain_launch')."
     },
     "launch_promo": {
       "type": "number",
       "default": 0.2,
       "min": 0,
       "max": 0.5,
-      "description": "Launch discount off the chain's list price."
+      "description": "Launch discount off the chain's list price (chain_launch arm only)."
     },
     "launch_promo_days": {
       "type": "int",
       "default": 14,
       "min": 1,
       "max": 60,
-      "unit": "day"
+      "unit": "day",
+      "description": "Days the launch discount lasts (chain_launch arm only)."
     },
     "review_rate": {
       "type": "number",
@@ -458,6 +459,12 @@
     }
   },
   "world": {
+    "city_households": {
+      "type": "number",
+      "default": "$sum($inputs.households, $it.weight)",
+      "min": 0,
+      "description": "Households in the city: the total weight of the household table, which the sample stands for."
+    },
     "cups_today": {
       "type": "int",
       "default": 0,
@@ -593,6 +600,12 @@
         "bought_today": {
           "type": "bool",
           "default": false
+        },
+        "represents": {
+          "type": "number",
+          "default": 1,
+          "min": 0,
+          "description": "City households this sampled household stands for: the city's households over the sample size."
         }
       }
     },
@@ -643,7 +656,8 @@
         "capacity": {
           "type": "int",
           "default": 40,
-          "min": 1
+          "min": 1,
+          "description": "Cups a day the café can serve. Give the city-wide figure; the run scales it to the sampled market at the start (divided by the city households each sampled one stands for)."
         },
         "sub_fee": {
           "type": "number",
@@ -752,7 +766,7 @@
         "price": 4.25,
         "quality": 3.8,
         "unit_cost": 1.35,
-        "capacity": 42,
+        "capacity": 7000,
         "rating": 4.0,
         "sub_fee": 25,
         "sub_discount": 0.2
@@ -766,7 +780,7 @@
         "price": 5.5,
         "quality": 4.6,
         "unit_cost": 1.9,
-        "capacity": 30,
+        "capacity": 5000,
         "rating": 4.5,
         "sub_fee": 45,
         "sub_discount": 0.3
@@ -780,7 +794,7 @@
         "price": 3.1,
         "quality": 3.1,
         "unit_cost": 1.05,
-        "capacity": 48,
+        "capacity": 8000,
         "rating": 3.6
       }
     },
@@ -792,7 +806,7 @@
         "price": 3.6,
         "quality": 3.5,
         "unit_cost": 1.2,
-        "capacity": 38,
+        "capacity": 6400,
         "rating": 3.9,
         "sub_fee": 18,
         "sub_discount": 0.25
@@ -808,7 +822,7 @@
         "price": 4.0,
         "quality": 3.9,
         "unit_cost": 1.15,
-        "capacity": 60,
+        "capacity": 10000,
         "rating": 4.2,
         "sub_fee": 20,
         "sub_discount": 0.25
@@ -833,7 +847,8 @@
         "drinker": "$chance(0.84)",
         "habit": "$clamp($normal(0.42, 0.16) + ($row.income - 70000) / 900000, 0.05, 0.95)",
         "price_sens": "$clamp($normal(1, 0.25), 0.4, 1.8)",
-        "cups_per_visit": "$randint(1, $min($row.household_size, 2))"
+        "cups_per_visit": "$randint(1, $min($row.household_size, 2))",
+        "represents": "$world.city_households / $inputs.sample_size"
       }
     }
   ],
@@ -1133,6 +1148,20 @@
   ],
   "events": [
     {
+      "name": "sample_capacity",
+      "at": 1,
+      "phase": "start",
+      "do": [
+        "$per = $represents",
+        {
+          "each": "cafe",
+          "do": [
+            "$it.capacity = $max(1, $round($it.capacity / $per))"
+          ]
+        }
+      ]
+    },
+    {
       "name": "new_day",
       "phase": "start",
       "each": "cafe",
@@ -1406,9 +1435,9 @@
       "unit": "cups/day"
     },
     "avg_paid_price": {
-      "expr": "$round($pct($world.paid_today, $world.cups_today), 2)",
+      "expr": "$round($world.paid_today / $world.cups_today, 2) if $world.cups_today > 0 else null",
       "unit": "USD/cup",
-      "description": "Average price actually paid per cup today."
+      "description": "Average price actually paid per cup today (null on a day without sales)."
     },
     "avg_list_price": {
       "expr": "$round($avg(cafe, $it.price * (1 - $it.promo), $it.open), 2)",
@@ -1435,8 +1464,8 @@
     },
     "revenue_by_cafe": {
       "type": "list",
-      "description": "[café, revenue USD incl. subscription fees, profit USD] over the run.",
-      "expr": "$map($top(cafe, $it.revenue), [$it.name, $round($it.revenue, 2), $round($it.revenue - $it.cost, 2)])"
+      "description": "[café, revenue USD incl. subscription fees, profit USD] over the run, at city scale.",
+      "expr": "$map($top(cafe, $it.revenue), [$it.name, $round($it.revenue * $represents, 2), $round(($it.revenue - $it.cost) * $represents, 2)])"
     },
     "leader": {
       "type": "text",
@@ -1444,8 +1473,8 @@
     },
     "subscription_uptake": {
       "type": "number",
-      "description": "Share of sampled households that subscribed at any point.",
-      "expr": "$round($pct($count(household, $it.ever_subscribed), $count(household)), 4)"
+      "description": "Share of households that subscribed at any point (null without households).",
+      "expr": "$round($count(household, $it.ever_subscribed) / $count(household), 4) if $count(household) > 0 else null"
     },
     "active_subscribers_end": {
       "type": "int",
@@ -1453,8 +1482,8 @@
     },
     "average_price_paid": {
       "type": "number",
-      "description": "USD per cup actually paid over the run (excl. fees).",
-      "expr": "$round($pct($world.paid_total, $world.cups_total), 2)"
+      "description": "USD per cup actually paid over the run (excl. fees); null when no cup was sold.",
+      "expr": "$round($world.paid_total / $world.cups_total, 2) if $world.cups_total > 0 else null"
     },
     "average_list_price_over_run": {
       "type": "number",
@@ -1467,7 +1496,8 @@
     },
     "turned_away_total": {
       "type": "int",
-      "expr": "$sum($series.turned_away, $it)"
+      "expr": "$round($sum($series.turned_away, $it) * $represents)",
+      "description": "Household visits turned away by a full café over the run, at city scale."
     },
     "nova_share_series": {
       "type": "list",
@@ -1481,15 +1511,22 @@
     },
     {
       "expr": "$abs($sum(cafe, $it.revenue) - $sum(household, $it.spend)) < 0.01",
-      "why": "Every dollar a café earns is a dollar a household spent."
+      "why": "Every dollar a café earns is a dollar a household spent.",
+      "check": "round"
     },
     {
       "expr": "$sum(cafe, $it.subscribers) == $count(household, $it.sub != 'none')",
-      "why": "Subscriber counts match household subscriptions."
+      "why": "Subscriber counts match household subscriptions.",
+      "check": "round"
     },
     {
       "expr": "$sum(cafe, $it.cups_total) == $world.cups_total",
       "why": "Cups are conserved."
+    },
+    {
+      "expr": "$arm != chain_launch or $inputs.launch_day <= $inputs.days",
+      "why": "The chain_launch arm opens the chain on launch_day: give a launch_day no later than days.",
+      "check": "round"
     }
   ],
   "end": [
@@ -1505,6 +1542,12 @@
     },
     "chain_launch": {
       "description": "Nova Coffee Co. opens in Northgate on launch_day with a launch promotion."
+    }
+  },
+  "defs": {
+    "represents": {
+      "expr": "$avg(household, $it.represents) if $count(household) > 0 else 1",
+      "description": "City households each sampled household stands for (1 when households are given one by one)."
     }
   }
 }

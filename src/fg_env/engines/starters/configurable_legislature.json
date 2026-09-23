@@ -68,7 +68,7 @@
   },
   "metrics": {
     "speeches": {"expr": "$len($speeches)"},
-    "participation": {"expr": "$count(member, $it.id in $map($records(chamber), $it.author.id)) / $max(1, $count(member))"}
+    "participation": {"expr": "$count(member, $it.id in $map($records(chamber), $it.author.id)) / $count(member) if $count(member) > 0 else null"}
   },
   "outputs": {
     "decided": {"type": "bool", "expr": "$len($decisions()) > 0"},

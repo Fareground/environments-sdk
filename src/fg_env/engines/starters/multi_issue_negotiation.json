@@ -6,9 +6,9 @@
     "deadline": {
       "type": "int",
       "default": 5,
-      "min": 1,
+      "min": 2,
       "max": 30,
-      "description": "Last round in which an offer may be made or accepted: the negotiation runs this many rounds."
+      "description": "Last round in which an offer may be made or accepted: the negotiation runs this many rounds, at least two so an opening offer can be countered and the counter answered."
     },
     "participants": {
       "type": "table",

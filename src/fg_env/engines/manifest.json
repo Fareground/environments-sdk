@@ -5,21 +5,21 @@
     {
       "id": "market",
       "title": "Market",
-      "description": "Simulates households choosing whether and where to buy each day while sellers set prices, promotions and subscriptions (repricing on demand by default).",
+      "description": "Simulates households choosing whether and where to buy each day while sellers set prices, promotions and subscriptions (repricing on demand by default); the sampled households stand for the whole city, so capacities scale with the sample and a bigger sample is a finer estimate of the same market.",
       "status": "native",
       "path": "starters/coffee_market.json"
     },
     {
       "id": "council",
       "title": "Council",
-      "description": "Simulates a panel giving sealed probability forecasts, deliberating and forecasting again; scores the final forecasts (Brier) once the outcome is supplied and measures consensus by their spread; coded panelists forecast from their prior with private noise and move part of the way toward the council.",
+      "description": "Simulates a panel (a table input) giving sealed probability forecasts on a yes/no question, deliberating and forecasting again; scores the final forecasts (Brier) once the outcome is supplied and measures consensus by their spread; coded panelists forecast from their prior with private noise and, having heard everyone, move part of the way toward the others by a personal openness.",
       "status": "native",
       "path": "starters/forecast_council.json"
     },
     {
       "id": "dispute",
       "title": "Dispute",
-      "description": "Simulates two sides offering, objecting to and cross-examining evidence before a judge; jurors weigh the total strength of what was admitted, sway one another in the jury room and vote on liability and damages, re-deliberating until a verdict or a hung jury.",
+      "description": "Simulates two sides offering (coded counsel lead with their strongest admissible exhibits), objecting to and cross-examining evidence before a judge; jurors weigh the total strength of what was admitted, sway one another in the jury room and vote on liability and damages, re-deliberating until a verdict or a hung jury.",
       "status": "native",
       "path": "starters/civil_trial.json"
     },
@@ -38,7 +38,7 @@
     {
       "id": "legislature",
       "title": "Legislature",
-      "description": "Simulates a legislative body moving, seconding, debating, amending and voting on a measure; each floor speech pulls other members' stances toward the speaker's, and the outcome is passed, rejected, or the status quo when nothing comes to a vote.",
+      "description": "Simulates a legislative body moving, seconding, debating and voting on a measure (members may amend it; the coded members do not); each floor speech pulls other members' stances toward the speaker's, and the outcome is passed, rejected, or the status quo when nothing comes to a vote.",
       "status": "native",
       "path": "starters/configurable_legislature.json"
     },
@@ -52,7 +52,7 @@
     {
       "id": "deliberation",
       "title": "Deliberation",
-      "description": "Simulates people exchanging reasons, proposing and amending a conclusion, and voting; each speech pulls listeners' stances toward the speaker's, and the outcome is passed, rejected, or the status quo when nothing comes to a vote.",
+      "description": "Simulates people exchanging reasons, proposing a conclusion (participants may amend it; the coded members do not) and voting; each speech pulls listeners' stances toward the speaker's, and the outcome is passed, rejected, or the status quo when nothing comes to a vote.",
       "status": "native",
       "path": "starters/open_deliberation.json"
     },
@@ -73,7 +73,7 @@
     {
       "id": "network",
       "title": "Network",
-      "description": "Simulates an idea spreading over explicit ties: each round every adopter may convince each contact with a chance of trust times receptivity, so trust and time drive adoption; people may also take up, reject or recommend the idea.",
+      "description": "Simulates an idea spreading over explicit ties: each round every adopter may convince each contact with a chance of trust times receptivity, so trust and time drive adoption; people may also take up or turn down what they heard, or recommend it; adopters, the seed included, stay committed.",
       "status": "native",
       "path": "starters/influence_network.json"
     },

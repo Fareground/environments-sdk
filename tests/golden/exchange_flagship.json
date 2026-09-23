@@ -15,17 +15,17 @@
     "r1 action demo_fundamentalist_22: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}"
   ],
   "metrics": {
-    "demo_mid": 100.325,
-    "demo_orders": 183,
-    "demo_price": 100.05,
-    "demo_spread": 0.55,
-    "demo_volume": 25798.0,
-    "depth": 83670.0,
+    "demo_mid": 99.86,
+    "demo_orders": 128,
+    "demo_price": 99.56,
+    "demo_spread": 0.6,
+    "demo_volume": 60053.0,
+    "depth": 87646.0,
     "flow_scale": 1,
-    "fundamental": 99.56660027,
+    "fundamental": 99.66557536,
     "sentiment": 0,
     "size_scale": 1,
-    "spread_bps": 54.82182906
+    "spread_bps": 60.08411776
   },
   "rounds": 4,
   "status": "running",

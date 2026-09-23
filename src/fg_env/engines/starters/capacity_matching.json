@@ -60,11 +60,11 @@
     "applicant_baseline": {"rules": [{"do": "placement_rank_applicant", "with": {"ranking": "$top(selector, $it.appeal + $normal(0, $inputs.taste))"}}]},
     "selector_baseline": {"rules": [{"do": "placement_rank_selector", "with": {"ranking": "$top($filter(applicant, $it.quality >= $actor.minimum_quality), $it.quality + $normal(0, $inputs.taste))"}}]}
   },
-  "metrics": {"match_rate": {"expr": "$count(applicant, $it.placement_match != '') / $max(1, $count(applicant))"}},
+  "metrics": {"match_rate": {"expr": "$count(applicant, $it.placement_match != '') / $count(applicant) if $count(applicant) > 0 else null"}},
   "outputs": {
     "unmatched_applicants": {"type": "int", "expr": "$count(applicant, $it.placement_match == '')"},
     "match_rate": {"type": "number", "expr": "$metrics.match_rate"},
-    "first_choice_rate": {"type": "number", "expr": "$count(applicant, $it.placement_match != '' and $it.placement_match == $first($it.placement_prefs)) / $max(1, $count(applicant))", "description": "Share of applicants matched to the selector they ranked first."},
+    "first_choice_rate": {"type": "number", "expr": "$count(applicant, $it.placement_match != '' and $it.placement_match == $first($it.placement_prefs)) / $count(applicant) if $count(applicant) > 0 else null", "description": "Share of applicants matched to the selector they ranked first."},
     "unused_capacity": {"type": "int", "expr": "$sum(selector, $it.capacity - $len($it.placement_matches))"}
   }
 }

@@ -1,9 +1,11 @@
 import json
+from importlib.resources import files
 from pathlib import Path
 
 import pytest
 
 import fg_env
+from fg_env.host.stubs import StubEvaluator
 
 
 ENGINE_IDS = {
@@ -25,6 +27,25 @@ def test_catalog_ships_all_twelve_as_native_engines():
     assert {engine.id for engine in fg_env.list_engines(available=True)} == ENGINE_IDS
     assert fg_env.list_engines(available=False) == []
     assert all(engine.status == "native" for engine in fg_env.list_engines())
+
+
+#: Warnings the checker gives a starter that are not problems in it. The discussion stages end when everyone is
+#: ready, which a coded or model panel reaches but the smoke play's random agents (who keep talking) rarely do in
+#: one play; the negotiation's offer table values each offer for its reader through a def called with the reader
+#: itself, which the checker cannot tell from reading someone else's private weights.
+CHECKER_FALSE_POSITIVES = {
+    ("council", "stages.discussion.until"), ("dispute", "stages.deliberation.until"),
+    ("deliberation", "stages.forum.until"), ("legislature", "stages.chamber.until"),
+    ("negotiation", "views.agreement_table.show"),
+}
+
+
+@pytest.mark.parametrize("engine_id", sorted(ENGINE_IDS))
+def test_every_starter_checks_without_warnings(engine_id):
+    path = Path(str(files("fg_env.engines").joinpath(fg_env.engines.get(engine_id).path)))
+    hosts = {"judge": StubEvaluator()} if engine_id == "contest" else None  # a contest is scored by its host judge
+    found = {(engine_id, issue.path): issue.message for issue in fg_env.check(path, hosts=hosts)}
+    assert set(found) <= CHECKER_FALSE_POSITIVES, found
 
 
 def test_available_engine_can_clone_customize_and_run(tmp_path):
@@ -163,10 +184,12 @@ def test_cloned_market_uses_sampled_personas_across_an_aggregated_batch(tmp_path
     assert cohort.provenance.selected == 10 and cohort.provenance.resampled is False
 
 
-@pytest.mark.parametrize("name", ["civil_trial", "coffee_market", "exchange_flagship", "forecast_council"])
+@pytest.mark.parametrize("name", ["civil_trial.json", "coffee_market.json", "exchange_flagship.json",
+                                  "exchange_flagship/calibration.json", "exchange_flagship/seats.json",
+                                  "exchange_flagship/seed_history.csv", "forecast_council.json"])
 def test_examples_that_mirror_an_engine_starter_stay_identical_to_it(name):
     """These examples are published copies of engine starters; the starter is the source, so a fix there reaches both."""
     root = Path(__file__).resolve().parents[1]
-    starter = root / "src" / "fg_env" / "engines" / "starters" / f"{name}.json"
-    assert (root / "examples" / "contracts" / f"{name}.json").read_text() == starter.read_text(), (
-        f"examples/contracts/{name}.json drifted from its engine starter: copy the starter over it")
+    starter = root / "src" / "fg_env" / "engines" / "starters" / name
+    assert (root / "examples" / "contracts" / name).read_text() == starter.read_text(), (
+        f"examples/contracts/{name} drifted from its engine starter: copy the starter over it")
