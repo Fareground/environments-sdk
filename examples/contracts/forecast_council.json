@@ -1,7 +1,7 @@
 {
   "fg_env": "1",
   "name": "Rate Decision Forecasting Council",
-  "description": "Seven expert panelists forecast whether the central bank cuts rates at its next meeting: sealed initial ballot, open deliberation until everyone is ready, sealed final ballot. Give the resolved outcome to score the final ballots (Brier score); consensus means the final ballots lie within consensus_within points.",
+  "description": "Seven expert panelists forecast whether the central bank cuts rates at its next meeting: sealed initial ballot, open deliberation until everyone is ready, sealed final ballot. Give the resolved outcome to score the final ballots (Brier score); consensus means the final ballots lie within consensus_within points. Coded panelists forecast from their prior with private noise; averagers move a random share of the way toward the council average each turn.",
   "inputs": {
     "outcome": {"type": "bool", "default": null, "description": "Whether the bank did cut, once known; null leaves the forecasts unscored."},
     "consensus_within": {"type": "number", "default": 10, "min": 0, "max": 100, "unit": "points", "description": "Largest spread of final ballots that counts as consensus."}
@@ -502,8 +502,8 @@
         {
           "do": "cast_initial",
           "with": {
-            "probability": "$actor.prior",
-            "rationale": "My prior from my own field."
+            "probability": "$round($clamp($actor.prior + $normal(0, 10), 0, 100), 1)",
+            "rationale": "My own reading of the briefing, from my field's prior."
           }
         },
         {
@@ -530,8 +530,8 @@
         {
           "do": "cast_initial",
           "with": {
-            "probability": "$actor.prior",
-            "rationale": "Starting from my prior."
+            "probability": "$round($clamp($actor.prior + $normal(0, 10), 0, 100), 1)",
+            "rationale": "My own reading of the briefing, from my prior."
           }
         },
         {
@@ -545,7 +545,7 @@
           "when": "$abs($actor.working - $avg(panelist, $it.working)) > 1",
           "do": "revise_estimate",
           "with": {
-            "probability": "$round($avg(panelist, $it.working), 1)"
+            "probability": "$round($actor.working + $uniform(0, 1) * ($avg(panelist, $it.working) - $actor.working), 1)"
           }
         },
         {
@@ -554,7 +554,7 @@
         {
           "do": "cast_final",
           "with": {
-            "probability": "($actor.working + $avg(panelist, $it.working)) / 2"
+            "probability": "$actor.working"
           }
         }
       ]

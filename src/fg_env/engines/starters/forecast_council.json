@@ -392,7 +392,7 @@
       "of": "panelist",
       "sort": "$it.working",
       "desc": true,
-      "show": "[{id}] {name} ({expertise}): initial {initial|1}% → now {working|1}%{' · ready' if $it.ready else ''} — «{initial_why}»",
+      "show": "[{id}] {name} ({expertise}): initial {initial|1}% → now {working|1}%{' · ready' if $it.ready else ''} — {initial_why}",
       "when": "$all(panelist, $it.working != null)"
     },
     "council_state": {

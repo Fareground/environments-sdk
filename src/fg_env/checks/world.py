@@ -55,7 +55,7 @@ class WorldChecks:
                 problem = check_value(spec.type, spec.default, spec)
                 if problem:
                     self.error(f"{path}.default", problem)
-            elif not spec.required and spec.source is None:
+            elif not spec.required and spec.source is None and "default" not in spec.model_fields_set:
                 self.warn(path, "has no default and is not required, so it may be null",
                           "give a default or set required: true")
             for field, child in (spec.fields or {}).items():

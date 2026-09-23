@@ -130,7 +130,7 @@
     "spread_bps_avg": {"expr": "$round($avg($series.spread_bps), 3)", "type": "number"},
     "depth_avg": {"expr": "$round($avg($series.depth), 1)", "type": "number"},
     "pnl_by_kind": {"expr": "{market_maker: $round($sum(demo_market_maker, $book_account(demo, $it).pnl), 2), momentum: $round($sum(demo_momentum, $book_account(demo, $it).pnl), 2), mean_reversion: $round($sum(demo_mean_reversion, $book_account(demo, $it).pnl), 2), fundamentalist: $round($sum(demo_fundamentalist, $book_account(demo, $it).pnl), 2), noise: $round($sum(demo_noise, $book_account(demo, $it).pnl), 2), passive: $round($sum(demo_passive, $book_account(demo, $it).pnl), 2), seats: $round($sum(seat, $book_account(demo, $it).pnl), 2)}", "type": "map"},
-    "leaderboard": {"expr": "$map($top($filter(trader, $it.type != book_seed), $book_account(demo, $it).pnl / $max(1, $it.demo_start_value), 10), {name: $it.name, pnl_pct: $round(100 * $book_account(demo, $it).pnl / $max(1, $it.demo_start_value), 3)})", "type": "list"},
+    "leaderboard": {"expr": "$map($top($filter(trader, $it.type != book_seed) + $filter(demo_crowd, true), $book_account(demo, $it).pnl / $max(1, $it.demo_start_value), 10), {name: $it.name, pnl_pct: $round(100 * $book_account(demo, $it).pnl / $max(1, $it.demo_start_value), 3)})", "type": "list"},
     "stats": {"expr": "$market_stats($bar_closes(), $bar_volumes())", "type": "map"},
     "realism": {"expr": "$market_realism({prices: $bar_closes(), volumes: $bar_volumes()}, $seed_stats())", "type": "map"},
     "realism_score": {"expr": "$market_realism({prices: $bar_closes(), volumes: $bar_volumes()}, $seed_stats()).score", "type": "number"},

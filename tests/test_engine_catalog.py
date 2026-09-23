@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 
@@ -160,3 +161,12 @@ def test_cloned_market_uses_sampled_personas_across_an_aggregated_batch(tmp_path
     assert all(run.status == "running" for run in result.arms["baseline"].runs)
     assert result.arms["baseline"].outputs
     assert cohort.provenance.selected == 10 and cohort.provenance.resampled is False
+
+
+@pytest.mark.parametrize("name", ["civil_trial", "coffee_market", "exchange_flagship", "forecast_council"])
+def test_examples_that_mirror_an_engine_starter_stay_identical_to_it(name):
+    """These examples are published copies of engine starters; the starter is the source, so a fix there reaches both."""
+    root = Path(__file__).resolve().parents[1]
+    starter = root / "src" / "fg_env" / "engines" / "starters" / f"{name}.json"
+    assert (root / "examples" / "contracts" / f"{name}.json").read_text() == starter.read_text(), (
+        f"examples/contracts/{name}.json drifted from its engine starter: copy the starter over it")
