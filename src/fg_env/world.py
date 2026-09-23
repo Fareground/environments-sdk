@@ -27,7 +27,7 @@ from .type_index import TypeIndex
 from . import links as _links, world_physics
 from .patterns.runtime import PatternRuntime
 from .links import Link
-from .world_parts import ClockView, Entry, Journal, LogEvent, PhysicsView, PropsView
+from .world_parts import ClockView, Entry, Journal, LogEvent, PhysicsView, PropsView, private_metrics
 
 if TYPE_CHECKING:
     from .sync_events import WriteBuffer
@@ -43,7 +43,7 @@ class _TurnLocal:
     pending: Optional[List[Dict[str, Any]]]
     draws: int
     depth: int
-    luckless: bool
+    luckless: Optional[str]
 
 
 #: The turn running in this thread or asyncio task, as ``(world, state)``. A context variable rather
@@ -133,6 +133,9 @@ class SdkWorld(World):
         self.exposures: Any = None
         #: Names of properties written since the build (read by the run's diagnostics; see run_diagnosis.py).
         self.written: "set[str]" = set()
+        #: Ids of the entities created or given property values since the invariants last held, in order (None: not
+        #: known, so every invariant is checked whole; see run_checks.py).
+        self.touched: Optional[Dict[str, None]] = None
         #: While sealed choices commit or an `each` loop runs, notes `=` assignments (see run_diagnosis.py).
         self.watched_writes: Any = None
         #: The run's diagnosis counts (a run_diagnosis.Diagnosis), set by the run.
@@ -151,6 +154,7 @@ class SdkWorld(World):
         self._private = {t: frozenset(p for p, spec in props.items() if spec.private)
                          for t, props in self._type_props.items() if contract.is_agent(t)}
         self.private_names = frozenset().union(*self._private.values())
+        self.private_metrics = private_metrics(contract, self.private_names)
         #: Def results for the current world state (see :meth:`call_def`).
         self._def_cache: Dict[Any, Any] = {}
         self._def_cache_state: Any = None
@@ -170,7 +174,10 @@ class SdkWorld(World):
         stream while an agent's turn runs outside one (so concurrent turns never race for draws), otherwise the
         run's main stream — and none inside :meth:`without_luck`."""
         local = self._here()
-        if getattr(local, "luckless", False):
+        luckless = getattr(local, "luckless", None)
+        if luckless is not None:
+            if luckless:
+                raise ExprError(luckless)
             raise LuckAhead()
         local.draws = getattr(local, "draws", 0) + 1
         rng = getattr(local, "rng", None)
@@ -214,12 +221,13 @@ class SdkWorld(World):
             local.rng = previous
 
     @contextmanager
-    def without_luck(self) -> Iterator[None]:
-        """Inside the block — a trial of a call, which must not learn its luck (see ``ActionBook.trial``) — a random
-        draw raises :class:`LuckAhead` instead of drawing."""
+    def without_luck(self, refusal: str = "") -> Iterator[None]:
+        """Inside the block a random draw raises :class:`LuckAhead` instead of drawing — a trial of a call, which must
+        not learn its luck (see ``ActionBook.trial``) — or, given a ``refusal``, fails as a rule does with that text:
+        where nothing may be left to luck."""
         local = self._here()
-        previous = getattr(local, "luckless", False)
-        local.luckless = True
+        previous = getattr(local, "luckless", None)
+        local.luckless = refusal
         try:
             yield
         finally:
@@ -250,6 +258,7 @@ class SdkWorld(World):
 
     def rebuild_index(self) -> None:
         """Re-index every entity after the entity store was replaced wholesale (a restore)."""
+        self.touched = None
         self.types.rebuild(self.entities.values())
         if self.space is not None:
             self.space.positions.rebuild(self.entities.values())
@@ -567,7 +576,17 @@ class SdkWorld(World):
             return
         old = entity.properties.get(prop)
         entity.properties[prop] = new
-        self.journal.push(lambda: entity.properties.__setitem__(prop, old))
+        self._touch_entity(entity)
+
+        def undo() -> None:
+            entity.properties[prop] = old
+            self._touch_entity(entity)  # an undo can bring back values no invariant check has seen together
+
+        self.journal.push(undo)
+
+    def _touch_entity(self, entity: Entity) -> None:
+        if self.touched is not None:
+            self.touched[entity.id] = None
 
     def set_world(self, prop: str, value: Any, *, trusted: bool = False) -> None:
         """Set a world property. ``trusted``: the caller built ``value`` from plain data and never changes it in
@@ -654,6 +673,7 @@ class SdkWorld(World):
             self._make_room(entity, entity.location_id, "cannot be placed")
         self.entities[eid] = entity
         self.types.created(entity)
+        self._touch_entity(entity)
         if space is not None:
             space.positions.add(entity)
 
@@ -680,6 +700,7 @@ class SdkWorld(World):
         def undo_remove() -> None:
             entity.alive = True
             self.types.changed(entity)
+            self._touch_entity(entity)
             if space is not None:
                 space.positions.add(entity)
 

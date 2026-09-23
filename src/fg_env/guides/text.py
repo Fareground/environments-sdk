@@ -33,6 +33,8 @@ turn, uses `max_actions`, or runs out of `max_calls`.
 * `look` and `inspect` are free reads: up to `max_calls` of them per turn use no call, and one past that is refused
   without spending a call, so an agent can always still act. The same read twice in a turn answers "Unchanged".
 * A stage with `actions: []` wakes nobody: use it as a pure resolution step (`on_enter`/`on_exit`).
+* A stage without `actions` offers every action. When other stages list their own, list this stage's too
+  (check warns otherwise: agents could take another phase's actions here), or write `"actions": "all"`.
 * `must_act: true` removes `end_turn` while an action is available; `on_idle` effects run for each agent
   that ends a turn without acting (`$actor`) — a forfeit or a default move. An agent that could act and did not — in
   a `must_act` stage, or any stage once its calls ran out — is reported as an `idle` event ("Ben did not act.").
@@ -42,13 +44,18 @@ turn, uses `max_actions`, or runs out of `max_calls`.
   `env.run(..., time_limit=30)` covers stages that set none). Past it the turn ends, later calls are
   refused, a `timeout` event is logged and `on_timeout` runs instead of `on_idle`. The agent's update says
   how long it has. A participant that finishes in time plays exactly as it would without a limit.
-* `atomic: true` makes a turn's actions apply together: each applies at once (the agent sees its result),
-  but triggers, reactions and invariants wait until the turn ends. `valid` conditions (`$actor`, `$pending`)
+* `atomic: true` makes a turn's actions apply together: each applies at once (the agent sees its move),
+  but triggers, reactions and invariants wait until the turn ends, and an action's own `outcome` text (and
+  attached files) is shown once the turn commits — an undone turn shows nothing it was not charged for. `valid` conditions (`$actor`, `$pending`)
   are checked when a turn that acted ends; if one fails, every action of the turn is undone, the agent is
   told `why` and plays the turn again (castling through check, a full backgammon move). `valid` makes a
   stage atomic. An action that draws randomness settles the turn so far at once, so later actions cannot
   undo its luck (if `valid` fails then, the turn is undone and over). In a simultaneous stage each agent's
   choices commit or are undone together.
+* Luck never decides whether a call is allowed: `when` requirements and parameters' bounds, defaults, values and
+  `where` may not draw at random (a check error), since a refused call costs nothing and calling again would roll
+  fresh luck. Draw in `do` or `chance`: a call that drew has been played, even when a rule then fails. A view's
+  randomness is fixed for the turn, so looking again shows the same noisy signal (and a preview shows the turn's).
 * Views with `"for": "spectator"` are an omniscient picture for UIs and reports: rendered at the end of
   every round into `result.frames` (the last marked `final`) and on demand by `env.spectate()`, never
   shown to an agent. They have no `$actor`; randomness they draw never changes the run.
@@ -60,11 +67,13 @@ turn, uses `max_actions`, or runs out of `max_calls`.
   inside that change, so a `fail` in a hook refuses it. Entities made at build run on_create once the
   whole world exists, in creation order (`on_create_at_build: false` skips them). `$it` is the entity;
   in on_remove it is already no longer alive. Hooks setting off hooks stop at 16 levels.
-* Invariants are checked after every action and effect block (an `each` event once its last item ran) and after
-  physics: write them for states that must hold at all times, not ones that only settle at the end of a stage. An
+* Invariants are checked after every action and effect block (an `each` event once its last item ran, or before a
+  trigger or reaction an item sets off) and after physics: write them for states that must hold at all times, not
+  ones that only settle at the end of a stage. `$all(<type>, <condition>)` whose condition reads only each member's
+  own properties and `$inputs` re-checks only the members a change touched, so it stays cheap in any crowd. An
   agent's action that breaks one — itself or through the triggers and hooks its commit sets off — is refused and
   undone, and the agent is told the invariant's `why` (give one: without it the agent only hears that a rule would
-  break); the run goes on and its diagnostics count it. A break by anything else (events, physics, the build) fails
+  break; it is a template, which may read no agent's private prop); the run goes on and its diagnostics count it. A break by anything else (events, physics, the build) fails
   the run. `"check": "round"` checks one only at the end of every round (a conservation sum over a big crowd then
   costs one pass a round, not one per change) — a break found then fails the run, whatever caused it;
   `"check": "end"` once, when the run finishes.
@@ -75,14 +84,17 @@ turn, uses `max_actions`, or runs out of `max_calls`.
   `stats.faulted_actions` counts these refusals. Guard such rules (`min`/`max` on the parameter, or a `when` with a
   `why`) so agents are told the limit up front. The same failure in events, world logic or physics fails the run, as
   do a host that fails and a crash in a mechanism's own code, wherever they happen.
-* `end` conditions are checked after the start events, after each stage, and at the end of the round.
+* `end` conditions are checked after the start events, after each stage, and at the end of the round, so
+  `$round == <clock.rounds>` ends the run before the last round plays (check warns): the run ends after its last
+  round by itself; to name a winner then, use an `end` effect in an end-phase event.
   `"check": "action"` also checks one the moment anything commits — an action, a sealed choice, an event or
   hook's effects — so a winning move ends the run before the next agent moves (in any kind of stage; sealed
   choices commit one after another, so later ones are not applied). The `end` effect inside an action does the same.
 
 What an agent reads:
 * brief (static, cacheable): name, situation, rules, its identity and role text.
-* update: time label and stage, why it is acting, "Since your last turn" (announcements of
+* update: time label and stage, why it is acting ("Your turn again." only when it already had a turn in this stage
+  this round), "Since your last turn" ("So far" on its first turn; announcements of
   others' actions, outcomes of its own simultaneous actions, record entries, event news; in a busy round what is
   addressed to it is always shown, then the newest news, then the newest of others' actions, and the rest counted),
   then every declared view that applies. Text written by participants is wrapped «like this».
@@ -125,7 +137,8 @@ Any string containing `$name` is an expression; other strings are literal text.
   param `where` or `when` to stop ordering the same army twice.
 * A param `where` may read earlier params: `{"to": {"type": "entity", "of": "province",
   "where": "$linked($params.army.at, $it.id, border)"}}` (the tool then lists every province and
-  validation enforces the rule).
+  validation enforces the rule). An enum's `values` may read earlier params the same way
+  (`{"to": {"type": "enum", "values": "$params.army.exits"}}`): the tool lists every value they can give.
 * Reserved roots cannot be used as local names: $actor $params $it $i $row $inputs $world $physics
   $clock $round $stage $metrics $series $arm $viewer $event $outer $pending $result.
 * Contract `defs` are called like built-ins: `$utility($actor, $params.offer)`. A def reads `$records` and
@@ -226,7 +239,7 @@ random (seeded); add a unique last key when the rule needs a fixed order, or use
 EFFECT_EXAMPLES = {
     "if": '{"if": "$cost > $actor.cash", "then": [...], "else": [...]}',
     "each": '{"each": "offer", "where": "$it.stock == 0", "do": ["$it.listed = false"]}  (with "as": "o", write $o instead of $it)',
-    "create": '{"create": "review", "count": 1, "name": "Review {$i}", "props": {"stars": "$params.stars"}, "at": null, "as": "made"}',
+    "create": '{"create": "review", "count": 1, "name": "Review {$i}", "props": {"stars": "$params.stars"}, "at": null, "as": "made"}  (in `props`, `$it` is the new entity, so a prop can read an earlier one: "double": "$it.base * 2"; inside a loop, name the loop\'s item with `as` to read it there)',
     "remove": '{"remove": "$params.target"}',
     "transfer": '{"transfer": "cash", "from": "$actor", "to": "$params.seller", "amount": 10}  (fails the action if short)',
     "link": '{"link": "trusts", "from": "$actor", "to": "$params.who", "value": 0.8, "props": {"since": "$round"}}  (creates or updates: without `value` an existing link keeps its value and a new one gets the relation\'s `default`; `props` sets link fields, a new link starting from their defaults)',
@@ -297,8 +310,9 @@ RECIPES = """\
 * Hidden information: `private` props, per-type views, record `visible` rules, `to` on posts/emits,
   `private: true` actions (no announcement). `inspect` shows an agent only itself unless a type sets `inspect`.
   An agent's private prop is shown only to that agent: reading another agent's in anything worked out for one agent
-  (views, sort keys, tool choices and bounds, outcome text, briefs, policies, defs they call) is an error at run
-  time, however it is spelled. Reveal what an agent may learn by working it out in game logic
+  (views, sort keys, tool choices and bounds, outcome text, briefs, policies, defs they call, metrics worked out
+  from private props) is an error at run time, however it is spelled; so is a stage `order` that reads one, since
+  every agent sees the turn order. Reveal what an agent may learn by working it out in game logic
   (`"do": ["$seen = $params.target.role"], "outcome": "... {$seen}"`, or a prop the agent owns). Text sent to
   several agents — an `announce`, an event's or trigger's `say`, an emit's `say` without a lone `to` — may read no
   agent's private prop, not even the actor's: reveal it the same way (`"$shown = $actor.card"`, then `{$shown}`).
@@ -434,7 +448,8 @@ def my_agent(wake):
 own earlier choices), so a choice that could not happen is refused immediately and does not use up the turn.
 Async participants: an `async def` (or an object with an async `__call__`, or a function that returns an
 awaitable) works everywhere, and a simultaneous stage runs them concurrently with the same deterministic
-result. Inside an event loop use `result = await env.arun(participants, ...)`: participants run on that loop,
+result; so does the built-in LLM participant. A plain function plays one turn at a time (set `concurrent = True` on
+a thread-safe one that waits on I/O to run it alongside others). Inside an event loop use `result = await env.arun(participants, ...)`: participants run on that loop,
 so clients bound to it work. `wake.time_limit` and `wake.time_left` give the turn's deadline.
 `fg_env.load(..., exposures=True)` records what every agent was shown on every wake in `result.exposures`,
 `{"texts": {hash: text}, "wakes": [...], "chance": [...]}`: brief, update and view hashes and sizes, news event sequence
@@ -524,10 +539,13 @@ counts in `truncated` and, when it called no tool, is asked once for a short too
 Every truncated reply wastes its whole output: for frequent decisions use `reasoning_effort="low"` (in a Hold'em
 evaluation it cut cost by 38% with no visible loss in play), or keep the default effort with a larger `max_tokens`
 (6,000 was cut off 9 times in 96 turns).
-Their real token usage is in `result.stats` (`llm_calls`, `input_tokens`, `output_tokens`,
-`cache_read_tokens`, `cache_write_tokens`, `llm_retries`, `forfeits`, `truncated`, `refusals`, and `out_of_steps`:
-turns that used all `max_steps` model calls); a seat most of whose turns fail degrades the run; your own
-participants can add theirs with `wake.record_usage(...)`.
+A reply that still calls no tool after one reminder ends the turn (`no_tool_replies`), and a turn with no action to
+take ends without a model call. Retries never wait past the turn's time limit, and a token budget counts cache writes
+in full and cache reads at a tenth; under one, parallel turns wait while the calls under way may spend what is left.
+Their real token usage is in `result.stats` (`llm_calls`, `input_tokens` (not read from cache), `output_tokens`,
+`cache_read_tokens`, `cache_write_tokens`, `llm_retries`, `forfeits`, `truncated`, `refusals`, `no_tool_replies`,
+and `out_of_steps`: turns that used all `max_steps` model calls); a seat most of whose turns fail degrades the run;
+your own participants can add theirs with `wake.record_usage(...)`.
 Built-ins: `"random"`, `"idle"`, `"policy:<name>"`, and game algorithms `"mcts:N"`, `"ismcts:N"`, `"minimax[:depth]"`, `"cfr:<policy.json|iterations>"`.
 
 `result.events` is the ordered log: `{seq, round, kind, text, actor, to, stage, data}` where kind is

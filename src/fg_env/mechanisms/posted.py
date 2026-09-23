@@ -25,6 +25,7 @@ from ..registry import MechanismError, family_action, mode
 from ..world import Abort
 from ._common import ToolsSetting, tools_field
 from .common import config_of, entity_of, fmt
+from .econ_base import money_prop
 from .ledger import Account, clean, move
 
 __all__ = ["ListingSpec", "PostedMarketConfig"]
@@ -393,9 +394,8 @@ def _expand_posted(name: str, cfg: PostedMarketConfig, contract: Mapping[str, An
     for field, kind in (("who", cfg.who), ("sellers", cfg.sellers)):
         if kind is not None and kind not in types:
             raise MechanismError(f"{field} '{kind}' is not a declared type", f"types: {', '.join(types) or 'none'}", field)
-    cash = {cfg.currency: {"type": "number", "default": 0}}
     fragment_types: Dict[str, Any] = {
-        cfg.who: {"props": {**cash, f"{name}_basket": {"type": "map", "default": {}, "description": "Goods bought, by item."},
+        cfg.who: {"props": {**money_prop(contract, cfg.who, cfg.currency), f"{name}_basket": {"type": "map", "default": {}, "description": "Goods bought, by item."},
                                f"{name}_bought": {"type": "map", "default": {}, "private": True},
                                f"{name}_counters": {"type": "map", "default": {}, "private": True},
                                f"{name}_rated": {"type": "list", "default": [], "private": True}}},
@@ -410,14 +410,14 @@ def _expand_posted(name: str, cfg: PostedMarketConfig, contract: Mapping[str, An
             "sold": {"type": "int", "default": 0}, "revenue": {"type": "number", "default": 0, "private": True}}},
     }
     if cfg.sellers:
-        fragment_types.setdefault(cfg.sellers, {"props": {}})["props"].update(cash)
+        fragment_types.setdefault(cfg.sellers, {"props": {}})["props"].update(money_prop(contract, cfg.sellers, cfg.currency))
     generated: Dict[str, Any] = {}
     for listing_id, spec in cfg.listings.items():
         seller = entities.get(spec.seller)
         if not isinstance(seller, Mapping) or seller.get("type") not in types:
             raise MechanismError(f"listing '{listing_id}': seller '{spec.seller}' is not a declared entity",
                                  "declare the seller under entities", f"listings.{listing_id}.seller")
-        fragment_types.setdefault(seller["type"], {"props": {}})["props"].update(cash)
+        fragment_types.setdefault(seller["type"], {"props": {}})["props"].update(money_prop(contract, seller["type"], cfg.currency))
         generated[listing_id] = {"type": f"{name}_listing", "name": spec.name or spec.item, "props": {
             "seller": spec.seller, "item": spec.item, "price": spec.price, "stock": spec.stock, "capacity": spec.capacity,
             "negotiable": spec.negotiable, "floor": spec.floor or spec.price, "sponsored": spec.sponsored,

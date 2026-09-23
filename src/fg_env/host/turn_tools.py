@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Optional, 
 
 from ..action_faults import guarded, refused_text
 from ..actions import ACTION_BUDGET, ToolSpec
+from ..driving import runs_concurrently
 from ..errors import RunError
 from ..expr import ExprError, shared_budget
 from ..participants import resolve_participant
@@ -197,7 +198,7 @@ class _Extended:
         self.inner = inner
         self.__wrapped__ = inner  # an async participant is still seen as async through the wrapper
         self.tools = tools
-        self.concurrent = getattr(inner, "concurrent", True)
+        self.concurrent = runs_concurrently(inner)
 
     def __call__(self, wake: Wake) -> Any:
         return self.inner(HostWake(wake._turn, self.tools))
@@ -213,8 +214,6 @@ def offer(participant: Callable[[Wake], Any], tools: Mapping[str, TurnTool]) -> 
 
 class _Default:
     """What the engine would use for an agent nobody named: its type's policy, else random."""
-
-    concurrent = False
 
     def __init__(self, env: "Env", tools: Mapping[str, TurnTool]):
         self.env = env

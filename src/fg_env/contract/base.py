@@ -8,7 +8,7 @@ from pydantic import BaseModel, BeforeValidator, ConfigDict, WithJsonSchema, mod
 from pydantic_core import PydanticCustomError
 
 __all__ = ["CONTRACT_VERSION", "INPUT_TYPES", "PROP_TYPES", "PARAM_TYPES", "MAX_LIST_ITEMS", "OUTPUT_TYPES",
-           "one_or_many", "Effects", "TYPE_SYNONYMS", "TypeName", "MAX_ROUNDS", "MAX_STAGE_PASSES", "MAX_TURN_CALLS",
+           "one_or_many", "Effects", "TYPE_SYNONYMS", "SPELLINGS", "TypeName", "MAX_ROUNDS", "MAX_STAGE_PASSES", "MAX_TURN_CALLS",
            "MAX_TURN_ACTIONS", "MAX_POPULATION", "MAX_CREATE", "MAX_SUBSTEPS"]
 
 CONTRACT_VERSION = "1"
@@ -32,6 +32,8 @@ Effects = Annotated[List[Any], BeforeValidator(one_or_many),
 
 #: Common spellings of the type names, read as the names the contract uses.
 TYPE_SYNONYMS = {"integer": "int", "string": "text", "boolean": "bool", "float": "number"}
+#: How a type field's description names them.
+SPELLINGS = " (`integer`, `float`, `string` and `boolean` are read as int, number, text and bool)"
 
 
 def _type_name(value: Any) -> Any:

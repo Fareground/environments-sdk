@@ -4,14 +4,14 @@ from __future__ import annotations
 import inspect
 import re
 from functools import lru_cache
-from typing import Any, Dict, FrozenSet, Iterator, List, Mapping, Set, Tuple
+from typing import Any, Dict, FrozenSet, Iterator, List, Mapping, Sequence, Set, Tuple
 
 from ..contract import Contract
 from ..expr import FUNCTIONS
 from ..registry import FAMILIES, OPS, use_key
 
 __all__ = ["dumped", "texts", "effect_nodes", "in_effects", "roles", "calls", "world_reads", "random_functions",
-           "random_ops", "ops_in", "mechanism_kinds"]
+           "random_ops", "draws", "ops_in", "mechanism_kinds"]
 
 _CALL = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)\s*\(")
 _WORLD = re.compile(r"\$world\.([A-Za-z_][A-Za-z0-9_]*)")
@@ -121,6 +121,22 @@ def random_ops() -> FrozenSet[str]:
     actions = {op.name for family in FAMILIES.values() for table in family.actions.values() for op in table.values()
                if _uses_rng(op.run)}
     return frozenset(plain | actions)
+
+
+def draws(contract: Contract, texts: Sequence[str]) -> bool:
+    """Whether evaluating any of ``texts`` may draw randomness (a random function, directly or through a def): reading
+    what does not draw changes nothing, so it may be read ahead, or skipped when nobody reads it."""
+    drawing, pending = random_functions(), list(texts)
+    seen: Set[str] = set()
+    while pending:
+        called = calls(pending.pop())
+        if called & drawing:
+            return True
+        for name in called - seen:
+            seen.add(name)
+            if name in contract.defs:
+                pending.append(contract.defs[name].expr)
+    return False
 
 
 def ops_in(node: Mapping[str, Any]) -> Set[str]:

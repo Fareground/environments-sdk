@@ -48,9 +48,11 @@ or text that is not JSON is an issue too.
 
 A contract without errors is also built and played, so problems that only appear with real values (sampling,
 later rounds, views, outputs, a policy's own rules) are reported the same way: once with random agents that read
-everything they are shown, once with every agent idle (a turn that passes without an action, as when a model
+everything they are shown, once with agents that choose boundary values (a parameter's least value, zero, its
+greatest), once with every agent idle (a turn that passes without an action, as when a model
 times out or refuses, must not break the rules), then once per declared policy, played by the agent types whose default it is (or else
-those that can take every action it takes). By default each play lasts up to 12 rounds (fewer when the run ends
+those that can take every action it takes). An action called in these plays that never once succeeded is
+reported too. By default each play lasts up to 12 rounds (fewer when the run ends
 sooner) and all of them share a few seconds; ``rounds`` plays exactly that many rounds instead (0 checks
 statically only). Inputs with a ``source`` are read from ``data_dir`` (default: the contract file's folder);
 ``hosts`` answers what the contract asks of a host during those plays. ``inputs`` checks a configured scenario
@@ -141,10 +143,10 @@ it be garbage collected) to discard it.
 guide(part: 'Optional[str]' = None) -> 'str'
 ```
 
-The core guide, or one part by name: a section (``"actions"``), a topic (``"expressions"``, ``"effects"``,
+The map of every part, or one part by name: a section (``"actions"``), a topic (``"expressions"``, ``"effects"``,
 ``"functions"``, ``"mechanisms"``, ``"patterns"``, ``"recipes"``, ``"running"`` …), a function group (``"functions.stats"``),
 a mechanism family (``"market"``) or mode (``"market.auction"``) — or ``"all"`` for everything.
-The core guide ends with a map of the parts.
+With no part, the map of every part; start with ``guide("authoring")``.
 
 ## `schema`
 
@@ -175,9 +177,9 @@ Have ``model`` (``"anthropic:<model>"`` or ``"openai:<model>"``) write an enviro
 :class:`AuthorResult` (``result.contract``, ``result.ok``, ``result.summary()``).
 
 ``out`` is where the contract is written (nothing is written when None): each time a revision works, and at the
-end. ``budget`` caps ``tokens`` (input + output, a cache read counting :data:`CACHED_WEIGHT` of one) and model
-``calls``, by default 600,000 and 30. ``client`` replaces the official client made from the
-environment; ``progress`` is called with one line per model call. Rate limits, overload and server errors are
+end; when none works, the latest is written beside it as ``<name>.not-working.json``. ``budget`` caps ``tokens``
+(input + output, a cache read counting :data:`CACHED_WEIGHT` of one) and model ``calls``, by default 600,000 and
+30. ``client`` replaces the official client made from the environment; ``progress`` is called with one line per model call. Rate limits, overload and server errors are
 retried with backoff; a provider error that persists or that retrying cannot fix does not raise: the loop stops
 (``result.stop`` says why) and keeps what already works.
 
@@ -341,9 +343,11 @@ anthropic(client: 'Any', model: 'str', *, max_tokens: 'int' = 16000, max_steps: 
 
 An LLM participant using an ``anthropic.Anthropic()`` client.
 
-The system prompt (``system`` and the brief) is marked for prompt caching. Anthropic caches the tools ahead of
-it, and the tools are the actions legal right now with their live choices, so a call reads the cache only when
-the agent is offered the same tools as in an earlier call (typically in a phase it has been in before).
+Two prompt-cache breakpoints: the system prompt (``system`` and the brief), and the latest message, so each model
+call of a turn reads the one before it from the cache. Anthropic caches the tools ahead of both, and the tools are
+the actions legal right now with their live choices, so a call reads the cache only when the agent is offered the
+same tools as in the earlier call. A prompt shorter than the model's minimum is simply not cached (no charge).
+When the agent has no action it could take, the model is not called and the turn ends.
 
 Files the agent receives are sent as image and document blocks after the text (``media``: the attachment types
 sent as content, default image, pdf and text; ``media=()`` for a text-only model, which reads each file's
@@ -353,7 +357,8 @@ reference — its caption and alt text — in the text only). See :mod:`fg_env.a
 client: an async client fails the run saying so.
 
 Rate limits, timeouts, overload and server errors are retried ``retries`` times with backoff (honouring
-``retry-after``); if a call still fails, the turn is forfeited, counted in ``stats["forfeits"]`` and reported in
+``retry-after``, never past the turn's time limit: once the turn is over no call is made); if a call still fails,
+the turn is forfeited, counted in ``stats["forfeits"]`` and reported in
 the run's diagnostics. Any other error — a rejected API key, an unknown model, a bad request, a client that does
 not fit — fails the run at once, naming the agent, the provider's error and the fix. A reply the provider refused
 ends the turn and counts in ``stats["refusals"]``. Real token usage lands in the run's statistics and in
@@ -361,8 +366,10 @@ ends the turn and counts in ``stats["refusals"]``. Real token usage lands in the
 
 A reply cut off at ``max_tokens`` (default 16000: room for a model that thinks before it answers) counts in
 ``stats["truncated"]``; when it called no tool, the model is asked once for a short tool call
-(``retry_truncated=False`` ends the turn instead). Any other reply that calls no tool is reminded once of the tools
-offered. A turn that makes all ``max_steps`` model calls ends there and counts in ``stats["out_of_steps"]``. Calls
+(``retry_truncated=False`` ends the turn instead); its tool calls, whose arguments may be cut off, are not made.
+Any other reply that calls no tool is reminded once of the tools offered; a reply that still calls none ends the
+turn, and in a turn that took no action counts in ``stats["no_tool_replies"]`` (with an action open, a failed
+turn). A turn that makes all ``max_steps`` model calls ends there and counts in ``stats["out_of_steps"]``. Calls
 left in a reply after one of them ended the turn are not made. In a stage where the agent must act, the
 participant never ends the turn itself: the engine closes it and reports that the agent did not act.
 
@@ -376,7 +383,8 @@ An LLM participant using an ``openai.OpenAI()``-compatible client (chat completi
 
 ``max_tokens`` caps each reply (sent as ``max_completion_tokens``) and ``reasoning_effort`` (``"low"``,
 ``"medium"``, ``"high"``) is passed on to reasoning models; each is sent only when given. A server that knows only
-the older ``max_tokens`` field takes ``extra={"max_tokens": 1024}`` instead. Retries, failures, refusals (a
+the older ``max_tokens`` field takes ``extra={"max_tokens": 1024}`` instead. A response with no choices in it
+(OpenRouter sends one now and then) is retried like an overload. Retries, failures, refusals (a
 ``refusal`` message or ``finish_reason`` ``content_filter``), ``extra``, usage accounting, truncated replies
 (``finish_reason`` ``length``) and ``retry_truncated`` work as for :func:`anthropic`; arguments that are not a
 JSON object are refused and counted as invalid calls. Files are sent as

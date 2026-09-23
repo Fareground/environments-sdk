@@ -144,7 +144,7 @@ Give every delayed effect a clear starting point and due time. Include explicit 
 
 ```bash
 fg-env new blank scenario.json
-fg-env guide
+fg-env guide authoring
 fg-env guide actions
 fg-env guide events
 fg-env check scenario.json
@@ -164,7 +164,7 @@ Check configured values without editing the contract's defaults:
 <!-- not run: inputs.json holds your scenario's configured values -->
 ```bash
 fg-env check scenario.json --inputs-file inputs.json --rounds 8
-fg-env checks scenario.json --inputs-file inputs.json --boundaries --runs 2 --rounds 8
+fg-env playtest scenario.json --inputs-file inputs.json --boundaries --runs 2 --rounds 8
 ```
 
 The Python equivalents are `fg_env.check(..., inputs=values)` and

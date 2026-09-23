@@ -92,8 +92,6 @@ class _Games:
 class SearchPlayer:
     """Takes each decision of its turns with a search algorithm (see the module docs)."""
 
-    concurrent = False
-
     def __init__(self, kind: str, make_bot: Callable[[int], Any], seed: int):
         self.kind = kind
         self.make_bot = make_bot
@@ -169,8 +167,6 @@ def _reach_turn_of(state: GameState, seat: int) -> None:
 
 class PolicyPlayer:
     """Plays a tabular policy by information state (see the module docs)."""
-
-    concurrent = False
 
     def __init__(self, source: str, seed: int):
         self.source = source

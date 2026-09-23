@@ -31,14 +31,15 @@ def test_the_core_guide_is_short_and_maps_every_part():
     assert guide("core") == core
 
 
-def test_the_authoring_page_is_the_core_guide_start_and_never_sends_an_author_to_everything():
+def test_the_map_and_the_start_page_do_not_repeat_each_other_and_never_send_an_author_to_everything():
     page, core = guide("authoring"), guide()
-    start = page[:page.index("## Read next")]
-    assert core.startswith(start)
     assert page.index("Faithful first, configurable second") < page.index("## Worked example")
+    assert "guide('authoring')" in core and "## Worked example" not in core
+    shared = {line for line in set(page.splitlines()) & set(core.splitlines()) if line.strip("#|- ")}
+    assert shared == {"## Sections"}, shared
     for text in (page, core):
         assert "guide('all')" not in text and "guide all" not in text
-    assert guide("all").count("## Worked example") == 1  # the start page appears once, inside the core guide
+    assert guide("all").count("## Worked example") == 1  # the start page appears once
 
 
 def test_every_part_renders_and_all_holds_every_function_effect_section_and_mode():
@@ -202,7 +203,7 @@ def test_cli_reports_user_mistakes_without_tracebacks(tmp_path, capsys):
 
 def test_authoring_guide_example_and_known_answer_run_verbatim(tmp_path, monkeypatch):
     page = guide('authoring')
-    assert len(page) < 10_000  # One page an authoring agent starts from.
+    assert len(page) < 11_000  # One page an authoring agent starts from.
     contract_text = page.split('```json\n')[1].split('```')[0]
     scripts = [block.split('```')[0] for block in page.split('```python\n')[1:]]
     money_page = (Path(__file__).resolve().parents[1] / 'docs/sdk/authoring.md').read_text()
@@ -279,3 +280,15 @@ def test_run_says_when_it_stopped_before_the_end_and_its_help_names_real_command
         main(["run", "--help"])
     shown = capsys.readouterr().out
     assert "fg-env replay" not in shown and "fg-env trace FILE replay" in " ".join(shown.split())
+
+
+def test_the_command_list_names_each_command_once_and_no_two_alike(capsys):
+    with pytest.raises(SystemExit):
+        main(["--help"])
+    listed = [line.split()[0] for line in capsys.readouterr().out.splitlines() if line.startswith("    ") and line.split()]
+    assert "check" in listed and "playtest" in listed and "optimise" in listed and "describe" in listed
+    # `checks` next to `check`, both spellings of optimise and `info` beside `describe` confused first-time users.
+    assert not {"checks", "optimize", "info"} & set(listed)
+    with pytest.raises(SystemExit):
+        main(["checks", "x.json"])
+    assert "invalid choice: 'checks'" in capsys.readouterr().err

@@ -14,7 +14,7 @@ Action space: 6 ids
   | 
   | ## You
   | You are A (bidder, id a).
-  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+  | Act only through your tools. Your turn ends when you take a final action.
 
 ## Brief of seat 1 (b)
   | # First-price sealed-bid auction
@@ -25,7 +25,7 @@ Action space: 6 ids
   | 
   | ## You
   | You are B (bidder, id b).
-  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+  | Act only through your tools. Your turn ends when you take a final action.
 
 # State 0
 Current player: chance
@@ -34,12 +34,12 @@ Seat 0 (a) reads:
   | Round 1 of 1 · bid
   | 
   | The item is worth 0 to you.
-Seat 0 information state: 1f424a4c0fcdc04e
+Seat 0 information state: be9e8ee7d79e5ffe
 Seat 1 (b) reads:
   | Round 1 of 1 · bid
   | 
   | The item is worth 0 to you.
-Seat 1 information state: 005d74de23568777
+Seat 1 information state: 8ce1be4c7cba35e8
 Returns: [0, 0]
 Chosen: value: 3
 Step: {"chance": 2}
@@ -51,12 +51,12 @@ Seat 0 (a) reads:
   | Round 1 of 1 · bid
   | 
   | The item is worth 3 to you.
-Seat 0 information state: 7c294242f1c59225
+Seat 0 information state: 2cca317b789a8d16
 Seat 1 (b) reads:
   | Round 1 of 1 · bid
   | 
   | The item is worth 0 to you.
-Seat 1 information state: 005d74de23568777
+Seat 1 information state: 8ce1be4c7cba35e8
 Returns: [0, 0]
 Chosen: value: 4
 Step: {"chance": 3}
@@ -70,12 +70,12 @@ Seat 0 (a) reads:
   | Now: Everyone chooses at the same time.
   | 
   | The item is worth 3 to you.
-Seat 0 information state: 7c294242f1c59225
+Seat 0 information state: 2cca317b789a8d16
 Seat 1 (b) reads:
   | Round 1 of 1 · bid
   | 
   | The item is worth 4 to you.
-Seat 1 information state: 73083bc338e7d29b
+Seat 1 information state: f9c8daa1a056893b
 Returns: [0, 0]
 Chosen: seat 0: bid(amount=2); seat 1: bid(amount=3)
 Step: {"joint": {"0": {"args": {"amount": 2}, "tool": "bid"}, "1": {"args": {"amount": 3}, "tool": "bid"}}}

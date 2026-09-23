@@ -152,11 +152,12 @@ def _build_inspect_tool(env: "Env", viewer: Entity, allowance: int) -> Optional[
     if not ids:
         return None
     prop: Dict[str, Any] = {"type": "string"}
-    description = "Details of one entity by its id (shown in [brackets] after names)."
+    description = "Details of one entity by its id"
     if len(ids) <= _ENUM_IDS:
         prop["enum"] = ids
+        description += ": one of the ids listed."
     else:
-        description += f" Ids: {compact_ids(ids)}."
+        description += f". Ids: {compact_ids(ids)}."
     return ToolSpec("inspect", f"{description} {free_reads(allowance)}", {
         "type": "object", "properties": {"id": prop}, "required": ["id"], "additionalProperties": False}, "look")
 

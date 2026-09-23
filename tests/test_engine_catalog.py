@@ -176,7 +176,7 @@ def test_cloned_market_uses_sampled_personas_across_an_aggregated_batch(tmp_path
     )
     result = fg_env.experiment(
         target, runs=3, seed=19, rounds=1, participants="random",
-        inputs={"households": cohort.records(), "sample_size": 10},
+        inputs={"households": cohort.records(), "sample_size": 80},
     )
     assert len(result.arms["baseline"].runs) == 3
     assert all(run.status == "running" for run in result.arms["baseline"].runs)

@@ -35,9 +35,11 @@ _ASSIGNMENT = re.compile(r"(?<![=!<>])=(?!=)")
 
 
 def _tally(reasons: Dict[str, List[Any]], text: str) -> None:
-    """Count ``text`` under its cause (numbers and quotes blanked), keeping the first wording seen."""
+    """Count ``text`` under its cause (numbers and quotes blanked), keeping the first wording in sorted order: agents
+    in a sealed stage are refused concurrently, so the order they were refused in is not part of the run."""
     entry = reasons.setdefault(_VARIES.sub("#", text), [0, text])
     entry[0] += 1
+    entry[1] = min(entry[1], text)
 
 
 class Diagnosis:

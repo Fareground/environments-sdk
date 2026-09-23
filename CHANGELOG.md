@@ -7,45 +7,95 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round 5
+
+Round 5 makes luck and hidden information airtight, makes `fg-env author`'s "it works" mean it really works, closes
+authoring traps `check` used to miss, and makes large runs fast.
+
+#### Breaking
+- Luck and information: drawing randomness in `when` or in a parameter's `min`/`max`/`default`/`values`/`where`/
+  `invalid` is a contract error (draw in `do`, `chance` or an event). A rule that fails after drawing spends the
+  attempt. In an atomic stage an action's outcome is shown when the turn commits, and never if it is undone. A
+  view's randomness is fixed for the turn, so looking again shows the same text and a preview matches the real turn.
+  Metrics and series that read a private property, and a stage `order` by one, cannot reach what agents are shown.
+  An invariant's `why` is a template.
+- Participants: a plain function plays sealed turns one at a time, so shared state in it cannot race; the built-in
+  LLM participants, async participants and any participant with `concurrent = True` still run together.
+- LLM participants: an empty OpenAI reply is retried, then the turn is forfeited. A reply that never calls a tool
+  counts as a failed turn (`no_tool_replies`). Token budgets count cache writes in full and cache reads at a tenth,
+  and are checked before each call. Retries stop at the turn's deadline. A turn with nothing to do calls no model.
+- `fg_env.author`: test agents read their brief and update; a contract with no outputs, or an agent type without
+  actions, is not working; failed outputs and check warnings count; stand-in hosts answer judged and game-master
+  contracts; check and test runs have a hard time limit. The summary names anything a later revision removed; when
+  nothing works, `out` is left alone and the draft is saved as `<name>.not-working.json`. `stop` gains `refused`.
+- `check`: `$it` in `create` props inside a loop is an error (name the loop item with `as`). A view `of` an unknown
+  type and a wrong-kind assignment to a typed property are static errors. A ledger holder type whose own default
+  for the currency differs from the ledger's `start` is an error, as is a world property named like one a mechanism
+  keeps, and a second `game.pot` on one player type.
+- CLI: `fg-env checks` is `fg-env playtest`; `fg-env info` is `fg-env describe --metadata`. The `blank` template's
+  type is `worker`.
+- Engines: Market demand responds to price (households can make coffee at home), cafés reprice toward profit, cafés
+  are an input and `sample_size` is at least 80. Legislature and deliberation members stay anchored to their own
+  stance with a `party_loyalty` input and a fair speaking order, so row order no longer decides the vote. Network
+  takes its first adopters as `seeds`. Contest, council and negotiation refuse setups they cannot play. Dispute's
+  parties, case, jurors and exhibits are inputs. The order-book crowd's market makers earn their spread as a class
+  and price tracks value (new `impact`, `toxicity_mult`; `vol_mult` 0.5).
+
+#### Added
+- `check` warns when an action never succeeded in its smoke plays, when a stage without `actions` offers another
+  stage's actions, when `end` would cut the last round, and when a mechanism's own stages wake one agent type
+  several times; a boundary-value play reports rules that crash at a parameter's least value, zero or greatest.
+- Parameters whose choices depend on an earlier argument list their possible values in the tool schema.
+- `groups.matching.eligible` limits whom each side can rank. Pot all-in is always legal with chips.
+- A release runs the full test matrix before it publishes; CI enforces a coverage floor;
+  `make check-docs` keeps generated docs and the examples table in sync.
+
+#### Fixed
+- An `each` event in a contract with triggers, and invariants over a crowd, no longer grow with the square of the
+  crowd; `step()` costs the same late in a run as early.
+- Announcements hide an argument that reaches a private property through a local.
+- Diagnostics quote the same refusal whichever sealed agent was refused first.
+- The labor negotiation and epidemic examples play to their end on every seed.
+
+
 ### Round 4
 
-Round 4 (T-834, T-835) fixes the third independent audit, and adds generated tests that keep whole classes of
-failure from coming back.
+Round 4 makes luck unprobeable and private values private in every engine-written text, and adds generated tests
+that keep whole classes of failure from coming back.
 
 #### Breaking
 - Luck cannot be probed. Trials (submitting a sealed choice, listing legal tools, RL masks, diagnostics) never draw.
   A refusal after a draw counts as a move and spends its luck; a refusal before any draw stays free. This reverses
   0.8's "same luck on retry". In an atomic stage an action that draws settles the turn so far. `each` and stage
-  `who` draw per entity (R4.1).
+  `who` draw per entity.
 - Private values stay out of every engine-written text. Refusals don't quote another agent's values. Announcements
   and `say` can't read private properties directly (reveal through a local). Default announcements omit arguments
-  kept in a private property. More private reads are check errors (R4.2).
+  kept in a private property. More private reads are check errors.
 - Values: map keys are text consistently. Null is refused in a property that starts with a value. A condition that
   is only text (`"when": "deal"`, `visible: "private"`) is an error. An output that raises is an error in `check`
-  and marks the run degraded. `list -= x` removes one copy. A negative number to a fractional power is an error
-  (R4.3).
+  and marks the run degraded. `list -= x` removes one copy. A negative number to a fractional power is an error.
 - Health: a degraded run is not `ok`, and `fg-env run` exits 3. A seat that never acts, or whose turns mostly fail,
   degrades the run. Messages addressed to an agent are never dropped from its update. Deep `wake now` reactions
   defer instead of failing. `Wake.me` is a copy. Repeating policies and `auto` work in sealed stages. Host tokens
-  are counted per run. Default `max_tokens` is 16000 (R4.4).
+  are counted per run. Default `max_tokens` is 16000.
 - `fg_env.author`: the model's `run` tool plays only random, idle or the contract's own policies. A contract
   "works" when it checks clean and runs on 3 seeds with random, idle and edge-value agents within 60s. Heavy
-  simulations are reported as tested N of M rounds (R4.5).
+  simulations are reported as tested N of M rounds.
 - Mechanisms: markets check their own books, not total cash, so they combine with each other and with wages,
   taxes and dividends. The ledger counts money markets hold. A tied top vote under a threshold fails unless
   `ties: first`. `first_to` ends at the action. A random graph's `degree` means average neighbours. The order-book
   band is anchored to the round's open. A named generated event, trigger or end entry can be replaced. Removed:
-  `rebase`, the prediction market's `open`, and `<name>_supply` on markets (R4.6).
+  `rebase`, the prediction market's `open`, and `<name>_supply` on markets.
 - Engines: the Market sample stands for the city (capacities and outputs at city scale; about linear runtime).
   Exchange defaults to 40 bars × 8 passes with a recalibrated crowd. Council's panel, question and briefing are
   inputs. Coded Dispute lawyers lead with their strongest exhibit. Rates over nobody are null. Negotiation's
-  `deadline` minimum is 2 (R4.7).
+  `deadline` minimum is 2.
 
 #### Added
 - Generated tests: a contract fuzzer (a random valid contract always checks and runs without escaping exceptions,
   is deterministic, resumes identically from a snapshot, never costs an agent its turn when another is removed,
   and never shows one agent another's private values), a leak scanner over every example, starter and template,
-  adversarial participants, and a regression test per past audit finding. `FG_ENV_SLOW=1` runs thousands (T-835).
+  adversarial participants, and regression tests for past bugs. `FG_ENV_SLOW=1` runs thousands.
 - Run diagnostics `agents_mostly_failed`, `out_of_steps`, `policy_repeat_refused` and `output_failed`, and
   `$money_held(ledger)`.
 
@@ -56,174 +106,171 @@ failure from coming back.
 
 ### Round 3
 
-Round 3 (T-828–T-833) comes from an independent adversarial audit of 0.8.0. It closes silent failures and makes
+Round 3 closes silent failures and makes
 both authoring paths, by hand from the docs or through `fg-env author`, reliable.
 
 #### Breaking
 - A removed agent no longer ends its stage for the agents seated after it. Agents created mid-round act in the
-  next pass (T-832).
+  next pass.
 - `$best` always returns one item (ties are broken at random by the seed) or, with `ties: "all"`, a list.
-  `ties: "share"` is removed (T-832).
+  `ties: "share"` is removed.
 - Anything shown or offered to one agent that reads another agent's private property is an error. A `when` that
   reads hidden state no longer hides the tool; the call is refused instead. Out-of-bounds refusals omit private
-  values (T-833).
-- Declaring a stage with a generated stage's name refines it field by field instead of replacing it (T-832).
+  values.
+- Declaring a stage with a generated stage's name refines it field by field instead of replacing it.
 - Order-book crowd bots have their own `<book>_crowd` type, so other mechanisms no longer count them as
-  traders, voters or winners. Prediction-market effect keys are `shares`, `spend` and `receive` (T-830).
+  traders, voters or winners. Prediction-market effect keys are `shares`, `spend` and `receive`.
 - The double auction clears inside the market-clearing interval. Uncalled chips return to their owner under
-  `returned`. Negative maker fees are rebates (T-830).
+  `returned`. Negative maker fees are rebates.
 - `fg_env.author` keeps a contract only if `check` is clean and full runs with random and idle agents finish.
-  `stop` can be `gave_up` or `revisions`, and `MAX_WRITES` is now `MAX_REVISIONS` (T-828).
+  `stop` can be `gave_up` or `revisions`, and `MAX_WRITES` is now `MAX_REVISIONS`.
 - Engines: Negotiation's `cooperative` policy is now `concession` and its `rounds` input is removed. Exchange
-  `seats` defaults to 4. Dispute gains `persuasion`. Contest's `winning_score` is null without a judge (T-831).
+  `seats` defaults to 4. Dispute gains `persuasion`. Contest's `winning_score` is null without a judge.
 - Unknown participants and unknown preview targets raise `ContractError` with a fix. `check()` returns
-  unreadable or invalid sources as issues instead of raising (T-829).
+  unreadable or invalid sources as issues instead of raising.
 
 #### Added
 - `check` escalates an action that faulted on every attempt to an error, and plays one pass where every
   agent is idle. New diagnostics `action_always_faulted`, `agents_never_acted` and `stage_until_never_held`,
-  plus `RunResult.degraded` (T-830, T-832).
-- A spent token budget ends every turn in progress; judge and game-master tokens count toward it (T-832).
+  plus `RunResult.degraded`.
+- A spent token budget ends every turn in progress; judge and game-master tokens count toward it.
 - `fg_env.author`: an `edit_contract` tool, cut-off-reply detection, retries on provider errors, and a
-  summary that names the kept revision and the dropped one. CLI `--calls` (T-828).
+  summary that names the kept revision and the dropped one. CLI `--calls`.
 - A `when`'s `why` is a template. Snapshot restore validates types and bounds. The five matrix games and
-  matching pennies state a missed-move rule. `FatalRunError` is exported (T-829, T-830, T-832).
+  matching pennies state a missed-move rule. `FatalRunError` is exported.
 - Every README and guide code sample runs in the test suite. Templates and engine starters check with zero
-  warnings. Every engine starter runs at the min and max of each input (T-829, T-831).
+  warnings. Every engine starter runs at the min and max of each input.
 
 ## [0.8.0] - 2026-09-23
 
-Every run is now either correct or fails loudly (T-797). Several defaults changed. Round 2 adds one-command
+Every run is now either correct or fails loudly. Several defaults changed. Round 2 adds one-command
 authoring, visible end state, a smaller function set and a faster engine.
 
 ### Round 2
 - `fg_env.author(brief, model)` and `fg-env author BRIEF --model anthropic:<m>|openai:<m>` turn a plain description
-  into a checked, running contract. The saved contract is always the latest one that checks clean and runs (T-823).
+  into a checked, running contract. The saved contract is always the latest one that checks clean and runs.
 - `RunResult.state` holds the world props and, per type, the first entities with every prop. `summary()` and
   `fg-env run` end with each metric's last values and that end state, so authors never need debug outputs. `check`
-  evaluates policy rules that an earlier rule always beats (T-821).
+  evaluates policy rules that an earlier rule always beats.
 - Removed 20 duplicate `$functions` and `events[].chance`. Each removed name's error points to its replacement:
-  `$bottom` → `$sort` (which gains `n` and `where`), `$log_base` → `$log(x, base)`, `$pow` → `**`, and more (T-824).
+  `$bottom` → `$sort` (which gains `n` and `where`), `$log_base` → `$log(x, base)`, `$pow` → `**`, and more.
 - Engine: coded decisions no longer copy the type list or repeat legality checks, so a 5k-agent crowd is 1.6× faster
   and its cost per decision no longer grows with the crowd. An `each` event's invariants are checked once after its
   last item, which makes coffee_market 33% faster. Random agents pick valid entities when there are more than 60
-  choices; before, they were always refused. `$seen` inside a def no longer returns a stale value
-  (T-822, T-825).
+  choices; before, they were always refused. `$seen` inside a def no longer returns a stale value.
 
 ### Breaking
 - Game logic reads the true state. `$records` and `$events` filter by `$viewer` only, never the acting agent, so
   action `when`/`do`, stage hooks and other rules see every entry. Agent-facing text (views, updates, outcome text,
-  tool choices) and policies still see only what their agent may see (T-798).
+  tool choices) and policies still see only what their agent may see.
 - A numeric property written past its declared `min`/`max` is refused, never clamped. An agent's action is rolled
   back with a reason. World logic (an event, a stage hook) that does it fails the run at its path. Starting values
-  outside the bounds are a contract error. To saturate a value, write `$clamp(x, low, high)` (T-799).
+  outside the bounds are a contract error. To saturate a value, write `$clamp(x, low, high)`.
 - A rule that fails while an agent's action applies (division by zero, overflow, a broken invariant) refuses and
   undoes that action, including the triggers it set off, and the run continues. The same failure in world logic
-  still fails the run. There is a new `FatalRunError` for host, replay and mechanism-code failures (T-800).
+  still fails the run. There is a new `FatalRunError` for host, replay and mechanism-code failures.
 - `fg_env.run` raises `RunError` for a failed run, with the run on `error.result`. `env.run` and `experiment` still
-  return failed runs (T-801).
+  return failed runs.
 - LLM participants: permanent provider errors (auth, bad request, unknown model, a bug in the caller's code) fail the
   run with a fix. Only retryable errors that exhaust their retries forfeit a turn. `on_error` is removed. An async
-  client raises a clear error. The OpenAI adapter sends `max_completion_tokens` (T-801).
+  client raises a clear error. The OpenAI adapter sends `max_completion_tokens`.
 - Engines never fabricate results. Contest and Strategy report a null winner on a tie. Strategy pays every player
   (round-robin) and drops its `seat` input column. Network adoption depends on tie trust and keeps spreading.
   Dispute jurors sum evidence strength, like its ground-truth metric. Council `consensus_reached` is based on the
-  spread of forecasts. Negotiations with `reservation` and `value` refuse terms below a party's walk-away (T-802).
+  spread of forecasts. Negotiations with `reservation` and `value` refuse terms below a party's walk-away.
 - Inventory maps keep every declared stackable item, at 0 when none are held. `$round` rounds halves away from zero.
   A literal 0 for `passes`, `max_actions` or `max_calls` is an error. A bare-word stage `order` other than
-  `seat`/`random` is an error. `and or not in if else true false null` are refused as type names and entity ids (T-804).
+  `seat`/`random` is an error. `and or not in if else true false null` are refused as type names and entity ids.
 - Random draws come from a stream per piece of logic (where it is written, the round, how often it drew), so the
   same seed gives the same world draws whatever participants choose, and one agent's actions never shift another's
   luck. A refused action gives its draws back, so retrying it in the same turn rolls the same luck. Every example
-  that draws in world logic produces different numbers than before. Snapshot version 3: older snapshots are refused
-  (T-803).
+  that draws in world logic produces different numbers than before. Snapshot version 3: older snapshots are refused.
 - `fg_env.check` plays up to 12 rounds by default (about 2s in total) instead of 1. It also plays every declared
-  policy (T-805).
+  policy.
 
 - Hidden information stays hidden by default. In a simultaneous stage, the default announcement says who acted
   but not the arguments. Agents can inspect only themselves unless a type sets `inspect`. Filtering an entity
   choice by another agent's private property is a check error. A view listing a private property for every entity
-  is now an error rather than a warning. Quoted participant text is shown on one line (T-806).
+  is now an error rather than a warning. Quoted participant text is shown on one line.
 - Deliberation's `end` defaults to `never`: a mechanism ends the run only when the contract asks it to. Two
   mechanisms that generate different entries under one name are an error instead of a silent drop. With more than
-  one card deck, card ids start with the deck name (T-809).
+  one card deck, card ids start with the deck name.
 - Ballot results carry `decided`. `passed` means the first listed option won, so list the "yes" option first. A
   choice that is not on the ballot is refused. Uniform auctions price at the reserve when no bid is rejected, and
-  they sell a short last lot. The order book's default fair value is a random walk at `volatility` (T-811).
+  they sell a short last lot. The order book's default fair value is a random walk at `volatility`.
 - Simultaneous stages without an `order` commit their choices in a seeded random order, not seat order, so no
   seat wins every contested item; set `order: "seat"` for the old behaviour. A sealed choice is checked at submit
   after the agent's own earlier choices in that stage. Resolving all choices together is written in the stage's
-  `on_exit`; the guide shows a sealed bid, a pro-rata split and rock-paper-scissors (T-807).
+  `on_exit`; the guide shows a sealed bid, a pro-rata split and rock-paper-scissors.
 - The template-based kernel is removed: `fg_env.legacy`, every template-engine module (`fg_env.engine`,
   `fg_env.pipeline`, `fg_env.runtime`, `fg_env.domain` and the rest), the `fg-env legacy` command,
   `PhysicsModel.tick`/`from_schema`, and the template docs and scripts. That is about 30k lines of source. Pin
-  `fg-env<0.8` if you still need it (T-814).
+  `fg-env<0.8` if you still need it.
 - `env.snapshot()` works on a run stopped part-way through a round, and `Env.restore` continues it exactly. A
   snapshot taken while a round is actively playing raises. `fg_env.fork` refuses a part-way snapshot. A `wake` with
   `now` runs after the waking action commits; the guide now says so and shows the response-stack pattern for
-  objections that must land before something takes effect (T-808).
+  objections that must land before something takes effect.
 - The top-level API is 31 names: entry points, core types, errors, `list_engines`/`clone_engine`, and the
   `participants`, `analysis`, `rl`, `engines` and `personas` subpackages. Analysis tools (`sweep`, `calibrate`,
   `report`, `behavior_checks`, …) live in `fg_env.analysis`. Game and RL adapters (`game`, `gym`, `pettingzoo_*`,
   `tournament`, `evaluate`, …) live in `fg_env.rl`. `get_engine`/`load_engine` are now `engines.get`/`engines.load`.
   Persona sampling lives in `fg_env.personas`. The old-vocabulary rename hints are replaced by two lookups against
-  the live registry (T-815).
+  the live registry.
 - The thin engine starters now model real behaviour, each with a coded baseline whose outcomes vary by seed.
   Matching uses `groups.matching` (applicant columns changed; `placement_matched` and `first_choice_rate` are new
   outputs). Population answers from a noisy leaning. Deliberation and Legislature move stances by `persuasion`.
   Strategy gains classic strategies (a `strategy` column replaces `cooperative`) and a `mistakes` rate. Contest
   gains `skill` and `luck`, so a run with no judge still has a real winner. A coded policy can pass a list of
-  entities to a list parameter (T-813).
+  entities to a list parameter.
 - The package has one level: `fg_env.sdk.*` modules now live directly in `fg_env`, with checks, expressions,
   contract, CLI and guides as subpackages. Documented deep imports moved: `fg_env.game.algorithms`,
   `fg_env.assets.provide` and `fg_env.host.adapters.historical`. The unused `fg_env.types` module (legacy property
-  schemas) and `Entity.modify` are removed. The public names in `fg_env` and its subpackages are unchanged (T-814).
+  schemas) and `Entity.modify` are removed. The public names in `fg_env` and its subpackages are unchanged.
 - Relation link values and layer cells refuse writes past their min/max, like properties; layer diffusion and
   decay, and the relationships mechanism's `add`, still saturate. A graph edge naming a missing place fails the build.
   A partial stock map lists the other declared items at 0. `defs` read `$records`/`$events` as their caller may see
-  them, which closes a leak where a view could show counts of hidden records (T-820).
+  them, which closes a leak where a view could show counts of hidden records.
 
 ### Added
 - Several deliberation, channels, feed, beliefs or factions mechanisms in one contract. Their functions take an
-  optional trailing mechanism name (T-809).
-- Ballot `weight`, `veto` and `threshold_of: members`; order book `$world.<name>_value` and a `<name>_mid` metric
-  (T-811).
+  optional trailing mechanism name.
+- Ballot `weight`, `veto` and `threshold_of: members`; order book `$world.<name>_value` and a `<name>_mid` metric.
 - `groups.matching`: two-sided stable matching (deferred acceptance) with receiver seats. Auctions gain `reverse`
   (procurement: the lowest offer at or below the reserve wins) and `score` (award to the best price-and-quality
-  score) (T-812).
-- Run diagnostic `policy_rule_never_acted` for a coded policy rule refused every time it was tried (T-820).
+  score).
+- Run diagnostic `policy_rule_never_acted` for a coded policy rule refused every time it was tried.
 - Participant strings `"anthropic:<model>"` and `"openai:<model>"` (CLI `--agent type=anthropic:<model>`), reading
   the key from the environment. A spent token budget now ends the turn in progress. A host answer that cannot be
-  used is asked once more, with a `correction`, before the run fails (T-817).
+  used is asked once more, with a `correction`, before the run fails.
 - `extra=` request fields on `participants.anthropic` / `participants.openai`; `stats.refusals`;
   `stats.faulted_actions`; diagnostics `turns_forfeited`, `host_fallback`, `action_rule_failed` and
-  `action_broke_invariant` (T-800, T-801, T-802).
+  `action_broke_invariant`.
 - `check` reports errors for action names that clash with built-in tools (`look`, `inspect`, `end_turn`) or break
-  provider tool-name rules, and it reports crashes and always-refused rules in declared policies (T-801, T-805).
+  provider tool-name rules, and it reports crashes and always-refused rules in declared policies.
 - `repeat: 0` runs nothing. `max_actions` and `max_calls` accept expressions over `$inputs`. Python keywords such as
-  `def` and `class` work as ids (T-804).
+  `def` and `class` work as ids.
 - Entity parameters whose `where` depends on earlier arguments list their candidates in the tool schema, and random
-  agents fill them correctly (T-805).
+  agents fill them correctly.
 - Engines: Council `outcome`, `final_brier`, `consensus_within`; Negotiation `surplus`; Legislature and Deliberation
   `outcome` (`status_quo` when nothing came to a vote); diffusion option `persistent`; sensible default policies are
-  bound (T-802).
+  bound.
 
 ### Changed
 - `guide("authoring")` is the single start page for an author. It puts faithful implementation first and shows the
   write → check → preview → run loop, one complete worked contract and what to read next. The core `guide()` adds
   the mechanism families and the map of every part. Author-facing text no longer points to `guide("all")`.
   Structural check errors end with `see guide('<section>')`. In the authoring benchmark, authors read about a third
-  less guide text and no session fetched `all` (T-819).
+  less guide text and no session fetched `all`.
 
 - CI runs lint once plus tests on Python 3.11, 3.12 and 3.13 in parallel, and builds, installs and smoke-runs the
   wheel on every PR. mypy checks strict optionals (5 modules exempted, each with its reason). ruff adds bugbear.
-  Goldens keep the first events as readable lines, so a mismatch shows where a run went a different way (T-816).
+  Goldens keep the first events as readable lines, so a mismatch shows where a run went a different way.
 
 ### Fixed
-- Build-time invariant errors no longer repeat their path (T-819).
+- Build-time invariant errors no longer repeat their path.
 - Entity choices and tool schemas are worked out once per world state instead of up to six times per turn: a
-  crowd of 3000 random agents with an entity parameter runs about 3.5x faster; outputs are unchanged (T-810).
-- Stated word counts in text-length hints use one consistent ratio (T-804).
+  crowd of 3000 random agents with an entity parameter runs about 3.5x faster; outputs are unchanged.
+- Stated word counts in text-length hints use one consistent ratio.
 - An example contract with no golden now fails `tests/sdk/test_examples.py` instead of silently writing one. Added
   the missing `weekly_inventory` golden. Regenerated the stale reference docs.
 

@@ -2,13 +2,17 @@
 
 Both are checked at set moments. An invariant's `check` and an end condition's `check` choose how often:
 ``action`` also checks the moment anything commits (an action, a sealed choice, an effect block).
+
+An invariant that asks the same of every member of a type — ``$all(<type>, <condition>)``, alone or joined by ``and``,
+whose condition reads only the member's own properties and ``$inputs`` — is checked after a commit only for the
+members created or changed since it last held, so an action costs the same however large the crowd.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from .errors import InvariantViolation, RunError
-from .expr import ExprError, compile_expr, truthy
+from .expr import EVERYONE, ExprError, Scope, compile_expr, item_conditions, truthy
 from .template import compile_template
 from .world import _plain
 
@@ -42,15 +46,37 @@ class RunChecks:
                 continue
             drawn = world.draws()
             try:
-                holds = truthy(compile_expr(invariant.expr)(scope))
+                holds = self._touched_hold(invariant) if invariant.check == "action" else None
+                if holds is None:
+                    holds = truthy(compile_expr(invariant.expr)(scope))
             except ExprError as exc:
                 raise RunError(str(exc), f"invariants[{index}]") from None
             if not holds:
-                why = f" ({invariant.why})" if invariant.why else ""
-                raise InvariantViolation(f"invariant `{invariant.expr}` no longer holds after {path}{why}",
-                                         f"invariants[{index}]", invariant.why)
+                why = _why(invariant.why, scope, f"invariants[{index}].why")
+                raise InvariantViolation(f"invariant `{invariant.expr}` no longer holds after {path}"
+                                         f"{f' ({why})' if why else ''}", f"invariants[{index}]", why)
             fresh = world.draws() == drawn and world.state_version() == state
             self._invariant_held[index] = state if fresh else None
+        if moment in _INVARIANT_MOMENTS["action"]:  # every action invariant was due, and holds
+            world.touched = {}
+
+    def _touched_hold(self: "Env", invariant: Any) -> Optional[bool]:  # type: ignore[misc]
+        """Whether an `$all` invariant over members' own properties holds for every member created or changed since
+        the invariants last held (the rest are as they were then); None when it must be checked whole."""
+        world, touched = self.world, self.world.touched
+        if touched is None:
+            return None
+        terms = item_conditions(invariant.expr)
+        if not terms or any(word not in self.contract.types for word, _ in terms):
+            return None
+        for word, condition in terms:
+            kinds = world.subtypes_of(word)
+            for entity_id in touched:
+                entity = world.entities.get(entity_id)
+                if entity is not None and entity.alive and entity.entity_type in kinds \
+                        and not truthy(condition(world.scope(it=entity))):
+                    return False
+        return True
 
     def _check_end(self: "Env", moment: str = "stage") -> None:  # type: ignore[misc]
         """Request the end of the run when an end condition holds. ``moment`` is ``stage`` (the round's set
@@ -73,3 +99,14 @@ class RunChecks:
                 raise RunError(str(exc), path) from None
             world.request_end(end.name or f"end_{index}", winner, text)
             return
+
+
+def _why(template: str, scope: Scope, path: str) -> str:
+    """An invariant's `why`, rendered: the agent whose action broke it is told, so it may read no agent's private
+    property (whose action it is, the invariant does not know)."""
+    if not template:
+        return ""
+    try:
+        return compile_template(template, None).render(scope.child(viewer=EVERYONE))
+    except ExprError as exc:
+        raise RunError(str(exc), path) from None

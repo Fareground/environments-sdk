@@ -30,9 +30,9 @@ transitions, stopping conditions, and measurements. The runtime builds the world
 agent an appropriate view and typed tools, applies actions atomically, and returns typed outputs.
 
 Use this SDK when you need to simulate people interacting under explicit rules and run the same
-scenario repeatedly. Start from one of twelve reusable behavioral engines—Market, Council,
-Dispute, Exchange, Legislature, Contest, Deliberation, Negotiation, Population, Network,
-Matching, or Strategy—then customize the topic, participants, rules, information, and outcomes.
+scenario repeatedly. Twelve reusable behavioral engines—Market, Council, Dispute, Exchange,
+Legislature, Contest, Deliberation, Negotiation, Population, Network, Matching and Strategy—can be
+cloned as a starting point, then customized: topic, participants, rules, information and outcomes.
 
 Do not treat an engine as a finished scenario. Engines provide interaction mechanics; your
 environment supplies the real-world question and assumptions. Named Arena games and physical,
@@ -75,26 +75,7 @@ Python 3.11 or newer is required. The only runtime dependency is `pydantic`.
 
 ## Quickstart
 
-Describe the environment in plain language and let a model build it with the SDK's own tools:
-
-<!-- not run: needs a model API key -->
-```bash
-python -m pip install anthropic         # or openai
-export ANTHROPIC_API_KEY=...
-fg-env author "A corner shop orders stock every Monday; customers buy what is on the shelf. Report weekly cash." \
-  --model anthropic:claude-sonnet-4-5 --out shop.json
-fg-env preview shop.json <agent id>     # what each agent reads
-fg-env run shop.json --seed 1
-```
-
-The model writes, checks, previews and runs the contract until it works; the saved contract is the latest one that
-checks clean and runs (a long simulation is tested as far as a minute of runs reaches, and the summary says how
-far), written to `--out` as soon as it works, so stopping early keeps it. `--model openai:<model>` uses
-`OPENAI_API_KEY`; OpenRouter or any OpenAI-compatible server works through it by also setting `OPENAI_BASE_URL` (for
-OpenRouter, `https://openrouter.ai/api/v1` with the OpenRouter key as `OPENAI_API_KEY`). From Python:
-`fg_env.author(brief, "anthropic:<model>", out="shop.json")`.
-
-To write the contract yourself: for a business walkthrough, start with [weekly inventory](docs/sdk/getting-started.md), including exact expected outputs. The following small contract illustrates the basic API:
+A complete environment, ready to paste — two players betting coins:
 
 ```python
 import fg_env
@@ -114,45 +95,38 @@ result = fg_env.run(contract, seed=1)  # random agents; same seed, same run
 print(result.outputs)                  # typed, per the contract
 ```
 
-## Start from a reusable engine
-
-Discover a versioned engine, clone its starter, then customize the contract:
-
-```python
-import fg_env
-
-for engine in fg_env.list_engines():
-    print(engine.id, engine.status, engine.available)
-
-fg_env.clone_engine("market", "my_market.json", name="My market study")  # overwrite=True to clone it again
-# A quick first look: 2 runs of each arm over 40 sampled households. More runs give tighter intervals.
-result = fg_env.experiment("my_market.json", runs=2, participants="random", inputs={"sample_size": 40})
-print(result.table())
-```
-
-The catalog contains reusable behavioral engines only—not finished environments,
-scenario presets, or Arena games. All twelve engines are native, available, and cloneable.
-
-Persona generation is shared infrastructure rather than an environment:
-
-```python
-people = [{"id": f"p{i}", "region": ["north", "south"][i % 2], "household_id": f"h{i // 3}"} for i in range(300)]
-cohort = fg_env.personas.sample_records(
-    people, size=100, seed=7, run=0, resample=True,
-    constraints={"region": "north"}, group_by="household_id",
-    source="survey-2026",
-)
-```
-
-See [engine starters and persona sampling](docs/sdk/engines.md).
-
-Or start from a template and read the short core guide:
+**Start here:** `fg-env guide authoring` (or `fg_env.guide("authoring")`). It is one page: a complete worked
+contract, the write → check → preview → run loop, the core language and a known-answer test. It is also the page to
+give an authoring agent as its starting context. Everything else is reference that page points to.
 
 ```bash
-fg-env new game my_game.json    # blank, game, market, simulation or social — checks clean and runs
-fg-env check my_game.json       # static checks, then plays up to 12 rounds with random agents
-fg-env guide                    # the core guide; it maps every other part: fg-env guide actions, fg-env guide market.auction
+fg-env guide authoring
 ```
+
+Or let a model write the contract from a plain-language description, with the same loop:
+
+<!-- not run: needs a model API key -->
+```bash
+python -m pip install anthropic         # or openai
+export ANTHROPIC_API_KEY=...
+fg-env author "A corner shop orders stock every Monday; customers buy what is on the shelf. Report weekly cash." \
+  --model anthropic:claude-sonnet-4-5 --out shop.json
+fg-env preview shop.json <agent id>     # what each agent reads
+fg-env run shop.json --seed 1
+```
+
+The model writes, checks, previews and runs the contract until it works; the saved contract is the latest one that
+checks without errors and plays soundly with random, idle and edge-value agents on many seeds (a long simulation is
+tested as far as a minute of runs reaches, and the summary says how far), written to `--out` as soon as it works, so
+stopping early keeps it. The summary names anything a later revision removed; when nothing works, the draft is
+written beside `--out` as `<name>.not-working.json`. `--model openai:<model>` uses
+`OPENAI_API_KEY`; OpenRouter or any OpenAI-compatible server works through it by also setting `OPENAI_BASE_URL` (for
+OpenRouter, `https://openrouter.ai/api/v1` with the OpenRouter key as `OPENAI_API_KEY`). From Python:
+`fg_env.author(brief, "anthropic:<model>", out="shop.json")`.
+
+A business walkthrough with exact expected outputs is in [weekly inventory](docs/sdk/getting-started.md).
+
+## Agents on their turn
 
 What an agent receives on its turn:
 
@@ -187,6 +161,39 @@ def cautious(wake):
 fg_env.run(contract, {"ann": cautious, "bob": claude}, seed=1)
 ```
 
+## Reusable engines
+
+To model people interacting at scale, clone a versioned engine's starter and customize the contract:
+
+```python
+import fg_env
+
+for engine in fg_env.list_engines():
+    print(engine.id, engine.status, engine.available)
+
+fg_env.clone_engine("market", "my_market.json", name="My market study")  # overwrite=True to clone it again
+# A quick first look: 2 runs of each arm, two weeks over 80 sampled households (the fewest the market takes).
+# More runs give tighter intervals.
+result = fg_env.experiment("my_market.json", runs=2, participants="random", inputs={"sample_size": 80, "days": 14})
+print(result.table())
+```
+
+The catalog contains reusable behavioral engines only—not finished environments,
+scenario presets, or Arena games. All twelve engines are native, available, and cloneable.
+
+Persona generation is shared infrastructure rather than an environment:
+
+```python
+people = [{"id": f"p{i}", "region": ["north", "south"][i % 2], "household_id": f"h{i // 3}"} for i in range(300)]
+cohort = fg_env.personas.sample_records(
+    people, size=100, seed=7, run=0, resample=True,
+    constraints={"region": "north"}, group_by="household_id",
+    source="survey-2026",
+)
+```
+
+See [engine starters and persona sampling](docs/sdk/engines.md).
+
 ## The contract
 
 | Section | What it declares |
@@ -212,15 +219,10 @@ One small, strict expression language is used everywhere:
 `$top(offer, [$it.rating, -$it.price], 5)`. Unknown properties and type errors are reported with
 the fix; nothing silently evaluates to zero.
 
-Start with `fg-env guide authoring`: one page with a complete worked contract, the
-write → check → preview → run loop and a known-answer check. Hosts can put
-`fg_env.guide("authoring")` directly in an authoring agent’s starting context.
-Field references are generated from the installed SDK; `fg-env guide` maps the
-full language and `fg-env guide all` prints the complete reference.
+Field references are generated from the installed SDK. `fg-env guide` maps every part:
 
 ```bash
-fg-env guide authoring    # or: python -c 'import fg_env; print(fg_env.guide("authoring"))'
-fg-env guide              # full language map
+fg-env guide              # the map of every part
 fg-env guide stages       # one section's fields and the $roots available there
 fg-env guide market       # a mechanism family; fg-env guide market.auction for one mode
 ```
@@ -229,6 +231,7 @@ fg-env guide market       # a mechanism family; fg-env guide market.auction for 
 
 <!-- not run: shop.json stands for your own contract -->
 ```bash
+fg-env new market shop.json               # a ready-to-run start: blank, game, market, simulation or social
 fg-env check shop.json                    # every problem with its path and a fix, then plays it with random agents and each policy
 fg-env expand shop.json --mechanisms       # the contract with every mechanism expanded into plain sections
 fg-env preview shop.json shopper_1        # exactly what that agent reads, its tools, token estimates

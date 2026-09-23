@@ -166,14 +166,16 @@ def test_claims_that_the_contract_contradicts_are_errors_and_unverifiable_ones_w
     assert by_path["game.colour"].severity == "warning"
 
 
-def test_cli_describe_and_info(tmp_path, capsys):
+def test_cli_describe_and_its_metadata(tmp_path, capsys):
     path = tmp_path / "nim.json"
     path.write_text(json.dumps(NIM))
     assert main(["describe", str(path)]) == 0
     assert capsys.readouterr().out.startswith("# Nim — ODD description")
-    assert main(["info", str(path)]) == 0
+    assert main(["describe", str(path), "--metadata"]) == 0
     out = capsys.readouterr().out
     assert "information: perfect" in out and "action space: finite, 3 distinct actions" in out
-    assert main(["info", str(path), "--json"]) == 0
+    assert main(["describe", str(path), "--metadata", "--json"]) == 0
     assert json.loads(capsys.readouterr().out)["dynamics"] == "sequential"
+    assert main(["describe", str(path), "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["metadata"]["dynamics"] == "sequential"
     assert main(["describe", str(tmp_path / "missing.json")]) == 1

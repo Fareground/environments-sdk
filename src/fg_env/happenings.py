@@ -157,6 +157,7 @@ class Happenings:
                     continue
                 if trigger.once:
                     env._triggers_fired.add(index)
+                env._check_invariants(path)  # a trigger never acts on a broken world (an `each` item checks late)
                 env._atomic(trigger.do, {}, f"{where}.do")
                 if trigger.say:
                     try:

@@ -72,8 +72,6 @@ class Waiting:
 class _Seat:
     """The participant of a controlled agent: its turn waits, step by step, until the caller has ended it."""
 
-    concurrent = False
-
     def steps(self, turn: "Turn") -> Iterator[object]:
         env: SteppedEnv = turn.env  # type: ignore[assignment]
         waiting = _driving(env)._waiting

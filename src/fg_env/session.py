@@ -86,9 +86,11 @@ class Wake:
     @property
     def me(self) -> Dict[str, Any]:
         """A copy of this agent's own properties plus ``id``, ``name``, ``type`` and ``at``: changing it changes nothing
-        in the world."""
+        in the world. Read under the run's lock, so it never catches another agent's sealed choices being tried."""
         actor = self._turn.actor
-        return {**_copy(dict(actor.properties)), "id": actor.id, "name": actor.name, "type": actor.entity_type, "at": actor.location_id}
+        with self._turn.env._lock:
+            return {**_copy(dict(actor.properties)), "id": actor.id, "name": actor.name, "type": actor.entity_type,
+                    "at": actor.location_id}
 
     # -- what the agent reads ---------------------------------------------------
 
@@ -190,17 +192,21 @@ class Wake:
 
     def record_usage(self, *, llm_calls: int = 0, input_tokens: int = 0, output_tokens: int = 0,
                      cache_read_tokens: int = 0, cache_write_tokens: int = 0, llm_retries: int = 0,
-                     forfeits: int = 0, truncated: int = 0, refusals: int = 0, out_of_steps: int = 0) -> None:
+                     forfeits: int = 0, truncated: int = 0, refusals: int = 0, out_of_steps: int = 0,
+                     no_tool_replies: int = 0) -> None:
         """Add a model's real usage to the run's statistics (the built-in LLM participants call this). Usage reported
         after the turn is over (it ran out of time) still counts toward the statistics and the budget; usage that
-        spends the run's token budget ends every turn in play (the built-in LLM participants then make no more calls). ``truncated``
-        counts replies cut off at the model's output limit, ``refusals`` replies the provider refused to give,
-        ``out_of_steps`` turns the participant's own call limit ended."""
+        spends the run's token budget ends every turn in play (the built-in LLM participants then make no more calls).
+        ``input_tokens`` are the fresh ones, not read from the provider's prompt cache (``cache_read_tokens``; a token
+        budget counts those at a tenth). ``truncated`` counts replies cut off at the model's output limit,
+        ``refusals`` replies the provider refused to give, ``out_of_steps`` turns the participant's own call limit
+        ended, ``no_tool_replies`` turns the model ended answering in text without a tool call. Each of the last four
+        counts a turn with an action open and none taken as failed."""
         stats = self._turn.stats
         counts = (("llm_calls", llm_calls), ("input_tokens", input_tokens), ("output_tokens", output_tokens),
                   ("cache_read_tokens", cache_read_tokens), ("cache_write_tokens", cache_write_tokens),
                   ("llm_retries", llm_retries), ("forfeits", forfeits), ("truncated", truncated),
-                  ("refusals", refusals), ("out_of_steps", out_of_steps))
+                  ("refusals", refusals), ("out_of_steps", out_of_steps), ("no_tool_replies", no_tool_replies))
         for name, value in counts:
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
                 raise ValueError(f"{name} must be a whole number ≥ 0, got {value!r}")

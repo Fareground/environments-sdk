@@ -921,7 +921,7 @@
       "type": "int"
     },
     "mean_compliance_in_lockdown": {
-      "expr": "$round($avg($filter($series.compliance, $it > 0), $it), 3) if $world.lockdown_days > 0 else 0",
+      "expr": "$round($avg($filter($series.compliance, $it > 0), $it), 3) if $world.lockdown_days > 0 and $max($series.compliance) > 0 else 0",
       "type": "number"
     },
     "superspreader_events": {

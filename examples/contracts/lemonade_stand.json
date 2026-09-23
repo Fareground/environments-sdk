@@ -1,5 +1,6 @@
 {
   "name": "Lemonade stand",
+  "description": "Two stands set a price every hour at the same time; 40 customers split between them in proportion to how cheap each is.",
   "brief": {
     "situation": "Two kids sell lemonade on a hot day.",
     "rules": "Set your price each round. Cheaper stands get more customers."

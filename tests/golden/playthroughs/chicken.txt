@@ -15,7 +15,7 @@ Returns between: -10 and 1
   | 
   | ## You
   | You are A (player, id a).
-  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+  | Act only through your tools. Your turn ends when you take a final action.
 
 ## Brief of seat 1 (b)
   | # Chicken
@@ -26,7 +26,7 @@ Returns between: -10 and 1
   | 
   | ## You
   | You are B (player, id b).
-  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+  | Act only through your tools. Your turn ends when you take a final action.
 
 # State 0
 Current player: simultaneous 0, 1
@@ -35,10 +35,10 @@ Legal calls of seat 1: [1] drive(move=swerve); [2] drive(move=straight)
 Seat 0 (a) reads:
   | Round 1 of 1 · drive
   | Now: Everyone chooses at the same time.
-Seat 0 information state: d43ddbf219075ff1
+Seat 0 information state: 14fd2355cc8e3730
 Seat 1 (b) reads:
   | Round 1 of 1 · drive
-Seat 1 information state: 1771e67439ac34c4
+Seat 1 information state: 2eb83081f0c654cb
 Returns: [0, 0]
 Chosen: seat 0: drive(move=swerve); seat 1: drive(move=straight)
 Step: {"joint": {"0": {"args": {"move": "swerve"}, "tool": "drive"}, "1": {"args": {"move": "straight"}, "tool": "drive"}}}

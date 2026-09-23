@@ -1,8 +1,9 @@
 """Run budgets: one run's cap on model tokens, tool calls, host calls and wall-clock seconds.
 
 ``env.run(participants, budget={"tokens": 200_000, "calls": 500, "host_calls": 50, "seconds": 600,
-"on_exhaust": "end"})``. The counts are the ones the run already keeps: ``tokens`` are the input and
-output tokens participants report (the built-in LLM participants, or ``wake.record_usage``), ``calls``
+"on_exhaust": "end"})``. The counts are the ones the run already keeps: ``tokens`` are the model tokens
+participants and hosts report (the built-in LLM participants, or ``wake.record_usage``) — input, output and cache
+writes in full, cache reads at :data:`CACHED_WEIGHT` of one, as providers bill them — ``calls``
 the agents' tool calls, ``host_calls`` the host answers on the run's tape (live or replayed; a declared
 fallback costs nothing), ``seconds`` the wall-clock time spent inside ``run``.
 
@@ -10,8 +11,9 @@ A budget is checked at the run's safe points — before every round, stage, pass
 so, for coded participants, the run stops at the same point on every replay (``seconds`` is wall-clock
 time, so it is the one limit that is not deterministic). ``tokens`` is also checked each time a participant
 reports usage, counting the turns still in play: once it is reached, every turn in play ends there (calls
-made after that are refused), so a simultaneous stage of LLM agents overshoots it by at most the model
-calls already under way. Once a limit is reached, ``on_exhaust: "end"`` ends the run there (``ended_by:
+made after that are refused). The built-in LLM participants also hold back a model call while the calls already
+under way may spend what is left (each reserves what the participant's previous call used; its first call, of unknown
+cost, runs alone), so parallel turns overshoot the limit by about one call, not one call per turn in flight. Once a limit is reached, ``on_exhaust: "end"`` ends the run there (``ended_by:
 "budget"``, outputs computed as for any ended run) and ``"idle"`` keeps the world running while every
 agent's later turns are idle.
 ``result.budget`` reports the limits, what was used and which limit ran out; snapshots carry it.
@@ -34,12 +36,23 @@ if TYPE_CHECKING:
     from .runtime import Env
     from .turn import Turn
 
-__all__ = ["Budget", "LIMITS", "ON_EXHAUST", "is_seconds"]
+__all__ = ["Budget", "LIMITS", "ON_EXHAUST", "CACHED_WEIGHT", "is_seconds", "tokens_of"]
 
 #: Every limit a budget may set, in the order they are checked.
 LIMITS = ("tokens", "calls", "host_calls", "seconds")
 ON_EXHAUST = ("end", "idle")
 _WHAT = {"tokens": "token", "calls": "tool call", "host_calls": "host call", "seconds": "time"}
+#: What an input token read from the provider's prompt cache counts for in a token budget: providers bill it at a small
+#: fraction of a fresh one (a tenth on Anthropic, a tenth to a half on OpenAI-compatible servers). A cache write counts
+#: in full.
+CACHED_WEIGHT = 0.1
+
+
+def tokens_of(stats: Any) -> int:
+    """The tokens ``stats`` (a :class:`~fg_env.measure.Stats`) spend toward a token budget: fresh input, output and
+    cache writes in full, cache reads at :data:`CACHED_WEIGHT`."""
+    return math.ceil(stats.input_tokens + stats.output_tokens + stats.cache_write_tokens
+                     + stats.cache_read_tokens * CACHED_WEIGHT)
 
 
 def is_seconds(value: Any) -> bool:
@@ -57,6 +70,8 @@ class Budget:
         #: Wall-clock seconds spent running, up to the last safe point.
         self.seconds = 0.0
         self._mark: Optional[float] = None
+        #: Tokens held for the model calls under way (:meth:`reserve`).
+        self._reserved = 0.0
 
     @classmethod
     def parse(cls, value: Any) -> "Budget":
@@ -105,19 +120,54 @@ class Budget:
 
         tape = env.world.props.get(TAPE)
         entries = tape.values() if isinstance(tape, Mapping) else ()
-        return {"tokens": env.stats.input_tokens + env.stats.output_tokens, "calls": env.stats.calls,
+        return {"tokens": tokens_of(env.stats), "calls": env.stats.calls,
                 "host_calls": sum(1 for entry in entries if isinstance(entry, Mapping) and not entry.get("fallback")),
                 "seconds": round(self.seconds, 3)}
 
     def tokens_spent(self, env: "Env", turn: "Turn") -> bool:
         """Whether the token limit is reached counting the turns still in play (``turn``, and in a simultaneous stage
         all of its turns), whose usage joins the run's totals only when they finish (call under the run's lock)."""
+        return self.tokens_left(env, turn) <= 0
+
+    def tokens_left(self, env: "Env", turn: "Turn") -> float:
+        """The tokens left before the limit, counting the turns still in play (``turn``, and in a simultaneous stage all
+        of its turns), whose usage joins the run's totals only when they finish (call under the run's lock)."""
         limit = self.limits.get("tokens")
         if limit is None:
-            return False
+            return math.inf
         playing = {id(t): t for t in (*env.origin.staged, turn) if not t.tallied}
-        used = env.stats.input_tokens + env.stats.output_tokens
-        return used + sum(t.stats.input_tokens + t.stats.output_tokens for t in playing.values()) >= limit
+        return limit - tokens_of(env.stats) - sum(tokens_of(t.stats) for t in playing.values())
+
+    def reserve(self, env: "Env", turn: "Turn", tokens: Optional[int]) -> Optional[float]:
+        """Hold ``tokens`` of the token limit for a model call ``turn`` is about to make — None when its cost is not
+        known yet, which holds all that is left, so the calls in parallel wait for one measured call — waiting while
+        the calls already under way may spend what is left. Returns what was held, to :meth:`release` once the call's
+        usage is recorded, or None when the turn is over first (the limit ran out, or its time did). A call waits only
+        for others, so a limit is overshot by about one call."""
+        if "tokens" not in self.limits:
+            return 0
+        signal = env._signal
+        with signal:
+            while not turn.done:
+                left = self.tokens_left(env, turn)
+                if left <= 0:
+                    return None
+                held = left if tokens is None else tokens
+                if not self._reserved or held <= left - self._reserved:
+                    self._reserved += held
+                    return held
+                time_left = turn.time_left()
+                if time_left is not None and time_left <= 0:
+                    return None
+                signal.wait(time_left)
+            return None
+
+    def release(self, env: "Env", held: float) -> None:
+        """Give back what :meth:`reserve` held for a call that has finished."""
+        if held:
+            with env._signal:
+                self._reserved -= held
+                env._signal.notify_all()
 
     def check(self, env: "Env") -> Optional[str]:
         """The limit that has run out (recorded the first time one does), or None. Called at safe points: the

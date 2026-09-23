@@ -33,7 +33,7 @@ class WorldChecks:
     def _inputs(self: "_Checker") -> None:  # type: ignore[misc]
         def visit(spec: C.InputSpec, path: str) -> None:
             if spec.type not in C.INPUT_TYPES:
-                self.error(f"{path}.type", f"unknown type '{spec.type}'", self._suggest(spec.type, C.INPUT_TYPES))
+                self.error(f"{path}.type", f"unknown type '{spec.type}'", self._suggest_type(spec.type, C.INPUT_TYPES))
                 return
             if spec.type == "enum" and not spec.values:
                 self.error(path, "an enum input needs `values`")
@@ -109,7 +109,7 @@ class WorldChecks:
 
     def _prop_spec(self: "_Checker", spec: C.PropSpec, path: str, roots: Iterable[str], types: Optional[Types] = None) -> None:  # type: ignore[misc]
         if spec.type is not None and spec.type not in C.PROP_TYPES:
-            self.error(f"{path}.type", f"unknown type '{spec.type}'", self._suggest(spec.type, C.PROP_TYPES))
+            self.error(f"{path}.type", f"unknown type '{spec.type}'", self._suggest_type(spec.type, C.PROP_TYPES))
         if spec.type == "enum" and not spec.values:
             self.error(path, "an enum property needs `values`")
         if spec.type is None and isinstance(spec.default, str) and _NUMBER_TEXT.fullmatch(spec.default.strip()):

@@ -4,11 +4,11 @@ from __future__ import annotations
 import json
 import os
 import re
-from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Set, Tuple, Union
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 from ..api import ContractLike, load
 from ..branch import Branch, copy_pilot, fresh_copy
-from ..contract import Contract
+from ..describe.walk import draws
 from ..driving import Unpausable
 from ..errors import ContractError, Issue
 from ..replay import Tape
@@ -72,7 +72,7 @@ class Game:
             lambda env: seat_returns(self.contract, env.world, players_now)
         spec = self.contract.game
         returns = spec.returns if spec is not None else None
-        self._prefetch = self._returns_of if returns is not None and not _draws(self.contract, [returns]) else None
+        self._prefetch = self._returns_of if returns is not None and not draws(self.contract, [returns]) else None
         #: Whether states are stepped on the caller's thread (see :mod:`.runs`), and the stepped run they copy.
         self._stepped = can_step(self)
         self._template: Optional[Stepper] = None
@@ -97,7 +97,7 @@ class Game:
     @property
     def info(self) -> Dict[str, Any]:
         """The game's derived metadata (dynamics, chance, information, players, length, action space; see
-        ``fg-env info``), computed once."""
+        ``fg-env describe --metadata``), computed once."""
         if self._info is None:
             from ..describe.metadata import game_metadata
 
@@ -147,7 +147,7 @@ class Game:
             seats = [text for text in (contract.game.returns, contract.game.seat) if text] if contract.game else []
             measured = [spec.expr for spec in contract.outputs.values()] + seats  # what taking a result evaluates
             self._template = Stepper(env, self.players, self.chance == "explicit", self._prefetch,
-                                     settles=_draws(contract, measured))
+                                     settles=draws(contract, measured))
             self._template.frozen = True
         return self._template
 
@@ -207,24 +207,6 @@ class Game:
 
     def __repr__(self) -> str:
         return f"<Game {self.id}: {self.num_players()} seats, {self.num_distinct_actions()} actions>"
-
-
-def _draws(contract: Contract, texts: Sequence[str]) -> bool:
-    """Whether evaluating any of ``texts`` may draw randomness (a random function, directly or through a def): reading
-    what does not draw changes nothing, so it may be read ahead, or skipped when nobody reads it."""
-    from ..describe.walk import calls, random_functions
-
-    drawing, pending = random_functions(), list(texts)
-    seen: Set[str] = set()
-    while pending:
-        called = calls(pending.pop())
-        if called & drawing:
-            return True
-        for name in called - seen:
-            seen.add(name)
-            if name in contract.defs:
-                pending.append(contract.defs[name].expr)
-    return False
 
 
 def game(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, seed: int = 0, arm: Optional[str] = None,

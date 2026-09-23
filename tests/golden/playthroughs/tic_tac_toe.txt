@@ -1,5 +1,5 @@
 # fg-env playthrough: Tic-tac-toe
-Game: tic_tac_toe@24063d4d:4642e142
+Game: tic_tac_toe@6f35d2a2:4642e142
 Seed: 1
 Seats: 0 x, 1 o
 Dynamics: sequential; chance: deterministic; information: unknown; utility: zero_sum
@@ -14,7 +14,7 @@ Action space: 10 ids
   | 
   | ## You
   | You are x (player, id x).
-  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+  | Act only through your tools. Your turn ends when you take a final action.
 
 ## Brief of seat 1 (o)
   | # Tic-tac-toe
@@ -25,7 +25,7 @@ Action space: 10 ids
   | 
   | ## You
   | You are o (player, id o).
-  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+  | Act only through your tools. Your turn ends when you take a final action.
 
 # State 0
 Current player: 0
@@ -38,7 +38,7 @@ Seat 0 (x) reads:
   | 0 1 2
   | 3 4 5
   | 6 7 8
-Seat 0 information state: 0bd796edc94a1cd0
+Seat 0 information state: f4a4dc0303e50c44
 Seat 1 (o) reads:
   | Move 1 of 9 · move
   | 
@@ -46,7 +46,7 @@ Seat 1 (o) reads:
   | 0 1 2
   | 3 4 5
   | 6 7 8
-Seat 1 information state: 853b9481d1d17f2d
+Seat 1 information state: 4f499a954d58d3c2
 Returns: [0, 0]
 Chosen: seat 0: mark(cell=8)
 Step: {"args": {"cell": 8}, "seat": 0, "tool": "mark"}
@@ -61,19 +61,19 @@ Seat 0 (x) reads:
   | 0 1 2
   | 3 4 5
   | 6 7 x
-Seat 0 information state: e0220d6f91236c69
+Seat 0 information state: b4ff8e436f1a19ce
 Seat 1 (o) reads:
   | Move 2 of 9 · move
   | Now: It is your turn.
   | 
-  | Since your last turn:
+  | So far:
   | - x: mark (cell=8).
   | 
   | You play o. Board, row by row (an empty cell shows its number):
   | 0 1 2
   | 3 4 5
   | 6 7 x
-Seat 1 information state: 6e7022449aea651b
+Seat 1 information state: e210f9aa995bb21b
 Returns: [0, 0]
 Chosen: seat 1: mark(cell=0)
 Step: {"args": {"cell": 0}, "seat": 1, "tool": "mark"}
@@ -92,7 +92,7 @@ Seat 0 (x) reads:
   | o 1 2
   | 3 4 5
   | 6 7 x
-Seat 0 information state: 2be8c5d546029c99
+Seat 0 information state: 991188b8f0790a71
 Seat 1 (o) reads:
   | Move 3 of 9 · move
   | 
@@ -100,7 +100,7 @@ Seat 1 (o) reads:
   | o 1 2
   | 3 4 5
   | 6 7 x
-Seat 1 information state: ea9e6a968b32680b
+Seat 1 information state: 055fc716110bad98
 Returns: [0, 0]
 Chosen: seat 0: mark(cell=3)
 Step: {"args": {"cell": 3}, "seat": 0, "tool": "mark"}
@@ -115,7 +115,7 @@ Seat 0 (x) reads:
   | o 1 2
   | x 4 5
   | 6 7 x
-Seat 0 information state: ae7e863c096b9869
+Seat 0 information state: f4ac313f3971fda3
 Seat 1 (o) reads:
   | Move 4 of 9 · move
   | Now: It is your turn.
@@ -127,7 +127,7 @@ Seat 1 (o) reads:
   | o 1 2
   | x 4 5
   | 6 7 x
-Seat 1 information state: e778c0b56bc40c46
+Seat 1 information state: 5cb23a6b030d8df7
 Returns: [0, 0]
 Chosen: seat 1: mark(cell=5)
 Step: {"args": {"cell": 5}, "seat": 1, "tool": "mark"}
@@ -146,7 +146,7 @@ Seat 0 (x) reads:
   | o 1 2
   | x 4 o
   | 6 7 x
-Seat 0 information state: dbb3a6311eed9121
+Seat 0 information state: a77ac105983f0717
 Seat 1 (o) reads:
   | Move 5 of 9 · move
   | 
@@ -154,7 +154,7 @@ Seat 1 (o) reads:
   | o 1 2
   | x 4 o
   | 6 7 x
-Seat 1 information state: 83829b55af4119df
+Seat 1 information state: ddcca2c3a08c9dec
 Returns: [0, 0]
 Chosen: seat 0: mark(cell=1)
 Step: {"args": {"cell": 1}, "seat": 0, "tool": "mark"}
@@ -169,7 +169,7 @@ Seat 0 (x) reads:
   | o x 2
   | x 4 o
   | 6 7 x
-Seat 0 information state: a96d6afcc7a63c80
+Seat 0 information state: e42a0c3ffb394663
 Seat 1 (o) reads:
   | Move 6 of 9 · move
   | Now: It is your turn.
@@ -181,7 +181,7 @@ Seat 1 (o) reads:
   | o x 2
   | x 4 o
   | 6 7 x
-Seat 1 information state: 0d4575d70650146f
+Seat 1 information state: 88237f0bec655320
 Returns: [0, 0]
 Chosen: seat 1: mark(cell=4)
 Step: {"args": {"cell": 4}, "seat": 1, "tool": "mark"}
@@ -200,7 +200,7 @@ Seat 0 (x) reads:
   | o x 2
   | x o o
   | 6 7 x
-Seat 0 information state: 25ddd4653b33c12b
+Seat 0 information state: 5fccc1236ed89067
 Seat 1 (o) reads:
   | Move 7 of 9 · move
   | 
@@ -208,7 +208,7 @@ Seat 1 (o) reads:
   | o x 2
   | x o o
   | 6 7 x
-Seat 1 information state: 0c7b64085991b8c7
+Seat 1 information state: 0cb6651389e927b5
 Returns: [0, 0]
 Chosen: seat 0: mark(cell=7)
 Step: {"args": {"cell": 7}, "seat": 0, "tool": "mark"}
@@ -223,7 +223,7 @@ Seat 0 (x) reads:
   | o x 2
   | x o o
   | 6 x x
-Seat 0 information state: f275a481c6e082cd
+Seat 0 information state: b0b43046bc767c8c
 Seat 1 (o) reads:
   | Move 8 of 9 · move
   | Now: It is your turn.
@@ -235,7 +235,7 @@ Seat 1 (o) reads:
   | o x 2
   | x o o
   | 6 x x
-Seat 1 information state: 362b60af7290dc5a
+Seat 1 information state: 0d2e658b5a2314e5
 Returns: [0, 0]
 Chosen: seat 1: mark(cell=6)
 Step: {"args": {"cell": 6}, "seat": 1, "tool": "mark"}
@@ -254,7 +254,7 @@ Seat 0 (x) reads:
   | o x 2
   | x o o
   | o x x
-Seat 0 information state: b2b0b561d321ae36
+Seat 0 information state: 07f3267723f1bdf6
 Seat 1 (o) reads:
   | Move 9 of 9 · move
   | 
@@ -262,7 +262,7 @@ Seat 1 (o) reads:
   | o x 2
   | x o o
   | o x x
-Seat 1 information state: 9b607796066f39c6
+Seat 1 information state: dacd093a313d8603
 Returns: [0, 0]
 Chosen: seat 0: mark(cell=2)
 Step: {"args": {"cell": 2}, "seat": 0, "tool": "mark"}

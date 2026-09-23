@@ -1,7 +1,7 @@
 {
-  "actions": 157,
-  "events": 157,
-  "events_sha256": "9818ebe116d96e19c294f7e43de622d2cfca4fe0780c88ec2bbcb96c631bee15",
+  "actions": 158,
+  "events": 158,
+  "events_sha256": "7d5fedd4119ed0c7f185fc1f243506d4e4fe65a33ff95be0a66de626102e7698",
   "first_events": [
     "r1 action seat_1: {\"action\": \"demo_sell\", \"params\": {\"price\": null, \"qty\": 99}, \"private\": true, \"success\": true}",
     "r1 action seat_2: {\"action\": \"demo_sell\", \"params\": {\"price\": null, \"qty\": 100}, \"private\": true, \"success\": true}",
@@ -15,19 +15,19 @@
     "r1 action demo_market_maker_18: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}"
   ],
   "metrics": {
-    "demo_mid": 100.55,
-    "demo_orders": 140,
-    "demo_price": 100.86,
-    "demo_spread": 0.62,
-    "demo_volume": 70908.0,
-    "depth": 75952.0,
+    "demo_mid": 100.515,
+    "demo_orders": 143,
+    "demo_price": 100.9,
+    "demo_spread": 0.77,
+    "demo_volume": 71231.0,
+    "depth": 87009.0,
     "flow_scale": 1,
     "fundamental": 99.66557536,
     "sentiment": 0,
     "size_scale": 1,
-    "spread_bps": 61.66086524
+    "spread_bps": 76.60548177
   },
   "rounds": 4,
   "status": "running",
-  "wakes": 157
+  "wakes": 158
 }

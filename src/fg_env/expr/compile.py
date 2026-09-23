@@ -17,7 +17,7 @@ from .codegen import _FUNC_PREFIX, _LITERAL_NAMES, _ROOT_PREFIX, Codegen
 from .scope import Scope
 from ..syntax_hints import syntax_message
 
-__all__ = ["Expr", "compile_expr"]
+__all__ = ["Expr", "compile_expr", "item_conditions"]
 
 _MAX_SOURCE = 8_192
 _MAX_NODES = 2_048
@@ -212,6 +212,43 @@ def compile_expr(source: str) -> Expr:
                 frozenset(compiler.symbols), frozenset(compiler.paths), frozenset(compiler.calls),
                 frozenset(compiler.item_paths), frozenset(compiler.comparisons),
                 frozenset(compiler.item_comparisons), frozenset(compiler.arity_errors), frozenset(compiler.methods))
+
+
+#: What an item's own condition may read besides ``$it``: nothing that changes while a run plays.
+_FIXED_ROOTS = frozenset({"it", "inputs"})
+#: Entity fields that change without a property write.
+_MOVING_FIELDS = frozenset({"at", "alive"})
+
+
+@lru_cache(maxsize=1_024)
+def item_conditions(source: str) -> Optional[Tuple[Tuple[str, Expr], ...]]:
+    """``$all(<type>, <condition>)``, alone or joined by ``and`` with more like it: each term's type word and its
+    condition as an expression of ``$it``, when every condition reads nothing but its item's own properties and
+    ``$inputs`` — so it can only change for an item whose properties change. None for any other expression (and an
+    invalid one raises as :func:`compile_expr` does)."""
+    compile_expr(source)
+    tree = ast.parse(_preprocess(source.strip()).strip(), mode="eval")
+    _restore_words(list(ast.walk(tree)))
+    body = tree.body
+    terms = body.values if isinstance(body, ast.BoolOp) and isinstance(body.op, ast.And) else [body]
+    found = []
+    for term in terms:
+        if not (isinstance(term, ast.Call) and isinstance(term.func, ast.Name) and term.func.id == f"{_FUNC_PREFIX}all"
+                and len(term.args) == 2 and isinstance(term.args[0], ast.Name)
+                and not term.args[0].id.startswith((_ROOT_PREFIX, _FUNC_PREFIX))):
+            return None
+        nodes = list(ast.walk(term.args[1]))
+        if any(isinstance(node, ast.Subscript) for node in nodes):
+            return None
+        for node in nodes:  # back to the language's spelling: the condition is an expression of its own
+            if isinstance(node, ast.Name) and node.id.startswith(_ROOT_PREFIX):
+                node.id = "$" + node.id[len(_ROOT_PREFIX):]
+        condition = compile_expr(ast.unparse(term.args[1]))
+        if condition.functions or condition.methods or not condition.roots <= _FIXED_ROOTS or any(
+                path[0] == "it" and (len(path) != 2 or path[1] in _MOVING_FIELDS) for path in condition.paths):
+            return None
+        found.append((term.args[0].id, condition))
+    return tuple(found)
 
 
 def _restore_words(nodes: List[ast.AST]) -> None:

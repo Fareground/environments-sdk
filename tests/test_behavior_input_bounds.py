@@ -78,7 +78,7 @@ def test_boundary_checks_find_nested_configured_input_failures_and_preserve_data
     from fg_env.__main__ import main
     path = tmp_path / 'bounds.json'
     path.write_text(json.dumps(c))
-    assert main(['checks', str(path), '--boundaries', '--runs', '1', '--rounds', '2', '--json']) == 1
+    assert main(['playtest', str(path), '--boundaries', '--runs', '1', '--rounds', '2', '--json']) == 1
     payload = json.loads(capsys.readouterr().out)
     assert any(f['code'] == 'input_boundary_failure' for f in payload['findings'])
 

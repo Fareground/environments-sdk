@@ -241,6 +241,11 @@
       ],
       "default": "$inputs.moderation",
       "description": "Current moderation policy."
+    },
+    "exposed_false_share": {
+      "type": "number",
+      "default": 0,
+      "description": "Share of accounts that have had a false post in their feed, as the platform measures it at the end of every hour."
     }
   },
   "types": {
@@ -971,6 +976,13 @@
           }
         }
       ]
+    },
+    {
+      "name": "measure_exposure",
+      "phase": "end",
+      "do": [
+        "$world.exposed_false_share = $pct($count(user, $it.exposed_false), $count(user))"
+      ]
     }
   ],
   "stages": [
@@ -1065,7 +1077,7 @@
     },
     "platform": {
       "for": "moderator",
-      "show": "Policy: {$world.policy}. Accounts exposed to a false claim: {$fmt($metrics.exposed_false_share, 'pct')}."
+      "show": "Policy: {$world.policy}. Accounts exposed to a false claim: {$fmt($world.exposed_false_share, 'pct')}."
     }
   },
   "policies": {
@@ -1144,7 +1156,7 @@
   },
   "metrics": {
     "exposed_false_share": {
-      "expr": "$pct($count(user, $it.exposed_false), $count(user))",
+      "expr": "$world.exposed_false_share",
       "unit": "share"
     },
     "false_reach": "$false_reach()",

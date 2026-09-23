@@ -51,6 +51,8 @@ class Stats:
     refusals: int = 0
     #: Turns an LLM participant ended because it used all its ``max_steps`` model calls.
     out_of_steps: int = 0
+    #: Turns an LLM participant ended because the model still answered without a tool call after it was reminded.
+    no_tool_replies: int = 0
     #: Turns that ran past their time limit.
     timeouts: int = 0
     #: Atomic turns undone because the whole turn was not `valid`.
@@ -59,7 +61,7 @@ class Stats:
     #: ``rejected_actions``): a contract bug, explained in the run's diagnostics.
     faulted_actions: int = 0
     #: Turns that ended with an action available and none taken after the agent's attempts went wrong: invalid or
-    #: refused calls, a model refusal, a reply cut off, its model calls used up.
+    #: refused calls, a model refusal, a reply cut off or with no tool call, its model calls used up.
     failed_turns: int = 0
 
     def add(self, other: "Stats") -> None:

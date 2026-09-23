@@ -15,6 +15,7 @@ from ..registry import MechanismError, mode
 from . import book_functions  # noqa: F401  (registers $book … and the market op's order_book actions)
 from .book_rules import rules_default
 from .common import fmt
+from .econ_base import money_prop
 from .order_book import OrderBookConfig, crowd_type, props_for
 
 _LABELS = {"market_maker": "Market maker", "momentum": "Momentum trader", "mean_reversion": "Mean reverter",
@@ -171,7 +172,7 @@ def _expand_order_book(name: str, cfg: OrderBookConfig, contract: Mapping[str, A
     unit = cfg.instrument or name
     fragment: Dict[str, Any] = {
         "types": {cfg.who: {"props": {
-            cfg.currency: {"type": "number", "default": 0, "description": "Free cash."},
+            **money_prop(contract, cfg.who, cfg.currency, "Free cash."),
             p["shares"]: {"type": qty_type, "default": 0, "description": f"Free {unit} shares."},
             p["reserved_cash"]: {"type": "number", "default": 0, "private": True, "description": f"Cash reserved by resting {unit} buys."},
             p["reserved_shares"]: {"type": qty_type, "default": 0, "private": True, "description": f"Shares reserved by resting {unit} sells."},
@@ -238,7 +239,7 @@ def _expand_order_book(name: str, cfg: OrderBookConfig, contract: Mapping[str, A
     names: List[str] = list(fragment["actions"])
     if cfg.stage is None:
         fragment["stages"] = [{"name": name, "turns": "sequential", "actions": names, "max_actions": cfg.max_actions,
-                               "order": f"0 if $get($it, '{p['strategy']}', '') == 'market_maker' else 1 + $random()",
+                               "order": f"0 if $it.type == '{name}_market_maker' else 1 + $random()",  # a type is public
                                "brief": f"Trade {unit}: buy, sell, cancel, or end your turn."}]
     else:
         fragment["stage_hooks"] = {cfg.stage: {"actions": names, "max_actions": cfg.max_actions}}

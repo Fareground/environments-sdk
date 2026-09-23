@@ -5,7 +5,7 @@
     {
       "id": "market",
       "title": "Market",
-      "description": "Simulates households choosing whether and where to buy each day while sellers set prices, promotions and subscriptions (repricing on demand by default); the sampled households stand for the whole city, so capacities scale with the sample and a bigger sample is a finer estimate of the same market.",
+      "description": "Simulates households choosing each day whether to buy (against making coffee at home, so total demand answers to price) and at which café, while sellers set prices, promotions and subscriptions (coded cafés reprice toward more profit); the sampled households (at least 80) stand for the whole city, so capacities scale with the sample and a bigger sample is a finer estimate of the same market.",
       "status": "native",
       "path": "starters/coffee_market.json"
     },
@@ -19,7 +19,7 @@
     {
       "id": "dispute",
       "title": "Dispute",
-      "description": "Simulates two sides offering (coded counsel lead with their strongest admissible exhibits), objecting to and cross-examining evidence before a judge; jurors weigh the total strength of what was admitted, sway one another in the jury room and vote on liability and damages, re-deliberating until a verdict or a hung jury.",
+      "description": "Simulates two sides offering (coded counsel lead with their strongest exhibits and now and then risk a flawed one), objecting to and cross-examining evidence before a judge; the parties, case, jury and exhibits are inputs; jurors weigh the total strength of what was admitted, sway one another in the jury room and vote on liability and damages, re-deliberating until a verdict or a hung jury.",
       "status": "native",
       "path": "starters/civil_trial.json"
     },
@@ -38,7 +38,7 @@
     {
       "id": "legislature",
       "title": "Legislature",
-      "description": "Simulates a legislative body moving, seconding, debating and voting on a measure (members may amend it; the coded members do not); each floor speech pulls other members' stances toward the speaker's, and the outcome is passed, rejected, or the status quo when nothing comes to a vote.",
+      "description": "Simulates a legislative body moving, seconding, debating and voting on a measure (members may amend it; the coded members do not); each member's view blends their starting stance with the floor speeches so far, their own party's counting more, and the outcome is passed, rejected, or the status quo when nothing comes to a vote.",
       "status": "native",
       "path": "starters/configurable_legislature.json"
     },
@@ -52,14 +52,14 @@
     {
       "id": "deliberation",
       "title": "Deliberation",
-      "description": "Simulates people exchanging reasons, proposing a conclusion (participants may amend it; the coded members do not) and voting; each speech pulls listeners' stances toward the speaker's, and the outcome is passed, rejected, or the status quo when nothing comes to a vote.",
+      "description": "Simulates people exchanging reasons, proposing a conclusion (participants may amend it; the coded members do not) and voting; each member's view blends their starting stance with the speeches so far, and the outcome is passed, rejected, or the status quo when nothing comes to a vote.",
       "status": "native",
       "path": "starters/open_deliberation.json"
     },
     {
       "id": "negotiation",
       "title": "Negotiation",
-      "description": "Simulates two parties exchanging complete multi-issue offers and counteroffers before a deadline; nobody can offer or accept terms worth less to them than their private walk-away value, and each party's surplus is reported; coded parties concede toward the other side as the deadline nears.",
+      "description": "Simulates two parties exchanging complete multi-issue offers and counteroffers before a deadline; nobody can offer or accept terms worth less to them than their private walk-away value, and each party's surplus is reported; coded parties concede toward the other side as the deadline nears, the issues they care least about first.",
       "status": "native",
       "path": "starters/multi_issue_negotiation.json"
     },
@@ -73,7 +73,7 @@
     {
       "id": "network",
       "title": "Network",
-      "description": "Simulates an idea spreading over explicit ties: each round every adopter may convince each contact with a chance of trust times receptivity, so trust and time drive adoption; people may also take up or turn down what they heard, or recommend it; adopters, the seed included, stay committed.",
+      "description": "Simulates an idea spreading over explicit ties from the initial adopters (inputs.seeds): each round every adopter may convince each contact with a chance of trust times receptivity, so trust and time drive adoption; people may also take up or turn down what they heard, or recommend it; adopters, the seed included, stay committed.",
       "status": "native",
       "path": "starters/influence_network.json"
     },

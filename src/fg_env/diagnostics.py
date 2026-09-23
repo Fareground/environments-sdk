@@ -12,6 +12,7 @@ agents that never acted or most of whose turns failed, are reported too: such a 
 from __future__ import annotations
 
 import json
+import math
 import re
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 
@@ -112,12 +113,14 @@ def _never_acted(env: "Env") -> List[Dict[str, str]]:
     if failing:
         out.append(_finding("agents_mostly_failed", "participants",
                             f"most turns of {_named(failing)} ended with no action though one was available, after "
-                            f"invalid or refused calls, a model refusal, a reply cut off or the model calls used up "
+                            f"invalid or refused calls, a model refusal, a reply cut off or with no tool call, or the "
+                            f"model calls used up "
                             f"({', '.join(f'{agent} {s.failed_turns} of {s.wakes}' for agent, s in failing[:_LISTED])}); "
                             f"{_attempts(failing)}; this run does not show how they play",
                             "read what those agents were shown and did (load with exposures=True, then "
                             "result.exposures); for replies cut off, give the participant more `max_tokens`; for model "
-                            "calls used up, more `max_steps` or clearer tools"))
+                            "calls used up, more `max_steps` or clearer tools; for replies with no tool call, a brief "
+                            "and tools that make the choice clear"))
     return out
 
 
@@ -135,7 +138,8 @@ def _attempts(agents: List[Tuple[str, Any]]) -> str:
              "bad arguments)", f"{total('rejected_actions') - total('faulted_actions')} refused by the rules"]
     tried += [f"{total(name)} {label}" for name, label in (("refusals", "model refusal(s)"),
                                                             ("truncated", "reply(ies) cut off at the output limit"),
-                                                            ("out_of_steps", "turn(s) out of model calls"))
+                                                            ("out_of_steps", "turn(s) out of model calls"),
+                                                            ("no_tool_replies", "turn(s) the model answered in text only"))
               if total(name)]
     return ", ".join(tried)
 
@@ -171,7 +175,7 @@ def _finding(code: str, path: str, message: str, fix: str) -> Dict[str, str]:
 
 
 def _most_common(reasons: Dict[str, List[Any]]) -> str:
-    count, text = max(reasons.values(), key=lambda entry: entry[0])
+    count, text = min(reasons.values(), key=lambda entry: (-entry[0], entry[1]))  # ties: the same one every run
     return f"{text.rstrip('.')} ({count}×)"
 
 
@@ -295,7 +299,7 @@ def _stuck_measures(env: "Env", outputs: Dict[str, Any], rules: "_Rules") -> Lis
                                     "set what it reads in an action or event, or read what the rules do change"))
     for name, metric in env.contract.metrics.items():
         series = env.world.series.get(name, [])
-        if len(series) < MIN_ROUNDS or len({json.dumps(v, sort_keys=True, default=str) for v in series}) != 1:
+        if len(series) < MIN_ROUNDS or _changes(series):
             continue
         cause = rules.cause(metric.expr)
         if cause:
@@ -304,6 +308,17 @@ def _stuck_measures(env: "Env", outputs: Dict[str, Any], rules: "_Rules") -> Lis
                                 f"stayed {shown} for all {len(series)} rounds: {cause}",
                                 "set what it reads in an action or event, or read what the rules do change"))
     return out
+
+
+def _changes(series: List[Any]) -> bool:
+    """Whether a metric's values ever differ, as their JSON would (every result of a stepped run asks): plain values
+    are compared directly, anything else by its JSON text."""
+    first = series[0]
+    kind = type(first)
+    if first is None or kind in (str, int, bool) or (kind is float and math.isfinite(first)):
+        return any(type(value) is not kind or value != first for value in series)
+    text = json.dumps(first, sort_keys=True, default=str)
+    return any(json.dumps(value, sort_keys=True, default=str) != text for value in series[1:])
 
 
 class _Rules:

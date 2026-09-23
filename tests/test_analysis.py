@@ -573,7 +573,7 @@ def test_cli_commands(tmp_path, capsys):
     cases.write_text(json.dumps([{"inputs": {"rate": 0.2}, "outcome": False}, {"inputs": {"rate": 0.8}, "outcome": True}]))
     assert _cli(["backtest", str(noisy), "--cases", str(cases), "--output", "high", "--runs", "3"]) == 0
     assert "Brier" in capsys.readouterr().out
-    assert _cli(["checks", str(broken), "--runs", "2"]) == 0
+    assert _cli(["playtest", str(broken), "--runs", "2"]) == 0
     assert "inputs.unused" in capsys.readouterr().out
     assert _cli(["highlights", str(LEMONADE), "--seed", "1", "--narrative"]) == 0
     assert "Results:" in capsys.readouterr().out

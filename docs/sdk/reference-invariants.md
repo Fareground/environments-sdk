@@ -12,5 +12,5 @@ Roots (plus everywhere: $inputs $world $physics $clock $round $stage $metrics $s
 **InvariantSpec** — Must always hold. Broken by an agent's action (with everything its commit sets off), that action is refused and
 undone and the agent told `why`; broken by anything else (events, physics, the build), the run fails.
 - `expr`: text (required)
-- `why`: text
-- `check`: text = "action" — When it is checked: action (after the build, every action and effect block — an `each` event once its last item ran — and every round) | round (after the build and at the end of every round: much cheaper for sums over big crowds) | end (once, when the run finishes).
+- `why`: text — What the agent whose action broke it is told: a template, which may read no agent's private property.
+- `check`: text = "action" — When it is checked: action (after the build, every action and effect block — an `each` event once its last item ran, or before a trigger or reaction an item sets off — and every round; `$all(<type>, <condition>)` over each member's own properties re-checks only the members that changed) | round (after the build and at the end of every round: much cheaper for sums over big crowds) | end (once, when the run finishes).

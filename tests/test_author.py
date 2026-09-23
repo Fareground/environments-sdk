@@ -149,7 +149,10 @@ def test_a_model_that_never_gets_it_working_returns_the_latest_contract_and_its_
 
     assert not result.ok and result.stop == "gave_up" and result.contract == BROKEN
     assert "'bogus' is not a field here" in result.problem and result.usage["calls"] == 4  # sent back twice
-    assert result.summary().startswith("NOT WORKING") and f"fg-env check {out}" in result.summary()
+    # `out` only ever holds a contract that works: this one is written beside it, named for what it is.
+    drafted = tmp_path / "env.not-working.json"
+    assert not out.exists() and json.loads(drafted.read_text()) == BROKEN and result.path == str(drafted)
+    assert result.summary().startswith("NOT WORKING") and f"fg-env check {drafted}" in result.summary()
 
 
 def test_a_provider_error_that_persists_stops_and_keeps_what_works(monkeypatch):

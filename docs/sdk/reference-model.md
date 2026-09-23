@@ -28,6 +28,8 @@ turn, uses `max_actions`, or runs out of `max_calls`.
 * `look` and `inspect` are free reads: up to `max_calls` of them per turn use no call, and one past that is refused
   without spending a call, so an agent can always still act. The same read twice in a turn answers "Unchanged".
 * A stage with `actions: []` wakes nobody: use it as a pure resolution step (`on_enter`/`on_exit`).
+* A stage without `actions` offers every action. When other stages list their own, list this stage's too
+  (check warns otherwise: agents could take another phase's actions here), or write `"actions": "all"`.
 * `must_act: true` removes `end_turn` while an action is available; `on_idle` effects run for each agent
   that ends a turn without acting (`$actor`) — a forfeit or a default move. An agent that could act and did not — in
   a `must_act` stage, or any stage once its calls ran out — is reported as an `idle` event ("Ben did not act.").
@@ -37,13 +39,18 @@ turn, uses `max_actions`, or runs out of `max_calls`.
   `env.run(..., time_limit=30)` covers stages that set none). Past it the turn ends, later calls are
   refused, a `timeout` event is logged and `on_timeout` runs instead of `on_idle`. The agent's update says
   how long it has. A participant that finishes in time plays exactly as it would without a limit.
-* `atomic: true` makes a turn's actions apply together: each applies at once (the agent sees its result),
-  but triggers, reactions and invariants wait until the turn ends. `valid` conditions (`$actor`, `$pending`)
+* `atomic: true` makes a turn's actions apply together: each applies at once (the agent sees its move),
+  but triggers, reactions and invariants wait until the turn ends, and an action's own `outcome` text (and
+  attached files) is shown once the turn commits — an undone turn shows nothing it was not charged for. `valid` conditions (`$actor`, `$pending`)
   are checked when a turn that acted ends; if one fails, every action of the turn is undone, the agent is
   told `why` and plays the turn again (castling through check, a full backgammon move). `valid` makes a
   stage atomic. An action that draws randomness settles the turn so far at once, so later actions cannot
   undo its luck (if `valid` fails then, the turn is undone and over). In a simultaneous stage each agent's
   choices commit or are undone together.
+* Luck never decides whether a call is allowed: `when` requirements and parameters' bounds, defaults, values and
+  `where` may not draw at random (a check error), since a refused call costs nothing and calling again would roll
+  fresh luck. Draw in `do` or `chance`: a call that drew has been played, even when a rule then fails. A view's
+  randomness is fixed for the turn, so looking again shows the same noisy signal (and a preview shows the turn's).
 * Views with `"for": "spectator"` are an omniscient picture for UIs and reports: rendered at the end of
   every round into `result.frames` (the last marked `final`) and on demand by `env.spectate()`, never
   shown to an agent. They have no `$actor`; randomness they draw never changes the run.
@@ -55,11 +62,13 @@ turn, uses `max_actions`, or runs out of `max_calls`.
   inside that change, so a `fail` in a hook refuses it. Entities made at build run on_create once the
   whole world exists, in creation order (`on_create_at_build: false` skips them). `$it` is the entity;
   in on_remove it is already no longer alive. Hooks setting off hooks stop at 16 levels.
-* Invariants are checked after every action and effect block (an `each` event once its last item ran) and after
-  physics: write them for states that must hold at all times, not ones that only settle at the end of a stage. An
+* Invariants are checked after every action and effect block (an `each` event once its last item ran, or before a
+  trigger or reaction an item sets off) and after physics: write them for states that must hold at all times, not
+  ones that only settle at the end of a stage. `$all(<type>, <condition>)` whose condition reads only each member's
+  own properties and `$inputs` re-checks only the members a change touched, so it stays cheap in any crowd. An
   agent's action that breaks one — itself or through the triggers and hooks its commit sets off — is refused and
   undone, and the agent is told the invariant's `why` (give one: without it the agent only hears that a rule would
-  break); the run goes on and its diagnostics count it. A break by anything else (events, physics, the build) fails
+  break; it is a template, which may read no agent's private prop); the run goes on and its diagnostics count it. A break by anything else (events, physics, the build) fails
   the run. `"check": "round"` checks one only at the end of every round (a conservation sum over a big crowd then
   costs one pass a round, not one per change) — a break found then fails the run, whatever caused it;
   `"check": "end"` once, when the run finishes.
@@ -70,14 +79,17 @@ turn, uses `max_actions`, or runs out of `max_calls`.
   `stats.faulted_actions` counts these refusals. Guard such rules (`min`/`max` on the parameter, or a `when` with a
   `why`) so agents are told the limit up front. The same failure in events, world logic or physics fails the run, as
   do a host that fails and a crash in a mechanism's own code, wherever they happen.
-* `end` conditions are checked after the start events, after each stage, and at the end of the round.
+* `end` conditions are checked after the start events, after each stage, and at the end of the round, so
+  `$round == <clock.rounds>` ends the run before the last round plays (check warns): the run ends after its last
+  round by itself; to name a winner then, use an `end` effect in an end-phase event.
   `"check": "action"` also checks one the moment anything commits — an action, a sealed choice, an event or
   hook's effects — so a winning move ends the run before the next agent moves (in any kind of stage; sealed
   choices commit one after another, so later ones are not applied). The `end` effect inside an action does the same.
 
 What an agent reads:
 * brief (static, cacheable): name, situation, rules, its identity and role text.
-* update: time label and stage, why it is acting, "Since your last turn" (announcements of
+* update: time label and stage, why it is acting ("Your turn again." only when it already had a turn in this stage
+  this round), "Since your last turn" ("So far" on its first turn; announcements of
   others' actions, outcomes of its own simultaneous actions, record entries, event news; in a busy round what is
   addressed to it is always shown, then the newest news, then the newest of others' actions, and the rest counted),
   then every declared view that applies. Text written by participants is wrapped «like this».

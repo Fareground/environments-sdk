@@ -1,8 +1,23 @@
 {
   "fg_env": "1",
-  "name": "Harbor Fabrication v. Meridian Logistics (procedure)",
-  "description": "The civil jury trial on the procedure mechanism: openings, direct examination with exhibits, objections and rulings, cross-examination, closings, a sealed jury room where each juror's speech pulls the others' leanings toward the speaker's, secret ballots and a judgment.",
+  "name": "Civil Trial Engine",
+  "description": "A civil jury trial on the procedure mechanism: openings, direct examination with exhibits, objections and rulings, cross-examination, closings, a sealed jury room where each juror's speech pulls the others' leanings toward the speaker's, secret ballots and a judgment. The parties, the case, the jury and each side's exhibits are inputs; coded counsel lead with their strongest exhibits, sometimes risk a flawed one, and object to any the other side offers whose foundation shows a defect.",
   "inputs": {
+    "plaintiff": {
+      "type": "text",
+      "default": "Harbor Fabrication LLC",
+      "description": "The party suing."
+    },
+    "defendant": {
+      "type": "text",
+      "default": "Meridian Logistics Inc.",
+      "description": "The party sued."
+    },
+    "case": {
+      "type": "text",
+      "default": "Harbor built and delivered custom warehouse racking to Meridian under a signed supply agreement. Meridian refused to pay the final installments and terminated the contract, saying the welds were defective and deliveries late. Harbor sues for breach of contract and asks for damages.",
+      "description": "What the dispute is about, as the court and jury hear it."
+    },
     "claimed_damages": {
       "type": "number",
       "default": 480000,
@@ -22,7 +37,7 @@
       "default": 5,
       "min": 4,
       "max": 6,
-      "description": "Jurors who must agree for a verdict (of 6)."
+      "description": "Jurors who must agree for a verdict: more than half of the jury and at most all of it."
     },
     "max_ballots": {
       "type": "int",
@@ -37,15 +52,185 @@
       "min": 0,
       "max": 0.5,
       "description": "Average share of the gap to a speaking juror's lean that each other juror moves per jury-room speech (each draws between 0 and twice this; every juror hears the others each time the jury deliberates); 0 = deliberation changes no coded juror's mind."
+    },
+    "jurors": {
+      "type": "table",
+      "description": "The jury. bias (-1 to 1) is each juror's hidden lean, + toward the plaintiff: the run draws it around this value.",
+      "columns": {
+        "id": "text",
+        "name": "text",
+        "persona": "text",
+        "bias": "number"
+      },
+      "fields": {
+        "bias": {
+          "type": "number",
+          "min": -1,
+          "max": 1,
+          "required": true
+        }
+      },
+      "default": [
+        {
+          "id": "juror_1",
+          "name": "Juror 1",
+          "persona": "Owns a small plumbing business and has been stiffed by a large client before. Believes a signed contract is a promise.",
+          "bias": 0.35
+        },
+        {
+          "id": "juror_2",
+          "name": "Juror 2",
+          "persona": "Warehouse safety inspector for 20 years. Takes structural defects very seriously.",
+          "bias": -0.35
+        },
+        {
+          "id": "juror_3",
+          "name": "Juror 3",
+          "persona": "Retired accountant. Trusts documents and numbers more than stories.",
+          "bias": 0.0
+        },
+        {
+          "id": "juror_4",
+          "name": "Juror 4",
+          "persona": "Middle-school teacher, skeptical of corporations on either side and of lawyers who oversell.",
+          "bias": 0.0
+        },
+        {
+          "id": "juror_5",
+          "name": "Juror 5",
+          "persona": "Procurement manager at a hospital. Has had to cancel vendors who missed deadlines.",
+          "bias": -0.25
+        },
+        {
+          "id": "juror_6",
+          "name": "Juror 6",
+          "persona": "Union welder. Proud of the trade and suspicious of claims that the work was shoddy.",
+          "bias": 0.25
+        }
+      ]
+    },
+    "exhibits": {
+      "type": "table",
+      "description": "Each side's case file. strength (0 to 1) is an exhibit's true probative value, which the run draws around this figure and only its own counsel sees; defect is what a well-founded objection can exclude it for (clean for none), and the foundation should show it.",
+      "columns": {
+        "id": "text",
+        "name": "text",
+        "side": "enum",
+        "summary": "text",
+        "foundation": "text",
+        "strength": "number",
+        "defect": "enum"
+      },
+      "fields": {
+        "side": {
+          "type": "enum",
+          "values": [
+            "plaintiff",
+            "defense"
+          ],
+          "required": true
+        },
+        "strength": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "required": true
+        },
+        "defect": {
+          "type": "enum",
+          "values": [
+            "clean",
+            "hearsay",
+            "authentication",
+            "relevance",
+            "prejudice"
+          ],
+          "required": true
+        }
+      },
+      "default": [
+        {
+          "id": "P1",
+          "name": "P-1 Master Supply Agreement",
+          "side": "plaintiff",
+          "summary": "Signed agreement: Harbor to deliver 40 racking bays in 4 installments; Meridian to pay $120,000 per installment within 30 days; termination only for material, uncured defects after 15 days' written notice.",
+          "foundation": "Original bearing both companies' signatures; Meridian's CFO admitted signing it at deposition.",
+          "strength": 0.85,
+          "defect": "clean"
+        },
+        {
+          "id": "P2",
+          "name": "P-2 Delivery acceptance email",
+          "side": "plaintiff",
+          "summary": "Email from Meridian's operations manager: 'Final bays in, looks great, crew is loading pallets tomorrow.' Sent two days after the last delivery.",
+          "foundation": "Produced from Meridian's own mail server in discovery; the sender is a Meridian employee writing about his job (statement of a party opponent).",
+          "strength": 0.7,
+          "defect": "clean"
+        },
+        {
+          "id": "P3",
+          "name": "P-3 Lost-profits spreadsheet",
+          "side": "plaintiff",
+          "summary": "Spreadsheet totalling $480,000: two unpaid installments plus lost profit on a cancelled follow-on order.",
+          "foundation": "Prepared by Harbor's owner after the lawsuit was filed; the underlying invoices were not produced and no records custodian will testify.",
+          "strength": 0.5,
+          "defect": "authentication"
+        },
+        {
+          "id": "P4",
+          "name": "P-4 Former employee declaration",
+          "side": "plaintiff",
+          "summary": "Written declaration of a former Meridian clerk: she overheard her supervisor say the CFO told him 'find something wrong with the racks so we don't have to pay.'",
+          "foundation": "Unsworn written statement; the declarant is not testifying; she repeats what her supervisor said someone else said.",
+          "strength": 0.75,
+          "defect": "hearsay"
+        },
+        {
+          "id": "D1",
+          "name": "D-1 Independent weld inspection report",
+          "side": "defense",
+          "summary": "Report by a certified structural inspector: 11 of 40 bays have welds below code; recommends load limits until repaired.",
+          "foundation": "Inspector is on the witness list and will authenticate it; inspection done three weeks after the final delivery.",
+          "strength": 0.75,
+          "defect": "clean"
+        },
+        {
+          "id": "D2",
+          "name": "D-2 Delivery log",
+          "side": "defense",
+          "summary": "Meridian dock log showing installments 2 and 3 arrived 9 and 14 days late.",
+          "foundation": "Kept in the ordinary course of business; the dock supervisor will testify to how it is kept.",
+          "strength": 0.45,
+          "defect": "clean"
+        },
+        {
+          "id": "D3",
+          "name": "D-3 Collapsed rack photographs",
+          "side": "defense",
+          "summary": "Graphic photos of a collapsed rack bay with crushed pallets and a damaged forklift.",
+          "foundation": "The collapse was at a different customer's site in another state, two years earlier, with a different rack model.",
+          "strength": 0.2,
+          "defect": "prejudice"
+        },
+        {
+          "id": "D4",
+          "name": "D-4 Online customer reviews",
+          "side": "defense",
+          "summary": "Printouts of anonymous online reviews calling Harbor 'sloppy' and 'always late'.",
+          "foundation": "Anonymous web postings printed by a paralegal; authors unknown; not about this contract.",
+          "strength": 0.3,
+          "defect": "hearsay"
+        }
+      ]
     }
   },
   "brief": {
-    "situation": "Civil jury trial, Superior Court. Harbor Fabrication LLC (plaintiff) built and delivered custom warehouse racking to Meridian Logistics Inc. (defendant) under a signed supply agreement. Meridian refused to pay the final installments and terminated the contract, saying the welds were defective and deliveries late. Harbor sues for breach of contract and asks for damages. The standard is preponderance of the evidence: the plaintiff must show breach is more likely than not.",
+    "situation": "Civil jury trial, Superior Court. {$inputs.plaintiff} (plaintiff) sues {$inputs.defendant} (defendant). {$inputs.case} The standard is preponderance of the evidence: the plaintiff must show breach is more likely than not.",
     "rules": "The trial runs in phases, one court day per round: opening statements; direct examination days, where each side offers one exhibit with a claimed credibility, opposing counsel may object and the judge rules to admit or exclude it (unopposed exhibits are admitted); cross-examination days, where each side may challenge one admitted exhibit of the other side (weak exhibits lose weight, strong ones hold up); closing arguments and jury instructions; deliberation in a closed jury room, then a secret ballot; the verdict and judgment. Only admitted exhibits reach the jury. A verdict needs the required number of matching ballots; otherwise the jury deliberates again, and after the last ballot the judge declares a mistrial.",
     "roles": {
       "attorney": "You are trial counsel. Win for your client: present your strongest admissible evidence, keep damaging or improper evidence out with well-founded objections, and argue persuasively. You know the true strength of your own exhibits; the jury sees only what is admitted, your claimed credibility and your pitch. Overclaiming a weak exhibit can backfire with jurors.",
       "judge": "You are the presiding judge. Be fair and follow the rules of evidence: sustain an objection when the exhibit's foundation actually shows the defect named (hearsay, lack of authentication, irrelevance, or unfair prejudice that outweighs its value); otherwise overrule it. Instruct the jury, and at the end enter judgment. You may reduce (never raise) the jury's damages award if it is not supported.",
-      "juror": "You are a juror. Decide from the admitted evidence, the statements of counsel and the judge's instructions whether Harbor proved Meridian breached the contract, and if so what damages fairly compensate Harbor (up to the amount claimed). Talk it through with the other jurors in the jury room, then vote by secret ballot. Your own background shapes how you read things."
+      "juror": "You are a juror. Decide from the admitted evidence, the statements of counsel and the judge's instructions whether the plaintiff proved the defendant breached the contract, and if so what damages fairly compensate the plaintiff (up to the amount claimed). Talk it through with the other jurors in the jury room, then vote by secret ballot. Your own background shapes how you read things."
     }
   },
   "clock": {
@@ -342,169 +527,51 @@
   "entities": {
     "p_counsel": {
       "type": "attorney",
-      "name": "Dana Ruiz (for Harbor)",
+      "name": "Plaintiff's counsel",
       "props": {
         "side": "plaintiff",
-        "client": "Harbor Fabrication LLC"
+        "client": "$inputs.plaintiff"
       }
     },
     "d_counsel": {
       "type": "attorney",
-      "name": "Marcus Hale (for Meridian)",
+      "name": "Defense counsel",
       "props": {
         "side": "defense",
-        "client": "Meridian Logistics Inc."
+        "client": "$inputs.defendant"
       }
     },
     "judge": {
       "type": "judge",
-      "name": "Judge Eleanor Park"
-    },
-    "juror_1": {
-      "type": "juror",
-      "name": "Juror 1",
-      "props": {
-        "persona": "Owns a small plumbing business and has been stiffed by a large client before. Believes a signed contract is a promise.",
-        "bias": "$clamp($normal(0.35, 0.1), -1, 1)"
-      }
-    },
-    "juror_2": {
-      "type": "juror",
-      "name": "Juror 2",
-      "props": {
-        "persona": "Warehouse safety inspector for 20 years. Takes structural defects very seriously.",
-        "bias": "$clamp($normal(-0.35, 0.1), -1, 1)"
-      }
-    },
-    "juror_3": {
-      "type": "juror",
-      "name": "Juror 3",
-      "props": {
-        "persona": "Retired accountant. Trusts documents and numbers more than stories.",
-        "bias": "$clamp($normal(0, 0.1), -1, 1)"
-      }
-    },
-    "juror_4": {
-      "type": "juror",
-      "name": "Juror 4",
-      "props": {
-        "persona": "Middle-school teacher, skeptical of corporations on either side and of lawyers who oversell.",
-        "bias": "$clamp($normal(0, 0.15), -1, 1)"
-      }
-    },
-    "juror_5": {
-      "type": "juror",
-      "name": "Juror 5",
-      "props": {
-        "persona": "Procurement manager at a hospital. Has had to cancel vendors who missed deadlines.",
-        "bias": "$clamp($normal(-0.25, 0.1), -1, 1)"
-      }
-    },
-    "juror_6": {
-      "type": "juror",
-      "name": "Juror 6",
-      "props": {
-        "persona": "Union welder. Proud of the trade and suspicious of claims that the work was shoddy.",
-        "bias": "$clamp($normal(0.25, 0.1), -1, 1)"
-      }
-    },
-    "P1": {
-      "type": "exhibit",
-      "name": "P-1 Master Supply Agreement",
-      "props": {
-        "side": "plaintiff",
-        "sign": 1,
-        "summary": "Signed agreement: Harbor to deliver 40 racking bays in 4 installments; Meridian to pay $120,000 per installment within 30 days; termination only for material, uncured defects after 15 days' written notice.",
-        "foundation": "Original bearing both companies' signatures; Meridian's CFO admitted signing it at deposition.",
-        "strength": "$clamp($normal(0.85, 0.05), 0, 1)",
-        "defect": "clean"
-      }
-    },
-    "P2": {
-      "type": "exhibit",
-      "name": "P-2 Delivery acceptance email",
-      "props": {
-        "side": "plaintiff",
-        "sign": 1,
-        "summary": "Email from Meridian's operations manager: 'Final bays in, looks great, crew is loading pallets tomorrow.' Sent two days after the last delivery.",
-        "foundation": "Produced from Meridian's own mail server in discovery; the sender is a Meridian employee writing about his job (statement of a party opponent).",
-        "strength": "$clamp($normal(0.7, 0.08), 0, 1)",
-        "defect": "clean"
-      }
-    },
-    "P3": {
-      "type": "exhibit",
-      "name": "P-3 Lost-profits spreadsheet",
-      "props": {
-        "side": "plaintiff",
-        "sign": 1,
-        "summary": "Spreadsheet totalling $480,000: two unpaid installments plus lost profit on a cancelled follow-on order.",
-        "foundation": "Prepared by Harbor's owner after the lawsuit was filed; the underlying invoices were not produced and no records custodian will testify.",
-        "strength": "$clamp($normal(0.5, 0.1), 0, 1)",
-        "defect": "authentication"
-      }
-    },
-    "P4": {
-      "type": "exhibit",
-      "name": "P-4 Former employee declaration",
-      "props": {
-        "side": "plaintiff",
-        "sign": 1,
-        "summary": "Written declaration of a former Meridian clerk: she overheard her supervisor say the CFO told him 'find something wrong with the racks so we don't have to pay.'",
-        "foundation": "Unsworn written statement; the declarant is not testifying; she repeats what her supervisor said someone else said.",
-        "strength": "$clamp($normal(0.75, 0.1), 0, 1)",
-        "defect": "hearsay"
-      }
-    },
-    "D1": {
-      "type": "exhibit",
-      "name": "D-1 Independent weld inspection report",
-      "props": {
-        "side": "defense",
-        "sign": -1,
-        "summary": "Report by a certified structural inspector: 11 of 40 bays have welds below code; recommends load limits until repaired.",
-        "foundation": "Inspector is on the witness list and will authenticate it; inspection done three weeks after the final delivery.",
-        "strength": "$clamp($normal(0.75, 0.08), 0, 1)",
-        "defect": "clean"
-      }
-    },
-    "D2": {
-      "type": "exhibit",
-      "name": "D-2 Delivery log",
-      "props": {
-        "side": "defense",
-        "sign": -1,
-        "summary": "Meridian dock log showing installments 2 and 3 arrived 9 and 14 days late.",
-        "foundation": "Kept in the ordinary course of business; the dock supervisor will testify to how it is kept.",
-        "strength": "$clamp($normal(0.45, 0.08), 0, 1)",
-        "defect": "clean"
-      }
-    },
-    "D3": {
-      "type": "exhibit",
-      "name": "D-3 Collapsed rack photographs",
-      "props": {
-        "side": "defense",
-        "sign": -1,
-        "summary": "Graphic photos of a collapsed rack bay with crushed pallets and a damaged forklift.",
-        "foundation": "The collapse was at a different customer's site in another state, two years earlier, with a different rack model.",
-        "strength": "$clamp($normal(0.2, 0.08), 0, 1)",
-        "defect": "prejudice"
-      }
-    },
-    "D4": {
-      "type": "exhibit",
-      "name": "D-4 Online customer reviews",
-      "props": {
-        "side": "defense",
-        "sign": -1,
-        "summary": "Printouts of anonymous online reviews calling Harbor 'sloppy' and 'always late'.",
-        "foundation": "Anonymous web postings printed by a paralegal; authors unknown; not about this contract.",
-        "strength": "$clamp($normal(0.3, 0.1), 0, 1)",
-        "defect": "hearsay"
-      }
+      "name": "The judge"
     }
   },
+  "population": [
+    {
+      "type": "juror",
+      "from": "$inputs.jurors",
+      "id": "{$row.id}",
+      "name": "{$row.name}",
+      "props": {
+        "persona": "$row.persona",
+        "bias": "$clamp($normal($row.bias, 0.1), -1, 1)"
+      }
+    },
+    {
+      "type": "exhibit",
+      "from": "$inputs.exhibits",
+      "id": "{$row.id}",
+      "name": "{$row.name}",
+      "props": {
+        "side": "$row.side",
+        "sign": "1 if $row.side == plaintiff else -1",
+        "summary": "$row.summary",
+        "foundation": "$row.foundation",
+        "strength": "$clamp($normal($row.strength, 0.08), 0, 1)",
+        "defect": "$row.defect"
+      }
+    }
+  ],
   "records": {
     "transcript": {
       "description": "The open-court record: statements, instructions and rulings.",
@@ -772,7 +839,7 @@
     },
     "cast_ballot": {
       "by": "juror",
-      "description": "Cast your secret ballot. If you find Meridian liable, state the damages you would award (0 up to the amount claimed); if not liable, award is ignored.",
+      "description": "Cast your secret ballot. If you find the defendant liable, state the damages you would award (0 up to the amount claimed); if not liable, award is ignored.",
       "when": [
         {
           "expr": "$actor.vote == undecided",
@@ -810,7 +877,7 @@
           "type": "number",
           "min": 0,
           "max": "$world.jury_award",
-          "description": "Damages awarded to Harbor in dollars (0 on a defense verdict)."
+          "description": "Damages awarded to the plaintiff in dollars (0 on a defense verdict)."
         },
         "reason": {
           "type": "text",
@@ -917,7 +984,7 @@
     "jury_case": {
       "for": "juror",
       "title": "Court",
-      "show": "Amount claimed by Harbor: {$inputs.claimed_damages|money}."
+      "show": "{$inputs.plaintiff} sues {$inputs.defendant}. Amount claimed: {$inputs.claimed_damages|money}."
     },
     "my_role": {
       "for": "attorney",
@@ -984,7 +1051,7 @@
         "deliberation"
       ],
       "title": "Jury room",
-      "show": "Ballots taken so far: {$world.ballots} of {$inputs.max_ballots}. Ready to vote: {$count(juror, $it.ready)} of 6. {$inputs.votes_required} matching ballots make a verdict."
+      "show": "Ballots taken so far: {$world.ballots} of {$inputs.max_ballots}. Ready to vote: {$count(juror, $it.ready)} of {$count(juror)}. {$inputs.votes_required} matching ballots make a verdict."
     }
   },
   "policies": {
@@ -997,12 +1064,12 @@
           }
         },
         {
-          "when": "$count(exhibit, $it.side != $actor.side and $it.status == offered and $it.claim > 0.6) > 0",
+          "when": "$any(exhibit, $it.side != $actor.side and $it.status == offered and $it.defect != clean)",
           "do": "object",
           "with": {
-            "exhibit": "$top(exhibit, $it.claim, 1, $it.side != $actor.side and $it.status == offered)[0]",
-            "grounds": "hearsay",
-            "argument": "The exhibit's foundation does not meet the rules of evidence."
+            "exhibit": "$pick(exhibit, $it.side != $actor.side and $it.status == offered and $it.defect != clean)",
+            "grounds": "$pick(exhibit, $it.side != $actor.side and $it.status == offered and $it.defect != clean).defect",
+            "argument": "The exhibit's own foundation shows the defect."
           }
         },
         {
@@ -1053,7 +1120,7 @@
         {
           "do": "instruct_jury",
           "with": {
-            "instructions": "Harbor must prove by a preponderance of the evidence that Meridian breached the agreement. If so, award damages that fairly compensate Harbor for its proven loss."
+            "instructions": "The plaintiff must prove by a preponderance of the evidence that the defendant breached the agreement. If so, award damages that fairly compensate the plaintiff for its proven loss."
           }
         },
         {
@@ -1072,7 +1139,7 @@
           "when": "$actor.vote == undecided and not $actor.spoke",
           "do": "speak",
           "with": {
-            "text": "'I lean ' + ('toward Harbor.' if $actor.lean > 0 else 'toward Meridian.')"
+            "text": "'I lean toward the ' + ('plaintiff.' if $actor.lean > 0 else 'defense.')"
           }
         },
         {
@@ -1162,6 +1229,10 @@
     {
       "expr": "$world.sustained <= $world.objections",
       "why": "Cannot sustain more objections than were made."
+    },
+    {
+      "expr": "$inputs.votes_required * 2 > $count(juror) and $inputs.votes_required <= $count(juror)",
+      "why": "inputs.votes_required must be more than half of the jurors in inputs.jurors and at most all of them: change either so it is."
     }
   ],
   "defs": {
@@ -1175,8 +1246,8 @@
       "args": [
         "counsel"
       ],
-      "expr": "$top(exhibit, $it.strength - (0 if $it.defect == clean else 1), 1, $it.side == $counsel.side and $it.status == held)[0]",
-      "description": "The exhibit coded counsel offers next: its strongest clean one, and one with a defect only once no clean one is left."
+      "expr": "$top(exhibit, $it.strength - (0 if $it.defect == clean else 0.3) + $normal_for([$it.id, $world.trial_round], 0, 0.1), 1, $it.side == $counsel.side and $it.status == held)[0]",
+      "description": "The exhibit coded counsel offer next: their strongest by their own read of it that day, a flawed one marked down for the risk of exclusion, so they lead with clean exhibits and now and then risk a strong flawed one."
     }
   },
   "mechanisms": {
@@ -1356,7 +1427,7 @@
                 "cast_ballot"
               ],
               "turns": "simultaneous",
-              "brief": "Secret ballot {$world.ballots + 1} of {$inputs.max_ballots}. {$inputs.votes_required} of 6 must agree.",
+              "brief": "Secret ballot {$world.ballots + 1} of {$inputs.max_ballots}. {$inputs.votes_required} of {$count(juror)} must agree.",
               "on_exit": [
                 "$world.ballots += 1",
                 "$world.liable_votes = $count(juror, $it.vote == liable)",

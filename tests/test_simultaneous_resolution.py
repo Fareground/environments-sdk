@@ -1,9 +1,9 @@
 """Simultaneous stages are fair: sealed choices commit in a seeded random order (not seat order), a choice is tried at
 submit after the agent's own earlier choices in the stage, and choices that must be resolved together (auctions,
 pro-rata fills) are recorded by the action and resolved in the stage's `on_exit`."""
+import threading
 import time
 from collections import Counter
-
 
 import fg_env
 
@@ -165,6 +165,24 @@ def test_the_same_choices_give_the_same_result_however_long_each_agent_takes():
     assert fg_env.run(c, slow("a1"), seed=1).to_dict() == fg_env.run(c, slow("b1"), seed=1).to_dict()
 
 
+def test_the_refusal_a_diagnostic_quotes_does_not_depend_on_which_agent_was_refused_first():
+    c = {"name": "Broke", "clock": {"rounds": 2},
+         "types": {"p": {"agent": True, "props": {"cash": {"type": "number", "default": 0, "min": 0}}}},
+         "entities": {"p0": {"type": "p"}, "p1": {"type": "p"}},
+         "actions": {"spend": {"by": "p", "do": ["$actor.cash -= 1"]}},
+         "stages": [{"name": "s", "turns": "simultaneous"}]}
+
+    def late(who):
+        def play(wake):
+            if wake.entity_id == who:
+                time.sleep(0.05)  # the other agent is refused first
+            wake.call("spend", {})
+            wake.end()
+        return play
+
+    assert fg_env.run(c, late("p0"), seed=1).diagnostics == fg_env.run(c, late("p1"), seed=1).diagnostics
+
+
 def test_how_many_sealed_turns_run_at_once_does_not_change_the_outcome():
     c = {"name": "Conc", "clock": {"rounds": 5}, "world": {"pot": 0, "order": {"type": "list", "default": []}},
          "types": {"p": {"agent": True, "props": {"luck": 0, "cash": 20}}},
@@ -172,5 +190,39 @@ def test_how_many_sealed_turns_run_at_once_does_not_change_the_outcome():
          "actions": {"roll": {"by": "p", "chance": 0.5, "otherwise": ["$actor.cash -= 1"],
                               "do": ["$actor.luck += $randint(1, 100)", "$world.pot += 1", "$world.order += $actor.id"]}},
          "stages": [{"name": "s", "turns": "simultaneous"}], "outputs": {"pot": "$world.pot"}}
-    runs = [fg_env.load(c, seed=9, parallel=n).run({"*": lambda w: w.call("roll", {})}).to_dict() for n in (1, 3, 8)]
+    def roll(wake):
+        wake.call("roll", {})
+    roll.concurrent = True  # sealed turns on worker threads, as many at once as `parallel` allows
+
+    runs = [fg_env.load(c, seed=9, parallel=n).run({"*": roll}).to_dict() for n in (1, 3, 8)]
     assert runs[0] == runs[1] == runs[2]
+
+
+def test_another_agents_sealed_choices_never_show_in_what_an_agent_reads():
+    contract = {
+        "name": "Sealed gifts", "clock": {"rounds": 1},
+        "types": {"p": {"agent": True, "props": {"cash": {"default": 1000, "min": 0}}}},
+        "entities": {"a": {"type": "p"}, "b": {"type": "p"}},
+        "actions": {"give": {"by": "p", "private": True, "params": {
+            "to": {"type": "entity", "of": "p", "where": "$it != $actor"}, "n": {"type": "int", "min": 1, "max": 5}},
+            "do": [{"transfer": "cash", "from": "$actor", "to": "$params.to", "amount": "$params.n"}]}},
+        "stages": [{"name": "s", "turns": "simultaneous", "max_actions": 150, "max_calls": 200}],
+    }
+    seen = set()
+    giving = threading.Event()
+
+    def a(wake):
+        giving.set()
+        for _ in range(150):  # each call tries the next gift against a's earlier sealed ones
+            wake.call("give", {"to": "b", "n": 1})
+        giving.clear()
+
+    def b(wake):
+        giving.wait(5)
+        while giving.is_set():
+            seen.add(wake.me["cash"])
+            seen.update(tool.name for tool in wake.tools)
+
+    a.concurrent = b.concurrent = True  # both turns at once, so b reads while a's choices are being tried
+    fg_env.load(contract, seed=1).run({"a": a, "b": b})
+    assert 1000 in seen and not any(isinstance(cash, int) and cash > 1000 for cash in seen), sorted(map(str, seen))

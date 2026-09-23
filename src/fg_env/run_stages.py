@@ -2,6 +2,7 @@
 hooks and time limits, and committing sealed choices."""
 from __future__ import annotations
 
+import bisect
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from .entity import Entity
@@ -12,7 +13,7 @@ from .build import whole_setting
 from .clock_math import advance_time
 from .contract import MAX_STAGE_PASSES, StageSpec
 from .errors import RunError
-from .expr import ExprError, compile_expr, truthy
+from .expr import EVERYONE, ExprError, PrivateRead, compile_expr, truthy
 from .measure import Stats
 from .run_diagnosis import SealedWrites
 from .run_rounds import _Point, _Steps
@@ -94,10 +95,14 @@ class RunStages:
             if stage.order == "random":
                 self._shuffle(stage, agents)
             elif stage.order is not None and stage.order != "seat":
-                key = compile_expr(stage.order)
-                keyed = [(key(world.scope(it=a, i=i)), i, a) for i, a in enumerate(agents)]
+                key = compile_expr(stage.order)  # every agent sees the order: it may read no agent's private property
+                keyed = [(key(world.scope(it=a, i=i, viewer=EVERYONE)), i, a) for i, a in enumerate(agents)]
                 keyed.sort(key=lambda t: (t[0], t[1]))
                 agents = [a for _, _, a in keyed]
+        except PrivateRead as exc:
+            raise RunError(f"{exc.detail.partition(', and ')[0]}, and every agent sees the turn order, so ordering by "
+                           "it would reveal how the agents rank: order by a property that is not private, or `random`",
+                           f"{path}.order") from None
         except ExprError as exc:
             raise RunError(str(exc), path) from None
         except TypeError:
@@ -132,7 +137,16 @@ class RunStages:
             return requested
         if stage.turns == "simultaneous":
             return "Everyone chooses at the same time."
-        return "It is your turn." if pass_index == 0 else "Your turn again."
+        return "Your turn again." if pass_index and self._turned_here(memory.cursor, stage) else "It is your turn."
+
+    def _turned_here(self: "Env", cursor: int, stage: StageSpec) -> bool:  # type: ignore[misc]
+        """Whether the agent whose last turn ended at log position ``cursor`` had it in this visit of ``stage``: the
+        latest event then was this round's, in this stage."""
+        log = self.world.log
+        at = bisect.bisect_left(log, cursor, key=lambda event: event.seq)
+        if cursor <= 0 or at == len(log) or log[at].seq != cursor:
+            return False
+        return log[at].round == self.world.round and log[at].stage == stage.name
 
     def _sequential(self: "Env", stage: StageSpec, agents: List[Entity], pass_index: int, resumed: bool = False) -> _Steps:  # type: ignore[misc]
         where = self._where

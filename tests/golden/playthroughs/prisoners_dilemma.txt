@@ -15,7 +15,7 @@ Returns between: 0 and 5
   | 
   | ## You
   | You are A (player, id a).
-  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+  | Act only through your tools. Your turn ends when you take a final action.
 
 ## Brief of seat 1 (b)
   | # Prisoner's dilemma
@@ -26,7 +26,7 @@ Returns between: 0 and 5
   | 
   | ## You
   | You are B (player, id b).
-  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+  | Act only through your tools. Your turn ends when you take a final action.
 
 # State 0
 Current player: simultaneous 0, 1
@@ -35,10 +35,10 @@ Legal calls of seat 1: [1] choose(move=cooperate); [2] choose(move=defect)
 Seat 0 (a) reads:
   | Round 1 of 1 · choose
   | Now: Everyone chooses at the same time.
-Seat 0 information state: fb20af01a9323207
+Seat 0 information state: f4dc7ca23bccc66b
 Seat 1 (b) reads:
   | Round 1 of 1 · choose
-Seat 1 information state: fab6a4ba25c685e4
+Seat 1 information state: 43ea8590ca02671d
 Returns: [0, 0]
 Chosen: seat 0: choose(move=cooperate); seat 1: choose(move=defect)
 Step: {"joint": {"0": {"args": {"move": "cooperate"}, "tool": "choose"}, "1": {"args": {"move": "defect"}, "tool": "choose"}}}

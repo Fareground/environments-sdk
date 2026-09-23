@@ -2,16 +2,38 @@
 `$clock` views expressions read."""
 from __future__ import annotations
 
+import re
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, FrozenSet, Iterator, List, Optional, Tuple
 
 from .expr import ExprError
 
 if TYPE_CHECKING:
+    from .contract import Contract
     from .world import SdkWorld
 
-__all__ = ["Entry", "LogEvent", "Journal", "PropsView", "PhysicsView", "ClockView"]
+__all__ = ["Entry", "LogEvent", "Journal", "PropsView", "PhysicsView", "ClockView", "private_metrics"]
+
+_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+
+def private_metrics(contract: "Contract", private: FrozenSet[str]) -> FrozenSet[str]:
+    """The metrics worked out from agents' private properties: those whose expression — or a def or metric it
+    reads — names one (``private``, the names agent types keep private). Read by name, so a metric that only might
+    read one counts too: showing it to agents is refused, and a metric that must be shown reads no private name."""
+    if not private:
+        return frozenset()
+    texts = {name: spec.expr for name, spec in contract.metrics.items()}
+    texts.update({name: spec.expr for name, spec in contract.defs.items() if name not in texts})
+    names = {name: set(_NAME.findall(text)) for name, text in texts.items()}
+    hidden = {name for name, found in names.items() if found & private}
+    grown = True
+    while grown:  # a metric or def reading one that is worked out from private properties is too
+        more = {name for name, found in names.items() if name not in hidden and found & hidden}
+        hidden |= more
+        grown = bool(more)
+    return frozenset(hidden & set(contract.metrics))
 
 
 class Entry(dict):
@@ -28,7 +50,7 @@ class Entry(dict):
         raise ExprError(f"record entry has no field '{name}' (fields: {', '.join(sorted(self))})", source)
 
 
-@dataclass(eq=False)
+@dataclass(eq=False, slots=True)
 class LogEvent:
     """Something that happened, in order. ``to`` None means every agent may learn of it."""
 

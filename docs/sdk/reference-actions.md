@@ -16,7 +16,7 @@ Roots (plus everywhere: $inputs $world $physics $clock $round $stage $metrics $s
 - `by`: text | [text] (required) — Agent type(s) allowed to take it.
 - `description`: text — Tool description the agent reads.
 - `params`: object
-- `when`: [Condition] — Requirements (one or a list). Those over $actor decide whether the tool is offered; those that read $params refuse a call that breaks them, with their `why`.
+- `when`: [Condition] — Requirements (one or a list). Those over $actor decide whether the tool is offered; those that read $params refuse a call that breaks them, with their `why`. They may not draw at random (nor may parameters' bounds, defaults, values or `where`): a refused call costs nothing, so an agent could call again until luck let it through — draw in `do` or `chance`.
 - `chance`: any | text — Probability of success; `do` on success, `otherwise` on failure.
 - `do`: effects — Effects applied atomically.
 - `otherwise`: effects — Effects when the chance roll fails.
@@ -30,7 +30,7 @@ Roots (plus everywhere: $inputs $world $physics $clock $round $stage $metrics $s
 - `tool`: text — Offer this action inside one tool of this name, shared by every action naming it: the agent picks the action with the tool's `action` argument, which lists the ones legal now.
 - `attach`: text — Assets the actor receives with the result (an expression over $actor, $params giving an asset id, a list or null); a sealed choice's arrive with its outcome.
 **ParamSpec** — A tool argument. Shorthand: ``"qty": "int"``.
-- `type`: text = "number" — One of: number, int, bool, text, enum, entity, list, file
+- `type`: text = "number" — One of: number, int, bool, text, enum, entity, list, file (`integer`, `float`, `string` and `boolean` are read as int, number, text and bool)
 - `of`: text — Entity type (type entity).
 - `where`: text — Which entities qualify ($it, $actor, $params for earlier params, $pending).
 - `values`: [any] | text — Allowed values or an expression giving them (type enum).

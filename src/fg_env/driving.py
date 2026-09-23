@@ -35,7 +35,7 @@ if TYPE_CHECKING:
     from .runtime import Env
     from .turn import Turn
 
-__all__ = ["Driver", "is_async", "background_loop", "run_on_worker", "WAITING", "Unpausable"]
+__all__ = ["Driver", "is_async", "runs_concurrently", "background_loop", "run_on_worker", "WAITING", "Unpausable"]
 
 #: What a round yields while a participant that plays in steps waits for a decision (see :mod:`fg_env.stepping`).
 WAITING = object()
@@ -237,7 +237,7 @@ class Driver:
         else:
             played = list(turns)  # a waiting turn was never an auto turn
         chosen = [(turn, self.participant(turn.actor)) for turn in played]
-        concurrent = sum(1 for _, p in chosen if getattr(p, "concurrent", True))
+        concurrent = sum(1 for _, p in chosen if runs_concurrently(p))
         threaded = together and env.parallel > 1 and concurrent > 1
         queue: Deque[Tuple["Turn", Participant, bool]] = deque()
         if together:
@@ -250,7 +250,7 @@ class Driver:
                 if steps is not None:
                     yield from steps(turn)
                     continue
-                alone = not (threaded and getattr(participant, "concurrent", True))
+                alone = not (threaded and runs_concurrently(participant))
                 if turn.time_limit is not None or is_async(participant) or not alone:
                     queue.append((turn, participant, alone))
                     continue
@@ -284,7 +284,7 @@ class Driver:
                 stats = turn.stats
                 stats.idle_turns += 1
                 went_wrong = bool(stats.invalid_calls or stats.rejected_actions or stats.refusals or stats.truncated
-                                  or stats.out_of_steps)
+                                  or stats.out_of_steps or stats.no_tool_replies)
                 had_to = turn.stage.must_act or turn.calls_left <= 0
                 if (went_wrong or had_to) and turn.actor.alive and not turn.timed_out and turn._legal():
                     stats.failed_turns += went_wrong  # an action was there to take
@@ -467,3 +467,10 @@ def _discard(answer: Any) -> None:
     close = getattr(answer, "close", None)
     if inspect.iscoroutine(answer) and callable(close):
         close()  # never awaited: close it so it does not linger
+
+
+def runs_concurrently(participant: Any) -> bool:
+    """Whether a participant's sealed turns may run at the same time as others': async participants and those that say
+    so (``concurrent = True``, as the built-in LLM participants do, which wait on a provider). A plain function runs
+    one turn at a time, so shared state in it (one random generator, a list it appends to) cannot race."""
+    return bool(getattr(participant, "concurrent", is_async(participant)))

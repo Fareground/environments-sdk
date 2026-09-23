@@ -1,5 +1,6 @@
 {
   "name": "Regional rollouts sharing funding and stock",
+  "description": "Two regional rollouts, each a procedure, share one funding pot and one warehouse: a region launches once its managers approve and the money and stock are there.",
   "clock": {
     "rounds": 8
   },

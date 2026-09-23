@@ -198,7 +198,7 @@ class RunRounds:
     def _atomic(self: "Env", effects: List[Any], vars: Dict[str, Any], path: str,  # type: ignore[misc]
                 check: bool = True, owner: Any = None) -> bool:
         """Apply ``effects`` as one undoable block. ``check=False``: one item of a block of world logic whose
-        invariants are checked once it is whole (an `each` event), unless a trigger or reaction would run first.
+        invariants are checked once it is whole (an `each` event), unless a trigger fires or an agent reacts first.
         The block draws from the stream of its path and ``owner`` (default: its $actor), so an entity's luck does not
         shift when others come or go."""
         if not effects:
@@ -229,7 +229,7 @@ class RunRounds:
         return next((s for s in self.contract.stage_list() if s.name == name), None) if name else None
 
     def _after_commit(self: "Env", path: str, check: bool = True) -> None:  # type: ignore[misc]
-        if check or self.contract.triggers or self.world.reactions:
+        if check or self.world.reactions:
             self._check_invariants(path)
         if self._end_on_action:
             self._check_end("action")

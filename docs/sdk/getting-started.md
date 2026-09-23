@@ -7,7 +7,7 @@ For a compact example with editable objects and multiple entities, use
 actual output, and the [authoring workflow](authoring.md) explains how to adapt it.
 
 Prefer to describe it? `fg-env author brief.md --model anthropic:<model>` has a model write, check, preview and
-run the contract for you with the SDK's own tools, and saves the latest version that checks clean and runs
+run the contract for you with the SDK's own tools, and saves the latest version that checks without errors and runs
 (`--model openai:<model>` for OpenAI, or OpenRouter and other OpenAI-compatible servers through `OPENAI_BASE_URL`;
 `fg_env.author(...)` from Python). This page builds one by hand, so you know what it wrote.
 
@@ -23,6 +23,7 @@ Use Python 3.11 or later. Save the following contract as `inventory.json`:
 ```json
 {
   "name": "Weekly inventory decision",
+  "description": "One retailer orders stock each week before a fixed demand arrives, tracking units sold, lost sales and cash.",
   "brief": {
     "situation": "A retailer serves weekly demand from one stock pool.",
     "rules": "Choose a replenishment quantity before demand arrives. Orders arrive immediately in this introductory model."
@@ -148,7 +149,7 @@ fg-env check inventory.json
 fg-env preview inventory.json shop
 ```
 
-`check` validates the contract, then plays it for a few rounds with random agents, with agents that never act (a missed turn must not break the rules) and with each declared policy. `preview` shows the retailer's brief, current information, and available tools. A successful smoke check is an authoring aid; it does not establish the model's business accuracy.
+`check` validates the contract, then plays it for a few rounds with random agents, with agents that choose boundary values (least, zero, greatest), with agents that never act (a missed turn must not break the rules) and with each declared policy. `preview` shows the retailer's brief, current information, and available tools. A successful smoke check is an authoring aid; it does not establish the model's business accuracy.
 
 ## 3. Run a repeatable policy
 

@@ -31,6 +31,7 @@ from ..registry import MechanismError, family_action, mode
 from ..world import Abort
 from ._common import ToolsSetting, tools_field
 from .common import config_of, entity_of, fmt
+from .econ_base import money_prop
 from .ledger import EPS, Account, balance, clean, move
 
 KEY = "market.prediction"
@@ -472,7 +473,7 @@ def _expand_market(name: str, cfg: PredictionMarketConfig, contract: Mapping[str
         },
     }
     fragment: Dict[str, Any] = {
-        "types": {cfg.who: {"props": {cfg.currency: {"type": "number", "default": 0},
+        "types": {cfg.who: {"props": {**money_prop(contract, cfg.who, cfg.currency),
                                           f"{name}_shares": {"type": "map", "default": {}, "private": True}}}},
         "world": {f"{name}_q": {"type": "map", "default": start_q},
                   f"{name}_vault": {"type": "number", "default": subsidy, "description": "Collateral held by the market maker."},

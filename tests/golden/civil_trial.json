@@ -1,25 +1,25 @@
 {
-  "actions": 14,
-  "events": 18,
-  "events_sha256": "1aee8bd40d3be68b9628fabdc3c69531fe98be312a7cefbf07f5a8837d5dd476",
+  "actions": 8,
+  "events": 12,
+  "events_sha256": "bf12b0f13a8f0ab2a556bdf7d1e4b1c3ecdc6f0fc32d16f34962794242ca4fca",
   "first_events": [
-    "r1 action p_counsel: Dana Ruiz (for Harbor) delivered an opening statement.",
-    "r1 action d_counsel: Marcus Hale (for Meridian) delivered an opening statement.",
-    "r2 action p_counsel: Dana Ruiz (for Harbor) offered P-1 Master Supply Agreement into evidence, claiming credibility 98%.",
-    "r2 outcome p_counsel: You offered P-1 Master Supply Agreement (claimed credibility 98%).",
-    "r2 action d_counsel: Marcus Hale (for Meridian) offered D-1 Independent weld inspection report into evidence, claiming credibility 80%.",
+    "r1 action p_counsel: Plaintiff's counsel delivered an opening statement.",
+    "r1 action d_counsel: Defense counsel delivered an opening statement.",
+    "r2 action p_counsel: Plaintiff's counsel offered P-1 Master Supply Agreement into evidence, claiming credibility 100%.",
+    "r2 outcome p_counsel: You offered P-1 Master Supply Agreement (claimed credibility 100%).",
+    "r2 action d_counsel: Defense counsel offered D-1 Independent weld inspection report into evidence, claiming credibility 80%.",
     "r2 outcome d_counsel: You offered D-1 Independent weld inspection report (claimed credibility 80%).",
-    "r2 action p_counsel: Dana Ruiz (for Harbor) objected to D-1 Independent weld inspection report on hearsay grounds.",
-    "r2 action d_counsel: Marcus Hale (for Meridian) objected to P-1 Master Supply Agreement on hearsay grounds.",
-    "r2 action judge: Judge Eleanor Park overruled the objection to P-1 Master Supply Agreement; it is admitted.",
-    "r2 action judge: Judge Eleanor Park overruled the objection to D-1 Independent weld inspection report; it is admitted."
+    "r3 action d_counsel: Defense counsel offered D-2 Delivery log into evidence, claiming credibility 47%.",
+    "r3 outcome d_counsel: You offered D-2 Delivery log (claimed credibility 47%).",
+    "r3 action p_counsel: Plaintiff's counsel offered P-2 Delivery acceptance email into evidence, claiming credibility 79%.",
+    "r3 outcome p_counsel: You offered P-2 Delivery acceptance email (claimed credibility 79%)."
   ],
   "metrics": {
     "admitted": 4,
     "excluded": 0,
-    "net_admitted_strength": 0.5066123372
+    "net_admitted_strength": 0.5266519298
   },
   "rounds": 4,
   "status": "running",
-  "wakes": 14
+  "wakes": 12
 }

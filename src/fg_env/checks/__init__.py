@@ -26,6 +26,7 @@ from .rules import RuleChecks
 from .scans import check_scans
 from .world import WorldChecks
 from ..contract import Contract
+from ..contract.base import TYPE_SYNONYMS
 from .state import check_feeds, check_hooks, check_physics_state, check_relation_fields
 from ..errors import ContractError, Issue
 from ..expr import FUNCTIONS, ExprError, Scope, compile_expr, is_expr
@@ -130,6 +131,15 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
     def _suggest(self, name: str, options: Iterable[str]) -> Optional[str]:
         hint = get_close_matches(name, list(options), n=1)
         return f"did you mean '{hint[0]}'?" if hint else None
+
+    def _suggest_type(self, name: str, options: Iterable[str]) -> str:
+        """A did-you-mean over the type names ``options`` and their common spellings (`string` is text), naming the
+        type as the contract writes it; else the list of types."""
+        options = list(options)
+        spellings = {**{option: option for option in options},
+                     **{word: kind for word, kind in TYPE_SYNONYMS.items() if kind in options}}
+        hint = get_close_matches(name, list(spellings), n=1)
+        return f"did you mean '{spellings[hint[0]]}'?" if hint else f"types: {', '.join(options)}"
 
     def order_setting(self, order: Optional[str], path: str, words: Tuple[str, ...], roots: Iterable[str],
                       types: Optional[Types] = None) -> None:
@@ -423,3 +433,6 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
         check_game(self)
         check_scans(self)
         check_assets(self, BASE)
+        from ..mechanisms import separate_turns
+
+        self.issues.extend(separate_turns(c._source or {}))

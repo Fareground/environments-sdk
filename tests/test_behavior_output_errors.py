@@ -82,10 +82,10 @@ def test_valid_but_unused_input_is_still_an_advisory_warning():
 
 @pytest.mark.parametrize('inputs', [{'sales': 7}, None])
 @pytest.mark.parametrize('as_json', [False, True])
-def test_checks_command_returns_failure_for_baseline_and_perturbed_output_errors(tmp_path, capsys, inputs, as_json):
+def test_playtest_command_returns_failure_for_baseline_and_perturbed_output_errors(tmp_path, capsys, inputs, as_json):
     path = tmp_path / 'demand.json'
     path.write_text(json.dumps(contract()))
-    args = ['checks', str(path), '--runs', '2']
+    args = ['playtest', str(path), '--runs', '2']
     if inputs:
         args += ['--input', 'sales=7']
     if as_json:
@@ -100,8 +100,8 @@ def test_checks_command_returns_failure_for_baseline_and_perturbed_output_errors
         assert 'error: outputs.units:' in output
 
 
-def test_checks_command_keeps_zero_exit_for_valid_deterministic_scenarios(tmp_path, capsys):
+def test_playtest_command_keeps_zero_exit_for_valid_deterministic_scenarios(tmp_path, capsys):
     path = tmp_path / 'demand.json'
     path.write_text(json.dumps(contract('$inputs.sales')))
-    assert main(['checks', str(path), '--runs', '2', '--json']) == 0
+    assert main(['playtest', str(path), '--runs', '2', '--json']) == 0
     assert json.loads(capsys.readouterr().out)['ok']

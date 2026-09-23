@@ -1,44 +1,88 @@
 """The smoke play of :func:`fg_env.check`: the contract built and played with random agents, then with agents that
-never act, then once per declared policy, so problems that only appear with real values — in a later round, in a
-policy's own rules, on a missed turn — are reported like the static ones."""
+choose boundary values (a parameter's least value, zero, its greatest), then with agents that never act, then once
+per declared policy, so problems that only appear with real values — in a later round, at an edge of what a tool
+allows, in a policy's own rules, on a missed turn — are reported like the static ones."""
 from __future__ import annotations
 
+import random
 import time
-from typing import TYPE_CHECKING, Any, Callable, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 from .contract import Contract
+from .diagnostics import MIN_CALLS
 from .errors import Issue
 from .measure import RunResult
-from .participants import PolicyAgent, RandomAgent
+from .participants import PolicyAgent, RandomAgent, _fill_dependent, _seed_for, sample_args
 
 if TYPE_CHECKING:
     from .runtime import Env
 
-__all__ = ["SMOKE_ROUNDS", "smoke_issues", "run_issue"]
+__all__ = ["SMOKE_ROUNDS", "EdgeAgent", "smoke_issues", "run_issue"]
 
 #: Rounds each play lasts when the caller names none (fewer when the run ends sooner).
 SMOKE_ROUNDS = 12
 #: Wall-clock seconds the plays of a default check share; every play still plays its first round.
 _SMOKE_SECONDS = 2.0
+#: Findings of the boundary play that are worth reporting: a rule that fails for an edge value. (Its other findings
+#: say how the edges play, not whether the rules work.)
+_EDGE_FINDINGS = ("action_rule_failed", "action_broke_invariant")
+_EDGES = "agents choosing boundary values"
 
 
 def smoke_issues(contract: Contract, build: Callable[[], "Env"], rounds: Optional[int],
                  seed: int) -> Tuple[List[Issue], List[Issue]]:
     """``(errors, warnings)`` from playing the contract built by ``build``: first with random agents that read
-    everything they are shown, then with every agent idle (as when a model times out or refuses), then with each policy playing the agent types whose default it is, or else the types that can take every action it
-    takes (every other agent plays as in a plain run: its type's policy, or random). ``rounds`` None plays up to :data:`SMOKE_ROUNDS`
-    rounds within a few seconds in all; a number plays exactly that many rounds."""
+    everything they are shown, then with agents that choose boundary values, then with every agent idle (as when a
+    model times out or refuses), then with each policy playing the agent types whose default it is, or else the types
+    that can take every action it takes (every other agent plays as in a plain run: its type's policy, or random).
+    ``rounds`` None plays up to :data:`SMOKE_ROUNDS` rounds within a few seconds in all; a number plays exactly that
+    many rounds. An action that was called in these plays and never once succeeded is reported too."""
     policies = [(name, _players(contract, name)) for name in contract.policies]
     policies = [(name, players) for name, players in policies if players]
-    seconds = _SMOKE_SECONDS / (2 + len(policies)) if rounds is None else None
+    seconds = _SMOKE_SECONDS / (3 + len(policies)) if rounds is None else None
     errors: List[Issue] = []
     warnings: List[Issue] = []
+    played: List["Env"] = []
 
-    random_play = _play(build(), {"*": _reading(RandomAgent(seed))}, rounds, seconds)
+    random_play = _play(_kept(build(), played), {"*": _reading(RandomAgent(seed))}, rounds, seconds)
     _failure(random_play, "random agents", errors)
-    finished = random_play.status in ("completed", "ended")  # its outputs are final, not provisional
-    for problem in random_play.output_issues:
-        message = f"{problem['message']} after {random_play.rounds} smoke round(s)"
+    _outputs(random_play, errors, warnings)
+    _random_findings(random_play, errors, warnings)
+    edge_play = _play(_kept(build(), played), {"*": EdgeAgent(seed)}, rounds, seconds)
+    _failure(edge_play, _EDGES, errors,
+             "an agent may choose any value its tool allows: bound the parameter (min, max, where) to the values the "
+             "rule can handle, or guard the rule for the edge (e.g. `10 / $it.rate if $it.rate > 0 else 0`)")
+    reported = {issue.path for issue in errors + warnings}
+    warnings.extend(Issue(found["path"], f"{found['message']} (smoke run of {edge_play.rounds} round(s), {_EDGES})",
+                          found["fix"], "warning")
+                    for found in edge_play.diagnostics if found["code"] in _EDGE_FINDINGS and found["path"] not in reported)
+    idle_play = _play(build(), {"*": "idle"}, rounds, seconds)
+    _failure(idle_play, "agents that never act", errors,
+             "a turn can pass without an action (a timeout, a refusal, a forfeit): give what the action sets a default "
+             "the rules allow, or guard the rule for it")
+    for name, players in policies:
+        agent, who = _Probing(contract, name, seed), f"policy '{name}' playing {', '.join(players)}"
+        result = _play(_kept(build(), played), {kind: agent for kind in players}, rounds, seconds)
+        _failure(result, who, errors)
+        warnings.extend(Issue(found["path"], f"{found['message']} (smoke run of {result.rounds} round(s), {who})",
+                              found["fix"], "warning")
+                        for found in result.diagnostics
+                        if found["code"] == "policy_rule_never_acted" and found["path"].startswith(f"policies.{name}."))
+    reported = {issue.path for issue in errors + warnings}
+    warnings.extend(issue for issue in _never_succeeded(contract, played) if issue.path not in reported)
+    return errors, warnings
+
+
+def _kept(env: "Env", played: List["Env"]) -> "Env":
+    played.append(env)
+    return env
+
+
+def _outputs(play: RunResult, errors: List[Issue], warnings: List[Issue]) -> None:
+    """Outputs the random play could not work out: an error when the run finished (they are final), else a warning."""
+    finished = play.status in ("completed", "ended")  # its outputs are final, not provisional
+    for problem in play.output_issues:
+        message = f"{problem['message']} after {play.rounds} smoke round(s)"
         if finished and problem["path"].startswith("outputs."):
             errors.append(Issue(problem["path"], f"{message}, at the end of the run",
                                 "fix the expression, or guard the case it fails in: `<value> if <it can be worked out> "
@@ -46,24 +90,47 @@ def smoke_issues(contract: Contract, build: Callable[[], "Env"], rounds: Optiona
         else:
             warnings.append(Issue(problem["path"], message, "fine if it only has a value later in a run; otherwise guard it",
                                   "warning"))
-    for found in random_play.diagnostics:
+
+
+def _random_findings(play: RunResult, errors: List[Issue], warnings: List[Issue]) -> None:
+    """The random play's diagnostics, one per cause: an action whose rule always failed is not also reported as
+    offered when none of its choices could succeed (the failing rule is why)."""
+    broken = {found["path"] for found in play.diagnostics if found["code"] == "action_always_faulted"}
+    for found in play.diagnostics:
+        if found["code"] == "action_offered_but_unusable" and found["path"] in broken:
+            continue
         severity = "error" if found["code"] == "action_always_faulted" else "warning"  # a broken rule, not a hunch
         (errors if severity == "error" else warnings).append(
-            Issue(found["path"], f"{found['message']} (smoke run of {random_play.rounds} round(s), random agents)",
+            Issue(found["path"], f"{found['message']} (smoke run of {play.rounds} round(s), random agents)",
                   found["fix"], severity))
-    idle_play = _play(build(), {"*": "idle"}, rounds, seconds)
-    _failure(idle_play, "agents that never act", errors,
-             "a turn can pass without an action (a timeout, a refusal, a forfeit): give what the action sets a default "
-             "the rules allow, or guard the rule for it")
-    for name, players in policies:
-        agent, who = _Probing(contract, name, seed), f"policy '{name}' playing {', '.join(players)}"
-        played = _play(build(), {kind: agent for kind in players}, rounds, seconds)
-        _failure(played, who, errors)
-        warnings.extend(Issue(found["path"], f"{found['message']} (smoke run of {played.rounds} round(s), {who})",
-                              found["fix"], "warning")
-                        for found in played.diagnostics
-                        if found["code"] == "policy_rule_never_acted" and found["path"].startswith(f"policies.{name}."))
-    return errors, warnings
+
+
+def _never_succeeded(contract: Contract, played: List["Env"]) -> List[Issue]:
+    """Actions called at least :data:`~fg_env.diagnostics.MIN_CALLS` times across the plays that act and refused
+    every time: the rules or arguments the tool offers never let it happen, so what it does was never exercised.
+    Actions that take free text are left out: smoke agents write placeholder text, so its refusal says nothing."""
+    totals: Dict[str, List[Any]] = {}  # action → [calls, applied, {cause: [count, wording]}]
+    for env in played:
+        for name, entry in env.diagnosis.actions.items():
+            total = totals.setdefault(name, [0, 0, {}])
+            total[0] += entry["calls"]
+            total[1] += entry["applied"] + entry["faulted"]  # a rule that failed is reported on its own
+            for cause, (count, text) in entry["reasons"].items():
+                kept = total[2].setdefault(cause, [0, text])
+                kept[0], kept[1] = kept[0] + count, min(kept[1], text)
+    out = []
+    for name, (calls, applied, reasons) in sorted(totals.items()):
+        takes_text = any(p.type == "text" and not p.values for p in contract.actions[name].params.values())
+        if calls < MIN_CALLS or applied or not reasons or takes_text:
+            continue
+        count, text = min(reasons.values(), key=lambda entry: (-entry[0], entry[1]))
+        out.append(Issue(f"actions.{name}", f"never succeeded in the smoke plays: all {calls} call(s) were refused; "
+                                            f"most often: {text.rstrip('.')} ({count}×)",
+                         "make the tool offer only choices that can work: bound or list its parameters (min, max, "
+                         "values, where — `values` and `where` may read earlier arguments), and put a requirement that "
+                         "depends on the state in `when` with a `why`; then agents can take the action and its rules run",
+                         "warning"))
+    return out
 
 
 def run_issue(message: str) -> Issue:
@@ -124,3 +191,41 @@ def _reading(agent: Any) -> Any:
         agent(wake)
 
     return participant
+
+
+class _Edges(random.Random):
+    """Draws on one edge of what a tool allows: a range's least value, zero (when the range holds it, else its least)
+    or its greatest; a list's first, middle or last item."""
+
+    def __init__(self, edge: int) -> None:
+        super().__init__(0)
+        self.edge = edge  # 0 least, 1 zero, 2 greatest
+
+    def randint(self, a: int, b: int) -> int:
+        return int(self.uniform(a, b))
+
+    def uniform(self, a: float, b: float) -> float:
+        return (a, 0 if a <= 0 <= b else a, b)[self.edge]
+
+    def choice(self, seq: Any) -> Any:
+        return seq[(0, len(seq) // 2, -1)[self.edge]]
+
+
+class EdgeAgent:
+    """Takes one random action a turn, with every argument on an edge of what its tool allows — its least value,
+    zero, or its greatest (in turn, round by round); the first, middle or last choice: the values random play
+    almost never picks, and a rule most often fails on (a division by a rate an agent set to 0)."""
+
+    def __init__(self, seed: int) -> None:
+        self.seed = seed
+
+    def __call__(self, wake: Any) -> None:
+        acts = [t for t in wake.tools if t.kind == "act"]
+        if acts and not wake.done:
+            tool, edges = random.Random(_seed_for(self.seed, wake)).choice(acts), _Edges(wake.round % 3)
+            wake.call(tool.name, _fill_dependent(wake, tool.name, sample_args(tool.input_schema, edges), edges))
+        if not wake.done:
+            wake.end()
+
+    def __repr__(self) -> str:
+        return f"EdgeAgent(seed={self.seed})"

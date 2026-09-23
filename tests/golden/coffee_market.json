@@ -1,7 +1,7 @@
 {
   "actions": 600,
   "events": 1200,
-  "events_sha256": "2c30b7e6e58a52269590501d745ac79a8846eaf065c74bed2b61024f792a9ffc",
+  "events_sha256": "c7592fc721bbaac70018223a454e43063cb670a183531ee5dc88dce03a43afc8",
   "first_events": [
     "r1 action hh_72: {\"action\": \"skip\", \"params\": {}, \"private\": true, \"success\": true}",
     "r1 outcome hh_72: You skip caf\u00e9 coffee today.",
@@ -9,22 +9,18 @@
     "r1 outcome hh_65: You skip caf\u00e9 coffee today.",
     "r1 action hh_125: {\"action\": \"skip\", \"params\": {}, \"private\": true, \"success\": true}",
     "r1 outcome hh_125: You skip caf\u00e9 coffee today.",
-    "r1 action hh_58: {\"action\": \"buy\", \"params\": {\"cafe\": \"daily_grind\", \"cups\": 2}, \"private\": true, \"success\": true}",
-    "r1 outcome hh_58: served 2 cup(s) at Daily Grind for $6.2",
-    "r1 action hh_71: {\"action\": \"buy\", \"params\": {\"cafe\": \"bean_there\", \"cups\": 1}, \"private\": true, \"success\": true}",
-    "r1 outcome hh_71: served 1 cup(s) at Bean There for $4.25"
+    "r1 action hh_58: {\"action\": \"buy\", \"params\": {\"cafe\": \"campus_brew\", \"cups\": 2}, \"private\": true, \"success\": true}",
+    "r1 outcome hh_58: served 2 cup(s) at Campus Brew, paid $7.2",
+    "r1 action hh_71: {\"action\": \"skip\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r1 outcome hh_71: You skip caf\u00e9 coffee today."
   ],
   "metrics": {
     "active_subscribers": 0,
     "avg_list_price": 4.11,
-    "avg_paid_price": 3.79,
-    "cups_sold": 79,
-    "share_bean_there": 0.3797,
-    "share_campus_brew": 0.2658,
-    "share_daily_grind": 0.3038,
-    "share_nova": 0.0,
-    "share_riverside_roasters": 0.0506,
-    "spend_share_of_income": 0.01338,
+    "avg_paid_price": 3.72,
+    "chain_share": 0.0,
+    "cups_sold": 66,
+    "spend_share_of_income": 0.00958,
     "turned_away": 0
   },
   "rounds": 4,

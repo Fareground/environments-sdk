@@ -1,6 +1,7 @@
 """Run budgets: tokens, tool calls, host calls and seconds end a run (or idle its agents) at a safe point."""
 import json
 import time
+from types import SimpleNamespace as NS
 
 import pytest
 
@@ -38,13 +39,13 @@ def test_idle_on_exhaust_lets_the_world_finish_with_every_agent_idle():
     assert "action" not in kinds[kinds.index("budget"):]
 
 
-def test_a_token_budget_counts_the_input_and_output_tokens_participants_report():
+def test_a_token_budget_counts_input_output_and_cache_writes_in_full_and_cache_reads_at_a_tenth():
     def spender(wake):
-        wake.record_usage(input_tokens=60, output_tokens=40, cache_read_tokens=1_000)
+        wake.record_usage(input_tokens=60, output_tokens=40, cache_write_tokens=50, cache_read_tokens=500)
         wake.end()
 
-    result = fg_env.run(TOWN, spender, seed=1, budget={"tokens": 150})
-    assert result.budget["used"]["tokens"] == 200 and result.stats["wakes"] == 2 and result.ended_by == "budget"
+    result = fg_env.run(TOWN, spender, seed=1, budget={"tokens": 350})
+    assert result.budget["used"]["tokens"] == 400 and result.stats["wakes"] == 2 and result.ended_by == "budget"
 
 
 @pytest.mark.parametrize("turns, used", [("sequential", 300), ("simultaneous", 400)])
@@ -53,6 +54,7 @@ def test_a_token_budget_stops_turns_in_progress_once_it_is_spent(turns, used):
         while not wake.done:  # a model loop: one reply, then its tool call
             wake.record_usage(input_tokens=100)
             wake.call("look", {"view": "board"})
+    chatty.concurrent = True  # like a model client: a simultaneous stage runs both turns at once
 
     town = {**TOWN, "stages": [{"name": "talk", "turns": turns}]}
     result = fg_env.run(town, chatty, seed=1, budget={"tokens": 250})
@@ -118,3 +120,50 @@ def test_cli_run_takes_a_budget(tmp_path, capsys):
     assert main(["run", str(path), "--seed", "1", "--budget", "calls=3", "--json"]) == 0
     out = capsys.readouterr().out
     assert json.loads(out[out.index("{"):])["ended_by"] == "budget"
+
+
+class CacheWriting(FakeAnthropic):
+    """Every reply writes 3,000 tokens to the prompt cache, as a long cached brief does on a cache miss."""
+
+    def __init__(self, script, pause=0.0):
+        super().__init__(script)
+        self.pause = pause
+
+    def create(self, **request):
+        time.sleep(self.pause)
+        reply = super().create(**request)
+        reply.usage = type(reply.usage)(input_tokens=50, output_tokens=20, cache_read_input_tokens=0,
+                                        cache_creation_input_tokens=3_000)
+        return reply
+
+
+def test_prompt_cache_writes_count_toward_the_token_budget():
+    client = CacheWriting([[("say", {"text": "hi"})]] * 20)
+    result = fg_env.run(TOWN, participants.anthropic(client, "m"), seed=1, budget={"tokens": 1_000})
+    assert result.ended_by == "budget" and len(client.requests) == 1
+    assert result.budget["used"]["tokens"] == 3_070 and result.stats["cache_write_tokens"] == 3_000
+
+
+def test_parallel_model_calls_wait_while_the_calls_under_way_may_spend_the_token_budget():
+    crowd = {**TOWN, "entities": {f"c{i}": {"type": "citizen", "name": f"C{i}"} for i in range(8)},
+             "stages": [{"name": "talk", "turns": "simultaneous"}]}
+    client = CacheWriting([[("say", {"text": "hi"})]] * 40, pause=0.05)
+    result = fg_env.run(crowd, participants.anthropic(client, "m"), seed=1, budget={"tokens": 1_000})
+    assert result.ended_by == "budget" and len(client.requests) <= 2  # not one call per agent in flight
+
+
+def test_a_host_models_cache_tokens_count_toward_the_run_budget():
+    class Judge:
+        def __init__(self):
+            self.messages = self
+
+        def create(self, **request):
+            usage = NS(input_tokens=10, output_tokens=10, cache_read_input_tokens=1_000,
+                       cache_creation_input_tokens=500)
+            return NS(content=[NS(type="text", text='{"scores": {"quality": 5}, "rationale": "ok"}')],
+                      stop_reason="end_turn", usage=usage)
+
+    env = host.load(PITCH, hosts={"judge": host.adapters.anthropic(Judge(), "m")}, seed=1)
+    result = env.run(pitcher, budget={"tokens": 100})
+    assert result.ended_by == "budget" and result.budget["used"]["tokens"] == 620
+    assert result.stats["cache_read_tokens"] == 1_000 and result.stats["cache_write_tokens"] == 500

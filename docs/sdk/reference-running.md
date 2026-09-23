@@ -42,7 +42,8 @@ def my_agent(wake):
 own earlier choices), so a choice that could not happen is refused immediately and does not use up the turn.
 Async participants: an `async def` (or an object with an async `__call__`, or a function that returns an
 awaitable) works everywhere, and a simultaneous stage runs them concurrently with the same deterministic
-result. Inside an event loop use `result = await env.arun(participants, ...)`: participants run on that loop,
+result; so does the built-in LLM participant. A plain function plays one turn at a time (set `concurrent = True` on
+a thread-safe one that waits on I/O to run it alongside others). Inside an event loop use `result = await env.arun(participants, ...)`: participants run on that loop,
 so clients bound to it work. `wake.time_limit` and `wake.time_left` give the turn's deadline.
 `fg_env.load(..., exposures=True)` records what every agent was shown on every wake in `result.exposures`,
 `{"texts": {hash: text}, "wakes": [...], "chance": [...]}`: brief, update and view hashes and sizes, news event sequence
@@ -132,10 +133,13 @@ counts in `truncated` and, when it called no tool, is asked once for a short too
 Every truncated reply wastes its whole output: for frequent decisions use `reasoning_effort="low"` (in a Hold'em
 evaluation it cut cost by 38% with no visible loss in play), or keep the default effort with a larger `max_tokens`
 (6,000 was cut off 9 times in 96 turns).
-Their real token usage is in `result.stats` (`llm_calls`, `input_tokens`, `output_tokens`,
-`cache_read_tokens`, `cache_write_tokens`, `llm_retries`, `forfeits`, `truncated`, `refusals`, and `out_of_steps`:
-turns that used all `max_steps` model calls); a seat most of whose turns fail degrades the run; your own
-participants can add theirs with `wake.record_usage(...)`.
+A reply that still calls no tool after one reminder ends the turn (`no_tool_replies`), and a turn with no action to
+take ends without a model call. Retries never wait past the turn's time limit, and a token budget counts cache writes
+in full and cache reads at a tenth; under one, parallel turns wait while the calls under way may spend what is left.
+Their real token usage is in `result.stats` (`llm_calls`, `input_tokens` (not read from cache), `output_tokens`,
+`cache_read_tokens`, `cache_write_tokens`, `llm_retries`, `forfeits`, `truncated`, `refusals`, `no_tool_replies`,
+and `out_of_steps`: turns that used all `max_steps` model calls); a seat most of whose turns fail degrades the run;
+your own participants can add theirs with `wake.record_usage(...)`.
 Built-ins: `"random"`, `"idle"`, `"policy:<name>"`, and game algorithms `"mcts:N"`, `"ismcts:N"`, `"minimax[:depth]"`, `"cfr:<policy.json|iterations>"`.
 
 `result.events` is the ordered log: `{seq, round, kind, text, actor, to, stage, data}` where kind is

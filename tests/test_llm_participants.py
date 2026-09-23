@@ -40,7 +40,10 @@ def test_anthropic_participant_drives_a_turn_with_corrections():
     first = client.requests[0]
     assert first["system"][0]["cache_control"] == {"type": "ephemeral"}
     assert "# Corner shop" in first["system"][0]["text"]
-    assert "On the shelf" in first["messages"][0]["content"]
+    [opening] = first["messages"][0]["content"]
+    assert "On the shelf" in opening["text"] and opening["cache_control"] == {"type": "ephemeral"}
+    later = client.requests[1]["messages"]  # the breakpoint follows the latest message: the next call reads the rest
+    assert isinstance(later[0]["content"], str) and later[-1]["content"][-1]["cache_control"] == {"type": "ephemeral"}
     correction = client.requests[1]["messages"][-1]["content"][0]
     assert correction["is_error"] and "qty must be at most 10" in correction["content"]
     assert client.requests[2]["messages"][-1]["content"][0]["content"] == "You bought 2 × Espresso for $6.00."
@@ -117,9 +120,8 @@ def test_a_model_that_only_talks_is_nudged_once():
     agent = participants.anthropic(client, "claude-sonnet-5")
     env = fg_env.load(SHOP, seed=1, inputs={"shoppers": 1})
     env.run(agent, rounds=1)
-    assert client.requests[1]["messages"][-1] == {
-        "role": "user",
-        "content": "Act only by calling your tools (buy, inspect, end_turn). When you have nothing more to do, call end_turn."}
+    assert client.requests[1]["messages"][-1]["content"][-1]["text"] == (
+        "Act only by calling your tools (buy, inspect, end_turn). When you have nothing more to do, call end_turn.")
     assert env.world.props["revenue"] == 3
 
     silent = FakeAnthropic([])
@@ -161,3 +163,12 @@ def test_a_provider_and_model_name_an_llm_participant_on_the_official_client(tmp
     assert "pip install openai" in capsys.readouterr().err
     assert main(["run", str(path), "--agent", "anthropic:"]) == 1
     assert "'anthropic:<model>'" in capsys.readouterr().err
+
+
+def test_retries_stop_at_the_turn_deadline_and_no_call_is_made_after_the_run_returns():
+    client = FailingAnthropic([], [Flaky(429, retry_after="0.5")] * 50)
+    result = fg_env.load(SHOP, seed=1, inputs={"shoppers": 1}).run(
+        participants.anthropic(client, "m"), rounds=1, time_limit=0.3)
+    made = len(client.requests)
+    time.sleep(1.2)  # a retry would have come after the 0.5 s wait; the turn ended at 0.3 s
+    assert len(client.requests) == made == 1 and result.stats["timeouts"] == 1

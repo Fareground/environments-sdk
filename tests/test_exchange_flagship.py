@@ -93,7 +93,7 @@ def test_a_tight_circuit_breaker_clearly_softens_the_crash_bar_against_no_breake
     exp = fg_env.experiment(PATH, runs=4, seed=1, arms=["breaker_tight", "breaker_off"], inputs={**SMALL, "events": CRASH})
     deltas = exp.deltas("breaker_off")["breaker_tight"]
     assert deltas["worst_bar_drop"]["clear"] and deltas["worst_bar_drop"]["mean"] > 0.02  # the crash bar falls less
-    assert deltas["demo_volume"]["clear"] and deltas["demo_volume"]["mean"] < 0  # halted passes trade nothing
+    assert deltas["demo_volume"]["max"] < 0  # halted passes trade nothing: less volume in every paired run
     assert deltas["halted_bars"]["mean"] > 0
 
 

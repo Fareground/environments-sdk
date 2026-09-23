@@ -13,6 +13,7 @@ from .base import (
     MAX_SUBSTEPS,
     PROP_TYPES,
     Effects,
+    SPELLINGS,
     TypeName,
     _ceiling,
     _Model,
@@ -29,7 +30,7 @@ __all__ = ["InputSpec", "Brief", "Clock", "LAYER_TYPES", "GridSpace", "GraphSpac
 class InputSpec(_Model):
     """A typed value supplied when the environment is loaded (``fg_env.load(..., inputs=)``)."""
 
-    type: TypeName = Field("number", description="One of: " + ", ".join(INPUT_TYPES))
+    type: TypeName = Field("number", description="One of: " + ", ".join(INPUT_TYPES) + SPELLINGS)
     default: Any = Field(None, description="Used when the caller supplies nothing.")
     required: bool = Field(False, description="The caller must supply it (no default).")
     min: Optional[float] = None
@@ -163,7 +164,7 @@ class PropSpec(_Model):
     field: only the fields written here change (a bare value changes only the default), so the
     parent's ``private``, ``type``, ``min``, ``max`` and ``values`` still apply."""
 
-    type: Optional[TypeName] = Field(None, description="One of: " + ", ".join(PROP_TYPES) + " (inferred from default).")
+    type: Optional[TypeName] = Field(None, description="One of: " + ", ".join(PROP_TYPES) + " (inferred from default)" + SPELLINGS + ".")
     default: Any = Field(None, description="Literal or expression (evaluated when the entity is created).")
     min: Optional[float] = Field(None, description="Lowest allowed value: a write below it is refused, never clamped (saturate with $clamp).")
     max: Optional[float] = Field(None, description="Highest allowed value: a write above it is refused, never clamped (saturate with $clamp).")
