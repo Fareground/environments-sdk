@@ -61,12 +61,20 @@ Every run is now either correct or fails loudly (T-797 phase 1). Several default
   snapshot taken while a round is actively playing raises. `fg_env.fork` refuses a part-way snapshot. A `wake` with
   `now` runs after the waking action commits; the guide now says so and shows the response-stack pattern for
   objections that must land before something takes effect (T-808).
-
+- The top-level API is 31 names: entry points, core types, errors, `list_engines`/`clone_engine`, and the
+  `participants`, `analysis`, `rl`, `engines` and `personas` subpackages. Analysis tools (`sweep`, `calibrate`,
+  `report`, `behavior_checks`, …) live in `fg_env.analysis`. Game and RL adapters (`game`, `gym`, `pettingzoo_*`,
+  `tournament`, `evaluate`, …) live in `fg_env.rl`. `get_engine`/`load_engine` are now `engines.get`/`engines.load`.
+  Persona sampling lives in `fg_env.personas`. The old-vocabulary rename hints are replaced by two lookups against
+  the live registry (T-815).
 ### Added
 - Several deliberation, channels, feed, beliefs or factions mechanisms in one contract. Their functions take an
   optional trailing mechanism name (T-809).
 - Ballot `weight`, `veto` and `threshold_of: members`; order book `$world.<name>_value` and a `<name>_mid` metric
   (T-811).
+- `groups.matching`: two-sided stable matching (deferred acceptance) with receiver seats. Auctions gain `reverse`
+  (procurement: the lowest offer at or below the reserve wins) and `score` (award to the best price-and-quality
+  score) (T-812).
 - Participant strings `"anthropic:<model>"` and `"openai:<model>"` (CLI `--agent type=anthropic:<model>`), reading
   the key from the environment. A spent token budget now ends the turn in progress. A host answer that cannot be
   used is asked once more, with a `correction`, before the run fails (T-817).
