@@ -88,8 +88,10 @@ fg-env run shop.json --seed 1
 ```
 
 The model writes, checks, previews and runs the contract until it works; the saved contract is the latest one that
-checks clean and runs (a long simulation is tested as far as a minute of runs reaches, and the summary says how
-far), written to `--out` as soon as it works, so stopping early keeps it. `--model openai:<model>` uses
+checks without errors and plays soundly with random, idle and edge-value agents on many seeds (a long simulation is
+tested as far as a minute of runs reaches, and the summary says how far), written to `--out` as soon as it works, so
+stopping early keeps it. The summary names anything a later revision removed; when nothing works, the draft is
+written beside `--out` as `<name>.not-working.json`. `--model openai:<model>` uses
 `OPENAI_API_KEY`; OpenRouter or any OpenAI-compatible server works through it by also setting `OPENAI_BASE_URL` (for
 OpenRouter, `https://openrouter.ai/api/v1` with the OpenRouter key as `OPENAI_API_KEY`). From Python:
 `fg_env.author(brief, "anthropic:<model>", out="shop.json")`.
