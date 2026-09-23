@@ -261,4 +261,4 @@ def test_a_crowded_update_keeps_the_latest_news_and_says_how_much_it_left_out():
     env = fg_env.load(c, seed=1)
     env.run({"*": lambda w: w.call("work", {})}, rounds=1)
     update = env.preview("p0")["update"]
-    assert "earlier items not shown" in update and "p299: work." in update and len(update) < 5000
+    assert "more items not shown" in update and "p299: work." in update and len(update) < 5000

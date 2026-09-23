@@ -4,7 +4,6 @@ pro-rata fills) are recorded by the action and resolved in the stage's `on_exit`
 import time
 from collections import Counter
 
-import pytest
 
 import fg_env
 
@@ -148,8 +147,6 @@ def test_orders_larger_than_the_stock_are_filled_pro_rata():
     assert (result.outputs["a"], result.outputs["b"], result.outputs["left"]) == (15, 45, 0)
 
 
-@pytest.mark.xfail(strict=True, reason="diagnosis records agent types in the order concurrent turns first read their "
-                   "tools, so result.diagnostics follows thread timing (also after Env.restore) — engine fidelity")
 def test_the_same_choices_give_the_same_result_however_long_each_agent_takes():
     c = {"name": "Stuck", "clock": {"rounds": 3},
          "types": {"a": {"agent": True, "props": {"x": 0}}, "b": {"agent": True, "props": {"x": 0}}},

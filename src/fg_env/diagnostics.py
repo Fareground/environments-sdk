@@ -88,7 +88,7 @@ def _never_acted(env: "Env") -> List[Dict[str, str]]:
     `agents_never_able_to_act`.)"""
     if not env.finished:
         return []
-    never_able = {kind for kind, entry in env.diagnosis.agents.items() if not entry["able"]}
+    never_able = {kind for kind, entry in sorted(env.diagnosis.agents.items()) if not entry["able"]}
     nobody_acted = not env.stats.actions
     never, failing = [], []
     for agent, stats in sorted(env.agent_stats.items()):
@@ -177,7 +177,7 @@ def _most_common(reasons: Dict[str, List[Any]]) -> str:
 
 def _faults(env: "Env") -> List[Dict[str, str]]:
     out = []
-    for path, (count, error) in env.diagnosis.faults.items():
+    for path, (count, error) in sorted(env.diagnosis.faults.items()):
         if path.startswith("invariants["):
             out.append(_finding("action_broke_invariant", path,
                                 f"agents' actions broke it {count} time(s); each was refused and undone: {error}",
@@ -195,7 +195,7 @@ def _faults(env: "Env") -> List[Dict[str, str]]:
 
 def _actions(env: "Env") -> List[Dict[str, str]]:
     out = []
-    for name, entry in env.diagnosis.actions.items():
+    for name, entry in sorted(env.diagnosis.actions.items()):
         if entry["faulted"] >= ALWAYS_FAULTED and not entry["applied"]:
             out.append(_finding("action_always_faulted", f"actions.{name}",
                                 f"never happened: all {entry['faulted']} attempt(s) were refused because a rule failed or "
@@ -221,7 +221,7 @@ def _actions(env: "Env") -> List[Dict[str, str]]:
 
 def _policy_rules(env: "Env") -> List[Dict[str, str]]:
     out = []
-    for path, (acted, refused, refusal) in env.diagnosis.policy_rules.items():
+    for path, (acted, refused, refusal) in sorted(env.diagnosis.policy_rules.items()):
         if not acted:
             out.append(_finding("policy_rule_never_acted", path,
                                 f"was tried {refused} time(s) and refused every time: {refusal}",
@@ -241,16 +241,16 @@ def _overwrites(env: "Env") -> List[Dict[str, str]]:
                      f"sealed choices overwrote each other {count} time(s): {example}",
                      "give each agent its own value (a prop on $actor, or a map keyed by $actor.id) and combine them in "
                      "the stage's on_exit, or make the stage sequential")
-            for stage, (count, example) in env.diagnosis.overwrites.items()] + [
+            for stage, (count, example) in sorted(env.diagnosis.overwrites.items())] + [
         _finding("loop_overwrites", path, f"an `each` loop overwrote one value {count} time(s): {example}",
                  "collect the values instead (a list with +=, or a map keyed by $it.id) and choose one after the loop "
                  "($mode, $best)")
-        for path, (count, example) in env.diagnosis.loop_overwrites.items()]
+        for path, (count, example) in sorted(env.diagnosis.loop_overwrites.items())]
 
 
 def _idle_agents(env: "Env") -> List[Dict[str, str]]:
     out = []
-    for kind, entry in env.diagnosis.agents.items():
+    for kind, entry in sorted(env.diagnosis.agents.items()):
         if entry["wakes"] and not entry["able"] and entry["rounds"] >= MIN_ROUNDS:
             out.append(_finding("agents_never_able_to_act", f"types.{kind}",
                                 f"no {kind} had an action it could take in any of its {entry['wakes']} turn(s) over "

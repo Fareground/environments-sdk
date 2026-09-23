@@ -32,13 +32,11 @@ def test_no_adversary_crashes_a_generated_contract(seed):
         assert result.status in ("completed", "ended"), (name, result.error)
 
 
-@pytest.mark.xfail(strict=True, reason="only a run where no agent at all acted is degraded; one seat that tries and "
-                   "never acts goes unreported — run health")
 @pytest.mark.parametrize("adversary", ["refuser", "spammer"])
 def test_a_seat_that_tries_but_never_acts_marks_the_run_degraded(adversary):
     lemonade = next(path for path in EXAMPLES if path.stem == "lemonade_stand")
     result = fg_env.load(lemonade, seed=1).run({"ana": ADVERSARIES[adversary], "ben": "random"})
-    assert result.ok and result.degraded
+    assert result.status == "completed" and result.degraded and not result.ok
 
 
 @pytest.mark.parametrize("path", EXAMPLES, ids=lambda path: path.stem)

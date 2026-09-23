@@ -270,17 +270,18 @@ def test_a_brief_or_record_line_naming_another_agents_private_property_is_refuse
     assert not any("4242" in text for text in seen)  # bob never reads ann's secret
 
 
-def test_a_bound_read_through_entity_of_another_agents_private_property_is_not_offered():
+def test_a_bound_read_through_entity_of_another_agents_private_property_is_an_error_not_a_dropped_bound():
     c = _secrets(actions={"guess": {"by": "p", "do": [],
                                     "params": {"x": {"type": "int", "min": 0, "max": "$entity(ann).secret"}}}})
-    bounds = {}
+    errors = [i for i in fg_env.check(c) if i.severity == "error"]
+    assert [i.path for i in errors] == ["actions.guess.params.x.max"] and "ann's secret is private" in errors[0].message
 
     def participant(wake):
-        bounds[wake.entity_id] = next(t.input_schema for t in wake.tools if t.name == "guess")["properties"]["x"]
+        list(wake.tools)
         wake.end()
 
-    fg_env.load(c, seed=1).run(participant)
-    assert bounds["ann"]["maximum"] == 4242 and "maximum" not in bounds["bob"]
+    result = fg_env.load(c, seed=1).run(participant)
+    assert result.status == "failed" and "actions.guess.params.x.max" in result.error
 
 
 @pytest.mark.parametrize("path, patch", [

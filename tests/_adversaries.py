@@ -24,7 +24,8 @@ def refuser(wake: Any) -> None:
 
 
 def spammer(wake: Any) -> None:
-    """Calls tools that do not exist and real tools with malformed arguments until the turn is over."""
+    """A model that calls tools that do not exist and real tools with malformed arguments until the turn is over."""
+    wake.record_usage(llm_calls=1)
     names = [tool.name for tool in _acts(wake)] or ["end_turn"]
     junk = [("no_such_tool", {}), ("", None), (names[0], {"nope": 1}), (names[0], ["not", "an", "object"]),
             (names[0], {name: {"deep": [None]} for name in ("p0", "p1", "id", "view")}), ("LOOK", {"view": 1})]
