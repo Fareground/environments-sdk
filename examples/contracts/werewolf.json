@@ -210,7 +210,7 @@
   "views": {
     "visions": {"for": "player", "title": "Your visions", "when": "$actor.role == seer", "of": "$actor.reads", "show": "{$it}", "empty": "You have not inspected anyone yet."},
     "clinic": {"for": "player", "title": "Your protection", "when": "$actor.role == doctor", "show": "{$'Last night you protected ' + $entity($actor.last_protected).name + ' (you cannot pick them again tonight).' if $actor.last_protected != '' else 'You have not protected anyone yet.'}"},
-    "last_night": {"for": "player", "title": "Last night", "stages": ["day_discussion", "day_vote"], "show": "{$world.last_death}"},
+    "last_night": {"for": "player", "title": "Last night", "stages": ["day_vote"], "show": "{$world.last_death}"},
     "chat_history": {"for": "player", "title": "Village chat so far", "of": "$records(chat)", "show": "Day {$it.round} · {$it.author}: {$it.text}", "empty": "Nobody has spoken yet.", "look": true},
     "talking": {"for": "player", "title": "Talking", "stages": ["day_discussion"], "show": "{$count(player, $it.living and $it.ready)} of {$count(player, $it.living)} living players are done talking."}
   },

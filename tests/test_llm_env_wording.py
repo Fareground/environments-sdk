@@ -141,6 +141,20 @@ def test_werewolf_chat_history_quotes_each_message_once():
     assert seen and "«I trust Ada.»" in seen[0] and "««" not in seen[0]
 
 
+def test_werewolf_dawn_is_told_once_per_day_and_recalled_at_the_vote():
+    updates = {}
+
+    def player(wake):
+        updates.setdefault(wake.stage, wake.update)
+        fg_env.participants.RandomAgent(1)(wake)
+
+    env = fg_env.load(_example("werewolf.json"), seed=3)
+    env.run({"*": "random", "p1": player}, rounds=1)
+    dawn = env.props["last_death"]
+    assert updates["day_discussion"].count(dawn) == 1
+    assert f"Last night: {dawn}" in updates["day_vote"]
+
+
 def _farm(cash):
     contract = _example("farmers_market.json")
     contract["entities"]["ana"]["props"] = {"cash": cash}
