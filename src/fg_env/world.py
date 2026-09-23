@@ -522,7 +522,12 @@ class SdkWorld(World):
             return value
         kind = prop_type(spec)
         if value is None:
-            return None
+            if spec.default is None or kind == "any":  # declared without a value: it may be empty
+                return None
+            raise RunError(
+                f"cannot be null: it starts with a value, so it always holds one ({kind}; an empty list's $max, $avg "
+                f"or $first is null — guard it, e.g. `$max(xs) if $len(xs) > 0 else 0`); to let it be empty, "
+                f'declare it with "default": null', where)
         if kind in ("number", "int"):
             if not _finite_number(value):
                 raise RunError(f"must be a finite number that fits in a float, got {_shown_value(value)}", where)

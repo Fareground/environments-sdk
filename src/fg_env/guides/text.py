@@ -106,13 +106,15 @@ EXPRESSIONS = """\
 Any string containing `$name` is an expression; other strings are literal text.
 * Roots: `$actor`, `$params`, `$it`, `$inputs`, `$world`, … (which ones depend on where — see below).
 * Functions: `$count(buyer, $it.cash > 0)`. Per-item arguments bind `$it` (and `$i`).
-* Bare words are text: `$actor.status == open`, `$count(offer)`. `true false null` are literals.
+* Bare words are text: `$actor.status == open`, `$count(offer)`. `true false null` are literals. A condition that
+  is only a word (`"when": "deal"`) is text, always true: write `$world.deal`.
   Quote text with spaces: `$actor.mood == 'very happy'`. Any word may name a type, entity, property or item
   (`class`, `from` and `def` too) except the language's own `and or not in if else true false null`.
 * Operators: `+ - * / // % **`, `== != < <= > >=`, `and or not` (`&& || !`), `in`,
   `a if cond else b`, lists `[1, 2]`, indexing `$top(offer, $it.price, 1)[0]`.
 * Entities expose `id name type alive at` and their props. Comparing an entity with an id works.
-* Maps: `{wage: 3, 'job years': 2}`; read with `.key` or `$get(map, key, default)`.
+* Maps: `{wage: 3, 'job years': 2}`; read with `.key` or `$get(map, key, default)`. Keys are text, as in JSON:
+  `{1: 3}` holds the key `'1'`, which `$get(m, 1)`, `m[1]` and `1 in m` all find.
 * Nested per-item functions rebind `$it`; the enclosing item is `$outer`:
   `$sum(trader, $sum(order, $it.qty, $it.owner == $outer.id))`.
 * Every function call needs its `$`: `$max(a, b)`, never `max(a, b)`.
@@ -189,14 +191,15 @@ Assignment text:
 * `"$actor.cash -= $params.qty * $params.offer.price"` — also `=`, `+=`, `*=`, `/=`; targets are
   entity props (`$actor.x`, `$params.offer.x`, `$it.x`), `$world.x`, `$physics.x`.
 * `"$total = $params.qty * 2"` — a local (`$total`) usable by later effects and the outcome.
-* `+=`/`-=` on a list prop append/remove an item.
+* `+=`/`-=` on a list prop append/remove an item; `-=` removes one copy per item (`[1, 2, 2] -= 2` leaves
+  `[1, 2]`), comparing like `==`.
 * Element assignment: `"$world.board[$i] = $actor.mark"`, `"$actor.scores[round_2] += 1"` (lists and maps).
 * Links: `"$link($actor, $params.who, trusts).value += 0.1"`, `"$link($actor, $params.who, trusts).since = $round"`
   (the link must exist; its value keeps to the relation's min/max and fields are typed, like props).
 * A write past a numeric prop's, link value's or layer cell's min/max is refused, like a transfer that does not
   fit: an action is rolled back and its actor told why; world logic (an event, a stage hook) that does it fails
   the run at its path. To saturate, say so: `$clamp(x, low, high)`.
-  Types are enforced.
+  Types are enforced: null too, which only a prop declared with `"default": null` (or no default) may hold.
 
 Operation objects (exactly one operation key each):
 OPS

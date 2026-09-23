@@ -10,7 +10,7 @@ from .probability import is_probability
 
 from .expr import (
     MAX_LIST_LEN, MAX_RANGE, Call, ExprError, PrivateRead, Untrusted, _describe, _entity_id, _held, _number, attr,
-    charge, check_size, derived, function, truthy,
+    charge, check_size, derived, function, map_key, truthy,
 )
 
 # ---------------------------------------------------------------------------
@@ -173,7 +173,7 @@ def _dict(call: Call) -> dict:
             key = _entity_id(call.each(1, item, i))
             if not isinstance(key, (str, int, float)) or isinstance(key, bool):
                 raise ExprError(f"$dict keys must be text or numbers, got {_describe(key)}", call.source)
-            yield (key if isinstance(key, str) else str(key)), call.each(2, item, i)
+            yield map_key(key), call.each(2, item, i)
 
     return _keyed(pairs())
 
@@ -276,16 +276,22 @@ def _unique(call: Call) -> List[Any]:
     return out
 
 
-@function("tally(list)", "Counts of each distinct value, as a {value: count} map (order of first appearance).",
+@function("tally(list)", "Counts of each distinct value, as a {value: count} map (order of first appearance; keys are "
+          "text, as in every map).",
           min_args=1, max_args=1)
 def _tally(call: Call) -> dict:
-    return _keyed(((_entity_id(item), 1) for item in call.collection(0)), lambda old, new: old + new)
+    return _counts(call, map_key)
+
+
+def _counts(call: Call, key: Any = _entity_id) -> dict:
+    """How often each distinct value of the list occurs, keyed by ``key(value)``."""
+    return _keyed(((key(item), 1) for item in call.collection(0)), lambda old, new: old + new)
 
 
 @function("mode(list)", "The most frequent value (first seen wins ties), or null for an empty list.",
           min_args=1, max_args=1)
 def _mode(call: Call) -> Any:
-    counts = _tally(call)
+    counts = _counts(call)
     if not counts:
         return None
     best = max(counts.values())
@@ -297,7 +303,8 @@ def _mode(call: Call) -> Any:
 def _get(call: Call) -> Any:
     obj, key = call.arg(0), call.arg(1)
     if isinstance(obj, dict):
-        return obj.get(key, call.arg(2))
+        key = map_key(key)
+        return obj[key] if isinstance(key, str) and key in obj else call.arg(2)
     if isinstance(obj, (list, tuple)):
         if isinstance(key, int) and not isinstance(key, bool) and -len(obj) <= key < len(obj):
             return obj[key]

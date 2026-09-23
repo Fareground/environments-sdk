@@ -36,9 +36,16 @@ def smoke_issues(contract: Contract, build: Callable[[], "Env"], rounds: Optiona
 
     random_play = _play(build(), {"*": _reading(RandomAgent(seed))}, rounds, seconds)
     _failure(random_play, "random agents", errors)
+    finished = random_play.status in ("completed", "ended")  # its outputs are final, not provisional
     for problem in random_play.output_issues:
-        warnings.append(Issue(problem["path"], f"{problem['message']} after {random_play.rounds} smoke round(s)",
-                              "fine if it only has a value later in a run; otherwise guard it", "warning"))
+        message = f"{problem['message']} after {random_play.rounds} smoke round(s)"
+        if finished and problem["path"].startswith("outputs."):
+            errors.append(Issue(problem["path"], f"{message}, at the end of the run",
+                                "fix the expression, or guard the case it fails in: `<value> if <it can be worked out> "
+                                "else null` (null means no value)"))
+        else:
+            warnings.append(Issue(problem["path"], message, "fine if it only has a value later in a run; otherwise guard it",
+                                  "warning"))
     for found in random_play.diagnostics:
         severity = "error" if found["code"] == "action_always_faulted" else "warning"  # a broken rule, not a hunch
         (errors if severity == "error" else warnings).append(

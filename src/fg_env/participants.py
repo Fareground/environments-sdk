@@ -17,6 +17,7 @@ from difflib import get_close_matches
 from typing import TYPE_CHECKING, Any, Callable, Collection, Dict, List, Mapping, Optional, Union
 
 from .assets.multimodal import ANTHROPIC_MEDIA, OPENAI_MEDIA, anthropic_parts, media_set, openai_parts
+from .effects import each_items
 from .errors import ContractError, Issue, RunError
 from .probability import is_probability
 from .expr import ExprError, compile_expr, resolve, truthy
@@ -201,11 +202,13 @@ class PolicyAgent:
     @staticmethod
     def _items(turn: Any, each: str, scope: Any, path: str) -> List[Any]:
         world = turn.env.world
+        if each in turn.env.contract.types:
+            return list(world.entities_of(each))
         try:
-            items = world.entities_of(each) if each in turn.env.contract.types else compile_expr(each)(scope)
+            items = compile_expr(each)(scope)
         except ExprError as exc:
             raise RunError(str(exc), f"{path}.each") from None
-        return list(items or [])
+        return each_items(items, world, f"{path}.each")
 
     def _try(self, wake: Wake, index: int, scope: Any, rng: Any) -> str:
         """Try one rule: "acted", "passed" (the turn ends), or "skipped"."""

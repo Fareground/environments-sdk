@@ -168,6 +168,18 @@ def _chain(node: ast.AST) -> Optional[Tuple[str, ...]]:
     return None
 
 
+def _entity_chain(node: ast.AST) -> Optional[Tuple[str, ...]]:
+    """``$entity(a).b`` → ``("entity(a)", "b")``: a field of the entity a bare id names; None for anything else."""
+    fields: List[str] = []
+    while isinstance(node, ast.Attribute):
+        fields.append(node.attr)
+        node = node.value
+    if fields and isinstance(node, ast.Call) and isinstance(node.func, ast.Name) \
+            and node.func.id == _FUNC_PREFIX + "entity" and len(node.args) == 1 and isinstance(node.args[0], ast.Name):
+        return (f"entity({node.args[0].id})", *reversed(fields))
+    return None
+
+
 class Codegen:
     """Compiles one expression's tree, recording what it reads (roots, paths, calls, …) as it goes.
 
@@ -404,7 +416,7 @@ class Codegen:
         operands = [node.left, *node.comparators]
         for a, b in zip(operands, operands[1:]):
             for chain_node, other in ((a, b), (b, a)):
-                chain = _chain(chain_node)
+                chain = _chain(chain_node) or _entity_chain(chain_node)
                 if chain is not None and len(chain) > 1:
                     for word in self._word(other):
                         self.comparisons.add((chain, word))

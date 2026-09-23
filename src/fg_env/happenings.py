@@ -8,6 +8,7 @@ import heapq
 from typing import TYPE_CHECKING, Any, List, Optional
 
 from .delivery import run_delivery
+from .effects import each_items
 from .contract import StageSpec
 from .build import whole_setting
 from .errors import RunError
@@ -69,8 +70,8 @@ class Happenings:
             item_name = event.as_ or "it"
             try:
                 items = world.entities_of(event.each) if event.each in env.contract.types else \
-                    compile_expr(event.each)(world.scope())
-                items = self._ordered(event, list(items or []), item_name, path)
+                    each_items(compile_expr(event.each)(world.scope()), world, f"{path}.each")
+                items = self._ordered(event, list(items), item_name, path)
                 if event.sync:
                     run_sync(env, event, items, item_name, path)
                     items = []

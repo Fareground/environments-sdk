@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Hashable, Iterable, List
 
-from ..expr import Untrusted, Call, _describe, charge, check_size, function
+from ..expr import Untrusted, Call, _describe, charge, check_size, function, map_key
 from ..functions import _keyed
 from ._args import fail, key_of, map_arg, sequence_arg
 
@@ -45,11 +45,11 @@ def _merge(call: Call) -> Dict[Any, Any]:
 
 def _key_list(call: Call, index: int) -> List[Any]:
     value = call.arg(index)
-    if isinstance(value, str):
-        return [value]
     if isinstance(value, (list, tuple)):
         charge(len(value), call.source)
-        return list(value)
+        return [map_key(key) for key in value]
+    if isinstance(map_key(value), str):
+        return [map_key(value)]
     raise fail(call, f"argument {index + 1} must be a key or a list of keys, got {_describe(value)}")
 
 

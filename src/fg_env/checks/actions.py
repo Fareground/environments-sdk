@@ -53,7 +53,7 @@ class ActionChecks:
                     if param.of is None:
                         self.error(ppath, "an entity parameter needs `of` (the entity type)")
                     elif self._type(param.of, f"{ppath}.of"):
-                        self.expr(param.where, f"{ppath}.where", BASE | {"actor", "it", "i", "params"},
+                        self.condition(param.where, f"{ppath}.where", BASE | {"actor", "it", "i", "params"},
                                   {"actor": by_types, "it": {param.of}}, spec.params)
                         self._private_filter(param.where, param.of, f"{ppath}.where")
                 elif param.type == "list":
@@ -70,7 +70,7 @@ class ActionChecks:
                     self.error(f"{ppath}.step", "step applies to number and int parameters")
             check_param_bounds(self, path, spec)
             for index, condition in enumerate(spec.when):
-                self.expr(condition.expr, f"{path}.when[{index}]", BASE | {"actor", "params"}, types, spec.params)
+                self.condition(condition.expr, f"{path}.when[{index}]", BASE | {"actor", "params"}, types, spec.params)
                 self.template(condition.why or None, f"{path}.when[{index}].why", None, BASE | {"actor", "params"}, types,
                               spec.params)
             roots = set(BASE | {"actor", "params"})
@@ -142,7 +142,7 @@ class ActionChecks:
             if entity_of is None:
                 self.error(f"{ppath}.items", "entity items need `of` (the entity type)")
             elif self._type(entity_of, f"{ppath}.of"):
-                self.expr(where, f"{ppath}.where", BASE | {"actor", "it", "i", "params"},
+                self.condition(where, f"{ppath}.where", BASE | {"actor", "it", "i", "params"},
                           {"actor": by_types, "it": {entity_of}}, params)
                 self._private_filter(where, entity_of, f"{ppath}.where")
         values = item.values if item is not None and item.type == "enum" else (param.values if item is None else None)
@@ -185,8 +185,8 @@ class ActionChecks:
             agent_types: Types = {"it": set(self.agents)}
             self.order_setting(stage.order, f"{path}.order", ("seat", "random"), BASE | {"it", "i"}, agent_types)
             self.expr(stage.who, f"{path}.who", BASE | {"it", "i"}, agent_types)
-            self.expr(stage.until, f"{path}.until", BASE)
-            self.expr(stage.when, f"{path}.when", BASE)
+            self.condition(stage.until, f"{path}.until", BASE)
+            self.condition(stage.when, f"{path}.when", BASE)
             self.template(stage.brief or None, f"{path}.brief", "actor", BASE | {"actor"}, {"actor": set(self.agents)})
             self.effects(stage.on_enter, f"{path}.on_enter", set(BASE), {})
             self.effects(stage.on_exit, f"{path}.on_exit", set(BASE), {})
@@ -216,7 +216,7 @@ class ActionChecks:
             for stage in view.stages or []:
                 if stage not in self.stage_names:
                     self.error(f"{path}.stages", f"'{stage}' is not a stage", self._hint(stage, self.stage_names, "stages"))
-            self.expr(view.when, f"{path}.when", BASE | {"actor"}, types)
+            self.condition(view.when, f"{path}.when", BASE | {"actor"}, types)
             if view.of is None:
                 self.template(view.show, f"{path}.show", "actor", BASE | {"actor"}, types)
                 continue
@@ -227,7 +227,7 @@ class ActionChecks:
                 pass
             else:
                 self.expr(view.of, f"{path}.of", BASE | {"actor"}, types)
-            self.expr(view.where, f"{path}.where", item_roots, types)
+            self.condition(view.where, f"{path}.where", item_roots, types)
             self.expr(view.sort, f"{path}.sort", item_roots, types)
             self.template(view.show, f"{path}.show", "it", item_roots, types)
             if view.of in self.c.types:

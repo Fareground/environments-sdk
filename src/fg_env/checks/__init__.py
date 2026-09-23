@@ -28,7 +28,7 @@ from .world import WorldChecks
 from ..contract import Contract
 from .state import check_feeds, check_hooks, check_physics_state, check_relation_fields
 from ..errors import ContractError, Issue
-from ..expr import FUNCTIONS, ExprError, compile_expr, is_expr
+from ..expr import FUNCTIONS, ExprError, Scope, compile_expr, is_expr
 from ..expr.calls import suggest_function
 from ..expr.codegen import _ITEM_ROOTS
 from ..parse_errors import validation_issues
@@ -175,6 +175,28 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
             return
         self._refs(compiled, path, set(roots), types or {}, params or {})
 
+    def condition(self, source: Any, path: str, roots: Iterable[str], types: Optional[Types] = None,
+                  params: Optional[Mapping[str, C.ParamSpec]] = None, fix: Optional[str] = None) -> None:
+        """A condition: an expression, or true / false. Text there (a bare word like `deal`) is always true."""
+        self.expr(source, path, roots, types, params)
+        if not isinstance(source, str) or is_expr(source):
+            return
+        try:
+            value = compile_expr(source)(Scope())
+        except ExprError:
+            return  # reported by expr
+        if isinstance(value, str) and value:
+            self.error(path, f"`{source}` is the text '{value}', which is always true: a condition is an expression",
+                       fix or self._condition_fix(value, set(roots)))
+
+    def _condition_fix(self, word: str, roots: Set[str]) -> str:
+        if word in self.c.world:
+            return f"did you mean $world.{word}?"
+        owners = [f"${root}.{word}" for root in ("actor", "it", "viewer") if root in roots]
+        if owners and any(word in props for props in self.type_props.values()):
+            return f"did you mean {' or '.join(owners)}?"
+        return "write an expression like `$world.open` or `$round > 3`; true and false are the constants"
+
     def value(self, raw: Any, path: str, roots: Iterable[str], types: Optional[Types] = None,
               params: Optional[Mapping[str, C.ParamSpec]] = None) -> None:
         """A literal, a template text, or an expression (deeply, for lists and objects)."""
@@ -299,6 +321,11 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
     def _spec_for(self, chain: Tuple[str, ...], types: Types, params: Mapping[str, C.ParamSpec]) -> Optional[Tuple[Any, str]]:
         """``(allowed values, kind)`` of the field a chain reads, when statically known."""
         root = chain[0]
+        named = self.c.entities.get(root[len("entity("):-1]) if root.startswith("entity(") else None
+        if named is not None and named.type in self.c.types and len(chain) == 2 \
+                and chain[1] in self.c.props_of(named.type):
+            spec = self.c.props_of(named.type)[chain[1]]
+            return spec.values, prop_type(spec)
         if root in types and len(chain) == 2:
             specs = [self.c.props_of(kind).get(chain[1]) if kind in self.c.types else None
                      for kind in sorted(types[root])]
