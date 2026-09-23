@@ -186,6 +186,41 @@ def test_an_overruled_objection_lets_the_exhibit_in():
     assert result.outputs["admitted"] == ["Invoice", "Photo"] and result.outputs["excluded"] == []
 
 
+def test_one_examination_stage_runs_many_offers_each_answered_before_it_takes_effect():
+    exam = json.loads(json.dumps(COURT))
+    exam["clock"]["rounds"] = 1
+    exam["world"]["offers"] = 0
+    exam["actions"]["offer"]["when"] = ["$actor.id == pat"]
+    exam["actions"]["offer"]["do"].insert(0, "$world.offers += 1")
+    exam["mechanisms"]["trial"]["stack"]["stage"] = "exam"
+    exam["mechanisms"]["trial"]["phases"] = {"evidence": {"stages": [{
+        "name": "exam", "actions": ["offer"], "passes": 20,
+        "who": "$it.id == pat and $stack(trial, top) == null or $stack(trial, waiting, $it)",
+        "until": "$world.offers >= 3 and $stack(trial, top) == null"}]}}
+    assert [i for i in fg_env.check(exam) if i.severity == "error"] == []
+    seen = []
+
+    def play(wake):  # E1 is objected to and excluded, E2 goes unopposed, E3 is objected to and admitted
+        offered = _read(env, "$world.offers")
+        seen.append((wake.entity_id, list(_read(env, "$world.admitted")), list(_read(env, "$world.excluded"))))
+        tools = {tool.name for tool in wake.tools}
+        if "offer" in tools:
+            wake.call("offer", {"exhibit": f"E{offered + 1}"})
+        elif "trial_objection" in tools and offered != 2:
+            wake.call("trial_objection", {"ground": "hearsay"})
+        elif "trial_ruling" in tools:
+            wake.call("trial_ruling", {"decision": "sustained" if offered == 1 else "overruled"})
+        if not wake.done:
+            wake.end()
+
+    env = fg_env.load(exam, seed=1)
+    result = env.run(play)
+    assert result.status == "completed", result.error
+    assert result.outputs["admitted"] == ["E2", "E3"] and result.outputs["excluded"] == ["E1"]
+    assert [who for who, _, _ in seen] == ["pat", "dana", "ito", "pat", "dana", "pat", "dana", "ito"]
+    assert seen[3][1:] == ([], ["E1"]) and seen[5][1:] == (["E2"], ["E1"])  # each offer settled before the next
+
+
 def test_stack_runs_with_random_agents_resume_exactly_from_a_snapshot():
     contract = {**DUEL, "clock": {"rounds": 6}}
     straight = fg_env.load(contract, seed=4).run().to_dict()

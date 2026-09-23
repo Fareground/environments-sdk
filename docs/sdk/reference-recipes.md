@@ -32,6 +32,17 @@
   and debate (guide('decision.ballot')).
 * Deliberation: records (`chat`) + a sequential stage with `until: "$all(member, $it.ready)"`
   and `quiet: skip`; a `say` action posts and clears readiness.
+* Answers before something takes effect (an exhibit offered → objection → ruling → admitted or excluded; a
+  motion and its amendments; a spell and its counter): a procedure `stack` (guide('flow.procedure')). The offer
+  only pushes an item; the agents its kind names answer it; items resolve last in, first out, so the ruling
+  resolves before the objection and the objection (countering the offer when sustained) before the offer.
+  `"stack": {..., "stage": "exam"}` holds the answers in the examination stage itself, so one stage runs many
+  offers a round: `"who": "$it.id == $world.examiner and $stack(trial, top) == null or $stack(trial, waiting,
+  $it)"` with an `until` for when the examination is over. A `wake` with `now` answers what already happened.
+* Repeating a group of stages (negotiate → vote until ratified; deliberate → ballot until unanimous or the last
+  ballot): make each round one pass of the group — `"stages": [talks, {"name": "vote", "when": "$world.called"}]`
+  with an `end` condition, and `clock.rounds` as the most passes. When the groups differ (deliberation, then a
+  ballot, then back), use procedure phases whose `next` loops (`{"to": "deliberation", "when": ...}`).
 * Hidden roles: the `groups` family — `{"kind": "groups", "mode": "roles", "who": "player", "deck": {"werewolf": 2,
   "villager": "rest"}, "teams": {...}, "know": [...]}` deals private roles, tells teammates, gates role actions and
   eliminates and reveals players (guide('groups.roles')). An entity's built-in `alive` turns false only when it is

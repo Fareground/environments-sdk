@@ -67,8 +67,8 @@ COURT = {
 }
 
 
-def test_wake_now_gives_a_reaction_turn_before_the_turn_continues():
-    reasons = []
+def test_wake_now_gives_a_reaction_turn_after_the_action_and_before_the_turn_continues():
+    reasons, seen = [], []
 
     def play(wake):
         if wake.entity_id == "a":
@@ -76,6 +76,7 @@ def test_wake_now_gives_a_reaction_turn_before_the_turn_continues():
             wake.call("speak")
         elif wake.entity_id == "j":
             reasons.append(wake.reason)
+            seen.append(list(env.props["log"]))
             names = {t.name for t in wake.tools}
             wake.call("rule" if "rule" in names else "wait")
         else:
@@ -89,6 +90,7 @@ def test_wake_now_gives_a_reaction_turn_before_the_turn_continues():
     assert result.status == "completed", result.error
     assert env.props["log"][:3] == ["a objects", "judge rules", "a speaks"]
     assert reasons[0] == "An objection needs a ruling now."
+    assert seen[0] == ["a objects"]  # the action that woke the judge had already taken effect
     assert result.stats["reactions"] == 1
 
 

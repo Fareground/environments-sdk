@@ -830,7 +830,8 @@ Run exactly one round (or finish the round a stopped run is in).
 snapshot(self) -> 'Dict[str, Any]'
 ```
 
-Everything needed to continue this run later, as JSON-safe data (between rounds).
+Everything needed to continue this run later, as JSON-safe data: between rounds, or stopped part-way
+through a round (``run(stop=...)``).
 
 ### `Env.restore`
 
