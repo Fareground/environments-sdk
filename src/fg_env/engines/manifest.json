@@ -38,21 +38,21 @@
     {
       "id": "legislature",
       "title": "Legislature",
-      "description": "Simulates a legislative body moving, seconding, debating, amending and voting on a measure; records passed, rejected, or the status quo when nothing comes to a vote.",
+      "description": "Simulates a legislative body moving, seconding, debating, amending and voting on a measure; each floor speech pulls other members' stances toward the speaker's, and the outcome is passed, rejected, or the status quo when nothing comes to a vote.",
       "status": "native",
       "path": "starters/configurable_legislature.json"
     },
     {
       "id": "contest",
       "title": "Contest",
-      "description": "Simulates participants submitting each round while a host judge scores them on a weighted rubric; the single top scorer wins, a tie names no winner, and without a judge every entry ties and the run says so.",
+      "description": "Simulates participants submitting each round while a host judge scores them on a weighted rubric; the single top scorer wins, a rubric tie goes to the stronger hidden performance (skill plus luck), and without a judge skill and luck decide and the run says so.",
       "status": "native",
       "path": "starters/contest.json"
     },
     {
       "id": "deliberation",
       "title": "Deliberation",
-      "description": "Simulates people exchanging reasons, proposing and amending a conclusion, and voting; records passed, rejected, or the status quo when nothing comes to a vote.",
+      "description": "Simulates people exchanging reasons, proposing and amending a conclusion, and voting; each speech pulls listeners' stances toward the speaker's, and the outcome is passed, rejected, or the status quo when nothing comes to a vote.",
       "status": "native",
       "path": "starters/open_deliberation.json"
     },
@@ -66,7 +66,7 @@
     {
       "id": "population",
       "title": "Population",
-      "description": "Runs many sampled people through a shared situation and aggregates their individual responses and outcomes.",
+      "description": "Runs sampled people through a shared situation: each responds independently from their inclination, blurred by their uncertainty, and the responses are aggregated.",
       "status": "native",
       "path": "starters/population_response.json"
     },
@@ -80,14 +80,14 @@
     {
       "id": "matching",
       "title": "Matching",
-      "description": "Simulates preferences, eligibility, applications, selection, pairing, and resulting human outcomes.",
+      "description": "Simulates two-sided matching: applicants and selectors privately rank each other and deferred acceptance makes a stable match within each selector's capacity.",
       "status": "native",
       "path": "starters/capacity_matching.json"
     },
     {
       "id": "strategy",
       "title": "Strategy",
-      "description": "Simulates repeated cooperate-or-compete choices among any number of players; each choice plays against every other player under a configurable payoff matrix, and a tie names no winner.",
+      "description": "Simulates repeated cooperate-or-compete choices among any number of players under a configurable payoff matrix; coded players follow classic strategies (tit for tat, grim trigger, always cooperate or compete, random) with occasional mistakes, and a tie names no winner.",
       "status": "native",
       "path": "starters/repeated_strategy.json"
     }

@@ -1,10 +1,11 @@
 {
   "fg_env": "1",
   "name": "Legislature Engine",
-  "description": "A reusable configurable legislative body with sponsorship, recognition, debate, seconds, amendments, procedural voting, party positions, and recorded outcomes.",
+  "description": "A reusable configurable legislative body with sponsorship, recognition, debate, seconds, amendments, procedural voting, party positions, and recorded outcomes. Each floor speech pulls every other member's stance part of the way toward the speaker's, so debate can change the vote.",
   "inputs": {
     "body_name": {"type": "text", "default": "Legislative body"},
     "bill": {"type": "text", "default": "Adopt the proposed measure."},
+    "persuasion": {"type": "number", "default": 0.3, "min": 0, "max": 0.5, "description": "Average share of the gap to a speaker's stance that each other member moves per speech (each draws between 0 and twice this); 0 = debate changes no votes."},
     "members": {
       "type": "table",
       "columns": {"id": "text", "name": "text", "party": "text", "stance": "number", "sponsor": "bool"},
@@ -28,7 +29,7 @@
   "types": {
     "member": {"agent": true, "policy": "member_baseline", "props": {
       "party": {"type": "text", "default": ""},
-      "stance": {"type": "number", "default": 0, "min": -1, "max": 1, "private": true},
+      "stance": {"type": "number", "default": 0, "min": -1, "max": 1, "private": true, "description": "Current view of the measure, from -1 (against) to 1 (for); floor speeches move it."},
       "sponsor": {"type": "bool", "default": false}
     }},
     "presiding_officer": {"agent": true, "policy": "chair_baseline"}
@@ -42,8 +43,14 @@
   }},
   "defs": {
     "holds_floor": {"args": ["who"], "expr": "$world.chamber.floor == $who.id"},
-    "open_motion": "$pending_motion() != null and $pending_motion().status == open"
+    "open_motion": "$pending_motion() != null and $pending_motion().status == open",
+    "speeches": "$filter($records(chamber), $it.says == says)"
   },
+  "world": {"heard": {"type": "int", "default": 0, "description": "Speeches whose persuasion has been applied."}},
+  "triggers": [{"name": "persuasion", "when": "$len($speeches) > $world.heard", "do": [
+    "$speaker = $last($speeches).author", "$world.heard = $len($speeches)",
+    {"each": "member", "where": "$it.id != $speaker.id", "do": ["$it.stance += $uniform(0, 2 * $inputs.persuasion) * ($speaker.stance - $it.stance)"]}
+  ]}],
   "policies": {
     "chair_baseline": {"repeat": true, "rules": [
       {"when": "$len($world.chamber.hands) > 0 and $world.chamber.floor == null", "do": "chamber_recognize", "with": {"who": "$world.chamber.hands[0]"}},
@@ -60,7 +67,7 @@
     ]}
   },
   "metrics": {
-    "speeches": {"expr": "$count($records(chamber), $it.says == says)"},
+    "speeches": {"expr": "$len($speeches)"},
     "participation": {"expr": "$count(member, $it.id in $map($records(chamber), $it.author.id)) / $max(1, $count(member))"}
   },
   "outputs": {

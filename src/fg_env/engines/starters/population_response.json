@@ -1,7 +1,7 @@
 {
   "fg_env": "1",
   "name": "Population Engine",
-  "description": "A reusable sampled-population response engine. People independently choose among configurable responses with private inclinations and report confidence; outcomes aggregate across people and experiment runs.",
+  "description": "A reusable sampled-population response engine. People independently choose among configurable responses with private inclinations and report confidence; the coded baseline responds from each person's inclination blurred by their uncertainty, so outcomes vary across runs and aggregate across people and experiment runs.",
   "inputs": {
     "question": {"type": "text", "default": "Would you adopt the proposed change?"},
     "participants": {
@@ -27,13 +27,15 @@
       "segment": {"type": "text", "default": ""},
       "inclination": {"type": "number", "default": 0, "min": -1, "max": 1, "private": true},
       "default_confidence": {"type": "number", "default": 0.5, "min": 0, "max": 1, "private": true},
+      "leaning": {"type": "number", "default": 0, "private": true, "description": "Today's leaning: the inclination plus noise that shrinks as confidence grows (what the coded baseline responds from)."},
       "response": {"type": "text", "default": "", "private": true},
       "reported_confidence": {"type": "number", "default": 0, "min": 0, "max": 1, "private": true}
     }}
   },
   "population": [{
     "type": "person", "from": "$inputs.participants", "id": "{$row.id}", "name": "{$row.name}",
-    "props": {"segment": "$row.segment", "inclination": "$row.inclination", "default_confidence": "$row.confidence"}
+    "props": {"segment": "$row.segment", "inclination": "$row.inclination", "default_confidence": "$row.confidence",
+              "leaning": "$row.inclination + $normal(0, 1 - $row.confidence)"}
   }],
   "records": {"responses": {"fields": {"choice": "text", "confidence": "number", "reason": "text"}, "visible": "false"}},
   "actions": {
@@ -51,8 +53,8 @@
   "stages": [{"name": "respond", "turns": "simultaneous", "must_act": true}],
   "views": {"private_context": {"for": "person", "show": "Segment: {segment}. Private inclination: {inclination|2}."}},
   "policies": {"baseline": {"rules": [
-    {"when": "$actor.inclination > 0.25", "do": "respond", "with": {"choice": "support", "confidence": "$actor.default_confidence", "reason": "The change fits my priorities."}},
-    {"when": "$actor.inclination < -0.25", "do": "respond", "with": {"choice": "oppose", "confidence": "$actor.default_confidence", "reason": "The change conflicts with my priorities."}},
+    {"when": "$actor.leaning > 0.25", "do": "respond", "with": {"choice": "support", "confidence": "$actor.default_confidence", "reason": "The change fits my priorities."}},
+    {"when": "$actor.leaning < -0.25", "do": "respond", "with": {"choice": "oppose", "confidence": "$actor.default_confidence", "reason": "The change conflicts with my priorities."}},
     {"do": "respond", "with": {"choice": "undecided", "confidence": "$actor.default_confidence", "reason": "I would need more information."}}
   ]}},
   "metrics": {
