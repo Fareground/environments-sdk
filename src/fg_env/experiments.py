@@ -45,6 +45,13 @@ def _describe(values: List[Any]) -> Dict[str, Any]:
             keys += [k for k in v if k not in keys]
         return {"n": len(present), "keys": {k: _describe([v.get(k) for v in present]) for k in keys}}
     if all(isinstance(v, list) for v in present):
+        labelled = [_by_label(v) for v in present]
+        if all(row is not None for row in labelled):
+            return _describe(labelled)  # a ranking: each label's values, wherever it placed
+        if all(_is_number(x) for v in present for x in v):
+            width = max(len(v) for v in present)
+            return {"n": len(present), "items": [_describe([v[i] if i < len(v) else None for v in present])
+                                                 for i in range(width)]}
         return {"n": len(present), "length": _describe([len(v) for v in present])}
     if all(isinstance(v, bool) for v in present):
         return {"n": len(present), "rate": sum(present) / len(present)}
@@ -55,6 +62,27 @@ def _describe(values: List[Any]) -> Dict[str, Any]:
         key = str(v)
         counts[key] = counts.get(key, 0) + 1
     return {"n": len(present), "counts": dict(sorted(counts.items(), key=lambda kv: -kv[1]))}
+
+
+def _by_label(rows: List[Any]) -> Optional[Dict[str, Any]]:
+    """A list of ``[label, value, ...]`` rows (a ranking) as label → value (or values), else None."""
+    if not rows or not all(isinstance(row, list) and len(row) >= 2 and isinstance(row[0], str) for row in rows):
+        return None
+    return {row[0]: row[1] if len(row) == 2 else row[1:] for row in rows}
+
+
+def _brief(stats: Mapping[str, Any]) -> str:
+    """One summarised value, short: a mean, a rate, or the means of a list position by position."""
+    if "mean" in stats:
+        return f"{stats['mean']:.4g}"
+    if "rate" in stats:
+        return f"{stats['rate']:.0%}"
+    if "items" in stats:
+        shown = [_brief(item) for item in stats["items"]]
+        return "[" + ", ".join(shown if len(shown) <= 6 else shown[:4] + ["…", shown[-1]]) + "]"
+    if stats.get("counts"):
+        return next(iter(stats["counts"]))  # the most frequent
+    return "—"
 
 
 def _is_number(value: Any) -> TypeGuard[float]:
@@ -146,8 +174,10 @@ class ExperimentResult:
                 elif "rate" in stats:
                     cells.append(f"{label}: {stats['rate']:.0%} (n={stats['n']})")
                 elif "keys" in stats:
-                    parts = [f"{k} {s['mean']:.3g}" for k, s in stats["keys"].items() if "mean" in s][:6]
-                    cells.append(f"{label}: " + (", ".join(parts) or f"{len(stats['keys'])} keys"))
+                    parts = [f"{k} {_brief(s)}" for k, s in stats["keys"].items()][:6]
+                    cells.append(f"{label}: " + (", ".join(parts) or "—"))
+                elif "items" in stats:
+                    cells.append(f"{label}: {_brief(stats)} (mean per position, n={stats['n']})")
                 elif "length" in stats:
                     cells.append(f"{label}: lists of ~{stats['length'].get('mean', 0):.3g} items")
                 elif "counts" in stats:
