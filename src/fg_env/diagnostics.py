@@ -174,7 +174,7 @@ def _finding(code: str, path: str, message: str, fix: str) -> Dict[str, str]:
 
 
 def _most_common(reasons: Dict[str, List[Any]]) -> str:
-    count, text = max(reasons.values(), key=lambda entry: entry[0])
+    count, text = min(reasons.values(), key=lambda entry: (-entry[0], entry[1]))  # ties: the same one every run
     return f"{text.rstrip('.')} ({count}×)"
 
 

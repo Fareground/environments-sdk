@@ -165,6 +165,24 @@ def test_the_same_choices_give_the_same_result_however_long_each_agent_takes():
     assert fg_env.run(c, slow("a1"), seed=1).to_dict() == fg_env.run(c, slow("b1"), seed=1).to_dict()
 
 
+def test_the_refusal_a_diagnostic_quotes_does_not_depend_on_which_agent_was_refused_first():
+    c = {"name": "Broke", "clock": {"rounds": 2},
+         "types": {"p": {"agent": True, "props": {"cash": {"type": "number", "default": 0, "min": 0}}}},
+         "entities": {"p0": {"type": "p"}, "p1": {"type": "p"}},
+         "actions": {"spend": {"by": "p", "do": ["$actor.cash -= 1"]}},
+         "stages": [{"name": "s", "turns": "simultaneous"}]}
+
+    def late(who):
+        def play(wake):
+            if wake.entity_id == who:
+                time.sleep(0.05)  # the other agent is refused first
+            wake.call("spend", {})
+            wake.end()
+        return play
+
+    assert fg_env.run(c, late("p0"), seed=1).diagnostics == fg_env.run(c, late("p1"), seed=1).diagnostics
+
+
 def test_how_many_sealed_turns_run_at_once_does_not_change_the_outcome():
     c = {"name": "Conc", "clock": {"rounds": 5}, "world": {"pot": 0, "order": {"type": "list", "default": []}},
          "types": {"p": {"agent": True, "props": {"luck": 0, "cash": 20}}},

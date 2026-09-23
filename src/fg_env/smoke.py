@@ -116,13 +116,14 @@ def _never_succeeded(contract: Contract, played: List["Env"]) -> List[Issue]:
             total[0] += entry["calls"]
             total[1] += entry["applied"] + entry["faulted"]  # a rule that failed is reported on its own
             for cause, (count, text) in entry["reasons"].items():
-                total[2].setdefault(cause, [0, text])[0] += count
+                kept = total[2].setdefault(cause, [0, text])
+                kept[0], kept[1] = kept[0] + count, min(kept[1], text)
     out = []
     for name, (calls, applied, reasons) in sorted(totals.items()):
         takes_text = any(p.type == "text" and not p.values for p in contract.actions[name].params.values())
         if calls < MIN_CALLS or applied or not reasons or takes_text:
             continue
-        count, text = max(reasons.values(), key=lambda entry: entry[0])
+        count, text = min(reasons.values(), key=lambda entry: (-entry[0], entry[1]))
         out.append(Issue(f"actions.{name}", f"never succeeded in the smoke plays: all {calls} call(s) were refused; "
                                             f"most often: {text.rstrip('.')} ({count}×)",
                          "make the tool offer only choices that can work: bound or list its parameters (min, max, "
