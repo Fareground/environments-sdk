@@ -17,10 +17,12 @@ from difflib import get_close_matches
 from typing import TYPE_CHECKING, Any, Callable, Collection, Dict, List, Mapping, Optional, Tuple, Union
 
 from .assets.multimodal import ANTHROPIC_MEDIA, OPENAI_MEDIA, anthropic_parts, media_set, openai_parts
+from .budget import tokens_of
 from .effects import each_items
 from .errors import ContractError, Issue, RunError
 from .probability import is_probability
 from .expr import ExprError, compile_expr, resolve, truthy
+from .measure import Stats
 from .seeds import LazyStream
 from .session import END_TURN, ToolResult, Wake
 
@@ -378,6 +380,7 @@ class _LLMUsage:
         self.truncated = 0
         self.refusals = 0
         self.out_of_steps = 0
+        self.no_tool_replies = 0
 
     def to_dict(self) -> Dict[str, int]:
         return dict(self.__dict__)
@@ -417,6 +420,8 @@ def _add_user_text(messages: List[Dict[str, Any]], text: str) -> None:
 
 
 def _retryable(exc: BaseException) -> bool:
+    if isinstance(exc, _EmptyReply):
+        return True
     status = getattr(exc, "status_code", None)
     if isinstance(status, int):
         return status in _RETRY_STATUSES
@@ -462,6 +467,20 @@ class _Forfeit(Exception):
     """A provider call still failed after its retries: the turn is lost, not the run."""
 
 
+class _Over(Exception):
+    """The turn ended (its time, or the run's token budget, ran out) before the next model call: none is made."""
+
+
+class _EmptyReply(Exception):
+    """The provider answered with no reply in it (OpenRouter does this now and then): retried like an overload."""
+
+
+def _over(wake: Wake) -> bool:
+    """Whether the turn is over, or its time is up and the engine is about to close it."""
+    left = wake.time_left
+    return wake.done or (left is not None and left <= 0)
+
+
 def _extra(extra: Optional[Mapping[str, Any]], sent: Collection[str]) -> Dict[str, Any]:
     """The ``extra`` request fields, refusing any of the fields the participant sends itself (``sent``)."""
     if extra is None:
@@ -501,12 +520,18 @@ class _LLMParticipant:
         self.retry_truncated = retry_truncated
         self.usage = _LLMUsage()
         self._usage_lock = threading.Lock()
+        #: The budget tokens this participant's latest model call spent: what the next call reserves of a token budget
+        #: (0 before its first).
+        self._last_cost = 0
 
     def __call__(self, wake: Wake) -> None:
-        try:
-            self._turn(wake)
-        except _Forfeit:
-            self._record(wake, forfeits=1)
+        if any(tool.kind == "act" for tool in wake.tools):  # with nothing to do, the model is not asked
+            try:
+                self._turn(wake)
+            except _Forfeit:
+                self._record(wake, forfeits=1)
+            except _Over:
+                pass
         if not wake.done and _may_end(wake):
             wake.end()  # in a must-act stage the engine closes the turn instead, and reports that the agent did not act
 
@@ -515,8 +540,15 @@ class _LLMParticipant:
 
     def _follow_up(self, wake: Wake, truncated: bool, asked: bool) -> Optional[str]:
         """What to tell a model whose reply called no tool, or None to end the loop: one follow-up per turn — the
-        short retry after a truncated reply (when ``retry_truncated``), else the nudge naming the tools offered."""
-        if asked or wake.done or (truncated and not self.retry_truncated):
+        short retry after a truncated reply (when ``retry_truncated``), else the nudge naming the tools offered. A
+        reply that still calls no tool after the nudge, in a turn that took no action, is counted
+        (``no_tool_replies``): the turn failed. (A truncated reply is counted as one already.)"""
+        if wake.done:
+            return None
+        if asked or (truncated and not self.retry_truncated):
+            turn = wake._turn
+            if asked and not truncated and not turn.stats.actions and not turn.intents:
+                self._record(wake, no_tool_replies=1)
             return None
         return _TRUNCATED if truncated else _nudge(wake)
 
@@ -534,27 +566,59 @@ class _LLMParticipant:
         return wake.call(name, args)
 
     def _create(self, wake: Wake, request: Callable[[], Any]) -> Any:
-        """One provider call. Rate limits, timeouts, overload and server errors are retried; when the retries run out
-        the turn is forfeited. Any other error fails the run: retrying would send the same request again."""
+        """One provider call, its usage counted. Rate limits, timeouts, overload, server errors and empty replies are
+        retried while the turn lasts, never sleeping past its deadline; when the retries run out the turn is forfeited.
+        Any other error fails the run: retrying would send the same request again. Once the turn is over no call is
+        made (:class:`_Over`)."""
         for attempt in range(self.retries + 1):
+            if _over(wake):
+                raise _Over()
             try:
-                response = request()
+                return self._call(wake, request)
+            except (RunError, _Over):
+                raise
             except Exception as exc:
                 if not _retryable(exc):
                     raise self._failure(wake, exc) from exc
                 if attempt >= self.retries:
                     raise _Forfeit() from exc
                 self._record(wake, llm_retries=1)
-                time.sleep(_backoff(attempt, exc))
-                continue
+                left = wake.time_left
+                time.sleep(_backoff(attempt, exc) if left is None else min(_backoff(attempt, exc), left))
+        raise AssertionError("unreachable")
+
+    def _call(self, wake: Wake, request: Callable[[], Any]) -> Any:
+        """Make one model call and count its usage. Under a token budget the call first reserves what the previous call
+        spent (the first, of unknown cost, all that is left), waiting while the calls under way may spend what is left,
+        so parallel turns do not all overshoot it."""
+        turn = wake._turn
+        budget = turn.env.budget
+        held = budget.reserve(turn.env, turn, self._last_cost or None) if budget is not None else 0
+        if held is None:
+            raise _Over()
+        try:
+            response = request()
             if inspect.isawaitable(response):
                 if inspect.iscoroutine(response):
                     response.close()  # never awaited: closed so it does not linger
                 raise RunError(f"{self.CALL} returned an awaitable, so this is an async client. Pass the sync client, "
                                f"{self.CLIENT}: simultaneous turns already run in parallel, and `await env.arun(...)` "
                                "keeps your event loop free while the run plays", f"participant:{wake.entity_id}")
-            return response
-        raise AssertionError("unreachable")
+            self._count(wake, getattr(response, "usage", None))
+        finally:
+            if budget is not None:
+                budget.release(turn.env, held)
+        if self._empty(response):
+            raise _EmptyReply(getattr(response, "error", None) or "the provider sent no reply")
+        return response
+
+    def _count(self, wake: Wake, usage: Any) -> None:
+        raise NotImplementedError
+
+    @staticmethod
+    def _empty(response: Any) -> bool:
+        """Whether a response holds no reply at all (retried like an overload)."""
+        return False
 
     def _failure(self, wake: Wake, exc: BaseException) -> RunError:
         status = getattr(exc, "status_code", None)
@@ -563,12 +627,18 @@ class _LLMParticipant:
                         f"participant:{wake.entity_id}")
 
     def _record(self, wake: Wake, **counts: int) -> None:
+        if counts.get("llm_calls"):
+            self._last_cost = tokens_of(Stats(**{name: counts.get(name, 0) for name in _TOKEN_COUNTS}))
         wake.record_usage(**counts)
         mapping = {"llm_calls": "calls", "llm_retries": "retries"}
         with self._usage_lock:
             for name, value in counts.items():
                 attr_name = mapping.get(name, name)
                 setattr(self.usage, attr_name, getattr(self.usage, attr_name) + value)
+
+
+#: The usage counts a model call's budget tokens are made of.
+_TOKEN_COUNTS = ("input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens")
 
 
 class _Anthropic(_LLMParticipant):
@@ -591,18 +661,17 @@ class _Anthropic(_LLMParticipant):
         for _ in range(self.max_steps):
             if wake.done:
                 return
-            tools = wake.tools_for("anthropic")
+            tools, sent = wake.tools_for("anthropic"), _cached(messages)
             response = self._create(wake, lambda: self.client.messages.create(
-                model=self.model, max_tokens=self.max_tokens, system=system, tools=tools, messages=messages,  # noqa: B023 — called within this iteration
+                model=self.model, max_tokens=self.max_tokens, system=system, tools=tools, messages=sent,  # noqa: B023 — called within this iteration
                 **self.extra))
-            self._count(wake, getattr(response, "usage", None))
             if getattr(response, "stop_reason", None) == "refusal":
                 self._record(wake, refusals=1)
                 return  # asking again after a refusal only invites another
             truncated = getattr(response, "stop_reason", None) == "max_tokens"
             if truncated:
                 self._record(wake, truncated=1)
-            content = [_block_dict(b) for b in (getattr(response, "content", None) or [])]
+            content = _reply_blocks(getattr(response, "content", None) or [], truncated)
             calls = [block for block in content if block.get("type") == "tool_use"]
             if not calls:
                 follow = self._follow_up(wake, truncated, asked)
@@ -639,6 +708,25 @@ class _Anthropic(_LLMParticipant):
                      cache_write_tokens=number("cache_creation_input_tokens"))
 
 
+def _cached(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """``messages`` with a cache breakpoint on the latest one, so the turn's next call reads all of it from the prompt
+    cache (``messages`` itself is left as it is: only one breakpoint follows the conversation)."""
+    last = messages[-1]
+    content = last["content"]
+    blocks = [{"type": "text", "text": content}] if isinstance(content, str) else list(content)
+    blocks[-1] = {**blocks[-1], "cache_control": {"type": "ephemeral"}}
+    return [*messages[:-1], {**last, "content": blocks}]
+
+
+def _reply_blocks(blocks: Any, truncated: bool) -> List[Dict[str, Any]]:
+    """A reply's content blocks as they are sent back: without empty text (the API refuses it), and — for a reply cut
+    off at ``max_tokens`` — without its tool calls, whose arguments may be cut off too (none of them is made)."""
+    content = [_block_dict(block) for block in blocks]
+    return [block for block in content
+            if not (block.get("type") == "text" and not block.get("text", "").strip())
+            and not (truncated and block.get("type") == "tool_use")]
+
+
 def _block_dict(block: Any) -> Dict[str, Any]:
     kind = getattr(block, "type", None) or (block.get("type") if isinstance(block, Mapping) else "")
     if kind == "text":
@@ -660,9 +748,11 @@ def anthropic(client: Any, model: str, *, max_tokens: int = 16000, max_steps: in
               extra: Optional[Mapping[str, Any]] = None) -> Participant:
     """An LLM participant using an ``anthropic.Anthropic()`` client.
 
-    The system prompt (``system`` and the brief) is marked for prompt caching. Anthropic caches the tools ahead of
-    it, and the tools are the actions legal right now with their live choices, so a call reads the cache only when
-    the agent is offered the same tools as in an earlier call (typically in a phase it has been in before).
+    Two prompt-cache breakpoints: the system prompt (``system`` and the brief), and the latest message, so each model
+    call of a turn reads the one before it from the cache. Anthropic caches the tools ahead of both, and the tools are
+    the actions legal right now with their live choices, so a call reads the cache only when the agent is offered the
+    same tools as in the earlier call. A prompt shorter than the model's minimum is simply not cached (no charge).
+    When the agent has no action it could take, the model is not called and the turn ends.
 
     Files the agent receives are sent as image and document blocks after the text (``media``: the attachment types
     sent as content, default image, pdf and text; ``media=()`` for a text-only model, which reads each file's
@@ -672,7 +762,8 @@ def anthropic(client: Any, model: str, *, max_tokens: int = 16000, max_steps: in
     client: an async client fails the run saying so.
 
     Rate limits, timeouts, overload and server errors are retried ``retries`` times with backoff (honouring
-    ``retry-after``); if a call still fails, the turn is forfeited, counted in ``stats["forfeits"]`` and reported in
+    ``retry-after``, never past the turn's time limit: once the turn is over no call is made); if a call still fails,
+    the turn is forfeited, counted in ``stats["forfeits"]`` and reported in
     the run's diagnostics. Any other error — a rejected API key, an unknown model, a bad request, a client that does
     not fit — fails the run at once, naming the agent, the provider's error and the fix. A reply the provider refused
     ends the turn and counts in ``stats["refusals"]``. Real token usage lands in the run's statistics and in
@@ -680,8 +771,10 @@ def anthropic(client: Any, model: str, *, max_tokens: int = 16000, max_steps: in
 
     A reply cut off at ``max_tokens`` (default 16000: room for a model that thinks before it answers) counts in
     ``stats["truncated"]``; when it called no tool, the model is asked once for a short tool call
-    (``retry_truncated=False`` ends the turn instead). Any other reply that calls no tool is reminded once of the tools
-    offered. A turn that makes all ``max_steps`` model calls ends there and counts in ``stats["out_of_steps"]``. Calls
+    (``retry_truncated=False`` ends the turn instead); its tool calls, whose arguments may be cut off, are not made.
+    Any other reply that calls no tool is reminded once of the tools offered; a reply that still calls none ends the
+    turn, and in a turn that took no action counts in ``stats["no_tool_replies"]`` (with an action open, a failed
+    turn). A turn that makes all ``max_steps`` model calls ends there and counts in ``stats["out_of_steps"]``. Calls
     left in a reply after one of them ended the turn are not made. In a stage where the agent must act, the
     participant never ends the turn itself: the engine closes it and reports that the agent did not act.
     """
@@ -720,19 +813,16 @@ class _OpenAI(_LLMParticipant):
             tools = wake.tools_for("openai")
             response = self._create(wake, lambda: self.client.chat.completions.create(
                 model=self.model, messages=messages, tools=tools, **self.options, **self.extra))  # noqa: B023 — called within this iteration
-            self._count(wake, getattr(response, "usage", None))
-            choices = getattr(response, "choices", None) or []
-            if not choices:
-                return
-            finish = getattr(choices[0], "finish_reason", None)
-            message = choices[0].message
+            choice = response.choices[0]
+            finish = getattr(choice, "finish_reason", None)
+            message = choice.message
             if getattr(message, "refusal", None) or finish == "content_filter":
                 self._record(wake, refusals=1)
                 return  # asking again after a refusal only invites another
             truncated = finish == "length"
             if truncated:
                 self._record(wake, truncated=1)
-            calls = list(getattr(message, "tool_calls", None) or [])
+            calls = [] if truncated else list(getattr(message, "tool_calls", None) or [])  # cut-off arguments are not made
             assistant: Dict[str, Any] = {"role": "assistant", "content": getattr(message, "content", None) or ""}
             if not calls:
                 follow = self._follow_up(wake, truncated, asked)
@@ -767,8 +857,12 @@ class _OpenAI(_LLMParticipant):
             return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
 
         cached = number(getattr(usage, "prompt_tokens_details", None), "cached_tokens")
-        self._record(wake, llm_calls=1, input_tokens=number(usage, "prompt_tokens"),
+        self._record(wake, llm_calls=1, input_tokens=max(0, number(usage, "prompt_tokens") - cached),
                      output_tokens=number(usage, "completion_tokens"), cache_read_tokens=cached)
+
+    @staticmethod
+    def _empty(response: Any) -> bool:
+        return not getattr(response, "choices", None)
 
 
 def openai(client: Any, model: str, *, max_tokens: Optional[int] = None, reasoning_effort: Optional[str] = None,
@@ -778,7 +872,8 @@ def openai(client: Any, model: str, *, max_tokens: Optional[int] = None, reasoni
 
     ``max_tokens`` caps each reply (sent as ``max_completion_tokens``) and ``reasoning_effort`` (``"low"``,
     ``"medium"``, ``"high"``) is passed on to reasoning models; each is sent only when given. A server that knows only
-    the older ``max_tokens`` field takes ``extra={"max_tokens": 1024}`` instead. Retries, failures, refusals (a
+    the older ``max_tokens`` field takes ``extra={"max_tokens": 1024}`` instead. A response with no choices in it
+    (OpenRouter sends one now and then) is retried like an overload. Retries, failures, refusals (a
     ``refusal`` message or ``finish_reason`` ``content_filter``), ``extra``, usage accounting, truncated replies
     (``finish_reason`` ``length``) and ``retry_truncated`` work as for :func:`anthropic`; arguments that are not a
     JSON object are refused and counted as invalid calls. Files are sent as

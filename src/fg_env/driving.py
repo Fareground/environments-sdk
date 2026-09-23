@@ -284,7 +284,7 @@ class Driver:
                 stats = turn.stats
                 stats.idle_turns += 1
                 went_wrong = bool(stats.invalid_calls or stats.rejected_actions or stats.refusals or stats.truncated
-                                  or stats.out_of_steps)
+                                  or stats.out_of_steps or stats.no_tool_replies)
                 had_to = turn.stage.must_act or turn.calls_left <= 0
                 if (went_wrong or had_to) and turn.actor.alive and not turn.timed_out and turn._legal():
                     stats.failed_turns += went_wrong  # an action was there to take

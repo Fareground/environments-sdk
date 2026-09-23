@@ -71,7 +71,8 @@ def test_anthropic_participant_sends_document_and_image_blocks_after_the_update(
         {"type": "document", "source": {"type": "base64", "media_type": "application/pdf", "data": B64_PDF},
          "title": "agreement.pdf", "context": "The signed agreement"},
         {"type": "text", "text": 'Attached: [image seam.png: "Photo seam.png"]'},
-        {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": B64_SEAM}},
+        {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": B64_SEAM},
+         "cache_control": {"type": "ephemeral"}},  # the prompt-cache breakpoint is on the latest block
     ]
     result = client.requests[1]["messages"][-1]["content"][0]
     assert result["type"] == "tool_result" and result["content"][0]["type"] == "text"
@@ -82,8 +83,8 @@ def test_a_text_only_model_reads_captions_in_the_text_and_no_file_content(tmp_pa
     client = FakeAnthropic([[("end_turn", {})]])
     env = _dana_env(tmp_path)
     env.run({"dana": participants.anthropic(client, "claude-x", media=()), "*": "idle"}, rounds=1)
-    first = client.requests[0]["messages"][0]["content"]
-    assert isinstance(first, str) and '[image seam.png: "Photo seam.png"]' in first
+    [first] = client.requests[0]["messages"][0]["content"]  # the update's text alone
+    assert first["type"] == "text" and '[image seam.png: "Photo seam.png"]' in first["text"]
     assert "Attached: [pdf agreement.pdf" in client.requests[0]["system"][0]["text"] and B64_PDF not in json.dumps(client.requests)
 
 
@@ -94,7 +95,7 @@ def test_a_text_file_is_sent_as_a_plain_text_document(tmp_path):
     assert client.requests[0]["messages"][0]["content"][1:] == [
         {"type": "text", "text": 'Attached: [text report.md: "Inspection report"]'},
         {"type": "document", "source": {"type": "text", "media_type": "text/plain", "data": REPORT},
-         "title": "report.md", "context": "Inspection report"}]
+         "title": "report.md", "context": "Inspection report", "cache_control": {"type": "ephemeral"}}]
 
 
 def test_openai_participant_sends_data_urls_file_and_audio_parts_and_tool_files_after_the_tool_messages(tmp_path):

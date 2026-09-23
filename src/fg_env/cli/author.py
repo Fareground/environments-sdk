@@ -26,7 +26,8 @@ def cmd_author(args: argparse.Namespace) -> int:
 
 
 def add_author_command(sub: Any) -> None:
-    from ..authoring import CACHED_WEIGHT, DEFAULT_BUDGET
+    from ..authoring import DEFAULT_BUDGET
+    from ..budget import CACHED_WEIGHT
     from . import _guarded
 
     p = sub.add_parser("author", help="have an LLM write a working contract from a plain-language brief")

@@ -14,7 +14,7 @@ Action space: 4 ids
   | 
   | ## You
   | You are Ann (player, id a).
-  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+  | Act only through your tools. Your turn ends when you take a final action.
 
 ## Brief of seat 1 (b)
   | # Nim
@@ -25,7 +25,7 @@ Action space: 4 ids
   | 
   | ## You
   | You are Bob (player, id b).
-  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+  | Act only through your tools. Your turn ends when you take a final action.
 
 # State 0
 Current player: 0
@@ -35,12 +35,12 @@ Seat 0 (a) reads:
   | Now: It is your turn.
   | 
   | Stones left: 5.
-Seat 0 information state: 2c6973df880fd011
+Seat 0 information state: 613e32d5b80478a3
 Seat 1 (b) reads:
   | Move 1 of 50 · move
   | 
   | Stones left: 5.
-Seat 1 information state: 1b4e22b6161de91d
+Seat 1 information state: 1ba5cef0a3de3af7
 Returns: [0, 0]
 Chosen: seat 0: take(count=3)
 Step: {"args": {"count": 3}, "seat": 0, "tool": "take"}
@@ -52,16 +52,16 @@ Seat 0 (a) reads:
   | Move 2 of 50 · move
   | 
   | Stones left: 2.
-Seat 0 information state: 8d623a5f059c9b03
+Seat 0 information state: caab43cd765f87da
 Seat 1 (b) reads:
   | Move 2 of 50 · move
   | Now: It is your turn.
   | 
-  | Since your last turn:
+  | So far:
   | - Ann: take (count=3).
   | 
   | Stones left: 2.
-Seat 1 information state: bfe9498af54eddd4
+Seat 1 information state: 959ca42727531268
 Returns: [0, 0]
 Chosen: seat 1: take(count=1)
 Step: {"args": {"count": 1}, "seat": 1, "tool": "take"}
@@ -77,12 +77,12 @@ Seat 0 (a) reads:
   | - Bob: take (count=1).
   | 
   | Stones left: 1.
-Seat 0 information state: 6d068b10ce9ee414
+Seat 0 information state: 4c3e0755b86daaa8
 Seat 1 (b) reads:
   | Move 3 of 50 · move
   | 
   | Stones left: 1.
-Seat 1 information state: 5ff43d7a387d7568
+Seat 1 information state: 1991ff7ccc6d10d1
 Returns: [0, 0]
 Chosen: seat 0: take(count=1)
 Step: {"args": {"count": 1}, "seat": 0, "tool": "take"}

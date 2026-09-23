@@ -48,7 +48,33 @@ def test_holdem_says_whether_a_hand_uses_the_hole_cards_or_is_on_the_board():
     assert poker_hand(["QS", "2D"], ["QH", "9C", "5D", "8S"]) == "pair of queens, using one hole card"
     assert poker_hand(["9S", "9D"], []) == "pair of nines"
     seen = _first_tools(_example("texas_holdem.json"), "player", inputs={"players": 4, "hands": 1})
-    assert "Your hand: " in seen["update"]
+    assert "Best hand: " in seen["update"] and seen["update"].count("Your hand") == 1  # one heading per thing
+
+
+def test_a_later_pass_says_again_only_to_an_agent_that_already_had_a_turn_in_the_stage():
+    contract = {"name": "Passes", "clock": {"rounds": 2}, "world": {"open": 0},
+                "types": {"player": {"agent": True, "props": {"joins": 0}}},
+                "entities": {"ann": {"type": "player", "props": {"joins": 0}}, "ben": {"type": "player", "props": {"joins": 1}}},
+                "actions": {"move": {"by": "player", "do": ["$world.open = 1"], "terminal": True}},
+                "stages": [{"name": "play", "passes": 2, "who": "$it.joins <= $world.open", "must_act": True}]}
+    turns = []
+
+    def mover(wake):
+        turns.append((wake.round, wake.entity_id, wake.reason, "So far:" in wake.update, wake.brief))
+        wake.call("move", {})
+
+    fg_env.run(contract, mover, seed=1)
+    assert [turn[:3] for turn in turns] == [
+        (1, "ann", "It is your turn."), (1, "ann", "Your turn again."), (1, "ben", "It is your turn."),
+        (2, "ann", "It is your turn."), (2, "ben", "It is your turn."), (2, "ann", "Your turn again."),
+        (2, "ben", "Your turn again.")]
+    assert [turn[3] for turn in turns] == [False, False, True] + [False] * 4  # Ben's first turn: "So far:"
+    assert turns[0][4].endswith("Your turn ends when you take a final action.")  # a must-act stage offers no pass
+
+
+def test_the_first_turn_reports_what_happened_so_far_not_since_a_last_turn():
+    seen = _first_tools(_example("texas_holdem.json"), "player_4", inputs={"players": 4, "hands": 1})
+    assert "So far:" in seen["update"] and "Since your last turn" not in seen["update"]
 
 
 def test_a_silent_poker_player_is_reported_and_folds_visibly():

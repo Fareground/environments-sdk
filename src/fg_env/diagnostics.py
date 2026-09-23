@@ -112,12 +112,14 @@ def _never_acted(env: "Env") -> List[Dict[str, str]]:
     if failing:
         out.append(_finding("agents_mostly_failed", "participants",
                             f"most turns of {_named(failing)} ended with no action though one was available, after "
-                            f"invalid or refused calls, a model refusal, a reply cut off or the model calls used up "
+                            f"invalid or refused calls, a model refusal, a reply cut off or with no tool call, or the "
+                            f"model calls used up "
                             f"({', '.join(f'{agent} {s.failed_turns} of {s.wakes}' for agent, s in failing[:_LISTED])}); "
                             f"{_attempts(failing)}; this run does not show how they play",
                             "read what those agents were shown and did (load with exposures=True, then "
                             "result.exposures); for replies cut off, give the participant more `max_tokens`; for model "
-                            "calls used up, more `max_steps` or clearer tools"))
+                            "calls used up, more `max_steps` or clearer tools; for replies with no tool call, a brief "
+                            "and tools that make the choice clear"))
     return out
 
 
@@ -135,7 +137,8 @@ def _attempts(agents: List[Tuple[str, Any]]) -> str:
              "bad arguments)", f"{total('rejected_actions') - total('faulted_actions')} refused by the rules"]
     tried += [f"{total(name)} {label}" for name, label in (("refusals", "model refusal(s)"),
                                                             ("truncated", "reply(ies) cut off at the output limit"),
-                                                            ("out_of_steps", "turn(s) out of model calls"))
+                                                            ("out_of_steps", "turn(s) out of model calls"),
+                                                            ("no_tool_replies", "turn(s) the model answered in text only"))
               if total(name)]
     return ", ".join(tried)
 

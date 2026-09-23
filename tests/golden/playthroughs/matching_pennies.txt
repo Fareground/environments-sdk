@@ -14,7 +14,7 @@ Action space: 3 ids
   | 
   | ## You
   | You are m (player, id m).
-  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+  | Act only through your tools. Your turn ends when you take a final action.
 
 ## Brief of seat 1 (n)
   | # Matching pennies
@@ -25,7 +25,7 @@ Action space: 3 ids
   | 
   | ## You
   | You are n (player, id n).
-  | Act only through your tools. Your turn ends when you take a final action or call end_turn.
+  | Act only through your tools. Your turn ends when you take a final action.
 
 # State 0
 Current player: simultaneous 0, 1
@@ -34,10 +34,10 @@ Legal calls of seat 1: [1] show(side=heads); [2] show(side=tails)
 Seat 0 (m) reads:
   | Round 1 of 1 · show
   | Now: Everyone chooses at the same time.
-Seat 0 information state: 5f7209a442ca507f
+Seat 0 information state: 801c94427bfb690d
 Seat 1 (n) reads:
   | Round 1 of 1 · show
-Seat 1 information state: 1555181fa56d8258
+Seat 1 information state: 0670553ec2bc6e6c
 Returns: [0, 0]
 Chosen: seat 0: show(side=heads); seat 1: show(side=tails)
 Step: {"joint": {"0": {"args": {"side": "heads"}, "tool": "show"}, "1": {"args": {"side": "tails"}, "tool": "show"}}}

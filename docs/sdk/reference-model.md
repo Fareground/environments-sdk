@@ -81,7 +81,8 @@ turn, uses `max_actions`, or runs out of `max_calls`.
 
 What an agent reads:
 * brief (static, cacheable): name, situation, rules, its identity and role text.
-* update: time label and stage, why it is acting, "Since your last turn" (announcements of
+* update: time label and stage, why it is acting ("Your turn again." only when it already had a turn in this stage
+  this round), "Since your last turn" ("So far" on its first turn; announcements of
   others' actions, outcomes of its own simultaneous actions, record entries, event news; in a busy round what is
   addressed to it is always shown, then the newest news, then the newest of others' actions, and the rest counted),
   then every declared view that applies. Text written by participants is wrapped «like this».

@@ -170,3 +170,31 @@ def test_check_refuses_action_names_a_model_could_never_call(name, fix):
     contract["actions"][name] = contract["actions"].pop("review")
     [issue] = [i for i in fg_env.check(contract, rounds=0) if i.path == f"actions.{name}" and i.severity == "error"]
     assert fix in issue.fix
+
+
+class EmptyThenBidding(FakeOpenAI):
+    """Answers with no choices (OpenRouter's hiccup) ``empties`` times, then from the script."""
+
+    def __init__(self, script, empties):
+        super().__init__(script)
+        self.empties = empties
+
+    def create(self, **request):
+        if self.empties:
+            self.empties -= 1
+            self.requests.append(None)
+            return NS(choices=[], usage=None, error={"message": "provider hiccup"})
+        return super().create(**request)
+
+
+def test_an_openai_reply_with_no_choices_is_retried_and_then_forfeits_the_turn_instead_of_losing_it_silently():
+    bids = [[("bid", json.dumps({"amount": 30}))]]
+    retried = EmptyThenBidding(bids, empties=2)
+    result = fg_env.run(AUCTION, {"ann": participants.openai(retried, "m"), "bo": "idle", "cy": "idle"}, seed=1)
+    assert result.outputs["price"] == 30 and result.stats["llm_retries"] == 2 and result.stats["forfeits"] == 0
+
+    lost = EmptyThenBidding(bids, empties=99)
+    result = fg_env.load(AUCTION, seed=1).run({"ann": participants.openai(lost, "m", retries=1), "bo": "idle",
+                                               "cy": "idle"})
+    assert result.stats["forfeits"] >= 1 and "turns_forfeited" in [d["code"] for d in result.diagnostics]
+    assert not result.ok

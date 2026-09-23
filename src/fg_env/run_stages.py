@@ -2,6 +2,7 @@
 hooks and time limits, and committing sealed choices."""
 from __future__ import annotations
 
+import bisect
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from .entity import Entity
@@ -132,7 +133,16 @@ class RunStages:
             return requested
         if stage.turns == "simultaneous":
             return "Everyone chooses at the same time."
-        return "It is your turn." if pass_index == 0 else "Your turn again."
+        return "Your turn again." if pass_index and self._turned_here(memory.cursor, stage) else "It is your turn."
+
+    def _turned_here(self: "Env", cursor: int, stage: StageSpec) -> bool:  # type: ignore[misc]
+        """Whether the agent whose last turn ended at log position ``cursor`` had it in this visit of ``stage``: the
+        latest event then was this round's, in this stage."""
+        log = self.world.log
+        at = bisect.bisect_left(log, cursor, key=lambda event: event.seq)
+        if cursor <= 0 or at == len(log) or log[at].seq != cursor:
+            return False
+        return log[at].round == self.world.round and log[at].stage == stage.name
 
     def _sequential(self: "Env", stage: StageSpec, agents: List[Entity], pass_index: int, resumed: bool = False) -> _Steps:  # type: ignore[misc]
         where = self._where
