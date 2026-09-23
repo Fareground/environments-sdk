@@ -53,14 +53,14 @@ def test_a_choice_is_tried_after_the_agents_own_earlier_choices():
     c["world"]["stock"] = 5
     c["actions"]["buy"]["do"] = [{"if": "$actor.coins < 5", "then": [{"fail": "you cannot afford it"}]},
                                         "$actor.coins = $actor.coins - 5"]
-    replies = []
+    replies = {}
 
-    def buy_twice(wake):
-        replies.extend(wake.call("buy", {}) for _ in range(2))
+    def buy_twice(wake):  # sealed turns run in parallel threads: keep each agent's replies apart
+        replies[wake.entity_id] = [wake.call("buy", {}) for _ in range(2)]
         wake.end()
 
     fg_env.load(c, seed=1).run(buy_twice)
-    first, second = replies[:2]
+    first, second = next(iter(replies.values()))
     assert first.ok and "Submitted" in first.text
     assert not second.ok and "you cannot afford it" in second.text, second.text
 
