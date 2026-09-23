@@ -45,7 +45,7 @@ def check_patterns(checker: "_Checker", base: FrozenSet[str]) -> None:
         if kind.shape == "memory":
             types = {"it": {cfg.keys}} if isinstance(cfg.keys, str) and cfg.keys in checker.c.types else {}
             extra = ({"key"} if cfg.keyed else set()) | ({"row"} if cfg.table is not None else set()) | set(types)
-            checker.expr(getattr(cfg, "input"), f"{path}.input", set(base) | extra, types)
+            checker.expr(getattr(cfg, "input"), f"{path}.input", set(base) | extra, types)  # noqa: B009 — only some pattern kinds declare `input`
         if kind.shape == "composite":
             _operands(checker, declared, name, cfg, path)
         if cfg.kind == "cross_price" and cfg.keys is None:

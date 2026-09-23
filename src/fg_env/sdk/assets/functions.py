@@ -21,7 +21,7 @@ def _asset(call: Call) -> Any:
 
 
 def asset_info(world: Any, ref: Any, source: Optional[str]) -> Dict[str, Any]:
-    store = getattr(world, "assets", None)
+    store: Any = getattr(world, "assets", None)
     if isinstance(ref, dict) and "id" in ref:
         ref = ref["id"]
     asset = store.get(ref) if store is not None else None

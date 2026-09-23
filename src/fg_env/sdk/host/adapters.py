@@ -197,7 +197,7 @@ class AnthropicWebSearch(_Provider):
         sources: Dict[str, str] = {}
         for _ in range(_MAX_CONTINUATIONS):
             response = self._retrying(lambda: self.client.messages.create(
-                model=self.model, max_tokens=self.max_tokens, tools=tools, messages=messages))
+                model=self.model, max_tokens=self.max_tokens, tools=tools, messages=messages))  # noqa: B023 — called within this iteration
             usage = getattr(response, "usage", None)
             self._add(calls=1, input_tokens=_count(usage, "input_tokens"), output_tokens=_count(usage, "output_tokens"))
             stop = getattr(response, "stop_reason", None)

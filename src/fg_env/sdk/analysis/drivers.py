@@ -111,7 +111,7 @@ def _labels(values: List[Any], focus: Any, threshold: Optional[float]) -> Tuple[
 def _flat(prefix: str, values: Mapping[str, Any], row: Dict[str, float]) -> None:
     for key, v in values.items():
         if isinstance(v, bool) or is_number(v):
-            row[f"{prefix}.{key}"] = float(numeric(v))
+            row[f"{prefix}.{key}"] = float(v)
         elif isinstance(v, str) and len(v) <= 80:
             row[f"{prefix}.{key}={v}"] = 1.0
 

@@ -10,7 +10,7 @@ from concurrent.futures.process import BrokenProcessPool
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Sequence, Set, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Sequence, Set, Tuple, TypeGuard
 
 from . import workers as pools
 from .api import ContractLike, contract_source, default_data_dir, load, located, parse
@@ -57,7 +57,7 @@ def _describe(values: List[Any]) -> Dict[str, Any]:
     return {"n": len(present), "counts": dict(sorted(counts.items(), key=lambda kv: -kv[1]))}
 
 
-def _is_number(value: Any) -> bool:
+def _is_number(value: Any) -> TypeGuard[float]:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 

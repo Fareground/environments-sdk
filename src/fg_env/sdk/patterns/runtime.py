@@ -371,7 +371,7 @@ class PatternRuntime:
         if isinstance(cfg.keys, str) and cfg.keys in self.world.contract.types and ctx.key is not None:
             values["it"] = self.world.entities.get(ctx.key)
         try:
-            return compile_expr(str(getattr(cfg, "input")))(self.world.scope(**values))
+            return compile_expr(str(getattr(cfg, "input")))(self.world.scope(**values))  # noqa: B009 — only some pattern kinds declare `input`
         except ExprError as exc:
             raise ExprError(f"patterns.{ctx.name}.input: {exc.detail}", ctx.source) from None
 

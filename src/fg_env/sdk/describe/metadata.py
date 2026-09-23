@@ -223,8 +223,8 @@ def _players(contract: Contract, scan: _Scan, probe: Any) -> Tuple[Optional[int]
             evidence.append(f"{path}.members generates agents inside each entity")
         if not contract.is_agent(group.type):
             continue
-        spec = contract.inputs.get(_INPUT_REF.fullmatch(group.count).group(1), None) \
-            if isinstance(group.count, str) and _INPUT_REF.fullmatch(group.count) else None
+        ref = _INPUT_REF.fullmatch(group.count) if isinstance(group.count, str) else None
+        spec = contract.inputs.get(ref.group(1)) if ref else None
         if isinstance(group.count, int) and not isinstance(group.count, bool):
             low, high = _add(low, group.count), _add(high, group.count)
         elif spec is not None and spec.min is not None and spec.max is not None:

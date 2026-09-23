@@ -522,7 +522,7 @@ class _Anthropic(_LLMParticipant):
                 return
             tools = wake.tools_for("anthropic")
             response = self._create(wake, lambda: self.client.messages.create(
-                model=self.model, max_tokens=self.max_tokens, system=system, tools=tools, messages=messages,
+                model=self.model, max_tokens=self.max_tokens, system=system, tools=tools, messages=messages,  # noqa: B023 — called within this iteration
                 **self.extra))
             self._count(wake, getattr(response, "usage", None))
             if getattr(response, "stop_reason", None) == "refusal":
@@ -646,7 +646,7 @@ class _OpenAI(_LLMParticipant):
                 return
             tools = wake.tools_for("openai")
             response = self._create(wake, lambda: self.client.chat.completions.create(
-                model=self.model, messages=messages, tools=tools, **self.options, **self.extra))
+                model=self.model, messages=messages, tools=tools, **self.options, **self.extra))  # noqa: B023 — called within this iteration
             self._count(wake, getattr(response, "usage", None))
             choices = getattr(response, "choices", None) or []
             if not choices:

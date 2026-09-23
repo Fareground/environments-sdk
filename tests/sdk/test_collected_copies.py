@@ -16,6 +16,7 @@ import pytest
 
 from fg_env.sdk import expr_base
 from fg_env.sdk.actions import ActionBook
+from fg_env.sdk.errors import RunError
 from fg_env.sdk.game import apply_step, game, random_step
 from fg_env.sdk.game.runs import ThreadedRun
 from fg_env.sdk.stepping import Stepper
@@ -112,7 +113,7 @@ def test_a_stepped_state_that_fails_while_a_turn_waits_counts_that_turn_like_a_p
         subject = game(broken)
         subject._stepped = stepped
         state = subject.new_initial_state()
-        with pytest.raises(Exception):
+        with pytest.raises(RunError, match="nobody may take a stone"):
             state.apply_action(state.legal_actions()[0])
         results.append(state._run.read(lambda env: env.result().to_dict()))
         state.close()

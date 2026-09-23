@@ -181,8 +181,8 @@ class _Expander:
         if "for" not in macro:
             raise _MacroError(where, "a macro needs `for`: the values to repeat over",
                               f"{_FIX}; if this is data, not a macro, rename its `make` field (e.g. `vehicle_make`)")
-        name = self.variable(macro, "as", env, where, required=True)
-        index_name = self.variable(macro, "index", env, where, required=False)
+        name = self.variable(macro, "as", env, where)
+        index_name = self.variable(macro, "index", env, where) if macro.get("index") is not None else None
         if index_name is not None and index_name == name:
             raise _MacroError(_join(where, "index"), f"`index` and `as` both name '{name}'", "give the position its own name")
         values = self.values(macro["for"], env, _join(where, "for"), depth)
@@ -200,10 +200,8 @@ class _Expander:
                                   "generate less, or split the environment")
             yield inner, self.walk(copy.deepcopy(make), inner, _join(where, "make"), depth + 1)
 
-    def variable(self, macro: Mapping[str, Any], key: str, env: Dict[str, Any], where: str, required: bool) -> Optional[str]:
+    def variable(self, macro: Mapping[str, Any], key: str, env: Dict[str, Any], where: str) -> str:
         name = macro.get(key)
-        if name is None and not required:
-            return None
         at = _join(where, key)
         if name is None:
             raise _MacroError(where, "a macro needs `as`: the placeholder name for each value", _FIX)

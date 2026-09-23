@@ -242,7 +242,8 @@ def _order(configs: Dict[str, PatternConfig]) -> List[str]:
             raise ContractError([Issue(f"patterns.{name}.fit.adjust", "fits adjust each other in a cycle: "
                                        + " → ".join([*visiting, name]))])
         visiting.append(name)
-        for other in configs[name].fit.adjust if configs[name].fit else []:
+        fit = configs[name].fit
+        for other in fit.adjust if fit else []:
             if other in configs and configs[other].fit is not None:
                 visit(other)
         visiting.pop()

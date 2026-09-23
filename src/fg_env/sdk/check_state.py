@@ -3,7 +3,7 @@ message delivery."""
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Any, Dict, FrozenSet, Iterable, List, Mapping, Optional, Set
+from typing import TYPE_CHECKING, Any, Dict, FrozenSet, Iterable, List, Mapping, Optional, Set, TypeGuard
 
 from .contract import EntityDynamics, FeedSpec, InputSpec, ParamSpec, PropSpec
 from .entity_physics import MATH_NAMES
@@ -39,7 +39,7 @@ def check_delivery(checker: "_Checker", op: str, effect: Dict[str, Any], path: s
         checker.error(f"{path}.delay", f"is {delay}; a delay is " + ("a time ≥ 0" if continuous else "a whole number of rounds ≥ 0"))
 
 
-def _literal_number(value: Any) -> bool:
+def _literal_number(value: Any) -> TypeGuard[float]:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 

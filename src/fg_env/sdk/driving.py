@@ -108,14 +108,14 @@ def is_async(participant: Any) -> bool:
     for _ in range(8):
         if participant is None:
             return False
-        if inspect.iscoroutinefunction(participant) or inspect.iscoroutinefunction(getattr(participant, "__call__", None)):
+        if inspect.iscoroutinefunction(participant) or inspect.iscoroutinefunction(getattr(participant, "__call__", None)):  # noqa: B004 — reads the __call__ method itself, not whether it exists
             return True
         participant = getattr(participant, "__wrapped__", None)
     return False
 
 
 def _is_async_generator(participant: Any) -> bool:
-    return inspect.isasyncgenfunction(participant) or inspect.isasyncgenfunction(getattr(participant, "__call__", None))
+    return inspect.isasyncgenfunction(participant) or inspect.isasyncgenfunction(getattr(participant, "__call__", None))  # noqa: B004 — reads the __call__ method itself, not whether it exists
 
 
 class _Flight:

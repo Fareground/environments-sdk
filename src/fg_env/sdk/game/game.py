@@ -71,8 +71,8 @@ class Game:
         self._returns_of: Callable[[Any], Dict[str, float]] = \
             lambda env: seat_returns(self.contract, env.world, players_now)
         spec = self.contract.game
-        declared = spec is not None and spec.returns is not None
-        self._prefetch = self._returns_of if declared and not _draws(self.contract, [spec.returns]) else None
+        returns = spec.returns if spec is not None else None
+        self._prefetch = self._returns_of if returns is not None and not _draws(self.contract, [returns]) else None
         #: Whether states are stepped on the caller's thread (see :mod:`.runs`), and the stepped run they copy.
         self._stepped = can_step(self)
         self._template: Optional[Stepper] = None

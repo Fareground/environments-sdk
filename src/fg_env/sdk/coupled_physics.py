@@ -188,7 +188,7 @@ def integrate_coupled(world: "SdkWorld", dt: float) -> List[Dict[str, Any]]:
     world.touch()
     _refresh_reads(world)
     namespaces(y, model.time)
-    for step, entity, offset in entities:
+    for step, entity, _ in entities:
         ns = entity_spaces[(id(step), entity.id)]
         for prop, kind, formula in step.writes:
             world.set_prop(entity, prop, _as_prop(formula.eval(ns), kind))
