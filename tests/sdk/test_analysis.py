@@ -16,7 +16,7 @@ from fg_env.sdk.analysis import (
     drivers, ece, highlights, interval_coverage, log_loss, log_loss_multiclass, murphy, narrative, precision,
     reliability, score, sensitivity, skill_score, statistic, sweep,
 )
-from fg_env.sdk.analysis import optimize, runner
+from fg_env.sdk.analysis import runner, unit_search
 from fg_env.sdk.analysis.calibrate import evaluate_targets, parse_targets
 from fg_env.sdk.analysis.cli import add_analysis_commands
 from fg_env.sdk.analysis.compare import welch
@@ -384,7 +384,7 @@ def test_target_errors_by_hand():
 
 def test_search_algorithms_find_known_optima():
     def evaluator(fn, budget=60):
-        return optimize.Evaluator(lambda p: (fn(p), None), key=lambda p: tuple(round(x, 9) for x in p), budget=budget)
+        return unit_search.Evaluator(lambda p: (fn(p), None), key=lambda p: tuple(round(x, 9) for x in p), budget=budget)
 
     e = evaluator(lambda p: abs(p[0] - 0.3))
 
@@ -392,18 +392,18 @@ def test_search_algorithms_find_known_optima():
         e((u,))  # record and budget the point, as calibrate does
         return u - 0.3
 
-    assert optimize.bisection(signed, e, 40)
+    assert unit_search.bisection(signed, e, 40)
     assert e.best[0][0] == pytest.approx(0.3, abs=1e-3)
     flat = evaluator(lambda p: 1.0)
-    assert not optimize.bisection(lambda u: flat((u,)), flat, 40)  # no sign change: nothing to bisect
+    assert not unit_search.bisection(lambda u: flat((u,)), flat, 40)  # no sign change: nothing to bisect
     e = evaluator(lambda p: (p[0] - 0.7) ** 2)
-    optimize.golden_section(e, 40)
+    unit_search.golden_section(e, 40)
     assert e.best[0][0] == pytest.approx(0.7, abs=1e-3)
     e = evaluator(lambda p: (p[0] - 0.2) ** 2 + (p[1] - 0.8) ** 2, budget=200)
-    optimize.nelder_mead(e, 2)
+    unit_search.nelder_mead(e, 2)
     assert e.best[0] == pytest.approx((0.2, 0.8), abs=1e-3)
     e = evaluator(lambda p: 1.0, budget=3)
-    optimize.nelder_mead(e, 2)
+    unit_search.nelder_mead(e, 2)
     assert len(e.history) == 3  # the budget is a hard cap
 
 

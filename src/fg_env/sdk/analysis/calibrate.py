@@ -30,7 +30,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 from ..api import ContractLike
 from ..measure import RunResult
 from ..seeds import SeedTree
-from . import optimize, runner
+from . import runner, unit_search
 from .holdout import Split, case_names, splits
 from .stats import estimate, mean, sd
 from .targets import Target, count_scaled, evaluate_targets, parse_targets, pooled_checks, pooled_error
@@ -311,7 +311,7 @@ def _fit(problem: _Problem, pool: Any, runs: int, held: int, budget: int, method
         loss, details = problem.evaluate(results)
         return loss, (values, details, results)
 
-    evaluator = optimize.Evaluator(objective, key=lambda u: tuple(sorted(problem.to_inputs(u).items())), budget=budget)
+    evaluator = unit_search.Evaluator(objective, key=lambda u: tuple(sorted(problem.to_inputs(u).items())), budget=budget)
     chosen = _search(method, problem.names, problem.goals, evaluator, budget, seed)
     best = evaluator.best
     if best is None or not math.isfinite(best[1]):
@@ -399,7 +399,7 @@ def _held_out(problem: _Problem, parts: Sequence[Split], fits: Sequence[Calibrat
             "in_sample": mean([row["in_sample"] for row in rows])}
 
 
-def _search(method: str, names: List[str], goals: List[Target], evaluator: optimize.Evaluator, budget: int,
+def _search(method: str, names: List[str], goals: List[Target], evaluator: unit_search.Evaluator, budget: int,
             seed: int) -> str:
     dims = len(names)
     iterations = max(1, budget)
@@ -411,7 +411,7 @@ def _search(method: str, names: List[str], goals: List[Target], evaluator: optim
             simulated = details[0].get("simulated")
             return None if simulated is None else simulated - target.goal
 
-        if optimize.bisection(signed, evaluator, iterations):
+        if unit_search.bisection(signed, evaluator, iterations):
             return "bisection"
         if method == "bisection":
             raise runner.AnalysisError("bisection needs the output to cross the target between the range ends; "
@@ -419,21 +419,21 @@ def _search(method: str, names: List[str], goals: List[Target], evaluator: optim
     elif method == "bisection":
         raise ValueError("bisection fits one param to one number target; use 'golden', 'nelder_mead' or 'cross_entropy'")
     if method in ("auto", "golden", "bisection") and dims == 1:
-        optimize.golden_section(evaluator, iterations)
+        unit_search.golden_section(evaluator, iterations)
         return "golden"
     if method == "golden":
         raise ValueError("golden-section search fits one param; use 'nelder_mead' or 'cross_entropy'")
     if method in ("auto", "nelder_mead"):
-        optimize.nelder_mead(evaluator, dims)
+        unit_search.nelder_mead(evaluator, dims)
         return "nelder_mead"
     if method == "cross_entropy":
-        population, elite, generations = optimize.cross_entropy_sizes(dims, budget)
-        optimize.cross_entropy(evaluator, dims, SeedTree(seed).rng("cross-entropy"), population, elite, generations)
+        population, elite, generations = unit_search.cross_entropy_sizes(dims, budget)
+        unit_search.cross_entropy(evaluator, dims, SeedTree(seed).rng("cross-entropy"), population, elite, generations)
         return "cross_entropy"
     raise ValueError(f"method must be auto, bisection, golden, nelder_mead or cross_entropy, got {method!r}")
 
 
-def _uncertainty(problem: _Problem, evaluator: optimize.Evaluator, best_runs: Sequence[Sequence[RunResult]], fit: float,
+def _uncertainty(problem: _Problem, evaluator: unit_search.Evaluator, best_runs: Sequence[Sequence[RunResult]], fit: float,
                  tree: SeedTree) -> Dict[str, Dict[str, Any]]:
     """Range of each parameter over evaluated points whose fit is within the objective's noise of the best.
 

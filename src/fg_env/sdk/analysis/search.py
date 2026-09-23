@@ -2,7 +2,7 @@
 
 A method never ranks candidates itself beyond what it needs to move: it asks ``score(points, runs)`` for their
 ranking keys (lower is better; the scorer runs them on the first ``runs`` shared seeds and raises
-:class:`~.optimize.BudgetExhausted` once the budget is spent). The optimiser picks the winner from everything scored.
+:class:`~.unit_search.BudgetExhausted` once the budget is spent). The optimiser picks the winner from everything scored.
 
 * ``grid`` — every decision on the steps (continuous ranges cut into levels): exhaustive, only for small spaces.
 * ``random`` / ``lhs`` — the start plus uniform or Latin-hypercube samples: a broad look at large spaces, no refinement.
@@ -11,7 +11,7 @@ ranking keys (lower is better; the scorer runs them on the first ``runs`` shared
   moved in opposite directions. For integers and vectors; finds a local optimum.
 * ``race`` — successive halving: many sampled decisions on a few seeds, the better half kept and given twice the
   seeds, until the survivors have every seed: spends runs where they matter on noisy objectives.
-* ``nelder_mead`` / ``cross_entropy`` — calibration's simplex and cross-entropy searches (:mod:`.optimize`), on a
+* ``nelder_mead`` / ``cross_entropy`` — calibration's simplex and cross-entropy searches (:mod:`.unit_search`), on a
   penalised objective: for a few continuous decisions.
 * ``frontier`` — for two or three objectives: Latin-hypercube samples on half the budget, then the neighbours of every
   undominated decision, until the frontier stops moving: it refines the frontier where sampling only scatters points.
@@ -22,11 +22,11 @@ import math
 import random
 from typing import Callable, Dict, List, Optional, Sequence, Set, Tuple
 
-from . import optimize
+from . import unit_search
 from .assessment import Key
 from .decisions import DecisionSpace, Point
 from .goals import dominates
-from .optimize import BudgetExhausted
+from .unit_search import BudgetExhausted
 from .stats import latin_hypercube
 
 __all__ = ["METHODS", "grid", "sampled", "local", "race", "simplex", "cross_entropy", "frontier"]
@@ -164,20 +164,20 @@ def frontier(space: DecisionSpace, signed: Signed, budget: int, runs: int, rng: 
         return
 
 
-def _evaluator(space: DecisionSpace, loss: Loss, budget: int) -> optimize.Evaluator:
-    return optimize.Evaluator(lambda unit: (loss(space.from_unit(unit)), None), key=space.from_unit, budget=budget)
+def _evaluator(space: DecisionSpace, loss: Loss, budget: int) -> unit_search.Evaluator:
+    return unit_search.Evaluator(lambda unit: (loss(space.from_unit(unit)), None), key=space.from_unit, budget=budget)
 
 
 def simplex(space: DecisionSpace, loss: Loss, budget: int) -> None:
     try:
-        optimize.nelder_mead(_evaluator(space, loss, budget), space.dims, start=space.to_unit(space.start()))
+        unit_search.nelder_mead(_evaluator(space, loss, budget), space.dims, start=space.to_unit(space.start()))
     except BudgetExhausted:
         return
 
 
 def cross_entropy(space: DecisionSpace, loss: Loss, budget: int, rng: random.Random) -> None:
-    population, elite, generations = optimize.cross_entropy_sizes(space.dims, budget)
+    population, elite, generations = unit_search.cross_entropy_sizes(space.dims, budget)
     try:
-        optimize.cross_entropy(_evaluator(space, loss, budget), space.dims, rng, population, elite, generations)
+        unit_search.cross_entropy(_evaluator(space, loss, budget), space.dims, rng, population, elite, generations)
     except BudgetExhausted:
         return

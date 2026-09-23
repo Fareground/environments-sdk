@@ -1,4 +1,4 @@
-"""``fg_env.conformance``: seeded random playouts that check, at every decision, what search and learning code
+"""``fg_env.rl.conformance``: seeded random playouts that check, at every decision, what search and learning code
 assumes of a game.
 
 * legal — a seat that must decide has a legal call; every listed call applies without being refused (checked on
@@ -109,7 +109,7 @@ class ConformanceReport:
 def conformance(source: Union[ContractLike, Game], *, sims: int = 20, seed: int = 0,
                 inputs: Optional[Mapping[str, Any]] = None, simultaneous: str = "joint", leak_branches: int = 2,
                 max_steps: int = 1000, resume: bool = True) -> ConformanceReport:
-    """Check a game (a contract, or a :class:`Game` from :func:`fg_env.game`) over ``sims`` seeded random playouts.
+    """Check a game (a contract, or a :class:`Game` from :func:`fg_env.rl.game`) over ``sims`` seeded random playouts.
 
     ``simultaneous="turn_based"`` checks the one-seat-at-a-time view of simultaneous stages, where the leak test
     also covers sealed choices. ``leak_branches`` is how many steps of each playout are changed for the leak test;

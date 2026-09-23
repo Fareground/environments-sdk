@@ -15,7 +15,7 @@ PD = GAMES / "prisoners_dilemma.json"
 def test_a_repeated_game_is_an_ordinary_contract_whose_returns_are_the_totals():
     contract = repeated(PD, 3)
     assert [issue for issue in fg_env.check(contract) if issue.severity == "error"] == []
-    state = fg_env.game(contract).new_initial_state()
+    state = fg_env.rl.game(contract).new_initial_state()
     for _ in range(3):
         assert state.current_player() == SIMULTANEOUS
         state.apply_actions({0: {"tool": "choose", "args": {"move": "defect"}},
@@ -32,7 +32,7 @@ def test_a_repeated_game_is_an_ordinary_contract_whose_returns_are_the_totals():
 def test_misere_negates_returns_and_bounds_and_zerosum_centres_them():
     flipped = misere(GAMES / "chicken.json")
     assert flipped["game"]["min_return"] == -1 and flipped["game"]["max_return"] == 10
-    state = fg_env.game(flipped).new_initial_state()
+    state = fg_env.rl.game(flipped).new_initial_state()
     state.apply_actions({0: {"tool": "drive", "args": {"move": "straight"}}, 1: {"tool": "drive", "args": {"move": "swerve"}}})
     assert state.returns() == [-1.0, 1.0]
     centred = zerosum(PD)
@@ -43,7 +43,7 @@ def test_misere_negates_returns_and_bounds_and_zerosum_centres_them():
 
 
 def test_a_game_started_part_way_begins_after_the_steps_and_serializes():
-    kuhn = fg_env.game(GAMES / "kuhn_poker.json")
+    kuhn = fg_env.rl.game(GAMES / "kuhn_poker.json")
     started = kuhn.start_at([{"chance": 2}, {"chance": 0}])
     state = started.new_initial_state()
     assert state.current_player() == 0 and "Your card: 3" in state.observation_string(0)
@@ -55,7 +55,7 @@ def test_a_game_started_part_way_begins_after_the_steps_and_serializes():
 
 
 def test_turn_based_view_hides_the_first_sealed_choice_from_the_second_seat():
-    goofspiel = fg_env.game(GAMES / "goofspiel.json").as_turn_based()
+    goofspiel = fg_env.rl.game(GAMES / "goofspiel.json").as_turn_based()
     first, second = goofspiel.new_initial_state(), goofspiel.new_initial_state()
     for state in (first, second):
         state.apply_action(0)  # the first prize
@@ -64,7 +64,7 @@ def test_turn_based_view_hides_the_first_sealed_choice_from_the_second_seat():
     second.apply_action({"tool": "bid", "args": {"card": 4}})
     assert first.current_player() == 1 and first.information_state(1) == second.information_state(1)
     assert first.observation(1, "struct") == second.observation(1, "struct")
-    joint = fg_env.game(GAMES / "goofspiel.json").new_initial_state()
+    joint = fg_env.rl.game(GAMES / "goofspiel.json").new_initial_state()
     joint.apply_action(0)
     joint.apply_actions([{"tool": "bid", "args": {"card": 2}}, {"tool": "bid", "args": {"card": 1}}])
     assert joint.current_player() in (CHANCE, SIMULTANEOUS) and joint.returns() != [0.0, 0.0]

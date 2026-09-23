@@ -1,5 +1,6 @@
 """LLM participant loops against fake provider clients (no network)."""
 import json
+import time
 from types import SimpleNamespace as NS
 
 import fg_env
@@ -99,7 +100,7 @@ class FailingAnthropic(FakeAnthropic):
 
 def test_transient_provider_errors_are_retried_with_backoff(monkeypatch):
     sleeps = []
-    monkeypatch.setattr(participants.time, "sleep", sleeps.append)
+    monkeypatch.setattr(time, "sleep", sleeps.append)
     client = FailingAnthropic([[("buy", {"offer": "espresso", "qty": 1})], [("end_turn", {})]],
                               [Flaky(429, retry_after="3"), Flaky(529)])
     agent = participants.anthropic(client, "claude-sonnet-5")

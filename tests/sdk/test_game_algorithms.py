@@ -17,7 +17,7 @@ slow = pytest.mark.skipif(not os.environ.get("FG_ENV_SLOW"), reason="slow verifi
 
 
 def _game(name, **kwargs):
-    return fg_env.game(GAMES / f"{name}.json", **kwargs)
+    return fg_env.rl.game(GAMES / f"{name}.json", **kwargs)
 
 
 @pytest.fixture(scope="module")

@@ -115,7 +115,7 @@ scenario presets, or Arena games. All twelve engines are native, available, and 
 Persona generation is shared infrastructure rather than an environment:
 
 ```python
-cohort = fg_env.sample_records(
+cohort = fg_env.personas.sample_records(
     people, size=100, seed=7, run=0, resample=True,
     constraints={"region": "north"}, group_by="household_id",
     source="survey-2026",

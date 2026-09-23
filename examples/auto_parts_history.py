@@ -6,7 +6,7 @@
 The truth arm runs three years of weekly trade with the true parameters and the store's lean reorder rule; its demand
 mechanism records every SKU-week (units sold, whether stock ran out, units on hand, price, promotion depth and the price
 relative to list) — the kind of export a store's point of sale gives. The contract's demand patterns are then fitted
-from that file with ``fg_env.fit_patterns`` and the estimates are written back as the contract's inputs, so the example
+from that file with ``fg_env.analysis.fit_patterns`` and the estimates are written back as the contract's inputs, so the example
 ships fitted to its own history.
 """
 from __future__ import annotations
@@ -49,7 +49,7 @@ def main() -> None:
     history, orders = truth_records()
     _write(HISTORY, FIELDS, history)
     _write(ORDERS, ORDER_FIELDS, orders)
-    fitted = fg_env.fit_patterns(CONTRACT)
+    fitted = fg_env.analysis.fit_patterns(CONTRACT)
     CONTRACT.write_text(json.dumps(fitted.contract, indent=2, ensure_ascii=False) + "\n")
     print(f"wrote {len(history)} SKU-weeks to {HISTORY}, {len(orders)} orders to {ORDERS} and the fitted contract to {CONTRACT}")
     if "--report" in sys.argv:

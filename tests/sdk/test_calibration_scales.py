@@ -25,7 +25,7 @@ def _days(scale_by_goal=False):
 
 
 def _fit(cases):
-    return fg_env.calibrate(CENTRE, cases, {"p": {"low": 0, "high": 1}}, runs=1, budget=40, method="golden").params["p"]
+    return fg_env.analysis.calibrate(CENTRE, cases, {"p": {"low": 0, "high": 1}}, runs=1, budget=40, method="golden").params["p"]
 
 
 def test_mixed_targets_are_weighed_by_their_spread_so_the_share_is_not_traded_for_the_rate():
@@ -43,7 +43,7 @@ def test_scaling_by_the_goal_lets_the_small_rate_dominate_as_the_study_found():
 def test_a_single_target_keeps_its_fit_as_a_share_off():
     cases = [{"name": f"day {i}", "inputs": {"day": day}, "targets": {"sl": 0.85 + 0.03 * day}}
              for i, day in enumerate(DAYS)]
-    result = fg_env.calibrate(CENTRE, cases, {"p": {"low": 0, "high": 1}}, runs=1, budget=40, method="golden")
+    result = fg_env.analysis.calibrate(CENTRE, cases, {"p": {"low": 0, "high": 1}}, runs=1, budget=40, method="golden")
     assert result.params["p"] == pytest.approx(0.75, abs=0.01)
     [detail] = [d for d in result.validation["targets"] if d["case"] == "day 2"]
     assert detail["error"] == pytest.approx((0.70 + 0.20 * result.params["p"] - 0.85) / 0.85, rel=1e-6)

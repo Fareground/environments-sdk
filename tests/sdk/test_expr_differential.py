@@ -125,7 +125,7 @@ def test_every_example_contract_evaluates_identically(path, both_ways):
 @pytest.mark.parametrize("path", GAMES, ids=[p.stem for p in GAMES])
 def test_every_example_game_lists_and_plays_identically(path, both_ways):
     rng = random.Random(3)
-    subject = fg_env.game(path)
+    subject = fg_env.rl.game(path)
     for playout in range(3):
         state = subject.new_initial_state()
         while not state.is_terminal():

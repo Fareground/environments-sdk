@@ -34,7 +34,7 @@ def test_a_result_saved_as_json_or_json_lines_loads_back_unchanged(tmp_path, nam
     result.save(path)
     loaded = fg_env.RunResult.load(path)
     assert loaded.to_dict() == json.loads(json.dumps(result.to_dict()))
-    assert fg_env.trace(path).overview().data == fg_env.trace(result).overview().data
+    assert fg_env.analysis.trace(path).overview().data == fg_env.analysis.trace(result).overview().data
 
 
 def test_loading_something_that_is_not_a_saved_result_says_what_to_pass(tmp_path):
@@ -50,12 +50,12 @@ def test_loading_something_that_is_not_a_saved_result_says_what_to_pass(tmp_path
 
 def test_a_trace_needs_a_run_that_recorded_exposures():
     with pytest.raises(ValueError, match="run it with exposures=True"):
-        fg_env.trace(fg_env.run(SHOP, overreacher, seed=3))
+        fg_env.analysis.trace(fg_env.run(SHOP, overreacher, seed=3))
 
 
 def test_the_overview_counts_each_agents_turns_calls_invalid_calls_and_tokens():
     result = _recorded()
-    view = fg_env.trace(result).overview()
+    view = fg_env.analysis.trace(result).overview()
     rows = {row["entity"]: row for row in view.data["agents"]}
     assert list(rows) == ["shopper_1", "shopper_2", "shopper_3", "shopper_4"]
     for entity, row in rows.items():
@@ -68,7 +68,7 @@ def test_the_overview_counts_each_agents_turns_calls_invalid_calls_and_tokens():
 
 
 def test_a_turn_shows_what_the_agent_read_the_tools_it_had_and_every_call_with_its_result():
-    recording = fg_env.trace(_recorded())
+    recording = fg_env.analysis.trace(_recorded())
     [wake] = recording.turn(0).data
     assert wake["entity"] == "shopper_1" and wake["round"] == 1 and wake["stage"] == "shop"
     assert wake["brief"].startswith("# Corner shop") and "You have $30.00." in wake["update"]
@@ -86,7 +86,7 @@ def test_a_turn_shows_what_the_agent_read_the_tools_it_had_and_every_call_with_i
 
 
 def test_asking_for_a_turn_that_does_not_exist_says_which_do():
-    recording = fg_env.trace(_recorded())
+    recording = fg_env.analysis.trace(_recorded())
     with pytest.raises(ValueError, match="no wake 99: this run has wakes 0 to 11"):
         recording.turn(99)
     with pytest.raises(ValueError, match="'nobody' was never woken in this run"):
@@ -98,7 +98,7 @@ def test_asking_for_a_turn_that_does_not_exist_says_which_do():
 
 
 def test_timeline_search_invalid_and_agent_find_what_agents_read_and_wrote():
-    recording = fg_env.trace(_recorded())
+    recording = fg_env.analysis.trace(_recorded())
     timeline = recording.timeline("shopper_1").data
     assert [row["round"] for row in timeline] == [1, 2, 3]
     assert [call["tool"] for call in timeline[0]["calls"]] == ["buy", "buy", "end_turn"]
@@ -136,7 +136,7 @@ def test_cli_records_a_trace_and_reads_it(tmp_path, capsys):
     contract.write_text(json.dumps(TOWN))
     assert main(["run", str(contract), "--seed", "1", "--trace", str(out)]) == 0
     capsys.readouterr()
-    assert fg_env.trace(out).result.status == "completed"
+    assert fg_env.analysis.trace(out).result.status == "completed"
     assert main(["trace", str(out)]) == 0 and "agent" in capsys.readouterr().out
     assert main(["trace", str(out), "turn", "ann", "1"]) == 0 and "Wake 0: ann" in capsys.readouterr().out
     assert main(["trace", str(out), "timeline", "bo", "--json"]) == 0
@@ -149,6 +149,6 @@ def test_cli_records_a_trace_and_reads_it(tmp_path, capsys):
 
 def test_a_trace_from_a_run_with_reads_matches_the_exposure_log():
     result = fg_env.run(TOWN, reader, seed=1, exposures=True)
-    recording = fg_env.trace(result.to_dict())
+    recording = fg_env.analysis.trace(result.to_dict())
     assert recording.entities == ["ann", "bo"]
     assert recording.turn(0).data[0]["views"][1] == {"name": "board", "look": True, "text": "Board:\nNothing yet."}

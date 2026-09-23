@@ -2,6 +2,7 @@
 tool names are ones providers accept (fake clients, no network)."""
 import copy
 import json
+import time
 import warnings
 from types import SimpleNamespace as NS
 
@@ -22,7 +23,7 @@ class AuthenticationError(Exception):
 
 @pytest.fixture(autouse=True)
 def no_backoff(monkeypatch):
-    monkeypatch.setattr(participants.time, "sleep", lambda _: None)
+    monkeypatch.setattr(time, "sleep", lambda _: None)
 
 
 def test_a_rejected_api_key_fails_the_run_at_once_naming_the_participant_error_and_fix():

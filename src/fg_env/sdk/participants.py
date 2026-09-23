@@ -301,7 +301,7 @@ def replay(recording: Any, fallback: Any = None) -> Participant:
     """A participant that plays a recorded run's steps again, turn by turn, checking every wake against the
     recording (``recording``: a result with exposures, its dict, a saved file, or a trace); the run it plays in must
     record exposures. On the first difference the run fails with the divergence, or — given ``fallback`` — that
-    participant plays on. Usually you want ``fg_env.trace(recording).replay(contract)``, which also replays the host
+    participant plays on. Usually you want ``fg_env.analysis.trace(recording).replay(contract)``, which also replays the host
     answers and compares the outcome."""
     from .trace.rerun import Replayer
 

@@ -42,7 +42,7 @@ def test_a_host_answer_that_lands_after_its_turn_timed_out_stays_off_the_tape_an
     assert answers and not any("slow" in text for text in answers)
     recording = env.result()
     assert recording.budget == {} and recording.stats["timeouts"] == 1
-    replayed = fg_env.trace(recording).replay(COUNCIL)
+    replayed = fg_env.analysis.trace(recording).replay(COUNCIL)
     assert replayed.ok, replayed.message
 
 
@@ -79,6 +79,6 @@ def test_usage_reported_after_the_deadline_counts_toward_stats_and_the_budget_bu
 
 def test_a_replay_adds_usage_reported_after_the_deadline_as_that_turn_ends():
     result = fg_env.load(LATE_REPORT, seed=1, exposures=True).run(_late_reporter([]), rounds=1)
-    replayed = fg_env.trace(result).replay(LATE_REPORT)
+    replayed = fg_env.analysis.trace(result).replay(LATE_REPORT)
     assert replayed.ok, replayed.message
     assert replayed.result.stats["input_tokens"] == result.stats["input_tokens"] == 500

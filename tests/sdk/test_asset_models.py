@@ -152,7 +152,7 @@ def test_a_tool_call_hands_in_a_file_that_is_stored_by_hash_and_attached_to_an_e
     call = result.exposures["wakes"][0]["calls"][0]
     assert call["args"]["photo"] == {"asset": stored.id} and base64.b64encode(photo).decode() not in json.dumps(result.to_dict())
     assert ["upload", stored.to_dict()] in result.exposures["wakes"][0]["steps"]
-    assert fg_env.trace(result).replay(trial(tmp_path, SUBMIT)).ok
+    assert fg_env.analysis.trace(result).replay(trial(tmp_path, SUBMIT)).ok
 
 
 @pytest.mark.parametrize("photo, correction", [

@@ -13,10 +13,10 @@ A pilot fit is only as steady as its pilots: a noisy target (a volatility over a
 short pilot per point can land anywhere in the range, even on its bounds (check ``env.calibration``). Longer
 pilots, more ``runs`` per point, a larger ``holdout`` and a range no wider than plausible make it reliable.
 - `params`: object (required) — {input: {low?, high?, log?}}: number or int inputs to fit (the range defaults to the input's min and max).
-- `targets`: object (required) — {output or metric: target} as fg_env.calibrate takes them; a number (or a stat target's `value`) may be an expression over $inputs and $world, read from the world this session builds.
+- `targets`: object (required) — {output or metric: target} as fg_env.analysis.calibrate takes them; a number (or a stat target's `value`) may be an expression over $inputs and $world, read from the world this session builds.
 - `inputs`: object — Inputs of the pilot sessions only, e.g. fewer bars; the session's own inputs apply underneath.
 - `runs`: int = 2 — Pilot sessions per evaluated point.
 - `budget`: int = 6 — Distinct points evaluated.
 - `holdout`: int = 1 — Pilot sessions on fresh seeds that validate the fit.
-- `method`: any = "auto" — Search method (see fg_env.calibrate).
+- `method`: any = "auto" — Search method (see fg_env.analysis.calibrate).
 - `workers`: int = 1 — Pilot sessions run in this many processes at once.

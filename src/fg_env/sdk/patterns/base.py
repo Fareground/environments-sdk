@@ -99,7 +99,7 @@ class PatternConfig(BaseModel):
     min: Optional[Number] = Field(None, description="Lowest value it gives.")
     max: Optional[Number] = Field(None, description="Highest value it gives.")
     record: bool = Field(False, description="Record it every round as a metric of the same name ($series.<name>).")
-    fit: Optional[FitSpec] = Field(None, description="Estimate its parameters from data with fg_env.fit_patterns.")
+    fit: Optional[FitSpec] = Field(None, description="Estimate its parameters from data with fg_env.analysis.fit_patterns.")
     uncertainty: Dict[str, Union[Number, List[Number]]] = Field(
         default_factory=dict, description="{parameter: standard error} (written by fit): each run draws the parameter "
                                           "once from a normal around its value, so forecasts carry estimation uncertainty. "

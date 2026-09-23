@@ -46,7 +46,7 @@ def _section(written, title):
 
 
 def test_an_owner_report_recommends_the_cheapest_staffing_that_meets_the_service_target(experiment):
-    written = fg_env.report(experiment, contract=CENTRE)
+    written = fg_env.analysis.report(experiment, contract=CENTRE)
     assert written.recommendation["option"] == "shaped"
     assert written.recommendation["objective"] == "min:centre_cost"
     text = written.markdown
@@ -58,7 +58,7 @@ def test_an_owner_report_recommends_the_cheapest_staffing_that_meets_the_service
 
 
 def test_a_confident_pick_says_how_far_it_beats_the_next_best_option_and_how_surely_it_meets_the_target(experiment):
-    written = fg_env.report(experiment, contract=CENTRE)
+    written = fg_env.analysis.report(experiment, contract=CENTRE)
     lines = _section(written, "Recommendation").lines
     assert any(line.startswith("How sure: its staffing cost is lower than with 16 agents all morning by $") for line in lines)
     assert any(line.startswith("Its service level is clearly above 75%") or "only just" in line for line in lines)
@@ -70,7 +70,7 @@ def test_options_within_noise_of_each_other_are_told_as_a_tie_never_as_a_recomme
     contract = json.loads(json.dumps(CENTRE))
     nudged = [16] * 7 + [17]  # one more agent in the last half-hour: a sliver of the morning's cost
     contract["arms"]["nudged"] = {"description": "16 agents and one more at the end", "inputs": {"staffing": nudged}}
-    written = fg_env.report(fg_env.experiment(contract, arms=["rich", "nudged"], runs=4, seed=3), contract=contract)
+    written = fg_env.analysis.report(fg_env.experiment(contract, arms=["rich", "nudged"], runs=4, seed=3), contract=contract)
     head = written.sections[0]
     assert head.title == "What the model says" and not any(line.startswith("Choose") for line in head.lines)
     assert any("are within noise on staffing cost" in line and "cannot pick between them" in line for line in head.lines)
@@ -81,14 +81,14 @@ def test_options_within_noise_of_each_other_are_told_as_a_tie_never_as_a_recomme
 
 def test_a_swept_input_that_changes_nothing_is_said_to_make_no_clear_difference():
     contract = {**CENTRE, "inputs": {**CENTRE["inputs"], "memo": {"type": "int", "default": 1}}}
-    swept = fg_env.sweep(contract, {"memo": [1, 2]}, runs=3)
-    causes = _section(fg_env.report(swept, contract=contract), "What drives it").lines
+    swept = fg_env.analysis.sweep(contract, {"memo": [1, 2]}, runs=3)
+    causes = _section(fg_env.analysis.report(swept, contract=contract), "What drives it").lines
     assert any(line.startswith("Memo makes no clear difference to service level") and "within noise" in line
                for line in causes)
 
 
 def test_the_report_names_the_pattern_and_the_shock_behind_the_outcome(experiment):
-    written = fg_env.report(experiment, contract=CENTRE)
+    written = fg_env.analysis.report(experiment, contract=CENTRE)
     causes = _section(written, "What drives it").lines
     assert any("The busiest half-hour is" in line and "day of the week (Monday) adds" in line for line in causes)
     assert any(line.startswith("An outage at 09:00: service level −") for line in causes)
@@ -99,20 +99,20 @@ def test_the_report_names_the_pattern_and_the_shock_behind_the_outcome(experimen
 
 
 def test_an_explicit_rule_and_the_analyst_audience_add_the_method(experiment):
-    written = fg_env.report(experiment, "analyst", contract=CENTRE, objective="max:centre_service_level",
+    written = fg_env.analysis.report(experiment, "analyst", contract=CENTRE, objective="max:centre_service_level",
                             require={"centre_cost": "<= 1500"})
     assert written.recommendation["option"] == "shaped"
     method = _section(written, "Method")
     assert any("common random numbers" in line for line in method.lines)
     assert method.tables[0].title == "Every output"
     with pytest.raises(ValueError, match="min:<output>"):
-        fg_env.report(experiment, objective="cheapest:centre_cost")
+        fg_env.analysis.report(experiment, objective="cheapest:centre_cost")
     with pytest.raises(ValueError, match="'>= 0.8'"):
-        fg_env.report(experiment, require={"centre_service_level": "at least 0.8"})
+        fg_env.analysis.report(experiment, require={"centre_service_level": "at least 0.8"})
 
 
 def test_a_single_run_says_it_has_no_range_and_works_without_the_contract(experiment):
-    written = fg_env.report(experiment.arms["shaped"].runs[0])
+    written = fg_env.analysis.report(experiment.arms["shaped"].runs[0])
     lines = _section(written, "What the model says").lines
     assert any("one run of the model" in line for line in lines)
     assert any(line.startswith("Staff 8 servers") or line.startswith("Staff 8 staff") for line in lines)
@@ -123,8 +123,8 @@ def test_a_validation_is_told_as_how_far_off_and_how_often_ranges_held():
     truth = fg_env.run(CENTRE, seed=11, arm="shaped")
     cases = [{"name": "Monday", "inputs": {"staffing": SHAPED},
               "actuals": {"centre_offered_by_interval": truth.outputs["centre_offered_by_interval"]}}]
-    checked = fg_env.validate(CENTRE, cases, runs=6)
-    written = fg_env.report(checked, contract=CENTRE)
+    checked = fg_env.analysis.validate(CENTRE, cases, runs=6)
+    written = fg_env.analysis.report(checked, contract=CENTRE)
     [line, cases_line] = _section(written, "How well it matched the data").lines
     assert line.startswith("Customers by half-hour: off by") and "80% ranges held" in line
     assert cases_line == "Checked on 1 case(s) × 6 run(s)."
@@ -134,13 +134,13 @@ def test_a_sweep_names_the_input_that_moves_the_outcome_most():
     contract = {**CENTRE, "inputs": {**CENTRE["inputs"], "agents": {"type": "int", "default": 12, "min": 6, "max": 18}}}
     contract["mechanisms"] = json.loads(json.dumps(CENTRE["mechanisms"]))
     contract["mechanisms"]["centre"]["servers"]["agents"]["staff"] = "$inputs.agents"
-    swept = fg_env.sweep(contract, {"agents": [8, 12, 16]}, runs=3)
-    causes = _section(fg_env.report(swept, contract=contract), "What drives it").lines
+    swept = fg_env.analysis.sweep(contract, {"agents": [8, 12, 16]}, runs=3)
+    causes = _section(fg_env.analysis.report(swept, contract=contract), "What drives it").lines
     assert any(line.startswith("Agents moves service level from") for line in causes)
 
 
 def test_a_report_exports_markdown_and_json(experiment, tmp_path):
-    written = fg_env.report(experiment, contract=CENTRE)
+    written = fg_env.analysis.report(experiment, contract=CENTRE)
     written.save(tmp_path / "report.md")
     written.save(tmp_path / "report.json")
     assert (tmp_path / "report.md").read_text().startswith("# Small contact centre")

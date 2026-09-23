@@ -26,7 +26,7 @@ CASES = {
 def test_an_examples_owner_report_reads_exactly_as_kept(name):
     played, rule = CASES[name]
     contract = EXAMPLES / f"{name}.json"
-    text = fg_env.report(fg_env.experiment(contract, runs=3, seed=13, **played), contract=contract, **rule).markdown
+    text = fg_env.analysis.report(fg_env.experiment(contract, runs=3, seed=13, **played), contract=contract, **rule).markdown
     kept = SNAPSHOTS / f"{name}.md"
     if os.environ.get("FG_ENV_UPDATE_SNAPSHOTS") or not kept.exists():
         kept.parent.mkdir(exist_ok=True)

@@ -36,7 +36,7 @@ def _recording(tmp_path):
 def test_a_recorded_llm_and_host_run_replays_offline_identically(tmp_path):
     result, path = _recording(tmp_path)
     assert result.stats["invalid_calls"] == 2 and result.host_tape
-    replayed = fg_env.trace(path).replay(PITCH)  # no host adapter and no model: the recording answers
+    replayed = fg_env.analysis.trace(path).replay(PITCH)  # no host adapter and no model: the recording answers
     assert replayed.ok, replayed.message
     assert replayed.message == "the replay matched its recording: 2 turn(s), 5 event(s), completed after 2 round(s)"
     again = replayed.result
@@ -47,7 +47,7 @@ def test_a_recorded_llm_and_host_run_replays_offline_identically(tmp_path):
 
 def test_changing_the_contract_text_reports_the_first_divergence_precisely(tmp_path):
     _, path = _recording(tmp_path)
-    recording = fg_env.trace(path)
+    recording = fg_env.analysis.trace(path)
     briefed = dict(copy.deepcopy(PITCH), brief={"situation": "A pitch night."})
     brief = recording.replay(briefed).divergence
     assert brief["what"] == "brief" and brief["turn"] == 1 and brief["entity"] == "ana"
@@ -66,7 +66,7 @@ def test_a_changed_call_result_is_reported_with_both_outcomes(tmp_path):
     _, path = _recording(tmp_path)
     changed = copy.deepcopy(PITCH)
     changed["actions"]["pitch"]["outcome"] = "Pitched."
-    divergence = fg_env.trace(path).replay(changed).divergence
+    divergence = fg_env.analysis.trace(path).replay(changed).divergence
     assert divergence["what"] == "call" and divergence["call"] == 2 and divergence["tool"] == "pitch"
     assert divergence["got"] == {"ok": True, "ended": True, "text": "Pitched."}
     assert divergence["message"].startswith('turn 1 (ana, round 1, stage play): call 2, pitch {"text": "Round 1: ')
@@ -83,7 +83,7 @@ def test_without_a_fallback_the_run_fails_at_the_divergence_and_with_one_it_play
     unchecked = fg_env.participants.replay(path)
     assert "must record exposures" in host.load(PITCH, hosts=host.Hosts.replaying(result.host_tape), seed=1).run(
         unchecked).error
-    carried = fg_env.trace(path).replay(changed, fallback="idle", hosts={"judge": StubEvaluator()})
+    carried = fg_env.analysis.trace(path).replay(changed, fallback="idle", hosts={"judge": StubEvaluator()})
     assert not carried.ok and carried.divergence["what"] == "tools"
     assert carried.result.status == "completed" and carried.result.stats["actions"] == 0
 
@@ -91,7 +91,7 @@ def test_without_a_fallback_the_run_fails_at_the_divergence_and_with_one_it_play
 def test_a_replay_names_recorded_turns_it_never_reached(tmp_path):
     _, path = _recording(tmp_path)
     player = fg_env.participants.replay(path)
-    tape = fg_env.trace(path).result.host_tape
+    tape = fg_env.analysis.trace(path).result.host_tape
     host.load(PITCH, hosts=host.Hosts.replaying(tape), seed=1, exposures=True).run(player, rounds=1)
     assert player.divergence is None
     assert player.unplayed()["message"] == ("turn 2 (ana, round 2, stage play): the replay never reached this turn "
@@ -107,7 +107,7 @@ def test_recorded_timeouts_replay_exactly_without_a_clock():
 
     recorded = fg_env.run(TOWN, slow, seed=1, exposures=True, time_limit=0.5)
     assert recorded.stats["timeouts"] == 4 and recorded.exposures["wakes"][0]["steps"] == [["update"], ["timeout"]]
-    replayed = fg_env.trace(recorded).replay(TOWN)
+    replayed = fg_env.analysis.trace(recorded).replay(TOWN)
     assert replayed.ok, replayed.message
     assert replayed.result.events == recorded.events and replayed.result.stats == recorded.stats
 

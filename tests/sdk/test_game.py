@@ -1,4 +1,4 @@
-"""`fg_env.game`: contracts as OpenSpiel-style games, proven with search and a solver."""
+"""`fg_env.rl.game`: contracts as OpenSpiel-style games, proven with search and a solver."""
 import copy
 
 import pytest
@@ -45,15 +45,15 @@ def _minimax(state):
 
 def test_minimax_over_game_states_solves_nim():
     for stones, value in ((5, 1.0), (4, -1.0)):
-        root = fg_env.game(NIM, inputs={"stones": stones}).new_initial_state()
+        root = fg_env.rl.game(NIM, inputs={"stones": stones}).new_initial_state()
         assert _minimax(root) == value
-    root = fg_env.game(NIM).new_initial_state()
+    root = fg_env.rl.game(NIM).new_initial_state()
     best = max(root.legal_tool_calls(), key=lambda action: _minimax(root.child(action.id)))
     assert best.text == "take(count=1)"
 
 
 def test_tic_tac_toe_is_a_draw_under_perfect_play():
-    game = fg_env.game(TIC_TAC_TOE)
+    game = fg_env.rl.game(TIC_TAC_TOE)
     state = game.new_initial_state()
     state.apply_action({"tool": "mark", "args": {"cell": 4}})
     state.apply_action({"tool": "mark", "args": {"cell": 0}})
@@ -87,7 +87,7 @@ def _tree(state):
 
 
 def test_cfr_on_the_extracted_kuhn_tree_reaches_the_known_game_value():
-    tree = _tree(fg_env.game(KUHN).new_initial_state())
+    tree = _tree(fg_env.rl.game(KUHN).new_initial_state())
     regrets, totals = {}, {}
 
     def strategy(key, actions, table):
@@ -132,7 +132,7 @@ def test_cfr_on_the_extracted_kuhn_tree_reaches_the_known_game_value():
 
 
 def test_chance_nodes_list_their_outcomes_and_each_seat_knows_only_its_own_card():
-    game = fg_env.game(KUHN)
+    game = fg_env.rl.game(KUHN)
     root = game.new_initial_state()
     assert root.current_player() == CHANCE and sum(p for _, p in root.chance_outcomes()) == pytest.approx(1)
 
@@ -150,7 +150,7 @@ def test_chance_nodes_list_their_outcomes_and_each_seat_knows_only_its_own_card(
 
 
 def test_action_ids_are_stable_and_masks_match_legal_actions():
-    game = fg_env.game(TIC_TAC_TOE)
+    game = fg_env.rl.game(TIC_TAC_TOE)
     assert game.num_distinct_actions() == 10  # end_turn and mark(cell=0..8)
     state = game.new_initial_state()
     assert state.legal_actions() == list(range(1, 10))
@@ -164,7 +164,7 @@ def test_action_ids_are_stable_and_masks_match_legal_actions():
 
 
 def test_free_text_is_unlisted_and_a_step_makes_numbers_enumerable():
-    game = fg_env.game(AUCTIONEER)
+    game = fg_env.rl.game(AUCTIONEER)
     assert game.space.parametric == {"say": "text: free text"}
     state = game.new_initial_state()
     assert [a.args["amount"] for a in state.legal_tool_calls() if a.tool == "bid"] == [0.0, 2.5, 5.0, 7.5, 10.0]
@@ -182,7 +182,7 @@ def test_free_text_is_unlisted_and_a_step_makes_numbers_enumerable():
 
 
 def test_illegal_moves_raise_and_change_nothing():
-    state = fg_env.game(TIC_TAC_TOE).new_initial_state()
+    state = fg_env.rl.game(TIC_TAC_TOE).new_initial_state()
     state.apply_action(5)
     key = state.state_key()
     with pytest.raises(ValueError, match="not legal for seat 1"):
@@ -191,7 +191,7 @@ def test_illegal_moves_raise_and_change_nothing():
 
 
 def test_clones_and_children_are_independent_and_states_serialize():
-    game = fg_env.game(NIM, inputs={"stones": 7})
+    game = fg_env.rl.game(NIM, inputs={"stones": 7})
     state = game.new_initial_state()
     child = state.child(3)
     assert state.legal_actions() == [1, 2, 3] and state.move_number() == 0
@@ -203,11 +203,11 @@ def test_clones_and_children_are_independent_and_states_serialize():
     assert restored.state_key() == copy_of_child.state_key()
     assert restored.history() == copy_of_child.history()
     with pytest.raises(ValueError, match="belongs to game"):
-        fg_env.game(NIM, inputs={"stones": 9}).deserialize_state(copy_of_child.serialize())
+        fg_env.rl.game(NIM, inputs={"stones": 9}).deserialize_state(copy_of_child.serialize())
 
 
 def test_simultaneous_stages_are_joint_nodes_or_turn_based_sequences():
-    game = fg_env.game(MATCHING_PENNIES)
+    game = fg_env.rl.game(MATCHING_PENNIES)
     state = game.new_initial_state()
     assert state.current_player() == SIMULTANEOUS and state.acting_players() == [0, 1]
     assert state.legal_actions(1) == [1, 2]
@@ -225,7 +225,7 @@ def test_simultaneous_stages_are_joint_nodes_or_turn_based_sequences():
 
 
 def test_sealed_choices_meet_chance_only_when_they_commit():
-    state = fg_env.game(DUEL).new_initial_state()
+    state = fg_env.rl.game(DUEL).new_initial_state()
     assert state.is_simultaneous_node() and state.legal_actions(0) == [1]
     state.apply_actions([{"tool": "shoot"}, "shoot"])
     assert state.is_chance_node() and state.chance_outcomes() == [(0, 0.25), (1, 0.75)]
@@ -235,7 +235,7 @@ def test_sealed_choices_meet_chance_only_when_they_commit():
 
 
 def test_rewards_add_up_to_returns_and_every_run_reports_returns_per_seat():
-    state = fg_env.game(NIM, inputs={"stones": 6}).new_initial_state()
+    state = fg_env.rl.game(NIM, inputs={"stones": 6}).new_initial_state()
     earned = [0.0, 0.0]
     while not state.is_terminal():
         state.apply_action(state.legal_actions()[-1])
@@ -250,7 +250,7 @@ def test_rewards_add_up_to_returns_and_every_run_reports_returns_per_seat():
 
 
 def test_observations_are_what_the_seat_reads_and_what_it_may_see():
-    state = fg_env.game(TIC_TAC_TOE).new_initial_state()
+    state = fg_env.rl.game(TIC_TAC_TOE).new_initial_state()
     text = state.observation_string(0)
     assert "0 1 2\n3 4 5\n6 7 8" in text and "Now: It is your turn." in text
     acting, waiting = state.observation(0, "struct"), state.observation(1, "struct")
@@ -259,7 +259,7 @@ def test_observations_are_what_the_seat_reads_and_what_it_may_see():
     assert acting["entities"] == []  # nobody else is inspectable by default
     open_kuhn = copy.deepcopy(KUHN)
     open_kuhn["types"]["player"]["inspect"] = True
-    kuhn = fg_env.game(open_kuhn).new_initial_state()
+    kuhn = fg_env.rl.game(open_kuhn).new_initial_state()
     kuhn.apply_action(0)
     kuhn.apply_action(0)
     other = kuhn.observation(0, "struct")["entities"]
@@ -316,6 +316,6 @@ def test_claims_in_the_game_section_are_verified_by_check():
 def test_a_game_without_returns_says_what_to_declare():
     plain = copy.deepcopy(NIM)
     del plain["game"]
-    state = fg_env.game(plain).new_initial_state()
+    state = fg_env.rl.game(plain).new_initial_state()
     with pytest.raises(ContractError, match="game.returns"):
         state.returns()

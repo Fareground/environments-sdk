@@ -21,7 +21,7 @@ SEED = 1
 
 @pytest.mark.parametrize("path", EXAMPLES, ids=[p.stem for p in EXAMPLES])
 def test_example_game_playthrough_matches_its_golden_file(path):
-    text = fg_env.playthrough(path, seed=SEED)
+    text = fg_env.rl.playthrough(path, seed=SEED)
     golden = GOLDEN / f"{path.stem}.txt"
     if os.environ.get("FG_ENV_UPDATE_GOLDEN") or not golden.exists():
         golden.parent.mkdir(parents=True, exist_ok=True)
@@ -30,8 +30,8 @@ def test_example_game_playthrough_matches_its_golden_file(path):
 
 
 def test_a_playthrough_replays_from_its_own_steps():
-    text = fg_env.playthrough(GAMES / "leduc_poker.json", seed=7)
-    assert fg_env.playthrough(GAMES / "leduc_poker.json", seed=7, steps=steps_from_text(text)) == text
+    text = fg_env.rl.playthrough(GAMES / "leduc_poker.json", seed=7)
+    assert fg_env.rl.playthrough(GAMES / "leduc_poker.json", seed=7, steps=steps_from_text(text)) == text
     assert "Seat 0 (p0) reads:" in text and "Legal calls of seat" in text and "Returns: [" in text
 
 

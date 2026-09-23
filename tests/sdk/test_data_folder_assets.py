@@ -36,7 +36,7 @@ def test_experiments_in_worker_processes_and_sweeps_find_the_assets(tmp_path):
     folder = _folder(tmp_path)
     exp = fg_env.experiment(NOTED, runs=2, workers=2, data_dir=folder)
     assert not exp.arms["baseline"].failed and exp.arms["baseline"].outputs["note_size"]["mean"] == 13
-    swept = fg_env.sweep(NOTED, {"level": [1, 2]}, runs=1, data_dir=folder, workers=2)
+    swept = fg_env.analysis.sweep(NOTED, {"level": [1, 2]}, runs=1, data_dir=folder, workers=2)
     assert [cell.summary["note_size"].mean for cell in swept.cells] == [13, 26]
 
 

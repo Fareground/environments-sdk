@@ -1,4 +1,4 @@
-"""What each factor of a quantity contributes: ``fg_env.decompose(contract, "demand", key="BRP-TOY-V")``.
+"""What each factor of a quantity contributes: ``fg_env.analysis.decompose(contract, "demand", key="BRP-TOY-V")``.
 
 For a ``product`` pattern every factor's value is shown with what it adds — the total less the total without that
 factor (a winter index of 1.3 on a total of 13 adds 3) — and for a ``sum`` every weighted term. Given a contract,
@@ -95,7 +95,7 @@ def decompose(source: Union[ContractLike, Any], pattern: str, *, key: Any = None
             result.rows.append(_row(runtime, pattern, text, t, number, env, live))
         except ExprError as exc:
             raise ContractError([Issue(where, exc.detail, "check factor values and scales; decompose a live run "
-                                                          "(fg_env.decompose(env, …)) for stateful factors")]) from None
+                                                          "(fg_env.analysis.decompose(env, …)) for stateful factors")]) from None
     return result
 
 

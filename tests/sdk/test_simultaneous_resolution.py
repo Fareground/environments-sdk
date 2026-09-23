@@ -70,7 +70,7 @@ def test_a_game_lists_only_the_sealed_choices_the_engine_would_take():
     c["actions"]["buy"]["do"] = [{"if": "$actor.coins < 5", "then": [{"fail": "you cannot afford it"}]},
                                  "$actor.coins = $actor.coins - 5"]
     c["game"] = {"players": "buyer", "returns": "$actor.coins"}
-    state = fg_env.game(c).as_turn_based().new_initial_state()
+    state = fg_env.rl.game(c).as_turn_based().new_initial_state()
     seat = state.current_player()
     state.apply_action({"tool": "buy"})
     assert state.current_player() == seat

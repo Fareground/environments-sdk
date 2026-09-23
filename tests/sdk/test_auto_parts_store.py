@@ -46,7 +46,7 @@ def test_the_bundled_sales_and_purchase_order_histories_are_exactly_what_the_tru
 
 
 def test_fitting_the_bundled_history_recovers_the_truth_and_reproduces_the_shipped_estimates():
-    fitted = fg_env.fit_patterns(CONTRACT).contract["inputs"]
+    fitted = fg_env.analysis.fit_patterns(CONTRACT).contract["inputs"]
     shipped = json.loads(CONTRACT.read_text())["inputs"]
     for name in ("growth_rate", "promo_lift", "sales_dispersion", "season_fit", "price_effect_fit", "demand_fit"):
         # The fit is iterative and float sums differ slightly between Python versions (3.12 made sum() exact),
@@ -81,7 +81,7 @@ def test_the_service_level_policy_serves_more_demand_and_earns_more_than_the_lea
 
 def test_the_owner_report_recommends_the_service_policy_when_95_percent_of_demand_must_be_served():
     exp = fg_env.experiment(CONTRACT, arms=["lean", "service"], runs=4, seed=3, rounds=26)
-    text = fg_env.report(exp, contract=CONTRACT, objective="max:reorder_profit",
+    text = fg_env.analysis.report(exp, contract=CONTRACT, objective="max:reorder_profit",
                          require={"shop_fill_rate": ">= 0.95"}).markdown
     recommendation = text.split("## Recommendation", 1)[1].split("##", 1)[0]
     assert "Choose order up to the expected demand" in recommendation
@@ -103,13 +103,13 @@ def test_dearer_premium_tiers_move_sales_to_the_value_tier():
 
 
 def test_the_fitted_demand_can_be_decomposed_and_described():
-    parts = fg_env.decompose(CONTRACT, "demand", key="BAT-TOY-V", rounds=3, inputs={"parameter_uncertainty": 0})
+    parts = fg_env.analysis.decompose(CONTRACT, "demand", key="BAT-TOY-V", rounds=3, inputs={"parameter_uncertainty": 0})
     assert [set(row["factors"]) for row in parts.rows] == [{"growth", "season"}] * 3
     first = parts.rows[0]
     assert first["total"] == pytest.approx(first["factors"]["growth"] * first["factors"]["season"]
                                            * next(r["scale"] for r in json.loads(CONTRACT.read_text())["inputs"]["demand_fit"]["default"]
                                                   if r["sku"] == "BAT-TOY-V"))
-    text = fg_env.describe(CONTRACT).markdown
+    text = fg_env.analysis.describe(CONTRACT).markdown
     assert "### World patterns" in text and "`$pattern.promo(key)`" in text and "fitted from $inputs.history" in text
 
 def _close(a, b, rel):

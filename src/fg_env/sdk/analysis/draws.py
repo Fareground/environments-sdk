@@ -2,7 +2,7 @@
 
 A calibration leaves a set of points that fit as well as the best within the objective's noise; a forecast run only
 at the best point pretends those parameters are known, and its intervals are too narrow. ``uncertainty=`` on
-:func:`fg_env.experiment`, :func:`fg_env.sweep`, :func:`fg_env.backtest` and :func:`fg_env.validate` draws them per
+:func:`fg_env.experiment`, :func:`fg_env.analysis.sweep`, :func:`fg_env.analysis.backtest` and :func:`fg_env.analysis.validate` draws them per
 run instead, from:
 
 * a :class:`~fg_env.sdk.analysis.calibrate.CalibrationResult` — one of its plausible points, the parameters together;

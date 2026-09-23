@@ -1,4 +1,4 @@
-"""Patterns in plain words, for ``fg_env.describe``: what each is, what it is kept per, how it is read, and whether
+"""Patterns in plain words, for ``fg_env.analysis.describe``: what each is, what it is kept per, how it is read, and whether
 it was fitted or carries estimation uncertainty."""
 from __future__ import annotations
 

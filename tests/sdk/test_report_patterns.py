@@ -30,9 +30,9 @@ def test_a_calendar_pattern_is_told_at_its_peak_and_trough_and_a_promotion_by_th
 
 def test_reading_a_contract_at_its_estimates_ignores_the_draws_its_standard_errors_would_make():
     contract = EXAMPLES / "phone_reseller.json"
-    drawn = fg_env.decompose(contract, "wholesale_demand", key="17-A", rounds=[1], seed=4).rows[0]
-    at_estimates = fg_env.decompose(contract, "wholesale_demand", key="17-A", rounds=[1], seed=4, estimates=True).rows[0]
-    fixed = fg_env.decompose(contract, "wholesale_demand", key="17-A", rounds=[1],
+    drawn = fg_env.analysis.decompose(contract, "wholesale_demand", key="17-A", rounds=[1], seed=4).rows[0]
+    at_estimates = fg_env.analysis.decompose(contract, "wholesale_demand", key="17-A", rounds=[1], seed=4, estimates=True).rows[0]
+    fixed = fg_env.analysis.decompose(contract, "wholesale_demand", key="17-A", rounds=[1],
                              inputs={"parameter_uncertainty": 0}).rows[0]
     assert at_estimates["total"] == pytest.approx(fixed["total"], rel=1e-12)
     assert drawn["total"] != pytest.approx(fixed["total"], rel=1e-6)
@@ -41,7 +41,7 @@ def test_reading_a_contract_at_its_estimates_ignores_the_draws_its_standard_erro
 def test_an_owner_report_of_a_demand_says_what_each_pattern_adds_per_category():
     contract = EXAMPLES / "auto_parts_store.json"
     exp = fg_env.experiment(contract, arms=["service"], runs=1, seed=5, inputs={"weeks": 26})
-    lines = next(s for s in fg_env.report(exp, contract=contract).sections if s.title == "What drives it").lines
+    lines = next(s for s in fg_env.analysis.report(exp, contract=contract).sections if s.title == "What drives it").lines
     assert any(line.startswith("Demand over the 26 weeks is about") for line in lines)
     categories = [line for line in lines if line.split(" (")[0] in ("Batteries", "Brake pads", "Wipers")]
     assert len(categories) == 3 and all("the time of year adds" in line for line in categories)

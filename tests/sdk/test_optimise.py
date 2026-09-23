@@ -56,50 +56,50 @@ RISK = {"name": "Risk", "clock": {"rounds": 1}, "types": {"t": {"props": {"q": 0
 
 @pytest.mark.parametrize("method, tolerance", [("grid", 0), ("local", 0), ("race", 1), ("lhs", 1), ("random", 1)])
 def test_every_search_method_finds_the_known_peak_of_a_noisy_hill(method, tolerance):
-    result = fg_env.optimise(HILL, {"x": {}, "y": {"step": 1}}, "maximise profit", runs=4, budget=121, method=method)
+    result = fg_env.analysis.optimise(HILL, {"x": {}, "y": {"step": 1}}, "maximise profit", runs=4, budget=121, method=method)
     assert result.method == method and result.feasible
     assert abs(result.best["x"] - 3) <= tolerance and abs(result.best["y"] - 7) <= tolerance
 
 
 @pytest.mark.parametrize("method", ["nelder_mead", "cross_entropy", "local"])
 def test_continuous_decisions_converge_to_the_known_optimum(method):
-    result = fg_env.optimise(BOWL, {"a": {}, "b": {}}, "maximise f", runs=4, budget=150, method=method)
+    result = fg_env.analysis.optimise(BOWL, {"a": {}, "b": {}}, "maximise f", runs=4, budget=150, method=method)
     assert result.best["a"] == pytest.approx(6.2, abs=0.2) and result.best["b"] == pytest.approx(2.7, abs=0.2)
 
 
 def test_auto_picks_a_grid_when_it_fits_the_budget_a_simplex_for_continuous_decisions_and_local_search_otherwise():
-    assert fg_env.optimise(HILL, {"x": {}}, "maximise profit", runs=2).method == "grid"
-    assert fg_env.optimise(BOWL, {"a": {}, "b": {}}, "maximise f", runs=2, budget=30).method == "nelder_mead"
-    stepped = fg_env.optimise(HILL, {"x": {}, "y": {"step": 0.1}}, "maximise profit", runs=2, budget=60)
+    assert fg_env.analysis.optimise(HILL, {"x": {}}, "maximise profit", runs=2).method == "grid"
+    assert fg_env.analysis.optimise(BOWL, {"a": {}, "b": {}}, "maximise f", runs=2, budget=30).method == "nelder_mead"
+    stepped = fg_env.analysis.optimise(HILL, {"x": {}, "y": {"step": 0.1}}, "maximise profit", runs=2, budget=60)
     assert stepped.method == "local" and stepped.best == {"x": 3, "y": 7.3}
 
 
 def test_a_vector_and_a_choice_are_searched_together_to_their_known_best():
-    result = fg_env.optimise(HILL, {"v": {"length": 3, "low": 0, "high": 8, "step": 1}, "mode": {}}, "maximise vec",
+    result = fg_env.analysis.optimise(HILL, {"v": {"length": 3, "low": 0, "high": 8, "step": 1}, "mode": {}}, "maximise vec",
                              runs=1, budget=200)
     assert result.method == "local" and result.best == {"v": [2, 5, 1], "mode": "b"}
     assert all(isinstance(x, int) for x in result.best["v"])
 
 
 def test_a_vector_with_a_fixed_sum_or_a_monotone_order_only_ever_tries_decisions_with_that_structure():
-    fixed = fg_env.optimise(HILL, {"v": {"length": 3, "low": 0, "high": 9, "step": 1, "sum": 9}}, "maximise even",
+    fixed = fg_env.analysis.optimise(HILL, {"v": {"length": 3, "low": 0, "high": 9, "step": 1, "sum": 9}}, "maximise even",
                             runs=1, budget=100)
     assert fixed.best == {"v": [3, 3, 3]} and all(sum(h["decision"]["v"]) == 9 for h in fixed.history)
-    falling = fg_env.optimise(HILL, {"v": {"length": 3, "low": 0, "high": 9, "step": 1, "monotone": "decreasing"}},
+    falling = fg_env.analysis.optimise(HILL, {"v": {"length": 3, "low": 0, "high": 9, "step": 1, "monotone": "decreasing"}},
                               "maximise bumpy", runs=1, budget=1000, method="grid")
     assert falling.best == {"v": [3, 3, 2]}
     assert all(v[0] >= v[1] >= v[2] for v in (h["decision"]["v"] for h in falling.history))
 
 
 def test_a_vector_takes_bounds_per_position_and_a_local_search_starts_where_it_is_told():
-    result = fg_env.optimise(HILL, {"v": {"length": 3, "low": [0, 4, 0], "high": [1, 9, 9], "step": 1,
+    result = fg_env.analysis.optimise(HILL, {"v": {"length": 3, "low": [0, 4, 0], "high": [1, 9, 9], "step": 1,
                                           "start": [1, 4, 0]}}, "maximise vec", runs=1, budget=200, method="local")
     assert result.history[0]["decision"] == {"v": [1, 4, 0]}
     assert result.best == {"v": [1, 5, 1]}
 
 
 def test_the_cheapest_decision_that_meets_a_constraint_is_chosen_and_its_neighbours_show_why():
-    result = fg_env.optimise(HILL, {"x": {}, "y": {"step": 1}}, "minimise cost", ["service >= 9"], runs=2)
+    result = fg_env.analysis.optimise(HILL, {"x": {}, "y": {"step": 1}}, "minimise cost", ["service >= 9"], runs=2)
     assert result.best == {"x": 0, "y": 9} and result.feasible
     (check,) = result.estimates["constraints"]
     assert check["met"] and check["value"] == 9
@@ -108,14 +108,14 @@ def test_the_cheapest_decision_that_meets_a_constraint_is_chosen_and_its_neighbo
 
 
 def test_an_unmeetable_constraint_reports_the_closest_decision_and_how_far_it_misses():
-    result = fg_env.optimise(HILL, {"x": {}, "y": {"step": 1}}, "minimise cost", ["service >= 50"], runs=2)
+    result = fg_env.analysis.optimise(HILL, {"x": {}, "y": {"step": 1}}, "minimise cost", ["service >= 50"], runs=2)
     assert not result.feasible and result.best == {"x": 10, "y": 10}
     assert result.estimates["constraints"][0]["shortfall"] == 30
     assert "No decision tried meets every constraint" in result.summary() and "short by 30" in result.summary()
 
 
 def test_a_share_of_runs_constraint_is_the_share_of_runs_where_it_holds_with_a_wilson_interval():
-    result = fg_env.optimise(HILL, {"x": {"low": 0, "high": 2}}, "minimise cost",
+    result = fg_env.analysis.optimise(HILL, {"x": {"low": 0, "high": 2}}, "minimise cost",
                              ["noisy_service >= 1 in 90% of runs"], inputs={"y": 0}, runs=40, holdout_seeds=0)
     (check,) = result.estimates["constraints"]
     assert result.best == {"x": 2} and check["share_needed"] == 0.9
@@ -123,46 +123,46 @@ def test_a_share_of_runs_constraint_is_the_share_of_runs_where_it_holds_with_a_w
 
 
 def test_a_risk_averse_percentile_objective_prefers_the_safe_plan_the_mean_passes_over():
-    assert fg_env.optimise(RISK, {"plan": {}}, "maximise gain", runs=40).best == {"plan": "risky"}
-    assert fg_env.optimise(RISK, {"plan": {}}, "maximise p10 of gain", runs=40).best == {"plan": "safe"}
+    assert fg_env.analysis.optimise(RISK, {"plan": {}}, "maximise gain", runs=40).best == {"plan": "risky"}
+    assert fg_env.analysis.optimise(RISK, {"plan": {}}, "maximise p10 of gain", runs=40).best == {"plan": "safe"}
 
 
 def test_an_objective_can_be_an_expression_over_outputs_and_inputs():
-    result = fg_env.optimise(HILL, {"x": {}}, "maximise $outputs.profit - 10 * $inputs.x", inputs={"y": 7}, runs=2)
+    result = fg_env.analysis.optimise(HILL, {"x": {}}, "maximise $outputs.profit - 10 * $inputs.x", inputs={"y": 7}, runs=2)
     assert result.best == {"x": 0} and result.objectives == ["maximise mean of $outputs.profit - 10 * $inputs.x"]
 
 
 def test_fresh_seeds_confirm_a_real_winner_and_call_a_lucky_one_within_noise():
-    real = fg_env.optimise(NOISE, {"k": {}}, "maximise peaked", runs=3, holdout_seeds=30)
+    real = fg_env.analysis.optimise(NOISE, {"k": {}}, "maximise peaked", runs=3, holdout_seeds=30)
     assert real.best == {"k": 7} and real.holdout["still_wins"] and real.holdout["difference"]["clear"]
-    luck = fg_env.optimise(NOISE, {"k": {}}, "maximise luck", runs=3, holdout_seeds=30)
+    luck = fg_env.analysis.optimise(NOISE, {"k": {}}, "maximise luck", runs=3, holdout_seeds=30)
     assert not luck.holdout["difference"]["clear"]
     assert luck.holdout["seeds"] == 30 and len(luck.holdout["best"]["objectives"]) == 1
 
 
 def test_the_same_seed_reproduces_the_whole_search_with_or_without_worker_processes():
     kwargs = dict(runs=3, budget=40, seed=11, method="local")
-    alone = fg_env.optimise(HILL, {"x": {}, "y": {"step": 0.5}}, "maximise profit", ["service >= 8"], **kwargs)
-    pooled = fg_env.optimise(HILL, {"x": {}, "y": {"step": 0.5}}, "maximise profit", ["service >= 8"], workers=2,
+    alone = fg_env.analysis.optimise(HILL, {"x": {}, "y": {"step": 0.5}}, "maximise profit", ["service >= 8"], **kwargs)
+    pooled = fg_env.analysis.optimise(HILL, {"x": {}, "y": {"step": 0.5}}, "maximise profit", ["service >= 8"], workers=2,
                              **kwargs)
     assert alone.to_dict() == pooled.to_dict()
-    other = fg_env.optimise(HILL, {"x": {}, "y": {"step": 0.5}}, "maximise profit", ["service >= 8"],
+    other = fg_env.analysis.optimise(HILL, {"x": {}, "y": {"step": 0.5}}, "maximise profit", ["service >= 8"],
                             **{**kwargs, "seed": 12})
     assert other.estimates != alone.estimates
 
 
 def test_uncertain_parameters_make_the_decision_robust_to_not_knowing_them():
-    known = fg_env.optimise(BOWL, {"a": {"low": 0, "high": 5, "step": 0.5}}, "maximise p10 of robust", runs=20)
+    known = fg_env.analysis.optimise(BOWL, {"a": {"low": 0, "high": 5, "step": 0.5}}, "maximise p10 of robust", runs=20)
     assert known.best == {"a": 4.0}
-    robust = fg_env.optimise(BOWL, {"a": {"low": 0, "high": 5, "step": 0.5}}, "maximise p10 of robust", runs=20,
+    robust = fg_env.analysis.optimise(BOWL, {"a": {"low": 0, "high": 5, "step": 0.5}}, "maximise p10 of robust", runs=20,
                              uncertainty=[{"b": 1.0}, {"b": 4.0}])
     assert robust.best == {"a": 2.5}
     with pytest.raises(ValueError, match="also drawn from uncertainty"):
-        fg_env.optimise(BOWL, {"a": {"step": 1}}, "maximise f", inputs={"b": 2}, uncertainty=[{"b": 1.0}], runs=2)
+        fg_env.analysis.optimise(BOWL, {"a": {"step": 1}}, "maximise f", inputs={"b": 2}, uncertainty=[{"b": 1.0}], runs=2)
 
 
 def test_two_objectives_trace_a_pareto_frontier_of_undominated_decisions():
-    result = fg_env.optimise(HILL, {"x": {}, "y": {"step": 1}}, ["minimise cost", "maximise service"], runs=2,
+    result = fg_env.analysis.optimise(HILL, {"x": {}, "y": {"step": 1}}, ["minimise cost", "maximise service"], runs=2,
                              budget=121)
     assert result.method == "grid"
     decisions = [row["decision"] for row in result.frontier]
@@ -194,7 +194,7 @@ def test_two_objectives_trace_a_pareto_frontier_of_undominated_decisions():
 ])
 def test_mistakes_say_what_to_fix(decisions, objective, constraints, options, message):
     with pytest.raises(ValueError, match=message):
-        fg_env.optimise(HILL, decisions, objective, constraints, runs=1, **options)
+        fg_env.analysis.optimise(HILL, decisions, objective, constraints, runs=1, **options)
 
 
 def _cli(argv):
@@ -220,6 +220,6 @@ def test_the_command_line_prints_the_answer_or_json_and_one_line_errors(tmp_path
 
 def test_the_guide_has_an_optimise_part_on_the_core_guides_map():
     part = fg_env.guide("optimise")
-    assert "fg_env.optimise(" in part and "in 90% of runs" in part and "Pareto" in part
+    assert "fg_env.analysis.optimise(" in part and "in 90% of runs" in part and "Pareto" in part
     core = fg_env.guide()
     assert "`optimise`" in core and len(core) / 4 < 6000

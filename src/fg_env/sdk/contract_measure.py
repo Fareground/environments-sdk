@@ -99,10 +99,10 @@ class CalibrationSpec(_Model):
     pilots, more ``runs`` per point, a larger ``holdout`` and a range no wider than plausible make it reliable."""
 
     params: Dict[str, Dict[str, Any]] = Field(..., min_length=1, description="{input: {low?, high?, log?}}: number or int inputs to fit (the range defaults to the input's min and max).")
-    targets: Dict[str, Any] = Field(..., min_length=1, description="{output or metric: target} as fg_env.calibrate takes them; a number (or a stat target's `value`) may be an expression over $inputs and $world, read from the world this session builds.")
+    targets: Dict[str, Any] = Field(..., min_length=1, description="{output or metric: target} as fg_env.analysis.calibrate takes them; a number (or a stat target's `value`) may be an expression over $inputs and $world, read from the world this session builds.")
     inputs: Dict[str, Any] = Field(default_factory=dict, description="Inputs of the pilot sessions only, e.g. fewer bars; the session's own inputs apply underneath.")
     runs: int = Field(2, ge=1, le=20, description="Pilot sessions per evaluated point.")
     budget: int = Field(6, ge=2, le=50, description="Distinct points evaluated.")
     holdout: int = Field(1, ge=1, le=20, description="Pilot sessions on fresh seeds that validate the fit.")
-    method: Literal["auto", "bisection", "golden", "nelder_mead", "cross_entropy"] = Field("auto", description="Search method (see fg_env.calibrate).")
+    method: Literal["auto", "bisection", "golden", "nelder_mead", "cross_entropy"] = Field("auto", description="Search method (see fg_env.analysis.calibrate).")
     workers: int = Field(1, ge=1, le=64, description="Pilot sessions run in this many processes at once.")

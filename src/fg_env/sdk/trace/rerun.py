@@ -87,7 +87,7 @@ class Replayer:
             turn = wake._turn
             if turn.exposure is None:
                 raise RunError("a replay checks every turn against its recording, so the replaying run must record "
-                               "exposures: load it with exposures=True (fg_env.trace(recording).replay(contract) does)",
+                               "exposures: load it with exposures=True (fg_env.analysis.trace(recording).replay(contract) does)",
                                f"participant:{turn.actor.id}")
             recorded = self._recorded.get(turn.number)
             found = self._check_wake(turn, recorded)

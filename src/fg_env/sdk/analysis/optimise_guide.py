@@ -5,7 +5,7 @@ __all__ = ["OPTIMISE"]
 OPTIMISE = """\
 ## Optimise: the best decision, feasible with confidence and checked on fresh seeds
 
-`fg_env.optimise` searches the inputs you control for the best objective under constraints. Every decision runs on
+`fg_env.analysis.optimise` searches the inputs you control for the best objective under constraints. Every decision runs on
 the same seeds. Each constraint is judged with a stated `confidence` (default 0.9): a decision is **feasible with
 confidence** when every constraint's one-sided bound clears it, **infeasible** when one clearly misses, **borderline**
 in between. The search asks for more room than the confidence (the cheapest decisions it finds are the ones its seeds
@@ -13,7 +13,7 @@ flattered); its best are confirmed on new seeds, with more seeds for a borderlin
 is made and reported there; then the choice and the runner-up run on fresh seeds again, so luck is flagged.
 
 ```python
-r = fg_env.optimise("centre.json",
+r = fg_env.analysis.optimise("centre.json",
     decisions={"agents": {"length": 24, "low": 3, "high": 40, "step": 1, "start": manager_plan}},
     objective="minimise staffing_cost",
     constraints=["each sl_by_interval >= 0.8", "sl >= 0.8 in 90% of runs with 95% confidence"],

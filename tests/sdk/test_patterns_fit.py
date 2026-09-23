@@ -19,7 +19,7 @@ WEEKS = {"unit": "week", "start": "2020-01-06"}
 def _fitted(patterns, rows, *, clock=None, rounds=10, **sections):
     contract = world(patterns, rounds=rounds, clock=clock,
                      inputs={"history": {"type": "table", "default": rows}, **sections.pop("inputs", {})}, **sections)
-    return fg_env.fit_patterns(contract)
+    return fg_env.analysis.fit_patterns(contract)
 
 
 def _param(result, pattern, field):
@@ -252,7 +252,7 @@ def _shop_fit(contract, rows, **fit):
     guess["patterns"]["demand"]["fit"] = {"data": "$inputs.history", "value": "units", "time": "date", "key": "sku",
                                           "x": {"price_effect": {"column": "price", "key": "$row.category"}, "promo": "promo"},
                                           "noise": "sales", **fit}
-    return fg_env.fit_patterns(guess)
+    return fg_env.analysis.fit_patterns(guess)
 
 
 def test_a_joint_product_fit_separates_price_from_promotion_and_recovers_every_parameter():
@@ -335,7 +335,7 @@ def test_fit_reads_data_files_from_the_data_directory(tmp_path):
             writer.writerow([t, 2 + 0.5 * t + rng.gauss(0, 0.5)])
     contract = world({"g": {"kind": "trend", "fit": {"data": "$inputs.history", "value": "y", "time": "t"}}},
                      inputs={"history": {"type": "table", "source": "history.csv"}})
-    result = fg_env.fit_patterns(contract, data_dir=tmp_path)
+    result = fg_env.analysis.fit_patterns(contract, data_dir=tmp_path)
     assert _param(result, "g", "slope") == pytest.approx(0.5, abs=0.02)
     assert result.contract["inputs"]["history"] == {"type": "table", "source": "history.csv"}
 
@@ -344,7 +344,7 @@ def test_decompose_shows_what_each_factor_adds_to_a_product():
     contract = world({"trend": {"kind": "trend", "start": 1, "slope": 0.5},
                       "season": {"kind": "seasonal", "period": 2, "profile": [1, 2]},
                       "demand": {"kind": "product", "scale": 10, "of": ["trend", "season"]}}, rounds=3)
-    parts = fg_env.decompose(contract, "demand")
+    parts = fg_env.analysis.decompose(contract, "demand")
     assert [row["total"] for row in parts.rows] == pytest.approx([10, 30, 20])
     second = parts.rows[1]
     assert second["factors"] == {"trend": 1.5, "season": 2}
@@ -355,7 +355,7 @@ def test_decompose_shows_what_each_factor_adds_to_a_product():
 def test_describe_lists_every_pattern_in_plain_words():
     contract = world({"price_effect": {"kind": "elasticity", "elasticity": -1.4, "reference": 20,
                                        "description": "Shoppers buy less when prices rise"}})
-    text = fg_env.describe(contract).markdown
+    text = fg_env.analysis.describe(contract).markdown
     assert "### World patterns" in text and "Shoppers buy less when prices rise" in text
     assert "`$pattern.price_effect(price)`" in text
 

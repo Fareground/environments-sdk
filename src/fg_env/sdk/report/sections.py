@@ -312,7 +312,7 @@ def assumptions(ev: Evidence, queues: Sequence[QueueView], owner: bool) -> Secti
         shown = f"{value:g}" if isinstance(value, (int, float)) and not isinstance(value, bool) else str(value)
         section.lines.append(f"{spec.description.rstrip('.')}, set to {shown}." if owner else
                              f"{spec.description.rstrip('.')} — {name.replace('_', ' ')} = {shown}.")
-    fitted = [name for name, spec in contract.inputs.items() if "fitted by fg_env.fit_patterns" in spec.description]
+    fitted = [name for name, spec in contract.inputs.items() if "fitted by fg_env.analysis.fit_patterns" in spec.description]
     if fitted:
         count = f"{len(fitted)} {plural('parameter', len(fitted))} {'is' if len(fitted) == 1 else 'are'} estimated from the data"
         section.lines.append(f"{count}; the analyst report lists them." if owner else f"{count}: {', '.join(fitted)}.")
@@ -325,7 +325,7 @@ def fit(ev: Evidence, namer: Namer) -> Section:
     section = Section("How well it matched the data")
     validation = ev.validation
     if validation is None:
-        section.lines.append("Not checked against data here: pass validation=fg_env.validate(contract, cases).")
+        section.lines.append("Not checked against data here: pass validation=fg_env.analysis.validate(contract, cases).")
         return section
     for measure, found in validation.measures.items():
         held = found.get("held_out")

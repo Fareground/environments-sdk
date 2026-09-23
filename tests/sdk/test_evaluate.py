@@ -38,7 +38,7 @@ MODES = {"resident": 0.75, "visitor": 0.25}
 def _free_riding(suite=PUBLIC_GOODS, **options):
     settings = {"focal": "policy:free_ride", "background": "policy:cooperate", "score": SCORE, "modes": MODES,
                 "runs": 3, **options}
-    return fg_env.evaluate(suite, **settings)
+    return fg_env.rl.evaluate(suite, **settings)
 
 
 def test_focal_scores_and_paired_differences_match_the_hand_computed_payoffs():
@@ -69,7 +69,7 @@ def _nim_player(choose):
 def test_without_a_score_seats_are_scored_by_the_games_returns():
     optimal, one_at_a_time = _nim_player(lambda stones: stones % 4 or 1), _nim_player(lambda stones: 1)
     # Six stones, Ann first. Leaving a multiple of four wins (return +1); taking one each lets Bob take the last (−1).
-    result = fg_env.evaluate(NIM, focal=optimal, background=one_at_a_time, seats=["a"], inputs={"stones": 6}, runs=2)
+    result = fg_env.rl.evaluate(NIM, focal=optimal, background=one_at_a_time, seats=["a"], inputs={"stones": 6}, runs=2)
     assert result.overall["focal"]["mean"] == 1 and result.overall["baseline"]["mean"] == -1
     assert result.overall["difference"]["mean"] == 2
 
@@ -139,7 +139,7 @@ def test_mistakes_in_a_suite_are_reported_before_anything_runs():
     with pytest.raises(ValueError, match="background: unknown participant 'policy:nope'"):
         _free_riding(background="policy:nope")
     with pytest.raises(ValueError, match="focal is the participant being evaluated"):
-        fg_env.evaluate(PUBLIC_GOODS, focal=None)
+        fg_env.rl.evaluate(PUBLIC_GOODS, focal=None)
     with pytest.raises(ValueError, match="budget has no 'money'"):
         _free_riding(budget={"money": 5})
 

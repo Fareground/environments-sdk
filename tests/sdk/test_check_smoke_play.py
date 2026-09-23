@@ -104,7 +104,7 @@ def test_random_agents_fill_dependent_choices():
     result = fg_env.run(TENDER, seed=3)
     assert result.outputs["accusations"] == 3
     assert result.stats.get("rejected_actions", 0) == 0
-    report = fg_env.behavior_checks(TENDER, runs=1)
+    report = fg_env.analysis.behavior_checks(TENDER, runs=1)
     assert ("action_never_taken", "actions.accuse") not in report.codes()
 
 

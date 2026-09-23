@@ -11,6 +11,11 @@
 
 ``fg_env.guide("authoring")`` is the start page for an authoring agent; ``fg_env.guide()`` adds a map of every part;
 ``fg_env.new("game", "my_game.json")`` writes a ready-to-run contract to start from.
+
+The core lives here; everything else is one subpackage away: ``fg_env.analysis`` (sweeps, calibration,
+optimisation, validation, reports, traces), ``fg_env.rl`` (games, Gym and PettingZoo, tournaments, evaluation),
+``fg_env.engines`` (the engine catalog), ``fg_env.personas`` (cohort sampling) and ``fg_env.participants``
+(random, policy and LLM participants).
 """
 from importlib.metadata import PackageNotFoundError as _PackageNotFoundError
 from importlib.metadata import version as _dist_version
@@ -20,45 +25,19 @@ try:
 except _PackageNotFoundError:  # a source checkout on PYTHONPATH, not installed
     __version__ = "0+unknown"
 
-# Environment SDK public API. Everything a user needs is importable from ``fg_env``.
 from .sdk.api import check, expand, load, parse, run
 from .sdk.branch import Branch
-from .sdk.fork import fork
-from .sdk.game import Game, GameState, game
-from .sdk.game.conformance import conformance
-from .sdk.game.pettingzoo import pettingzoo_aec, pettingzoo_parallel
-from .sdk.game.playthrough import playthrough
-from .sdk.gym import GymEnv, gym
 from .sdk.contract import Contract
 from .sdk.errors import ContractError, InputError, InvariantViolation, Issue, RunError, SnapshotError
 from .sdk.experiment import ExperimentResult, experiment
+from .sdk.fork import fork
 from .sdk.guide import guide, schema
-from .sdk.scaffold import new
 from .sdk.measure import RunResult
 from .sdk.runtime import Env
+from .sdk.scaffold import new
 from .sdk.session import ToolResult, Wake
-from .sdk import participants
-from .sdk import analysis
-from .sdk.analysis import (backtest, behavior_checks, calibrate, chain, compare, drivers, highlights, narrative,
-                           optimise, precision, score, sensitivity, sweep, validate)
-from .sdk.tournament import tournament
-from .sdk.describe import describe
-from .sdk.patterns.fit import FitResult, fit_patterns
-from .sdk.patterns.decompose import Decomposition, decompose
-from .sdk.report import Report, report
-from .sdk.trace import trace
-from .sdk.evaluate import evaluate
-from . import engines
-from .engines import (
-    EngineNotFound,
-    EngineUnavailable,
-    clone as clone_engine,
-    get as get_engine,
-    list_engines,
-    load as load_engine,
-)
-from . import personas
-from .personas import PersonaSample, SamplingProvenance, assign_labels, sample_records
+from .engines import clone as clone_engine, list_engines
+from . import analysis, engines, participants, personas, rl
 
 __all__ = [
     "__version__",
@@ -69,12 +48,7 @@ __all__ = [
     "expand",
     "experiment",
     "fork",
-    "game",
-    "gym",
     "Branch",
-    "Game",
-    "GameState",
-    "GymEnv",
     "guide",
     "schema",
     "new",
@@ -90,46 +64,11 @@ __all__ = [
     "RunError",
     "InvariantViolation",
     "SnapshotError",
+    "list_engines",
+    "clone_engine",
     "participants",
     "analysis",
-    "sweep",
-    "sensitivity",
-    "calibrate",
-    "optimise",
-    "fit_patterns",
-    "FitResult",
-    "decompose",
-    "Decomposition",
-    "report",
-    "Report",
-    "score",
-    "backtest",
-    "validate",
-    "precision",
-    "behavior_checks",
-    "highlights",
-    "narrative",
-    "drivers",
-    "compare",
-    "chain",
-    "tournament",
-    "describe",
-    "trace",
-    "evaluate",
+    "rl",
     "engines",
-    "EngineNotFound",
-    "EngineUnavailable",
-    "list_engines",
-    "get_engine",
-    "clone_engine",
-    "load_engine",
     "personas",
-    "PersonaSample",
-    "SamplingProvenance",
-    "sample_records",
-    "assign_labels",
-    "conformance",
-    "playthrough",
-    "pettingzoo_aec",
-    "pettingzoo_parallel",
 ]

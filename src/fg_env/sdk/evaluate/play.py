@@ -28,7 +28,7 @@ def evaluate(suite: Any, *, focal: Any, background: Any = None, baseline: Any = 
     focal participant takes (``{"resident": 0.75, "visitor": 0.25}``; default ``{"all": 1.0}``); which seats is
     drawn from the seed, so every candidate evaluated with the same seed meets the same draw. ``background`` plays
     every other agent (default: its type's policy, else random); ``baseline`` plays the focal seats in the paired
-    runs (default: the background). ``score`` scores each seat as in :func:`fg_env.tournament`: by default the
+    runs (default: the background). ``score`` scores each seat as in :func:`fg_env.rl.tournament`: by default the
     returns the contract's ``game`` section declares, else the winner; or an output, an expression over ``$seat``,
     or ``fn(result, seat)``.
 

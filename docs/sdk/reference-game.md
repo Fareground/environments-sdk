@@ -19,6 +19,7 @@ rules, and native legal-move generation, capture rules and game-end detection.
 - `slots`: Worker placement: capacity-limited action spaces.
 
 Functions:
+- `$anagram(a, b)` — True when the two texts use exactly the same letters (case, spaces and punctuation ignored).
 - `$blackjack_soft(cards)` — True when the blackjack total counts an ace as 11 (a soft total).
 - `$blackjack_value(cards)` — Blackjack total of the cards: aces 11 unless that busts, faces 10.
 - `$board_at(board, cell)` — The piece entity on a cell, or null.
@@ -34,6 +35,7 @@ Functions:
 - `$claims(slots, space)` — The players with a worker on `space` this round.
 - `$follow_suit(hand, lead_suit)` — The cards of `hand` that follow the suit led, or the whole hand when it has none of that suit (or nothing was led).
 - `$hand(player, deck?)` — The cards in a player's hand, oldest first.
+- `$mask(word, revealed, hidden?)` — Hangman view of `word`: letters in `revealed` (a list or text, case-insensitive) shown, other letters and digits replaced by `hidden` (default _); spaces and punctuation always shown.
 - `$open_spaces(slots, player)` — Names of the action spaces `player` may claim now.
 - `$poker_hand(hole, board)` — What a player's hole cards make with the board, in words: the hand, and whether it uses the hole cards ("two pair, kings and sevens, using both hole cards") or is on the board, shared by everyone.
 - `$poker_rank(cards)` — The best 5-card poker hand among the cards (e.g. 2 hole cards + 5 on the board): {score, category, level, name, ranks, best}. A higher score is a better hand; equal scores split.
@@ -49,6 +51,7 @@ Functions:
 - `$top_card(zone, owner?, deck?)` — The top card of a zone (the last card placed), or null.
 - `$top_cards(zone, n, owner?, deck?)` — The top n cards of a zone, top first.
 - `$trick_winner(cards, lead_suit?, trump?)` — The card winning a trick (cards in play order): highest trump, else highest of the suit led (default: the first card's suit). Its `played_by` is the player who played it.
+- `$wordle_feedback(guess, answer)` — Wordle marks per letter of `guess` against `answer` (same length, case-insensitive): green (right place), yellow (elsewhere, respecting repeated letters), gray.
 - `$zone(name, owner?, deck?)` — The cards in a zone (one owner's, or everyone's), bottom first.
 
 ## `game`: GameSpec
@@ -61,7 +64,7 @@ Roots (plus everywhere: $inputs $world $physics $clock $round $stage $metrics $s
 | seat | $it $i |
 | returns/rewards | $actor $result (winner, ended_by) |
 
-**GameSpec** — Who the players are and what each one scores, for `RunResult.returns`, `fg_env.game` and `fg_env.gym`.
+**GameSpec** — Who the players are and what each one scores, for `RunResult.returns`, `fg_env.rl.game` and `fg_env.rl.gym`.
 - `players`: text | [text] — Agent type(s) whose entities are the seats (default: every agent).
 - `seat`: text — Seat order: an expression over $it, lowest first (default: the order entities are created).
 - `returns`: text — A seat's total return so far: an expression over $actor, read after every decision and at the end.

@@ -17,7 +17,7 @@ def contract(expr='$inputs.sales / 2'):
 @pytest.mark.parametrize('runs', [1, 2])
 @pytest.mark.parametrize('expr', ['$inputs.sales / 2', '$inputs.sales / 0'])
 def test_baseline_output_errors_fail_the_gate_with_reproducible_evidence(runs, expr):
-    report = fg_env.behavior_checks(contract(expr), inputs={'sales': 7}, runs=runs, seed=20)
+    report = fg_env.analysis.behavior_checks(contract(expr), inputs={'sales': 7}, runs=runs, seed=20)
     assert not report.ok
     error = next(f for f in report.findings if f.code == 'output_issue')
     assert error.severity == 'error' and error.subject == 'outputs.units'
@@ -33,7 +33,7 @@ def test_baseline_output_errors_fail_the_gate_with_reproducible_evidence(runs, e
 def test_valid_baseline_does_not_hide_output_errors_in_varied_inputs(workers):
     c = contract()
     assert fg_env.load(c).run().ok
-    report = fg_env.behavior_checks(c, runs=2, seed=30, workers=workers)
+    report = fg_env.analysis.behavior_checks(c, runs=2, seed=30, workers=workers)
     assert not report.ok and report.tested_inputs == ['sales']
     errors = [f for f in report.findings if f.code == 'output_issue']
     assert len(errors) == 2
@@ -52,7 +52,7 @@ def test_valid_baseline_does_not_hide_output_errors_in_varied_inputs(workers):
 def test_failed_input_variant_fails_gate_and_identifies_seed():
     c = contract('$inputs.sales')
     c['invariants'] = [{'expr': '$inputs.sales >= 6', 'why': 'Staff cannot cover this demand.'}]
-    report = fg_env.behavior_checks(c, runs=2, seed=40)
+    report = fg_env.analysis.behavior_checks(c, runs=2, seed=40)
     assert not report.ok
     error = next(f for f in report.findings if f.code == 'input_breaks_runs')
     assert error.severity == 'error' and error.evidence['value'] == 3
@@ -63,18 +63,18 @@ def test_failed_input_variant_fails_gate_and_identifies_seed():
 def test_invalid_baseline_is_not_evidence_that_an_input_has_no_effect():
     c = contract('$inputs.sales / 0')
     c['outputs'].pop('sales')
-    report = fg_env.behavior_checks(c, runs=2)
+    report = fg_env.analysis.behavior_checks(c, runs=2)
     assert not report.ok
     assert ('input_has_no_effect', 'inputs.sales') not in report.codes()
 
 
 def test_valid_but_unused_input_is_still_an_advisory_warning():
-    report = fg_env.behavior_checks(contract('2'), runs=2)
+    report = fg_env.analysis.behavior_checks(contract('2'), runs=2)
     # The healthy sales output varies, so the input still has an observable effect.
     assert report.ok
     c = contract('2')
     c['outputs'].pop('sales')
-    report = fg_env.behavior_checks(c, runs=2)
+    report = fg_env.analysis.behavior_checks(c, runs=2)
     assert report.ok
     assert ('input_has_no_effect', 'inputs.sales') in report.codes()
     assert all(f.severity == 'warning' for f in report.findings)

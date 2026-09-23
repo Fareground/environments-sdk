@@ -167,7 +167,7 @@ fg-env checks scenario.json --inputs-file inputs.json --boundaries --runs 2 --ro
 ```
 
 The Python equivalents are `fg_env.check(..., inputs=values)` and
-`fg_env.behavior_checks(..., inputs=values, boundaries=True)`. Boundary checks sample
+`fg_env.analysis.behavior_checks(..., inputs=values, boundaries=True)`. Boundary checks sample
 zero/min/max values, enum choices, empty/short collections, reordered tables, an added
 duplicate table row, and fields in the first
 row/item, with a default limit of 24 configurations. Reports state when that limit

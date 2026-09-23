@@ -1,4 +1,4 @@
-"""The result of :func:`fg_env.optimise`: the chosen decision, how sure it is, and how it was found."""
+"""The result of :func:`fg_env.analysis.optimise`: the chosen decision, how sure it is, and how it was found."""
 from __future__ import annotations
 
 import json

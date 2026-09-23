@@ -84,7 +84,7 @@ class GameTree:
             if known != (node.player, texts):
                 raise ValueError(f"information state {node.infoset[:12]}… offers {known[1]} to seat {known[0]} in one "
                                  f"state and {texts} to seat {node.player} in another: the legal calls depend on "
-                                 "something the seat cannot see (run fg_env.conformance to find the leak)")
+                                 "something the seat cannot see (run fg_env.rl.conformance to find the leak)")
         return found
 
 

@@ -1,4 +1,4 @@
-"""Fitting patterns to data: ``fg_env.fit_patterns(contract, data_dir=...)``.
+"""Fitting patterns to data: ``fg_env.analysis.fit_patterns(contract, data_dir=...)``.
 
 Every pattern that declares ``fit`` is estimated from its rows, in order (a pattern listed in another's ``adjust`` is
 fitted first, so the other is fitted on what is left). The estimates are written back into a copy of the contract as
@@ -351,7 +351,7 @@ def _write_back(contract: Dict[str, Any], name: str, cfg: PatternConfig, per_key
             "description": "Scales the standard errors of fitted pattern parameters: 1 draws each run's parameters "
                            "around their estimates, 0 uses the estimates as they are."})
     method = next(iter(per_key.values())).method
-    about = f"fitted by fg_env.fit_patterns from {data} ({method})"
+    about = f"fitted by fg_env.analysis.fit_patterns from {data} ({method})"
     uncertainty = dict(spec.get("uncertainty") or {})
     if list(per_key) == [None]:
         est = per_key[None]

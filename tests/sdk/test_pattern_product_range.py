@@ -81,7 +81,7 @@ def test_truly_overflowing_products_remain_explicit_errors(values):
 
 def test_decomposition_recovers_counterfactuals_when_the_true_total_underflows():
     c = contract([1e-200, 1e-200])
-    row = fg_env.decompose(c, 'net').rows[0]
+    row = fg_env.analysis.decompose(c, 'net').rows[0]
     assert row['total'] == 0
     assert row['adds'] == {'factor_0': -1e-200, 'factor_1': -1e-200}
 
@@ -89,7 +89,7 @@ def test_decomposition_recovers_counterfactuals_when_the_true_total_underflows()
 def test_extreme_but_finite_decomposition_matches_neutralized_scenarios():
     values = [1e-200, 1e-200, 1e200, 1e200]
     c = contract(values)
-    row = fg_env.decompose(c, 'net').rows[0]
+    row = fg_env.analysis.decompose(c, 'net').rows[0]
     for i, value in enumerate(values):
         neutral = [*values[:i], 1, *values[i+1:]]
         expected = row['total'] - fg_env.load(contract(neutral)).run().outputs['net']

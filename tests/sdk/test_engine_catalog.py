@@ -30,19 +30,19 @@ def test_available_engine_can_clone_customize_and_run(tmp_path):
     target = fg_env.clone_engine("market", tmp_path / "custom_market.json", name="Custom market")
     contract = json.loads(target.read_text())
     assert contract["name"] == "Custom market"
-    env = fg_env.load_engine("market", seed=4)
+    env = fg_env.engines.load("market", seed=4)
     result = env.run("random", rounds=1)
     assert result.rounds == 1 and result.status == "running"
 
 
 @pytest.mark.parametrize("engine_id", sorted(ENGINE_IDS))
 def test_every_available_engine_loads_as_a_native_sdk_environment(engine_id):
-    env = fg_env.load_engine(engine_id, seed=3)
+    env = fg_env.engines.load(engine_id, seed=3)
     assert isinstance(env, fg_env.Env)
 
 
 def test_available_engine_can_be_materialized_for_database_backed_builders():
-    contract = fg_env.get_engine("exchange").materialized_source()
+    contract = fg_env.engines.get("exchange").materialized_source()
     assert "imports" not in contract
     assert "source" not in contract["inputs"]["history"]
     assert contract["inputs"]["history"]["default"]
@@ -69,9 +69,9 @@ def test_new_native_engine_clones_runs_deterministically_and_aggregates(engine_i
 
 
 def test_population_engine_uses_a_sampled_persona_cohort_and_keeps_responses_private():
-    records = fg_env.get_engine("population").source()["inputs"]["participants"]["default"]
-    cohort = fg_env.sample_records(records, size=3, seed=17, resample=False, source="customer-provided")
-    env = fg_env.load_engine("population", inputs={"participants": cohort.records()}, seed=17)
+    records = fg_env.engines.get("population").source()["inputs"]["participants"]["default"]
+    cohort = fg_env.personas.sample_records(records, size=3, seed=17, resample=False, source="customer-provided")
+    env = fg_env.engines.load("population", inputs={"participants": cohort.records()}, seed=17)
     result = env.run()
     assert result.outputs["population_size"] == 3
     assert result.outputs["support"] + result.outputs["oppose"] + result.outputs["undecided"] == 3
@@ -80,7 +80,7 @@ def test_population_engine_uses_a_sampled_persona_cohort_and_keeps_responses_pri
 
 
 def test_matching_engine_keeps_preferences_and_selector_thresholds_private():
-    env = fg_env.load_engine("matching", seed=5)
+    env = fg_env.engines.load("matching", seed=5)
     applicant = json.dumps(env.preview("a1"))
     selector = json.dumps(env.preview("s1"))
     assert "s1" in applicant and "minimum_quality" not in applicant
@@ -132,10 +132,10 @@ def test_negotiation_engine_clone_customize_and_batch(tmp_path):
 
 
 def test_negotiation_engine_accepts_sampled_people_and_keeps_positions_private():
-    engine = fg_env.get_engine("negotiation")
+    engine = fg_env.engines.get("negotiation")
     records = engine.source()["inputs"]["participants"]["default"]
-    cohort = fg_env.sample_records(records, size=2, seed=31, resample=False, source="customer-provided")
-    env = fg_env.load_engine("negotiation", inputs={"participants": cohort.records()}, seed=31)
+    cohort = fg_env.personas.sample_records(records, size=2, seed=31, resample=False, source="customer-provided")
+    env = fg_env.engines.load("negotiation", inputs={"participants": cohort.records()}, seed=31)
 
     party_a = json.dumps(env.preview("party_a"))
     party_b = json.dumps(env.preview("party_b"))
@@ -150,7 +150,7 @@ def test_cloned_market_uses_sampled_personas_across_an_aggregated_batch(tmp_path
                                  name="Neighborhood market")
     contract = json.loads(target.read_text())
     households = contract["inputs"]["households"]["default"]
-    cohort = fg_env.sample_records(
+    cohort = fg_env.personas.sample_records(
         households, size=10, seed=19, run=0, resample=False,
         id_field="household_id", weight_field="weight", source="starter_households",
     )

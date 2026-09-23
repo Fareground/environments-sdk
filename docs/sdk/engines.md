@@ -77,12 +77,12 @@ Persona sampling creates a cohort; an environment still determines what those
 people know, want, and are allowed to do.
 
 ```python
-sample = fg_env.sample_records(
+sample = fg_env.personas.sample_records(
     population, size=40, seed=11, run=2, resample=True,
     constraints={"state": "IL"}, fixed=[subject_matter_expert],
     group_by="household_id", source="ACS PUMS", source_version="2024 1-year",
 )
-participants = fg_env.assign_labels(
+participants = fg_env.personas.assign_labels(
     sample.records(), [("consumer", 0.8), ("seller", 0.2)], seed=11,
 )
 ```
