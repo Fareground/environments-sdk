@@ -280,17 +280,22 @@ _PROVIDERS = {"anthropic": ("Anthropic", "ANTHROPIC_API_KEY"), "openai": ("OpenA
 
 def _on_official_client(provider: str, model: str) -> Participant:
     """The LLM participant ``<provider>:<model>`` names, on the provider's client made from the environment's key."""
+    make = anthropic if provider == "anthropic" else openai
+    return make(official_client(provider, model), model)
+
+
+def official_client(provider: str, model: str) -> Any:
+    """The official ``anthropic`` or ``openai`` client for ``<provider>:<model>``, made from the environment's key."""
     client_class, key = _PROVIDERS[provider]
     if not model:
-        raise ValueError(f"participant '{provider}:' names no model: use '{provider}:<model>'")
+        raise ValueError(f"'{provider}:' names no model: use '{provider}:<model>'")
     if not os.environ.get(key):
-        raise ValueError(f"participant '{provider}:{model}' needs an API key: set {key} in the environment")
+        raise ValueError(f"'{provider}:{model}' needs an API key: set {key} in the environment")
     try:
         module = importlib.import_module(provider)
     except ImportError:
-        raise ValueError(f"participant '{provider}:{model}' needs the {provider} package: pip install {provider}") from None
-    make = anthropic if provider == "anthropic" else openai
-    return make(getattr(module, client_class)(), model)
+        raise ValueError(f"'{provider}:{model}' needs the {provider} package: pip install {provider}") from None
+    return getattr(module, client_class)()
 
 
 def replay(recording: Any, fallback: Any = None) -> Participant:
