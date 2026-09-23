@@ -90,22 +90,11 @@ def consult(world: Any, *, service: str, method: str, site: str, identity: Any, 
             raise FatalRunError(f"this needs the host '{service}' ({method}), but no answer is recorded and no host "
                                 f"is bound; load with fg_env.sdk.host.load(..., hosts={{'{service}': ...}}), replay a "
                                 "tape, or declare a fallback", site)
-        answer = fallback()
+        answer = _json_safe(fallback())  # the engine's own answer: not validated
     else:
         if not callable(getattr(adapter, method, None)):
             raise FatalRunError(f"the host '{service}' ({type(adapter).__name__}) has no {method}() method", site)
-        try:
-            answer = ask(adapter)
-        except HostError as exc:
-            raise FatalRunError(f"host '{service}' failed: {exc}", site) from None
-        except Exception as exc:  # an adapter defect or provider error: surfaced with its type, never swallowed
-            raise FatalRunError(f"host '{service}' raised {type(exc).__name__}: {exc}", site) from exc
-    try:
-        answer = _json_safe(answer)
-        if validate is not None and adapter is not None:  # fallbacks are the engine's own answers
-            answer = validate(answer)
-    except HostError as exc:
-        raise FatalRunError(f"host '{service}' answered outside its protocol: {exc}", site) from None
+        answer = _live(adapter, service, site, ask, validate)
     entry: Dict[str, Any] = {"service": service, "site": site, "round": world.round, "actor": actor,
                              "response": answer}
     if adapter is None:
@@ -117,6 +106,53 @@ def consult(world: Any, *, service: str, method: str, site: str, identity: Any, 
         tape[key] = entry
         world.touch()
     return copy.deepcopy(answer)
+
+
+def _live(adapter: Any, service: str, site: str, ask: Callable[[Any], Any],
+          validate: Optional[Callable[[Any], Any]]) -> Any:
+    """A live host's answer, validated. An answer the engine cannot use (the host raised :class:`HostError`, or the
+    answer is outside the protocol) is asked for once more, the request carrying a `correction` that says what was
+    wrong; a second unusable answer, or any other failure, stops the run."""
+    correction: Optional[str] = None
+    while True:
+        asked = adapter if correction is None else _Corrected(adapter, correction)
+        try:
+            answer = ask(asked)
+        except HostError as exc:
+            if correction is not None:
+                raise FatalRunError(f"host '{service}' failed, also when asked again: {exc}", site) from None
+            correction = str(exc)
+            continue
+        except Exception as exc:  # an adapter defect or provider error: surfaced with its type, never swallowed
+            raise FatalRunError(f"host '{service}' raised {type(exc).__name__}: {exc}", site) from exc
+        try:
+            answer = _json_safe(answer)
+            return validate(answer) if validate is not None else answer
+        except HostError as exc:
+            if correction is not None:
+                raise FatalRunError(f"host '{service}' answered outside its protocol, also when asked again: {exc}",
+                                    site) from None
+            correction = f"your answer was outside the protocol: {exc}"
+
+
+class _Corrected:
+    """A host asked again: a request passed to any of its methods carries `correction`."""
+
+    def __init__(self, adapter: Any, correction: str):
+        self._adapter = adapter
+        self._correction = correction
+
+    def __getattr__(self, name: str) -> Any:
+        method = getattr(self._adapter, name)
+        if not callable(method):
+            return method
+
+        def asked(request: Any, *rest: Any) -> Any:
+            if isinstance(request, Mapping):
+                request = {**request, "correction": self._correction}
+            return method(request, *rest)
+
+        return asked
 
 
 def discard(world: Any, key: str) -> None:

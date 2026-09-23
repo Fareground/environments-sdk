@@ -82,6 +82,18 @@ def test_answers_outside_the_protocol_fail_the_run_clearly():
     assert fg_env.load(PITCH, seed=1).run(pitcher).status == "failed"
 
 
+def test_an_unusable_answer_is_asked_for_once_more_with_what_was_wrong():
+    evaluator = StubEvaluator(scores=lambda r: {"quality": 7 if "correction" in r else 11})
+    env = host.load(PITCH, hosts={"judge": evaluator}, seed=1)
+    result = host.run(env, pitcher)
+    assert result.status == "completed", result.error
+    assert len(evaluator.calls) == 4 and "correction" not in evaluator.calls[0]
+    assert "from 1 to 10, got 11" in evaluator.calls[1]["correction"]
+    assert result.outputs["points"] == pytest.approx(2 * 10 * 6 / 9, abs=1e-3)
+    replay = host.load(PITCH, hosts=host.Hosts.replaying(host.tape_of(env)), seed=1)
+    assert host.run(replay, pitcher).outputs == result.outputs
+
+
 def test_hosts_validate_what_they_are_given():
     with pytest.raises(TypeError):
         host.Hosts(["judge"])
@@ -157,6 +169,23 @@ def test_llm_host_asks_for_json_treats_the_request_as_data_and_retries(monkeypat
         LLMHost(_Anthropic([_message("no json here")]), "m").judge({})
     with pytest.raises(ValueError):
         LLMHost(client, "m", provider="other")
+
+
+def test_parse_json_reads_the_first_json_that_parses():
+    assert parse_json('Scores {see below}: {"scores": {"quality": 7}} as asked.') == {"scores": {"quality": 7}}
+    assert parse_json("[my view] [0.2, 0.9]") == [0.2, 0.9]
+    with pytest.raises(HostError, match="did not answer with JSON"):
+        parse_json("{not json} [nor this")
+
+
+def test_llm_host_asked_again_sees_the_correction_in_its_request():
+    client = _Anthropic([_message("I would give it a seven."),
+                         _message('{"scores": {"quality": 7}, "rationale": "Clear."}'),
+                         _message('{"scores": {"quality": 8}, "rationale": "Better."}')])
+    result = host.run(host.load(PITCH, hosts={"judge": LLMHost(client, "m")}, seed=1), pitcher)
+    assert result.status == "completed", result.error
+    retry = client.requests[1]
+    assert "did not answer with JSON" in retry["messages"][0]["content"] and "correction" in retry["system"]
 
 
 def test_openai_host_writes_and_ranks():
