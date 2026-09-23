@@ -14,10 +14,10 @@ from typing import Any, FrozenSet, List, Mapping, Optional, Sequence, Tuple
 
 from fg_env.expr.base import _BUDGET, EVAL_BUDGET, ExprError, charge, truthy
 from fg_env.expr.calls import FUNCTIONS, Call, EqualityGuard, Evaluator
-from fg_env.expr.codegen import _FUNC_PREFIX, _LITERAL_NAMES, _ROOT_PREFIX, _chain
+from fg_env.expr.codegen import _FUNC_PREFIX, _LITERAL_NAMES, _ROOT_PREFIX, _chain, _entity_chain
 from fg_env.expr.compile import _ALLOWED, _MAX_NODES, _MAX_SOURCE, _preprocess, _restore_words
 from fg_env.expr.scope import Scope
-from fg_env.expr.values import _BINARY, _COMPARE, _describe, _number, attr
+from fg_env.expr.values import _BINARY, _COMPARE, _describe, _number, attr, map_key
 from fg_env.syntax_hints import syntax_message
 
 
@@ -163,7 +163,9 @@ class _Compiler:
                 if not -len(container) <= index < len(container):
                     raise ExprError(f"index {index} is out of range (length {len(container)})", source)
                 return container[index]
-            if isinstance(container, Mapping) or hasattr(container, "entity_type"):
+            if isinstance(container, Mapping):
+                return attr(container, str(map_key(index)), source)
+            if hasattr(container, "entity_type"):
                 return attr(container, str(index), source)
             raise ExprError(f"cannot index {_describe(container)}", source)
 
@@ -236,7 +238,7 @@ class _Compiler:
         operands = [node.left, *node.comparators]
         for a, b in zip(operands, operands[1:]):
             for chain_node, other in ((a, b), (b, a)):
-                chain = _chain(chain_node)
+                chain = _chain(chain_node) or _entity_chain(chain_node)
                 if chain is not None and len(chain) > 1:
                     for word in self._word(other):
                         self.comparisons.add((chain, word))

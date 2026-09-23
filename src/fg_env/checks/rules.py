@@ -34,7 +34,7 @@ class RuleChecks:
                 if arm not in self.c.arms:
                     self.error(f"{path}.arms", f"'{arm}' is not a declared arm", self._hint(arm, self.c.arms, "arms"))
             self.value(event.at, f"{path}.at", BASE)
-            self.expr(event.when, f"{path}.when", BASE)
+            self.condition(event.when, f"{path}.when", BASE)
             if isinstance(event.every, str):
                 self.expr(event.every, f"{path}.every", {"inputs"})
             elif event.every is not None and event.every < 1:
@@ -48,7 +48,7 @@ class RuleChecks:
                     types[item] = {event.each}
                 else:
                     self.expr(event.each, f"{path}.each", BASE)
-            self.expr(event.where, f"{path}.where", roots, types)
+            self.condition(event.where, f"{path}.where", roots, types)
             self.effects(event.do, f"{path}.do", roots, types)
             check_event_order(self, event, path, frozenset(roots), types)
             self.template(event.say, f"{path}.say", None, BASE)
@@ -61,7 +61,7 @@ class RuleChecks:
             for arm in trigger.arms or []:
                 if arm not in self.c.arms:
                     self.error(f"{path}.arms", f"'{arm}' is not a declared arm", self._hint(arm, self.c.arms, "arms"))
-            self.expr(trigger.when, f"{path}.when", BASE)
+            self.condition(trigger.when, f"{path}.when", BASE)
             self.effects(trigger.do, f"{path}.do", set(BASE), {})
             self.template(trigger.say, f"{path}.say", None, BASE)
             if not trigger.do and not trigger.say:
@@ -88,7 +88,7 @@ class RuleChecks:
                     else:
                         actor_types = {**actor_types, "it": set(self.c.subtypes(rule.each))}
                     rule_roots = rule_roots | {"it", "i"}
-                self.expr(rule.when, f"{path}.when", rule_roots, actor_types)
+                self.condition(rule.when, f"{path}.when", rule_roots, actor_types)
                 self.value(rule.chance, f"{path}.chance", rule_roots, actor_types)
                 check_literal_probability(self, rule.chance, f"{path}.chance")
                 self.value(rule.with_, f"{path}.with", rule_roots, actor_types)
@@ -105,14 +105,14 @@ class RuleChecks:
                 self.error(f"{path}.type", f"unknown type '{output.type}'", self._suggest(output.type, C.OUTPUT_TYPES))
             self.expr(output.expr, path, BASE | {"outputs", "result"})
         for index, end in enumerate(self.c.end):
-            self.expr(end.when, f"end[{index}].when", BASE)
+            self.condition(end.when, f"end[{index}].when", BASE)
             self.expr(end.winner, f"end[{index}].winner", BASE)
             self.template(end.say, f"end[{index}].say", None, BASE)
             if end.check not in C.END_CHECKS:
                 self.error(f"end[{index}].check", f"unknown check '{end.check}'",
                            self._suggest(end.check, C.END_CHECKS) or ", ".join(C.END_CHECKS))
         for index, invariant in enumerate(self.c.invariants):
-            self.expr(invariant.expr, f"invariants[{index}]", BASE)
+            self.condition(invariant.expr, f"invariants[{index}]", BASE)
             if invariant.check not in C.INVARIANT_CHECKS:
                 self.error(f"invariants[{index}].check", f"unknown check '{invariant.check}'",
                            self._suggest(invariant.check, C.INVARIANT_CHECKS) or ", ".join(C.INVARIANT_CHECKS))

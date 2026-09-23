@@ -41,7 +41,8 @@ from .errors import RunError
 from .clock_math import advance_time
 from .contract import MAX_CREATE
 from .delivery import dropped, send
-from .expr import MAX_INT_BITS, Expr, ExprError, attr, check_size, compile_expr, is_expr, resolve, truthy
+from .expr import MAX_INT_BITS, Expr, ExprError, attr, check_size, compile_expr, is_expr, map_key, resolve, truthy
+from .expr.values import _eq
 from .template import compile_template, format_value
 from .links import Link
 from .registry import OPS, OpSpec, family_action_hint
@@ -324,7 +325,8 @@ def _entity(value: Any, world: SdkWorld, where: str, what: str = "an entity") ->
     raise RunError(f"expected {what}, got {value!r}", where)
 
 
-def _items(value: Any, world: SdkWorld, where: str) -> List[Any]:
+def each_items(value: Any, world: SdkWorld, where: str) -> List[Any]:
+    """What an `each` (of an effect, an event or a policy rule) goes over: a type's entities, a list, one entity."""
     if isinstance(value, str) and world.is_type(value):
         return list(world.entities_of(value))
     if value is None:
@@ -333,7 +335,7 @@ def _items(value: Any, world: SdkWorld, where: str) -> List[Any]:
         return list(value)
     if isinstance(value, Entity):
         return [value]
-    raise RunError(f"`each` needs a type name or a list, got {value!r}", where)
+    raise RunError(f"`each` must be a type name or a list, got {value!r}", where)
 
 
 class EffectRunner:
@@ -382,6 +384,8 @@ class EffectRunner:
                 raise RunError("arithmetic failed: the result is too large", f"{path}[{index}]") from None
             except ArithmeticError as exc:  # a contract rule's arithmetic failed: the rule's fault, never the participant's
                 raise RunError(f"arithmetic failed: {exc}", f"{path}[{index}]") from None
+            except TypeError as exc:  # values the rule combines that do not fit: the rule's fault, never the participant's
+                raise RunError(f"could not apply: {exc}", f"{path}[{index}]") from None
 
     # -- statements ------------------------------------------------------------
 
@@ -446,7 +450,7 @@ class EffectRunner:
                 raise ExprError(f"index {key!r} is out of range for a list of {len(container)}", source)
             return container[key]
         if isinstance(container, dict):
-            name = str(key)
+            name = str(map_key(key))
             if name not in container:
                 raise ExprError(f"no key {name!r} (keys: {', '.join(map(str, list(container)[:12]))})", source)
             return container[name]
@@ -464,7 +468,7 @@ class EffectRunner:
                 raise ExprError(f"`{label}` is a list of {len(container)}; {shown!r} is not a valid index", source)
             updated: Any = list(container)
         elif isinstance(container, dict):
-            key = str(key)
+            key = str(map_key(key))
             updated = dict(container)
         elif container is None and not last:
             raise ExprError(f"`{label}` has no value to assign into", source)
@@ -511,9 +515,7 @@ class EffectRunner:
         if op == "+=" and isinstance(current, list):
             return current + (list(value) if isinstance(value, list) else [value])
         if op == "-=" and isinstance(current, list):
-            drop = value if isinstance(value, list) else [value]
-            drop_ids = {getattr(d, "id", d) for d in drop}
-            return [x for x in current if x not in drop_ids]
+            return _without_one_each(current, value if isinstance(value, list) else [value])
         numbers = [v for v in (current, value) if isinstance(v, (int, float)) and not isinstance(v, bool)]
         if len(numbers) != 2:
             raise ExprError(f"`{op}` needs numbers (current {current!r}, value {value!r})", source)
@@ -577,7 +579,7 @@ class EffectRunner:
 
     def _op_each(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
         name = effect.get("as") or "it"
-        items = _items(self._eval(effect["each"], vars), self.world, where)
+        items = each_items(self._eval(effect["each"], vars), self.world, where)
         where_expr = effect.get("where")
         from .run_diagnosis import LoopWrites  # run_diagnosis reads actions, which run effects
 
@@ -776,6 +778,17 @@ class EffectRunner:
             self.run(effect.get("do") or [], vars, f"{where}.do")
         if limit and condition is not None and self._condition(condition, vars):
             raise RunError(f"`repeat` reached its limit of {limit} while `{condition}` still holds", where)
+
+
+def _without_one_each(items: List[Any], drop: List[Any]) -> List[Any]:
+    """``items`` with one copy removed for each item of ``drop`` that is there (``[1, 2, 2] -= 2`` leaves
+    ``[1, 2]``), compared as ``==`` compares: entities by id, maps and lists by content."""
+    kept = list(items)
+    for item in drop:
+        found = next((at for at, held in enumerate(kept) if _eq(held, item)), None)
+        if found is not None:
+            del kept[found]
+    return kept
 
 
 def _amount_held(entity: Entity, prop: str, where: str) -> float:

@@ -23,6 +23,9 @@ if TYPE_CHECKING:
 
 __all__ = ["WorldChecks"]
 
+#: A property default written as a number in quotes (`"profit": "0"`): text, where a number was almost always meant.
+_NUMBER_TEXT = re.compile(r"-?\d+(\.\d+)?")
+
 
 class WorldChecks:
     """The world-model sections of a contract (mixed into the contract checker)."""
@@ -109,6 +112,10 @@ class WorldChecks:
             self.error(f"{path}.type", f"unknown type '{spec.type}'", self._suggest(spec.type, C.PROP_TYPES))
         if spec.type == "enum" and not spec.values:
             self.error(path, "an enum property needs `values`")
+        if spec.type is None and isinstance(spec.default, str) and _NUMBER_TEXT.fullmatch(spec.default.strip()):
+            self.warn(path, f"its default '{spec.default}' is text in quotes, so the property holds text, not a number",
+                      f"write {spec.default.strip()} without quotes for a number, or declare "
+                      f'{{"type": "text", "default": "{spec.default}"}} to keep text')
         self.value(spec.default, f"{path}.default", roots, types or {})
 
     def _keyword_names(self: "_Checker") -> None:  # type: ignore[misc]
@@ -142,7 +149,7 @@ class WorldChecks:
                 elif name in self.c.lineage(spec.extends):
                     self.error(f"types.{name}.extends", "types extend each other in a cycle")
             if isinstance(spec.inspect, str):
-                self.expr(spec.inspect, f"types.{name}.inspect", BASE | {"viewer", "it"},
+                self.condition(spec.inspect, f"types.{name}.inspect", BASE | {"viewer", "it"},
                           {"viewer": set(self.agents), "it": set(self.c.subtypes(name))})
             if spec.policy is not None and spec.policy not in self.c.policies:
                 self.error(f"types.{name}.policy", f"'{spec.policy}' is not a declared policy", self._suggest(spec.policy, self.c.policies))
@@ -177,7 +184,7 @@ class WorldChecks:
                 self.error(path, "give `count`, `from`, or both")
             self.value(group.count, f"{path}.count", BASE)
             self.expr(group.from_, f"{path}.from", BASE)
-            self.expr(group.where, f"{path}.where", BASE | {"row"})
+            self.condition(group.where, f"{path}.where", BASE | {"row"})
             self.expr(group.weight, f"{path}.weight", BASE | {"row"})
             for key in ("id", "name"):
                 self.template(getattr(group, key), f"{path}.{key}", None, BASE | {"row", "i"})
@@ -238,7 +245,7 @@ class WorldChecks:
             elif link.among is not None:
                 if self._type(link.among, f"{path}.among") and link.graph not in (None, *graphs):
                     self.error(f"{path}.graph", f"unknown graph '{link.graph}'", ", ".join(graphs))
-                self.expr(link.where, f"{path}.where", BASE | {"it"}, {"it": {link.among}})
+                self.condition(link.where, f"{path}.where", BASE | {"it"}, {"it": {link.among}})
                 self.value(link.degree, f"{path}.degree", BASE)
                 self.value(link.p, f"{path}.p", BASE | {"from", "to"}, {"from": {link.among}, "to": {link.among}})
                 self.value(link.m, f"{path}.m", BASE)
@@ -311,5 +318,7 @@ class WorldChecks:
                     self.error(f"{path}.fields.{field}", f"'{field}' is a `post` option, so a post cannot set it",
                                "rename the field")
             if spec.visible != "all":
-                self.expr(spec.visible, f"{path}.visible", BASE | {"viewer", "it"}, {"viewer": set(self.agents)})
+                self.condition(spec.visible, f"{path}.visible", BASE | {"viewer", "it"}, {"viewer": set(self.agents)},
+                               fix='"all" shows every entry to everyone; otherwise write an expression over $viewer and $it, '
+                                   'e.g. `$it.author == $viewer.id`')
             self.template(spec.show, f"{path}.show", "it", BASE | {"actor", "it"}, {"actor": set(self.agents)})

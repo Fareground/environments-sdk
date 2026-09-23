@@ -123,10 +123,13 @@ class RunResult:
     @property
     def degraded(self) -> List[str]:
         """The codes of the diagnostics that mean this run does not show what the environment is for — an action no
-        agent could ever take, agents that never acted, turns lost to a failing provider. Empty for a sound run."""
+        agent could ever take, agents that never acted, turns lost to a failing provider — and ``output_failed`` when an
+        output raised an error (``output_issues``; an output that is only null is not one). Empty for a sound run."""
         from .diagnostics import DEGRADING
 
-        return list(dict.fromkeys(found["code"] for found in self.diagnostics if found["code"] in DEGRADING))
+        codes = [found["code"] for found in self.diagnostics if found["code"] in DEGRADING]
+        failed = any(issue["path"].startswith("outputs.") for issue in self.output_issues)
+        return list(dict.fromkeys(codes + (["output_failed"] if failed else [])))
 
     def to_dict(self, events: bool = True) -> Dict[str, Any]:
         out = asdict(self)

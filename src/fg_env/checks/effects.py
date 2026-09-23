@@ -164,7 +164,7 @@ class EffectChecks:
         check_entity_literals(self, op, effect, path)
         v = lambda key, r=roots: self.value(effect.get(key), f"{path}.{key}", r, types, params)
         if op == "if":
-            self.expr(effect["if"], f"{path}.if", roots, types, params)
+            self.condition(effect["if"], f"{path}.if", roots, types, params)
             then_types, else_types = dict(types), dict(types)
             then_roots = self.effects(effect.get("then", []), f"{path}.then", roots, then_types, params)
             else_roots = self.effects(effect.get("else", []), f"{path}.else", roots, else_types, params)
@@ -182,7 +182,7 @@ class EffectChecks:
             if isinstance(source, str) and not is_expr(source):
                 if self._type(source, f"{path}.each"):
                     inner_types[name] = {source}
-            self.expr(effect.get("where"), f"{path}.where", inner, inner_types, params)
+            self.condition(effect.get("where"), f"{path}.where", inner, inner_types, params)
             self.effects(effect.get("do", []), f"{path}.do", inner, inner_types, params)
             for binding in (name, "i"):
                 inner_types.pop(binding, None)
@@ -311,7 +311,7 @@ class EffectChecks:
             if isinstance(limit, int) and not isinstance(limit, bool) and not 0 <= limit <= REPEAT_CEILING:
                 fix = "use 0 to run nothing" if limit < 0 else "use a smaller limit; a loop that needs more never settles"
                 self.error(f"{path}.repeat", f"is {limit:,}; a repeat limit runs from 0 (run nothing) to {REPEAT_CEILING:,}", fix)
-            self.expr(effect.get("while"), f"{path}.while", roots, types, params)
+            self.condition(effect.get("while"), f"{path}.while", roots, types, params)
             body_types = dict(types)
             roots |= self.effects(effect.get("do", []), f"{path}.do", roots, body_types, params)
             if effect.get("while") is None:

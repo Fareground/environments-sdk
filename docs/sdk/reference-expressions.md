@@ -5,13 +5,15 @@
 Any string containing `$name` is an expression; other strings are literal text.
 * Roots: `$actor`, `$params`, `$it`, `$inputs`, `$world`, … (which ones depend on where — see below).
 * Functions: `$count(buyer, $it.cash > 0)`. Per-item arguments bind `$it` (and `$i`).
-* Bare words are text: `$actor.status == open`, `$count(offer)`. `true false null` are literals.
+* Bare words are text: `$actor.status == open`, `$count(offer)`. `true false null` are literals. A condition that
+  is only a word (`"when": "deal"`) is text, always true: write `$world.deal`.
   Quote text with spaces: `$actor.mood == 'very happy'`. Any word may name a type, entity, property or item
   (`class`, `from` and `def` too) except the language's own `and or not in if else true false null`.
 * Operators: `+ - * / // % **`, `== != < <= > >=`, `and or not` (`&& || !`), `in`,
   `a if cond else b`, lists `[1, 2]`, indexing `$top(offer, $it.price, 1)[0]`.
 * Entities expose `id name type alive at` and their props. Comparing an entity with an id works.
-* Maps: `{wage: 3, 'job years': 2}`; read with `.key` or `$get(map, key, default)`.
+* Maps: `{wage: 3, 'job years': 2}`; read with `.key` or `$get(map, key, default)`. Keys are text, as in JSON:
+  `{1: 3}` holds the key `'1'`, which `$get(m, 1)`, `m[1]` and `1 in m` all find.
 * Nested per-item functions rebind `$it`; the enclosing item is `$outer`:
   `$sum(trader, $sum(order, $it.qty, $it.owner == $outer.id))`.
 * Every function call needs its `$`: `$max(a, b)`, never `max(a, b)`.

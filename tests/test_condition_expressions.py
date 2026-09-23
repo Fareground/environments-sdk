@@ -14,7 +14,7 @@ def contract(effects):
 
 @pytest.mark.parametrize('condition,expected', [
     ('false', 7), ('0', 7), ('1 > 2', 7), ('null', 7), ('[]', 7), ("''", 7),
-    ('not true', 7), ('true', 100), ('1 < 2', 100), ('2', 100), ("'false'", 100),
+    ('not true', 7), ('true', 100), ('1 < 2', 100), ('2', 100),
     (False, 7), (True, 100), (0, 7), ('$world.total == 0', 100),
 ])
 def test_if_uses_expression_truthiness(condition, expected):
@@ -23,6 +23,12 @@ def test_if_uses_expression_truthiness(condition, expected):
     result = fg_env.run(c)
     assert result.ok, result.error
     assert result.outputs['total'] == expected
+
+
+@pytest.mark.parametrize('condition', ["'false'", 'yes', 'deal'])
+def test_text_as_a_condition_is_refused_because_it_is_always_true(condition):
+    c = contract([{'if': condition, 'then': ['$world.total = 100']}])
+    assert any('always true' in i.message for i in fg_env.check(c, rounds=0) if i.severity == 'error')
 
 
 @pytest.mark.parametrize('condition,expected', [('false', 0), ('1 > 2', 0), ('true', 6), ('$it > 1', 5)])
