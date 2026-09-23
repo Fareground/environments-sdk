@@ -24,3 +24,18 @@ def test_coded_policies_never_build_tool_schemas(monkeypatch):
     assert result.status == "completed", result.error
     assert all(e["props"]["stock"] == 0 for e in env.entities("seller"))
     assert built["n"] == 0
+
+
+def test_a_policy_can_pass_a_list_of_entities_to_a_list_param():
+    contract = {"name": "Voters", "clock": {"rounds": 1},
+                "types": {"voter": {"agent": True, "policy": "rank", "props": {"ballot": {"type": "list", "default": []}}},
+                          "option": {"props": {"appeal": 0}}},
+                "entities": {"x": {"type": "option", "props": {"appeal": 1}}, "y": {"type": "option", "props": {"appeal": 2}},
+                             "v": {"type": "voter"}},
+                "policies": {"rank": {"rules": [{"do": "rank", "with": {"ranking": "$top(option, $it.appeal)"}}]}},
+                "actions": {"rank": {"by": "voter", "params": {"ranking": {"type": "list", "of": "option"}},
+                                     "do": ["$actor.ballot = $map($params.ranking, $it.id)"], "terminal": True}},
+                "stages": [{"name": "vote", "turns": "simultaneous"}]}
+    env = fg_env.load(contract, seed=1)
+    env.run()
+    assert env.entity("v")["props"]["ballot"] == ["y", "x"]

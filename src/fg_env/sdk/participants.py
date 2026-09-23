@@ -230,7 +230,7 @@ class PolicyAgent:
             args = resolve(rule.with_, scope)
         except ExprError as exc:
             raise RunError(str(exc), path) from None
-        args = {k: (v.id if hasattr(v, "entity_type") else v) for k, v in args.items()}
+        args = {k: _as_ids(v) for k, v in args.items()}
         with turn.env._lock:  # legality without building tool schemas: coded crowds never read them
             legal = not wake.done and rule.do in turn._legal()
         if not legal:
@@ -249,6 +249,13 @@ class PolicyAgent:
 
     def __repr__(self) -> str:
         return f"PolicyAgent({self.name!r})"
+
+
+def _as_ids(value: Any) -> Any:
+    """A policy argument with entities (alone or in a list, e.g. a ranking from $top) given as their ids."""
+    if isinstance(value, list):
+        return [_as_ids(item) for item in value]
+    return value.id if hasattr(value, "entity_type") else value
 
 
 def resolve_participant(value: Any, contract: "Contract", seed: int) -> Participant:
