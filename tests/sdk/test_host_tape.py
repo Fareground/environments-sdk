@@ -117,11 +117,11 @@ def test_an_undeclared_host_op_is_a_check_error():
                for i in pitch_does({"host": "panel", "action": "score", "text": "$params.text"}))
     assert any("'rubric' is not part of `host.judge`" in i
                for i in pitch_does({"host": "panel", "action": "judge", "text": "$params.text", "rubric": "x"}))
-    assert any('`judge` is now the `host` op: {"host": "<mechanism>", "action": "judge"' in i
+    assert any('`judge` is an action of the `host` op: {"host": "<mechanism>", "action": "judge"' in i
                for i in pitch_does({"judge": "panel", "text": "$params.text"}))
     with pytest.raises(fg_env.ContractError, match="into"):
         fg_env.load(_with(who=None))
-    with pytest.raises(fg_env.ContractError, match="'judge' is now kind 'host' with mode 'judge'"):
+    with pytest.raises(fg_env.ContractError, match="'judge' is a mode of kind 'host'"):
         fg_env.load({**PITCH, "mechanisms": {"panel": {"kind": "judge", "of": "founder", "criteria": {"quality": {}}}}})
     with pytest.raises(fg_env.ContractError, match="`of` is not a field of `host` mode `judge`"):
         fg_env.load(_with(of="founder"))

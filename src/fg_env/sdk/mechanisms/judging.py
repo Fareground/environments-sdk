@@ -108,7 +108,7 @@ class _Item:
            "«quoted») and added to $world.<name>_totals and the `into` property, recorded for replay.",
            example={"record": "speeches", "who": "debater", "into": "score",
                     "criteria": {"logic": {"weight": 2}, "evidence": {"scale": [1, 5]}},
-                    "instructions": "Judge each debate speech on its merits."}, was="judge")
+                    "instructions": "Judge each debate speech on its merits."})
 def _expand_judge(name: str, config: JudgeConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     records = contract.get("records") or {}
     if config.who is not None:
@@ -146,7 +146,7 @@ def _expand_judge(name: str, config: JudgeConfig, contract: Mapping[str, Any]) -
     return fragment
 
 
-@family_action("host", ("judge",), "judge", keys=("text", "subject", "entry", "context", "attach"), was=("judge",),
+@family_action("host", ("judge",), "judge", keys=("text", "subject", "entry", "context", "attach"),
                example='{"host": "speeches", "action": "judge", "text": "$params.text", "subject": "$actor"}  '
                        '(score `text`, or a record `entry`, with the judge; the verdict goes to the record speeches and '
                        'its totals; without either, judge the new entries of its `record`; `attach` gives the judge '
@@ -415,8 +415,7 @@ class GameMasterConfig(BaseModel):
                     "allow": [{"effect": "set", "prop": "health", "min": 0, "max": 10, "delta": 3},
                               {"effect": "transfer", "prop": "gold", "to": "$filter(adventurer, $it.id != $actor.id)",
                                "amount": 5},
-                              {"effect": "move", "to": "adjacent"}, {"effect": "news", "max_chars": 160}]},
-           was="game_master")
+                              {"effect": "move", "to": "adjacent"}, {"effect": "news", "max_chars": 160}]})
 def _expand_game_master(name: str, config: GameMasterConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     by = type_list(contract, config.who, "who")
     if not NAME.match(config.tool):
@@ -456,7 +455,7 @@ def _absent() -> Dict[str, Any]:
     return {"refuse": "No game master is present."}
 
 
-@family_action("host", ("game_master",), "resolve", keys=("text", "attach"), required=("text",), was=("resolve",),
+@family_action("host", ("game_master",), "resolve", keys=("text", "attach"), required=("text",),
                example='{"host": "gm", "action": "resolve", "text": "$params.text"}  (the game master resolves the actor\'s '
                        'attempt; changes apply only within its allow-list, and $actor.gm_told says what happened; '
                        '`attach` gives it files)')

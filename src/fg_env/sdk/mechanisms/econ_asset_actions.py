@@ -111,7 +111,7 @@ def _check_ground(checker: Any, effect: Dict[str, Any], path: str) -> list:
 
 
 @family_action("economy", ("ledger",), "pay", keys=("currency", "from", "to", "amount", "tax"),
-               required=("from", "to", "amount"), literal=("tax",), check=_check_pay, was=("pay",),
+               required=("from", "to", "amount"), literal=("tax",), check=_check_pay,
                example='{"economy": "money", "action": "pay", "from": "$actor", "to": "$params.shop", "amount": 12, '
                        '"tax": "sales_tax"}  (moves money, using credit; a declared tax is withheld; fails the action if '
                        'short; `currency` only when the ledger has several)')
@@ -145,7 +145,7 @@ def _pay(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) 
 
 
 @family_action("economy", ("ledger",), "mint", keys=("currency", "to", "amount", "source"), required=("to", "amount", "source"),
-               literal=("source",), check=_check_currency, was=("mint",),
+               literal=("source",), check=_check_currency,
                example='{"economy": "money", "action": "mint", "to": "$it", "amount": 50, "source": "subsidy"}  '
                        '(new money from a named source)')
 def _mint(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -156,7 +156,7 @@ def _mint(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str)
 
 
 @family_action("economy", ("ledger",), "burn", keys=("currency", "from", "amount", "sink"), required=("from", "amount", "sink"),
-               literal=("sink",), check=_check_currency, was=("burn_money",),
+               literal=("sink",), check=_check_currency,
                example='{"economy": "money", "action": "burn", "from": "$actor", "amount": 3, "sink": "fees"}  '
                        '(money leaves the economy to a named sink; fails if short)')
 def _burn(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -167,7 +167,7 @@ def _burn(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str)
 
 
 @family_action("economy", ("inventory",), "give", keys=("item", "from", "to", "qty"), required=("item", "from", "to"),
-               check=_check_item, was=("give_items",),
+               check=_check_item,
                example='{"economy": "goods", "action": "give", "item": "$params.item", "from": "$actor", "to": "$params.to", '
                        '"qty": 2}  (moves goods; a unique item by kind or instance id; fails if short or the receiver is full)')
 def _give(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -179,7 +179,7 @@ def _give(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str)
 
 
 @family_action("economy", ("inventory",), "make", keys=("item", "to", "qty", "source", "props"), required=("item", "to", "source"),
-               literal=("source",), check=_check_item, was=("make_items",),
+               literal=("source",), check=_check_item,
                example='{"economy": "goods", "action": "make", "item": "bread", "to": "$actor", "qty": 3, "source": "baking"}  '
                        '(new goods from a named source; unique items take props)')
 def _make(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -192,7 +192,7 @@ def _make(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str)
 
 
 @family_action("economy", ("inventory",), "use", keys=("item", "from", "qty", "sink"), required=("item", "from", "sink"),
-               literal=("sink",), check=_check_item, was=("use_items",),
+               literal=("sink",), check=_check_item,
                example='{"economy": "goods", "action": "use", "item": "flour", "from": "$actor", "qty": 2, "sink": "baking"}  '
                        '(goods used up into a named sink; fails if short)')
 def _use(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -213,7 +213,7 @@ def _ground(world: Any, item: Any, where: str) -> Tuple[str, str, Dict[str, Any]
 
 
 @family_action("economy", ("inventory",), "drop", keys=("item", "from", "qty"), required=("item", "from"),
-               check=_check_ground, was=("drop_items",),
+               check=_check_ground,
                example='{"economy": "goods", "action": "drop", "item": "$params.item", "from": "$actor", "qty": 1}  '
                        '(leave goods on the ground where the holder stands)')
 def _drop(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -230,7 +230,7 @@ def _drop(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str)
 
 
 @family_action("economy", ("inventory",), "pickup", keys=("item", "to", "qty"), required=("item", "to"),
-               check=_check_ground, was=("pickup_items",),
+               check=_check_ground,
                example='{"economy": "goods", "action": "pickup", "item": "$params.item", "to": "$actor", "qty": 1}  '
                        '(take goods lying where the holder stands)')
 def _pickup(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:

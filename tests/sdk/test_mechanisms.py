@@ -222,9 +222,9 @@ def test_mechanism_config_errors_say_what_to_fix():
     assert any("who 'citizen' is not a declared type" in i.message for i in wrong)
 
 
-def test_an_old_kind_name_says_the_new_kind_and_mode():
+def test_a_mode_written_as_the_kind_names_its_family():
     old = next(i for i in _issues(_budget(kind="ballot", voters="member", options=["a"])) if i.path == "mechanisms.budget.kind")
-    assert old.message == "'ballot' is now kind 'decision' with mode 'ballot'"
+    assert old.message == "'ballot' is a mode of kind 'decision'"
     assert '"kind": "decision", "mode": "ballot"' in old.fix
 
 
@@ -251,7 +251,7 @@ def test_family_ops_are_checked_against_the_action_they_name():
     path, _, fix = op_issues({"decision": "budgett", "action": "tally"})[0]
     assert path.endswith(".decision") and fix == "did you mean 'budget'?"
     _, _, fix = op_issues({"tally": "budget"})[0]
-    assert fix.startswith('`tally` is now the `decision` op: {"decision": "<mechanism>", "action": "tally"')
+    assert fix.startswith('`tally` is an action of the `decision` op: {"decision": "<mechanism>", "action": "tally"')
 
 
 def test_tools_one_offers_a_ballot_as_a_single_tool_and_auto_keeps_different_shapes_apart():

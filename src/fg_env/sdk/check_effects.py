@@ -20,7 +20,7 @@ from .effects import (
     statement_parts,
 )
 from .expr import ExprError, is_expr
-from .registry import renamed_op_hint
+from .registry import family_action_hint
 
 if TYPE_CHECKING:
     from .check import _Checker
@@ -107,7 +107,7 @@ class EffectChecks:
         ops = select_ops(effect)
         if len(ops) != 1:
             keys = ", ".join(effect) or "none"
-            hint = renamed_op_hint(effect) or self._suggest(next(iter(effect), ""), known)
+            hint = family_action_hint(effect) or self._suggest(next(iter(effect), ""), known)
             self.error(path, f"an operation object names exactly one of: {', '.join(known)} (got keys {keys})", hint)
             return
         op = ops[0]

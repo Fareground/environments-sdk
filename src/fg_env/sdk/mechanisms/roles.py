@@ -134,14 +134,13 @@ def _holders(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: s
     return config, players
 
 
-@family_action("groups", ("roles",), "deal", internal=True, was=("deal_roles",),
+@family_action("groups", ("roles",), "deal", internal=True,
                example='{"groups": "roles", "action": "deal"}  (shuffle the role deck and deal it; generated for round 1)')
 def _deal_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     deal_roles(runner.world, _configs(runner.world)[effect["groups"]], where)
 
 
 @family_action("groups", ("roles",), "eliminate", keys=("who", "say"), required=("who",), templates=("say",),
-               was=("eliminate",),
                example='{"groups": "roles", "action": "eliminate", "who": "$out", "say": "{$out.name} is exiled."}  (out of '
                        'the game; the role is revealed unless reveal: never)')
 def _eliminate_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -158,7 +157,7 @@ def _eliminate_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], whe
         world.emit("eliminated", text, data={"player": player.id})
 
 
-@family_action("groups", ("roles",), "reveal", keys=("who",), required=("who",), was=("reveal_roles",),
+@family_action("groups", ("roles",), "reveal", keys=("who",), required=("who",),
                example='{"groups": "roles", "action": "reveal", "who": "$filter(player, true)"}  (make these players\' '
                        'roles public)')
 def _reveal_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -210,8 +209,7 @@ def _team_alive_function(call: Call) -> int:
       example={"who": "player", "deck": {"werewolf": 2, "seer": 1, "villager": "rest"},
                "teams": {"wolves": ["werewolf"], "village": ["seer", "villager"]}, "know": ["wolves"],
                "actions": {"inspect_player": {"roles": ["seer"], "params": {"target": {"type": "entity", "of": "player"}},
-                                              "do": [], "outcome": "{$params.target.name} is {$params.target.role}."}}},
-      was="roles")
+                                              "do": [], "outcome": "{$params.target.name} is {$params.target.role}."}}})
 def _expand_roles(name: str, config: RolesConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     types = contract.get("types") or {}
     if config.who not in types:

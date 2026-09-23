@@ -317,7 +317,7 @@ def _options(runner: Any, config: BallotConfig, vars: Dict[str, Any]) -> List[An
     return [_key(v) for v in value]
 
 
-@family_action("decision", ("ballot",), "tally", was=("tally",),
+@family_action("decision", ("ballot",), "tally",
                example='{"decision": "election", "action": "tally"}  (count the ballot now: sets $world.election_result, '
                        'announces it, opens a fresh ballot)')
 def _tally_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -384,7 +384,7 @@ def _announcement(world: Any, config: BallotConfig, result: Dict[str, Any]) -> s
            "`weight` gives shareholder-style votes, `threshold_of: members` measures the threshold over every member "
            "(cloture), `veto` lets some voters defeat a motion alone (a security council).",
            example={"who": "member", "options": ["approve", "reject"], "method": "majority", "quorum": 0.5,
-                    "question": "Adopt the budget?"}, was="ballot")
+                    "question": "Adopt the budget?"})
 def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     types = contract.get("types") or {}
     if config.who not in types:

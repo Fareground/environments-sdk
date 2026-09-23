@@ -56,7 +56,7 @@ class OrderConfig(Config):
       "Use $turn_rank($it, name) as any stage's order, or give `stage` to declare the stage. $turn_order(name) is "
       "this round's order.",
       example={"who": "player", "by": "$it.speed", "skip": "$it.folded", "rotate": True,
-               "stage": {"actions": ["bet", "fold"], "turns": "sequential"}}, was="turn_order")
+               "stage": {"actions": ["bet", "fold"], "turns": "sequential"}})
 def _expand(name: str, cfg: OrderConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     common.types_in(contract, cfg.who, "who")
     if not _agent(contract, cfg.who):
@@ -217,7 +217,7 @@ def _check_extra(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[
     return []
 
 
-@family_action("flow", ("order",), "extra_turn", keys=("who",), required=("who",), check=_check_extra, was=("extra_turn",),
+@family_action("flow", ("order",), "extra_turn", keys=("who",), required=("who",), check=_check_extra,
                example='{"flow": "initiative", "action": "extra_turn", "who": "$actor"}  (the agent takes another turn '
                        'this round)')
 def _extra_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:

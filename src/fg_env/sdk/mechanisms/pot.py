@@ -410,10 +410,10 @@ def _showdown_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], wher
 def _register_actions() -> None:
     for move, (keys, doc) in _MOVES.items():
         fields = "".join(f', "{key}": "$params.{key}"' for key in keys)
-        family_action("game", ("pot",), move, keys=("who", *keys), required=keys, was=("wager",),
+        family_action("game", ("pot",), move, keys=("who", *keys), required=keys,
                       example=f'{{"game": "table", "action": "{move}"{fields}}}  ({doc}; for $actor or `who`; '
                               "an illegal move fails the action)")(_move_runner(move))
-    family_action("game", ("pot",), "timeout", keys=("who",), internal=True, was=("wager",),
+    family_action("game", ("pot",), "timeout", keys=("who",), internal=True,
                   example='{"game": "table", "action": "timeout"}  (check when nothing is owed, else fold; generated)'
                   )(_move_runner("timeout"))
     steps: Dict[str, Tuple[Callable[[Any, PotConfig, str, str], None], str]] = {
@@ -422,9 +422,9 @@ def _register_actions() -> None:
         "open_betting": (open_betting, "a new betting round from the button's left"),
     }
     for step, (run, doc) in steps.items():
-        family_action("game", ("pot",), step, internal=True, was=(step,),
+        family_action("game", ("pot",), step, internal=True,
                       example=f'{{"game": "table", "action": "{step}"}}  ({doc}; generated)')(_step_runner(run))
-    family_action("game", ("pot",), "showdown", internal=True, was=("showdown",),
+    family_action("game", ("pot",), "showdown", internal=True,
                   example='{"game": "table", "action": "showdown"}  (pay every pot and side pot to its best eligible '
                           'score; generated)')(_showdown_op)
 
@@ -547,7 +547,7 @@ def _actions(name: str, config: PotConfig) -> Dict[str, Any]:
                "streets": {"preflop": [], "flop": [{"game": "cards", "action": "deal", "qty": 3, "zone": "board"}]},
                "setup": [{"game": "cards", "action": "collect"},
                          {"game": "cards", "action": "deal", "qty": 2, "to": "$filter(player, $it.in_hand)"}],
-               "score": "$poker_rank($hand($it) + $zone(board)).score"}, was="pot")
+               "score": "$poker_rank($hand($it) + $zone(board)).score"})
 def _expand_pot(name: str, config: PotConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     types = contract.get("types") or {}
     if config.who not in types:

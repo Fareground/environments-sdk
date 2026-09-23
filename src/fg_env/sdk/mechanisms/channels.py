@@ -332,8 +332,7 @@ def _runner(action: str) -> Callable[[Any, Dict[str, Any], Dict[str, Any], str],
 def _register_actions() -> None:
     for action, (needs, may, fields, doc) in _ACTIONS.items():
         example = '{"social": "chat", "action": "' + action + '"' + (f", {fields}" if fields else "") + f"}}  ({doc})"
-        family_action("social", ("channels",), action, keys=(*needs, *may, "who"), required=needs, example=example,
-                      was=("channel",))(_runner(action))
+        family_action("social", ("channels",), action, keys=(*needs, *may, "who"), required=needs, example=example)(_runner(action))
 
 
 _register_actions()
@@ -521,7 +520,7 @@ def _membership(world: Any, name: str, config: ChannelsConfig, agent: Entity, ac
            "last argument ($channels($actor, 'chat')).",
            example={"who": "citizen", "rooms": ["plaza"],
                     "groups": {"council": {"members": ["ana", "ben"], "title": "Budget committee"}},
-                    "per_turn": 2, "max_chars": 400}, was="channels")
+                    "per_turn": 2, "max_chars": 400})
 def _expand(name: str, config: ChannelsConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     require_type(contract, config.who, "who", agent=True)
     require_type(contract, config.broadcast, "broadcast", agent=True)

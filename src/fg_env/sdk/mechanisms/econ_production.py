@@ -77,8 +77,7 @@ register_config(PRODUCTION, ProductionConfig)
                "skills": {"baking": {"xp_per_level": 5}, "foraging": {}},
                "recipes": {"bake": {"inputs": {"flour": 2}, "outputs": {"bread": 3}, "rounds": 1, "skill": "baking", "xp": 2,
                                     "at": "bakery"},
-                           "forage": {"outputs": {"berries": "1 + $skill($actor, foraging)"}, "at": "forest", "skill": "foraging", "xp": 1}}},
-      was="production")
+                           "forage": {"outputs": {"berries": "1 + $skill($actor, foraging)"}, "at": "forest", "skill": "foraging", "xp": 1}}})
 def _expand_production(name: str, config: ProductionConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     producers = type_list(config.who)
     require_types(contract, producers, "who")
@@ -342,7 +341,7 @@ def _check_recipe(checker: Any, effect: Dict[str, Any], path: str) -> list:
 
 
 @family_action("economy", ("production",), "start", keys=("who", "recipe", "qty"), required=("who", "recipe"),
-               check=_check_recipe, was=("start_job",),
+               check=_check_recipe,
                example='{"economy": "craft", "action": "start", "who": "$actor", "recipe": "$params.recipe", "qty": 2}  '
                        '(use up the inputs and start `qty` batches; done at once when the recipe takes no rounds)')
 def _start_job(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -373,7 +372,7 @@ def _start_job(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where:
                   "due": world.round + spec.rounds}, None, world.scope(), where)
 
 
-@family_action("economy", ("production",), "tick", internal=True, was=("production_tick",),
+@family_action("economy", ("production",), "tick", internal=True,
                example='{"economy": "craft", "action": "tick"}  (finish jobs that are due; a job whose output does not fit waits)')
 def _production_tick(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world

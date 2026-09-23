@@ -61,7 +61,7 @@ register_config(SUBSCRIPTIONS, SubscriptionsConfig)
            "`<name>_sub`; totals (started, trials, converted, renewed, cancelled, lapsed, revenue) are in $world.<name>_stats. "
            "$subscribed(agent, plan_or_provider) reads membership.",
            example={"who": "household", "currency": "cash", "providers": "cafe",
-                    "plans": {"coffee_club": {"provider": "bean_bar", "price": 30, "period": 30, "trial": 7}}}, was="subscriptions")
+                    "plans": {"coffee_club": {"provider": "bean_bar", "price": 30, "period": 30, "trial": 7}}})
 def _expand_subscriptions(name: str, config: SubscriptionsConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     subscribers = type_list(config.who)
     require_types(contract, subscribers, "who")
@@ -192,7 +192,7 @@ def _subscribed(call: Call) -> bool:
     return False
 
 
-@family_action("agreements", ("subscriptions",), "subscribe", keys=("who", "plan"), required=("who", "plan"), was=("subscribe",),
+@family_action("agreements", ("subscriptions",), "subscribe", keys=("who", "plan"), required=("who", "plan"),
                example='{"agreements": "coffee", "action": "subscribe", "who": "$actor", "plan": "$params.plan"}  '
                        '(start a subscription: a trial or a first charge)')
 def _subscribe(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -225,7 +225,6 @@ def _subscribe(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where:
 
 
 @family_action("agreements", ("subscriptions",), "set_price", keys=("plan", "price"), required=("plan", "price"),
-               was=("set_plan_price",),
                example='{"agreements": "coffee", "action": "set_price", "plan": "coffee_club", "price": 36}  '
                        '(reprice a plan and tell its subscribers)')
 def _set_plan_price(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -250,7 +249,7 @@ def _set_plan_price(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], w
                 why=f"{plan.name} changed its price.")
 
 
-@family_action("agreements", ("subscriptions",), "tick", internal=True, was=("subscriptions_tick",),
+@family_action("agreements", ("subscriptions",), "tick", internal=True,
                example='{"agreements": "coffee", "action": "tick"}  '
                        '(renew, convert trials, end cancelled or unpaid subscriptions that are due)')
 def _subscriptions_tick(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:

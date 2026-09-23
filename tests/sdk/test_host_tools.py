@@ -147,8 +147,8 @@ def test_host_tool_config_and_actions_say_what_to_fix():
         return [str(i) for i in fg_env.check(contract) if i.severity == "error"]
 
     old = copy.deepcopy(COUNCIL)
-    old["mechanisms"]["search"] = {"kind": "host_tool", "host": "web_search", "by": "panelist"}
-    assert any("'host_tool' is now kind 'host' with mode 'tool'" in i for i in issues(old))
+    old["mechanisms"]["search"] = {"kind": "tool", "host": "web_search", "by": "panelist"}
+    assert any("'tool' is a mode of kind 'host'" in i for i in issues(old))
     shared = copy.deepcopy(COUNCIL)
     shared["mechanisms"]["search"]["share"] = "all"
     assert any("`share` is not a field of `host` mode `tool`" in i for i in issues(shared))

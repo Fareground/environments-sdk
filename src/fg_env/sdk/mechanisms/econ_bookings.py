@@ -66,7 +66,7 @@ register_config(BOOKINGS, BookingsConfig)
            "`<name>_resource` (served, offered, revenue), bookings of `<name>_booking`. Totals in $world.<name>_stats; "
            "utilization is stats.served / stats.offered.",
            example={"who": "household", "currency": "cash", "waitlist": True, "patience": 2,
-                    "resources": {"tables": {"provider": "bistro", "capacity": 8, "price": 25, "horizon": 3, "max_party": 4}}}, was="bookings")
+                    "resources": {"tables": {"provider": "bistro", "capacity": 8, "price": 25, "horizon": 3, "max_party": 4}}})
 def _expand_bookings(name: str, config: BookingsConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     guests = type_list(config.who)
     require_types(contract, guests, "who")
@@ -249,7 +249,6 @@ def _places_text(call: Call) -> str:
 
 
 @family_action("agreements", ("bookings",), "book", keys=("who", "resource", "ahead", "party"), required=("who", "resource"),
-               was=("reserve",),
                example='{"agreements": "dining", "action": "book", "who": "$actor", "resource": "$params.resource", "ahead": 2, '
                        '"party": 4}  (book places, or join the waitlist or the line; `ahead` only with format slots)')
 def _book(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -300,7 +299,7 @@ def _number(world: Any, value: Union[int, str], guest: Any, where: str) -> float
     return float(value)
 
 
-@family_action("agreements", ("bookings",), "cancel", keys=("booking",), required=("booking",), was=("cancel_booking",),
+@family_action("agreements", ("bookings",), "cancel", keys=("booking",), required=("booking",),
                example='{"agreements": "dining", "action": "cancel", "booking": "$params.booking"}  '
                        '(cancel with a refund; the waitlist moves up)')
 def _cancel_booking(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -325,7 +324,7 @@ def _cancel_booking(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], w
         _promote(world, name, config, resource, int(p["slot"]), where)
 
 
-@family_action("agreements", ("bookings",), "tick", internal=True, was=("bookings_tick",),
+@family_action("agreements", ("bookings",), "tick", internal=True,
                example='{"agreements": "dining", "action": "tick"}  (serve this round\'s bookings or the line, let impatient guests give up)')
 def _bookings_tick(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world

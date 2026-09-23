@@ -49,8 +49,7 @@ class HostToolConfig(BaseModel):
            "A host service as an agent tool (web search, retrieval): the `<name>` tool calls the host, returns "
            "the result «quoted» and keeps it as evidence in $actor.<name>_evidence (look: <name>_evidence), "
            "within per-turn and per-run limits. Results are recorded for replay.",
-           example={"host": "web_search", "who": "panelist", "max_calls_per_turn": 2, "max_calls_per_run": 6},
-           was="host_tool")
+           example={"host": "web_search", "who": "panelist", "max_calls_per_turn": 2, "max_calls_per_run": 6})
 def _expand_host_tool(name: str, config: HostToolConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     by = type_list(contract, config.who, "who")
     who: Union[str, List[str]] = by if len(by) > 1 else by[0]
@@ -122,7 +121,7 @@ def _result(answer: Any, limit: int) -> str:
     return clip(answer.strip() or "(no results)", limit)
 
 
-@family_action("host", ("tool",), "call", keys=("args",), required=("args",), was=("host_tool",),
+@family_action("host", ("tool",), "call", keys=("args",), required=("args",),
                example='{"host": "search", "action": "call", "args": "$params"}  '
                        '(call the host service for the actor; the result is added to $actor.search_evidence)')
 def _host_tool_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -147,7 +146,7 @@ def _host_tool_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], whe
     world.set_prop(actor, f"{name}_calls", calls + 1)
 
 
-@family_action("host", ("tool",), "publish", internal=True, was=("publish_evidence",),
+@family_action("host", ("tool",), "publish", internal=True,
                example='{"host": "search", "action": "publish"}  (post every agent\'s unshared evidence to the record, in seat order)')
 def _publish_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world

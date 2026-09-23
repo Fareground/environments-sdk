@@ -344,7 +344,7 @@ def test_an_old_board_kind_names_the_game_family_and_a_typo_names_the_field():
     old["mechanisms"]["chess"] = {k: v for k, v in old["mechanisms"]["chess"].items() if k != "mode"}
     old["mechanisms"]["chess"]["kind"] = "board"
     issue = next(i for i in _board_issues(old) if i.path == "mechanisms.chess.kind")
-    assert issue.message == "'board' is now kind 'game' with mode 'board'"
+    assert issue.message == "'board' is a mode of kind 'game'"
     typo = copy.deepcopy(CHESS)
     typo["mechanisms"]["chess"]["players"] = "player"
     issue = _board_issues(typo)[0]
@@ -359,8 +359,8 @@ def test_board_actions_check_their_own_keys():
     assert any(m == "'text' is not part of `game.pass`" for _, m, _ in op({"game": "chess", "action": "pass", "text": "e4"}))
     path, message, fix = op({"game": "chess", "action": "mvoe", "text": "e2-e4"})[0]
     assert path.endswith(".action") and message == "'mvoe' is not an action of chess (game board)" and fix == "did you mean 'move'?"
-    _, _, fix = op({"board_move": "chess", "text": "e2-e4"})[0]
-    assert fix.startswith('`board_move` is now the `game` op: {"game": "<mechanism>", "action": "move"')
+    _, _, fix = op({"pass": "chess"})[0]
+    assert fix.startswith('`pass` is an action of the `game` or `flow` op: {"game": "<mechanism>", "action": "pass"')
 
 
 def test_tools_one_offers_moving_and_passing_as_one_tool():

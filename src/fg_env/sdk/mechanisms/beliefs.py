@@ -154,7 +154,6 @@ def _plain(value: Any) -> Any:
 
 
 @family_action("mind", ("beliefs",), "learn", keys=("key", "who", "value", "confidence", "source", "from"), required=("key",),
-               was=("learn",),
                example='{"mind": "memory", "action": "learn", "key": "wolf", "who": "$actor", "value": "$params.suspect.id", '
                        '"confidence": 0.9}  (who, by default $actor, comes to believe key = value; source direct unless given; '
                        "`from` names who it came from)")
@@ -179,7 +178,7 @@ def _learn(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str
 
 
 @family_action("mind", ("beliefs",), "tell", keys=("key", "to", "who", "value", "confidence", "say"), required=("key", "to"),
-               templates=("say",), was=("tell",),
+               templates=("say",),
                example='{"mind": "memory", "action": "tell", "key": "wolf", "to": "$params.listener"}  (who, by default $actor, '
                        "passes a belief on at secondhand confidence; `value` to tell something else, `say` for the listener's notice)")
 def _tell(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -223,7 +222,7 @@ def _confidence_number(value: Any, where: str) -> None:
         raise RunError(f"confidence must be a number from 0 to 1, got {value!r}", where)
 
 
-@family_action("mind", ("beliefs",), "forget", keys=("key", "who"), required=("key",), was=("forget",),
+@family_action("mind", ("beliefs",), "forget", keys=("key", "who"), required=("key",),
                example='{"mind": "memory", "action": "forget", "key": "wolf", "who": "$actor"}  (who, by default $actor, drops a belief)')
 def _forget(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
@@ -241,7 +240,7 @@ def _forget(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: st
             world.set_prop(holder, name, {k: v for k, v in beliefs.items() if k != key})
 
 
-@family_action("mind", ("beliefs",), "decay", internal=True, was=("decay_beliefs",),
+@family_action("mind", ("beliefs",), "decay", internal=True,
                example='{"mind": "memory", "action": "decay"}  (one round of confidence decay; generated each round)')
 def _decay(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
@@ -272,7 +271,7 @@ def _decay(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str
            "secondhand confidence (scaled by trust). Read with $believes(agent, key, value?), $belief(agent, key), "
            "$confidence(agent, key), $beliefs_of(agent); with several beliefs mechanisms, name one as the last argument "
            "($beliefs_of($actor, 'rumours')).",
-           example={"who": "villager", "decay": 0.1, "secondhand": 0.6, "share": True}, was="beliefs")
+           example={"who": "villager", "decay": 0.1, "secondhand": 0.6, "share": True})
 def _expand(name: str, config: BeliefsConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     require_type(contract, config.who, "who")
     if config.trust is not None and config.trust not in (contract.get("relations") or {}):

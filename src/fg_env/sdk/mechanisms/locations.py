@@ -78,8 +78,7 @@ def _occupant_types(cfg: TerrainConfig) -> List[str]:
       "occupants each round.",
       example={"who": "unit", "places": {
           "forest": {"area": [[0, 0], [1, 1]], "modifiers": {"armor": 1}},
-          "lava": {"at": [[2, 2]], "tick": ["$it.hp -= 3"], "enter": [{"expr": "$it.fireproof", "why": "Too hot."}]}}},
-      was="locations")
+          "lava": {"at": [[2, 2]], "tick": ["$it.hp -= 3"], "enter": [{"expr": "$it.fireproof", "why": "Too hot."}]}}})
 def _expand(name: str, cfg: TerrainConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     occupants = common.types_in(contract, cfg.who, "who")
     space = contract.get("space")
@@ -206,7 +205,7 @@ def _refusal(world: Any, entity: Entity, position: Any, where: str) -> Optional[
     return None
 
 
-@family_action("conditions", ("terrain",), "enter", keys=("who", "to"), required=("who", "to"), was=("enter",),
+@family_action("conditions", ("terrain",), "enter", keys=("who", "to"), required=("who", "to"),
                example='{"conditions": "terrain", "action": "enter", "who": "$actor", "to": "$params.cell"}  (move there '
                        'if every terrain\'s entry rules allow; runs on_enter)')
 def _enter_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
@@ -257,7 +256,7 @@ def _on_grid(world: Any, mech: str, cfg: TerrainConfig) -> None:
                                f"mechanisms.{mech}.places.{place}.{key}[{index}]")
 
 
-@family_action("conditions", ("terrain",), "tick", check=_check_tick, internal=True, was=("terrain_tick",),
+@family_action("conditions", ("terrain",), "tick", check=_check_tick, internal=True,
                example='{"conditions": "terrain", "action": "tick"}  (run tick effects on every occupant; generated at '
                        'the start of each round)')
 def _tick_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:

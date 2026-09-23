@@ -45,7 +45,7 @@ class PersonaConfig(BaseModel):
            "Personas written by a host writer from a prompt template over $it, once per entity before round 1: "
            "stored in the `prop` property and the entity's brief, carried by snapshots, recorded for replay.",
            example={"who": "shopper", "prompt": "A {age}-year-old shopper with a budget of {budget|money}.",
-                    "fallback": "A shopper, age {age}."}, was="personas")
+                    "fallback": "A shopper, age {age}."})
 def _expand_personas(name: str, config: PersonaConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     type_list(contract, config.who, "who")
     if not NAME.match(config.prop):
@@ -119,7 +119,7 @@ def _add_to_brief(world: Any, entity_id: str, line: str) -> None:
     world.journal.push(undo)
 
 
-@family_action("mind", ("personas",), "write", was=("personas",),
+@family_action("mind", ("personas",), "write",
                example='{"mind": "lives", "action": "write"}  (write any missing personas now; generated for round 1)')
 def _write(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     generate(runner.world, effect["mind"], where)

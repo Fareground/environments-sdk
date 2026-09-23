@@ -26,7 +26,7 @@ from typing import Any, Dict, List, Mapping, Optional, Tuple
 from pydantic import BaseModel, ValidationError
 
 from ..errors import Issue
-from ..registry import FAMILIES, RENAMED_KINDS, MechanismError, config_data
+from ..registry import FAMILIES, MechanismError, config_data, family_of_mode
 
 __all__ = ["expand_mechanisms", "merge_sections", "generated_summary", "FAMILIES"]
 
@@ -234,10 +234,10 @@ def _spec(use: Mapping[str, Any], path: str) -> Any:
     if isinstance(kind, str) and kind in _FOLDED_INTO_PATTERNS:
         return Issue(f"{path}.kind", f"'{kind}' is no longer a mechanism: the world's own changes are `patterns`",
                      _FOLDED_INTO_PATTERNS[kind] + " (guide('patterns'))")
-    if isinstance(kind, str) and kind in RENAMED_KINDS:
-        new_kind, mode = RENAMED_KINDS[kind]
-        return Issue(f"{path}.kind", f"'{kind}' is now kind '{new_kind}' with mode '{mode}'",
-                     f"write \"kind\": \"{new_kind}\", \"mode\": \"{mode}\" (guide('{new_kind}.{mode}') lists its fields)")
+    owner = family_of_mode(kind) if isinstance(kind, str) else None
+    if owner is not None:
+        return Issue(f"{path}.kind", f"'{kind}' is a mode of kind '{owner}'",
+                     f"write \"kind\": \"{owner}\", \"mode\": \"{kind}\" (guide('{owner}.{kind}') lists its fields)")
     hint = get_close_matches(str(kind), _kinds(), n=1)
     return Issue(f"{path}.kind", f"'{kind}' is not a mechanism family",
                  f"did you mean '{hint[0]}'?" if hint else f"families: {', '.join(_kinds())}")

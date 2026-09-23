@@ -109,8 +109,7 @@ class ProcedureConfig(Config):
       "out with each kind's effects (the `counter` action removes one unresolved); read it with $stack(name, read).",
       example={"phases": {
           "debate": {"stages": [{"actions": ["speak"]}], "next": [{"to": "vote", "after": 2}]},
-          "vote": {"stages": [{"actions": ["vote"], "turns": "simultaneous"}], "terminal": True}}},
-      was="procedure", ends=lambda cfg: any(phase.terminal for phase in cfg.phases.values()))
+          "vote": {"stages": [{"actions": ["vote"], "turns": "simultaneous"}], "terminal": True}}}, ends=lambda cfg: any(phase.terminal for phase in cfg.phases.values()))
 def _expand(name: str, cfg: ProcedureConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     if not cfg.phases and cfg.stack is None:
         raise MechanismError("a procedure needs phases, a stack, or both", 'e.g. "phases": {"debate": {...}} or "stack": {...}',
@@ -413,8 +412,7 @@ def _register_actions() -> None:
     for action, (keys, required, internal, needs, fields, doc) in _ACTIONS.items():
         example = '{"flow": "trial", "action": "' + action + '"' + (f", {fields}" if fields else "") + f"}}  ({doc})"
         family_action("flow", ("procedure",), action, keys=keys, required=required, literal=("item",) if "item" in keys else (),
-                      check=_check(action, needs), internal=internal, example=example,
-                      was=("procedure",))(_runner(action, needs))
+                      check=_check(action, needs), internal=internal, example=example)(_runner(action, needs))
 
 
 _register_actions()

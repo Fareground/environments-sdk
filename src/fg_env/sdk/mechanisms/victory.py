@@ -112,7 +112,7 @@ def _labelled(cfg: VictoryConfig) -> List[Tuple[str, VictoryCondition]]:
       "resolves winners anywhere. For an agent type it fills the `game` section: seats and returns ($won).",
       example={"who": "player", "alive": "not $it.bankrupt",
                "conditions": [{"first_to": 10, "score": "$it.points"}, {"last_standing": True},
-                              {"most": "$it.points"}], "tiebreak": ["$it.cash"]}, was="victory", ends=lambda cfg: True)
+                              {"most": "$it.points"}], "tiebreak": ["$it.cash"]}, ends=lambda cfg: True)
 def _expand(name: str, cfg: VictoryConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     players = cfg.who
     common.types_in(contract, players, "who")

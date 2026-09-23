@@ -4,7 +4,7 @@ from typing import Iterator
 
 from pydantic import BaseModel, ConfigDict
 
-from fg_env.sdk.registry import FAMILIES, OPS, RENAMED_KINDS, RENAMED_OPS, FamilySpec, family
+from fg_env.sdk.registry import FAMILIES, OPS, FamilySpec, family
 
 
 class Nothing(BaseModel):
@@ -22,6 +22,3 @@ def scratch_family(name: str, doc: str = "A family registered by a test.") -> It
     finally:
         FAMILIES.pop(name, None)
         OPS.pop(name, None)
-        for table in (RENAMED_KINDS, RENAMED_OPS):
-            for key in [key for key, (owner, _) in table.items() if owner == name]:
-                table.pop(key)

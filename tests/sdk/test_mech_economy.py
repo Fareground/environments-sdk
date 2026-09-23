@@ -181,7 +181,7 @@ def test_an_old_economy_kind_says_its_family_and_mode():
     old = copy.deepcopy(CHEAT)
     old["mechanisms"]["money"] = {"kind": "ledger", "holders": "person", "currencies": {"cash": {}}}
     issue = next(i for i in errors(old) if i.path == "mechanisms.money.kind")
-    assert issue.message == "'ledger' is now kind 'economy' with mode 'ledger'"
+    assert issue.message == "'ledger' is a mode of kind 'economy'"
     assert '"kind": "economy", "mode": "ledger"' in issue.fix
 
 
@@ -216,7 +216,7 @@ def test_economy_actions_check_their_own_keys():
     assert any("declares no loans" in m for _, m, _ in op({"economy": "money", "action": "repay", "loan": "x", "amount": 1}))
     assert any("has no ground" in m for _, m, _ in op({"economy": "goods", "action": "drop", "item": "bread", "from": "$entity(ana)"}))
     _, _, fix = op({"pay": "cash", "from": "$entity(ana)", "to": "$entity(ana)", "amount": 1})[0]
-    assert fix.startswith('`pay` is now the `economy` op: {"economy": "<mechanism>", "action": "pay"')
+    assert fix.startswith('`pay` is an action of the `economy` op: {"economy": "<mechanism>", "action": "pay"')
 
 
 def test_tools_one_offers_an_inventory_as_a_single_tool():
@@ -557,7 +557,7 @@ def test_an_old_agreements_kind_or_a_mistyped_field_says_what_it_is_now():
     old = copy.deepcopy(DINING)
     old["mechanisms"]["dining"]["kind"] = "bookings"
     issue = next(i for i in errors(old) if i.path == "mechanisms.dining.kind")
-    assert issue.message == "'bookings' is now kind 'agreements' with mode 'bookings'"
+    assert issue.message == "'bookings' is a mode of kind 'agreements'"
     typo = copy.deepcopy(DINING)
     typo["mechanisms"]["dining"]["formt"] = "queue"
     issue = next(i for i in errors(typo) if i.path == "mechanisms.dining.formt")
@@ -720,8 +720,8 @@ def test_agreements_actions_check_their_own_keys():
     path, message, fix = op({"agreements": "trade", "action": "answer"})[0]
     assert path.endswith(".action") and message == "'answer' is not an action of trade (agreements negotiation)"
     assert fix == "actions: propose, counter, accept, reject, withdraw, fulfill"
-    _, _, fix = op({"answer_offer": "trade", "offer": "x", "by": "$entity(ar)", "answer": "accept"})[0]
-    assert fix.startswith('`answer_offer` is now the `agreements` op: {"agreements": "<mechanism>", "action": <action>')
+    _, _, fix = op({"counter": "trade", "offer": "x"})[0]
+    assert fix.startswith('`counter` is an action of the `agreements` or `flow` op: {"agreements": "<mechanism>", "action": "counter"')
 
 
 # ---------------------------------------------------------------------------
