@@ -52,31 +52,6 @@ def test_an_added_event_with_a_chance_roll_changes_no_other_draw():
     assert fg_env.run(extra, _busy, seed=3).outputs["arrivals"] == fg_env.run(WARD, _busy, seed=3).outputs["arrivals"]
 
 
-GAMBLE = {
-    "name": "Gamble",
-    "clock": {"rounds": 6},
-    "types": {"player": {"agent": True, "props": {"wins": 0}}},
-    "entities": {"a": {"type": "player"}},
-    "actions": {"gamble": {"by": "player", "do": ["$r = $random()", {"if": "$r < 0.8", "then": [{"fail": "You lost."}]},
-                                                 "$actor.wins += 1"]}},
-    "stages": [{"name": "play", "max_calls": 20}],
-    "outputs": {"wins": "$entity(a).wins"},
-}
-
-
-def test_retrying_a_refused_random_action_in_the_same_turn_rolls_the_same_luck():
-    turns = []
-
-    def retry(wake):
-        turns.append([wake.call("gamble", {}).ok for _ in range(20)])
-
-    fg_env.run(GAMBLE, retry, seed=3)
-    for calls in turns:
-        lost = calls.index(False)  # 0.8 to lose: twenty straight wins would be a bug too
-        assert not any(calls[lost:])  # once refused, the same roll comes up however often it is retried
-    assert any(calls.index(False) > 0 for calls in turns)  # a success is kept, and the next call rolls afresh
-
-
 def test_a_snapshot_resumes_with_the_same_luck():
     straight = fg_env.load(WARD, seed=5).run(_busy).to_dict()
     env = fg_env.load(WARD, seed=5)

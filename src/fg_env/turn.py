@@ -50,6 +50,8 @@ _REJECTED = {"error": "rejected"}
 _ENDED = {"error": "ended"}
 _TIMEOUT = {"error": "timeout"}
 _UNDONE = {"error": "undone"}
+#: A call refused after it drew randomness: played all the same (its luck spent, its attempt counted).
+_SPENT = {"error": "rejected", "spent": True}
 #: What a closed turn reads instead of its brief or update (its participant has been left behind).
 _CLOSED_TEXT = "This turn is over."
 
@@ -108,10 +110,14 @@ class Turn:
         self.busy = 0
         #: Its statistics are in the run's totals (the engine is done with it); usage reported later goes there.
         self.tallied = False
-        #: Atomic turns: the journal position the turn's changes are undone to, until it settles.
+        #: Atomic turns: the journal position the turn's changes are undone to, until it settles, and the turn's
+        #: counts there (``_part``). An action that draws randomness settles the turn so far, and a new part begins.
         self.atomic = (stage.atomic or bool(stage.valid)) and not staged and not peek
-        self._mark: Optional[int] = env.world.journal.mark() if self.atomic else None
+        self._mark: Optional[int] = None
+        self._part: Tuple[int, Dict[str, int], int, float, int] = (self.actions_left, {}, 0, 0.0, 0)
         self._counted: List[str] = []
+        if self.atomic:
+            self._begin_part()
         if peek:
             self.number = env._turn_count + 1
         else:
@@ -341,7 +347,12 @@ class Turn:
             self.stats.rejected_actions += 1
             self.stats.faulted_actions += 1
             return self._after(ToolResult(False, refused_text(name, fault), data=_REJECTED))
-        result, applied = acted
+        result, applied, drew = acted
+        if drew and self._mark is not None:  # luck settles an atomic turn at once: nothing after it can undo it
+            why = self.settle()
+            if why is not None:
+                return self._after(self._undone(why, luck=name))
+            self._begin_part()
         if applied:
             if self._mark is None:  # reactions wait for the commit (atomic turns: for the whole turn)
                 env.happenings.react(self.stage)
@@ -352,9 +363,10 @@ class Turn:
                     return self._after(self._undone(why))
         return self._after(result)
 
-    def _act(self, name: str, spec: ActionSpec, args: Any) -> Tuple[ToolResult, bool]:
-        """Check, then submit (sealed turns) or apply and commit one action call: its result, and whether it applied.
-        Runs inside :func:`guarded`, so the turn's own counts change only once nothing can fail any more."""
+    def _act(self, name: str, spec: ActionSpec, args: Any) -> Tuple[ToolResult, bool, bool]:
+        """Check, then submit (sealed turns) or apply and commit one action call: its result, whether it applied, and
+        whether it drew randomness. Runs inside :func:`guarded`, so the turn's own counts change only once nothing can
+        fail any more."""
         with self.after_choices():
             return self._checked_act(name, spec, args)
 
@@ -369,33 +381,38 @@ class Turn:
             self.env.actions.replay(self.actor, self.intents)
             yield
 
-    def _checked_act(self, name: str, spec: ActionSpec, args: Any) -> Tuple[ToolResult, bool]:
+    def _checked_act(self, name: str, spec: ActionSpec, args: Any) -> Tuple[ToolResult, bool, bool]:
         env = self.env
         blocked = env.actions.blocked(self.actor, name, self.used, env._used_round.get(self.actor.id, {}))
         if blocked:
             self.stats.invalid_calls += 1
-            return ToolResult(False, f"You cannot {name.replace('_', ' ')} now: {blocked}.", data=_INVALID), False
+            return ToolResult(False, f"You cannot {name.replace('_', ' ')} now: {blocked}.", data=_INVALID), False, False
         args, cut = _cut(spec.params, args)
         params, problem = env.actions.validate(self.actor, name, args)
         if problem:
             self.stats.invalid_calls += 1
             return ToolResult(False, f"{name} was not done: {problem}. Correct the arguments and call again.",
-                              data=_INVALID), False
-        if self.staged:
+                              data=_INVALID), False, False
+        if self.staged:  # checked without its luck (a trial draws nothing): the luck is rolled when it commits
             refusal = env.actions.dry_run(self.actor, name, params)
             if refusal is not None:
                 self.stats.rejected_actions += 1
-                return ToolResult(False, refusal, data=_REJECTED), False
+                return ToolResult(False, refusal, data=_REJECTED), False, False
             ended = env.actions.ends_turn(self.actor, name, params)
             self.intents.append((name, dict(args or {})))
             self.pending.append({"action": name, **_plain(params)})
             self._count(name)
             text = f"Submitted {name.replace('_', ' ')}{_args_text(params)}; it resolves when everyone has chosen.{cut}"
-            return ToolResult(True, text, ended or self.actions_left <= 0), False
+            return ToolResult(True, text, ended or self.actions_left <= 0), False, False
+        drawn = env.world.draws()
         outcome = env.actions.apply(self.actor, name, params)
+        drew = env.world.draws() != drawn
         if not outcome.ok:
             self.stats.rejected_actions += 1
-            return ToolResult(False, outcome.text, data=_REJECTED), False
+            if not drew:  # refused before any luck was rolled: nothing was played
+                return ToolResult(False, outcome.text, data=_REJECTED), False, False
+            self._count(name)  # refused by its luck: an outcome, not a free retry
+            return ToolResult(False, outcome.text, self.actions_left <= 0, dict(_SPENT)), False, True
         self.pending.append({"action": name, **_plain(params)})  # what the commit's rules read as $pending
         try:
             elapsed = env.actions.duration(self.actor, name, params) if env.world.continuous else 0.0
@@ -409,7 +426,7 @@ class Turn:
         self.elapsed += elapsed
         self.stats.actions += 1
         return ToolResult(True, _with_references(outcome.text, files) + cut, ended or self.actions_left <= 0,
-                          {"success": outcome.success}, files), True
+                          {"success": outcome.success}, files), True, drew
 
     def _must_act(self) -> bool:
         """The stage requires an action, the turn has taken none, and one is available."""
@@ -461,6 +478,12 @@ class Turn:
         self.env.happenings.react(self.stage)
         return None
 
+    def _begin_part(self) -> None:
+        """Atomic turns: start the part of the turn that the next settle checks and an undo returns to."""
+        self._mark = self.env.world.journal.mark()
+        self._part = (self.actions_left, dict(self.used), len(self.pending), self.elapsed, self.stats.actions)
+        self._counted.clear()
+
     def _commit_turn(self) -> Optional[str]:
         """Why the turn as played is not allowed, or None once it has committed."""
         why = self.invalid() if self._counted else None
@@ -498,7 +521,9 @@ class Turn:
         return None
 
     def _undo(self) -> None:
-        env, undone = self.env, self.stats.actions
+        """Undo the turn's part (see :meth:`_begin_part`); what the turn drew stays spent."""
+        env = self.env
+        actions_left, used, pending, elapsed, actions = self._part
         assert self._mark is not None
         env.world.journal.rollback(self._mark)
         per_round = env._used_round.get(self.actor.id, {})
@@ -506,16 +531,23 @@ class Turn:
             per_round[name] = per_round.get(name, 1) - 1
         self._counted.clear()
         self.used.clear()
-        del self.pending[:]  # the same list $pending reads
-        self.actions_left = self.max_actions
-        self.elapsed = 0.0
+        self.used.update(used)
+        del self.pending[pending:]  # the same list $pending reads
+        self.actions_left = actions_left
+        self.elapsed = elapsed
+        undone = self.stats.actions - actions
         self.stats.actions -= undone
         self.stats.rejected_actions += undone
         self.stats.undone_turns += 1
 
-    def _undone(self, why: str) -> ToolResult:
-        return ToolResult(False, f"That turn is not allowed: {why}. Everything you did this turn was undone; "
-                                 "play your turn again.", data=dict(_UNDONE))
+    def _undone(self, why: str, luck: Optional[str] = None) -> ToolResult:
+        if luck is None:
+            return ToolResult(False, f"That turn is not allowed: {why}. Everything you did this turn was undone; "
+                                     "play your turn again.", data=dict(_UNDONE))
+        self.done = True  # its luck is spent: playing the turn again would retry it
+        return ToolResult(False, f"That turn is not allowed: {why}. {luck.replace('_', ' ').capitalize()} drew on "
+                                 "chance, which settles a turn at once, so it was undone with what you did before it "
+                                 "this turn, and your turn is over.", True, dict(_UNDONE))
 
     def _after(self, result: ToolResult) -> ToolResult:
         if result.ended:

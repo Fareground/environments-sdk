@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import random
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 __all__ = ["SeedTree", "DrawSite", "LazyStream", "mint_seed"]
 
@@ -70,8 +70,9 @@ class LazyStream:
 class DrawSite:
     """The stream of one run of a block of logic, opened at its first draw (most runs of a block draw nothing).
 
-    Opening counts the runs of the site that drew this round in ``world.firings``, journaled: a block that is undone
-    (a refused action, a dry run) gives its draws back, so trying again in the same round rolls the same luck."""
+    Opening counts the runs of the site that drew this round in ``world.firings``. Nothing gives a count back: a block
+    that is undone after it drew (a refused action, an undone turn) has spent its luck, so trying again rolls afresh
+    and no refusal lets an agent probe its luck. Trials draw nothing (see ``ActionBook.trying``)."""
 
     __slots__ = ("key", "stream")
 
@@ -83,11 +84,5 @@ class DrawSite:
         if self.stream is None:
             count = world.firings.get(self.key, 0)
             world.firings[self.key] = count + 1
-            world.journal.push(lambda: self._give_back(world.firings, count))
             self.stream = world.seeds.rng("draws", self.key, world.round, count)
         return self.stream
-
-    def _give_back(self, firings: Dict[str, int], count: int) -> None:
-        """Undo the opening; a block that goes on after part of it was undone draws those same numbers again."""
-        firings[self.key] = count
-        self.stream = None

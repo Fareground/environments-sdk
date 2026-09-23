@@ -55,7 +55,7 @@ _WORLD_STORES = ("_channel_visible:",)
 _TURN_FIELDS = frozenset({
     "env", "actor", "stage", "reason", "staged", "peek", "round", "_since", "_views", "_brief", "_update", "max_actions", "max_calls", "calls_left",
     "reads_left", "_reads", "did_not_act", "actions_left", "done", "used", "intents", "pending", "stats", "elapsed", "_offered", "_tools", "time_limit",
-    "deadline", "timed_out", "closed", "busy", "tallied", "atomic", "_mark", "_counted", "number", "exposure",
+    "deadline", "timed_out", "closed", "busy", "tallied", "atomic", "_mark", "_part", "_counted", "number", "exposure",
     "_delivered"})
 _WAKE_FIELDS = frozenset({"_turn", "_extras", "_used"})
 _RECORD_LISTS = ("views", "news", "entries", "view_events", "tools", "tool_sets", "calls")

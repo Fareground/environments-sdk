@@ -76,9 +76,11 @@ class Happenings:
                     items = []
                 for position, item in enumerate(items):
                     inner = {item_name: item, "i": position}
-                    if event.where is not None and not truthy(compile_expr(event.where)(world.scope(**inner))):
-                        continue
-                    env._atomic(event.do, inner, f"{path}.do", check=False)
+                    if event.where is not None:
+                        with world.drawing_for(f"{path}.where", item):
+                            if not truthy(compile_expr(event.where)(world.scope(**inner))):
+                                continue
+                    env._atomic(event.do, inner, f"{path}.do", check=False, owner=item)
                 env._check_invariants(f"{path}.do")
             except ExprError as exc:
                 raise RunError(str(exc), path) from None
