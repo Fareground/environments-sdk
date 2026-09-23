@@ -37,7 +37,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 import fg_env
-from fg_env.sdk.analysis.validate import ValidationResult
+from fg_env.analysis.validate import ValidationResult
 
 CONTRACT = Path(__file__).parent / "contracts" / "phone_reseller.json"
 FOLDER = CONTRACT.parent / "phone_reseller"

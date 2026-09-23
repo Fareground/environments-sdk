@@ -103,12 +103,12 @@ env = fg_env.rl.gym("nim.json", "a", others="random"); obs, info = env.reset(see
 obs, reward, terminated, truncated, info = env.step({"tool": "take", "args": {"count": 2}})
 fg_env.rl.conformance("kuhn_poker.json", sims=20).summary()   # legal calls, chance, clone, serialize, returns, replay, resume, leaks
 print(fg_env.rl.playthrough("kuhn_poker.json", seed=1))       # every seat's reading at every decision: a golden text to diff
-from fg_env.sdk.game.algorithms import CFRSolver, exploitability, minimax, MCTSBot
+from fg_env.game.algorithms import CFRSolver, exploitability, minimax, MCTSBot
 policy = CFRSolver(game, plus=True).iterate(1000).average_policy(); exploitability(game, policy)
 fg_env.run("tic_tac_toe.json", {"x": "mcts:200", "o": "minimax"})   # also "ismcts:200", "cfr:policy.json", "cfr:1000"
 aec = fg_env.rl.pettingzoo_aec("kuhn_poker.json", seed=1)     # PettingZoo AEC (reward since last turn); pettingzoo_parallel too
 ```
-Games transform into ordinary contracts: `fg_env.sdk.game.repeated(contract, 10)`, `misere`, `zerosum`;
+Games transform into ordinary contracts: `fg_env.game.repeated(contract, 10)`, `misere`, `zerosum`;
 `game.start_at(steps)` starts part-way. Known-answer games live in `examples/contracts/games`.
 CLI: `fg-env conformance file.json --sims 50`, `fg-env playthrough file.json --seed 1 [--check golden.txt]`,
 `fg-env bench --game file.json`.

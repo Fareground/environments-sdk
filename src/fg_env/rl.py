@@ -8,16 +8,16 @@
 
 * ``game`` / ``Game`` / ``GameState`` — any contract as a game for search, solving and learning code;
   ``conformance`` checks it, ``playthrough`` prints one game move by move. Transforms, benchmarks and verified
-  algorithms live in :mod:`fg_env.sdk.game`.
+  algorithms live in :mod:`fg_env.game`.
 * ``gym`` / ``GymEnv``, ``pettingzoo_aec`` / ``pettingzoo_parallel`` — reinforcement-learning adapters.
 * ``tournament`` — pit participants against each other in the contract's seats, then rate and rank them.
 * ``evaluate`` — how well a focal participant does among background agents, against a baseline on the same seeds.
 """
-from .sdk.evaluate import EvaluationResult, evaluate
-from .sdk.game import (ConformanceReport, Game, GameState, conformance, game, pettingzoo_aec, pettingzoo_parallel,
-                       playthrough)
-from .sdk.gym import GymEnv, gym
-from .sdk.tournament import TournamentResult, tournament
+from .evaluate import EvaluationResult, evaluate
+from .game import (ConformanceReport, Game, GameState, conformance, game, pettingzoo_aec, pettingzoo_parallel,
+                   playthrough)
+from .gym import GymEnv, gym
+from .tournament import TournamentResult, tournament
 
 __all__ = ["game", "Game", "GameState", "conformance", "ConformanceReport", "playthrough", "gym", "GymEnv",
            "pettingzoo_aec", "pettingzoo_parallel", "tournament", "TournamentResult", "evaluate", "EvaluationResult"]

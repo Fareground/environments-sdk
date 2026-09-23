@@ -1,43 +1,20 @@
-"""Entity type definitions and entity instances."""
+"""Entity instances: the things in a running world."""
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
-from .types import PropertySchema, PropertyValue, PropertyType
-
-
-@dataclass
-class EntityType:
-    """
-    Blueprint for a category of entities.
-
-    role determines behavior:
-      - "agent":    LLM-driven, takes actions each turn
-      - "location": Spatial anchor, can contain other entities
-      - "object":   Passive, can be acted upon
-      - "abstract": Non-spatial concept (e.g., a faction, a law)
-    """
-    name: str
-    role: str  # "agent", "location", "object", "abstract"
-    properties: List[PropertySchema] = field(default_factory=list)
-    description: str = ""
-
-    def get_property_schema(self, prop_name: str) -> Optional[PropertySchema]:
-        """Get the schema for a named property."""
-        for p in self.properties:
-            if p.name == prop_name:
-                return p
-        return None
+# Runtime value for a property
+PropertyValue = Union[float, int, str, bool, List[str], None]
 
 
 @dataclass
 class Entity:
     """
-    A concrete instance of an EntityType within the world state.
+    A concrete entity within the world state.
     Properties are stored as a mutable dict keyed by property name.
     """
     id: str
     name: str
-    entity_type: str  # References EntityType.name
+    entity_type: str
     properties: Dict[str, PropertyValue] = field(default_factory=dict)
     location_id: Optional[str] = None
     alive: bool = True
@@ -49,21 +26,6 @@ class Entity:
     def set(self, prop_name: str, value: PropertyValue):
         """Set a property value."""
         self.properties[prop_name] = value
-
-    def modify(self, prop_name: str, delta: float, schema: Optional[PropertySchema] = None):
-        """Add delta to a numeric property, respecting bounds from schema."""
-        current = self.properties.get(prop_name, 0)
-        if not isinstance(current, (int, float)):
-            raise ValueError(f"Cannot modify non-numeric property '{prop_name}'")
-        new_val = current + delta
-        if schema:
-            if schema.min_value is not None:
-                new_val = max(schema.min_value, new_val)
-            if schema.max_value is not None:
-                new_val = min(schema.max_value, new_val)
-            if schema.type == PropertyType.INT:
-                new_val = int(new_val)
-        self.properties[prop_name] = new_val
 
     def to_dict(self) -> dict:
         """Serialize to dictionary."""
