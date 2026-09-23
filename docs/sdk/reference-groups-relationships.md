@@ -25,7 +25,7 @@ Nested config:
 - `once`: bool = false — Fire at most once per pair; otherwise again after crossing back.
 
 Actions of the `groups` op:
-- `relate` — takes `relation`, `from`, `to`, `add`, `set` (needs `relation`, `from`, `to`): {"groups": "bonds", "action": "relate", "relation": "trust", "from": "$actor", "to": "$params.partner", "add": 0.2}  (change a relation by `add` or replace it with `set`; a missing link starts at its baseline; thresholds fire)
+- `relate` — takes `relation`, `from`, `to`, `add`, `set` (needs `relation`, `from`, `to`): {"groups": "bonds", "action": "relate", "relation": "trust", "from": "$actor", "to": "$params.partner", "add": 0.2}  (change a relation by `add`, which stops at its min/max, or replace it with `set`; a missing link starts at its baseline; thresholds fire)
 
 ```json
 {"mechanisms": {"my_relationships": {"kind": "groups", "mode": "relationships", "relations": {"trust": {"baseline": 0, "decay": 0.1, "thresholds": [{"at": 0.7, "say": "{$from.name} now trusts {$to.name}."}]}}}}}

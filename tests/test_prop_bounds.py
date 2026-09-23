@@ -1,4 +1,5 @@
-"""A write past a property's declared min or max is refused, never silently clamped (T-799)."""
+"""A write past a declared min or max — a property's (T-799), a link value's or a layer cell's (T-820) — is refused,
+never silently clamped."""
 import pytest
 
 import fg_env
@@ -116,3 +117,57 @@ def test_a_starting_value_outside_the_bounds_fails_the_build():
     bad = {**SHOP, "entities": {"a": {"type": "buyer", "props": {"coins": -1}}}}
     with pytest.raises(RunError, match="coins cannot go below 0"):
         fg_env.load(bad, seed=1)
+
+
+LINKED = {**SHOP, "relations": {"trusts": {"min": 0, "max": 1}},
+          "links": [{"relation": "trusts", "from": "a", "to": "b", "value": 0.8}],
+          "actions": {"trust": {"by": "buyer", "params": {"n": {"type": "number"}},
+                                "do": ["$link($actor, b, trusts).value += $params.n"]}}}
+
+
+def test_a_link_value_past_its_relations_bound_is_refused_and_rolled_back():
+    result, env = _first_call(LINKED, "trust", {"n": 0.5})
+    assert not result.ok and "Ann's trusts link to Ben cannot go above 1: it would be 1.3" in result.text
+    assert env.world.relation("a", "b", "trusts") == 0.8
+
+
+def test_a_link_value_within_its_bounds_applies():
+    result, env = _first_call(LINKED, "trust", {"n": -0.8})
+    assert result.ok, result.text
+    assert env.world.relation("a", "b", "trusts") == 0.0
+
+
+def test_a_starting_link_value_outside_the_bounds_fails_the_build():
+    bad = {**LINKED, "links": [{"relation": "trusts", "from": "a", "to": "b", "value": 2}]}
+    with pytest.raises(RunError, match="Ann's trusts link to Ben cannot go above 1: it would be 2"):
+        fg_env.load(bad, seed=1)
+
+
+FIELD = {**SHOP, "space": {"grid": {"rows": 1, "cols": 2}, "layers": {"sugar": {"default": 2, "min": 0, "max": 5}}},
+         "entities": {"a": {"type": "buyer", "name": "Ann", "at": [0, 0]}},
+         "actions": {"graze": {"by": "buyer", "params": {"n": {"type": "number"}},
+                               "do": [{"layer": "sugar", "at": "$actor", "set": "$value - $params.n"}]},
+                     "sow": {"by": "buyer", "params": {"n": {"type": "number"}},
+                             "do": [{"layer": "sugar", "set": "$value + $params.n"}]}}}
+
+
+def test_a_layer_cell_past_its_bound_is_refused_and_rolled_back():
+    for action, n, message in (("graze", 3, "layer 'sugar' cannot go below 0: it would be -1"),
+                               ("sow", 4, "layer 'sugar' cannot go above 5: it would be 6")):
+        result, env = _first_call(FIELD, action, {"n": n})
+        assert not result.ok and message in result.text
+        assert env.world.space.layers.values["sugar"] == [2, 2]
+
+
+def test_a_layer_default_outside_the_bounds_fails_the_build():
+    bad = {**FIELD, "space": {"grid": {"rows": 1, "cols": 2}, "layers": {"sugar": {"default": "$cell[1] * 9", "max": 5}}}}
+    with pytest.raises(RunError, match="layer 'sugar' cannot go above 5: it would be 9"):
+        fg_env.load(bad, seed=1)
+
+
+def test_decaying_a_layer_stays_within_its_bounds_because_no_rule_wrote_the_value():
+    floored = {**FIELD, "space": {"grid": {"rows": 1, "cols": 2}, "layers": {"sugar": {"default": 2, "min": 1}}},
+               "events": [{"do": [{"layer": "sugar", "decay": 0.9}]}]}
+    env = fg_env.load(floored, seed=1)
+    assert env.run("idle").status == "completed"
+    assert env.world.space.layers.values["sugar"] == [1, 1]

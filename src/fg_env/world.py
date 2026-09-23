@@ -59,7 +59,7 @@ class Abort(Exception):
 
 
 class OutOfBounds(Abort):
-    """A number past a property's declared min or max. An agent's action is refused like any :class:`Abort`; world
+    """A number past a declared min or max (a property's, a link value's or a layer cell's). An agent's action is refused like any :class:`Abort`; world
     logic (an event, a stage hook, a trigger no action set off) that does it fails the run, because that is a
     contract bug no agent can fix."""
 
@@ -321,7 +321,9 @@ class SdkWorld(World):
     def defines(self, name: str) -> bool:
         return name in self.contract.defs
 
-    def call_def(self, name: str, args: List[Any], source: str) -> Any:
+    def call_def(self, name: str, args: List[Any], source: str, viewer: Any = None) -> Any:
+        """Call the def ``name``. It sees the caller's ``viewer`` (bound while rendering for, or offering choices to,
+        one agent), so ``$records`` and ``$events`` inside it show what the caller could see."""
         spec = self.contract.defs.get(name)
         if spec is None:
             hint = suggest_function(name, list(FUNCTIONS) + list(self.contract.defs))
@@ -329,7 +331,7 @@ class SdkWorld(World):
         if len(args) != len(spec.args):
             raise ExprError(f"${name} takes {len(spec.args)} argument(s) ({', '.join(spec.args) or 'none'}), got {len(args)}", source)
         local = self._here()  # the running turn's state, read once: nothing before the evaluation changes it
-        key = self._def_key(name, args)
+        key = self._def_key(name, args, viewer)
         if key is not None:
             pending = getattr(local, "pending", None)
             state = (self.journal.version, self.round, self.stage, self.time, id(pending), len(pending or ()))
@@ -343,7 +345,10 @@ class SdkWorld(World):
         local.depth = depth + 1
         drawn = getattr(local, "draws", 0)
         try:
-            value = compile_expr(spec.expr)(self._scope(local, dict(zip(spec.args, args))))
+            values = dict(zip(spec.args, args))
+            if viewer is not None:
+                values["viewer"] = viewer
+            value = compile_expr(spec.expr)(self._scope(local, values))
         finally:
             local.depth = depth
         # A call that drew a random number is never reused; with the same state and arguments a call that
@@ -381,12 +386,12 @@ class SdkWorld(World):
         pending = getattr(self._here(), "pending", None)
         return (self.journal.version, self.round, self.stage, self.time, id(pending), len(pending or ()))
 
-    def _def_key(self, name: str, args: List[Any]) -> Optional[Tuple[Any, ...]]:
+    def _def_key(self, name: str, args: List[Any], viewer: Any) -> Optional[Tuple[Any, ...]]:
         """A cache key for a def call, or None when the call cannot be cached."""
         if not self._def_cache_on:
             return None
         parts: List[Any] = [name]
-        for arg in args:
+        for arg in [viewer, *args]:
             if isinstance(arg, Entity):
                 parts.append(("$entity", arg.id))
             elif arg is None or type(arg) in (int, float, bool, str):
@@ -488,7 +493,8 @@ class SdkWorld(World):
         if kind in ("number", "int"):
             if not _finite_number(value):
                 raise RunError(f"must be a finite number that fits in a float, got {_shown_value(value)}", where)
-            _within_bounds(spec, value, where, owner)
+            prop = where.rsplit(".", 1)[-1]
+            within_bounds(spec, value, f"{owner}'s {prop}" if owner else prop)
             if kind == "int":
                 if float(value) != int(value):
                     raise RunError(f"must be a whole number, got {value}", where)
@@ -834,17 +840,16 @@ class SdkWorld(World):
 _CACHEABLE = (int, float, bool, str, type(None), Entity)
 
 
-def _within_bounds(spec: PropSpec, value: Any, where: str, owner: str) -> None:
-    """Refuse a number past ``spec``'s min or max. Saturating is written out: ``$clamp(x, low, high)``."""
+def within_bounds(spec: Any, value: float, subject: str) -> None:
+    """Refuse (:class:`OutOfBounds`) a number past ``spec``'s min or max, naming ``subject`` ("Ann's coins"). Saturating
+    is written out: ``$clamp(x, low, high)``."""
     if spec.min is not None and value < spec.min:
         limit = f"cannot go below {format_value(spec.min)}"
     elif spec.max is not None and value > spec.max:
         limit = f"cannot go above {format_value(spec.max)}"
     else:
         return
-    prop = where.rsplit(".", 1)[-1]
-    raise OutOfBounds(f"{owner}'s {prop} {limit}: it would be {format_value(value)}." if owner else
-                f"{prop} {limit}: it would be {format_value(value)}.")
+    raise OutOfBounds(f"{subject} {limit}: it would be {format_value(value)}.")
 
 
 def _short(value: Optional[float]) -> str:

@@ -130,8 +130,8 @@ def _relate_check(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple
 @family_action("groups", ("relationships",), "relate", keys=("relation", "from", "to", "add", "set"),
                required=("relation", "from", "to"), literal=("relation",), check=_relate_check,
                example='{"groups": "bonds", "action": "relate", "relation": "trust", "from": "$actor", "to": "$params.partner", '
-                       '"add": 0.2}  (change a relation by `add` or replace it with `set`; a missing link starts at its '
-                       'baseline; thresholds fire)')
+                       '"add": 0.2}  (change a relation by `add`, which stops at its min/max, or replace it with `set`; a missing '
+                       'link starts at its baseline; thresholds fire)')
 def _relate_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
     world = runner.world
     name, relation = effect["groups"], effect["relation"]
@@ -149,7 +149,9 @@ def _relate_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where:
     current = world.relation(a, b, relation)
     if current is None:
         current = spec.baseline
-    world.link(relation, a, b, current + amount if "add" in effect else amount, where)
+    if "add" in effect:  # a relation lives in its range: adding stops at its min or max
+        amount = min(max(current + amount, spec.min), spec.max)
+    world.link(relation, a, b, amount, where)
     key = world._key(relation, a.id, b.id)
     _check_thresholds(runner, name, relation, spec, key[0], key[1], where)
 

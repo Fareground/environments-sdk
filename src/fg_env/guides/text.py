@@ -123,7 +123,8 @@ Any string containing `$name` is an expression; other strings are literal text.
   validation enforces the rule).
 * Reserved roots cannot be used as local names: $actor $params $it $i $row $inputs $world $physics
   $clock $round $stage $metrics $series $arm $viewer $event $outer $pending $result.
-* Contract `defs` are called like built-ins: `$utility($actor, $params.offer)`.
+* Contract `defs` are called like built-ins: `$utility($actor, $params.offer)`. A def reads `$records` and
+  `$events` as its caller does: in a view or an agent's choices, only what that agent may see.
 * Bare words are text even when they match a property name: write `$actor.bet`, not `bet`.
 * Strict: unknown props, missing roots and type errors are errors, never silent zeros.
 
@@ -189,10 +190,10 @@ Assignment text:
 * `+=`/`-=` on a list prop append/remove an item.
 * Element assignment: `"$world.board[$i] = $actor.mark"`, `"$actor.scores[round_2] += 1"` (lists and maps).
 * Links: `"$link($actor, $params.who, trusts).value += 0.1"`, `"$link($actor, $params.who, trusts).since = $round"`
-  (the link must exist; its value is clamped to the relation's min/max, fields are typed like props).
-* A write past a numeric prop's min/max is refused, like a transfer that does not fit: an action is rolled
-  back and its actor told why; world logic (an event, a stage hook) that does it fails the run at its path.
-  To saturate, say so: `$clamp(x, low, high)`.
+  (the link must exist; its value keeps to the relation's min/max and fields are typed, like props).
+* A write past a numeric prop's, link value's or layer cell's min/max is refused, like a transfer that does not
+  fit: an action is rolled back and its actor told why; world logic (an event, a stage hook) that does it fails
+  the run at its path. To saturate, say so: `$clamp(x, low, high)`.
   Types are enforced.
 
 Operation objects (exactly one operation key each):
@@ -305,7 +306,8 @@ RECIPES = """\
 * Values on cells (sugar, pheromone, fire): `"space": {..., "layers": {"sugar": {"type": "int", "default":
   "$peak($cell)", "max": 4}}}`; read `$layer(sugar, $it)`; change with `{"layer": "sugar", "at": "$it", "set": 0}`,
   a whole layer with `{"layer": "sugar", "set": "$min($value + 1, 4)"}` (every cell reads the old values),
-  `{"layer": "scent", "diffuse": 0.1}` and `{"layer": "scent", "decay": 0.05}`. Layers are kept in snapshots.
+  `{"layer": "scent", "diffuse": 0.1}` and `{"layer": "scent", "decay": 0.05}`. A set past the layer's min/max is
+  refused like a prop's (saturate with `$min`/`$clamp`); diffuse and decay stay within it. Layers are kept in snapshots.
 * Cellular automata and simultaneous updates: an `each` event with `"sync": true` — every item's rules read the
   world as it was before the event and all writes land together (Game of Life is one event:
   `"$n = $count($near($it, 1), $it.on)", "$it.on = $n == 3 or ($it.on and $n == 2)"`). `"order": "random"` (or an
@@ -539,12 +541,14 @@ Stored values stay exact.
 * a tool offered when none of its choices could succeed;
 * sealed choices that overwrite each other's values;
 * an agent type that never had an action it could take;
+* a coded policy rule whose call was refused every time it was tried (`policy_rule_never_acted`), quoting the refusal;
 * a stage that can never run, or a measure that reads only what no rule changes;
 * host answers that were the contract's fallback stand-ins because no host was bound;
 * with model participants, an action that was mostly refused.
 
 `fg-env check` plays up to 12 rounds with random agents and again with each policy, and reports what those plays
-reveal: crashes as errors (naming the policy that ran into one), diagnostics and always-refused policy rules as warnings.
+reveal: crashes as errors (naming the policy that ran into one), diagnostics (including each policy's always-refused
+rules) as warnings.
 `--rounds 30` plays exactly that many for more evidence.
 
 `result.events` is the log in order: `{seq, round, stage, kind, actor, text, data}`. Its kinds are `action`,

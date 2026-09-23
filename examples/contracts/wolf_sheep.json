@@ -52,7 +52,7 @@
         {"if": "$chance($inputs.wolf_reproduce)", "then": [
           "$w.energy /= 2", {"create": "wolf", "at": "$w.at", "props": {"energy": "$w.energy"}}]}]}
     ]},
-    {"name": "grass", "phase": "end", "do": [{"layer": "regrow", "set": "$value - 1"}]}
+    {"name": "grass", "phase": "end", "do": [{"layer": "regrow", "set": "$value - 1", "where": "$value > 0"}]}
   ],
   "metrics": {
     "sheep": "$count(sheep)",

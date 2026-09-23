@@ -81,3 +81,25 @@ def test_additional_permission_terms_cannot_be_short_circuited_by_the_author_gua
     assert w.entry_visible("notes", entry, w.entities["b"])
     w.set_world("allow", False)
     assert not w.entry_visible("notes", entry, w.entities["b"])
+
+
+def test_a_def_reads_records_as_the_agent_its_view_renders_for_may_see_them():
+    """A def called in a view sees the viewer's records, not every record; its cached value is per viewer."""
+    contract = {"name": "Diaries", "clock": {"rounds": 2},
+                "types": {"writer": {"agent": True}},
+                "entities": {"a": {"type": "writer"}, "b": {"type": "writer"}},
+                "records": {"notes": {"fields": {"text": "text"}, "visible": "$viewer.id == $it.author"}},
+                "defs": {"mine": {"expr": "$len($records(notes))"}},
+                "actions": {"write": {"by": "writer", "do": [{"post": "notes", "text": "hi"}]}},
+                "views": {"count": {"for": "writer", "show": "def {$mine} direct {$len($records(notes))}"}}}
+    seen = {}
+
+    def play(wake):
+        if wake.round == 1 and wake.entity_id == "a":
+            wake.call("write", {})
+        elif wake.round == 2:
+            seen[wake.entity_id] = wake.update
+        wake.end()
+
+    fg_env.run(contract, play, seed=1)
+    assert "def 1 direct 1" in seen["a"] and "def 0 direct 0" in seen["b"]

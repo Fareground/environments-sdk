@@ -43,10 +43,13 @@ def smoke_issues(contract: Contract, build: Callable[[], "Env"], rounds: Optiona
         warnings.append(Issue(found["path"], f"{found['message']} (smoke run of {random_play.rounds} round(s), "
                               "random agents)", found["fix"], "warning"))
     for name, players in policies:
-        agent = PolicyAgent(contract, name, seed)
+        agent, who = PolicyAgent(contract, name, seed), f"policy '{name}' playing {', '.join(players)}"
         played = _play(build(), {kind: agent for kind in players}, rounds, seconds)
-        _failure(played, f"policy '{name}' playing {', '.join(players)}", errors)
-        warnings.extend(_refusals(agent, played.rounds))
+        _failure(played, who, errors)
+        warnings.extend(Issue(found["path"], f"{found['message']} (smoke run of {played.rounds} round(s), {who})",
+                              found["fix"], "warning")
+                        for found in played.diagnostics
+                        if found["code"] == "policy_rule_never_acted" and found["path"].startswith(f"policies.{name}."))
     return errors, warnings
 
 
@@ -90,14 +93,6 @@ def _failure(result: RunResult, who: str, errors: List[Issue]) -> None:
     if any(e.path == issue.path and e.message.startswith(issue.message) for e in errors):
         return
     errors.append(Issue(issue.path, f"{issue.message} (smoke run of {result.rounds} round(s), {who})", issue.fix))
-
-
-def _refusals(agent: PolicyAgent, rounds: int) -> List[Issue]:
-    """A warning for each rule of the policy whose call was refused every time it was tried."""
-    return [Issue(path, f"policy '{agent.name}' tried this rule {count} time(s) in a smoke run of {rounds} round(s) "
-                        f"and it was refused every time: {reason}",
-                  "fix its `with` so the arguments are valid, or its `when` so it is tried only when they are", "warning")
-            for path, (count, reason) in agent.refused.items() if path not in agent.acted]
 
 
 def _reading(agent: Any) -> Any:

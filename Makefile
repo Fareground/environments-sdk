@@ -8,7 +8,7 @@ test:
 	$(RUN) -m pytest tests -q -n auto
 
 lint:
-	ruff check src tests
+	ruff check src tests scripts
 
 # Regenerate the committed contract JSON Schema after a deliberate contract change.
 schema:

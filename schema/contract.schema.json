@@ -1619,6 +1619,7 @@
             }
           ],
           "default": null,
+          "description": "Lowest allowed value: a set below it is refused, never clamped (saturate with $clamp); diffuse and decay stay within it.",
           "title": "Min"
         },
         "max": {
@@ -1631,6 +1632,7 @@
             }
           ],
           "default": null,
+          "description": "Highest allowed value: a set above it is refused, never clamped (saturate with $clamp); diffuse and decay stay within it.",
           "title": "Max"
         },
         "description": {
@@ -2906,6 +2908,7 @@
             }
           ],
           "default": null,
+          "description": "Lowest allowed link value: a write below it is refused, never clamped (saturate with $clamp).",
           "title": "Min"
         },
         "max": {
@@ -2918,6 +2921,7 @@
             }
           ],
           "default": null,
+          "description": "Highest allowed link value: a write above it is refused, never clamped (saturate with $clamp).",
           "title": "Max"
         },
         "props": {

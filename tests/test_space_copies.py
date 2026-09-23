@@ -13,7 +13,7 @@ GRAZE = {
         "$actor.fed += $layer(grass, $actor)",
         {"layer": "grass", "at": "$actor", "set": 0},
         {"if": "$chance(0.2)", "then": [{"fail": "The cow wandered back."}]}]}},
-    "events": [{"phase": "end", "do": [{"layer": "grass", "set": "$value + 1"}]}],
+    "events": [{"phase": "end", "do": [{"layer": "grass", "set": "$min($value + 1, 3)"}]}],
     "metrics": {"crowded": "$count(cow, $len($near($it, 1)) > 1)", "grass": "$sum($cells(), $layer(grass, $it))"},
 }
 

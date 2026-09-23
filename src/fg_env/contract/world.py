@@ -134,8 +134,8 @@ class LayerSpec(_Model):
 
     type: TypeName = Field("number", description="One of: " + ", ".join(LAYER_TYPES))
     default: Any = Field(0, description="Every cell's starting value: a literal, or an expression over $cell (its position) and $inputs.")
-    min: Optional[float] = None
-    max: Optional[float] = None
+    min: Optional[float] = Field(None, description="Lowest allowed value: a set below it is refused, never clamped (saturate with $clamp); diffuse and decay stay within it.")
+    max: Optional[float] = Field(None, description="Highest allowed value: a set above it is refused, never clamped (saturate with $clamp); diffuse and decay stay within it.")
     description: str = ""
 
 
@@ -268,8 +268,8 @@ class RelationSpec(_Model):
 
     symmetric: bool = False
     default: Optional[float] = Field(None, description="Value of a link made without one (default 1).")
-    min: Optional[float] = None
-    max: Optional[float] = None
+    min: Optional[float] = Field(None, description="Lowest allowed link value: a write below it is refused, never clamped (saturate with $clamp).")
+    max: Optional[float] = Field(None, description="Highest allowed link value: a write above it is refused, never clamped (saturate with $clamp).")
     props: Dict[str, PropSpec] = Field(default_factory=dict, description="Typed fields every link carries, read as $link(a, b, kind).field; defaults may be expressions over $from and $to.")
     description: str = ""
 

@@ -26,6 +26,6 @@ Positions: a grid, a graph of places or a plane, with values on cells.
 Read with ``$layer(name, position)``; changed by the ``layer`` effect.
 - `type`: text = "number" — One of: number, int, bool
 - `default`: any = 0 — Every cell's starting value: a literal, or an expression over $cell (its position) and $inputs.
-- `min`: number
-- `max`: number
+- `min`: number — Lowest allowed value: a set below it is refused, never clamped (saturate with $clamp); diffuse and decay stay within it.
+- `max`: number — Highest allowed value: a set above it is refused, never clamped (saturate with $clamp); diffuse and decay stay within it.
 - `description`: text

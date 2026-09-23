@@ -191,6 +191,13 @@ def test_graph_queries_measure_path_length():
     assert env.world.space.geometry.adjacent("b") == ["a", "c"]
 
 
+def test_a_graph_edge_naming_a_place_the_built_nodes_lack_is_refused_at_the_edge():
+    """The nodes come from an input, so only the build can tell the edge names a place that is not there."""
+    with pytest.raises(fg_env.RunError, match=r"space\.graph\.edges\[2\]: 'd' is not a place \(places: a, b, c\).*"
+                                              r"add it to the nodes or fix the edge"):
+        fg_env.load(GRAPH, inputs={"towns": ["a", "b", "c"]}, seed=1)
+
+
 PLANE = {
     "name": "Pond",
     "space": {"plane": {"width": 10, "height": 10, "torus": True}},

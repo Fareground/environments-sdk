@@ -405,7 +405,7 @@ def test_unique_outputs_and_tools_in_hand():
     env.run(play, rounds=1)
     assert all(r.ok for r in ok(play.results)), [r.text for r in ok(play.results)]
     assert [e["props"]["owner"] for e in env.entities("axe")] == ["kim"]
-    assert env.entity("kim")["props"]["goods"] == {"wood": 2}
+    assert env.entity("kim")["props"]["goods"] == {"grain": 0, "flour": 0, "wood": 2}
     assert env.props["goods_flows"]["carve"] == {"wood": -3, "axe": 1}
 
 

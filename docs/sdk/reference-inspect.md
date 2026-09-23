@@ -14,12 +14,14 @@ Stored values stay exact.
 * a tool offered when none of its choices could succeed;
 * sealed choices that overwrite each other's values;
 * an agent type that never had an action it could take;
+* a coded policy rule whose call was refused every time it was tried (`policy_rule_never_acted`), quoting the refusal;
 * a stage that can never run, or a measure that reads only what no rule changes;
 * host answers that were the contract's fallback stand-ins because no host was bound;
 * with model participants, an action that was mostly refused.
 
 `fg-env check` plays up to 12 rounds with random agents and again with each policy, and reports what those plays
-reveal: crashes as errors (naming the policy that ran into one), diagnostics and always-refused policy rules as warnings.
+reveal: crashes as errors (naming the policy that ran into one), diagnostics (including each policy's always-refused
+rules) as warnings.
 `--rounds 30` plays exactly that many for more evidence.
 
 `result.events` is the log in order: `{seq, round, stage, kind, actor, text, data}`. Its kinds are `action`,

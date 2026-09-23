@@ -68,8 +68,8 @@ class World:
         """Whether the contract declares a def called ``name`` (with or without arguments)."""
         return False
 
-    def call_def(self, name: str, args: List[Any], source: str) -> Any:
-        """Call a contract-defined function (``defs``). The empty world has none."""
+    def call_def(self, name: str, args: List[Any], source: str, viewer: Any = None) -> Any:
+        """Call a contract-defined function (``defs``), which sees the caller's ``viewer``. The empty world has none."""
         from .calls import FUNCTIONS, suggest_function
 
         hint = suggest_function(name, list(FUNCTIONS))
@@ -98,6 +98,6 @@ class Scope:
             return self.vars[name]
         except KeyError:
             if self.world.has_def(name):  # a def without arguments reads like a value: $negotiating
-                return _held(lambda: self.world.call_def(name, [], source))
+                return _held(lambda: self.world.call_def(name, [], source, self.vars.get("viewer")))
             available = ", ".join(f"${k}" for k in sorted(self.vars)) or "none"
             raise ExprError(f"${name} is not available here (available: {available})", source) from None

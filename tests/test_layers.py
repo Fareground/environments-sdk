@@ -10,7 +10,7 @@ FIELD = {
     "name": "Field",
     "clock": {"rounds": 3},
     "space": {"grid": {"rows": 3, "cols": 3},
-              "layers": {"sugar": {"type": "int", "default": "$cell[0] + $cell[1]", "max": 3},
+              "layers": {"sugar": {"type": "int", "default": "$min($cell[0] + $cell[1], 3)", "max": 3},
                          "scent": {"default": 0.0},
                          "alive": {"type": "bool", "default": False}}},
     "types": {"ant": {"agent": True, "props": {"eaten": 0}}},
@@ -31,7 +31,7 @@ def _with(events, **space):
     return contract
 
 
-def test_layer_defaults_read_their_cell_and_keep_to_type_and_bounds():
+def test_layer_defaults_read_their_cell_and_keep_to_type():
     env = fg_env.load(FIELD, seed=1)
     assert _layer(env, "sugar") == [0, 1, 2, 1, 2, 3, 2, 3, 3]
     assert evaluate("$layer(sugar, [0, 1]) + $layer(scent, [2, 2])", env.world.scope()) == 1.0

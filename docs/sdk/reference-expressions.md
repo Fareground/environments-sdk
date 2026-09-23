@@ -24,7 +24,8 @@ Any string containing `$name` is an expression; other strings are literal text.
   validation enforces the rule).
 * Reserved roots cannot be used as local names: $actor $params $it $i $row $inputs $world $physics
   $clock $round $stage $metrics $series $arm $viewer $event $outer $pending $result.
-* Contract `defs` are called like built-ins: `$utility($actor, $params.offer)`.
+* Contract `defs` are called like built-ins: `$utility($actor, $params.offer)`. A def reads `$records` and
+  `$events` as its caller does: in a view or an agent's choices, only what that agent may see.
 * Bare words are text even when they match a property name: write `$actor.bet`, not `bet`.
 * Strict: unknown props, missing roots and type errors are errors, never silent zeros.
 

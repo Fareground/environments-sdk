@@ -142,10 +142,9 @@ def link(world: "SdkWorld", kind: str, a: Any, b: Any, value: Any, where: str,
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise RunError(f"link value must be a number, got {value!r}", where)
     value = float(value)
-    if spec.min is not None:
-        value = max(spec.min, value)
-    if spec.max is not None:
-        value = min(spec.max, value)
+    from .world import within_bounds
+
+    within_bounds(spec, value, f"{_name(world, key[0])}'s {kind} link to {_name(world, key[1])}")
     table = world.link_fields[kind]
     had_fields = key in table
     old_fields = table.get(key)
@@ -239,6 +238,11 @@ def unlink(world: "SdkWorld", kind: str, a: Any, b: Any, where: str) -> None:
         _adjust(world, kind, key, 1)
 
     world.journal.push(undo)
+
+
+def _name(world: "SdkWorld", entity: str) -> str:
+    found = world.entities.get(entity)
+    return found.name if found is not None else entity
 
 
 def _adjust(world: "SdkWorld", kind: str, key: Key, delta: int) -> None:
