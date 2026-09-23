@@ -53,6 +53,14 @@ Every run is now either correct or fails loudly (T-797 phase 1). Several default
   seat wins every contested item; set `order: "seat"` for the old behaviour. A sealed choice is checked at submit
   after the agent's own earlier choices in that stage. Resolving all choices together is written in the stage's
   `on_exit`; the guide shows a sealed bid, a pro-rata split and rock-paper-scissors (T-807).
+- The template-based kernel is removed: `fg_env.legacy`, every template-engine module (`fg_env.engine`,
+  `fg_env.pipeline`, `fg_env.runtime`, `fg_env.domain` and the rest), the `fg-env legacy` command,
+  `PhysicsModel.tick`/`from_schema`, and the template docs and scripts. That is about 30k lines of source. Pin
+  `fg-env<0.8` if you still need it (T-814).
+- `env.snapshot()` works on a run stopped part-way through a round, and `Env.restore` continues it exactly. A
+  snapshot taken while a round is actively playing raises. `fg_env.fork` refuses a part-way snapshot. A `wake` with
+  `now` runs after the waking action commits; the guide now says so and shows the response-stack pattern for
+  objections that must land before something takes effect (T-808).
 
 ### Added
 - Several deliberation, channels, feed, beliefs or factions mechanisms in one contract. Their functions take an
