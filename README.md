@@ -102,7 +102,7 @@ contract = {
     "entities": {"ann": {"type": "player"}, "bob": {"type": "player"}},
     "actions": {"bet": {"by": "player", "params": {"amount": {"type": "int", "min": 1, "max": "$actor.coins"}},
                         "do": "$actor.coins += $params.amount if $chance(0.5) else -$params.amount"}},
-    "outputs": {"richest": "$best(player, $it.coins, 'random').name"},
+    "outputs": {"richest": "$best(player, $it.coins).name"},
 }
 
 print(fg_env.check(contract))        # [] — every problem would come with its path and a fix
