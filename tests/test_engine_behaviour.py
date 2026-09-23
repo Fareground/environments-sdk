@@ -356,3 +356,30 @@ def test_every_declared_numeric_input_moves_an_output_across_its_range(engine_id
     it is listed in _INERT with the reason no output can show it."""
     changed = _swept_outputs(engine_id, name, low) != _swept_outputs(engine_id, name, high)
     assert changed != ((engine_id, name) in _INERT), _INERT.get((engine_id, name), f"{name} changed no output of {engine_id}")
+
+
+def test_the_market_sample_stands_for_the_city_so_capacity_scales_with_it():
+    def one_day(size):
+        env = fg_env.engines.load("market", inputs={"sample_size": size})
+        return env, env.run(rounds=1).outputs
+
+    small, _ = one_day(150)
+    large, outputs = one_day(2000)
+    capacity = {env: {c["id"]: c["props"]["capacity"] for c in env.entities("cafe")} for env in (small, large)}
+    assert capacity[small]["bean_there"] == 42 and capacity[large]["bean_there"] == pytest.approx(42 * 2000 / 150, rel=0.01)
+    assert outputs["turned_away_total"] == 0  # the same city, sampled finer: nobody is turned away on day one
+
+
+def test_the_chain_launch_refuses_a_launch_after_the_run_ends():
+    path = Path(str(files("fg_env.engines").joinpath(fg_env.engines.get("market").path)))
+    with pytest.raises(fg_env.InvariantViolation, match="launch_day no later than days"):
+        fg_env.load(path, inputs={"days": 28, "launch_day": 40}, arm="chain_launch")
+
+
+@pytest.mark.parametrize("engine_id, inputs, output", [
+    ("population", {"participants": []}, "support_share"),
+    ("matching", {"applicants": []}, "match_rate"),
+    ("network", {"participants": [], "ties": []}, "adoption_rate"),
+])
+def test_a_rate_over_nobody_is_null_not_zero(engine_id, inputs, output):
+    assert run(engine_id, inputs=inputs).outputs[output] is None
