@@ -98,6 +98,7 @@ def test_a_ledger_still_catches_cash_the_author_creates_outside_its_sources():
     contract = economy({"money": {"kind": "economy", "mode": "ledger", "who": "trader", "currencies": {"cash": {"start": 1000}}},
                         "acme": MARKETS["acme"]},
                        actions={"earn": {"by": "trader", "do": ["$actor.cash += 100"]}})
+    contract["types"]["trader"]["props"] = {"acme_shares": 100}
     participant, _ = scripted({(1, "a"): [("earn", {})]})
     result = fg_env.load(contract, seed=1).run(participant, rounds=1)
     assert result.status == "failed" and "named sources and sinks" in result.error

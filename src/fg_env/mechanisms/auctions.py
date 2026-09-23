@@ -44,6 +44,7 @@ from ..world import Abort
 from ._common import ToolsSetting, tools_field
 from ._social import check_expr
 from .common import config_of, entity_of, fmt, number
+from .econ_base import money_prop
 from .ledger import Account, balance, clean, move
 from .package_auction import MAX_PACKAGE_BIDS, MAX_PACKAGE_ITEMS, PackageBid, SearchLimit, settle
 
@@ -618,8 +619,8 @@ def _register_actions() -> None:
 _register_actions()
 
 
-def _party_props(name: str, cfg: AuctionConfig) -> Dict[str, Any]:
-    props = {cfg.currency: {"type": "number", "default": 0},
+def _party_props(name: str, cfg: AuctionConfig, contract: Mapping[str, Any], holder: str) -> Dict[str, Any]:
+    props = {**money_prop(contract, holder, cfg.currency),
              f"{name}_units": {"type": "int", "default": 0, "description": f"Units of {cfg.item} held."},
              f"{name}_escrow": {"type": "number", "default": 0, "private": True, "description": "Cash held for open bids."},
              f"{name}_escrow_units": {"type": "int", "default": 0, "private": True},
@@ -689,14 +690,14 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
     _check_packages(cfg)
     _check_award(cfg)
     packaged = cfg.format == "combinatorial"
-    party_types = {cfg.who: {"props": _party_props(name, cfg)}}
+    party_types = {cfg.who: {"props": _party_props(name, cfg, contract, cfg.who)}}
     if cfg.format == "double":
-        party_types[cfg.sellers or cfg.who] = {"props": _party_props(name, cfg)}
+        party_types[cfg.sellers or cfg.who] = {"props": _party_props(name, cfg, contract, cfg.sellers or cfg.who)}
     if cfg.house:
         entity = (contract.get("entities") or {}).get(cfg.house)
         if not isinstance(entity, Mapping) or entity.get("type") not in types:
             raise MechanismError(f"house '{cfg.house}' is not a declared entity", "declare it under entities", "house")
-        party_types[entity["type"]] = {"props": _party_props(name, cfg)}
+        party_types[entity["type"]] = {"props": _party_props(name, cfg, contract, entity["type"])}
     sealed = cfg.format in SEALED
     single = cfg.format not in ("uniform", "double")
     receipt = f"{{$world.{name}_receipt}}"
