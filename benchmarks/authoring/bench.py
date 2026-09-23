@@ -51,6 +51,9 @@ def score(slug: str, transcript: Dict[str, Any]) -> Dict[str, Any]:
     else:
         evaluation = evaluate(final, required, checks)
     passed = sum(c["passed"] for c in evaluation["checks"])
+    saved = _saved(transcript["writes"], errors_per_write)
+    saved_passed = passed if saved is final else (
+        sum(c["passed"] for c in evaluate(saved, required, checks)["checks"]) if saved is not None else 0)
     usage = transcript["usage"]
     return {
         "brief": slug, "model": transcript["model"], "stop": transcript["stop"],
@@ -58,6 +61,7 @@ def score(slug: str, transcript: Dict[str, Any]) -> Dict[str, Any]:
         "final_clean": bool(errors_per_write) and not errors_per_write[-1] and isinstance(transcript["writes"][-1], dict),
         "runs_ok": sum(r["ok"] for r in evaluation["runs"]), "runs": len(evaluation["runs"]),
         "checks_passed": passed, "checks": len(evaluation["checks"]),
+        "saved_checks_passed": saved_passed,
         "input_tokens": usage["input_tokens"], "output_tokens": usage["output_tokens"],
         "cost": round(usage.get("cost", 0.0), 4), "wall_seconds": transcript["wall_seconds"],
         "contract_lines": len(json.dumps(final, indent=2).splitlines()) if final else 0,
@@ -66,6 +70,18 @@ def score(slug: str, transcript: Dict[str, Any]) -> Dict[str, Any]:
         "failed_checks": [c for c in evaluation["checks"] if not c["passed"]],
         "run_errors": [r for r in evaluation["runs"] if not r["ok"]],
     }
+
+
+def _saved(writes: List[Any], errors_per_write: List[List[str]]) -> Optional[Dict[str, Any]]:
+    """The contract ``fg_env.author`` keeps: the latest write that checks clean and runs once (seed 1)."""
+    for written, errors in zip(reversed(writes), reversed(errors_per_write)):
+        if isinstance(written, dict) and not errors:
+            try:
+                fg_env.load(written, seed=1).run(None, budget={"seconds": 60})
+            except Exception:
+                continue
+            return written
+    return None
 
 
 def friction(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -95,9 +111,11 @@ def scorecard(rows: List[Dict[str, Any]], title: str) -> str:
                      f"{r['input_tokens']:,}/{r['output_tokens']:,} | ${r['cost']:.3f} | {r['wall_seconds']:.0f} | "
                      f"{r['contract_lines']} | {guide_tokens} | {', '.join(r['guide_parts']) or '-'} |")
     passed, total = sum(r["checks_passed"] for r in rows), sum(r["checks"] for r in rows)
+    saved = sum(r.get("saved_checks_passed", r["checks_passed"]) for r in rows)
     lines += ["", f"**Aggregate:** clean check {sum(bool(r['clean_at']) for r in rows)}/{len(rows)} · "
               f"all runs ok {sum(r['runs'] > 0 and r['runs_ok'] == r['runs'] for r in rows)}/{len(rows)} · "
               f"fidelity {passed}/{total} ({passed / max(total, 1):.0%}) · "
+              f"fidelity of the contract `fg_env.author` saves {saved}/{total} ({saved / max(total, 1):.0%}) · "
               f"tokens {sum(r['input_tokens'] for r in rows):,} in / {sum(r['output_tokens'] for r in rows):,} out · "
               f"${sum(r['cost'] for r in rows):.3f}", "", "## Check errors authors hit (most frequent first)", ""]
     lines += [f"- {f['count']}× `{f['message']}` — e.g. `{f['example'][:220]}`" for f in friction(rows)[:25]]

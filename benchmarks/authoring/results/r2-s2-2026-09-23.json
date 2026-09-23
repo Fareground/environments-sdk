@@ -1,0 +1,700 @@
+[
+ {
+  "brief": "auction_house",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "tokens",
+  "writes": 6,
+  "clean_at": 4,
+  "final_clean": false,
+  "runs_ok": 0,
+  "runs": 3,
+  "checks_passed": 0,
+  "checks": 4,
+  "saved_checks_passed": 1,
+  "input_tokens": 495967,
+  "output_tokens": 118406,
+  "cost": 0.0587,
+  "wall_seconds": 1585.5,
+  "contract_lines": 505,
+  "guide_parts": [
+   "guide",
+   "mechanisms",
+   "stages",
+   "actions",
+   "expressions",
+   "effects",
+   "functions.collections",
+   "views",
+   "defs",
+   "types",
+   "population",
+   "events",
+   "market",
+   "market.auction",
+   "policies",
+   "outputs",
+   "brief",
+   "inputs"
+  ],
+  "guide_chars": 57039,
+  "check_errors": [
+   [
+    "stages[0].who: $actor is not available here \u2192 available: $arm, $clock, $i, $inputs, $it, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world \u2014 in `$world.high_bidder != $actor.id and $actor.cash >= $world.high_bid + $inputs.min_increment`",
+    "stages[1].who: $actor is not available here \u2192 available: $arm, $clock, $i, $inputs, $it, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world \u2014 in `$actor.cash > 0`"
+   ],
+   [
+    "painting.open_round: 'painting' has no property 'open_round' (declared: lot, format, open, closed, sold, winner, price, high_bid, high_bidder, bids, seqs, bid_submitted) (smoke run of 1 round(s), random agents) \u2192 fix the rule at this path (found by a smoke run)"
+   ],
+   [
+    "views.on_the_block: template 'Lot {lot} is open for bids. High bid {high_bid|money} by {high_bidder}. Minimum raise: {high_bid + $inputs.min_increment|money}. This painting is worth {$get($actor.valuations, $it.lot - 1, 0)|money} to you.': expected a number, got str 'high_bid' \u2014 in `high_bid + $inputs.min_increment` (smoke run of 1 round(s), random agents) \u2192 fix the rule at this path (found by a smoke run)"
+   ],
+   [],
+   [
+    "stages[1].who: $actor is not available here \u2192 available: $arm, $clock, $i, $inputs, $it, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world \u2014 in `$it.cash > 0 and $any(painting, $it.format == sealed and $it.open and not $it.closed and $get($actor.bids, $it.id, -1) < 0)`"
+   ],
+   [
+    "stages[1].who: $it.bids: painting has no property 'bids' \u2192 properties: closed, format, high_bid, high_bidder, lot, open, open_round, price, sold, winner \u2014 in `$it.cash > 0 and $any(painting, $it.format == sealed and $it.open and not $it.closed and $get($it.bids, $it.id, -1) < 0)`"
+   ]
+  ],
+  "failed_checks": [
+   {
+    "check": "outputs_present",
+    "passed": false,
+    "why": "random runs fail"
+   },
+   {
+    "check": "auction_lots_are_well_formed",
+    "passed": false,
+    "why": "random runs fail"
+   },
+   {
+    "check": "auction_money_is_conserved",
+    "passed": false,
+    "why": "random runs fail"
+   },
+   {
+    "check": "auction_english_lots_sell",
+    "passed": false,
+    "why": "random runs fail"
+   }
+  ],
+  "run_errors": [
+   {
+    "participants": "random",
+    "seed": 1,
+    "ok": false,
+    "error": "ContractError: contract is invalid (1 error(s)):\n  - stages[1].who: $it.bids: painting has no property 'bids' \u2192 properties: closed, format, high_bid, high_bidder, lot, open, open_round, price, sold, winner \u2014 in `$it.cash > 0 and $any(painting, $it.format == sealed and $it.open and not $it.closed and"
+   },
+   {
+    "participants": "random",
+    "seed": 2,
+    "ok": false,
+    "error": "ContractError: contract is invalid (1 error(s)):\n  - stages[1].who: $it.bids: painting has no property 'bids' \u2192 properties: closed, format, high_bid, high_bidder, lot, open, open_round, price, sold, winner \u2014 in `$it.cash > 0 and $any(painting, $it.format == sealed and $it.open and not $it.closed and"
+   },
+   {
+    "participants": "random",
+    "seed": 3,
+    "ok": false,
+    "error": "ContractError: contract is invalid (1 error(s)):\n  - stages[1].who: $it.bids: painting has no property 'bids' \u2192 properties: closed, format, high_bid, high_bidder, lot, open, open_round, price, sold, winner \u2014 in `$it.cash > 0 and $any(painting, $it.format == sealed and $it.open and not $it.closed and"
+   }
+  ]
+ },
+ {
+  "brief": "beer_game",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "tokens",
+  "writes": 8,
+  "clean_at": 2,
+  "final_clean": true,
+  "runs_ok": 6,
+  "runs": 6,
+  "checks_passed": 0,
+  "checks": 6,
+  "saved_checks_passed": 0,
+  "input_tokens": 467338,
+  "output_tokens": 143373,
+  "cost": 0.0687,
+  "wall_seconds": 1907.5,
+  "contract_lines": 366,
+  "guide_parts": [
+   "effects",
+   "expressions",
+   "functions.collections",
+   "stages",
+   "events",
+   "outputs",
+   "functions.random",
+   "brief",
+   "population",
+   "views",
+   "inputs",
+   "clock",
+   "end",
+   "metrics",
+   "policies",
+   "invariants",
+   "actions",
+   "inspect",
+   "world"
+  ],
+  "guide_chars": 48660,
+  "check_errors": [
+   [
+    "actions.probe.do[1]: unexpected `{` on the left side of the assignment \u2192 write `$actor.cash -= 5`, `$world.board[$i][$j] = x` or `$total = 3`"
+   ],
+   [],
+   [],
+   [
+    "events[0].do[1]: $slice: '$map($range($inputs.lead_time), 4)' is not an entity type (pass a type name or a list) \u2014 in `$slice($world.pipe[$it.id], 1)` (smoke run of 1 round(s), random agents) \u2192 fix the rule at this path (found by a smoke run)"
+   ],
+   [
+    "actions.produce.by: 'factory' is not a declared type \u2192 types: company",
+    "actions.ship.outcome: '{backlog}' needs a subject; write {$actor.backlog} or similar \u2192 template: You shipped {$params.quantity} cases and still owe {backlog} cases.",
+    "views.your company.show: $sum(pipeline, \u2026): 'pipeline' is not a declared type \u2192 types: company"
+   ],
+   [],
+   [],
+   []
+  ],
+  "failed_checks": [
+   {
+    "check": "outputs_present",
+    "passed": false,
+    "why": "missing required outputs ['customer_demand', 'factory_orders', 'total_team_cost', 'bullwhip_ratio'] (has ['costs_by_role', 'hist'])"
+   },
+   {
+    "check": "beer_demand_is_random_and_in_range",
+    "passed": false,
+    "why": "KeyError: 'customer_demand'"
+   },
+   {
+    "check": "beer_demand_is_exogenous",
+    "passed": false,
+    "why": "KeyError: 'customer_demand'"
+   },
+   {
+    "check": "beer_costs_add_up",
+    "passed": false,
+    "why": "KeyError: 'total_team_cost'"
+   },
+   {
+    "check": "beer_idle_team_pays_backlog",
+    "passed": false,
+    "why": "KeyError: 'total_team_cost'"
+   },
+   {
+    "check": "beer_bullwhip_matches_its_definition",
+    "passed": false,
+    "why": "KeyError: 'customer_demand'"
+   }
+  ],
+  "run_errors": []
+ },
+ {
+  "brief": "classroom",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "done",
+  "writes": 3,
+  "clean_at": 3,
+  "final_clean": true,
+  "runs_ok": 3,
+  "runs": 3,
+  "checks_passed": 4,
+  "checks": 4,
+  "saved_checks_passed": 4,
+  "input_tokens": 155751,
+  "output_tokens": 13528,
+  "cost": 0.0179,
+  "wall_seconds": 93.9,
+  "contract_lines": 206,
+  "guide_parts": [
+   "views",
+   "actions",
+   "stages",
+   "events",
+   "effects",
+   "outputs",
+   "functions.collections",
+   "policies",
+   "expressions"
+  ],
+  "guide_chars": 36344,
+  "check_errors": [
+   [
+    "actions.study.outcome: '{params.effort}' needs a subject; write {$actor.params.effort} or similar \u2192 template: You will study {params.effort} this week.",
+    "actions.study.announce: '{params.effort}' needs a subject; write {$actor.params.effort} or similar \u2192 template: {$actor.name} chose to study {params.effort}."
+   ],
+   [
+    "invariants[0]: cannot read '.scores' of null \u2014 in `$all(student, $all($outer.scores, $it >= 0 and $it <= 10))` \u2192 fix the rule at this path (found by a smoke run)"
+   ],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "ed_triage",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "tokens",
+  "writes": 7,
+  "clean_at": 1,
+  "final_clean": true,
+  "runs_ok": 12,
+  "runs": 12,
+  "checks_passed": 4,
+  "checks": 4,
+  "saved_checks_passed": 4,
+  "input_tokens": 539862,
+  "output_tokens": 83149,
+  "cost": 0.0472,
+  "wall_seconds": 1156.7,
+  "contract_lines": 404,
+  "guide_parts": [
+   "patterns",
+   "events",
+   "effects",
+   "functions.random",
+   "actions",
+   "stages",
+   "views",
+   "policies",
+   "functions.collections",
+   "patterns.counts",
+   "patterns.draw",
+   "outputs",
+   "inputs",
+   "population",
+   "metrics",
+   "brief"
+  ],
+  "guide_chars": 50197,
+  "check_errors": [
+   [],
+   [],
+   [],
+   [],
+   [],
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "jury_trial",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "done",
+  "writes": 6,
+  "clean_at": 2,
+  "final_clean": true,
+  "runs_ok": 3,
+  "runs": 3,
+  "checks_passed": 4,
+  "checks": 4,
+  "saved_checks_passed": 4,
+  "input_tokens": 580741,
+  "output_tokens": 61198,
+  "cost": 0.0887,
+  "wall_seconds": 230.0,
+  "contract_lines": 459,
+  "guide_parts": [
+   "stages",
+   "actions",
+   "effects",
+   "events",
+   "views",
+   "records",
+   "outputs",
+   "inputs",
+   "population",
+   "functions.collections",
+   "types",
+   "expressions",
+   "guide",
+   "inspect",
+   "end",
+   "policies"
+  ],
+  "guide_chars": 46440,
+  "check_errors": [
+   [
+    "types.exhibit.props.name: 'name' is a built-in entity field \u2192 remove name from props; set name on the entity or population entry, outside props"
+   ],
+   [],
+   [],
+   [],
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "labor_negotiation",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "done",
+  "writes": 7,
+  "clean_at": 2,
+  "final_clean": true,
+  "runs_ok": 3,
+  "runs": 3,
+  "checks_passed": 4,
+  "checks": 4,
+  "saved_checks_passed": 4,
+  "input_tokens": 519336,
+  "output_tokens": 57026,
+  "cost": 0.0837,
+  "wall_seconds": 195.9,
+  "contract_lines": 442,
+  "guide_parts": [
+   "stages",
+   "actions",
+   "effects",
+   "expressions",
+   "events",
+   "end",
+   "views",
+   "outputs",
+   "inputs",
+   "population",
+   "policies"
+  ],
+  "guide_chars": 37134,
+  "check_errors": [
+   [
+    "stages[1].order: syntax error: invalid syntax \u2192 expression: $it.type == (union_negotiator if $round % 2 == 1 else company_negotiator) ? 0 : 1"
+   ],
+   [],
+   [],
+   [],
+   [],
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "sealed_tender",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "done",
+  "writes": 4,
+  "clean_at": 3,
+  "final_clean": true,
+  "runs_ok": 6,
+  "runs": 6,
+  "checks_passed": 4,
+  "checks": 4,
+  "saved_checks_passed": 4,
+  "input_tokens": 468586,
+  "output_tokens": 33911,
+  "cost": 0.0495,
+  "wall_seconds": 441.7,
+  "contract_lines": 372,
+  "guide_parts": [
+   "mechanisms",
+   "records",
+   "patterns",
+   "stages",
+   "market.auction",
+   "groups.roles",
+   "social.channels",
+   "functions.collections",
+   "expressions",
+   "effects",
+   "outputs",
+   "events",
+   "inputs",
+   "population",
+   "types",
+   "functions.random",
+   "groups",
+   "policies"
+  ],
+  "guide_chars": 68048,
+  "check_errors": [
+   [
+    "events[0].do[1].do[0]: can only assign to an entity's property, a link's field, $world.x or $physics.x (`$it.colluder = true`) (smoke run of 1 round(s), random agents) \u2192 fix the rule at this path (found by a smoke run)"
+   ],
+   [
+    "events[1].do[2].else[0].then[1]: cannot read '.bid' of str 'firm_2' \u2014 in `$world.ranked[1].bid` (smoke run of 1 round(s), random agents) \u2192 fix the rule at this path (found by a smoke run)"
+   ],
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "sports_league",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "done",
+  "writes": 3,
+  "clean_at": 1,
+  "final_clean": true,
+  "runs_ok": 3,
+  "runs": 3,
+  "checks_passed": 4,
+  "checks": 4,
+  "saved_checks_passed": 4,
+  "input_tokens": 210450,
+  "output_tokens": 40660,
+  "cost": 0.0377,
+  "wall_seconds": 450.0,
+  "contract_lines": 458,
+  "guide_parts": [
+   "guide",
+   "stages",
+   "actions",
+   "expressions",
+   "functions.random",
+   "defs",
+   "population",
+   "outputs",
+   "functions.collections",
+   "effects",
+   "inputs",
+   "events",
+   "views",
+   "types",
+   "metrics",
+   "brief"
+  ],
+  "guide_chars": 44365,
+  "check_errors": [
+   [],
+   [
+    "(run): views.your matchday fixtures: template '{a} (home) v {b} (away)': no field 'a' (fields: away, home) \u2014 in `$it.a` (smoke run of 1 round(s), random agents) \u2192 fix the rule at this path (found by a smoke run)"
+   ],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "town_hall",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "tokens",
+  "writes": 7,
+  "clean_at": 1,
+  "final_clean": true,
+  "runs_ok": 12,
+  "runs": 12,
+  "checks_passed": 4,
+  "checks": 4,
+  "saved_checks_passed": 4,
+  "input_tokens": 567806,
+  "output_tokens": 59232,
+  "cost": 0.0323,
+  "wall_seconds": 831.3,
+  "contract_lines": 316,
+  "guide_parts": [
+   "stages",
+   "actions",
+   "effects",
+   "expressions",
+   "views",
+   "outputs",
+   "mechanisms",
+   "inputs",
+   "decision.ballot",
+   "records",
+   "events",
+   "population",
+   "functions.collections",
+   "clock",
+   "functions.random",
+   "metrics",
+   "end",
+   "inspect",
+   "policies"
+  ],
+  "guide_chars": 54305,
+  "check_errors": [
+   [],
+   [],
+   [],
+   [],
+   [],
+   [
+    "(contract): not valid JSON"
+   ],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "treaty",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "tokens",
+  "writes": 7,
+  "clean_at": 3,
+  "final_clean": true,
+  "runs_ok": 6,
+  "runs": 6,
+  "checks_passed": 3,
+  "checks": 4,
+  "saved_checks_passed": 3,
+  "input_tokens": 573153,
+  "output_tokens": 56779,
+  "cost": 0.0263,
+  "wall_seconds": 396.9,
+  "contract_lines": 325,
+  "guide_parts": [
+   "patterns",
+   "functions.random",
+   "population",
+   "types",
+   "records",
+   "actions",
+   "effects",
+   "stages",
+   "functions.collections",
+   "views",
+   "outputs",
+   "expressions",
+   "inputs",
+   "end",
+   "entities",
+   "world",
+   "metrics",
+   "brief",
+   "clock",
+   "invariants",
+   "guide",
+   "functions.text",
+   "mechanisms",
+   "policies"
+  ],
+  "guide_chars": 66110,
+  "check_errors": [
+   [
+    "actions.ratify.do[0].then[1]: $actor.ratified: nation has no property 'ratified' \u2192 properties: proposed, red_line \u2014 in `$actor.ratified = true`",
+    "views.table.show: $world.ratified_names: no such world property \u2192 declare it under `world`",
+    "metrics.ratified: $it.ratified: nation has no property 'ratified' \u2192 properties: proposed, red_line \u2014 in `$count(nation, $it.ratified)`",
+    "outputs.in_force: $world.in_force: no such world property \u2192 declare it under `world`",
+    "outputs.ratified_by: $it.ratified: nation has no property 'ratified' \u2192 properties: proposed, red_line \u2014 in `$map($filter(nation, $it.ratified), $it.id)`",
+    "outputs.agreed_cut: $world.agreed_cut: no such world property \u2192 declare it under `world`",
+    "invariants[2]: $it.ratified: nation has no property 'ratified' \u2192 properties: proposed, red_line \u2014 in `$all(nation, not $it.ratified or $it.red_line >= $world.proposal)`",
+    "defs.ratified_names.expr: $it.ratified: nation has no property 'ratified' \u2192 properties: proposed, red_line \u2014 in `$join($map($filter(nation, $it.ratified and $it.id in $keys($world.ratifications)), $it.name), ', ')`"
+   ],
+   [
+    "actions.propose.do[2]: $world.ratifications: no such world property \u2192 declare it under `world`",
+    "actions.ratify.do[1]: $world.ratifications: no such world property \u2192 declare it under `world`"
+   ],
+   [],
+   [],
+   [],
+   [],
+   []
+  ],
+  "failed_checks": [
+   {
+    "check": "treaty_red_lines_stay_secret",
+    "passed": false,
+    "why": "Norland was shown Westmark's red line 48: \u2026- Suria puts a proposal of a 11% emissions cut on the table.\n- Westmark puts a proposal of a 48% emissions cut on the table.\n\nThe table: The proposal on the table is a 48% emissions c\u2026"
+   }
+  ],
+  "run_errors": []
+ },
+ {
+  "brief": "weekly_inventory",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "done",
+  "writes": 3,
+  "clean_at": 1,
+  "final_clean": true,
+  "runs_ok": 6,
+  "runs": 6,
+  "checks_passed": 4,
+  "checks": 4,
+  "saved_checks_passed": 4,
+  "input_tokens": 377628,
+  "output_tokens": 34607,
+  "cost": 0.0433,
+  "wall_seconds": 455.6,
+  "contract_lines": 370,
+  "guide_parts": [
+   "patterns",
+   "stages",
+   "effects",
+   "actions",
+   "outputs",
+   "views",
+   "functions.random",
+   "inputs",
+   "events",
+   "world",
+   "metrics",
+   "policies",
+   "types",
+   "population",
+   "patterns.counts",
+   "guide",
+   "patterns.draw",
+   "expressions",
+   "functions.collections",
+   "patterns"
+  ],
+  "guide_chars": 69461,
+  "check_errors": [
+   [],
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "werewolf",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "tokens",
+  "writes": 6,
+  "clean_at": 2,
+  "final_clean": true,
+  "runs_ok": 15,
+  "runs": 15,
+  "checks_passed": 4,
+  "checks": 4,
+  "saved_checks_passed": 4,
+  "input_tokens": 566659,
+  "output_tokens": 41864,
+  "cost": 0.0643,
+  "wall_seconds": 320.2,
+  "contract_lines": 498,
+  "guide_parts": [
+   "stages",
+   "actions",
+   "events",
+   "views",
+   "end",
+   "mechanisms",
+   "outputs",
+   "functions.collections",
+   "groups.roles",
+   "decision.ballot",
+   "effects",
+   "population",
+   "inputs",
+   "records",
+   "policies",
+   "functions.random"
+  ],
+  "guide_chars": 47756,
+  "check_errors": [
+   [
+    "actions.wolf_kill.params.target.where: filters the choices by private role of other player agents: the tool's list of choices would reveal it to the actor \u2192 filter by what the actor may know (public properties, its own, a relation or a function such as $known_role), or accept any choice and decide in `do`"
+   ],
+   [],
+   [],
+   [],
+   [
+    "policies.cyclic.rules[3]: $sort: sort key must be a number, text, or a list of them, got bool True \u2014 in `$sort($filter(player, $it.in_game and $it.id != $actor.id), [$it.id > $actor.id, $it.id])[0]` (smoke run of 1 round(s), policy 'cyclic' playing player) \u2192 fix the rule at this path (found by a smoke run)"
+   ],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ }
+]
