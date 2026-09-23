@@ -90,6 +90,10 @@ Every run is now either correct or fails loudly (T-797 phase 1). Several default
   Structural check errors end with `see guide('<section>')`. In the authoring benchmark, authors read about a third
   less guide text and no session fetched `all` (T-819).
 
+- CI runs lint once plus tests on Python 3.11, 3.12 and 3.13 in parallel, and builds, installs and smoke-runs the
+  wheel on every PR. mypy checks strict optionals (5 modules exempted, each with its reason). ruff adds bugbear.
+  Goldens keep the first events as readable lines, so a mismatch shows where a run went a different way (T-816).
+
 ### Fixed
 - Build-time invariant errors no longer repeat their path (T-819).
 - Entity choices and tool schemas are worked out once per world state instead of up to six times per turn: a
