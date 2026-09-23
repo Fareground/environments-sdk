@@ -423,7 +423,7 @@ def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any])
     if config.abstain:
         actions[abstain] = {"by": config.who, "description": f"Abstain{question}.",
                             "when": [{"expr": open_ballot, "why": "You have already voted."}],
-                            "do": [f"$world.{ballots}[$actor.id] = '{ABSTAIN}'"],
+                            "do": [f"$world.{ballots}[$actor.id] = '{ABSTAIN}'"], "outcome": "You abstained.",
                             "private": config.private, "terminal": True}
     for action in actions.values():
         if action.get("outcome") is None:
