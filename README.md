@@ -43,9 +43,10 @@ and engine randomness is reproducible from its seed. Reproducing an LLM run also
 
 Built for LLM agents from the ground up:
 
-- **A cacheable brief and a compact update.** Each turn opens with why the agent is acting,
-  what changed since its last turn, and ranked views of the world, names first, with ids as
-  handles. Nothing is repeated that the agent already has.
+- **A stable brief and a compact update.** The brief never changes between an agent's turns;
+  each turn's update says why the agent is acting, what changed since its last turn, and gives
+  ranked views of the world, names first, with ids as handles. Nothing is repeated that the
+  agent already has.
 - **One typed tool per legal action.** JSON Schema with enums and numeric bounds. An invalid
   call returns exactly what to fix, and a refused action changes nothing.
 - **Participant text stays marked.** Anything an agent writes carries its provenance through

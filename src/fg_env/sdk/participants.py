@@ -586,7 +586,11 @@ def _field(block: Any, name: str) -> Any:
 def anthropic(client: Any, model: str, *, max_tokens: int = 1024, max_steps: int = 8, system: str = "",
               retries: int = 4, media: Optional[Collection[str]] = None, retry_truncated: bool = True,
               extra: Optional[Mapping[str, Any]] = None) -> Participant:
-    """An LLM participant using an ``anthropic.Anthropic()`` client. The brief is prompt-cached.
+    """An LLM participant using an ``anthropic.Anthropic()`` client.
+
+    The system prompt (``system`` and the brief) is marked for prompt caching. Anthropic caches the tools ahead of
+    it, and the tools are the actions legal right now with their live choices, so a call reads the cache only when
+    the agent is offered the same tools as in an earlier call (typically in a phase it has been in before).
 
     Files the agent receives are sent as image and document blocks after the text (``media``: the attachment types
     sent as content, default image, pdf and text; ``media=()`` for a text-only model, which reads each file's
