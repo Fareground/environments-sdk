@@ -1,7 +1,7 @@
 {
   "fg_env": "1",
   "name": "Northline contact centre: staffing a day of calls",
-  "description": "One day (08:00-20:00, half-hours) at a broadband provider's contact centre, played call by call by an operations queue. Calls arrive at a fitted base x a day-of-week index x a time-of-day index (fitted from contact_centre/history.csv with fg_env.fit_patterns), surging after a network outage; handle times are lognormal around the average handle time in the history; callers give up after a patience calibrated to the history's abandonment, shorter during an outage. Agents on duty per half-hour are an input vector (empty: the manager's rule, 10% over the forecast workload plus two). Arms compare the manager's rule with the plan fg_env.optimise found (the cheapest where every half-hour's expected service level reaches 80% of calls answered within 20 seconds and the day's does in 90% of runs, each held with 90% confidence), an outage at 09:30, and callbacks that keep agents free for live calls. examples/contact_centre_history.py regenerates the history from the truth arm and re-estimates the model; examples/contact_centre_plan.py searches the plan (kept in contact_centre/plan.json) and, with --report, validates the model on the two held-out weeks and prints the owner report.",
+  "description": "One day (08:00-20:00, half-hours) at a broadband provider's contact centre, played call by call by an operations queue. Calls arrive at a fitted base x a day-of-week index x a time-of-day index (fitted from contact_centre/history.csv with fg_env.analysis.fit_patterns), surging after a network outage; handle times are lognormal around the average handle time in the history; callers give up after a patience calibrated to the history's abandonment, shorter during an outage. Agents on duty per half-hour are an input vector (empty: the manager's rule, 10% over the forecast workload plus two). Arms compare the manager's rule with the plan fg_env.analysis.optimise found (the cheapest where every half-hour's expected service level reaches 80% of calls answered within 20 seconds and the day's does in 90% of runs, each held with 90% confidence), an outage at 09:30, and callbacks that keep agents free for live calls. examples/contact_centre_history.py regenerates the history from the truth arm and re-estimates the model; examples/contact_centre_plan.py searches the plan (kept in contact_centre/plan.json) and, with --report, validates the model on the two held-out weeks and prints the owner report.",
   "clock": {
     "rounds": 24,
     "unit": "minute",
@@ -137,7 +137,7 @@
         0.7429583579342139,
         0.5839613795019579
       ],
-      "description": "Pattern 'weekday', profile: fitted by fg_env.fit_patterns from $inputs.history (joint count regression)."
+      "description": "Pattern 'weekday', profile: fitted by fg_env.analysis.fit_patterns from $inputs.history (joint count regression)."
     },
     "weekday_profile_se": {
       "type": "list",
@@ -180,7 +180,7 @@
         0.5160865268474747,
         0.4343911277039597
       ],
-      "description": "Pattern 'hours', profile: fitted by fg_env.fit_patterns from $inputs.history (joint count regression)."
+      "description": "Pattern 'hours', profile: fitted by fg_env.analysis.fit_patterns from $inputs.history (joint count regression)."
     },
     "hours_profile_se": {
       "type": "list",
@@ -215,7 +215,7 @@
     "calls_scale": {
       "type": "number",
       "default": 57.128968253968814,
-      "description": "Pattern 'calls', scale: fitted by fg_env.fit_patterns from $inputs.history (joint count regression)."
+      "description": "Pattern 'calls', scale: fitted by fg_env.analysis.fit_patterns from $inputs.history (joint count regression)."
     },
     "calls_scale_se": {
       "type": "number",

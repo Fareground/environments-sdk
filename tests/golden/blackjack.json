@@ -1,0 +1,24 @@
+{
+  "actions": 21,
+  "events": 41,
+  "events_sha256": "ddec6e56c674192dbc4c5497590f4264b06b08699b60cbb28929ae4afb483f83",
+  "first_events": [
+    "r1 action p1: Ana bets 41.",
+    "r1 outcome p1: You bet 41.",
+    "r1 action p2: Ben bets 23.",
+    "r1 outcome p2: You bet 23.",
+    "r1 action p3: Cleo bets 10.",
+    "r1 outcome p3: You bet 10.",
+    "r1 action p1: Ana stands on 15.",
+    "r1 action p2: Ben stands on 19.",
+    "r1 action p3: Cleo hits and draws 6\u2663 (23).",
+    "r1 cards: The dealer turns over the hidden card: 9\u2660, J\u2660."
+  ],
+  "metrics": {
+    "dealer_busts": 1,
+    "total_chips": 670
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 21
+}

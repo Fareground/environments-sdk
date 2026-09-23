@@ -3,7 +3,7 @@
 ## Contracts
 
 Complete environments in [`contracts/`](contracts/). Each one checks clean, runs, and is covered by a
-golden-run test (`tests/sdk/test_examples.py`). All except the lemonade stand were written by LLM
+golden-run test (`tests/test_examples.py`). All except the lemonade stand were written by LLM
 agents using only `fg-env guide`, as a stress test of the SDK.
 
 | Contract | What it exercises |
@@ -30,14 +30,4 @@ fg-env check contracts/werewolf.json
 fg-env preview contracts/werewolf.json p1
 fg-env run contracts/werewolf.json --seed 3 --events
 fg-env experiment contracts/town_epidemic.json --runs 5
-```
-
-## Template API scripts
-
-`00_simulate.py`, `quickstart.py` and `tic_tac_toe/template.json` use the earlier template-based API
-(`fg_env.legacy`: `simulate`, `Kernel`), which remains available for existing templates:
-
-```bash
-PYTHONPATH=src python3 examples/00_simulate.py
-PYTHONPATH=src python3 examples/quickstart.py
 ```

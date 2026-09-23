@@ -1,0 +1,17 @@
+{
+  "actions": 4,
+  "events": 4,
+  "events_sha256": "ebf649e7911c793323f730d9db2d57deff0c1d856416e5bec07e5766e2533427",
+  "first_events": [
+    "r1 action red: Red played b1.",
+    "r2 action yellow: Yellow played f1.",
+    "r3 action red: Red played g1.",
+    "r4 action yellow: Yellow played e1."
+  ],
+  "metrics": {
+    "pieces": 4
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 4
+}

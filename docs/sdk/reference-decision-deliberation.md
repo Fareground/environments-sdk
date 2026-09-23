@@ -1,7 +1,7 @@
 # decision / deliberation
 
 ### `decision.deliberation`
-A deliberating body: a discussion stage `<name>` that repeats passes until every member is ready (or the pass cap), optional chair with floor control (raise hand, recognize, speaker limits), motions with seconds, amendments, calling the question, and a vote stage `<name>_vote` counted by majority or supermajority. Read state with $pending_motion(), $decisions(), $discussion_over(), $house(viewer).
+A deliberating body: a discussion stage `<name>` that repeats passes until every member is ready (or the pass cap), optional chair with floor control (raise hand, recognize, speaker limits), motions with seconds, amendments, calling the question, and a vote stage `<name>_vote` counted by majority or supermajority. Read state with $pending_motion(), $decisions(), $discussion_over(), $house(viewer); with several deliberations, name one as the last argument ($decisions('committee')). The run ends on a decision only with `end`.
 
 Config:
 - `who` (required): Agent type that deliberates and votes.
@@ -22,7 +22,7 @@ Config:
 - `ready_when_silent` (default true): Ending a discussion turn without acting marks the member ready.
 - `vote_when_ready` (default true): When every member is ready, an open question goes to a vote.
 - `backstop` (default "adjourn"): When the pass cap is hit: adjourn to the next round, or vote on the open question.
-- `end` (default "decision"): End the run once a main motion is decided, only once one passes, or never.
+- `end` (default "never"): never (the run goes on) | decision: end the run once a main motion is decided | adoption: once one passes.
 - `when` (default null): Hold the discussion only when true (e.g. "$round <= 5").
 - `tools` (default "each"): How the generated tools are offered: each (one tool per action) | one (one tool named after the mechanism, whose `action` argument lists the actions legal now) | auto (one tool only when every action takes the same arguments).
 

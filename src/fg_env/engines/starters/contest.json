@@ -1,35 +1,39 @@
 {
   "fg_env": "1",
   "name": "Contest Engine",
-  "description": "A reusable contest engine in which participants submit performances and an impartial configurable rubric produces scores and a winner.",
+  "description": "A reusable contest engine in which participants submit performances and a host judge scores them on a configurable rubric; the highest total wins, and a tie on the rubric goes to the stronger hidden performance (each contestant's declared skill plus luck, drawn every round). Without a bound judge every submission is scored at the rubric midpoint, so skill and luck decide and the run's diagnostics say the judge was a stand-in.",
   "inputs": {
     "prompt": {"type": "text", "default": "Present the strongest response to the challenge."},
     "rounds": {"type": "int", "default": 2, "min": 1, "max": 10},
+    "luck": {"type": "number", "default": 0.2, "min": 0, "description": "Spread of each round's hidden performance around a contestant's skill; 0 = the more skilled always performs better."},
     "participants": {
       "type": "table",
-      "columns": {"id": "text", "name": "text", "approach": "text"},
+      "description": "skill (0 to 1) is private: the hidden quality behind each round's performance.",
+      "columns": {"id": "text", "name": "text", "approach": "text", "skill": "number"},
       "default": [
-        {"id": "c1", "name": "Contestant 1", "approach": "Prioritize clarity and evidence."},
-        {"id": "c2", "name": "Contestant 2", "approach": "Prioritize originality and persuasion."}
+        {"id": "c1", "name": "Contestant 1", "approach": "Prioritize clarity and evidence.", "skill": 0.6},
+        {"id": "c2", "name": "Contestant 2", "approach": "Prioritize originality and persuasion.", "skill": 0.5}
       ]
     }
   },
   "brief": {
     "situation": "Participants respond to the same challenge: {$inputs.prompt}",
-    "rules": "Each participant submits once per round. Submissions are judged blind on the configured rubric. Scores accumulate and the highest total wins.",
+    "rules": "Each participant submits once per round. Submissions are judged blind on the configured rubric. Scores accumulate and the highest total wins; a tie goes to the stronger performance over the contest.",
     "roles": {"contestant": "Create a strong submission using your assigned approach while responding directly to the challenge."}
   },
   "clock": {"rounds": "$inputs.rounds", "unit": "round"},
   "types": {"contestant": {"agent": true, "policy": "baseline", "props": {
     "approach": {"type": "text", "default": "", "private": true},
-    "score": {"type": "number", "default": 0}
+    "skill": {"type": "number", "default": 0.5, "private": true},
+    "score": {"type": "number", "default": 0},
+    "performance": {"type": "number", "default": 0, "private": true, "description": "Hidden running total of skill plus luck, one draw per submission: breaks rubric ties."}
   }}},
-  "population": [{"type": "contestant", "from": "$inputs.participants", "id": "{$row.id}", "name": "{$row.name}", "props": {"approach": "$row.approach"}}],
+  "population": [{"type": "contestant", "from": "$inputs.participants", "id": "{$row.id}", "name": "{$row.name}", "props": {"approach": "$row.approach", "skill": "$row.skill"}}],
   "records": {"submissions": {"fields": {"text": "text"}, "show": "{author}: {text}"}},
   "actions": {"submit": {
     "by": "contestant", "description": "Submit your performance for this round.", "terminal": true,
     "params": {"text": {"type": "text", "max_len": 1600}},
-    "do": [{"post": "submissions", "text": "$params.text"}]
+    "do": [{"post": "submissions", "text": "$params.text"}, "$actor.performance += $normal($actor.skill, $inputs.luck)"]
   }},
   "stages": [{"name": "submissions", "turns": "simultaneous", "must_act": true}],
   "mechanisms": {"judge": {
@@ -43,8 +47,12 @@
   }},
   "views": {"private_approach": {"for": "contestant", "show": "Your assigned approach: {approach}"}},
   "policies": {"baseline": {"rules": [{"do": "submit", "with": {"text": "A concise response that addresses the challenge with a clear claim, supporting reason, and practical implication."}}]}},
+  "defs": {
+    "top_scorers": "$filter(contestant, $it.score == $max(contestant, $it.score))",
+    "strongest": "$filter($top_scorers, $it.performance == $max($top_scorers, $it.performance))"
+  },
   "outputs": {
-    "winner": {"type": "text", "expr": "$top(contestant, $it.score, 1)[0].name"},
+    "winner": {"type": "text", "expr": "$first($strongest).name if $len($strongest) == 1 else null", "description": "The single top scorer (a rubric tie goes to the stronger hidden performance), or null when that ties too."},
     "winning_score": {"type": "number", "expr": "$max(contestant, $it.score)"},
     "submissions": {"type": "int", "expr": "$count($records(submissions))"},
     "contestants": {"type": "int", "expr": "$count(contestant)"}

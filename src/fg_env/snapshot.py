@@ -1,217 +1,386 @@
-"""Atomic restoration of world snapshots; engine checkpoints are a separate concern."""
-import copy
-import importlib
-from typing import Any, Dict
+"""Snapshots: a run between rounds as JSON-safe data, restored so it continues exactly.
+
+A run stopped part-way through a round (``env.run(stop=...)``) is saved as the snapshot it replays from (its
+base: the build, a restored snapshot or a round-start checkpoint) and the tape of every participant call since;
+restoring rebuilds the base and plays the tape back to the same safe point (:mod:`.replay`).
+
+Participant-text provenance survives the round trip: :class:`Untrusted` text is written as
+``{"$untrusted": ...}``, and maps whose keys cannot be plain JSON keys (untrusted or non-text
+keys) are written as ``{"$map": [[key, value], ...]}``.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+from typing import TYPE_CHECKING, Any, Dict, Mapping, Tuple, Type, TypeVar
 
 from .entity import Entity
-from .resource import ResourcePool, ResourceType
-from .temporal import Phase, TemporalModel, TimeMode
+from .assets.store import AssetStore
+from .budget import Budget
+from .contract import Contract
+from .errors import ContractError, SnapshotError
+from .expr import Untrusted
+from .exposure import ExposureLog
+from .measure import Stats
+from .world import Entry, LogEvent
+
+if TYPE_CHECKING:
+    from .runtime import Env
+
+__all__ = ["SNAPSHOT_VERSION", "KEEP_ARM", "contract_hash", "run_identity", "encode", "decode", "take_snapshot", "restore_env",
+           "restore_state", "matching_contract", "check_snapshot", "recording_start"]
+
+SNAPSHOT_VERSION = 3
+
+_E = TypeVar("_E", bound="Env")
 
 
-class SnapshotRestoreError(ValueError):
-    """A snapshot cannot be restored without losing supplied state."""
+def contract_hash(contract: Contract) -> str:
+    text = json.dumps(contract.model_dump(by_alias=True, exclude_defaults=True), sort_keys=True, default=str)
+    return hashlib.sha256(text.encode()).hexdigest()[:16]
 
 
-def _preserved(before: Any, after: Any, path: str) -> None:
-    """Permit added defaults for legacy snapshots, but never discarded input."""
-    if isinstance(before, dict) and isinstance(after, dict):
-        for key, value in before.items():
-            if key not in after:
-                raise SnapshotRestoreError(f"{path}.{key}: unsupported snapshot field")
-            _preserved(value, after[key], f"{path}.{key}")
-    elif isinstance(before, (list, tuple)) and isinstance(after, (list, tuple)):
-        if len(before) != len(after):
-            raise SnapshotRestoreError(f"{path}: restored collection length differs")
-        for index, (left, right) in enumerate(zip(before, after)):
-            _preserved(left, right, f"{path}[{index}]")
-    elif before != after:
-        raise SnapshotRestoreError(f"{path}: restored value differs")
+def run_identity(seed: Any, arm: Any, inputs: Any) -> str:
+    """A fingerprint of what a run was started with (seed, arm, encoded inputs)."""
+    text = json.dumps([seed, arm, inputs], sort_keys=True, default=str)
+    return hashlib.sha256(text.encode()).hexdigest()[:16]
 
 
-def apply_snapshot(state: Any, data: Dict[str, Any]) -> None:
-    """Stage replacements before committing, preserving schema and module aliases."""
-    data = copy.deepcopy(data)
-    staged: Dict[str, Any] = {}
-    modules = dict(state.modules)
-    section = "snapshot"
+class _KeepArm:
+    def __repr__(self) -> str:
+        return "KEEP_ARM"
+
+
+#: A fork's default arm: the one the run already has.
+KEEP_ARM: Any = _KeepArm()
+
+_FORK_HINT = "to continue it under changes, use fg_env.fork(original_contract, snapshot, arm=..., inputs=..., patch=...)"
+
+
+def encode(value: Any) -> Any:
+    """A JSON-safe copy that keeps participant-text provenance."""
+    if isinstance(value, Untrusted):
+        return {"$untrusted": str.__str__(value)}
+    if isinstance(value, (list, tuple)):
+        return [encode(v) for v in value]
+    if isinstance(value, dict):
+        if any(type(key) is not str for key in value) or "$untrusted" in value or "$map" in value:
+            return {"$map": [[encode(k), encode(v)] for k, v in value.items()]}
+        return {k: encode(v) for k, v in value.items()}
+    return value
+
+
+def decode(value: Any) -> Any:
+    if isinstance(value, list):
+        return [decode(v) for v in value]
+    if isinstance(value, dict):
+        if len(value) == 1 and isinstance(value.get("$untrusted"), str):
+            return Untrusted(value["$untrusted"])
+        if len(value) == 1 and isinstance(value.get("$map"), list):
+            return {_key(decode(k)): decode(v) for k, v in value["$map"]}
+        return {k: decode(v) for k, v in value.items()}
+    return value
+
+
+def _key(value: Any) -> Any:
+    return tuple(_key(v) for v in value) if isinstance(value, list) else value
+
+
+def take_snapshot(env: "Env") -> Dict[str, Any]:
+    w = env.world
+    if env._in_round:
+        if env.status == "failed":
+            raise SnapshotError(f"the run failed during round {w.round}, so its state is incomplete; "
+                                "use a snapshot taken before the failure")
+        if env.status != "stopped":
+            raise SnapshotError(f"round {w.round} is being played right now; stop the run at a safe point first "
+                                "(env.run(stop=...)), or take the snapshot between rounds")
+        return _part_way(env)
+    state = w.rng.getstate()
+    return {
+        **_identity(env),
+        "status": env.status, "ended_by": env.ended_by, "error": env.error,
+        "round": w.round, "rounds": w.rounds,
+        "entities": [{"id": e.id, "type": e.entity_type, "name": e.name, "props": encode(e.properties),
+                      "alive": e.alive, "at": e.location_id} for e in w.entities.values()],
+        "entity_briefs": encode(w.entity_briefs),
+        "briefs": encode(env._briefs),
+        "props": encode(w.props),
+        "links": {kind: [[a, b, v, encode(w.link_fields[kind][(a, b)])] if (a, b) in w.link_fields[kind] else [a, b, v]
+                         for (a, b), v in edges.items()] for kind, edges in w.links.items()},
+        "records": {name: [encode(dict(row)) for row in rows] for name, rows in w.records_store.items()},
+        "record_seq": w._record_seq,
+        "log": [encode(e.to_dict()) for e in w.log], "seq": w._seq,
+        "physics": w.physics.to_dict() if w.physics else None,
+        "metrics": encode(w.metrics), "series": encode(w.series),
+        "scheduled": [[due, order, encode(item)] for due, order, item in w.scheduled],
+        "schedule_seq": w._schedule_seq,
+        "wake_requests": encode(w.wake_requests),
+        "time": w.time, "horizon": w.horizon, "wake_at": dict(w.wake_at),
+        "counters": dict(w.counters), "firings": dict(w.firings), "end_request": encode(w.end_request),
+        "fired_once": sorted(env._fired_once),
+        "turn_count": env._turn_count,
+        "triggers": {"armed": {str(k): v for k, v in env._trigger_armed.items()}, "fired": sorted(env._triggers_fired)},
+        "memory": {k: {"cursor": m.cursor, "views": encode(m.views), "turns": m.turns} for k, m in env._memories.items()},
+        "rng": [state[0], list(state[1]), state[2]],
+        "stats": env.stats.to_dict(),
+        "agent_stats": {key: env.agent_stats[key].to_dict() for key in sorted(env.agent_stats)},
+        "exposures": w.exposures.to_dict() if w.exposures is not None else None,
+        "layers": w.space.state() if w.space is not None else {},
+        "frames": encode(env.previews.frames),
+        "budget": env.budget.to_dict(env) if env.budget is not None else None,
+        "start": env.origin.start,
+        "diagnosis": env.diagnosis.to_dict(),
+        **({"assets": {**w.assets.to_dict(), "briefs": dict(env._brief_assets)}} if len(w.assets) else {}),
+    }
+
+
+def _identity(env: "Env") -> Dict[str, Any]:
+    """What every snapshot of ``env`` starts with: the engine version and the contract and run it belongs to."""
+    inputs = encode(env.inputs)
+    return {"fg_env_snapshot": SNAPSHOT_VERSION, "contract": contract_hash(env.contract), **_rule_origin(env),
+            "run": run_identity(env.seed, env.arm, inputs), "seed": env.seed, "arm": env.arm, "inputs": inputs}
+
+
+def _part_way(env: "Env") -> Dict[str, Any]:
+    """A run stopped part-way through a round: its base, the tape since, and the host answers recorded so far (so
+    the replay never asks a host again)."""
+    from .branch import fresh_copy
+    from .host.tape import TAPE
+    from .pilot import PilotedEnv
+
+    tape = env.origin.tape
+    if tape.picks:
+        raise SnapshotError("this copy was steered through chance outcomes part-way through the round; take the "
+                            "snapshot between rounds")
+    base = env.origin.base
+    if base is None:  # the run's build, rebuilt the same from its seed
+        base = take_snapshot(fresh_copy(env, None, None, PilotedEnv))
+    hosts = env.world.props.get(TAPE)
+    if hosts is not None:
+        base = {**base, "props": {**base["props"], TAPE: encode(hosts)}}
+    return {**_identity(env), "status": "stopped", "round": env.world.round,
+            "part_way": {"base": base, "turns": env._turn_count, "points": tape.points,
+                         "tape": [[number, actor, [encode(list(entry)) for entry in entries]]
+                                  for number, (actor, entries) in sorted(tape.turns.items())]}}
+
+
+def _replay_part_way(env: "Env", held: Mapping[str, Any], round_: int) -> None:
+    """Play ``env``, rebuilt from the base of a part-way snapshot, back along its tape to where it was stopped."""
+    from .host.turn_tools import wrap
+    from .replay import Playback, Tape
+
+    tape = Tape()
+    tape.turns = {int(number): (actor, [tuple(decode(entry)) for entry in entries])
+                  for number, actor, entries in held["tape"]}
+    tape.points = int(held["points"])
+    playback = Playback(tape, int(held["turns"]))
+
+    def replay(wake: Any) -> None:
+        playback.play(wake)
+
+    env.run(wrap(env, replay),
+            stop=lambda e: e._in_round and e.world.round == round_ and e.origin.tape.points >= tape.points)
+    env.driver.bind({})
+    if env.status != "stopped" or env.world.round != round_ or env.origin.tape.points != tape.points:
+        why = f" ({env.error})" if env.error else ""
+        raise SnapshotError(f"the snapshot did not replay to where it was taken{why}; restore it into the contract "
+                            "it was taken with, unedited")
+
+
+def recording_start(snapshot: Mapping[str, Any]) -> Dict[str, Any]:
+    """``snapshot`` as the start of a recording: its exposure log given as counts, because the recording that
+    continues from it holds those first entries (a result never carries its exposures twice)."""
+    held = snapshot.get("exposures")
+    counts = {"wakes": len(held["wakes"]), "chance": len(held.get("chance") or [])} if held is not None else None
+    return {**{key: value for key, value in snapshot.items() if key != "start"}, "exposures": counts}
+
+
+def matching_contract(contract: Any, snapshot: Mapping[str, Any]) -> Tuple[Contract, Contract]:
+    """``(taken with, unarmed)``: the contract the snapshot was taken with — as given, or with the snapshot's
+    arm applied — and that contract before its arm."""
+    from .api import apply_arm, parse
+
+    check_snapshot(snapshot)
+    base = contract if isinstance(contract, Contract) else parse(contract)
+    if snapshot.get("contract") == contract_hash(base):
+        return base, _restore_rule_origin(snapshot, base)
+    arm = snapshot.get("arm")
+    if isinstance(arm, str) and arm in base.arms:
+        try:
+            patched = apply_arm(base, arm)
+        except ContractError:
+            patched = None
+        if patched is not None and snapshot.get("contract") == contract_hash(patched):
+            return patched, _restore_rule_origin(snapshot, base)
+    if arm is not None and arm not in base.arms:
+        raise SnapshotError(f"the snapshot's arm '{arm}' is not declared in this contract (arms: "
+                            f"{', '.join(base.arms) or 'none'}); restore it into the contract it was taken with")
+    raise SnapshotError("the snapshot was taken with a different contract (or this contract was changed since); "
+                        f"restore continues a run exactly under its own contract — {_FORK_HINT}")
+
+
+
+def _rule_origin(env: "Env") -> Dict[str, Any]:
+    """Keep a different rule base only when future variant selection needs it."""
+    from .api import contract_source
+
+    base = env.origin.unarmed
+    if base is env.contract:
+        return {}
+    fingerprint = contract_hash(base)
+    if fingerprint == contract_hash(env.contract):
+        return {}
+    return {"rule_origin": {"hash": fingerprint, "source": contract_source(base)}}
+
+
+def _restore_rule_origin(snapshot: Mapping[str, Any], fallback: Contract) -> Contract:
+    """Optional provenance; old snapshots continue to use their supplied contract."""
+    from .api import located
+    from .checks import parse_contract
+
+    if "rule_origin" not in snapshot:
+        return fallback
+    held = snapshot["rule_origin"]
+    if not isinstance(held, Mapping) or not isinstance(held.get("source"), Mapping) or not isinstance(held.get("hash"), str):
+        raise SnapshotError("snapshot rule_origin must contain its original contract source and hash")
     try:
-        if not isinstance(data, dict):
-            raise ValueError("expected an object")
-        if type(data.get("snapshot_version", 1)) is not int or data.get("snapshot_version", 1) not in (1, 2):
-            raise ValueError("unsupported snapshot version")
-        for section in ("adjacency", "locations", "properties", "tables"):
-            if section in data:
-                if not isinstance(data[section], dict):
-                    raise ValueError("expected an object")
-                staged[section] = data[section]
-        section = "entities"
-        if section in data:
-            staged[section] = {}
-            for eid, row in data[section].items():
-                values = {"id": eid, "name": eid, "entity_type": "", **row}
-                entity = Entity(**values)
-                if entity.id != eid:
-                    raise ValueError("entity key does not match id")
-                staged[section][eid] = entity
-        section = "resource_definitions"
-        resource_types = copy.deepcopy(state.resource_types)
-        if section in data:
-            resource_types = {name: ResourceType(**row) for name, row in data[section].items()}
-            if any(name != resource.name for name, resource in resource_types.items()):
-                raise ValueError("resource key does not match name")
-            staged["resource_types"] = resource_types
-        section = "resources"
-        if section in data:
-            staged[section] = {}
-            for name, row in data[section].items():
-                pool = ResourcePool(resource_types[name], row.get("holdings", {}), row.get("unallocated", 0))
-                _preserved(row, pool.to_dict(), f"resources.{name}")
-                staged[section][name] = pool
-        section = "spatial_index"
-        if section in data:
-            staged[section] = {loc: set(ids) for loc, ids in data[section].items()}
-        elif "locations" in data:
-            staged[section] = {}
-            for eid, loc in data["locations"].items():
-                staged[section].setdefault(loc, set()).add(eid)
-        section = "temporal"
-        if section in data:
-            row = data[section]
-            phases = copy.deepcopy(state.temporal.phases)
-            if "phase_definitions" in row:
-                phases = [Phase(**phase) for phase in row["phase_definitions"]]
-            elif "phases" in row:
-                definitions = {phase.name: phase for phase in phases}
-                phases = [definitions.get(name, Phase(name=name)) for name in row["phases"]]
-            phase_index = row.get("current_phase_index")
-            if phase_index is None:
-                names = [phase.name for phase in phases]
-                phase_index = names.index(row["current_phase"]) if row.get("current_phase") in names else 0
-            temporal = TemporalModel(
-                mode=TimeMode(row.get("mode", state.temporal.mode.value)), phases=phases,
-                current_round=row.get("current_round", 0), current_phase_index=phase_index,
-                current_turn_index=row.get("current_turn_index", 0), turn_order=row.get("turn_order", []),
-                round_duration_seconds=row.get("round_duration_seconds"),
-                sim_start_iso=row.get("sim_start_iso"), time_unit_label=row.get("time_unit_label"),
-            )
-            for value in (temporal.current_round, phase_index, temporal.current_turn_index):
-                if type(value) is not int or value < 0:
-                    raise ValueError("invalid temporal counter")
-            _preserved(row, temporal.to_dict(), section)
-            staged[section] = temporal
-        restorers = {
-            "action_history": ("state", "ActionHistory"),
-            "status_effects": ("status_effects", "StatusEffectTracker"),
-            "relations": ("relations", "RelationGraph"),
-            "factions": ("factions", "FactionManager"),
-            "sequences": ("sequences", "SequenceTracker"),
-            "messages": ("messaging", "MessageBoard"),
-            "location_properties": ("location_properties", "LocationPropertyManager"),
-            "inventory": ("inventory", "InventoryManager"),
-            "goals": ("goals", "GoalTracker"), "skills": ("skills", "SkillTracker"),
-            "recipes": ("crafting", "RecipeManager"), "negotiations": ("negotiation", "NegotiationManager"),
-            "plans": ("planning", "PlanManager"), "roles": ("roles", "RoleRegistry"),
-            "polls": ("polls", "PollManager"),
-            "property_dynamics": ("property_dynamics", "PropertyDynamicsEngine"),
-            "physics": ("physics", "PhysicsModel"), "connectors": ("connectors", "ConnectorManager"),
-            "domain_modules": ("domain_module", "DomainModuleManager"),
-            "controller": ("sim_controller", "SimController"), "cognition": ("cognition", "CognitionManager"),
-            "social": ("social", "SocialPlatformManager"),
-        }
-        if data.get("snapshot_version") == 2:
-            expected = set(restorers) | {
-                "snapshot_version", "resource_definitions", "tables", "entities", "resources",
-                "temporal", "entity_types", "action_definitions", "adjacency", "locations",
-                "spatial_index", "properties", "world_models", "crowd_agents", "plugin_modules",
-                "derived_rules", "domain_module_aliases",
-            }
-            missing, extra = expected - data.keys(), data.keys() - expected
-            if missing or extra:
-                raise ValueError(f"incomplete or unsupported v2 snapshot: missing={sorted(missing)}, extra={sorted(extra)}")
-        optional = {"property_dynamics", "physics", "connectors", "domain_modules", "controller", "cognition", "social", "crowd_agents"}
-        for section in [*restorers, "crowd_agents"]:
-            if section not in data:
-                continue
-            row = data[section]
-            if row is None:
-                if section not in optional:
-                    raise ValueError("required subsystem cannot be null")
-                staged[section] = None
-                modules.pop(section, None)
-                continue
-            if section == "crowd_agents":
-                cls = type(state.crowd_agents)
-            else:
-                module, name = restorers[section]
-                cls = getattr(importlib.import_module(f"fg_env.{module}"), name)
-            kwargs: Dict[str, Any] = {}
-            if section == "status_effects":
-                kwargs["definitions"] = state.status_effect_defs
-            elif section == "relations":
-                kwargs["definitions"] = state.relations.relation_types
-            elif section == "domain_modules":
-                kwargs["existing"] = state.domain_modules
-            restored = cls.from_dict(row, **kwargs)
-            _preserved(row, restored.to_dict(), section)
-            staged[section] = restored
-            modules[section] = restored
-        section = "derived_rules"
-        if section in data:
-            from .derived_rules import DerivedRulesEngine
-            restored_rules = DerivedRulesEngine.from_dict(data[section]) if data[section] is not None else None
-            if restored_rules is not None:
-                _preserved(data[section], restored_rules.to_dict(), section)
-            staged["_derived_rules"] = restored_rules
-        section = "world_models"
-        if section in data:
-            from .world_model import AgentWorldModel
-            staged[section] = {eid: AgentWorldModel.from_dict(row) for eid, row in data[section].items()}
-            _preserved(data[section], {eid: wm.to_dict() for eid, wm in staged[section].items()}, section)
-        # Domain aliases must refer to the restored manager's actual modules.
-        old_domain = state.domain_modules
-        new_domain = staged.get("domain_modules", old_domain)
-        aliases = {}
-        if old_domain is not None:
-            for alias, obj in modules.items():
-                for name, old in old_domain._modules.items():
-                    if obj is old:
-                        aliases[alias] = name
-        if "domain_module_aliases" in data:
-            for alias in aliases:
-                modules.pop(alias, None)
-            aliases = data["domain_module_aliases"]
-            if not isinstance(aliases, dict):
-                raise ValueError("domain module aliases must be an object")
-            if any(alias in restorers or alias == "crowd_agents" for alias in aliases):
-                raise ValueError("domain alias collides with a built-in subsystem")
-        section = "domain_module_aliases"
-        for alias, name in aliases.items():
-            if new_domain is not None and name in new_domain._modules:
-                modules[alias] = new_domain._modules[name]
-            elif "domain_module_aliases" in data:
-                raise ValueError(f"alias {alias!r} points to a missing domain module")
-            else:
-                modules.pop(alias, None)
-        section = "plugin_modules"
-        if section in data:
-            for name in list(modules):
-                if (name not in restorers and name != "crowd_agents" and name not in aliases
-                        and name not in data[section] and callable(getattr(modules[name], "to_dict", None))):
-                    del modules[name]
-        for name, row in data.get(section, {}).items():
-            section = f"plugin_modules.{name}"
-            if name in restorers or name == "crowd_agents":
-                if data.get("snapshot_version", 1) == 2:
-                    raise ValueError("plugin name collides with a built-in subsystem")
-                _preserved(row, modules[name].to_dict(), section)
-                continue
-            if name in aliases:
-                _preserved(row, modules[name].to_dict(), section)
-                continue
-            from .kernel_module import restore_plugin_modules
-            restore_plugin_modules(modules, {name: row})
-    except Exception as exc:
-        raise SnapshotRestoreError(f"Cannot restore {section}: {exc}") from exc
-    for attr, value in staged.items():
-        setattr(state, attr, value)
-    state.modules = modules
+        # Sources are already import-resolved. Never read files named inside saved data.
+        base = located(parse_contract(held["source"]), fallback._folder)
+    except ContractError as exc:
+        raise SnapshotError(f"snapshot rule_origin contains an invalid contract: {exc}") from None
+    if contract_hash(base) != held["hash"]:
+        raise SnapshotError("snapshot rule_origin contract was changed after it was saved")
+    return base
+
+
+def check_snapshot(snapshot: Any) -> None:
+    """Refuse what is not a snapshot of this engine, or one whose seed, arm or inputs were edited."""
+    if not isinstance(snapshot, Mapping):
+        raise SnapshotError(f"a snapshot is a mapping (from env.snapshot()), got {type(snapshot).__name__}")
+    version = snapshot.get("fg_env_snapshot")
+    if version != SNAPSHOT_VERSION:
+        raise SnapshotError(f"unsupported snapshot version {version!r} (this engine reads version {SNAPSHOT_VERSION}); "
+                            "rerun from the snapshot's seed and take a new one")
+    if "run" in snapshot and snapshot["run"] != run_identity(snapshot.get("seed"), snapshot.get("arm"),
+                                                             snapshot.get("inputs")):
+        raise SnapshotError("the snapshot's seed, arm or inputs were changed after it was taken, so it no longer "
+                            f"describes one run; restore it unedited — {_FORK_HINT}")
+
+
+def restore_env(cls: Type[_E], contract: Any, snapshot: Mapping[str, Any], parallel: int = 8) -> _E:
+    matched, unarmed = matching_contract(contract, snapshot)
+    held = snapshot.get("part_way")
+    base = held["base"] if isinstance(held, Mapping) else snapshot
+    if base is not snapshot:
+        check_snapshot(base)
+    env = restore_state(cls, matched, base, parallel)
+    env.origin.base, env.origin.unarmed = dict(base), unarmed  # copies of the run replay from here
+    if isinstance(held, Mapping):
+        try:
+            _replay_part_way(env, held, int(snapshot["round"]))
+        except SnapshotError:
+            raise
+        except (KeyError, TypeError, ValueError) as exc:
+            raise SnapshotError(f"the snapshot is incomplete or corrupted ({type(exc).__name__}: {exc})") from None
+    return env
+
+
+def restore_state(cls: Type[_E], contract: Contract, snapshot: Mapping[str, Any], parallel: int = 8) -> _E:
+    """A run rebuilt from a snapshot into ``contract``, which the caller has matched to it."""
+    try:
+        return _restore(cls, contract, snapshot, parallel)
+    except SnapshotError:
+        raise
+    except (KeyError, TypeError, ValueError, IndexError, AttributeError) as exc:
+        raise SnapshotError(f"the snapshot is incomplete or corrupted ({type(exc).__name__}: {exc})") from None
+
+
+def _restore(cls: Type[_E], contract: Contract, snapshot: Mapping[str, Any], parallel: int) -> _E:
+    from .physics import PhysicsModel
+
+    env = cls(contract, decode(snapshot["inputs"]), int(snapshot["seed"]), snapshot.get("arm"), parallel)
+    w = env.world
+    w.entities = {}
+    for row in snapshot["entities"]:
+        w.entities[row["id"]] = Entity(id=row["id"], name=row["name"], entity_type=row["type"],
+                                       properties=decode(row["props"]), location_id=row.get("at"),
+                                       alive=row["alive"])
+    w.rebuild_index()
+    if w.space is not None:
+        w.space.restore(snapshot.get("layers") or {})
+    w.props = decode(snapshot["props"])
+    w.entity_briefs = decode(snapshot["entity_briefs"])
+    env._briefs = decode(snapshot["briefs"])
+    w.links = {kind: {(row[0], row[1]): row[2] for row in edges} for kind, edges in snapshot["links"].items()}
+    w.link_fields = {kind: {(row[0], row[1]): decode(row[3]) for row in edges if len(row) > 3}
+                     for kind, edges in snapshot["links"].items()}
+    w.rebuild_adjacency()
+    w.records_store = {}
+    w.entry_by_seq = {}
+    for name, rows in snapshot["records"].items():
+        entries = []
+        for row in rows:
+            entry = Entry(decode(row))
+            entry.world = w
+            entries.append(entry)
+            w.entry_by_seq[entry["seq"]] = entry
+        w.records_store[name] = entries
+    w.rebuild_record_index()
+    w._record_seq = snapshot["record_seq"]
+    w.log = []
+    for raw in snapshot["log"]:
+        e = decode(raw)
+        w.log.append(LogEvent(e["seq"], e["round"], e["kind"], e.get("text", ""), e.get("actor"),
+                              tuple(e["to"]) if e.get("to") is not None else None, e.get("data", {}), e.get("stage"),
+                              e.get("time")))
+    w.rebuild_event_index()
+    w._seq = snapshot["seq"]
+    if snapshot.get("physics") and w.physics is not None:
+        restored = PhysicsModel.from_dict(snapshot["physics"])
+        w.physics.params, w.physics.time = restored.params, restored.time
+        for name, var in restored.variables.items():
+            w.physics.variables[name].value = var.value
+    w.metrics = decode(snapshot["metrics"])
+    w.series = decode(snapshot["series"])
+    w.scheduled = [(due, order, decode(item)) for due, order, item in snapshot["scheduled"]]
+    w._schedule_seq = snapshot["schedule_seq"]
+    w.wake_requests = decode(snapshot["wake_requests"])
+    w.reactions = []  # snapshots are taken between rounds, when no reaction is pending
+    w.time, w.horizon = float(snapshot["time"]), snapshot.get("horizon")
+    w.wake_at = {str(k): float(v) for k, v in snapshot["wake_at"].items()}
+    w.counters = dict(snapshot["counters"])
+    w.firings = {str(k): int(v) for k, v in snapshot["firings"].items()}
+    w.end_request = decode(snapshot.get("end_request"))
+    w.round, w.rounds = snapshot["round"], snapshot["rounds"]
+    w.stage = None
+    state = snapshot["rng"]
+    w.rng.setstate((state[0], tuple(state[1]), state[2]))
+    env._fired_once = set(snapshot["fired_once"])
+    env._turn_count = int(snapshot["turn_count"])
+    env._trigger_armed = {int(k): bool(v) for k, v in snapshot["triggers"]["armed"].items()}
+    env._triggers_fired = set(snapshot["triggers"]["fired"])
+    for key, m in snapshot["memory"].items():
+        memory = env._memory(key)
+        memory.cursor, memory.views, memory.turns = m["cursor"], decode(m["views"]), m["turns"]
+    status = snapshot["status"]
+    env.status = status if status != "stopped" else ("running" if w.round else "ready")
+    env.ended_by, env.error = snapshot.get("ended_by"), snapshot.get("error")
+    for name in Stats.__dataclass_fields__:
+        setattr(env.stats, name, snapshot["stats"].get(name, 0))
+    env.agent_stats = {key: Stats(**{name: counts.get(name, 0) for name in Stats.__dataclass_fields__})
+                       for key, counts in snapshot.get("agent_stats", {}).items()}
+    if snapshot.get("exposures") is not None:
+        w.exposures = ExposureLog.from_dict(snapshot["exposures"])
+    env.previews.frames = decode(snapshot.get("frames") or [])
+    env.origin.start = snapshot.get("start")
+    if snapshot.get("assets"):
+        w.assets = AssetStore.from_dict(snapshot["assets"])
+        env._brief_assets = {key: list(ids) for key, ids in (snapshot["assets"].get("briefs") or {}).items()}
+    if snapshot.get("budget") is not None:
+        env.budget = Budget.from_dict(snapshot["budget"])
+    env.diagnosis.load(snapshot.get("diagnosis"))
+    w.journal.clear()
+    w.touch()  # the state was replaced wholesale: nothing cached before holds
+    env._emitted = len(w.log)
+    return env

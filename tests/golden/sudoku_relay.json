@@ -1,0 +1,16 @@
+{
+  "actions": 5,
+  "events": 5,
+  "events_sha256": "11b469116d65195a7f10b974e15bbaa85cbc9ad42ffd5e84a204a258d012a5b1",
+  "first_events": [
+    "r1 action ana: Ana: place (row=0, col=0, digit=4).",
+    "r1 action ben: Ben: place (row=2, col=0, digit=2).",
+    "r2 action ben: Ben: place (row=2, col=3, digit=1).",
+    "r3 action ben: Ben: place (row=1, col=3, digit=4).",
+    "r4 action ben: Ben: place (row=1, col=3, digit=2)."
+  ],
+  "metrics": {},
+  "rounds": 4,
+  "status": "running",
+  "wakes": 8
+}

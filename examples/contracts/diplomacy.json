@@ -1065,7 +1065,7 @@
       "who": "$it.delta != 0",
       "max_actions": 20,
       "max_calls": 30,
-      "brief": "Winter adjustments after {$season_label()}. You own {$actor.sc_count} centers and have {$count(army, $it.owner == $actor.id)} army(ies).",
+      "brief": "Winter adjustments after {$season_label()}. You own {$actor.sc_count} centers and have {$count(army, $it.owner == $actor.id)} {'army' if $count(army, $it.owner == $actor.id) == 1 else 'armies'}.",
       "on_enter": [
         {
           "block": "count_centers"
@@ -1348,7 +1348,7 @@
     "standing": {
       "for": "nation",
       "title": "Your position",
-      "show": "{$season_label()}. {name} owns {sc_count} supply centers and has {$count(army, $it.owner == $actor.id)} army(ies). {$inputs.win_centers} centers wins."
+      "show": "{$season_label()}. {name} owns {sc_count} supply centers and has {$count(army, $it.owner == $actor.id)} {'army' if $count(army, $it.owner == $actor.id) == 1 else 'armies'}. {$inputs.win_centers} centers wins."
     },
     "powers": {
       "for": "nation",

@@ -1,98 +1,70 @@
 {
   "fg_env": "1",
   "name": "Matching Engine",
-  "description": "A reusable two-sided matching engine with private preferences, eligibility, applications, selector capacity, and auditable outcomes.",
+  "description": "A reusable two-sided matching engine: applicants and selectors each privately rank the other side, and deferred acceptance produces a stable match within selector capacity.",
   "inputs": {
     "applicants": {
       "type": "table",
-      "columns": {"id": "text", "name": "text", "eligible": "bool", "preference": "text", "quality": "number"},
+      "description": "quality is what selectors judge applicants on.",
+      "columns": {"id": "text", "name": "text", "quality": "number"},
       "default": [
-        {"id": "a1", "name": "Applicant 1", "eligible": true, "preference": "s1", "quality": 0.9},
-        {"id": "a2", "name": "Applicant 2", "eligible": true, "preference": "s1", "quality": 0.7},
-        {"id": "a3", "name": "Applicant 3", "eligible": true, "preference": "s2", "quality": 0.8}
+        {"id": "a1", "name": "Applicant 1", "quality": 0.9},
+        {"id": "a2", "name": "Applicant 2", "quality": 0.8},
+        {"id": "a3", "name": "Applicant 3", "quality": 0.7},
+        {"id": "a4", "name": "Applicant 4", "quality": 0.6},
+        {"id": "a5", "name": "Applicant 5", "quality": 0.5}
       ]
     },
     "selectors": {
       "type": "table",
-      "columns": {"id": "text", "name": "text", "capacity": "int", "minimum_quality": "number"},
+      "description": "appeal is how attractive a selector is to applicants on average; minimum_quality is its private bar.",
+      "columns": {"id": "text", "name": "text", "capacity": "int", "appeal": "number", "minimum_quality": "number"},
       "default": [
-        {"id": "s1", "name": "Selector 1", "capacity": 2, "minimum_quality": 0.5},
-        {"id": "s2", "name": "Selector 2", "capacity": 1, "minimum_quality": 0.75}
+        {"id": "s1", "name": "Selector 1", "capacity": 2, "appeal": 0.8, "minimum_quality": 0.6},
+        {"id": "s2", "name": "Selector 2", "capacity": 1, "appeal": 0.6, "minimum_quality": 0.5},
+        {"id": "s3", "name": "Selector 3", "capacity": 1, "appeal": 0.5, "minimum_quality": 0.7}
       ]
-    }
+    },
+    "taste": {"type": "number", "default": 0.2, "min": 0, "description": "How much each coded participant's judgment strays from shared appeal and quality (the spread of personal taste); 0 = everyone ranks alike."}
   },
   "brief": {
-    "situation": "Applicants express preferences and apply; selectors choose eligible applicants subject to capacity.",
-    "rules": "Applicants may apply to one preferred selector. Selectors may accept applicants who applied, are eligible, meet the selector's threshold, and remain unmatched. Capacity cannot be exceeded.",
+    "situation": "Applicants and selectors are being matched.",
+    "rules": "Everyone privately ranks the other side, best first; anyone left off your ranking is unacceptable to you. Deferred acceptance then makes a stable match: no applicant and selector who both prefer each other are left apart, and no selector takes more applicants than its capacity.",
     "roles": {
-      "applicant": "Apply according to your private preference and qualifications.",
-      "selector": "Choose among applicants according to your criteria and available capacity."
+      "applicant": "Rank the selectors you would accept, best first.",
+      "selector": "Rank the applicants you would accept, best first, according to your criteria."
     }
   },
   "clock": {"rounds": 1, "unit": "cycle"},
   "types": {
     "applicant": {"agent": true, "policy": "applicant_baseline", "props": {
-      "eligible": {"type": "bool", "default": true},
-      "preference": {"type": "text", "default": "", "private": true},
-      "quality": {"type": "number", "default": 0, "private": true},
-      "applied_to": {"type": "text", "default": ""},
-      "matched_with": {"type": "text", "default": ""}
+      "quality": {"type": "number", "default": 0}
     }},
     "selector": {"agent": true, "policy": "selector_baseline", "props": {
       "capacity": {"type": "int", "default": 1},
-      "minimum_quality": {"type": "number", "default": 0, "private": true},
-      "selected": {"type": "int", "default": 0}
+      "appeal": {"type": "number", "default": 0},
+      "minimum_quality": {"type": "number", "default": 0, "private": true}
     }}
   },
   "population": [
-    {"type": "applicant", "from": "$inputs.applicants", "id": "{$row.id}", "name": "{$row.name}", "props": {"eligible": "$row.eligible", "preference": "$row.preference", "quality": "$row.quality"}},
-    {"type": "selector", "from": "$inputs.selectors", "id": "{$row.id}", "name": "{$row.name}", "props": {"capacity": "$row.capacity", "minimum_quality": "$row.minimum_quality"}}
+    {"type": "applicant", "from": "$inputs.applicants", "id": "{$row.id}", "name": "{$row.name}", "props": {"quality": "$row.quality"}},
+    {"type": "selector", "from": "$inputs.selectors", "id": "{$row.id}", "name": "{$row.name}", "props": {"capacity": "$row.capacity", "appeal": "$row.appeal", "minimum_quality": "$row.minimum_quality"}}
   ],
-  "records": {"applications": {"fields": {"applicant": "text", "target": "text"}, "visible": "false"}},
-  "actions": {
-    "apply": {
-      "by": "applicant", "description": "Apply to an eligible selector.", "private": true, "terminal": true,
-      "params": {"target": {"type": "entity", "of": "selector"}},
-      "when": [
-        {"expr": "$actor.eligible", "why": "You are not eligible in this scenario."},
-        {"expr": "$actor.applied_to == ''", "why": "You already applied."}
-      ],
-      "do": ["$actor.applied_to = $params.target.id", {"post": "applications", "applicant": "$actor.id", "target": "$params.target.id"}]
-    },
-    "select": {
-      "by": "selector", "description": "Accept an applicant who applied and meets your threshold.",
-      "params": {"applicant": {"type": "entity", "of": "applicant"}},
-      "when": [
-        {"expr": "$actor.selected < $actor.capacity", "why": "Your capacity is full."},
-        {"expr": "$params.applicant.applied_to == $actor.id", "why": "That applicant did not apply to you."},
-        {"expr": "$params.applicant.matched_with == ''", "why": "That applicant is already matched."},
-        {"expr": "$params.applicant.quality >= $actor.minimum_quality", "why": "That applicant does not meet your criteria."}
-      ],
-      "do": ["$params.applicant.matched_with = $actor.id", "$actor.selected += 1"]
-    }
-  },
-  "stages": [
-    {"name": "applications", "turns": "simultaneous", "who": "$is($it, applicant)", "actions": ["apply"], "must_act": true},
-    {"name": "selection", "turns": "sequential", "who": "$is($it, selector)", "actions": ["select"], "max_actions": 10}
-  ],
+  "mechanisms": {"placement": {"kind": "groups", "mode": "matching", "who": "applicant", "to": "selector", "seats": "$it.capacity"}},
   "views": {
-    "applicant_position": {"for": "applicant", "show": "Your preferred selector is {preference}; quality {quality|2}; eligible: {eligible}."},
-    "selector_position": {"for": "selector", "show": "Your capacity is {capacity}; private minimum quality is {minimum_quality|2}."},
-    "selector_pool": {"for": "selector", "title": "Applicants to you", "of": "applicant", "where": "$it.applied_to == $actor.id", "show": "{name}: quality {quality|2}; matched {matched_with}"}
+    "selectors": {"for": "applicant", "title": "Selectors", "of": "selector", "show": "{name}: appeal {appeal|2}; capacity {capacity}"},
+    "selector_position": {"for": "selector", "show": "Your capacity is {capacity}; your private minimum quality is {minimum_quality|2}."},
+    "applicants": {"for": "selector", "title": "Applicants", "of": "applicant", "show": "{name}: quality {quality|2}"}
   },
   "policies": {
-    "applicant_baseline": {"rules": [{"do": "apply", "with": {"target": "$entity($actor.preference)"}}]},
-    "selector_baseline": {"repeat": true, "rules": [
-      {"when": "$any(applicant, $it.applied_to == $actor.id and $it.matched_with == '' and $it.quality >= $actor.minimum_quality)", "do": "select", "with": {"applicant": "$top($filter(applicant, $it.applied_to == $actor.id and $it.matched_with == '' and $it.quality >= $actor.minimum_quality), $it.quality, 1)[0]"}},
-      {"do": "pass"}
-    ]}
+    "applicant_baseline": {"rules": [{"do": "placement_rank_applicant", "with": {"ranking": "$top(selector, $it.appeal + $normal(0, $inputs.taste))"}}]},
+    "selector_baseline": {"rules": [{"do": "placement_rank_selector", "with": {"ranking": "$top($filter(applicant, $it.quality >= $actor.minimum_quality), $it.quality + $normal(0, $inputs.taste))"}}]}
   },
-  "metrics": {"match_rate": {"expr": "$count(applicant, $it.matched_with != '') / $max(1, $count(applicant))"}},
+  "metrics": {"match_rate": {"expr": "$count(applicant, $it.placement_match != '') / $max(1, $count(applicant))"}},
   "outputs": {
-    "applications": {"type": "int", "expr": "$count($records(applications))"},
-    "matched_applicants": {"type": "int", "expr": "$count(applicant, $it.matched_with != '')"},
-    "unmatched_applicants": {"type": "int", "expr": "$count(applicant, $it.matched_with == '')"},
+    "unmatched_applicants": {"type": "int", "expr": "$count(applicant, $it.placement_match == '')"},
     "match_rate": {"type": "number", "expr": "$metrics.match_rate"},
-    "unused_capacity": {"type": "int", "expr": "$sum(selector, $it.capacity - $it.selected)"}
+    "first_choice_rate": {"type": "number", "expr": "$count(applicant, $it.placement_match != '' and $it.placement_match == $first($it.placement_prefs)) / $max(1, $count(applicant))", "description": "Share of applicants matched to the selector they ranked first."},
+    "unused_capacity": {"type": "int", "expr": "$sum(selector, $it.capacity - $len($it.placement_matches))"}
   }
 }

@@ -1,0 +1,25 @@
+{
+  "actions": 14,
+  "events": 18,
+  "events_sha256": "9ecc5458ad2a780f8d0d37d68378d01e3dad85dac6895590cdd9d3a5cc30b0e7",
+  "first_events": [
+    "r1 action p_counsel: Dana Ruiz (for Harbor) delivered an opening statement.",
+    "r1 action d_counsel: Marcus Hale (for Meridian) delivered an opening statement.",
+    "r2 action p_counsel: Dana Ruiz (for Harbor) offered P-1 Master Supply Agreement into evidence, claiming credibility 98%.",
+    "r2 outcome p_counsel: You offered P-1 Master Supply Agreement (claimed credibility 98%).",
+    "r2 action d_counsel: Marcus Hale (for Meridian) offered D-1 Independent weld inspection report into evidence, claiming credibility 80%.",
+    "r2 outcome d_counsel: You offered D-1 Independent weld inspection report (claimed credibility 80%).",
+    "r2 action p_counsel: Dana Ruiz (for Harbor) objected to D-1 Independent weld inspection report on hearsay grounds.",
+    "r2 action d_counsel: Marcus Hale (for Meridian) objected to P-1 Master Supply Agreement on hearsay grounds.",
+    "r2 action judge: Judge Eleanor Park overruled the objection to P-1 Master Supply Agreement; it is admitted.",
+    "r2 action judge: Judge Eleanor Park overruled the objection to D-1 Independent weld inspection report; it is admitted."
+  ],
+  "metrics": {
+    "admitted": 3,
+    "excluded": 1,
+    "net_admitted_strength": -0.1833304466
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 14
+}

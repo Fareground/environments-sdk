@@ -1,7 +1,7 @@
 # groups / factions
 
 ### `groups.factions`
-Factions and alliances: membership with invitations (or open factions), founding, and alliances that form when both factions propose them. State in the world prop `<name>`; tools `<name>_join`, `<name>_leave`, `<name>_invite`, `<name>_found`, `<name>_ally`, `<name>_break_alliance`, and the same actions of the `groups` op for effects. Read with $allies(a, b), $faction_of(agent), $factions(), $joinable(agent).
+Factions and alliances: membership with invitations (or open factions), founding, and alliances that form when both factions propose them. State in the world prop `<name>`; tools `<name>_join`, `<name>_leave`, `<name>_invite`, `<name>_found`, `<name>_ally`, `<name>_break_alliance`, and the same actions of the `groups` op for effects. Read with $allies(a, b), $faction_of(agent), $factions(), $joinable(agent); with several factions mechanisms, name one as the last argument ($factions('guilds')).
 
 Config:
 - `who` (required): Agent type that belongs to factions.

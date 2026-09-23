@@ -1,0 +1,17 @@
+{
+  "actions": 0,
+  "events": 0,
+  "events_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "first_events": [],
+  "metrics": {
+    "reorder_on_order": 109,
+    "reorder_stock_value": 4723.84,
+    "shop_demand": 99,
+    "shop_lost": 7,
+    "shop_sold": 92,
+    "shop_stock": 132
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 0
+}

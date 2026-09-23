@@ -19,13 +19,13 @@ Roots (plus everywhere: $inputs $world $physics $clock $round $stage $metrics $s
 - `turns`: text = "sequential" — sequential (one after another, effects immediate) | simultaneous (same picture, committed together) | scheduled (continuous clock: each agent whose wake time has come, earliest first).
 - `interval`: number | text — Scheduled turns: time until an agent that took no timed action is woken again (number or expression over $actor; default clock.tick).
 - `first_wake`: number | text — Scheduled turns: each agent's first wake time (number or expression over $it, $i; default 0).
-- `order`: text = "seat" — seat | random | expression over $it (lowest first).
+- `order`: text — seat | random | expression over $it (lowest first): the order agents take turns in, and a simultaneous stage's choices commit in. Default: seat; a simultaneous stage's choices then commit in a random order drawn anew each time, so no seat always wins a contested item.
 - `who`: text — Which agents are woken ($it); e.g. $it.alive && $chance(0.3).
 - `until`: text — Repeat turns within the round until true.
-- `passes`: int | text — Max passes through the agents (default 1, or 10 with until): a number or an expression over $inputs.
+- `passes`: int | text — Max passes through the agents (default 1, or 10 with until): a number ≥ 1 or an expression over $inputs.
 - `quiet`: text = "wake" — wake | skip — skip agents with nothing new since their last turn.
-- `max_actions`: int = 1 — Actions an agent may take per turn.
-- `max_calls`: int = 8 — Tool calls (including looks) per turn.
+- `max_actions`: int | text = 1 — Actions an agent may take per turn: a number or an expression over $inputs.
+- `max_calls`: int | text = 8 — Tool calls (including looks) per turn: a number or an expression over $inputs.
 - `brief`: text — Instruction shown during this stage (template).
 - `must_act`: bool = false — While an action is available, the agent cannot just end its turn.
 - `on_idle`: [any] — Effects for each agent that ends its turn without acting ($actor): a forfeit, a default move.

@@ -1,0 +1,24 @@
+{
+  "actions": 8,
+  "events": 9,
+  "events_sha256": "76065e8dfb0e09742db5127e9ea77b03f146909be4bdd8a16a75b2e1ff292f4d",
+  "first_events": [
+    "r1 action cora: {\"action\": \"guess_letter\", \"params\": {\"letter\": \"a\"}, \"private\": true, \"success\": true}",
+    "r1 action dev: {\"action\": \"guess_letter\", \"params\": {\"letter\": \"a\"}, \"private\": true, \"success\": true}",
+    "r2 action cora: {\"action\": \"guess_letter\", \"params\": {\"letter\": \"r\"}, \"private\": true, \"success\": true}",
+    "r2 action dev: {\"action\": \"guess_letter\", \"params\": {\"letter\": \"w\"}, \"private\": true, \"success\": true}",
+    "r3 action cora: {\"action\": \"solve\", \"params\": {\"answer\": \"saffron\"}, \"private\": true, \"success\": true}",
+    "r3 action dev: {\"action\": \"solve\", \"params\": {\"answer\": \"jigsaw\"}, \"private\": true, \"success\": true}",
+    "r3 game_over: Game 1 was drawn. The words were Cora held JIGSAW, Dev held SAFFRON.",
+    "r4 action cora: {\"action\": \"guess_letter\", \"params\": {\"letter\": \"a\"}, \"private\": true, \"success\": true}",
+    "r4 action dev: {\"action\": \"guess_letter\", \"params\": {\"letter\": \"a\"}, \"private\": true, \"success\": true}"
+  ],
+  "metrics": {
+    "games_finished": 1,
+    "letters_hidden": 10,
+    "strikes": 0
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 8
+}

@@ -1,0 +1,732 @@
+[
+ {
+  "brief": "auction_house",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "done",
+  "writes": 3,
+  "clean_at": 2,
+  "final_clean": true,
+  "runs_ok": 3,
+  "runs": 3,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 314293,
+  "output_tokens": 157581,
+  "cost": 0.0726,
+  "wall_seconds": 1918.5,
+  "contract_lines": 401,
+  "guide_parts": [
+   "stages",
+   "population",
+   "actions",
+   "mechanisms",
+   "effects",
+   "records",
+   "outputs",
+   "events",
+   "market.auction",
+   "types",
+   "inputs",
+   "views",
+   "functions.collections",
+   "functions.random",
+   "expressions",
+   "guide",
+   "world",
+   "end",
+   "brief",
+   "invariants",
+   "policies",
+   "metrics"
+  ],
+  "guide_chars": 56239,
+  "check_errors": [
+   [
+    "actions.bid.params.amount.step: must be a number, got the text \"$inputs.increment\" \u2192 write a number without quotes; see guide('actions')"
+   ],
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "beer_game",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "done",
+  "writes": 4,
+  "clean_at": 2,
+  "final_clean": true,
+  "runs_ok": 9,
+  "runs": 9,
+  "checks_passed": 5,
+  "checks": 6,
+  "input_tokens": 412366,
+  "output_tokens": 145442,
+  "cost": 0.067,
+  "wall_seconds": 1804.9,
+  "contract_lines": 399,
+  "guide_parts": [
+   "guide",
+   "effects",
+   "stages",
+   "events",
+   "actions",
+   "expressions",
+   "views",
+   "inputs",
+   "outputs",
+   "patterns",
+   "mechanisms",
+   "population",
+   "functions",
+   "functions.random",
+   "types",
+   "entities",
+   "functions.collections",
+   "functions.stats",
+   "metrics",
+   "policies"
+  ],
+  "guide_chars": 68381,
+  "check_errors": [
+   [
+    "(contract): not valid JSON"
+   ],
+   [],
+   [],
+   []
+  ],
+  "failed_checks": [
+   {
+    "check": "beer_bullwhip_matches_its_definition",
+    "passed": false,
+    "why": "19 factory orders vs 20 demand weeks"
+   }
+  ],
+  "run_errors": []
+ },
+ {
+  "brief": "classroom",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "done",
+  "writes": 4,
+  "clean_at": 1,
+  "final_clean": true,
+  "runs_ok": 9,
+  "runs": 9,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 223443,
+  "output_tokens": 17110,
+  "cost": 0.0136,
+  "wall_seconds": 101.0,
+  "contract_lines": 253,
+  "guide_parts": [
+   "stages",
+   "actions",
+   "views",
+   "outputs",
+   "functions.collections",
+   "effects",
+   "events",
+   "expressions",
+   "policies"
+  ],
+  "guide_chars": 36018,
+  "check_errors": [
+   [],
+   [
+    "policies.fractions_hard.for: 'for' is not a field here \u2192 'for' belongs to another part of the contract; remove it here; see guide('policies')",
+    "policies.hard.for: 'for' is not a field here \u2192 'for' belongs to another part of the contract; remove it here; see guide('policies')",
+    "policies.fractions_hard.rules[0].do: must be text, got an object \u2192 see guide('policies')",
+    "policies.hard.rules[0].do: must be text, got an object \u2192 see guide('policies')"
+   ],
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "ed_triage",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "token cap",
+  "writes": 6,
+  "clean_at": 3,
+  "final_clean": false,
+  "runs_ok": 0,
+  "runs": 9,
+  "checks_passed": 0,
+  "checks": 4,
+  "input_tokens": 557444,
+  "output_tokens": 81306,
+  "cost": 0.0427,
+  "wall_seconds": 1150.8,
+  "contract_lines": 471,
+  "guide_parts": [
+   "patterns",
+   "functions.random",
+   "effects",
+   "stages",
+   "events",
+   "outputs",
+   "functions.collections",
+   "views",
+   "actions",
+   "policies",
+   "inputs",
+   "population",
+   "brief",
+   "types",
+   "invariants",
+   "metrics",
+   "patterns.noise",
+   "patterns.counts",
+   "patterns.draw",
+   "patterns.series",
+   "inspect",
+   "clock",
+   "end",
+   "entities",
+   "overview",
+   "guide",
+   "map",
+   "functions",
+   "patterns.observation",
+   "patterns.random",
+   "patterns.population",
+   "patterns.time",
+   "patterns",
+   "expressions"
+  ],
+  "guide_chars": 78867,
+  "check_errors": [
+   [
+    "events[0].do[0]: $pattern.arr: '{$round}-1' is not one of its keys \u2014 in `$pattern.arr($inputs.rate, \"{$round}-1\")` (smoke run of 1 round(s), random agents) \u2192 fix the rule at this path (found by a smoke run)"
+   ],
+   [
+    "events[0].do[0]: expected a number, got str '-1' \u2014 in `$pattern.arr($inputs.rate, $round + '-1')` (smoke run of 1 round(s), random agents) \u2192 fix the rule at this path (found by a smoke run)"
+   ],
+   [],
+   [],
+   [],
+   [
+    "invariants[2]: invariant `$all($filter(patient, $it.status == left), $it.seen == false)` no longer holds after round (Only patients who were never seen walk out.) (smoke run of 5 round(s), random agents) \u2192 fix the rule at this path (found by a smoke run)"
+   ]
+  ],
+  "failed_checks": [
+   {
+    "check": "outputs_present",
+    "passed": false,
+    "why": "random runs fail"
+   },
+   {
+    "check": "ed_patients_are_conserved",
+    "passed": false,
+    "why": "random runs fail"
+   },
+   {
+    "check": "ed_arrivals_are_exogenous",
+    "passed": false,
+    "why": "random runs fail"
+   },
+   {
+    "check": "ed_idle_staff_treat_nobody",
+    "passed": false,
+    "why": "random runs fail"
+   }
+  ],
+  "run_errors": [
+   {
+    "participants": "random",
+    "seed": 1,
+    "ok": false,
+    "error": "invariants[2]: invariant `$all($filter(patient, $it.status == left), $it.seen == false)` no longer holds after round (Only patients who were never seen walk out.)"
+   },
+   {
+    "participants": "random",
+    "seed": 2,
+    "ok": false,
+    "error": "invariants[2]: invariant `$all($filter(patient, $it.status == left), $it.seen == false)` no longer holds after round (Only patients who were never seen walk out.)"
+   },
+   {
+    "participants": "random",
+    "seed": 3,
+    "ok": false,
+    "error": "invariants[2]: invariant `$all($filter(patient, $it.status == left), $it.seen == false)` no longer holds after round (Only patients who were never seen walk out.)"
+   },
+   {
+    "participants": {
+     "doctor": "policy:sickest_first",
+     "triage_nurse": "policy:sickest_first"
+    },
+    "seed": 1,
+    "ok": false,
+    "error": "invariants[2]: invariant `$all($filter(patient, $it.status == left), $it.seen == false)` no longer holds after round (Only patients who were never seen walk out.)"
+   },
+   {
+    "participants": {
+     "doctor": "policy:sickest_first",
+     "triage_nurse": "policy:sickest_first"
+    },
+    "seed": 2,
+    "ok": false,
+    "error": "invariants[2]: invariant `$all($filter(patient, $it.status == left), $it.seen == false)` no longer holds after round (Only patients who were never seen walk out.)"
+   },
+   {
+    "participants": {
+     "doctor": "policy:sickest_first",
+     "triage_nurse": "policy:sickest_first"
+    },
+    "seed": 3,
+    "ok": false,
+    "error": "invariants[2]: invariant `$all($filter(patient, $it.status == left), $it.seen == false)` no longer holds after round (Only patients who were never seen walk out.)"
+   },
+   {
+    "participants": {
+     "doctor": "policy:first_come_first_served",
+     "triage_nurse": "policy:first_come_first_served"
+    },
+    "seed": 1,
+    "ok": false,
+    "error": "invariants[2]: invariant `$all($filter(patient, $it.status == left), $it.seen == false)` no longer holds after round (Only patients who were never seen walk out.)"
+   },
+   {
+    "participants": {
+     "doctor": "policy:first_come_first_served",
+     "triage_nurse": "policy:first_come_first_served"
+    },
+    "seed": 2,
+    "ok": false,
+    "error": "invariants[2]: invariant `$all($filter(patient, $it.status == left), $it.seen == false)` no longer holds after round (Only patients who were never seen walk out.)"
+   },
+   {
+    "participants": {
+     "doctor": "policy:first_come_first_served",
+     "triage_nurse": "policy:first_come_first_served"
+    },
+    "seed": 3,
+    "ok": false,
+    "error": "invariants[2]: invariant `$all($filter(patient, $it.status == left), $it.seen == false)` no longer holds after round (Only patients who were never seen walk out.)"
+   }
+  ]
+ },
+ {
+  "brief": "jury_trial",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "done",
+  "writes": 4,
+  "clean_at": 2,
+  "final_clean": true,
+  "runs_ok": 18,
+  "runs": 18,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 368989,
+  "output_tokens": 61747,
+  "cost": 0.045,
+  "wall_seconds": 870.1,
+  "contract_lines": 630,
+  "guide_parts": [
+   "stages",
+   "actions",
+   "events",
+   "records",
+   "views",
+   "effects",
+   "expressions",
+   "functions.collections",
+   "entities",
+   "outputs",
+   "invariants",
+   "inputs",
+   "population",
+   "clock",
+   "end",
+   "types",
+   "policies",
+   "world",
+   "inspect"
+  ],
+  "guide_chars": 48911,
+  "check_errors": [
+   [
+    "views.closings.of: $records is not available here \u2192 available: $actor, $arm, $clock, $inputs, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world \u2014 in `$records.closings`"
+   ],
+   [],
+   [
+    "(contract): not valid JSON"
+   ],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "labor_negotiation",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "done",
+  "writes": 6,
+  "clean_at": 1,
+  "final_clean": true,
+  "runs_ok": 21,
+  "runs": 21,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 530909,
+  "output_tokens": 108389,
+  "cost": 0.0541,
+  "wall_seconds": 1340.8,
+  "contract_lines": 679,
+  "guide_parts": [
+   "guide",
+   "stages",
+   "actions",
+   "views",
+   "mechanisms",
+   "end",
+   "records",
+   "outputs",
+   "agreements.negotiation",
+   "effects",
+   "inputs",
+   "population",
+   "expressions",
+   "functions.collections",
+   "brief",
+   "events",
+   "policies",
+   "invariants",
+   "inspect"
+  ],
+  "guide_chars": 54658,
+  "check_errors": [
+   [],
+   [],
+   [],
+   [],
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "sealed_tender",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "done",
+  "writes": 2,
+  "clean_at": 1,
+  "final_clean": true,
+  "runs_ok": 12,
+  "runs": 12,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 248994,
+  "output_tokens": 32089,
+  "cost": 0.0222,
+  "wall_seconds": 172.4,
+  "contract_lines": 394,
+  "guide_parts": [
+   "functions.collections",
+   "functions.random",
+   "records",
+   "stages",
+   "mechanisms",
+   "effects",
+   "actions",
+   "views",
+   "inputs",
+   "outputs",
+   "events",
+   "policies",
+   "population",
+   "types",
+   "expressions",
+   "end",
+   "clock",
+   "brief",
+   "social.channels"
+  ],
+  "guide_chars": 54885,
+  "check_errors": [
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "sports_league",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "done",
+  "writes": 3,
+  "clean_at": 2,
+  "final_clean": true,
+  "runs_ok": 3,
+  "runs": 3,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 261700,
+  "output_tokens": 41300,
+  "cost": 0.0284,
+  "wall_seconds": 155.2,
+  "contract_lines": 683,
+  "guide_parts": [
+   "inputs",
+   "population",
+   "stages",
+   "actions",
+   "effects",
+   "functions.collections",
+   "outputs",
+   "views",
+   "entities",
+   "patterns",
+   "events",
+   "expressions",
+   "clock",
+   "metrics",
+   "end",
+   "records",
+   "functions.random",
+   "defs",
+   "blocks",
+   "types",
+   "brief",
+   "policies",
+   "invariants"
+  ],
+  "guide_chars": 61390,
+  "check_errors": [
+   [
+    "events[0].say: $it is not available here \u2192 available: $arm, $clock, $inputs, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world \u2014 in `$entity($it.home).name`"
+   ],
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "town_hall",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "token cap",
+  "writes": 7,
+  "clean_at": 2,
+  "final_clean": true,
+  "runs_ok": 12,
+  "runs": 12,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 531908,
+  "output_tokens": 74520,
+  "cost": 0.0523,
+  "wall_seconds": 601.8,
+  "contract_lines": 443,
+  "guide_parts": [
+   "stages",
+   "mechanisms",
+   "records",
+   "actions",
+   "decision.ballot",
+   "views",
+   "outputs",
+   "expressions",
+   "effects",
+   "events",
+   "functions.collections",
+   "population",
+   "policies",
+   "defs",
+   "types",
+   "end",
+   "population.mix",
+   "inputs"
+  ],
+  "guide_chars": 50875,
+  "check_errors": [
+   [
+    "actions.speak.per_round: must be a whole number, got the text \"$inputs.speeches_per_round\" \u2192 write a whole number without quotes; see guide('actions')"
+   ],
+   [],
+   [],
+   [],
+   [],
+   [
+    "events[0].say: $it is not available here \u2192 available: $arm, $clock, $inputs, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world \u2014 in `$it`"
+   ],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "treaty",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "token cap",
+  "writes": 6,
+  "clean_at": 3,
+  "final_clean": true,
+  "runs_ok": 9,
+  "runs": 9,
+  "checks_passed": 3,
+  "checks": 4,
+  "input_tokens": 553569,
+  "output_tokens": 52126,
+  "cost": 0.0323,
+  "wall_seconds": 538.1,
+  "contract_lines": 329,
+  "guide_parts": [
+   "patterns",
+   "stages",
+   "inputs",
+   "types",
+   "actions",
+   "views",
+   "events",
+   "outputs",
+   "records",
+   "functions.collections",
+   "effects",
+   "end",
+   "population",
+   "functions.random",
+   "invariants",
+   "brief",
+   "blocks",
+   "defs",
+   "policies"
+  ],
+  "guide_chars": 55453,
+  "check_errors": [
+   [
+    "types.nation.props.red_line.min: must be a number, got the text \"$inputs.red_line_min\" \u2192 write a number without quotes; see guide('types')",
+    "types.nation.props.red_line.max: must be a number, got the text \"$inputs.red_line_max\" \u2192 write a number without quotes; see guide('types')"
+   ],
+   [
+    "population[0].where: $i is not available here \u2192 available: $arm, $clock, $inputs, $metrics, $pattern, $pending, $physics, $round, $row, $series, $stage, $world \u2014 in `$i <= $inputs.nations`"
+   ],
+   [],
+   [],
+   [],
+   []
+  ],
+  "failed_checks": [
+   {
+    "check": "treaty_red_lines_stay_secret",
+    "passed": false,
+    "why": "Norland was shown Westmark's red line 14: \u2026t.\n- You ratify the 14% cut.\n- Estavia ratifies the 14% cut.\n- Westmark ratifies the 14% cut.\n- The treaty enters into force: every signatory cuts its e\u2026"
+   }
+  ],
+  "run_errors": []
+ },
+ {
+  "brief": "weekly_inventory",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "done",
+  "writes": 4,
+  "clean_at": 2,
+  "final_clean": true,
+  "runs_ok": 9,
+  "runs": 9,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 371208,
+  "output_tokens": 30287,
+  "cost": 0.0235,
+  "wall_seconds": 481.4,
+  "contract_lines": 309,
+  "guide_parts": [
+   "effects",
+   "patterns",
+   "types",
+   "population",
+   "outputs",
+   "stages",
+   "views",
+   "actions",
+   "patterns.observation",
+   "inputs",
+   "patterns.counts",
+   "functions.collections",
+   "events",
+   "policies",
+   "patterns.counts",
+   "patterns.draw",
+   "functions.random",
+   "end",
+   "guide"
+  ],
+  "guide_chars": 51988,
+  "check_errors": [
+   [
+    "types.product.props.name: 'name' is a built-in entity field \u2192 remove name from props; set name on the entity or population entry, outside props",
+    "actions.order.outcome: '{cost}' needs a subject; write {$actor.cost} or similar \u2192 template: You ordered {$params.qty} x {$params.product.name} for ${cost|money}. It arrives next week. Cash left: ${cash|money}."
+   ],
+   [],
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "werewolf",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "token cap",
+  "writes": 7,
+  "clean_at": 3,
+  "final_clean": true,
+  "runs_ok": 9,
+  "runs": 9,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 575181,
+  "output_tokens": 67546,
+  "cost": 0.0487,
+  "wall_seconds": 558.2,
+  "contract_lines": 479,
+  "guide_parts": [
+   "guide",
+   "mechanisms",
+   "effects",
+   "expressions",
+   "stages",
+   "actions",
+   "types",
+   "outputs",
+   "end",
+   "views",
+   "records",
+   "events",
+   "brief",
+   "population",
+   "policies",
+   "groups.roles",
+   "functions.random",
+   "functions.collections",
+   "decision.ballot",
+   "patterns",
+   "inspect",
+   "inputs"
+  ],
+  "guide_chars": 69122,
+  "check_errors": [
+   [
+    "views.village.show: '{living and 'alive' or 'dead'}' is not a field name; write an expression as {$...} \u2192 template: {name} \u2014 {living and 'alive' or 'dead'}"
+   ],
+   [
+    "invariants[1]: invariant `$count(player, $it.role == werewolf) == $inputs.werewolves` no longer holds after build (There are exactly the declared number of werewolves.) \u2192 fix the rule at this path (found by a smoke run)"
+   ],
+   [],
+   [],
+   [],
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ }
+]

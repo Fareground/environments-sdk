@@ -17,8 +17,8 @@ Modes (`"kind": "decision", "mode": ...`; read one with `guide('decision.<mode>'
 - `deliberation`: A deliberating body: a discussion stage `<name>` that repeats passes until every member is ready (or the pass cap), optional chair with floor control (raise hand, recognize, speaker limits), motions with seconds, amendments, calling the question, and a vote stage `<name>_vote` counted by majority or supermajority.
 
 Functions:
-- `$decisions()` — Decided main motions, oldest first: [{id, text, passed, counts, round}].
-- `$discussion_over()` — True when the discussion should stop this round: a vote is due, or every member (the last speaker aside) is ready.
-- `$house(viewer)` — The state of the deliberation as the viewer should read it: question, floor, hands, readiness.
-- `$pending_motion()` — The question before the body (the top motion or amendment) as {id, kind, text, mover, seconder, status, speeches, target}, or null (deliberation mechanism).
-- `$tally_votes(method, ballots, options?, threshold?, ties?)` — Count ballots with a voting method (plurality, majority, supermajority, approval, ranked, borda, score, condorcet). ballots: {voter: ballot} or a list; returns {winner, passed, counts, ranking, votes, tie, tied, share, rounds}. ties: random (seeded) | none | first.
+- `$decisions(mechanism?)` — Decided main motions, oldest first: [{id, text, passed, counts, round}].
+- `$discussion_over(mechanism?)` — True when the discussion should stop this round: a vote is due, or every member (the last speaker aside) is ready.
+- `$house(viewer, mechanism?)` — The state of the deliberation as the viewer should read it: question, floor, hands, readiness.
+- `$pending_motion(mechanism?)` — The question before the body (the top motion or amendment) as {id, kind, text, mover, seconder, status, speeches, target}, or null (deliberation mechanism).
+- `$tally_votes(method, ballots, options?, threshold?, ties?)` — Count ballots with a voting method (plurality, majority, supermajority, approval, ranked, borda, score, condorcet). ballots: {voter: ballot} or a list; returns {winner, decided, passed, counts, ranking, votes, tie, tied, share, rounds}: decided = there is a winner, passed = the first option won (list a motion's yes first). ties: random (seeded) | none | first.

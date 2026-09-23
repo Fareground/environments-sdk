@@ -10,16 +10,15 @@ equations (ODEs):
 Each variable's rate may reference every other variable, so genuinely coupled
 systems — predator/prey (Lotka–Volterra), epidemics (SIR), supply/demand price
 discovery, resource depletion — are first-class, not a bag of independent
-drifts (which is what :mod:`property_dynamics` provides).
+drifts.
 
 Design goals:
 
 * **dt-aware.** The same model integrates by a real time delta. In discrete
   mode that delta is one round (dt=1, ticked once per round before agents act);
-  in continuous mode it is the gap between successive environment ticks
-  (``ContinuousTemporalModel.environment_interval``). Either way the *clock*, not
-  a round counter, drives evolution — and agent turns interleave freely between
-  ticks without advancing physics themselves.
+  in continuous mode it is the gap between successive environment ticks. Either
+  way the *clock*, not a round counter, drives evolution — and agent turns
+  interleave freely between ticks without advancing physics themselves.
 * **Accurate & stable.** Classic 4th-order Runge–Kutta with configurable
   sub-stepping, so a large dt doesn't blow up a stiff system.
 * **Turn-based compatible.** Agents still act in discrete turns; physics simply
@@ -509,14 +508,6 @@ class PhysicsModel:
                     })
         return out
 
-    # -- tick (engine-facing, mirrors PropertyDynamicsEngine.tick) --------
-
-    def tick(self, state: Any, dt: float) -> List[Dict[str, Any]]:
-        """Engine entry point: integrate ``dt`` against ``state`` and return
-        change events. Mirrors :meth:`PropertyDynamicsEngine.tick` so the engine
-        treats both dynamics layers uniformly."""
-        return self.integrate(dt, state=state)
-
     # -- serialization ----------------------------------------------------
 
     def to_dict(self) -> dict:
@@ -535,26 +526,6 @@ class PhysicsModel:
             substeps=int(d.get("substeps", 4)),
             time=float(d.get("time", 0.0)),
         )
-
-    @classmethod
-    def from_schema(cls, spec: Optional[Mapping[str, Any]]) -> Optional["PhysicsModel"]:
-        """Build from a world-definition ``physics`` block, or None if absent.
-
-        Schema shape::
-
-            "physics": {
-                "params": {"r": 0.5, "K": 1000},
-                "substeps": 8,
-                "variables": [
-                    {"name": "population", "value": 10,
-                     "rate": "r*population*(1 - population/K)", "min": 0,
-                     "writeback": {"entity_type": "herd", "property": "size"}}
-                ]
-            }
-        """
-        if not spec or not (spec.get("variables")):
-            return None
-        return cls.from_dict(spec)
 
 
 __all__ = [

@@ -1,7 +1,7 @@
 # economy / inventory
 
 ### `economy.inventory`
-Goods held by entities: stackable items in a map property (`$actor.goods.bread`) and unique items as entities with an owner. Generates `<name>_give`, `<name>_consume`, `<name>_drop` and `<name>_pickup` tools listing only goods you hold, capacity limits, recurring needs and spoilage, and the invariant `$conserved(<name>)`: goods change only by moves or by named sources and sinks (the `make` and `use` actions). Totals are in $world.<name>_supply and every named flow in $world.<name>_flows.
+Goods held by entities: stackable items in a map property listing each one (`$actor.goods.bread`, 0 when none are held) and unique items as entities with an owner. Generates `<name>_give`, `<name>_consume`, `<name>_drop` and `<name>_pickup` tools listing only goods you hold, capacity limits, recurring needs and spoilage, and the invariant `$conserved(<name>)`: goods change only by moves or by named sources and sinks (the `make` and `use` actions). Totals are in $world.<name>_supply and every named flow in $world.<name>_flows.
 
 Config:
 - `who` (required): Type(s) that hold goods (subtypes included).

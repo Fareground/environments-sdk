@@ -240,7 +240,7 @@
         1.0770652146235087,
         1.0253608213599645
       ],
-      "description": "Pattern 'weekday', profile: fitted by fg_env.fit_patterns from $inputs.history (joint count regression)."
+      "description": "Pattern 'weekday', profile: fitted by fg_env.analysis.fit_patterns from $inputs.history (joint count regression)."
     },
     "weekday_profile_se": {
       "type": "list",
@@ -258,7 +258,7 @@
     "retail_price_effect_elasticity": {
       "type": "number",
       "default": -2.4168946793616572,
-      "description": "Pattern 'retail_price_effect', elasticity: fitted by fg_env.fit_patterns from $inputs.history (joint count regression)."
+      "description": "Pattern 'retail_price_effect', elasticity: fitted by fg_env.analysis.fit_patterns from $inputs.history (joint count regression)."
     },
     "retail_price_effect_elasticity_se": {
       "type": "number",
@@ -461,17 +461,17 @@
           "scale_se": 0.015267632108148414
         }
       ],
-      "description": "Pattern 'retail_demand', one row per key: scale fitted by fg_env.fit_patterns from $inputs.history (joint count regression)."
+      "description": "Pattern 'retail_demand', one row per key: scale fitted by fg_env.analysis.fit_patterns from $inputs.history (joint count regression)."
     },
     "sales_dispersion": {
       "type": "number",
       "default": 3.4644827767042385,
-      "description": "Pattern 'sales', dispersion: fitted by fg_env.fit_patterns from $inputs.history (method of moments around the fitted means)."
+      "description": "Pattern 'sales', dispersion: fitted by fg_env.analysis.fit_patterns from $inputs.history (method of moments around the fitted means)."
     },
     "wholesale_trend_rate": {
       "type": "number",
       "default": 0.00019497986486851653,
-      "description": "Pattern 'wholesale_trend', rate: fitted by fg_env.fit_patterns from $inputs.history (joint count regression)."
+      "description": "Pattern 'wholesale_trend', rate: fitted by fg_env.analysis.fit_patterns from $inputs.history (joint count regression)."
     },
     "wholesale_trend_rate_se": {
       "type": "number",
@@ -674,17 +674,17 @@
           "scale_se": 0.04326268932733994
         }
       ],
-      "description": "Pattern 'wholesale_demand', one row per key: scale fitted by fg_env.fit_patterns from $inputs.history (joint count regression)."
+      "description": "Pattern 'wholesale_demand', one row per key: scale fitted by fg_env.analysis.fit_patterns from $inputs.history (joint count regression)."
     },
     "bulk_dispersion": {
       "type": "number",
       "default": 1.6826919000563045,
-      "description": "Pattern 'bulk', dispersion: fitted by fg_env.fit_patterns from $inputs.history (method of moments around the fitted means)."
+      "description": "Pattern 'bulk', dispersion: fitted by fg_env.analysis.fit_patterns from $inputs.history (method of moments around the fitted means)."
     },
     "lead_noise_mean": {
       "type": "number",
       "default": 0.016229408068922934,
-      "description": "Pattern 'lead_noise', mean: fitted by fg_env.fit_patterns from $inputs.orders (method of moments)."
+      "description": "Pattern 'lead_noise', mean: fitted by fg_env.analysis.fit_patterns from $inputs.orders (method of moments)."
     },
     "lead_noise_mean_se": {
       "type": "number",
@@ -694,7 +694,7 @@
     "lead_noise_sd": {
       "type": "number",
       "default": 0.34730226817312554,
-      "description": "Pattern 'lead_noise', sd: fitted by fg_env.fit_patterns from $inputs.orders (method of moments)."
+      "description": "Pattern 'lead_noise', sd: fitted by fg_env.analysis.fit_patterns from $inputs.orders (method of moments)."
     }
   },
   "types": {

@@ -1,0 +1,24 @@
+{
+  "actions": 4,
+  "events": 8,
+  "events_sha256": "f770ff6f4aea341f41a0284c4ced0df5b983249999ac195c6c65bbdb8c728a98",
+  "first_events": [
+    "r1 action union: The union has called a strike. Both sides lose 4.0 points per round while it lasts.",
+    "r1 news: The strike cost each side 4.0 points this round.",
+    "r2 action firm: Firm tabled an offer: wage +4.5%, enhanced benefits, 4-year job guarantee.",
+    "r2 record firm: {\"entry\": 1, \"fields\": {\"text\": \"ok\"}, \"record\": \"table_talk\"}",
+    "r2 news: The strike cost each side 4.0 points this round.",
+    "r3 action union: The union has called off its strike.",
+    "r4 action firm: Firm tabled an offer: wage +6.3%, enhanced benefits, 5-year job guarantee.",
+    "r4 record firm: {\"entry\": 2, \"fields\": {\"text\": \"ok\"}, \"record\": \"table_talk\"}"
+  ],
+  "metrics": {
+    "dispute_active": 0,
+    "firm_offer_value": 21.0825,
+    "union_offer_value": 79.376,
+    "wage_gap": null
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 4
+}

@@ -1,0 +1,30 @@
+{
+  "actions": 301,
+  "events": 602,
+  "events_sha256": "59ecfe205f262078092acec0ad67e9d7029cc6289136ed54eb70ef96491df357",
+  "first_events": [
+    "r1 news: Doctors confirm 3 cases of a new respiratory virus in town.",
+    "r4 action mayor: The mayor has ordered a lockdown.",
+    "r4 action r36: {\"action\": \"comply\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r4 outcome r36: Done: comply.",
+    "r4 action r179: {\"action\": \"defy\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r4 outcome r179: Done: defy.",
+    "r4 action r275: {\"action\": \"comply\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r4 outcome r275: Done: comply.",
+    "r4 action r188: {\"action\": \"comply\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r4 outcome r188: Done: comply."
+  ],
+  "metrics": {
+    "active": 11,
+    "budget": 59100,
+    "compliance": 0.79,
+    "dead": 0,
+    "hospital_load": 0.2402709009,
+    "lockdown": 1,
+    "new_cases": 0,
+    "recovered": 1
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 304
+}

@@ -43,9 +43,10 @@ and engine randomness is reproducible from its seed. Reproducing an LLM run also
 
 Built for LLM agents from the ground up:
 
-- **A cacheable brief and a compact update.** Each turn opens with why the agent is acting,
-  what changed since its last turn, and ranked views of the world, names first, with ids as
-  handles. Nothing is repeated that the agent already has.
+- **A stable brief and a compact update.** The brief never changes between an agent's turns;
+  each turn's update says why the agent is acting, what changed since its last turn, and gives
+  ranked views of the world, names first, with ids as handles. Nothing is repeated that the
+  agent already has.
 - **One typed tool per legal action.** JSON Schema with enums and numeric bounds. An invalid
   call returns exactly what to fix, and a refused action changes nothing.
 - **Participant text stays marked.** Anything an agent writes carries its provenance through
@@ -114,7 +115,7 @@ scenario presets, or Arena games. All twelve engines are native, available, and 
 Persona generation is shared infrastructure rather than an environment:
 
 ```python
-cohort = fg_env.sample_records(
+cohort = fg_env.personas.sample_records(
     people, size=100, seed=7, run=0, resample=True,
     constraints={"region": "north"}, group_by="household_id",
     source="survey-2026",
@@ -144,7 +145,13 @@ Run it with an LLM — pass your own client:
 import anthropic
 claude = fg_env.participants.anthropic(anthropic.Anthropic(), "YOUR_AVAILABLE_MODEL_ID")
 result = fg_env.run(contract, {"player": claude}, seed=1)
+print(result.summary())      # outputs, plus a diagnostic if any turn was lost to the provider
 ```
+
+A run that cannot go on raises: a rejected API key, an unknown model or a participant that raises stops
+`fg_env.run` with a `RunError` naming the agent, the error and the fix (`error.result` is the failed run).
+Rate limits and server errors are retried; a turn that still fails is forfeited, counted in
+`result.stats["forfeits"]` and reported in `result.diagnostics`.
 
 Or with your own code. A participant is any function that takes a `Wake`:
 
@@ -183,8 +190,8 @@ One small, strict expression language is used everywhere:
 `$top(offer, [$it.rating, -$it.price], 5)`. Unknown properties and type errors are reported with
 the fix; nothing silently evaluates to zero.
 
-Start with `fg-env guide authoring`: a compact, executable path from configurable
-objects and tables to decisions, rounds and known-answer checks. Hosts can put
+Start with `fg-env guide authoring`: one page with a complete worked contract, the
+write → check → preview → run loop and a known-answer check. Hosts can put
 `fg_env.guide("authoring")` directly in an authoring agent’s starting context.
 Field references are generated from the installed SDK; `fg-env guide` maps the
 full language and `fg-env guide all` prints the complete reference.
@@ -199,11 +206,12 @@ fg-env guide market       # a mechanism family; fg-env guide market.auction for 
 ## Tooling
 
 ```bash
-fg-env check shop.json                    # every problem with its path and a fix, plus a smoke round
+fg-env check shop.json                    # every problem with its path and a fix, then plays it with random agents and each policy
 fg-env expand shop.json --mechanisms       # the contract with every mechanism expanded into plain sections
 fg-env preview shop.json shopper_1        # exactly what that agent reads, its tools, token estimates
 fg-env preview shop.json shopper_1 --rounds 5 --agent shopper=policy:thrifty
 fg-env run shop.json --seed 1 --input budget=50 --agent shopper=policy:thrifty --json
+fg-env run shop.json --agent shopper=anthropic:YOUR_MODEL_ID   # an LLM agent; key from ANTHROPIC_API_KEY (or openai:<model>)
 fg-env experiment shop.json --runs 20 --arms control,promo
 fg-env schema                             # JSON Schema of the contract
 ```
@@ -227,15 +235,19 @@ fg-env run examples/contracts/werewolf.json --seed 3
 ## Determinism
 
 Every random draw comes from one seed tree per run, so a run is reproducible exactly from its seed.
-Adding an event with a chance roll never changes how the population was sampled. Runs snapshot to
-JSON between rounds and resume identically.
+Each block of logic draws from its own stream, keyed by where it is written (`events[0]`, a trigger, a
+stage hook, an action and the agent taking it) and the round. What that guarantees:
 
-## Template API
+- Same seed and same contract ⇒ the same world draws (arrivals, shocks, an event's chance rolls),
+  whatever the participants choose. One agent's actions never shift another agent's luck either. That
+  is why policies and experiment arms can be compared run by run.
+- A block's own draws still follow what it does: a roll per waiting patient rolls once per patient
+  still waiting, and that number depends on the policy.
+- A refused action gives its draws back, so retrying it in the same round rolls the same luck.
+- Adding a rule at the end of a list changes no other draw. Inserting one earlier renumbers the ones
+  after it (`events[2]` becomes `events[3]`), and they draw anew.
 
-The earlier template-based engine API (`Kernel`, `simulate`, `load_world`, the registry decorators)
-remains available for existing templates as `fg_env.legacy` (`from fg_env.legacy import simulate`), with its
-commands under `fg-env legacy`; see [`docs/template_schema.md`](https://github.com/Fareground/environments-sdk/blob/main/docs/template_schema.md).
-New environments should use contracts.
+Runs snapshot to JSON — between rounds, or wherever `run(stop=...)` stopped them — and resume identically.
 
 ## Contributing
 

@@ -53,13 +53,19 @@ participant = fg_env.participants.anthropic(
 result = fg_env.run("inventory.json", {"retailer": participant}, seed=7)
 ```
 
-Install the provider client separately (`python -m pip install anthropic`) and configure its credentials through your normal secret management. Environment seeds do not make remote model responses deterministic.
+Install the provider client separately (`python -m pip install anthropic`) and configure its credentials through your normal secret management. The strings `"anthropic:<model>"` and `"openai:<model>"` name the same participants on the official client made from `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`, which is how the command line runs one: `fg-env run inventory.json --agent retailer=anthropic:<model>`. Pass the sync client (`anthropic.Anthropic()`, `openai.OpenAI()`); simultaneous turns already run in parallel. Environment seeds do not make remote model responses deterministic.
+
+Errors retrying cannot fix — a rejected API key, an unknown model, a bad request, a client that does not fit — fail the run at once: `fg_env.run` raises a `RunError` naming the participant, the provider's error and the fix, with the failed run in `error.result` (`env.run` returns it with `status="failed"`, and experiments keep it and carry on). Rate limits, timeouts and server errors are retried (`retries=4`); a turn whose retries all fail is forfeited, counted in `result.stats["forfeits"]` and reported as a `turns_forfeited` diagnostic. Replies the provider refuses count in `result.stats["refusals"]`.
+
+`max_tokens` caps each reply (OpenAI receives it as `max_completion_tokens`); `extra` adds request fields to every call, for example `extra={"temperature": 0}`, or `extra={"max_tokens": 1024}` for an OpenAI-compatible server that only knows the older field.
+
+Each turn is a fresh conversation: the participant sends the brief, that turn's update and then its tool calls, and resends nothing from earlier turns. What carries over is what the environment shows — the update says what changed since the agent's last turn, and its views show the world now. For an agent to keep its own plans and reasoning across rounds, give it a `mind` mechanism in `memory` mode (`note` and `recall` tools, and its strongest memories in a view).
 
 ## Host responsibilities
 
 A hosting application stores the contract and data, chooses participant implementations, runs the environment, and displays outputs and traces. It also owns authentication, tenant boundaries, resource limits, credential handling and artifact access. The SDK itself is not a sandbox for arbitrary host code.
 
-Generated environments should pass contract checks and requirement-level tests before a customer run. Preview roles, cap workloads, and retain the exact contract, inputs and version. Run budgets are checked at execution boundaries; an in-progress turn can finish before a limit is applied.
+Generated environments should pass contract checks and requirement-level tests before a customer run. Preview roles, cap workloads, and retain the exact contract, inputs and version. Run budgets are checked at execution boundaries, and the token budget also after every model reply: the turn that spends it ends there, while other limits let an in-progress turn finish.
 
 ## Save and resume
 

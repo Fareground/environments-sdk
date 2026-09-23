@@ -1,0 +1,24 @@
+{
+  "actions": 135,
+  "events": 239,
+  "events_sha256": "5d3eec9fa6ebe8e159bf9645a7e1ad942d6185475d516034d7a5654a7058be48",
+  "first_events": [
+    "r1 record p3: {\"entry\": 1, \"fields\": {\"text\": \"ok\"}, \"record\": \"den\"}",
+    "r1 action p3: {\"action\": \"whisper\", \"params\": {\"text\": \"ok\"}, \"private\": true, \"success\": true}",
+    "r1 record p8: {\"entry\": 2, \"fields\": {\"text\": \"ok\"}, \"record\": \"den\"}",
+    "r1 action p8: {\"action\": \"whisper\", \"params\": {\"text\": \"ok\"}, \"private\": true, \"success\": true}",
+    "r1 record p3: {\"entry\": 3, \"fields\": {\"text\": \"ok\"}, \"record\": \"den\"}",
+    "r1 action p3: {\"action\": \"whisper\", \"params\": {\"text\": \"ok\"}, \"private\": true, \"success\": true}",
+    "r1 record p8: {\"entry\": 4, \"fields\": {\"text\": \"ok\"}, \"record\": \"den\"}",
+    "r1 action p8: {\"action\": \"whisper\", \"params\": {\"text\": \"ok\"}, \"private\": true, \"success\": true}",
+    "r1 record p3: {\"entry\": 5, \"fields\": {\"text\": \"ok\"}, \"record\": \"den\"}",
+    "r1 action p3: {\"action\": \"whisper\", \"params\": {\"text\": \"ok\"}, \"private\": true, \"success\": true}"
+  ],
+  "metrics": {
+    "living": 4,
+    "living_wolves": 1
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 135
+}

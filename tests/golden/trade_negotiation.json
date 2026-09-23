@@ -1,0 +1,24 @@
+{
+  "actions": 5,
+  "events": 8,
+  "events_sha256": "7bc0396665f40e315329bbcf2aa7a8df263c75f87061bac48b1de0cc5115ff70",
+  "first_events": [
+    "r1 action arland: {\"action\": \"sell_abroad\", \"params\": {\"tons\": 72}, \"private\": true, \"success\": true}",
+    "r1 action borin: {\"action\": \"buy_abroad\", \"params\": {\"tons\": 7}, \"private\": true, \"success\": true}",
+    "r2 action borin: Borin: trade propose (to=Arland, price=2.56, quota=14, years=7, note=\u00abok\u00bb).",
+    "r2 trade_offer: Borin offers price 2.56 credits/t, quota 14 t/year, years 7 [trade_offer_1].",
+    "r3 action arland: Arland: trade propose (to=Borin, price=7.59, quota=99, years=8, note=\u00abok\u00bb).",
+    "r3 trade_offer: Arland offers price 7.59 credits/t, quota 99 t/year, years 8 [trade_offer_2].",
+    "r3 action borin: {\"action\": \"buy_abroad\", \"params\": {\"tons\": 166}, \"private\": true, \"success\": true}",
+    "r4 trade_expired: Offer trade_offer_1 expired unanswered."
+  ],
+  "metrics": {
+    "arland_credits": 2432.0,
+    "borin_credits": 886.0,
+    "borin_shortfall": 53,
+    "deal_active": 0
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 8
+}

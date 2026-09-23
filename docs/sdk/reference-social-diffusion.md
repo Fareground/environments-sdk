@@ -9,6 +9,7 @@ Config:
 - `flow` (default "both"): along: from → to; against: to → from (followers hear the followed); both.
 - `model` (default "cascade"): cascade (independent cascade) | threshold (linear threshold).
 - `p` (default 0.1): Cascade: chance one adopter convinces one neighbour (number or expression over $from, $to, $item).
+- `persistent` (default false): Cascade: every adopter keeps trying to convince its neighbours at every step (default: one chance, right after adopting).
 - `threshold` (default 0.5): Threshold: share of informing neighbours needed (number, expression over $it and $item, or "random").
 - `weighted` (default false): Threshold: weigh neighbours by link value.
 - `seeds` (default {}): Items adopted from the start: {item: [ids]}.

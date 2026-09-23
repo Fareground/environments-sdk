@@ -1,0 +1,813 @@
+[
+ {
+  "brief": "auction_house",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "token cap",
+  "writes": 7,
+  "clean_at": 3,
+  "final_clean": true,
+  "runs_ok": 9,
+  "runs": 9,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 519422,
+  "output_tokens": 100890,
+  "cost": 0.0511,
+  "wall_seconds": 1242.3,
+  "contract_lines": 536,
+  "guide_parts": [
+   "stages",
+   "mechanisms",
+   "actions",
+   "effects",
+   "expressions",
+   "functions.collections",
+   "functions.random",
+   "views",
+   "events",
+   "outputs",
+   "population",
+   "records",
+   "inputs",
+   "policies",
+   "defs",
+   "types",
+   "inspect",
+   "end",
+   "blocks",
+   "metrics"
+  ],
+  "guide_chars": 52759,
+  "check_errors": [
+   [
+    "(contract): not valid JSON"
+   ],
+   [
+    "views.hammer.show: '{winner or 'unsold'}' is not a field name; write an expression as {$...} \u2192 template: Lot {n} ({format}): {winner or 'unsold'} at {price or 'no sale'}."
+   ],
+   [],
+   [],
+   [],
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "beer_game",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "token cap",
+  "writes": 6,
+  "clean_at": 3,
+  "final_clean": true,
+  "runs_ok": 6,
+  "runs": 6,
+  "checks_passed": 0,
+  "checks": 6,
+  "input_tokens": 439110,
+  "output_tokens": 194452,
+  "cost": 0.0879,
+  "wall_seconds": 2289.8,
+  "contract_lines": 355,
+  "guide_parts": [
+   "effects",
+   "expressions",
+   "stages",
+   "events",
+   "views",
+   "mechanisms",
+   "functions.collections",
+   "population",
+   "inputs",
+   "actions",
+   "types",
+   "outputs",
+   "defs",
+   "functions.random",
+   "brief",
+   "policies",
+   "functions",
+   "entities",
+   "world",
+   "functions.world",
+   "functions.stats",
+   "functions.lists",
+   "metrics",
+   "guide"
+  ],
+  "guide_chars": 62593,
+  "check_errors": [
+   [
+    "(contract): not valid JSON"
+   ],
+   [
+    "events[1].do[0]: index 0 is out of range (length 0) \u2014 in `$it.pipeline[0]` (smoke run of 12 round(s), policy 'base_stock' playing company) \u2192 fix the rule at this path (found by a smoke run)"
+   ],
+   [],
+   [],
+   [],
+   []
+  ],
+  "failed_checks": [
+   {
+    "check": "outputs_present",
+    "passed": false,
+    "why": "missing required outputs ['customer_demand', 'factory_orders', 'costs_by_role', 'total_team_cost', 'bullwhip_ratio'] (has ['w_back', 'w_cost', 'w_in', 'w_recv', 'w_ship', 'w_stock'])"
+   },
+   {
+    "check": "beer_demand_is_random_and_in_range",
+    "passed": false,
+    "why": "KeyError: 'customer_demand'"
+   },
+   {
+    "check": "beer_demand_is_exogenous",
+    "passed": false,
+    "why": "KeyError: 'customer_demand'"
+   },
+   {
+    "check": "beer_costs_add_up",
+    "passed": false,
+    "why": "KeyError: 'costs_by_role'"
+   },
+   {
+    "check": "beer_idle_team_pays_backlog",
+    "passed": false,
+    "why": "KeyError: 'total_team_cost'"
+   },
+   {
+    "check": "beer_bullwhip_matches_its_definition",
+    "passed": false,
+    "why": "KeyError: 'customer_demand'"
+   }
+  ],
+  "run_errors": []
+ },
+ {
+  "brief": "classroom",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "done",
+  "writes": 5,
+  "clean_at": 3,
+  "final_clean": true,
+  "runs_ok": 12,
+  "runs": 12,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 295933,
+  "output_tokens": 27113,
+  "cost": 0.0198,
+  "wall_seconds": 135.4,
+  "contract_lines": 313,
+  "guide_parts": [
+   "views",
+   "stages",
+   "effects",
+   "functions.collections",
+   "outputs",
+   "events",
+   "inputs",
+   "actions",
+   "population",
+   "types",
+   "policies"
+  ],
+  "guide_chars": 37471,
+  "check_errors": [
+   [
+    "types.student.props.grade.max: must be a number, got the text \"$inputs.quiz_max\" \u2192 write a number without quotes; see guide('types')",
+    "types.student.props.last_score.max: must be a number, got the text \"$inputs.quiz_max\" \u2192 write a number without quotes; see guide('types')"
+   ],
+   [
+    "outputs.final_grades.format: unknown format '0.00' \u2192 money, pct, pct1, int, upper, lower, title, yesno, list, 0, 1, 2, 3, 4",
+    "outputs.class_average.format: unknown format '0.00' \u2192 money, pct, pct1, int, upper, lower, title, yesno, list, 0, 1, 2, 3, 4"
+   ],
+   [],
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "ed_triage",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "token cap",
+  "writes": 8,
+  "clean_at": 2,
+  "final_clean": true,
+  "runs_ok": 3,
+  "runs": 9,
+  "checks_passed": 3,
+  "checks": 4,
+  "input_tokens": 543771,
+  "output_tokens": 78508,
+  "cost": 0.0395,
+  "wall_seconds": 1019.8,
+  "contract_lines": 455,
+  "guide_parts": [
+   "guide",
+   "patterns",
+   "effects",
+   "stages",
+   "actions",
+   "functions.random",
+   "mechanisms",
+   "patterns.counts",
+   "patterns.noise",
+   "patterns.draw",
+   "functions.collections",
+   "outputs",
+   "events",
+   "inputs",
+   "population",
+   "operations.queue",
+   "views",
+   "brief",
+   "types",
+   "metrics",
+   "policies",
+   "expressions"
+  ],
+  "guide_chars": 65928,
+  "check_errors": [
+   [
+    "patterns.arr.mean: `mean` is not a field of a `counts` pattern \u2192 it takes: description, unit, keys, table, column, min, max, record, fit, uncertainty, dist, dispersion, every"
+   ],
+   [],
+   [
+    "patterns.urgency.dist: Input should be 'normal', 'lognormal', 'uniform', 'beta', 'gamma', 'triangular', 'choice', 'mvnormal' or 'poisson' \u2192 see guide('patterns') for `draw`"
+   ],
+   [],
+   [],
+   [
+    "patterns.urgency.weights: Input should be a valid list \u2192 see guide('patterns') for `draw`"
+   ],
+   [
+    "events[0].say: $n is not available here \u2192 available: $arm, $clock, $inputs, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world \u2014 in `$n`",
+    "outputs.mean_wait_hours.format: unknown format '0.2' \u2192 money, pct, pct1, int, upper, lower, title, yesno, list, 0, 1, 2, 3, 4"
+   ],
+   []
+  ],
+  "failed_checks": [
+   {
+    "check": "ed_idle_staff_treat_nobody",
+    "passed": false,
+    "why": "nobody walked out after a night with no doctors"
+   }
+  ],
+  "run_errors": [
+   {
+    "participants": {
+     "doctor": "policy:priority",
+     "nurse": "policy:priority"
+    },
+    "seed": 1,
+    "ok": false,
+    "error": "policies.priority.rules[1]: nurse 'nurse_1' has no property 'busy' (has: triaged) \u2014 in `$actor.busy == false and $count(patient, $it.status == waiting) > 0`"
+   },
+   {
+    "participants": {
+     "doctor": "policy:priority",
+     "nurse": "policy:priority"
+    },
+    "seed": 2,
+    "ok": false,
+    "error": "policies.priority.rules[1]: nurse 'nurse_1' has no property 'busy' (has: triaged) \u2014 in `$actor.busy == false and $count(patient, $it.status == waiting) > 0`"
+   },
+   {
+    "participants": {
+     "doctor": "policy:priority",
+     "nurse": "policy:priority"
+    },
+    "seed": 3,
+    "ok": false,
+    "error": "policies.priority.rules[1]: nurse 'nurse_1' has no property 'busy' (has: triaged) \u2014 in `$actor.busy == false and $count(patient, $it.status == waiting) > 0`"
+   },
+   {
+    "participants": {
+     "doctor": "policy:fifo",
+     "nurse": "policy:fifo"
+    },
+    "seed": 1,
+    "ok": false,
+    "error": "policies.fifo.rules[1]: nurse 'nurse_1' has no property 'busy' (has: triaged) \u2014 in `$actor.busy == false and $count(patient, $it.status == waiting) > 0`"
+   },
+   {
+    "participants": {
+     "doctor": "policy:fifo",
+     "nurse": "policy:fifo"
+    },
+    "seed": 2,
+    "ok": false,
+    "error": "policies.fifo.rules[1]: nurse 'nurse_1' has no property 'busy' (has: triaged) \u2014 in `$actor.busy == false and $count(patient, $it.status == waiting) > 0`"
+   },
+   {
+    "participants": {
+     "doctor": "policy:fifo",
+     "nurse": "policy:fifo"
+    },
+    "seed": 3,
+    "ok": false,
+    "error": "policies.fifo.rules[1]: nurse 'nurse_1' has no property 'busy' (has: triaged) \u2014 in `$actor.busy == false and $count(patient, $it.status == waiting) > 0`"
+   }
+  ]
+ },
+ {
+  "brief": "jury_trial",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "done",
+  "writes": 3,
+  "clean_at": 2,
+  "final_clean": true,
+  "runs_ok": 15,
+  "runs": 15,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 316569,
+  "output_tokens": 59298,
+  "cost": 0.0311,
+  "wall_seconds": 757.0,
+  "contract_lines": 548,
+  "guide_parts": [
+   "actions",
+   "stages",
+   "effects",
+   "views",
+   "events",
+   "expressions",
+   "records",
+   "outputs",
+   "inputs",
+   "population",
+   "clock",
+   "policies",
+   "types",
+   "end",
+   "brief",
+   "entities",
+   "metrics",
+   "functions.collections"
+  ],
+  "guide_chars": 45607,
+  "check_errors": [
+   [
+    "policies.prosecutor.rules[0]: cannot read '.name' of str 'offers' \u2014 in `$stage.name == offers` (smoke run of 1 round(s), policy 'prosecutor' playing prosecutor, defense) \u2192 fix the rule at this path (found by a smoke run)",
+    "policies.defense.rules[0]: cannot read '.name' of str 'offers' \u2014 in `$stage.name == offers` (smoke run of 1 round(s), policy 'defense' playing prosecutor, defense) \u2192 fix the rule at this path (found by a smoke run)"
+   ],
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "labor_negotiation",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "token cap",
+  "writes": 7,
+  "clean_at": 1,
+  "final_clean": true,
+  "runs_ok": 21,
+  "runs": 21,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 531890,
+  "output_tokens": 109424,
+  "cost": 0.056,
+  "wall_seconds": 1291.4,
+  "contract_lines": 614,
+  "guide_parts": [
+   "stages",
+   "actions",
+   "effects",
+   "expressions",
+   "records",
+   "views",
+   "events",
+   "end",
+   "population",
+   "inputs",
+   "outputs",
+   "clock",
+   "types",
+   "entities",
+   "policies",
+   "functions.collections"
+  ],
+  "guide_chars": 44617,
+  "check_errors": [
+   [],
+   [
+    "policies.softline.rules[3].when: $it is not available here \u2192 available: $actor, $arm, $clock, $inputs, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world \u2014 in `$world.has_ta and $it == null`"
+   ],
+   [],
+   [],
+   [],
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "sealed_tender",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "done",
+  "writes": 3,
+  "clean_at": 2,
+  "final_clean": true,
+  "runs_ok": 3,
+  "runs": 3,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 386721,
+  "output_tokens": 41863,
+  "cost": 0.0296,
+  "wall_seconds": 184.4,
+  "contract_lines": 362,
+  "guide_parts": [
+   "mechanisms",
+   "records",
+   "functions.collections",
+   "patterns",
+   "market.auction",
+   "groups.roles",
+   "social.channels",
+   "stages",
+   "effects",
+   "views",
+   "actions",
+   "events",
+   "functions",
+   "outputs",
+   "policies",
+   "population",
+   "functions.random",
+   "inputs",
+   "types",
+   "end",
+   "functions.world",
+   "expressions"
+  ],
+  "guide_chars": 77963,
+  "check_errors": [
+   [
+    "brief.situation: $actor.firms_note: auditor/firm has no property 'firms_note' \u2192 properties: bid, bid_made, colluder, cost, profit \u2014 in `$actor.firms_note`"
+   ],
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "sports_league",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "done",
+  "writes": 1,
+  "clean_at": 1,
+  "final_clean": true,
+  "runs_ok": 3,
+  "runs": 3,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 114494,
+  "output_tokens": 30669,
+  "cost": 0.0195,
+  "wall_seconds": 139.2,
+  "contract_lines": 423,
+  "guide_parts": [
+   "population",
+   "entities",
+   "stages",
+   "events",
+   "outputs",
+   "mechanisms",
+   "actions",
+   "effects",
+   "functions.random",
+   "functions.collections",
+   "inputs",
+   "expressions",
+   "views",
+   "clock",
+   "defs",
+   "records",
+   "types",
+   "world",
+   "invariants",
+   "brief"
+  ],
+  "guide_chars": 51771,
+  "check_errors": [
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "town_hall",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "token cap",
+  "writes": 8,
+  "clean_at": 3,
+  "final_clean": true,
+  "runs_ok": 6,
+  "runs": 6,
+  "checks_passed": 1,
+  "checks": 4,
+  "input_tokens": 582715,
+  "output_tokens": 45864,
+  "cost": 0.0339,
+  "wall_seconds": 425.8,
+  "contract_lines": 241,
+  "guide_parts": [
+   "mechanisms",
+   "stages",
+   "effects",
+   "defs",
+   "decision.ballot",
+   "views",
+   "records",
+   "outputs",
+   "expressions",
+   "functions.collections",
+   "actions",
+   "events",
+   "inputs",
+   "population",
+   "policies",
+   "inspect"
+  ],
+  "guide_chars": 50051,
+  "check_errors": [
+   [
+    "inputs.residents.fields.name: must be an object, got the text \"text\" \u2192 write an object {...} with the fields guide('inputs') lists",
+    "inputs.residents.fields.priority: must be an object, got the text \"text\" \u2192 write an object {...} with the fields guide('inputs') lists"
+   ],
+   [
+    "brief.situation: unknown format 'len' (use one of: money, pct, pct1, int, upper, lower, title, yesno, list, 0, 1, 2, 3, 4) \u2192 template: Brookmere's town hall meeting. Three proposals are on the table: the park (build a new park), the garage (build a parking garage) and the library (keep the library open longer). {$inputs.residents|len} residents are in the room.",
+    "actions.speak.do[0].text: record 'discussion' has no field 'text' \u2192 fields: speech"
+   ],
+   [],
+   [],
+   [],
+   [],
+   [],
+   []
+  ],
+  "failed_checks": [
+   {
+    "check": "outputs_present",
+    "passed": false,
+    "why": "missing required outputs ['results', 'tallies'] (has ['ballots', 'noise'])"
+   },
+   {
+    "check": "town_tallies_match_ballots",
+    "passed": false,
+    "why": "KeyError: 'tallies'"
+   },
+   {
+    "check": "town_results_follow_rules",
+    "passed": false,
+    "why": "KeyError: 'tallies'"
+   }
+  ],
+  "run_errors": []
+ },
+ {
+  "brief": "treaty",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "done",
+  "writes": 1,
+  "clean_at": 1,
+  "final_clean": true,
+  "runs_ok": 9,
+  "runs": 9,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 169418,
+  "output_tokens": 57521,
+  "cost": 0.0287,
+  "wall_seconds": 746.7,
+  "contract_lines": 352,
+  "guide_parts": [
+   "expressions",
+   "functions.random",
+   "patterns",
+   "end",
+   "types",
+   "views",
+   "records",
+   "outputs",
+   "entities",
+   "effects",
+   "actions",
+   "stages",
+   "defs",
+   "inputs",
+   "population",
+   "policies",
+   "functions.collections",
+   "world",
+   "brief",
+   "functions.math",
+   "metrics",
+   "events"
+  ],
+  "guide_chars": 63267,
+  "check_errors": [
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "weekly_inventory",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "done",
+  "writes": 4,
+  "clean_at": 2,
+  "final_clean": true,
+  "runs_ok": 9,
+  "runs": 9,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 469429,
+  "output_tokens": 35326,
+  "cost": 0.0279,
+  "wall_seconds": 375.8,
+  "contract_lines": 386,
+  "guide_parts": [
+   "patterns",
+   "effects",
+   "outputs",
+   "inputs",
+   "patterns",
+   "stages",
+   "population",
+   "views",
+   "functions.random",
+   "patterns.counts",
+   "events",
+   "metrics",
+   "",
+   "policies",
+   "functions.collections",
+   "actions",
+   "expressions",
+   "guide",
+   "end",
+   "records",
+   "world",
+   "clock",
+   "types",
+   "brief",
+   "patterns.draw"
+  ],
+  "guide_chars": 72072,
+  "check_errors": [
+   [
+    "inputs.opening_cash.format: 'format' is not a field here \u2192 'format' belongs to another part of the contract; remove it here; see guide('inputs')"
+   ],
+   [],
+   [
+    "events[1].do[7]: can only assign to an entity's property, a link's field, $world.x or $physics.x (`$entity(owner).cash += $takings`) (smoke run of 1 round(s), random agents) \u2192 fix the rule at this path (found by a smoke run)"
+   ],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "werewolf",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "token cap",
+  "writes": 7,
+  "clean_at": 7,
+  "final_clean": true,
+  "runs_ok": 3,
+  "runs": 3,
+  "checks_passed": 0,
+  "checks": 4,
+  "input_tokens": 557820,
+  "output_tokens": 73015,
+  "cost": 0.0519,
+  "wall_seconds": 668.0,
+  "contract_lines": 267,
+  "guide_parts": [
+   "mechanisms",
+   "stages",
+   "actions",
+   "views",
+   "events",
+   "functions.random",
+   "patterns",
+   "outputs",
+   "records",
+   "end",
+   "effects",
+   "groups.roles",
+   "functions.collections",
+   "population",
+   "expressions",
+   "inputs",
+   "types",
+   "brief",
+   "policies",
+   "inspect",
+   "functions",
+   "functions.text"
+  ],
+  "guide_chars": 72966,
+  "check_errors": [
+   [
+    "actions.kill.do[1]: $world.kills_set: no such world property \u2192 did you mean 'kills'?",
+    "actions.kill.do[3].if: $world.kills_set: no such world property \u2192 did you mean 'kills'?",
+    "actions.kill.outcome: $world.kills_set: no such world property \u2192 did you mean 'kills'?",
+    "actions.inspect: 'inspect' is a built-in tool, so a model could never call this one \u2192 rename it, e.g. 'inspect_action'",
+    "actions.vote.do[0]: $world.ballots: no such world property \u2192 declare it under `world`",
+    "actions.vote.do[1]: $other is not available here \u2192 available: $actor, $arm, $clock, $inputs, $metrics, $params, $pattern, $pending, $physics, $round, $series, $stage, $world \u2014 in `$top(player, $count(player, $world.ballots[$it.id] == $other.id and $other.alive), 1, $it.alive)[0]`",
+    "actions.vote.do[1]: $world.ballots: no such world property \u2192 declare it under `world`",
+    "actions.vote.do[2]: $world.ballots: no such world property \u2192 declare it under `world`",
+    "actions.vote.do[3].if: $world.ballots: no such world property \u2192 declare it under `world`",
+    "actions.vote.do[3].then[0].if: $second is not available here \u2192 available: $actor, $arm, $clock, $counts, $inputs, $metrics, $out, $params, $pattern, $pending, $physics, $round, $series, $stage, $world \u2014 in `$count(player, $world.ballots[$it.id] == $out.id and $it.alive) > $count(player, $world.ballots[$it.id] == $second.id and $second.alive) or true`",
+    "actions.vote.do[3].then[0].if: $world.ballots: no such world property \u2192 declare it under `world`",
+    "actions.vote.do[3].then[0].then[3]: $world.last_vote: no such world property \u2192 declare it under `world`",
+    "actions.vote.do[3].else[0]: $world.last_vote: no such world property \u2192 declare it under `world`",
+    "stages[0].on_enter[0].do[0]: $it.night: player has no property 'night' \u2192 properties: dead, role \u2014 in `$it.night = $round`",
+    "stages[0].on_enter[1]: $world.kills_set: no such world property \u2192 did you mean 'kills'?",
+    "stages[1].until: $it.spoke: player has no property 'spoke' \u2192 properties: dead, role \u2014 in `$count(player, $it.alive and $it.spoke >= $round) == $count(player, $it.alive)`",
+    "stages[1].on_enter[0].do[0]: $it.spoke: player has no property 'spoke' \u2192 properties: dead, role \u2014 in `$it.spoke = 0`",
+    "stages[1].on_idle[0]: $actor.spoke: player has no property 'spoke' \u2192 properties: dead, role \u2014 in `$actor.spoke = $round`",
+    "stages[1].on_turn_end[0].if: $actor.spoke: player has no property 'spoke' \u2192 properties: dead, role \u2014 in `$actor.spoke < $round`",
+    "stages[1].on_turn_end[0].then[0]: $actor.spoke: player has no property 'spoke' \u2192 properties: dead, role \u2014 in `$actor.spoke += 1`",
+    "stages[2].on_enter[0]: $world.ballots: no such world property \u2192 declare it under `world`",
+    "stages[2].on_enter[1]: $world.last_vote: no such world property \u2192 declare it under `world`",
+    "stages[2].on_enter[2]: $world.vote_out: no such world property \u2192 did you mean 'voted_out'?",
+    "stages[2].on_exit[0]: $other is not available here \u2192 available: $arm, $clock, $inputs, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world \u2014 in `$top(player, $count(player, $world.ballots[$it.id] == $other.id and $other.alive), 1, $it.alive)`",
+    "stages[2].on_exit[0]: $world.ballots: no such world property \u2192 declare it under `world`",
+    "stages[2].on_exit[1]: $world.vote_out: no such world property \u2192 did you mean 'voted_out'?",
+    "stages[2].on_exit[2]: $world.ballots: no such world property \u2192 declare it under `world`",
+    "stages[2].on_exit[2]: $world.vote_count: no such world property \u2192 did you mean 'voted_out'?",
+    "stages[2].on_exit[3]: $other is not available here \u2192 available: $arm, $clock, $inputs, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $t, $world \u2014 in `$top($filter(player, $it.alive and $it.id != $world.vote_out), $count(player, $world.ballots[$it.id] == $other.id and $other.alive), 1)[0]`",
+    "stages[2].on_exit[3]: $world.vote_out: no such world property \u2192 did you mean 'voted_out'?",
+    "stages[2].on_exit[3]: $world.ballots: no such world property \u2192 declare it under `world`",
+    "stages[2].on_exit[4]: $world.vote_rival: no such world property \u2192 declare it under `world`",
+    "stages[2].on_exit[5]: $world.ballots: no such world property \u2192 declare it under `world`",
+    "stages[2].on_exit[5]: $world.vote_rival_count: no such world property \u2192 did you mean 'voted_out'?",
+    "stages[2].on_exit[6].if: $world.vote_count: no such world property \u2192 did you mean 'voted_out'?",
+    "stages[2].on_exit[6].if: $world.vote_rival_count: no such world property \u2192 did you mean 'voted_out'?",
+    "stages[2].on_exit[6].if: $world.vote_out: no such world property \u2192 did you mean 'voted_out'?",
+    "stages[2].on_exit[6].then[0]: $world.vote_out: no such world property \u2192 did you mean 'voted_out'?",
+    "views.village.show: '{dead and ' (dead)' or ''}' is not a field name; write an expression as {$...} \u2192 template: - {name}{dead and ' (dead)' or ''}",
+    "views.dead_so_far.sort: $it.dead_on: player has no property 'dead_on' \u2192 did you mean 'dead'?",
+    "views.dead_so_far.show: $it.dead_on: player has no property 'dead_on' \u2192 did you mean 'dead'?",
+    "views.spoken.show: $it.spoke: player has no property 'spoke' \u2192 properties: dead, role \u2014 in `$it.spoke`",
+    "views.all_roles.show: '{dead and ' (dead)' or ''}' is not a field name; write an expression as {$...} \u2192 template: - {name}: {role}{dead and ' (dead)' or ''}"
+   ],
+   [
+    "actions.inspect: 'inspect' is a built-in tool, so a model could never call this one \u2192 rename it, e.g. 'inspect_action'",
+    "views.village.show: '{dead and ' (dead)' or ''}' is not a field name; write an expression as {$...} \u2192 template: - {name}{dead and ' (dead)' or ''}",
+    "views.all_roles.show: '{dead and ' (dead)' or ''}' is not a field name; write an expression as {$...} \u2192 template: - {name}: {role}{dead and ' (dead)' or ''}"
+   ],
+   [
+    "invariants[0]: invariant `not $any(player, $it.dead and $it.alive)` no longer holds after stages.vote.on_exit (A dead player is not alive.) (smoke run of 1 round(s), random agents) \u2192 fix the rule at this path (found by a smoke run)"
+   ],
+   [
+    "invariants[1]: invariant `$count(player, $it.role == werewolf) == $inputs.werewolves` no longer holds after build (Exactly the stated number of werewolves is dealt.) \u2192 fix the rule at this path (found by a smoke run)"
+   ],
+   [
+    "invariants[0]: invariant `$len($world.dead) == $count(player, $it.dead)` no longer holds after stages.vote.on_exit (The dead list holds every dead player exactly once.) (smoke run of 5 round(s), random agents) \u2192 fix the rule at this path (found by a smoke run)"
+   ],
+   [
+    "invariants[0]: invariant `$len($world.dead) == $count(player, $it.dead)` no longer holds after stages.vote.on_exit (The dead list holds every dead player exactly once.) (smoke run of 5 round(s), random agents) \u2192 fix the rule at this path (found by a smoke run)"
+   ],
+   []
+  ],
+  "failed_checks": [
+   {
+    "check": "outputs_present",
+    "passed": false,
+    "why": "missing required outputs ['roles', 'eliminated', 'alive_end'] (has ['dbg_alive', 'dbg_dead', 'dbg_dead_count', 'dbg_dead_ids', 'dbg_killed', 'dbg_voted', 'winner'])"
+   },
+   {
+    "check": "wolf_roles_are_dealt",
+    "passed": false,
+    "why": "KeyError: 'roles'"
+   },
+   {
+    "check": "wolf_outcome_is_consistent",
+    "passed": false,
+    "why": "KeyError: 'roles'"
+   },
+   {
+    "check": "wolf_roles_stay_hidden",
+    "passed": false,
+    "why": "KeyError: 'roles'"
+   }
+  ],
+  "run_errors": []
+ }
+]

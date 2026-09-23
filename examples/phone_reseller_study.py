@@ -37,7 +37,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 import fg_env
-from fg_env.sdk.analysis.validate import ValidationResult
+from fg_env.analysis.validate import ValidationResult
 
 CONTRACT = Path(__file__).parent / "contracts" / "phone_reseller.json"
 FOLDER = CONTRACT.parent / "phone_reseller"
@@ -71,7 +71,7 @@ def history() -> None:
             writer = csv.DictWriter(handle, fieldnames=fields)
             writer.writeheader()
             writer.writerows(rows)
-    fitted = fg_env.fit_patterns(CONTRACT)
+    fitted = fg_env.analysis.fit_patterns(CONTRACT)
     CONTRACT.write_text(json.dumps(fitted.contract, indent=2, ensure_ascii=False) + "\n")
     print(f"wrote {len(sales)} item-days and {len(lots)} lots, and the fitted contract\n{fitted.report()}")
 
@@ -139,11 +139,11 @@ def validation(runs: int = 20) -> ValidationResult:
     included) drawn per run by the contract, so a channel's range carries what the history cannot pin down."""
     loaded = fg_env.load(CONTRACT, seed=0).inputs
     sales, lots = loaded["history"], loaded["orders"]
-    fitted = fg_env.fit_patterns(CONTRACT, inputs={"history": [r for r in sales if r["time"] < HELD_OUT.isoformat()],
+    fitted = fg_env.analysis.fit_patterns(CONTRACT, inputs={"history": [r for r in sales if r["time"] < HELD_OUT.isoformat()],
                                                    "orders": [r for r in lots if r["time"] < HELD_OUT.isoformat()]})
     cases = validation_cases(sales, lots)
     held_out = [case["name"] for case in cases if case["name"] >= HELD_OUT.isoformat()]
-    return fg_env.validate(fitted.contract, cases, runs=runs, season=13, test=held_out, rounds=28, data_dir=FOLDER.parent,
+    return fg_env.analysis.validate(fitted.contract, cases, runs=runs, season=13, test=held_out, rounds=28, data_dir=FOLDER.parent,
                            workers=WORKERS)
 
 
@@ -155,7 +155,7 @@ def report(runs: int = 12) -> None:
     """The owner's report: the most profitable buying and pricing plan that serves at least 95% of demand, what drives
     the differences, what the model assumes and how well it forecast held-out weeks."""
     exp = fg_env.experiment(CONTRACT, arms=[None, "clearance", "service"], runs=runs, seed=13, workers=WORKERS)
-    print(fg_env.report(exp, contract=CONTRACT, validation=validation(), objective="max:buying_profit",
+    print(fg_env.analysis.report(exp, contract=CONTRACT, validation=validation(), objective="max:buying_profit",
                         require={"sales_fill_rate": ">= 0.95"}).markdown)
 
 

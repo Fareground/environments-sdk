@@ -1,0 +1,288 @@
+{
+ "model": "fixture (hand-written)",
+ "stop": "done",
+ "messages": [],
+ "writes": [
+  "{not json",
+  {
+   "name": "Corner shop inventory",
+   "brief": {
+    "situation": "You run a small coffee shop.",
+    "rules": "Each week order stock for beans, mugs and filters. Orders are paid now and arrive next week. Customers buy what is on the shelf; the rest is lost."
+   },
+   "clock": {
+    "rounds": 12,
+    "unit": "week"
+   },
+   "types": {
+    "owner": {
+     "agent": true,
+     "props": {
+      "cash": 500
+     }
+    },
+    "product": {
+     "props": {
+      "cost": 0,
+      "price": 0,
+      "stock": 10,
+      "on_order": 0,
+      "ordered": 0,
+      "sold": 0,
+      "lost": 0,
+      "demand": []
+     }
+    }
+   },
+   "entities": {
+    "owner": {
+     "type": "owner",
+     "name": "Owner"
+    },
+    "beans": {
+     "type": "product",
+     "name": "Coffee beans",
+     "props": {
+      "cost": 6,
+      "price": 10
+     }
+    },
+    "mugs": {
+     "type": "product",
+     "name": "Mugs",
+     "props": {
+      "cost": 4,
+      "price": 9
+     }
+    },
+    "filters": {
+     "type": "product",
+     "name": "Paper filters",
+     "props": {
+      "cost": 1,
+      "price": 3
+     }
+    }
+   },
+   "actions": {
+    "order": {
+     "by": "owner",
+     "description": "Order units of one product; paid now, arrives next week.",
+     "params": {
+      "product": {
+       "type": "entity",
+       "of": "product"
+      },
+      "qty": {
+       "type": "int",
+       "min": 1,
+       "max": "$actor.cash // $params.product.cost"
+      }
+     },
+     "do": [
+      "$actor.cash -= $params.qty * $params.product.cost",
+      "$params.product.on_order += $params.qty",
+      "$params.product.ordered += $params.qty"
+     ]
+    }
+   },
+   "stages": [
+    {
+     "name": "orders",
+     "actions": [
+      "order"
+     ],
+     "max_actions": 3
+    }
+   ],
+   "events": [
+    {
+     "phase": "start",
+     "each": "product",
+     "do": [
+      "$it.stock += $it.on_order",
+      "$it.on_order = 0"
+     ]
+    },
+    {
+     "phase": "end",
+     "each": "product",
+     "do": [
+      "$want = $randint(0, 8)",
+      "$units = $min($it.stock, $want)",
+      "$it.demand += [$want]",
+      "$it.stock -= $units",
+      "$it.sold += $units",
+      "$it.lost += $want - $units",
+      "$entity(owner).cash += $units * $it.price"
+     ]
+    }
+   ],
+   "views": {
+    "cash": {
+     "for": "owner",
+     "show": "Cash: {$actor.cahs|money}"
+    },
+    "stock": {
+     "for": "owner",
+     "of": "product",
+     "show": "{$it.name} [{$it.id}]: {$it.stock} on shelf, {$it.on_order} arriving, cost {$it.cost|money}, price {$it.price|money}"
+    }
+   },
+   "outputs": {
+    "cash_end": "$entity(owner).cash",
+    "units_ordered": "{beans: $entity(beans).ordered, mugs: $entity(mugs).ordered, filters: $entity(filters).ordered}",
+    "units_sold": "{beans: $entity(beans).sold, mugs: $entity(mugs).sold, filters: $entity(filters).sold}",
+    "units_on_hand_end": "{beans: $entity(beans).stock, mugs: $entity(mugs).stock, filters: $entity(filters).stock}",
+    "units_on_order_end": "{beans: $entity(beans).on_order, mugs: $entity(mugs).on_order, filters: $entity(filters).on_order}",
+    "lost_sales": "{beans: $entity(beans).lost, mugs: $entity(mugs).lost, filters: $entity(filters).lost}",
+    "demand_by_week": "{beans: $entity(beans).demand, mugs: $entity(mugs).demand, filters: $entity(filters).demand}"
+   }
+  },
+  {
+   "name": "Corner shop inventory",
+   "brief": {
+    "situation": "You run a small coffee shop.",
+    "rules": "Each week order stock for beans, mugs and filters. Orders are paid now and arrive next week. Customers buy what is on the shelf; the rest is lost."
+   },
+   "clock": {
+    "rounds": 12,
+    "unit": "week"
+   },
+   "types": {
+    "owner": {
+     "agent": true,
+     "props": {
+      "cash": 500
+     }
+    },
+    "product": {
+     "props": {
+      "cost": 0,
+      "price": 0,
+      "stock": 10,
+      "on_order": 0,
+      "ordered": 0,
+      "sold": 0,
+      "lost": 0,
+      "demand": []
+     }
+    }
+   },
+   "entities": {
+    "owner": {
+     "type": "owner",
+     "name": "Owner"
+    },
+    "beans": {
+     "type": "product",
+     "name": "Coffee beans",
+     "props": {
+      "cost": 6,
+      "price": 10
+     }
+    },
+    "mugs": {
+     "type": "product",
+     "name": "Mugs",
+     "props": {
+      "cost": 4,
+      "price": 9
+     }
+    },
+    "filters": {
+     "type": "product",
+     "name": "Paper filters",
+     "props": {
+      "cost": 1,
+      "price": 3
+     }
+    }
+   },
+   "actions": {
+    "order": {
+     "by": "owner",
+     "description": "Order units of one product; paid now, arrives next week.",
+     "params": {
+      "product": {
+       "type": "entity",
+       "of": "product"
+      },
+      "qty": {
+       "type": "int",
+       "min": 1,
+       "max": "$actor.cash // $params.product.cost"
+      }
+     },
+     "do": [
+      "$actor.cash -= $params.qty * $params.product.cost",
+      "$params.product.on_order += $params.qty",
+      "$params.product.ordered += $params.qty"
+     ]
+    }
+   },
+   "stages": [
+    {
+     "name": "orders",
+     "actions": [
+      "order"
+     ],
+     "max_actions": 3
+    }
+   ],
+   "events": [
+    {
+     "phase": "start",
+     "each": "product",
+     "do": [
+      "$it.stock += $it.on_order",
+      "$it.on_order = 0"
+     ]
+    },
+    {
+     "phase": "end",
+     "each": "product",
+     "do": [
+      "$want = $randint(0, 8)",
+      "$units = $min($it.stock, $want)",
+      "$it.demand += [$want]",
+      "$it.stock -= $units",
+      "$it.sold += $units",
+      "$it.lost += $want - $units",
+      "$entity(owner).cash += $units * $it.price"
+     ]
+    }
+   ],
+   "views": {
+    "cash": {
+     "for": "owner",
+     "show": "Cash: {$actor.cash|money}"
+    },
+    "stock": {
+     "for": "owner",
+     "of": "product",
+     "show": "{$it.name} [{$it.id}]: {$it.stock} on shelf, {$it.on_order} arriving, cost {$it.cost|money}, price {$it.price|money}"
+    }
+   },
+   "outputs": {
+    "cash_end": "$entity(owner).cash",
+    "units_ordered": "{beans: $entity(beans).ordered, mugs: $entity(mugs).ordered, filters: $entity(filters).ordered}",
+    "units_sold": "{beans: $entity(beans).sold, mugs: $entity(mugs).sold, filters: $entity(filters).sold}",
+    "units_on_hand_end": "{beans: $entity(beans).stock, mugs: $entity(mugs).stock, filters: $entity(filters).stock}",
+    "units_on_order_end": "{beans: $entity(beans).on_order, mugs: $entity(mugs).on_order, filters: $entity(filters).on_order}",
+    "lost_sales": "{beans: $entity(beans).lost, mugs: $entity(mugs).lost, filters: $entity(filters).lost}",
+    "demand_by_week": "{beans: $entity(beans).demand, mugs: $entity(mugs).demand, filters: $entity(filters).demand}"
+   }
+  }
+ ],
+ "guide_parts": [
+  "effects"
+ ],
+ "usage": {
+  "input_tokens": 1000,
+  "output_tokens": 200,
+  "cost": 0.0,
+  "calls": 3
+ },
+ "wall_seconds": 1.0
+}

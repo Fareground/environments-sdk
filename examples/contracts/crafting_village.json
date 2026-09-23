@@ -36,8 +36,8 @@
     "money": {"kind": "economy", "mode": "ledger", "who": ["villager", "store"], "currencies": {"coin": {"start": "$inputs.starting_coin"}}},
     "goods": {"kind": "economy", "mode": "inventory", "who": ["villager", "store"], "capacity": 30,
               "items": {
-                "wood": {"value": 1}, "grain": {"value": 1, "on_consume": ["$actor.hunger -= $qty"]}, "ore": {"value": 2},
-                "flour": {"value": 3}, "bread": {"value": 4, "shelf_life": 6, "on_consume": ["$actor.hunger -= 3 * $qty"]},
+                "wood": {"value": 1}, "grain": {"value": 1, "on_consume": ["$actor.hunger = $max(0, $actor.hunger - $qty)"]}, "ore": {"value": 2},
+                "flour": {"value": 3}, "bread": {"value": 4, "shelf_life": 6, "on_consume": ["$actor.hunger = $max(0, $actor.hunger - 3 * $qty)"]},
                 "iron": {"value": 9}, "pickaxe": {"unique": true, "value": 20, "size": 2}
               },
               "actions": ["consume"]},
@@ -89,7 +89,7 @@
   },
   "events": [
     {"name": "heirloom pickaxe", "at": 1, "phase": "start", "do": [{"economy": "goods", "action": "make", "item": "pickaxe", "to": "$entity(bram)", "source": "heirloom"}]},
-    {"name": "hunger", "phase": "end", "each": "villager", "do": ["$it.hunger += 1", {"if": "$it.hunger >= 8", "then": ["$it.health -= 1"]}]}
+    {"name": "hunger", "phase": "end", "each": "villager", "do": ["$it.hunger = $min(10, $it.hunger + 1)", {"if": "$it.hunger >= 8", "then": ["$it.health = $max(0, $it.health - 1)"]}]}
   ],
   "stages": [
     {"name": "day", "turns": "sequential", "order": "random", "max_actions": 3, "max_calls": 8,

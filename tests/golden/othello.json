@@ -1,0 +1,18 @@
+{
+  "actions": 4,
+  "events": 4,
+  "events_sha256": "3ed6b0596d59242ab7022f50670675028a775c23e7e7d293e0564a72796d662e",
+  "first_events": [
+    "r1 action black: Black played c4, flipping 1.",
+    "r2 action white: White played c5, flipping 1.",
+    "r3 action black: Black played c6, flipping 2.",
+    "r4 action white: White played b5, flipping 2."
+  ],
+  "metrics": {
+    "black_discs": 4,
+    "white_discs": 4
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 4
+}

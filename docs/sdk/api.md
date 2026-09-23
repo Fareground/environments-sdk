@@ -1,6 +1,6 @@
 # Python API reference
 
-Generated from public exports in `fg_env`. Start with `check`, `load`, `run` and `experiment`. A source may be a contract dictionary, JSON text, file path or parsed `Contract`.
+Generated from public exports in `fg_env`. Start with `check`, `load`, `run` and `experiment`; everything else is in a subpackage below. A source may be a contract dictionary, JSON text, file path or parsed `Contract`.
 
 ## Entry points
 
@@ -16,14 +16,14 @@ Errors raise :class:`ContractError` listing every problem with a fix; ``strict=T
 also rejects warnings. ``seed`` defaults to a fresh one (readable as ``env.seed``).
 Inputs with a ``source`` and the contract's ``assets`` read their files from ``data_dir`` (default: the contract
 file's folder).
-``hosts`` (a :class:`~fg_env.sdk.host.Hosts` or a mapping of host name to adapter) answers the
+``hosts`` (a :class:`~fg_env.host.Hosts` or a mapping of host name to adapter) answers the
 judgment the contract asks of a host; build-time host work (personas) is done before round 1.
 ``exposures=True`` records what every agent was shown on every wake (``result.exposures``); a
 contract that calls ``$seen`` records it anyway. ``chance`` decides `chance` effects: ``"sampled"`` (the
-default: drawn from the seeded stream) or a callable given each :class:`~fg_env.sdk.chance.ChanceNode`
-that returns the index of the outcome to take (a fixed deal, duplicate formats); :func:`fg_env.game`
+default: drawn from the seeded stream) or a callable given each :class:`~fg_env.chance.ChanceNode`
+that returns the index of the outcome to take (a fixed deal, duplicate formats); :func:`fg_env.rl.game`
 enumerates chance for search. A contract with a ``calibration`` section fits its inputs with pilot sessions first
-(``env.calibration`` is the report); ``calibrate=False`` skips that, as ``fg_env.check``'s smoke round does.
+(``env.calibration`` is the report); ``calibrate=False`` skips that, as ``fg_env.check``'s smoke play does.
 
 ## `run`
 
@@ -33,20 +33,26 @@ run(source: 'ContractLike', participants: 'Any' = None, *, inputs: 'Optional[Map
 
 Load and run in one call: ``fg_env.run("shop.json", {"buyer": "policy:thrifty"}, seed=1)``.
 
+A run that fails — a rule that cannot be evaluated, a participant that raises, a model provider that refuses the
+request — raises :class:`RunError` saying what failed and how to fix it; its ``result`` is the failed run.
+(``env.run`` returns a failed run instead, and experiments keep failed runs and carry on.)
+
 ## `check`
 
 ```python
-check(source: 'ContractLike', rounds: 'int' = 1, seed: 'int' = 0, *, data_dir: 'DataDir' = None, hosts: 'Any' = None, inputs: 'Optional[Mapping[str, Any]]' = None) -> 'List[Issue]'
+check(source: 'ContractLike', rounds: 'Optional[int]' = None, seed: 'int' = 0, *, data_dir: 'DataDir' = None, hosts: 'Any' = None, inputs: 'Optional[Mapping[str, Any]]' = None) -> 'List[Issue]'
 ```
 
 Every problem in a contract, errors first then warnings. Never raises for contract problems.
 
-A contract without errors is also built and played for ``rounds`` rounds (default 1; 0 checks statically only)
-with random agents that read everything they are shown, so problems that only appear with real values (sampling,
-first turns, views, outputs) are reported the same way. Inputs with a ``source`` are read from ``data_dir``
-(default: the contract file's folder); ``hosts`` answers what the contract asks of a host during that play.
-``inputs`` checks a configured scenario without editing its defaults. Supplied inputs are validated even
-with ``rounds=0``; positive rounds also exercise them in the smoke run.
+A contract without errors is also built and played, so problems that only appear with real values (sampling,
+later rounds, views, outputs, a policy's own rules) are reported the same way: once with random agents that read
+everything they are shown, then once per declared policy, played by the agent types whose default it is (or else
+those that can take every action it takes). By default each play lasts up to 12 rounds (fewer when the run ends
+sooner) and all of them share a few seconds; ``rounds`` plays exactly that many rounds instead (0 checks
+statically only). Inputs with a ``source`` are read from ``data_dir`` (default: the contract file's folder);
+``hosts`` answers what the contract asks of a host during those plays. ``inputs`` checks a configured scenario
+without editing its defaults; supplied inputs are validated even with ``rounds=0``, and the plays exercise them.
 
 ## `parse`
 
@@ -85,12 +91,12 @@ builds fresh participants per run when they hold state.
 arm continues from that same state (a fork: the arm's patch and inputs apply from round N + 1, and
 an arm whose patch the state cannot follow raises before the experiment goes on).
 
-``budget`` caps each run on its own (:mod:`fg_env.sdk.budget`); with ``branch_at`` the shared rounds are part of
+``budget`` caps each run on its own (:mod:`fg_env.budget`); with ``branch_at`` the shared rounds are part of
 every arm's run, so they count toward each arm's budget. ``exposures=True`` records what agents saw in every run
 (``result.arms[label].runs[i].exposures``, events kept): each run is a trace to read or replay.
 ``data_dir`` is where inputs with a ``source`` are read (default: the contract file's folder); ``hosts``
 answers the contract's host requests in every run. ``uncertainty`` (a calibration, a list of points or priors;
-:mod:`fg_env.sdk.analysis.draws`) draws parameters per run, the same for run *i* in every arm, so the spread of
+:mod:`fg_env.analysis.draws`) draws parameters per run, the same for run *i* in every arm, so the spread of
 outcomes includes not knowing them.
 
 Problems shared by every run (an unknown arm, bad inputs, an unknown participant) raise
@@ -115,36 +121,6 @@ A run continuing ``snapshot`` (taken with ``contract``) under changes.
 
 Raises :class:`ContractError` listing everything the state cannot follow, each with a fix.
 
-## `game`
-
-```python
-game(source: 'ContractLike', *, inputs: 'Optional[Mapping[str, Any]]' = None, seed: 'int' = 0, arm: 'Optional[str]' = None, players: 'Optional[Sequence[str]]' = None, others: 'Any' = None, chance: 'str' = 'explicit', simultaneous: 'str' = 'joint', dry_run: 'bool' = True, max_combinations: 'int' = 10000, hosts: 'Any' = None, data_dir: "Union[str, 'os.PathLike[str]', None]" = None) -> 'Game'
-```
-
-A contract as a game for search, solving and learning code.
-
-* ``players`` — the seats (entity ids); default: the contract's ``game.players`` (else every agent), in seat order.
-* ``others`` — participants for agents that are not seats (as in ``Env.run``).
-* ``chance`` — ``"explicit"``: every `chance` effect is a chance node whose outcomes search code chooses;
-  ``"sampled"``: outcomes are drawn from the seed. Other randomness is always fixed by ``seed``.
-* ``simultaneous`` — ``"joint"``: a simultaneous stage is one node (``apply_actions``); ``"turn_based"``:
-  its sealed turns are decided one seat at a time.
-* ``dry_run`` — legal calls are also tried without effect, so a call whose effects would refuse it is not
-  listed (the engine's own judgement at submit); ``False`` lists every call that validates.
-* ``max_combinations`` — most argument combinations listed per action before it counts as parametric.
-
-## `gym`
-
-```python
-gym(source: 'ContractLike', agent: 'str', *, others: 'Any' = None, inputs: 'Optional[Mapping[str, Any]]' = None, arm: 'Optional[str]' = None, seed: 'Optional[int]' = None, max_steps: 'Optional[int]' = None, action_ids: 'bool' = False, hosts: 'Any' = None, render_mode: 'Optional[str]' = None, data_dir: "Union[str, 'os.PathLike[str]', None]" = None) -> 'GymEnv'
-```
-
-One agent (an entity id) of a contract as a Gymnasium-style environment; ``others`` play the rest.
-
-``seed`` seeds the episodes (``reset(seed=...)`` reseeds them); ``max_steps`` truncates an episode after
-that many calls; ``action_ids=True`` accepts integer action ids and adds ``legal_actions`` and
-``action_mask`` to ``info`` (see :func:`fg_env.game` for how ids are numbered).
-
 ## `Branch`
 
 ```python
@@ -155,34 +131,6 @@ A private copy of a run that you drive: decide for the agents it pauses for, let
 
 Everything runs on the copy's own thread; its methods wait for it. Close it (or use ``with``, or let
 it be garbage collected) to discard it.
-
-## `Game`
-
-```python
-Game(root: 'Env', *, players: 'Optional[Sequence[str]]', others: 'Any', chance: 'str', turn_based: 'bool', dry_run: 'bool', limit: 'int')
-```
-
-A contract as a game: seats, a numbered action space, and states to search from.
-
-Create with :func:`fg_env.game`. States pause at every decision of a seat (and at every chance
-node when chance is explicit); agents that are not seats are played by ``others``.
-
-## `GameState`
-
-```python
-GameState(game: "'Game'", run: 'Union[Branch, Run]', history: 'List[Dict[str, Any]]', previous: 'Optional[List[float]]' = None, legal: 'Optional[Dict[int, Legal]]' = None, path: 'bytes' = b'')
-```
-
-One state of a :class:`~fg_env.sdk.game.Game`. ``apply_action`` changes it; ``child`` and ``clone``
-give new independent states. Players are seat indices (``game.players[i]`` is the entity id).
-
-## `GymEnv`
-
-```python
-GymEnv(root: 'Env', agent: 'str', *, others: 'Any', max_steps: 'Optional[int]', action_ids: 'bool', hosts: 'Any', render_mode: 'Optional[str]')
-```
-
-One agent of a contract as a Gymnasium-style environment. Create with :func:`fg_env.gym`.
 
 ## `guide`
 
@@ -226,7 +174,7 @@ and :meth:`fork`.
 ## `Contract`
 
 ```python
-Contract(*, fg_env: str = '1', name: str, description: str = '', imports: List[str] = <factory>, brief: fg_env.sdk.contract_world.Brief = <factory>, assets: Dict[str, fg_env.sdk.assets.spec.AssetSpec] = <factory>, inputs: Dict[str, fg_env.sdk.contract_world.InputSpec] = <factory>, clock: fg_env.sdk.contract_world.Clock = <factory>, space: Optional[fg_env.sdk.contract_world.Space] = None, world: Dict[str, fg_env.sdk.contract_world.PropSpec] = <factory>, types: Dict[str, fg_env.sdk.contract_world.TypeSpec], entities: Dict[str, fg_env.sdk.contract_world.EntitySpec] = <factory>, population: List[fg_env.sdk.contract_world.PopulationSpec] = <factory>, relations: Dict[str, fg_env.sdk.contract_world.RelationSpec] = <factory>, links: List[fg_env.sdk.contract_world.LinkSpec] = <factory>, physics: Optional[fg_env.sdk.contract_world.PhysicsSpec] = None, feeds: Dict[str, fg_env.sdk.contract_world.FeedSpec] = <factory>, patterns: Dict[str, Dict[str, Any]] = <factory>, records: Dict[str, fg_env.sdk.contract_rules.RecordSpec] = <factory>, actions: Dict[str, fg_env.sdk.contract_rules.ActionSpec] = <factory>, stages: List[fg_env.sdk.contract_rules.StageSpec] = <factory>, views: Dict[str, fg_env.sdk.contract_rules.ViewSpec] = <factory>, events: List[fg_env.sdk.contract_rules.EventSpec] = <factory>, triggers: List[fg_env.sdk.contract_rules.TriggerSpec] = <factory>, policies: Dict[str, fg_env.sdk.contract_rules.PolicySpec] = <factory>, metrics: Dict[str, fg_env.sdk.contract_measure.MetricSpec] = <factory>, outputs: Dict[str, fg_env.sdk.contract_measure.OutputSpec] = <factory>, end: List[fg_env.sdk.contract_measure.EndSpec] = <factory>, arms: Dict[str, fg_env.sdk.contract_measure.ArmSpec] = <factory>, calibration: Optional[fg_env.sdk.contract_measure.CalibrationSpec] = None, game: Optional[fg_env.sdk.game_spec.GameSpec] = None, invariants: List[fg_env.sdk.contract_measure.InvariantSpec] = <factory>, defs: Dict[str, fg_env.sdk.contract_measure.DefSpec] = <factory>, blocks: Dict[str, fg_env.sdk.contract_measure.BlockSpec] = <factory>, mechanisms: Dict[str, Dict[str, Any]] = <factory>) -> None
+Contract(*, fg_env: str = '1', name: str, description: str = '', imports: List[str] = <factory>, brief: fg_env.contract.world.Brief = <factory>, assets: Dict[str, fg_env.assets.spec.AssetSpec] = <factory>, inputs: Dict[str, fg_env.contract.world.InputSpec] = <factory>, clock: fg_env.contract.world.Clock = <factory>, space: Optional[fg_env.contract.world.Space] = None, world: Dict[str, fg_env.contract.world.PropSpec] = <factory>, types: Dict[str, fg_env.contract.world.TypeSpec], entities: Dict[str, fg_env.contract.world.EntitySpec] = <factory>, population: List[fg_env.contract.world.PopulationSpec] = <factory>, relations: Dict[str, fg_env.contract.world.RelationSpec] = <factory>, links: List[fg_env.contract.world.LinkSpec] = <factory>, physics: Optional[fg_env.contract.world.PhysicsSpec] = None, feeds: Dict[str, fg_env.contract.world.FeedSpec] = <factory>, patterns: Dict[str, Dict[str, Any]] = <factory>, records: Dict[str, fg_env.contract.rules.RecordSpec] = <factory>, actions: Dict[str, fg_env.contract.rules.ActionSpec] = <factory>, stages: List[fg_env.contract.rules.StageSpec] = <factory>, views: Dict[str, fg_env.contract.rules.ViewSpec] = <factory>, events: List[fg_env.contract.rules.EventSpec] = <factory>, triggers: List[fg_env.contract.rules.TriggerSpec] = <factory>, policies: Dict[str, fg_env.contract.rules.PolicySpec] = <factory>, metrics: Dict[str, fg_env.contract.measure.MetricSpec] = <factory>, outputs: Dict[str, fg_env.contract.measure.OutputSpec] = <factory>, end: List[fg_env.contract.measure.EndSpec] = <factory>, arms: Dict[str, fg_env.contract.measure.ArmSpec] = <factory>, calibration: Optional[fg_env.contract.measure.CalibrationSpec] = None, game: Optional[fg_env.game_spec.GameSpec] = None, invariants: List[fg_env.contract.measure.InvariantSpec] = <factory>, defs: Dict[str, fg_env.contract.measure.DefSpec] = <factory>, blocks: Dict[str, fg_env.contract.measure.BlockSpec] = <factory>, mechanisms: Dict[str, Dict[str, Any]] = <factory>) -> None
 ```
 
 An environment: world, people, rules, what agents see, what is measured.
@@ -298,16 +246,246 @@ A run could not continue. ``path`` names the contract element that failed.
 ## `InvariantViolation`
 
 ```python
-InvariantViolation(message: 'str', path: 'Optional[str]' = None)
+InvariantViolation(message: 'str', path: 'Optional[str]' = None, why: 'str' = '')
 ```
 
-A declared invariant stopped holding; the run fails closed.
+A declared invariant stopped holding. Broken by an agent's action, the action is refused and undone; broken by
+anything else, the run fails closed. ``why`` is the invariant's own reason (empty when it gives none).
 
 ## `SnapshotError`
 
 A snapshot cannot be restored into this contract.
 
-## `sweep`
+## `list_engines`
+
+```python
+list_engines(*, available: 'Optional[bool]' = None) -> 'list[EngineSpec]'
+```
+
+List behavioral engines, optionally filtered by implementation availability.
+
+## `clone_engine`
+
+```python
+clone_engine(engine_id: 'str', destination: 'Union[str, Path]', *, name: 'Optional[str]' = None, overwrite: 'bool' = False) -> 'Path'
+```
+
+Clone a reusable engine contract into a project-owned JSON file.
+
+## `fg_env.participants`
+
+Participants: whoever takes the turns. Anything callable with a :class:`~fg_env.Wake` works.
+
+``"random"``, ``"idle"`` and ``"policy:<name>"`` name built-in participants; :func:`anthropic` and :func:`openai`
+drive a turn with your own LLM client; :func:`replay` plays a recorded run back.
+
+### `participants.RandomAgent`
+
+```python
+RandomAgent(seed: 'int' = 0, actions: 'int' = 1, pass_rate: 'float' = 0.0)
+```
+
+Takes up to ``actions`` random legal actions per turn with valid random arguments.
+
+### `participants.Idle`
+
+```python
+Idle()
+```
+
+Never acts.
+
+### `participants.PolicyAgent`
+
+```python
+PolicyAgent(contract: "'Contract'", name: 'str', seed: 'int' = 0)
+```
+
+Runs a coded policy from the contract's ``policies`` section: the first rule whose condition
+holds, whose action is legal and whose arguments are valid is taken.
+
+### `participants.anthropic`
+
+```python
+anthropic(client: 'Any', model: 'str', *, max_tokens: 'int' = 1024, max_steps: 'int' = 8, system: 'str' = '', retries: 'int' = 4, media: 'Optional[Collection[str]]' = None, retry_truncated: 'bool' = True, extra: 'Optional[Mapping[str, Any]]' = None) -> 'Participant'
+```
+
+An LLM participant using an ``anthropic.Anthropic()`` client.
+
+The system prompt (``system`` and the brief) is marked for prompt caching. Anthropic caches the tools ahead of
+it, and the tools are the actions legal right now with their live choices, so a call reads the cache only when
+the agent is offered the same tools as in an earlier call (typically in a phase it has been in before).
+
+Files the agent receives are sent as image and document blocks after the text (``media``: the attachment types
+sent as content, default image, pdf and text; ``media=()`` for a text-only model, which reads each file's
+reference — its caption and alt text — in the text only). See :mod:`fg_env.assets.multimodal`.
+
+``extra`` holds more request fields sent with every call, such as ``{"temperature": 0}``. Pass the sync
+client: an async client fails the run saying so.
+
+Rate limits, timeouts, overload and server errors are retried ``retries`` times with backoff (honouring
+``retry-after``); if a call still fails, the turn is forfeited, counted in ``stats["forfeits"]`` and reported in
+the run's diagnostics. Any other error — a rejected API key, an unknown model, a bad request, a client that does
+not fit — fails the run at once, naming the agent, the provider's error and the fix. A reply the provider refused
+ends the turn and counts in ``stats["refusals"]``. Real token usage lands in the run's statistics and in
+``participant.usage``.
+
+A reply cut off at ``max_tokens`` counts in ``stats["truncated"]``; when it called no tool, the model is asked
+once for a short tool call (``retry_truncated=False`` ends the turn instead). Any other reply that calls no tool
+is reminded once of the tools offered. Calls left in a reply after one of them ended the turn are not made. In a
+stage where the agent must act, the participant never ends the turn itself: the engine closes it and reports
+that the agent did not act.
+
+### `participants.openai`
+
+```python
+openai(client: 'Any', model: 'str', *, max_tokens: 'Optional[int]' = None, reasoning_effort: 'Optional[str]' = None, max_steps: 'int' = 8, system: 'str' = '', retries: 'int' = 4, media: 'Optional[Collection[str]]' = None, retry_truncated: 'bool' = True, extra: 'Optional[Mapping[str, Any]]' = None) -> 'Participant'
+```
+
+An LLM participant using an ``openai.OpenAI()``-compatible client (chat completions + tools).
+
+``max_tokens`` caps each reply (sent as ``max_completion_tokens``) and ``reasoning_effort`` (``"low"``,
+``"medium"``, ``"high"``) is passed on to reasoning models; each is sent only when given. A server that knows only
+the older ``max_tokens`` field takes ``extra={"max_tokens": 1024}`` instead. Retries, failures, refusals (a
+``refusal`` message or ``finish_reason`` ``content_filter``), ``extra``, usage accounting, truncated replies
+(``finish_reason`` ``length``) and ``retry_truncated`` work as for :func:`anthropic`; arguments that are not a
+JSON object are refused and counted as invalid calls. Files are sent as
+``image_url`` data URLs, ``file`` and ``input_audio`` parts (``media``: default image, pdf, audio and text; ``()``
+for text only); files from tool results follow the tool messages in one user message.
+
+### `participants.replay`
+
+```python
+replay(recording: 'Any', fallback: 'Any' = None) -> 'Participant'
+```
+
+A participant that plays a recorded run's steps again, turn by turn, checking every wake against the
+recording (``recording``: a result with exposures, its dict, a saved file, or a trace); the run it plays in must
+record exposures. On the first difference the run fails with the divergence, or — given ``fallback`` — that
+participant plays on. Usually you want ``fg_env.analysis.trace(recording).replay(contract)``, which also replays the host
+answers and compares the outcome.
+
+### `participants.resolve_participant`
+
+```python
+resolve_participant(value: 'Any', contract: "'Contract'", seed: 'int') -> 'Participant'
+```
+
+## `fg_env.analysis`
+
+Analysis: turn a contract and its runs into findings, reports and readable records.
+
+    from fg_env import analysis
+
+    grid = analysis.sweep("shop.json", {"price": [8, 10, 12]}, runs=20)
+    print(analysis.report(grid, audience="owner"))
+
+* ``sweep``, ``sensitivity``, ``calibrate``, ``optimise`` — outputs across inputs, what drives them, inputs fitted to
+  data, the best decision under constraints.
+* ``validate``, ``score``, ``backtest``, ``precision`` — forecasts and runs checked against actual values.
+* ``behavior_checks``, ``highlights``, ``narrative``, ``drivers``, ``compare``, ``chain`` — broken parts found by
+  playing, the notable moments of a run, what separates outcomes, side-by-side results, contracts in sequence.
+* ``fit_patterns``, ``decompose`` — a contract's world patterns fitted to history; one pattern split into its parts.
+* ``report`` — any of these results as short sentences and tables a manager can act on.
+* ``describe`` — an ODD document and game metadata derived from the contract.
+* ``trace`` — a recorded run read turn by turn, and replayed offline.
+
+### `analysis.fit_patterns`
+
+```python
+fit_patterns(contract: 'ContractLike', *, data_dir: 'Union[str, Path, None]' = None, inputs: 'Optional[Mapping[str, Any]]' = None) -> 'FitResult'
+```
+
+Estimate every pattern that declares ``fit`` and return the contract with the estimates written back.
+
+Data files are read from ``data_dir`` (default: the contract file's folder). ``inputs`` are used while fitting
+(e.g. which history table to read) and are not written into the result.
+
+### `analysis.FitResult`
+
+```python
+FitResult(contract: 'Dict[str, Any]', fits: 'List[PatternFit]', priors: 'Dict[str, Dict[str, Any]]' = <factory>) -> None
+```
+
+The fitted contract (data, like the one given), a report per pattern, and the estimates as priors.
+
+### `analysis.decompose`
+
+```python
+decompose(source: 'Union[ContractLike, Any]', pattern: 'str', *, key: 'Any' = None, rounds: 'Optional[Union[int, Sequence[int]]]' = None, inputs: 'Optional[Mapping[str, Any]]' = None, seed: 'int' = 0, data_dir: 'Any' = None, estimates: 'bool' = False) -> 'Decomposition'
+```
+
+Decompose a ``product`` or ``sum`` pattern into its factors (see the module).
+
+``source`` is a contract (read over ``rounds``: a count from round 1, or a list of rounds; default every round of
+the clock) or a run (read now). ``key`` is required when the pattern has keys. ``estimates`` reads a contract's
+fitted parameters at their estimates, without the draws their standard errors (``uncertainty``) would make.
+
+### `analysis.Decomposition`
+
+```python
+Decomposition(pattern: 'str', key: 'Optional[str]', kind: 'str', rows: 'List[Dict[str, Any]]' = <factory>) -> None
+```
+
+Each round: the total, every factor's value, and what each factor adds.
+
+### `analysis.report`
+
+```python
+report(source: 'Any', audience: 'str' = 'owner', *, contract: 'Optional[ContractLike]' = None, validation: 'Optional[ValidationResult]' = None, optimisation: 'Optional[OptimisationResult]' = None, objective: 'Optional[str]' = None, require: 'Optional[Mapping[str, Any]]' = None, control: 'Optional[str]' = None, data_dir: 'Any' = None) -> 'Report'
+```
+
+A plain-language report of ``source``: a :class:`~fg_env.RunResult` (or a list of them), an experiment, a sweep,
+a validation or an optimisation (see the module). ``contract`` adds names, arm descriptions, assumptions and
+pattern decompositions; ``validation`` adds how well the model matched the data; ``optimisation`` adds how the
+decision an experiment plays was found; ``objective`` and ``require`` choose the recommended option; ``control``
+is the arm differences are measured against (default: the first).
+
+### `analysis.Report`
+
+```python
+Report(title: 'str', audience: 'str', kind: 'str', sections: 'List[Section]', recommendation: 'Optional[Dict[str, Any]]' = None, notes: 'List[str]' = <factory>) -> None
+```
+
+Report(title: 'str', audience: 'str', kind: 'str', sections: 'List[Section]', recommendation: 'Optional[Dict[str, Any]]' = None, notes: 'List[str]' = <factory>)
+
+### `analysis.describe`
+
+```python
+describe(contract: 'ContractLike', *, inputs: 'Optional[Mapping[str, Any]]' = None, arm: 'Optional[str]' = None, data_dir: 'Any' = None) -> 'Description'
+```
+
+Describe ``contract`` (with ``inputs`` and ``arm`` applied). Counts that need the built world (players,
+entity choices, rounds given by an expression) come from building it once with seed 0; when it cannot be
+built — a required input is missing, say — they are reported as unknown with the reason.
+
+### `analysis.Description`
+
+```python
+Description(name: 'str', markdown: 'str', metadata: 'Dict[str, Any]') -> None
+```
+
+Description(name: 'str', markdown: 'str', metadata: 'Dict[str, Any]')
+
+### `analysis.trace`
+
+```python
+trace(source: 'TraceSource') -> "'Trace'"
+```
+
+A recorded run to read: a :class:`RunResult`, its ``to_dict()``, or a file written by ``result.save()``.
+
+The run must have recorded exposures: ``fg_env.run(..., exposures=True)``.
+
+### `analysis.Trace`
+
+```python
+Trace(source: 'TraceSource')
+```
+
+A recorded run. ``wakes`` are the exposure records in engine order; ``texts`` holds every text by hash.
+
+### `analysis.sweep`
 
 ```python
 sweep(contract: 'ContractLike', params: 'Mapping[str, ParamSpec]', *, runs: 'int' = 5, outputs: 'Optional[Sequence[str]]' = None, arms: 'Optional[Sequence[Optional[str]]]' = None, inputs: 'Optional[Mapping[str, Any]]' = None, design: 'str' = 'factorial', samples: 'Optional[int]' = None, participants: 'Any' = None, rounds: 'Optional[int]' = None, seed: 'int' = 0, workers: 'int' = 1, data_dir: 'Any' = None, hosts: 'Any' = None, uncertainty: 'Any' = None) -> 'SweepResult'
@@ -323,7 +501,15 @@ combination; ``design="lhs"`` draws ``samples`` Latin-hypercube points over the 
 measured outputs (default: every numeric or yes/no output). ``data_dir`` is where inputs with a
 ``source`` are read (default: the contract file's folder); ``hosts`` answers host requests in every run.
 
-## `sensitivity`
+### `analysis.SweepResult`
+
+```python
+SweepResult(contract: 'str', design: 'str', params: 'Dict[str, List[Any]]', arms: 'List[Optional[str]]', measures: 'List[str]', seeds: 'List[int]', cells: 'List[SweepCell]', rounds: 'Optional[int]' = None, _effects: 'Dict[str, Dict[str, Dict[str, Any]]]' = <factory>) -> None
+```
+
+SweepResult(contract: 'str', design: 'str', params: 'Dict[str, List[Any]]', arms: 'List[Optional[str]]', measures: 'List[str]', seeds: 'List[int]', cells: 'List[SweepCell]', rounds: 'Optional[int]' = None, _effects: 'Dict[str, Dict[str, Dict[str, Any]]]' = <factory>)
+
+### `analysis.sensitivity`
 
 ```python
 sensitivity(contract: 'ContractLike', inputs: 'InputRanges', output: 'str', *, method: 'str' = 'oat', runs: 'int' = 5, baseline: 'Optional[Mapping[str, Any]]' = None, delta: 'float' = 0.1, trajectories: 'int' = 6, levels: 'int' = 4, samples: 'int' = 20, arm: 'Optional[str]' = None, participants: 'Any' = None, rounds: 'Optional[int]' = None, seed: 'int' = 0, workers: 'int' = 1, level: 'float' = 0.95, data_dir: 'Any' = None, hosts: 'Any' = None) -> 'SensitivityResult'
@@ -336,7 +522,15 @@ only needs them to keep perturbations inside the allowed range). ``baseline`` ov
 contract defaults as the OAT centre and the fixed values for the other inputs. ``data_dir`` is where
 inputs with a ``source`` are read (default: the contract file's folder); ``hosts`` answers host requests.
 
-## `calibrate`
+### `analysis.SensitivityResult`
+
+```python
+SensitivityResult(contract: 'str', output: 'str', method: 'str', runs: 'int', ranking: 'List[Dict[str, Any]]', details: 'Dict[str, Any]' = <factory>) -> None
+```
+
+SensitivityResult(contract: 'str', output: 'str', method: 'str', runs: 'int', ranking: 'List[Dict[str, Any]]', details: 'Dict[str, Any]' = <factory>)
+
+### `analysis.calibrate`
 
 ```python
 calibrate(contract: 'ContractLike', targets: 'Any', params: 'Mapping[str, Mapping[str, Any]]', *, runs: 'int' = 5, budget: 'int' = 30, holdout: 'Optional[int]' = None, method: 'str' = 'auto', inputs: 'Optional[Mapping[str, Any]]' = None, arm: 'Optional[str]' = None, participants: 'Any' = None, rounds: 'Optional[int]' = None, seed: 'int' = 0, workers: 'int' = 1, test: 'Any' = None, folds: 'Optional[int]' = None, data_dir: 'Any' = None, hosts: 'Any' = None) -> 'CalibrationResult'
@@ -355,82 +549,15 @@ With cases, ``test`` returns the fit to the other cases with its error on the he
 ``data_dir`` is where inputs with a ``source`` are read (default: the contract file's folder); ``hosts`` answers
 host requests (feeds, judges) in every run.
 
-## `optimise`
+### `analysis.CalibrationResult`
 
 ```python
-optimise(contract: 'ContractLike', decisions: 'Mapping[str, Any]', objective: 'Any', constraints: 'Any' = (), *, runs: 'int' = 10, seed: 'int' = 0, method: 'str' = 'auto', budget: 'int' = 50, workers: 'int' = 1, confidence: 'float' = 0.9, uncertainty: 'Any' = None, holdout_seeds: 'Optional[int]' = None, inputs: 'Optional[Mapping[str, Any]]' = None, arm: 'Optional[str]' = None, participants: 'Any' = None, rounds: 'Optional[int]' = None, data_dir: 'Any' = None, hosts: 'Any' = None) -> 'OptimisationResult'
+CalibrationResult(contract: 'str', params: 'Dict[str, Any]', method: 'str', fit: 'float', targets: 'List[Dict[str, Any]]', validation: 'Dict[str, Any]', uncertainty: 'Dict[str, Dict[str, Any]]', evaluations: 'int', history: 'List[Dict[str, Any]]' = <factory>, notes: 'List[str]' = <factory>, cases: 'List[str]' = <factory>, holdout: 'Optional[Dict[str, Any]]' = None, plausible: 'List[Dict[str, Any]]' = <factory>, pooled: 'List[Dict[str, Any]]' = <factory>) -> None
 ```
 
-Search ``decisions`` for the best ``objective`` subject to ``constraints`` (see the module notes).
+CalibrationResult(contract: 'str', params: 'Dict[str, Any]', method: 'str', fit: 'float', targets: 'List[Dict[str, Any]]', validation: 'Dict[str, Any]', uncertainty: 'Dict[str, Dict[str, Any]]', evaluations: 'int', history: 'List[Dict[str, Any]]' = <factory>, notes: 'List[str]' = <factory>, cases: 'List[str]' = <factory>, holdout: 'Optional[Dict[str, Any]]' = None, plausible: 'List[Dict[str, Any]]' = <factory>, pooled: 'List[Dict[str, Any]]' = <factory>)
 
-``decisions``: ``{input: {low, high, step?} | [values] | {length|keys, low, high, step?, monotone?, sum?}}``.
-``objective``: ``"maximise margin"``, ``"minimise p90 of cost"``, or a list of two or three for a Pareto frontier.
-``constraints``: ``["fill_rate >= 0.95", "sl >= 0.8 in 90% of runs", "each sl_by_interval >= 0.8"]``, each held
-with ``confidence`` unless it says "with 95% confidence". ``runs`` seeds judge each decision; ``budget`` caps the
-distinct decisions searched; ``method``: auto, grid, random, lhs, local, race, nelder_mead, cross_entropy or (for a
-frontier) frontier. ``holdout_seeds`` (default ``runs``; 0 skips it) fresh seeds check the choice. ``inputs`` and
-``arm`` fix everything else; ``uncertainty`` draws parameters per run.
-
-## `fit_patterns`
-
-```python
-fit_patterns(contract: 'ContractLike', *, data_dir: 'Union[str, Path, None]' = None, inputs: 'Optional[Mapping[str, Any]]' = None) -> 'FitResult'
-```
-
-Estimate every pattern that declares ``fit`` and return the contract with the estimates written back.
-
-Data files are read from ``data_dir`` (default: the contract file's folder). ``inputs`` are used while fitting
-(e.g. which history table to read) and are not written into the result.
-
-## `FitResult`
-
-```python
-FitResult(contract: 'Dict[str, Any]', fits: 'List[PatternFit]', priors: 'Dict[str, Dict[str, Any]]' = <factory>) -> None
-```
-
-The fitted contract (data, like the one given), a report per pattern, and the estimates as priors.
-
-## `decompose`
-
-```python
-decompose(source: 'Union[ContractLike, Any]', pattern: 'str', *, key: 'Any' = None, rounds: 'Optional[Union[int, Sequence[int]]]' = None, inputs: 'Optional[Mapping[str, Any]]' = None, seed: 'int' = 0, data_dir: 'Any' = None, estimates: 'bool' = False) -> 'Decomposition'
-```
-
-Decompose a ``product`` or ``sum`` pattern into its factors (see the module).
-
-``source`` is a contract (read over ``rounds``: a count from round 1, or a list of rounds; default every round of
-the clock) or a run (read now). ``key`` is required when the pattern has keys. ``estimates`` reads a contract's
-fitted parameters at their estimates, without the draws their standard errors (``uncertainty``) would make.
-
-## `Decomposition`
-
-```python
-Decomposition(pattern: 'str', key: 'Optional[str]', kind: 'str', rows: 'List[Dict[str, Any]]' = <factory>) -> None
-```
-
-Each round: the total, every factor's value, and what each factor adds.
-
-## `report`
-
-```python
-report(source: 'Any', audience: 'str' = 'owner', *, contract: 'Optional[ContractLike]' = None, validation: 'Optional[ValidationResult]' = None, optimisation: 'Optional[OptimisationResult]' = None, objective: 'Optional[str]' = None, require: 'Optional[Mapping[str, Any]]' = None, control: 'Optional[str]' = None, data_dir: 'Any' = None) -> 'Report'
-```
-
-A plain-language report of ``source``: a :class:`~fg_env.RunResult` (or a list of them), an experiment, a sweep,
-a validation or an optimisation (see the module). ``contract`` adds names, arm descriptions, assumptions and
-pattern decompositions; ``validation`` adds how well the model matched the data; ``optimisation`` adds how the
-decision an experiment plays was found; ``objective`` and ``require`` choose the recommended option; ``control``
-is the arm differences are measured against (default: the first).
-
-## `Report`
-
-```python
-Report(title: 'str', audience: 'str', kind: 'str', sections: 'List[Section]', recommendation: 'Optional[Dict[str, Any]]' = None, notes: 'List[str]' = <factory>) -> None
-```
-
-Report(title: 'str', audience: 'str', kind: 'str', sections: 'List[Section]', recommendation: 'Optional[Dict[str, Any]]' = None, notes: 'List[str]' = <factory>)
-
-## `score`
+### `analysis.score`
 
 ```python
 score(forecasts: 'Sequence[Any]', outcomes: 'Sequence[Any]', *, kind: 'str' = 'auto', climatology: 'Any' = None, bins: 'int' = 10, nominal: 'Optional[float]' = None, epsilon: 'float' = 1e-15) -> 'Dict[str, Any]'
@@ -445,7 +572,99 @@ the same). ``climatology`` is the reference forecast for the skill score: a base
 (binary), a category distribution (categorical) or a sample of numbers (ensemble). Without
 it the reference is the outcomes' own frequency — in-sample, and labelled as such.
 
-## `backtest`
+### `analysis.brier`
+
+```python
+brier(probabilities: 'Sequence[float]', outcomes: 'Sequence[Any]') -> 'float'
+```
+
+Mean squared error of probability forecasts for a yes/no event (0 perfect, 1 worst).
+
+### `analysis.brier_multiclass`
+
+```python
+brier_multiclass(forecasts: 'Sequence[Mapping[Any, float]]', outcomes: 'Sequence[Any]') -> 'float'
+```
+
+Σ over categories of (p − 1[outcome])², averaged over cases (0 perfect, 2 worst).
+
+An outcome that no forecast lists counts as a category given probability 0.
+
+### `analysis.log_loss`
+
+```python
+log_loss(probabilities: 'Sequence[float]', outcomes: 'Sequence[Any]', epsilon: 'float' = 1e-15) -> 'float'
+```
+
+Mean negative log likelihood of yes/no outcomes (0 perfect; punishes confident misses hard).
+
+### `analysis.log_loss_multiclass`
+
+```python
+log_loss_multiclass(forecasts: 'Sequence[Mapping[Any, float]]', outcomes: 'Sequence[Any]', epsilon: 'float' = 1e-15) -> 'float'
+```
+
+### `analysis.crps`
+
+```python
+crps(ensembles: 'Sequence[Sequence[float]]', observations: 'Sequence[float]') -> 'float'
+```
+
+### `analysis.crps_ensemble`
+
+```python
+crps_ensemble(members: 'Sequence[float]', observation: 'float') -> 'float'
+```
+
+Continuous ranked probability score of one ensemble: E|X − y| − ½·E|X − X′|.
+
+It is the mean absolute error generalised to a whole distribution, in the outcome's units.
+
+### `analysis.interval_coverage`
+
+```python
+interval_coverage(intervals: 'Sequence[Tuple[float, float]]', outcomes: 'Sequence[float]', nominal: 'Optional[float]' = None) -> 'Dict[str, Any]'
+```
+
+How often outcomes fall inside their intervals (ends included), with a Wilson interval.
+
+### `analysis.reliability`
+
+```python
+reliability(probabilities: 'Sequence[float]', outcomes: 'Sequence[Any]', bins: 'int' = 10) -> 'List[ReliabilityBin]'
+```
+
+Non-empty bins of equal width over [0, 1]; a forecast of exactly 1 falls in the last bin.
+
+### `analysis.ece`
+
+```python
+ece(probabilities: 'Sequence[float]', outcomes: 'Sequence[Any]', bins: 'int' = 10) -> 'float'
+```
+
+Expected calibration error: bin-size-weighted |mean forecast − observed frequency|.
+
+### `analysis.murphy`
+
+```python
+murphy(probabilities: 'Sequence[float]', outcomes: 'Sequence[Any]', bins: 'int' = 10) -> 'Dict[str, float]'
+```
+
+Brier = reliability − resolution + uncertainty (+ a within-bin residual).
+
+reliability: calibration error (lower is better); resolution: how much forecasts separate
+cases from the base rate (higher is better); uncertainty: base rate × (1 − base rate). The
+identity is exact when forecasts inside a bin are equal; ``residual`` holds the difference.
+
+### `analysis.skill_score`
+
+```python
+skill_score(value: 'float', reference: 'float', perfect: 'float' = 0.0) -> 'Optional[float]'
+```
+
+1 − (score − perfect)/(reference − perfect): 1 perfect, 0 no better than the reference, < 0 worse.
+
+### `analysis.backtest`
 
 ```python
 backtest(contract: 'ContractLike', cases: 'Sequence[Mapping[str, Any]]', output: 'str', *, runs: 'int' = 10, threshold: 'Optional[float]' = None, climatology: 'Any' = None, arm: 'Optional[str]' = None, participants: 'Any' = None, rounds: 'Optional[int]' = None, seed: 'int' = 0, workers: 'int' = 1, bins: 'int' = 10, test: 'Any' = None, folds: 'Optional[int]' = None, data_dir: 'Any' = None, hosts: 'Any' = None, uncertainty: 'Any' = None) -> 'BacktestResult'
@@ -465,22 +684,15 @@ the held-out cases against a climatology built only from the other cases: out-of
 ``data_dir`` is where inputs with a ``source`` are read (default: the contract file's folder); ``hosts``
 answers host requests (feeds, judges) in every run.
 
-## `validate`
+### `analysis.BacktestResult`
 
 ```python
-validate(contract: 'ContractLike', cases: 'Sequence[Mapping[str, Any]]', *, runs: 'int' = 10, levels: 'Sequence[float]' = (0.8, 0.95), season: 'Optional[int]' = None, baselines: 'Sequence[str]' = ('last', 'mean', 'seasonal'), test: 'Any' = None, arm: 'Optional[str]' = None, participants: 'Any' = None, rounds: 'Optional[int]' = None, seed: 'int' = 0, workers: 'int' = 1, data_dir: 'Any' = None, hosts: 'Any' = None, uncertainty: 'Any' = None) -> 'ValidationResult'
+BacktestResult(contract: 'str', output: 'str', kind: 'str', runs: 'int', cases: 'List[Dict[str, Any]]', scores: 'Dict[str, Any]', notes: 'List[str]' = <factory>, holdout: 'Optional[Dict[str, Any]]' = None) -> None
 ```
 
-Check the contract's forecasts against each case's ``actuals`` (see the module notes).
+BacktestResult(contract: 'str', output: 'str', kind: 'str', runs: 'int', cases: 'List[Dict[str, Any]]', scores: 'Dict[str, Any]', notes: 'List[str]' = <factory>, holdout: 'Optional[Dict[str, Any]]' = None)
 
-``cases``: ``[{"name"?, "inputs"?, "arm"?, "actuals": {measure: number | {key: number} | [numbers]}}]`` in time
-order; a measure is an output or a metric (its final value). ``levels`` are the nominal interval coverages checked.
-Baselines forecast each key from earlier cases: ``last``, ``mean`` and ``seasonal`` (the value ``season`` cases
-back; needs ``season``). ``test`` (a share or case names) also scores the held-out cases on their own.
-``uncertainty`` (a calibration, points or priors: :mod:`.draws`) draws parameters per run, so intervals include
-not knowing them.
-
-## `precision`
+### `analysis.precision`
 
 ```python
 precision(contract: 'ContractLike', output: 'str', *, target_se: 'Optional[float]' = None, relative_se: 'Optional[float]' = None, max_runs: 'int' = 100, batch: 'int' = 5, min_runs: 'Optional[int]' = None, inputs: 'Optional[Mapping[str, Any]]' = None, arm: 'Optional[str]' = None, participants: 'Any' = None, rounds: 'Optional[int]' = None, seed: 'int' = 0, workers: 'int' = 1, level: 'float' = 0.95, data_dir: 'Any' = None, hosts: 'Any' = None) -> 'PrecisionResult'
@@ -493,7 +705,15 @@ is a proportion: its standard error is the Wilson interval's half-width over z, 
 reaches 0 by luck at 0% or 100%. At least ``min_runs`` (default two batches) run before the
 target can be declared met, so a few identical early runs cannot end the search.
 
-## `behavior_checks`
+### `analysis.PrecisionResult`
+
+```python
+PrecisionResult(contract: 'str', output: 'str', converged: 'bool', runs: 'int', estimate: 'Estimate', target_se: 'float', trace: 'List[Dict[str, Any]]', runs_needed: 'Optional[int]') -> None
+```
+
+PrecisionResult(contract: 'str', output: 'str', converged: 'bool', runs: 'int', estimate: 'Estimate', target_se: 'float', trace: 'List[Dict[str, Any]]', runs_needed: 'Optional[int]')
+
+### `analysis.behavior_checks`
 
 ```python
 behavior_checks(contract: 'ContractLike', *, runs: 'int' = 4, rounds: 'Optional[int]' = None, seed: 'int' = 0, participants: 'Any' = 'random', inputs: 'Optional[Mapping[str, Any]]' = None, test_inputs: 'Optional[Sequence[str]]' = None, perturb: 'float' = 0.5, workers: 'int' = 1, data_dir: 'Any' = None, hosts: 'Any' = None, boundaries: 'bool' = False, max_boundary_cases: 'int' = 24) -> 'CheckReport'
@@ -513,7 +733,23 @@ single-input cases, including reordered tables and an added duplicate row. Findi
 replayable paths/values and the sampling limit. This is not an
 exhaustive combination search or evidence that the business model matches its brief.
 
-## `highlights`
+### `analysis.CheckReport`
+
+```python
+CheckReport(contract: 'str', runs: 'int', rounds: 'Optional[int]', findings: 'List[Finding]', tested_inputs: 'List[str]', untested_inputs: 'List[str]') -> None
+```
+
+CheckReport(contract: 'str', runs: 'int', rounds: 'Optional[int]', findings: 'List[Finding]', tested_inputs: 'List[str]', untested_inputs: 'List[str]')
+
+### `analysis.Finding`
+
+```python
+Finding(code: 'str', severity: 'str', subject: 'str', message: 'str', evidence: 'Dict[str, Any]' = <factory>) -> None
+```
+
+Finding(code: 'str', severity: 'str', subject: 'str', message: 'str', evidence: 'Dict[str, Any]' = <factory>)
+
+### `analysis.highlights`
 
 ```python
 highlights(result: 'RunResult', *, top: 'int' = 5, metrics: 'Optional[Sequence[str]]' = None) -> 'List[Highlight]'
@@ -524,7 +760,7 @@ The ``top`` most notable moments of a run, most surprising first (ties: earliest
 ``metrics`` limits which metric series are scanned (default: all). Event-based moments need
 the run's event log (``RunResult.events``).
 
-## `narrative`
+### `analysis.narrative`
 
 ```python
 narrative(result: 'RunResult', *, limit: 'int' = 10) -> 'str'
@@ -534,7 +770,15 @@ A compact factual account: how the run went, its notable moments in order — ea
 when the run shows it — and its results. Rounds are named in the clock's terms (``Week 7 (2026-10-12): …``,
 ``09:30–10:00: …``); moments no more unusual than the run's usual ups and downs are left out.
 
-## `drivers`
+### `analysis.Highlight`
+
+```python
+Highlight(kind: 'str', round: 'int', subject: 'str', score: 'float', text: 'str', data: 'Dict[str, Any]' = <factory>) -> None
+```
+
+Highlight(kind: 'str', round: 'int', subject: 'str', score: 'float', text: 'str', data: 'Dict[str, Any]' = <factory>)
+
+### `analysis.drivers`
 
 ```python
 drivers(runs: 'Any', output: 'str', *, focus: 'Any' = None, threshold: 'Optional[float]' = None, include: 'Sequence[str]' = ('inputs', 'metrics', 'outputs', 'actions', 'end'), permutations: 'int' = 500, alpha: 'float' = 0.05, top: 'int' = 10, seed: 'int' = 0) -> 'DriversResult'
@@ -547,7 +791,23 @@ common value (or ``focus``). ``include`` picks feature groups: inputs (and arm),
 (final value and peak), other outputs, actions (successful count, from event logs), end
 (how the run ended, winner). Deterministic for a given ``seed``.
 
-## `compare`
+### `analysis.DriversResult`
+
+```python
+DriversResult(output: 'str', focus: 'str', n: 'int', base_rate: 'float', drivers: 'List[Driver]', tested: 'int', permutations: 'int', alpha: 'float', notes: 'List[str]' = <factory>) -> None
+```
+
+DriversResult(output: 'str', focus: 'str', n: 'int', base_rate: 'float', drivers: 'List[Driver]', tested: 'int', permutations: 'int', alpha: 'float', notes: 'List[str]' = <factory>)
+
+### `analysis.Driver`
+
+```python
+Driver(feature: 'str', kind: 'str', lift: 'float', p_value: 'float', high_rate: 'float', low_rate: 'float', n_high: 'int', n_low: 'int', split: 'Optional[float]' = None) -> None
+```
+
+Driver(feature: 'str', kind: 'str', lift: 'float', p_value: 'float', high_rate: 'float', low_rate: 'float', n_high: 'int', n_low: 'int', split: 'Optional[float]' = None)
+
+### `analysis.compare`
 
 ```python
 compare(a: 'Any', b: 'Any', *, labels: 'Tuple[str, str]' = ('a', 'b'), level: 'float' = 0.95) -> 'Comparison'
@@ -558,7 +818,15 @@ Compare results, matching shared unique seeds and excluding invalid outputs per 
 Unmatched seeds are omitted when shared seeds exist; disjoint samples use an
 independent comparison. Notes identify exclusions and numeric rows give sample sizes.
 
-## `chain`
+### `analysis.Comparison`
+
+```python
+Comparison(labels: 'Tuple[str, str]', paired: 'bool', outputs: 'Dict[str, Dict[str, Any]]', series: 'Dict[str, Dict[str, Any]]', notes: 'List[str]' = <factory>, level: 'float' = 0.95) -> None
+```
+
+Comparison(labels: 'Tuple[str, str]', paired: 'bool', outputs: 'Dict[str, Dict[str, Any]]', series: 'Dict[str, Dict[str, Any]]', notes: 'List[str]' = <factory>, level: 'float' = 0.95)
+
+### `analysis.chain`
 
 ```python
 chain(first: 'ContractLike', second: 'ContractLike', bind: 'Mapping[str, str]', *, runs: 'int' = 10, level: 'float' = 0.9, uncertainty: 'bool' = True, first_inputs: 'Optional[Mapping[str, Any]]' = None, second_inputs: 'Optional[Mapping[str, Any]]' = None, participants: 'Any' = None, second_participants: 'Any' = None, rounds: 'Optional[int]' = None, second_rounds: 'Optional[int]' = None, seed: 'int' = 0, workers: 'int' = 1, data_dir: 'Any' = None, second_data_dir: 'Any' = None, hosts: 'Any' = None) -> 'ChainResult'
@@ -573,7 +841,193 @@ outside a bound input's declared range are clamped, with a note. ``data_dir`` / 
 each contract's inputs with a ``source`` are read (default: each contract file's folder); ``hosts`` answers host
 requests in the runs of both.
 
-## `tournament`
+### `analysis.ChainResult`
+
+```python
+ChainResult(first: 'str', second: 'str', runs: 'int', level: 'float', bindings: 'Dict[str, Dict[str, Any]]', scenarios: 'Dict[str, Dict[str, Any]]', envelope: 'Dict[str, Dict[str, float]]', notes: 'List[str]' = <factory>) -> None
+```
+
+ChainResult(first: 'str', second: 'str', runs: 'int', level: 'float', bindings: 'Dict[str, Dict[str, Any]]', scenarios: 'Dict[str, Dict[str, Any]]', envelope: 'Dict[str, Dict[str, float]]', notes: 'List[str]' = <factory>)
+
+### `analysis.statistic`
+
+```python
+statistic(name: 'str', series: 'Sequence[float]') -> 'float'
+```
+
+Evaluate a named statistic (``"volatility"``, ``"autocorrelation:2"``) on a series.
+
+### `analysis.AnalysisError`
+
+An analysis cannot produce a result: every run failed, or a request is impossible.
+
+### `analysis.validate`
+
+```python
+validate(contract: 'ContractLike', cases: 'Sequence[Mapping[str, Any]]', *, runs: 'int' = 10, levels: 'Sequence[float]' = (0.8, 0.95), season: 'Optional[int]' = None, baselines: 'Sequence[str]' = ('last', 'mean', 'seasonal'), test: 'Any' = None, arm: 'Optional[str]' = None, participants: 'Any' = None, rounds: 'Optional[int]' = None, seed: 'int' = 0, workers: 'int' = 1, data_dir: 'Any' = None, hosts: 'Any' = None, uncertainty: 'Any' = None) -> 'ValidationResult'
+```
+
+Check the contract's forecasts against each case's ``actuals`` (see the module notes).
+
+``cases``: ``[{"name"?, "inputs"?, "arm"?, "actuals": {measure: number | {key: number} | [numbers]}}]`` in time
+order; a measure is an output or a metric (its final value). ``levels`` are the nominal interval coverages checked.
+Baselines forecast each key from earlier cases: ``last``, ``mean`` and ``seasonal`` (the value ``season`` cases
+back; needs ``season``). ``test`` (a share or case names) also scores the held-out cases on their own.
+``uncertainty`` (a calibration, points or priors: :mod:`.draws`) draws parameters per run, so intervals include
+not knowing them.
+
+### `analysis.ValidationResult`
+
+```python
+ValidationResult(contract: 'str', runs: 'int', levels: 'List[float]', cases: 'List[str]', measures: 'Dict[str, Dict[str, Any]]', rows: 'List[Dict[str, Any]]', warnings: 'List[str]' = <factory>, notes: 'List[str]' = <factory>) -> None
+```
+
+ValidationResult(contract: 'str', runs: 'int', levels: 'List[float]', cases: 'List[str]', measures: 'Dict[str, Dict[str, Any]]', rows: 'List[Dict[str, Any]]', warnings: 'List[str]' = <factory>, notes: 'List[str]' = <factory>)
+
+### `analysis.optimise`
+
+```python
+optimise(contract: 'ContractLike', decisions: 'Mapping[str, Any]', objective: 'Any', constraints: 'Any' = (), *, runs: 'int' = 10, seed: 'int' = 0, method: 'str' = 'auto', budget: 'int' = 50, workers: 'int' = 1, confidence: 'float' = 0.9, uncertainty: 'Any' = None, holdout_seeds: 'Optional[int]' = None, inputs: 'Optional[Mapping[str, Any]]' = None, arm: 'Optional[str]' = None, participants: 'Any' = None, rounds: 'Optional[int]' = None, data_dir: 'Any' = None, hosts: 'Any' = None) -> 'OptimisationResult'
+```
+
+Search ``decisions`` for the best ``objective`` subject to ``constraints`` (see the module notes).
+
+``decisions``: ``{input: {low, high, step?} | [values] | {length|keys, low, high, step?, monotone?, sum?}}``.
+``objective``: ``"maximise margin"``, ``"minimise p90 of cost"``, or a list of two or three for a Pareto frontier.
+``constraints``: ``["fill_rate >= 0.95", "sl >= 0.8 in 90% of runs", "each sl_by_interval >= 0.8"]``, each held
+with ``confidence`` unless it says "with 95% confidence". ``runs`` seeds judge each decision; ``budget`` caps the
+distinct decisions searched; ``method``: auto, grid, random, lhs, local, race, nelder_mead, cross_entropy or (for a
+frontier) frontier. ``holdout_seeds`` (default ``runs``; 0 skips it) fresh seeds check the choice. ``inputs`` and
+``arm`` fix everything else; ``uncertainty`` draws parameters per run.
+
+### `analysis.OptimisationResult`
+
+```python
+OptimisationResult(contract: 'str', method: 'str', decisions: 'List[str]', objectives: 'List[str]', constraints: 'List[str]', runs: 'int', seed: 'int', evaluations: 'int', total_runs: 'int', best: 'Optional[Dict[str, Any]]' = None, feasible: 'bool' = False, verdict: 'str' = 'infeasible', confidence: 'float' = 0.9, estimates: 'Optional[Dict[str, Any]]' = None, runner_up: 'Optional[Dict[str, Any]]' = None, holdout: 'Optional[Dict[str, Any]]' = None, sensitivity: 'List[Dict[str, Any]]' = <factory>, frontier: 'List[Dict[str, Any]]' = <factory>, history: 'List[Dict[str, Any]]' = <factory>, notes: 'List[str]' = <factory>) -> None
+```
+
+OptimisationResult(contract: 'str', method: 'str', decisions: 'List[str]', objectives: 'List[str]', constraints: 'List[str]', runs: 'int', seed: 'int', evaluations: 'int', total_runs: 'int', best: 'Optional[Dict[str, Any]]' = None, feasible: 'bool' = False, verdict: 'str' = 'infeasible', confidence: 'float' = 0.9, estimates: 'Optional[Dict[str, Any]]' = None, runner_up: 'Optional[Dict[str, Any]]' = None, holdout: 'Optional[Dict[str, Any]]' = None, sensitivity: 'List[Dict[str, Any]]' = <factory>, frontier: 'List[Dict[str, Any]]' = <factory>, history: 'List[Dict[str, Any]]' = <factory>, notes: 'List[str]' = <factory>)
+
+## `fg_env.rl`
+
+Agents in the loop: a contract as a game, a Gymnasium or PettingZoo environment, a tournament or an evaluation.
+
+    from fg_env import rl
+
+    g = rl.game("nim.json")                              # OpenSpiel-style: seats, numbered actions, chance nodes
+    env = rl.gym("nim.json", "ann", others="random")     # one agent as a Gymnasium-style environment
+    table = rl.tournament("poker.json", {"a": bot_a, "b": bot_b}, games=50)
+
+* ``game`` / ``Game`` / ``GameState`` — any contract as a game for search, solving and learning code;
+  ``conformance`` checks it, ``playthrough`` prints one game move by move. Transforms, benchmarks and verified
+  algorithms live in :mod:`fg_env.game`.
+* ``gym`` / ``GymEnv``, ``pettingzoo_aec`` / ``pettingzoo_parallel`` — reinforcement-learning adapters.
+* ``tournament`` — pit participants against each other in the contract's seats, then rate and rank them.
+* ``evaluate`` — how well a focal participant does among background agents, against a baseline on the same seeds.
+
+### `rl.game`
+
+```python
+game(source: 'ContractLike', *, inputs: 'Optional[Mapping[str, Any]]' = None, seed: 'int' = 0, arm: 'Optional[str]' = None, players: 'Optional[Sequence[str]]' = None, others: 'Any' = None, chance: 'str' = 'explicit', simultaneous: 'str' = 'joint', dry_run: 'bool' = True, max_combinations: 'int' = 10000, hosts: 'Any' = None, data_dir: "Union[str, 'os.PathLike[str]', None]" = None) -> 'Game'
+```
+
+A contract as a game for search, solving and learning code.
+
+* ``players`` — the seats (entity ids); default: the contract's ``game.players`` (else every agent), in seat order.
+* ``others`` — participants for agents that are not seats (as in ``Env.run``).
+* ``chance`` — ``"explicit"``: every `chance` effect is a chance node whose outcomes search code chooses;
+  ``"sampled"``: outcomes are drawn from the seed. Other randomness is always fixed by ``seed``.
+* ``simultaneous`` — ``"joint"``: a simultaneous stage is one node (``apply_actions``); ``"turn_based"``:
+  its sealed turns are decided one seat at a time.
+* ``dry_run`` — legal calls are also tried without effect, so a call whose effects would refuse it is not
+  listed (the engine's own judgement at submit); ``False`` lists every call that validates.
+* ``max_combinations`` — most argument combinations listed per action before it counts as parametric.
+
+### `rl.Game`
+
+```python
+Game(root: 'Env', *, players: 'Optional[Sequence[str]]', others: 'Any', chance: 'str', turn_based: 'bool', dry_run: 'bool', limit: 'int')
+```
+
+A contract as a game: seats, a numbered action space, and states to search from.
+
+Create with :func:`fg_env.rl.game`. States pause at every decision of a seat (and at every chance
+node when chance is explicit); agents that are not seats are played by ``others``.
+
+### `rl.GameState`
+
+```python
+GameState(game: "'Game'", run: 'Union[Branch, Run]', history: 'List[Dict[str, Any]]', previous: 'Optional[List[float]]' = None, legal: 'Optional[Dict[int, Legal]]' = None, path: 'bytes' = b'')
+```
+
+One state of a :class:`~fg_env.game.Game`. ``apply_action`` changes it; ``child`` and ``clone``
+give new independent states. Players are seat indices (``game.players[i]`` is the entity id).
+
+### `rl.conformance`
+
+```python
+conformance(source: 'Union[ContractLike, Game]', *, sims: 'int' = 20, seed: 'int' = 0, inputs: 'Optional[Mapping[str, Any]]' = None, simultaneous: 'str' = 'joint', leak_branches: 'int' = 2, max_steps: 'int' = 1000, resume: 'bool' = True) -> 'ConformanceReport'
+```
+
+Check a game (a contract, or a :class:`Game` from :func:`fg_env.rl.game`) over ``sims`` seeded random playouts.
+
+``simultaneous="turn_based"`` checks the one-seat-at-a-time view of simultaneous stages, where the leak test
+also covers sealed choices. ``leak_branches`` is how many steps of each playout are changed for the leak test;
+``max_steps`` is the longest a playout may run; ``resume=False`` skips the whole-run resume check.
+
+### `rl.ConformanceReport`
+
+```python
+ConformanceReport(game: 'str', sims: 'int', decisions: 'int' = 0, chance_nodes: 'int' = 0, checks: 'Dict[str, int]' = <factory>, issues: 'List[ConformanceIssue]' = <factory>) -> None
+```
+
+What :func:`conformance` checked and found.
+
+### `rl.playthrough`
+
+```python
+playthrough(source: 'Union[ContractLike, Game]', *, seed: 'int' = 0, steps: 'Optional[Sequence[Mapping[str, Any]]]' = None, inputs: 'Optional[Mapping[str, Any]]' = None, simultaneous: 'str' = 'joint', max_steps: 'int' = 500) -> 'str'
+```
+
+The playthrough text of one game: ``steps`` when given (see :mod:`.steps`), else random ones from ``seed``.
+
+### `rl.gym`
+
+```python
+gym(source: 'ContractLike', agent: 'str', *, others: 'Any' = None, inputs: 'Optional[Mapping[str, Any]]' = None, arm: 'Optional[str]' = None, seed: 'Optional[int]' = None, max_steps: 'Optional[int]' = None, action_ids: 'bool' = False, hosts: 'Any' = None, render_mode: 'Optional[str]' = None, data_dir: "Union[str, 'os.PathLike[str]', None]" = None) -> 'GymEnv'
+```
+
+One agent (an entity id) of a contract as a Gymnasium-style environment; ``others`` play the rest.
+
+``seed`` seeds the episodes (``reset(seed=...)`` reseeds them); ``max_steps`` truncates an episode after
+that many calls; ``action_ids=True`` accepts integer action ids and adds ``legal_actions`` and
+``action_mask`` to ``info`` (see :func:`fg_env.rl.game` for how ids are numbered).
+
+### `rl.GymEnv`
+
+```python
+GymEnv(root: 'Env', agent: 'str', *, others: 'Any', max_steps: 'Optional[int]', action_ids: 'bool', hosts: 'Any', render_mode: 'Optional[str]')
+```
+
+One agent of a contract as a Gymnasium-style environment. Create with :func:`fg_env.rl.gym`.
+
+### `rl.pettingzoo_aec`
+
+```python
+pettingzoo_aec(source: 'ContractLike', *, inputs: 'Optional[Mapping[str, Any]]' = None, seed: 'Optional[int]' = None, max_steps: 'Optional[int]' = None, render_mode: 'Optional[str]' = None) -> 'AECGame'
+```
+
+A contract as a PettingZoo AEC environment (simultaneous stages one seat at a time; needs game.returns).
+
+### `rl.pettingzoo_parallel`
+
+```python
+pettingzoo_parallel(source: 'ContractLike', *, inputs: 'Optional[Mapping[str, Any]]' = None, seed: 'Optional[int]' = None, max_steps: 'Optional[int]' = None, render_mode: 'Optional[str]' = None) -> 'ParallelGame'
+```
+
+A contract as a PettingZoo parallel environment (needs game.returns).
+
+### `rl.tournament`
 
 ```python
 tournament(contract: 'ContractLike', entrants: 'Mapping[str, Any]', *, seats: 'Optional[Sequence[str]]' = None, pairing: 'str' = 'round_robin', games: 'int' = 1, score: 'ScoreSpec' = None, rating: 'str' = 'elo', swiss_rounds: 'Optional[int]' = None, others: 'Any' = None, inputs: 'Optional[Mapping[str, Any]]' = None, arm: 'Optional[str]' = None, rounds: 'Optional[int]' = None, seed: 'int' = 0, workers: 'int' = 1, data_dir: 'Any' = None, budget: 'Optional[Mapping[str, Any]]' = None, exposures: 'bool' = False) -> 'TournamentResult'
@@ -600,30 +1054,19 @@ both are reported, with win/draw/loss, points and score means. ``evaluation`` ad
 α-Rank and a Schulze vote, which stay meaningful when skill is not transitive; ``returns`` gives every
 entrant's score in every seat, and each standing's ``cost`` its turns, calls, invalid calls, timeouts,
 undone turns and model tokens. A callable entrant is shared by all its games: with ``workers > 1`` those run in threads at once.
-``budget`` caps each game on its own (:mod:`fg_env.sdk.budget`); ``exposures=True`` records what agents saw in
+``budget`` caps each game on its own (:mod:`fg_env.budget`); ``exposures=True`` records what agents saw in
 every game (``result.runs[i].exposures``, events kept), each a trace to read or replay.
 
-## `describe`
+### `rl.TournamentResult`
 
 ```python
-describe(contract: 'ContractLike', *, inputs: 'Optional[Mapping[str, Any]]' = None, arm: 'Optional[str]' = None, data_dir: 'Any' = None) -> 'Description'
+TournamentResult(contract: 'str', pairing: 'str', rating: 'str', score: 'str', seats: 'List[str]', entrants: 'List[str]', games_per_seating: 'int', standings: 'List[Dict[str, Any]]', head_to_head: 'Dict[str, Dict[str, Dict[str, int]]]', returns: 'Dict[str, Dict[str, Dict[str, Any]]]', seat_points: 'Dict[str, Dict[str, Any]]', evaluation: 'Dict[str, Any]', games: 'List[Dict[str, Any]]', runs: 'List[RunResult]' = <factory>, notes: 'List[str]' = <factory>) -> None
 ```
 
-Describe ``contract`` (with ``inputs`` and ``arm`` applied). Counts that need the built world (players,
-entity choices, rounds given by an expression) come from building it once with seed 0; when it cannot be
-built — a required input is missing, say — they are reported as unknown with the reason.
+``standings`` is best first by ``rating``. ``evaluation`` holds the margin matrix, the Nash average, α-Rank
+and the Schulze vote; ``returns[entrant][seat]`` the score in each seat; ``games`` one record per game or bye.
 
-## `trace`
-
-```python
-trace(source: 'TraceSource') -> "'Trace'"
-```
-
-A recorded run to read: a :class:`RunResult`, its ``to_dict()``, or a file written by ``result.save()``.
-
-The run must have recorded exposures: ``fg_env.run(..., exposures=True)``.
-
-## `evaluate`
+### `rl.evaluate`
 
 ```python
 evaluate(suite: 'Any', *, focal: 'Any', background: 'Any' = None, baseline: 'Any' = None, seats: 'Any' = None, score: 'ScoreSpec' = None, modes: 'Optional[Mapping[str, float]]' = None, inputs: 'Optional[Mapping[str, Any]]' = None, arm: 'Optional[str]' = None, runs: 'int' = 10, rounds: 'Optional[int]' = None, budget: 'Optional[Mapping[str, Any]]' = None, seed: 'int' = 0, workers: 'int' = 1, exposures: 'bool' = False) -> 'EvaluationResult'
@@ -631,13 +1074,13 @@ evaluate(suite: 'Any', *, focal: 'Any', background: 'Any' = None, baseline: 'Any
 
 How ``focal`` does among ``background`` agents, compared with ``baseline`` in the same seats on the same seeds.
 
-``suite`` is a contract, a list of scenarios, or a suite file (see :mod:`fg_env.sdk.evaluate.suite`); the other
+``suite`` is a contract, a list of scenarios, or a suite file (see :mod:`fg_env.evaluate.suite`); the other
 arguments are defaults for scenarios that leave them out. ``seats`` are the agents the focal participant may
 take (ids, or a type; default every starting agent). ``modes`` maps a mode name to the share of those seats the
 focal participant takes (``{"resident": 0.75, "visitor": 0.25}``; default ``{"all": 1.0}``); which seats is
 drawn from the seed, so every candidate evaluated with the same seed meets the same draw. ``background`` plays
 every other agent (default: its type's policy, else random); ``baseline`` plays the focal seats in the paired
-runs (default: the background). ``score`` scores each seat as in :func:`fg_env.tournament`: by default the
+runs (default: the background). ``score`` scores each seat as in :func:`fg_env.rl.tournament`: by default the
 returns the contract's ``game`` section declares, else the winner; or an output, an expression over ``$seat``,
 or ``fn(result, seat)``.
 
@@ -648,41 +1091,136 @@ every run: pair *i* is ``results[2i]`` (focal) and ``results[2i + 1]`` (baseline
 shared by all their runs; with ``workers > 1`` runs go to threads, or to processes when every participant is
 given by name.
 
-## `conformance`
+### `rl.EvaluationResult`
 
 ```python
-conformance(source: 'Union[ContractLike, Game]', *, sims: 'int' = 20, seed: 'int' = 0, inputs: 'Optional[Mapping[str, Any]]' = None, simultaneous: 'str' = 'joint', leak_branches: 'int' = 2, max_steps: 'int' = 1000, resume: 'bool' = True) -> 'ConformanceReport'
+EvaluationResult(focal: 'str', runs: 'int', seed: 'int', scenarios: 'List[Dict[str, Any]]', modes: 'Dict[str, Dict[str, Any]]', tags: 'Dict[str, Dict[str, Any]]', splits: 'Dict[str, Dict[str, Any]]', overall: 'Dict[str, Any]', pairs: 'List[Dict[str, Any]]', notes: 'List[str]' = <factory>, results: "List['RunResult']" = <factory>) -> None
 ```
 
-Check a game (a contract, or a :class:`Game` from :func:`fg_env.game`) over ``sims`` seeded random playouts.
+``scenarios``: one row per scenario and mode. ``modes``, ``tags``, ``splits`` (``in_sample`` / ``held_out``,
+when the suite holds scenarios out) and ``overall`` pool the run pairs they cover. Every pool has ``n`` scored
+pairs, ``focal``, ``baseline`` and ``difference`` (focal − baseline) estimates with 95% intervals, ``clear``
+(the interval excludes zero), ``unscored`` pairs and ``cost`` per side. ``pairs`` holds every run pair, and
+``results`` every run: pair *i* is ``results[2i]`` (focal) and ``results[2i + 1]`` (baseline).
 
-``simultaneous="turn_based"`` checks the one-seat-at-a-time view of simultaneous stages, where the leak test
-also covers sealed choices. ``leak_branches`` is how many steps of each playout are changed for the leak test;
-``max_steps`` is the longest a playout may run; ``resume=False`` skips the whole-run resume check.
+## `fg_env.engines`
 
-## `playthrough`
+Versioned, reusable behavioral engines bundled with :mod:`fg_env`.
+
+This package deliberately contains engines, not finished environments, scenario
+presets, or Arena games.  A builder clones an available engine and supplies the
+roles, population, subject matter, and rules for its custom scenario.
+
+### `engines.EngineCatalog`
 
 ```python
-playthrough(source: 'Union[ContractLike, Game]', *, seed: 'int' = 0, steps: 'Optional[Sequence[Mapping[str, Any]]]' = None, inputs: 'Optional[Mapping[str, Any]]' = None, simultaneous: 'str' = 'joint', max_steps: 'int' = 500) -> 'str'
+EngineCatalog(raw: 'Mapping[str, Any]')
 ```
 
-The playthrough text of one game: ``steps`` when given (see :mod:`.steps`), else random ones from ``seed``.
+Immutable view of the behavioral engines shipped in this SDK version.
 
-## `pettingzoo_aec`
+### `engines.EngineNotFound`
+
+An engine id is absent from the installed SDK catalog.
+
+### `engines.EngineUnavailable`
+
+An engine is defined but its reusable implementation is not shipped yet.
+
+### `engines.EngineSpec`
 
 ```python
-pettingzoo_aec(source: 'ContractLike', *, inputs: 'Optional[Mapping[str, Any]]' = None, seed: 'Optional[int]' = None, max_steps: 'Optional[int]' = None, render_mode: 'Optional[str]' = None) -> 'AECGame'
+EngineSpec(id: 'str', title: 'str', description: 'str', status: 'str', path: 'Optional[str]' = None, resources: 'Tuple[str, ...]' = ()) -> None
 ```
 
-A contract as a PettingZoo AEC environment (simultaneous stages one seat at a time; needs game.returns).
+One reusable human-interaction engine.
 
-## `pettingzoo_parallel`
+### `engines.catalog`
 
 ```python
-pettingzoo_parallel(source: 'ContractLike', *, inputs: 'Optional[Mapping[str, Any]]' = None, seed: 'Optional[int]' = None, max_steps: 'Optional[int]' = None, render_mode: 'Optional[str]' = None) -> 'ParallelGame'
+catalog() -> 'EngineCatalog'
 ```
 
-A contract as a PettingZoo parallel environment (needs game.returns).
+Return the engine catalog shipped with the installed SDK version.
+
+### `engines.list_engines`
+
+```python
+list_engines(*, available: 'Optional[bool]' = None) -> 'list[EngineSpec]'
+```
+
+List behavioral engines, optionally filtered by implementation availability.
+
+### `engines.get`
+
+```python
+get(engine_id: 'str') -> 'EngineSpec'
+```
+
+Resolve one behavioral engine by its stable id.
+
+### `engines.clone`
+
+```python
+clone(engine_id: 'str', destination: 'Union[str, Path]', *, name: 'Optional[str]' = None, overwrite: 'bool' = False) -> 'Path'
+```
+
+Clone a reusable engine contract into a project-owned JSON file.
+
+### `engines.load`
+
+```python
+load(engine_id: 'str', *, inputs: 'Optional[Mapping[str, Any]]' = None, seed: 'int' = 0) -> 'Any'
+```
+
+Load a reusable engine as :class:`fg_env.Env`.
+
+## `fg_env.personas`
+
+Shared persona/cohort sampling for every environment engine.
+
+Sampling creates participants; it is not itself a behavioural engine.  The
+functions here deliberately operate on ordinary mappings so an application can
+feed census records, research panels, authored personas or fixed participants
+without coupling the SDK to a particular database.
+
+### `personas.PersonaSample`
+
+```python
+PersonaSample(people: 'Tuple[Dict[str, Any], ...]', provenance: 'SamplingProvenance') -> None
+```
+
+PersonaSample(people: 'Tuple[Dict[str, Any], ...]', provenance: 'SamplingProvenance')
+
+### `personas.SamplingProvenance`
+
+```python
+SamplingProvenance(source: 'str', source_version: 'Optional[str]', seed: 'int', run: 'int', resampled: 'bool', requested: 'int', selected: 'int', pool_size: 'int', constraints: 'Dict[str, Any]', group_by: 'Optional[str]', weight_field: 'Optional[str]', fixed_ids: 'Tuple[str, ...]', sampled_ids: 'Tuple[str, ...]') -> None
+```
+
+SamplingProvenance(source: 'str', source_version: 'Optional[str]', seed: 'int', run: 'int', resampled: 'bool', requested: 'int', selected: 'int', pool_size: 'int', constraints: 'Dict[str, Any]', group_by: 'Optional[str]', weight_field: 'Optional[str]', fixed_ids: 'Tuple[str, ...]', sampled_ids: 'Tuple[str, ...]')
+
+### `personas.sample_records`
+
+```python
+sample_records(records: 'Iterable[Mapping[str, Any]]', *, size: 'int', seed: 'int' = 0, run: 'int' = 0, resample: 'bool' = True, constraints: 'Optional[Mapping[str, Constraint]]' = None, fixed: 'Optional[Iterable[Mapping[str, Any]]]' = None, id_field: 'str' = 'id', group_by: 'Optional[str]' = None, weight_field: 'Optional[str]' = None, source: 'str' = 'records', source_version: 'Optional[str]' = None) -> 'PersonaSample'
+```
+
+Sample role-neutral personas with replacement disabled and full provenance.
+
+``fixed`` participants are always first and count toward ``size``.  ``group_by``
+keeps related records together in draw order (Market uses household ids).  A
+group may be truncated at the requested cohort size; no record is duplicated.
+``run`` only changes the draw when ``resample`` is true, allowing experiments
+to choose fixed-cohort repetition or a fresh cohort per run explicitly.
+
+### `personas.assign_labels`
+
+```python
+assign_labels(records: 'Iterable[Mapping[str, Any]]', labels: 'Sequence[Tuple[str, float]]', *, field: 'str' = 'role', seed: 'int' = 0) -> 'List[Dict[str, Any]]'
+```
+
+Assign labels by proportional shares using largest remainder, then shuffle.
 
 ## Environment methods
 
@@ -712,7 +1250,7 @@ Run to the end, or for ``rounds`` more rounds, or until ``stop(env)`` is true.
 ``"policy:<name>"``). Agents without one use their type's ``policy`` or ``"random"``. Every
 participant is offered the contract's in-turn host tools; ``hosts`` binds the run to host
 adapters first. ``time_limit`` sets :attr:`time_limit`, the wall-clock seconds per turn for
-stages that set none; ``budget`` caps the run (:mod:`fg_env.sdk.budget`). In an event loop, use :meth:`arun`.
+stages that set none; ``budget`` caps the run (:mod:`fg_env.budget`). In an event loop, use :meth:`arun`.
 
 ``stop`` is checked before every round, stage, pass and sequential turn. A stopped run
 continues exactly where it stopped on the next call; finishing a round that was
@@ -745,7 +1283,8 @@ Run exactly one round (or finish the round a stopped run is in).
 snapshot(self) -> 'Dict[str, Any]'
 ```
 
-Everything needed to continue this run later, as JSON-safe data (between rounds).
+Everything needed to continue this run later, as JSON-safe data: between rounds, or stopped part-way
+through a round (``run(stop=...)``).
 
 ### `Env.restore`
 

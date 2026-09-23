@@ -1,0 +1,24 @@
+{
+  "actions": 16,
+  "events": 35,
+  "events_sha256": "f5fa8c45650879d70daa14411aeecd7f629f8e76ac0b90346e4eb3065558d333",
+  "first_events": [
+    "r1 action collector_3: {\"action\": \"house_bid\", \"params\": {\"price\": 45.65, \"qty\": 1}, \"private\": true, \"success\": true}",
+    "r1 outcome collector_3: Your sealed bid of 45.65 for an antique vase is in.",
+    "r1 action collector_5: {\"action\": \"house_bid\", \"params\": {\"price\": 58.7, \"qty\": 1}, \"private\": true, \"success\": true}",
+    "r1 outcome collector_5: Your sealed bid of 58.7 for an antique vase is in.",
+    "r1 action collector_2: {\"action\": \"house_bid\", \"params\": {\"price\": 66.3, \"qty\": 1}, \"private\": true, \"success\": true}",
+    "r1 outcome collector_2: Your sealed bid of 66.3 for an antique vase is in.",
+    "r1 action collector_6: {\"action\": \"house_bid\", \"params\": {\"price\": 123.55, \"qty\": 1}, \"private\": true, \"success\": true}",
+    "r1 outcome collector_6: Your sealed bid of 123.55 for an antique vase is in.",
+    "r1 action collector_1: {\"action\": \"house_bid\", \"params\": {\"price\": 90.02, \"qty\": 1}, \"private\": true, \"success\": true}",
+    "r1 outcome collector_1: Your sealed bid of 90.02 for an antique vase is in."
+  ],
+  "metrics": {
+    "house_revenue": 303.59,
+    "house_sold": 3
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 18
+}

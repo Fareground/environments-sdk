@@ -19,7 +19,7 @@
     },
     "ties": {
       "type": "table",
-      "description": "Directed or symmetric human relationships with optional trust weights.",
+      "description": "Human relationships; value is the trust from 0 to 1 that scales how likely one person convinces the other.",
       "columns": {"from": "text", "to": "text", "value": "number"},
       "default": [
         {"from": "p1", "to": "p2", "value": 0.9}, {"from": "p2", "to": "p3", "value": 0.8},
@@ -30,7 +30,7 @@
   },
   "brief": {
     "situation": "An idea or behavior moves through an explicit human relationship network.",
-    "rules": "People may encounter the idea through their ties. Adoption depends on receptivity and exposure. This engine models human influence and information flow, not physical movement.",
+    "rules": "Each interaction, everyone who has adopted the idea may convince each person they are tied to: the chance is the tie's trust times that person's receptivity, so trusted ties and more time spread it further. This engine models human influence and information flow, not physical movement.",
     "roles": {"person": "React to information through your relationships according to your persona, trust, and receptivity."}
   },
   "clock": {"rounds": "$inputs.rounds", "unit": "interaction"},
@@ -43,8 +43,8 @@
   "relations": {"knows": {"symmetric": true}},
   "links": [{"relation": "knows", "rows": "$inputs.ties"}],
   "mechanisms": {"influence": {
-    "kind": "social", "mode": "diffusion", "who": "person", "over": "knows", "flow": "both", "model": "cascade",
-    "p": "0.15 + 0.75 * $to.receptivity", "seeds": {"proposal": ["p1"]}, "on_adopt": ["$it.adoptions += 1"]
+    "kind": "social", "mode": "diffusion", "who": "person", "over": "knows", "flow": "both", "model": "cascade", "persistent": true,
+    "p": "$relation($from, $to, knows) * $to.receptivity", "seeds": {"proposal": ["p1"]}, "on_adopt": ["$it.adoptions += 1"]
   }},
   "views": {"exposure": {"for": "person", "title": "Your exposure", "of": "$heard($actor)", "show": "{item}: {state}; {exposures} exposure(s)"}},
   "metrics": {

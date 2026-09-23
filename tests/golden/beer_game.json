@@ -1,0 +1,28 @@
+{
+  "actions": 16,
+  "events": 32,
+  "events_sha256": "8eb90670ec97b8b39774757e04c98945804135a075f261e49ec0b88010337575",
+  "first_events": [
+    "r1 action retailer: {\"action\": \"beer_order\", \"params\": {\"qty\": 4}, \"private\": true, \"success\": true}",
+    "r1 outcome retailer: You ordered 4 units.",
+    "r1 action distributor: {\"action\": \"beer_order\", \"params\": {\"qty\": 4}, \"private\": true, \"success\": true}",
+    "r1 outcome distributor: You ordered 4 units.",
+    "r1 action wholesaler: {\"action\": \"beer_order\", \"params\": {\"qty\": 4}, \"private\": true, \"success\": true}",
+    "r1 outcome wholesaler: You ordered 4 units.",
+    "r1 action factory: {\"action\": \"beer_order\", \"params\": {\"qty\": 4}, \"private\": true, \"success\": true}",
+    "r1 outcome factory: You started a batch of 4 units.",
+    "r2 action distributor: {\"action\": \"beer_order\", \"params\": {\"qty\": 4}, \"private\": true, \"success\": true}",
+    "r2 outcome distributor: You ordered 4 units."
+  ],
+  "metrics": {
+    "customer_demand": 4,
+    "factory_order": 4,
+    "stable": 1,
+    "total_backlog": 0,
+    "total_cost": 96.0,
+    "total_inventory": 48
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 16
+}

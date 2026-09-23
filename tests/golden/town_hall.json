@@ -1,0 +1,24 @@
+{
+  "actions": 35,
+  "events": 79,
+  "events_sha256": "26bd9812a2e05865ea170c04bd53989a8f4435452ee1f805f6aa8dea5cc185e7",
+  "first_events": [
+    "r2 hall r2: Resident 2 raised a hand and asks for the floor.",
+    "r2 action r2: {\"action\": \"hall_raise_hand\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r2 hall r6: Resident 6 raised a hand and asks for the floor.",
+    "r2 action r6: {\"action\": \"hall_raise_hand\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r2 hall: The chair gives the floor to Resident 2.",
+    "r2 action chair: {\"action\": \"hall_recognize\", \"params\": {\"who\": \"r2\"}, \"private\": true, \"success\": true}",
+    "r2 action r2: {\"action\": \"hall_speak\", \"params\": {\"text\": \"The cost and the noise worry me; I cannot support this as it stands.\"}, \"success\": true}",
+    "r2 record r2: {\"entry\": 1, \"fields\": {\"motion\": null, \"says\": \"says\", \"text\": \"The cost and the noise worry me; I cannot support this as it stands.\"}, \"record\": \"hall\"}",
+    "r2 action r2: {\"action\": \"hall_speak\", \"params\": {\"text\": \"The cost and the noise worry me; I cannot support this as it stands.\"}, \"success\": true}",
+    "r2 record r2: {\"entry\": 2, \"fields\": {\"motion\": null, \"says\": \"says\", \"text\": \"The cost and the noise worry me; I cannot support this as it stands.\"}, \"record\": \"hall\"}"
+  ],
+  "metrics": {
+    "motions": 1,
+    "speeches": 6
+  },
+  "rounds": 3,
+  "status": "ended",
+  "wakes": 78
+}

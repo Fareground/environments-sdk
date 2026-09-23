@@ -47,8 +47,8 @@ class EngineSpec:
         """Return a self-contained contract with bundled files inlined."""
         if self.path is None:
             return self.source()
-        from ..sdk.api import expand, parse
-        from ..sdk.inputs import resolve_inputs
+        from ..api import expand, parse
+        from ..inputs import resolve_inputs
 
         resource = Path(str(files("fg_env.engines").joinpath(self.path)))
         contract = parse(resource)
@@ -177,6 +177,6 @@ def load(engine_id: str, *, inputs: Optional[Mapping[str, Any]] = None, seed: in
     engine = get(engine_id)
     if engine.path is None:
         engine.source()  # raise the engine-specific availability error
-    from ..sdk.api import load as load_contract
+    from ..api import load as load_contract
     resource = files("fg_env.engines").joinpath(engine.path or "")
     return load_contract(Path(str(resource)), inputs=inputs, seed=seed)

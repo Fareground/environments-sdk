@@ -1,0 +1,27 @@
+{
+  "actions": 11,
+  "events": 11,
+  "events_sha256": "f0937ec25831eed19f37223334647dfdf62ea7be36236deb1781f5547b5fd31d",
+  "first_events": [
+    "r1 action ada: {\"action\": \"move\", \"params\": {\"place\": \"mine\"}, \"private\": true, \"success\": true}",
+    "r1 action cora: {\"action\": \"move\", \"params\": {\"place\": \"field\"}, \"private\": true, \"success\": true}",
+    "r1 action dov: {\"action\": \"move\", \"params\": {\"place\": \"mine\"}, \"private\": true, \"success\": true}",
+    "r1 action bram: {\"action\": \"buy\", \"params\": {\"item\": \"wood\", \"qty\": 1}, \"private\": true, \"success\": true}",
+    "r2 action dov: {\"action\": \"move\", \"params\": {\"place\": \"square\"}, \"private\": true, \"success\": true}",
+    "r2 action cora: {\"action\": \"move\", \"params\": {\"place\": \"square\"}, \"private\": true, \"success\": true}",
+    "r2 action ada: {\"action\": \"move\", \"params\": {\"place\": \"square\"}, \"private\": true, \"success\": true}",
+    "r3 action dov: {\"action\": \"move\", \"params\": {\"place\": \"field\"}, \"private\": true, \"success\": true}",
+    "r3 action ada: {\"action\": \"buy\", \"params\": {\"item\": \"grain\", \"qty\": 8}, \"private\": true, \"success\": true}",
+    "r4 action dov: {\"action\": \"move\", \"params\": {\"place\": \"square\"}, \"private\": true, \"success\": true}"
+  ],
+  "metrics": {
+    "avg_health": 10.0,
+    "avg_skill": 0.0,
+    "bread_made": 0,
+    "iron_made": 0,
+    "village_worth": 91.0
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 16
+}

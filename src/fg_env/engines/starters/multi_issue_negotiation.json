@@ -59,7 +59,7 @@
   },
   "brief": {
     "situation": "You are negotiating a binding agreement with one other party. Every offer sets all three terms: amount, scope, and timing. These neutral issue names are intended to be renamed and rebounded when this engine is cloned for a real scenario.",
-    "rules": "You may propose terms, counter an offer made to you, accept, reject, or withdraw your own open offer. Offers expire after two rounds. The first accepted agreement closes the negotiation. No new offer or acceptance is allowed after round {$inputs.deadline}. Your priorities and walk-away value are private; do not accept terms worth less than your walk-away value unless the scenario author deliberately changes that rule.",
+    "rules": "You may propose terms, counter an offer made to you, accept, reject, or withdraw your own open offer. Offers expire after two rounds. The first accepted agreement closes the negotiation. No new offer or acceptance is allowed after round {$inputs.deadline}. Your priorities and walk-away value are private; you cannot offer or accept terms worth less to you than your walk-away value.",
     "roles": {
       "party": "Negotiate according to your private priorities and constraints. Explain trade-offs without revealing private values unless doing so serves your strategy."
     }
@@ -71,6 +71,7 @@
   "types": {
     "party": {
       "agent": true,
+      "policy": "cooperative",
       "description": "A human party to the negotiation.",
       "props": {
         "role": {
@@ -220,6 +221,11 @@
       "type": "map",
       "expr": "$pick(agreement_deal, true).terms if $count(agreement_deal) > 0 else null",
       "description": "The accepted terms, or null."
+    },
+    "surplus": {
+      "type": "map",
+      "expr": "$dict(party, $it.name, $round($agreement_value($it, $pick(agreement_deal, true).terms) - $it.agreement_reservation, 2)) if $count(agreement_deal) > 0 else null",
+      "description": "What the deal is worth to each party above its walk-away value, or null."
     },
     "offers": {
       "type": "int",

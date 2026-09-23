@@ -22,9 +22,9 @@ Install the published distribution from PyPI:
 python -m pip install "fg-env==0.4.2"
 ```
 
-## Contract API versus legacy templates
+## Legacy templates
 
-New environments should use JSON contracts through `fg_env.check`, `fg_env.load` and `fg_env.run`. The older template engine remains under `fg_env.legacy`, with CLI commands under `fg-env legacy`. A legacy Python template is not automatically a JSON contract; migrating it requires mapping its rules and testing equivalent behavior.
+Environments are JSON contracts run through `fg_env.check`, `fg_env.load` and `fg_env.run`. The older template engine (`fg_env.legacy`, `fg-env legacy`) was removed after 0.7; a project that still runs templates should pin `fg-env<0.8`. A template is not automatically a JSON contract; migrating it requires mapping its rules and testing equivalent behavior.
 
 ## Release discipline
 

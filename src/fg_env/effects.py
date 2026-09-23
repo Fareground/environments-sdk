@@ -1,936 +1,831 @@
-"""Effect DSL — expression resolution and new effect operations.
+"""Effects: how actions, events and stages change the world.
 
-This file gives the existing schema-level Effect system the dynamism
-that custom DomainModules used to provide. With these extensions an
-action like "buy_property" can declaratively express:
+An effect list mixes assignment statements and keyed operations::
 
-  effects_on_success: [
-    { target: actor, operation: subtract, field: money,
-      value: "$actor.standing_on_space.price" },
-    { target: actor, operation: set_owner,
-      value: "$actor.standing_on_space" },
-    { target: actor, operation: emit_event,
-      event_type: "monopoly_bought",
-      payload: { space: "$actor.position", price: "$actor.standing_on_space.price" } }
-  ]
+    "$actor.cash -= $params.qty * $params.offer.price"
+    "$total = $params.qty * $params.offer.price"          (a local, usable below)
+    {"if": "$actor.cash < 0", "then": [...], "else": [...]}
+    {"each": "offer", "where": "$it.stock == 0", "do": ["$it.listed = false"]}
+    {"create": "review", "props": {"stars": "$params.stars"}, "as": "made"}
+    {"remove": "$params.target"}
+    {"transfer": "cash", "from": "$actor", "to": "$params.seller", "amount": 10, "into": "cash"}
+    {"link": "follows", "from": "$actor", "to": "$params.who", "value": 1, "props": {"since": "$round"}}
+    "$link($actor, $params.who, follows).since = $round"
+    {"unlink": "follows", "from": "$actor", "to": "$params.who"}
+    {"move": "$actor", "to": "$params.place"}
+    {"post": "chat", "text": "$params.text", "to": "$params.who", "delay": 2, "drop": 0.1}
+    {"emit": "shock", "say": "Prices jump {$world.inflation|pct}.", "to": "$filter(buyer, $it.vip)"}
+    {"fail": "You cannot afford that."}
+    {"end": "bankrupt", "winner": "$top(player, $it.score, 1)", "say": "..."}
+    {"after": 3, "do": [...]}
+    {"wake": "$params.who", "why": "{$actor.name} asked you a question."}
+    {"repeat": 1000, "while": "$best_bid.price >= $best_ask.price", "do": [...]}
+    {"block": "settle", "with": {"buyer": "$actor", "qty": "$params.qty"}}
+    {"chance": [{"p": 0.5, "label": "heads", "do": [...]}, {"p": 0.5, "label": "tails"}], "as": "coin"}
 
-The kernel resolves the `$…` expressions against actor / target /
-params / state / last_event at the moment the effect fires. No
-DomainModule code required.
-
-═══════════════════════════════════════════════════════════════════════
-EXPRESSION FORMS
-═══════════════════════════════════════════════════════════════════════
-
-  $actor               — the entity performing the action
-  $actor.money         — entity property access (dotted, list[idx] OK)
-  $target              — entity being acted on
-  $params              — action parameters dict
-  $params.amount       — same, with path
-  $last_event          — most recent emitted event
-  $last_event.dice_sum — payload field of most recent event
-  $result              — ResolutionResult object
-  $state               — world state (use sparingly)
-
-  $random(1, 6)        — uniform integer in [1, 6] inclusive
-  $random_float(0, 1)  — uniform float
-  $random_choice([a, b, c])  — pick one element uniformly
-  $dice(2, 6)          — sum of 2 d6
-  $lookup("rent", $actor.position)
-                       — read state.tables['rent'][key]; key auto-stringified
+Everything an action does is atomic: ``fail`` (or any error) rolls every change back.
+A ``repeat`` loop that is still running when its limit is reached is an error, so a
+rule that never settles is reported instead of silently truncated.
 """
 from __future__ import annotations
 
 import json
-import random as _random
 import re
+from dataclasses import dataclass
+from difflib import get_close_matches
+from functools import lru_cache
 from typing import Any, Dict, List, Optional, Tuple
 
+from .entity import Entity
+from .errors import RunError
+from .clock_math import advance_time
+from .contract import MAX_CREATE
+from .delivery import dropped, send
+from .expr import MAX_INT_BITS, Expr, ExprError, attr, check_size, compile_expr, is_expr, resolve, truthy
+from .template import compile_template, format_value
+from .links import Link
+from .registry import OPS, OpSpec, family_action_hint
+from .world import Abort, SdkWorld
+from .world_parts import PhysicsView, PropsView
 
-# ---------------------------------------------------------------------------
-# Expression resolver
-# ---------------------------------------------------------------------------
+from .contract import one_or_many
 
-# Path-access form: $source.path  or  $source
-_PATH_EXPR_PATTERN = re.compile(r"^\$([a-zA-Z_][a-zA-Z0-9_]*)(?:\.(.+))?$")
-# Function-call form: $name(args)
-_FUNC_EXPR_PATTERN = re.compile(r"^\$([a-zA-Z_][a-zA-Z0-9_]*)\((.*)\)$", re.DOTALL)
+__all__ = ["EFFECT_OPS", "RESERVED_ROOTS", "Statement", "compile_statement", "statement_parts", "split_statement", "EffectRunner"]
 
+EFFECT_OPS: Dict[str, Tuple[str, ...]] = {
+    "if": ("if", "then", "else"),
+    "each": ("each", "where", "do", "as"),
+    "create": ("create", "count", "id", "name", "props", "at", "as"),
+    "remove": ("remove",),
+    "transfer": ("transfer", "from", "to", "amount", "into"),
+    "link": ("link", "from", "to", "value", "props"),
+    "unlink": ("unlink", "from", "to"),
+    "move": ("move", "to"),
+    "post": ("post", "to", "author", "delay", "drop"),  # plus the record's fields
+    "emit": ("emit", "say", "to", "data", "delay", "drop"),
+    "fail": ("fail",),
+    "end": ("end", "winner", "say"),
+    "after": ("after", "do"),
+    "wake": ("wake", "why", "in", "now", "drop"),
+    "repeat": ("repeat", "while", "do"),
+    "block": ("block", "with"),
+    "chance": ("chance", "outcomes", "weight", "as", "do"),
+}
 
-def is_expression(value: Any) -> bool:
-    """True if `value` is a string starting with `$` — i.e. a dynamic
-    reference rather than a literal."""
-    if not isinstance(value, str) or not value.startswith("$"):
-        return False
-    return bool(_FUNC_EXPR_PATTERN.match(value) or _PATH_EXPR_PATTERN.match(value))
+#: ``post`` keys that are not record fields.
+POST_KEYS = frozenset(EFFECT_OPS["post"])
 
+#: Hard ceiling for one ``repeat`` loop, whatever the contract asks for.
+REPEAT_CEILING = 100_000
 
-def resolve_expression(
-    expr: Any,
-    *,
-    actor: Any = None,
-    target: Any = None,
-    params: Optional[Dict[str, Any]] = None,
-    state: Any = None,
-    last_event: Optional[Dict[str, Any]] = None,
-    result: Any = None,
-    rng: Optional[_random.Random] = None,
-) -> Any:
-    """Resolve a `$…` expression against the current effect context.
+RESERVED_ROOTS = frozenset({
+    "actor", "params", "it", "i", "row", "inputs", "world", "physics", "clock", "round",
+    "stage", "metrics", "series", "arm", "viewer", "event", "outer", "pending", "result", "pattern",
+})
 
-    Path-access forms:
-      $actor       → the entity performing the action
-      $target      → the entity being acted on
-      $params      → action parameters dict (`$params.amount`)
-      $last_event  → most recent emitted event (`$last_event.dice_sum`)
-      $result      → ResolutionResult (`$result.magnitude`, `$result.success_degree`)
-      $state       → world state (`$state.temporal.current_round`)
-
-    Function-call forms (Tier 1):
-      $random(min, max)       — uniform int in [min, max] inclusive
-      $random_float(min, max) — uniform float
-      $random_choice([…])     — pick one element uniformly
-      $dice(n, sides)         — sum of n d-sided dice
-      $lookup(table, key)     — state.tables[table][stringified_key]
-
-    Returns the resolved value, or the original expression string if
-    unresolvable (so misconfigurations are visible in event logs
-    rather than silently zeroed).
-    """
-    if not is_expression(expr):
-        return expr
-
-    # Function-call form first — `$name(args)` could otherwise be matched
-    # as `$name` with no path.
-    func_m = _FUNC_EXPR_PATTERN.match(expr)
-    if func_m:
-        fn_name, args_str = func_m.group(1), func_m.group(2)
-        args = _parse_args(
-            args_str,
-            actor=actor, target=target, params=params, state=state,
-            last_event=last_event, result=result, rng=rng,
-        )
-        return _call_function(
-            fn_name, args, state=state, rng=rng,
-        )
-
-    m = _PATH_EXPR_PATTERN.match(expr)
-    if not m:
-        return expr
-    source, path = m.group(1), m.group(2) or ""
-
-    sources = {
-        "actor": actor,
-        "target": target,
-        "params": params or {},
-        "last_event": last_event or {},
-        "result": result,
-        "state": state,
-    }
-
-    base = sources.get(source)
-    if base is None:
-        return expr  # unresolved — let the caller log
-
-    if not path:
-        return base
-    return _walk_path(base, path) if path else base
+_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*$")
+_NOT_ASSIGNABLE = "can only assign to an entity's property, a link's field, $world.x or $physics.x (`{source}`)"
+#: Exactly these types take the numeric path of `+=`, `-=`, `*=`, `/=` (a bool is not a number there).
+_NUMBERS = (int, float)
 
 
-def _walk_path(obj: Any, path: str) -> Any:
-    """Walk a dotted path through an object/dict/entity, supporting:
-      foo.bar            → attribute / key / Entity property
-      foo.bar[0]         → list / tuple indexing
-      foo.bar.baz        → nested
-    Returns None if the path is unreachable.
-    """
-    cur = obj
-    for segment in _split_path(path):
-        if cur is None:
-            return None
-        # List / tuple index
-        if isinstance(segment, int):
-            try:
-                cur = cur[segment]
-            except (IndexError, TypeError, KeyError):
-                return None
-            continue
-        # Entity-style: prefer .get(prop) if available
-        if hasattr(cur, "get") and callable(cur.get):
-            try:
-                val = cur.get(segment)
-                if val is not None:
-                    cur = val
-                    continue
-            except (TypeError, KeyError):
-                pass
-        # Dict
-        if isinstance(cur, dict):
-            cur = cur.get(segment)
-            continue
-        # Attribute fallback
-        cur = getattr(cur, segment, None)
-    return cur
-
-
-def _split_path(path: str) -> Tuple[Any, ...]:
-    """Tokenize `a.b[0].c` → ('a', 'b', 0, 'c')."""
-    parts: list = []
-    for chunk in path.split("."):
-        # peel any [N] suffixes off
-        while "[" in chunk and chunk.endswith("]"):
-            head, idx = chunk[:-1].rsplit("[", 1)
-            if head:
-                parts.append(head)
-            try:
-                parts.append(int(idx))
-            except ValueError:
-                parts.append(idx)
-            chunk = ""
-        if chunk:
-            parts.append(chunk)
-    return tuple(parts)
-
-
-# ---------------------------------------------------------------------------
-# Token registry — declarative "game tokens" carried by entities.
-# Replaces ad-hoc int counters like `jail_cards`, `get_out_of_jail_free`,
-# `immunity_until_round`, etc. that custom modules maintain.
-# Stored on the entity itself under the property `_tokens` (dict of
-# token_name → count) so it auto-serialises with the entity state.
-# ---------------------------------------------------------------------------
-
-_TOKENS_PROP = "_tokens"
-
-
-def get_tokens(entity: Any) -> Dict[str, int]:
-    if entity is None:
-        return {}
-    try:
-        existing = entity.get(_TOKENS_PROP)
-    except Exception:
-        existing = None
-    if isinstance(existing, dict):
-        return existing
-    fresh: Dict[str, int] = {}
-    try:
-        entity.set(_TOKENS_PROP, fresh)
-    except Exception:
-        pass
-    return fresh
-
-
-def grant_token(entity: Any, name: str, count: int = 1) -> int:
-    tokens = get_tokens(entity)
-    tokens[name] = int(tokens.get(name, 0)) + int(count)
-    try:
-        entity.set(_TOKENS_PROP, tokens)
-    except Exception:
-        pass
-    return tokens[name]
-
-
-def consume_token(entity: Any, name: str, count: int = 1) -> bool:
-    """Spend `count` of token `name`. Returns True if the entity had
-    enough, False otherwise."""
-    tokens = get_tokens(entity)
-    have = int(tokens.get(name, 0))
-    if have < count:
-        return False
-    tokens[name] = have - count
-    if tokens[name] <= 0:
-        tokens.pop(name, None)
-    try:
-        entity.set(_TOKENS_PROP, tokens)
-    except Exception:
-        pass
-    return True
-
-
-def has_token(entity: Any, name: str, min_count: int = 1) -> bool:
-    return int(get_tokens(entity).get(name, 0)) >= int(min_count)
-
-
-# ---------------------------------------------------------------------------
-# Function-call expressions ($random, $dice, $random_choice, $lookup)
-# ---------------------------------------------------------------------------
-
-def _parse_args(
-    args_str: str,
-    **ctx: Any,
-) -> List[Any]:
-    """Tokenise the inside of `$func(...)` into a list of resolved args.
-
-    Each top-level comma-separated item is either:
-      - a `$…` expression (recursively resolved with the same context)
-      - a JSON literal (`1`, `"red"`, `[1, 2, 3]`, `true`, `null`)
-
-    Top-level means brackets / quotes are respected when splitting.
-    """
-    s = args_str.strip()
-    if not s:
-        return []
-    tokens = _split_args_top_level(s)
-    out: List[Any] = []
-    for t in tokens:
-        t = t.strip()
-        if not t:
-            continue
-        if t.startswith("$"):
-            out.append(resolve_expression(t, **ctx))
-            continue
-        # Try JSON
-        try:
-            out.append(json.loads(t))
-            continue
-        except ValueError:
-            pass
-        # Single-quoted string — expressions live inside JSON documents,
-        # so 'contact' is the natural spelling of a string arg there.
-        if len(t) >= 2 and t[0] == "'" and t[-1] == "'":
-            out.append(t[1:-1])
-            continue
-        # Bare identifier — treat as a string token (lets users write
-        # `$lookup(rent, 12)` without quoting the table name).
-        out.append(t)
-    return out
-
-
-def _split_args_top_level(s: str) -> List[str]:
-    """Split on commas at bracket/paren/quote depth 0."""
-    out: List[str] = []
-    depth = 0
-    in_quote: Optional[str] = None
-    buf: List[str] = []
-    i = 0
-    while i < len(s):
-        ch = s[i]
-        if in_quote:
-            buf.append(ch)
-            if ch == "\\" and i + 1 < len(s):
-                buf.append(s[i + 1])
+def split_statement(source: str) -> Optional[Tuple[str, str, str]]:
+    """``(left, operator, right)`` for an assignment text, or None when it is not one."""
+    depth, quote, i, n = 0, None, 0, len(source)
+    while i < n:
+        ch = source[i]
+        if quote:
+            if ch == "\\":
                 i += 2
                 continue
-            if ch == in_quote:
-                in_quote = None
-            i += 1
-            continue
-        if ch in ('"', "'"):
-            in_quote = ch
-            buf.append(ch)
-            i += 1
-            continue
-        if ch in "([{":
+            if ch == quote:
+                quote = None
+        elif ch in "\"'":
+            quote = ch
+        elif ch in "([{":
             depth += 1
-            buf.append(ch)
-            i += 1
-            continue
-        if ch in ")]}":
+        elif ch in ")]}":
             depth -= 1
-            buf.append(ch)
-            i += 1
-            continue
-        if ch == "," and depth == 0:
-            out.append("".join(buf))
-            buf = []
-            i += 1
-            continue
-        buf.append(ch)
+        elif depth == 0:
+            for op in ("+=", "-=", "*=", "/="):
+                if source.startswith(op, i):
+                    return source[:i].strip(), op, source[i + 2:].strip()
+            if ch == "=" and not source.startswith("==", i) and (i == 0 or source[i - 1] not in "=!<>"):
+                return source[:i].strip(), "=", source[i + 1:].strip()
         i += 1
-    if buf:
-        out.append("".join(buf))
-    return out
+    return None
 
 
-def _call_function(
-    name: str,
-    args: List[Any],
-    *,
-    state: Any = None,
-    rng: Optional[_random.Random] = None,
-) -> Any:
-    """Dispatch a `$func(...)` expression. Falls back to None on
-    unknown function or bad args — the caller can log."""
-    r = rng or _DEFAULT_RNG
+def statement_parts(source: str) -> Tuple[Optional[str], Tuple[Tuple[str, str], ...], Optional[str], str, str]:
+    """``(base, steps, local, op, value)`` of an assignment; raises :class:`ExprError` if malformed.
 
-    if name == "random":
-        # $random(min, max) → uniform int inclusive
-        if len(args) >= 2:
-            try:
-                lo, hi = int(args[0]), int(args[1])
-                if lo > hi:
-                    lo, hi = hi, lo
-                return r.randint(lo, hi)
-            except (TypeError, ValueError):
-                return None
-        return None
+    ``$total = 3`` → local ``total``. ``$world.board[$r][$c] = x`` → base ``$world`` and steps
+    ``(("field", "board"), ("index", "$r"), ("index", "$c"))``. ``$entity(x).bag.apples += 1`` →
+    base ``$entity(x)`` and two field steps.
+    """
+    parts = split_statement(source)
+    if parts is None or not parts[0].startswith("$") or not parts[2]:
+        raise ExprError(
+            "an effect text must be an assignment like `$actor.cash -= 5` or `$total = $params.qty * 2`",
+            source,
+        )
+    left, op, right = parts
+    if _NAME.match(left[1:]):
+        return None, (), left[1:], op, right
+    base, steps = _target_steps(left, source)
+    if not any(kind == "field" for kind, _ in steps):
+        raise ExprError("the left side must name a property, like `$actor.cash`, `$entity(x).cash` or "
+                        "`$world.board[$i][$j]`", source)
+    return base, steps, None, op, right
 
-    if name == "random_float":
-        if len(args) >= 2:
-            try:
-                return r.uniform(float(args[0]), float(args[1]))
-            except (TypeError, ValueError):
-                return None
-        return None
 
-    if name == "random_choice":
-        if not args:
-            return None
-        # Either $random_choice(a, b, c) or $random_choice([a, b, c])
-        pool = args[0] if (len(args) == 1 and isinstance(args[0], list)) else list(args)
-        if not pool:
-            return None
-        return r.choice(pool)
-
-    if name == "dice":
-        # $dice(n, sides) — sum of n d-sided rolls
-        n = int(args[0]) if args else 1
-        sides = int(args[1]) if len(args) > 1 else 6
-        n = max(0, n); sides = max(1, sides)
-        return sum(r.randint(1, sides) for _ in range(n))
-
-    if name == "lookup":
-        # $lookup(table_name, key, [sub_key]) — read state.tables[table][key]
-        if len(args) < 2 or state is None:
-            return None
-        tables = getattr(state, "tables", None)
-        if not tables:
-            return None
-        table = tables.get(str(args[0]))
-        if table is None:
-            return None
-        key = args[1]
-        # Allow int → string lookup transparently
-        val = table.get(key) if isinstance(table, dict) else None
-        if val is None and isinstance(table, dict):
-            val = table.get(str(key))
-        if val is not None and len(args) >= 3:
-            # Optional sub-key: $lookup("rent", "1", 3) → rent[1][3]
-            sub = args[2]
-            if isinstance(val, list):
-                try:
-                    val = val[int(sub)]
-                except (IndexError, ValueError, TypeError):
-                    return None
-            elif isinstance(val, dict):
-                val = val.get(sub) if sub in val else val.get(str(sub))
-        return val
-
-    if name == "min":
-        return min(args) if args else None
-    if name == "max":
-        return max(args) if args else None
-    if name == "sum":
-        return sum(a for a in args if isinstance(a, (int, float))) if args else 0
-    if name == "abs":
-        try:
-            return abs(args[0]) if args else 0
-        except (TypeError, ValueError):
-            return 0
-
-    if name == "poker_score":
-        # 6.Q — Poker hand evaluation as an expression.
-        #   $poker_score($actor.hole_cards, $state.community_cards)
-        # Returns an integer where higher = stronger hand. Use in
-        # CONDITIONAL effects to determine showdown winners.
-        from .phase_handlers import _score_hand as _ps
-        hole = args[0] if args and isinstance(args[0], list) else []
-        comm = args[1] if len(args) > 1 and isinstance(args[1], list) else []
-        try:
-            return _ps(hole, comm)
-        except Exception:
-            return 0
-
-    if name == "len":
-        try:
-            return len(args[0]) if args else 0
-        except (TypeError, ValueError):
-            return 0
-
-    # ── Collection / aggregation helpers ────────────────────────────
-    if name == "avg":
-        nums = [a for a in args if isinstance(a, (int, float))]
-        return sum(nums) / len(nums) if nums else 0
-
-    if name == "first":
-        # Return first non-None element of a list or first non-None arg.
-        if not args:
-            return None
-        if len(args) == 1 and isinstance(args[0], list):
-            seq = args[0]
+def _target_steps(left: str, source: str) -> Tuple[str, Tuple[Tuple[str, str], ...]]:
+    match = re.match(r"\$[A-Za-z_][A-Za-z0-9_]*", left)
+    if match is None:
+        raise ExprError("the left side must start with a root like `$actor` or `$world`", source)
+    i = match.end()
+    if i < len(left) and left[i] == "(":
+        i = _closing(left, i, "(", ")", source) + 1
+    base = left[:i]
+    steps: List[Tuple[str, str]] = []
+    while i < len(left):
+        ch = left[i]
+        if ch == ".":
+            field = re.match(r"[A-Za-z_][A-Za-z0-9_]*", left[i + 1:])
+            if field is None:
+                raise ExprError("a `.` must be followed by a property name", source)
+            steps.append(("field", field.group(0)))
+            i += 1 + field.end()
+        elif ch == "[":
+            close = _closing(left, i, "[", "]", source)
+            index = left[i + 1:close].strip()
+            if not index:
+                raise ExprError("an element assignment looks like `$world.board[$i] = x`", source)
+            steps.append(("index", index))
+            i = close + 1
+        elif ch.isspace():
+            i += 1
         else:
-            seq = list(args)
-        for v in seq:
-            if v is not None:
-                return v
-        return None
-
-    if name == "any":
-        if not args:
-            return False
-        seq = args[0] if (len(args) == 1 and isinstance(args[0], list)) else list(args)
-        return any(bool(v) for v in seq)
-
-    if name == "all":
-        if not args:
-            return True
-        seq = args[0] if (len(args) == 1 and isinstance(args[0], list)) else list(args)
-        return all(bool(v) for v in seq)
-
-    if name == "in":
-        # $in(needle, [haystack...]) — membership test for expressions
-        if len(args) < 2:
-            return False
-        needle = args[0]
-        hay = args[1] if isinstance(args[1], list) else list(args[1:])
-        return needle in hay
-
-    if name == "if":
-        # Inline ternary: $if(cond, then, else)
-        if len(args) < 2:
-            return None
-        return args[1] if args[0] else (args[2] if len(args) >= 3 else None)
-
-    # ── State queries (require `state` to be threaded) ──────────────
-    if name == "entities_of":
-        # $entities_of(EntityType) → list of entity ids
-        if not args or state is None:
-            return []
-        et_name = str(args[0])
-        return [e.id for e in state.entities.values() if e.entity_type == et_name]
-
-    if name == "count":
-        # $count(EntityType)             — count all
-        # $count(EntityType, field_name) — count with truthy field
-        if not args or state is None:
-            return 0
-        et_name = str(args[0])
-        if len(args) == 1:
-            return sum(1 for e in state.entities.values() if e.entity_type == et_name)
-        field = str(args[1])
-        cnt = 0
-        for e in state.entities.values():
-            if e.entity_type != et_name:
-                continue
-            # Special-case `alive` to read the dataclass attr first
-            if field == "alive":
-                if getattr(e, "alive", True):
-                    cnt += 1
-                continue
-            if e.properties.get(field):
-                cnt += 1
-        return cnt
-
-    if name == "alive_of":
-        # $alive_of(EntityType) → list of alive entity ids
-        if not args or state is None:
-            return []
-        et_name = str(args[0])
-        return [
-            e.id for e in state.entities.values()
-            if e.entity_type == et_name and getattr(e, "alive", True)
-        ]
-
-    if name == "find_first":
-        # $find_first(EntityType, field_name) → first entity id with truthy field
-        if len(args) < 2 or state is None:
-            return None
-        et_name, field = str(args[0]), str(args[1])
-        for e in state.entities.values():
-            if e.entity_type != et_name:
-                continue
-            if (field == "alive" and getattr(e, "alive", True)) or e.properties.get(field):
-                return e.id
-        return None
-
-    if name == "sum_of":
-        # $sum_of(EntityType, property_name) → sum of property across entities
-        if len(args) < 2 or state is None:
-            return 0
-        et_name, prop = str(args[0]), str(args[1])
-        total = 0.0
-        for e in state.entities.values():
-            if e.entity_type != et_name:
-                continue
-            try:
-                total += float(e.properties.get(prop, 0) or 0)
-            except (TypeError, ValueError):
-                continue
-        return total
-
-    if name == "max_of":
-        if len(args) < 2 or state is None:
-            return None
-        et_name, prop = str(args[0]), str(args[1])
-        vals = []
-        for e in state.entities.values():
-            if e.entity_type != et_name:
-                continue
-            try:
-                vals.append(float(e.properties.get(prop, 0) or 0))
-            except (TypeError, ValueError):
-                continue
-        return max(vals) if vals else None
-
-    if name == "min_of":
-        if len(args) < 2 or state is None:
-            return None
-        et_name, prop = str(args[0]), str(args[1])
-        vals = []
-        for e in state.entities.values():
-            if e.entity_type != et_name:
-                continue
-            try:
-                vals.append(float(e.properties.get(prop, 0) or 0))
-            except (TypeError, ValueError):
-                continue
-        return min(vals) if vals else None
-
-    # ── Relation-graph neighborhood queries ──
-    # The missing primitive for network dynamics: without these, "infect
-    # me if a graph NEIGHBOR is infected" was inexpressible — relations
-    # were readable only as an actor→target boolean.
-    def _eid(v: Any) -> str:
-        # Accept an entity object ($params.it in a for_each rule) or an id.
-        return str(getattr(v, "id", v))
-
-    if name == "neighbors":
-        # $neighbors(entity_id, relation) → neighbor ids (either direction)
-        if len(args) < 2 or state is None:
-            return []
-        eid, rel = _eid(args[0]), str(args[1])
-        nbr_ids = {e.to_entity for e in state.relations.get_outgoing(eid, rel)}
-        nbr_ids |= {e.from_entity for e in state.relations.get_incoming(eid, rel)}
-        nbr_ids.discard(eid)
-        return sorted(nbr_ids)
-
-    if name in ("neighbor_count", "neighbor_sum"):
-        # $neighbor_count(entity_id, relation)        — degree
-        # $neighbor_count(entity_id, relation, prop)  — neighbors w/ truthy prop
-        # $neighbor_sum(entity_id, relation, prop)    — sum of prop
-        if len(args) < 2 or state is None:
-            return 0
-        eid, rel = _eid(args[0]), str(args[1])
-        prop = str(args[2]) if len(args) > 2 else None
-        ids = {e.to_entity for e in state.relations.get_outgoing(eid, rel)}
-        ids |= {e.from_entity for e in state.relations.get_incoming(eid, rel)}
-        ids.discard(eid)
-        if name == "neighbor_count":
-            if prop is None:
-                return len(ids)
-            return sum(
-                1 for nid in ids
-                if (ent := state.entities.get(nid)) is not None
-                and ent.properties.get(prop)
-            )
-        if prop is None:
-            return 0
-        total = 0.0
-        for nid in ids:
-            ent = state.entities.get(nid)
-            if ent is None:
-                continue
-            try:
-                total += float(ent.properties.get(prop, 0) or 0)
-            except (TypeError, ValueError):
-                continue
-        return total
-
-    # ── Spatial queries (require state.locations / state.adjacency) ──
-    if name == "entities_at":
-        # $entities_at(location_id) → list of entity ids at that location
-        if not args or state is None:
-            return []
-        loc = str(args[0])
-        return [eid for eid, l in state.locations.items() if l == loc]
-
-    if name == "adjacent_entities":
-        # $adjacent_entities(location_id) → entities at any adjacent location
-        if not args or state is None:
-            return []
-        loc = str(args[0])
-        neighbors = state.adjacency.get(loc, [])
-        out: List[str] = []
-        for n in neighbors:
-            out.extend(eid for eid, l in state.locations.items() if l == n)
-        return out
-
-    if name == "within_range":
-        # $within_range(location_id, N) — BFS over adjacency for entities
-        # within N hops. Hop 0 = same location.
-        if len(args) < 2 or state is None:
-            return []
-        try:
-            origin, hops = str(args[0]), int(args[1])
-        except (TypeError, ValueError):
-            return []
-        visited = {origin}
-        frontier = [origin]
-        for _ in range(max(0, hops)):
-            new_frontier = []
-            for node in frontier:
-                for nb in state.adjacency.get(node, []):
-                    if nb not in visited:
-                        visited.add(nb)
-                        new_frontier.append(nb)
-            frontier = new_frontier
-            if not frontier:
-                break
-        return [eid for eid, l in state.locations.items() if l in visited]
-
-    if name == "distance":
-        # $distance(loc_a, loc_b) — BFS shortest-path in adjacency graph.
-        # Returns -1 if unreachable.
-        if len(args) < 2 or state is None:
-            return -1
-        a, b = str(args[0]), str(args[1])
-        if a == b:
-            return 0
-        seen = {a}
-        dist_frontier = [(a, 0)]
-        while dist_frontier:
-            nd, d = dist_frontier.pop(0)
-            for nb in state.adjacency.get(nd, []):
-                if nb == b:
-                    return d + 1
-                if nb not in seen:
-                    seen.add(nb)
-                    dist_frontier.append((nb, d + 1))
-        return -1
-
-    if name == "path_exists":
-        # $path_exists(loc_a, loc_b) — boolean
-        if len(args) < 2 or state is None:
-            return False
-        a, b = str(args[0]), str(args[1])
-        if a == b:
-            return True
-        seen = {a}
-        frontier = [a]
-        while frontier:
-            node = frontier.pop(0)
-            for nb in state.adjacency.get(node, []):
-                if nb == b:
-                    return True
-                if nb not in seen:
-                    seen.add(nb)
-                    frontier.append(nb)
-        return False
-
-    # ── Board pattern queries (delegate to BoardModule) ─────────────
-    # Together with the existing board move primitives in board_module,
-    # these are the foundation of the spatial-game pattern DSL.
-    # They make chess-class games expressible in pure JSON: the agent
-    # references piece patterns by name and queries threat/check status
-    # via expressions.
-
-    if name in ("legal_moves", "is_threatened", "is_in_check",
-                "is_in_checkmate", "line_clear", "piece_at", "square_empty"):
-        board = _get_board_module(state)
-        if board is None:
-            # No board configured — return safe defaults
-            if name in ("is_threatened", "is_in_check", "is_in_checkmate"):
-                return False
-            if name == "line_clear" or name == "square_empty":
-                return True
-            if name == "piece_at":
-                return None
-            if name == "legal_moves":
-                return []
-
-        if name == "legal_moves":
-            # $legal_moves(piece_type, from_square, [side])
-            if len(args) < 2:
-                return []
-            piece_type = str(args[0])
-            from_sq = board._parse_position(args[1])
-            side = str(args[2]) if len(args) >= 3 else None
-            if from_sq is None:
-                return []
-            try:
-                moves = board.valid_moves(piece_type, from_sq, side, state)
-                return [list(m) if isinstance(m, tuple) else m for m in moves]
-            except Exception:
-                return []
-
-        if name == "is_threatened":
-            # $is_threatened(square, by_side)
-            if len(args) < 2:
-                return False
-            sq = board._parse_position(args[0])
-            by_side = str(args[1])
-            if sq is None:
-                return False
-            try:
-                return bool(board.is_square_attacked(sq, by_side, state))
-            except Exception:
-                return False
-
-        if name == "is_in_check":
-            # $is_in_check(side)
-            if not args:
-                return False
-            side = str(args[0])
-            try:
-                return bool(board.is_in_check(side, state))
-            except Exception:
-                return False
-
-        if name == "is_in_checkmate":
-            # $is_in_checkmate(side)
-            if not args:
-                return False
-            side = str(args[0])
-            try:
-                return bool(board.is_in_checkmate(side, state))
-            except Exception:
-                return False
-
-        if name == "line_clear":
-            # $line_clear(from_square, to_square)
-            if len(args) < 2:
-                return True
-            a = board._parse_position(args[0])
-            b = board._parse_position(args[1])
-            if a is None or b is None:
-                return False
-            try:
-                return bool(board.line_clear(a, b, state))
-            except Exception:
-                return False
-
-        if name == "piece_at":
-            # $piece_at(square) → mark/piece string or None
-            if not args:
-                return None
-            sq = board._parse_position(args[0])
-            if sq is None:
-                return None
-            # Grid boards use mark_at(); linear-ring boards use cell_at()
-            if hasattr(board, "mark_at"):
-                try:
-                    val = board.mark_at(sq)
-                    if val is not None and val != "":
-                        return val
-                except Exception:
-                    pass
-            if hasattr(board, "cell_at"):
-                cell = board.cell_at(sq)
-                if isinstance(cell, dict):
-                    return cell.get("piece") or cell.get("mark")
-                return cell
-            return None
-
-        if name == "square_empty":
-            # $square_empty(square)
-            if not args:
-                return True
-            sq = board._parse_position(args[0])
-            if sq is None:
-                return False
-            if hasattr(board, "mark_at"):
-                try:
-                    val = board.mark_at(sq)
-                    return val is None or val == "" or val == 0
-                except Exception:
-                    pass
-            if hasattr(board, "cell_at"):
-                cell = board.cell_at(sq)
-                if cell is None:
-                    return True
-                if isinstance(cell, dict):
-                    return not (cell.get("piece") or cell.get("mark"))
-                return not cell
-            return True
-
-    # ── Graph algorithm primitives (general spatial / network games) ──
-
-    if name == "shortest_path":
-        # $shortest_path(from, to) — return list of nodes from→to inclusive,
-        # or [] if no path. Uses state.adjacency.
-        if len(args) < 2 or state is None:
-            return []
-        src, dst = str(args[0]), str(args[1])
-        if src == dst:
-            return [src]
-        # BFS with parent pointers
-        parents: Dict[str, Optional[str]] = {src: None}
-        frontier = [src]
-        found = False
-        while frontier and not found:
-            new_frontier = []
-            for node in frontier:
-                for nb in state.adjacency.get(node, []):
-                    if nb in parents:
-                        continue
-                    parents[nb] = node
-                    if nb == dst:
-                        found = True
-                        break
-                    new_frontier.append(nb)
-                if found:
-                    break
-            frontier = new_frontier
-        if not found:
-            return []
-        # Reconstruct
-        path = [dst]
-        cur = dst
-        while parents[cur] is not None:
-            cur = parents[cur]
-            path.append(cur)
-        return list(reversed(path))
-
-    if name == "connected_component":
-        # $connected_component(node) — all nodes reachable from `node`
-        # via state.adjacency. Useful for Catan-style "longest road"
-        # via successive calls + $len.
-        if not args or state is None:
-            return []
-        node = str(args[0])
-        seen = {node}
-        frontier = [node]
-        while frontier:
-            current = frontier.pop(0)
-            for nb in state.adjacency.get(current, []):
-                if nb not in seen:
-                    seen.add(nb)
-                    frontier.append(nb)
-        return list(seen)
-
-    return None
+            raise ExprError(f"unexpected `{ch}` on the left side of the assignment", source)
+    return base, tuple(steps)
 
 
-def _get_board_module(state: Any):
-    """Find the (first) BoardModule on the state. Returns None when no
-    board is configured. Used by the board-pattern query functions."""
-    if state is None:
-        return None
-    dm = getattr(state, "domain_modules", None)
-    if dm is None:
-        return None
-    modules = getattr(dm, "_modules", None) or {}
+def _closing(text: str, start: int, opening: str, closing: str, source: str) -> int:
+    depth, quote = 0, None
+    for i in range(start, len(text)):
+        ch = text[i]
+        if quote:
+            if ch == quote:
+                quote = None
+        elif ch in "\"'":
+            quote = ch
+        elif ch == opening:
+            depth += 1
+        elif ch == closing:
+            depth -= 1
+            if depth == 0:
+                return i
+    raise ExprError(f"`{opening}` is never closed on the left side of the assignment", source)
+
+
+@dataclass(frozen=True)
+class Statement:
+    source: str
+    base: Optional[Expr]
+    #: ``("field", name)`` or ``("index", compiled expression)`` steps after the base.
+    steps: Tuple[Tuple[str, Any], ...]
+    local: Optional[str]
+    op: str
+    value: Expr
+
+
+@lru_cache(maxsize=8_192)
+def compile_statement(source: str) -> Statement:
+    base, steps, local, op, right = statement_parts(source)
+    value = compile_expr(right)
+    if local is not None:
+        if local in RESERVED_ROOTS:
+            raise ExprError(f"${local} is a reserved name, so a local cannot be called that; rename the local "
+                            f"(e.g. ${local}_value) or assign to one of its fields", source)
+        return Statement(source, None, (), local, op, value)
+    assert base is not None
+    compiled = tuple((kind, compile_expr(text) if kind == "index" else text) for kind, text in steps)
+    return Statement(source, compile_expr(base), compiled, None, op, value)
+
+
+
+@lru_cache(maxsize=8_192)
+def _capture_roots(sources: Tuple[str, ...]) -> Optional[frozenset[str]]:
+    """External reads of straight-line assignments; calls may read implicit scope."""
+    needed: set[str] = set()
+    assigned: set[str] = set()
     try:
-        from .board_module import BoardModule
-    except Exception:
+        for source in sources:
+            statement = compile_statement(source)
+            expressions = [statement.value]
+            if statement.base is not None:
+                expressions.append(statement.base)
+            expressions.extend(step for kind, step in statement.steps if kind == "index")
+            if any(expr.functions for expr in expressions):
+                return None
+            reads = set().union(*(expr.roots for expr in expressions))
+            if statement.local is not None and statement.op != "=":
+                reads.add(statement.local)
+            needed.update(reads - assigned)
+            if statement.local is not None:
+                assigned.add(statement.local)
+    except ExprError:
+        return None  # Preserve the original error at execution, rather than moving it to scheduling.
+    return frozenset(needed)
+
+
+@lru_cache(maxsize=8_192)
+def _structured_capture_roots(source: str) -> Optional[frozenset[str]]:
+    """Conservative reads across control flow; retain all possibly needed outer locals.
+
+    Unlike the straight-line analysis, no assignments remove dependencies. This
+    preserves incoming values on paths where a branch/loop never assigns them.
+    Calls and other operations may inspect implicit scope, so keep it in full.
+    """
+    needed: set[str] = set()
+
+    def expression(raw: Any, *, condition: bool = False) -> None:
+        if isinstance(raw, str) and (condition or is_expr(raw)):
+            compiled = compile_expr(raw)
+            if compiled.functions:
+                raise ValueError("implicit call scope")
+            needed.update(compiled.roots)
+        elif not condition and isinstance(raw, (dict, list)):
+            for item in raw.values() if isinstance(raw, dict) else raw:
+                expression(item)
+
+    def walk(effects: Any) -> None:
+        for effect in one_or_many(effects) or []:
+            if isinstance(effect, str):
+                roots = _capture_roots((effect,))
+                if roots is None:
+                    raise ValueError("implicit assignment scope")
+                needed.update(roots)
+            elif isinstance(effect, dict):
+                if "if" in effect and set(effect) <= {"if", "then", "else"}:
+                    expression(effect["if"], condition=True)
+                    walk(effect.get("then"))
+                    walk(effect.get("else"))
+                elif "each" in effect and set(effect) <= {"each", "as", "where", "do"}:
+                    expression(effect["each"])
+                    expression(effect.get("where"), condition=True)
+                    walk(effect.get("do"))
+                elif "repeat" in effect and set(effect) <= {"repeat", "while", "do"}:
+                    expression(effect["repeat"])
+                    expression(effect.get("while"), condition=True)
+                    walk(effect.get("do"))
+                elif "after" in effect and set(effect) <= {"after", "do"}:
+                    expression(effect["after"])
+                    walk(effect.get("do"))
+                else:
+                    raise ValueError("implicit operation scope")
+            else:
+                raise ValueError("unknown effect shape")
+
+    try:
+        walk(json.loads(source))
+    except (ExprError, ValueError, TypeError, RecursionError):
         return None
-    for m in modules.values():
-        if isinstance(m, BoardModule):
-            return m
-    return None
+    return frozenset(needed)
 
 
-# Deterministic fallback RNG. Seeded with 0 so any caller that fails
-# to thread the engine RNG still produces reproducible output. Production
-# callers MUST pass the engine's own seeded Random instance.
-_DEFAULT_RNG = _random.Random(0)
+def _to_ids(value: Any, where: str) -> Optional[Tuple[str, ...]]:
+    if value is None:
+        return None
+    if isinstance(value, Entity):
+        return (value.id,)
+    if isinstance(value, str):
+        return (value,)
+    if isinstance(value, (list, tuple)):
+        out = []
+        for item in value:
+            if isinstance(item, Entity):
+                out.append(item.id)
+            elif isinstance(item, str):
+                out.append(item)
+            else:
+                raise RunError(f"recipients must be entities or ids, got {item!r}", where)
+        return tuple(out)
+    raise RunError(f"recipients must be entities or ids, got {value!r}", where)
 
 
-__all__ = [
-    "is_expression",
-    "resolve_expression",
-    "get_tokens",
-    "grant_token",
-    "consume_token",
-    "has_token",
-]
+def _entity(value: Any, world: SdkWorld, where: str, what: str = "an entity") -> Entity:
+    if isinstance(value, str):
+        found = world.entities.get(value)
+        if found is not None:
+            return found
+    if isinstance(value, Entity):
+        return value
+    raise RunError(f"expected {what}, got {value!r}", where)
+
+
+def _items(value: Any, world: SdkWorld, where: str) -> List[Any]:
+    if isinstance(value, str) and world.is_type(value):
+        return list(world.entities_of(value))
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple)):
+        return list(value)
+    if isinstance(value, Entity):
+        return [value]
+    raise RunError(f"`each` needs a type name or a list, got {value!r}", where)
+
+
+class EffectRunner:
+    """Applies effect lists to one world, and runs the types' lifecycle hooks when entities are
+    created or removed (inside whatever change made them, so they commit or roll back with it)."""
+
+    #: How deep lifecycle hooks may set off further hooks.
+    HOOK_DEPTH = 16
+
+    def __init__(self, world: SdkWorld):
+        self.world = world
+        self._hook_depth = 0
+        self._hooks: Dict[Tuple[str, str], List[Tuple[str, List[Any]]]] = {}
+        world.lifecycle = self.lifecycle
+
+    def lifecycle(self, hook: str, entity: Entity, where: str) -> None:
+        """Run ``hook`` (on_create / on_remove) of the entity's type and its ancestors, root first ($it)."""
+        key = (entity.entity_type, hook)
+        hooks = self._hooks.get(key)
+        if hooks is None:
+            hooks = self._hooks[key] = self.world.contract.hooks_of(entity.entity_type, hook)
+        if not hooks:
+            return
+        if self._hook_depth >= self.HOOK_DEPTH:
+            raise RunError(f"{hook} hooks set each other off more than {self.HOOK_DEPTH} levels deep "
+                           f"(does {entity.entity_type}'s {hook} create or remove another {entity.entity_type}?)", where)
+        self._hook_depth += 1
+        try:
+            for type_name, effects in hooks:
+                self.run(effects, {"it": entity}, f"types.{type_name}.{hook}")
+        finally:
+            self._hook_depth -= 1
+
+    def run(self, effects: List[Any], vars: Dict[str, Any], path: str) -> None:
+        for index, effect in enumerate(one_or_many(effects) or []):
+            try:
+                if isinstance(effect, str):
+                    self._statement(effect, vars, path, index)  # its path is spelled out only if it is reported
+                elif isinstance(effect, dict):
+                    self._keyed(effect, vars, f"{path}[{index}]")
+                else:
+                    raise RunError(f"an effect is text or an object, got {effect!r}", f"{path}[{index}]")
+            except ExprError as exc:
+                raise RunError(str(exc), f"{path}[{index}]") from None
+            except OverflowError:  # its own text varies by platform
+                raise RunError("arithmetic failed: the result is too large", f"{path}[{index}]") from None
+            except ArithmeticError as exc:  # a contract rule's arithmetic failed: the rule's fault, never the participant's
+                raise RunError(f"arithmetic failed: {exc}", f"{path}[{index}]") from None
+
+    # -- statements ------------------------------------------------------------
+
+    def _statement(self, source: str, vars: Dict[str, Any], path: str, index: int) -> None:
+        stmt = compile_statement(source)
+        scope = self.world.scope(**vars)
+        value = stmt.value(scope)
+        if stmt.local is not None:
+            if stmt.op != "=":
+                value = self._combine(stmt.op, scope.root(stmt.local, source), value, source)
+            vars[stmt.local] = value
+            return
+        assert stmt.base is not None
+        if len(stmt.steps) == 1:  # `$x.prop op value`, the common shape: the base itself owns the property
+            owner = stmt.base(scope)
+            if not isinstance(owner, (Entity, Link, PropsView, PhysicsView)):
+                raise RunError(_NOT_ASSIGNABLE.format(source=source), f"{path}[{index}]")
+            prop = stmt.steps[0][1]
+            rest: List[Tuple[str, Any]] = []
+        else:
+            owner, prop, rest = self._owner(stmt, scope, source, f"{path}[{index}]")
+        if rest:
+            value = self._set_in(attr(owner, prop, source), rest, stmt.op, value, source, prop)
+        elif stmt.op != "=":
+            value = self._combine(stmt.op, attr(owner, prop, source), value, source)
+        if stmt.op == "=" and self.world.watched_writes is not None and isinstance(owner, (Entity, PropsView)):
+            self.world.watched_writes.assigned(owner, prop, [key for _, key in rest], value, source)
+        if isinstance(owner, Entity):
+            self.world.set_prop(owner, prop, value)
+        elif isinstance(owner, Link):
+            self.world.set_link_field(owner, prop, value, f"{path}[{index}]")
+        elif isinstance(owner, PropsView):
+            self.world.set_world(prop, value)
+        else:
+            self.world.set_physics(prop, value)
+
+    def _owner(self, stmt: Statement, scope: Any, source: str, where: str) -> Tuple[Any, str, List[Tuple[str, Any]]]:
+        """The deepest entity / link / $world / $physics on the target path, the property written on it, and
+        the element path (resolved keys) inside that property's value."""
+        current = stmt.base(scope)  # type: ignore[misc]
+        found: Optional[Tuple[Any, int]] = None
+        resolved: List[Tuple[str, Any]] = []
+        for position, (kind, step) in enumerate(stmt.steps):
+            key = step(scope) if kind == "index" else step
+            resolved.append((kind, key))
+            if kind == "field" and isinstance(current, (Entity, Link, PropsView, PhysicsView)):
+                found = (current, position)
+            if position == len(stmt.steps) - 1:
+                break
+            current = attr(current, key, source) if kind == "field" else self._element(current, key, source)
+        if found is None:
+            raise RunError(_NOT_ASSIGNABLE.format(source=source), where)
+        owner, position = found
+        prop = stmt.steps[position][1]
+        rest = resolved[position + 1:]
+        return owner, prop, rest
+
+    @staticmethod
+    def _element(container: Any, key: Any, source: str) -> Any:
+        if isinstance(container, list):
+            if isinstance(key, bool) or not isinstance(key, int) or not -len(container) <= key < len(container):
+                raise ExprError(f"index {key!r} is out of range for a list of {len(container)}", source)
+            return container[key]
+        if isinstance(container, dict):
+            name = str(key)
+            if name not in container:
+                raise ExprError(f"no key {name!r} (keys: {', '.join(map(str, list(container)[:12]))})", source)
+            return container[name]
+        return attr(container, str(key), source)
+
+    def _set_in(self, container: Any, path: List[Tuple[str, Any]], op: str, value: Any, source: str,
+                label: str) -> Any:
+        """A copy of ``container`` with the element at ``path`` assigned (or combined with ``op``)."""
+        kind, key = path[0]
+        last = len(path) == 1
+        if isinstance(container, list):
+            if kind == "field" or isinstance(key, bool) or not isinstance(key, int) \
+                    or not -len(container) <= key < len(container):
+                shown = key if kind == "index" else f".{key}"
+                raise ExprError(f"`{label}` is a list of {len(container)}; {shown!r} is not a valid index", source)
+            updated: Any = list(container)
+        elif isinstance(container, dict):
+            key = str(key)
+            updated = dict(container)
+        elif container is None and not last:
+            raise ExprError(f"`{label}` has no value to assign into", source)
+        else:
+            raise ExprError(f"`{label}` is not a list or map, so it has no elements to assign", source)
+        exists = isinstance(updated, list) or key in updated
+        if last:
+            if op != "=":
+                current = updated[key] if exists else ([] if isinstance(value, list) else 0)
+                value = self._combine(op, current, value, source)
+            updated[key] = value
+        else:
+            if not exists:
+                if op != "=" and not isinstance(updated, dict):
+                    raise ExprError(f"no element {key!r} in `{label}`", source)
+                updated[key] = {}
+            updated[key] = self._set_in(updated[key], path[1:], op, value, source, f"{label}[{key!r}]")
+        return check_size(updated, source)
+
+    @staticmethod
+    def _combine(op: str, current: Any, value: Any, source: str) -> Any:
+        """``current op value`` for +=, -=, *=, /=, refusing results past the size limits."""
+        try:
+            result = EffectRunner._combine_raw(op, current, value, source)
+        except OverflowError:
+            raise ExprError(f"`{op}` gives a result too large to represent", source) from None
+        if isinstance(result, int) and not isinstance(result, bool) and result.bit_length() > MAX_INT_BITS:
+            raise ExprError(f"a whole number of {result.bit_length():,} bits is past the limit of {MAX_INT_BITS:,} bits",
+                            source)
+        return check_size(result, source)
+
+    @staticmethod
+    def _combine_raw(op: str, current: Any, value: Any, source: str) -> Any:
+        if type(current) in _NUMBERS and type(value) in _NUMBERS:  # plain numbers, the common case, first
+            if op == "+=":
+                return current + value
+            if op == "-=":
+                return current - value
+            if op == "*=":
+                return current * value
+            if value == 0:
+                raise ExprError("division by zero", source)
+            return current / value
+        if op == "+=" and isinstance(current, list):
+            return current + (list(value) if isinstance(value, list) else [value])
+        if op == "-=" and isinstance(current, list):
+            drop = value if isinstance(value, list) else [value]
+            drop_ids = {getattr(d, "id", d) for d in drop}
+            return [x for x in current if x not in drop_ids]
+        numbers = [v for v in (current, value) if isinstance(v, (int, float)) and not isinstance(v, bool)]
+        if len(numbers) != 2:
+            raise ExprError(f"`{op}` needs numbers (current {current!r}, value {value!r})", source)
+        if op == "+=":
+            return current + value
+        if op == "-=":
+            return current - value
+        if op == "*=":
+            return current * value
+        if value == 0:
+            raise ExprError("division by zero", source)
+        return current / value
+
+    # -- keyed operations ------------------------------------------------------
+
+    def _keyed(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        ops = select_ops(effect)
+        if len(ops) != 1:
+            if not ops:
+                keys = ", ".join(effect)
+                action = family_action_hint(effect)
+                hint = get_close_matches(next(iter(effect), ""), list(all_ops()), n=1)
+                raise RunError(
+                    f"unknown effect with keys ({keys})"
+                    + (f" — {action}" if action else f" — did you mean '{hint[0]}'?" if hint else "")
+                    + f"; effects are: {', '.join(all_ops())}",
+                    where,
+                )
+            raise RunError(f"an effect object names exactly one operation, got {ops}", where)
+        registered = OPS.get(ops[0])
+        if registered is None:
+            getattr(self, "_op_" + ops[0])(effect, vars, where)
+            return
+        try:
+            registered.run(self, effect, vars, where)
+        except (Abort, RunError, ExprError, ArithmeticError):
+            raise
+        except Exception as exc:  # a mechanism op crashed: the op's fault at this path, never the participant's
+            raise RunError(f"`{ops[0]}` failed: {type(exc).__name__}: {exc}", where) from exc
+
+    def eval(self, value: Any, vars: Dict[str, Any]) -> Any:
+        """Evaluate an expression (or a structure of them) with these locals."""
+        return resolve(value, self.world.scope(**vars))
+
+    def text(self, template: Optional[str], vars: Dict[str, Any]) -> str:
+        """Render a template with these locals."""
+        if not template:
+            return ""
+        return compile_template(template, None).render(self.world.scope(**vars))
+
+    _eval = eval
+    _text = text
+
+    def _condition(self, value: Any, vars: Dict[str, Any]) -> bool:
+        # These fields are checked as expressions, even without a $ reference.
+        return truthy(compile_expr(value)(self.world.scope(**vars)) if isinstance(value, str) else value)
+
+    def _op_if(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        branch = "then" if self._condition(effect["if"], vars) else "else"
+        self.run(effect.get(branch) or [], vars, f"{where}.{branch}")
+
+    def _op_each(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        name = effect.get("as") or "it"
+        items = _items(self._eval(effect["each"], vars), self.world, where)
+        where_expr = effect.get("where")
+        from .run_diagnosis import LoopWrites  # run_diagnosis reads actions, which run effects
+
+        watch = LoopWrites.start(self.world, effect, where)
+        try:
+            for position, item in enumerate(items):
+                inner = {**vars, name: item, "i": position}
+                if where_expr is not None and not self._condition(where_expr, inner):
+                    continue
+                if watch is not None:
+                    watch.item, watch.position = item, position
+                self.run(effect.get("do") or [], inner, f"{where}.do")
+                # Locals assigned in the body (running totals, a best-so-far) stay assigned after it;
+                # only the loop's own names are scoped to it.
+                vars.update((key, value) for key, value in inner.items() if key not in (name, "i"))
+        finally:
+            if watch is not None:
+                self.world.watched_writes = None
+
+    def _op_create(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        count = self._eval(effect.get("count", 1), vars)
+        if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+            raise RunError(f"count must be a whole number ≥ 0, got {count!r}", where)
+        if count > MAX_CREATE:
+            raise RunError(f"count {count:,} is more than the limit of {MAX_CREATE:,} entities per create", where)
+        made: List[Entity] = []
+        for n in range(count):
+            inner = {**vars, "i": n + 1}
+            entity_id = self._text(effect.get("id"), inner) or None
+            name = self._text(effect.get("name"), inner) or None
+            at = self._eval(effect.get("at"), inner)
+            made.append(self.world.create(effect["create"], entity_id, name, effect.get("props") or {},
+                                          at, self.world.scope(**inner), where))
+        if effect.get("as"):
+            vars[effect["as"]] = made[0] if count == 1 else made
+
+    def _op_remove(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        value = self._eval(effect["remove"], vars)
+        for item in value if isinstance(value, list) else [value]:
+            self.world.remove(_entity(item, self.world, where), where)
+
+    def _op_transfer(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        prop = effect["transfer"]
+        source = _entity(self._eval(effect.get("from"), vars), self.world, where, "a `from` entity")
+        target = _entity(self._eval(effect.get("to"), vars), self.world, where, "a `to` entity")
+        amount = self._eval(effect.get("amount"), vars)
+        if isinstance(amount, bool) or not isinstance(amount, (int, float)) or amount < 0:
+            raise RunError(f"transfer amount must be a number ≥ 0, got {amount!r}", where)
+        into = effect.get("into") or prop
+        have = _amount_held(source, prop, where)
+        held = _amount_held(target, into, where)
+        if have < amount:
+            raise Abort(f"{source.name} has only {format_value(have)} {prop}; {format_value(amount)} is needed.")
+        # A transfer moves value; it never creates or destroys it. Limits that would clamp
+        # either side refuse the transfer instead.
+        low = self.world.prop_spec(source, prop).min
+        if low is not None and have - amount < low:
+            raise Abort(f"{source.name} cannot go below {format_value(low)} {prop}; "
+                        f"at most {format_value(have - low)} can be given.")
+        high = self.world.prop_spec(target, into).max
+        if high is not None and held + amount > high:
+            raise Abort(f"{target.name} can hold at most {format_value(high)} {into}; "
+                        f"at most {format_value(max(0, high - held))} more fits.")
+        self.world.set_prop(source, prop, have - amount)
+        self.world.set_prop(target, into, _amount_held(target, into, where) + amount)
+
+    def _op_link(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        value = self._eval(effect["value"], vars) if "value" in effect else None
+        fields = effect.get("props") or {}
+        if not isinstance(fields, dict):
+            raise RunError(f"`props` is an object of link fields, got {fields!r}", where)
+        self.world.link(effect["link"], self._eval(effect.get("from"), vars), self._eval(effect.get("to"), vars),
+                        value, where, {name: self._eval(raw, vars) for name, raw in fields.items()})
+
+    def _op_unlink(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        self.world.unlink(effect["unlink"], self._eval(effect.get("from"), vars), self._eval(effect.get("to"), vars),
+                          where)
+
+    def _op_move(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        entity = _entity(self._eval(effect["move"], vars), self.world, where)
+        self.world.move(entity, self._eval(effect.get("to"), vars), where)
+
+    def _op_post(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        if self._dropped(effect, vars, where):
+            return
+        fields = {k: _plain_value(self._eval(v, vars)) for k, v in effect.items() if k not in POST_KEYS}
+        if "author" in effect:
+            author_value = self._eval(effect["author"], vars)
+            author = _entity(author_value, self.world, where).id if author_value is not None else None
+        else:
+            actor = vars.get("actor")
+            author = actor.id if isinstance(actor, Entity) else None
+        to = _to_ids(self._eval(effect.get("to"), vars), where) if "to" in effect else None
+        send(self.world, self._eval(effect["delay"], vars) if "delay" in effect else None,
+             {"kind": "post", "record": effect["post"], "fields": fields, "author": author,
+              "to": list(to) if to is not None else None}, where)
+
+    def _op_emit(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        if self._dropped(effect, vars, where):
+            return
+        to = _to_ids(self._eval(effect.get("to"), vars), where) if "to" in effect else None
+        actor = vars.get("actor")
+        data = self._eval(effect.get("data") or {}, vars)
+        send(self.world, self._eval(effect["delay"], vars) if "delay" in effect else None,
+             {"kind": "emit", "event": str(effect["emit"]), "text": self._text(effect.get("say"), vars),
+              "actor": actor.id if isinstance(actor, Entity) else None, "to": list(to) if to is not None else None,
+              "data": {k: _plain_value(v) for k, v in data.items()}}, where)
+
+    def _dropped(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> bool:
+        """Roll the effect's ``drop`` chance (a lossy channel): True when the message is lost."""
+        return "drop" in effect and dropped(self.world, self._eval(effect["drop"], vars), f"{where}.drop")
+
+    def _op_fail(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        raise Abort(self._text(effect["fail"], vars) or "That is not possible right now.")
+
+    def _op_end(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        winner = self._eval(effect.get("winner"), vars) if "winner" in effect else None
+        self.world.request_end(str(effect["end"]), _plain_value(winner), self._text(effect.get("say"), vars))
+
+    def _op_after(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        delay = self._eval(effect["after"], vars)
+        world = self.world
+        if world.continuous:
+            if isinstance(delay, bool) or not isinstance(delay, (int, float)) or not delay > 0:
+                raise RunError(f"`after` needs a time greater than 0 on a continuous clock, got {delay!r}", where)
+            due = advance_time(world.time, delay, where)
+        else:
+            if isinstance(delay, bool) or not isinstance(delay, int) or delay < 1:
+                raise RunError(f"`after` needs a whole number of rounds ≥ 1, got {delay!r}", where)
+            due = world.round + delay
+        effects = one_or_many(effect.get("do")) or []
+        captured = vars
+        if all(isinstance(item, str) for item in effects):
+            roots = _capture_roots(tuple(effects))
+        else:
+            try:
+                roots = _structured_capture_roots(json.dumps(effects, sort_keys=True))
+            except (TypeError, ValueError, RecursionError):
+                roots = None
+        if roots is not None and not roots.intersection(world.contract.defs):
+            captured = {name: value for name, value in vars.items() if name in roots}
+        world.schedule(due, effects, captured, f"{where}.do")
+
+    def _op_wake(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        why = self._text(effect.get("why"), vars) or "You were asked to act."
+        world = self.world
+        delay = self._eval(effect["in"], vars) if "in" in effect else 0
+        if "in" in effect and not world.continuous:
+            raise RunError("`in` needs a continuous clock (clock.mode: continuous)", where)
+        if isinstance(delay, bool) or not isinstance(delay, (int, float)) or delay < 0:
+            raise RunError(f"`in` must be a time ≥ 0, got {delay!r}", where)
+        now = truthy(self._eval(effect["now"], vars)) if "now" in effect else False
+        if now and "in" in effect:
+            raise RunError("`wake` takes `now` or `in`, not both", where)
+        if self._dropped(effect, vars, where):
+            return
+        for entity_id in _to_ids(self._eval(effect["wake"], vars), where) or ():
+            if now:
+                world.request_reaction(entity_id, why)
+                continue
+            world.request_wake(entity_id, why)
+            if world.continuous:
+                world.set_wake_at(entity_id, advance_time(world.time, delay, where))
+
+    def _op_block(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        name = effect["block"]
+        spec = self.world.contract.blocks.get(name)
+        if spec is None:
+            raise RunError(f"'{name}' is not a declared block (blocks: {', '.join(self.world.contract.blocks) or 'none'})", where)
+        given = effect.get("with") or {}
+        if set(given) != set(spec.args):
+            raise RunError(f"block '{name}' takes arguments {spec.args}, got {sorted(given)}", where)
+        depth = getattr(self, "_depth", 0)
+        if depth >= 16:
+            raise RunError(f"block '{name}' runs blocks too deeply (recursion?)", where)
+        inner = {key: self._eval(value, vars) for key, value in given.items()}
+        self._depth = depth + 1
+        try:
+            self.run(spec.do, inner, f"blocks.{name}.do")
+        finally:
+            self._depth = depth
+
+    def _op_chance(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        from .chance import run_chance
+
+        run_chance(self, effect, vars, where)
+
+    def _op_repeat(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+        limit = self._eval(effect["repeat"], vars)
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 0 <= limit <= REPEAT_CEILING:
+            raise RunError(f"`repeat` needs a whole-number limit from 0 to {REPEAT_CEILING}, got {limit!r}", where)
+        condition = effect.get("while")
+        for _ in range(limit):
+            if condition is not None and not self._condition(condition, vars):
+                return
+            self.run(effect.get("do") or [], vars, f"{where}.do")
+        if limit and condition is not None and self._condition(condition, vars):
+            raise RunError(f"`repeat` reached its limit of {limit} while `{condition}` still holds", where)
+
+
+def _amount_held(entity: Entity, prop: str, where: str) -> float:
+    value = attr(entity, prop, where)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise RunError(f"`transfer` moves numbers, but {entity.id}.{prop} is {value!r}", where)
+    return value
+
+
+def _plain_value(value: Any) -> Any:
+    if isinstance(value, Entity):
+        return value.id
+    if isinstance(value, Link):
+        return _plain_value(value.as_dict())
+    if isinstance(value, list):
+        return [_plain_value(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _plain_value(v) for k, v in value.items()}
+    return value
+
+
+def select_ops(effect: Dict[str, Any]) -> List[str]:
+    """The operation(s) an effect object names; anything but exactly one is an error for the caller.
+
+    * A ``post``'s other keys are record fields, whatever they are called (a field may be named
+      like a native op, e.g. ``deal``).
+    * A single family op wins over keys named like core ops that its actions declare themselves.
+    * Otherwise every key that names an operation counts.
+    """
+    core = [key for key in EFFECT_OPS if key in effect]
+    if core == ["post"]:
+        return core
+    native = [key for key in OPS if key in effect]
+    if len(native) == 1 and all(key in OPS[native[0]].keys for key in core):
+        return native
+    return core + native
+
+
+def all_ops() -> Dict[str, Tuple[str, ...]]:
+    """Every effect operation and the keys it takes: the core ones, then registered native ops."""
+    return {**EFFECT_OPS, **{name: spec.keys for name, spec in OPS.items()}}
+
+
+def registered_op(name: str) -> Optional[OpSpec]:
+    return OPS.get(name)
+
+
+def is_statement(value: Any) -> bool:
+    return isinstance(value, str) and is_expr(value) and split_statement(value) is not None
+
+
+from . import mechanisms as _mechanisms  # noqa: E402,F401  (registers native ops and mechanism kinds)
+assert not set(EFFECT_OPS) & set(OPS), "a registered op shadows a core effect"

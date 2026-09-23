@@ -1,0 +1,24 @@
+{
+  "actions": 41,
+  "events": 64,
+  "events_sha256": "2032c49f088f8842e77bc588de239b5a92496e8464321d471b0504a6833c5265",
+  "first_events": [
+    "r1 action watanabe: {\"action\": \"cast_initial\", \"params\": {\"probability\": 48, \"rationale\": \"Starting from my prior.\"}, \"private\": true, \"success\": true}",
+    "r1 outcome watanabe: Initial ballot recorded: 48.0%.",
+    "r1 action marin: {\"action\": \"cast_initial\", \"params\": {\"probability\": 50, \"rationale\": \"Starting from my prior.\"}, \"private\": true, \"success\": true}",
+    "r1 outcome marin: Initial ballot recorded: 50.0%.",
+    "r1 action okafor: {\"action\": \"cast_initial\", \"params\": {\"probability\": 45, \"rationale\": \"Starting from my prior.\"}, \"private\": true, \"success\": true}",
+    "r1 outcome okafor: Initial ballot recorded: 45.0%.",
+    "r1 action lindqvist: {\"action\": \"cast_initial\", \"params\": {\"probability\": 58, \"rationale\": \"Starting from my prior.\"}, \"private\": true, \"success\": true}",
+    "r1 outcome lindqvist: Initial ballot recorded: 58.0%.",
+    "r1 action haddad: {\"action\": \"cast_initial\", \"params\": {\"probability\": 50, \"rationale\": \"Starting from my prior.\"}, \"private\": true, \"success\": true}",
+    "r1 outcome haddad: Initial ballot recorded: 50.0%."
+  ],
+  "metrics": {
+    "messages": 7,
+    "ready_count": 7
+  },
+  "rounds": 1,
+  "status": "completed",
+  "wakes": 27
+}

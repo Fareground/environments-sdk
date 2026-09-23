@@ -1,0 +1,29 @@
+{
+  "actions": 106,
+  "events": 196,
+  "events_sha256": "61473dc63057949494512ff76f4c38d3cc6dd8fb6bb4ad9339fcfc04cb2f7126",
+  "first_events": [
+    "r1 action usa: {\"action\": \"write\", \"params\": {\"to\": \"ind\"}, \"success\": true}",
+    "r1 record usa: {\"entry\": 1, \"fields\": {\"text\": \"ok\"}, \"record\": \"letters\"}",
+    "r1 action eu: {\"action\": \"speak\", \"params\": {\"text\": \"ok\"}, \"success\": true}",
+    "r1 record eu: {\"entry\": 2, \"fields\": {\"text\": \"ok\"}, \"record\": \"forum\"}",
+    "r1 action chn: {\"action\": \"speak\", \"params\": {\"text\": \"ok\"}, \"success\": true}",
+    "r1 record chn: {\"entry\": 3, \"fields\": {\"text\": \"ok\"}, \"record\": \"forum\"}",
+    "r1 action ind: {\"action\": \"write\", \"params\": {\"to\": \"eu\"}, \"success\": true}",
+    "r1 record ind: {\"entry\": 4, \"fields\": {\"text\": \"ok\"}, \"record\": \"letters\"}",
+    "r1 action rus: {\"action\": \"speak\", \"params\": {\"text\": \"ok\"}, \"success\": true}",
+    "r1 record rus: {\"entry\": 5, \"fields\": {\"text\": \"ok\"}, \"record\": \"forum\"}"
+  ],
+  "metrics": {
+    "avg_actual_cut": 50.07333333,
+    "avg_pledge": 53.32833333,
+    "club_size": 2,
+    "co2_ppm": 443.5608415,
+    "temperature": 1.631020303,
+    "total_gdp": 118.0437194,
+    "world_emissions": 34.51751393
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 108
+}

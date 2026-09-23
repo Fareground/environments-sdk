@@ -4,7 +4,7 @@ model on the two held-out weeks of history, and print the owner report.
     python examples/contact_centre_plan.py            # searches; writes the plan into the arms and contact_centre/plan.json
     python examples/contact_centre_plan.py --report   # validates, plays every arm and prints the owner report
 
-The plan is a 24-value staffing vector searched by ``fg_env.optimise``: minimise the staffing cost subject to every
+The plan is a 24-value staffing vector searched by ``fg_env.analysis.optimise``: minimise the staffing cost subject to every
 half-hour's expected service level reaching 80% (``each centre_service_level_by_interval >= 0.8``) and the day's in
 90% of runs, both held with the optimiser's 90% confidence — a day-level service level alone lets a search starve the
 quiet half-hours. The search starts from the Erlang C staffing of each half-hour's forecast; every candidate plays the
@@ -27,7 +27,7 @@ from typing import Any, Dict, List
 
 import fg_env
 from contact_centre_history import HISTORY, TRAIN_END, by_day, day_inputs
-from fg_env.sdk.analysis.optimise_result import OptimisationResult
+from fg_env.analysis.optimise_result import OptimisationResult
 
 CONTRACT = Path(__file__).parent / "contracts" / "contact_centre.json"
 #: How the recommended plan was found: the optimisation result, kept so the report and tests need not search again.
@@ -62,11 +62,11 @@ def erlang_c_staff(calls: float, aht: float, length: float = 1800.0) -> int:
 
 
 def optimise(contract: Dict[str, Any]) -> Any:
-    forecast = fg_env.decompose(contract, "calls", data_dir=CONTRACT.parent, inputs={"parameter_uncertainty": 0})
+    forecast = fg_env.analysis.decompose(contract, "calls", data_dir=CONTRACT.parent, inputs={"parameter_uncertainty": 0})
     start = [erlang_c_staff(row["total"], contract["inputs"]["aht_sec"]["default"]) + START_MARGIN
              for row in forecast.rows]
     decisions = {"staffing": {"length": len(start), "low": 2, "high": 2 * max(start), "step": 1, "start": start}}
-    return fg_env.optimise(CONTRACT, decisions, OBJECTIVE, CONSTRAINTS, runs=RUNS, budget=BUDGET,
+    return fg_env.analysis.optimise(CONTRACT, decisions, OBJECTIVE, CONSTRAINTS, runs=RUNS, budget=BUDGET,
                            holdout_seeds=HOLDOUT_SEEDS, workers=WORKERS, seed=1)
 
 
@@ -101,11 +101,11 @@ def search() -> None:
 def report() -> None:
     """Validate the model on the held-out weeks, play every arm and print the owner report of the kept plan."""
     result = OptimisationResult(**json.loads(PLAN.read_text()))
-    checked = fg_env.validate(CONTRACT, validation_cases(), runs=VALIDATION_RUNS, season=7)
+    checked = fg_env.analysis.validate(CONTRACT, validation_cases(), runs=VALIDATION_RUNS, season=7)
     print(checked.report())
     experiment = fg_env.experiment(CONTRACT, arms=["recommended", "current", "outage", "outage_with_callbacks", "callbacks"],
                                    runs=REPORT_RUNS, workers=WORKERS)
-    print(fg_env.report(experiment, contract=CONTRACT, validation=checked, optimisation=result, control="recommended").markdown)
+    print(fg_env.analysis.report(experiment, contract=CONTRACT, validation=checked, optimisation=result, control="recommended").markdown)
 
 
 def main() -> None:

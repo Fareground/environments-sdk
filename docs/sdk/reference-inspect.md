@@ -14,10 +14,15 @@ Stored values stay exact.
 * a tool offered when none of its choices could succeed;
 * sealed choices that overwrite each other's values;
 * an agent type that never had an action it could take;
+* a coded policy rule whose call was refused every time it was tried (`policy_rule_never_acted`), quoting the refusal;
 * a stage that can never run, or a measure that reads only what no rule changes;
+* host answers that were the contract's fallback stand-ins because no host was bound;
 * with model participants, an action that was mostly refused.
 
-`fg-env check` reports the smoke round's diagnostics as warnings; `--rounds 5` plays longer for more evidence.
+`fg-env check` plays up to 12 rounds with random agents and again with each policy, and reports what those plays
+reveal: crashes as errors (naming the policy that ran into one), diagnostics (including each policy's always-refused
+rules) as warnings.
+`--rounds 30` plays exactly that many for more evidence.
 
 `result.events` is the log in order: `{seq, round, stage, kind, actor, text, data}`. Its kinds are `action`,
 `outcome` (a sealed choice's result), `record`, `news`, `refused`, `timeout` and `end`. For example:
@@ -25,7 +30,7 @@ Stored values stay exact.
 
 What agents saw:
 * `env.preview("ann")` shows the next turn exactly as ann will get it.
-* A recorded run holds every turn: `result = fg_env.run(c, seed=1, exposures=True)`, then `t = fg_env.trace(result)`.
+* A recorded run holds every turn: `result = fg_env.run(c, seed=1, exposures=True)`, then `t = fg_env.analysis.trace(result)`.
 * `t.overview()` gives turns, calls, invalid rate and tokens per agent.
 * `t.turn("ann", 3)` shows what ann read, the tools she was offered, and every call with its result.
 * `t.invalid()` lists refused calls with the correction given; `t.search("bribe")` searches the text.

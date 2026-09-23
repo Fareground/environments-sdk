@@ -14,9 +14,13 @@ Environment code must not reimplement the mechanics below.
 - **Actions:** raise hand, recognize, propose, second, speak, amend, withdraw,
   call the question and vote.
 - **State and phases:** floor queue, recognized member, procedural stack,
-  debate, division and recorded decisions.
+  debate, division and recorded decisions. Each floor speech moves every other
+  member's stance a random share (averaging `persuasion`) of the way toward the
+  speaker's; coded members vote their current stance, so debate can change the
+  result.
 - **Termination and outputs:** a decided main motion ends the starter; output
-  final text, passage, vote counts and participation evidence.
+  the outcome (passed, rejected, or status_quo when nothing came to a vote),
+  final text, vote counts and participation evidence.
 - **Extension points:** quorum, threshold, secret ballots, number of readings,
   chamber/committee procedures, veto and agenda rules.
 
@@ -27,9 +31,14 @@ Environment code must not reimplement the mechanics below.
   and scores follow the configured visibility; blind judging hides identity.
 - **Actions:** submit one performance per contest round.
 - **State and phases:** simultaneous submissions followed by rubric judging;
-  weighted criterion scores accumulate by contestant.
-- **Termination and outputs:** fixed contest horizon; output winner, winning
-  score, contestant count and submission count.
+  weighted criterion scores accumulate by contestant. Each submission also adds
+  a hidden performance draw around the contestant's private `skill` (spread
+  `luck`).
+- **Termination and outputs:** fixed contest horizon; output winner (the single
+  top scorer; a rubric tie goes to the stronger total performance, null when
+  that ties too), winning score, contestant count and submission count. Without
+  a bound judge every entry is scored at the rubric midpoint, so skill and luck
+  decide and the run's diagnostics report the stand-in (`host_fallback`).
 - **Extension points:** rubric, scale, panel aggregation, media attachments,
   elimination rules, number of rounds and score visibility.
 
@@ -42,9 +51,12 @@ Environment code must not reimplement the mechanics below.
 - **Actions:** speak, signal readiness, propose, second, amend, withdraw, call
   the question and vote.
 - **State and phases:** discussion passes, pending conclusion, amendments and
-  final ballot.
-- **Termination and outputs:** a decision ends the starter; output conclusion,
-  passage, vote counts and contribution count.
+  final ballot. Each speech moves every listener's stance a random share
+  (averaging `persuasion`) of the way toward the speaker's; coded members speak
+  once per motion and vote their current stance.
+- **Termination and outputs:** a decision ends the starter; output the outcome
+  (passed, rejected, or status_quo when nothing came to a vote), conclusion,
+  vote counts and contribution count.
 - **Extension points:** pass cap, readiness rule, ballot method, evidence tools,
   view revision and consensus criteria.
 
@@ -55,7 +67,10 @@ Environment code must not reimplement the mechanics below.
 - **Private/public information:** inclination, confidence and individual response
   remain private; aggregate distributions are public outputs.
 - **Actions:** submit one response, confidence and concise reason.
-- **State and phases:** one sealed simultaneous response stage.
+- **State and phases:** one sealed simultaneous response stage. The coded
+  baseline answers from each person's leaning: the inclination plus normal
+  noise whose spread is one minus their confidence (support above 0.25, oppose
+  below -0.25, otherwise undecided).
 - **Termination and outputs:** completes after the cohort responds; output cohort
   size, response counts, support share and average confidence.
 - **Extension points:** response schema, population source, stratification,
@@ -68,37 +83,47 @@ Environment code must not reimplement the mechanics below.
   adoption visibility are configurable.
 - **Actions:** the starter advances exposure/adoption mechanically; scenarios may
   add speaking, sharing, rejecting, moderation or relationship actions.
-- **State and phases:** seeded information moves one step per round across the
-  relationship graph using a seeded cascade.
+- **State and phases:** each round every adopter may convince each person it is
+  tied to, with a chance of the tie's trust times that person's receptivity
+  (a persistent cascade), so trusted ties and longer runs spread the idea further.
 - **Termination and outputs:** fixed interaction horizon; output reach, adopters
   and adoption rate.
-- **Extension points:** directed ties, trust weights, cascade/threshold models,
+- **Extension points:** directed ties, cascade/threshold models,
   multiple items, feed ranking, endogenous ties and interventions.
 
 ## Matching
 
 - **Roles:** applicants and selectors.
-- **Private/public information:** applicant preference/quality and selector
-  threshold are private; application and match visibility are configurable.
-- **Actions:** applicants apply; selectors accept qualifying applicants.
-- **State and phases:** sealed application stage followed by capacity-constrained
-  selection.
-- **Termination and outputs:** one matching cycle; output applications, matched
-  and unmatched applicants, match rate and unused capacity.
-- **Extension points:** ranked preferences, eligibility, quotas, mutual consent,
-  multiple rounds, waitlists, deferred acceptance and post-match outcomes.
+- **Private/public information:** rankings and selector thresholds are private;
+  applicant quality and selector appeal and capacity are public.
+- **Actions:** both sides privately rank the other, best first (unranked =
+  unacceptable).
+- **State and phases:** one sealed ranking stage, then deferred acceptance
+  (`groups.matching`, applicants proposing) makes a stable match within each
+  selector's capacity. Coded applicants rank selectors by appeal plus personal
+  taste; coded selectors rank the applicants who meet their bar by quality plus
+  taste (both with normal noise of spread `taste`).
+- **Termination and outputs:** one matching cycle; output matched
+  (`placement_matched`) and unmatched applicants, match rate, first-choice rate
+  and unused capacity.
+- **Extension points:** quotas, multiple rounds, waitlists, selector-proposing
+  and post-match outcomes.
 
 ## Strategy
 
-- **Roles:** exactly two strategists in the neutral starter; cloned scenarios may
-  compose groups or alliances around repeated bilateral decisions.
-- **Private/public information:** current choice and behavioral inclination are
-  private until simultaneous choices resolve; history and scores are public.
+- **Roles:** any number of strategists; each round's choice plays against every
+  other strategist (round-robin).
+- **Private/public information:** current choice and strategy are private
+  until simultaneous choices resolve; history and scores are public.
+- **Coded strategies:** tit for tat (cooperate first, then compete only after
+  most others competed last round), grim trigger (cooperate until anyone else
+  ever competes), always cooperate, always compete and random; each coded move
+  is replaced by a random one with probability `mistakes`.
 - **Actions:** privately cooperate or compete each round.
 - **State and phases:** simultaneous choice followed by configurable consequence
   resolution and revealed history.
 - **Termination and outputs:** fixed repeated horizon; output cooperation rate,
-  choice counts, top score and winner.
+  choice counts, top score and winner (the single top scorer, null on a tie).
 - **Extension points:** payoff matrix, information, commitments, communication,
   reputation, shocks, alliances and stopping rules.
 

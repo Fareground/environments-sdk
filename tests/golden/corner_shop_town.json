@@ -1,0 +1,28 @@
+{
+  "actions": 36,
+  "events": 52,
+  "events_sha256": "81160355befda72a3929d6a33ce99a5fb851706a394326af95320e957bb0bfae",
+  "first_events": [
+    "r1 news: A new month: allowances are paid.",
+    "r1 action home_12: {\"action\": \"buy\", \"params\": {\"item\": \"bread\", \"qty\": 6, \"shop\": \"corner\"}, \"private\": true, \"success\": true}",
+    "r1 coffee_joined: Household 6 subscribed to Coffee Club (free trial).",
+    "r1 action home_6: {\"action\": \"coffee_subscribe\", \"params\": {\"plan\": \"coffee_club\"}, \"private\": true, \"success\": true}",
+    "r1 coffee_joined: Household 1 subscribed to Coffee Club (free trial).",
+    "r1 action home_1: {\"action\": \"coffee_subscribe\", \"params\": {\"plan\": \"coffee_club\"}, \"private\": true, \"success\": true}",
+    "r1 coffee_joined: Household 2 subscribed to Coffee Club (free trial).",
+    "r1 action home_2: {\"action\": \"coffee_subscribe\", \"params\": {\"plan\": \"coffee_club\"}, \"private\": true, \"success\": true}",
+    "r1 coffee_joined: Household 10 subscribed to Coffee Club (free trial).",
+    "r1 action home_10: {\"action\": \"coffee_subscribe\", \"params\": {\"plan\": \"coffee_club\"}, \"private\": true, \"success\": true}"
+  ],
+  "metrics": {
+    "avg_hunger": 6.333333333,
+    "coffee_members": 10,
+    "coffee_revenue": 0,
+    "dining_revenue": 90.0,
+    "shop_revenue": 145.8,
+    "table_utilization": 0.1666666667
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 60
+}

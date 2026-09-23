@@ -1,0 +1,284 @@
+[
+ {
+  "brief": "beer_game",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "done",
+  "writes": 4,
+  "clean_at": 1,
+  "final_clean": true,
+  "runs_ok": 3,
+  "runs": 3,
+  "checks_passed": 6,
+  "checks": 6,
+  "input_tokens": 535114,
+  "output_tokens": 71593,
+  "cost": 0.0514,
+  "wall_seconds": 712.6,
+  "contract_lines": 392,
+  "guide_parts": [
+   "all",
+   "effects",
+   "events",
+   "functions",
+   "patterns",
+   "stages",
+   "metrics",
+   "actions",
+   "population",
+   "inputs",
+   "views",
+   "mechanisms",
+   "functions.collections",
+   "types",
+   "world",
+   "outputs",
+   "invariants",
+   "brief",
+   "clock",
+   "functions.stats",
+   "expressions",
+   "entities",
+   "model",
+   "templates",
+   "authoring",
+   "end",
+   "records"
+  ],
+  "guide_chars": 101712,
+  "check_errors": [
+   [],
+   [
+    "outputs.bullwhip_ratio: syntax error: invalid syntax \u2192 expression: $len($entity('factory').order_hist) > 1 and $len($world.demand_hist) > 1 ? (($sum($map($entity('factory').order_hist, $it * $it)) / $len($entity('factory').order_hist)) - ($sum($entity('factory').order_hist) / $len($entity('factory').order_hist)) ** 2) / $max(($sum($map($world.demand_hist, $it * $it)) / $len($world.demand_hist)) - ($sum($world.demand_hist) / $len($world.demand_hist)) ** 2, 0.000001) : null"
+   ],
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "treaty",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "token cap",
+  "writes": 6,
+  "clean_at": 2,
+  "final_clean": true,
+  "runs_ok": 9,
+  "runs": 9,
+  "checks_passed": 3,
+  "checks": 4,
+  "input_tokens": 582120,
+  "output_tokens": 57924,
+  "cost": 0.0466,
+  "wall_seconds": 578.4,
+  "contract_lines": 330,
+  "guide_parts": [
+   "all",
+   "patterns",
+   "types",
+   "functions",
+   "stages",
+   "functions.collections",
+   "records",
+   "end",
+   "outputs",
+   "events",
+   "actions",
+   "population",
+   "inputs",
+   "world",
+   "views",
+   "expressions",
+   "effects",
+   "functions.world",
+   "metrics",
+   "brief",
+   "triggers",
+   "mechanisms",
+   "authoring",
+   "policies"
+  ],
+  "guide_chars": 89985,
+  "check_errors": [
+   [
+    "records.messages.fields.text: must be text, got an object"
+   ],
+   [],
+   [
+    "invariants[1]: invariants[1]: invariant `$count($unique($map(nation, $it.red_line))) == $count(nation)` no longer holds after build (Every nation has a different red line.) \u2192 fix the rule at this path (found by a smoke run)"
+   ],
+   [],
+   [
+    "policies.moderate.description: 'description' is not a field here \u2192 'description' belongs to another part of the contract; remove it here",
+    "policies.hardball.description: 'description' is not a field here \u2192 'description' belongs to another part of the contract; remove it here"
+   ],
+   []
+  ],
+  "failed_checks": [
+   {
+    "check": "treaty_red_lines_stay_secret",
+    "passed": false,
+    "why": "suria was shown estavia's red line 28: \u2026e them.\n\nSince your last turn:\n- Westmark: \u00abzqwestmark3text\u00bb\n- Estavia ratifies the 28% cut.\n\nProposal: On the table: a 28% cut proposed by suria. Rati\u2026"
+   }
+  ],
+  "run_errors": []
+ },
+ {
+  "brief": "classroom",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "token cap",
+  "writes": 7,
+  "clean_at": 1,
+  "final_clean": true,
+  "runs_ok": 9,
+  "runs": 9,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 552718,
+  "output_tokens": 81941,
+  "cost": 0.0429,
+  "wall_seconds": 1381.1,
+  "contract_lines": 435,
+  "guide_parts": [
+   "all",
+   "expressions",
+   "effects",
+   "stages",
+   "events",
+   "functions.collections",
+   "views",
+   "outputs",
+   "metrics",
+   "types",
+   "inputs",
+   "population",
+   "brief",
+   "records",
+   "actions",
+   "functions",
+   "model",
+   "templates",
+   "authoring",
+   "policies"
+  ],
+  "guide_chars": 79612,
+  "check_errors": [
+   [],
+   [],
+   [
+    "actions.teach.outcome: '{topic}' needs a subject; write {$actor.topic} or similar \u2192 template: Teaching {topic}.",
+    "actions.study.outcome: '{effort}' needs a subject; write {$actor.effort} or similar \u2192 template: effort {effort} \u2192 {$actor.s3}"
+   ],
+   [],
+   [
+    "types.student.props.last_score.max: must be a number, got the text \"$inputs.max_score\" \u2192 write a number without quotes"
+   ],
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "ed_triage",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "token cap",
+  "writes": 8,
+  "clean_at": 2,
+  "final_clean": false,
+  "runs_ok": 0,
+  "runs": 3,
+  "checks_passed": 0,
+  "checks": 4,
+  "input_tokens": 573437,
+  "output_tokens": 62485,
+  "cost": 0.0345,
+  "wall_seconds": 1060.4,
+  "contract_lines": 568,
+  "guide_parts": [
+   "all",
+   "patterns",
+   "functions",
+   "functions.collections",
+   "effects",
+   "population",
+   "inputs",
+   "events",
+   "actions",
+   "stages",
+   "outputs",
+   "metrics",
+   "types",
+   "views",
+   "patterns.random",
+   "patterns.observation",
+   "functions.random",
+   "functions.world"
+  ],
+  "guide_chars": 68971,
+  "check_errors": [
+   [
+    "patterns.urg.dist: Input should be 'normal', 'lognormal', 'uniform', 'beta', 'gamma', 'triangular', 'choice', 'mvnormal' or 'poisson' \u2192 see guide('patterns') for `draw`",
+    "patterns.urg.n: `n` is not a field of a `draw` pattern \u2192 it takes: description, unit, keys, table, column, min, max, record, fit, uncertainty, dist, mean, sd, mu, sigma, low, high, mode, a, b, shape, scale, values, weights, means, cov, names, log, integer",
+    "patterns.urg.s: `s` is not a field of a `draw` pattern \u2192 did you mean 'sd'? it takes: description, unit, keys, table, column, min, max, record, fit, uncertainty, dist, mean, sd, mu, sigma, low, high, mode, a, b, shape, scale, values, weights, means, cov, names, log, integer"
+   ],
+   [],
+   [],
+   [
+    "outputs.lookup: wrong number of arguments: $lookup(table, field, key) \u2192 in `$lookup($dict($inputs.treatment, $it.urgency, $it.hours), 3)`",
+    "outputs.nested: wrong number of arguments: $lookup(table, field, key) \u2192 in `$get($lookup($dict($inputs.treatment, $it.urgency, $it.hours), 3), 'hours', 9)`"
+   ],
+   [],
+   [],
+   [
+    "(contract): not valid JSON"
+   ],
+   [
+    "patterns.urgency.values: Input should be a valid list \u2192 see guide('patterns') for `draw`",
+    "patterns.urgency.weights: Input should be a valid list \u2192 see guide('patterns') for `draw`"
+   ]
+  ],
+  "failed_checks": [
+   {
+    "check": "outputs_present",
+    "passed": false,
+    "why": "random runs fail"
+   },
+   {
+    "check": "ed_patients_are_conserved",
+    "passed": false,
+    "why": "random runs fail"
+   },
+   {
+    "check": "ed_arrivals_are_exogenous",
+    "passed": false,
+    "why": "random runs fail"
+   },
+   {
+    "check": "ed_idle_staff_treat_nobody",
+    "passed": false,
+    "why": "random runs fail"
+   }
+  ],
+  "run_errors": [
+   {
+    "participants": "random",
+    "seed": 1,
+    "ok": false,
+    "error": "ContractError: contract is invalid (2 error(s)):\n  - patterns.urgency.values: Input should be a valid list \u2192 see guide('patterns') for `draw`\n  - patterns.urgency.weights: Input should be a valid list \u2192 see guide('patterns') for `draw`"
+   },
+   {
+    "participants": "random",
+    "seed": 2,
+    "ok": false,
+    "error": "ContractError: contract is invalid (2 error(s)):\n  - patterns.urgency.values: Input should be a valid list \u2192 see guide('patterns') for `draw`\n  - patterns.urgency.weights: Input should be a valid list \u2192 see guide('patterns') for `draw`"
+   },
+   {
+    "participants": "random",
+    "seed": 3,
+    "ok": false,
+    "error": "ContractError: contract is invalid (2 error(s)):\n  - patterns.urgency.values: Input should be a valid list \u2192 see guide('patterns') for `draw`\n  - patterns.urgency.weights: Input should be a valid list \u2192 see guide('patterns') for `draw`"
+   }
+  ]
+ }
+]

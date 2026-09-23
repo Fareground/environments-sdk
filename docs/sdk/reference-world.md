@@ -11,9 +11,9 @@ field: only the fields written here change (a bare value changes only the defaul
 parent's ``private``, ``type``, ``min``, ``max`` and ``values`` still apply.
 - `type`: any — One of: number, int, bool, text, enum, list, map, any, asset (inferred from default).
 - `default`: any — Literal or expression (evaluated when the entity is created).
-- `min`: number
-- `max`: number
+- `min`: number — Lowest allowed value: a write below it is refused, never clamped (saturate with $clamp).
+- `max`: number — Highest allowed value: a write above it is refused, never clamped (saturate with $clamp).
 - `values`: [any]
-- `private`: bool = false — Hidden from other agents' inspect tool.
+- `private`: bool = false — Hidden from other agents' inspect tool; a view listing it for every entity, or another agent's in an entity choice's `where`, is a check error.
 - `description`: text
 - `unit`: text

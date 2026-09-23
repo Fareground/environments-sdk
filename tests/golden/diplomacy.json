@@ -1,0 +1,26 @@
+{
+  "actions": 15,
+  "events": 30,
+  "events_sha256": "a19d633955d116dc4435692951b785e640684786c19d7318fec69dc19f4709f3",
+  "first_events": [
+    "r1 action drakmar: {\"action\": \"move\", \"params\": {\"army\": \"dra_2\", \"to\": \"greyharbor\"}, \"private\": true, \"success\": true}",
+    "r1 outcome drakmar: Order: dra_2 moves Ravenmoor \u2192 Greyharbor.",
+    "r1 action aurelia: {\"action\": \"move\", \"params\": {\"army\": \"aur_2\", \"to\": \"goldmarch\"}, \"private\": true, \"success\": true}",
+    "r1 outcome aurelia: Order: aur_2 moves Silvermere \u2192 Goldmarch.",
+    "r1 action caldor: {\"action\": \"move\", \"params\": {\"army\": \"cal_2\", \"to\": \"saltcliff\"}, \"private\": true, \"success\": true}",
+    "r1 outcome caldor: Order: cal_2 moves Emberfall \u2192 Saltcliff.",
+    "r1 action elswyth: {\"action\": \"move\", \"params\": {\"army\": \"els_2\", \"to\": \"mistvale\"}, \"private\": true, \"success\": true}",
+    "r1 outcome elswyth: Order: els_2 moves Thornwood \u2192 Mistvale.",
+    "r1 action borovia: {\"action\": \"move\", \"params\": {\"army\": \"bor_2\", \"to\": \"ironford\"}, \"private\": true, \"success\": true}",
+    "r1 outcome borovia: Order: bor_2 moves Kovna \u2192 Ironford."
+  ],
+  "metrics": {
+    "armies": 15,
+    "betrayals": 0,
+    "leader_centers": 3,
+    "letters": 0
+  },
+  "rounds": 4,
+  "status": "running",
+  "wakes": 45
+}

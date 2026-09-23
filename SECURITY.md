@@ -39,10 +39,6 @@ contract you did not write, within the limits below.
 
 Out of scope:
 
-- **The template API** (`Kernel`, `simulate`, `load_world`) supports
-  registered Python primitives, and `fg_env.discover()` / the
-  `KERNEL_PRIMITIVES_DIR` environment variable import `.py` files from a
-  directory. Only point these at code you trust.
 - **Resource use across a whole run.** Round counts, population sizes and
   similar declared quantities are chosen by the contract author. Bound them
   (and run untrusted contracts in a process you can time out) when executing

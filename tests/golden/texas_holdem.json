@@ -1,0 +1,25 @@
+{
+  "actions": 6,
+  "events": 13,
+  "events_sha256": "62dbc6ed6992a141c12a8e0035507463d320d0ae271abc77ea709ca83e13f282",
+  "first_events": [
+    "r1 table: Hand 1: Ana has the button; Ben posts 5, Cleo posts 10.",
+    "r1 action player_4: Dev goes all-in (bet 500).",
+    "r1 action player_5: Eli calls 500 (all-in).",
+    "r1 action player_6: Fay calls 500 (all-in).",
+    "r1 action player_1: Ana calls 500 (all-in).",
+    "r1 action player_2: Ben calls 495 (all-in).",
+    "r1 action player_3: Cleo calls 490 (all-in).",
+    "r1 cards: Dealt to the board: K\u2665, A\u2665, J\u2663.",
+    "r1 cards: Dealt to the board: 9\u2663.",
+    "r1 cards: Dealt to the board: Q\u2666."
+  ],
+  "metrics": {
+    "chip_leader_stack": 3000,
+    "players_left": 1,
+    "pot": 3000
+  },
+  "rounds": 1,
+  "status": "ended",
+  "wakes": 6
+}

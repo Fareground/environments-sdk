@@ -1,7 +1,7 @@
 # mind / beliefs
 
 ### `mind.beliefs`
-A private world model per agent: beliefs {key: {value, confidence, source, told_by, round}} in the private prop `<name>`, changed by the `learn`, `tell` and `forget` actions, decaying every round. Told beliefs arrive at secondhand confidence (scaled by trust). Read with $believes(agent, key, value?), $belief(agent, key), $confidence(agent, key), $beliefs_of(agent).
+A private world model per agent: beliefs {key: {value, confidence, source, told_by, round}} in the private prop `<name>`, changed by the `learn`, `tell` and `forget` actions, decaying every round. Told beliefs arrive at secondhand confidence (scaled by trust). Read with $believes(agent, key, value?), $belief(agent, key), $confidence(agent, key), $beliefs_of(agent); with several beliefs mechanisms, name one as the last argument ($beliefs_of($actor, 'rumours')).
 
 Config:
 - `who` (required): Entity type that holds beliefs (subtypes included).

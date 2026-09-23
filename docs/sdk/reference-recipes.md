@@ -32,12 +32,30 @@
   and debate (guide('decision.ballot')).
 * Deliberation: records (`chat`) + a sequential stage with `until: "$all(member, $it.ready)"`
   and `quiet: skip`; a `say` action posts and clears readiness.
+* Answers before something takes effect (an exhibit offered → objection → ruling → admitted or excluded; a
+  motion and its amendments; a spell and its counter): a procedure `stack` (guide('flow.procedure')). The offer
+  only pushes an item; the agents its kind names answer it; items resolve last in, first out, so the ruling
+  resolves before the objection and the objection (countering the offer when sustained) before the offer.
+  `"stack": {..., "stage": "exam"}` holds the answers in the examination stage itself, so one stage runs many
+  offers a round: `"who": "$it.id == $world.examiner and $stack(trial, top) == null or $stack(trial, waiting,
+  $it)"` with an `until` for when the examination is over. A `wake` with `now` answers what already happened.
+* Repeating a group of stages (negotiate → vote until ratified; deliberate → ballot until unanimous or the last
+  ballot): make each round one pass of the group — `"stages": [talks, {"name": "vote", "when": "$world.called"}]`
+  with an `end` condition, and `clock.rounds` as the most passes. When the groups differ (deliberation, then a
+  ballot, then back), use procedure phases whose `next` loops (`{"to": "deliberation", "when": ...}`).
 * Hidden roles: the `groups` family — `{"kind": "groups", "mode": "roles", "who": "player", "deck": {"werewolf": 2,
   "villager": "rest"}, "teams": {...}, "know": [...]}` deals private roles, tells teammates, gates role actions and
   eliminates and reveals players (guide('groups.roles')). An entity's built-in `alive` turns false only when it is
   removed; a player the mechanism eliminates stays in the world with its `living` prop false.
-* Hidden information: `private` props (hidden from others' inspect), per-type views, record
-  `visible` rules, `to` on posts/emits, `private: true` actions (no announcement).
+* Hidden information: `private` props, per-type views, record `visible` rules, `to` on posts/emits,
+  `private: true` actions (no announcement). `inspect` shows an agent only itself unless a type sets `inspect`.
+  A view listing every entity with a private prop and no `where`, or an entity choice whose `where` reads another
+  agent's private prop, is a check error: it would reveal the value. A refusal is information too — a `when` or
+  `fail` that reads hidden state tells the actor something about it. Visibility shapes only what an
+  agent is shown or offered (brief, updates, views, tool choices, outcome text, its policy); game logic — action
+  `when`/`do`, events, triggers, stages, `end`, metrics, outputs, invariants — reads every record entry and event,
+  so an auditor's `accuse` can count messages it never saw. To ask what one agent can see inside logic, filter
+  explicitly: `$records(chat, $it.author == $actor or $actor.id in ($it.to or []))`.
 * Spaces (agent-based models): `"space": {"grid": {"rows": "$inputs.size", "cols": "$inputs.size",
   "neighborhood": "moore", "torus": true}, "capacity": 1}` — `von_neumann` (4 neighbours), `moore` (8) or `hex`
   (6, axial [r, q]); sizes may read `$inputs` so they can be swept. Entities with `at` are indexed: `$at(pos, type?)`,
@@ -48,7 +66,8 @@
 * Values on cells (sugar, pheromone, fire): `"space": {..., "layers": {"sugar": {"type": "int", "default":
   "$peak($cell)", "max": 4}}}`; read `$layer(sugar, $it)`; change with `{"layer": "sugar", "at": "$it", "set": 0}`,
   a whole layer with `{"layer": "sugar", "set": "$min($value + 1, 4)"}` (every cell reads the old values),
-  `{"layer": "scent", "diffuse": 0.1}` and `{"layer": "scent", "decay": 0.05}`. Layers are kept in snapshots.
+  `{"layer": "scent", "diffuse": 0.1}` and `{"layer": "scent", "decay": 0.05}`. A set past the layer's min/max is
+  refused like a prop's (saturate with `$min`/`$clamp`); diffuse and decay stay within it. Layers are kept in snapshots.
 * Cellular automata and simultaneous updates: an `each` event with `"sync": true` — every item's rules read the
   world as it was before the event and all writes land together (Game of Life is one event:
   `"$n = $count($near($it, 1), $it.on)", "$it.on = $n == 3 or ($it.on and $n == 2)"`). `"order": "random"` (or an
@@ -85,7 +104,7 @@
 * External data (prices, news, weather): `"feeds": {"oil": {"host": "market", "into": "world.oil_price",
   "query": {"symbol": "BRENT", "date": "{$clock.date}"}, "fallback": "$world.oil_price * $uniform(0.98, 1.02)"}}`,
   or `"into": "records.news"` for entries. Bind the host when loading: `fg_env.load(path, hosts={"market":
-  adapter})`, where the adapter is any object with `fetch(request)`; `fg_env.sdk.host.adapters.historical(rows,
+  adapter})`, where the adapter is any object with `fetch(request)`; `fg_env.host.adapters.historical(rows,
   at="date", value="close")` replays a price history for backtests. Answers are recorded on the host tape:
   snapshots, restores and replays never ask again, and host text reaches agents «quoted».
 * Scenarios & experiments: `inputs` for scenario knobs, `arms` for variants (input overrides or
@@ -103,8 +122,8 @@
   was created, is counted and connected; closing one lays off its jobs.
 * Reusable logic: `defs` for formulas (`"utility": {"args": ["side", "offer"], "expr": "..."}`) and
   `blocks` for effect lists (`{"block": "match", "with": {"order": "$made"}}`).
-* Scoping inspection: `types.X.inspect: false` (or an expression over `$viewer` and `$it`) hides
-  entities from the inspect tool; `private` props hide single values.
+* Inspection: each agent may inspect itself; `types.X.inspect: true` (or an expression over `$viewer` and `$it`)
+  lets agents inspect those entities too, showing every prop that is not `private`.
 * Boards and tables in views: `"bullet": false` prints lines without "- ". View titles are templates.
 * Participants keyed by a parent type (`{"tier": ...}`) and `policy` on a parent type reach every subtype.
 * Calendars: `clock.start` with unit day, week, month, year, hour or minute adds the date to the time label, and may

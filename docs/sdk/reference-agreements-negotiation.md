@@ -1,7 +1,7 @@
 # agreements / negotiation
 
 ### `agreements.negotiation`
-Negotiation over several issues: `<name>_propose`, `<name>_counter` (up to `max_depth`), `<name>_accept`, `<name>_reject` and `<name>_withdraw`, each offered only for offers open to you, with issue bounds as tool bounds, an optional deadline and expiry. Walk-away values stay private (`<name>_reservation`) and `value` shows each party what terms are worth to it alone. A signed deal (`<name>_deal`) schedules `obligations` as duties (`<name>_duty`) executed as conserved payments or deliveries; a duty not met by its due round is a breach with a penalty, optional termination and `on_breach` effects. `transfers` hand unique entities (a lot of phones) to a party at signing and `on_sign` effects settle the rest; a settlement that cannot happen refuses the acceptance. Totals in $world.<name>_stats.
+Negotiation over several issues: `<name>_propose`, `<name>_counter` (up to `max_depth`), `<name>_accept`, `<name>_reject` and `<name>_withdraw`, each offered only for offers open to you, with issue bounds as tool bounds, an optional deadline and expiry. Walk-away values stay private (`<name>_reservation`) and `value` shows each party what terms are worth to it alone; with both, no party can offer or accept terms worth less to it than its walk-away value. A signed deal (`<name>_deal`) schedules `obligations` as duties (`<name>_duty`) executed as conserved payments or deliveries; a duty not met by its due round is a breach with a penalty, optional termination and `on_breach` effects. `transfers` hand unique entities (a lot of phones) to a party at signing and `on_sign` effects settle the rest; a settlement that cannot happen refuses the acceptance. Totals in $world.<name>_stats.
 
 Config:
 - `who` (required): Agent type(s) that negotiate.
@@ -10,7 +10,7 @@ Config:
 - `expires` (default null): Rounds an offer stays open.
 - `deadline` (default null): Last round offers can be made or accepted (number or expression).
 - `coalition` (default false): Offers go to several parties at once; all of them must accept.
-- `reservation` (default null): Private walk-away value of each party (prop `<name>_reservation`).
+- `reservation` (default null): Private walk-away value of each party (prop `<name>_reservation`); with `value`, no party offers or accepts terms worth less to it.
 - `value` (default null): Worth of terms to a party, shown only to that party: expression over $party and $terms.
 - `once` (default true): The first signed deal closes the negotiation.
 - `obligations` (default []): What a signed deal makes parties pay or deliver.

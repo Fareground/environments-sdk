@@ -12,8 +12,16 @@ brief + update, calls tools (legal actions, `look`, `inspect`, `end_turn`) until
 turn, uses `max_actions`, or runs out of `max_calls`.
 * `turns: sequential` — one agent at a time; actions apply immediately and the tool result is
   the actual outcome.
-* `turns: simultaneous` — everyone sees the same state; actions are submitted, then committed in
-  order after all have chosen (sealed bids, votes, simultaneous moves). Outcomes arrive as news.
+* `turns: simultaneous` — everyone sees the same state; actions are submitted, then committed one agent
+  after another once all have chosen (sealed bids, votes, simultaneous moves). Outcomes arrive as news.
+  Without an `order`, choices commit in a random order drawn from the seed each time, so when two agents
+  take the last item, either may get it. A choice is tried at submit after the agent's own earlier
+  choices in the stage (two buys cannot spend the same coins).
+* Choices that decide together (highest bid wins, pro-rata fills, rock–paper–scissors): the action only
+  records the choice (`"private": true, "do": ["$actor.bid = $params.amount"]`) and the stage's `on_exit`
+  resolves them all at once: `"$top = $max(bidder, $it.bid)"`, `"$winner = $choice($filter(bidder, $it.bid
+  == $top))"` (ties at random); pro rata: `"$fill = $min(1, $world.stock / $max($sum(buyer, $it.want), 1))"`,
+  `{"each": "buyer", "do": ["$it.got = $it.want * $fill"]}`. Clear the recorded choices in `on_enter`.
 * `until` repeats passes within the round (deliberation until everyone is ready).
 * `quiet: skip` skips agents with nothing new since their last turn (from the second pass on;
   the first pass always wakes everyone).
@@ -45,14 +53,25 @@ turn, uses `max_actions`, or runs out of `max_calls`.
   inside that change, so a `fail` in a hook refuses it. Entities made at build run on_create once the
   whole world exists, in creation order (`on_create_at_build: false` skips them). `$it` is the entity;
   in on_remove it is already no longer alive. Hooks setting off hooks stop at 16 levels.
-* Invariants are checked after every action and effect block: write them for states that must hold
-  at all times, not ones that only settle at the end of a stage. `"check": "round"` checks one only at
-  the end of every round (a conservation sum over a big crowd then costs one pass a round, not one per
-  change); `"check": "end"` once, when the run finishes.
+* Invariants are checked after every action and effect block (and after physics): write them for states that
+  must hold at all times, not ones that only settle at the end of a stage. An agent's action that breaks one —
+  itself or through the triggers and hooks its commit sets off — is refused and undone, and the agent is told the
+  invariant's `why` (give one: without it the agent only hears that a rule would break); the run goes on and its
+  diagnostics count it. A break by anything else (events, physics, the build) fails the run. `"check": "round"`
+  checks one only at the end of every round (a conservation sum over a big crowd then costs one pass a round, not
+  one per change) — a break found then fails the run, whatever caused it; `"check": "end"` once, when the run
+  finishes.
+* An agent's action is one undoable unit: the checks of its call (requirements, arguments), its effects, and the
+  hooks and triggers its commit sets off. A rule that fails anywhere in it (a division by zero, a number too large) refuses and undoes that action
+  alone — in a sealed stage when the choices commit, in an atomic turn the whole turn — and the agent is told the cause
+  without the rule or any hidden value. The run goes on; `result.diagnostics` names the failing rule with a fix and
+  `stats.faulted_actions` counts these refusals. Guard such rules (`min`/`max` on the parameter, or a `when` with a
+  `why`) so agents are told the limit up front. The same failure in events, world logic or physics fails the run, as
+  do a host that fails and a crash in a mechanism's own code, wherever they happen.
 * `end` conditions are checked after the start events, after each stage, and at the end of the round.
   `"check": "action"` also checks one the moment anything commits — an action, a sealed choice, an event or
   hook's effects — so a winning move ends the run before the next agent moves (in any kind of stage; sealed
-  choices commit in turn order, so later ones are not applied). The `end` effect inside an action does the same.
+  choices commit one after another, so later ones are not applied). The `end` effect inside an action does the same.
 
 What an agent reads:
 * brief (static, cacheable): name, situation, rules, its identity and role text.
@@ -60,12 +79,14 @@ What an agent reads:
   others' actions, outcomes of its own simultaneous actions, record entries, event news), then
   every declared view that applies. Text written by participants is wrapped «like this».
 * tools: one per legal action with a JSON Schema (entity choices as enums, numeric bounds when
-  they depend only on the actor), plus look/inspect/end_turn. Invalid calls return what to fix.
+  they depend only on the actor), plus look/inspect/end_turn. Invalid calls return what to fix. An action's name is
+  its tool's name, so it must be one providers accept (letters, digits, _ and -, at most 64) and not a built-in's.
 
 Unless an action is `private` or sets `announce`, others read a default line
-"Name: action (args)."; an action that posts to a record announces nothing extra (the entry
+"Name: action (args)." — in a simultaneous stage only "Name: action." (sealed choices stay sealed
+unless `announce` reveals them); an action that posts to a record announces nothing extra (the entry
 is the news). Text an agent types (text params) keeps its provenance wherever it is stored and
-always renders «quoted», in news, views and outcomes.
+always renders «quoted» on one line, in news, views and outcomes.
 
 An action applies atomically: if any effect `fail`s or a `transfer` lacks funds, every change
 is rolled back and the agent is told why. Contract errors (bad expression at run time) stop

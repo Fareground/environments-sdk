@@ -4,10 +4,11 @@ The shortest reliable path is **brief → contract → checks → known-answer t
 
 ## Start with the executable guide
 
-Run `fg-env guide authoring` (or `fg_env.guide("authoring")`) for the compact, tested
-starting path: configurable objects and tables, dynamic entities, shared capacity,
-round timing and an exact known-answer check. Hosts can include this installed-SDK
-guide directly in an authoring agent’s starting context.
+Run `fg-env guide authoring` (or `fg_env.guide("authoring")`) for the one page an
+author needs to start: faithful-first principle, the write → check → preview → run
+loop, a complete worked contract with a known-answer check, and a short list of the
+guide parts most briefs need. Hosts can include this installed-SDK page directly in
+an authoring agent’s starting context; `check` errors name the guide part to read next.
 
 ## 1. Make the decision explicit
 
@@ -146,7 +147,7 @@ fg-env new blank scenario.json
 fg-env guide
 fg-env guide actions
 fg-env guide events
-fg-env check scenario.json --rounds 5
+fg-env check scenario.json
 fg-env preview scenario.json participant_id
 ```
 
@@ -166,7 +167,7 @@ fg-env checks scenario.json --inputs-file inputs.json --boundaries --runs 2 --ro
 ```
 
 The Python equivalents are `fg_env.check(..., inputs=values)` and
-`fg_env.behavior_checks(..., inputs=values, boundaries=True)`. Boundary checks sample
+`fg_env.analysis.behavior_checks(..., inputs=values, boundaries=True)`. Boundary checks sample
 zero/min/max values, enum choices, empty/short collections, reordered tables, an added
 duplicate table row, and fields in the first
 row/item, with a default limit of 24 configurations. Reports state when that limit
@@ -191,7 +192,7 @@ Ship the contract and its data together, with:
 
 Use this as a starting instruction in your own authoring workflow:
 
-> Build a rounds-based environment with the Environments SDK. Read `fg-env guide authoring`, then only the reference sections needed. Map each requirement to contract rules and observable checks. Make uncertain assumptions explicit inputs. Use public SDK APIs and keep scenario logic in the contract. Check the contract, preview every role, run a deterministic baseline, and verify a small known-answer case. Report omissions and unsupported behavior. Deliver the contract, data, tests and run instructions.
+> Build a rounds-based environment with the Environments SDK. Read `fg-env guide authoring`, then only the reference parts it points to when you need them. Implement every stated requirement and deliverable faithfully first, then make values configurable with the brief's values as defaults. Map each requirement to contract rules and observable checks. Make uncertain assumptions explicit inputs. Use public SDK APIs and keep scenario logic in the contract. Check the contract, preview every role, run a deterministic baseline, and verify a small known-answer case. Report omissions and unsupported behavior. Deliver the contract, data, tests and run instructions.
 
 The agent should repair errors using their paths and suggested fixes, then rerun the affected checks. A clean checker result does not prove that the brief was captured faithfully.
 

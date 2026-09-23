@@ -8,19 +8,22 @@ measurements.
 The engine catalog contains exactly these twelve boundaries:
 
 - **Market** — buyers and sellers form demand, supply, prices, and responses.
-- **Council** — a bounded group debates an agenda and makes a collective decision.
+- **Council** — a panel forecasts, deliberates and forecasts again; final forecasts are scored against a supplied outcome.
 - **Dispute** — opposing parties present claims and evidence toward a resolution.
 - **Exchange** — participants trade configurable assets under configurable rules.
-- **Legislature** — legislative bodies use motions, amendments, coalitions, and votes.
-- **Contest** — participants submit or perform and human judges choose outcomes.
-- **Deliberation** — people exchange reasons, revise views, and seek a conclusion.
-- **Negotiation** — parties make proposals, concessions, agreements, or walk away.
-- **Population** — sampled people independently respond and outcomes are aggregated.
+- **Legislature** — legislative bodies use motions, amendments, coalitions, and votes; floor speeches move stances.
+- **Contest** — participants submit and a host judge scores them on a rubric; a rubric tie goes to the stronger hidden performance (skill plus luck).
+- **Deliberation** — people exchange reasons, revise views (each speech pulls listeners toward the speaker), and seek a conclusion.
+- **Negotiation** — parties make proposals, concessions and agreements, never below their walk-away values.
+- **Population** — sampled people independently respond from their inclination, blurred by their uncertainty, and outcomes are aggregated.
 - **Network** — behavior and information spread through explicit human relationships.
-- **Matching** — preferences and eligibility produce selections or pairings.
-- **Strategy** — interdependent choices model cooperation, competition, and consequences.
+- **Matching** — both sides rank each other and deferred acceptance makes a stable match within capacity.
+- **Strategy** — any number of players' choices play against each other, round-robin, with configurable payoffs and classic coded strategies.
 
-All twelve have native SDK implementations. Every engine can be discovered,
+All twelve have native SDK implementations. Legislature, Contest, Deliberation,
+Population, Matching and Strategy ship coded baseline participants whose
+outcomes vary with the seed, and Network advances mechanically, so a run without
+LLM participants is a real simulation rather than a fixed script. Every engine can be discovered,
 inspected, cloned, customized, loaded from the installed package, run with a
 deterministic seed, supplied with sampled or fixed people, and executed across
 an N-run experiment. The SDK packages reusable mechanics and neutral starters;
@@ -77,12 +80,12 @@ Persona sampling creates a cohort; an environment still determines what those
 people know, want, and are allowed to do.
 
 ```python
-sample = fg_env.sample_records(
+sample = fg_env.personas.sample_records(
     population, size=40, seed=11, run=2, resample=True,
     constraints={"state": "IL"}, fixed=[subject_matter_expert],
     group_by="household_id", source="ACS PUMS", source_version="2024 1-year",
 )
-participants = fg_env.assign_labels(
+participants = fg_env.personas.assign_labels(
     sample.records(), [("consumer", 0.8), ("seller", 0.2)], seed=11,
 )
 ```

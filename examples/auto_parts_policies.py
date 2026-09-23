@@ -15,8 +15,8 @@ import sys
 from pathlib import Path
 
 import fg_env
-from fg_env.sdk.analysis.optimise_result import OptimisationResult
-from fg_env.sdk.analysis.validate import ValidationResult
+from fg_env.analysis.optimise_result import OptimisationResult
+from fg_env.analysis.validate import ValidationResult
 
 CONTRACT = Path(__file__).parent / "contracts" / "auto_parts_store.json"
 CATEGORIES = ["brake_pads", "batteries", "wipers"]
@@ -43,11 +43,11 @@ def compare(runs: int = 20) -> None:
 def optimise() -> OptimisationResult:
     decisions = {"service_level_by_category": {"keys": CATEGORIES, "low": 0.5, "high": 0.99, "step": 0.05,
                                                "start": {category: 0.95 for category in CATEGORIES}}}
-    result = fg_env.optimise(CONTRACT, decisions, "minimise reorder_average_stock_value", ["shop_fill_rate >= 0.97"],
+    result = fg_env.analysis.optimise(CONTRACT, decisions, "minimise reorder_average_stock_value", ["shop_fill_rate >= 0.97"],
                              inputs={"policy": "service", "weeks": 26}, runs=16, budget=40, holdout_seeds=32,
                              workers=WORKERS)
     print(result.summary())
-    print(fg_env.report(result, contract=CONTRACT).markdown)
+    print(fg_env.analysis.report(result, contract=CONTRACT).markdown)
     return result
 
 
@@ -86,12 +86,12 @@ def validation(runs: int = 20, drawn_by_contract: bool = False) -> ValidationRes
     parameter is drawn by the contract itself (``parameter_uncertainty`` 1)."""
     loaded = fg_env.load(CONTRACT, seed=0).inputs
     history, orders = loaded["history"], loaded["orders"]
-    fitted = fg_env.fit_patterns(CONTRACT, inputs={"history": [row for row in history if row["time"] < HELD_OUT[0]],
+    fitted = fg_env.analysis.fit_patterns(CONTRACT, inputs={"history": [row for row in history if row["time"] < HELD_OUT[0]],
                                                    "orders": [row for row in orders if row["time"] < HELD_OUT[0]]})
     cases = validation_cases(history, orders)
     for case in cases:
         case["inputs"]["parameter_uncertainty"] = 1 if drawn_by_contract else 0
-    return fg_env.validate(fitted.contract, cases, uncertainty=None if drawn_by_contract else fitted.priors, runs=runs,
+    return fg_env.analysis.validate(fitted.contract, cases, uncertainty=None if drawn_by_contract else fitted.priors, runs=runs,
                            season=4, test=HELD_OUT, rounds=13, data_dir=CONTRACT.parent, workers=WORKERS)
 
 
@@ -105,7 +105,7 @@ def report(runs: int = 12) -> None:
     """The owner's report: the most profitable policy that serves at least 95% of demand, what drives the difference,
     what the model assumes and how well it forecast held-out quarters."""
     exp = fg_env.experiment(CONTRACT, arms=["lean", "service"], runs=runs, seed=21, workers=WORKERS)
-    print(fg_env.report(exp, contract=CONTRACT, validation=validation(), objective="max:reorder_profit",
+    print(fg_env.analysis.report(exp, contract=CONTRACT, validation=validation(), objective="max:reorder_profit",
                         require={"shop_fill_rate": ">= 0.95"}).markdown)
 
 

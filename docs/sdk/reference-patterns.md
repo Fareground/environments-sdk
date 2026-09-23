@@ -23,16 +23,16 @@ when it has keys: `$pattern.season($it.category)`, `$pattern.sales($mean, $it)`.
 * Every pattern also takes `description`, `unit`, `min`, `max` (clamp), `record` (a metric of the same name, so
   `$series.<name>` and calibration targets see it), `uncertainty` ({parameter: standard error}: each run draws the
   parameter once around its value) and `fit`.
-* Fit from data: `fg_env.fit_patterns(contract, data_dir=...)` estimates each pattern with a `fit` block from its
+* Fit from data: `fg_env.analysis.fit_patterns(contract, data_dir=...)` estimates each pattern with a `fit` block from its
   data and returns the contract with the estimates written back as inputs (plus their standard errors); see the
-  estimators below. `fg_env.decompose(contract, "demand", key=...)` shows what each factor of a product or sum adds.
+  estimators below. `fg_env.analysis.decompose(contract, "demand", key=...)` shows what each factor of a product or sum adds.
 * State that agents and events change is not a pattern: keep it in props written by events or `physics`, which read
   patterns (`"$it.trust += $pattern.trust_noise($it)"`).
 
 ### Fitting and explaining
 
 Add `fit` to a pattern — `{data, value, time, key, x, mean, censored, where, adjust, noise}` — and run
-`fg_env.fit_patterns(contract, data_dir=...)`. Each fit reads its rows, estimates, and returns `result.contract` with
+`fg_env.analysis.fit_patterns(contract, data_dir=...)`. Each fit reads its rows, estimates, and returns `result.contract` with
 the estimates written back as inputs (`<pattern>_<parameter>`, or a `<pattern>_fit` table per key) plus their standard
 errors, which become the pattern's `uncertainty` scaled by the input `parameter_uncertainty` (1 draws each run's
 parameters around the estimates, 0 uses the estimates). `result.report()` says, per pattern, the method, rows, RMSE,
@@ -52,12 +52,12 @@ MAPE and R², what was estimated and what was assumed. `fit` blocks stay in the 
   writes them into the contract; the `calibration` section tunes inputs at every load so simulated outputs hit
   targets — for what only the simulation identifies. Never list a fitted input in `calibration.params` (the checker
   warns): the load would replace the estimate.
-* Judge a fitted contract on history it did not see: `fg_env.validate(result.contract, cases, season=52, test=0.25)`.
+* Judge a fitted contract on history it did not see: `fg_env.analysis.validate(result.contract, cases, season=52, test=0.25)`.
   `result.priors` holds the number estimates as `{input: {dist: "normal", mean, sd}}` for `uncertainty=` on
   experiment, sweep, backtest and validate — pass the input `parameter_uncertainty: 0` with them, since the contract
   already draws every fitted parameter itself.
-* `fg_env.decompose(contract, "demand", key="BRP-TOY-V")` shows every factor of a product or sum and what it adds,
-  round by round; `fg_env.describe(contract)` lists every pattern in plain words.
+* `fg_env.analysis.decompose(contract, "demand", key="BRP-TOY-V")` shows every factor of a product or sum and what it adds,
+  round by round; `fg_env.analysis.describe(contract)` lists every pattern in plain words.
 
 ### Groups
 

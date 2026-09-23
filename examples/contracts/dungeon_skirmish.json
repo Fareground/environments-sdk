@@ -73,7 +73,7 @@
       "by": "unit",
       "description": "Hit an adjacent enemy for your attack minus its armor.",
       "params": {"target": {"type": "entity", "of": "unit", "where": "$enemy($actor, $it) and $distance($actor, $it) <= 1"}},
-      "do": ["$dealt = $damage($actor, $params.target)", "$params.target.hp -= $dealt", {"block": "fall", "with": {"unit": "$params.target"}}],
+      "do": ["$dealt = $damage($actor, $params.target)", "$params.target.hp = $max(0, $params.target.hp - $dealt)", {"block": "fall", "with": {"unit": "$params.target"}}],
       "outcome": "You hit {$params.target.name} for {$dealt}.",
       "announce": "{$actor.name} hits {$params.target.name} for {$dealt}.",
       "per_turn": 1,
@@ -84,7 +84,7 @@
       "description": "Skirmishers: a light cut that poisons an adjacent enemy (stacks up to 3).",
       "when": [{"expr": "$actor.role == skirmisher", "why": "Only skirmishers carry poisoned blades."}],
       "params": {"target": {"type": "entity", "of": "unit", "where": "$enemy($actor, $it) and $distance($actor, $it) <= 1"}},
-      "do": ["$params.target.hp -= 1", {"conditions": "conditions", "action": "apply", "status": "poison", "who": "$params.target"}, {"block": "fall", "with": {"unit": "$params.target"}}],
+      "do": ["$params.target.hp = $max(0, $params.target.hp - 1)", {"conditions": "conditions", "action": "apply", "status": "poison", "who": "$params.target"}, {"block": "fall", "with": {"unit": "$params.target"}}],
       "announce": "{$actor.name} poisons {$params.target.name}.",
       "per_turn": 1,
       "terminal": true
@@ -94,7 +94,7 @@
       "description": "Fighters: slam an adjacent enemy for 2 damage and stun it for its next round.",
       "when": [{"expr": "$actor.role == fighter", "why": "Only fighters can shield bash."}],
       "params": {"target": {"type": "entity", "of": "unit", "where": "$enemy($actor, $it) and $distance($actor, $it) <= 1"}},
-      "do": ["$params.target.hp -= 2", {"conditions": "conditions", "action": "apply", "status": "stun", "who": "$params.target"}, {"conditions": "spells", "action": "interrupt", "who": "$params.target"}, {"block": "fall", "with": {"unit": "$params.target"}}],
+      "do": ["$params.target.hp = $max(0, $params.target.hp - 2)", {"conditions": "conditions", "action": "apply", "status": "stun", "who": "$params.target"}, {"conditions": "spells", "action": "interrupt", "who": "$params.target"}, {"block": "fall", "with": {"unit": "$params.target"}}],
       "announce": "{$actor.name} shield-bashes {$params.target.name}.",
       "per_turn": 1,
       "terminal": true
@@ -137,7 +137,7 @@
       "mode": "status",
       "who": "unit",
       "statuses": {
-        "poison": {"duration": 3, "stacking": "refresh", "max_stacks": 3, "tick": ["$it.hp -= 2 * $stacks", {"block": "fall", "with": {"unit": "$it"}}], "expire_say": "The poison in {$it.name} wears off."},
+        "poison": {"duration": 3, "stacking": "refresh", "max_stacks": 3, "tick": ["$it.hp = $max(0, $it.hp - 2 * $stacks)", {"block": "fall", "with": {"unit": "$it"}}], "expire_say": "The poison in {$it.name} wears off."},
         "stun": {"duration": 1, "blocks": ["move", "strike", "poison_blade", "shield_bash", "raise_shield", "fireball", "heal"], "blocked_why": "you are stunned", "say": "{$it.name} is stunned."},
         "shield": {"duration": 2, "modifiers": {"armor": 3}, "immune": ["stun"]}
       }
@@ -163,8 +163,8 @@
           "interrupt_say": "{$actor.name}'s fireball fizzles out.",
           "resolve": [
             {"if": "not $params.target.alive", "then": [{"fail": "the target is already gone"}]},
-            "$params.target.hp -= $inputs.fireball_damage",
-            {"each": "unit", "where": "$it.id != $params.target.id and $enemy($actor, $it) and $distance($it, $params.target) <= 1", "do": ["$it.hp -= 2", {"block": "fall", "with": {"unit": "$it"}}]},
+            "$params.target.hp = $max(0, $params.target.hp - $inputs.fireball_damage)",
+            {"each": "unit", "where": "$it.id != $params.target.id and $enemy($actor, $it) and $distance($it, $params.target) <= 1", "do": ["$it.hp = $max(0, $it.hp - 2)", {"block": "fall", "with": {"unit": "$it"}}]},
             {"block": "fall", "with": {"unit": "$params.target"}}
           ],
           "say": "{$actor.name}'s fireball explodes on {$params.target.name}!"
@@ -178,7 +178,7 @@
       "places": {
         "forest": {"description": "cover: +1 armor", "area": [[2, 0], [3, 1]], "modifiers": {"armor": 1}},
         "swamp": {"description": "slow going: -2 speed", "at": [[2, 3], [3, 3]], "modifiers": {"speed": -2}},
-        "lava": {"description": "burns 3 health a round", "at": [[2, 5], [3, 5]], "tick": ["$it.hp -= 3", {"block": "fall", "with": {"unit": "$it"}}], "enter": [{"expr": "$it.hp > 8", "why": "The lava would kill you at this health."}]},
+        "lava": {"description": "burns 3 health a round", "at": [[2, 5], [3, 5]], "tick": ["$it.hp = $max(0, $it.hp - 3)", {"block": "fall", "with": {"unit": "$it"}}], "enter": [{"expr": "$it.hp > 8", "why": "The lava would kill you at this health."}]},
         "wall": {"description": "solid rock", "at": [[2, 2], [3, 2]], "enter": [{"expr": "false", "why": "A wall blocks the way."}]}
       }
     },
