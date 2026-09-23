@@ -335,7 +335,7 @@ class Turn:
         if self.actions_left <= 0:
             self.stats.invalid_calls += 1
             return self._after(ToolResult(False, "You have no actions left this turn; call end_turn.", data=_INVALID))
-        acted, fault = guarded(env, lambda: self._act(name, spec, args))
+        acted, fault = guarded(env, lambda: self._act(name, spec, args), action=name)
         if acted is None:
             assert fault is not None
             self.stats.rejected_actions += 1

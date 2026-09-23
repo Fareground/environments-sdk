@@ -45,9 +45,10 @@ class Diagnosis:
 
     def __init__(self, written: Set[str]):
         #: action → {calls, refused, reasons}, plus {unusable, stuck}: refusals when no choice the tool offered could
-        #: have worked, and their wordings.
+        #: have worked, and their wordings; {applied, faulted}: times it took effect, and times a rule failed or an
+        #: invariant broke as it applied.
         self.actions: Dict[str, Dict[str, Any]] = {}
-        #: stage → [times reached, times run, agents woken]
+        #: stage → [times reached, times run, agents woken, times it ran every pass without its `until` holding]
         self.stages: Dict[str, List[int]] = {}
         #: agent type → {wakes, able, rounds, last_round, reasons}
         self.agents: Dict[str, Dict[str, Any]] = {}
@@ -79,6 +80,7 @@ class Diagnosis:
         entry = self._action(name)
         entry["calls"] += 1
         if result.ok:
+            entry["applied"] += int(not turn.staged)  # a sealed choice takes effect when it commits
             return
         entry["refused"] += 1
         _tally(entry["reasons"], result.text)
@@ -86,17 +88,23 @@ class Diagnosis:
             entry["unusable"] += 1
             _tally(entry["stuck"], result.text)
 
+    def committed(self, name: str) -> None:
+        """A sealed choice took effect when the choices committed."""
+        self._action(name)["applied"] += 1
+
     def refused_at_commit(self, name: str, text: str) -> None:
         """A sealed choice accepted when submitted did not happen when the choices committed."""
         entry = self._action(name)
         entry["refused"] += 1
         _tally(entry["reasons"], text)
 
-    def faulted(self, path: str, error: str) -> None:
+    def faulted(self, path: str, error: str, action: Optional[str] = None) -> None:
         """A rule at ``path`` failed, or the invariant at ``path`` broke, while an agent's action applied (which was
-        refused and undone)."""
+        refused and undone) — the contract action ``action``, when known."""
         entry = self.faults.setdefault(path, [0, error])
         entry[0] += 1
+        if action is not None:
+            self._action(action)["faulted"] += 1
 
     def policy_rule(self, path: str, refusal: Optional[str] = None) -> None:
         """The coded policy rule at ``path`` acted, or (given ``refusal``) its call was refused."""
@@ -108,7 +116,8 @@ class Diagnosis:
             entry[2] = refusal
 
     def _action(self, name: str) -> Dict[str, Any]:
-        return self.actions.setdefault(name, {"calls": 0, "refused": 0, "reasons": {}, "unusable": 0, "stuck": {}})
+        return self.actions.setdefault(name, {"calls": 0, "refused": 0, "reasons": {}, "unusable": 0, "stuck": {},
+                                              "applied": 0, "faulted": 0})
 
     def _first_probe(self, turn: "Turn", name: str) -> bool:
         if self._probed[0] != turn.number:
@@ -120,11 +129,12 @@ class Diagnosis:
 
     # -- stages and agents -----------------------------------------------------------
 
-    def stage(self, name: str, reached: int = 0, ran: int = 0, woke: int = 0) -> None:
-        counts = self.stages.setdefault(name, [0, 0, 0])
+    def stage(self, name: str, reached: int = 0, ran: int = 0, woke: int = 0, capped: int = 0) -> None:
+        counts = self.stages.setdefault(name, [0, 0, 0, 0])
         counts[0] += reached
         counts[1] += ran
         counts[2] += woke
+        counts[3] += capped
 
     def offered(self, turn: "Turn", has_action: bool) -> None:
         """A fresh turn's tools were read: note whether the agent had any action it could take, and if not why."""
@@ -164,6 +174,11 @@ class Diagnosis:
         """Take the counts of :meth:`to_dict` (the written names in place: the world holds the same set)."""
         data = data or {}
         self.actions, self.stages = _copy(data.get("actions", {})), _copy(data.get("stages", {}))
+        for entry in self.actions.values():  # snapshots from before these were counted
+            entry.setdefault("applied", 0)
+            entry.setdefault("faulted", 0)
+        for counts in self.stages.values():
+            counts.extend([0] * (4 - len(counts)))
         self.agents, self.overwrites = _copy(data.get("agents", {})), _copy(data.get("overwrites", {}))
         self.loop_overwrites = _copy(data.get("loop_overwrites", {}))
         self.faults = _copy(data.get("faults", {}))

@@ -40,8 +40,10 @@ def smoke_issues(contract: Contract, build: Callable[[], "Env"], rounds: Optiona
         warnings.append(Issue(problem["path"], f"{problem['message']} after {random_play.rounds} smoke round(s)",
                               "fine if it only has a value later in a run; otherwise guard it", "warning"))
     for found in random_play.diagnostics:
-        warnings.append(Issue(found["path"], f"{found['message']} (smoke run of {random_play.rounds} round(s), "
-                              "random agents)", found["fix"], "warning"))
+        severity = "error" if found["code"] == "action_always_faulted" else "warning"  # a broken rule, not a hunch
+        (errors if severity == "error" else warnings).append(
+            Issue(found["path"], f"{found['message']} (smoke run of {random_play.rounds} round(s), random agents)",
+                  found["fix"], severity))
     for name, players in policies:
         agent, who = _Probing(contract, name, seed), f"policy '{name}' playing {', '.join(players)}"
         played = _play(build(), {kind: agent for kind in players}, rounds, seconds)

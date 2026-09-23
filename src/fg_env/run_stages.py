@@ -65,6 +65,9 @@ class RunStages:
                         break
                 except ExprError as exc:
                     raise RunError(str(exc), f"{path}.until") from None
+        else:
+            if stage.until is not None:
+                self.diagnosis.stage(stage.name, capped=1)  # every pass ran and `until` still did not hold
         self._atomic(stage.on_exit, {}, f"{path}.on_exit")
 
     def _stage_runs(self: "Env", stage: StageSpec) -> bool:  # type: ignore[misc]
@@ -359,7 +362,7 @@ class RunStages:
         whole turn's settling. A rule that fails or an invariant it breaks refuses the choice alone."""
         actor, world = turn.actor, self.world
         with self._lock:
-            applied, fault = guarded(self, lambda: self._apply_intent(turn, name, args, deferred))
+            applied, fault = guarded(self, lambda: self._apply_intent(turn, name, args, deferred), action=name)
             if applied is None:
                 assert fault is not None
                 world.emit("outcome", f"Your {name.replace('_', ' ')} did not happen: {fault}.",
@@ -398,5 +401,6 @@ class RunStages:
             return 0
         if not deferred:
             self._after_commit(f"actions.{name}")
+        self.diagnosis.committed(name)
         self._tally(actor.id, Stats(actions=1))
         return 1

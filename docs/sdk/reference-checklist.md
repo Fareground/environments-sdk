@@ -13,5 +13,6 @@
 * Measurement: metrics for the dynamics you care about; typed outputs for every result a caller
   needs; invariants for conservation laws.
 * Always: run `check` until clean, `preview` every agent type, run a few seeds, read
-  `result.stats` (invalid_rate and avg_update_tokens should stay low; faulted_actions should be 0).
+  `result.stats` (invalid_rate and avg_update_tokens should stay low; faulted_actions should be 0) and
+  `result.degraded` (empty for a run that shows how the environment plays).
 

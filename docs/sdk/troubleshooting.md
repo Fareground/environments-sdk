@@ -20,7 +20,9 @@ fg-env trace run.jsonl
 | Output stays constant | Whether any rule changes its dependencies; run behavior checks |
 | Simultaneous decisions lose updates | Whether effects overwrite shared state; inspect settlement semantics |
 | Everyone sees confidential data | Public announcements, views, record visibility and recorded exposures |
+| Summary says `DEGRADED` (`result.degraded` lists why) | The run does not show how the environment plays: `action_always_faulted` (a rule broken for every choice — `check` reports it as an error), `agents_never_acted` (agents replied only in text, called unknown tools or were always refused), `turns_forfeited` |
 | Turns forfeited (`turns_forfeited`) | The model provider kept failing after retries; rerun or raise `retries` |
+| A stage always plays its every pass (`stage_until_never_held`) | Its `until` never came true: set what it reads in an action or event, or set `passes` to the passes it should always play |
 | Model keeps making invalid calls | Tool descriptions, legal bounds, role brief and trace of rejected calls |
 | Resume differs | Contract/version mismatch, external responses or different participant decisions |
 | Results look plausible but wrong | Hand-check units, timing, balances, allocation and omitted causal effects |

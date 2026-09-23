@@ -26,6 +26,7 @@ from .errors import RunError
 from .exposure import ExposureLog, asks_seen, recording
 from .expr import ExprError
 from .happenings import Happenings
+from .host.hosts import count_host_tokens
 from .host.tape import tape_of
 from .measure import RunResult, Stats
 from .perception import Perception
@@ -242,6 +243,7 @@ class Env(Copying, RunChecks, RunRounds, RunStages):
         return _plain(dict(self.world.props))
 
     def result(self) -> RunResult:
+        count_host_tokens(self)
         outputs: Dict[str, Any] = {}
         issues: List[Dict[str, Any]] = []
         returns: Dict[str, float] = {}
