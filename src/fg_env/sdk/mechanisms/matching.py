@@ -69,7 +69,8 @@ def stable_match(proposers: Mapping[str, List[str]], receivers: Mapping[str, Lis
 def _ranking(value: Any) -> List[str]:
     """A prefs prop as ids (it may hold entities or ids), first mention kept."""
     items = value if isinstance(value, list) else []
-    return list(dict.fromkeys(getattr(item, "id", item) for item in items if isinstance(item, str) or hasattr(item, "id")))
+    ids = (item if isinstance(item, str) else str(item.id) for item in items if isinstance(item, str) or hasattr(item, "id"))
+    return list(dict.fromkeys(ids))
 
 
 def clear(world: Any, name: str) -> None:
