@@ -174,8 +174,9 @@ class Happenings:
             self._trigger_depth -= 1
 
     def react(self, stage: Optional[StageSpec]) -> None:
-        """Give every agent asked to react (`wake` with `now`) a turn right away, in the current stage. While an
-        agent's action is still committing (and could yet be undone), they wait for it to finish."""
+        """Give every agent asked to react (`wake` with `now`) a turn right away, in the current stage: once the
+        action that woke them has committed, so a reaction answers it and cannot undo it. While an agent's action is
+        still committing (and could yet be undone), they wait for it to finish."""
         env, world = self.env, self.env.world
         if world.journal.holding:
             return

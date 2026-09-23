@@ -229,7 +229,7 @@ EFFECT_EXAMPLES = {
     "fail": '{"fail": "You cannot afford that."}  (roll back the action; text goes to the actor)',
     "end": '{"end": "bankrupt", "winner": "$top(player, $it.score, 1)[0]", "say": "..."}',
     "after": '{"after": 3, "do": [...]}  (runs 3 rounds later with the same locals; on a continuous clock, 3 time units later)',
-    "wake": '{"wake": "$params.who", "why": "{$actor.name} asked you a question."}  (a turn later; "now": true — they react right away, before this turn continues; "in": 5 — continuous clock, that much later; "drop": 0.2 — the wake may be lost)',
+    "wake": '{"wake": "$params.who", "why": "{$actor.name} asked you a question."}  (a turn later; "now": true — they react as soon as this action has taken effect, before this turn continues (a reaction cannot stop or change the action that woke them: to let others answer first, use a procedure stack); "in": 5 — continuous clock, that much later; "drop": 0.2 — the wake may be lost)',
     "repeat": '{"repeat": "$count(order)", "while": "$count(order) > 1", "do": [...]}  (limit may be an expression; derive it from the data, not an arbitrary constant; 0 runs nothing; error if still true at the limit)',
     "block": '{"block": "settle", "with": {"buyer": "$actor", "qty": "$params.qty"}}  (runs a named effect list from `blocks`)',
     "chance": '{"chance": [{"p": 0.5, "label": "heads", "do": [...]}, {"p": 0.5, "label": "tails", "do": [...]}], '
@@ -271,6 +271,17 @@ RECIPES = """\
   and debate (guide('decision.ballot')).
 * Deliberation: records (`chat`) + a sequential stage with `until: "$all(member, $it.ready)"`
   and `quiet: skip`; a `say` action posts and clears readiness.
+* Answers before something takes effect (an exhibit offered → objection → ruling → admitted or excluded; a
+  motion and its amendments; a spell and its counter): a procedure `stack` (guide('flow.procedure')). The offer
+  only pushes an item; the agents its kind names answer it; items resolve last in, first out, so the ruling
+  resolves before the objection and the objection (countering the offer when sustained) before the offer.
+  `"stack": {..., "stage": "exam"}` holds the answers in the examination stage itself, so one stage runs many
+  offers a round: `"who": "$it.id == $world.examiner and $stack(trial, top) == null or $stack(trial, waiting,
+  $it)"` with an `until` for when the examination is over. A `wake` with `now` answers what already happened.
+* Repeating a group of stages (negotiate → vote until ratified; deliberate → ballot until unanimous or the last
+  ballot): make each round one pass of the group — `"stages": [talks, {"name": "vote", "when": "$world.called"}]`
+  with an `end` condition, and `clock.rounds` as the most passes. When the groups differ (deliberation, then a
+  ballot, then back), use procedure phases whose `next` loops (`{"to": "deliberation", "when": ...}`).
 * Hidden roles: the `groups` family — `{"kind": "groups", "mode": "roles", "who": "player", "deck": {"werewolf": 2,
   "villager": "rest"}, "teams": {...}, "know": [...]}` deals private roles, tells teammates, gates role actions and
   eliminates and reveals players (guide('groups.roles')). An entity's built-in `alive` turns false only when it is
@@ -372,7 +383,7 @@ env = fg_env.load("shop.json", inputs={"budget": 50}, seed=7, arm=None)
 print(env.preview("shopper_1"))                   # brief, update, tools, token estimates
 result = env.run({"shopper": "policy:thrifty", "owner": my_agent})
 result.outputs, result.metrics, result.series, result.stats, result.events, result.summary()
-snap = env.snapshot(); env2 = fg_env.Env.restore("shop.json", snap)   # between rounds; JSON-safe
+snap = env.snapshot(); env2 = fg_env.Env.restore("shop.json", snap)   # between rounds or stopped mid-round; JSON-safe
 exp = fg_env.experiment("shop.json", runs=20, arms=["control", "promo"]); print(exp.table())
 exp.deltas("control")   # paired promo − control per output: mean, sd, ci95, clear (CI excludes 0)
 print(fg_env.report(exp, contract="shop.json", objective="max:profit", require={"fill_rate": ">= 0.95"}))
@@ -444,7 +455,9 @@ limit that ran out; snapshots keep it. `experiment` (with `branch_at` the shared
 `env.step(participants)` runs one round; `env.run(participants, rounds=N)` runs N more (an unfinished
 run returns provisional outputs). `env.run(..., stop=lambda env: ...)` is checked before every round,
 stage, pass and sequential turn; the next `run` continues exactly where it stopped (finishing that
-round counts as one of `rounds`). Snapshots are taken between rounds. A participant that raises fails
+round counts as one of `rounds`). Snapshots are taken between rounds or where a run stopped: one taken
+part-way through a round holds the run's last between-round state and every call since, and restoring plays them
+back (a long single-round negotiation can be saved turn by turn). A participant that raises fails
 the run with its entity id: `fg_env.run` raises the `RunError` (its `.result` is the failed run), `env.run` returns
 the run with `status="failed"` and `error`, and experiments keep such runs and carry on.
 Read state with `env.entity(id)`, `env.entities(type)`, `env.props`,
