@@ -83,3 +83,8 @@ strict_optional = false
 testpaths = ["tests"]
 # A serializer warning means a contract field holds a value its type does not expect: fail instead of warning.
 filterwarnings = ["error:Pydantic serializer warnings:UserWarning"]
+
+[tool.coverage.report]
+# CI measures coverage on the newest Python and fails below this floor (just under the current total). Raise it as
+# coverage rises; never lower it to let a change through.
+fail_under = 91

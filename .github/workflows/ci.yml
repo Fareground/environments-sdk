@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # The release workflow runs this whole workflow on the tagged commit and publishes only if it passes.
+  workflow_call:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -13,7 +15,7 @@ permissions:
   contents: read
 
 jobs:
-  # Lint, types and the committed schema do not depend on the Python version: check them once.
+  # Lint, types and the committed generated files do not depend on the Python version: check them once.
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -28,6 +30,8 @@ jobs:
       - run: mypy
       - name: Committed contract JSON Schema matches the SDK
         run: make check-schema
+      - name: Committed generated docs match the SDK
+        run: make check-docs
 
   test:
     runs-on: ubuntu-latest
@@ -43,12 +47,13 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
       - run: pip install -e ".[dev]"
-      - name: Tests (with a coverage report on the newest Python; no threshold yet)
+      - name: Tests (on the newest Python also coverage, failing below the floor in pyproject.toml)
         env:
           COVERAGE_CORE: sysmon
         run: pytest -q -n auto ${{ matrix.python-version == '3.13' && '--cov=fg_env --cov-report=term:skip-covered' || '' }}
 
   # The wheel a user installs, in a clean environment away from the checkout: it must check and run a contract.
+  # A release publishes exactly these distributions.
   package:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -57,8 +62,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - run: pip install build
+      - run: pip install build twine
       - run: python -m build
+      - run: twine check dist/*
       - name: Install the wheel in a clean venv and smoke-test it
         run: |
           python -m venv "$RUNNER_TEMP/venv"
@@ -67,3 +73,8 @@ jobs:
           cd "$RUNNER_TEMP"
           venv/bin/fg-env check auction_house.json
           venv/bin/python -c "import fg_env; r = fg_env.run('auction_house.json', rounds=2, seed=1); assert r.status != 'failed' and r.events, r.error; print(r.status, len(r.events), 'events')"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
