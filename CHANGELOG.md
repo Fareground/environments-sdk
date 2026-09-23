@@ -73,6 +73,10 @@ Every run is now either correct or fails loudly (T-797 phase 1). Several default
   Strategy gains classic strategies (a `strategy` column replaces `cooperative`) and a `mistakes` rate. Contest
   gains `skill` and `luck`, so a run with no judge still has a real winner. A coded policy can pass a list of
   entities to a list parameter (T-813).
+- The package has one level: `fg_env.sdk.*` modules now live directly in `fg_env`, with checks, expressions,
+  contract, CLI and guides as subpackages. Documented deep imports moved: `fg_env.game.algorithms`,
+  `fg_env.assets.provide` and `fg_env.host.adapters.historical`. The unused `fg_env.types` module (legacy property
+  schemas) and `Entity.modify` are removed. The public names in `fg_env` and its subpackages are unchanged (T-814).
 
 ### Added
 - Several deliberation, channels, feed, beliefs or factions mechanisms in one contract. Their functions take an
