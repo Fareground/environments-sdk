@@ -685,9 +685,11 @@
             }
           ],
           "else": [
+            "$union_vote = $entity(union).vote",
+            "$firm_vote = $entity(firm).vote",
             {
               "emit": "mediation_failed",
-              "say": "The mediator's compromise was not adopted (union: {$entity(union).vote}, firm: {$entity(firm).vote}). Bargaining continues."
+              "say": "The mediator's compromise was not adopted (union: {$union_vote}, firm: {$firm_vote}). Bargaining continues."
             }
           ]
         },

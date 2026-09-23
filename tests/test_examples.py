@@ -90,3 +90,17 @@ def test_example_resumes_exactly(path: Path) -> None:
     if env.status == "stopped":
         env.run(rounds=ROUNDS - env.round + (1 if env._in_round else 0))
     assert env.result().to_dict() == straight
+
+
+#: Seeds every example plays to its end with random agents (more in the nightly slow run).
+FULL_SEEDS = (1, 2, 3, 4, 5) if os.environ.get("FG_ENV_SLOW") else (1,)
+
+
+@pytest.mark.parametrize("seed", FULL_SEEDS)
+@pytest.mark.parametrize("path", EXAMPLES, ids=[p.stem for p in EXAMPLES])
+def test_example_plays_to_its_end_with_random_agents(path: Path, seed: int) -> None:
+    """The goldens stop after a few rounds; rules that only start later (a mediator from round 7) must work too."""
+    from _leaks import SMALL
+
+    result = fg_env.load(path, seed=seed, inputs=SMALL.get(path.stem)).run("random")
+    assert result.status in ("completed", "ended"), result.error
