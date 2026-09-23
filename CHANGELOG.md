@@ -83,7 +83,15 @@ Every run is now either correct or fails loudly (T-797 phase 1). Several default
   `outcome` (`status_quo` when nothing came to a vote); diffusion option `persistent`; sensible default policies are
   bound (T-802).
 
+### Changed
+- `guide("authoring")` is the single start page for an author. It puts faithful implementation first and shows the
+  write → check → preview → run loop, one complete worked contract and what to read next. The core `guide()` adds
+  the mechanism families and the map of every part. Author-facing text no longer points to `guide("all")`.
+  Structural check errors end with `see guide('<section>')`. In the authoring benchmark, authors read about a third
+  less guide text and no session fetched `all` (T-819).
+
 ### Fixed
+- Build-time invariant errors no longer repeat their path (T-819).
 - Entity choices and tool schemas are worked out once per world state instead of up to six times per turn: a
   crowd of 3000 random agents with an entity parameter runs about 3.5x faster; outputs are unchanged (T-810).
 - Stated word counts in text-length hints use one consistent ratio (T-804).
