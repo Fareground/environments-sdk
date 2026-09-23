@@ -24,7 +24,7 @@ jobs:
           python-version: "3.13"
           cache: pip
       - run: pip install -e ".[dev]"
-      - run: ruff check src tests
+      - run: ruff check src tests scripts
       - run: mypy
       - name: Committed contract JSON Schema matches the SDK
         run: make check-schema
