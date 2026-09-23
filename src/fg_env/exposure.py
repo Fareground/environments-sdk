@@ -96,7 +96,7 @@ class Exposure:
     def __init__(self, log: "ExposureLog", turn: "Turn", kind: str):
         self.log = log
         self.staged = turn.staged
-        world = turn.env.world
+        world = self._world = turn.env.world
         record: Dict[str, Any] = {"entity": turn.actor.id, "type": turn.actor.entity_type, "round": turn.round,
                                   "stage": turn.stage.name, "turn": turn.number, "kind": kind,
                                   "reason": str.__str__(turn.reason)}
@@ -137,7 +137,12 @@ class Exposure:
         if self.staged:  # simultaneous turns index when the stage commits, in turn order
             self._deferred.append(shown)
         else:
-            self.log.index(record["entity"], shown)
+            self._index(shown)
+
+    def _index(self, shown: Shown) -> None:
+        """Note what the agent was shown for `$seen`: what it answers changes, so reads cached before refresh."""
+        self.log.index(self.record["entity"], shown)
+        self._world.touch()
 
     def shown(self, assets: Iterable[Any], where: str) -> None:
         """Note the files delivered to the agent (their ids and content hashes, never their bytes)."""
@@ -183,7 +188,7 @@ class Exposure:
         taped = turn.env.origin.tape.turns.get(turn.number)
         record["steps"] = [_jsonable(list(step)) for step in taped[1]] if taped else []
         for shown in self._deferred:
-            self.log.index(record["entity"], shown)
+            self._index(shown)
         self._deferred.clear()
         self.logged = self.log.append(record)
 
