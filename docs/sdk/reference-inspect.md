@@ -20,7 +20,8 @@ Stored values stay exact.
 * with model participants, an action that was mostly refused.
 
 `fg-env check` plays up to 12 rounds with random agents and again with each policy, and reports what those plays
-reveal: crashes as errors (naming the policy that ran into one), diagnostics (including each policy's always-refused rules) as warnings.
+reveal: crashes as errors (naming the policy that ran into one), diagnostics (including each policy's always-refused
+rules) as warnings.
 `--rounds 30` plays exactly that many for more evidence.
 
 `result.events` is the log in order: `{seq, round, stage, kind, actor, text, data}`. Its kinds are `action`,

@@ -191,9 +191,9 @@ Assignment text:
 * Element assignment: `"$world.board[$i] = $actor.mark"`, `"$actor.scores[round_2] += 1"` (lists and maps).
 * Links: `"$link($actor, $params.who, trusts).value += 0.1"`, `"$link($actor, $params.who, trusts).since = $round"`
   (the link must exist; its value keeps to the relation's min/max and fields are typed, like props).
-* A write past a numeric prop's, link value's or layer cell's min/max is refused, like a transfer that does not fit: an action is rolled
-  back and its actor told why; world logic (an event, a stage hook) that does it fails the run at its path.
-  To saturate, say so: `$clamp(x, low, high)`.
+* A write past a numeric prop's, link value's or layer cell's min/max is refused, like a transfer that does not
+  fit: an action is rolled back and its actor told why; world logic (an event, a stage hook) that does it fails
+  the run at its path. To saturate, say so: `$clamp(x, low, high)`.
   Types are enforced.
 
 Operation objects (exactly one operation key each):
@@ -547,7 +547,8 @@ Stored values stay exact.
 * with model participants, an action that was mostly refused.
 
 `fg-env check` plays up to 12 rounds with random agents and again with each policy, and reports what those plays
-reveal: crashes as errors (naming the policy that ran into one), diagnostics (including each policy's always-refused rules) as warnings.
+reveal: crashes as errors (naming the policy that ran into one), diagnostics (including each policy's always-refused
+rules) as warnings.
 `--rounds 30` plays exactly that many for more evidence.
 
 `result.events` is the log in order: `{seq, round, stage, kind, actor, text, data}`. Its kinds are `action`,

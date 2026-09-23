@@ -3,9 +3,9 @@
 A contract can pass every check and still not do what its author meant: a rule that fails for some choice an agent
 can make, a tool offered when none of its choices can work, sealed choices that overwrite each other, an agent type
 that never has anything to do, a stage that can never run, a measure that stays empty because nothing ever sets what
-it reads, a coded policy rule whose call is refused every time it is tried, a host's answers that were the contract's fallback stand-ins because no host was bound. These are read from
-what the run counted (:mod:`fg_env.run_diagnosis`) and reported on ``RunResult.diagnostics``, in
-``result.summary()`` and as warnings from ``fg_env.check``. Each is reported only on evidence that random play cannot
+it reads, a coded policy rule whose call is refused every time it is tried, a host's answers that were the contract's
+fallback stand-ins because no host was bound. These are read from what the run counted (:mod:`fg_env.run_diagnosis`)
+and reported on ``RunResult.diagnostics``, in ``result.summary()`` and as warnings from ``fg_env.check``. Each is reported only on evidence that random play cannot
 explain away, so a clean contract raises none. Turns an LLM participant forfeited to a failing model provider are
 reported too: such a run does not show how its agents play.
 """
