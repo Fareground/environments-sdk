@@ -10,8 +10,7 @@
     exp = fg_env.experiment("shop.json", runs=20, arms=["control", "promo"])
 
 ``fg_env.guide()`` is the core authoring guide, mapping every other part (``fg_env.guide("all")`` is everything);
-``fg_env.new("game", "my_game.json")`` writes a ready-to-run contract to start from. The earlier template-based kernel API lives in
-:mod:`fg_env.legacy`.
+``fg_env.new("game", "my_game.json")`` writes a ready-to-run contract to start from.
 """
 from importlib.metadata import PackageNotFoundError as _PackageNotFoundError
 from importlib.metadata import version as _dist_version

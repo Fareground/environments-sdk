@@ -1,4 +1,4 @@
-"""Core type system for the simulation kernel."""
+"""Property types and schemas for entity properties."""
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, List, Optional, Union

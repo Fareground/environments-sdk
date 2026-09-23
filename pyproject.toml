@@ -49,14 +49,13 @@ line-length = 100
 src = ["src"]
 
 [tool.ruff.lint]
-# Conservative ruleset for now — kernel is legacy code being extracted.
-# Tighten over time. Run `ruff check --statistics .` to see what's noisy.
+# Conservative ruleset for now; tighten over time. Run `ruff check --statistics .` to see what's noisy.
 select = ["E", "F", "W"]
 ignore = [
     "E501",  # line-too-long — many long expression strings
     "E731",  # lambda assignments — used intentionally
     "E741",  # ambiguous names (l, I, O) — present in math-heavy code
-    "E701",  # multiple statements on one line (colon) — legacy compact style
+    "E701",  # multiple statements on one line (colon) — compact style
     "E702",  # multiple statements on one line (semicolon)
     "W293",  # whitespace on blank lines — formatting noise
 ]
@@ -70,8 +69,7 @@ known-first-party = ["fg_env"]
 [tool.mypy]
 plugins = ["pydantic.mypy"]
 # Pragmatic baseline — the package ships py.typed, so CI must actually
-# type-check it. Not strict yet: legacy kernel code is annotated
-# incrementally. Tighten flags over time.
+# type-check it. Not strict yet: tighten flags over time.
 files = ["src/fg_env"]
 ignore_missing_imports = true
 no_strict_optional = true
