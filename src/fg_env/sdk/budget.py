@@ -11,8 +11,9 @@ so, for coded participants, the run stops at the same point on every replay (``s
 time, so it is the one limit that is not deterministic). ``tokens`` is also checked each time a participant
 reports usage, counting the turns still in play: once it is reached, the reporting agent's turn ends there
 (calls it makes after that are refused), so a simultaneous stage of LLM agents cannot overshoot it by
-many model calls. Once a limit is reached, ``on_exhaust: "end"`` ends the run there (``ended_by: "budget"``, outputs computed as
-for any ended run) and ``"idle"`` keeps the world running while every agent's later turns are idle.
+many model calls. Once a limit is reached, ``on_exhaust: "end"`` ends the run there (``ended_by:
+"budget"``, outputs computed as for any ended run) and ``"idle"`` keeps the world running while every
+agent's later turns are idle.
 ``result.budget`` reports the limits, what was used and which limit ran out; snapshots carry it.
 
 Usage a participant reports after its turn is over (it ran out of time) still counts: it is added to the run's
@@ -29,6 +30,7 @@ from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional
 
 if TYPE_CHECKING:
     from .runtime import Env
+    from .turn import Turn
 
 __all__ = ["Budget", "LIMITS", "ON_EXHAUST", "is_seconds"]
 
@@ -105,7 +107,7 @@ class Budget:
                 "host_calls": sum(1 for entry in entries if isinstance(entry, Mapping) and not entry.get("fallback")),
                 "seconds": round(self.seconds, 3)}
 
-    def tokens_spent(self, env: "Env", turn: Any) -> bool:
+    def tokens_spent(self, env: "Env", turn: "Turn") -> bool:
         """Whether the token limit is reached counting the turns still in play (``turn``, and in a simultaneous stage
         all of its turns), whose usage joins the run's totals only when they finish (call under the run's lock)."""
         limit = self.limits.get("tokens")
