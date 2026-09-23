@@ -59,6 +59,8 @@ Errors retrying cannot fix — a rejected API key, an unknown model, a bad reque
 
 `max_tokens` caps each reply (OpenAI receives it as `max_completion_tokens`); `extra` adds request fields to every call, for example `extra={"temperature": 0}`, or `extra={"max_tokens": 1024}` for an OpenAI-compatible server that only knows the older field.
 
+Each turn is a fresh conversation: the participant sends the brief, that turn's update and then its tool calls, and resends nothing from earlier turns. What carries over is what the environment shows — the update says what changed since the agent's last turn, and its views show the world now. For an agent to keep its own plans and reasoning across rounds, give it a `mind` mechanism in `memory` mode (`note` and `recall` tools, and its strongest memories in a view).
+
 ## Host responsibilities
 
 A hosting application stores the contract and data, chooses participant implementations, runs the environment, and displays outputs and traces. It also owns authentication, tenant boundaries, resource limits, credential handling and artifact access. The SDK itself is not a sandbox for arbitrary host code.
