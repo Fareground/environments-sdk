@@ -798,3 +798,56 @@ def test_guide_documents_the_market_family():
     assert all(f"- `{mode}`:" in family for mode in ("order_book", "auction", "prediction", "posted"))
     posted = fg_env.guide("market.posted")
     assert "- `set_price`" in posted and "- `open`" not in posted
+
+
+def test_a_sealed_bid_schema_never_offers_a_price_the_rules_refuse():
+    contract = {"name": "Lot", "clock": {"rounds": 1}, "types": {"bidder": {"agent": True, "props": {"cash": 100}}},
+                "entities": {"a": {"type": "bidder"}},
+                "mechanisms": {"sale": {"kind": "market", "mode": "auction", "format": "first_price", "who": "bidder",
+                                        "stock": 1, "reserve": 0}}}
+    told = {}
+
+    def bid(wake):
+        price = next(t for t in wake.tools if t.name == "sale_bid").input_schema["properties"]["price"]
+        told["minimum"] = price["minimum"]
+        told["at_minimum"] = wake.call("sale_bid", {"price": price["minimum"]}).ok
+        wake.end()
+
+    fg_env.run(contract, bid, seed=1)
+    assert told["minimum"] > 0 and told["at_minimum"]  # the schema's floor is a bid the rules accept
+
+
+def test_two_order_books_on_one_cash_prop_both_trade_and_settle():
+    books = {name: {"kind": "market", "mode": "order_book", "who": "trader", "start_price": price, "stage": "trade"}
+             for name, price in (("acme", 50), ("beta", 20))}
+    contract = {"name": "Two books", "clock": {"rounds": 2},
+                "types": {"trader": {"agent": True, "props": {"cash": 10000, "acme_shares": 100, "beta_shares": 100}}},
+                "entities": {"a": {"type": "trader"}, "b": {"type": "trader"}},
+                "stages": [{"name": "trade", "turns": "sequential", "order": "seat", "max_actions": 10}],
+                "mechanisms": books}
+    env, replies = play(contract, {(1, "a"): [("acme_sell", {"qty": 10, "price": 50}), ("beta_sell", {"qty": 10, "price": 20})],
+                                   (1, "b"): [("acme_buy", {"qty": 10, "price": 50}), ("beta_buy", {"qty": 10, "price": 20})]})
+    assert all(reply.ok for *_, reply in replies), [reply.text for *_, reply in replies]
+    assert props(env, "b")["cash"] == 10000 - 500 - 200 and props(env, "a")["cash"] == 10000 + 500 + 200
+    assert props(env, "b")["acme_shares"] == 110 and props(env, "b")["beta_shares"] == 110
+
+
+def test_a_prediction_market_resolving_to_an_outcome_it_does_not_list_is_an_error():
+    contract = {"name": "Bad outcome", "clock": {"rounds": 3}, "world": {"truth": {"default": "w"}},
+                "types": {"forecaster": {"agent": True, "props": {"cash": 1000}}},
+                "entities": {"a": {"type": "forecaster"}, "b": {"type": "forecaster"}},
+                "mechanisms": {"m": {"kind": "market", "mode": "prediction", "who": "forecaster", "outcomes": ["x", "y"],
+                                     "resolve_at": 2, "outcome": "$world.truth"}}}
+    assert any("the winning outcome must be one of x, y, got 'w'" in i.message
+               for i in fg_env.check(contract) if i.severity == "error")
+
+
+def test_a_declared_stage_named_after_a_book_refines_its_generated_stage():
+    contract = {"name": "Refined", "clock": {"rounds": 2}, "types": {"trader": {"agent": True, "props": {"cash": 100}}},
+                "entities": {"t1": {"type": "trader"}, "t2": {"type": "trader"}},
+                "stages": [{"name": "acme", "turns": "simultaneous"}],
+                "mechanisms": {"acme": {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 5}}}
+    assert not [i for i in fg_env.check(contract) if i.severity == "error"]
+    [stage] = fg_env.expand(contract, mechanisms=True)["stages"]
+    assert stage["turns"] == "simultaneous" and stage["max_actions"] == 4
+    assert {"acme_buy", "acme_sell", "acme_cancel"} <= set(stage["actions"])

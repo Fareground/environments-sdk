@@ -198,3 +198,20 @@ def test_a_move_refused_by_its_luck_is_a_move_in_a_game():
         assert state.is_terminal()
         returns.append(state.returns()[0])
     assert 0 < sum(returns) < 20  # a loss is an outcome of the move, as a win is
+
+
+def test_who_a_stage_wakes_by_chance_does_not_depend_on_what_the_agents_do():
+    c = {"name": "Who", "clock": {"rounds": 5},
+         "types": {"p": {"agent": True, "props": {"luck": 0}}, "thing": {}},
+         "entities": {f"p{i}": {"type": "p"} for i in range(8)},
+         "actions": {"roll": {"by": "p", "do": ["$actor.luck += $randint(1, 9)"]},
+                     "make": {"by": "p", "do": [{"create": "thing"}]}, "wait": {"by": "p"}},
+         "stages": [{"name": "s", "who": "$chance(0.5)"}, {"name": "t", "who": "$chance(0.5)", "order": "random"}],
+         "outputs": {"count": "$count(p)"}}
+
+    def woken(action):
+        seen = []
+        fg_env.run(c, {"*": lambda w: (seen.append((w.round, w.stage, w.entity_id)), w.call(action, {}))}, seed=2)
+        return seen
+
+    assert woken("wait") == woken("roll") == woken("make")

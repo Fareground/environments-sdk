@@ -518,3 +518,12 @@ def test_check_and_preview_list_what_each_mechanism_generated(tmp_path, capsys):
     assert main(["preview", str(path), "a"]) == 0
     assert "mechanisms generated" in capsys.readouterr().out
 
+
+def test_a_negative_ballot_weight_fails_the_count_naming_the_voter():
+    contract = {"name": "Weights", "clock": {"rounds": 1},
+                "types": {"member": {"agent": True, "props": {"shares": 1}}},
+                "entities": {"a": {"type": "member", "props": {"shares": -5}}, "b": {"type": "member"}},
+                "mechanisms": {"v": {"kind": "decision", "mode": "ballot", "who": "member", "options": ["yes", "no"],
+                                     "weight": "$it.shares"}}}
+    result = fg_env.load(contract, seed=1).run("idle")
+    assert result.status == "failed" and "a voter's weight must be a number ≥ 0, got -5 for a" in result.error

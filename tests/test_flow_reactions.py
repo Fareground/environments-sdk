@@ -103,3 +103,13 @@ def test_auto_turns_skip_the_agent_when_there_is_no_real_choice():
     result = fg_env.load(contract, seed=1).run(lambda wake: woken.append(wake.entity_id))
     assert woken == [] and result.stats["auto_turns"] == 4 and result.stats["wakes"] == 0
     assert result.outputs == {} and fg_env.load(contract, seed=1).run().stats["actions"] == 4
+
+
+def test_two_triggers_that_undo_each_other_settle_instead_of_looping():
+    c = {"name": "PingPong", "clock": {"rounds": 2}, "world": {"x": 0, "hits": 0},
+         "types": {"p": {"agent": True}}, "entities": {"a": {"type": "p"}},
+         "actions": {"poke": {"by": "p", "do": "$world.x = 1"}},
+         "triggers": [{"when": "$world.x == 1", "do": ["$world.x = 0", "$world.hits += 1"]},
+                      {"when": "$world.x == 0 && $world.hits > 0", "do": "$world.x = 1"}]}
+    result = fg_env.load(c, seed=1).run(lambda wake: wake.call("poke", {}))
+    assert result.status == "completed", result.error

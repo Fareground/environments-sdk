@@ -58,3 +58,41 @@ def test_a_snapshot_resumes_with_the_same_luck():
     env.run(_busy, rounds=3)
     resumed = fg_env.Env.restore(WARD, json.loads(json.dumps(env.snapshot())))
     assert resumed.run(_busy).to_dict() == straight
+
+
+DET = {"name": "Det", "clock": {"rounds": 3},
+       "types": {"p": {"agent": True, "props": {"n": 0, "luck": 0}}},
+       "entities": {k: {"type": "p"} for k in "abcd"},
+       "actions": {"roll": {"by": "p", "do": ["$actor.luck += $randint(1, 1000)"]},
+                   "spawn": {"by": "p", "do": [{"create": "p"}]}},
+       "events": [{"phase": "end", "each": "p", "do": ["$it.n += $randint(1, 1000)"]}],
+       "outputs": {"count": "$count(p)"}}
+
+
+def _others_luck(first_agent):
+    env = fg_env.load(DET, seed=11)
+    env.run({"a": first_agent, "*": lambda w: w.call("roll", {})})
+    return {e["id"]: e["props"] for e in env.entities() if e["id"] in "bcd"}
+
+
+def test_what_one_agent_draws_or_creates_does_not_shift_the_other_agents_luck():
+    idle = _others_luck(lambda w: None)
+    assert _others_luck(lambda w: w.call("roll", {})) == idle
+    assert _others_luck(lambda w: w.call("spawn", {}) if w.round == 1 else None) == idle
+
+
+def test_reading_an_update_whose_view_draws_luck_does_not_change_the_run():
+    c = {"name": "Views", "clock": {"rounds": 4},
+         "types": {"p": {"agent": True, "props": {"cash": 0, "luck": 0}}},
+         "entities": {k: {"type": "p"} for k in "abcd"},
+         "views": {"leader": {"show": "Leader: {$best(p, $it.cash).name} {$chance(0.5)} {$randint(1, 9)}"}},
+         "actions": {"roll": {"by": "p", "do": ["$actor.luck += $randint(1, 1000)"]}},
+         "events": [{"phase": "end", "each": "p", "do": ["$it.cash += $randint(1, 3)"]}],
+         "stages": [{"name": "s", "order": "random"}], "outputs": {"luck": "$sum(p, $it.luck)"}}
+
+    def run(read):
+        result = fg_env.run(c, {"*": lambda w: ((w.update, w.brief, w.tools) if read else None, w.call("roll", {}))},
+                            seed=5)
+        return result.outputs, result.events  # stats differ: reading costs tokens
+
+    assert run(read=True) == run(read=False)

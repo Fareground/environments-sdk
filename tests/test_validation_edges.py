@@ -141,3 +141,22 @@ def test_stage_turn_limits_take_numbers_or_expressions_over_inputs():
     assert not [issue for issue in fg_env.check(contract, rounds=0) if issue.severity == "error"]
     contract["stages"][0].update(max_actions=2, max_calls=3)
     assert not [issue for issue in fg_env.check(contract, rounds=0) if issue.severity == "error"]
+
+
+def test_json_schema_type_words_are_accepted_as_their_sdk_types():
+    contract = {"name": "Words", "clock": {"rounds": 1}, "types": {"p": {"agent": True, "props": {"x": 0}}},
+                "entities": {"a": {"type": "p"}},
+                "actions": {"go": {"by": "p", "params": {"n": {"type": "integer", "min": 1, "max": 3},
+                                                         "f": {"type": "float", "min": 0, "max": 1}},
+                                   "do": "$actor.x += $params.n"}},
+                "outputs": {"x": "$entity(a).x"}}
+    assert not [i for i in fg_env.check(contract) if i.severity == "error"]
+    seen = {}
+
+    def play(wake):
+        seen.update(next(t for t in wake.tools if t.name == "go").input_schema["properties"])
+        wake.call("go", {"n": 2, "f": 0.5})
+        wake.end()
+
+    assert fg_env.run(contract, play, seed=1).outputs["x"] == 2
+    assert seen["n"]["type"] == "integer" and seen["f"]["type"] == "number"

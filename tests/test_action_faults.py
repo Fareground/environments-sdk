@@ -203,3 +203,25 @@ def test_a_run_with_refused_failures_snapshots_and_continues_exactly():
     assert resumed.outputs == straight.outputs and resumed.stats == straight.stats
     assert resumed.diagnostics == straight.diagnostics
     assert [e["text"] for e in resumed.events] == [e["text"] for e in straight.events]
+
+
+def test_a_failed_action_undoes_every_kind_of_change_it_made():
+    c = {"name": "Atom", "clock": {"rounds": 2}, "world": {"total": 0, "tags": {"type": "list", "default": []}},
+         "types": {"p": {"agent": True, "props": {"cash": 10}}, "token": {}, "place": {}},
+         "relations": {"trusts": {}}, "records": {"chat": {"fields": {"text": "text"}}},
+         "entities": {"a": {"type": "p", "at": "home"}, "b": {"type": "p", "at": "home"},
+                      "home": {"type": "place"}, "away": {"type": "place"}},
+         "actions": {"mess": {"by": "p", "do": [
+             "$world.total += 1", "$world.tags += x", {"create": "token", "count": 2}, {"post": "chat", "text": "hi"},
+             {"emit": "news", "say": "it happened"}, {"link": "trusts", "from": "$actor", "to": "$entity(b)"},
+             {"move": "$actor", "to": "$entity(away)"}, {"transfer": "cash", "from": "$actor", "to": "$entity(b)", "amount": 5},
+             {"after": 1, "do": ["$world.total += 1000"]}, {"remove": "$entity(b)"}, {"fail": "boom"}]}},
+         "outputs": {"total": "$world.total"}}
+    env = fg_env.load(c, seed=1)
+    before = [(e["id"], e["alive"], e["at"], e["props"]) for e in env.entities(alive=False)]
+    replies = []
+    env.run({"a": lambda w: replies.append(w.call("mess", {})), "b": "idle"})
+    assert [r.text for r in replies] == ["boom", "boom"]
+    assert env.props == {"total": 0, "tags": []} and env.records("chat") == []
+    assert [(e["id"], e["alive"], e["at"], e["props"]) for e in env.entities(alive=False)] == before
+    assert not [e for e in env.result().events if e.get("text") == "it happened"]

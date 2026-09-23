@@ -58,3 +58,11 @@ def test_a_snapshot_resumes_a_run_with_expression_counts_exactly():
     env.run({"walker": "policy:stepper"}, rounds=3)
     resumed = fg_env.Env.restore(contract(), json.loads(json.dumps(env.snapshot())))
     assert resumed.run({"walker": "policy:stepper"}).to_dict() == straight
+
+
+@pytest.mark.parametrize("count", [-1, 2.7])
+def test_a_create_count_that_is_not_a_whole_number_of_at_least_zero_fails_the_run(count):
+    c = {"name": "Spawn", "clock": {"rounds": 1}, "types": {"p": {"agent": True}}, "entities": {"a": {"type": "p"}},
+         "events": [{"do": [{"create": "p", "count": count}]}]}
+    result = fg_env.load(c, seed=1).run("idle")
+    assert result.status == "failed" and "count must be a whole number" in result.error
