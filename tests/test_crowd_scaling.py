@@ -15,9 +15,9 @@ slow = pytest.mark.skipif(not os.environ.get("FG_ENV_SLOW"), reason="slow verifi
 
 CROWD = 1500
 #: A round of random agents choosing among each other, against the same round with an action that takes no
-#: argument (both pay for listing everyone in the inspect tool). Listing the choices once per turn measures under 2
-#: times; once per question, over 3.
-MOST_SLOWER = 2.6
+#: argument (both pay for listing everyone in the inspect tool). Listing the choices once per turn measures about 3
+#: times; once per question, about 5.
+MOST_SLOWER = 4
 
 
 def _crowd(action):

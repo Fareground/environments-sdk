@@ -149,7 +149,17 @@ class Expr:
         """For evaluating this condition once per item (as ``$it``, each a top-level evaluation) over
         ``scope``: a test that is true for items it certainly does not hold for, so they need not be
         evaluated (see :class:`EqualityGuard`). None when no item can be ruled out that way."""
-        guard: Optional[EqualityGuard] = getattr(self.run, "guard", None)
+        return self._differs("guard", scope)
+
+    def rules_in(self, scope: Scope) -> Optional[Callable[[Any], bool]]:
+        """For a condition that is only ``$it.field != value``, evaluated like :meth:`rules_out`: a test that is true
+        for items it certainly holds for (their field differs, so ``==`` is certainly false), which need not be
+        evaluated. None for any other condition."""
+        return self._differs("unequal", scope)
+
+    def _differs(self, kind: str, scope: Scope) -> Optional[Callable[[Any], bool]]:
+        """A test true for items whose field certainly differs from the value of the ``kind`` guard, if any."""
+        guard: Optional[EqualityGuard] = getattr(self.run, kind, None)
         if guard is None or not nested_free():  # nested evaluations charge a budget: evaluate every one
             return None
         key = guard.key(scope)

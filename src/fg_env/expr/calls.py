@@ -39,6 +39,8 @@ Evaluator = Callable[[Scope], Any]
 
 #: An :class:`EqualityGuard` key that could not be worked out up front.
 _NO_KEY = object()
+#: The attribute holding an entity field whose name differs from it.
+_FIELD_ATTRS = {"at": "location_id", "type": "entity_type"}
 
 
 @dataclass(frozen=True)
@@ -66,9 +68,9 @@ class EqualityGuard:
         if type(item) is not _Entity:
             return False
         field = self.field
-        if field in _ENTITY_FIELDS:
-            value = item.location_id if field == "at" else item.entity_type if field == "type" else getattr(item, field)
-        elif field in item.properties:
+        if field in _ENTITY_FIELDS:  # text, a flag or null: each its own id
+            return bool(getattr(item, _FIELD_ATTRS.get(field, field)) != key)
+        if field in item.properties:
             value = item.properties[field]
         else:
             return False  # evaluating it reports the missing property

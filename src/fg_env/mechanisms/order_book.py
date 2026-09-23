@@ -34,6 +34,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..entity import Entity
 from ..errors import RunError
+from ..props import prop_type
 from ..registry import uses_of
 from ..world import Abort
 from ._common import ToolsSetting, tools_field
@@ -373,12 +374,10 @@ def _reconcile_reservations(world: Any, cfg: OrderBookConfig, v: Venue, name: st
     p = props_for(name)
     required_cash = {owner_id: 0.0 for owner_id in owner_ids}
     required_shares = {owner_id: 0.0 for owner_id in owner_ids}
-    for order in world.props.get(f"{name}_bids") or []:
-        if order["owner"] in required_cash:
-            required_cash[order["owner"]] += order["qty"] * order["price"] * (1 + v.maker)
-    for order in world.props.get(f"{name}_asks") or []:
-        if order["owner"] in required_shares:
-            required_shares[order["owner"]] += order["qty"]
+    for order in [o for o in world.props.get(f"{name}_bids") or [] if o["owner"] in owner_ids]:
+        required_cash[order["owner"]] += order["qty"] * order["price"] * (1 + v.maker)
+    for order in [o for o in world.props.get(f"{name}_asks") or [] if o["owner"] in owner_ids]:
+        required_shares[order["owner"]] += order["qty"]
     for owner_id in owner_ids:
         owner = world.entity(owner_id)
         if owner is None:
@@ -389,10 +388,18 @@ def _reconcile_reservations(world: Any, cfg: OrderBookConfig, v: Venue, name: st
         reserved_shares = balance(world, Account(owner, p["reserved_shares"]))
         expected_cash = clean(required_cash[owner_id])
         expected_shares = clean(required_shares[owner_id])
-        world.set_prop(owner, p["reserved_cash"], expected_cash)
-        world.set_prop(owner, cfg.currency, clean(cash + reserved_cash - expected_cash))
-        world.set_prop(owner, p["reserved_shares"], expected_shares)
-        world.set_prop(owner, p["shares"], clean(shares + reserved_shares - expected_shares))
+        _settle(world, owner, p["reserved_cash"], expected_cash)
+        _settle(world, owner, cfg.currency, clean(cash + reserved_cash - expected_cash))
+        _settle(world, owner, p["reserved_shares"], expected_shares)
+        _settle(world, owner, p["shares"], clean(shares + reserved_shares - expected_shares))
+
+
+def _settle(world: Any, owner: Entity, prop: str, value: float) -> None:
+    """Write ``value`` unless the account already holds exactly what writing it would store (an ``int`` property
+    stores a whole float as an int): without float dust there is nothing to settle."""
+    held = owner.properties.get(prop)
+    if held != value or (type(held) is not type(value) and prop_type(world.prop_spec(owner, prop)) != "int"):
+        world.set_prop(owner, prop, value)
 
 
 def _insert(orders: List[Dict[str, Any]], order: Dict[str, Any], side: str) -> None:

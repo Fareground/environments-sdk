@@ -195,7 +195,10 @@ class RunRounds:
         self.previews.frame(final=True)
         self._flush_events()
 
-    def _atomic(self: "Env", effects: List[Any], vars: Dict[str, Any], path: str) -> bool:  # type: ignore[misc]
+    def _atomic(self: "Env", effects: List[Any], vars: Dict[str, Any], path: str,  # type: ignore[misc]
+                check: bool = True) -> bool:
+        """Apply ``effects`` as one undoable block. ``check=False``: one item of a block of world logic whose
+        invariants are checked once it is whole (an `each` event), unless a trigger or reaction would run first."""
         if not effects:
             return True
         actor = vars.get("actor")
@@ -216,7 +219,7 @@ class RunRounds:
             except BaseException:
                 self.world.journal.rollback(mark)
                 raise
-            self._after_commit(path)
+            self._after_commit(path, check)
             self.happenings.react(self._stage_spec())
         return True
 
@@ -224,8 +227,9 @@ class RunRounds:
         name = self.world.stage
         return next((s for s in self.contract.stage_list() if s.name == name), None) if name else None
 
-    def _after_commit(self: "Env", path: str) -> None:  # type: ignore[misc]
-        self._check_invariants(path)
+    def _after_commit(self: "Env", path: str, check: bool = True) -> None:  # type: ignore[misc]
+        if check or self.contract.triggers or self.world.reactions:
+            self._check_invariants(path)
         if self._end_on_action:
             self._check_end("action")
         self.world.journal.clear()
