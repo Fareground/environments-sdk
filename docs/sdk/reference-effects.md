@@ -41,7 +41,7 @@ Operation objects (exactly one operation key each):
 - `game`: {"game": "<game mechanism>", "action": ...} — actions: board move pass setup; cards shuffle collect deal draw burn move play discard give reveal peek; pot fold check call bet raise all_in; slots place (guide("game"))
 - `flow`: {"flow": "<flow mechanism>", "action": ...} — actions: procedure push pass counter; order extra_turn; victory — (guide("flow"))
 - `operations`: {"operations": "<operations mechanism>", "action": ...} — actions: queue — (guide("operations"))
-- `groups`: {"groups": "<groups mechanism>", "action": ...} — actions: roles eliminate reveal; relationships relate; factions join leave invite found ally break_alliance add remove (guide("groups"))
+- `groups`: {"groups": "<groups mechanism>", "action": ...} — actions: roles eliminate reveal; relationships relate; factions join leave invite found ally break_alliance add remove; matching — (guide("groups"))
 - `social`: {"social": "<social mechanism>", "action": ...} — actions: channels say dm reply broadcast read create_group invite join leave; diffusion step seed adopt reject expose; feed post reply repost react follow unfollow befriend unfriend block unblock mute unmute label (guide("social"))
 - `mind`: {"mind": "<mind mechanism>", "action": ...} — actions: beliefs learn tell forget; personas write; memory note recall (guide("mind"))
 - `conditions`: {"conditions": "<conditions mechanism>", "action": ...} — actions: status apply cleanse; cooldowns reset; channeling interrupt; terrain enter (guide("conditions"))

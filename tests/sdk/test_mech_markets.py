@@ -471,6 +471,85 @@ def test_double_auction_clears_bids_and_asks_at_one_price():
     assert props(env, "b")["cash"] == 100 and props(env, "t")["house_units"] == 2 and props(env, "t")["house_escrow_units"] == 0
 
 
+def tender(fmt, budget=1000, **config):
+    """A city buying road contracts from builders (their `quality` feeds a scored award)."""
+    contract = house(fmt, reverse=True, house="city", item="a road contract", reserve=80, **config)
+    contract["types"].update(bidder={"agent": True, "props": {"cash": 0, "quality": 0}}, buyer={"props": {"cash": 0}})
+    contract["entities"] = {"a": {"type": "bidder", "props": {"quality": 1}}, "b": {"type": "bidder", "props": {"quality": 5}},
+                            "c": {"type": "bidder"}, "city": {"type": "buyer", "props": {"cash": budget}}}
+    return contract
+
+
+@pytest.mark.parametrize("fmt, paid", [("first_price", 50), ("second_price", 60)])
+def test_reverse_auction_awards_the_lowest_offer_and_pays_by_format(fmt, paid):
+    env, replies = play(tender(fmt), {(1, "a"): [("house_bid", {"price": 90})], (1, "b"): [("house_bid", {"price": 50})],
+                                      (1, "c"): [("house_bid", {"price": 60})]})
+    assert not replies_of(replies, "a")[0].ok  # above the most the house pays
+    assert props(env, "b")["cash"] == paid and props(env, "b")["house_units"] == 1 and props(env, "c")["cash"] == 0
+    assert props(env, "city")["cash"] == 1000 - paid and env.props["house_stock"] == 1
+    result = env.world.records("house_results")[-1]
+    assert (result["winner"], result["price"]) == ("b", paid)
+    assert not auctions.audit(env.world, "house")
+
+
+def test_a_lone_vickrey_offer_is_paid_the_reserve_and_the_house_never_pays_more_than_it_holds():
+    lone, _ = play(tender("second_price"), {(1, "c"): [("house_bid", {"price": 30})]})
+    assert props(lone, "c")["cash"] == 80
+    broke, _ = play(tender("first_price", budget=40), {(1, "c"): [("house_bid", {"price": 50})]})
+    assert broke.world.records("house_results")[-1]["winner"] == "" and props(broke, "city")["cash"] == 40
+
+
+@pytest.mark.parametrize("reverse, a_price, b_price, cash", [(True, 60, 70, 70), (False, 70, 60, 100 - 60)])
+def test_a_scored_award_goes_to_the_best_score_not_the_best_price(reverse, a_price, b_price, cash):
+    """b's quality outweighs a's better price; b pays (or is paid) its own price."""
+    if reverse:
+        contract = tender("first_price", score="$it.quality * 10 - $price")
+    else:
+        contract = house("first_price", score="$it.quality * 10 + $price")
+        contract["types"]["bidder"]["props"]["quality"] = 0
+        contract["entities"]["b"] = {"type": "bidder", "props": {"quality": 5}}
+    env, _ = play(contract, {(1, "a"): [("house_bid", {"price": a_price})], (1, "b"): [("house_bid", {"price": b_price})]})
+    result = env.world.records("house_results")[-1]
+    assert (result["winner"], result["price"]) == ("b", b_price) and props(env, "b")["cash"] == cash
+    assert not auctions.audit(env.world, "house")
+
+
+@pytest.mark.parametrize("config, message", [
+    ({"format": "english"}, "a reverse auction is sealed"),
+    ({"house": None}, "a reverse auction needs `house`"),
+    ({"reserve": 0}, "a reverse auction needs `reserve`"),
+    ({"format": "second_price", "score": "$it.quality - $price"}, "a scored award pays the winner its own bid"),
+    ({"score": "$bogus - $price"}, "$bogus is not available here"),
+])
+def test_misconfigured_tenders_say_how_to_fix_them(config, message):
+    contract = tender("first_price")
+    contract["mechanisms"]["house"].update(config)
+    if contract["mechanisms"]["house"]["house"] is None:
+        del contract["mechanisms"]["house"]["house"]
+    with pytest.raises(fg_env.ContractError) as caught:
+        fg_env.load(contract)
+    assert message in str(caught.value)
+
+
+@pytest.mark.parametrize("fmt, score", [("first_price", None), ("second_price", None), ("first_price", "$it.quality - $price")])
+def test_tenders_conserve_cash_and_units_with_random_bidders(fmt, score):
+    contract = tender(fmt, stock=4, **({"score": score} if score else {}))
+    contract["clock"]["rounds"] = 8
+    assert not [i for i in fg_env.check(contract) if i.severity == "error"]
+    env = fg_env.load(contract, seed=4)
+    result = env.run()
+    assert result.status == "completed", result.error
+    assert env.props["house_sold"] > 0 and not auctions.audit(env.world, "house")
+
+
+def test_a_tender_composes_with_a_declared_stage_and_outputs():
+    contract = {**tender("first_price", stage="bidding", stock=2), "stages": [{"name": "bidding", "turns": "simultaneous"}]}
+    contract["clock"]["rounds"] = 2
+    contract["outputs"] = {"spent": "1000 - $entity(city).cash"}
+    env, _ = play(contract, {(1, "a"): [("house_bid", {"price": 40})], (2, "c"): [("house_bid", {"price": 30})]}, rounds=2)
+    assert env.result().outputs["spent"] == 70 and env.result().outputs["house_prices"] == [40, 30]
+
+
 @pytest.mark.parametrize("fmt", auctions.FORMATS)
 def test_auctions_conserve_cash_and_units_with_random_bidders(fmt):
     multi = fmt in ("uniform", "double")

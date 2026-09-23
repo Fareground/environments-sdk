@@ -2,7 +2,7 @@
 
 ## Mechanism family `market`
 
-Trading venues: continuous order books, auctions, prediction markets and posted-price shops.
+Trading venues: continuous order books, auctions and procurement tenders, prediction markets and posted-price shops.
 
 Named the same in every mode:
 - `who`: agent type that trades (in effects: the trading agent, default $actor)

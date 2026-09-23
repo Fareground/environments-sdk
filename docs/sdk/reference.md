@@ -90,6 +90,7 @@ Generated from the installed source models, expression registry and authoring gu
 - [groups / roles](reference-groups-roles.md)
 - [groups / relationships](reference-groups-relationships.md)
 - [groups / factions](reference-groups-factions.md)
+- [groups / matching](reference-groups-matching.md)
 - [social](reference-social.md)
 - [social / channels](reference-social-channels.md)
 - [social / diffusion](reference-social-diffusion.md)
