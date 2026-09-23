@@ -1,4 +1,4 @@
-"""Tests for kernel/types.py"""
+"""Tests for fg_env/types.py"""
 import pytest
 from fg_env.types import PropertyType, PropertySchema
 

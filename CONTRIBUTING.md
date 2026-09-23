@@ -15,8 +15,7 @@ pip install -e ".[dev]"
 
 ## Running the tests
 
-The suite lives in `tests/`: contract SDK tests in `tests/sdk/`, template API tests
-at the top level. Run all of it with:
+The suite lives in `tests/sdk/`. Run all of it with:
 
 ```bash
 pytest                                     # with an editable install
@@ -24,14 +23,12 @@ PYTHONPATH=src python -m pytest tests -q   # straight from a checkout (same as `
 ```
 
 `testpaths` is set to `tests` in `pyproject.toml`, so a bare `pytest` from the
-repo root discovers everything. Narrow a run with `pytest tests/<file>.py -k <expr>`.
+repo root discovers everything. Narrow a run with `pytest tests/sdk/<file>.py -k <expr>`.
 
 ## Developing the Environment SDK
 
-The contract SDK lives in `src/fg_env/sdk/`. The older template API (`Kernel`,
-`simulate`, `pipeline/`, `domain/`, `runtime/`) lives in the rest of `src/fg_env/`
-and is kept for existing templates. Its public names are exported from `fg_env.legacy`
-and its commands run as `fg-env legacy <command>`.
+The contract SDK lives in `src/fg_env/sdk/`; the engine catalog in `src/fg_env/engines/` and
+persona sampling in `src/fg_env/personas.py`.
 
 | Module | Responsibility |
 | --- | --- |

@@ -2,7 +2,6 @@
 import json
 
 import fg_env
-from fg_env.__main__ import main
 from fg_env.sdk.expr import Scope, evaluate
 
 CHAIN = {
@@ -116,13 +115,6 @@ def test_parallel_experiment_in_processes_matches_sequential():
     one = fg_env.experiment(_contract(), runs=3, participants="random", workers=1)
     many = fg_env.experiment(_contract(), runs=3, participants="random", workers=2)
     assert one.arms["baseline"].outputs == many.arms["baseline"].outputs
-
-
-def test_legacy_lint_points_to_check(tmp_path, capsys):
-    path = tmp_path / "c.json"
-    path.write_text(json.dumps(CHAIN))
-    assert main(["legacy", "lint", str(path)]) == 1
-    assert "use `fg-env check" in capsys.readouterr().err
 
 
 NETWORK = {

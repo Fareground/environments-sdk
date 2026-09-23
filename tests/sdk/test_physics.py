@@ -298,21 +298,3 @@ def test_serialization_roundtrip():
     m.integrate(1.0)
     restored.integrate(1.0)
     assert restored.values == pytest.approx(m.values)
-
-
-def test_from_schema_absent_returns_none():
-    assert PhysicsModel.from_schema(None) is None
-    assert PhysicsModel.from_schema({}) is None
-    assert PhysicsModel.from_schema({"params": {"k": 1}}) is None  # no variables
-
-
-def test_from_schema_builds_model():
-    m = PhysicsModel.from_schema({
-        "params": {"r": 0.5, "K": 100},
-        "variables": [{"name": "pop", "value": 5, "rate": "r*pop*(1-pop/K)", "min": 0}],
-        "substeps": 8,
-    })
-    assert m is not None
-    assert "pop" in m.variables
-    m.integrate(1.0)
-    assert m.values["pop"] > 5.0

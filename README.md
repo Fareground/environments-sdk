@@ -247,13 +247,6 @@ stage hook, an action and the agent taking it) and the round. What that guarante
 
 Runs snapshot to JSON between rounds and resume identically.
 
-## Template API
-
-The earlier template-based engine API (`Kernel`, `simulate`, `load_world`, the registry decorators)
-remains available for existing templates as `fg_env.legacy` (`from fg_env.legacy import simulate`), with its
-commands under `fg-env legacy`; see [`docs/template_schema.md`](https://github.com/Fareground/environments-sdk/blob/main/docs/template_schema.md).
-New environments should use contracts.
-
 ## Contributing
 
 See [CONTRIBUTING.md](https://github.com/Fareground/environments-sdk/blob/main/CONTRIBUTING.md) for dev setup, tests and lint. What changed is in the

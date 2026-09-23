@@ -1,4 +1,4 @@
-"""Tests for kernel/entity.py"""
+"""Tests for fg_env/entity.py"""
 import pytest
 from fg_env.entity import EntityType, Entity
 from fg_env.types import PropertySchema, PropertyType

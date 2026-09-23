@@ -37,7 +37,7 @@ python -m pip install fg-env
 These pages track the contract API on `main`. Check the version you are actually
 running with `python -c "import fg_env; print(fg_env.__version__)"`, and use the
 [changelog](../../CHANGELOG.md) for release-specific behavior. The
-[migration guide](migration.md) explains the public rename and the older
+[migration guide](migration.md) explains the public rename and the removed
 template API.
 
 [GitHub repository](https://github.com/Fareground/environments-sdk) · [PyPI](https://pypi.org/project/fg-env/) · [Apache-2.0 license](https://github.com/Fareground/environments-sdk/blob/main/LICENSE)
