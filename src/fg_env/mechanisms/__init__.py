@@ -194,9 +194,9 @@ def separate_turns(data: Mapping[str, Any]) -> List[Issue]:
         for kind in [who] if isinstance(who, str) else who:
             staged.setdefault(str(kind), []).append(name)
     return [Issue("mechanisms", f"{kind} agents take a separate turn in the stage of each of {_listed(names)} whenever "
-                                f"they run: one decision, and one model call, per mechanism",
-                  f"to decide in one turn, declare a stage, e.g. {{\"name\": \"turn\", \"turns\": \"sequential\"}}, and "
-                  f"set \"stage\": \"turn\" on each of them", "warning")
+                                "they run: one decision, and one model call, per mechanism",
+                  'to decide in one turn, declare a stage, e.g. {"name": "turn", "turns": "sequential"}, and '
+                  'set "stage": "turn" on each of them', "warning")
             for kind, names in staged.items() if len(names) > 1]
 
 
