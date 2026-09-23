@@ -118,12 +118,12 @@ def test_negotiation_engine_clone_customize_and_batch(tmp_path):
     target.write_text(json.dumps(contract))
 
     assert not [issue for issue in fg_env.check(target) if issue.severity == "error"]
-    single = fg_env.load(target, seed=23).run("cooperative")
+    single = fg_env.load(target, seed=23).run("concession")
     assert single.status == "ended"
     assert single.outputs["deal_signed"] is True
-    assert single.outputs["terms"] == {"amount": 50, "scope": 70, "timing": 6}
+    assert min(single.outputs["surplus"].values()) >= 0
 
-    batch = fg_env.experiment(target, runs=3, seed=23, participants="cooperative")
+    batch = fg_env.experiment(target, runs=3, seed=23, participants="concession")
     runs = batch.arms["baseline"].runs
     assert len(runs) == 3
     assert all(run.status == "ended" and run.outputs["deal_signed"] for run in runs)

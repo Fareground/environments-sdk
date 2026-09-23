@@ -1,7 +1,7 @@
 {
   "fg_env": "1",
   "name": "Network Engine",
-  "description": "A reusable human network engine for explicit relationships, trust-weighted exposure, influence, and behavioral adoption without geography or physical propagation.",
+  "description": "A reusable human network engine for explicit relationships, trust-weighted exposure, influence, and behavioral adoption without geography or physical propagation. Word of mouth spreads the idea on its own each round; people may also adopt what they heard, reject it, or recommend it to a contact, and the coded baseline leaves it to word of mouth.",
   "inputs": {
     "rounds": {"type": "int", "default": 5, "min": 1, "max": 50},
     "participants": {
@@ -30,11 +30,11 @@
   },
   "brief": {
     "situation": "An idea or behavior moves through an explicit human relationship network.",
-    "rules": "Each interaction, everyone who has adopted the idea may convince each person they are tied to: the chance is the tie's trust times that person's receptivity, so trusted ties and more time spread it further. This engine models human influence and information flow, not physical movement.",
+    "rules": "Each interaction, everyone who has adopted the idea may convince each person they are tied to: the chance is the tie's trust times that person's receptivity, so trusted ties and more time spread it further. On your turn you may also take up an idea you have heard about, reject it (you stop holding and passing it on), or recommend it to one contact. This engine models human influence and information flow, not physical movement.",
     "roles": {"person": "React to information through your relationships according to your persona, trust, and receptivity."}
   },
   "clock": {"rounds": "$inputs.rounds", "unit": "interaction"},
-  "types": {"person": {"agent": true, "props": {
+  "types": {"person": {"agent": true, "policy": "word_of_mouth", "props": {
     "group": {"type": "text", "default": ""},
     "receptivity": {"type": "number", "default": 0.5, "min": 0, "max": 1, "private": true},
     "adoptions": {"type": "int", "default": 0}
@@ -46,6 +46,22 @@
     "kind": "social", "mode": "diffusion", "who": "person", "over": "knows", "flow": "both", "model": "cascade", "persistent": true,
     "p": "$relation($from, $to, knows) * $to.receptivity", "seeds": {"proposal": ["p1"]}, "on_adopt": ["$it.adoptions += 1"]
   }},
+  "actions": {
+    "adopt": {"by": "person", "description": "Take up the idea you have heard about.", "terminal": true,
+              "when": [{"expr": "$spread_state($actor, proposal) == exposed", "why": "You have not heard about it yet, or have already decided."}],
+              "do": [{"social": "influence", "action": "adopt", "item": "proposal", "who": "$actor"}]},
+    "reject": {"by": "person", "description": "Turn the idea down: you stop holding it and passing it on.", "terminal": true,
+               "when": [{"expr": "$spread_state($actor, proposal) in [exposed, adopted]", "why": "You have not heard about it yet, or have already rejected it."}],
+               "do": [{"social": "influence", "action": "reject", "item": "proposal", "who": "$actor"}]},
+    "share": {"by": "person", "per_turn": 1,
+              "description": "Recommend the idea to one of your contacts: they take it up with a chance of your tie's trust times their receptivity, and otherwise have at least heard of it.",
+              "when": [{"expr": "$spread_state($actor, proposal) == adopted", "why": "Only people who hold the idea can recommend it."}],
+              "params": {"contact": {"type": "entity", "of": "person", "where": "$linked($actor, $it, knows) and $spread_state($it, proposal) in [unaware, exposed]"}},
+              "do": [{"if": "$chance($relation($actor, $params.contact, knows) * $params.contact.receptivity)",
+                      "then": [{"social": "influence", "action": "adopt", "item": "proposal", "who": "$params.contact"}],
+                      "else": [{"social": "influence", "action": "expose", "item": "proposal", "who": "$params.contact"}]}]}
+  },
+  "policies": {"word_of_mouth": {"rules": [{"do": "pass"}]}},
   "views": {"exposure": {"for": "person", "title": "Your exposure", "of": "$heard($actor)", "show": "{item}: {state}; {exposures} exposure(s)"}},
   "metrics": {
     "reach": {"expr": "$reach(proposal)"},

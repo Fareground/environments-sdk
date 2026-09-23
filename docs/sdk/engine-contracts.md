@@ -17,7 +17,8 @@ Environment code must not reimplement the mechanics below.
   debate, division and recorded decisions. Each floor speech moves every other
   member's stance a random share (averaging `persuasion`) of the way toward the
   speaker's; coded members vote their current stance, so debate can change the
-  result.
+  result. The coded chair calls the question once the motion has had as many
+  speeches as the chamber has members.
 - **Termination and outputs:** a decided main motion ends the starter; output
   the outcome (passed, rejected, or status_quo when nothing came to a vote),
   final text, vote counts and participation evidence.
@@ -36,9 +37,11 @@ Environment code must not reimplement the mechanics below.
   `luck`).
 - **Termination and outputs:** fixed contest horizon; output winner (the single
   top scorer; a rubric tie goes to the stronger total performance, null when
-  that ties too), winning score, contestant count and submission count. Without
-  a bound judge every entry is scored at the rubric midpoint, so skill and luck
-  decide and the run's diagnostics report the stand-in (`host_fallback`).
+  that ties too), whether a bound judge scored it (`judged`), winning score,
+  contestant count and submission count. Without a bound judge every entry is
+  scored at the rubric midpoint, so skill and luck decide: `judged` is false,
+  `winning_score` is null and the run's diagnostics report the stand-in
+  (`host_fallback`).
 - **Extension points:** rubric, scale, panel aggregation, media attachments,
   elimination rules, number of rounds and score visibility.
 
@@ -52,8 +55,10 @@ Environment code must not reimplement the mechanics below.
   the question and vote.
 - **State and phases:** discussion passes, pending conclusion, amendments and
   final ballot. Each speech moves every listener's stance a random share
-  (averaging `persuasion`) of the way toward the speaker's; coded members speak
-  once per motion and vote their current stance.
+  (averaging `persuasion`) of the way toward the speaker's; coded members with
+  a strong view either way put the question, anyone seconds it, and each speaks
+  once per motion and votes their current stance, so an opposed group rejects the
+  question rather than leaving it undecided.
 - **Termination and outputs:** a decision ends the starter; output the outcome
   (passed, rejected, or status_quo when nothing came to a vote), conclusion,
   vote counts and contribution count.
@@ -70,9 +75,10 @@ Environment code must not reimplement the mechanics below.
 - **State and phases:** one sealed simultaneous response stage. The coded
   baseline answers from each person's leaning: the inclination plus normal
   noise whose spread is one minus their confidence (support above 0.25, oppose
-  below -0.25, otherwise undecided).
+  below -0.25, otherwise undecided) and reports the strength of that leaning as
+  its confidence.
 - **Termination and outputs:** completes after the cohort responds; output cohort
-  size, response counts, support share and average confidence.
+  size, response counts, support share and average reported confidence.
 - **Extension points:** response schema, population source, stratification,
   weighting, treatments, fixed/resampled cohorts and report segments.
 
@@ -81,8 +87,11 @@ Environment code must not reimplement the mechanics below.
 - **Roles:** people connected by explicit supplied or generated relationships.
 - **Private/public information:** receptivity may be private; ties, exposures and
   adoption visibility are configurable.
-- **Actions:** the starter advances exposure/adoption mechanically; scenarios may
-  add speaking, sharing, rejecting, moderation or relationship actions.
+- **Actions:** take up an idea one has heard about, reject it (stop holding and
+  passing it on), or recommend it to one contact (who takes it up with a chance
+  of the tie's trust times their receptivity). The coded baseline takes none of
+  these and leaves the spread to word of mouth; scenarios may add speaking,
+  moderation or relationship actions.
 - **State and phases:** each round every adopter may convince each person it is
   tied to, with a chance of the tie's trust times that person's receptivity
   (a persistent cascade), so trusted ties and longer runs spread the idea further.
@@ -124,6 +133,7 @@ Environment code must not reimplement the mechanics below.
   resolution and revealed history.
 - **Termination and outputs:** fixed repeated horizon; output cooperation rate,
   choice counts, top score and winner (the single top scorer, null on a tie).
+  A game needs at least two strategists: one alone is refused.
 - **Extension points:** payoff matrix, information, commitments, communication,
   reputation, shocks, alliances and stopping rules.
 

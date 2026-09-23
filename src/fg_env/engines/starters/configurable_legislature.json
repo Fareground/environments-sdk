@@ -54,7 +54,7 @@
   "policies": {
     "chair_baseline": {"repeat": true, "rules": [
       {"when": "$len($world.chamber.hands) > 0 and $world.chamber.floor == null", "do": "chamber_recognize", "with": {"who": "$world.chamber.hands[0]"}},
-      {"when": "$open_motion and $pending_motion().speeches >= 3", "do": "chamber_call_question"},
+      {"when": "$open_motion and $pending_motion().speeches >= $count(member)", "do": "chamber_call_question"},
       {"do": "pass"}
     ]},
     "member_baseline": {"repeat": true, "rules": [

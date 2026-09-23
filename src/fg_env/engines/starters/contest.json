@@ -53,7 +53,8 @@
   },
   "outputs": {
     "winner": {"type": "text", "expr": "$first($strongest).name if $len($strongest) == 1 else null", "description": "The single top scorer (a rubric tie goes to the stronger hidden performance), or null when that ties too."},
-    "winning_score": {"type": "number", "expr": "$max(contestant, $it.score)"},
+    "judged": {"type": "bool", "expr": "not $any($values($world.host_tape), $get($it, fallback, false))", "description": "Whether a bound judge scored every submission; false means the rubric scores are the midpoint stand-in and skill and luck alone decided."},
+    "winning_score": {"type": "number", "expr": "$max(contestant, $it.score) if $outputs.judged else null", "description": "The top rubric total, or null when no judge scored it."},
     "submissions": {"type": "int", "expr": "$count($records(submissions))"},
     "contestants": {"type": "int", "expr": "$count(contestant)"}
   }
