@@ -67,6 +67,12 @@ Every run is now either correct or fails loudly (T-797 phase 1). Several default
   `tournament`, `evaluate`, …) live in `fg_env.rl`. `get_engine`/`load_engine` are now `engines.get`/`engines.load`.
   Persona sampling lives in `fg_env.personas`. The old-vocabulary rename hints are replaced by two lookups against
   the live registry (T-815).
+- The thin engine starters now model real behaviour, each with a coded baseline whose outcomes vary by seed.
+  Matching uses `groups.matching` (applicant columns changed; `placement_matched` and `first_choice_rate` are new
+  outputs). Population answers from a noisy leaning. Deliberation and Legislature move stances by `persuasion`.
+  Strategy gains classic strategies (a `strategy` column replaces `cooperative`) and a `mistakes` rate. Contest
+  gains `skill` and `luck`, so a run with no judge still has a real winner. A coded policy can pass a list of
+  entities to a list parameter (T-813).
 
 ### Added
 - Several deliberation, channels, feed, beliefs or factions mechanisms in one contract. Their functions take an
