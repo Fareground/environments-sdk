@@ -13,6 +13,8 @@ def test_every_template_checks_clean_and_runs(template):
     assert [str(i) for i in fg_env.check(contract)] == []
     result = fg_env.run(contract, seed=1)
     assert result.ok and result.output_issues == [], result.summary()
+    # A type named `agent` reads as `"agent": {"agent": true}`: the flag, not the name, makes a type act.
+    assert "agent" not in contract["types"]
 
 
 def test_new_writes_the_file_named_after_it_and_keeps_an_existing_one(tmp_path):

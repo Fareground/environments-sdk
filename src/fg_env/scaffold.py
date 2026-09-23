@@ -19,14 +19,14 @@ _BLANK: Dict[str, Any] = {
     "name": "My environment",
     "brief": {"situation": "Describe the world in a sentence or two.", "rules": "Say what agents can do and what happens."},
     "clock": {"rounds": 5},
-    "types": {"agent": {"agent": True, "props": {"score": 0}}},
-    "entities": {"ada": {"type": "agent"}, "bo": {"type": "agent"}},
-    "actions": {"work": {"by": "agent", "description": "Work to raise your score.",
+    "types": {"worker": {"agent": True, "props": {"score": 0}}},
+    "entities": {"ada": {"type": "worker"}, "bo": {"type": "worker"}},
+    "actions": {"work": {"by": "worker", "description": "Work to raise your score.",
                          "params": {"effort": {"type": "int", "min": 1, "max": 3}},
                          "do": "$actor.score += $params.effort if $chance(0.7) else 0",
                          "outcome": "Your score is now {$actor.score}."}},
-    "views": {"scores": {"for": "agent", "title": "Scores", "of": "agent", "show": "{name}: {score}"}},
-    "outputs": {"top_score": "$max(agent, $it.score)"},
+    "views": {"scores": {"for": "worker", "title": "Scores", "of": "worker", "show": "{name}: {score}"}},
+    "outputs": {"top_score": "$max(worker, $it.score)"},
 }
 
 _GAME: Dict[str, Any] = {
