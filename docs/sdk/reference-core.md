@@ -164,6 +164,9 @@ Ready-made rules that expand into ordinary actions, stages, views and outputs:
 | `conditions` | status, cooldowns, channeling, terrain | Effects on entities over time: statuses, cooldowns, channeled actions and terrain. |
 | `host` | judge, game_master, tool, recap | Services the host provides during a run: an LLM judge, a game master, recaps and tools such as web search. |
 
+To have a model do the write → check → preview → run loop for you: `fg-env author brief.md --model anthropic:<model>`
+(`fg_env.author`); it keeps the latest contract that checks clean and runs.
+
 ## Every other part
 
 `fg_env.guide('<part>')` or `fg-env guide <part>`:

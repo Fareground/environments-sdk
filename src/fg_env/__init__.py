@@ -11,6 +11,7 @@
 
 ``fg_env.guide("authoring")`` is the start page for an authoring agent; ``fg_env.guide()`` adds a map of every part;
 ``fg_env.new("game", "my_game.json")`` writes a ready-to-run contract to start from.
+``fg_env.author(brief, "anthropic:<model>")`` has a model write, check and run one from a plain-language brief.
 
 The core lives here; everything else is one subpackage away: ``fg_env.analysis`` (sweeps, calibration,
 optimisation, validation, reports, traces), ``fg_env.rl`` (games, Gym and PettingZoo, tournaments, evaluation),
@@ -26,6 +27,7 @@ except _PackageNotFoundError:  # a source checkout on PYTHONPATH, not installed
     __version__ = "0+unknown"
 
 from .api import check, expand, load, parse, run
+from .authoring import author
 from .branch import Branch
 from .contract import Contract
 from .errors import ContractError, InputError, InvariantViolation, Issue, RunError, SnapshotError
@@ -52,6 +54,7 @@ __all__ = [
     "guide",
     "schema",
     "new",
+    "author",
     "Env",
     "Contract",
     "RunResult",

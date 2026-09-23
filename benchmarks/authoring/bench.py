@@ -4,7 +4,8 @@
     PYTHONPATH=src python benchmarks/authoring/bench.py --briefs beer_game --model deepseek/deepseek-chat
     PYTHONPATH=src python benchmarks/authoring/bench.py --replay benchmarks/authoring/results/baseline-2026-09-22
 
-A live run needs OPENROUTER_API_KEY (or the fareground .env line). It writes ``<out>.md`` and ``<out>.json`` (the
+A live run needs the ``openai`` package and OPENROUTER_API_KEY (or the fareground .env line); the agent is
+:func:`fg_env.author` itself. It writes ``<out>.md`` and ``<out>.json`` (the
 scorecard) and ``<out>/<brief>.json`` (one transcript per brief). ``--replay`` re-scores recorded transcripts with
 the current SDK and no network: the same contracts, re-checked, re-run and re-asserted.
 """

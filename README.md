@@ -74,7 +74,23 @@ Python 3.11 or newer is required. The only runtime dependency is `pydantic`.
 
 ## Quickstart
 
-For a business walkthrough, start with [weekly inventory](docs/sdk/getting-started.md), including exact expected outputs. The following small contract illustrates the basic API:
+Describe the environment in plain language and let a model build it with the SDK's own tools:
+
+```bash
+python -m pip install anthropic         # or openai
+export ANTHROPIC_API_KEY=...
+fg-env author "A corner shop orders stock every Monday; customers buy what is on the shelf. Report weekly cash." \
+  --model anthropic:claude-sonnet-4-5 --out shop.json
+fg-env preview shop.json <agent id>     # what each agent reads
+fg-env run shop.json --seed 1
+```
+
+The model writes, checks, previews and runs the contract until it works; the saved contract is the latest one that
+checks clean and runs. `--model openai:<model>` uses `OPENAI_API_KEY`; OpenRouter or any OpenAI-compatible server
+works through it by also setting `OPENAI_BASE_URL` (for OpenRouter, `https://openrouter.ai/api/v1` with the
+OpenRouter key as `OPENAI_API_KEY`). From Python: `fg_env.author(brief, "anthropic:<model>", out="shop.json")`.
+
+To write the contract yourself: for a business walkthrough, start with [weekly inventory](docs/sdk/getting-started.md), including exact expected outputs. The following small contract illustrates the basic API:
 
 ```python
 import fg_env
