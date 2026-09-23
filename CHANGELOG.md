@@ -77,6 +77,10 @@ Every run is now either correct or fails loudly (T-797 phase 1). Several default
   contract, CLI and guides as subpackages. Documented deep imports moved: `fg_env.game.algorithms`,
   `fg_env.assets.provide` and `fg_env.host.adapters.historical`. The unused `fg_env.types` module (legacy property
   schemas) and `Entity.modify` are removed. The public names in `fg_env` and its subpackages are unchanged (T-814).
+- Relation link values and layer cells refuse writes past their min/max, like properties; layer diffusion and
+  decay, and the relationships mechanism's `add`, still saturate. A graph edge naming a missing place fails the build.
+  A partial stock map lists the other declared items at 0. `defs` read `$records`/`$events` as their caller may see
+  them, which closes a leak where a view could show counts of hidden records (T-820).
 
 ### Added
 - Several deliberation, channels, feed, beliefs or factions mechanisms in one contract. Their functions take an
@@ -86,6 +90,7 @@ Every run is now either correct or fails loudly (T-797 phase 1). Several default
 - `groups.matching`: two-sided stable matching (deferred acceptance) with receiver seats. Auctions gain `reverse`
   (procurement: the lowest offer at or below the reserve wins) and `score` (award to the best price-and-quality
   score) (T-812).
+- Run diagnostic `policy_rule_never_acted` for a coded policy rule refused every time it was tried (T-820).
 - Participant strings `"anthropic:<model>"` and `"openai:<model>"` (CLI `--agent type=anthropic:<model>`), reading
   the key from the environment. A spent token budget now ends the turn in progress. A host answer that cannot be
   used is asked once more, with a `correction`, before the run fails (T-817).
