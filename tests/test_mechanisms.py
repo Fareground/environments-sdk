@@ -60,6 +60,18 @@ def test_passed_means_the_motion_listed_first_carried_and_decided_means_a_winner
     assert deadlock["winner"] is None and not deadlock["decided"] and not deadlock["passed"]
 
 
+def test_a_tie_at_the_top_never_meets_a_threshold_unless_ties_first_breaks_it():
+    even = {"a": "yes", "b": "no"}
+    for seed in range(8):
+        split = tally("majority", even, ["yes", "no"], threshold=0.5, rng=random.Random(seed))
+        assert split["tie"] and split["winner"] is None and not split["passed"] and "tied" in split["reason"]
+    three = tally("supermajority", {"a": "x", "b": "x", "c": "y", "d": "y", "e": "z"}, ["x", "y", "z"], threshold=0.4,
+                  rng=random.Random(1))
+    assert three["winner"] is None and three["tied"] == ["x", "y"]
+    casting = tally("majority", even, ["yes", "no"], threshold=0.5, ties="first")
+    assert casting["winner"] == "yes" and casting["passed"]
+
+
 def test_a_ballot_for_an_option_not_on_the_ballot_is_refused():
     with pytest.raises(ValueError, match="'maybe' is not on the ballot"):
         tally("plurality", {"a": "yes", "b": "maybe"}, ["yes", "no"])
