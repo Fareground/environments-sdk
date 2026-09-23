@@ -471,6 +471,12 @@
       "description": "The mean working estimate of everyone else on the council."
     }
   },
+  "invariants": [
+    {
+      "expr": "$count(panelist) >= 2",
+      "why": "A council deliberates, so it needs at least two panelists: give inputs.panel two or more rows."
+    }
+  ],
   "policies": {
     "anchored": {
       "repeat": true,

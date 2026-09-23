@@ -379,7 +379,7 @@ def test_the_chain_launch_refuses_a_launch_after_the_run_ends():
 @pytest.mark.parametrize("engine_id, inputs, output", [
     ("population", {"participants": []}, "support_share"),
     ("matching", {"applicants": []}, "match_rate"),
-    ("network", {"participants": [], "ties": []}, "adoption_rate"),
+    ("network", {"participants": [], "ties": [], "seeds": []}, "adoption_rate"),
 ])
 def test_a_rate_over_nobody_is_null_not_zero(engine_id, inputs, output):
     assert run(engine_id, inputs=inputs).outputs[output] is None
