@@ -7,7 +7,7 @@ Do not rename either — downstream projects depend on them.
 
 ```bash
 git clone https://github.com/Fareground/environments-sdk
-cd env-kernel
+cd environments-sdk
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
@@ -18,10 +18,12 @@ pip install -e ".[dev]"
 The suite lives in `tests/sdk/`. Run all of it with:
 
 ```bash
-pytest                                     # with an editable install
-PYTHONPATH=src python -m pytest tests -q   # straight from a checkout (same as `make test`)
+pytest -n auto                                     # with an editable install
+PYTHONPATH=src python -m pytest tests -q -n auto   # straight from a checkout (same as `make test`)
 ```
 
+`-n auto` spreads the tests over every CPU core with pytest-xdist (part of the `dev` extra); the suite is
+several times faster that way. Leave it off (or use `-n 0`) to debug one test with `pdb` or `print` output.
 `testpaths` is set to `tests` in `pyproject.toml`, so a bare `pytest` from the
 repo root discovers everything. Narrow a run with `pytest tests/sdk/<file>.py -k <expr>`.
 
@@ -50,8 +52,9 @@ persona sampling in `src/fg_env/personas.py`.
 ### Golden-run fingerprints
 
 `tests/sdk/test_examples.py` checks, runs and fingerprints every contract in
-`examples/contracts/`. A fingerprint (status, rounds, metrics, event count, a hash of
-the event log, action and wake counts) is stored per example in `tests/sdk/golden/`.
+`examples/contracts/`. A fingerprint (status, rounds, metrics, event count, the first events
+as readable lines, a hash of the whole event log, action and wake counts) is stored per example in
+`tests/sdk/golden/`.
 Floats are rounded to 10 significant digits so goldens hold on every supported Python.
 
 A fingerprint mismatch means a run changed. If that is a bug, fix the code. If it is an
@@ -110,7 +113,7 @@ Optional features may add dev-only dependencies under `[project.optional-depende
   `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`, `perf:`, `ci:`.
 - One logical change per PR; include tests for new behavior.
 - Update `CHANGELOG.md` under `## [Unreleased]`.
-- Run `pytest`, `ruff check src tests`, `mypy` and `make check-schema` locally before pushing.
+- Run `pytest -n auto`, `ruff check src tests`, `mypy` and `make check-schema` locally before pushing.
 - **Commits must not include AI or assistant co-author attribution** — no
   `Co-authored-by` trailers or generated-by notices for any AI tool.
 

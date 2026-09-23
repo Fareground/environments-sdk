@@ -5,7 +5,7 @@ RUN := PYTHONPATH=src $(PYTHON)
 .PHONY: test lint schema check-schema
 
 test:
-	$(RUN) -m pytest tests -q
+	$(RUN) -m pytest tests -q -n auto
 
 lint:
 	ruff check src tests
