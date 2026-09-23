@@ -116,7 +116,7 @@ def add_run_commands(sub: Any) -> None:
     p.add_argument("--input", action="append", metavar="NAME=VALUE", help="set an input (JSON value or text)")
     p.add_argument("--inputs-file", help="JSON file of inputs")
     p.add_argument("--arm", help="experiment arm to apply")
-    p.add_argument("--focal", required=True, metavar="PARTICIPANT", help="random | idle | policy:<name>")
+    p.add_argument("--focal", required=True, metavar="PARTICIPANT", help="random | idle | policy:<name> | anthropic:<model> | openai:<model>")
     p.add_argument("--background", metavar="PARTICIPANT", help="plays every other agent (default: type policy)")
     p.add_argument("--baseline", metavar="PARTICIPANT", help="plays the focal seats in the paired runs "
                                                              "(default: the background)")

@@ -72,7 +72,8 @@ scenario, mode, tag, held out vs in sample and overall. A suite is a contract, a
 `{"scenarios": [...]}` file (`fg-env evaluate suite.json --focal policy:x --mode visitor=0.25`).
 Budgets: `env.run(..., budget={"tokens": 200000, "calls": 500, "host_calls": 50, "seconds": 600,
 "on_exhaust": "end"})` caps a run: reported input + output tokens, tool calls, host answers on the tape, wall-clock
-seconds. It is checked before every round, stage, pass and turn (a turn in progress finishes): `end` ends the run
+seconds. It is checked before every round, stage, pass and turn, and `tokens` after every model reply too (the
+turn that spends it ends there; other limits let a turn in progress finish): `end` ends the run
 (`ended_by: "budget"`), `idle` lets it finish with every agent idle. `result.budget` has the limits, use and the
 limit that ran out; snapshots keep it. `experiment` (with `branch_at` the shared rounds count toward each arm),
 `tournament`, `evaluate` and `run_jobs` give every run the whole budget, as `--budget tokens=200000` does on
@@ -118,7 +119,8 @@ when the game is created (one per combination of listed argument values; free te
 parametric: apply them as `{"tool", "args"}`). `fg_env.load(..., chance=callable)` chooses chance outcomes.
 
 LLM participants: `fg_env.participants.anthropic(anthropic.Anthropic(), "claude-sonnet-5")` or
-`fg_env.participants.openai(client, model)` with the sync client; they cache the brief and loop over tool calls.
+`fg_env.participants.openai(client, model)` with the sync client, or the string `anthropic:<model>` / `openai:<model>`
+(the official client, keyed by `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`; `fg-env run --agent`); they loop over tool calls.
 Rate limits, timeouts and server errors are retried (`retries=4`), then the turn is forfeited (`forfeits`, and a
 `turns_forfeited` diagnostic). Any other error — a rejected API key, an unknown model, a bad request, an async or
 unfitting client — fails the run at once with the agent, the provider's error and the fix. A refused reply ends the

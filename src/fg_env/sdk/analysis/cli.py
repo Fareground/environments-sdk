@@ -294,7 +294,7 @@ def _run_options(parser: argparse.ArgumentParser, seed_default: Optional[int] = 
     parser.add_argument("--input", action="append", metavar="NAME=VALUE", help="fix an input (JSON value or text)")
     parser.add_argument("--inputs-file", help="JSON file of inputs")
     parser.add_argument("--agent", action="append", metavar="[TYPE_OR_ID=]PARTICIPANT",
-                        help="random | idle | policy:<name>, optionally for one type or entity")
+                        help="random | idle | policy:<name> | anthropic:<model> | openai:<model>, optionally for one type or entity")
     parser.add_argument("--rounds", type=int, help="stop each run after this many rounds")
     parser.add_argument("--data-dir", help="folder input data files are read from (default: the contract's folder)")
     if workers:

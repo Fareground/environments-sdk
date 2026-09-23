@@ -7,12 +7,16 @@ Built in:
 * ``"policy:<name>"`` (or just the policy's name) — a coded policy declared in the contract.
 * :func:`anthropic` / :func:`openai` — LLM participants driving the turn with tool calls,
   given your own client object (no SDK dependency is imposed).
+* ``"anthropic:<model>"`` / ``"openai:<model>"`` — the same on the provider's official client, made with the
+  API key in ``ANTHROPIC_API_KEY`` / ``OPENAI_API_KEY`` (what ``fg-env run --agent`` uses).
 """
 from __future__ import annotations
 
+import importlib
 import inspect
 import json
 import math
+import os
 import random
 import threading
 import time
@@ -258,16 +262,39 @@ def resolve_participant(value: Any, contract: "Contract", seed: int) -> Particip
         name = value[len("policy:"):] if value.startswith("policy:") else value
         if name in contract.policies:
             return PolicyAgent(contract, name, seed)
+        provider, sep, model = value.partition(":")
+        if sep and provider in _PROVIDERS:
+            return _on_official_client(provider, model)
         from .game.algorithms.participants import algorithm_participant
 
         algorithm = algorithm_participant(value, contract, seed)
         if algorithm is not None:
             return algorithm
     raise ValueError(
-        f"unknown participant {value!r}: use a callable, 'random', 'idle', 'policy:<name>', or a game algorithm: "
+        f"unknown participant {value!r}: use a callable, 'random', 'idle', 'policy:<name>', 'anthropic:<model>', "
+        "'openai:<model>', or a game algorithm: "
         f"'mcts:<simulations>', 'ismcts:<simulations>', 'minimax[:<depth>]', 'cfr:<policy.json>' or "
         f"'cfr:<iterations>' (policies: {', '.join(contract.policies) or 'none'})"
     )
+
+
+#: ``<provider>:<model>`` participants: the official client's class, and the variable holding its API key.
+_PROVIDERS = {"anthropic": ("Anthropic", "ANTHROPIC_API_KEY"), "openai": ("OpenAI", "OPENAI_API_KEY")}
+
+
+def _on_official_client(provider: str, model: str) -> Participant:
+    """The LLM participant ``<provider>:<model>`` names, on the provider's client made from the environment's key."""
+    client_class, key = _PROVIDERS[provider]
+    if not model:
+        raise ValueError(f"participant '{provider}:' names no model: use '{provider}:<model>'")
+    if not os.environ.get(key):
+        raise ValueError(f"participant '{provider}:{model}' needs an API key: set {key} in the environment")
+    try:
+        module = importlib.import_module(provider)
+    except ImportError:
+        raise ValueError(f"participant '{provider}:{model}' needs the {provider} package: pip install {provider}") from None
+    make = anthropic if provider == "anthropic" else openai
+    return make(getattr(module, client_class)(), model)
 
 
 def replay(recording: Any, fallback: Any = None) -> Participant:
@@ -559,7 +586,11 @@ def _field(block: Any, name: str) -> Any:
 def anthropic(client: Any, model: str, *, max_tokens: int = 1024, max_steps: int = 8, system: str = "",
               retries: int = 4, media: Optional[Collection[str]] = None, retry_truncated: bool = True,
               extra: Optional[Mapping[str, Any]] = None) -> Participant:
-    """An LLM participant using an ``anthropic.Anthropic()`` client. The brief is prompt-cached.
+    """An LLM participant using an ``anthropic.Anthropic()`` client.
+
+    The system prompt (``system`` and the brief) is marked for prompt caching. Anthropic caches the tools ahead of
+    it, and the tools are the actions legal right now with their live choices, so a call reads the cache only when
+    the agent is offered the same tools as in an earlier call (typically in a phase it has been in before).
 
     Files the agent receives are sent as image and document blocks after the text (``media``: the attachment types
     sent as content, default image, pdf and text; ``media=()`` for a text-only model, which reads each file's

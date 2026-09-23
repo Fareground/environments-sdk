@@ -344,7 +344,7 @@ def add_commands(sub: Any) -> None:
     p = sub.add_parser("run", help="run a contract and print the result")
     _common(p, None)
     p.add_argument("--agent", action="append", metavar="[TYPE_OR_ID=]PARTICIPANT",
-                   help="random | idle | policy:<name>, optionally for one type or entity")
+                   help="random | idle | policy:<name> | anthropic:<model> | openai:<model>, optionally for one type or entity")
     p.add_argument("--rounds", type=int, help="stop after this many rounds")
     p.add_argument("--events", action="store_true", help="include the event log")
     p.add_argument("--json", action="store_true", help="print the full result as JSON")
@@ -386,7 +386,7 @@ def add_commands(sub: Any) -> None:
     p = sub.add_parser("tournament", help="play entrants against each other in the contract's seats and rate them")
     _common(p, 0)
     p.add_argument("--entrant", action="append", metavar="NAME=PARTICIPANT",
-                   help="an entrant: random | idle | policy:<name> (give at least two)")
+                   help="an entrant: random | idle | policy:<name> | anthropic:<model> | openai:<model> (give at least two)")
     p.add_argument("--seat", action="append", metavar="ENTITY_ID", help="a seat (default: every starting agent)")
     p.add_argument("--pairing", choices=("round_robin", "all_play_all", "swiss"), default="round_robin")
     p.add_argument("--games", type=int, default=1, help="games per seating (game g shares its seed across seatings)")

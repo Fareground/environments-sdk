@@ -191,7 +191,8 @@ class Wake:
                      cache_read_tokens: int = 0, cache_write_tokens: int = 0, llm_retries: int = 0,
                      forfeits: int = 0, truncated: int = 0, refusals: int = 0) -> None:
         """Add a model's real usage to the run's statistics (the built-in LLM participants call this). Usage reported
-        after the turn is over (it ran out of time) still counts toward the statistics and the budget. ``truncated``
+        after the turn is over (it ran out of time) still counts toward the statistics and the budget; usage that
+        spends the run's token budget ends the turn (the built-in LLM participants then make no more calls). ``truncated``
         counts replies cut off at the model's output limit, ``refusals`` replies the provider refused to give."""
         stats = self._turn.stats
         counts = (("llm_calls", llm_calls), ("input_tokens", input_tokens), ("output_tokens", output_tokens),
@@ -215,6 +216,9 @@ class Wake:
                 setattr(stats, name, getattr(stats, name) + value)
             if turn.exposure is not None:
                 turn.exposure.used(shown)
+            budget = turn.env.budget
+            if budget is not None and budget.tokens_spent(turn.env, turn):
+                turn.done = True  # the run's token budget is spent: this turn ends here
 
     @property
     def done(self) -> bool:

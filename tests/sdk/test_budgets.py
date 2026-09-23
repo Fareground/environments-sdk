@@ -5,12 +5,14 @@ import time
 import pytest
 
 import fg_env
+from fg_env import participants
 from fg_env.__main__ import main
 from fg_env.sdk import host
 from fg_env.sdk.host.stubs import StubEvaluator
 
 from test_exposures import TOWN, reader
 from test_host_tape import PITCH, _with, pitcher
+from test_llm_participants import FakeAnthropic
 from test_runtime import SHOP
 
 
@@ -43,6 +45,27 @@ def test_a_token_budget_counts_the_input_and_output_tokens_participants_report()
 
     result = fg_env.run(TOWN, spender, seed=1, budget={"tokens": 150})
     assert result.budget["used"]["tokens"] == 200 and result.stats["wakes"] == 2 and result.ended_by == "budget"
+
+
+@pytest.mark.parametrize("turns, used", [("sequential", 300), ("simultaneous", 400)])
+def test_a_token_budget_stops_turns_in_progress_once_it_is_spent(turns, used):
+    def chatty(wake):
+        while not wake.done:  # a model loop: one reply, then its tool call
+            wake.record_usage(input_tokens=100)
+            wake.call("look", {"view": "board"})
+
+    town = {**TOWN, "stages": [{"name": "talk", "turns": turns}]}
+    result = fg_env.run(town, chatty, seed=1, budget={"tokens": 250})
+    assert (result.ended_by, result.rounds) == ("budget", 1)
+    # Ann's turn ends with the reply that spends it; in a simultaneous stage Bo's first reply ends Bo's turn too
+    assert result.budget["used"]["tokens"] == used
+
+
+def test_an_llm_participant_makes_no_more_model_calls_once_the_token_budget_is_spent():
+    client = FakeAnthropic([[("look", {"view": "board"})]] * 20)
+    town = {**TOWN, "stages": [{"name": "talk", "turns": "simultaneous"}]}
+    result = fg_env.run(town, participants.anthropic(client, "m"), seed=1, budget={"tokens": 200})
+    assert result.ended_by == "budget" and len(client.requests) == 3
 
 
 def test_host_calls_count_answers_on_the_tape_but_not_declared_fallbacks():
