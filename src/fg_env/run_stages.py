@@ -128,8 +128,10 @@ class RunStages:
                 assert turn is not None
                 yield from self.driver.drive_steps([turn], resume=0)
             else:
-                if not actor.alive or self._ended():
+                if self._ended():
                     return
+                if not actor.alive:  # removed earlier this pass: everyone after it still takes their turn
+                    continue
                 reason = self._reason(actor, stage, pass_index)
                 if reason is None:
                     continue
@@ -162,8 +164,10 @@ class RunStages:
                 due.append((at, position, actor))
         due.sort(key=lambda item: (item[0], item[1]))
         for _, _, actor in due:
-            if not actor.alive or self._ended():
+            if self._ended():
                 return
+            if not actor.alive:
+                continue
             reason = self._reason(actor, stage, pass_index)
             if reason is None:
                 world.set_wake_at(actor.id, advance_time(now, self._interval(stage, actor), f"stages.{stage.name}.interval"))
