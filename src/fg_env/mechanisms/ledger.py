@@ -3,7 +3,10 @@
 Every change of money or goods a market makes is a :func:`move`: the same amount leaves one
 account and arrives in another, through the world's journaled API. A move that would take an
 account below its floor refuses with :class:`~fg_env.world.Abort`, so the enclosing action
-rolls back and the agent reads why. Nothing here creates or destroys value.
+rolls back and the agent reads why. Nothing here creates or destroys value, so a market needs no
+conservation check of its own and composes with other markets and with the author's own wages, taxes and
+dividends on the same cash. An ``economy`` ledger that proves its currency is conserved counts the money
+markets hold for their traders (:func:`market_places`).
 
 An account is an entity property (``Account(entity, "cash")``) or a world property
 (``Account(None, "auction_revenue")``).
@@ -12,13 +15,14 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, List, Mapping, Optional, Tuple
 
 from ..entity import Entity
+from ..registry import use_key
 from ..template import format_value
 from ..world import Abort
 
-__all__ = ["Account", "EPS", "move", "balance", "clean", "whole"]
+__all__ = ["Account", "EPS", "move", "balance", "clean", "whole", "market_places"]
 
 #: Balances within this of a floor count as at the floor (float dust from fee arithmetic).
 EPS = 1e-7
@@ -32,6 +36,27 @@ def clean(value: float) -> float:
 
 def whole(value: float) -> bool:
     return abs(value - round(value)) < 1e-9
+
+
+#: Where each market mode keeps money its traders put in, for a use named ``{}``: (trader props, world props).
+_HELD = {
+    "market.order_book": (("{}_reserved_cash",), ("{}_fees",)),
+    "market.prediction": ((), ("{}_vault", "{}_fees")),
+    "market.auction": (("{}_escrow",), ("{}_revenue",)),
+    "market.posted": ((), ("{}_ad_revenue",)),
+}
+
+
+def market_places(mechanisms: Mapping[str, Any], currency: str) -> Tuple[List[str], List[str]]:
+    """The entity and world properties where the declared markets of ``currency`` hold money."""
+    entity_props: List[str] = []
+    world_props: List[str] = []
+    for name, raw in (mechanisms or {}).items():
+        held = _HELD.get(use_key(raw) or "")
+        if held is not None and raw.get("currency", "cash") == currency:
+            entity_props += [prop.format(name) for prop in held[0]]
+            world_props += [prop.format(name) for prop in held[1]]
+    return entity_props, world_props
 
 
 @dataclass(frozen=True)

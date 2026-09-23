@@ -154,6 +154,19 @@ def test_quorum_and_one_ballot_per_voter():
     assert True in seen
 
 
+def test_a_declared_event_or_end_entry_replaces_the_generated_one_of_its_name():
+    race = {"name": "Race", "clock": {"rounds": 5}, "types": {"p": {"agent": True, "props": {"score": 0}}},
+            "entities": {"a": {"type": "p"}, "b": {"type": "p"}},
+            "events": [{"name": "win_most", "phase": "end", "at": 2, "do": [{"end": "most", "winner": "$entity(b)"}]}],
+            "end": [{"name": "first_to", "when": "false"}],
+            "mechanisms": {"win": {"kind": "flow", "mode": "victory", "who": "p",
+                                   "conditions": [{"first_to": 0, "score": "$it.score"}, {"most": "$it.score", "at": 4}]}}}
+    contract = fg_env.parse(race)
+    assert [e.name for e in contract.events] == ["win_most"] and [e.when for e in contract.end] == ["false"]
+    result = fg_env.run(race, seed=1)
+    assert result.rounds == 2 and result.winner == "b"
+
+
 def test_authors_override_generated_parts_and_arms_patch_mechanism_config():
     custom = json.loads(json.dumps(COUNCIL))
     custom["actions"] = {"budget_vote": {"by": "member", "description": "Say aye.", "params": {},

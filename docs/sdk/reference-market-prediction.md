@@ -16,7 +16,7 @@ Config:
 - `outcome` (default null): Expression giving the winning outcome when the market resolves.
 - `stage` (default null): Trade during this declared stage; default: a sequential stage named after the market.
 - `max_actions` (default 2): Trades per turn in the generated stage.
-- `conserve` (default true): Declare invariants that cash is conserved and the vault covers every share.
+- `conserve` (default true): Declare the invariant that the vault covers every share.
 - `tools` (default "each"): How the generated tools are offered: each (one tool per action) | one (one tool named after the mechanism, whose `action` argument lists the actions legal now) | auto (one tool only when every action takes the same arguments).
 
 Actions of the `market` op:

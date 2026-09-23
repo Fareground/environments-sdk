@@ -13,7 +13,7 @@ from ._common import ToolsSetting, tools_field
 from .econ_assets import balance, move_money
 from .econ_base import (INVENTORY, LEDGER, amount, checked_config, props, choice_param, config_of, declared_names, emit_to,
                         entity_of, guarded, money, register_config, run_hook, require_types, type_list, valid_name, whole)
-from .econ_inventory import agent_types, baseline
+from .econ_inventory import agent_types
 
 __all__ = ["LedgerConfig"]
 
@@ -104,7 +104,8 @@ def _money_left(currency: str, spec: CurrencySpec) -> str:
       "`pay` moves money (never creating it), `mint`/`burn` name their source or sink, scheduled `sources` pay UBI or "
       "allowances, `taxes` withhold a share of payments that name them, and `loans` add `<name>_borrow`, `<name>_repay` "
       "and `<name>_set_rate` with per-round interest, due dates and default. The invariant `$conserved(<name>)` "
-      "proves balances equal $world.<name>_supply; $world.<name>_flows totals every source and sink.",
+      "proves balances equal $world.<name>_supply, counting the money markets hold for their traders (reserves, escrow, "
+      "vaults, fees), so markets trade in the ledger's currency; $world.<name>_flows totals every source and sink.",
       example={"who": ["household", "shop"], "currencies": {"cash": {"start": 100, "credit": 20}},
                "sources": {"allowance": {"to": "household", "amount": 300, "every": 30, "mode": "reset"}},
                "taxes": {"sales_tax": {"rate": 0.08, "on": "payer"}}})
@@ -127,7 +128,7 @@ def _expand_ledger(name: str, config: LedgerConfig, contract: Mapping[str, Any])
                                                   "description": f"How far below zero {currency} may go."}
     fragment: Dict[str, Any] = {
         "types": {t: {"props": holder_props} for t in holders},
-        "world": {f"{name}_supply": {"type": "map", "default": baseline(contract, holders, list(config.currencies)),
+        "world": {f"{name}_supply": {"type": "map", "default": f"$money_held('{name}')",
                                      "description": "Money in existence per currency."},
                   f"{name}_flows": {"type": "map", "default": {}, "description": "Money created (+) and destroyed (−) by each named source and sink."}},
         "invariants": [{"expr": f"$conserved('{name}')", "check": "round",

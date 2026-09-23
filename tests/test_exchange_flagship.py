@@ -59,13 +59,18 @@ def test_a_seeded_session_is_deterministic_and_a_snapshot_resumes_it_exactly():
 
 def test_cash_and_shares_are_conserved_through_a_crash_and_its_halts():
     inputs = {**SMALL, "bars": 5, "events": CRASH, "circuit_breaker_pct": 4}
+
+    def totals(world):
+        traders = [e for e in world.entities.values() if e.alive and e.properties.get("demo_shares") is not None]
+        cash = sum(t.properties["cash"] + t.properties["demo_reserved_cash"] for t in traders) + world.props["demo_fees"]
+        return cash, sum(t.properties["demo_shares"] + t.properties["demo_reserved_shares"] for t in traders)
+
+    start_cash, start_shares = totals(fg_env.load(PATH, inputs=inputs, seed=2).world)
     env, result = run(inputs, seed=2)
     assert result.outputs["demo_halts"] > 0
     assert order_book.audit(env.world, "demo") == []
-    traders = [e for e in env.world.entities.values() if e.alive and e.properties.get("demo_shares") is not None]
-    cash = sum(t.properties["cash"] + t.properties["demo_reserved_cash"] for t in traders) + env.world.props["demo_fees"]
-    shares = sum(t.properties["demo_shares"] + t.properties["demo_reserved_shares"] for t in traders)
-    assert cash == pytest.approx(env.world.props["demo_supply"]["cash"]) and shares == env.world.props["demo_supply"]["shares"]
+    cash, shares = totals(env.world)
+    assert cash == pytest.approx(start_cash) and shares == start_shares
 
 
 def test_the_circuit_breaker_halts_the_rest_of_the_bar_and_trading_resumes_at_the_next_bar():

@@ -636,7 +636,7 @@ def _expand_board(name: str, config: BoardConfig, contract: Mapping[str, Any]) -
                                "max_actions": chain_turn, "max_calls": chain_turn + 6, "must_act": True,
                                "brief": "Your move."}]
     else:
-        fragment["stage_hooks"] = {config.stage: {"actions": names}}
+        fragment["stage_hooks"] = {config.stage: {"actions": names, "max_actions": chain_turn}}
     return fragment
 
 

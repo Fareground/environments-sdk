@@ -12,18 +12,10 @@ from typing import Any, Dict, List
 
 from .book_rules import CLOSES_WINDOW, Venue, venue
 from .common import fmt, number
-from .order_book import (KEY, OrderBookConfig, account, book_config, cash_total, merge_flow, props_for, release, share_total,
-                         traders, trip)
+from .order_book import KEY, OrderBookConfig, account, book_config, merge_flow, props_for, release, traders, trip
 from .ledger import clean
 
-__all__ = ["open_round", "close_round", "rebase", "start_price"]
-
-
-def rebase(world: Any, name: str) -> None:
-    """Take the current cash and share totals as the supply the invariants conserve (at the start, or after an
-    author's own effects add or remove cash or shares)."""
-    cfg = book_config(world, name)
-    world.set_world(f"{name}_supply", {"cash": clean(cash_total(world, name, cfg)), "shares": clean(share_total(world, name, cfg))})
+__all__ = ["open_round", "close_round", "start_price"]
 
 
 def start_price(world: Any, name: str) -> float:
@@ -31,18 +23,18 @@ def start_price(world: Any, name: str) -> float:
 
 
 def open_round(world: Any, name: str) -> None:
-    """Start of a round: baseline supply and P&L (first round) or a step of the default fair value, resume after a
+    """Start of a round: baseline P&L (first round) or a step of the default fair value, resume after a
     halt, expire old orders, start a bar when one is due, set the breaker's reference and reset the round's
     statistics."""
-    if world.props.get(f"{name}_opened") == world.round:
+    opened = world.props.get(f"{name}_opened")
+    if opened == world.round:
         return
     world.set_world(f"{name}_opened", world.round)
     cfg = book_config(world, name)
     v = venue(world, name)
     p = props_for(name)
     last = float(world.props.get(f"{name}_last") or 0)
-    if not world.props.get(f"{name}_supply"):
-        rebase(world, name)
+    if not opened:  # the first round: every trader's P&L starts here
         for trader in traders(world, name, cfg):
             world.set_prop(trader, p["start_value"], account(world, name, trader)["equity"])
     elif cfg.fair_value is None:  # the value starts at the start price and walks from the second round

@@ -159,7 +159,7 @@ def _capped(count: int, path: str) -> int:
     return count
 
 
-_ENTITY_FUNCTIONS = frozenset({"entity", "exists", "records", "neighbors", "relation", "linked", "events"})
+_ENTITY_FUNCTIONS = frozenset({"entity", "exists", "records", "neighbors", "relation", "linked", "events", "money_held"})
 
 
 def _needs_entities(world: SdkWorld, raw: Any) -> bool:

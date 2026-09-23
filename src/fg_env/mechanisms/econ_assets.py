@@ -23,6 +23,7 @@ from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..world import Abort
 from .econ_base import EPS, INVENTORY, LEDGER, SUPPLY_CHAIN, amount, bump, cached, maybe_entity, money, props, uses_of
+from .ledger import market_places
 
 __all__ = ["Assets", "assets", "move_money", "mint_money", "burn_money", "held", "put_items", "take_items",
            "make_items", "destroy_items", "place_key", "is_holder", "inventory_prop", "balance", "credit_of"]
@@ -399,6 +400,31 @@ def _number_or_zero(value: Any) -> float:
     return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else 0.0
 
 
+def _market_places(world: Any, currency: str) -> Tuple[List[str], List[str]]:
+    """Where the contract's markets hold ``currency`` for their traders (cached per contract)."""
+    return cached(world, ("markets", currency),  # type: ignore[no-any-return]
+                  lambda: market_places(world.contract.mechanisms, currency))
+
+
+def money_held(world: Any, currency: str) -> Tuple[List[float], str]:
+    """Every balance of ``currency``: each holder's and what markets hold for their traders (escrow, reserves,
+    vaults, fees), in one pass over the entities; a reason instead when a balance passes its credit limit."""
+    holders, credited = _holder_types(world, currency), _holder_types(world, f"{currency}_credit")
+    in_markets, market_accounts = _market_places(world, currency)
+    balances = [_number_or_zero(world.props.get(prop)) for prop in market_accounts]
+    for entity in world.entities.values():
+        if not entity.alive or entity.entity_type not in holders:
+            continue
+        values = props(entity)
+        value = _number_or_zero(values.get(currency))
+        balances.append(value)
+        balances += [_number_or_zero(values.get(prop)) for prop in in_markets]
+        limit = _number_or_zero(values.get(f"{currency}_credit")) if entity.entity_type in credited else 0.0
+        if value < -max(0.0, limit) - 1e-6:
+            return balances, f"{entity.name} is below its {currency} credit limit"
+    return balances, ""
+
+
 def conserved(world: Any, name: str, where: str) -> Tuple[bool, str]:
     """Whether holdings of a ledger or inventory match its supply; a reason when they do not.
 
@@ -407,17 +433,9 @@ def conserved(world: Any, name: str, where: str) -> Tuple[bool, str]:
     supply = world.props.get(f"{name}_supply") or {}
     if name in index.ledgers:
         for currency in index.ledgers[name].currencies:
-            holders, credited = _holder_types(world, currency), _holder_types(world, f"{currency}_credit")
-            balances = []
-            for entity in world.entities.values():
-                if not entity.alive or entity.entity_type not in holders:
-                    continue
-                values = props(entity)
-                value = _number_or_zero(values.get(currency))
-                balances.append(value)
-                limit = _number_or_zero(values.get(f"{currency}_credit")) if entity.entity_type in credited else 0.0
-                if value < -max(0.0, limit) - 1e-6:
-                    return False, f"{entity.name} is below its {currency} credit limit"
+            balances, problem = money_held(world, currency)
+            if problem:
+                return False, problem
             total = _money_sum(balances)
             if not math.isfinite(total):
                 return False, f"{currency} held has a non-finite total; reduce the monetary scale"
@@ -590,6 +608,17 @@ def _total_held(call: Call) -> float:
     members = call.collection(0)
     world = call.scope.world
     return _guard(call, lambda: total_of(world, members, str(call.arg(1)), call.source))  # type: ignore[no-any-return]
+
+
+@function("money_held(ledger)", "Each currency of a ledger as held now, {currency: total}: every holder's balance and "
+          "what markets hold for their traders (escrow, reserves, vaults, fees). The ledger's supply starts at it.",
+          min_args=1, max_args=1)
+def _money_held(call: Call) -> Dict[str, float]:
+    world, name = call.scope.world, str(call.arg(0))
+    ledger = assets(world).ledgers.get(name)
+    if ledger is None:
+        raise ExprError(f"$money_held: '{name}' is not a declared ledger", call.source)
+    return {currency: _money_sum(money_held(world, currency)[0]) for currency in ledger.currencies}
 
 
 @function("loose_total(inventory, item)", "Items nobody holds: on the ground, or unique items whose owner is gone.",
