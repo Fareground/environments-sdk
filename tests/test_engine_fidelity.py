@@ -304,7 +304,7 @@ def test_volatility_widens_the_exchange_spread_and_drift_moves_its_price():
     assert avg("return_pct", drift_pct_per_bar=-3) < avg("return_pct", drift_pct_per_bar=3)
 
 
-@pytest.mark.skipif(not os.environ.get("FG_ENV_SLOW"), reason="six full sessions: the nightly slow run")
+@pytest.mark.skipif(not os.environ.get("FG_ENV_SLOW"), reason="six full sessions: FG_ENV_SLOW=1")
 def test_the_exchanges_market_makers_earn_their_spread_as_a_class():
     pnl = [run("exchange", seed=seed).outputs["pnl_by_kind"]["market_maker"] for seed in range(1, 7)]
     assert sum(p > 0 for p in pnl) >= 5, pnl

@@ -92,7 +92,7 @@ def test_example_resumes_exactly(path: Path) -> None:
     assert env.result().to_dict() == straight
 
 
-#: Seeds every example plays to its end with random agents (more in the nightly slow run).
+#: Seeds every example plays to its end with random agents (more with FG_ENV_SLOW=1).
 FULL_SEEDS = (1, 2, 3, 4, 5) if os.environ.get("FG_ENV_SLOW") else (1,)
 
 
