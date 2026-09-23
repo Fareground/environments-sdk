@@ -42,7 +42,8 @@ def my_agent(wake):
 own earlier choices), so a choice that could not happen is refused immediately and does not use up the turn.
 Async participants: an `async def` (or an object with an async `__call__`, or a function that returns an
 awaitable) works everywhere, and a simultaneous stage runs them concurrently with the same deterministic
-result. Inside an event loop use `result = await env.arun(participants, ...)`: participants run on that loop,
+result; so does the built-in LLM participant. A plain function plays one turn at a time (set `concurrent = True` on
+a thread-safe one that waits on I/O to run it alongside others). Inside an event loop use `result = await env.arun(participants, ...)`: participants run on that loop,
 so clients bound to it work. `wake.time_limit` and `wake.time_left` give the turn's deadline.
 `fg_env.load(..., exposures=True)` records what every agent was shown on every wake in `result.exposures`,
 `{"texts": {hash: text}, "wakes": [...], "chance": [...]}`: brief, update and view hashes and sizes, news event sequence

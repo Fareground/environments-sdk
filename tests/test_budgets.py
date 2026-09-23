@@ -54,6 +54,7 @@ def test_a_token_budget_stops_turns_in_progress_once_it_is_spent(turns, used):
         while not wake.done:  # a model loop: one reply, then its tool call
             wake.record_usage(input_tokens=100)
             wake.call("look", {"view": "board"})
+    chatty.concurrent = True  # like a model client: a simultaneous stage runs both turns at once
 
     town = {**TOWN, "stages": [{"name": "talk", "turns": turns}]}
     result = fg_env.run(town, chatty, seed=1, budget={"tokens": 250})

@@ -216,8 +216,6 @@ class EdgeAgent:
     zero, or its greatest (in turn, round by round); the first, middle or last choice: the values random play
     almost never picks, and a rule most often fails on (a division by a rate an agent set to 0)."""
 
-    concurrent = False
-
     def __init__(self, seed: int) -> None:
         self.seed = seed
 

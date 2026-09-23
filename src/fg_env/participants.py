@@ -44,9 +44,6 @@ def _seed_for(base: int, wake: Wake) -> int:
 class RandomAgent:
     """Takes up to ``actions`` random legal actions per turn with valid random arguments."""
 
-    #: Coded participants are fast; running them in order avoids thread overhead.
-    concurrent = False
-
     def __init__(self, seed: int = 0, actions: int = 1, pass_rate: float = 0.0):
         self.seed = seed
         self.actions = actions
@@ -145,9 +142,6 @@ def _sample_list(prop: Mapping[str, Any], rng: random.Random) -> Optional[List[A
 class Idle:
     """Never acts."""
 
-    #: Coded participants are fast; running them in order avoids thread overhead.
-    concurrent = False
-
     def __call__(self, wake: Wake) -> None:
         wake.end()
 
@@ -159,7 +153,6 @@ class PolicyAgent:
     """Runs a coded policy from the contract's ``policies`` section: the first rule whose condition
     holds, whose action is legal and whose arguments are valid is taken."""
 
-    concurrent = False
     #: Before a rule acts, also evaluate the later rules whose action is legal, so a broken rule that an earlier one
     #: always beats is still reported. Check's smoke play sets it; the policy acts the same either way.
     _probe_later = False
@@ -497,6 +490,8 @@ def _extra(extra: Optional[Mapping[str, Any]], sent: Collection[str]) -> Dict[st
 class _LLMParticipant:
     """The shared tool loop: retries, usage accounting, failing loudly on errors retrying cannot fix."""
 
+    #: Sealed turns run at the same time: each waits on the provider.
+    concurrent = True
     #: The provider's sync client, and the call the loop makes on it (named in error messages).
     CLIENT = ""
     CALL = ""

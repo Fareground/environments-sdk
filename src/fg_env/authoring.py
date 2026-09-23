@@ -584,8 +584,6 @@ class _Reading:
     """``agent``, reading its brief and update first each turn, as a model does: a view or template that fails on a
     state play reaches fails the run."""
 
-    concurrent = False
-
     def __init__(self, agent: Any) -> None:
         self.agent = agent
 

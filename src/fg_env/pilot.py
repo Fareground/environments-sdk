@@ -78,8 +78,6 @@ class _SeatDriver(Driver):
 
 
 class _Seat:
-    concurrent = False
-
     def __init__(self, pilot: "Pilot", inner: Participant):
         self.pilot = pilot
         self.inner = inner

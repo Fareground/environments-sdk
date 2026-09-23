@@ -59,8 +59,6 @@ class Replayer:
     """A participant that plays a recorded run's steps again (see the module docs). ``divergence`` is the first
     difference found, or None; :meth:`unplayed` names recorded turns the replay never reached."""
 
-    concurrent = False
-
     def __init__(self, recording: Any, fallback: Any = None):
         from .reader import Trace
 

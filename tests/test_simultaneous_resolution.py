@@ -190,7 +190,11 @@ def test_how_many_sealed_turns_run_at_once_does_not_change_the_outcome():
          "actions": {"roll": {"by": "p", "chance": 0.5, "otherwise": ["$actor.cash -= 1"],
                               "do": ["$actor.luck += $randint(1, 100)", "$world.pot += 1", "$world.order += $actor.id"]}},
          "stages": [{"name": "s", "turns": "simultaneous"}], "outputs": {"pot": "$world.pot"}}
-    runs = [fg_env.load(c, seed=9, parallel=n).run({"*": lambda w: w.call("roll", {})}).to_dict() for n in (1, 3, 8)]
+    def roll(wake):
+        wake.call("roll", {})
+    roll.concurrent = True  # sealed turns on worker threads, as many at once as `parallel` allows
+
+    runs = [fg_env.load(c, seed=9, parallel=n).run({"*": roll}).to_dict() for n in (1, 3, 8)]
     assert runs[0] == runs[1] == runs[2]
 
 
@@ -219,5 +223,6 @@ def test_another_agents_sealed_choices_never_show_in_what_an_agent_reads():
             seen.add(wake.me["cash"])
             seen.update(tool.name for tool in wake.tools)
 
+    a.concurrent = b.concurrent = True  # both turns at once, so b reads while a's choices are being tried
     fg_env.load(contract, seed=1).run({"a": a, "b": b})
     assert 1000 in seen and not any(isinstance(cash, int) and cash > 1000 for cash in seen), sorted(map(str, seen))
