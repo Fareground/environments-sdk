@@ -7,12 +7,16 @@ kept in the trader's ``<book>_algo`` property, so a crowd of one kind still show
 snapshot resumes it exactly.
 
 Sizes are in multiples of the book's ``base_qty`` (speculative sizes also by its ``flow_scale``); volatility
-is the realised per-round volatility of recent closes (or the book's ``volatility`` before there is a tape).
+is the realised per-round volatility of recent closes (or the book's ``volatility`` before there is a tape), except
+for market makers.
 A strategy with a ``stop_loss`` parameter liquidates its position at market, before anything else it does,
 once the loss passes ``stop_loss`` × volatility (clamped to 2–15%) of the position's entry value.
 
-* ``market_maker`` — requotes both sides around the mid, skews on inventory, widens with volatility,
-  hedges with a market order past its inventory limit.
+* ``market_maker`` — requotes both sides around a reference price it learns from order flow (last round's net
+  aggressive flow moves it by up to ``impact`` volatilities, and it leans toward the last trade), skews on inventory,
+  widens with the book's ``volatility`` and with how one-sided (toxic) recent flow was, and hedges with a market
+  order past its inventory limit. It prices by the configured volatility, not the tape's: a measured one would
+  include its own bid-ask bounce and feed back into ever wider quotes.
 * ``momentum`` — buys strength and sells weakness over a lookback; closes when the trend fades.
 * ``mean_reversion`` — fades stretched moves with limit orders inside the spread; exits on reversion.
 * ``fundamentalist`` — trades toward a noisy private estimate of the fair value (the book's ``fair_value``, by
@@ -24,7 +28,7 @@ once the loss passes ``stop_loss`` × volatility (clamped to 2–15%) of the pos
 from __future__ import annotations
 
 import math
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from ..entity import Entity
 from ..errors import RunError
@@ -40,8 +44,8 @@ __all__ = ["DEFAULTS", "run_algo"]
 
 #: Default parameters per strategy (overridden by a crowd's ``params``).
 DEFAULTS: Dict[str, Dict[str, float]] = {
-    "market_maker": {"activity": 1.0, "half_spread_ticks": 2.0, "vol_mult": 0.25, "quote_mult": 1.0,
-                     "inventory_mult": 8.0, "layers": 2, "position_mult": 16.0},
+    "market_maker": {"activity": 1.0, "half_spread_ticks": 2.0, "vol_mult": 0.5, "quote_mult": 1.0,
+                     "inventory_mult": 8.0, "layers": 2, "position_mult": 16.0, "impact": 1.0, "toxicity_mult": 2.0},
     "momentum": {"activity": 0.5, "lookback": 5, "threshold_sigma": 0.5, "size_mult": 1.0, "position_mult": 4.0},
     "mean_reversion": {"activity": 0.5, "window": 10, "z_threshold": 1.2, "size_mult": 0.8, "position_mult": 4.0},
     "fundamentalist": {"activity": 0.4, "noise_sigma": 0.8, "margin_sigma": 0.5, "patience": 0.7, "size_mult": 1.0,
@@ -50,6 +54,9 @@ DEFAULTS: Dict[str, Dict[str, float]] = {
               "position_mult": 6.0, "sentiment_sensitivity": 0.35},
     "passive": {"activity": 0.5, "size_mult": 0.3, "position_mult": 8.0, "direction_bias": 0.0, "side_rounds": 1},
 }
+#: How far a market maker's reference leans toward the last trade each round, and how much of its toxicity reading
+#: carries over from the round before.
+LAST_WEIGHT, TOXICITY_MEMORY = 0.3, 0.7
 #: Per-trader dispersion: parameter → (low, high) multiplier drawn once.
 _DISPERSION: Dict[str, Dict[str, tuple]] = {
     "market_maker": {"half_spread_ticks": (0.7, 1.6), "quote_mult": (0.6, 1.5), "inventory_mult": (0.7, 1.3),
@@ -79,6 +86,7 @@ class _View:
         if assumed <= 0:
             raise RunError(f"volatility must be above 0, got {assumed!r}", f"mechanisms.{name}.volatility")
         rets = log_returns(self.prices[-31:]) if cfg.measure_volatility else []
+        self.assumed = assumed
         self.sigma = stdev(rets) if len(rets) >= 5 and stdev(rets) > 0 else assumed
         self.base = _setting(world, name, "base_qty", cfg.base_qty, trader, self.venue.lot * 10)
         if self.base <= 0:
@@ -192,10 +200,20 @@ def _overrides(cfg: OrderBookConfig, strategy: str) -> Dict[str, Union[float, st
 def _market_maker(v: _View, p: Dict[str, float], rng: Any) -> None:
     cancel_all(v.world, v.name, v.trader)
     last, bid, ask, mid = top(v.world, v.name)
-    centre_price = mid if bid is not None and ask is not None else last
+    state = v.state
+    if state.get("seen") != v.world.round:  # learn from last round's flow once a round
+        net, gross = _outside_flow(v)
+        ref = float(state.get("ref", mid if bid is not None and ask is not None else last))
+        ref = (1 - LAST_WEIGHT) * ref + LAST_WEIGHT * last
+        imbalance = net / (gross + v.base)  # -1 (everyone sold) … 1 (everyone bought); a trickle counts less
+        state["ref"] = ref * math.exp(v.assumed * p["impact"] * imbalance)
+        state["toxicity"] = (1 - TOXICITY_MEMORY) * abs(imbalance) + TOXICITY_MEMORY * float(state.get("toxicity", 0.0))
+        state["seen"] = v.world.round
+    centre_price = float(state["ref"])
     quote_qty = max(v.lot, v.base * p["quote_mult"])
     limit = max(quote_qty, v.base * p["inventory_mult"])
-    half = max(1.0, p["half_spread_ticks"] + v.sigma * centre_price / v.tick * p["vol_mult"])
+    half = max(1.0, p["half_spread_ticks"] + v.assumed * centre_price / v.tick * p["vol_mult"]) \
+        * (1 + p["toxicity_mult"] * state["toxicity"])
     inventory = v.inventory
     if abs(inventory) > limit:
         v.order("sell" if inventory > 0 else "buy", min(abs(inventory) - limit / 2, quote_qty))
@@ -212,6 +230,14 @@ def _market_maker(v: _View, p: Dict[str, float], rng: Any) -> None:
         size = quote_qty * (1.0 + 0.6 * layer)
         v.order("buy", size * _clamp(1.0 - load, 0.25, 1.75), round(bid_t * v.tick, 10))
         v.order("sell", size * _clamp(1.0 + load, 0.25, 1.75), round(ask_t * v.tick, 10))
+
+
+def _outside_flow(v: _View) -> Tuple[float, float]:
+    """Last round's aggressive (net, gross) quantity from everyone but market makers."""
+    flow = v.world.props.get(f"{v.name}_flow") or {}
+    sides = [sides for kind, sides in flow.items() if kind != "market_maker"]
+    return (sum(float(s.get("buy", 0)) - float(s.get("sell", 0)) for s in sides),
+            sum(float(s.get("buy", 0)) + float(s.get("sell", 0)) for s in sides))
 
 
 def _momentum(v: _View, p: Dict[str, float], rng: Any) -> None:
