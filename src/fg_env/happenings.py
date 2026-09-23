@@ -78,7 +78,8 @@ class Happenings:
                     inner = {item_name: item, "i": position}
                     if event.where is not None and not truthy(compile_expr(event.where)(world.scope(**inner))):
                         continue
-                    env._atomic(event.do, inner, f"{path}.do")
+                    env._atomic(event.do, inner, f"{path}.do", check=False)
+                env._check_invariants(f"{path}.do")
             except ExprError as exc:
                 raise RunError(str(exc), path) from None
         else:

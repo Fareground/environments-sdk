@@ -1567,7 +1567,7 @@
         },
         "check": {
           "default": "action",
-          "description": "When it is checked: action (after the build, every action and effect block, and every round) | round (after the build and at the end of every round: much cheaper for sums over big crowds) | end (once, when the run finishes).",
+          "description": "When it is checked: action (after the build, every action and effect block — an `each` event once its last item ran — and every round) | round (after the build and at the end of every round: much cheaper for sums over big crowds) | end (once, when the run finishes).",
           "title": "Check",
           "type": "string"
         }

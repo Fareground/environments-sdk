@@ -53,14 +53,14 @@ turn, uses `max_actions`, or runs out of `max_calls`.
   inside that change, so a `fail` in a hook refuses it. Entities made at build run on_create once the
   whole world exists, in creation order (`on_create_at_build: false` skips them). `$it` is the entity;
   in on_remove it is already no longer alive. Hooks setting off hooks stop at 16 levels.
-* Invariants are checked after every action and effect block (and after physics): write them for states that
-  must hold at all times, not ones that only settle at the end of a stage. An agent's action that breaks one —
-  itself or through the triggers and hooks its commit sets off — is refused and undone, and the agent is told the
-  invariant's `why` (give one: without it the agent only hears that a rule would break); the run goes on and its
-  diagnostics count it. A break by anything else (events, physics, the build) fails the run. `"check": "round"`
-  checks one only at the end of every round (a conservation sum over a big crowd then costs one pass a round, not
-  one per change) — a break found then fails the run, whatever caused it; `"check": "end"` once, when the run
-  finishes.
+* Invariants are checked after every action and effect block (an `each` event once its last item ran) and after
+  physics: write them for states that must hold at all times, not ones that only settle at the end of a stage. An
+  agent's action that breaks one — itself or through the triggers and hooks its commit sets off — is refused and
+  undone, and the agent is told the invariant's `why` (give one: without it the agent only hears that a rule would
+  break); the run goes on and its diagnostics count it. A break by anything else (events, physics, the build) fails
+  the run. `"check": "round"` checks one only at the end of every round (a conservation sum over a big crowd then
+  costs one pass a round, not one per change) — a break found then fails the run, whatever caused it;
+  `"check": "end"` once, when the run finishes.
 * An agent's action is one undoable unit: the checks of its call (requirements, arguments), its effects, and the
   hooks and triggers its commit sets off. A rule that fails anywhere in it (a division by zero, a number too large) refuses and undoes that action
   alone — in a sealed stage when the choices commit, in an atomic turn the whole turn — and the agent is told the cause

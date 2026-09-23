@@ -156,6 +156,32 @@ def test_an_action_invariant_fails_the_moment_a_change_breaks_it():
     assert result.status == "failed" and "after events[0].do" in result.error and "the books balance" in result.error
 
 
+#: Clerks take turns lending and repaying: the books are off after every lender and balance again after the
+#: borrower who follows, so they balance whenever the whole event has run.
+LENDING = {
+    "name": "Lending",
+    "clock": {"rounds": 2},
+    "world": {"owed": 0},
+    "types": {"clerk": {"props": {"seat": 0}}},
+    "population": [{"type": "clerk", "count": 4, "props": {"seat": "$i"}}],
+    "events": [{"phase": "end", "each": "clerk", "order": "$it.seat",
+                "do": [{"if": "$it.seat % 2 == 0", "then": ["$world.owed += 1"], "else": ["$world.owed -= 1"]}]}],
+    "invariants": [{"expr": "$world.owed == 0", "why": "the books balance"}],
+    "outputs": {"owed": {"expr": "$world.owed", "type": "int"}},
+}
+
+
+def test_an_each_event_is_checked_once_after_its_last_item():
+    assert fg_env.load(LENDING, seed=1).run().status == "completed"
+
+
+def test_an_each_event_that_leaves_an_invariant_broken_fails_the_run_naming_the_event():
+    contract = json.loads(json.dumps(LENDING))
+    contract["population"][0]["count"] = 3
+    result = fg_env.load(contract, seed=1).run()
+    assert result.status == "failed" and "after events[0].do" in result.error and "the books balance" in result.error
+
+
 def test_a_round_invariant_only_needs_to_hold_when_the_round_ends():
     contract = json.loads(json.dumps(BALANCE))
     contract["invariants"][0]["check"] = "round"
