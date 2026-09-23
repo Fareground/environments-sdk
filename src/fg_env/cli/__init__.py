@@ -177,7 +177,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             for event in result.events:
                 if event.get("text"):
                     print(f"  r{event['round']} {event['kind']}: {event['text']}")
-    return 0 if result.status in ("completed", "ended", "stopped") and not result.output_issues else 2
+    return 0 if result.status in ("completed", "ended", "stopped", "running") and not result.output_issues else 2
 
 
 def cmd_preview(args: argparse.Namespace) -> int:
@@ -195,10 +195,6 @@ def cmd_preview(args: argparse.Namespace) -> int:
     except (RunError, ExprError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    if args.entity not in env.world.entities:
-        agents = [e.id for e in env.world.entities.values() if env.contract.types[e.entity_type].agent]
-        print(f"no entity '{args.entity}' (agents: {', '.join(agents[:20])})", file=sys.stderr)
-        return 1
     view = env.preview(args.entity, args.stage)
     if args.json:
         print(json.dumps(view, indent=2, ensure_ascii=False))
@@ -349,7 +345,7 @@ def add_commands(sub: Any) -> None:
     p.add_argument("--events", action="store_true", help="include the event log")
     p.add_argument("--json", action="store_true", help="print the full result as JSON")
     p.add_argument("--trace", metavar="FILE", help="record what every agent saw and did, and save the result to FILE "
-                                                   "(.json or .jsonl) for fg-env trace and fg-env replay")
+                                                   "(.json or .jsonl) for fg-env trace FILE (replay it with fg-env trace FILE replay CONTRACT)")
     p.add_argument("--budget", action="append", metavar="NAME=VALUE",
                    help="cap the run: tokens, calls, host_calls, seconds; on_exhaust=end|idle")
     p.add_argument("--exposures", action="store_true",

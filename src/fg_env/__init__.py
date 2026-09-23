@@ -30,7 +30,7 @@ from .api import check, expand, load, parse, run
 from .authoring import author
 from .branch import Branch
 from .contract import Contract
-from .errors import ContractError, InputError, InvariantViolation, Issue, RunError, SnapshotError
+from .errors import ContractError, FatalRunError, InputError, InvariantViolation, Issue, RunError, SnapshotError
 from .experiments import ExperimentResult, experiment
 from .forks import fork
 from .guides import guide, schema
@@ -66,6 +66,7 @@ __all__ = [
     "InputError",
     "RunError",
     "InvariantViolation",
+    "FatalRunError",
     "SnapshotError",
     "list_engines",
     "clone_engine",

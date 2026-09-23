@@ -250,7 +250,7 @@ def test_runner_process_pool_matches_serial():
 
 
 def test_runner_fails_fast_on_shared_problems():
-    with pytest.raises(ValueError, match="participants key"):
+    with pytest.raises(ValueError, match="is not an entity id, a type"):
         runner.run_jobs(LEMONADE, [runner.Job({}, None, 1)], participants={"nobody": "random"})
     with pytest.raises(InputError):
         runner.run_jobs(NOISY, [runner.Job({"rate": 7}, None, 1)])

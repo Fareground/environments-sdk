@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional
+from difflib import get_close_matches
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, NoReturn, Optional
 
 from .actions import ACTION_BUDGET, stage_actions
 from .contract import StageSpec
+from .errors import ContractError, Issue
 from .expr import shared_budget
 from .perception import is_spectator
 from .snapshot import restore_env
@@ -58,9 +60,11 @@ class Previews:
     def preview(self, entity_id: str, stage: Optional[str]) -> Dict[str, Any]:
         env = self.env
         if env.world.entity(entity_id) is None:
-            raise KeyError(f"no entity '{entity_id}'")
-        if stage is not None and all(s.name != stage for s in env.contract.stage_list()):
-            raise KeyError(f"no stage '{stage}' (stages: {', '.join(s.name for s in env.contract.stage_list())})")
+            agents = [e.id for e in env.world.entities.values() if env.contract.is_agent(e.entity_type)]
+            _refuse("entity", f"no entity '{entity_id}'", entity_id, agents, "agents")
+        stages = [s.name for s in env.contract.stage_list()]
+        if stage is not None and stage not in stages:
+            _refuse("stage", f"no stage '{stage}'", stage, stages, "stages")
         if env.finished or env._in_round:
             return self.now(entity_id, stage)
         snapshot = env.snapshot()
@@ -115,3 +119,9 @@ class Previews:
                 "time_limit": turn.time_limit,
                 "tokens": {"brief": len(turn.brief) // 4, "update": len(turn.update) // 4,
                            "tools": len(json.dumps([t.to_anthropic() for t in tools])) // 4}}
+
+
+def _refuse(path: str, message: str, name: str, known: List[str], kind: str) -> NoReturn:
+    hint = get_close_matches(name, known, n=1)
+    raise ContractError([Issue(path, message, (f"did you mean '{hint[0]}'? " if hint else "")
+                               + f"{kind}: {', '.join(known[:20]) or 'none'}")], title="cannot preview")

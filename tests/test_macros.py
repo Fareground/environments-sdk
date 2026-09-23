@@ -96,12 +96,12 @@ def test_every_malformed_macro_is_reported_at_once_and_limits_hold():
         fg_env.expand({"name": "deep", "l": [deep]})
 
 
-def test_check_and_load_refuse_a_contract_whose_macros_cannot_expand_like_an_unreadable_file():
+def test_check_reports_and_load_refuses_a_contract_whose_macros_cannot_expand_like_an_unreadable_file():
     broken = {**BETTING, "stages": [{"for": "flop", "as": "s", "make": {"name": "{s}"}}]}
-    for entry in (fg_env.check, fg_env.load):
-        with pytest.raises(ContractError) as excinfo:
-            entry(broken)
-        assert [p for p, _ in _issues(excinfo)] == ["stages[0].for"]
+    assert [i.path for i in fg_env.check(broken)] == ["stages[0].for"]
+    with pytest.raises(ContractError) as excinfo:
+        fg_env.load(broken)
+    assert [p for p, _ in _issues(excinfo)] == ["stages[0].for"]
 
 
 def test_each_imported_file_expands_its_own_macros_and_the_contract_wins(tmp_path):
