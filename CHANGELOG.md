@@ -67,6 +67,9 @@ Every run is now either correct or fails loudly (T-797 phase 1). Several default
   optional trailing mechanism name (T-809).
 - Ballot `weight`, `veto` and `threshold_of: members`; order book `$world.<name>_value` and a `<name>_mid` metric
   (T-811).
+- Participant strings `"anthropic:<model>"` and `"openai:<model>"` (CLI `--agent type=anthropic:<model>`), reading
+  the key from the environment. A spent token budget now ends the turn in progress. A host answer that cannot be
+  used is asked once more, with a `correction`, before the run fails (T-817).
 - `extra=` request fields on `participants.anthropic` / `participants.openai`; `stats.refusals`;
   `stats.faulted_actions`; diagnostics `turns_forfeited`, `host_fallback`, `action_rule_failed` and
   `action_broke_invariant` (T-800, T-801, T-802).
