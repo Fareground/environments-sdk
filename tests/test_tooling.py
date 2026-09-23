@@ -151,9 +151,9 @@ REPEAT = {
     "events": [{"phase": "end", "do": [{
         "repeat": 10,
         "while": "$count(order, $it.side == buy) > 0 and $count(order, $it.side == sell) > 0 and "
-                 "$top(order, $it.price, 1, $it.side == buy)[0].price >= $bottom(order, $it.price, 1, $it.side == sell)[0].price",
+                 "$top(order, $it.price, 1, $it.side == buy)[0].price >= $sort(order, $it.price, 1, $it.side == sell)[0].price",
         "do": ["$bid = $top(order, $it.price, 1, $it.side == buy)[0]",
-               "$ask = $bottom(order, $it.price, 1, $it.side == sell)[0]",
+               "$ask = $sort(order, $it.price, 1, $it.side == sell)[0]",
                {"remove": "$bid"}, {"remove": "$ask"}, "$world.trades += 1"]}]}],
     "outputs": {"trades": {"expr": "$world.trades", "type": "int"},
                 "resting": {"expr": "$count(order)", "type": "int"}},

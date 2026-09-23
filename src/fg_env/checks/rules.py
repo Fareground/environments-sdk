@@ -39,8 +39,6 @@ class RuleChecks:
                 self.expr(event.every, f"{path}.every", {"inputs"})
             elif event.every is not None and event.every < 1:
                 self.error(f"{path}.every", "must be at least 1")
-            self.value(event.chance, f"{path}.chance", BASE)
-            check_literal_probability(self, event.chance, f"{path}.chance")
             types: Types = {}
             roots = set(BASE)
             if event.each is not None:

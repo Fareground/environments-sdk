@@ -42,13 +42,13 @@
   "defs": {
     "enemy": {"args": ["a", "b"], "expr": "$a.team != $b.team", "description": "b fights against a."},
     "damage": {"args": ["by", "to"], "expr": "$max(1, $effective($by, 'attack') - $effective($to, 'armor'))"},
-    "nearest_enemy": {"args": ["u"], "expr": "$bottom(unit, $distance($u, $it), 1, $enemy($u, $it))[0]"},
+    "nearest_enemy": {"args": ["u"], "expr": "$sort(unit, $distance($u, $it), 1, $enemy($u, $it))[0]"},
     "steps": {
       "args": ["u"],
       "expr": "$filter([[$u.at[0] - 1, $u.at[1]], [$u.at[0] + 1, $u.at[1]], [$u.at[0], $u.at[1] - 1], [$u.at[0], $u.at[1] + 1]], $it[0] >= 0 and $it[0] < 6 and $it[1] >= 0 and $it[1] < 6 and not $any(unit, $it.at == $outer) and $can_enter($u, $it))",
       "description": "Free squares one step away that the unit may enter."
     },
-    "best_step": {"args": ["u"], "expr": "$bottom($steps($u), $distance($it, $nearest_enemy($u)), 1)[0]"}
+    "best_step": {"args": ["u"], "expr": "$sort($steps($u), $distance($it, $nearest_enemy($u)), 1)[0]"}
   },
   "blocks": {
     "fall": {
@@ -216,11 +216,11 @@
     "tactician": {
       "repeat": true,
       "rules": [
-        {"when": "$any(unit, $enemy($actor, $it) and $distance($actor, $it) <= 4)", "do": "fireball", "with": {"target": "$bottom(unit, $it.hp, 1, $enemy($actor, $it) and $distance($actor, $it) <= 4)[0]"}},
-        {"when": "$any(unit, not $enemy($actor, $it) and $distance($actor, $it) <= 3 and $it.hp <= $it.max_hp - 5)", "do": "heal", "with": {"ally": "$bottom(unit, $it.hp, 1, not $enemy($actor, $it) and $distance($actor, $it) <= 3 and $it.hp < $it.max_hp)[0]"}},
-        {"when": "$any(unit, $enemy($actor, $it) and $distance($actor, $it) <= 1)", "do": "shield_bash", "with": {"target": "$bottom(unit, $it.hp, 1, $enemy($actor, $it) and $distance($actor, $it) <= 1)[0]"}},
-        {"when": "$any(unit, $enemy($actor, $it) and $distance($actor, $it) <= 1) and not $has_status($bottom(unit, $it.hp, 1, $enemy($actor, $it) and $distance($actor, $it) <= 1)[0], 'poison')", "do": "poison_blade", "with": {"target": "$bottom(unit, $it.hp, 1, $enemy($actor, $it) and $distance($actor, $it) <= 1)[0]"}},
-        {"when": "$any(unit, $enemy($actor, $it) and $distance($actor, $it) <= 1)", "do": "strike", "with": {"target": "$bottom(unit, $it.hp, 1, $enemy($actor, $it) and $distance($actor, $it) <= 1)[0]"}},
+        {"when": "$any(unit, $enemy($actor, $it) and $distance($actor, $it) <= 4)", "do": "fireball", "with": {"target": "$sort(unit, $it.hp, 1, $enemy($actor, $it) and $distance($actor, $it) <= 4)[0]"}},
+        {"when": "$any(unit, not $enemy($actor, $it) and $distance($actor, $it) <= 3 and $it.hp <= $it.max_hp - 5)", "do": "heal", "with": {"ally": "$sort(unit, $it.hp, 1, not $enemy($actor, $it) and $distance($actor, $it) <= 3 and $it.hp < $it.max_hp)[0]"}},
+        {"when": "$any(unit, $enemy($actor, $it) and $distance($actor, $it) <= 1)", "do": "shield_bash", "with": {"target": "$sort(unit, $it.hp, 1, $enemy($actor, $it) and $distance($actor, $it) <= 1)[0]"}},
+        {"when": "$any(unit, $enemy($actor, $it) and $distance($actor, $it) <= 1) and not $has_status($sort(unit, $it.hp, 1, $enemy($actor, $it) and $distance($actor, $it) <= 1)[0], 'poison')", "do": "poison_blade", "with": {"target": "$sort(unit, $it.hp, 1, $enemy($actor, $it) and $distance($actor, $it) <= 1)[0]"}},
+        {"when": "$any(unit, $enemy($actor, $it) and $distance($actor, $it) <= 1)", "do": "strike", "with": {"target": "$sort(unit, $it.hp, 1, $enemy($actor, $it) and $distance($actor, $it) <= 1)[0]"}},
         {"when": "$actor.hp < $actor.max_hp and $any(unit, $enemy($actor, $it) and $distance($actor, $it) <= 2)", "do": "raise_shield", "with": {"ally": "$actor"}},
         {"when": "$any(unit, $enemy($actor, $it)) and $len($steps($actor)) > 0 and $distance($best_step($actor), $nearest_enemy($actor)) < $distance($actor, $nearest_enemy($actor))", "do": "move", "with": {"row": "$best_step($actor)[0]", "col": "$best_step($actor)[1]"}},
         {"do": "hold"}

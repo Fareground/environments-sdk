@@ -73,6 +73,13 @@ def _loc(error: Mapping[str, Any]) -> List[Any]:
     return loc
 
 
+def _probability(value: Any) -> str:
+    """``value`` as written inside ``$chance(...)``: a number or an expression as given, else ``p``."""
+    if isinstance(value, str):
+        return value
+    return json.dumps(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else "p"
+
+
 def _fix(path: str, expected: List[str], value: Any) -> Optional[str]:
     section = path.split(".")[0].split("[")[0]
     if expected == ["a list"] and isinstance(value, Mapping):
@@ -114,6 +121,8 @@ def validation_issues(exc: ValidationError) -> List[Issue]:
                 fix = f"did you mean '{hint[0]}'?" if hint else "remove it"
             if len(loc) == 3 and loc[0] == "events" and key in {"round", "rounds"}:
                 fix = 'Use at for scheduled rounds (at=2 or at=[2, 4]); use every for an interval (every=2)'
+            elif len(loc) == 3 and loc[0] == "events" and key == "chance":
+                fix = f'an event fires at random through its when: "when": "$chance({_probability(error.get("input"))})"'
             elif loc and loc[0] == "inputs" and key == "options":
                 fix = 'For a dropdown use type="enum", values=[...], display="select"; options is not an input field'
             elif (len(loc) >= 5 and loc[0] == "actions" and loc[2] == "params"

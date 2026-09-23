@@ -126,7 +126,7 @@
         "$game_over = $len($solvers) > 0 or $all(player, $it.strikes >= $inputs.strikes)",
         {"if": "$len($solvers) > 0 and $count($solvers, $it.strikes == $min($solvers, $it.strikes)) == 1",
          "then": [
-           "$champion = $bottom($solvers, $it.strikes, 1)[0]",
+           "$champion = $sort($solvers, $it.strikes, 1)[0]",
            "$champion.wins += 1",
            "$world.last_result = 'Game ' + $text($world.game) + ': ' + $champion.name + ' uncovered the word with ' + $text($champion.strikes) + ' strikes.'"
          ],

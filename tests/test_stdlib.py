@@ -64,7 +64,6 @@ VALUES = [
     ("$substr('abcdef', 1, 3)", "bc"),
     ("$substr('abcdef', -2)", "ef"),
     ("$substr('abc', 5)", ""),
-    ("$char_at('abc', -1)", "c"),
     ("$starts_with('Hello', 'He')", True),
     ("$starts_with('Hello', 'he')", False),
     ("$ends_with('Hello', 'lo')", True),
@@ -102,9 +101,6 @@ VALUES = [
     ("$union(null, [1])", [1]),
     ("$intersect([3, 1, 2, 3], [2, 3])", [3, 2]),
     ("$difference([1, 2, 3, 1], [2])", [1, 3]),
-    ("$is_subset([1, 2], [2, 1, 5])", True),
-    ("$is_subset([1, 4], [2, 1])", False),
-    ("$is_subset([], [])", True),
     ("$union([[1, 2]], [[1, 2], [2]])", [[1, 2], [2]]),
     ("$merge({a: 1, b: 2}, {b: 3, c: 4})", {"a": 1, "b": 3, "c": 4}),
     ("$without({a: 1, b: 2}, a)", {"b": 2}),
@@ -114,21 +110,16 @@ VALUES = [
     # lists
     ("$zip([1, 2, 3], [a, b])", [[1, "a"], [2, "b"]]),
     ("$zip([1], [2], [3])", [[1, 2, 3]]),
-    ("$enumerate([x, y], 1)", [[1, "x"], [2, "y"]]),
     ("$chunk([1, 2, 3, 4, 5], 2)", [[1, 2], [3, 4], [5]]),
     ("$window([1, 2, 3, 4], 2)", [[1, 2], [2, 3], [3, 4]]),
     ("$window([1, 2, 3, 4, 5], 3, 2)", [[1, 2, 3], [3, 4, 5]]),
     ("$window([1], 2)", []),
-    ("$flatten_deep([1, [2, [3, [4]]], []])", [1, 2, 3, 4]),
     ("$index([a, b, c], c)", 2),
     ("$index([1, 2], 2.0)", 1),
     ("$index([], a)", -1),
-    ("$count_of([a, b, a], a)", 2),
-    ("$argmax([3, 9, null, 9])", 1),
-    ("$argmin([3, 9, null, 1])", 3),
-    ("$argmax([])", None),
-    ("$argmax(person, $it.score)", 2),
-    ("$argmin(person, $it.score)", 0),
+    ("$sort([3, 1, 2])", [1, 2, 3]),
+    ("$map($sort(person, -$it.wealth, 2), $it.id)", ["d", "c"]),
+    ("$map($sort(person, $it.wealth, null, $it.score != null), $it.id)", ["a", "c", "d"]),
     ("$rank([10, 30, 20, 30])", [4, 1, 3, 1]),
     ("$rank(person, $it.score)", [2, None, 1, 2]),
     ("$cumsum([1, 2, 3.5])", [1, 3, 6.5]),
@@ -152,11 +143,9 @@ VALUES = [
     ("$atan(1)", math.pi / 4),
     ("$tanh(0)", 0.0),
     ("$erf(0)", 0.0),
-    ("$hypot(3, 4)", 5.0),
-    ("$pow(2, 10)", 1024),
-    ("$pow(4, 0.5)", 2.0),
-    ("$log_base(8, 2)", 3.0),
-    ("$log_base(1000, 10)", 3.0),
+    ("$log(8, 2)", 3.0),
+    ("$log(1000, 10)", 3.0),
+    ("$log(1)", 0.0),
     ("$sigmoid(0)", 0.5),
     ("$sigmoid(-800)", 0.0),
     ("$sigmoid(2)", 1 / (1 + math.exp(-2))),
@@ -165,7 +154,6 @@ VALUES = [
     ("$sign(-3)", -1),
     ("$sign(0)", 0),
     ("$sign(0.1)", 1),
-    ("$lerp(10, 20, 0.25)", 12.5),
     ("$interp(2.5, [1, 2, 3], [10, 20, 40])", 30.0),
     ("$interp(0, [1, 2, 3], [10, 20, 40])", 10),
     ("$interp(9, [1, 2, 3], [10, 20, 40])", 40),
@@ -178,7 +166,6 @@ VALUES = [
     ("$factorial(5)", 120),
     ("$comb(5, 2)", 10),
     ("$comb(3, 5)", 0),
-    ("$e()", math.e),
     ("$softmax([1, 2, 3])", [math.exp(k) / sum(math.exp(j) for j in (1, 2, 3)) for k in (1, 2, 3)]),
     ("$softmax([1000, 1000])", [0.5, 0.5]),
     ("$softmax([0, 2], 2)", [1 / (1 + math.e), math.e / (1 + math.e)]),
@@ -209,7 +196,7 @@ VALUES = [
     ("$hhi([])", None),
     ("$entropy([0.5, 0.25, 0.25])", 1.5),
     ("$entropy([2, 1, 1, 0])", 1.5),
-    ("$entropy({h: 1, t: 1}, $e())", math.log(2)),
+    ("$entropy({h: 1, t: 1}, $exp(1))", math.log(2)),
     ("$entropy([1])", 0.0),
     ("$entropy([0, 0])", None),
     ("$percentile_rank([1, 2, 3, 4], 3)", 0.625),
@@ -281,7 +268,6 @@ ERRORS = [
     ("$upper([1])", r"\$upper: argument 1 must be text"),
     ("$replace('abc', '', 'x')", r"text to find cannot be empty"),
     ("$substr('abc', 1.5)", r"character position"),
-    ("$char_at('abc', 3)", r"out of range"),
     ("$count_text('abc', '')", r"cannot be empty"),
     ("$pad('a', 3, 'ab')", r"exactly one character"),
     ("$pad('a', 3, ' ', middle)", r"left, right or both"),
@@ -312,9 +298,9 @@ ERRORS = [
     ("$without([1], a)", r"must be a map"),
     ("$pick_keys({a: 1}, 5)", r"key or a list of keys"),
     ("$zip([1])", r"wrong number of arguments"),
+    ("$pick([1, 2])", r"wrong number of arguments"),
     ("$chunk([1], 0)", r"at least 1"),
     ("$window([1], 1, 0)", r"at least 1"),
-    ("$argmax([1, a])", r"must be numbers"),
     ("$cumsum([1, null])", r"item 1 is null"),
     ("$diff(5)", r"must be a series"),
     ("$insert([1], 3, 0)", r"out of range"),
@@ -322,10 +308,8 @@ ERRORS = [
     ("$set_at([], 0, 1)", r"empty list"),
     ("$sin(a)", r"must be a number"),
     ("$asin(2)", r"not defined for 2"),
-    ("$pow(10, 5000)", r"exponent too large"),
-    ("$pow(0, -1)", r"power failed"),
-    ("$log_base(0, 2)", r"above 0"),
-    ("$log_base(8, 1)", r"not 1"),
+    ("$log(0, 2)", r"above 0"),
+    ("$log(8, 1)", r"not 1"),
     ("$logit(1)", r"strictly between 0 and 1"),
     ("$interp(1, [1, 1], [2, 3])", r"strictly increasing"),
     ("$interp(1, [1, 2], [2])", r"same length"),
@@ -445,19 +429,11 @@ def test_regex_and_similarity_charge_the_budget():
         ev("$sum($map($range(3000), $similar($repeat_text('a', 1000), 'b')))")
 
 
-def test_flatten_deep_is_bounded():
-    nested = [1]
-    for _ in range(70):
-        nested = [nested]
-    with pytest.raises(ExprError, match="nested deeper than 64"):
-        ev("$flatten_deep($n)", n=nested)
-
-
 # --- provenance --------------------------------------------------------------------------------
 
 TAINTED = [
     "$split($t)", "$chars($t)", "$words($t)", "$upper($t)", "$title($t)", "$trim($t)", "$substr($t, 1)",
-    "$char_at($t, 0)", "$pad($t, 20)", "$repeat_text($t, 2)", "$replace($t, 'o', '0')", "$replace('plain', 'a', $t)",
+    "$pad($t, 20)", "$repeat_text($t, 2)", "$replace($t, 'o', '0')", "$replace('plain', 'a', $t)",
     "$mask($t, [o])", "$mask('secret', [], $c)", "$pad('x', 3, $c)", "$union([$t], ['Hello World'])",
     "$merge({a: $t}, {b: 1})", "$zip([$t], [1])", "$set_at([1], 0, $t)",
 ]

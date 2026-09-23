@@ -3,11 +3,10 @@
 Importing this module registers every market function, the family's modes and the actions of its
 ``market`` op (``{"market": <mechanism>, "action": ..., "who": ...}``):
 
-* :mod:`.market_stats` — ``$realized_vol``, ``$excess_kurtosis``,
-  ``$vol_clustering``, ``$volume_vol_corr``, ``$market_stats``, ``$market_realism``.
+* :mod:`.market_stats` — ``$market_stats``, ``$market_realism`` and ``$excess_kurtosis``.
 * :mod:`.order_book` / :mod:`.book_mechanism` / :mod:`.traders` — the ``order_book`` mode,
   ``$book*`` functions and coded trader strategies.
-* :mod:`.amm` — the ``prediction`` mode (LMSR and CPMM), ``$amm*``, ``$lmsr_*`` and ``$cpmm_prices``.
+* :mod:`.amm` — the ``prediction`` mode (LMSR and CPMM), and the ``$amm*`` functions.
 * :mod:`.auctions` — the ``auction`` mode (first/second price, English, Dutch, double,
   uniform, combinatorial), ``$auction*``; :mod:`.package_auction` — exact
   package winner determination with VCG payments and ``$package_winners``.

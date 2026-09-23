@@ -265,7 +265,7 @@ RECIPES = """\
 * Money & trade: number props + `transfer` (atomic, never negative). Invariants like
   `"$all(trader, $it.cash >= 0)"` guard the books.
 * Markets / order books: orders as entities (`create` with side, price, qty, owner); an end-phase
-  event matches with `repeat` while best bid ≥ best ask using `$top`/`$bottom`; trades update
+  event matches with `repeat` while best bid ≥ best ask using `$top`/`$sort`; trades update
   holdings and `remove` filled orders.
 * Voting: the `decision` family — `{"kind": "decision", "mode": "ballot", "who": "voter", "options": [...]}` adds
   the vote tools, a sealed stage and the tally (`$world.<name>_result.winner`); `mode: deliberation` adds motions
@@ -348,7 +348,7 @@ RECIPES = """\
   at="date", value="close")` replays a price history for backtests. Answers are recorded on the host tape:
   snapshots, restores and replays never ask again, and host text reaches agents «quoted».
 * Scenarios & experiments: `inputs` for scenario knobs, `arms` for variants (input overrides or
-  patches), `events` with `at`/`every`/`chance`/`arms` for shocks; `fg_env.experiment` runs arms
+  patches), `events` with `at`/`every`/`arms` (and `when: "$chance(p)"`) for shocks; `fg_env.experiment` runs arms
   with shared seeds (`branch_at=N`: every arm continues from one shared history of N rounds).
 * Games: a `game` section names the seats and what each scores (`"game": {"players": "player", "seat":
   "$it.seat", "returns": "$actor.chips - 10", "utility": "zero_sum"}`); dealt cards and dice as `chance`

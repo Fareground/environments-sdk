@@ -380,10 +380,10 @@
           ]
         },
         {
-          "each": "$bottom(player, ($it.seat - $world.button + 3) % 4, null, $it.in_hand)",
+          "each": "$sort(player, ($it.seat - $world.button + 3) % 4, null, $it.in_hand)",
           "as": "p",
           "do": [
-            "$two = $bottom(card, $it.order, 2, $it.loc == 'deck')",
+            "$two = $sort(card, $it.order, 2, $it.loc == 'deck')",
             {
               "each": "$two",
               "do": [
@@ -394,7 +394,7 @@
             "$p.hole = $join($map($two, $it.name), ' ')"
           ]
         },
-        "$flop = $bottom(card, $it.order, 3, $it.loc == 'deck')",
+        "$flop = $sort(card, $it.order, 3, $it.loc == 'deck')",
         {
           "each": "$flop",
           "do": [
@@ -425,8 +425,8 @@
         },
         "$n = $count(player, $it.in_hand)",
         "$btn = $pick(player, $it.seat == $world.button)",
-        "$sb = $btn if $n == 2 else $bottom(player, ($it.seat - $world.button + 3) % 4, 1, $it.in_hand and $it.seat != $world.button)[0]",
-        "$bb = $bottom(player, ($it.seat - $sb.seat + 3) % 4, 1, $it.in_hand and $it.seat != $sb.seat)[0]",
+        "$sb = $btn if $n == 2 else $sort(player, ($it.seat - $world.button + 3) % 4, 1, $it.in_hand and $it.seat != $world.button)[0]",
+        "$bb = $sort(player, ($it.seat - $sb.seat + 3) % 4, 1, $it.in_hand and $it.seat != $sb.seat)[0]",
         "$a = $min($world.small_blind, $sb.stack)",
         "$sb.stack -= $a",
         "$sb.bet += $a",
@@ -490,7 +490,7 @@
                   ],
                   "else": [
                     "$best = $max($elig, $it.score)",
-                    "$ws = $bottom($filter($elig, $it.score == $best), ($it.seat - $world.button + 3) % 4)",
+                    "$ws = $sort($filter($elig, $it.score == $best), ($it.seat - $world.button + 3) % 4)",
                     "$share = $slice // $len($ws)",
                     {
                       "each": "$ws",
@@ -525,7 +525,7 @@
                 }
               ]
             },
-            "$detail = 'Showdown on ' + $world.board + ': ' + $join($map($bottom($live, $it.seat), $it.name + ' ' + $it.hole + ' = ' + $it.hand_name), '; ') + '.'"
+            "$detail = 'Showdown on ' + $world.board + ': ' + $join($map($sort($live, $it.seat), $it.name + ' ' + $it.hole + ' = ' + $it.hand_name), '; ') + '.'"
           ]
         },
         "$world.pot = 0",
@@ -543,7 +543,7 @@
             "$it.in_hand = false"
           ]
         },
-        "$world.button = $bottom(player, ($it.seat - $world.button + 3) % 4, 1, $it.stack > 0)[0].seat"
+        "$world.button = $sort(player, ($it.seat - $world.button + 3) % 4, 1, $it.stack > 0)[0].seat"
       ]
     }
   ],
@@ -667,7 +667,7 @@
       "description": "Full result of every hand, including cards shown at showdown."
     },
     "final_stacks": {
-      "expr": "$map($bottom(player, $it.seat), $it.name + ': ' + $text($it.stack))",
+      "expr": "$map($sort(player, $it.seat), $it.name + ': ' + $text($it.stack))",
       "type": "list",
       "description": "Chips each player holds at the end."
     },

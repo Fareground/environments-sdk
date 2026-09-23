@@ -137,7 +137,7 @@
     "thrifty": {"repeat": true, "rules": [
       {"when": "$actor.hunger >= 3 and $has($actor, 'bread')", "do": "goods_consume", "with": {"item": "bread", "qty": 1}},
       {"when": "$actor.hunger >= 3 and not $has($actor, 'bread') and $actor.cash >= 4", "do": "buy",
-       "with": {"shop": "$bottom(shop, $get($it.prices, 'bread'), 1, $it.served_today < $it.daily_capacity and $count_items($it, 'bread') > 0)[0]", "item": "bread", "qty": 1}}
+       "with": {"shop": "$sort(shop, $get($it.prices, 'bread'), 1, $it.served_today < $it.daily_capacity and $count_items($it, 'bread') > 0)[0]", "item": "bread", "qty": 1}}
     ]}
   },
   "metrics": {

@@ -291,9 +291,8 @@ def test_market_analytics():
     same = series_stats(prices, [10, 12, 9, 14, 10, 15])
     assert realism_score(same, same)["components"][0]["score"] == 1.0
     contract = {"name": "Stats", "clock": {"rounds": 1}, "types": {"thing": {}},
-                "outputs": {"r": "$returns([1, 2], log)", "vol": "$realized_vol([100, 110, 100])", "ac": "$autocorr([1, 2, 3, 4, 5], 1)",
-                            "k": "$excess_kurtosis([1, 2, 3, 4])", "cl": "$vol_clustering([100, 101, 100, 102, 101, 103, 100, 104])",
-                            "vv": "$volume_vol_corr([100, 101, 103, 100], [1, 2, 3, 4])", "s": "$market_stats([100, 101])",
+                "outputs": {"r": "$returns([1, 2], log)", "vol": "$market_stats([100, 110, 100]).sigma", "ac": "$autocorr([1, 2, 3, 4, 5], 1)",
+                            "k": "$excess_kurtosis([1, 2, 3, 4])", "s": "$market_stats([100, 101])",
                             "real": "$market_realism([100, 101, 100, 102], $market_stats([100, 102, 101, 103]))"}}
     assert not [i for i in fg_env.check(contract) if i.severity == "error"]
     out = fg_env.load(contract, seed=1).run().outputs

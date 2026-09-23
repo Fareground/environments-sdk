@@ -5,8 +5,8 @@ market shows — volatility level, fat tails, no memory in returns, volatility c
 volume that tracks volatility — as in the Fareground Exchange calibration. Every component is a
 0..1 score shown with both values, so the overall number is auditable.
 
-Expression functions: ``$realized_vol``, ``$excess_kurtosis``,
-``$vol_clustering``, ``$volume_vol_corr``, ``$market_stats`` and ``$market_realism``.
+Expression functions: ``$market_stats`` (every stylized fact of a series), ``$market_realism`` and
+``$excess_kurtosis``.
 """
 from __future__ import annotations
 
@@ -193,28 +193,10 @@ def _stats_of(call: Call, value: Any, what: str) -> Dict[str, float]:
                     call.source)
 
 
-@function("realized_vol(prices)", "Realized volatility: the standard deviation of log returns of a price series.",
-          min_args=1, max_args=1)
-def _realized_vol_function(call: Call) -> float:
-    return stdev(log_returns(_numbers(call, 0, "prices")))
-
-
 @function("excess_kurtosis(values)", "Excess kurtosis of a series (0 for a normal; positive = fat tails).",
           min_args=1, max_args=1)
 def _kurtosis_function(call: Call) -> float:
     return excess_kurtosis(_numbers(call, 0, "values"))
-
-
-@function("vol_clustering(prices)", "Volatility clustering: mean autocorrelation of absolute log returns at lags 1-5.",
-          min_args=1, max_args=1)
-def _clustering_function(call: Call) -> float:
-    return vol_clustering(log_returns(_numbers(call, 0, "prices")))
-
-
-@function("volume_vol_corr(prices, volumes)", "Correlation of each bar's volume with its absolute log return.",
-          min_args=2, max_args=2)
-def _volume_vol_function(call: Call) -> float:
-    return series_stats(_numbers(call, 0, "prices"), _numbers(call, 1, "volumes")).get("vol_volume_corr", 0.0)
 
 
 @function("market_stats(prices, volumes?)", "Stylized facts of a price series: {bars, sigma, mean_return, kurtosis, "

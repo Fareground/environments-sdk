@@ -47,3 +47,19 @@ def test_other_builtin_and_authored_function_spelling_hints_remain(source, expec
     with pytest.raises(ExprError) as info:
         evaluate(source, Scope(world=fg_env.load({**c, "outputs": {"value": "1"}}).world))
     assert expected in str(info.value)
+
+
+@pytest.mark.parametrize("source, expected", [
+    ("$bottom([3, 1])", "did you mean $sort?"),
+    ("$pow(2, 3)", "did you mean x ** y?"),
+    ("$log_base(8, 2)", "did you mean $log(x, base)?"),
+    ("$argmax([1, 3])", "did you mean $index(xs, $max(xs))?"),
+    ("$enumerate([1])", "did you mean $map(list, [$i, $it])?"),
+    ("$realized_vol([1, 2])", "did you mean $market_stats(prices).sigma?"),
+])
+def test_a_removed_spelling_is_refused_and_points_to_the_one_way_to_say_it(source, expected):
+    errors = [i for i in fg_env.check(contract(source), rounds=0) if i.severity == "error"]
+    assert errors and expected in (errors[0].fix or "")
+    with pytest.raises(ExprError) as info:
+        evaluate(source)
+    assert expected in str(info.value)

@@ -88,16 +88,6 @@ def _substr(call: Call) -> str:
     return derived(text[start:end], text)
 
 
-@function("char_at(text, index)", "The character at `index` (negative counts from the end); an error when out of range.",
-          min_args=2, max_args=2)
-def _char_at(call: Call) -> str:
-    text = text_arg(call, 0)
-    index = int_arg(call, 1, what="a character position")
-    if not -len(text) <= index < len(text):
-        raise fail(call, f"position {index} is out of range for text of {len(text)} characters")
-    return derived(text[index], text)
-
-
 @function("starts_with(text, prefix)", "True when text begins with `prefix` (case-sensitive).", min_args=2, max_args=2)
 def _starts_with(call: Call) -> bool:
     return text_arg(call, 0).startswith(text_arg(call, 1, "the prefix text"))

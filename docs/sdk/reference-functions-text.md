@@ -2,7 +2,6 @@
 
 ## Functions: text
 
-- `$char_at(text, index)` — The character at `index` (negative counts from the end); an error when out of range.
 - `$chars(text)` — The characters of text as a list.
 - `$contains(text, part)` — True when `part` occurs in `text` (case-insensitive).
 - `$count_text(text, part)` — How many times `part` occurs in text, not overlapping (case-sensitive).

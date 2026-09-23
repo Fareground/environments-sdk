@@ -870,24 +870,8 @@
             }
           ],
           "default": null,
-          "description": "Fires when true.",
+          "description": "Fires when true; `$chance(0.1)` fires it at random.",
           "title": "When"
-        },
-        "chance": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Probability of firing when otherwise due.",
-          "title": "Chance"
         },
         "phase": {
           "default": "start",

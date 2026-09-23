@@ -95,7 +95,10 @@ def _sort_key(call: Call, key: Any) -> Any:
 
 def _sorted(call: Call, descending: bool) -> List[Any]:
     items = call.filtered(0, 3)
-    keyed = [(_sort_key(call, call.each(1, it, i)), i, it) for i, it in enumerate(items)]
+    if len(call) < 2:  # $sort(list): the items are their own keys
+        keyed = [(_sort_key(call, it), i, it) for i, it in enumerate(items)]
+    else:
+        keyed = [(_sort_key(call, call.each(1, it, i)), i, it) for i, it in enumerate(items)]
     keyed.sort(key=lambda t: (t[0], t[1]), reverse=descending)
     ordered = [it for _, _, it in keyed]
     if len(call) > 2 and call.arg(2) is not None:
@@ -191,16 +194,11 @@ def _map_values(call: Call) -> List[Any]:
     return check_size(list(value.values()), call.source)
 
 
-@function("top(items, by, n?, where?)", "Items sorted by `by` (a value or a list of values), highest first; the first `n` when given.",
+@function("top(items, by, n?, where?)", "Items sorted by `by` (a value or a list of values), highest first; the first `n` when "
+          "given. $sort is the same, lowest first.",
           min_args=2, max_args=4, lazy=[1, 3])
 def _top(call: Call) -> List[Any]:
     return _sorted(call, True)
-
-
-@function("bottom(items, by, n?, where?)", "Items sorted by `by`, lowest first; the first `n` when given.",
-          min_args=2, max_args=4, lazy=[1, 3])
-def _bottom(call: Call) -> List[Any]:
-    return _sorted(call, False)
 
 
 @function("filter(items, where)", "The items for which `where` holds.", min_args=2, max_args=2, lazy=[1])
@@ -213,11 +211,10 @@ def _map(call: Call) -> List[Any]:
     return [call.each(1, it, i) for i, it in enumerate(call.collection(0))]
 
 
-@function("pick(items, where?)", "The first matching item, or null.", min_args=1, max_args=2, lazy=[1])
+@function("pick(items, where)", "The first item for which `where` holds, or null ($first(items) is the first of all).",
+          min_args=2, max_args=2, lazy=[1])
 def _pick(call: Call) -> Any:
     items = call.collection(0)
-    if len(call) < 2:
-        return items[0] if items else None
     for i, item in call.candidates(items, 1):
         if truthy(call.each(1, item, i)):
             return item
@@ -436,7 +433,23 @@ _unary("floor", "Round down to a whole number.", math.floor)
 _unary("ceil", "Round up to a whole number.", math.ceil)
 _unary("sqrt", "Square root.", math.sqrt)
 _unary("exp", "e to the power x.", math.exp)
-_unary("log", "Natural logarithm.", math.log)
+
+
+@function("log(x, base?)", "Logarithm of x: natural by default, or in `base` (e.g. 2 or 10).", min_args=1, max_args=2)
+def _log(call: Call) -> float:
+    x = call.number(0)
+    if x <= 0:
+        raise ExprError(f"$log: x must be above 0, got {x}", call.source)
+    if len(call) < 2:
+        return math.log(x)
+    base = call.number(1)
+    if base <= 0 or base == 1:
+        raise ExprError(f"$log: the base must be above 0 and not 1, got {base}", call.source)
+    if base == 10:  # exact at powers of the base: log(1000) / log(10) is 2.9999999999999996
+        return math.log10(x)
+    if base == 2:
+        return math.log2(x)
+    return math.log(x) / math.log(base)
 
 
 #: Enough digits for any whole number an expression may hold (MAX_INT_BITS) and any float.
@@ -607,16 +620,11 @@ def _join(call: Call) -> str:
 # ---------------------------------------------------------------------------
 
 
-@function("sort(items, by?)", "Items in ascending order of `by` (a value or list of values; default the items themselves).",
-          min_args=1, max_args=2, lazy=[1])
+@function("sort(items, by?, n?, where?)", "Items sorted by `by` (a value or a list of values; default the items "
+          "themselves), lowest first; the first `n` when given. $top is the same, highest first.",
+          min_args=1, max_args=4, lazy=[1, 3])
 def _sort(call: Call) -> List[Any]:
-    items = call.collection(0)
-    if len(call) < 2:
-        keyed = [(_sort_key(call, it), i, it) for i, it in enumerate(items)]
-    else:
-        keyed = [(_sort_key(call, call.each(1, it, i)), i, it) for i, it in enumerate(items)]
-    keyed.sort(key=lambda t: (t[0], t[1]))
-    return [it for _, _, it in keyed]
+    return _sorted(call, False)
 
 
 @function("reverse(list)", "The list in reverse order.", min_args=1, max_args=1)

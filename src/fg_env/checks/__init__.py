@@ -210,7 +210,7 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, RuleChecks):
             if name not in FUNCTIONS and name not in self.c.defs:
                 hint = suggest_function(name, list(FUNCTIONS) + list(self.c.defs))
                 self.error(path, f"unknown function ${name}",
-                           (f"did you mean ${hint}?" if hint else "declare it under `defs`") + f" — in `{compiled.source}`")
+                           (f"did you mean {hint}?" if hint else "declare it under `defs`") + f" — in `{compiled.source}`")
         for root in compiled.roots:
             if root not in roots and not (root in self.c.defs and not self.c.defs[root].args):
                 available = ", ".join(f"${r}" for r in sorted(roots))

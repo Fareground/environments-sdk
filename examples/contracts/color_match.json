@@ -91,7 +91,7 @@
     "draw_pile": "$len($zone(deck))"
   },
   "outputs": {
-    "leader": {"expr": "$bottom(player, $len($hand($it)), 1)[0].name", "type": "text", "description": "The player with the fewest cards (the winner when someone went out)."},
+    "leader": {"expr": "$sort(player, $len($hand($it)), 1)[0].name", "type": "text", "description": "The player with the fewest cards (the winner when someone went out)."},
     "cards_left": {"expr": "$dict(player, $it.name, $len($hand($it)))", "type": "map"},
     "reshuffles": {"expr": "$count($events(cards), $contains($it.text, 'shuffled into the draw pile'))", "type": "int"}
   }
