@@ -66,7 +66,7 @@ def _call_def(scope: Scope, name: str, values: List[Any], source: str) -> Any:
     budget = _BUDGET  # the def body is nested work: it charges the caller's budget
     budget.hold += 1
     try:
-        return scope.world.call_def(name, values, source)
+        return scope.world.call_def(name, values, source, scope.vars.get("viewer"))
     finally:
         budget.hold -= 1
 
@@ -503,7 +503,7 @@ class Codegen:
             self._line(f"if scope.world is not None and scope.world.defines({key}):")
             self._depth += 1
             values = [self.node(arg) for arg in node.args]
-            self._line(f"{value} = scope.world.call_def({key}, [{', '.join(values)}], {source})")
+            self._line(f"{value} = scope.world.call_def({key}, [{', '.join(values)}], {source}, scope.vars.get('viewer'))")
             self._depth -= 1
             self._line("else:")
             self._line(f"    _arity({self._const(spec.signature)}, {source})")
@@ -522,7 +522,8 @@ class Codegen:
             loop = None
         scope = self._scope()
         self._line(f"if {scope}.world is not None and {scope}.world.defines({key}):  # the contract's own def wins")
-        self._line(f"    {value} = {scope}.world.call_def({key}, [{', '.join(f'{m}({scope})' for m in members)}], {source})")
+        self._line(f"    {value} = {scope}.world.call_def({key}, [{', '.join(f'{m}({scope})' for m in members)}], {source}, "
+                   f"{scope}.vars.get('viewer'))")
         self._line("else:")
         self._depth += 1
         if loop is None:

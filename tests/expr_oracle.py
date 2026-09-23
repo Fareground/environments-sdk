@@ -311,7 +311,7 @@ class _Compiler:
                 budget = _BUDGET
                 budget.hold += 1
                 try:
-                    return scope.world.call_def(name, values, source)
+                    return scope.world.call_def(name, values, source, scope.vars.get("viewer"))
                 finally:
                     budget.hold -= 1
 
@@ -325,7 +325,7 @@ class _Compiler:
 
             def shadow_or_fail(scope: Scope) -> Any:
                 if scope.world is not None and scope.world.defines(name):
-                    return scope.world.call_def(name, [a(scope) for a in shadow_args], source)
+                    return scope.world.call_def(name, [a(scope) for a in shadow_args], source, scope.vars.get("viewer"))
                 raise ExprError(f"wrong number of arguments: ${spec.signature}", source)
 
             return shadow_or_fail
@@ -353,7 +353,7 @@ class _Compiler:
         def run(scope: Scope) -> Any:
             world = scope.world
             if world is not None and world.defines(name):
-                return world.call_def(name, [a(scope) for a in args], source)
+                return world.call_def(name, [a(scope) for a in args], source, scope.vars.get("viewer"))
             return spec.impl(Call(name, args, scope, source))
 
         return run

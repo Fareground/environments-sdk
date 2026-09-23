@@ -321,7 +321,9 @@ class SdkWorld(World):
     def defines(self, name: str) -> bool:
         return name in self.contract.defs
 
-    def call_def(self, name: str, args: List[Any], source: str) -> Any:
+    def call_def(self, name: str, args: List[Any], source: str, viewer: Any = None) -> Any:
+        """Call the def ``name``. It sees the caller's ``viewer`` (bound while rendering for, or offering choices to,
+        one agent), so ``$records`` and ``$events`` inside it show what the caller could see."""
         spec = self.contract.defs.get(name)
         if spec is None:
             hint = suggest_function(name, list(FUNCTIONS) + list(self.contract.defs))
@@ -329,7 +331,7 @@ class SdkWorld(World):
         if len(args) != len(spec.args):
             raise ExprError(f"${name} takes {len(spec.args)} argument(s) ({', '.join(spec.args) or 'none'}), got {len(args)}", source)
         local = self._here()  # the running turn's state, read once: nothing before the evaluation changes it
-        key = self._def_key(name, args)
+        key = self._def_key(name, args, viewer)
         if key is not None:
             pending = getattr(local, "pending", None)
             state = (self.journal.version, self.round, self.stage, self.time, id(pending), len(pending or ()))
@@ -343,7 +345,10 @@ class SdkWorld(World):
         local.depth = depth + 1
         drawn = getattr(local, "draws", 0)
         try:
-            value = compile_expr(spec.expr)(self._scope(local, dict(zip(spec.args, args))))
+            values = dict(zip(spec.args, args))
+            if viewer is not None:
+                values["viewer"] = viewer
+            value = compile_expr(spec.expr)(self._scope(local, values))
         finally:
             local.depth = depth
         # A call that drew a random number is never reused; with the same state and arguments a call that
@@ -381,12 +386,12 @@ class SdkWorld(World):
         pending = getattr(self._here(), "pending", None)
         return (self.journal.version, self.round, self.stage, self.time, id(pending), len(pending or ()))
 
-    def _def_key(self, name: str, args: List[Any]) -> Optional[Tuple[Any, ...]]:
+    def _def_key(self, name: str, args: List[Any], viewer: Any) -> Optional[Tuple[Any, ...]]:
         """A cache key for a def call, or None when the call cannot be cached."""
         if not self._def_cache_on:
             return None
         parts: List[Any] = [name]
-        for arg in args:
+        for arg in [viewer, *args]:
             if isinstance(arg, Entity):
                 parts.append(("$entity", arg.id))
             elif arg is None or type(arg) in (int, float, bool, str):
