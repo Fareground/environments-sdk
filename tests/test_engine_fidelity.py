@@ -1,6 +1,7 @@
 """The bundled engines behave realistically under their default inputs, and their outputs move the way the inputs
 that should drive them say: price moves demand, persuasion moves the vote spread, trust moves reach, evidence moves the
 verdict. Each direction is read over several seeds and with room for luck, so a test states the effect, not a number."""
+import os
 import statistics
 
 import pytest
@@ -301,3 +302,9 @@ def test_volatility_widens_the_exchange_spread_and_drift_moves_its_price():
         return mean("exchange", output, {**_SMALL_EXCHANGE, **inputs}, seeds=range(2))
     assert avg("spread_bps_avg", volatility_scale=0.2) < avg("spread_bps_avg", volatility_scale=3)
     assert avg("return_pct", drift_pct_per_bar=-3) < avg("return_pct", drift_pct_per_bar=3)
+
+
+@pytest.mark.skipif(not os.environ.get("FG_ENV_SLOW"), reason="six full sessions: the nightly slow run")
+def test_the_exchanges_market_makers_earn_their_spread_as_a_class():
+    pnl = [run("exchange", seed=seed).outputs["pnl_by_kind"]["market_maker"] for seed in range(1, 7)]
+    assert sum(p > 0 for p in pnl) >= 5, pnl

@@ -15,17 +15,17 @@
     "r1 action demo_market_maker_18: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}"
   ],
   "metrics": {
-    "demo_mid": 100.67,
-    "demo_orders": 145,
-    "demo_price": 100.88,
-    "demo_spread": 0.42,
-    "demo_volume": 70168.0,
-    "depth": 59680.0,
+    "demo_mid": 100.515,
+    "demo_orders": 143,
+    "demo_price": 100.9,
+    "demo_spread": 0.77,
+    "demo_volume": 71231.0,
+    "depth": 87009.0,
     "flow_scale": 1,
     "fundamental": 99.66557536,
     "sentiment": 0,
     "size_scale": 1,
-    "spread_bps": 41.72047283
+    "spread_bps": 76.60548177
   },
   "rounds": 4,
   "status": "running",

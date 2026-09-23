@@ -69,7 +69,7 @@
       "stage": "session", "conserve": "round",
       "crowd": {
         "market_maker": {"count": "$crowd_size(market_maker)", "cash": "$world.median_capital * 4 * $lognormal(0, 0.8)",
-                         "params": {"activity": 1, "half_spread_ticks": 1.5, "quote_mult": 0.5, "inventory_mult": 1.5, "vol_mult": 0.6, "layers": 3, "position_mult": 12}},
+                         "params": {"activity": 1, "half_spread_ticks": 1.5, "quote_mult": 0.5, "inventory_mult": 1.5, "vol_mult": 0.6, "impact": 0.5, "layers": 3, "position_mult": 12}},
         "momentum": {"count": "$crowd_size(momentum)", "cash": "$world.median_capital * $lognormal(0, 0.8)",
                      "params": {"activity": 1, "lookback": 24, "threshold_sigma": 1.0, "size_mult": 1.0, "position_mult": 2.5, "stop_loss": "4 * $sqrt($inputs.substeps)"}},
         "mean_reversion": {"count": "$crowd_size(mean_reversion)", "cash": "$world.median_capital * $lognormal(0, 0.8)",
