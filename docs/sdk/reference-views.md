@@ -25,5 +25,5 @@ Roots (plus everywhere: $inputs $world $physics $clock $round $stage $metrics $s
 - `when`: text
 - `look`: bool = false — Offer it on demand as look(view) instead of always including it.
 - `bullet`: bool = true — Prefix each item with '- ' (false for boards and tables).
-- `only_changes`: bool = false — Include it only when it changed since the agent's last turn.
+- `only_changes`: bool = false — Show it in full only when it changed since the agent's last turn; otherwise one line says it is unchanged. For agents that remember their earlier turns: the built-in LLM participants start every turn afresh.
 - `attach`: text — Assets delivered with the view: an expression giving an asset id, a list or null — per listed item ($it) with `of`, else once ($actor).

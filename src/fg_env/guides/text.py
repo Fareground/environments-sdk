@@ -83,8 +83,9 @@ turn, uses `max_actions`, or runs out of `max_calls`.
 What an agent reads:
 * brief (static, cacheable): name, situation, rules, its identity and role text.
 * update: time label and stage, why it is acting, "Since your last turn" (announcements of
-  others' actions, outcomes of its own simultaneous actions, record entries, event news), then
-  every declared view that applies. Text written by participants is wrapped «like this».
+  others' actions, outcomes of its own simultaneous actions, record entries, event news; in a busy round what is
+  addressed to it is always shown, then the newest news, then the newest of others' actions, and the rest counted),
+  then every declared view that applies. Text written by participants is wrapped «like this».
 * tools: one per legal action with a JSON Schema (entity choices as enums, numeric bounds when
   they depend only on the actor), plus look/inspect/end_turn. Invalid calls return what to fix. An action's name is
   its tool's name, so it must be one providers accept (letters, digits, _ and -, at most 64) and not a built-in's.
@@ -236,7 +237,7 @@ EFFECT_EXAMPLES = {
     "fail": '{"fail": "You cannot afford that."}  (roll back the action; text goes to the actor)',
     "end": '{"end": "bankrupt", "winner": "$top(player, $it.score, 1)[0]", "say": "..."}',
     "after": '{"after": 3, "do": [...]}  (runs 3 rounds later with the same locals; on a continuous clock, 3 time units later)',
-    "wake": '{"wake": "$params.who", "why": "{$actor.name} asked you a question."}  (a turn later; "now": true — they react as soon as this action has taken effect, before this turn continues (a reaction cannot stop or change the action that woke them: to let others answer first, use a procedure stack); "in": 5 — continuous clock, that much later; "drop": 0.2 — the wake may be lost)',
+    "wake": '{"wake": "$params.who", "why": "{$actor.name} asked you a question."}  (a turn later; "now": true — they react as soon as this action has taken effect, before this turn continues (a reaction cannot stop or change the action that woke them: to let others answer first, use a procedure stack; reactions set off more than 4 deep wait for a normal turn); "in": 5 — continuous clock, that much later; "drop": 0.2 — the wake may be lost)',
     "repeat": '{"repeat": "$count(order)", "while": "$count(order) > 1", "do": [...]}  (limit may be an expression; derive it from the data, not an arbitrary constant; 0 runs nothing; error if still true at the limit)',
     "block": '{"block": "settle", "with": {"buyer": "$actor", "qty": "$params.qty"}}  (runs a named effect list from `blocks`)',
     "chance": '{"chance": [{"p": 0.5, "label": "heads", "do": [...]}, {"p": 0.5, "label": "tails", "do": [...]}], '
@@ -524,7 +525,8 @@ Every truncated reply wastes its whole output: for frequent decisions use `reaso
 evaluation it cut cost by 38% with no visible loss in play), or keep the default effort with a larger `max_tokens`
 (6,000 was cut off 9 times in 96 turns).
 Their real token usage is in `result.stats` (`llm_calls`, `input_tokens`, `output_tokens`,
-`cache_read_tokens`, `cache_write_tokens`, `llm_retries`, `forfeits`, `truncated`, `refusals`); your own
+`cache_read_tokens`, `cache_write_tokens`, `llm_retries`, `forfeits`, `truncated`, `refusals`, and `out_of_steps`:
+turns that used all `max_steps` model calls); a seat most of whose turns fail degrades the run; your own
 participants can add theirs with `wake.record_usage(...)`.
 Built-ins: `"random"`, `"idle"`, `"policy:<name>"`, and game algorithms `"mcts:N"`, `"ismcts:N"`, `"minimax[:depth]"`, `"cfr:<policy.json|iterations>"`.
 
@@ -556,7 +558,10 @@ the first few entities of each type with every prop (`result.state`), so you can
 * a tool offered when none of its choices could succeed;
 * sealed choices that overwrite each other's values;
 * an agent type that never had an action it could take;
-* a coded policy rule whose call was refused every time it was tried (`policy_rule_never_acted`), quoting the refusal;
+* a coded policy rule whose call was refused every time it was tried (`policy_rule_never_acted`), quoting the refusal,
+  and a `repeat` policy's rule that was refused after it had acted (`policy_repeat_refused`);
+* agents that never acted, or most of whose turns ended with no action after failed calls (`agents_never_acted`,
+  `agents_mostly_failed`), and turns an LLM participant ended out of `max_steps` (`out_of_steps`);
 * a stage that can never run, or a measure that reads only what no rule changes;
 * host answers that were the contract's fallback stand-ins because no host was bound;
 * with model participants, an action that was mostly refused.

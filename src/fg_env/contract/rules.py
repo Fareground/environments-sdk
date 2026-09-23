@@ -173,7 +173,7 @@ class ViewSpec(_Model):
     when: Optional[str] = None
     look: bool = Field(False, description="Offer it on demand as look(view) instead of always including it.")
     bullet: bool = Field(True, description="Prefix each item with '- ' (false for boards and tables).")
-    only_changes: bool = Field(False, description="Include it only when it changed since the agent's last turn.")
+    only_changes: bool = Field(False, description="Show it in full only when it changed since the agent's last turn; otherwise one line says it is unchanged. For agents that remember their earlier turns: the built-in LLM participants start every turn afresh.")
     attach: Optional[str] = Field(None, description="Assets delivered with the view: an expression giving an asset id, a list or null — per listed item ($it) with `of`, else once ($actor).")
 
 

@@ -177,7 +177,9 @@ def cmd_run(args: argparse.Namespace) -> int:
             for event in result.events:
                 if event.get("text"):
                     print(f"  r{event['round']} {event['kind']}: {event['text']}")
-    return 0 if result.status in ("completed", "ended", "stopped", "running") and not result.output_issues else 2
+    if result.status not in ("completed", "ended", "stopped", "running") or result.output_issues:
+        return 2
+    return 3 if result.degraded else 0
 
 
 def cmd_preview(args: argparse.Namespace) -> int:
@@ -337,7 +339,7 @@ def add_commands(sub: Any) -> None:
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=_guarded(cmd_check))
 
-    p = sub.add_parser("run", help="run a contract and print the result")
+    p = sub.add_parser("run", help="run a contract and print the result (exit 3 when the run is degraded, 2 when it failed)")
     _common(p, None)
     p.add_argument("--agent", action="append", metavar="[TYPE_OR_ID=]PARTICIPANT",
                    help="random | idle | policy:<name> | anthropic:<model> | openai:<model>, optionally for one type or entity")

@@ -3643,7 +3643,7 @@
         },
         "only_changes": {
           "default": false,
-          "description": "Include it only when it changed since the agent's last turn.",
+          "description": "Show it in full only when it changed since the agent's last turn; otherwise one line says it is unchanged. For agents that remember their earlier turns: the built-in LLM participants start every turn afresh.",
           "title": "Only Changes",
           "type": "boolean"
         },

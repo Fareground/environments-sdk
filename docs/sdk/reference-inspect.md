@@ -15,7 +15,10 @@ the first few entities of each type with every prop (`result.state`), so you can
 * a tool offered when none of its choices could succeed;
 * sealed choices that overwrite each other's values;
 * an agent type that never had an action it could take;
-* a coded policy rule whose call was refused every time it was tried (`policy_rule_never_acted`), quoting the refusal;
+* a coded policy rule whose call was refused every time it was tried (`policy_rule_never_acted`), quoting the refusal,
+  and a `repeat` policy's rule that was refused after it had acted (`policy_repeat_refused`);
+* agents that never acted, or most of whose turns ended with no action after failed calls (`agents_never_acted`,
+  `agents_mostly_failed`), and turns an LLM participant ended out of `max_steps` (`out_of_steps`);
 * a stage that can never run, or a measure that reads only what no rule changes;
 * host answers that were the contract's fallback stand-ins because no host was bound;
 * with model participants, an action that was mostly refused.

@@ -85,9 +85,10 @@ class Wake:
 
     @property
     def me(self) -> Dict[str, Any]:
-        """A copy of this agent's own properties plus ``id``, ``name``, ``type`` and ``at``."""
+        """A copy of this agent's own properties plus ``id``, ``name``, ``type`` and ``at``: changing it changes nothing
+        in the world."""
         actor = self._turn.actor
-        return {**actor.properties, "id": actor.id, "name": actor.name, "type": actor.entity_type, "at": actor.location_id}
+        return {**_copy(dict(actor.properties)), "id": actor.id, "name": actor.name, "type": actor.entity_type, "at": actor.location_id}
 
     # -- what the agent reads ---------------------------------------------------
 
@@ -189,16 +190,17 @@ class Wake:
 
     def record_usage(self, *, llm_calls: int = 0, input_tokens: int = 0, output_tokens: int = 0,
                      cache_read_tokens: int = 0, cache_write_tokens: int = 0, llm_retries: int = 0,
-                     forfeits: int = 0, truncated: int = 0, refusals: int = 0) -> None:
+                     forfeits: int = 0, truncated: int = 0, refusals: int = 0, out_of_steps: int = 0) -> None:
         """Add a model's real usage to the run's statistics (the built-in LLM participants call this). Usage reported
         after the turn is over (it ran out of time) still counts toward the statistics and the budget; usage that
         spends the run's token budget ends every turn in play (the built-in LLM participants then make no more calls). ``truncated``
-        counts replies cut off at the model's output limit, ``refusals`` replies the provider refused to give."""
+        counts replies cut off at the model's output limit, ``refusals`` replies the provider refused to give,
+        ``out_of_steps`` turns the participant's own call limit ended."""
         stats = self._turn.stats
         counts = (("llm_calls", llm_calls), ("input_tokens", input_tokens), ("output_tokens", output_tokens),
                   ("cache_read_tokens", cache_read_tokens), ("cache_write_tokens", cache_write_tokens),
                   ("llm_retries", llm_retries), ("forfeits", forfeits), ("truncated", truncated),
-                  ("refusals", refusals))
+                  ("refusals", refusals), ("out_of_steps", out_of_steps))
         for name, value in counts:
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
                 raise ValueError(f"{name} must be a whole number ≥ 0, got {value!r}")
@@ -252,7 +254,8 @@ _SHOWN_USAGE = ("llm_calls", "input_tokens", "output_tokens", "cache_read_tokens
 
 
 def _copy(value: Any) -> Any:
-    """A copy of call arguments as recorded on the tape (the caller may reuse its own objects)."""
+    """A deep copy of plain data: call arguments as recorded on the tape (the caller may reuse its own objects), or
+    properties handed to a participant."""
     if isinstance(value, list):
         return [_copy(item) for item in value]
     if isinstance(value, dict):

@@ -26,7 +26,8 @@ __all__ = ["Happenings"]
 class Happenings:
     """Scheduled effects, events, triggers and reactions of one run."""
 
-    #: How deep triggers may set off further triggers, and reactions further reactions.
+    #: How deep triggers may set off further triggers (deeper is an error), and reactions further reactions (deeper
+    #: reactions wait for the agent's next turn).
     TRIGGER_DEPTH = 8
     REACTION_DEPTH = 4
 
@@ -173,7 +174,8 @@ class Happenings:
     def react(self, stage: Optional[StageSpec]) -> None:
         """Give every agent asked to react (`wake` with `now`) a turn right away, in the current stage: once the
         action that woke them has committed, so a reaction answers it and cannot undo it. While an agent's action is
-        still committing (and could yet be undone), they wait for it to finish."""
+        still committing (and could yet be undone), they wait for it to finish. Reactions to reactions nested deeper
+        than :attr:`REACTION_DEPTH` become ordinary wakes: agents that keep answering each other never fail the run."""
         env, world = self.env, self.env.world
         if world.journal.holding:
             return
@@ -182,8 +184,9 @@ class Happenings:
             actor = world.entities.get(entity_id)
             if actor is None or not actor.alive or not env.contract.is_agent(actor.entity_type):
                 continue
-            if self._reaction_depth >= self.REACTION_DEPTH:
-                raise RunError(f"reactions set each other off more than {self.REACTION_DEPTH} levels deep", "wake.now")
+            if self._reaction_depth >= self.REACTION_DEPTH:  # agents answering each other: the rest wait a turn
+                world.request_wake(entity_id, why)
+                continue
             spec = stage or next(iter(env.contract.stage_list()))
             self._reaction_depth += 1
             try:
