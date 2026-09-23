@@ -1,0 +1,2508 @@
+{
+ "model": "deepseek/deepseek-v4.1-flash",
+ "stop": "token cap",
+ "nudges": 0,
+ "messages": [
+  {
+   "role": "system",
+   "content": "(guide text)"
+  },
+  {
+   "role": "user",
+   "content": "# Classroom with weekly quizzes\n\nSimulate a six-week course with one teacher and five students, all AI agents. The course covers three topics: fractions, decimals and percentages. Every week the teacher chooses one topic to teach, and each student chooses whether to study hard or take it easy that week. A student's understanding of a topic grows when it is taught and grows more when they study. At the end of every week there is a quiz on that week's topic, scored from 0 to 10, based on the student's understanding of the topic plus some luck. Students see only their own quiz scores; the teacher sees everyone's. A student's final grade is the average of their quiz scores.\n\n## Deliverables\n\nReport these outputs:\n- `quiz_scores` \u2014 a map from each student's id to the list of their quiz scores, one per week in order.\n- `final_grades` \u2014 a map from each student's id to their final grade.\n- `class_average` \u2014 the average of the final grades.\n\n\nBuild this environment. Save it with write_contract and use the other tools as you see fit. Reply without calling a tool when you are done."
+  },
+  {
+   "role": "assistant",
+   "content": "I'll start by exploring the SDK's structure and guides.\n\n",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-95511c1600bc2696",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"all\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-a8ad768d78de817e",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-95511c1600bc2696",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a8ad768d78de817e",
+   "content": "No contract saved yet."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-8412ca2f47e040ca",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"expressions\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-a144d0d9cfbbac61",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"effects\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "chatcmpl-tool-93c0b3fd7a02810f",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"stages\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "chatcmpl-tool-80ca2bdce216fefa",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"events\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-8412ca2f47e040ca",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a144d0d9cfbbac61",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-93c0b3fd7a02810f",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-80ca2bdce216fefa",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-a96f7900e5af53db",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions.collections\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-a1e50808f38cd067",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"views\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "chatcmpl-tool-bcf8ec26d1d9a400",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"outputs\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "chatcmpl-tool-828393fe9e96db56",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"metrics\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a96f7900e5af53db",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a1e50808f38cd067",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-bcf8ec26d1d9a400",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-828393fe9e96db56",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-bacc9b1b3e8c17c6",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"types\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-a419b31abf598923",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"inputs\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "chatcmpl-tool-a69de72c9f4cd3b7",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"population\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "chatcmpl-tool-8bc6df7ccb60e4b3",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"brief\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-bacc9b1b3e8c17c6",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a419b31abf598923",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a69de72c9f4cd3b7",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-8bc6df7ccb60e4b3",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-b91c074cb6b261be",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"records\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-a417f7097b0aeaed",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"actions\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b91c074cb6b261be",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a417f7097b0aeaed",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-b12e1670fb2d5561",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-ba086cdcd708620a",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"model\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "chatcmpl-tool-8ccfd09ed6437093",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"templates\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "chatcmpl-tool-a6792b9d2be9dc42",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"authoring\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b12e1670fb2d5561",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-ba086cdcd708620a",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-8ccfd09ed6437093",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a6792b9d2be9dc42",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "I'll probe a few engine features I plan to rely on before writing the real contract.\n\n",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-b1b66185238d8a87",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b1b66185238d8a87",
+   "content": "Saved (34 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-85a5071e74f19aaf",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-85a5071e74f19aaf",
+   "content": "[warning] inputs.topics.items: has no default and is not required, so it may be null \u2192 give a default or set required: true\n[warning] types.s: agent type has no actions \u2192 add an action with `by`"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-9ffa4df7ac887b37",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 1}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-9ffa4df7ac887b37",
+   "content": "completed after 2 weeks \u2014 ended by rounds (seed 1)\nu: {\"fractions\": 4, \"decimals\": 0}\nscores: [3, 5, 3, 5]\navg: 4.0\navg_empty: 4.0\nvals: [4, 0]\ndict: {\"a\": [3, 5, 3, 5], \"b\": [3, 5, 3, 5]}\nflatten: [3, 5, 3, 5, 3, 5, 3, 5]\njoined: \"fractions / decimals\"\nclamped: 8\nnested_all: true\ntopic_pick: \"fractions\"\nmap_keys: [\"fractions\", \"decimals\"]\noutputs: {\"u\": {\"fractions\": 4, \"decimals\": 0}, \"scores\": [3, 5, 3, 5], \"avg\": 4.0, \"avg_empty\": 4.0, \"vals\": [4, 0], \"dict\": {\"a\": [3, 5, 3, 5], \"b\": [3, 5, 3, 5]}, \"flatten\": [3, 5, 3, 5, 3, 5, 3, 5], \"joined\": \"fractions / decimals\", \"clamped\": 8, \"nested_all\": true, \"topic_pick\": \"fractions\", \"map_keys\": [\"fractions\", \"decimals\"]}"
+  },
+  {
+   "role": "assistant",
+   "content": "Core mechanics work. Now let me probe templates, views, and empty-list edge cases.\n\n",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-b016f5c2ff964686",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b016f5c2ff964686",
+   "content": "Saved (33 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-ae51f985c3af5a82",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-ac37730a2e95e0e6",
+     "function": {
+      "name": "run",
+      "arguments": "{\"seed\": 1, \"participants\": {\"s\": \"idle\"}}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-ae51f985c3af5a82",
+   "content": "No issues."
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-ac37730a2e95e0e6",
+   "content": "completed after 2 weeks \u2014 ended by rounds (seed 1)\navg_empty: -1\nget_default: 0\ncount: 2\nsum_list: 0\nworld_logs: []\nu_map: [{\"id\": \"a\", \"name\": \"Ada\", \"u\": {\"fractions\": 2, \"decimals\": 0}}, {\"id\": \"b\", \"name\": \"b\", \"u\": {\"fractions\": 2, \"de\u2026\ngrades: {\"a\": 0, \"b\": 0}\noutputs: {\"avg_empty\": -1, \"get_default\": 0, \"count\": 2, \"sum_list\": 0, \"world_logs\": [], \"u_map\": [{\"id\": \"a\", \"name\": \"Ada\", \"u\": {\"fractions\": 2, \"decimals\": 0}}, {\"id\": \"b\", \"name\": \"b\", \"u\": {\"fractions\": 2, \"decimals\": 0}}], \"grades\": {\"a\": 0, \"b\": 0}}"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-95edbf50de495bf5",
+     "function": {
+      "name": "preview",
+      "arguments": "{\"agent\": \"a\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-95edbf50de495bf5",
+   "content": "BRIEF:\n# Probe 2\n\n## You\nYou are Ada (s, id a).\nAct only through your tools. Your turn ends when you take a final action or call end_turn.\n\nUPDATE:\nWeek 1 of 2 \u00b7 play\nNow: It is your turn.\n\nMe Ada: understanding fractions: 0, decimals: 0, scores \n\nU line:\n- Ada u=fractions: 0, decimals: 0 scores= n=0\n- b u=fractions: 0, decimals: 0 scores= n=0\n\nThis week: fractions (1.5 / 2.5)\n\nTOOLS:\n- noop: Do nothing. {\"type\": \"object\", \"properties\": {}, \"additionalProperties\": false}\n- inspect: Details of one entity by its id (shown in [brackets] after names). Free: up to 8 reads (looks and inspects) per turn do not use a tool call. {\"type\": \"object\", \"properties\": {\"id\": {\"type\": \"string\", \"enum\": [\"a\"]}}, \"required\": [\"id\"], \"additionalProperties\": false}\n- end_turn: Finish your turn. {\"type\": \"object\", \"properties\": {}, \"additionalProperties\": false}"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-b19a3a6b7debfdb5",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b19a3a6b7debfdb5",
+   "content": "Saved (45 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-9218b5fa7730114e",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-94de40443e92d609",
+     "function": {
+      "name": "run",
+      "arguments": "{\"participants\": {\"teacher\": \"policy:teach\", \"student\": \"policy:study\"}, \"seed\": 1}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-9218b5fa7730114e",
+   "content": "actions.teach.outcome: '{topic}' needs a subject; write {$actor.topic} or similar \u2192 template: Teaching {topic}.\nactions.study.outcome: '{effort}' needs a subject; write {$actor.effort} or similar \u2192 template: effort {effort} \u2192 {$actor.s3}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-94de40443e92d609",
+   "content": "ContractError: contract is invalid (2 error(s)):\n  - actions.teach.outcome: '{topic}' needs a subject; write {$actor.topic} or similar \u2192 template: Teaching {topic}.\n  - actions.study.outcome: '{effort}' needs a subject; write {$actor.effort} or similar \u2192 template: effort {effort} \u2192 {$actor.s3}"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-809616f74ee1092a",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-809616f74ee1092a",
+   "content": "Saved (45 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-ad68ce2415bb7de1",
+     "function": {
+      "name": "run",
+      "arguments": "{\"participants\": {\"teacher\": \"random\", \"student\": \"random\"}, \"seed\": 1}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-ad68ce2415bb7de1",
+   "content": "completed after 2 weeks \u2014 ended by rounds (seed 1)\ntext_num: \"3x\"\nsorted_list: [\"decimals\", \"fractions\", \"percentages\"]\nouter_test: 2\ntallied: {\"Ada\": 1, \"Bo\": 1}\nnested_map: null\nefforts: [3, 9]\nbest: \"Bo\"\noutput issue: outputs.nested_map: cannot read '.u' of str 'fractions'\ndiagnostic: outputs.nested_map: is empty (null) at the end of the run: it reads only `u`, which no rule changes \u2192 set what it reads in an action or event, or read what the rules do change\noutputs: {\"text_num\": \"3x\", \"sorted_list\": [\"decimals\", \"fractions\", \"percentages\"], \"outer_test\": 2, \"tallied\": {\"Ada\": 1, \"Bo\": 1}, \"nested_map\": null, \"efforts\": [3, 9], \"best\": \"Bo\"}"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-a1490b3b40a39f40",
+     "function": {
+      "name": "preview",
+      "arguments": "{\"agent\": \"t\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-820a8cb60ef94389",
+     "function": {
+      "name": "preview",
+      "arguments": "{\"agent\": \"a\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a1490b3b40a39f40",
+   "content": "BRIEF:\n# Probe 3\n\n## You\nYou are Tina (teacher, id t).\nAct only through your tools. Your turn ends when you take a final action or call end_turn.\n\nUPDATE:\nWeek 1 of 2 \u00b7 class\nNow: It is your turn.\n\nTopic fractions, order \n\nSorted:\n- Ada: 0\n- Bo: 0\n\nstudents with effort>1: 0\n\nTOOLS:\n- teach: Teach a topic. {\"type\": \"object\", \"properties\": {\"topic\": {\"enum\": [\"fractions\", \"decimals\", \"percentages\"], \"type\": \"string\"}, \"order\": {\"type\": \"array\", \"items\": {\"type\": \"string\", \"enum\": [\"a\", \"b\"]}, \"maxItems\": 1000, \"uniqueItems\": true, \"description\": \"Call order. Each item: Options: a = Ada; b = Bo.\"}}, \"additionalProperties\": false, \"required\": [\"topic\", \"order\"]}\n- end_turn: Finish your turn. {\"type\": \"object\", \"properties\": {}, \"additionalProperties\": false}"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-820a8cb60ef94389",
+   "content": "BRIEF:\n# Probe 3\n\n## You\nYou are Ada (student, id a).\nAct only through your tools. Your turn ends when you take a final action or call end_turn.\n\nUPDATE:\nWeek 1 of 2 \u00b7 class\nNow: It is your turn.\n\nSince your last turn:\n- Tina teaches fractions.\n\nLevels: fractions: 0, decimals: 0, percentages: 0\n\nTopic fractions, order a\n\nTOOLS:\n- study: Study. {\"type\": \"object\", \"properties\": {\"effort\": {\"type\": \"integer\", \"minimum\": 1, \"maximum\": 3}}, \"additionalProperties\": false, \"required\": [\"effort\"]}\n- inspect: Details of one entity by its id (shown in [brackets] after names). Free: up to 8 reads (looks and inspects) per turn do not use a tool call. {\"type\": \"object\", \"properties\": {\"id\": {\"type\": \"string\", \"enum\": [\"a\"]}}, \"required\": [\"id\"], \"additionalProperties\": false}\n- end_turn: Finish your turn. {\"type\": \"object\", \"properties\": {}, \"additionalProperties\": false}"
+  },
+  {
+   "role": "assistant",
+   "content": "Now I'll write the real contract.\n\n",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-810c90d6cbf80474",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-810c90d6cbf80474",
+   "content": "Saved (132 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-b570d61481d0c855",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-b64aa0fc5810aa61",
+     "function": {
+      "name": "run",
+      "arguments": "{\"participants\": {\"teacher\": \"policy:teach\", \"student\": \"policy:study\"}, \"seed\": 1}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b570d61481d0c855",
+   "content": "types.student.props.last_score.max: must be a number, got the text \"$inputs.max_score\" \u2192 write a number without quotes"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b64aa0fc5810aa61",
+   "content": "ContractError: contract is invalid (1 error(s)):\n  - types.student.props.last_score.max: must be a number, got the text \"$inputs.max_score\" \u2192 write a number without quotes"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-9ca39eb7c912c02c",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-9ca39eb7c912c02c",
+   "content": "Saved (132 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-81a56382d2742dd6",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-81a56382d2742dd6",
+   "content": "No issues."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-b6a744e76fc9a9e0",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"policies\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b6a744e76fc9a9e0",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-953f8cfdfc7faee4",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-953f8cfdfc7faee4",
+   "content": "Saved (143 lines)."
+  }
+ ],
+ "writes": [
+  {
+   "name": "Probe",
+   "clock": {
+    "rounds": 2,
+    "unit": "week"
+   },
+   "inputs": {
+    "topics": {
+     "type": "list",
+     "items": {
+      "type": "text"
+     },
+     "default": [
+      "fractions",
+      "decimals"
+     ]
+    },
+    "max_score": {
+     "type": "int",
+     "default": 10
+    }
+   },
+   "world": {
+    "topic": "fractions"
+   },
+   "types": {
+    "s": {
+     "agent": true,
+     "props": {
+      "u": {
+       "type": "map",
+       "default": "$dict($inputs.topics, $it, 0)"
+      },
+      "scores": {
+       "type": "list",
+       "default": []
+      },
+      "study": {
+       "type": "text",
+       "default": "easy"
+      }
+     }
+    }
+   },
+   "entities": {
+    "a": {
+     "type": "s"
+    },
+    "b": {
+     "type": "s"
+    }
+   },
+   "events": [
+    {
+     "phase": "end",
+     "each": "s",
+     "do": [
+      "$it.u[$world.topic] += 2",
+      "$it.scores += 3",
+      "$it.scores += 5"
+     ]
+    }
+   ],
+   "outputs": {
+    "u": "$entity(a).u",
+    "scores": "$entity(a).scores",
+    "avg": "$avg($entity(a).scores) or 0",
+    "avg_empty": "$avg($entity(b).scores) or 0",
+    "vals": "$values($entity(a).u)",
+    "dict": "$dict(s, $it.id, $it.scores)",
+    "flatten": "$flatten($map(s, $it.scores))",
+    "joined": "$join($inputs.topics, ' / ')",
+    "clamped": "$clamp($round(7.6), 0, $inputs.max_score)",
+    "nested_all": "$all(s, $all($it.scores, $it >= 0 and $it <= $inputs.max_score))",
+    "topic_pick": "$inputs.topics[0]",
+    "map_keys": "$keys($entity(a).u)"
+   }
+  },
+  {
+   "name": "Probe 2",
+   "clock": {
+    "rounds": 2,
+    "unit": "week"
+   },
+   "inputs": {
+    "topics": {
+     "type": "list",
+     "items": {
+      "type": "text",
+      "default": "fractions"
+     },
+     "default": [
+      "fractions",
+      "decimals"
+     ]
+    },
+    "weights": {
+     "type": "map",
+     "display": "object",
+     "default": {},
+     "fields": {
+      "base": {
+       "type": "number",
+       "default": 1.5
+      },
+      "study": {
+       "type": "number",
+       "default": 2.5
+      }
+     }
+    }
+   },
+   "world": {
+    "topic": "fractions",
+    "logs": []
+   },
+   "types": {
+    "s": {
+     "agent": true,
+     "props": {
+      "u": {
+       "type": "map",
+       "default": "$dict($inputs.topics, $it, 0)"
+      },
+      "scores": {
+       "type": "list",
+       "default": []
+      }
+     }
+    }
+   },
+   "entities": {
+    "a": {
+     "type": "s",
+     "name": "Ada"
+    },
+    "b": {
+     "type": "s"
+    }
+   },
+   "actions": {
+    "noop": {
+     "by": "s",
+     "description": "Do nothing.",
+     "do": "$world.logs += 1"
+    }
+   },
+   "views": {
+    "me": {
+     "for": "s",
+     "show": "Me {$actor.name}: understanding {$actor.u}, scores {$actor.scores|list}"
+    },
+    "u_line": {
+     "for": "s",
+     "of": "s",
+     "show": "{name} u={u} scores={scores|list} n={$len($it.scores)}"
+    },
+    "topic_line": {
+     "for": "s",
+     "show": "This week: {$world.topic} ({$inputs.weights.base} / {$inputs.weights.study})"
+    }
+   },
+   "events": [
+    {
+     "phase": "end",
+     "each": "s",
+     "do": [
+      "$it.u[$world.topic] += 1"
+     ]
+    }
+   ],
+   "outputs": {
+    "avg_empty": "$avg($entity(b).scores) or -1",
+    "get_default": "$get($entity(a).u, 'percentages', 0)",
+    "count": "$count($entity(a).u)",
+    "sum_list": "$sum($entity(a).scores)",
+    "world_logs": "$world.logs",
+    "u_map": "$map(s, {id: $it.id, name: $it.name, u: $it.u})",
+    "grades": "$dict(s, $it.id, $avg($it.scores) or 0)"
+   }
+  },
+  {
+   "name": "Probe 3",
+   "clock": {
+    "rounds": 2,
+    "unit": "week"
+   },
+   "inputs": {
+    "topics": {
+     "type": "list",
+     "items": {
+      "type": "text",
+      "default": "fractions"
+     },
+     "default": [
+      "fractions",
+      "decimals",
+      "percentages"
+     ]
+    }
+   },
+   "world": {
+    "topic": "fractions",
+    "order": []
+   },
+   "types": {
+    "teacher": {
+     "agent": true
+    },
+    "student": {
+     "agent": true,
+     "props": {
+      "u": {
+       "type": "map",
+       "default": "$dict($inputs.topics, $it, 0)"
+      },
+      "scores": {
+       "type": "list",
+       "default": []
+      },
+      "s1": {
+       "type": "int",
+       "default": 0
+      },
+      "s2": {
+       "type": "int",
+       "default": 0
+      },
+      "s3": {
+       "type": "int",
+       "default": 0
+      }
+     }
+    }
+   },
+   "entities": {
+    "t": {
+     "type": "teacher",
+     "name": "Tina"
+    },
+    "a": {
+     "type": "student",
+     "name": "Ada"
+    },
+    "b": {
+     "type": "student",
+     "name": "Bo"
+    }
+   },
+   "actions": {
+    "teach": {
+     "by": "teacher",
+     "description": "Teach a topic.",
+     "params": {
+      "topic": {
+       "type": "enum",
+       "values": "$inputs.topics"
+      },
+      "order": {
+       "type": "list",
+       "items": {
+        "type": "entity",
+        "of": "student"
+       },
+       "description": "Call order."
+      }
+     },
+     "do": [
+      "$world.topic = $params.topic",
+      "$world.order = $map($params.order, $it.id)"
+     ],
+     "outcome": "Teaching {topic}.",
+     "announce": "{$actor.name} teaches {$params.topic}."
+    },
+    "study": {
+     "by": "student",
+     "description": "Study.",
+     "params": {
+      "effort": {
+       "type": "int",
+       "min": 1,
+       "max": 3
+      }
+     },
+     "do": [
+      "$actor.s1 = $params.effort",
+      "$actor.s2 = $actor.s1 * 2",
+      "$actor.s3 = $actor.s2 + $actor.s1"
+     ],
+     "outcome": "effort {effort} \u2192 {$actor.s3}"
+    }
+   },
+   "stages": [
+    {
+     "name": "class",
+     "actions": "all",
+     "max_actions": 3,
+     "max_calls": 8
+    }
+   ],
+   "records": {
+    "quiz": {
+     "fields": {
+      "topic": "text",
+      "score": "int",
+      "student": "text"
+     },
+     "show": "{student} scored {score} on {topic}",
+     "visible": "all"
+    }
+   },
+   "views": {
+    "u_line": {
+     "for": "student",
+     "show": "Levels: {$join($map($inputs.topics, $it + ': ' + $text($get($actor.u, $it, 0))), ', ')}"
+    },
+    "world_topic": {
+     "for": "all",
+     "show": "Topic {$world.topic}, order {$world.order|list}"
+    },
+    "sorted": {
+     "for": "teacher",
+     "of": "student",
+     "sort": "[-$it.s3, $it.id]",
+     "show": "{name}: {s3}"
+    },
+    "counted": {
+     "for": "teacher",
+     "show": "students with effort>1: {$count(student, $it.s1 > 1)}"
+    }
+   },
+   "events": [
+    {
+     "phase": "end",
+     "do": [
+      "$world.topic = $choice($inputs.topics)"
+     ]
+    }
+   ],
+   "outputs": {
+    "text_num": "$text(3) + 'x'",
+    "sorted_list": "$sort($inputs.topics, $it)",
+    "outer_test": "$sum(student, $count($inputs.topics, $it == 'fractions'))",
+    "tallied": "$tally($map(student, $it.name))",
+    "nested_map": "$map(student, {id: $it.id, levels: $map($inputs.topics, $get($it.u, $it, 0))})",
+    "efforts": "$map(student, $it.s3)",
+    "best": "$best(student, $it.s3).name"
+   }
+  },
+  {
+   "name": "Probe 3",
+   "clock": {
+    "rounds": 2,
+    "unit": "week"
+   },
+   "inputs": {
+    "topics": {
+     "type": "list",
+     "items": {
+      "type": "text",
+      "default": "fractions"
+     },
+     "default": [
+      "fractions",
+      "decimals",
+      "percentages"
+     ]
+    }
+   },
+   "world": {
+    "topic": "fractions",
+    "order": []
+   },
+   "types": {
+    "teacher": {
+     "agent": true
+    },
+    "student": {
+     "agent": true,
+     "props": {
+      "u": {
+       "type": "map",
+       "default": "$dict($inputs.topics, $it, 0)"
+      },
+      "scores": {
+       "type": "list",
+       "default": []
+      },
+      "s1": {
+       "type": "int",
+       "default": 0
+      },
+      "s2": {
+       "type": "int",
+       "default": 0
+      },
+      "s3": {
+       "type": "int",
+       "default": 0
+      }
+     }
+    }
+   },
+   "entities": {
+    "t": {
+     "type": "teacher",
+     "name": "Tina"
+    },
+    "a": {
+     "type": "student",
+     "name": "Ada"
+    },
+    "b": {
+     "type": "student",
+     "name": "Bo"
+    }
+   },
+   "actions": {
+    "teach": {
+     "by": "teacher",
+     "description": "Teach a topic.",
+     "params": {
+      "topic": {
+       "type": "enum",
+       "values": "$inputs.topics"
+      },
+      "order": {
+       "type": "list",
+       "items": {
+        "type": "entity",
+        "of": "student"
+       },
+       "description": "Call order."
+      }
+     },
+     "do": [
+      "$world.topic = $params.topic",
+      "$world.order = $map($params.order, $it.id)"
+     ],
+     "outcome": "Teaching {$params.topic}.",
+     "announce": "{$actor.name} teaches {$params.topic}."
+    },
+    "study": {
+     "by": "student",
+     "description": "Study.",
+     "params": {
+      "effort": {
+       "type": "int",
+       "min": 1,
+       "max": 3
+      }
+     },
+     "do": [
+      "$actor.s1 = $params.effort",
+      "$actor.s2 = $actor.s1 * 2",
+      "$actor.s3 = $actor.s2 + $actor.s1"
+     ],
+     "outcome": "effort {$params.effort} \u2192 {$actor.s3}"
+    }
+   },
+   "stages": [
+    {
+     "name": "class",
+     "actions": "all",
+     "max_actions": 3,
+     "max_calls": 8
+    }
+   ],
+   "records": {
+    "quiz": {
+     "fields": {
+      "topic": "text",
+      "score": "int",
+      "student": "text"
+     },
+     "show": "{student} scored {score} on {topic}",
+     "visible": "all"
+    }
+   },
+   "views": {
+    "u_line": {
+     "for": "student",
+     "show": "Levels: {$join($map($inputs.topics, $it + ': ' + $text($get($actor.u, $it, 0))), ', ')}"
+    },
+    "world_topic": {
+     "for": "all",
+     "show": "Topic {$world.topic}, order {$world.order|list}"
+    },
+    "sorted": {
+     "for": "teacher",
+     "of": "student",
+     "sort": "[-$it.s3, $it.id]",
+     "show": "{name}: {s3}"
+    },
+    "counted": {
+     "for": "teacher",
+     "show": "students with effort>1: {$count(student, $it.s1 > 1)}"
+    }
+   },
+   "events": [
+    {
+     "phase": "end",
+     "do": [
+      "$world.topic = $choice($inputs.topics)"
+     ]
+    }
+   ],
+   "outputs": {
+    "text_num": "$text(3) + 'x'",
+    "sorted_list": "$sort($inputs.topics, $it)",
+    "outer_test": "$sum(student, $count($inputs.topics, $it == 'fractions'))",
+    "tallied": "$tally($map(student, $it.name))",
+    "nested_map": "$map(student, {id: $it.id, levels: $map($inputs.topics, $get($it.u, $it, 0))})",
+    "efforts": "$map(student, $it.s3)",
+    "best": "$best(student, $it.s3).name"
+   }
+  },
+  {
+   "name": "Classroom with weekly quizzes",
+   "clock": {
+    "rounds": "$inputs.weeks",
+    "unit": "week"
+   },
+   "brief": {
+    "situation": "A {$inputs.weeks}-week course on {$join($inputs.topics, ', ')}. One teacher, {$count(student)} students, all AI agents. Each week the teacher picks one topic to teach; each student then decides whether to study hard or take it easy; at the end of the week there is a quiz on that topic.",
+    "rules": "WEEKLY CYCLE. (1) Lesson: the teacher chooses one topic from {$join($inputs.topics, ', ')}. Being taught raises every student's understanding of that topic by {$inputs.teaching_gain}. (2) Study: each student chooses study_hard or take_it_easy. Study hard spends effort points of study energy (each point adds {$inputs.effort_gain} understanding of the topic, on top of the {$inputs.study_gain} every student who studies gains); taking it easy costs nothing and restores {$inputs.rest_gain} energy. Nobody can study a topic before it has been taught this week. (3) Quiz: each student answers a quiz on this week's topic alone. A quiz is scored 0-{$inputs.max_score} from the student's understanding of that topic plus luck of up to +/-{$inputs.luck}, rounded and cut to the 0-{$inputs.max_score} range. A student's final grade is the average of their quiz scores. WHAT YOU SEE. A student sees only their own quiz scores and their own understanding. The teacher sees every student's scores, understanding and energy. Only the teacher chooses topics; only students study and sit quizzes. Understanding carries across weeks, and a topic may be taught again.",
+    "roles": {
+     "teacher": "You are the teacher. You see the whole class. Each week you choose the topic to teach - it may be a topic taught before, and choosing a topic raises everyone's understanding of it.",
+     "student": "You are a student. You see only your own quiz scores and understanding. Study energy is scarce and lasts the whole course, so spending it well matters; taking it easy is always allowed."
+    }
+   },
+   "inputs": {
+    "weeks": {
+     "type": "int",
+     "default": 6,
+     "min": 1,
+     "display": "number",
+     "label": "Course length (weeks)"
+    },
+    "topics": {
+     "type": "list",
+     "items": {
+      "type": "text",
+      "default": "fractions"
+     },
+     "default": [
+      "fractions",
+      "decimals",
+      "percentages"
+     ],
+     "display": "list",
+     "label": "Topics on the syllabus"
+    },
+    "students": {
+     "type": "table",
+     "display": "table",
+     "label": "Students",
+     "fields": {
+      "id": {
+       "type": "text",
+       "required": true,
+       "display": "text"
+      },
+      "name": {
+       "type": "text",
+       "required": true,
+       "display": "text"
+      }
+     },
+     "default": [
+      {
+       "id": "ada",
+       "name": "Ada"
+      },
+      {
+       "id": "bo",
+       "name": "Bo"
+      },
+      {
+       "id": "cleo",
+       "name": "Cleo"
+      },
+      {
+       "id": "dev",
+       "name": "Dev"
+      },
+      {
+       "id": "ema",
+       "name": "Ema"
+      }
+     ]
+    },
+    "max_score": {
+     "type": "int",
+     "default": 10,
+     "min": 1,
+     "display": "number",
+     "label": "Maximum quiz score"
+    },
+    "teaching_gain": {
+     "type": "number",
+     "default": 1.0,
+     "min": 0,
+     "display": "number",
+     "label": "Understanding gained from being taught"
+    },
+    "study_gain": {
+     "type": "number",
+     "default": 0.5,
+     "min": 0,
+     "display": "number",
+     "label": "Understanding gained by studying at all"
+    },
+    "effort_gain": {
+     "type": "number",
+     "default": 0.5,
+     "min": 0,
+     "display": "number",
+     "label": "Understanding gained per effort point"
+    },
+    "max_effort": {
+     "type": "int",
+     "default": 3,
+     "min": 1,
+     "display": "number",
+     "label": "Most effort points in one week"
+    },
+    "energy": {
+     "type": "int",
+     "default": 8,
+     "min": 0,
+     "display": "number",
+     "label": "Study energy for the whole course"
+    },
+    "rest_gain": {
+     "type": "int",
+     "default": 1,
+     "min": 0,
+     "display": "number",
+     "label": "Energy restored by taking it easy"
+    },
+    "luck": {
+     "type": "number",
+     "default": 1.5,
+     "min": 0,
+     "display": "number",
+     "label": "Luck swing on a quiz"
+    }
+   },
+   "world": {
+    "topic": "",
+    "quizzed": false
+   },
+   "types": {
+    "teacher": {
+     "agent": true,
+     "description": "Chooses the topic taught each week."
+    },
+    "student": {
+     "agent": true,
+     "description": "Studies, sits quizzes, accumulates understanding and scores.",
+     "props": {
+      "understanding": {
+       "type": "map",
+       "default": "$dict($inputs.topics, $it, 0)",
+       "description": "Understanding per topic."
+      },
+      "scores": {
+       "type": "list",
+       "default": [],
+       "description": "Quiz scores, one per week in order."
+      },
+      "energy": {
+       "type": "int",
+       "default": "$inputs.energy",
+       "min": 0,
+       "description": "Study energy left for the whole course."
+      },
+      "last_score": {
+       "type": "int",
+       "default": 0,
+       "min": 0,
+       "max": "$inputs.max_score",
+       "description": "Score on this week's quiz."
+      }
+     }
+    }
+   },
+   "entities": {
+    "teacher": {
+     "type": "teacher",
+     "name": "Ms. Rivera"
+    }
+   },
+   "population": [
+    {
+     "type": "student",
+     "from": "$inputs.students",
+     "id": "{$row.id}",
+     "name": "{$row.name}"
+    }
+   ],
+   "records": {
+    "quiz": {
+     "description": "Every quiz attempt, with the score.",
+     "fields": {
+      "student": "text",
+      "topic": "text",
+      "score": "int"
+     },
+     "show": "{student} scored {score} on {topic}",
+     "visible": "$it.student == $viewer.id or $viewer.type == teacher"
+    }
+   },
+   "actions": {
+    "choose_topic": {
+     "by": "teacher",
+     "description": "Choose the topic to teach this week. Every student's understanding of that topic rises by the teaching gain. This is the only topic that can be studied or quizzed this week.",
+     "params": {
+      "topic": {
+       "type": "enum",
+       "values": "$inputs.topics",
+       "description": "The topic to teach this week."
+      }
+     },
+     "do": [
+      "$world.topic = $params.topic",
+      {
+       "each": "student",
+       "do": "$it.understanding[$params.topic] += $inputs.teaching_gain"
+      }
+     ],
+     "outcome": "You taught {$params.topic}. The class's understanding of it rose by {$inputs.teaching_gain}.",
+     "announce": "{$actor.name} teaches {$params.topic} this week."
+    },
+    "study_hard": {
+     "by": "student",
+     "description": "Study hard on this week's topic. Each effort point costs one study energy and adds the effort gain to your understanding of the topic, on top of the study gain. You cannot study a topic that has not been taught this week.",
+     "when": [
+      {
+       "expr": "$world.topic != ''",
+       "why": "No topic has been taught yet this week."
+      },
+      {
+       "expr": "$actor.energy >= 1",
+       "why": "You have no study energy left this course; take it easy instead."
+      }
+     ],
+     "params": {
+      "effort": {
+       "type": "int",
+       "min": 1,
+       "max": "$min($inputs.max_effort, $actor.energy)",
+       "description": "Effort points to spend (each costs one study energy)."
+      }
+     },
+     "do": [
+      "$actor.energy -= $params.effort",
+      "$actor.understanding[$world.topic] += $inputs.study_gain + $inputs.effort_gain * $params.effort"
+     ],
+     "outcome": "You studied {$world.topic} hard with effort {$params.effort}: understanding is now {$get($actor.understanding, $world.topic, 0)}, study energy left {$actor.energy}.",
+     "announce": "{$actor.name} studied hard this week."
+    },
+    "take_it_easy": {
+     "by": "student",
+     "description": "Take it easy this week: no study gain, but you spend no energy and recover the rest gain.",
+     "when": [
+      {
+       "expr": "$world.topic != ''",
+       "why": "No topic has been taught yet this week."
+      }
+     ],
+     "do": [
+      "$actor.energy = $min($actor.energy + $inputs.rest_gain, $inputs.energy)"
+     ],
+     "outcome": "You took it easy this week. Study energy is now {$actor.energy}.",
+     "announce": "{$actor.name} took it easy this week."
+    },
+    "answer_quiz": {
+     "by": "student",
+     "description": "Sit this week's quiz on the topic just taught. The score is your understanding of that topic plus luck, rounded and cut to the 0-max range, and is added to your list of scores.",
+     "when": [
+      {
+       "expr": "$world.quizzed",
+       "why": "The quiz is not open yet."
+      }
+     ],
+     "do": [
+      "$u = $get($actor.understanding, $world.topic, 0)",
+      "$roll = $uniform(-$inputs.luck, $inputs.luck)",
+      "$actor.last_score = $clamp($round($u + $roll), 0, $inputs.max_score)",
+      "$actor.scores += $actor.last_score",
+      {
+       "post": "quiz",
+       "student": "$actor.id",
+       "topic": "$world.topic",
+       "score": "$actor.last_score"
+      }
+     ],
+     "private": true,
+     "outcome": "You scored {$actor.last_score} out of {$inputs.max_score} on {$world.topic} (understanding {$u}, luck {$round($roll, 2)})."
+    }
+   },
+   "stages": [
+    {
+     "name": "lesson",
+     "who": "$it.type == teacher",
+     "actions": [
+      "choose_topic"
+     ],
+     "must_act": true,
+     "max_actions": 1,
+     "max_calls": 6,
+     "brief": "Lesson: choose the topic to teach this week. Being taught raises every student's understanding of it by {$inputs.teaching_gain}."
+    },
+    {
+     "name": "study",
+     "who": "$it.type == student",
+     "actions": [
+      "study_hard",
+      "take_it_easy"
+     ],
+     "when": "$world.topic != ''",
+     "max_actions": 1,
+     "max_calls": 6,
+     "brief": "Study: decide how to spend this week on {$world.topic} - study hard (each effort point costs one energy and adds {$inputs.effort_gain} understanding) or take it easy (recover {$inputs.rest_gain} energy, no gain)."
+    },
+    {
+     "name": "quiz",
+     "who": "$it.type == student",
+     "actions": [
+      "answer_quiz"
+     ],
+     "when": "$world.topic != ''",
+     "max_actions": 1,
+     "max_calls": 6,
+     "on_enter": [
+      "$world.quizzed = true"
+     ],
+     "brief": "Quiz: answer this week's quiz on {$world.topic}. It is scored 0-{$inputs.max_score} from your understanding plus luck."
+    }
+   ],
+   "events": [
+    {
+     "phase": "start",
+     "do": [
+      "$world.topic = ''",
+      "$world.quizzed = false"
+     ]
+    }
+   ],
+   "views": {
+    "week": {
+     "for": "all",
+     "show": "Week {$round} of {$inputs.weeks}. This week's topic: {$world.topic or 'not chosen yet'}. Topics: {$join($inputs.topics, ', ')}."
+    },
+    "teacher_class": {
+     "for": "teacher",
+     "of": "student",
+     "sort": "$it.id",
+     "show": "{name} ({id}): quiz scores {$it.scores|list}, grade so far {$round($avg($it.scores) or 0, 2)}, energy {$it.energy}, understanding {$it.understanding}"
+    },
+    "teacher_summary": {
+     "for": "teacher",
+     "show": "Class average so far: {$round($avg(student, $avg($it.scores) or 0) or 0, 2)}; quizzes taken: {$sum(student, $len($it.scores))}"
+    },
+    "student_me": {
+     "for": "student",
+     "show": "Your quiz scores: {$actor.scores|list} (grade so far {$round($avg($actor.scores) or 0, 2)}). Your understanding: {$actor.understanding}. Study energy left: {$actor.energy} of {$inputs.energy}."
+    }
+   },
+   "metrics": {
+    "class_average": {
+     "expr": "$avg(student, $avg($it.scores) or 0) or 0",
+     "description": "Average of the students' grades so far.",
+     "unit": "points"
+    },
+    "quizzes_taken": {
+     "expr": "$sum(student, $len($it.scores))",
+     "description": "Quizzes sat so far.",
+     "unit": "quizzes"
+    }
+   },
+   "outputs": {
+    "quiz_scores": {
+     "expr": "$dict(student, $it.id, $it.scores)",
+     "type": "map",
+     "description": "Each student's quiz scores, one per week in order."
+    },
+    "final_grades": {
+     "expr": "$dict(student, $it.id, $avg($it.scores) or 0)",
+     "type": "map",
+     "description": "Each student's final grade: the average of their quiz scores."
+    },
+    "class_average": {
+     "expr": "$avg(student, $avg($it.scores) or 0) or 0",
+     "type": "number",
+     "format": "2",
+     "description": "The average of the students' final grades."
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$all(student, $it.energy >= 0)",
+     "why": "Study energy cannot go negative."
+    },
+    {
+     "expr": "$all(student, $all($it.scores, $it >= 0 and $it <= $inputs.max_score))",
+     "why": "Every quiz score must be between 0 and the maximum score."
+    },
+    {
+     "expr": "$all(student, $all($values($it.understanding), $it >= 0))",
+     "why": "Understanding cannot be negative."
+    }
+   ]
+  },
+  {
+   "name": "Classroom with weekly quizzes",
+   "clock": {
+    "rounds": "$inputs.weeks",
+    "unit": "week"
+   },
+   "brief": {
+    "situation": "A {$inputs.weeks}-week course on {$join($inputs.topics, ', ')}. One teacher, {$count(student)} students, all AI agents. Each week the teacher picks one topic to teach; each student then decides whether to study hard or take it easy; at the end of the week there is a quiz on that topic.",
+    "rules": "WEEKLY CYCLE. (1) Lesson: the teacher chooses one topic from {$join($inputs.topics, ', ')}. Being taught raises every student's understanding of that topic by {$inputs.teaching_gain}. (2) Study: each student chooses study_hard or take_it_easy. Study hard spends effort points of study energy (each point adds {$inputs.effort_gain} understanding of the topic, on top of the {$inputs.study_gain} every student who studies gains); taking it easy costs nothing and restores {$inputs.rest_gain} energy. Nobody can study a topic before it has been taught this week. (3) Quiz: each student answers a quiz on this week's topic alone. A quiz is scored 0-{$inputs.max_score} from the student's understanding of that topic plus luck of up to +/-{$inputs.luck}, rounded and cut to the 0-{$inputs.max_score} range. A student's final grade is the average of their quiz scores. WHAT YOU SEE. A student sees only their own quiz scores and their own understanding. The teacher sees every student's scores, understanding and energy. Only the teacher chooses topics; only students study and sit quizzes. Understanding carries across weeks, and a topic may be taught again.",
+    "roles": {
+     "teacher": "You are the teacher. You see the whole class. Each week you choose the topic to teach - it may be a topic taught before, and choosing a topic raises everyone's understanding of it.",
+     "student": "You are a student. You see only your own quiz scores and understanding. Study energy is scarce and lasts the whole course, so spending it well matters; taking it easy is always allowed."
+    }
+   },
+   "inputs": {
+    "weeks": {
+     "type": "int",
+     "default": 6,
+     "min": 1,
+     "display": "number",
+     "label": "Course length (weeks)"
+    },
+    "topics": {
+     "type": "list",
+     "items": {
+      "type": "text",
+      "default": "fractions"
+     },
+     "default": [
+      "fractions",
+      "decimals",
+      "percentages"
+     ],
+     "display": "list",
+     "label": "Topics on the syllabus"
+    },
+    "students": {
+     "type": "table",
+     "display": "table",
+     "label": "Students",
+     "fields": {
+      "id": {
+       "type": "text",
+       "required": true,
+       "display": "text"
+      },
+      "name": {
+       "type": "text",
+       "required": true,
+       "display": "text"
+      }
+     },
+     "default": [
+      {
+       "id": "ada",
+       "name": "Ada"
+      },
+      {
+       "id": "bo",
+       "name": "Bo"
+      },
+      {
+       "id": "cleo",
+       "name": "Cleo"
+      },
+      {
+       "id": "dev",
+       "name": "Dev"
+      },
+      {
+       "id": "ema",
+       "name": "Ema"
+      }
+     ]
+    },
+    "max_score": {
+     "type": "int",
+     "default": 10,
+     "min": 1,
+     "display": "number",
+     "label": "Maximum quiz score"
+    },
+    "teaching_gain": {
+     "type": "number",
+     "default": 1.0,
+     "min": 0,
+     "display": "number",
+     "label": "Understanding gained from being taught"
+    },
+    "study_gain": {
+     "type": "number",
+     "default": 0.5,
+     "min": 0,
+     "display": "number",
+     "label": "Understanding gained by studying at all"
+    },
+    "effort_gain": {
+     "type": "number",
+     "default": 0.5,
+     "min": 0,
+     "display": "number",
+     "label": "Understanding gained per effort point"
+    },
+    "max_effort": {
+     "type": "int",
+     "default": 3,
+     "min": 1,
+     "display": "number",
+     "label": "Most effort points in one week"
+    },
+    "energy": {
+     "type": "int",
+     "default": 8,
+     "min": 0,
+     "display": "number",
+     "label": "Study energy for the whole course"
+    },
+    "rest_gain": {
+     "type": "int",
+     "default": 1,
+     "min": 0,
+     "display": "number",
+     "label": "Energy restored by taking it easy"
+    },
+    "luck": {
+     "type": "number",
+     "default": 1.5,
+     "min": 0,
+     "display": "number",
+     "label": "Luck swing on a quiz"
+    }
+   },
+   "world": {
+    "topic": "",
+    "quizzed": false
+   },
+   "types": {
+    "teacher": {
+     "agent": true,
+     "description": "Chooses the topic taught each week."
+    },
+    "student": {
+     "agent": true,
+     "description": "Studies, sits quizzes, accumulates understanding and scores.",
+     "props": {
+      "understanding": {
+       "type": "map",
+       "default": "$dict($inputs.topics, $it, 0)",
+       "description": "Understanding per topic."
+      },
+      "scores": {
+       "type": "list",
+       "default": [],
+       "description": "Quiz scores, one per week in order."
+      },
+      "energy": {
+       "type": "int",
+       "default": "$inputs.energy",
+       "min": 0,
+       "description": "Study energy left for the whole course."
+      },
+      "last_score": {
+       "type": "int",
+       "default": 0,
+       "min": 0,
+       "description": "Score on this week's quiz."
+      }
+     }
+    }
+   },
+   "entities": {
+    "teacher": {
+     "type": "teacher",
+     "name": "Ms. Rivera"
+    }
+   },
+   "population": [
+    {
+     "type": "student",
+     "from": "$inputs.students",
+     "id": "{$row.id}",
+     "name": "{$row.name}"
+    }
+   ],
+   "records": {
+    "quiz": {
+     "description": "Every quiz attempt, with the score.",
+     "fields": {
+      "student": "text",
+      "topic": "text",
+      "score": "int"
+     },
+     "show": "{student} scored {score} on {topic}",
+     "visible": "$it.student == $viewer.id or $viewer.type == teacher"
+    }
+   },
+   "actions": {
+    "choose_topic": {
+     "by": "teacher",
+     "description": "Choose the topic to teach this week. Every student's understanding of that topic rises by the teaching gain. This is the only topic that can be studied or quizzed this week.",
+     "params": {
+      "topic": {
+       "type": "enum",
+       "values": "$inputs.topics",
+       "description": "The topic to teach this week."
+      }
+     },
+     "do": [
+      "$world.topic = $params.topic",
+      {
+       "each": "student",
+       "do": "$it.understanding[$params.topic] += $inputs.teaching_gain"
+      }
+     ],
+     "outcome": "You taught {$params.topic}. The class's understanding of it rose by {$inputs.teaching_gain}.",
+     "announce": "{$actor.name} teaches {$params.topic} this week."
+    },
+    "study_hard": {
+     "by": "student",
+     "description": "Study hard on this week's topic. Each effort point costs one study energy and adds the effort gain to your understanding of the topic, on top of the study gain. You cannot study a topic that has not been taught this week.",
+     "when": [
+      {
+       "expr": "$world.topic != ''",
+       "why": "No topic has been taught yet this week."
+      },
+      {
+       "expr": "$actor.energy >= 1",
+       "why": "You have no study energy left this course; take it easy instead."
+      }
+     ],
+     "params": {
+      "effort": {
+       "type": "int",
+       "min": 1,
+       "max": "$min($inputs.max_effort, $actor.energy)",
+       "description": "Effort points to spend (each costs one study energy)."
+      }
+     },
+     "do": [
+      "$actor.energy -= $params.effort",
+      "$actor.understanding[$world.topic] += $inputs.study_gain + $inputs.effort_gain * $params.effort"
+     ],
+     "outcome": "You studied {$world.topic} hard with effort {$params.effort}: understanding is now {$get($actor.understanding, $world.topic, 0)}, study energy left {$actor.energy}.",
+     "announce": "{$actor.name} studied hard this week."
+    },
+    "take_it_easy": {
+     "by": "student",
+     "description": "Take it easy this week: no study gain, but you spend no energy and recover the rest gain.",
+     "when": [
+      {
+       "expr": "$world.topic != ''",
+       "why": "No topic has been taught yet this week."
+      }
+     ],
+     "do": [
+      "$actor.energy = $min($actor.energy + $inputs.rest_gain, $inputs.energy)"
+     ],
+     "outcome": "You took it easy this week. Study energy is now {$actor.energy}.",
+     "announce": "{$actor.name} took it easy this week."
+    },
+    "answer_quiz": {
+     "by": "student",
+     "description": "Sit this week's quiz on the topic just taught. The score is your understanding of that topic plus luck, rounded and cut to the 0-max range, and is added to your list of scores.",
+     "when": [
+      {
+       "expr": "$world.quizzed",
+       "why": "The quiz is not open yet."
+      }
+     ],
+     "do": [
+      "$u = $get($actor.understanding, $world.topic, 0)",
+      "$roll = $uniform(-$inputs.luck, $inputs.luck)",
+      "$actor.last_score = $clamp($round($u + $roll), 0, $inputs.max_score)",
+      "$actor.scores += $actor.last_score",
+      {
+       "post": "quiz",
+       "student": "$actor.id",
+       "topic": "$world.topic",
+       "score": "$actor.last_score"
+      }
+     ],
+     "private": true,
+     "outcome": "You scored {$actor.last_score} out of {$inputs.max_score} on {$world.topic} (understanding {$u}, luck {$round($roll, 2)})."
+    }
+   },
+   "stages": [
+    {
+     "name": "lesson",
+     "who": "$it.type == teacher",
+     "actions": [
+      "choose_topic"
+     ],
+     "must_act": true,
+     "max_actions": 1,
+     "max_calls": 6,
+     "brief": "Lesson: choose the topic to teach this week. Being taught raises every student's understanding of it by {$inputs.teaching_gain}."
+    },
+    {
+     "name": "study",
+     "who": "$it.type == student",
+     "actions": [
+      "study_hard",
+      "take_it_easy"
+     ],
+     "when": "$world.topic != ''",
+     "max_actions": 1,
+     "max_calls": 6,
+     "brief": "Study: decide how to spend this week on {$world.topic} - study hard (each effort point costs one energy and adds {$inputs.effort_gain} understanding) or take it easy (recover {$inputs.rest_gain} energy, no gain)."
+    },
+    {
+     "name": "quiz",
+     "who": "$it.type == student",
+     "actions": [
+      "answer_quiz"
+     ],
+     "when": "$world.topic != ''",
+     "max_actions": 1,
+     "max_calls": 6,
+     "on_enter": [
+      "$world.quizzed = true"
+     ],
+     "brief": "Quiz: answer this week's quiz on {$world.topic}. It is scored 0-{$inputs.max_score} from your understanding plus luck."
+    }
+   ],
+   "events": [
+    {
+     "phase": "start",
+     "do": [
+      "$world.topic = ''",
+      "$world.quizzed = false"
+     ]
+    }
+   ],
+   "views": {
+    "week": {
+     "for": "all",
+     "show": "Week {$round} of {$inputs.weeks}. This week's topic: {$world.topic or 'not chosen yet'}. Topics: {$join($inputs.topics, ', ')}."
+    },
+    "teacher_class": {
+     "for": "teacher",
+     "of": "student",
+     "sort": "$it.id",
+     "show": "{name} ({id}): quiz scores {$it.scores|list}, grade so far {$round($avg($it.scores) or 0, 2)}, energy {$it.energy}, understanding {$it.understanding}"
+    },
+    "teacher_summary": {
+     "for": "teacher",
+     "show": "Class average so far: {$round($avg(student, $avg($it.scores) or 0) or 0, 2)}; quizzes taken: {$sum(student, $len($it.scores))}"
+    },
+    "student_me": {
+     "for": "student",
+     "show": "Your quiz scores: {$actor.scores|list} (grade so far {$round($avg($actor.scores) or 0, 2)}). Your understanding: {$actor.understanding}. Study energy left: {$actor.energy} of {$inputs.energy}."
+    }
+   },
+   "metrics": {
+    "class_average": {
+     "expr": "$avg(student, $avg($it.scores) or 0) or 0",
+     "description": "Average of the students' grades so far.",
+     "unit": "points"
+    },
+    "quizzes_taken": {
+     "expr": "$sum(student, $len($it.scores))",
+     "description": "Quizzes sat so far.",
+     "unit": "quizzes"
+    }
+   },
+   "outputs": {
+    "quiz_scores": {
+     "expr": "$dict(student, $it.id, $it.scores)",
+     "type": "map",
+     "description": "Each student's quiz scores, one per week in order."
+    },
+    "final_grades": {
+     "expr": "$dict(student, $it.id, $avg($it.scores) or 0)",
+     "type": "map",
+     "description": "Each student's final grade: the average of their quiz scores."
+    },
+    "class_average": {
+     "expr": "$avg(student, $avg($it.scores) or 0) or 0",
+     "type": "number",
+     "format": "2",
+     "description": "The average of the students' final grades."
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$all(student, $it.energy >= 0)",
+     "why": "Study energy cannot go negative."
+    },
+    {
+     "expr": "$all(student, $all($it.scores, $it >= 0 and $it <= $inputs.max_score))",
+     "why": "Every quiz score must be between 0 and the maximum score."
+    },
+    {
+     "expr": "$all(student, $all($values($it.understanding), $it >= 0))",
+     "why": "Understanding cannot be negative."
+    }
+   ]
+  },
+  {
+   "name": "Classroom with weekly quizzes",
+   "clock": {
+    "rounds": "$inputs.weeks",
+    "unit": "week"
+   },
+   "brief": {
+    "situation": "A {$inputs.weeks}-week course on {$join($inputs.topics, ', ')}. One teacher, {$count(student)} students, all AI agents. Each week the teacher picks one topic to teach; each student then decides whether to study hard or take it easy; at the end of the week there is a quiz on that topic.",
+    "rules": "WEEKLY CYCLE. (1) Lesson: the teacher chooses one topic from {$join($inputs.topics, ', ')}. Being taught raises every student's understanding of that topic by {$inputs.teaching_gain}. (2) Study: each student chooses study_hard or take_it_easy. Study hard spends effort points of study energy (each point adds {$inputs.effort_gain} understanding of the topic, on top of the {$inputs.study_gain} every student who studies gains); taking it easy costs nothing and restores {$inputs.rest_gain} energy. Nobody can study a topic before it has been taught this week. (3) Quiz: each student answers a quiz on this week's topic alone. A quiz is scored 0-{$inputs.max_score} from the student's understanding of that topic plus luck of up to +/-{$inputs.luck}, rounded and cut to the 0-{$inputs.max_score} range. A student's final grade is the average of their quiz scores. WHAT YOU SEE. A student sees only their own quiz scores and their own understanding. The teacher sees every student's scores, understanding and energy. Only the teacher chooses topics; only students study and sit quizzes. Understanding carries across weeks, and a topic may be taught again.",
+    "roles": {
+     "teacher": "You are the teacher. You see the whole class. Each week you choose the topic to teach - it may be a topic taught before, and choosing a topic raises everyone's understanding of it.",
+     "student": "You are a student. You see only your own quiz scores and understanding. Study energy is scarce and lasts the whole course, so spending it well matters; taking it easy is always allowed."
+    }
+   },
+   "inputs": {
+    "weeks": {
+     "type": "int",
+     "default": 6,
+     "min": 1,
+     "display": "number",
+     "label": "Course length (weeks)"
+    },
+    "topics": {
+     "type": "list",
+     "items": {
+      "type": "text",
+      "default": "fractions"
+     },
+     "default": [
+      "fractions",
+      "decimals",
+      "percentages"
+     ],
+     "display": "list",
+     "label": "Topics on the syllabus"
+    },
+    "students": {
+     "type": "table",
+     "display": "table",
+     "label": "Students",
+     "fields": {
+      "id": {
+       "type": "text",
+       "required": true,
+       "display": "text"
+      },
+      "name": {
+       "type": "text",
+       "required": true,
+       "display": "text"
+      }
+     },
+     "default": [
+      {
+       "id": "ada",
+       "name": "Ada"
+      },
+      {
+       "id": "bo",
+       "name": "Bo"
+      },
+      {
+       "id": "cleo",
+       "name": "Cleo"
+      },
+      {
+       "id": "dev",
+       "name": "Dev"
+      },
+      {
+       "id": "ema",
+       "name": "Ema"
+      }
+     ]
+    },
+    "max_score": {
+     "type": "int",
+     "default": 10,
+     "min": 1,
+     "display": "number",
+     "label": "Maximum quiz score"
+    },
+    "teaching_gain": {
+     "type": "number",
+     "default": 1.0,
+     "min": 0,
+     "display": "number",
+     "label": "Understanding gained from being taught"
+    },
+    "study_gain": {
+     "type": "number",
+     "default": 0.5,
+     "min": 0,
+     "display": "number",
+     "label": "Understanding gained by studying at all"
+    },
+    "effort_gain": {
+     "type": "number",
+     "default": 0.5,
+     "min": 0,
+     "display": "number",
+     "label": "Understanding gained per effort point"
+    },
+    "max_effort": {
+     "type": "int",
+     "default": 3,
+     "min": 1,
+     "display": "number",
+     "label": "Most effort points in one week"
+    },
+    "energy": {
+     "type": "int",
+     "default": 8,
+     "min": 0,
+     "display": "number",
+     "label": "Study energy for the whole course"
+    },
+    "rest_gain": {
+     "type": "int",
+     "default": 1,
+     "min": 0,
+     "display": "number",
+     "label": "Energy restored by taking it easy"
+    },
+    "luck": {
+     "type": "number",
+     "default": 1.5,
+     "min": 0,
+     "display": "number",
+     "label": "Luck swing on a quiz"
+    }
+   },
+   "world": {
+    "topic": "",
+    "quizzed": false
+   },
+   "types": {
+    "teacher": {
+     "agent": true,
+     "description": "Chooses the topic taught each week."
+    },
+    "student": {
+     "agent": true,
+     "description": "Studies, sits quizzes, accumulates understanding and scores.",
+     "props": {
+      "understanding": {
+       "type": "map",
+       "default": "$dict($inputs.topics, $it, 0)",
+       "description": "Understanding per topic."
+      },
+      "scores": {
+       "type": "list",
+       "default": [],
+       "description": "Quiz scores, one per week in order."
+      },
+      "energy": {
+       "type": "int",
+       "default": "$inputs.energy",
+       "min": 0,
+       "description": "Study energy left for the whole course."
+      },
+      "last_score": {
+       "type": "int",
+       "default": 0,
+       "min": 0,
+       "description": "Score on this week's quiz."
+      }
+     }
+    }
+   },
+   "entities": {
+    "teacher": {
+     "type": "teacher",
+     "name": "Ms. Rivera"
+    }
+   },
+   "population": [
+    {
+     "type": "student",
+     "from": "$inputs.students",
+     "id": "{$row.id}",
+     "name": "{$row.name}"
+    }
+   ],
+   "records": {
+    "quiz": {
+     "description": "Every quiz attempt, with the score.",
+     "fields": {
+      "student": "text",
+      "topic": "text",
+      "score": "int"
+     },
+     "show": "{student} scored {score} on {topic}",
+     "visible": "$it.student == $viewer.id or $viewer.type == teacher"
+    }
+   },
+   "actions": {
+    "choose_topic": {
+     "by": "teacher",
+     "description": "Choose the topic to teach this week. Every student's understanding of that topic rises by the teaching gain. This is the only topic that can be studied or quizzed this week.",
+     "params": {
+      "topic": {
+       "type": "enum",
+       "values": "$inputs.topics",
+       "description": "The topic to teach this week."
+      }
+     },
+     "do": [
+      "$world.topic = $params.topic",
+      {
+       "each": "student",
+       "do": "$it.understanding[$params.topic] += $inputs.teaching_gain"
+      }
+     ],
+     "outcome": "You taught {$params.topic}. The class's understanding of it rose by {$inputs.teaching_gain}.",
+     "announce": "{$actor.name} teaches {$params.topic} this week."
+    },
+    "study_hard": {
+     "by": "student",
+     "description": "Study hard on this week's topic. Each effort point costs one study energy and adds the effort gain to your understanding of the topic, on top of the study gain. You cannot study a topic that has not been taught this week.",
+     "when": [
+      {
+       "expr": "$world.topic != ''",
+       "why": "No topic has been taught yet this week."
+      },
+      {
+       "expr": "$actor.energy >= 1",
+       "why": "You have no study energy left this course; take it easy instead."
+      }
+     ],
+     "params": {
+      "effort": {
+       "type": "int",
+       "min": 1,
+       "max": "$min($inputs.max_effort, $actor.energy)",
+       "description": "Effort points to spend (each costs one study energy)."
+      }
+     },
+     "do": [
+      "$actor.energy -= $params.effort",
+      "$actor.understanding[$world.topic] += $inputs.study_gain + $inputs.effort_gain * $params.effort"
+     ],
+     "outcome": "You studied {$world.topic} hard with effort {$params.effort}: understanding is now {$get($actor.understanding, $world.topic, 0)}, study energy left {$actor.energy}.",
+     "announce": "{$actor.name} studied hard this week."
+    },
+    "take_it_easy": {
+     "by": "student",
+     "description": "Take it easy this week: no study gain, but you spend no energy and recover the rest gain.",
+     "when": [
+      {
+       "expr": "$world.topic != ''",
+       "why": "No topic has been taught yet this week."
+      }
+     ],
+     "do": [
+      "$actor.energy = $min($actor.energy + $inputs.rest_gain, $inputs.energy)"
+     ],
+     "outcome": "You took it easy this week. Study energy is now {$actor.energy}.",
+     "announce": "{$actor.name} took it easy this week."
+    },
+    "answer_quiz": {
+     "by": "student",
+     "description": "Sit this week's quiz on the topic just taught. The score is your understanding of that topic plus luck, rounded and cut to the 0-max range, and is added to your list of scores.",
+     "when": [
+      {
+       "expr": "$world.quizzed",
+       "why": "The quiz is not open yet."
+      }
+     ],
+     "do": [
+      "$u = $get($actor.understanding, $world.topic, 0)",
+      "$roll = $uniform(-$inputs.luck, $inputs.luck)",
+      "$actor.last_score = $clamp($round($u + $roll), 0, $inputs.max_score)",
+      "$actor.scores += $actor.last_score",
+      {
+       "post": "quiz",
+       "student": "$actor.id",
+       "topic": "$world.topic",
+       "score": "$actor.last_score"
+      }
+     ],
+     "private": true,
+     "outcome": "You scored {$actor.last_score} out of {$inputs.max_score} on {$world.topic} (understanding {$u}, luck {$round($roll, 2)})."
+    }
+   },
+   "policies": {
+    "teach_in_order": {
+     "rules": [
+      {
+       "when": "$round <= $len($inputs.topics)",
+       "do": "choose_topic",
+       "with": {
+        "topic": "$inputs.topics[$round - 1]"
+       }
+      },
+      {
+       "do": "choose_topic",
+       "with": {
+        "topic": "$inputs.topics[$len($inputs.topics) - 1]"
+       }
+      }
+     ]
+    },
+    "study_steady": {
+     "rules": [
+      {
+       "when": "$stage == quiz",
+       "do": "answer_quiz"
+      },
+      {
+       "when": "$actor.energy >= $inputs.max_effort",
+       "do": "study_hard",
+       "with": {
+        "effort": "$inputs.max_effort"
+       }
+      },
+      {
+       "do": "take_it_easy"
+      }
+     ]
+    }
+   },
+   "stages": [
+    {
+     "name": "lesson",
+     "who": "$it.type == teacher",
+     "actions": [
+      "choose_topic"
+     ],
+     "must_act": true,
+     "max_actions": 1,
+     "max_calls": 6,
+     "brief": "Lesson: choose the topic to teach this week. Being taught raises every student's understanding of it by {$inputs.teaching_gain}."
+    },
+    {
+     "name": "study",
+     "who": "$it.type == student",
+     "actions": [
+      "study_hard",
+      "take_it_easy"
+     ],
+     "when": "$world.topic != ''",
+     "max_actions": 1,
+     "max_calls": 6,
+     "brief": "Study: decide how to spend this week on {$world.topic} - study hard (each effort point costs one energy and adds {$inputs.effort_gain} understanding) or take it easy (recover {$inputs.rest_gain} energy, no gain)."
+    },
+    {
+     "name": "quiz",
+     "who": "$it.type == student",
+     "actions": [
+      "answer_quiz"
+     ],
+     "when": "$world.topic != ''",
+     "max_actions": 1,
+     "max_calls": 6,
+     "on_enter": [
+      "$world.quizzed = true"
+     ],
+     "brief": "Quiz: answer this week's quiz on {$world.topic}. It is scored 0-{$inputs.max_score} from your understanding plus luck."
+    }
+   ],
+   "events": [
+    {
+     "phase": "start",
+     "do": [
+      "$world.topic = ''",
+      "$world.quizzed = false"
+     ]
+    }
+   ],
+   "views": {
+    "week": {
+     "for": "all",
+     "show": "Week {$round} of {$inputs.weeks}. This week's topic: {$world.topic or 'not chosen yet'}. Topics: {$join($inputs.topics, ', ')}."
+    },
+    "teacher_class": {
+     "for": "teacher",
+     "of": "student",
+     "sort": "$it.id",
+     "show": "{name} ({id}): quiz scores {$it.scores|list}, grade so far {$round($avg($it.scores) or 0, 2)}, energy {$it.energy}, understanding {$it.understanding}"
+    },
+    "teacher_summary": {
+     "for": "teacher",
+     "show": "Class average so far: {$round($avg(student, $avg($it.scores) or 0) or 0, 2)}; quizzes taken: {$sum(student, $len($it.scores))}"
+    },
+    "student_me": {
+     "for": "student",
+     "show": "Your quiz scores: {$actor.scores|list} (grade so far {$round($avg($actor.scores) or 0, 2)}). Your understanding: {$actor.understanding}. Study energy left: {$actor.energy} of {$inputs.energy}."
+    }
+   },
+   "metrics": {
+    "class_average": {
+     "expr": "$avg(student, $avg($it.scores) or 0) or 0",
+     "description": "Average of the students' grades so far.",
+     "unit": "points"
+    },
+    "quizzes_taken": {
+     "expr": "$sum(student, $len($it.scores))",
+     "description": "Quizzes sat so far.",
+     "unit": "quizzes"
+    }
+   },
+   "outputs": {
+    "quiz_scores": {
+     "expr": "$dict(student, $it.id, $it.scores)",
+     "type": "map",
+     "description": "Each student's quiz scores, one per week in order."
+    },
+    "final_grades": {
+     "expr": "$dict(student, $it.id, $avg($it.scores) or 0)",
+     "type": "map",
+     "description": "Each student's final grade: the average of their quiz scores."
+    },
+    "class_average": {
+     "expr": "$avg(student, $avg($it.scores) or 0) or 0",
+     "type": "number",
+     "format": "2",
+     "description": "The average of the students' final grades."
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$all(student, $it.energy >= 0)",
+     "why": "Study energy cannot go negative."
+    },
+    {
+     "expr": "$all(student, $all($it.scores, $it >= 0 and $it <= $inputs.max_score))",
+     "why": "Every quiz score must be between 0 and the maximum score."
+    },
+    {
+     "expr": "$all(student, $all($values($it.understanding), $it >= 0))",
+     "why": "Understanding cannot be negative."
+    }
+   ]
+  }
+ ],
+ "guide_parts": [
+  "all",
+  "expressions",
+  "effects",
+  "stages",
+  "events",
+  "functions.collections",
+  "views",
+  "outputs",
+  "metrics",
+  "types",
+  "inputs",
+  "population",
+  "brief",
+  "records",
+  "actions",
+  "functions",
+  "model",
+  "templates",
+  "authoring",
+  "policies"
+ ],
+ "guide_chars": 79612,
+ "usage": {
+  "input_tokens": 552718,
+  "output_tokens": 81941,
+  "cost": 0.042874524000000004,
+  "calls": 23
+ },
+ "wall_seconds": 1381.1
+}

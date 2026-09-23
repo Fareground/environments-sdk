@@ -60,7 +60,8 @@ def score(slug: str, transcript: Dict[str, Any]) -> Dict[str, Any]:
         "input_tokens": usage["input_tokens"], "output_tokens": usage["output_tokens"],
         "cost": round(usage.get("cost", 0.0), 4), "wall_seconds": transcript["wall_seconds"],
         "contract_lines": len(json.dumps(final, indent=2).splitlines()) if final else 0,
-        "guide_parts": transcript["guide_parts"], "check_errors": errors_per_write,
+        "guide_parts": transcript["guide_parts"], "guide_chars": transcript.get("guide_chars"),
+        "check_errors": errors_per_write,
         "failed_checks": [c for c in evaluation["checks"] if not c["passed"]],
         "run_errors": [r for r in evaluation["runs"] if not r["ok"]],
     }
@@ -84,13 +85,14 @@ def scorecard(rows: List[Dict[str, Any]], title: str) -> str:
     sdk = Path(fg_env.__file__).parent  # the SDK being measured, wherever PYTHONPATH points
     commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=sdk, capture_output=True, text=True).stdout
     lines = [f"# {title}", "", f"SDK commit `{commit.strip() or '?'}` · model `{rows[0]['model'] if rows else '-'}`", "",
-             "| brief | clean check (writes) | runs ok | fidelity | tokens in/out | cost | wall s | lines | guide parts |",
-             "|---|---|---|---|---|---|---|---|---|"]
+             "| brief | clean check (writes) | runs ok | fidelity | tokens in/out | cost | wall s | lines | guide tokens | guide parts |",
+             "|---|---|---|---|---|---|---|---|---|---|"]
     for r in rows:
         clean = f"yes ({r['clean_at']})" if r["clean_at"] else f"no ({r['writes']})"
+        guide_tokens = f"{r['guide_chars'] // 4:,}" if r.get("guide_chars") else "-"  # ≈ 4 characters a token
         lines.append(f"| {r['brief']} | {clean} | {r['runs_ok']}/{r['runs']} | {r['checks_passed']}/{r['checks']} | "
                      f"{r['input_tokens']:,}/{r['output_tokens']:,} | ${r['cost']:.3f} | {r['wall_seconds']:.0f} | "
-                     f"{r['contract_lines']} | {', '.join(r['guide_parts']) or '-'} |")
+                     f"{r['contract_lines']} | {guide_tokens} | {', '.join(r['guide_parts']) or '-'} |")
     passed, total = sum(r["checks_passed"] for r in rows), sum(r["checks"] for r in rows)
     lines += ["", f"**Aggregate:** clean check {sum(bool(r['clean_at']) for r in rows)}/{len(rows)} · "
               f"all runs ok {sum(r['runs'] > 0 and r['runs_ok'] == r['runs'] for r in rows)}/{len(rows)} · "

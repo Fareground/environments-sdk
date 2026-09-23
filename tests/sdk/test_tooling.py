@@ -7,7 +7,7 @@ import fg_env
 from fg_env.__main__ import main
 from fg_env.sdk.effects import EFFECT_OPS
 from fg_env.sdk.expr import FUNCTIONS
-from fg_env.sdk.guide import QUICKSTART, guide, guide_parts, schema
+from fg_env.sdk.guide import guide, guide_parts, schema
 from fg_env.sdk.guide_pages import SECTIONS, function_groups
 from fg_env.sdk.registry import FAMILIES
 
@@ -29,6 +29,16 @@ def test_the_core_guide_is_short_and_maps_every_part():
                   "running", "checklist"):
         assert f"- `{topic}` —" in core
     assert guide("core") == core
+
+
+def test_the_authoring_page_is_the_core_guide_start_and_never_sends_an_author_to_everything():
+    page, core = guide("authoring"), guide()
+    start = page[:page.index("## Read next")]
+    assert core.startswith(start)
+    assert page.index("Faithful first, configurable second") < page.index("## Worked example")
+    for text in (page, core):
+        assert "guide('all')" not in text and "guide all" not in text
+    assert guide("all").count("## Worked example") == 1  # the start page appears once, inside the core guide
 
 
 def test_every_part_renders_and_all_holds_every_function_effect_section_and_mode():
@@ -94,14 +104,6 @@ def test_the_mechanism_family_table_lists_every_mode():
             listed = mode_page[mode_page.index(marker):] if marker in mode_page else ""
             for action, op in family.actions.get(mode, {}).items():
                 assert (f"\n- `{action}`" in listed) is not op.internal, (name, mode, action)
-
-
-def test_the_quickstart_contract_checks_clean_and_runs_with_defaults():
-    quickstart = json.loads(QUICKSTART)
-    assert QUICKSTART in guide()
-    assert fg_env.check(quickstart) == []
-    result = fg_env.run(quickstart, seed=1)
-    assert result.ok and result.rounds == 20 and result.outputs["richest"] in ("ann", "bob")
 
 
 def test_schema_describes_the_contract():
@@ -192,13 +194,13 @@ def test_cli_reports_user_mistakes_without_tracebacks(tmp_path, capsys):
 
 def test_authoring_guide_example_and_known_answer_run_verbatim(tmp_path, monkeypatch):
     page = guide('authoring')
-    assert len(page) < 10_000  # Fits a single reference page, also used by host agents.
+    assert len(page) < 10_000  # One page an authoring agent starts from.
     contract_text = page.split('```json\n')[1].split('```')[0]
     scripts = [block.split('```')[0] for block in page.split('```python\n')[1:]]
     money_page = (Path(__file__).resolve().parents[2] / 'docs/sdk/authoring.md').read_text()
     money_section = money_page.split('## Exact monetary budgets\n')[1].split('\n## ')[0]
     scripts += [block.split('```')[0] for block in money_section.split('```python\n')[1:]]
-    (tmp_path / 'scenario.json').write_text(contract_text)
+    (tmp_path / 'lake.json').write_text(contract_text)
     monkeypatch.chdir(tmp_path)
     for script in scripts:
         exec(compile(script, '<authoring guide>', 'exec'), {})
@@ -227,31 +229,19 @@ def test_check_configured_inputs_without_mutating_defaults(tmp_path, capsys):
     assert json.loads(path.read_text()) == original
 
 
-@pytest.mark.parametrize('rows,capacity,completed,pending', [
-    ([], 4, 0, 0),
-    ([{'name': 'A', 'quantity': 3}], 0, 0, 3),
-    ([{'name': 'B', 'quantity': 2}, {'name': 'A', 'quantity': 3}], 4, 5, 0),
-    ([{'name': str(i), 'quantity': 3} for i in range(4)], 4, 8, 4),
-])
-def test_authoring_example_uses_every_input_row_and_shared_capacity(rows, capacity, completed, pending):
+@pytest.mark.parametrize('fishers,seasons,caught,fish_left', [(3, 5, 132, 0), (1, 2, 20, 100), (5, 1, 50, 60)])
+def test_the_worked_example_is_driven_by_its_inputs(fishers, seasons, caught, fish_left):
     contract = json.loads(guide('authoring').split('```json\n')[1].split('```')[0])
-    env = fg_env.load(contract, inputs={'items': rows, 'facility': {'capacity': capacity}}, seed=1)
-    assert len(env.entities('item')) == len(rows)
+    env = fg_env.load(contract, inputs={'fishers': fishers, 'seasons': seasons}, seed=1)
+    assert len(env.entities('fisher')) == fishers
 
     def greedy(wake):
-        available = capacity
-        for entity in env.entities('item'):
-            quantity = min(available, entity['props']['pending'], entity['props']['remaining_today'])
-            if quantity:
-                receipt = wake.call('allocate', {'item': entity['id'], 'quantity': quantity})
-                assert receipt.ok, receipt.text
-                available -= quantity
+        assert wake.call('catch', {'amount': 10}).ok
         wake.end()
 
     result = env.run(greedy)
-    assert result.ok, result.error
-    assert result.outputs == {'completed': completed, 'pending': pending}
-    assert completed + pending == sum(row['quantity'] for row in rows)
+    assert result.ok and result.rounds == seasons, result.error
+    assert sum(result.outputs['catch_by_fisher'].values()) == caught and result.outputs['fish_left'] == fish_left
 
 
 def test_ordered_processing_reference_runs_without_priority_scaling():

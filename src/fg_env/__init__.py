@@ -9,7 +9,7 @@
     env = fg_env.load("shop.json", seed=7)                  # full control: preview, run, snapshot, fork
     exp = fg_env.experiment("shop.json", runs=20, arms=["control", "promo"])
 
-``fg_env.guide()`` is the core authoring guide, mapping every other part (``fg_env.guide("all")`` is everything);
+``fg_env.guide("authoring")`` is the start page for an authoring agent; ``fg_env.guide()`` adds a map of every part;
 ``fg_env.new("game", "my_game.json")`` writes a ready-to-run contract to start from.
 """
 from importlib.metadata import PackageNotFoundError as _PackageNotFoundError

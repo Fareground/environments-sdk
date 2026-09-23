@@ -41,7 +41,7 @@ TOOLS = [
     {"name": "preview", "description": "Exactly what one agent reads on its next turn: brief, update and tools.",
      "parameters": {"type": "object", "properties": {"agent": {"type": "string", "description": "Entity id."}},
                     "required": ["agent"]}},
-    {"name": "guide", "description": "Read a part of the SDK guide, e.g. 'actions', 'stages', 'effects', 'all'.",
+    {"name": "guide", "description": "Read one part of the SDK guide, e.g. 'actions', 'effects', 'functions.collections'.",
      "parameters": {"type": "object", "properties": {"part": {"type": "string"}}, "required": ["part"]}},
 ]
 
@@ -89,6 +89,8 @@ class Workbench:
         self.path = Path(tempfile.mkdtemp(prefix="fg-author-")) / "contract.json"
         self.writes: List[Any] = []
         self.guide_parts: List[str] = []
+        #: Characters of guide text the author was sent: its starting page, then every guide call it made.
+        self.guide_chars = 0
 
     def call(self, name: str, args: Dict[str, Any]) -> str:
         try:
@@ -127,13 +129,16 @@ class Workbench:
 
     def tool_guide(self, part: str) -> str:
         self.guide_parts.append(part)
-        return fg_env.guide(part)
+        text = fg_env.guide(part)
+        self.guide_chars += len(text[:MAX_RESULT])
+        return text
 
 
 def author(brief: str, model: str, key: str, token_cap: int, label: str = "") -> Dict[str, Any]:
     """Let the model author the brief; return the transcript (messages, contracts written, usage, time).
     Progress goes to stderr, one line per model call, prefixed with ``label``."""
     bench, started = Workbench(), time.time()
+    bench.guide_chars = len(fg_env.guide("authoring"))
     messages: List[Dict[str, Any]] = [{"role": "system", "content": fg_env.guide("authoring")},
                                       {"role": "user", "content": brief + INSTRUCTION}]
     usage = {"input_tokens": 0, "output_tokens": 0, "cost": 0.0, "calls": 0}
@@ -174,4 +179,4 @@ def author(brief: str, model: str, key: str, token_cap: int, label: str = "") ->
             messages.append({"role": "tool", "tool_call_id": call["id"], "content": text})
     shutil.rmtree(bench.path.parent, ignore_errors=True)
     return {"model": model, "stop": stop, "nudges": nudges, "messages": messages, "writes": bench.writes,
-            "guide_parts": bench.guide_parts, "usage": usage, "wall_seconds": round(time.time() - started, 1)}
+            "guide_parts": bench.guide_parts, "guide_chars": bench.guide_chars, "usage": usage, "wall_seconds": round(time.time() - started, 1)}

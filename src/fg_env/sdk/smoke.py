@@ -50,9 +50,10 @@ def smoke_issues(contract: Contract, build: Callable[[], "Env"], rounds: Optiona
     return errors, warnings
 
 
-def run_issue(message: str, path: Optional[str] = None) -> Issue:
+def run_issue(message: str) -> Issue:
     """An error a smoke play ran into, at the path its message starts with when it names one."""
-    if path is None and ": " in message:
+    path = None
+    if ": " in message:
         head, _, rest = message.partition(": ")
         if " " not in head:
             path, message = head, rest

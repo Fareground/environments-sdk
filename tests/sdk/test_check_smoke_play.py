@@ -106,3 +106,27 @@ def test_random_agents_fill_dependent_choices():
     assert result.stats.get("rejected_actions", 0) == 0
     report = fg_env.behavior_checks(TENDER, runs=1)
     assert ("action_never_taken", "actions.accuse") not in report.codes()
+
+
+def test_an_invariant_broken_at_build_names_its_path_once():
+    broken = shop(invariants=[{"expr": "$entity(shop).stock > 100", "why": "Stock starts high."}])
+    found = errors(fg_env.check(broken))
+    assert [i.path for i in found] == ["invariants[0]"]
+    assert found[0].message.startswith("invariant `$entity(shop).stock > 100` no longer holds after build")
+
+
+def test_a_structural_error_points_to_the_guide_part_that_lists_its_fields():
+    found = errors(fg_env.check(shop(stages=[{"actions": ["order"]}], records={"log": {"title": "Log"}})))
+    by_path = {i.path: i.fix for i in found}
+    assert by_path["stages[0].name"] == "see guide('stages')"
+    assert by_path["records.log.title"].endswith("remove it here; see guide('records')")
+
+
+def test_a_suggested_replacement_needs_no_guide_part():
+    found = errors(fg_env.check(shop(stages=[{"name": "buy", "turns": "simultanous"}])))
+    assert [i.fix for i in found] == ["did you mean 'simultaneous'?"]
+
+
+def test_an_error_that_already_names_a_guide_part_is_not_given_a_second():
+    found = errors(fg_env.check(shop(patterns={"demand": {}})))
+    assert found and all(i.fix.count("guide(") == 1 for i in found)
