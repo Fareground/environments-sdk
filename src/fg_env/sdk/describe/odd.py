@@ -329,7 +329,7 @@ def _patterns(contract: C.Contract) -> List[str]:
 def _summary(metadata: Mapping[str, Any]) -> List[str]:
     length: Dict[str, Any] = metadata.get("max_game_length", {})
     space: Dict[str, Any] = metadata.get("action_space", {})
-    rows = [["dynamics", metadata.get("dynamics")], ["chance", metadata.get("chance_mode")],
+    rows: List[List[Any]] = [["dynamics", metadata.get("dynamics")], ["chance", metadata.get("chance_mode")],
             ["information", metadata.get("information")], ["utility", metadata.get("utility")],
             ["players", metadata.get("num_players")], ["fewest players", metadata.get("min_players")],
             ["most players", metadata.get("max_players")], ["longest game (rounds)", length.get("rounds")],

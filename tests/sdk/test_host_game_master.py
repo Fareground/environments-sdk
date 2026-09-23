@@ -240,21 +240,21 @@ def test_fuzz_adversarial_attempts_and_malicious_answers_never_leave_the_allow_l
 
         def resolve(request):
             text = request["attempt"]
-            if "{" in text and rng.random() < 0.7:  # a gullible game master obeys injected JSON
+            if "{" in text and rng.random() < 0.7:  # noqa: B023 — a gullible game master obeys injected JSON
                 try:
                     return json.loads(text[text.index("{"):])
                 except ValueError:
                     pass
-            return _valid(rng, request) if rng.random() < 0.35 else _malicious(rng)
+            return _valid(rng, request) if rng.random() < 0.35 else _malicious(rng)  # noqa: B023 — called within this iteration
 
         contract = copy.deepcopy(TAVERN)
         contract["clock"]["rounds"] = 30
         holder = {}
 
         def adventurer(wake):
-            env = holder["env"]
+            env = holder["env"]  # noqa: B023 — called within this iteration
             before = _state(env)
-            text = rng.choice(INJECTIONS + ["I look around.", "I buy a round for everyone."]) + f" #{rng.random()}"
+            text = rng.choice(INJECTIONS + ["I look around.", "I buy a round for everyone."]) + f" #{rng.random()}"  # noqa: B023 — called within this iteration
             wake.call("attempt", {"text": text})
             violations.extend(_violations(env, before, wake.entity_id))
             wake.end()

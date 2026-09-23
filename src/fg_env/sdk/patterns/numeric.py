@@ -299,7 +299,7 @@ def count_regression(x: Union[Design, Sequence[Sequence[float]]], y: Sequence[fl
     means = means_of(coef, intercepts)
     filled = [float(v) for v in y]
     done = 0
-    for done in range(1, iterations + 1):
+    for done in range(1, iterations + 1):  # noqa: B007 — the iterations run, read after the loop
         filled = [truncated_mean(m, k, v + 1) if c else float(v) for m, v, c in zip(means, y, cens)]
         weights = [m / (1 + m / k) if k else m for m in means]
         working = [math.log(m) - o + (f - m) / m for o, f, m in zip(offs, filled, means)]

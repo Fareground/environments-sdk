@@ -2,6 +2,13 @@
   "actions": 2,
   "events": 5,
   "events_sha256": "f22e9c977aea1689dec2c2e0982eaa6bfdb1afdb990d7be9ce7b3e8652861eb4",
+  "first_events": [
+    "r1 chance: {\"chance\": \"deal p0\", \"index\": 1, \"outcome\": \"2\", \"p\": 0.3333333333, \"site\": \"events[0].do[0]\"}",
+    "r1 chance: {\"chance\": \"deal p1\", \"index\": 0, \"outcome\": \"1\", \"p\": 0.5, \"site\": \"events[0].do[1]\"}",
+    "r1 action p0: P0: pass.",
+    "r1 action p1: P1: pass.",
+    "r1 end: The run ended: hand_over."
+  ],
   "metrics": {},
   "rounds": 1,
   "status": "ended",

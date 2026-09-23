@@ -130,8 +130,8 @@ def _merged(shapes: Sequence[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
             joined.extend(value for value in shape["enum"] if value not in joined)
         out["enum"] = joined
     for key in _BOUNDS:
-        values = [shape.get(key) for shape in shapes]
-        if all(value is not None for value in values):
+        values = [shape[key] for shape in shapes if shape.get(key) is not None]
+        if len(values) == len(shapes):
             out[key] = min(values) if key in ("minimum", "minItems") else max(values)
     for key in ("multipleOf", "items", "uniqueItems", "default"):
         values = [shape.get(key) for shape in shapes]

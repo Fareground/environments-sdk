@@ -2,6 +2,18 @@
   "actions": 601,
   "events": 1202,
   "events_sha256": "f5ea2966281851febda303dc27d4a37c25e635d10d9553d6d365cd22ad2798b6",
+  "first_events": [
+    "r1 news: Doctors confirm 3 cases of a new respiratory virus in town.",
+    "r3 action mayor: The mayor has ordered a lockdown.",
+    "r3 action r267: {\"action\": \"comply\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r3 outcome r267: Done: comply.",
+    "r3 action r99: {\"action\": \"comply\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r3 outcome r99: Done: comply.",
+    "r3 action r126: {\"action\": \"defy\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r3 outcome r126: Done: defy.",
+    "r3 action r183: {\"action\": \"comply\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r3 outcome r183: Done: comply."
+  ],
   "metrics": {
     "active": 11,
     "budget": 58200,

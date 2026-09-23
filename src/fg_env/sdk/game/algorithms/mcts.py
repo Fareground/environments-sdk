@@ -159,10 +159,10 @@ class MCTSBot:
             if not node.children:
                 raise ValueError(f"seat {player} must decide but has no listed legal call")
             parent_log = math.log(node.visits) if node.visits else 0.0
-            action, node = max(node.children.values(), key=lambda item: item[1].mean(player)
-                               + self.uct_c * math.sqrt(parent_log / item[1].visits))  # type: ignore[assignment]
-            assert action is not None
-            working.apply_action(action)
+            chosen, node = max(node.children.values(), key=lambda item: item[1].mean(player)
+                               + self.uct_c * math.sqrt(parent_log / item[1].visits))
+            assert chosen is not None
+            working.apply_action(chosen)
             path.append(node)
 
     def _leaf(self, working: GameState) -> List[float]:

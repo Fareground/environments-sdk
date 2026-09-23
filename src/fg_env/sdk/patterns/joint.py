@@ -107,9 +107,9 @@ def fit_product(problem: Problem, configs: Dict[str, Any]) -> Tuple[Dict[str, Di
         else:
             assumed.append(f"{name} (a {other.kind} is held at its declared values in a product fit)")
     width = 0
-    for term in terms:
-        term.start = width
-        width += term.width * len(term.keys)
+    for t in terms:
+        t.start = width
+        width += t.width * len(t.keys)
     dips = _promotion_dips(problem, configs, responses, rows, row_keys)
     sparse: List[List[Tuple[int, float]]] = []
     offsets: List[float] = []

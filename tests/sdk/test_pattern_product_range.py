@@ -90,7 +90,7 @@ def test_extreme_but_finite_decomposition_matches_neutralized_scenarios():
     values = [1e-200, 1e-200, 1e200, 1e200]
     c = contract(values)
     row = fg_env.decompose(c, 'net').rows[0]
-    for i, value in enumerate(values):
+    for i in range(len(values)):
         neutral = [*values[:i], 1, *values[i+1:]]
         expected = row['total'] - fg_env.load(contract(neutral)).run().outputs['net']
         assert row['adds'][f'factor_{i}'] == pytest.approx(expected, rel=2e-15, abs=0)

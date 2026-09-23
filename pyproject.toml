@@ -28,7 +28,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "ruff==0.16.1", "mypy>=1.10", "build>=1.0"]
+dev = ["pytest>=8.0", "pytest-xdist>=3.5", "pytest-cov>=5.0", "ruff==0.16.1", "mypy>=1.10", "build>=1.0"]
 
 [project.urls]
 Homepage = "https://github.com/Fareground/environments-sdk"
@@ -50,14 +50,14 @@ src = ["src"]
 
 [tool.ruff.lint]
 # Conservative ruleset for now; tighten over time. Run `ruff check --statistics .` to see what's noisy.
-select = ["E", "F", "W"]
+select = ["E", "F", "W", "B"]
 ignore = [
     "E501",  # line-too-long — many long expression strings
     "E731",  # lambda assignments — used intentionally
     "E741",  # ambiguous names (l, I, O) — present in math-heavy code
-    "E701",  # multiple statements on one line (colon) — compact style
     "E702",  # multiple statements on one line (semicolon)
-    "W293",  # whitespace on blank lines — formatting noise
+    "B018",  # a bare `wake.brief` / `wake.update` is a read the run records, not a useless expression
+    "B905",  # zip() without strict= — adopting strict zips is its own sweep
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -68,11 +68,17 @@ known-first-party = ["fg_env"]
 
 [tool.mypy]
 plugins = ["pydantic.mypy"]
-# Pragmatic baseline — the package ships py.typed, so CI must actually
-# type-check it. Not strict yet: tighten flags over time.
+# The package ships py.typed, so CI must actually type-check it. Not fully strict yet: tighten flags over time.
 files = ["src/fg_env"]
 ignore_missing_imports = true
-no_strict_optional = true
+check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+# These look up untyped event/entity data by a key that may be missing (`table.get(data.get("k"))`); making each
+# lookup explicit, and refusing a graph edge whose endpoint is missing, is left for a focused change.
+module = ["fg_env.sdk.geometry", "fg_env.sdk.host.stubs", "fg_env.sdk.mechanisms.cards", "fg_env.sdk.perception",
+          "fg_env.sdk.world"]
+strict_optional = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

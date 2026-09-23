@@ -52,6 +52,8 @@ _Steps = Generator[Any, None, None]
 class RunRounds:
     """The round loop of a run (mixed into :class:`~fg_env.sdk.runtime.Env`)."""
 
+    ended_by: Optional[str]
+
     def _begin_round(self: "Env") -> bool:  # type: ignore[misc]
         """Start the next round: scheduled effects, feeds, start events, physics. False if the run ended."""
         world = self.world

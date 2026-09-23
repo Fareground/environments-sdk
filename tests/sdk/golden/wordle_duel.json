@@ -2,6 +2,17 @@
   "actions": 8,
   "events": 9,
   "events_sha256": "004924900e772e0c9a16d67fa3fd31b72216d643e1adaba1d17ec137b2239398",
+  "first_events": [
+    "r1 action ada: {\"action\": \"guess\", \"params\": {\"word\": \"poems\"}, \"private\": true, \"success\": true}",
+    "r1 action ben: {\"action\": \"guess\", \"params\": {\"word\": \"amber\"}, \"private\": true, \"success\": true}",
+    "r2 action ada: {\"action\": \"guess\", \"params\": {\"word\": \"frost\"}, \"private\": true, \"success\": true}",
+    "r2 action ben: {\"action\": \"guess\", \"params\": {\"word\": \"brick\"}, \"private\": true, \"success\": true}",
+    "r3 action ada: {\"action\": \"guess\", \"params\": {\"word\": \"story\"}, \"private\": true, \"success\": true}",
+    "r3 action ben: {\"action\": \"guess\", \"params\": {\"word\": \"birch\"}, \"private\": true, \"success\": true}",
+    "r3 game_over: Game 1 was drawn after 3 guesses. The words were Ada held BIRCH, Ben held STORY.",
+    "r4 action ada: {\"action\": \"guess\", \"params\": {\"word\": \"coral\"}, \"private\": true, \"success\": true}",
+    "r4 action ben: {\"action\": \"guess\", \"params\": {\"word\": \"apple\"}, \"private\": true, \"success\": true}"
+  ],
   "metrics": {
     "candidates_left": 12,
     "games_finished": 1,

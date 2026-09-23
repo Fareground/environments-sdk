@@ -95,8 +95,8 @@ def test_env_clone_between_rounds_and_mid_round_continues_identically():
         stops = {"n": 0}
 
         def stop(_env):
-            stops["n"] += 1
-            return stops["n"] == 3
+            stops["n"] += 1  # noqa: B023 — called within this iteration
+            return stops["n"] == 3  # noqa: B023 — called within this iteration
 
         stopped = fg_env.load(contract, seed=6)
         stopped.run("random", stop=stop)

@@ -2,6 +2,18 @@
   "actions": 16,
   "events": 17,
   "events_sha256": "0a732e55d1cfe53e52b7b117db702503b14974b7ef7751c5e1c7f772c82ee829",
+  "first_events": [
+    "r1 cards: Dealt to the discard pile: blue Draw Two.",
+    "r1 action p1: Ana draws 1 card.",
+    "r1 action p2: Ben draws 1 card.",
+    "r1 action p3: Cleo draws 1 card.",
+    "r1 action p4: Dev plays blue 7.",
+    "r2 action p1: Ana draws 1 card.",
+    "r2 action p2: Ben plays yellow 7.",
+    "r2 action p3: Cleo draws 1 card.",
+    "r2 action p4: Dev plays yellow 1.",
+    "r3 action p1: Ana draws 1 card."
+  ],
   "metrics": {
     "cards_in_hands": 30,
     "draw_pile": 50

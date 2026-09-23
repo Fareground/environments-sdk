@@ -67,7 +67,7 @@ class InputSpec(_Model):
         for name, child in (self.fields or {}).items():
             if child.source is not None:
                 raise ValueError(f"field '{name}': declare data sources on the containing input")
-            if name in (self.columns or {}) and self.columns[name] != child.type:
+            if name in (self.columns or {}) and (self.columns or {})[name] != child.type:
                 raise ValueError(f"field '{name}' conflicts with its column type")
         if self.items is not None and self.items.source is not None:
             raise ValueError("declare data sources on the containing input, not list items")

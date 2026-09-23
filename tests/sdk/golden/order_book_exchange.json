@@ -2,6 +2,18 @@
   "actions": 94,
   "events": 94,
   "events_sha256": "3b48dc56a60860c1b26b707c95e65047f81fcdc38933b8d53af0603fbcab9af7",
+  "first_events": [
+    "r1 action mm_1: {\"action\": \"place_order\", \"params\": {\"price\": 49.5, \"qty\": 20, \"side\": \"buy\"}, \"private\": true, \"success\": true}",
+    "r1 action mm_1: {\"action\": \"place_order\", \"params\": {\"price\": 50.5, \"qty\": 20, \"side\": \"sell\"}, \"private\": true, \"success\": true}",
+    "r1 action mm_2: {\"action\": \"place_order\", \"params\": {\"price\": 49.5, \"qty\": 20, \"side\": \"buy\"}, \"private\": true, \"success\": true}",
+    "r1 action mm_2: {\"action\": \"place_order\", \"params\": {\"price\": 50.5, \"qty\": 20, \"side\": \"sell\"}, \"private\": true, \"success\": true}",
+    "r1 action mm_3: {\"action\": \"place_order\", \"params\": {\"price\": 49.5, \"qty\": 20, \"side\": \"buy\"}, \"private\": true, \"success\": true}",
+    "r1 action mm_3: {\"action\": \"place_order\", \"params\": {\"price\": 50.5, \"qty\": 20, \"side\": \"sell\"}, \"private\": true, \"success\": true}",
+    "r1 action mm_4: {\"action\": \"place_order\", \"params\": {\"price\": 49.5, \"qty\": 20, \"side\": \"buy\"}, \"private\": true, \"success\": true}",
+    "r1 action mm_4: {\"action\": \"place_order\", \"params\": {\"price\": 50.5, \"qty\": 20, \"side\": \"sell\"}, \"private\": true, \"success\": true}",
+    "r1 action val_3: {\"action\": \"place_order\", \"params\": {\"price\": 50.24, \"qty\": 15, \"side\": \"buy\"}, \"private\": true, \"success\": true}",
+    "r1 action val_1: {\"action\": \"place_order\", \"params\": {\"price\": 49.86, \"qty\": 15, \"side\": \"sell\"}, \"private\": true, \"success\": true}"
+  ],
   "metrics": {
     "fair_value": 50,
     "halted": 0,

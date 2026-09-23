@@ -6,7 +6,7 @@ import heapq
 import threading
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, Any, Callable, ContextManager, Dict, Iterable, Iterator, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Iterator, List, Optional, Tuple
 
 from ..entity import Entity
 from ..physics import PhysicsModel, _CompiledExpr
@@ -200,10 +200,12 @@ class SdkWorld(World):
         finally:
             local.rng = previous
 
-    def drawing_at(self, site: str) -> ContextManager[None]:
+    @contextmanager
+    def drawing_at(self, site: str) -> Iterator[None]:
         """:meth:`drawing_from` the stream of ``site``: where a block of logic is written, with the actor whose
         action it is (see :class:`~fg_env.sdk.seeds.DrawSite`)."""
-        return self.drawing_from(DrawSite(site))
+        with self.drawing_from(DrawSite(site)):
+            yield
 
     # -- expression interface ------------------------------------------------
 

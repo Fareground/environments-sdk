@@ -229,7 +229,7 @@ def _keyed(c: Constraint, runs: Sequence[RunResult], level: float, margin: float
     op = _COMPLEMENT[c.op] if c.keys == "most" else c.op
     rows = []
     for key in order:
-        values = [v[key] for v in per_run if v is not None and v.get(key) is not None]
+        values = [x for x in (v.get(key) for v in per_run if v is not None) if x is not None]
         if values:
             rows.append({"key": key, "op": op, **_judge(c, op, values, level, margin, rng)})
     if not rows:

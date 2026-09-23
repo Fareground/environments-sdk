@@ -347,7 +347,7 @@ def _fill(env: "Env", new: Contract) -> None:
         for key in edges:
             held = table.get(key, {})
             if set(held) != set(declared):  # fields the new contract adds start from their defaults
-                table[key] = {**link_fields(world, kind, key[0], key[1], None, {}, f"relations.{kind}"), **held}
+                table[key] = {**(link_fields(world, kind, key[0], key[1], None, {}, f"relations.{kind}") or {}), **held}
 
 
 def _default(world: SdkWorld, spec: PropSpec, path: str, **vars: Any) -> Any:

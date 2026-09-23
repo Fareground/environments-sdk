@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 import math
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple, Union, overload
 
 from ..entity import Entity
 from .assets.store import AssetStore
@@ -121,7 +121,11 @@ def _clock_start(world: SdkWorld) -> Optional[str]:
     return value
 
 
-def whole_setting(world: SdkWorld, raw: Any, path: str, limit: Optional[int] = None) -> Optional[int]:
+@overload
+def whole_setting(world: SdkWorld, raw: Union[int, str], path: str, limit: Optional[int] = None) -> int: ...
+@overload
+def whole_setting(world: SdkWorld, raw: Optional[Union[int, str]], path: str, limit: Optional[int] = None) -> Optional[int]: ...
+def whole_setting(world: SdkWorld, raw: Optional[Union[int, str]], path: str, limit: Optional[int] = None) -> Optional[int]:
     """A count setting (a stage's `passes`, `max_actions` or `max_calls`, an event's `every`): a literal as written,
     or an expression over $inputs giving a whole number ≥ 1. Inputs never change during a run, so reading it again gives the same number."""
     if not isinstance(raw, str):

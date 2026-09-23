@@ -98,7 +98,7 @@ def local(space: DecisionSpace, score: Score, budget: int, runs: int) -> None:
         steps = [axis.first_step() for axis in axes]
         while True:
             current, best, improved = _descend(space, score, runs, current, best,
-                                               lambda p, i: space.moves(p, i, steps[i]))
+                                               lambda p, i: space.moves(p, i, steps[i]))  # noqa: B023 — called within this iteration
             if improved:
                 continue
             if any(step > axis.last_step() + 1e-12 for step, axis in zip(steps, axes)):

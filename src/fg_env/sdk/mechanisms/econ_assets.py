@@ -383,8 +383,8 @@ def loose_total(world: Any, inventory: str, item: str, where: str) -> int:
     name, _, spec = _item(world, item, where)
     ground = sum(int(stock.get(name, 0)) for stock in (world.props.get(f"{inventory}_ground") or {}).values())
     if spec.unique:
-        orphans = sum(1 for e in _instances(world, name) if maybe_entity(world, props(e).get("owner")) is None
-                      or not maybe_entity(world, props(e).get("owner")).alive)  # type: ignore[union-attr]
+        orphans = sum(1 for e in _instances(world, name)
+                      if (owner := maybe_entity(world, props(e).get("owner"))) is None or not owner.alive)
         return ground + orphans
     return ground
 

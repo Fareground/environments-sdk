@@ -2,6 +2,18 @@
   "actions": 36,
   "events": 36,
   "events_sha256": "c08b3657b91d4d0c6d7c7aa2b2e16d323577e4b37486b1c52ba804763f5320a7",
+  "first_events": [
+    "r1 action forecaster_4: {\"action\": \"election_buy\", \"params\": {\"outcome\": \"bo\", \"shares\": null, \"spend\": 5}, \"private\": true, \"success\": true}",
+    "r1 action forecaster_3: {\"action\": \"election_buy\", \"params\": {\"outcome\": \"cy\", \"shares\": null, \"spend\": 5}, \"private\": true, \"success\": true}",
+    "r1 action forecaster_2: {\"action\": \"election_buy\", \"params\": {\"outcome\": \"cy\", \"shares\": null, \"spend\": 5}, \"private\": true, \"success\": true}",
+    "r1 action forecaster_5: {\"action\": \"election_buy\", \"params\": {\"outcome\": \"cy\", \"shares\": null, \"spend\": 5}, \"private\": true, \"success\": true}",
+    "r1 action forecaster_1: {\"action\": \"election_buy\", \"params\": {\"outcome\": \"ada\", \"shares\": null, \"spend\": 5}, \"private\": true, \"success\": true}",
+    "r1 action forecaster_9: {\"action\": \"election_buy\", \"params\": {\"outcome\": \"ada\", \"shares\": null, \"spend\": 5}, \"private\": true, \"success\": true}",
+    "r1 action forecaster_6: {\"action\": \"election_buy\", \"params\": {\"outcome\": \"cy\", \"shares\": null, \"spend\": 5}, \"private\": true, \"success\": true}",
+    "r1 action forecaster_7: {\"action\": \"election_buy\", \"params\": {\"outcome\": \"cy\", \"shares\": null, \"spend\": 5}, \"private\": true, \"success\": true}",
+    "r1 action forecaster_8: {\"action\": \"election_buy\", \"params\": {\"outcome\": \"cy\", \"shares\": null, \"spend\": 5}, \"private\": true, \"success\": true}",
+    "r2 action forecaster_1: {\"action\": \"election_buy\", \"params\": {\"outcome\": \"ada\", \"shares\": null, \"spend\": 5}, \"private\": true, \"success\": true}"
+  ],
   "metrics": {
     "election_p_ada": 0.2428391056,
     "election_p_bo": 0.1337182679,

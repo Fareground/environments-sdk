@@ -266,8 +266,9 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, RuleChecks):
             if first not in params:
                 self.error(path, f"$params.{first}: no such parameter",
                            self._suggest(first, params) or f"parameters: {', '.join(params) or 'none'}")
-            elif params[first].type == "entity" and len(fields) > 1 and params[first].of in self.c.types:
-                self._prop({params[first].of}, fields[1], path, source, f"params.{first}")
+            elif (of := params[first].of) is not None and params[first].type == "entity" and len(fields) > 1 \
+                    and of in self.c.types:
+                self._prop({of}, fields[1], path, source, f"params.{first}")
         elif root == "world":
             if first not in self.c.world:
                 self.error(path, f"$world.{first}: no such world property",
@@ -319,9 +320,9 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, RuleChecks):
             if len(chain) == 2:
                 return (param.values if isinstance(param.values, list) else None), param.type
             if len(chain) == 3 and param.type == "entity" and param.of in self.c.types:
-                spec = self.c.props_of(param.of).get(chain[2])
-                if spec is not None:
-                    return spec.values, prop_type(spec)
+                field = self.c.props_of(param.of).get(chain[2])
+                if field is not None:
+                    return field.values, prop_type(field)
         if root == "inputs" and len(chain) == 2 and chain[1] in self.c.inputs:
             spec_in = self.c.inputs[chain[1]]
             return spec_in.values, spec_in.type

@@ -61,7 +61,8 @@ def agent_types(contract: Mapping[str, Any], names: List[str]) -> List[str]:
     types = contract.get("types") or {}
     out = []
     for name in names:
-        current, seen = name, set()
+        current: Optional[str] = name
+        seen = set()
         while current in types and current not in seen:
             seen.add(current)
             if (types[current] or {}).get("agent"):

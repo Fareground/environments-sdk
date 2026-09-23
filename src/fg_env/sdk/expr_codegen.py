@@ -199,7 +199,7 @@ class Codegen:
         for name, members in self._arguments:
             namespace[name] = [namespace[member] for member in members]
         for owner, field, value, roots in self._guards:
-            setattr(namespace[owner], "guard", EqualityGuard(field, namespace[value], roots))
+            namespace[owner].guard = EqualityGuard(field, namespace[value], roots)
         run: Evaluator = namespace[main]
         return run
 

@@ -11,7 +11,7 @@ import random
 from dataclasses import dataclass
 from functools import lru_cache
 from statistics import NormalDist
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple, TypeGuard
 
 __all__ = [
     "Estimate", "is_number", "numeric", "mean", "sd", "t_quantile", "normal_quantile", "estimate",
@@ -57,7 +57,7 @@ class Estimate:
         return f"{self.mean:.{digits}g} [{self.low:.{digits}g}, {self.high:.{digits}g}] (n={self.n})"
 
 
-def is_number(value: Any) -> bool:
+def is_number(value: Any) -> TypeGuard[float]:
     """A finite int or float (booleans are not numbers here)."""
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 

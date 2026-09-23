@@ -94,7 +94,7 @@ class SweepResult:
         per_level_runs: List[List[Optional[float]]] = []
         for level in levels_:
             cells = [c for c in self.cells if self._level_of(c, factor) == level]
-            means = [c.summary[key[1]].mean for c in cells if c.summary[key[1]].mean is not None]
+            means = [m for m in (c.summary[key[1]].mean for c in cells) if m is not None]
             rows.append({"value": level, "mean": mean(means) if means else None, "cells": len(cells)})
             per_level_runs.append(_per_seed_means(cells, key, len(self.seeds)))
         effect: Dict[str, Any] = {"levels": rows}

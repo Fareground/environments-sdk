@@ -14,6 +14,8 @@ import fg_env
 EXAMPLES = sorted((Path(__file__).parents[2] / "examples" / "contracts").glob("*.json"))
 GOLDEN = Path(__file__).parent / "golden"
 ROUNDS = 4
+#: How many leading events a golden shows as text.
+FIRST_EVENTS = 10
 
 
 def _stable(value):
@@ -27,13 +29,23 @@ def _stable(value):
     return value
 
 
+def _line(event: dict) -> str:
+    """One event as a readable line: round, kind and actor, then its text (or its data when it has none)."""
+    who = f" {event['actor']}" if event.get("actor") else ""
+    said = event.get("text") or json.dumps(_stable(event.get("data", {})), sort_keys=True, default=str)
+    return f"r{event['round']} {event['kind']}{who}: {said}"
+
+
 def _fingerprint(result: fg_env.RunResult) -> dict:
+    """The first events as readable lines, so a changed golden shows where a run first went another way; the hash
+    still pins every event after them."""
     events = json.dumps(_stable(result.events), sort_keys=True, default=str)
     return {
         "status": result.status,
         "rounds": result.rounds,
         "metrics": _stable(result.metrics),
         "events": len(result.events),
+        "first_events": [_line(event) for event in result.events[:FIRST_EVENTS]],
         "events_sha256": hashlib.sha256(events.encode()).hexdigest(),
         "actions": result.stats["actions"],
         "wakes": result.stats["wakes"],

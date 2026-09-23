@@ -2,6 +2,18 @@
   "actions": 8,
   "events": 16,
   "events_sha256": "edd46658ebef8625cb13695ae43018c6d186452ad39a5872f9778174baadac1f",
+  "first_events": [
+    "r1 action ben: Ben: set price.",
+    "r1 outcome ben: Done: set price (price=1.31).",
+    "r1 action ana: Ana: set price.",
+    "r1 outcome ana: Done: set price (price=4.37).",
+    "r2 action ben: Ben: set price.",
+    "r2 outcome ben: Done: set price (price=3.48).",
+    "r2 action ana: Ana: set price.",
+    "r2 outcome ana: Done: set price (price=2.96).",
+    "r3 action ben: Ben: set price.",
+    "r3 outcome ben: Done: set price (price=3.08)."
+  ],
   "metrics": {
     "avg_price": 1.435
   },

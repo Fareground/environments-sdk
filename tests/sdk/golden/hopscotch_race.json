@@ -2,6 +2,12 @@
   "actions": 4,
   "events": 4,
   "events_sha256": "834d239d553d864e5715d24ad2f30cb9fba8864a34f458abed6831af7ff7b61c",
+  "first_events": [
+    "r1 action ana: Ana: hop (squares=2).",
+    "r1 action ben: Ben: hop (squares=2).",
+    "r2 action ben: Ben: hop (squares=1).",
+    "r4 action ana: Ana: hop (squares=1)."
+  ],
   "metrics": {
     "leader_square": 3
   },

@@ -2,6 +2,18 @@
   "actions": 80,
   "events": 81,
   "events_sha256": "f4a7afc0cabfc540fe955db0e2a48901e82872672c9184aef66e57e0204dbae5",
+  "first_events": [
+    "r1 action acme_market_maker_1: {\"action\": \"acme_algo\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r1 action acme_market_maker_2: {\"action\": \"acme_algo\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r1 action acme_market_maker_3: {\"action\": \"acme_algo\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r1 action acme_market_maker_4: {\"action\": \"acme_algo\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r1 action acme_momentum_5: {\"action\": \"acme_algo\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r1 action acme_momentum_1: {\"action\": \"acme_algo\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r1 action acme_fundamentalist_5: {\"action\": \"acme_algo\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r1 action acme_fundamentalist_7: {\"action\": \"acme_algo\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r1 action acme_fundamentalist_3: {\"action\": \"acme_algo\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r1 action acme_fundamentalist_1: {\"action\": \"acme_algo\", \"params\": {}, \"private\": true, \"success\": true}"
+  ],
   "metrics": {
     "acme_mid": 49.84,
     "acme_orders": 18,

@@ -77,9 +77,9 @@ def check_value(type_name: str, value: Any, spec: Optional[InputSpec] = None) ->
         return f"has unknown type '{type_name}'"
     if spec is not None and spec.fields is not None and type_name in {"map", "table"}:
         rows = enumerate(value) if type_name == "table" else [(None, value)]
-        for index, row in rows:
+        for position, row in rows:
             for name, field in spec.fields.items():
-                prefix = f"row {index} field '{name}'" if index is not None else f"field '{name}'"
+                prefix = f"row {position} field '{name}'" if position is not None else f"field '{name}'"
                 if name not in row and field.default is None:
                     if field.required:
                         return f"{prefix} is required"
@@ -152,10 +152,11 @@ def resolve_inputs(contract: Contract, supplied: Optional[Mapping[str, Any]] = N
 
 def _nested_defaults(spec: InputSpec, value: Any) -> Any:
     """Materialize declared child defaults without changing the caller's data."""
-    if spec.fields is not None and value is not None:
+    fields = spec.fields
+    if fields is not None and value is not None:
         def row_defaults(row: Dict[str, Any]) -> Dict[str, Any]:
             result = copy.deepcopy(row)
-            for name, field in spec.fields.items():
+            for name, field in fields.items():
                 if name in result or field.default is not None:
                     result[name] = _nested_defaults(field, result.get(name, copy.deepcopy(field.default)))
             return result

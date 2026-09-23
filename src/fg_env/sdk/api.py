@@ -370,7 +370,8 @@ def run(source: ContractLike, participants: Any = None, *, inputs: Optional[Mapp
     except ExprError as exc:
         raise _failed(RunError(str(exc)), env) from exc
     except RunError as exc:
-        raise _failed(exc, env)
+        _failed(exc, env)
+        raise
 
 
 def _failed(error: RunError, env: Env) -> RunError:

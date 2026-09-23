@@ -153,9 +153,10 @@ def _oat(contract: Any, ranges: Mapping[str, Any], measure: Tuple[str, str], run
                                "slope": slope.to_dict()}
         if base_mean and centre != 0 and slope.mean is not None:
             factor = centre / base_mean
-            row.update(value=slope.mean * factor,
-                       low=None if slope.low is None else min(slope.low * factor, slope.high * factor),
-                       high=None if slope.high is None else max(slope.low * factor, slope.high * factor))
+            low = high = None
+            if slope.low is not None and slope.high is not None:
+                low, high = sorted((slope.low * factor, slope.high * factor))
+            row.update(value=slope.mean * factor, low=low, high=high)
         else:
             row.update(value=None, note=" (elasticity undefined at a zero baseline; see slope)")
         ranking.append(row)
@@ -195,8 +196,9 @@ def _morris(contract: Any, ranges: Mapping[str, Any], measure: Tuple[str, str], 
         for k, name in enumerate(order):
             a, b = cursor + k, cursor + k + 1
             moved = (points[b][name] - points[a][name]) / (bounds[name][1] - bounds[name][0])
-            if means[a] is not None and means[b] is not None and moved != 0:
-                effects[name].append((means[b] - means[a]) / moved)
+            before, after = means[a], means[b]
+            if before is not None and after is not None and moved != 0:
+                effects[name].append((after - before) / moved)
         cursor += len(path)
     ranking: List[Dict[str, Any]] = []
     for name in names:

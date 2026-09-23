@@ -2,6 +2,12 @@
   "actions": 4,
   "events": 4,
   "events_sha256": "72d3bb23d177dfbb03d3eb1f8bc3d3fdc4fc0fbd4124e40c21aaa6b9bffced2a",
+  "first_events": [
+    "r1 action black: Black played a3-b4.",
+    "r2 action white: White played b6-a5.",
+    "r3 action black: Black played b2-a3.",
+    "r4 action white: White played a7-b6."
+  ],
   "metrics": {
     "black_pieces": 12,
     "white_pieces": 12

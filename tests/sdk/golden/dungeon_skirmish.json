@@ -2,6 +2,18 @@
   "actions": 33,
   "events": 35,
   "events_sha256": "8cfdbe10f656d7afd199ea1a454db86cab1ff009f9d5f7f40880677d26ae1ccf",
+  "first_events": [
+    "r1 action goblin: Nikk (goblin): move (row=1, col=3).",
+    "r1 action goblin: {\"action\": \"hold\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r1 action rogue: Vess (rogue): move (row=4, col=3).",
+    "r1 action rogue: {\"action\": \"hold\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r1 action mage: Ilora (mage): move (row=4, col=1).",
+    "r1 action mage: {\"action\": \"hold\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r1 action shaman: Oma (shaman): move (row=1, col=4).",
+    "r1 action shaman: Oma (shaman) begins channeling a fireball at Vess (rogue)!",
+    "r1 action knight: Sir Bran (knight): move (row=4, col=2).",
+    "r1 action knight: {\"action\": \"hold\", \"params\": {}, \"private\": true, \"success\": true}"
+  ],
   "metrics": {
     "heroes_hp": 57,
     "monsters_hp": 47,

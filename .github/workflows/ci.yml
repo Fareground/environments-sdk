@@ -13,12 +13,29 @@ permissions:
   contents: read
 
 jobs:
+  # Lint, types and the committed schema do not depend on the Python version: check them once.
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - run: ruff check src tests
+      - run: mypy
+      - name: Committed contract JSON Schema matches the SDK
+        run: make check-schema
+
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.13"]
+        python-version: ["3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -26,8 +43,27 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
       - run: pip install -e ".[dev]"
-      - run: ruff check src tests
-      - run: mypy
-      - name: Committed contract JSON Schema matches the SDK
-        run: make check-schema
-      - run: pytest -q
+      - name: Tests (with a coverage report on the newest Python; no threshold yet)
+        env:
+          COVERAGE_CORE: sysmon
+        run: pytest -q -n auto ${{ matrix.python-version == '3.13' && '--cov=fg_env --cov-report=term:skip-covered' || '' }}
+
+  # The wheel a user installs, in a clean environment away from the checkout: it must check and run a contract.
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install build
+      - run: python -m build
+      - name: Install the wheel in a clean venv and smoke-test it
+        run: |
+          python -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install dist/*.whl
+          cp examples/contracts/auction_house.json "$RUNNER_TEMP/"
+          cd "$RUNNER_TEMP"
+          venv/bin/fg-env check auction_house.json
+          venv/bin/python -c "import fg_env; r = fg_env.run('auction_house.json', rounds=2, seed=1); assert r.status != 'failed' and r.events, r.error; print(r.status, len(r.events), 'events')"

@@ -2,6 +2,16 @@
   "actions": 8,
   "events": 8,
   "events_sha256": "98e87c9ae41d3dbd7d1ff1739bcdf4ae177642e728959c92a9b0b7d59ffabb82",
+  "first_events": [
+    "r1 action buyer_1: Someone bought Brass desk lamp.",
+    "r1 action buyer_3: Someone bought Brass desk lamp.",
+    "r1 action buyer_2: Someone bought Stoneware mug.",
+    "r2 action buyer_2: Someone bought Stoneware mug.",
+    "r2 action buyer_1: Someone bought Stoneware mug.",
+    "r2 action buyer_3: Someone bought Stoneware mug.",
+    "r3 action buyer_2: Someone bought Stoneware mug.",
+    "r3 action buyer_3: Someone bought Stoneware mug."
+  ],
   "metrics": {
     "revenue": 140,
     "units_sold": 8

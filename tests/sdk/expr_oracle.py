@@ -212,7 +212,7 @@ class _Compiler:
 
             guard = self._guard(node.values[0])
             if guard is not None:
-                setattr(run_and, "guard", guard)
+                run_and.guard = guard
             return run_and
 
         def run_or(scope: Scope) -> Any:
@@ -255,7 +255,7 @@ class _Compiler:
 
         guard = self._guard(node)
         if guard is not None:
-            setattr(run, "guard", guard)
+            run.guard = guard
         return run
 
     def _guard(self, node: ast.AST) -> Optional[EqualityGuard]:

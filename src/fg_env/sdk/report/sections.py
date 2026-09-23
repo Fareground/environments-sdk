@@ -153,7 +153,7 @@ def _named(text: str, measures: Mapping[str, Any], namer: Namer) -> str:
                           lambda m: f"{m.group(1)} {float(m.group(2)):.0%}", text)
         elif namer.is_money(measure):
             text = re.sub(rf"({re.escape(name)} (?:rose|fell|peaked at|bottomed out at)) (\d+(?:\.\d+)?)",
-                          lambda m: f"{m.group(1)} {namer.value(measure, float(m.group(2)))}", text)
+                          lambda m: f"{m.group(1)} {namer.value(measure, float(m.group(2)))}", text)  # noqa: B023 — called within this iteration
     return re.sub(r"\bin day (\d+)", r"on day \1", text)
 
 

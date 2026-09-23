@@ -293,7 +293,7 @@ def _cascade(runner: Any, name: str, config: DiffusionConfig, state: Dict[str, A
             if world.rng.random() < _number(p, f"diffusion {name}: p", f"mechanisms.{name}.p"):
                 convinced[target] = source
     state["frontier"] = list(convinced)
-    for target, source in convinced.items():
+    for target in convinced:
         state["adopted"][target] = world.round
     return convinced
 

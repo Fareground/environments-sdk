@@ -19,9 +19,9 @@ def attr(obj: Any, name: str, source: Optional[str] = None) -> Any:
     if name.startswith("_"):
         raise ExprError(f"private field '{name}' cannot be read", source)
     if type(obj) is _Entity:  # the common case, first
-        props = obj.properties
-        if name in props and name not in _ENTITY_FIELDS:
-            return props[name]
+        own = obj.properties
+        if name in own and name not in _ENTITY_FIELDS:
+            return own[name]
     if obj is None:
         raise ExprError(f"cannot read '.{name}' of null", source)
     reader = getattr(obj, "expr_attr", None)
