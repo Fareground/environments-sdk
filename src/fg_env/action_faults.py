@@ -20,10 +20,12 @@ __all__ = ["guarded", "refused_text", "fault_reason"]
 T = TypeVar("T")
 
 
-def guarded(env: "Env", work: Callable[[], T], mark: Optional[int] = None) -> Tuple[Optional[T], Optional[str]]:
+def guarded(env: "Env", work: Callable[[], T], mark: Optional[int] = None,
+            action: Optional[str] = None) -> Tuple[Optional[T], Optional[str]]:
     """``(work(), None)``; or, when a rule fails or an invariant breaks inside it, ``(None, reason)`` with everything it
     changed undone — back to ``mark`` when given (where an atomic turn's actions began) — and the failure counted for
-    the run's diagnostics. ``reason`` is safe to show the agent."""
+    the run's diagnostics, against the contract ``action`` being applied when given. ``reason`` is safe to show the
+    agent."""
     world = env.world
     mark = world.journal.mark() if mark is None else mark
     armed, fired = dict(env._trigger_armed), set(env._triggers_fired)
@@ -43,7 +45,7 @@ def guarded(env: "Env", work: Callable[[], T], mark: Optional[int] = None) -> Tu
             # Already broken before the action (by something no invariant check followed): not the action's doing.
             env._check_invariants("changes made before an agent's action")
         path = error.path or "actions"
-        env.diagnosis.faulted(path, str(error).removeprefix(f"{path}: "))
+        env.diagnosis.faulted(path, str(error).removeprefix(f"{path}: "), action)
         return None, fault_reason(error)
 
 

@@ -53,6 +53,9 @@ def attr(obj: Any, name: str, source: Optional[str] = None) -> Any:
         raise ExprError(f"no field '{name}' (fields: {', '.join(sorted(str(k) for k in obj))})", source)
     if isinstance(obj, (list, tuple)) and name in ("count", "size", "length"):
         return len(obj)
+    if isinstance(obj, (list, tuple)):  # never the items themselves: they may be entities with private props
+        items = f"{len(obj)} item" + ("" if len(obj) == 1 else "s")
+        raise ExprError(f"cannot read '.{name}' of a list ({items}); pick one first, e.g. $first(list).{name}", source)
     raise ExprError(f"cannot read '.{name}' of {type(obj).__name__} {obj!r}", source)
 
 

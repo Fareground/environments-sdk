@@ -73,6 +73,8 @@ class ActionChecks:
             check_param_bounds(self, path, spec)
             for index, condition in enumerate(spec.when):
                 self.expr(condition.expr, f"{path}.when[{index}]", BASE | {"actor", "params"}, types, spec.params)
+                self.template(condition.why or None, f"{path}.when[{index}].why", None, BASE | {"actor", "params"}, types,
+                              spec.params)
             roots = set(BASE | {"actor", "params"})
             self.value(spec.chance, f"{path}.chance", roots, types, spec.params)
             check_literal_probability(self, spec.chance, f"{path}.chance")

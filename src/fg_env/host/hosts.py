@@ -3,16 +3,23 @@
 Contracts name hosts (``"host": "judge"``); a :class:`Hosts` maps those names to adapter
 objects. A run is bound to its hosts for its lifetime without touching the core objects: the
 binding is held here, keyed weakly by the run's world.
+
+The model tokens a host reports in its ``usage`` counters (``input_tokens``, ``output_tokens``: the reference adapters
+keep them) join the run's stats — and so its token budget — at the run's safe points and when its result is read.
 """
 from __future__ import annotations
 
+import threading
 import weakref
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Tuple, Union
 
 if TYPE_CHECKING:
     from ..runtime import Env
 
-__all__ = ["Hosts", "HostsLike", "as_hosts", "bind", "hosts_for"]
+__all__ = ["Hosts", "HostsLike", "as_hosts", "bind", "hosts_for", "count_host_tokens"]
+
+#: The counters of a host's ``usage`` that are model tokens.
+_TOKENS = ("input_tokens", "output_tokens")
 
 
 class Hosts:
@@ -41,6 +48,20 @@ class Hosts:
         self._adapters: Dict[str, Any] = dict(adapters or {})
         self.replay: Dict[str, Dict[str, Any]] = {key: dict(entry) for key, entry in (replay or {}).items()}
         self.live = bool(live)
+        self._counted = {name: _tokens(adapter) for name, adapter in self._adapters.items()}
+        self._lock = threading.Lock()
+
+    def take_tokens(self) -> Dict[str, int]:
+        """The model tokens the adapters report having used since this was last asked (or since binding), so each
+        token is counted once, by the run that asks."""
+        taken = dict.fromkeys(_TOKENS, 0)
+        with self._lock:
+            for name, adapter in self._adapters.items():
+                now = _tokens(adapter)
+                for key, after, before in zip(_TOKENS, now, self._counted[name]):
+                    taken[key] += max(0, after - before)
+                self._counted[name] = now
+        return taken
 
     @classmethod
     def replaying(cls, tape: Mapping[str, Mapping[str, Any]]) -> "Hosts":
@@ -99,3 +120,22 @@ def bind(env: "Env", hosts: HostsLike) -> "Env":
 
 def hosts_for(world: Any) -> Optional[Hosts]:
     return _BOUND.get(world)
+
+
+def count_host_tokens(env: "Env") -> None:
+    """Add the tokens the run's hosts used since last counted to the run's stats."""
+    hosts = hosts_for(env.world)
+    if hosts is None:
+        return
+    taken = hosts.take_tokens()
+    if any(taken.values()):
+        from ..measure import Stats
+
+        with env._lock:
+            env.stats.add(Stats(**taken))
+
+
+def _tokens(adapter: Any) -> Tuple[int, ...]:
+    usage = getattr(adapter, "usage", None)
+    counts = [usage.get(key, 0) if isinstance(usage, Mapping) else 0 for key in _TOKENS]
+    return tuple(value if isinstance(value, int) and not isinstance(value, bool) else 0 for value in counts)

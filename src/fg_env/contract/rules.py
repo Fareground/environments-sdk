@@ -111,7 +111,7 @@ class StageSpec(_Model):
     name: str
     when: Optional[str] = Field(None, description="Run this stage only when true (e.g. $round == 1).")
     actions: Union[str, List[str], Dict[str, List[str]]] = Field("all", description="'all', a list, or {type: [actions]}.")
-    turns: str = Field("sequential", description="sequential (one after another, effects immediate) | simultaneous (same picture, committed together) | scheduled (continuous clock: each agent whose wake time has come, earliest first).")
+    turns: str = Field("sequential", description="sequential (one after another, effects immediate) | simultaneous (everyone chooses from the same picture; the sealed choices then commit one agent after another, in `order` or else a random order — resolve them jointly in on_exit) | scheduled (continuous clock: each agent whose wake time has come, earliest first).")
     interval: Union[float, str, None] = Field(None, description="Scheduled turns: time until an agent that took no timed action is woken again (number or expression over $actor; default clock.tick).")
     first_wake: Union[float, str, None] = Field(None, description="Scheduled turns: each agent's first wake time (number or expression over $it, $i; default 0).")
     order: Optional[str] = Field(None, description="seat | random | expression over $it (lowest first): the order agents take turns in, and a simultaneous stage's choices commit in. Default: seat; a simultaneous stage's choices then commit in a random order drawn anew each time, so no seat always wins a contested item.")

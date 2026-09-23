@@ -212,8 +212,9 @@ for priority and tie-breaking; multiplying a key by a large constant can change
 priority when the second key grows. Negate a numeric key for descending order.
 The list is selected once before the loop; effects still see current entity
 properties. Filter with `$filter` when needed. For one highest-ranked item use
-`$best(items, [key1, key2])`; exact ties return a list by default, so use a unique
-last key when the rule requires one deterministic item.
+`$best(items, [key1, key2])`: it always gives one item, breaking an exact tie at
+random (seeded); add a unique last key when the rule needs a fixed order, or use
+`$best(items, key, 'all')` for the list of every item tied for best.
 """
 
 EFFECT_EXAMPLES = {
@@ -585,5 +586,6 @@ CHECKLIST = """\
 * Measurement: metrics for the dynamics you care about; typed outputs for every result a caller
   needs; invariants for conservation laws.
 * Always: run `check` until clean, `preview` every agent type, run a few seeds, read
-  `result.stats` (invalid_rate and avg_update_tokens should stay low; faulted_actions should be 0).
+  `result.stats` (invalid_rate and avg_update_tokens should stay low; faulted_actions should be 0) and
+  `result.degraded` (empty for a run that shows how the environment plays).
 """

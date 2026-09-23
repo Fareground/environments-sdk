@@ -120,6 +120,14 @@ class RunResult:
     def ok(self) -> bool:
         return self.status in ("completed", "ended") and not self.output_issues
 
+    @property
+    def degraded(self) -> List[str]:
+        """The codes of the diagnostics that mean this run does not show what the environment is for — an action no
+        agent could ever take, agents that never acted, turns lost to a failing provider. Empty for a sound run."""
+        from .diagnostics import DEGRADING
+
+        return list(dict.fromkeys(found["code"] for found in self.diagnostics if found["code"] in DEGRADING))
+
     def to_dict(self, events: bool = True) -> Dict[str, Any]:
         out = asdict(self)
         if not events:
@@ -165,6 +173,9 @@ class RunResult:
                  f"{', arm ' + self.arm if self.arm else ''})"]
         if self.error:
             lines.append(f"error: {self.error}")
+        if self.degraded:
+            lines.append(f"DEGRADED ({', '.join(self.degraded)}): this run does not show how the environment plays; "
+                         "see the diagnostics below")
         if self.winner is not None and "winner" not in self.outputs:
             lines.append(f"winner: {self.winner}")
         for key, value in self.outputs.items():

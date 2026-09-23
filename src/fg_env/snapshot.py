@@ -18,11 +18,11 @@ from .entity import Entity
 from .assets.store import AssetStore
 from .budget import Budget
 from .contract import Contract
-from .errors import ContractError, SnapshotError
+from .errors import ContractError, RunError, SnapshotError
 from .expr import Untrusted
 from .exposure import ExposureLog
 from .measure import Stats
-from .world import Entry, LogEvent
+from .world import Abort, Entry, LogEvent
 
 if TYPE_CHECKING:
     from .runtime import Env
@@ -286,6 +286,29 @@ def restore_env(cls: Type[_E], contract: Any, snapshot: Mapping[str, Any], paral
     return env
 
 
+def _check_props(w: Any) -> None:
+    """Every restored property as its declaration stores it — type, values and bounds — so a snapshot edited by hand
+    or damaged is refused here, not wherever the run next reads it."""
+    def checked(spec: Any, value: Any, where: str, owner: str = "") -> Any:
+        try:
+            return w._coerce(spec, value, where, owner)
+        except RunError as exc:
+            problem = str(exc)
+        except Abort as exc:  # out of bounds
+            problem = f"{where}: {exc.reason.rstrip('.')}"
+        raise SnapshotError(f"the snapshot holds a value its contract does not allow ({problem}); restore an unedited "
+                            "snapshot")
+
+    for entity in w.entities.values():
+        for prop, spec in w._type_props.get(entity.entity_type, {}).items():
+            if prop in entity.properties:
+                entity.properties[prop] = checked(spec, entity.properties[prop], f"entities.{entity.id}.props.{prop}",
+                                                  entity.name)
+    for prop, spec in w.contract.world.items():
+        if prop in w.props:
+            w.props[prop] = checked(spec, w.props[prop], f"world.{prop}")
+
+
 def restore_state(cls: Type[_E], contract: Contract, snapshot: Mapping[str, Any], parallel: int = 8) -> _E:
     """A run rebuilt from a snapshot into ``contract``, which the caller has matched to it."""
     try:
@@ -380,6 +403,7 @@ def _restore(cls: Type[_E], contract: Contract, snapshot: Mapping[str, Any], par
     if snapshot.get("budget") is not None:
         env.budget = Budget.from_dict(snapshot["budget"])
     env.diagnosis.load(snapshot.get("diagnosis"))
+    _check_props(w)
     w.journal.clear()
     w.touch()  # the state was replaced wholesale: nothing cached before holds
     env._emitted = len(w.log)

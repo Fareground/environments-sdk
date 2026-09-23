@@ -119,12 +119,17 @@ class ActionBook(ActionSchemas, ActionValidation):
                 continue
             if scope is None:  # built for the first requirement evaluated
                 scope = self.world.scope(actor=actor) if params is None else self.world.scope(actor=actor, params=params)
+            path = f"actions.{name}.when[{index}]"
             try:
-                ok = truthy(compiled(scope))
+                if truthy(compiled(scope)):
+                    continue
             except ExprError as exc:
-                raise RunError(str(exc), f"actions.{name}.when[{index}]") from None
-            if not ok:
-                return (condition.why or "its requirements are not met").rstrip(". ")
+                raise RunError(str(exc), path) from None
+            try:  # the why is a template, like a `fail` text
+                why = compile_template(condition.why, None).render(scope) if condition.why else ""
+            except ExprError as exc:
+                raise RunError(str(exc), f"{path}.why") from None
+            return (why or "its requirements are not met").rstrip(". ")
         return None
 
     def _empty_range(self, actor: Entity, param: ParamSpec) -> Optional[str]:
