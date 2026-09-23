@@ -58,8 +58,7 @@ def test_the_run_tool_plays_random_idle_and_the_contracts_policies():
 
 @pytest.mark.parametrize("contract, problem", [
     (UNLUCKY, "a run with random agents (seed 3) failed in round 1: events[0].do[0].then[0]: no field 'b'"),
-    (NOTHING_HAPPENS, "a run with random agents (seed 1) shows agents_never_acted: participants: no agent took an "
-                      "action"),
+    (NOTHING_HAPPENS, "a run with random agents (seed 1) shows agents_never_acted: participants: a took no action"),
     (EDGE_CRASH, "a run with agents choosing edge values (seed 1) shows action_rule_failed: actions.set.do[0]"),
 ])
 def test_it_works_only_when_every_test_run_plays(contract, problem):
