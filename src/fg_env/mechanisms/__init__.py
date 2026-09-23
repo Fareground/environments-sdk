@@ -10,10 +10,10 @@ config the rest of the entry is. A mechanism expands into ordinary contract sect
 stages, world props, events, views, defs — backed by native functions and effect ops. Everything the engine does (checking,
 preview, atomic actions, snapshots, determinism) therefore applies to it unchanged. Anything
 the author declares under a generated name wins (a named event, trigger or end entry too), so generated
-parts can be overridden, while two mechanisms generating different entries under one name is an error
-naming both; types the author declares gain the mechanism's properties without losing their own. A
-mechanism may extend declared actions (``action_hooks``) and stages (``stage_hooks``), and generate other
-mechanisms.
+parts can be overridden (world properties excepted: they are the mechanism's state), while two mechanisms
+generating different entries under one name is an error naming both; types the author declares gain the
+mechanism's properties without losing their own. A mechanism may extend declared actions (``action_hooks``) and
+stages (``stage_hooks``), and generate other mechanisms.
 A declared stage that offers only mechanisms' actions and sets no ``max_actions`` allows, per turn, what each
 mechanism attached to it allows (a hook's ``max_actions``, default 1).
 """
@@ -30,9 +30,10 @@ from pydantic import BaseModel, ValidationError
 
 from ..contract.rules import StageSpec
 from ..errors import Issue
+from ..parse_errors import shape_issue
 from ..registry import FAMILIES, MechanismError, config_data, family_of_mode
 
-__all__ = ["expand_mechanisms", "merge_sections", "generated_summary", "FAMILIES"]
+__all__ = ["expand_mechanisms", "merge_sections", "generated_summary", "separate_turns", "FAMILIES"]
 
 _NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
 
@@ -69,6 +70,9 @@ def expand_mechanisms(data: Mapping[str, Any], generated: Optional[Dict[str, Dic
         return dict(data), []
     if not isinstance(uses, Mapping):
         return dict(data), [Issue("mechanisms", "must be an object of {name: {kind, mode, ...config}}")]
+    malformed = _malformed_sections(data)
+    if malformed:  # mechanisms read and extend these sections: expanding into a malformed one only obscures it
+        return dict(data), malformed
     out: Dict[str, Any] = copy.deepcopy(dict(data))
     issues: List[Issue] = []
     expanded: List[str] = []
@@ -89,6 +93,17 @@ def expand_mechanisms(data: Mapping[str, Any], generated: Optional[Dict[str, Dic
                 generated[str(name)] = _added(before, _names(out))
     _share_turns(data, out, shares)
     return out, issues
+
+
+def _malformed_sections(data: Mapping[str, Any]) -> List[Issue]:
+    """The sections mechanisms read or extend that are not the JSON shape the contract gives them."""
+    issues = []
+    for section in (*_KEYED, *_LISTED, "types", "entities", "stages", "brief", "clock", "game"):
+        value = data.get(section)
+        listed = section in (*_LISTED, "stages")
+        if value is not None and not isinstance(value, list if listed else Mapping):
+            issues.append(shape_issue(section, ["a list" if listed else "an object"], value))
+    return issues
 
 
 def _share_turns(declared: Mapping[str, Any], out: Dict[str, Any], shares: Mapping[str, int]) -> None:
@@ -161,6 +176,34 @@ def generated_summary(data: Mapping[str, Any]) -> List[str]:
     return lines
 
 
+def separate_turns(data: Mapping[str, Any]) -> List[Issue]:
+    """A warning for each agent type that several mechanisms wake in stages of their own: every such stage is another
+    turn (another model call) per agent per round, and the agent cannot weigh one mechanism against another. They are
+    not merged by default, since their stages differ in how turns run (sealed or in order) and when they open."""
+    uses = data.get("mechanisms")
+    generated: Dict[str, Dict[str, List[str]]] = {}
+    if not isinstance(uses, Mapping) or len(uses) < 2 or expand_mechanisms(data, generated)[1]:
+        return []
+    staged: Dict[str, List[str]] = {}
+    for name, use in uses.items():
+        found = _spec(use, "") if isinstance(use, Mapping) and "kind" in use else None
+        who = use.get("who") if isinstance(use, Mapping) else None
+        if not isinstance(found, tuple) or "stage" not in found[0].config.model_fields or use.get("stage") is not None \
+                or not generated.get(name, {}).get("stages") or not isinstance(who, (str, list)):
+            continue
+        for kind in [who] if isinstance(who, str) else who:
+            staged.setdefault(str(kind), []).append(name)
+    return [Issue("mechanisms", f"{kind} agents take a separate turn in the stage of each of {_listed(names)} whenever "
+                                "they run: one decision, and one model call, per mechanism",
+                  'to decide in one turn, declare a stage, e.g. {"name": "turn", "turns": "sequential"}, and '
+                  'set "stage": "turn" on each of them', "warning")
+            for kind, names in staged.items() if len(names) > 1]
+
+
+def _listed(names: Sequence[str]) -> str:
+    return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
+
+
 def _can_end(use: Any) -> bool:
     found = _spec(use, "") if isinstance(use, Mapping) and "kind" in use else None
     if not isinstance(found, tuple):
@@ -212,12 +255,16 @@ _CLAIMED = (*_KEYED, "stages", *_NAMED_ITEMS, "entities", "mechanisms")
 def _claim(out: Mapping[str, Any], name: str, fragment: Mapping[str, Any], owners: Dict[Tuple[str, str], str]
            ) -> Optional[Issue]:
     """Record the names ``fragment`` generates as ``name``'s; a different entry another mechanism generated under
-    one of them is a clash (the author's own entries are not claimed: declaring one overrides the generated one)."""
+    one of them is a clash (the author's own entries are not claimed: declaring one overrides the generated one,
+    except a world property, which is the mechanism's state)."""
     claims = []
     for section in _CLAIMED:
         present = _entries(out, section)
         for key, item in _entries(fragment, section).items():
             other = owners.get((section, key))
+            if section == "world" and other is None and key in present and _canonical(present[key]) != _canonical(item):
+                return Issue(f"world.{key}", f"'{key}' is state the mechanism '{name}' keeps: declaring it breaks what it writes",
+                             f"rename your world property (read the mechanism's as $world.{key})")
             if other is not None and other != name and _canonical(present.get(key)) != _canonical(item):
                 return Issue(f"mechanisms.{name}", f"'{other}' and '{name}' both generate {section} '{key}'",
                              "configure one of them to generate a different name, or keep only one of them")

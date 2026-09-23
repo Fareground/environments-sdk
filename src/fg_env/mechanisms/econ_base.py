@@ -22,7 +22,7 @@ from ..world import Abort
 __all__ = [
     "EPS", "NAME", "valid_name", "CONFIG_MODELS", "register_config", "config_of", "uses_of", "cached", "type_list", "require_types",
     "require_currency", "lineage", "common_ancestor", "top_types", "declared_use", "guarded", "choice_param", "entity_of",
-    "maybe_entity", "props", "checked_config", "declared_names",
+    "maybe_entity", "props", "checked_config", "declared_names", "money_prop",
     "LEDGER", "INVENTORY", "PRODUCTION", "SUPPLY_CHAIN", "DEMAND", "REPLENISHMENT", "NEGOTIATION", "LABOR", "SUBSCRIPTIONS",
     "BOOKINGS",
     "to_ids", "whole", "amount", "bump", "money", "emit_to", "compiles", "run_hook",
@@ -150,6 +150,17 @@ def require_currency(contract: Mapping[str, Any], currency: str, field: str = "c
     """Fail expansion unless some ledger declares ``currency``."""
     if currency not in declared_names(contract, LEDGER, "currencies"):
         raise MechanismError(f"'{currency}' is not a declared currency", "declare a ledger with it", field)
+
+
+def money_prop(contract: Mapping[str, Any], holder: str, currency: str, description: str = "") -> Dict[str, Any]:
+    """``{currency: a number prop starting at 0}`` for a market's traders of type ``holder``, or ``{}`` when a ledger
+    gives that type the currency: the ledger's starting balance then holds, whichever mechanism is declared first."""
+    for use in (contract.get("mechanisms") or {}).values():
+        who = use.get("who") if isinstance(use, Mapping) and use_key(use) == LEDGER else None
+        if isinstance(who, (str, list)) and currency in (use.get("currencies") or {}) \
+                and set(type_list(who)) & set(lineage(contract, holder)):
+            return {}
+    return {currency: {"type": "number", "default": 0, **({"description": description} if description else {})}}
 
 
 def top_types(contract: Mapping[str, Any], names: Sequence[str]) -> List[str]:

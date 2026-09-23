@@ -319,6 +319,30 @@ def test_three_all_ins_of_different_sizes_build_side_pots_paid_by_rank():
     assert pots == [(400, ["p2", "p3", "p4", "p1"], ["p1"]), (450, ["p2", "p3", "p4"], ["p2"]), (300, ["p3", "p4"], ["p3"])]
 
 
+def test_a_short_stack_may_always_go_all_in_and_it_acts_as_a_call():
+    log: list = []
+    moves = {"p2": [("table_check", {}), ("table_all_in", {})], "p1": [("table_bet", {"amount": 300})]}
+    result = fg_env.load(_table([1000, 100], streets={"betting": []}), seed=1).run(_script(moves, log), rounds=1)
+    assert result.status == "completed", result.error
+    assert [(pid, tool, ok) for pid, _, tool, ok, _ in log] == [
+        ("p2", "table_check", True), ("p1", "table_bet", True), ("p2", "table_all_in", True)]
+    assert "table_all_in" in log[2][1]
+    assert result.outputs["stacks"] == [900, 200]  # Ben's 100 called 100 of the 300; the other 200 went back
+
+
+def test_two_pots_on_one_player_type_are_refused_because_they_would_share_chips():
+    contract = _table([100, 100])
+    contract["mechanisms"]["side"] = {**contract["mechanisms"]["table"], "stack": 500}
+    found = _errors(contract)
+    assert [i.path for i in found] == ["mechanisms.side.who"] and "'table' already bets with player" in found[0].message
+
+
+def test_a_pot_game_is_conformant_when_stacks_grow_past_the_start():
+    contract = {**_table([30, 30, 30], blinds=[1, 2]), "clock": {"rounds": 4, "unit": "hand"}}
+    report = fg_env.rl.conformance(contract, sims=3, seed=2, max_steps=300)
+    assert report.ok, report.summary()
+
+
 def test_split_pots_give_the_odd_chip_left_of_the_button_and_antes_count():
     contract = _table([51, 51, 51, 100], score="$it.seat * 0", streets={"betting": []}, ante=1)
     moves = {"p2": [("table_all_in", {})], "p3": [("table_call", {})], "p4": [("table_fold", {})], "p1": [("table_call", {})]}

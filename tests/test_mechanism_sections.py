@@ -4,6 +4,7 @@ from typing import Dict
 import pytest
 from pydantic import BaseModel, ConfigDict, Field
 
+import fg_env
 from fg_env.guides import guide
 from fg_env.mechanisms import expand_mechanisms
 from fg_env.registry import mode
@@ -77,3 +78,26 @@ def test_the_guide_documents_nested_mechanism_config_and_nested_typos_name_their
     _, issues = expand_mechanisms({"mechanisms": {"r": {**_use("rules"), "rules": {"a": {"limt": 1}}}}})
     assert [(i.path, i.message, i.fix) for i in issues] == [
         ("mechanisms.r.rules.a.limt", "`limt` is not a field of `rules.a`", "did you mean 'limit'? `rules.a` takes: limit")]
+
+
+AUCTION = {"sale": {"kind": "market", "mode": "auction", "format": "first_price", "who": "bidder"}}
+
+
+@pytest.mark.parametrize("section, value, shape", [("entities", [{"type": "bidder"}], "an object"), ("world", [], "an object"),
+                                                   ("stages", {"bid": {}}, "a list"), ("events", "none", "a list")])
+def test_a_malformed_section_is_reported_as_such_before_any_mechanism_expands(section, value, shape):
+    contract = {"name": "Sale", "types": {"bidder": {"agent": True}}, section: value, "mechanisms": AUCTION}
+    found = [i for i in fg_env.check(contract) if i.severity == "error"]
+    assert [i.path for i in found] == [section] and found[0].message.startswith(f"must be {shape}, got"), found
+    assert "bug in the mechanism" not in str(found)
+
+
+def test_declaring_a_world_property_a_mechanism_keeps_is_an_error_naming_the_fix():
+    ballot = {"a": {"kind": "decision", "mode": "ballot", "who": "voter", "options": ["yes", "no"]}}
+    contract = {"name": "Vote", "types": {"voter": {"agent": True}}, "population": [{"type": "voter", "count": 3}],
+                "world": {"a_result": 5}, "mechanisms": ballot}
+    found = [i for i in fg_env.check(contract) if i.severity == "error"]
+    assert [i.path for i in found] == ["world.a_result"] and "the mechanism 'a' keeps" in found[0].message
+    assert "rename" in found[0].fix
+    expanded = fg_env.expand({**contract, "world": {}}, mechanisms=True)  # an expanded contract loads again unchanged
+    assert [i for i in fg_env.check(expanded) if i.severity == "error"] == []

@@ -152,3 +152,30 @@ def test_misconfigured_matching_says_how_to_fix_it():
     with pytest.raises(fg_env.ContractError) as caught:
         fg_env.load(contract)
     assert "not a declared type" in str(caught.value)
+
+
+def _applied(contract, applied):
+    contract["types"]["student"]["props"] = {"applied": {"type": "list", "default": []}}
+    for student, schools in applied.items():
+        contract["entities"][student]["props"]["applied"] = schools
+    return contract
+
+
+def test_eligible_limits_the_rank_tools_and_an_ineligible_pair_never_matches():
+    # m1 applied only to w2. Unrestricted, the textbook instance matches m1-w1, m2-w2, m3-w3.
+    applied = {"m1": ["w2"], "m2": ["w1", "w2", "w3"], "m3": ["w1", "w2", "w3"]}
+    eligible = "$receiver.id in $proposer.applied"
+    agents = _applied(_market({s: [] for s in MEN}, WOMEN, agents=("student",), eligible=eligible), applied)
+    env = fg_env.load(agents, seed=1)
+    schema = env.actions.tool(env.world.entities["m1"], "admit_rank").input_schema["properties"]["ranking"]
+    assert schema["items"]["enum"] == ["w2"]
+    replies = {}
+
+    def rank(wake):
+        replies[wake.entity_id] = wake.call("admit_rank", {"ranking": MEN[wake.entity_id]})
+        wake.end()
+
+    assert env.run(rank).error is None
+    assert not replies["m1"].ok and replies["m2"].ok
+    coded = _applied(_market(MEN, WOMEN, eligible=eligible), applied)  # coded rankings are cut to eligible partners
+    assert _matched(_run(coded)) == {"m1": "w2", "m2": "w3", "m3": "w1"}

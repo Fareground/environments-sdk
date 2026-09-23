@@ -112,11 +112,12 @@ class OrderBookConfig(BaseModel):
                        + "; $book(name).bar is the bar in progress.")
     depth_levels: int = Field(5, ge=1, le=50, description="Price levels per side shown in the book view.")
     tape: int = Field(50, ge=1, description="Recent trades kept in the <name>_tape record.")
-    volatility: Union[float, str] = Field(0.02, description="Per-round return volatility coded strategies assume before the tape shows one, and the default "
-                                                          "fair value walks at (number or expression). The traded price only follows "
-                                                          "the value as far as fundamentalists pull it, so a crowd's realised volatility "
-                                                          "is lower (without fundamentalists, far lower): measure it with $market_stats.")
-    measure_volatility: bool = Field(True, description="Coded strategies measure volatility from recent closes; false makes them always assume `volatility` (a calibrated value).")
+    volatility: Union[float, str] = Field(0.02, description="Per-round return volatility the default fair value walks at, that market makers "
+                                                          "price their spread and their reading of order flow by, and other coded "
+                                                          "strategies assume before the tape shows one (number or expression). Market "
+                                                          "makers move their quotes with net order flow, so informed traders carry the "
+                                                          "price toward the value; without fundamentalists it wanders with the noise.")
+    measure_volatility: bool = Field(True, description="Coded strategies other than market makers measure volatility from recent closes; false makes them always assume `volatility` (a calibrated value).")
     base_qty: Optional[Union[float, str]] = Field(None, description="Coded strategies' unit of order size (default 10 lots); an expression is read on every turn, so a controller can steer it.")
     flow_scale: Optional[str] = Field(None, description="Expression multiplying speculative order sizes (momentum, noise, passive); default 1.")
     sentiment: Optional[str] = Field(None, description="Expression for market sentiment in [-1, 1] that tilts noise traders toward buying or selling; default 0.")

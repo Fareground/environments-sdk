@@ -433,3 +433,6 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
         check_game(self)
         check_scans(self)
         check_assets(self, BASE)
+        from ..mechanisms import separate_turns
+
+        self.issues.extend(separate_turns(c._source or {}))

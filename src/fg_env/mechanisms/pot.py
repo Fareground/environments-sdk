@@ -21,11 +21,12 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, is_expr
-from ..registry import MechanismError, family_action, mode
+from ..registry import MechanismError, family_action, mode, use_key
 from ..world import Abort
 from ._common import ToolsSetting, tools_field
 from ._game import game_section
 from .contract_cache import parse_kind, per_contract
+from .econ_base import lineage
 
 __all__ = ["PotConfig", "side_pots", "uncalled"]
 
@@ -165,7 +166,7 @@ def options(world: Any, config: PotConfig, name: str, player: Entity) -> Dict[st
             "can_check": turn and to_call == 0, "can_call": turn and to_call > 0 and stack > 0,
             "can_bet": can_bet, "min_bet": min(min_bet, stack),
             "can_raise": can_raise, "min_raise_to": min(current + world.props[f"{name}_min_raise"], bet + stack),
-            "max_to": bet + stack, "can_all_in": (can_raise or can_bet) and stack > to_call,
+            "max_to": bet + stack, "can_all_in": turn and stack > 0 and (stack <= to_call or can_raise or can_bet),
             "pot": sum(_p(p, "committed") for p in world.entities_of(config.who))}
 
 
@@ -511,6 +512,10 @@ def _pot_table_function(call: Call) -> List[str]:
 
 def _actions(name: str, config: PotConfig) -> Dict[str, Any]:
     opts = f"$pot_options('{name}', $actor)"
+    # Before the first hand, when the game layer numbers every call, a bet or raise may be anything up to every chip
+    # at the table (a stack can grow that far); in a hand the bounds are the legal ones.
+    dealt = f"$world.{name}_hands > 0"
+    table = f"$sum({config.who}, $it.stack + $it.committed)"
     turn = {"expr": f"$world.{name}_to_act == $actor.id", "why": "It is not your turn to bet."}
     all_in = "{$' (all-in)' if $actor.stack == 0 else ''}"
 
@@ -533,16 +538,30 @@ def _actions(name: str, config: PotConfig) -> Dict[str, Any]:
         f"{name}_bet": act("Open the betting: `amount` chips, at least the minimum bet (or all you have).", "can_bet",
                    "You cannot bet now (there is a bet already, or nobody left to bet against).", "bet",
                    f"{{$actor.name}} bets {{$params.amount}}{all_in}.", f"You bet {{$params.amount}}{all_in}. {pot}",
-                   {"amount": {"type": "int", "min": f"{opts}.min_bet", "max": "$actor.stack", "description": "Chips to bet."}}),
+                   {"amount": {"type": "int", "min": f"{opts}.min_bet if {dealt} else 1", "max": f"$actor.stack if {dealt} else {table}",
+                               "description": "Chips to bet."}}),
         f"{name}_raise": act("Raise: `to` is your new TOTAL bet for this betting round — at least the highest bet plus the last "
                      "raise size, at most everything you have.", "can_raise",
                      "You cannot raise now: nobody has made a full raise since you acted, or you lack the chips.", "raise",
                      f"{{$actor.name}} raises to {{$params.to}}{all_in}.", f"You raised to {{$params.to}}{all_in}. {pot}",
-                     {"to": {"type": "int", "min": f"{opts}.min_raise_to", "max": f"{opts}.max_to",
+                     {"to": {"type": "int", "min": f"{opts}.min_raise_to", "max": f"{opts}.max_to if {dealt} else {table}",
                              "description": "Your total bet after raising."}}),
-        f"{name}_all_in": act("Put all your chips in.", "can_all_in", "Going all-in would not be a legal raise now: call or fold.",
+        f"{name}_all_in": act("Put all your chips in (a call, when they do not cover the bet).", "can_all_in",
+                      "Going all-in would be a raise, and raising is not open to you now: call or fold.",
                       "all_in", "{$actor.name} goes all-in (bet {$actor.bet}).", f"You are all-in. {pot}"),
     }
+
+
+def _one_pot_per_player(name: str, config: PotConfig, contract: Mapping[str, Any]) -> None:
+    """Chips are the players' own props (stack, bet, committed …), so two tables on one player type would share them."""
+    for other, use in (contract.get("mechanisms") or {}).items():
+        if other == name:
+            return
+        who = use.get("who") if use_key(use) == KEY else None
+        if isinstance(who, str) and (who in lineage(contract, config.who) or config.who in lineage(contract, who)):
+            raise MechanismError(f"'{other}' already bets with {config.who}: two pots on one player type would share its "
+                                 "chips (stack, bet, committed)",
+                                 "keep one pot, or give each table its own player type", "who")
 
 
 @mode("game", "pot", PotConfig,
@@ -561,6 +580,7 @@ def _expand_pot(name: str, config: PotConfig, contract: Mapping[str, Any]) -> Di
     types = contract.get("types") or {}
     if config.who not in types:
         raise MechanismError(f"who '{config.who}' is not a declared type", f"types: {', '.join(types) or 'none'}", "who")
+    _one_pot_per_player(name, config, contract)
     if config.blinds is not None and len(config.blinds) != 2:
         raise MechanismError("blinds are [small, big]", "e.g. [5, 10]", "blinds")
     if not config.streets:

@@ -27,8 +27,8 @@ Config:
 - `bar_rounds` (default 1): Rounds in one OHLCV bar of the `<name>_bars` record (a bar of several passes) (number or expression over $inputs, resolved when the world is built); $book(name).bar is the bar in progress.
 - `depth_levels` (default 5): Price levels per side shown in the book view.
 - `tape` (default 50): Recent trades kept in the <name>_tape record.
-- `volatility` (default 0.02): Per-round return volatility coded strategies assume before the tape shows one, and the default fair value walks at (number or expression). The traded price only follows the value as far as fundamentalists pull it, so a crowd's realised volatility is lower (without fundamentalists, far lower): measure it with $market_stats.
-- `measure_volatility` (default true): Coded strategies measure volatility from recent closes; false makes them always assume `volatility` (a calibrated value).
+- `volatility` (default 0.02): Per-round return volatility the default fair value walks at, that market makers price their spread and their reading of order flow by, and other coded strategies assume before the tape shows one (number or expression). Market makers move their quotes with net order flow, so informed traders carry the price toward the value; without fundamentalists it wanders with the noise.
+- `measure_volatility` (default true): Coded strategies other than market makers measure volatility from recent closes; false makes them always assume `volatility` (a calibrated value).
 - `base_qty` (default null): Coded strategies' unit of order size (default 10 lots); an expression is read on every turn, so a controller can steer it.
 - `flow_scale` (default null): Expression multiplying speculative order sizes (momentum, noise, passive); default 1.
 - `sentiment` (default null): Expression for market sentiment in [-1, 1] that tilts noise traders toward buying or selling; default 0.

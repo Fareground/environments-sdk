@@ -44,6 +44,7 @@ from ..world import Abort
 from ._common import ToolsSetting, tools_field
 from ._social import check_expr
 from .common import config_of, entity_of, fmt, number
+from .econ_base import money_prop
 from .ledger import Account, balance, clean, move
 from .package_auction import MAX_PACKAGE_BIDS, MAX_PACKAGE_ITEMS, PackageBid, SearchLimit, settle
 
@@ -618,8 +619,8 @@ def _register_actions() -> None:
 _register_actions()
 
 
-def _party_props(name: str, cfg: AuctionConfig) -> Dict[str, Any]:
-    props = {cfg.currency: {"type": "number", "default": 0},
+def _party_props(name: str, cfg: AuctionConfig, contract: Mapping[str, Any], holder: str) -> Dict[str, Any]:
+    props = {**money_prop(contract, holder, cfg.currency),
              f"{name}_units": {"type": "int", "default": 0, "description": f"Units of {cfg.item} held."},
              f"{name}_escrow": {"type": "number", "default": 0, "private": True, "description": "Cash held for open bids."},
              f"{name}_escrow_units": {"type": "int", "default": 0, "private": True},
@@ -673,9 +674,11 @@ def _check_packages(cfg: AuctionConfig) -> None:
            "and, for double, `<name>_ask`. Bids escrow cash, asks escrow units; proceeds go to the `house` entity or "
            "$world.<name>_revenue. `reverse: true` makes it a procurement tender (the house buys; the lowest offer at or below "
            "the reserve wins and is paid); `score` awards a first_price lot to the best score instead of the best price. "
-           "Each closed lot is posted to the `<name>_results` record (winner, price, qty, lot, note): read the "
-           "last sale as $auction(<name>).last.winner and .price: null before the first lot closes, kept until another "
-           "closes. The other fields of $auction(name) describe the open lot; $auction_text(name, viewer) describes it.",
+           "Each closed lot is posted to the `<name>_results` record, one entry per winner (winner, price, qty, lot, note; "
+           "an unsold lot has one entry with winner ''). $auction(<name>).last is the latest closed lot, sold or not: "
+           "{lot, winner (the first winner, '' when unsold), winners, price (the first winner's price per unit; in a "
+           "uniform auction every winner pays it), qty (units sold), note}, null before the first lot closes; output "
+           "`<name>_prices` lists the price of every winning entry. The other fields of $auction(name) describe the open lot; $auction_text(name, viewer) describes it.",
            example={"format": "second_price", "who": "collector", "item": "a painting", "stock": 3, "reserve": 50})
 def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     types = contract.get("types") or {}
@@ -689,14 +692,14 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
     _check_packages(cfg)
     _check_award(cfg)
     packaged = cfg.format == "combinatorial"
-    party_types = {cfg.who: {"props": _party_props(name, cfg)}}
+    party_types = {cfg.who: {"props": _party_props(name, cfg, contract, cfg.who)}}
     if cfg.format == "double":
-        party_types[cfg.sellers or cfg.who] = {"props": _party_props(name, cfg)}
+        party_types[cfg.sellers or cfg.who] = {"props": _party_props(name, cfg, contract, cfg.sellers or cfg.who)}
     if cfg.house:
         entity = (contract.get("entities") or {}).get(cfg.house)
         if not isinstance(entity, Mapping) or entity.get("type") not in types:
             raise MechanismError(f"house '{cfg.house}' is not a declared entity", "declare it under entities", "house")
-        party_types[entity["type"]] = {"props": _party_props(name, cfg)}
+        party_types[entity["type"]] = {"props": _party_props(name, cfg, contract, entity["type"])}
     sealed = cfg.format in SEALED
     single = cfg.format not in ("uniform", "double")
     receipt = f"{{$world.{name}_receipt}}"
@@ -786,7 +789,7 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
         "outputs": {f"{name}_sold": {"expr": f"$world.{name}_sold", "type": "int", "description": "Units sold."},
                     f"{name}_revenue": {"expr": f"$world.{name}_revenue", "type": "number", "description": "House proceeds."},
                     f"{name}_prices": {"expr": f"$map($filter($records({name}_results), $it.winner != ''), $it.price)",
-                                       "type": "list", "description": "Clearing price of each sale."}},
+                                       "type": "list", "description": "Price per unit of each winning entry (one per winner of a lot)."}},
     }
     names = list(actions)
     if not sealed:

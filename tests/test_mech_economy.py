@@ -344,6 +344,28 @@ def test_net_worth_counts_money_goods_and_loans():
     assert env.props["priced"] == pytest.approx(70 + 15 - 20)
 
 
+def _traders(props, book_first=False, start=500):
+    money = {"kind": "economy", "mode": "ledger", "who": "trader", "currencies": {"cash": {} if start is None else {"start": start}}}
+    book = {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 10}
+    return {"name": "Traders", "clock": {"rounds": 1}, "types": {"trader": {"agent": True, "props": props}},
+            "population": [{"type": "trader", "count": 2}],
+            "mechanisms": {"x": book, "money": money} if book_first else {"money": money, "x": book},
+            "outputs": {"cash": "$sum(trader, $it.cash)"}}
+
+
+def test_a_holder_type_that_declares_the_currency_cannot_silently_replace_the_ledgers_start():
+    found = errors(_traders({"cash": 0}))
+    assert [i.path for i in found] == ["mechanisms.money.currencies.cash.start"]
+    assert "types.trader.props.cash" in found[0].message and "remove types.trader.props.cash" in found[0].fix
+    assert errors(_traders({"cash": {"type": "number", "default": 500, "unit": "$"}})) == []  # the same start: no conflict
+    assert fg_env.run(_traders({"cash": 80}, start=None), "idle", seed=1).outputs["cash"] == 160  # no start: the type's
+
+
+@pytest.mark.parametrize("book_first", [False, True])
+def test_the_ledgers_start_holds_whichever_market_is_declared_first(book_first):
+    assert fg_env.run(_traders({}, book_first=book_first), "idle", seed=1).outputs["cash"] == 1000
+
+
 # ---------------------------------------------------------------------------
 # production
 # ---------------------------------------------------------------------------

@@ -12,7 +12,8 @@ from ..world import Abort
 from ._common import ToolsSetting, tools_field
 from .econ_assets import balance, move_money
 from .econ_base import (INVENTORY, LEDGER, amount, checked_config, props, choice_param, config_of, declared_names, emit_to,
-                        entity_of, guarded, money, register_config, run_hook, require_types, type_list, valid_name, whole)
+                        entity_of, guarded, lineage, money, register_config, run_hook, require_types, type_list, valid_name,
+                        whole)
 from .econ_inventory import agent_types
 
 __all__ = ["LedgerConfig"]
@@ -21,7 +22,8 @@ __all__ = ["LedgerConfig"]
 class CurrencySpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    start: Union[float, str] = Field(0.0, description="Starting balance of every holder (number or expression).")
+    start: Union[float, str] = Field(0.0, description="Starting balance of every holder (number or expression); a holder type "
+                                                       "must not declare the currency too, but a population or entity may set its own.")
     credit: Union[float, str, None] = Field(None, description="How far below zero a holder may go (number or expression); none when omitted.")
     unit: str = Field("", description="Unit shown with amounts.")
     value: float = Field(1, description="Worth of one unit in $net_worth.")
@@ -121,6 +123,8 @@ def _expand_ledger(name: str, config: LedgerConfig, contract: Mapping[str, Any])
     for currency, spec in config.currencies.items():
         if not valid_name(currency):
             raise MechanismError(f"currency '{currency}' is not a valid name", "use letters, digits and _ (not a word expressions use, like in or not)", f"currencies.{currency}")
+        if "start" in spec.model_fields_set:
+            _start_holds(contract, holders, currency, spec.start)
         holder_props[currency] = {"type": "number", "default": spec.start, "unit": spec.unit,
                                   "description": spec.description or f"Money held ({currency})."}
         if spec.credit is not None:
@@ -145,6 +149,20 @@ def _expand_ledger(name: str, config: LedgerConfig, contract: Mapping[str, Any])
         shown = " · ".join(f"{{{c}}} {c}" for c in config.currencies)  # money is not always dollars
         fragment["views"] = {f"{name}_balance": {"for": agents, "title": "Your money", "bullet": False, "show": shown}}
     return fragment
+
+
+def _start_holds(contract: Mapping[str, Any], holders: List[str], currency: str, start: Any) -> None:
+    """A holder type that declares the currency itself would silently replace the ledger's starting balance."""
+    for kind, spec in (contract.get("types") or {}).items():
+        declared = ((spec or {}).get("props") or {}).get(currency) if isinstance(spec, Mapping) else None
+        if declared is None or not set(holders) & set(lineage(contract, kind)):
+            continue
+        default = declared.get("default") if isinstance(declared, Mapping) else declared
+        if default != start:
+            raise MechanismError(
+                f"types.{kind}.props.{currency} (default {money(default)}) would replace this starting balance ({money(start)})",
+                f"remove types.{kind}.props.{currency} (the ledger declares it), or drop `start` here; a population or "
+                f"entity may still set its own {currency}", f"currencies.{currency}.start")
 
 
 def _source_event(name: str, config: LedgerConfig, source: str, spec: SourceSpec, contract: Mapping[str, Any]) -> Dict[str, Any]:
