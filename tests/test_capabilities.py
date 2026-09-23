@@ -135,3 +135,11 @@ def test_check_smoke_round_and_cli_preview_after_rounds(tmp_path, capsys):
     path.write_text(json.dumps(EXCHANGE))
     assert main(["preview", str(path), "m", "--rounds", "1", "--agent", "idle"]) == 0
     assert "Round 2 of 2 · quote" in capsys.readouterr().out  # the next real turn, after one played round
+
+
+def test_checker_refuses_a_number_compared_with_a_bare_word():
+    c = {"name": "Typos", "clock": {"rounds": 2}, "world": {"price": 5},
+         "types": {"buyer": {"agent": True, "props": {"cash": 10}}}, "entities": {"a": {"type": "buyer"}},
+         "actions": {"buy": {"by": "buyer", "when": "$actor.cash > price", "do": "$actor.cash -= $world.price"}}}
+    with pytest.raises(ContractError, match="is a number, compared with the text 'price'"):
+        fg_env.load(c)

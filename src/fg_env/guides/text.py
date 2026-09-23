@@ -46,7 +46,9 @@ turn, uses `max_actions`, or runs out of `max_calls`.
   but triggers, reactions and invariants wait until the turn ends. `valid` conditions (`$actor`, `$pending`)
   are checked when a turn that acted ends; if one fails, every action of the turn is undone, the agent is
   told `why` and plays the turn again (castling through check, a full backgammon move). `valid` makes a
-  stage atomic. In a simultaneous stage each agent's choices commit or are undone together.
+  stage atomic. An action that draws randomness settles the turn so far at once, so later actions cannot
+  undo its luck (if `valid` fails then, the turn is undone and over). In a simultaneous stage each agent's
+  choices commit or are undone together.
 * Views with `"for": "spectator"` are an omniscient picture for UIs and reports: rendered at the end of
   every round into `result.frames` (the last marked `final`) and on demand by `env.spectate()`, never
   shown to an agent. They have no `$actor`; randomness they draw never changes the run.
@@ -81,16 +83,17 @@ turn, uses `max_actions`, or runs out of `max_calls`.
 What an agent reads:
 * brief (static, cacheable): name, situation, rules, its identity and role text.
 * update: time label and stage, why it is acting, "Since your last turn" (announcements of
-  others' actions, outcomes of its own simultaneous actions, record entries, event news), then
-  every declared view that applies. Text written by participants is wrapped «like this».
+  others' actions, outcomes of its own simultaneous actions, record entries, event news; in a busy round what is
+  addressed to it is always shown, then the newest news, then the newest of others' actions, and the rest counted),
+  then every declared view that applies. Text written by participants is wrapped «like this».
 * tools: one per legal action with a JSON Schema (entity choices as enums, numeric bounds when
   they depend only on the actor), plus look/inspect/end_turn. Invalid calls return what to fix. An action's name is
   its tool's name, so it must be one providers accept (letters, digits, _ and -, at most 64) and not a built-in's.
 
 Unless an action is `private` or sets `announce`, others read a default line
 "Name: action (args)." — in a simultaneous stage only "Name: action." (sealed choices stay sealed
-unless `announce` reveals them); an action that posts to a record announces nothing extra (the entry
-is the news). Text an agent types (text params) keeps its provenance wherever it is stored and
+unless `announce` reveals them), and without the arguments the action writes into a private property;
+an action that posts to a record announces nothing extra (the entry is the news). Text an agent types (text params) keeps its provenance wherever it is stored and
 always renders «quoted» on one line, in news, views and outcomes.
 
 An action applies atomically: if any effect `fail`s or a `transfer` lacks funds, every change
@@ -104,13 +107,15 @@ EXPRESSIONS = """\
 Any string containing `$name` is an expression; other strings are literal text.
 * Roots: `$actor`, `$params`, `$it`, `$inputs`, `$world`, … (which ones depend on where — see below).
 * Functions: `$count(buyer, $it.cash > 0)`. Per-item arguments bind `$it` (and `$i`).
-* Bare words are text: `$actor.status == open`, `$count(offer)`. `true false null` are literals.
+* Bare words are text: `$actor.status == open`, `$count(offer)`. `true false null` are literals. A condition that
+  is only a word (`"when": "deal"`) is text, always true: write `$world.deal`.
   Quote text with spaces: `$actor.mood == 'very happy'`. Any word may name a type, entity, property or item
   (`class`, `from` and `def` too) except the language's own `and or not in if else true false null`.
 * Operators: `+ - * / // % **`, `== != < <= > >=`, `and or not` (`&& || !`), `in`,
   `a if cond else b`, lists `[1, 2]`, indexing `$top(offer, $it.price, 1)[0]`.
 * Entities expose `id name type alive at` and their props. Comparing an entity with an id works.
-* Maps: `{wage: 3, 'job years': 2}`; read with `.key` or `$get(map, key, default)`.
+* Maps: `{wage: 3, 'job years': 2}`; read with `.key` or `$get(map, key, default)`. Keys are text, as in JSON:
+  `{1: 3}` holds the key `'1'`, which `$get(m, 1)`, `m[1]` and `1 in m` all find.
 * Nested per-item functions rebind `$it`; the enclosing item is `$outer`:
   `$sum(trader, $sum(order, $it.qty, $it.owner == $outer.id))`.
 * Every function call needs its `$`: `$max(a, b)`, never `max(a, b)`.
@@ -187,14 +192,15 @@ Assignment text:
 * `"$actor.cash -= $params.qty * $params.offer.price"` — also `=`, `+=`, `*=`, `/=`; targets are
   entity props (`$actor.x`, `$params.offer.x`, `$it.x`), `$world.x`, `$physics.x`.
 * `"$total = $params.qty * 2"` — a local (`$total`) usable by later effects and the outcome.
-* `+=`/`-=` on a list prop append/remove an item.
+* `+=`/`-=` on a list prop append/remove an item; `-=` removes one copy per item (`[1, 2, 2] -= 2` leaves
+  `[1, 2]`), comparing like `==`.
 * Element assignment: `"$world.board[$i] = $actor.mark"`, `"$actor.scores[round_2] += 1"` (lists and maps).
 * Links: `"$link($actor, $params.who, trusts).value += 0.1"`, `"$link($actor, $params.who, trusts).since = $round"`
   (the link must exist; its value keeps to the relation's min/max and fields are typed, like props).
 * A write past a numeric prop's, link value's or layer cell's min/max is refused, like a transfer that does not
   fit: an action is rolled back and its actor told why; world logic (an event, a stage hook) that does it fails
   the run at its path. To saturate, say so: `$clamp(x, low, high)`.
-  Types are enforced.
+  Types are enforced: null too, which only a prop declared with `"default": null` (or no default) may hold.
 
 Operation objects (exactly one operation key each):
 OPS
@@ -231,7 +237,7 @@ EFFECT_EXAMPLES = {
     "fail": '{"fail": "You cannot afford that."}  (roll back the action; text goes to the actor)',
     "end": '{"end": "bankrupt", "winner": "$top(player, $it.score, 1)[0]", "say": "..."}',
     "after": '{"after": 3, "do": [...]}  (runs 3 rounds later with the same locals; on a continuous clock, 3 time units later)',
-    "wake": '{"wake": "$params.who", "why": "{$actor.name} asked you a question."}  (a turn later; "now": true — they react as soon as this action has taken effect, before this turn continues (a reaction cannot stop or change the action that woke them: to let others answer first, use a procedure stack); "in": 5 — continuous clock, that much later; "drop": 0.2 — the wake may be lost)',
+    "wake": '{"wake": "$params.who", "why": "{$actor.name} asked you a question."}  (a turn later; "now": true — they react as soon as this action has taken effect, before this turn continues (a reaction cannot stop or change the action that woke them: to let others answer first, use a procedure stack; reactions set off more than 4 deep wait for a normal turn); "in": 5 — continuous clock, that much later; "drop": 0.2 — the wake may be lost)',
     "repeat": '{"repeat": "$count(order)", "while": "$count(order) > 1", "do": [...]}  (limit may be an expression; derive it from the data, not an arbitrary constant; 0 runs nothing; error if still true at the limit)',
     "block": '{"block": "settle", "with": {"buyer": "$actor", "qty": "$params.qty"}}  (runs a named effect list from `blocks`)',
     "chance": '{"chance": [{"p": 0.5, "label": "heads", "do": [...]}, {"p": 0.5, "label": "tails", "do": [...]}], '
@@ -293,9 +299,13 @@ RECIPES = """\
   An agent's private prop is shown only to that agent: reading another agent's in anything worked out for one agent
   (views, sort keys, tool choices and bounds, outcome text, briefs, policies, defs they call) is an error at run
   time, however it is spelled. Reveal what an agent may learn by working it out in game logic
-  (`"do": ["$seen = $params.target.role"], "outcome": "... {$seen}"`, or a prop the agent owns). A `when` that reads
-  another agent's private prop does not hide the tool: it stays listed and a call is refused when the `when` fails.
-  A private prop of an entity that is not an agent is hidden from inspect; the views say who sees it. A refusal
+  (`"do": ["$seen = $params.target.role"], "outcome": "... {$seen}"`, or a prop the agent owns). Text sent to
+  several agents — an `announce`, an event's or trigger's `say`, an emit's `say` without a lone `to` — may read no
+  agent's private prop, not even the actor's: reveal it the same way (`"$shown = $actor.card"`, then `{$shown}`).
+  The engine's own refusals (a transfer that does not fit, a bound) never show another agent's private value. A
+  `when` that reads another agent's private prop does not hide the tool: it stays listed and a call is refused when
+  the `when` fails. A private prop of an entity that is not an agent is hidden from inspect; the views say who sees
+  it. An entity's type is public (inspect names it): keep a secret role in a private prop, not a subtype. A refusal
   is information too — a `when` or `fail` that reads hidden state tells the actor something about it. Visibility
   shapes only what an agent is shown or offered (brief, updates, views, tool choices, outcome text, its policy); game logic — action
   `when`/`do`, events, triggers, stages, `end`, metrics, outputs, invariants — reads every record entry and event,
@@ -515,7 +525,8 @@ Every truncated reply wastes its whole output: for frequent decisions use `reaso
 evaluation it cut cost by 38% with no visible loss in play), or keep the default effort with a larger `max_tokens`
 (6,000 was cut off 9 times in 96 turns).
 Their real token usage is in `result.stats` (`llm_calls`, `input_tokens`, `output_tokens`,
-`cache_read_tokens`, `cache_write_tokens`, `llm_retries`, `forfeits`, `truncated`, `refusals`); your own
+`cache_read_tokens`, `cache_write_tokens`, `llm_retries`, `forfeits`, `truncated`, `refusals`, and `out_of_steps`:
+turns that used all `max_steps` model calls); a seat most of whose turns fail degrades the run; your own
 participants can add theirs with `wake.record_usage(...)`.
 Built-ins: `"random"`, `"idle"`, `"policy:<name>"`, and game algorithms `"mcts:N"`, `"ismcts:N"`, `"minimax[:depth]"`, `"cfr:<policy.json|iterations>"`.
 
@@ -547,7 +558,10 @@ the first few entities of each type with every prop (`result.state`), so you can
 * a tool offered when none of its choices could succeed;
 * sealed choices that overwrite each other's values;
 * an agent type that never had an action it could take;
-* a coded policy rule whose call was refused every time it was tried (`policy_rule_never_acted`), quoting the refusal;
+* a coded policy rule whose call was refused every time it was tried (`policy_rule_never_acted`), quoting the refusal,
+  and a `repeat` policy's rule that was refused after it had acted (`policy_repeat_refused`);
+* agents that never acted, or most of whose turns ended with no action after failed calls (`agents_never_acted`,
+  `agents_mostly_failed`), and turns an LLM participant ended out of `max_steps` (`out_of_steps`);
 * a stage that can never run, or a measure that reads only what no rule changes;
 * host answers that were the contract's fallback stand-ins because no host was bound;
 * with model participants, an action that was mostly refused.

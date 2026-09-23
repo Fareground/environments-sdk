@@ -41,7 +41,9 @@ turn, uses `max_actions`, or runs out of `max_calls`.
   but triggers, reactions and invariants wait until the turn ends. `valid` conditions (`$actor`, `$pending`)
   are checked when a turn that acted ends; if one fails, every action of the turn is undone, the agent is
   told `why` and plays the turn again (castling through check, a full backgammon move). `valid` makes a
-  stage atomic. In a simultaneous stage each agent's choices commit or are undone together.
+  stage atomic. An action that draws randomness settles the turn so far at once, so later actions cannot
+  undo its luck (if `valid` fails then, the turn is undone and over). In a simultaneous stage each agent's
+  choices commit or are undone together.
 * Views with `"for": "spectator"` are an omniscient picture for UIs and reports: rendered at the end of
   every round into `result.frames` (the last marked `final`) and on demand by `env.spectate()`, never
   shown to an agent. They have no `$actor`; randomness they draw never changes the run.
@@ -76,16 +78,17 @@ turn, uses `max_actions`, or runs out of `max_calls`.
 What an agent reads:
 * brief (static, cacheable): name, situation, rules, its identity and role text.
 * update: time label and stage, why it is acting, "Since your last turn" (announcements of
-  others' actions, outcomes of its own simultaneous actions, record entries, event news), then
-  every declared view that applies. Text written by participants is wrapped «like this».
+  others' actions, outcomes of its own simultaneous actions, record entries, event news; in a busy round what is
+  addressed to it is always shown, then the newest news, then the newest of others' actions, and the rest counted),
+  then every declared view that applies. Text written by participants is wrapped «like this».
 * tools: one per legal action with a JSON Schema (entity choices as enums, numeric bounds when
   they depend only on the actor), plus look/inspect/end_turn. Invalid calls return what to fix. An action's name is
   its tool's name, so it must be one providers accept (letters, digits, _ and -, at most 64) and not a built-in's.
 
 Unless an action is `private` or sets `announce`, others read a default line
 "Name: action (args)." — in a simultaneous stage only "Name: action." (sealed choices stay sealed
-unless `announce` reveals them); an action that posts to a record announces nothing extra (the entry
-is the news). Text an agent types (text params) keeps its provenance wherever it is stored and
+unless `announce` reveals them), and without the arguments the action writes into a private property;
+an action that posts to a record announces nothing extra (the entry is the news). Text an agent types (text params) keeps its provenance wherever it is stored and
 always renders «quoted» on one line, in news, views and outcomes.
 
 An action applies atomically: if any effect `fail`s or a `transfer` lacks funds, every change

@@ -41,7 +41,7 @@ def test_the_default_crowd_follows_the_balanced_preset_and_is_calibrated_to_the_
     with open(PATH.parent / "exchange_flagship" / "seed_history.csv", newline="") as handle:
         history = [{k: float(v) for k, v in row.items()} for row in csv.DictReader(handle)][-120:]
     avg_volume = sum(row["volume"] for row in history) / len(history)
-    expected_orders = 12 * (18 * 0.9 + 54 * 0.12 + 48 * 0.15 + 42 * 0.08 + 120 * 0.06 + 18 * 0.5)
+    expected_orders = 8 * (18 * 0.9 + 54 * 0.12 + 48 * 0.15 + 42 * 0.08 + 120 * 0.06 + 18 * 0.5)
     assert world["target_volume"] == pytest.approx(avg_volume)
     assert world["base_qty"] == pytest.approx(avg_volume / (expected_orders * 0.35))
     assert world["median_capital"] == pytest.approx(world["base_qty"] * history[-1]["close"] / 0.03)
@@ -59,13 +59,18 @@ def test_a_seeded_session_is_deterministic_and_a_snapshot_resumes_it_exactly():
 
 def test_cash_and_shares_are_conserved_through_a_crash_and_its_halts():
     inputs = {**SMALL, "bars": 5, "events": CRASH, "circuit_breaker_pct": 4}
+
+    def totals(world):
+        traders = [e for e in world.entities.values() if e.alive and e.properties.get("demo_shares") is not None]
+        cash = sum(t.properties["cash"] + t.properties["demo_reserved_cash"] for t in traders) + world.props["demo_fees"]
+        return cash, sum(t.properties["demo_shares"] + t.properties["demo_reserved_shares"] for t in traders)
+
+    start_cash, start_shares = totals(fg_env.load(PATH, inputs=inputs, seed=2).world)
     env, result = run(inputs, seed=2)
     assert result.outputs["demo_halts"] > 0
     assert order_book.audit(env.world, "demo") == []
-    traders = [e for e in env.world.entities.values() if e.alive and e.properties.get("demo_shares") is not None]
-    cash = sum(t.properties["cash"] + t.properties["demo_reserved_cash"] for t in traders) + env.world.props["demo_fees"]
-    shares = sum(t.properties["demo_shares"] + t.properties["demo_reserved_shares"] for t in traders)
-    assert cash == pytest.approx(env.world.props["demo_supply"]["cash"]) and shares == env.world.props["demo_supply"]["shares"]
+    cash, shares = totals(env.world)
+    assert cash == pytest.approx(start_cash) and shares == start_shares
 
 
 def test_the_circuit_breaker_halts_the_rest_of_the_bar_and_trading_resumes_at_the_next_bar():

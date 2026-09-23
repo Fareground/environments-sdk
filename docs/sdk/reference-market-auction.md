@@ -27,13 +27,12 @@ Config:
 - `payment` (default "vcg"): combinatorial: vcg (winners pay the value they displace; truthful bids are safe) | pay_bid.
 - `when` (default null): Open lots only when true (e.g. "$round <= 3").
 - `stage` (default null): Bid during this declared stage; default: a stage named after the auction.
-- `conserve` (default true): Declare invariants that cash and units are conserved and escrow matches bids.
+- `conserve` (default true): Declare the invariant that escrow matches open bids and every item is held once.
 - `tools` (default "each"): How the generated tools are offered: each (one tool per action) | one (one tool named after the mechanism, whose `action` argument lists the actions legal now) | auto (one tool only when every action takes the same arguments).
 
 Actions of the `market` op:
-- `bid` — takes `who`, `price`, `qty`, `items` (needs `price`): {"market": "house", "action": "bid", "price": 120}  (bid on the open lot; `qty` for uniform and double, `items` lists a combinatorial package)
+- `bid` — takes `who`, `price`, `qty`, `package` (needs `price`): {"market": "house", "action": "bid", "price": 120}  (bid on the open lot; `qty` for uniform and double, `package` lists the items of a combinatorial bid)
 - `ask` — takes `who`, `price`, `qty` (needs `price`): {"market": "house", "action": "ask", "price": 90, "qty": 1}  (offer units in a double auction)
-- `rebase`: {"market": "house", "action": "rebase"}  (take current cash and unit totals as the supply the invariants conserve)
 
 ```json
 {"mechanisms": {"my_auction": {"kind": "market", "mode": "auction", "format": "second_price", "who": "collector", "item": "a painting", "stock": 3, "reserve": 50}}}

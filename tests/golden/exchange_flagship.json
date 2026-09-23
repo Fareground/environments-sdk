@@ -1,33 +1,33 @@
 {
-  "actions": 171,
-  "events": 171,
-  "events_sha256": "4666b1afd232f74582d7cbc8d1dee0fdb0419fd87c344d794404339954ea9c30",
+  "actions": 157,
+  "events": 157,
+  "events_sha256": "9818ebe116d96e19c294f7e43de622d2cfca4fe0780c88ec2bbcb96c631bee15",
   "first_events": [
     "r1 action seat_1: {\"action\": \"demo_sell\", \"params\": {\"price\": null, \"qty\": 99}, \"private\": true, \"success\": true}",
     "r1 action seat_2: {\"action\": \"demo_sell\", \"params\": {\"price\": null, \"qty\": 100}, \"private\": true, \"success\": true}",
     "r1 action seat_3: {\"action\": \"demo_sell\", \"params\": {\"price\": null, \"qty\": 100}, \"private\": true, \"success\": true}",
     "r1 action seat_4: {\"action\": \"demo_sell\", \"params\": {\"price\": null, \"qty\": 100}, \"private\": true, \"success\": true}",
-    "r1 action demo_market_maker_8: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r1 action demo_noise_104: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r1 action demo_fundamentalist_7: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r1 action demo_market_maker_1: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}",
     "r1 action demo_market_maker_17: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}",
-    "r1 action demo_market_maker_15: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}",
-    "r1 action demo_noise_23: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}",
-    "r1 action demo_market_maker_7: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}",
-    "r1 action demo_fundamentalist_22: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}"
+    "r1 action demo_fundamentalist_1: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r1 action demo_market_maker_18: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}"
   ],
   "metrics": {
-    "demo_mid": 100.325,
-    "demo_orders": 183,
-    "demo_price": 100.05,
-    "demo_spread": 0.55,
-    "demo_volume": 25798.0,
-    "depth": 83670.0,
+    "demo_mid": 100.55,
+    "demo_orders": 140,
+    "demo_price": 100.86,
+    "demo_spread": 0.62,
+    "demo_volume": 70908.0,
+    "depth": 75952.0,
     "flow_scale": 1,
-    "fundamental": 99.56660027,
+    "fundamental": 99.66557536,
     "sentiment": 0,
     "size_scale": 1,
-    "spread_bps": 54.82182906
+    "spread_bps": 61.66086524
   },
   "rounds": 4,
   "status": "running",
-  "wakes": 171
+  "wakes": 157
 }

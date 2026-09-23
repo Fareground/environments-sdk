@@ -72,7 +72,7 @@ def test_refused_selected_entity_update_rolls_back():
         assert not wake.call('transfer').ok
         wake.end()
     result = env.run(play)
-    assert result.ok, result.error
+    assert result.status == 'completed' and result.degraded == ['agents_never_acted'], result.error
     assert result.outputs == {'cash': [100, 100]}
 
 

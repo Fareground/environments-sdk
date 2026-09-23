@@ -2,6 +2,8 @@
 fill arguments whose choices depend on earlier arguments."""
 import copy
 
+import pytest
+
 import fg_env
 
 SHOP = {
@@ -156,3 +158,19 @@ def test_a_suggested_replacement_needs_no_guide_part():
 def test_an_error_that_already_names_a_guide_part_is_not_given_a_second():
     found = errors(fg_env.check(shop(patterns={"demand": {}})))
     assert found and all(i.fix.count("guide(") == 1 for i in found)
+
+
+BASE = {"name": "x", "clock": {"rounds": 2}, "types": {"p": {"agent": True, "props": {"cash": 10}}},
+        "entities": {"a": {"type": "p"}}, "actions": {"go": {"by": "p", "do": ["$actor.cash += 1"]}},
+        "outputs": {"c": "$entity(a).cash"}}
+
+
+@pytest.mark.parametrize("patch, path", [
+    ({"stages": [{"name": "s", "turns": "simultanous"}]}, "stages[0].turns"),
+    ({"stages": [{"name": "s"}, {"name": "s"}]}, "stages[1].name"),
+    ({"types": {"p": {"agent": True, "props": {"cash": 10, "alive": 5}}}}, "types.p.props.alive"),
+    ({"types": {"p": {"agent": True, "extends": "p", "props": {"cash": 10}}}}, "types.p.extends"),
+    ({"actions": {"look": {"by": "p"}, "go": BASE["actions"]["go"]}}, "actions.look"),
+])
+def test_a_contract_mistake_the_engine_would_misread_is_an_error_at_its_path(patch, path):
+    assert path in [i.path for i in fg_env.check(BASE | patch) if i.severity == "error"]

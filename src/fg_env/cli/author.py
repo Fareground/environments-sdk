@@ -26,7 +26,7 @@ def cmd_author(args: argparse.Namespace) -> int:
 
 
 def add_author_command(sub: Any) -> None:
-    from ..authoring import DEFAULT_BUDGET
+    from ..authoring import CACHED_WEIGHT, DEFAULT_BUDGET
     from . import _guarded
 
     p = sub.add_parser("author", help="have an LLM write a working contract from a plain-language brief")
@@ -36,6 +36,7 @@ def add_author_command(sub: Any) -> None:
                                                   "through OPENAI_BASE_URL)")
     p.add_argument("--out", help="where to write the contract (default: the brief file's name as .json, or env.json)")
     p.add_argument("--force", action="store_true", help="replace --out if it exists")
-    p.add_argument("--tokens", type=int, help=f"most model tokens to spend, input + output (default: {DEFAULT_BUDGET['tokens']})")
+    p.add_argument("--tokens", type=int, help="most model tokens to spend, input + output, a cache read counting "
+                                              f"{CACHED_WEIGHT:g} of one (default: {DEFAULT_BUDGET['tokens']})")
     p.add_argument("--calls", type=int, help=f"most model calls to make (default: {DEFAULT_BUDGET['calls']})")
     p.set_defaults(func=_guarded(cmd_author))

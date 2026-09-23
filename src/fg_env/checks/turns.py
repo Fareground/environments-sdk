@@ -27,7 +27,7 @@ def check_stage_turns(checker: "_Checker", stage: C.StageSpec, path: str, base: 
     checker.effects(stage.on_timeout, f"{path}.on_timeout", set(base) | {"actor"}, dict(agents))
     for index, condition in enumerate(stage.valid):
         where = f"{path}.valid[{index}]"
-        checker.expr(condition.expr, where, base | {"actor"}, agents)
+        checker.condition(condition.expr, where, base | {"actor"}, agents)
         checker.template(condition.why or None, f"{where}.why", None, base | {"actor"}, agents)
     if (stage.atomic or stage.valid) and stage.actions == []:
         checker.warn(f"{path}.atomic", "the stage wakes nobody, so there is no turn to make atomic")
@@ -40,7 +40,7 @@ def check_spectator_view(checker: "_Checker", name: str, view: C.ViewSpec, base:
         if used:
             checker.error(f"{path}.{key}", "does not apply to a spectator view",
                           "spectator views are rendered once per round (result.frames) and by env.spectate()")
-    checker.expr(view.when, f"{path}.when", base)
+    checker.condition(view.when, f"{path}.when", base)
     if view.of is None:
         checker.template(view.show, f"{path}.show", None, base)
         return
@@ -50,7 +50,7 @@ def check_spectator_view(checker: "_Checker", name: str, view: C.ViewSpec, base:
     elif view.of not in checker.c.records:
         checker.expr(view.of, f"{path}.of", base)
     item_roots = base | {"it", "i"}
-    checker.expr(view.where, f"{path}.where", item_roots, types)
+    checker.condition(view.where, f"{path}.where", item_roots, types)
     checker.expr(view.sort, f"{path}.sort", item_roots, types)
     checker.template(view.show, f"{path}.show", "it", item_roots, types)
     if view.limit is not None and view.limit < 1:

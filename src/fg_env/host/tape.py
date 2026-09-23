@@ -19,7 +19,7 @@ from typing import Any, Callable, Dict, Mapping, Optional
 
 from ..errors import FatalRunError
 from ..expr import Untrusted
-from .hosts import hosts_for
+from .hosts import counting, hosts_for
 from .protocols import HostError
 
 __all__ = ["TAPE", "MAX_RESPONSE_CHARS", "tape_prop", "plain", "request_key", "consult", "discard", "tape_of"]
@@ -94,7 +94,8 @@ def consult(world: Any, *, service: str, method: str, site: str, identity: Any, 
     else:
         if not callable(getattr(adapter, method, None)):
             raise FatalRunError(f"the host '{service}' ({type(adapter).__name__}) has no {method}() method", site)
-        answer = _live(adapter, service, site, ask, validate)
+        with counting(world, adapter):
+            answer = _live(adapter, service, site, ask, validate)
     entry: Dict[str, Any] = {"service": service, "site": site, "round": world.round, "actor": actor,
                              "response": answer}
     if adapter is None:

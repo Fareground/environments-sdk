@@ -17,7 +17,7 @@ Environment code must not reimplement the mechanics below.
   debate, division and recorded decisions. Each floor speech moves every other
   member's stance a random share (averaging `persuasion`) of the way toward the
   speaker's; coded members vote their current stance, so debate can change the
-  result. The coded chair calls the question once the motion has had as many
+  result, and never amend (amending is there for participants). The coded chair calls the question once the motion has had as many
   speeches as the chamber has members.
 - **Termination and outputs:** a decided main motion ends the starter; output
   the outcome (passed, rejected, or status_quo when nothing came to a vote),
@@ -58,7 +58,7 @@ Environment code must not reimplement the mechanics below.
   (averaging `persuasion`) of the way toward the speaker's; coded members with
   a strong view either way put the question, anyone seconds it, and each speaks
   once per motion and votes their current stance, so an opposed group rejects the
-  question rather than leaving it undecided.
+  question rather than leaving it undecided. Coded members never amend.
 - **Termination and outputs:** a decision ends the starter; output the outcome
   (passed, rejected, or status_quo when nothing came to a vote), conclusion,
   vote counts and contribution count.
@@ -87,8 +87,9 @@ Environment code must not reimplement the mechanics below.
 - **Roles:** people connected by explicit supplied or generated relationships.
 - **Private/public information:** receptivity may be private; ties, exposures and
   adoption visibility are configurable.
-- **Actions:** take up an idea one has heard about, reject it (stop holding and
-  passing it on), or recommend it to one contact (who takes it up with a chance
+- **Actions:** take up an idea one has heard about, turn it down (then one never
+  takes it up or passes it on; adopters, the seed included, stay committed, so the
+  idea cannot die at its source), or recommend it to one contact (who takes it up with a chance
   of the tie's trust times their receptivity). The coded baseline takes none of
   these and leaves the spread to word of mouth; scenarios may add speaking,
   moderation or relationship actions.
@@ -139,7 +140,8 @@ Environment code must not reimplement the mechanics below.
 
 ## Shared requirements
 
-Every engine accepts deterministic seeds, ordinary participant tables that can
+A rate over nobody (a share of an empty population, a match rate without
+applicants) is null, not 0. Every engine accepts deterministic seeds, ordinary participant tables that can
 be populated from `sample_records`, fixed cohorts and experiment inputs. Every
 engine must remain cloneable from the installed wheel and produce typed outputs
 that can be aggregated across successful experiment runs. Scenario names,

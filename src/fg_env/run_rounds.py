@@ -196,13 +196,14 @@ class RunRounds:
         self._flush_events()
 
     def _atomic(self: "Env", effects: List[Any], vars: Dict[str, Any], path: str,  # type: ignore[misc]
-                check: bool = True) -> bool:
+                check: bool = True, owner: Any = None) -> bool:
         """Apply ``effects`` as one undoable block. ``check=False``: one item of a block of world logic whose
-        invariants are checked once it is whole (an `each` event), unless a trigger or reaction would run first."""
+        invariants are checked once it is whole (an `each` event), unless a trigger or reaction would run first.
+        The block draws from the stream of its path and ``owner`` (default: its $actor), so an entity's luck does not
+        shift when others come or go."""
         if not effects:
             return True
-        actor = vars.get("actor")
-        with self._lock, self.world.drawing_at(f"{path}@{actor.id}" if isinstance(actor, Entity) else path):
+        with self._lock, self.world.drawing_for(path, vars.get("actor") if owner is None else owner):
             mark = self.world.journal.mark()
             try:
                 with shared_budget(ACTION_BUDGET, path):

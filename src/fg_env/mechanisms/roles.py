@@ -150,7 +150,7 @@ def _eliminate_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], whe
         if not _props(player).get(config.alive):
             continue
         world.set_prop(player, config.alive, False)
-        text = runner.text(effect["say"], vars) if effect.get("say") else f"{player.name} is out of the game."
+        text = runner.said(effect["say"], vars, None) if effect.get("say") else f"{player.name} is out of the game."
         if config.reveal == "elimination":
             _reveal(world, player)
             text += f" They were {_article(_props(player)['role'])}."

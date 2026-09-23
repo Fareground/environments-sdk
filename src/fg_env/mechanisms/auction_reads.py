@@ -105,6 +105,6 @@ def _text_function(call: Call) -> str:
     return describe(call.scope.world, name, call.scope.world.entity(call.arg(1)) if len(call) > 1 else None)
 
 
-@function("auction_ok(name)", "True while an auction conserves cash and units and escrow matches open bids.", min_args=1, max_args=1)
+@function("auction_ok(name)", "True while an auction's escrow matches its open bids and every item is held once.", min_args=1, max_args=1)
 def _ok_function(call: Call) -> bool:
     return not audit(call.scope.world, _auction(call))

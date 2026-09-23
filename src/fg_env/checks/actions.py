@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from typing import TYPE_CHECKING, Any, Iterable, List, Mapping, Optional, Set
+from typing import TYPE_CHECKING, Any, List, Mapping, Set
 
 from .. import contract as C
 from .params import check_param_bounds
@@ -11,11 +11,9 @@ from ..probability import check_literal_probability
 from .roots import BASE
 from .turns import check_spectator_view, check_stage_turns, spectator_audience_issues
 from ..contract import Contract
-from ..expr import Expr, ExprError, compile_expr
 from ..perception import SPECTATOR
 from ..reads import READS
 from ..session import END_TURN
-from ..template import compile_template
 
 if TYPE_CHECKING:
     from . import _Checker
@@ -55,7 +53,7 @@ class ActionChecks:
                     if param.of is None:
                         self.error(ppath, "an entity parameter needs `of` (the entity type)")
                     elif self._type(param.of, f"{ppath}.of"):
-                        self.expr(param.where, f"{ppath}.where", BASE | {"actor", "it", "i", "params"},
+                        self.condition(param.where, f"{ppath}.where", BASE | {"actor", "it", "i", "params"},
                                   {"actor": by_types, "it": {param.of}}, spec.params)
                         self._private_filter(param.where, param.of, f"{ppath}.where")
                 elif param.type == "list":
@@ -72,7 +70,7 @@ class ActionChecks:
                     self.error(f"{ppath}.step", "step applies to number and int parameters")
             check_param_bounds(self, path, spec)
             for index, condition in enumerate(spec.when):
-                self.expr(condition.expr, f"{path}.when[{index}]", BASE | {"actor", "params"}, types, spec.params)
+                self.condition(condition.expr, f"{path}.when[{index}]", BASE | {"actor", "params"}, types, spec.params)
                 self.template(condition.why or None, f"{path}.when[{index}].why", None, BASE | {"actor", "params"}, types,
                               spec.params)
             roots = set(BASE | {"actor", "params"})
@@ -87,8 +85,7 @@ class ActionChecks:
                 self.warn(f"{path}.otherwise", "runs only when `chance` fails, and there is no `chance`")
             for key in ("outcome", "announce"):
                 self.template(getattr(spec, key), f"{path}.{key}", None, after, types, spec.params)
-            self._private_announcement(spec, by_types, path)
-            self._private_offered(spec, path)
+            self._private_action(spec, types, path)
             if isinstance(spec.terminal, str):
                 self.expr(spec.terminal, f"{path}.terminal", after, types, spec.params)
             for pname, param in spec.params.items():
@@ -99,58 +96,6 @@ class ActionChecks:
                               BASE | {"actor", "params", "value"}, types, spec.params)
             if not any(name in _stage_action_names(s, self.c) for s in self.c.stage_list()):
                 self.warn(path, "is not available in any stage", "add it to a stage's `actions`")
-
-    def _private_announcement(self: "_Checker", spec: C.ActionSpec, by_types: Set[str], path: str) -> None:  # type: ignore[misc]
-        """Direct private-field references in a public announcement deserve an explicit choice."""
-        if spec.private or spec.announce is None:
-            return
-        try:
-            compiled = compile_template(spec.announce, None)
-        except ExprError:
-            return  # the template check already reports this
-        shown = self._private_paths(compiled.expressions, spec, by_types)
-        if shown:
-            self.warn(f"{path}.announce", f"public announcement references private fields: {', '.join(sorted(shown))}",
-                      "everyone can receive this announcement; remove private values, put them in `outcome` "
-                      "for the actor, or set `private: true` if the action itself should be private")
-
-    def _private_offered(self: "_Checker", spec: C.ActionSpec, path: str) -> None:  # type: ignore[misc]
-        """The outcome text and the parameters' bounds, defaults and choices are what the actor is shown or offered:
-        reading a chosen entity's private property there stops the call (the actor may have chosen another agent)."""
-        texts = {"outcome": spec.outcome}
-        for pname, param in spec.params.items():
-            texts.update({f"params.{pname}.{key}": getattr(param, key) for key in ("min", "max", "default", "values")})
-            texts[f"params.{pname}.invalid"] = param.invalid
-        for key, text in texts.items():
-            if not isinstance(text, str) or "$" not in text:
-                continue
-            try:
-                expressions = compile_template(text, None).expressions if "{" in text else [compile_expr(text)]
-            except ExprError:
-                continue  # already reported by the template and expression checks
-            shown = self._private_paths(expressions, spec, set(), agents=True)
-            if shown:
-                self._private_warning(f"{path}.{key}", ", ".join(sorted(shown)))
-
-    def _private_paths(self: "_Checker", expressions: Iterable[Expr], spec: C.ActionSpec,  # type: ignore[misc]
-                       by_types: Set[str], agents: bool = False) -> Set[str]:
-        """The `$actor.<prop>` (for actors of ``by_types``) and `$params.<entity>.<prop>` paths in ``expressions`` that
-        read a private property (``agents``: only an agent's)."""
-        shown: Set[str] = set()
-        for expr in expressions:
-            for chain in expr.paths:
-                kinds: Set[str] = set()
-                field = ""
-                if len(chain) >= 2 and chain[0] == "actor":
-                    kinds, field = by_types, chain[1]
-                elif len(chain) >= 3 and chain[0] == "params":
-                    param = spec.params.get(chain[1])
-                    if param is not None and param.type == "entity" and param.of in self.c.types \
-                            and not (agents and not self.c.is_agent(param.of)):
-                        kinds, field = {param.of}, chain[2]
-                if any((prop := self.c.props_of(kind).get(field)) is not None and prop.private for kind in kinds):
-                    shown.add("$" + ".".join(chain))
-        return shown
 
     def _tool_group(self: "_Checker", spec: C.ActionSpec, path: str) -> None:  # type: ignore[misc]
         """An action offered inside a shared tool: the tool's name is free, and `action` is the tool's own argument."""
@@ -197,7 +142,7 @@ class ActionChecks:
             if entity_of is None:
                 self.error(f"{ppath}.items", "entity items need `of` (the entity type)")
             elif self._type(entity_of, f"{ppath}.of"):
-                self.expr(where, f"{ppath}.where", BASE | {"actor", "it", "i", "params"},
+                self.condition(where, f"{ppath}.where", BASE | {"actor", "it", "i", "params"},
                           {"actor": by_types, "it": {entity_of}}, params)
                 self._private_filter(where, entity_of, f"{ppath}.where")
         values = item.values if item is not None and item.type == "enum" else (param.values if item is None else None)
@@ -240,8 +185,8 @@ class ActionChecks:
             agent_types: Types = {"it": set(self.agents)}
             self.order_setting(stage.order, f"{path}.order", ("seat", "random"), BASE | {"it", "i"}, agent_types)
             self.expr(stage.who, f"{path}.who", BASE | {"it", "i"}, agent_types)
-            self.expr(stage.until, f"{path}.until", BASE)
-            self.expr(stage.when, f"{path}.when", BASE)
+            self.condition(stage.until, f"{path}.until", BASE)
+            self.condition(stage.when, f"{path}.when", BASE)
             self.template(stage.brief or None, f"{path}.brief", "actor", BASE | {"actor"}, {"actor": set(self.agents)})
             self.effects(stage.on_enter, f"{path}.on_enter", set(BASE), {})
             self.effects(stage.on_exit, f"{path}.on_exit", set(BASE), {})
@@ -271,7 +216,7 @@ class ActionChecks:
             for stage in view.stages or []:
                 if stage not in self.stage_names:
                     self.error(f"{path}.stages", f"'{stage}' is not a stage", self._hint(stage, self.stage_names, "stages"))
-            self.expr(view.when, f"{path}.when", BASE | {"actor"}, types)
+            self.condition(view.when, f"{path}.when", BASE | {"actor"}, types)
             if view.of is None:
                 self.template(view.show, f"{path}.show", "actor", BASE | {"actor"}, types)
                 continue
@@ -282,7 +227,7 @@ class ActionChecks:
                 pass
             else:
                 self.expr(view.of, f"{path}.of", BASE | {"actor"}, types)
-            self.expr(view.where, f"{path}.where", item_roots, types)
+            self.condition(view.where, f"{path}.where", item_roots, types)
             self.expr(view.sort, f"{path}.sort", item_roots, types)
             self.template(view.show, f"{path}.show", "it", item_roots, types)
             if view.of in self.c.types:
@@ -290,74 +235,6 @@ class ActionChecks:
             if view.limit is not None and view.limit < 1:
                 self.error(f"{path}.limit", "must be at least 1")
 
-    def _private_listing(self: "_Checker", view: C.ViewSpec, path: str) -> None:  # type: ignore[misc]
-        """A view listing every entity of a type by a private property (shown or sorted by) shows each reader
-        everyone's; with a `where`, or through a def, it may: reading another agent's is an error at run time."""
-        of = str(view.of)
-        try:
-            expressions = list(compile_template(view.show, "it").expressions)
-            if view.sort is not None:
-                expressions.append(compile_expr(view.sort))
-        except ExprError:
-            return  # already reported by the template and expression checks
-        shown = self._private_fields(expressions, of)
-        if shown and view.where is None:
-            self.error(path, f"shows (or sorts by) private {', '.join(shown)} of every {of} to each reader",
-                       "add a `where` choosing whose to show (e.g. `$it.id == $actor.id`), or leave the private field out")
-        elif shown and self.c.is_agent(of):
-            self._private_warning(path, ", ".join(shown))
-        self._private_via_defs(expressions, path)
-
-    def _private_warning(self: "_Checker", path: str, read: str) -> None:  # type: ignore[misc]
-        self.warn(path, f"reads private {read}: what an agent is shown or offered may read only its own private "
-                        "properties, and reading another agent's there is an error at run time",
-                  "guard the read with `$it.id == $actor.id`, or work out what the agent may learn in game logic "
-                  "(an action's do, an event) and show that")
-
-    def _private_via_defs(self: "_Checker", expressions: Iterable[Expr], path: str) -> None:  # type: ignore[misc]
-        """Warn when ``expressions`` call defs (directly or through other defs) that read agents' private properties
-        from their arguments or the entities they loop over: whose they read shows only at run time."""
-        private = {prop for kind in self.c.agent_types() for prop, spec in self.c.props_of(kind).items() if spec.private}
-        pending = [name for expr in expressions for name in (expr.functions | expr.roots) if name in self.c.defs]
-        seen: Set[str] = set()
-        read: Set[str] = set()
-        while pending:
-            name = pending.pop()
-            if name in seen:
-                continue
-            seen.add(name)
-            spec = self.c.defs[name]
-            try:
-                body = compile_expr(spec.expr)
-            except ExprError:
-                continue  # already reported by the def check
-            read |= {f"{chain[1]} (in ${name})" for chain in body.paths
-                     if len(chain) > 1 and chain[0] in {*spec.args, "it"} and chain[1] in private}
-            pending += [other for other in body.functions | body.roots if other in self.c.defs]
-        if read:
-            self._private_warning(path, ", ".join(sorted(read)))
-
-    def _private_filter(self: "_Checker", where: Optional[str], of: str, path: str) -> None:  # type: ignore[misc]
-        """A choice filtered by another agent's private property reveals it: the tool lists only who passes."""
-        if where is None or not self.c.is_agent(of):
-            return
-        try:
-            shown = self._private_fields([compile_expr(where)], of)
-        except ExprError:
-            return  # already reported by the expression check
-        if shown:
-            self.error(path, f"filters the choices by private {', '.join(shown)} of other {of} agents: the "
-                             "tool's list of choices would reveal it to the actor",
-                       "filter by what the actor may know (public properties, its own, a relation or a function such "
-                       "as $known_role), or accept any choice and decide in `do`")
-        else:
-            self._private_via_defs([compile_expr(where)], path)
-
-    def _private_fields(self: "_Checker", expressions: Iterable[Expr], of: str) -> List[str]:  # type: ignore[misc]
-        """The private properties of ``of`` that ``expressions`` read from ``$it``."""
-        specs = self.c.props_of(of)
-        return sorted({chain[1] for expr in expressions for chain in expr.paths
-                       if len(chain) > 1 and chain[0] == "it" and chain[1] in specs and specs[chain[1]].private})
 
 
 def _stage_action_names(stage: C.StageSpec, contract: Contract, raw: bool = False) -> List[str]:

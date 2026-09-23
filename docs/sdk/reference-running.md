@@ -133,7 +133,8 @@ Every truncated reply wastes its whole output: for frequent decisions use `reaso
 evaluation it cut cost by 38% with no visible loss in play), or keep the default effort with a larger `max_tokens`
 (6,000 was cut off 9 times in 96 turns).
 Their real token usage is in `result.stats` (`llm_calls`, `input_tokens`, `output_tokens`,
-`cache_read_tokens`, `cache_write_tokens`, `llm_retries`, `forfeits`, `truncated`, `refusals`); your own
+`cache_read_tokens`, `cache_write_tokens`, `llm_retries`, `forfeits`, `truncated`, `refusals`, and `out_of_steps`:
+turns that used all `max_steps` model calls); a seat most of whose turns fail degrades the run; your own
 participants can add theirs with `wake.record_usage(...)`.
 Built-ins: `"random"`, `"idle"`, `"policy:<name>"`, and game algorithms `"mcts:N"`, `"ismcts:N"`, `"minimax[:depth]"`, `"cfr:<policy.json|iterations>"`.
 

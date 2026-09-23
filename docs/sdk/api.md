@@ -74,7 +74,8 @@ expand(source: 'ContractLike', *, mechanisms: 'bool' = False) -> 'Dict[str, Any]
 ```
 
 The contract data the engine reads: imports merged and macros expanded (and, with
-``mechanisms=True``, every mechanism expanded into ordinary sections too).
+``mechanisms=True``, every mechanism expanded into ordinary sections too; the ``mechanisms`` block stays,
+since the generated effects read their config there, and loading the result again changes nothing).
 
 Raises :class:`ContractError` for problems found while expanding; ``check`` reports the rest.
 
@@ -173,8 +174,9 @@ author(brief: 'str', model: 'str', *, client: 'Any' = None, out: 'Optional[str]'
 Have ``model`` (``"anthropic:<model>"`` or ``"openai:<model>"``) write an environment for ``brief``; returns an
 :class:`AuthorResult` (``result.contract``, ``result.ok``, ``result.summary()``).
 
-``out`` is where the contract is written (nothing is written when None). ``budget`` caps ``tokens`` (input +
-output) and model ``calls``, by default 600,000 and 30. ``client`` replaces the official client made from the
+``out`` is where the contract is written (nothing is written when None): each time a revision works, and at the
+end. ``budget`` caps ``tokens`` (input + output, a cache read counting :data:`CACHED_WEIGHT` of one) and model
+``calls``, by default 600,000 and 30. ``client`` replaces the official client made from the
 environment; ``progress`` is called with one line per model call. Rate limits, overload and server errors are
 retried with backoff; a provider error that persists or that retrying cannot fix does not raise: the loop stops
 (``result.stop`` says why) and keeps what already works.
@@ -334,7 +336,7 @@ holds, whose action is legal and whose arguments are valid is taken.
 ### `participants.anthropic`
 
 ```pyi
-anthropic(client: 'Any', model: 'str', *, max_tokens: 'int' = 1024, max_steps: 'int' = 8, system: 'str' = '', retries: 'int' = 4, media: 'Optional[Collection[str]]' = None, retry_truncated: 'bool' = True, extra: 'Optional[Mapping[str, Any]]' = None) -> 'Participant'
+anthropic(client: 'Any', model: 'str', *, max_tokens: 'int' = 16000, max_steps: 'int' = 8, system: 'str' = '', retries: 'int' = 4, media: 'Optional[Collection[str]]' = None, retry_truncated: 'bool' = True, extra: 'Optional[Mapping[str, Any]]' = None) -> 'Participant'
 ```
 
 An LLM participant using an ``anthropic.Anthropic()`` client.
@@ -357,11 +359,12 @@ not fit — fails the run at once, naming the agent, the provider's error and th
 ends the turn and counts in ``stats["refusals"]``. Real token usage lands in the run's statistics and in
 ``participant.usage``.
 
-A reply cut off at ``max_tokens`` counts in ``stats["truncated"]``; when it called no tool, the model is asked
-once for a short tool call (``retry_truncated=False`` ends the turn instead). Any other reply that calls no tool
-is reminded once of the tools offered. Calls left in a reply after one of them ended the turn are not made. In a
-stage where the agent must act, the participant never ends the turn itself: the engine closes it and reports
-that the agent did not act.
+A reply cut off at ``max_tokens`` (default 16000: room for a model that thinks before it answers) counts in
+``stats["truncated"]``; when it called no tool, the model is asked once for a short tool call
+(``retry_truncated=False`` ends the turn instead). Any other reply that calls no tool is reminded once of the tools
+offered. A turn that makes all ``max_steps`` model calls ends there and counts in ``stats["out_of_steps"]``. Calls
+left in a reply after one of them ended the turn are not made. In a stage where the agent must act, the
+participant never ends the turn itself: the engine closes it and reports that the agent did not act.
 
 ### `participants.openai`
 

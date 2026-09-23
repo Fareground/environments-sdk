@@ -7,10 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round 4
+
+Round 4 (T-834, T-835) fixes the third independent audit, and adds generated tests that keep whole classes of
+failure from coming back.
+
+#### Breaking
+- Luck cannot be probed. Trials (submitting a sealed choice, listing legal tools, RL masks, diagnostics) never draw.
+  A refusal after a draw counts as a move and spends its luck; a refusal before any draw stays free. This reverses
+  0.8's "same luck on retry". In an atomic stage an action that draws settles the turn so far. `each` and stage
+  `who` draw per entity (R4.1).
+- Private values stay out of every engine-written text. Refusals don't quote another agent's values. Announcements
+  and `say` can't read private properties directly (reveal through a local). Default announcements omit arguments
+  kept in a private property. More private reads are check errors (R4.2).
+- Values: map keys are text consistently. Null is refused in a property that starts with a value. A condition that
+  is only text (`"when": "deal"`, `visible: "private"`) is an error. An output that raises is an error in `check`
+  and marks the run degraded. `list -= x` removes one copy. A negative number to a fractional power is an error
+  (R4.3).
+- Health: a degraded run is not `ok`, and `fg-env run` exits 3. A seat that never acts, or whose turns mostly fail,
+  degrades the run. Messages addressed to an agent are never dropped from its update. Deep `wake now` reactions
+  defer instead of failing. `Wake.me` is a copy. Repeating policies and `auto` work in sealed stages. Host tokens
+  are counted per run. Default `max_tokens` is 16000 (R4.4).
+- `fg_env.author`: the model's `run` tool plays only random, idle or the contract's own policies. A contract
+  "works" when it checks clean and runs on 3 seeds with random, idle and edge-value agents within 60s. Heavy
+  simulations are reported as tested N of M rounds (R4.5).
+- Mechanisms: markets check their own books, not total cash, so they combine with each other and with wages,
+  taxes and dividends. The ledger counts money markets hold. A tied top vote under a threshold fails unless
+  `ties: first`. `first_to` ends at the action. A random graph's `degree` means average neighbours. The order-book
+  band is anchored to the round's open. A named generated event, trigger or end entry can be replaced. Removed:
+  `rebase`, the prediction market's `open`, and `<name>_supply` on markets (R4.6).
+- Engines: the Market sample stands for the city (capacities and outputs at city scale; about linear runtime).
+  Exchange defaults to 40 bars × 8 passes with a recalibrated crowd. Council's panel, question and briefing are
+  inputs. Coded Dispute lawyers lead with their strongest exhibit. Rates over nobody are null. Negotiation's
+  `deadline` minimum is 2 (R4.7).
+
+#### Added
+- Generated tests: a contract fuzzer (a random valid contract always checks and runs without escaping exceptions,
+  is deterministic, resumes identically from a snapshot, never costs an agent its turn when another is removed,
+  and never shows one agent another's private values), a leak scanner over every example, starter and template,
+  adversarial participants, and a regression test per past audit finding. `FG_ENV_SLOW=1` runs thousands (T-835).
+- Run diagnostics `agents_mostly_failed`, `out_of_steps`, `policy_repeat_refused` and `output_failed`, and
+  `$money_held(ledger)`.
+
+#### Fixed
+- Diagnostics no longer depend on the order concurrent sealed turns ran in.
+- An event `each` over a number is a clear error instead of a raw exception.
+
+
+### Round 3
+
 Round 3 (T-828–T-833) comes from an independent adversarial audit of 0.8.0. It closes silent failures and makes
 both authoring paths, by hand from the docs or through `fg-env author`, reliable.
 
-### Breaking
+#### Breaking
 - A removed agent no longer ends its stage for the agents seated after it. Agents created mid-round act in the
   next pass (T-832).
 - `$best` always returns one item (ties are broken at random by the seed) or, with `ties: "all"`, a list.
@@ -30,7 +79,7 @@ both authoring paths, by hand from the docs or through `fg-env author`, reliable
 - Unknown participants and unknown preview targets raise `ContractError` with a fix. `check()` returns
   unreadable or invalid sources as issues instead of raising (T-829).
 
-### Added
+#### Added
 - `check` escalates an action that faulted on every attempt to an error, and plays one pass where every
   agent is idle. New diagnostics `action_always_faulted`, `agents_never_acted` and `stage_until_never_held`,
   plus `RunResult.degraded` (T-830, T-832).

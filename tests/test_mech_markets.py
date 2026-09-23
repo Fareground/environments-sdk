@@ -746,15 +746,15 @@ def test_market_actions_check_their_own_keys():
         book(), {"market": "acme", "action": "cancel_all", "trader": "a"}))
     path, message, fix = _op_issues(book(), {"market": "acme", "action": "bid"})[0]
     assert path.endswith(".action") and message == "'bid' is not an action of acme (market order_book)"
-    assert fix == "actions: buy, sell, cancel, cancel_all, algo, rebase, open, close"
-    _, _, fix = _op_issues(book(), {"market": "acmee", "action": "rebase"})[0]
+    assert fix == "actions: buy, sell, cancel, cancel_all, algo, open, close"
+    _, _, fix = _op_issues(book(), {"market": "acmee", "action": "open"})[0]
     assert fix == "did you mean 'acme'?"
     _, _, fix = _op_issues(book(), {"buy": "acme", "qty": 1})[0]
     assert fix.startswith('`buy` is an action of the `market` op: {"market": "<mechanism>", "action": "buy"')
     assert any(m == "a first_price auction takes no asks" for _, m, _ in _op_issues(
         house("first_price"), {"market": "house", "action": "ask", "price": 10}))
-    assert any(m == "`items` belongs to a combinatorial auction, not a first_price auction" for _, m, _ in _op_issues(
-        house("first_price"), {"market": "house", "action": "bid", "price": 40, "items": ["x"]}))
+    assert any(m == "`package` belongs to a combinatorial auction, not a first_price auction" for _, m, _ in _op_issues(
+        house("first_price"), {"market": "house", "action": "bid", "price": 40, "package": ["x"]}))
     assert any(m == "`market.bid` needs `price`" for _, m, _ in _op_issues(house("english"), {"market": "house", "action": "bid"}))
     assert any("needs `shares`, `spend` (money) or both" in m for _, m, _ in _op_issues(
         market("lmsr"), {"market": "pm", "action": "buy", "outcome": "ada"}))
@@ -798,3 +798,68 @@ def test_guide_documents_the_market_family():
     assert all(f"- `{mode}`:" in family for mode in ("order_book", "auction", "prediction", "posted"))
     posted = fg_env.guide("market.posted")
     assert "- `set_price`" in posted and "- `open`" not in posted
+
+
+def test_the_price_band_is_anchored_to_the_rounds_open_not_the_last_print():
+    env, replies = play(book(), {
+        (1, "a"): [("acme_sell", {"qty": 2, "price": 74})],
+        (1, "b"): [("acme_buy", {"qty": 2, "price": 74})],
+        (1, "c"): [("acme_buy", {"qty": 1, "price": 100})]})
+    assert env.props["acme_last"] == 74
+    refused = replies_of(replies, "c")[0]
+    assert not refused.ok and "at most 75" in refused.text
+    quote = order_book.quote(env.world, "acme")
+    assert (quote["band_low"], quote["band_high"]) == (25, 75)
+
+
+def test_a_sealed_bid_schema_never_offers_a_price_the_rules_refuse():
+    contract = {"name": "Lot", "clock": {"rounds": 1}, "types": {"bidder": {"agent": True, "props": {"cash": 100}}},
+                "entities": {"a": {"type": "bidder"}},
+                "mechanisms": {"sale": {"kind": "market", "mode": "auction", "format": "first_price", "who": "bidder",
+                                        "stock": 1, "reserve": 0}}}
+    told = {}
+
+    def bid(wake):
+        price = next(t for t in wake.tools if t.name == "sale_bid").input_schema["properties"]["price"]
+        told["minimum"] = price["minimum"]
+        told["at_minimum"] = wake.call("sale_bid", {"price": price["minimum"]}).ok
+        wake.end()
+
+    fg_env.run(contract, bid, seed=1)
+    assert told["minimum"] > 0 and told["at_minimum"]  # the schema's floor is a bid the rules accept
+
+
+def test_two_order_books_on_one_cash_prop_both_trade_and_settle():
+    books = {name: {"kind": "market", "mode": "order_book", "who": "trader", "start_price": price, "stage": "trade"}
+             for name, price in (("acme", 50), ("beta", 20))}
+    contract = {"name": "Two books", "clock": {"rounds": 2},
+                "types": {"trader": {"agent": True, "props": {"cash": 10000, "acme_shares": 100, "beta_shares": 100}}},
+                "entities": {"a": {"type": "trader"}, "b": {"type": "trader"}},
+                "stages": [{"name": "trade", "turns": "sequential", "order": "seat", "max_actions": 10}],
+                "mechanisms": books}
+    env, replies = play(contract, {(1, "a"): [("acme_sell", {"qty": 10, "price": 50}), ("beta_sell", {"qty": 10, "price": 20})],
+                                   (1, "b"): [("acme_buy", {"qty": 10, "price": 50}), ("beta_buy", {"qty": 10, "price": 20})]})
+    assert all(reply.ok for *_, reply in replies), [reply.text for *_, reply in replies]
+    assert props(env, "b")["cash"] == 10000 - 500 - 200 and props(env, "a")["cash"] == 10000 + 500 + 200
+    assert props(env, "b")["acme_shares"] == 110 and props(env, "b")["beta_shares"] == 110
+
+
+def test_a_prediction_market_resolving_to_an_outcome_it_does_not_list_is_an_error():
+    contract = {"name": "Bad outcome", "clock": {"rounds": 3}, "world": {"truth": {"default": "w"}},
+                "types": {"forecaster": {"agent": True, "props": {"cash": 1000}}},
+                "entities": {"a": {"type": "forecaster"}, "b": {"type": "forecaster"}},
+                "mechanisms": {"m": {"kind": "market", "mode": "prediction", "who": "forecaster", "outcomes": ["x", "y"],
+                                     "resolve_at": 2, "outcome": "$world.truth"}}}
+    assert any("the winning outcome must be one of x, y, got 'w'" in i.message
+               for i in fg_env.check(contract) if i.severity == "error")
+
+
+def test_a_declared_stage_named_after_a_book_refines_its_generated_stage():
+    contract = {"name": "Refined", "clock": {"rounds": 2}, "types": {"trader": {"agent": True, "props": {"cash": 100}}},
+                "entities": {"t1": {"type": "trader"}, "t2": {"type": "trader"}},
+                "stages": [{"name": "acme", "turns": "simultaneous"}],
+                "mechanisms": {"acme": {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 5}}}
+    assert not [i for i in fg_env.check(contract) if i.severity == "error"]
+    [stage] = fg_env.expand(contract, mechanisms=True)["stages"]
+    assert stage["turns"] == "simultaneous" and stage["max_actions"] == 4
+    assert {"acme_buy", "acme_sell", "acme_cancel"} <= set(stage["actions"])

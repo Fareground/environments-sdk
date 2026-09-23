@@ -52,9 +52,13 @@
   An agent's private prop is shown only to that agent: reading another agent's in anything worked out for one agent
   (views, sort keys, tool choices and bounds, outcome text, briefs, policies, defs they call) is an error at run
   time, however it is spelled. Reveal what an agent may learn by working it out in game logic
-  (`"do": ["$seen = $params.target.role"], "outcome": "... {$seen}"`, or a prop the agent owns). A `when` that reads
-  another agent's private prop does not hide the tool: it stays listed and a call is refused when the `when` fails.
-  A private prop of an entity that is not an agent is hidden from inspect; the views say who sees it. A refusal
+  (`"do": ["$seen = $params.target.role"], "outcome": "... {$seen}"`, or a prop the agent owns). Text sent to
+  several agents — an `announce`, an event's or trigger's `say`, an emit's `say` without a lone `to` — may read no
+  agent's private prop, not even the actor's: reveal it the same way (`"$shown = $actor.card"`, then `{$shown}`).
+  The engine's own refusals (a transfer that does not fit, a bound) never show another agent's private value. A
+  `when` that reads another agent's private prop does not hide the tool: it stays listed and a call is refused when
+  the `when` fails. A private prop of an entity that is not an agent is hidden from inspect; the views say who sees
+  it. An entity's type is public (inspect names it): keep a secret role in a private prop, not a subtype. A refusal
   is information too — a `when` or `fail` that reads hidden state tells the actor something about it. Visibility
   shapes only what an agent is shown or offered (brief, updates, views, tool choices, outcome text, its policy); game logic — action
   `when`/`do`, events, triggers, stages, `end`, metrics, outputs, invariants — reads every record entry and event,

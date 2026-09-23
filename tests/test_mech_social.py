@@ -769,3 +769,20 @@ def test_social_network_reports_reach_and_insularity_and_downranking_cuts_reach(
     assert result.outputs["rumor_posts"] > 0 and result.outputs["labelled_posts"] > 0
     experiment = fg_env.experiment(str(path), runs=4, arms=["control", "downrank"])
     assert experiment.deltas("control")["downrank"]["reach"]["mean"] < 0
+
+
+def _star_cascade(persistent, rounds):
+    contract = {"name": "Star", "clock": {"rounds": rounds}, "types": {"person": {}},
+                "population": [{"type": "person", "count": 21}], "relations": {"knows": {"symmetric": True}},
+                "links": [{"relation": "knows", "among": "person", "graph": "star"}],
+                "mechanisms": {"word": {"kind": "social", "mode": "diffusion", "who": "person", "over": "knows",
+                                        "model": "cascade", "p": 0.3, "persistent": persistent,
+                                        "seeds": {"idea": ["person_1"]}}},
+                "outputs": {"reach": "$adopters('idea')"}}
+    return fg_env.run(contract, None, seed=1).outputs["reach"]
+
+
+def test_a_cascade_adopter_gets_one_chance_unless_the_cascade_is_persistent():
+    # the hub tells each leaf once, right after adopting; leaves only know the hub, so a one-shot star stops at step 1
+    assert _star_cascade(False, rounds=5) == _star_cascade(False, rounds=1) < 21
+    assert _star_cascade(True, rounds=5) > _star_cascade(True, rounds=1)  # a persistent hub keeps trying every step

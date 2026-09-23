@@ -1787,7 +1787,7 @@
             }
           ],
           "default": null,
-          "description": "Links per member (number or expression).",
+          "description": "Mean neighbours per member (number or expression); on a one-way random graph a link either way makes a neighbour.",
           "title": "Degree"
         },
         "p": {
@@ -2748,7 +2748,7 @@
         },
         "private": {
           "default": false,
-          "description": "Hidden from other agents' inspect tool. An agent's private property is shown only to that agent: reading another agent's in what one agent is shown or offered (views, tool choices and bounds, outcome text, policies) is an error at run time.",
+          "description": "Hidden from other agents' inspect tool. An agent's private property is shown only to that agent: reading another agent's in what one agent is shown or offered (views, tool choices and bounds, outcome text, policies), or any agent's in text sent to several (announcements, news), is an error at run time.",
           "title": "Private",
           "type": "boolean"
         },
@@ -3279,7 +3279,7 @@
           "type": "boolean"
         },
         "valid": {
-          "description": "Conditions the whole turn must meet when it ends ($actor, $pending); if one fails, every action of the turn is undone and the agent is told `why` and plays the turn again. Makes the stage atomic.",
+          "description": "Conditions the whole turn must meet when it ends ($actor, $pending); if one fails, every action of the turn is undone and the agent is told `why` and plays the turn again. An action that draws randomness settles the turn so far at once (a failure then undoes the turn and ends it), so no later action can undo its luck. Makes the stage atomic.",
           "items": {
             "$ref": "#/$defs/Condition"
           },
@@ -3643,7 +3643,7 @@
         },
         "only_changes": {
           "default": false,
-          "description": "Include it only when it changed since the agent's last turn.",
+          "description": "Show it in full only when it changed since the agent's last turn; otherwise one line says it is unchanged. For agents that remember their earlier turns: the built-in LLM participants start every turn afresh.",
           "title": "Only Changes",
           "type": "boolean"
         },

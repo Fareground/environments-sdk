@@ -65,7 +65,7 @@ def check_feeds(checker: "_Checker", base: FrozenSet[str]) -> None:
                               checker._suggest(target, contract.records) or "declare it under `records`")
         else:
             checker.error(f"{path}.into", "a feed writes into 'world.<prop>' or 'records.<record>'", f"e.g. world.{name}")
-        checker.expr(spec.when, f"{path}.when", base)
+        checker.condition(spec.when, f"{path}.when", base)
         checker.value(spec.query, f"{path}.query", base)
         checker.value(spec.fallback, f"{path}.fallback", base)
 
@@ -188,7 +188,7 @@ def _entity_dynamics(checker: "_Checker", type_name: str, dynamics: EntityDynami
     entity_types = {"it": set(checker.c.subtypes(type_name))}
     for name, source in dynamics.read.items():
         checker.expr(source, f"{path}.read.{name}", entity_roots, entity_types)
-    checker.expr(dynamics.where, f"{path}.where", entity_roots, entity_types)
+    checker.condition(dynamics.where, f"{path}.where", entity_roots, entity_types)
     for prop, source in dynamics.write.items():
         where = f"{path}.write.{prop}"
         if prop not in props:

@@ -32,17 +32,18 @@ from .world_parts import ClockView, Entry, Journal, LogEvent, PhysicsView, Props
 if TYPE_CHECKING:
     from .sync_events import WriteBuffer
 
-__all__ = ["SdkWorld", "Entry", "LogEvent", "Abort", "prop_type"]
+__all__ = ["SdkWorld", "Entry", "LogEvent", "Abort", "LuckAhead", "prop_type"]
 
 
 class _TurnLocal:
-    """Per-turn state (a turn's random stream, its ``$pending``, draw and def-depth counters)."""
+    """Per-turn state (a turn's random stream, its ``$pending``, draw and def-depth counters, whether it may draw)."""
 
-    __slots__ = ("rng", "pending", "draws", "depth")
+    __slots__ = ("rng", "pending", "draws", "depth", "luckless")
     rng: Any
     pending: Optional[List[Dict[str, Any]]]
     draws: int
     depth: int
+    luckless: bool
 
 
 #: The turn running in this thread or asyncio task, as ``(world, state)``. A context variable rather
@@ -56,6 +57,11 @@ class Abort(Exception):
     def __init__(self, reason: str):
         self.reason = reason
         super().__init__(reason)
+
+
+class LuckAhead(BaseException):
+    """A trial reached a random draw (see :meth:`SdkWorld.without_luck`): what follows depends on luck, which only
+    the call itself may roll. Not an :class:`Exception`, so no rule or mechanism takes it for a failure of its own."""
 
 
 class OutOfBounds(Abort):
@@ -162,8 +168,10 @@ class SdkWorld(World):
     def rng(self) -> Any:
         """The random stream for the current context: the draw site's while a block of logic runs, a turn's own
         stream while an agent's turn runs outside one (so concurrent turns never race for draws), otherwise the
-        run's main stream."""
+        run's main stream — and none inside :meth:`without_luck`."""
         local = self._here()
+        if getattr(local, "luckless", False):
+            raise LuckAhead()
         local.draws = getattr(local, "draws", 0) + 1
         rng = getattr(local, "rng", None)
         if rng.__class__ is DrawSite:
@@ -206,11 +214,28 @@ class SdkWorld(World):
             local.rng = previous
 
     @contextmanager
+    def without_luck(self) -> Iterator[None]:
+        """Inside the block — a trial of a call, which must not learn its luck (see ``ActionBook.trial``) — a random
+        draw raises :class:`LuckAhead` instead of drawing."""
+        local = self._here()
+        previous = getattr(local, "luckless", False)
+        local.luckless = True
+        try:
+            yield
+        finally:
+            local.luckless = previous
+
+    @contextmanager
     def drawing_at(self, site: str) -> Iterator[None]:
         """:meth:`drawing_from` the stream of ``site``: where a block of logic is written, with the actor whose
         action it is (see :class:`~fg_env.seeds.DrawSite`)."""
         with self.drawing_from(DrawSite(site)):
             yield
+
+    def drawing_for(self, site: str, owner: Any) -> Any:
+        """:meth:`drawing_at` ``site`` as the block of ``owner`` (an action's actor, an `each` item) when it is an
+        entity: each entity has luck of its own, which others coming or going never shifts."""
+        return self.drawing_at(f"{site}@{owner.id}" if isinstance(owner, Entity) else site)
 
     # -- expression interface ------------------------------------------------
 
@@ -497,7 +522,12 @@ class SdkWorld(World):
             return value
         kind = prop_type(spec)
         if value is None:
-            return None
+            if spec.default is None or kind == "any":  # declared without a value: it may be empty
+                return None
+            raise RunError(
+                f"cannot be null: it starts with a value, so it always holds one ({kind}; an empty list's $max, $avg "
+                f"or $first is null — guard it, e.g. `$max(xs) if $len(xs) > 0 else 0`); to let it be empty, "
+                f'declare it with "default": null', where)
         if kind in ("number", "int"):
             if not _finite_number(value):
                 raise RunError(f"must be a finite number that fits in a float, got {_shown_value(value)}", where)

@@ -30,7 +30,7 @@ def _filing(wake):
 
 def test_an_action_that_fails_every_time_it_applies_is_reported_and_marks_the_run_degraded():
     result = fg_env.run(LEDGER, _filing, seed=1)
-    assert result.ok and result.stats["faulted_actions"] == 6
+    assert result.status == "completed" and not result.ok and result.stats["faulted_actions"] == 6
     finding = next(d for d in result.diagnostics if d["code"] == "action_always_faulted")
     assert finding["path"] == "actions.file" and "all 6 attempt(s)" in finding["message"]
     assert result.degraded == ["action_always_faulted"]

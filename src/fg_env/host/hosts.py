@@ -4,19 +4,23 @@ Contracts name hosts (``"host": "judge"``); a :class:`Hosts` maps those names to
 objects. A run is bound to its hosts for its lifetime without touching the core objects: the
 binding is held here, keyed weakly by the run's world.
 
-The model tokens a host reports in its ``usage`` counters (``input_tokens``, ``output_tokens``: the reference adapters
-keep them) join the run's stats — and so its token budget — at the run's safe points and when its result is read.
+The model tokens a host call spends join the stats — and so the token budget — of the run that made the call, at the
+run's safe points and when its result is read. The reference adapters report each call's tokens as they make it
+(:func:`credit_tokens`), so runs in parallel that share one adapter each count exactly their own; an adapter of your
+own is counted by how much its ``usage`` counters (``input_tokens``, ``output_tokens``) grew during the call, which is
+exact unless parallel runs share it.
 """
 from __future__ import annotations
 
 import threading
 import weakref
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Tuple, Union
+from contextlib import contextmanager
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Mapping, Optional, Tuple, Union
 
 if TYPE_CHECKING:
     from ..runtime import Env
 
-__all__ = ["Hosts", "HostsLike", "as_hosts", "bind", "hosts_for", "count_host_tokens"]
+__all__ = ["Hosts", "HostsLike", "as_hosts", "bind", "hosts_for", "count_host_tokens", "counting", "credit_tokens"]
 
 #: The counters of a host's ``usage`` that are model tokens.
 _TOKENS = ("input_tokens", "output_tokens")
@@ -48,20 +52,6 @@ class Hosts:
         self._adapters: Dict[str, Any] = dict(adapters or {})
         self.replay: Dict[str, Dict[str, Any]] = {key: dict(entry) for key, entry in (replay or {}).items()}
         self.live = bool(live)
-        self._counted = {name: _tokens(adapter) for name, adapter in self._adapters.items()}
-        self._lock = threading.Lock()
-
-    def take_tokens(self) -> Dict[str, int]:
-        """The model tokens the adapters report having used since this was last asked (or since binding), so each
-        token is counted once, by the run that asks."""
-        taken = dict.fromkeys(_TOKENS, 0)
-        with self._lock:
-            for name, adapter in self._adapters.items():
-                now = _tokens(adapter)
-                for key, after, before in zip(_TOKENS, now, self._counted[name]):
-                    taken[key] += max(0, after - before)
-                self._counted[name] = now
-        return taken
 
     @classmethod
     def replaying(cls, tape: Mapping[str, Mapping[str, Any]]) -> "Hosts":
@@ -123,16 +113,51 @@ def hosts_for(world: Any) -> Optional[Hosts]:
 
 
 def count_host_tokens(env: "Env") -> None:
-    """Add the tokens the run's hosts used since last counted to the run's stats."""
-    hosts = hosts_for(env.world)
-    if hosts is None:
-        return
-    taken = hosts.take_tokens()
-    if any(taken.values()):
+    """Add the tokens the run's host calls spent since last counted to the run's stats."""
+    with _PENDING_LOCK:
+        taken = _PENDING.pop(env.world, None)
+    if taken and any(taken):
         from ..measure import Stats
 
         with env._lock:
-            env.stats.add(Stats(**taken))
+            env.stats.add(Stats(**dict(zip(_TOKENS, taken))))
+
+
+@contextmanager
+def counting(world: Any, adapter: Any) -> Iterator[None]:
+    """Count the model tokens a host call made inside the block spends toward the run of ``world``: what the adapter
+    reports with :func:`credit_tokens` while the block runs on this thread, else how much its ``usage`` grew."""
+    before = _tokens(adapter)
+    outer = getattr(_CALL, "reported", None)
+    reported: Dict[str, int] = {}
+    _CALL.reported = reported
+    try:
+        yield
+    finally:
+        _CALL.reported = outer
+        if reported:
+            spent = [reported.get(key, 0) for key in _TOKENS]
+        else:
+            spent = [max(0, after - start) for after, start in zip(_tokens(adapter), before)]
+        if any(spent):
+            with _PENDING_LOCK:
+                pending = _PENDING.setdefault(world, [0] * len(_TOKENS))
+                pending[:] = [total + more for total, more in zip(pending, spent)]
+
+
+def credit_tokens(input_tokens: int = 0, output_tokens: int = 0) -> None:
+    """Report the tokens one model call of a host adapter spent, toward the run whose host call is in progress on this
+    thread (the reference adapters call it; outside a host call it does nothing)."""
+    reported = getattr(_CALL, "reported", None)
+    if reported is not None:
+        reported["input_tokens"] = reported.get("input_tokens", 0) + input_tokens
+        reported["output_tokens"] = reported.get("output_tokens", 0) + output_tokens
+
+
+#: The host call in progress on this thread, and the tokens each run's host calls spent since it last counted them.
+_CALL = threading.local()
+_PENDING: "weakref.WeakKeyDictionary[Any, List[int]]" = weakref.WeakKeyDictionary()
+_PENDING_LOCK = threading.Lock()
 
 
 def _tokens(adapter: Any) -> Tuple[int, ...]:

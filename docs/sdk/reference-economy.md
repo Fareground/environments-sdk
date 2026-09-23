@@ -25,6 +25,7 @@ Functions:
 - `$items_text(agent, inventory?)` — The agent's goods as plain words: '3 bread, 2 flour, room for 5 more'.
 - `$loose_total(inventory, item)` — Items nobody holds: on the ground, or unique items whose owner is gone.
 - `$max_batches(agent, production, recipe)` — Most batches of a recipe the agent can start now (0 when it cannot).
+- `$money_held(ledger)` — Each currency of a ledger as held now, {currency: total}: every holder's balance and what markets hold for their traders (escrow, reserves, vaults, fees). The ledger's supply starts at it.
 - `$net_worth(agent, prices?)` — Money (at each currency's value) plus goods (at `prices` {item: price}, else each item's value) plus loans owed to the agent, minus loans it owes.
 - `$owned_items(agent, inventory?)` — Items the agent holds now: stackable item names with a quantity above 0 and the ids of unique items it owns.
 - `$pipeline(agent, chain)` — Units on their way to a node of a supply chain, slot 0 arriving next round.

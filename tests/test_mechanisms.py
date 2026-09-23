@@ -60,6 +60,18 @@ def test_passed_means_the_motion_listed_first_carried_and_decided_means_a_winner
     assert deadlock["winner"] is None and not deadlock["decided"] and not deadlock["passed"]
 
 
+def test_a_tie_at_the_top_never_meets_a_threshold_unless_ties_first_breaks_it():
+    even = {"a": "yes", "b": "no"}
+    for seed in range(8):
+        split = tally("majority", even, ["yes", "no"], threshold=0.5, rng=random.Random(seed))
+        assert split["tie"] and split["winner"] is None and not split["passed"] and "tied" in split["reason"]
+    three = tally("supermajority", {"a": "x", "b": "x", "c": "y", "d": "y", "e": "z"}, ["x", "y", "z"], threshold=0.4,
+                  rng=random.Random(1))
+    assert three["winner"] is None and three["tied"] == ["x", "y"]
+    casting = tally("majority", even, ["yes", "no"], threshold=0.5, ties="first")
+    assert casting["winner"] == "yes" and casting["passed"]
+
+
 def test_a_ballot_for_an_option_not_on_the_ballot_is_refused():
     with pytest.raises(ValueError, match="'maybe' is not on the ballot"):
         tally("plurality", {"a": "yes", "b": "maybe"}, ["yes", "no"])
@@ -140,6 +152,19 @@ def test_quorum_and_one_ballot_per_voter():
     fg_env.load({**COUNCIL, "stages": [{"name": "talk", "turns": "sequential", "max_actions": 2}],
                  "mechanisms": {"budget": {**COUNCIL["mechanisms"]["budget"], "stage": "talk"}}}, seed=1).run(double, rounds=1)
     assert True in seen
+
+
+def test_a_declared_event_or_end_entry_replaces_the_generated_one_of_its_name():
+    race = {"name": "Race", "clock": {"rounds": 5}, "types": {"p": {"agent": True, "props": {"score": 0}}},
+            "entities": {"a": {"type": "p"}, "b": {"type": "p"}},
+            "events": [{"name": "win_most", "phase": "end", "at": 2, "do": [{"end": "most", "winner": "$entity(b)"}]}],
+            "end": [{"name": "first_to", "when": "false"}],
+            "mechanisms": {"win": {"kind": "flow", "mode": "victory", "who": "p",
+                                   "conditions": [{"first_to": 0, "score": "$it.score"}, {"most": "$it.score", "at": 4}]}}}
+    contract = fg_env.parse(race)
+    assert [e.name for e in contract.events] == ["win_most"] and [e.when for e in contract.end] == ["false"]
+    result = fg_env.run(race, seed=1)
+    assert result.rounds == 2 and result.winner == "b"
 
 
 def test_authors_override_generated_parts_and_arms_patch_mechanism_config():
@@ -518,3 +543,12 @@ def test_check_and_preview_list_what_each_mechanism_generated(tmp_path, capsys):
     assert main(["preview", str(path), "a"]) == 0
     assert "mechanisms generated" in capsys.readouterr().out
 
+
+def test_a_negative_ballot_weight_fails_the_count_naming_the_voter():
+    contract = {"name": "Weights", "clock": {"rounds": 1},
+                "types": {"member": {"agent": True, "props": {"shares": 1}}},
+                "entities": {"a": {"type": "member", "props": {"shares": -5}}, "b": {"type": "member"}},
+                "mechanisms": {"v": {"kind": "decision", "mode": "ballot", "who": "member", "options": ["yes", "no"],
+                                     "weight": "$it.shares"}}}
+    result = fg_env.load(contract, seed=1).run("idle")
+    assert result.status == "failed" and "a voter's weight must be a number ≥ 0, got -5 for a" in result.error

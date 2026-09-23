@@ -185,9 +185,12 @@ def _decide(result: Dict[str, Any], scores: Dict[str, float], method: str, thres
         result["share"] = share
         strictly = method == "majority" and threshold is None
         passed = share > need if strictly else share >= need
-        if not passed or (len(tied) > 1 and ties == "none"):
+        if not passed:
             of = "" if base is None else " of all members"
             result["reason"] = f"no option reached {'more than ' if strictly else ''}{need:.0%}{of}"
+            return result
+        if len(tied) > 1 and ties != "first":  # a threshold is met by one option, not by a draw between several
+            result["reason"] = f"{' and '.join(tied)} tied at {share:.0%}"
             return result
     result["winner"] = winner
     return result
@@ -307,7 +310,7 @@ class BallotConfig(BaseModel):
     quorum: Optional[float] = Field(None, ge=0, le=1, description="Share of eligible voters who must cast a ballot (abstentions count).")
     abstain: bool = Field(True, description="Voters may abstain.")
     private: bool = Field(True, description="Ballots stay private; only the result is announced.")
-    ties: Literal["random", "none", "first"] = Field("random", description="How a tie is decided (random uses the run's seed; none leaves it undecided, and in a ranked count eliminates every option tied for last together).")
+    ties: Literal["random", "none", "first"] = Field("random", description="How a tie is decided (random uses the run's seed; none leaves it undecided, and in a ranked count eliminates every option tied for last together). A majority or supermajority tied at the top fails unless ties is first (a casting vote for the first option).")
     stage: Optional[str] = Field(None, description="Vote during this declared stage (tally at its end); default: a simultaneous stage named after the vote.")
     when: Optional[str] = Field(None, description="Hold the vote only when true (e.g. \"$round == 3\").")
     question: str = Field("", description="What is being decided, shown with the ballot.")

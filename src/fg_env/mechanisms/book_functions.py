@@ -8,7 +8,7 @@ from ..entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..registry import family_action
-from .book_session import close_round, open_round, rebase
+from .book_session import close_round, open_round
 from .common import entity_of
 from .order_book import account, audit, book_config, cancel, cancel_all, depth, place, quote
 
@@ -65,8 +65,8 @@ def _account_function(call: Call) -> Dict[str, Any]:
     return account(call.scope.world, _name(call), _trader(call, 1))
 
 
-@function("book_ok(name)", "True while the book's accounting holds: cash and shares conserved, reserves equal resting "
-          "orders, balances within limits, the book in price-time order and never crossed.", min_args=1, max_args=1)
+@function("book_ok(name)", "True while the book's accounting holds: reserves equal resting orders, balances within "
+          "limits, the book in price-time order and never crossed.", min_args=1, max_args=1)
 def _ok_function(call: Call) -> bool:
     return not audit(call.scope.world, _name(call))
 
@@ -80,7 +80,6 @@ _ACTIONS: Dict[str, Tuple[Tuple[str, ...], Tuple[str, ...], bool, str, str]] = {
     "cancel": (("who", "order"), ("order",), False, '"order": "$params.order"', "cancel one resting order by id"),
     "cancel_all": (("who",), (), False, "", "cancel every resting order of the trader"),
     "algo": (("who",), (), False, "", "let the trader's coded strategy act once"),
-    "rebase": ((), (), False, "", "take current cash and share totals as the supply the invariants conserve"),
     "open": ((), (), False, "", "open the round (once a round; the book's own start event runs it after yours): expire "
                                 "orders, resume after a halt, start a bar, reset the round"),
     "close": ((), (), False, "", "close the round (once a round; the book's own end event runs it after yours, so run it "
@@ -97,8 +96,6 @@ def _runner(action: str) -> Callable[[Any, Dict[str, Any], Dict[str, Any], str],
                 open_round(world, name)
             elif action == "close":
                 close_round(world, name)
-            elif action == "rebase":
-                rebase(world, name)
             else:
                 trader = entity_of(world, runner.eval(effect.get("who", "$actor"), vars), f"{where}.who", "a trader")
                 if action in ("buy", "sell"):

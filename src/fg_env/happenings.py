@@ -8,10 +8,11 @@ import heapq
 from typing import TYPE_CHECKING, Any, List, Optional
 
 from .delivery import run_delivery
+from .effects import each_items
 from .contract import StageSpec
 from .build import whole_setting
 from .errors import RunError
-from .expr import ExprError, compile_expr, truthy
+from .expr import EVERYONE, ExprError, compile_expr, truthy
 from .sync_events import run_sync
 from .template import compile_template
 from .turn import Turn
@@ -25,7 +26,8 @@ __all__ = ["Happenings"]
 class Happenings:
     """Scheduled effects, events, triggers and reactions of one run."""
 
-    #: How deep triggers may set off further triggers, and reactions further reactions.
+    #: How deep triggers may set off further triggers (deeper is an error), and reactions further reactions (deeper
+    #: reactions wait for the agent's next turn).
     TRIGGER_DEPTH = 8
     REACTION_DEPTH = 4
 
@@ -69,16 +71,18 @@ class Happenings:
             item_name = event.as_ or "it"
             try:
                 items = world.entities_of(event.each) if event.each in env.contract.types else \
-                    compile_expr(event.each)(world.scope())
-                items = self._ordered(event, list(items or []), item_name, path)
+                    each_items(compile_expr(event.each)(world.scope()), world, f"{path}.each")
+                items = self._ordered(event, list(items), item_name, path)
                 if event.sync:
                     run_sync(env, event, items, item_name, path)
                     items = []
                 for position, item in enumerate(items):
                     inner = {item_name: item, "i": position}
-                    if event.where is not None and not truthy(compile_expr(event.where)(world.scope(**inner))):
-                        continue
-                    env._atomic(event.do, inner, f"{path}.do", check=False)
+                    if event.where is not None:
+                        with world.drawing_for(f"{path}.where", item):
+                            if not truthy(compile_expr(event.where)(world.scope(**inner))):
+                                continue
+                    env._atomic(event.do, inner, f"{path}.do", check=False, owner=item)
                 env._check_invariants(f"{path}.do")
             except ExprError as exc:
                 raise RunError(str(exc), path) from None
@@ -86,7 +90,7 @@ class Happenings:
             env._atomic(event.do, {}, f"{path}.do")
         if event.say:
             try:
-                text = compile_template(event.say, None).render(world.scope())
+                text = compile_template(event.say, None).render(world.scope(viewer=EVERYONE))
             except ExprError as exc:
                 raise RunError(str(exc), f"{path}.say") from None
             if text.strip():
@@ -156,7 +160,7 @@ class Happenings:
                 env._atomic(trigger.do, {}, f"{where}.do")
                 if trigger.say:
                     try:
-                        text = compile_template(trigger.say, None).render(world.scope())
+                        text = compile_template(trigger.say, None).render(world.scope(viewer=EVERYONE))
                     except ExprError as exc:
                         raise RunError(str(exc), f"{where}.say") from None
                     if text.strip():
@@ -170,7 +174,8 @@ class Happenings:
     def react(self, stage: Optional[StageSpec]) -> None:
         """Give every agent asked to react (`wake` with `now`) a turn right away, in the current stage: once the
         action that woke them has committed, so a reaction answers it and cannot undo it. While an agent's action is
-        still committing (and could yet be undone), they wait for it to finish."""
+        still committing (and could yet be undone), they wait for it to finish. Reactions to reactions nested deeper
+        than :attr:`REACTION_DEPTH` become ordinary wakes: agents that keep answering each other never fail the run."""
         env, world = self.env, self.env.world
         if world.journal.holding:
             return
@@ -179,8 +184,9 @@ class Happenings:
             actor = world.entities.get(entity_id)
             if actor is None or not actor.alive or not env.contract.is_agent(actor.entity_type):
                 continue
-            if self._reaction_depth >= self.REACTION_DEPTH:
-                raise RunError(f"reactions set each other off more than {self.REACTION_DEPTH} levels deep", "wake.now")
+            if self._reaction_depth >= self.REACTION_DEPTH:  # agents answering each other: the rest wait a turn
+                world.request_wake(entity_id, why)
+                continue
             spec = stage or next(iter(env.contract.stage_list()))
             self._reaction_depth += 1
             try:

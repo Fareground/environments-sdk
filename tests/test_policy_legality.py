@@ -59,3 +59,12 @@ def test_a_rule_whose_action_is_not_legal_is_skipped_before_its_arguments_are_wo
     assert result.status == "completed", result.error
     assert env.entity("c")["props"]["released"] == 1  # hold, release, hold
     assert not any(i.severity == "error" for i in fg_env.check(contract))
+
+
+def test_a_policy_rule_naming_a_parameter_the_action_lacks_is_an_error_with_the_nearest_name():
+    c = {"name": "Pot", "clock": {"rounds": 1}, "types": {"p": {"agent": True}}, "entities": {"a": {"type": "p"}},
+         "actions": {"give": {"by": "p", "params": {"amount": {"type": "int", "min": 0, "max": 5}}, "do": []}},
+         "policies": {"stingy": {"rules": [{"do": "give", "with": {"amt": 0}}]}}}
+    found = [i for i in fg_env.check(c) if i.path == "policies.stingy.rules[0].with.amt"]
+    assert found and found[0].severity == "error" and "'give' has no parameter 'amt'" in found[0].message
+    assert "amount" in found[0].fix

@@ -84,21 +84,21 @@ def test_a_choice_filtered_through_a_def_reading_private_state_is_refused():
 
 
 def test_a_bound_read_from_a_chosen_entitys_private_property_refuses_without_revealing_it():
+    # Spelled so the checker cannot see whose property it reads (it reports `$params.target.cash` as an error).
     c = with_(actions={"gift": {"by": "player", "do": [], "params": {
         "target": {"type": "entity", "of": "player"},
-        "amount": {"type": "int", "min": 1, "max": "$params.target.cash"}}}})
+        "amount": {"type": "int", "min": 1, "max": "$get($params.target, 'cash')"}}}})
     result, seen = play(c, [("gift", {"target": "bob", "amount": 50}), ("gift", {"target": "ann", "amount": 50})])
     assert result.status == "completed", result.error
     assert "maximum" not in json.dumps(seen["tools"]["gift"])
     refused, own = seen["calls"]
     assert "3" not in refused and "could not be worked out" in refused
     assert "at most 10" in own  # her own cash she may know
-    assert any(i.path == "actions.gift.params.amount.max" and i.severity == "warning" for i in fg_env.check(c))
 
 
 def test_outcome_text_reveals_only_what_game_logic_worked_out():
     peek = {"by": "player", "params": {"target": {"type": "entity", "of": "player"}}}
-    direct = with_(actions={"peek": {**peek, "do": [], "outcome": "{$params.target.name} is {$params.target.role}."}})
+    direct = with_(actions={"peek": {**peek, "do": [], "outcome": "{$params.target.name} is {$get($params.target, 'role')}."}})
     worked_out = with_(actions={"peek": {**peek, "do": ["$seen = $params.target.role"],
                                          "outcome": "{$params.target.name} is {$seen}."}})
     _, seen = play(direct, [("peek", {"target": "bob"})])
@@ -145,3 +145,151 @@ def test_a_stepped_game_and_its_clones_enforce_it_too():
     for seat in (state, state.clone()):
         with pytest.raises(fg_env.RunError, match="bob's cash is private"):
             seat.observation_string(seat.current_player())
+
+
+# -- text the engine writes for several agents, and what its refusals say ------------------------------------------
+
+
+def test_a_transfer_refusal_names_no_amount_of_anothers_private_property():
+    c = with_(actions={"steal": {"by": "player", "params": {"target": {"type": "entity", "of": "player"},
+                                                           "amount": {"type": "int", "min": 1, "max": 100}},
+                                 "do": [{"transfer": "cash", "from": "$params.target", "to": "$actor",
+                                         "amount": "$params.amount"}]}})
+    _, seen = play(c, [("steal", {"target": "bob", "amount": 5}), ("steal", {"target": "ann", "amount": 50})])
+    theirs, own = seen["calls"]
+    assert theirs.startswith("bob cannot cover that.") and "3" not in theirs
+    assert "has only 10 cash" in own  # her own cash she may know
+
+
+def test_an_announcement_cannot_read_an_agents_private_property_not_even_the_actors():
+    own = with_(actions={"brag": {"by": "player", "do": [], "announce": "{$actor.name} holds {$actor.cash}."}})
+    assert any(i.path == "actions.brag.announce" and i.severity == "error" and "$actor.cash" in i.message
+               for i in fg_env.check(own))
+    theirs = with_(actions={"brag": {"by": "player", "do": [], "announce": "Bob holds {$entity(bob).cash}."}})
+    result, seen = play(theirs, [("brag", {})])
+    assert "could not be worked out" in seen["calls"][0] and "Bob holds" not in json.dumps(result.events)
+
+
+def test_an_announcement_reveals_what_game_logic_worked_out():
+    c = with_(actions={"brag": {"by": "player", "do": ["$shown = $actor.cash"], "announce": "{$actor.name} holds {$shown}."}})
+    result, _ = play(c, [("brag", {})])
+    assert result.status == "completed", result.error
+    assert any(e.get("text") == "ann holds 10." for e in result.events)
+    assert not [i for i in fg_env.check(c) if i.path.startswith("actions.brag")]
+
+
+def test_news_cannot_read_an_agents_private_property_unless_sent_only_to_that_agent():
+    event_say = with_()
+    event_say["events"] = [{"phase": "start", "do": [], "say": "Bob holds {$entity(bob).cash}."}]
+    to_everyone = with_(actions={"wave": {"by": "player", "do": [{"emit": "x", "say": "Bob holds {$entity(bob).cash}."}]}})
+    own_to_everyone = with_(actions={"wave": {"by": "player", "do": [{"emit": "x", "say": "I hold {$actor.cash}."}]}})
+    to_bob = with_(actions={"wave": {"by": "player", "do": [
+        {"emit": "x", "say": "You hold {$entity(bob).cash}.", "to": "$entity(bob)"}]}})
+    result, _ = play(event_say)
+    assert result.status == "failed" and "bob's cash is private" in result.error
+    result, seen = play(to_everyone, [("wave", {})])
+    assert "could not be worked out" in seen["calls"][0] and "Bob holds" not in json.dumps(result.events)
+    assert any(i.path == "events[0].say" and i.severity == "error" for i in fg_env.check(event_say))
+    assert any(i.path == "actions.wave.do[0].say" and i.severity == "error" for i in fg_env.check(own_to_everyone))
+    result, _ = play(to_bob, [("wave", {})])
+    assert result.status == "completed", result.error
+    assert any(e.get("text") == "You hold 3." for e in result.events)
+
+
+def test_the_default_announcement_leaves_out_arguments_kept_in_a_private_property():
+    c = contract()
+    c["types"]["player"]["props"]["vote"] = {"default": "", "private": True}
+    c["actions"]["accuse"] = {"by": "player", "do": ["$actor.vote = $params.target.id"], "params": {
+        "target": {"type": "entity", "of": "player"}, "note": {"type": "text", "max_len": 20}}}
+    result, _ = play(c, [("accuse", {"target": "bob", "note": "hunch"})])
+    line = next(e for e in result.events if e.get("kind") == "action")
+    assert line["text"] == "ann: accuse (note=«hunch»)." and "bob" not in json.dumps(line)
+
+
+def test_a_requirement_reading_a_chosen_agents_private_property_is_a_warning():
+    c = with_(actions={"poke": {"by": "player", "params": {"target": {"type": "entity", "of": "player"}}, "do": [],
+                                "when": [{"expr": "$params.target.cash < 5", "why": "too rich"}]}})
+    issue = next(i for i in fg_env.check(c) if i.path == "actions.poke.when[0]")
+    assert issue.severity == "warning" and "$params.target.cash" in issue.message
+
+
+def test_bounds_and_outcomes_reading_a_chosen_agents_private_property_are_check_errors():
+    c = with_(actions={"spy": {"by": "player", "do": [], "outcome": "It holds {$params.target.cash}.", "params": {
+        "target": {"type": "entity", "of": "player"}, "n": {"type": "int", "min": 0, "max": "$params.target.cash"}}}})
+    errors = {i.path for i in fg_env.check(c) if i.severity == "error"}
+    assert {"actions.spy.outcome", "actions.spy.params.n.max"} <= errors
+
+
+def test_choices_worked_out_from_anothers_private_property_fail_loudly_not_as_an_empty_schema():
+    c = with_(actions={"guess": {"by": "player", "do": [], "params": {
+        "x": {"type": "enum", "values": "$map(player, $it.cash)"}}}})
+    result, seen = play(c)
+    assert result.status == "failed" and "actions.guess.params.x.values" in result.error
+    assert "bob's cash is private" in result.error and "tools" not in seen
+
+
+def test_an_inspectable_agent_type_with_a_secret_subtype_is_a_warning():
+    c = contract()
+    c["types"]["wolf"] = {"extends": "player"}
+    c["entities"]["bob"]["type"] = "wolf"
+    c["actions"]["kill"] = {"by": "wolf", "private": True, "params": {"target": {"type": "entity", "of": "player"}},
+                            "do": []}
+    issue = next(i for i in fg_env.check(c) if i.path == "types.wolf")
+    assert issue.severity == "warning" and "inspect" in issue.message
+    c["types"]["player"]["inspect"] = False
+    assert not [i for i in fg_env.check(c) if i.path == "types.wolf"]
+
+
+def _secrets(**extra):
+    c = {"name": "Secrets", "clock": {"rounds": 1},
+         "types": {"p": {"agent": True, "props": {"secret": {"type": "int", "default": 0, "private": True}}}},
+         "entities": {"ann": {"type": "p", "props": {"secret": 4242}}, "bob": {"type": "p"}},
+         "actions": {"wave": {"by": "p", "do": []}}}
+    c.update(extra)
+    return c
+
+
+@pytest.mark.parametrize("extra, path", [
+    ({"brief": {"roles": {"p": "Ann holds {$entity(ann).secret}."}}}, "brief.roles.p"),
+    ({"stages": [{"name": "s", "brief": "Ann holds {$entity(ann).secret}."}]}, "stages.s.brief"),
+    ({"records": {"log": {"fields": {"n": "int"}, "show": "Ann holds {$entity(ann).secret}"}},
+      "events": [{"phase": "start", "do": [{"post": "log", "n": 1}]}]}, "records.log.show"),
+])
+def test_a_brief_or_record_line_naming_another_agents_private_property_is_refused(extra, path):
+    c = _secrets(**extra)
+    assert any(i.severity == "error" and "ann's secret is private" in i.message for i in fg_env.check(c))
+    seen = []
+
+    def participant(wake):
+        if wake.entity_id == "bob":
+            seen.append(wake.brief + wake.update)
+        wake.end()
+
+    result = fg_env.load(c, seed=1).run(participant)
+    assert result.status == "failed" and path in result.error
+    assert not any("4242" in text for text in seen)  # bob never reads ann's secret
+
+
+def test_a_bound_read_through_entity_of_another_agents_private_property_is_an_error_not_a_dropped_bound():
+    c = _secrets(actions={"guess": {"by": "p", "do": [],
+                                    "params": {"x": {"type": "int", "min": 0, "max": "$entity(ann).secret"}}}})
+    errors = [i for i in fg_env.check(c) if i.severity == "error"]
+    assert [i.path for i in errors] == ["actions.guess.params.x.max"] and "ann's secret is private" in errors[0].message
+
+    def participant(wake):
+        list(wake.tools)
+        wake.end()
+
+    result = fg_env.load(c, seed=1).run(participant)
+    assert result.status == "failed" and "actions.guess.params.x.max" in result.error
+
+
+@pytest.mark.parametrize("path, patch", [
+    ("views.v", {"views": {"v": {"show": "{$get($entity(ann), secret)}"}}}),
+    ("views.v", {"views": {"v": {"show": "{$dict(p, $it.id, $it.secret)}"}}}),
+    ("types.p.inspect", {"types": {"p": {"agent": True, "inspect": "$entity(ann).secret > 10",
+                                          "props": {"secret": {"type": "int", "default": 0, "private": True}}}}}),
+])
+def test_another_agents_private_property_cannot_be_read_around_the_rule(path, patch):
+    errors = [i for i in fg_env.check(_secrets(**patch)) if i.severity == "error"]
+    assert [i.path for i in errors] == [path] and "'s secret is private" in errors[0].message

@@ -296,7 +296,7 @@ ERRORS = [
     ("$union(5, [1])", r"\$union: argument 1 must be a list"),
     ("$merge({a: 1}, [1])", r"must be a map"),
     ("$without([1], a)", r"must be a map"),
-    ("$pick_keys({a: 1}, 5)", r"key or a list of keys"),
+    ("$pick_keys({a: 1}, true)", r"key or a list of keys"),
     ("$zip([1])", r"wrong number of arguments"),
     ("$pick([1, 2])", r"wrong number of arguments"),
     ("$chunk([1], 0)", r"at least 1"),

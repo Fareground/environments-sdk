@@ -1,5 +1,5 @@
 # fg-env playthrough: Biased pennies
-Game: biased_pennies@44285673:4642e142
+Game: biased_pennies@6f5fbe05:4642e142
 Seed: 1
 Seats: 0 a, 1 b
 Dynamics: simultaneous; chance: deterministic; information: imperfect; utility: zero_sum

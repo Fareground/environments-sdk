@@ -129,7 +129,7 @@ def test_refused_parent_action_leaves_no_scheduled_work():
             assert env.world.scheduled == []
         w.end()
     result = env.run(play)
-    assert result.ok, result.error
+    assert result.status == 'completed' and result.degraded == ['agents_never_acted'], result.error
     assert result.outputs['total'] == 0
 
 

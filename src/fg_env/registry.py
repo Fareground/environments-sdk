@@ -248,7 +248,8 @@ def _family_op(spec: FamilySpec) -> OpSpec:
             hint = get_close_matches(str(use), list(declared), n=1)
             fix = f"did you mean '{hint[0]}'?" if hint else (
                 f"{name} mechanisms: {listing}" if declared else
-                f"declare one: \"mechanisms\": {{\"my_{name}\": {{\"kind\": \"{name}\", \"mode\": ...}}}}")
+                f"declare one: \"mechanisms\": {{\"my_{name}\": {{\"kind\": \"{name}\", \"mode\": ...}}}} (a contract "
+                "expanded with --mechanisms keeps its `mechanisms` block: the generated effects read their config there)")
             return None, (f".{name}", f"`{name}` names a declared {name} mechanism, got {use!r}", fix)
         mode = str(declared[use].get("mode"))
         table = spec.actions.get(mode, {})

@@ -47,7 +47,7 @@ class RunStages:
             else:
                 if pass_index:
                     yield _Point(stage)
-                agents = self._eligible(stage)
+                agents = self._eligible(stage, pass_index=pass_index)
                 where.pass_index, where.agents = pass_index, agents
                 self.diagnosis.stage(stage.name, woke=len(agents))
             if stage.turns == "simultaneous":
@@ -78,8 +78,9 @@ class RunStages:
         except ExprError as exc:
             raise RunError(str(exc), f"stages.{stage.name}.when") from None
 
-    def _eligible(self: "Env", stage: StageSpec, ordered: bool = True) -> List[Entity]:  # type: ignore[misc]
-        """Agents woken in ``stage``, in turn order. ``ordered=False`` skips ordering (no random draws)."""
+    def _eligible(self: "Env", stage: StageSpec, ordered: bool = True, pass_index: int = 0) -> List[Entity]:  # type: ignore[misc]
+        """Agents woken in ``stage`` (in its pass ``pass_index``), in turn order. ``ordered=False`` skips ordering (no
+        random draws)."""
         world = self.world
         agent_types = set(self.contract.agent_types())  # includes types that inherit `agent`
         acting = {kind: bool(stage_actions(self.contract, stage, kind)) for kind in agent_types}
@@ -87,8 +88,7 @@ class RunStages:
         path = f"stages.{stage.name}"
         try:
             if stage.who is not None:
-                who = compile_expr(stage.who)
-                agents = [a for i, a in enumerate(agents) if truthy(who(world.scope(it=a, i=i)))]
+                agents = self._woken(stage, agents, pass_index)
             if not ordered:
                 return agents
             if stage.order == "random":
@@ -103,6 +103,18 @@ class RunStages:
         except TypeError:
             raise RunError("`order` must give comparable values (numbers or text)", f"{path}.order") from None
         return agents
+
+    def _woken(self: "Env", stage: StageSpec, agents: List[Entity], pass_index: int) -> List[Entity]:  # type: ignore[misc]
+        """The ``agents`` that the stage's `who` wakes. Each is decided with luck of its own (the stage, round, pass and
+        agent), so who else is alive never shifts it, and asking again (a preview) gives the same answer."""
+        world, who = self.world, compile_expr(stage.who)
+        woken = []
+        for i, agent in enumerate(agents):
+            luck = world.seeds.lazy_rng("who", stage.name, world.round, pass_index, agent.id)
+            with world.drawing_from(luck):
+                if truthy(who(world.scope(it=agent, i=i))):
+                    woken.append(agent)
+        return woken
 
     def _shuffle(self: "Env", stage: StageSpec, agents: List[Any]) -> None:  # type: ignore[misc]
         """Put ``agents`` (or their turns) in a random order drawn from the stage's own stream."""

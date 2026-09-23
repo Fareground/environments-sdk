@@ -9,7 +9,7 @@ from typing import Any, Callable, Dict, Mapping, Optional
 from ..entity import Entity as _Entity
 from .base import MAX_INT_BITS, MAX_LIST_LEN, MAX_TEXT_LEN, ExprError, PrivateRead, Untrusted, charge
 
-__all__ = ["attr"]
+__all__ = ["attr", "EVERYONE", "map_key"]
 
 _ENTITY_FIELDS = frozenset({"id", "name", "type", "alive", "at"})
 
@@ -62,12 +62,31 @@ def attr(obj: Any, name: str, source: Optional[str] = None, scope: Any = None) -
     raise ExprError(f"cannot read '.{name}' of {type(obj).__name__} {obj!r}", source)
 
 
+class _Everyone:
+    """The ``$viewer`` of text sent to more than one agent (an announcement, news): no agent's private property may
+    show in it, not even the actor's."""
+
+    name = "everyone"
+
+    def __repr__(self) -> str:
+        return "everyone"
+
+
+EVERYONE = _Everyone()
+
+
 def _check_visible(entity: _Entity, name: str, scope: Any, source: Optional[str]) -> None:
-    """Refuse (:class:`PrivateRead`) reading ``entity``'s private ``name`` in what one agent is shown or offered.
-    Game logic binds no ``$viewer`` and reads the true state; an agent always sees its own properties."""
+    """Refuse (:class:`PrivateRead`) reading ``entity``'s private ``name`` in what one agent is shown or offered, or
+    in text sent to several (:data:`EVERYONE`). Game logic binds no ``$viewer`` and reads the true state; an agent
+    always sees its own properties."""
     viewer = scope.vars.get("viewer")
     if viewer is None or _entity_id(viewer) == entity.id or not scope.world.is_private(entity.entity_type, name):
         return
+    if viewer is EVERYONE:
+        raise PrivateRead(
+            f"{entity.name}'s {name} is private, and this text is sent to others than {entity.name}: work out what "
+            "they may learn in game logic (e.g. `\"$shown = ...\"` in the action's do) and show that, or send it `to` "
+            f"{entity.name} alone", source)
     raise PrivateRead(
         f"{entity.name}'s {name} is private, and this is what {getattr(viewer, 'name', viewer)} is shown or offered: "
         "read only the agent's own (guard with `$it.id == $actor.id`), or work out what it may learn in game logic "
@@ -82,7 +101,9 @@ def _index(container: Any, index: Any, source: str, scope: Any = None) -> Any:
         if not -len(container) <= index < len(container):
             raise ExprError(f"index {index} is out of range (length {len(container)})", source)
         return container[index]
-    if isinstance(container, Mapping) or hasattr(container, "entity_type"):
+    if isinstance(container, Mapping):
+        return attr(container, str(map_key(index)), source, scope)
+    if hasattr(container, "entity_type"):
         return attr(container, str(index), source, scope)
     raise ExprError(f"cannot index {_describe(container)}", source)
 
@@ -96,6 +117,13 @@ def _entity_id(value: Any) -> Any:
     if hasattr(value, "entity_type") and hasattr(value, "id"):
         return value.id
     return value
+
+
+def map_key(value: Any) -> Any:
+    """The key ``value`` names in a map. Map keys are text (as in JSON): a number names the key spelled like it
+    (``{1: 3}`` holds the key ``'1'``), an entity names its id."""
+    value = _entity_id(value)
+    return str(value) if type(value) is int or type(value) is float else value
 
 
 def _eq(a: Any, b: Any) -> bool:
@@ -135,7 +163,8 @@ def _in(item: Any, container: Any, source: str) -> bool:
         key = _entity_id(item)
         return any(_entity_id(x) == key for x in container)
     if isinstance(container, Mapping):
-        return item in container
+        key = map_key(item)
+        return isinstance(key, str) and key in container
     raise ExprError(f"'in' needs a list or text on the right, got {_describe(container)}", source)
 
 
@@ -186,11 +215,14 @@ def _pow(a: Any, b: Any, source: str) -> Any:
         if bits > MAX_INT_BITS:
             raise _too_big(bits, source)
     try:
-        return _finite(a ** b, source)
+        result = a ** b
     except OverflowError:  # its own text varies by platform ("Result too large", "Numerical result out of range")
         raise ExprError("power failed: the result is too large", source) from None
     except ZeroDivisionError as exc:
         raise ExprError(f"power failed: {exc}", source) from None
+    if isinstance(result, complex):  # a negative number to a fractional power
+        raise ExprError(f"{a} ** {b} has no real result", source)
+    return _finite(result, source)
 
 
 def _arith(op: Callable[[Any, Any], Any]) -> Callable[[Any, Any, str], Any]:

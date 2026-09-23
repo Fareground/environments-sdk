@@ -63,3 +63,11 @@ def test_wrong_stage_refusal_does_not_evaluate_conditions_valid_only_in_later_st
     result = env.run(play)
     assert result.ok, result.summary()
     assert env.props["completed"] is True
+
+
+def test_an_action_no_stage_offers_is_a_warning():
+    c = {"name": "Shop", "clock": {"rounds": 1}, "types": {"p": {"agent": True}}, "entities": {"a": {"type": "p"}},
+         "actions": {"buy": {"by": "p", "do": []}, "gift": {"by": "p", "do": []}},
+         "stages": [{"name": "s", "actions": ["buy"]}]}
+    found = [i for i in fg_env.check(c) if i.path == "actions.gift"]
+    assert [i.severity for i in found] == ["warning"] and "not available in any stage" in found[0].message

@@ -1,4 +1,5 @@
-"""A public template can bypass inspect privacy; flag that choice without changing execution."""
+"""An announcement is sent to everyone: reading an agent's private property in it is a check error, and the engine
+refuses it; a reveal is worked out in `do` first."""
 import copy
 
 import pytest
@@ -18,17 +19,16 @@ def contract():
 
 
 def warnings(c):
-    return [i for i in fg_env.check(c, rounds=0) if "public announcement references private" in i.message]
+    return [i for i in fg_env.check(c, rounds=0) if i.path == "actions.report.announce" and "reads private" in i.message]
 
 
-def test_direct_disclosure_has_a_path_and_actionable_nonblocking_warning():
+def test_direct_disclosure_is_an_error_with_a_path_and_a_fix():
     issues = warnings(contract())
     assert len(issues) == 1
     issue = issues[0]
-    assert issue.severity == "warning"
-    assert issue.path == "actions.report.announce"
+    assert issue.severity == "error"
     assert "$actor.balance" in issue.message
-    assert "outcome" in str(issue) and "private: true" in str(issue)
+    assert "$shown" in str(issue)
 
 
 @pytest.mark.parametrize("repair", ["private", "outcome", "public_field", "no_announcement"])
@@ -72,10 +72,10 @@ def test_unknown_parameter_type_and_broken_template_still_report_errors_without_
         assert any(i.severity == "error" for i in fg_env.check(c, rounds=0))
 
 
-def test_public_and_private_announcements_have_the_warned_runtime_behavior():
+def test_a_worked_out_reveal_is_announced_and_a_private_action_announces_nothing():
     for private in (False, True):
         c = copy.deepcopy(contract())
-        c["actions"]["report"]["private"] = private
+        c["actions"]["report"].update(private=private, do=["$shown = $actor.balance"], announce="Balance: {$shown}")
         env = fg_env.load(c)
 
         def play(wake):

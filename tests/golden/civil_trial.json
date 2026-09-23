@@ -1,7 +1,7 @@
 {
   "actions": 14,
   "events": 18,
-  "events_sha256": "9ecc5458ad2a780f8d0d37d68378d01e3dad85dac6895590cdd9d3a5cc30b0e7",
+  "events_sha256": "1aee8bd40d3be68b9628fabdc3c69531fe98be312a7cefbf07f5a8837d5dd476",
   "first_events": [
     "r1 action p_counsel: Dana Ruiz (for Harbor) delivered an opening statement.",
     "r1 action d_counsel: Marcus Hale (for Meridian) delivered an opening statement.",
@@ -15,9 +15,9 @@
     "r2 action judge: Judge Eleanor Park overruled the objection to D-1 Independent weld inspection report; it is admitted."
   ],
   "metrics": {
-    "admitted": 3,
-    "excluded": 1,
-    "net_admitted_strength": -0.1833304466
+    "admitted": 4,
+    "excluded": 0,
+    "net_admitted_strength": 0.5066123372
   },
   "rounds": 4,
   "status": "running",

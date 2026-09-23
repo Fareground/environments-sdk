@@ -4,7 +4,7 @@ Expands into trader props, world props (the book, last price, bar, fees), the ``
 ``<name>_bars`` records, tools ``<name>_buy``/``_sell``/``_cancel``/``_cancel_all``/``_algo`` with
 numeric bounds, a trading stage (or hooks into a declared one), open/close events, views (market,
 depth, own orders, tape, account), the ``<name>_algo`` policy and the ``<name>_crowd`` types of coded traders,
-metrics, outputs and the conservation invariant. Everything is ordinary contract data backed by
+metrics, outputs and the accounting invariant. Everything is ordinary contract data backed by
 the native engine in :mod:`.order_book`.
 """
 from __future__ import annotations
@@ -196,7 +196,7 @@ def _expand_order_book(name: str, cfg: OrderBookConfig, contract: Mapping[str, A
             f"{name}_opened": {"type": "int", "default": 0}, f"{name}_closed": {"type": "int", "default": 0},
             f"{name}_volume": {"type": "number", "default": 0},
             f"{name}_notional": {"type": "number", "default": 0}, f"{name}_trades": {"type": "int", "default": 0},
-            f"{name}_closes": {"type": "list", "default": []}, f"{name}_supply": {"type": "map", "default": {}},
+            f"{name}_closes": {"type": "list", "default": []},
             f"{name}_flow": {"type": "map", "default": {}, "description": "Last round's aggressive quantity by trader kind."},
             f"{name}_liquidations": {"type": "int", "default": 0, "description": "Stop-loss liquidations so far."},
             f"{name}_receipt": {"type": "text", "default": ""},
@@ -241,11 +241,11 @@ def _expand_order_book(name: str, cfg: OrderBookConfig, contract: Mapping[str, A
                                "order": f"0 if $get($it, '{p['strategy']}', '') == 'market_maker' else 1 + $random()",
                                "brief": f"Trade {unit}: buy, sell, cancel, or end your turn."}]
     else:
-        fragment["stage_hooks"] = {cfg.stage: {"actions": names}}
+        fragment["stage_hooks"] = {cfg.stage: {"actions": names, "max_actions": cfg.max_actions}}
     if cfg.conserve:
         fragment["invariants"] = [{"expr": f"$book_ok({name})", "check": "action" if cfg.conserve is True else cfg.conserve,
-                                   "why": f"The {unit} book conserves cash and shares, reserves match resting orders, "
-                                          "balances stay within limits and the book is never crossed."}]
+                                   "why": f"The {unit} book's reserves match its resting orders, balances stay within "
+                                          "limits and the book is never crossed."}]
     if cfg.crowd:
         fragment["population"] = []
         fragment["types"][crowd_type(name)] = {

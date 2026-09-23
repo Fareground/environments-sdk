@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Set
+from typing import TYPE_CHECKING, Any, Optional, Set
 
 from .. import contract as C
 from ..probability import check_literal_probability
@@ -34,7 +34,8 @@ class RuleChecks:
                 if arm not in self.c.arms:
                     self.error(f"{path}.arms", f"'{arm}' is not a declared arm", self._hint(arm, self.c.arms, "arms"))
             self.value(event.at, f"{path}.at", BASE)
-            self.expr(event.when, f"{path}.when", BASE)
+            self._after_the_clock(event.at, event.name, path)
+            self.condition(event.when, f"{path}.when", BASE)
             if isinstance(event.every, str):
                 self.expr(event.every, f"{path}.every", {"inputs"})
             elif event.every is not None and event.every < 1:
@@ -48,12 +49,22 @@ class RuleChecks:
                     types[item] = {event.each}
                 else:
                     self.expr(event.each, f"{path}.each", BASE)
-            self.expr(event.where, f"{path}.where", roots, types)
+            self.condition(event.where, f"{path}.where", roots, types)
             self.effects(event.do, f"{path}.do", roots, types)
             check_event_order(self, event, path, frozenset(roots), types)
             self.template(event.say, f"{path}.say", None, BASE)
+            self._shared_text(event.say, f"{path}.say", {})
             if not event.do and not event.say:
                 self.warn(path, "does nothing", "add `do` or `say`")
+
+    def _after_the_clock(self: "_Checker", at: Any, name: Optional[str], path: str) -> None:  # type: ignore[misc]
+        """An event whose every round is past the clock's last never fires in a run of the clock's length."""
+        rounds, planned = self.c.clock.rounds, at if isinstance(at, list) else [at]
+        if not isinstance(rounds, int) or not planned or not all(isinstance(r, int) and r > rounds for r in planned):
+            return
+        what = f"event '{name}'" if name else "this event"
+        self.warn(f"{path}.at", f"{what} fires at round {min(planned)}, after the clock's last round {rounds}, so it never "
+                                "fires", f"use a round up to {rounds}, or lengthen clock.rounds")
 
     def _triggers(self: "_Checker") -> None:  # type: ignore[misc]
         for index, trigger in enumerate(self.c.triggers):
@@ -61,9 +72,10 @@ class RuleChecks:
             for arm in trigger.arms or []:
                 if arm not in self.c.arms:
                     self.error(f"{path}.arms", f"'{arm}' is not a declared arm", self._hint(arm, self.c.arms, "arms"))
-            self.expr(trigger.when, f"{path}.when", BASE)
+            self.condition(trigger.when, f"{path}.when", BASE)
             self.effects(trigger.do, f"{path}.do", set(BASE), {})
             self.template(trigger.say, f"{path}.say", None, BASE)
+            self._shared_text(trigger.say, f"{path}.say", {})
             if not trigger.do and not trigger.say:
                 self.warn(path, "does nothing", "add `do` or `say`")
 
@@ -88,7 +100,7 @@ class RuleChecks:
                     else:
                         actor_types = {**actor_types, "it": set(self.c.subtypes(rule.each))}
                     rule_roots = rule_roots | {"it", "i"}
-                self.expr(rule.when, f"{path}.when", rule_roots, actor_types)
+                self.condition(rule.when, f"{path}.when", rule_roots, actor_types)
                 self.value(rule.chance, f"{path}.chance", rule_roots, actor_types)
                 check_literal_probability(self, rule.chance, f"{path}.chance")
                 self.value(rule.with_, f"{path}.with", rule_roots, actor_types)
@@ -105,14 +117,14 @@ class RuleChecks:
                 self.error(f"{path}.type", f"unknown type '{output.type}'", self._suggest(output.type, C.OUTPUT_TYPES))
             self.expr(output.expr, path, BASE | {"outputs", "result"})
         for index, end in enumerate(self.c.end):
-            self.expr(end.when, f"end[{index}].when", BASE)
+            self.condition(end.when, f"end[{index}].when", BASE)
             self.expr(end.winner, f"end[{index}].winner", BASE)
             self.template(end.say, f"end[{index}].say", None, BASE)
             if end.check not in C.END_CHECKS:
                 self.error(f"end[{index}].check", f"unknown check '{end.check}'",
                            self._suggest(end.check, C.END_CHECKS) or ", ".join(C.END_CHECKS))
         for index, invariant in enumerate(self.c.invariants):
-            self.expr(invariant.expr, f"invariants[{index}]", BASE)
+            self.condition(invariant.expr, f"invariants[{index}]", BASE)
             if invariant.check not in C.INVARIANT_CHECKS:
                 self.error(f"invariants[{index}].check", f"unknown check '{invariant.check}'",
                            self._suggest(invariant.check, C.INVARIANT_CHECKS) or ", ".join(C.INVARIANT_CHECKS))

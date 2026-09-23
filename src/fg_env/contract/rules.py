@@ -130,7 +130,7 @@ class StageSpec(_Model):
     time_limit: Union[float, str, None] = Field(None, description="Wall-clock seconds each agent has for its turn (number, or expression over $actor; null uses the run's `time_limit`). Past it the turn ends, later calls are refused and `on_timeout` runs.")
     on_timeout: Effects = Field(default_factory=list, description="Effects for each agent whose turn ran out of time ($actor), instead of `on_idle`.")
     atomic: bool = Field(False, description="The turn's actions apply together or not at all: triggers, reactions and invariants wait until the turn ends, and a turn that breaks `valid` is undone.")
-    valid: Annotated[List[Condition], BeforeValidator(one_or_many)] = Field(default_factory=list, description="Conditions the whole turn must meet when it ends ($actor, $pending); if one fails, every action of the turn is undone and the agent is told `why` and plays the turn again. Makes the stage atomic.")
+    valid: Annotated[List[Condition], BeforeValidator(one_or_many)] = Field(default_factory=list, description="Conditions the whole turn must meet when it ends ($actor, $pending); if one fails, every action of the turn is undone and the agent is told `why` and plays the turn again. An action that draws randomness settles the turn so far at once (a failure then undoes the turn and ends it), so no later action can undo its luck. Makes the stage atomic.")
     on_enter: Effects = Field(default_factory=list)
     on_exit: Effects = Field(default_factory=list)
 
@@ -173,7 +173,7 @@ class ViewSpec(_Model):
     when: Optional[str] = None
     look: bool = Field(False, description="Offer it on demand as look(view) instead of always including it.")
     bullet: bool = Field(True, description="Prefix each item with '- ' (false for boards and tables).")
-    only_changes: bool = Field(False, description="Include it only when it changed since the agent's last turn.")
+    only_changes: bool = Field(False, description="Show it in full only when it changed since the agent's last turn; otherwise one line says it is unchanged. For agents that remember their earlier turns: the built-in LLM participants start every turn afresh.")
     attach: Optional[str] = Field(None, description="Assets delivered with the view: an expression giving an asset id, a list or null — per listed item ($it) with `of`, else once ($actor).")
 
 

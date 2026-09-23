@@ -420,7 +420,7 @@ class GameState:
 
     def _call(self, seat: int, tool: str, args: Dict[str, Any]) -> None:
         result = self._decide(lambda run: run.call(tool, args))
-        if result is not None and not result.ok:
+        if result is not None and not result.ok and not result.data.get("spent"):  # refused by its luck: played
             raise RunError(f"the engine refused {Action(None, tool, args).text} after it was found legal: {result.text}",
                            f"actions.{tool}")
         self._record({"player": seat, "tool": tool, "args": args})

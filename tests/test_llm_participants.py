@@ -106,7 +106,7 @@ def test_transient_provider_errors_are_retried_with_backoff(monkeypatch):
     agent = participants.anthropic(client, "claude-sonnet-5")
     result = fg_env.load(SHOP, seed=1, inputs={"shoppers": 1}).run(agent, rounds=1)
     assert result.status != "failed", result.error
-    assert sleeps == [3.0, 2.0]
+    assert sleeps[0] == 3.0 and 1.0 <= sleeps[1] <= 3.0  # retry-after, else 2 s with jitter
     assert result.stats["llm_retries"] == 2 and agent.usage.retries == 2
     assert result.stats["llm_calls"] == 2 and result.stats["input_tokens"] == 200
     assert result.stats["cache_read_tokens"] == 160
@@ -144,12 +144,13 @@ def test_a_provider_and_model_name_an_llm_participant_on_the_official_client(tmp
 
     made = []
     sdk = ModuleType("anthropic")
-    sdk.Anthropic = lambda: made.append(FakeAnthropic([[("end_turn", {})]] * 10)) or made[-1]
+    buy = [("buy", {"offer": "espresso", "qty": 1}), ("end_turn", {})]
+    sdk.Anthropic = lambda: made.append(FakeAnthropic([buy] * 40)) or made[-1]
     monkeypatch.setitem(__import__("sys").modules, "anthropic", sdk)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
     path = tmp_path / "shop.json"
     path.write_text(json.dumps(SHOP))
-    assert main(["run", str(path), "--seed", "1", "--agent", "shopper=anthropic:claude-sonnet-5"]) == 0
+    assert main(["run", str(path), "--seed", "1", "--rounds", "1", "--agent", "shopper=anthropic:claude-sonnet-5"]) == 0
     assert made and made[-1].requests[0]["model"] == "claude-sonnet-5"
     monkeypatch.delenv("ANTHROPIC_API_KEY")
     assert main(["run", str(path), "--agent", "shopper=anthropic:claude-sonnet-5"]) == 1

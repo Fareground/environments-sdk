@@ -59,8 +59,8 @@
     {"do": "respond", "with": {"choice": "undecided", "confidence": "$felt_confidence($actor)", "reason": "I would need more information."}}
   ]}},
   "metrics": {
-    "support_share": {"expr": "$count(person, $it.response == support) / $max(1, $count(person))"},
-    "response_rate": {"expr": "$count(person, $it.response != '') / $max(1, $count(person))"}
+    "support_share": {"expr": "$count(person, $it.response == support) / $count(person) if $count(person) > 0 else null"},
+    "response_rate": {"expr": "$count(person, $it.response != '') / $count(person) if $count(person) > 0 else null"}
   },
   "outputs": {
     "population_size": {"type": "int", "expr": "$count(person)"},

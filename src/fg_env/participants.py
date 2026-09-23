@@ -14,9 +14,10 @@ import random
 import threading
 import time
 from difflib import get_close_matches
-from typing import TYPE_CHECKING, Any, Callable, Collection, Dict, List, Mapping, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Collection, Dict, List, Mapping, Optional, Tuple, Union
 
 from .assets.multimodal import ANTHROPIC_MEDIA, OPENAI_MEDIA, anthropic_parts, media_set, openai_parts
+from .effects import each_items
 from .errors import ContractError, Issue, RunError
 from .probability import is_probability
 from .expr import ExprError, compile_expr, resolve, truthy
@@ -201,42 +202,28 @@ class PolicyAgent:
     @staticmethod
     def _items(turn: Any, each: str, scope: Any, path: str) -> List[Any]:
         world = turn.env.world
+        if each in turn.env.contract.types:
+            return list(world.entities_of(each))
         try:
-            items = world.entities_of(each) if each in turn.env.contract.types else compile_expr(each)(scope)
+            with turn.env._lock, turn.after_choices():
+                items = compile_expr(each)(scope)
+                return each_items(items, world, f"{path}.each")
         except ExprError as exc:
             raise RunError(str(exc), f"{path}.each") from None
-        return list(items or [])
 
     def _try(self, wake: Wake, index: int, scope: Any, rng: Any) -> str:
         """Try one rule: "acted", "passed" (the turn ends), or "skipped"."""
         turn, rule, path = wake._turn, self.spec.rules[index], f"policies.{self.name}.rules[{index}]"
-        try:
-            if rule.when is not None and not truthy(compile_expr(rule.when)(scope)):
-                return "skipped"
-            if rule.chance is not None:
-                p = compile_expr(rule.chance)(scope) if isinstance(rule.chance, str) else rule.chance
-                if not is_probability(p):
-                    raise ExprError(f"chance must be a number from 0 to 1, got {p!r}", str(rule.chance))
-                if rng.random() >= p:
-                    return "skipped"
-            if rule.do == "pass":
-                if self._probe_later:
-                    self._probe(turn, index)
-                wake.end()
-                return "passed"
-            with turn.env._lock:  # legality without building tool schemas: coded crowds never read them
-                legal = not wake.done and turn._allows(rule.do)
-            if not legal:  # before `with`, whose arguments may only exist while the action is legal
-                return "skipped"
-            args = resolve(rule.with_, scope)
-        except ExprError as exc:
-            raise RunError(str(exc), path) from None
-        args = {k: _as_ids(v) for k, v in args.items()}
-        with turn.env._lock:
-            _, problem = turn.env.actions.validate(turn.actor, rule.do, args)
+        # Read the world as the agent's next choice meets it: in a sealed stage, after the choices it already made.
+        with turn.env._lock, turn.after_choices():
+            choice = self._choose(wake, index, scope, rng)
+        if choice is None:
+            return "skipped"
+        if isinstance(choice, str):  # "passed"
+            wake.end()
+            return choice
+        args, problem = choice
         if problem is None:
-            if self._probe_later:
-                self._probe(turn, index)
             result = wake.call(rule.do, args)
             if result.ok:
                 turn.env.diagnosis.policy_rule(path)
@@ -244,6 +231,36 @@ class PolicyAgent:
             problem = result.text
         turn.env.diagnosis.policy_rule(path, problem)
         return "skipped"  # this rule does not fit right now; try the next one
+
+    def _choose(self, wake: Wake, index: int, scope: Any,
+                rng: Any) -> Union[None, str, Tuple[Dict[str, Any], Optional[str]]]:
+        """Whether a rule applies now: None (it does not), "passed", or its arguments and why they are invalid."""
+        turn, rule, path = wake._turn, self.spec.rules[index], f"policies.{self.name}.rules[{index}]"
+        try:
+            if rule.when is not None and not truthy(compile_expr(rule.when)(scope)):
+                return None
+            if rule.chance is not None:
+                p = compile_expr(rule.chance)(scope) if isinstance(rule.chance, str) else rule.chance
+                if not is_probability(p):
+                    raise ExprError(f"chance must be a number from 0 to 1, got {p!r}", str(rule.chance))
+                if rng.random() >= p:
+                    return None
+            if rule.do == "pass":
+                if self._probe_later:
+                    self._probe(turn, index)
+                return "passed"
+            # legality without building tool schemas (coded crowds never read them), before `with`, whose arguments
+            # may only exist while the action is legal
+            if wake.done or not turn._allows(rule.do):
+                return None
+            args = resolve(rule.with_, scope)
+        except ExprError as exc:
+            raise RunError(str(exc), path) from None
+        args = {k: _as_ids(v) for k, v in args.items()}
+        _, problem = turn.env.actions.validate(turn.actor, rule.do, args)
+        if problem is None and self._probe_later:
+            self._probe(turn, index)
+        return args, problem
 
     def _probe(self, turn: Any, index: int) -> None:
         """Evaluate each rule after ``index`` whose action is legal now, as a turn would reach it — `when`, then
@@ -360,6 +377,7 @@ class _LLMUsage:
         self.forfeits = 0
         self.truncated = 0
         self.refusals = 0
+        self.out_of_steps = 0
 
     def to_dict(self) -> Dict[str, int]:
         return dict(self.__dict__)
@@ -416,6 +434,19 @@ def _permanent_fix(exc: BaseException, client: str, model: str) -> str:
         return ("The provider rejected the request; fix what its message names (for instance a field passed in "
                 "`extra` that this model does not accept).")
     return f"The call itself failed: pass the sync client, {client}, or one with its interface; or fix the code."
+
+
+def _backoff(attempt: int, exc: BaseException) -> float:
+    """Seconds to wait before retrying after ``exc``: the provider's ``retry-after``, else exponential backoff with
+    jitter, so parallel turns that hit a rate limit together do not all retry at the same moment."""
+    delay = _retry_after(exc)
+    if delay is None:
+        delay = 2.0 ** attempt * (0.5 + _JITTER.random())
+    return min(_MAX_BACKOFF_SECONDS, delay)
+
+
+#: Backoff jitter: its own stream, so retries never touch the global or a run's random state.
+_JITTER = random.Random()
 
 
 def _retry_after(exc: BaseException) -> Optional[float]:
@@ -489,6 +520,11 @@ class _LLMParticipant:
             return None
         return _TRUNCATED if truncated else _nudge(wake)
 
+    def _out_of_steps(self, wake: Wake) -> None:
+        """The loop made all its ``max_steps`` model calls and the turn is still open: count it (the turn then ends)."""
+        if not wake.done:
+            self._record(wake, out_of_steps=1)
+
     @staticmethod
     def _dispatch(wake: Wake, name: Any, args: Any) -> Optional[ToolResult]:
         """Run one tool call of a reply, or None when an earlier call of the same reply ended the turn: leftover
@@ -509,8 +545,7 @@ class _LLMParticipant:
                 if attempt >= self.retries:
                     raise _Forfeit() from exc
                 self._record(wake, llm_retries=1)
-                delay = _retry_after(exc)
-                time.sleep(min(_MAX_BACKOFF_SECONDS, delay if delay is not None else 2.0 ** attempt))
+                time.sleep(_backoff(attempt, exc))
                 continue
             if inspect.isawaitable(response):
                 if inspect.iscoroutine(response):
@@ -592,6 +627,7 @@ class _Anthropic(_LLMParticipant):
                 results.append({"type": "tool_result", "tool_use_id": block.get("id"), "content": reply,
                                 "is_error": not result.ok})
             messages.append({"role": "user", "content": results})
+        self._out_of_steps(wake)
 
     def _count(self, wake: Wake, usage: Any) -> None:
         def number(name: str) -> int:
@@ -619,7 +655,7 @@ def _field(block: Any, name: str) -> Any:
     return block.get(name) if isinstance(block, Mapping) else getattr(block, name, None)
 
 
-def anthropic(client: Any, model: str, *, max_tokens: int = 1024, max_steps: int = 8, system: str = "",
+def anthropic(client: Any, model: str, *, max_tokens: int = 16000, max_steps: int = 8, system: str = "",
               retries: int = 4, media: Optional[Collection[str]] = None, retry_truncated: bool = True,
               extra: Optional[Mapping[str, Any]] = None) -> Participant:
     """An LLM participant using an ``anthropic.Anthropic()`` client.
@@ -642,11 +678,12 @@ def anthropic(client: Any, model: str, *, max_tokens: int = 1024, max_steps: int
     ends the turn and counts in ``stats["refusals"]``. Real token usage lands in the run's statistics and in
     ``participant.usage``.
 
-    A reply cut off at ``max_tokens`` counts in ``stats["truncated"]``; when it called no tool, the model is asked
-    once for a short tool call (``retry_truncated=False`` ends the turn instead). Any other reply that calls no tool
-    is reminded once of the tools offered. Calls left in a reply after one of them ended the turn are not made. In a
-    stage where the agent must act, the participant never ends the turn itself: the engine closes it and reports
-    that the agent did not act.
+    A reply cut off at ``max_tokens`` (default 16000: room for a model that thinks before it answers) counts in
+    ``stats["truncated"]``; when it called no tool, the model is asked once for a short tool call
+    (``retry_truncated=False`` ends the turn instead). Any other reply that calls no tool is reminded once of the tools
+    offered. A turn that makes all ``max_steps`` model calls ends there and counts in ``stats["out_of_steps"]``. Calls
+    left in a reply after one of them ended the turn are not made. In a stage where the agent must act, the
+    participant never ends the turn itself: the engine closes it and reports that the agent did not act.
     """
     return _Anthropic(client, model, max_tokens, max_steps, system, retries,
                       media_set(media, ANTHROPIC_MEDIA, ANTHROPIC_MEDIA), retry_truncated, extra)
@@ -722,6 +759,7 @@ class _OpenAI(_LLMParticipant):
             if files:  # tool messages carry text only: the files follow in one user message
                 messages.append({"role": "user", "content": [{"type": "text", "text": "Files from the tool results above:"},
                                                              *files]})
+        self._out_of_steps(wake)
 
     def _count(self, wake: Wake, usage: Any) -> None:
         def number(owner: Any, name: str) -> int:

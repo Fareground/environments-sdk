@@ -34,14 +34,15 @@ import re
 from dataclasses import dataclass
 from difflib import get_close_matches
 from functools import lru_cache
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .entity import Entity
 from .errors import RunError
 from .clock_math import advance_time
 from .contract import MAX_CREATE
 from .delivery import dropped, send
-from .expr import MAX_INT_BITS, Expr, ExprError, attr, check_size, compile_expr, is_expr, resolve, truthy
+from .expr import EVERYONE, MAX_INT_BITS, Expr, ExprError, attr, check_size, compile_expr, is_expr, map_key, resolve, truthy
+from .expr.values import _eq
 from .template import compile_template, format_value
 from .links import Link
 from .registry import OPS, OpSpec, family_action_hint
@@ -324,7 +325,8 @@ def _entity(value: Any, world: SdkWorld, where: str, what: str = "an entity") ->
     raise RunError(f"expected {what}, got {value!r}", where)
 
 
-def _items(value: Any, world: SdkWorld, where: str) -> List[Any]:
+def each_items(value: Any, world: SdkWorld, where: str) -> List[Any]:
+    """What an `each` (of an effect, an event or a policy rule) goes over: a type's entities, a list, one entity."""
     if isinstance(value, str) and world.is_type(value):
         return list(world.entities_of(value))
     if value is None:
@@ -333,7 +335,7 @@ def _items(value: Any, world: SdkWorld, where: str) -> List[Any]:
         return list(value)
     if isinstance(value, Entity):
         return [value]
-    raise RunError(f"`each` needs a type name or a list, got {value!r}", where)
+    raise RunError(f"`each` must be a type name or a list, got {value!r}", where)
 
 
 class EffectRunner:
@@ -382,6 +384,8 @@ class EffectRunner:
                 raise RunError("arithmetic failed: the result is too large", f"{path}[{index}]") from None
             except ArithmeticError as exc:  # a contract rule's arithmetic failed: the rule's fault, never the participant's
                 raise RunError(f"arithmetic failed: {exc}", f"{path}[{index}]") from None
+            except TypeError as exc:  # values the rule combines that do not fit: the rule's fault, never the participant's
+                raise RunError(f"could not apply: {exc}", f"{path}[{index}]") from None
 
     # -- statements ------------------------------------------------------------
 
@@ -446,7 +450,7 @@ class EffectRunner:
                 raise ExprError(f"index {key!r} is out of range for a list of {len(container)}", source)
             return container[key]
         if isinstance(container, dict):
-            name = str(key)
+            name = str(map_key(key))
             if name not in container:
                 raise ExprError(f"no key {name!r} (keys: {', '.join(map(str, list(container)[:12]))})", source)
             return container[name]
@@ -464,7 +468,7 @@ class EffectRunner:
                 raise ExprError(f"`{label}` is a list of {len(container)}; {shown!r} is not a valid index", source)
             updated: Any = list(container)
         elif isinstance(container, dict):
-            key = str(key)
+            key = str(map_key(key))
             updated = dict(container)
         elif container is None and not last:
             raise ExprError(f"`{label}` has no value to assign into", source)
@@ -511,9 +515,7 @@ class EffectRunner:
         if op == "+=" and isinstance(current, list):
             return current + (list(value) if isinstance(value, list) else [value])
         if op == "-=" and isinstance(current, list):
-            drop = value if isinstance(value, list) else [value]
-            drop_ids = {getattr(d, "id", d) for d in drop}
-            return [x for x in current if x not in drop_ids]
+            return _without_one_each(current, value if isinstance(value, list) else [value])
         numbers = [v for v in (current, value) if isinstance(v, (int, float)) and not isinstance(v, bool)]
         if len(numbers) != 2:
             raise ExprError(f"`{op}` needs numbers (current {current!r}, value {value!r})", source)
@@ -564,6 +566,12 @@ class EffectRunner:
             return ""
         return compile_template(template, None).render(self.world.scope(**vars))
 
+    def said(self, template: Optional[str], vars: Dict[str, Any], to: Optional[Sequence[str]]) -> str:
+        """Render text sent ``to`` these entity ids (None: everyone), in which only its one recipient's private
+        properties may show."""
+        viewer = self.world.entities.get(to[0]) if to is not None and len(to) == 1 else None
+        return self.text(template, {**vars, "viewer": viewer or EVERYONE})
+
     _eval = eval
     _text = text
 
@@ -577,7 +585,7 @@ class EffectRunner:
 
     def _op_each(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
         name = effect.get("as") or "it"
-        items = _items(self._eval(effect["each"], vars), self.world, where)
+        items = each_items(self._eval(effect["each"], vars), self.world, where)
         where_expr = effect.get("where")
         from .run_diagnosis import LoopWrites  # run_diagnosis reads actions, which run effects
 
@@ -629,20 +637,29 @@ class EffectRunner:
         into = effect.get("into") or prop
         have = _amount_held(source, prop, where)
         held = _amount_held(target, into, where)
-        if have < amount:
-            raise Abort(f"{source.name} has only {format_value(have)} {prop}; {format_value(amount)} is needed.")
         # A transfer moves value; it never creates or destroys it. Limits that would clamp
-        # either side refuse the transfer instead.
+        # either side refuse the transfer instead. Neither side's private amount is told to another actor.
+        hidden = self._hidden(source, prop, vars)
+        if have < amount:
+            raise Abort(f"{source.name} cannot cover that." if hidden else
+                        f"{source.name} has only {format_value(have)} {prop}; {format_value(amount)} is needed.")
         low = self.world.prop_spec(source, prop).min
         if low is not None and have - amount < low:
-            raise Abort(f"{source.name} cannot go below {format_value(low)} {prop}; "
+            raise Abort(f"{source.name} cannot cover that." if hidden else
+                        f"{source.name} cannot go below {format_value(low)} {prop}; "
                         f"at most {format_value(have - low)} can be given.")
         high = self.world.prop_spec(target, into).max
         if high is not None and held + amount > high:
-            raise Abort(f"{target.name} can hold at most {format_value(high)} {into}; "
+            raise Abort(f"{target.name} cannot take that much more {into}." if self._hidden(target, into, vars) else
+                        f"{target.name} can hold at most {format_value(high)} {into}; "
                         f"at most {format_value(max(0, high - held))} more fits.")
         self.world.set_prop(source, prop, have - amount)
         self.world.set_prop(target, into, _amount_held(target, into, where) + amount)
+
+    def _hidden(self, entity: Entity, prop: str, vars: Dict[str, Any]) -> bool:
+        """Whether a refusal must not show ``entity``'s ``prop``: it is private and the actor, who is told, is
+        someone else."""
+        return bool(self.world.prop_spec(entity, prop).private) and getattr(vars.get("actor"), "id", None) != entity.id
 
     def _op_link(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
         value = self._eval(effect["value"], vars) if "value" in effect else None
@@ -682,7 +699,7 @@ class EffectRunner:
         actor = vars.get("actor")
         data = self._eval(effect.get("data") or {}, vars)
         send(self.world, self._eval(effect["delay"], vars) if "delay" in effect else None,
-             {"kind": "emit", "event": str(effect["emit"]), "text": self._text(effect.get("say"), vars),
+             {"kind": "emit", "event": str(effect["emit"]), "text": self.said(effect.get("say"), vars, to),
               "actor": actor.id if isinstance(actor, Entity) else None, "to": list(to) if to is not None else None,
               "data": {k: _plain_value(v) for k, v in data.items()}}, where)
 
@@ -691,7 +708,9 @@ class EffectRunner:
         return "drop" in effect and dropped(self.world, self._eval(effect["drop"], vars), f"{where}.drop")
 
     def _op_fail(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-        raise Abort(self._text(effect["fail"], vars) or "That is not possible right now.")
+        actor = vars.get("actor")  # the refusal is text the actor is shown
+        text = self.text(effect["fail"], {**vars, "viewer": actor} if isinstance(actor, Entity) else vars)
+        raise Abort(text or "That is not possible right now.")
 
     def _op_end(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
         winner = self._eval(effect.get("winner"), vars) if "winner" in effect else None
@@ -776,6 +795,17 @@ class EffectRunner:
             self.run(effect.get("do") or [], vars, f"{where}.do")
         if limit and condition is not None and self._condition(condition, vars):
             raise RunError(f"`repeat` reached its limit of {limit} while `{condition}` still holds", where)
+
+
+def _without_one_each(items: List[Any], drop: List[Any]) -> List[Any]:
+    """``items`` with one copy removed for each item of ``drop`` that is there (``[1, 2, 2] -= 2`` leaves
+    ``[1, 2]``), compared as ``==`` compares: entities by id, maps and lists by content."""
+    kept = list(items)
+    for item in drop:
+        found = next((at for at, held in enumerate(kept) if _eq(held, item)), None)
+        if found is not None:
+            del kept[found]
+    return kept
 
 
 def _amount_held(entity: Entity, prop: str, where: str) -> float:
