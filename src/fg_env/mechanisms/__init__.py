@@ -21,7 +21,7 @@ import json
 import re
 import typing
 from difflib import get_close_matches
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from pydantic import BaseModel, ValidationError
 
@@ -336,11 +336,7 @@ def merge_sections(data: Dict[str, Any], fragment: Mapping[str, Any]) -> None:
                 if _canonical(item) not in seen:
                     target_list.append(copy.deepcopy(item))
         elif section == "stages":
-            stages = data.setdefault("stages", [])
-            names = {s.get("name") for s in stages if isinstance(s, Mapping)}
-            for stage in value:
-                if stage.get("name") not in names:
-                    stages.append(copy.deepcopy(stage))
+            _merge_stages(data.setdefault("stages", []), value)
         elif section == "brief":
             brief = data.setdefault("brief", {})
             for key, text in value.items():
@@ -367,6 +363,25 @@ def merge_sections(data: Dict[str, Any], fragment: Mapping[str, Any]) -> None:
         else:
             known = sorted({*_KEYED, *_LISTED, "types", "entities", "stages", "brief", "clock", "game", "stage_hooks", "action_hooks", "mechanisms"})
             raise MechanismError(f"unknown contract section '{section}'", f"sections: {', '.join(known)}")
+
+
+def _merge_stages(stages: List[Any], generated: Sequence[Mapping[str, Any]]) -> None:
+    """Add generated stages to the declared ones. A declared stage of the same name refines the generated one: it keeps
+    the generated fields it does not set, and the generated stages around it keep their order (a declared `flop` still
+    deals, and still comes after `preflop`). Without such a stage the generated ones follow the declared ones."""
+    names = [s.get("name") if isinstance(s, Mapping) else None for s in stages]
+    shared = [stage.get("name") for stage in generated if stage.get("name") in names]
+    at = names.index(shared[0]) if shared else len(stages)
+    for stage in generated:
+        if stage.get("name") in names:
+            at = names.index(stage.get("name"))
+            for key, item in stage.items():
+                stages[at].setdefault(key, copy.deepcopy(item))
+            at += 1
+        else:
+            stages.insert(at, copy.deepcopy(stage))
+            names.insert(at, stage.get("name"))
+            at += 1
 
 
 def _fill(declared: Dict[str, Any], generated: Mapping[str, Any]) -> None:

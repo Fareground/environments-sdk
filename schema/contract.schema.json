@@ -3051,7 +3051,7 @@
         },
         "turns": {
           "default": "sequential",
-          "description": "sequential (one after another, effects immediate) | simultaneous (same picture, committed together) | scheduled (continuous clock: each agent whose wake time has come, earliest first).",
+          "description": "sequential (one after another, effects immediate) | simultaneous (everyone chooses from the same picture; the sealed choices then commit one agent after another, in `order` or else a random order — resolve them jointly in on_exit) | scheduled (continuous clock: each agent whose wake time has come, earliest first).",
           "title": "Turns",
           "type": "string"
         },

@@ -81,7 +81,8 @@ assert sum(result.outputs["catch_by_fisher"].values()) == 132
 Start events → each stage in order → end events → metrics → `end` conditions. A run ends when an `end` condition
 holds, an `end` effect runs, or the rounds run out.
 * A stage wakes agents (`who`, in `order`). `turns: sequential` — one at a time, actions apply at once.
-  `turns: simultaneous` — everyone chooses from the same picture, then choices commit together (sealed bids, votes).
+  `turns: simultaneous` — everyone chooses from the same picture (sealed bids, votes); choices then commit one
+  agent at a time (in `order`, else random), so resolve them jointly in `on_exit`.
 * A turn ends after `max_actions` actions (default 1), on `end_turn`, or after `max_calls` calls.
 * An action is atomic: if an effect `fail`s or a `transfer` lacks funds, all of it is undone and the agent is told why.
 

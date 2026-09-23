@@ -16,7 +16,7 @@ Roots (plus everywhere: $inputs $world $physics $clock $round $stage $metrics $s
 - `name`: text (required)
 - `when`: text — Run this stage only when true (e.g. $round == 1).
 - `actions`: text | [text] | object = "all" — 'all', a list, or {type: [actions]}.
-- `turns`: text = "sequential" — sequential (one after another, effects immediate) | simultaneous (same picture, committed together) | scheduled (continuous clock: each agent whose wake time has come, earliest first).
+- `turns`: text = "sequential" — sequential (one after another, effects immediate) | simultaneous (everyone chooses from the same picture; the sealed choices then commit one agent after another, in `order` or else a random order — resolve them jointly in on_exit) | scheduled (continuous clock: each agent whose wake time has come, earliest first).
 - `interval`: number | text — Scheduled turns: time until an agent that took no timed action is woken again (number or expression over $actor; default clock.tick).
 - `first_wake`: number | text — Scheduled turns: each agent's first wake time (number or expression over $it, $i; default 0).
 - `order`: text — seat | random | expression over $it (lowest first): the order agents take turns in, and a simultaneous stage's choices commit in. Default: seat; a simultaneous stage's choices then commit in a random order drawn anew each time, so no seat always wins a contested item.
