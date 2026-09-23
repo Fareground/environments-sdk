@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..entity import Entity
 from ..registry import MechanismError, family_action, mode
-from ._common import ToolsSetting, tools_field
+from ._common import ToolsSetting, raw_is_a, tools_field
 from .econ_assets import assets, destroy_items, is_holder
 from .econ_base import (INVENTORY, LEDGER, choice_param, props, config_of, declared_names, emit_to, guarded, register_config,
                         require_types, top_types, type_list, valid_name)
@@ -92,6 +92,16 @@ def _start_default(start: Dict[str, Union[int, str]], stackable: List[str]) -> A
     return "{" + ", ".join(f"'{item}': ({qty})" for item, qty in full.items()) + "}"
 
 
+def _list_every_item(contract: Mapping[str, Any], holders: List[str], prop: str, stackable: List[str]) -> None:
+    """An entity or population entry that starts with its own goods (``{"beer": 3}``) lists the other stackable items
+    as 0, like the type default, so ``$it.goods.wine`` reads a count there too. Its own map replaces ``start``."""
+    entries = [*(contract.get("entities") or {}).values(), *(contract.get("population") or [])]
+    for entry in entries:
+        goods = entry.get("props", {}).get(prop) if isinstance(entry, dict) and isinstance(entry.get("props"), dict) else None
+        if isinstance(goods, dict) and any(raw_is_a(contract, entry.get("type"), holder) for holder in holders):
+            entry["props"][prop] = {**{item: 0 for item in stackable}, **goods}
+
+
 def _other_names(contract: Mapping[str, Any], name: str) -> Dict[str, str]:
     taken = {**declared_names(contract, INVENTORY, "items"), **declared_names(contract, LEDGER, "currencies")}
     return {asset: other for asset, other in taken.items() if other != name}
@@ -137,6 +147,7 @@ def _expand_inventory(name: str, config: InventoryConfig, contract: Mapping[str,
                 raise MechanismError(f"needs: '{item}' is not a stackable item of this inventory", None, f"needs.{type_name}.{item}")
 
     stackable = [i for i, s in config.items.items() if not s.unique]
+    _list_every_item(contract, holders, prop, stackable)
     holder_props: Dict[str, Any] = {prop: {"type": "map", "default": _start_default(config.start, stackable),
                                            "description": f"Goods held ({name}): {{item: quantity}}, every stackable item listed."}}
     if config.capacity is not None:
