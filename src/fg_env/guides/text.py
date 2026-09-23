@@ -189,8 +189,8 @@ Assignment text:
 * `+=`/`-=` on a list prop append/remove an item.
 * Element assignment: `"$world.board[$i] = $actor.mark"`, `"$actor.scores[round_2] += 1"` (lists and maps).
 * Links: `"$link($actor, $params.who, trusts).value += 0.1"`, `"$link($actor, $params.who, trusts).since = $round"`
-  (the link must exist; its value is clamped to the relation's min/max, fields are typed like props).
-* A write past a numeric prop's min/max is refused, like a transfer that does not fit: an action is rolled
+  (the link must exist; its value keeps to the relation's min/max and fields are typed, like props).
+* A write past a numeric prop's, link value's or layer cell's min/max is refused, like a transfer that does not fit: an action is rolled
   back and its actor told why; world logic (an event, a stage hook) that does it fails the run at its path.
   To saturate, say so: `$clamp(x, low, high)`.
   Types are enforced.
@@ -305,7 +305,8 @@ RECIPES = """\
 * Values on cells (sugar, pheromone, fire): `"space": {..., "layers": {"sugar": {"type": "int", "default":
   "$peak($cell)", "max": 4}}}`; read `$layer(sugar, $it)`; change with `{"layer": "sugar", "at": "$it", "set": 0}`,
   a whole layer with `{"layer": "sugar", "set": "$min($value + 1, 4)"}` (every cell reads the old values),
-  `{"layer": "scent", "diffuse": 0.1}` and `{"layer": "scent", "decay": 0.05}`. Layers are kept in snapshots.
+  `{"layer": "scent", "diffuse": 0.1}` and `{"layer": "scent", "decay": 0.05}`. A set past the layer's min/max is
+  refused like a prop's (saturate with `$min`/`$clamp`); diffuse and decay stay within it. Layers are kept in snapshots.
 * Cellular automata and simultaneous updates: an `each` event with `"sync": true` — every item's rules read the
   world as it was before the event and all writes land together (Game of Life is one event:
   `"$n = $count($near($it, 1), $it.on)", "$it.on = $n == 3 or ($it.on and $n == 2)"`). `"order": "random"` (or an

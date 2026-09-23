@@ -42,7 +42,8 @@ class Layers:
         return spec
 
     def coerce(self, name: str, value: Any) -> Any:
-        """``value`` as layer ``name`` stores it: its type enforced and numbers kept within min/max."""
+        """``value`` as layer ``name`` stores it: its type enforced, and a number past its min or max refused
+        (:class:`~fg_env.world.OutOfBounds`), never clamped."""
         spec = self.spec(name)
         if spec.type == "bool":
             if not isinstance(value, bool):
@@ -50,10 +51,9 @@ class Layers:
             return value
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
             raise SpaceError(f"layer '{name}' holds finite numbers, got {value!r}")
-        if spec.min is not None:
-            value = max(spec.min, value)
-        if spec.max is not None:
-            value = min(spec.max, value)
+        from .world import within_bounds
+
+        within_bounds(spec, value, f"layer '{name}'")
         if spec.type == "int":
             if float(value) != int(value):
                 raise SpaceError(f"layer '{name}' holds whole numbers, got {value!r}")
@@ -77,12 +77,21 @@ class Layers:
             out[cell] -= share * len(neighbours)
             for other in neighbours:
                 out[other] += share
-        return [self.coerce(name, value) for value in out]
+        return self._kept(name, out)
 
     def decayed(self, name: str, rate: float) -> List[Any]:
         """Every cell loses ``rate`` of its value."""
         keep = 1.0 - rate
-        return [self.coerce(name, value * keep) for value in self._numeric(name, "decay")]
+        return self._kept(name, [value * keep for value in self._numeric(name, "decay")])
+
+    def _kept(self, name: str, values: List[float]) -> List[float]:
+        """Diffused or decayed values held within the layer's min/max. The engine computed them, not a rule the
+        author can guard (float rounding at a bound, a decay under a positive min), so like integrated physics they
+        stay inside the bounds instead of being refused."""
+        spec = self.spec(name)
+        low = -math.inf if spec.min is None else spec.min
+        high = math.inf if spec.max is None else spec.max
+        return [min(max(value, low), high) for value in values]
 
     def _numeric(self, name: str, what: str) -> List[Any]:
         if self.spec(name).type != "number":

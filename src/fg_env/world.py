@@ -59,7 +59,7 @@ class Abort(Exception):
 
 
 class OutOfBounds(Abort):
-    """A number past a property's declared min or max. An agent's action is refused like any :class:`Abort`; world
+    """A number past a declared min or max (a property's, a link value's or a layer cell's). An agent's action is refused like any :class:`Abort`; world
     logic (an event, a stage hook, a trigger no action set off) that does it fails the run, because that is a
     contract bug no agent can fix."""
 
@@ -488,7 +488,8 @@ class SdkWorld(World):
         if kind in ("number", "int"):
             if not _finite_number(value):
                 raise RunError(f"must be a finite number that fits in a float, got {_shown_value(value)}", where)
-            _within_bounds(spec, value, where, owner)
+            prop = where.rsplit(".", 1)[-1]
+            within_bounds(spec, value, f"{owner}'s {prop}" if owner else prop)
             if kind == "int":
                 if float(value) != int(value):
                     raise RunError(f"must be a whole number, got {value}", where)
@@ -834,17 +835,16 @@ class SdkWorld(World):
 _CACHEABLE = (int, float, bool, str, type(None), Entity)
 
 
-def _within_bounds(spec: PropSpec, value: Any, where: str, owner: str) -> None:
-    """Refuse a number past ``spec``'s min or max. Saturating is written out: ``$clamp(x, low, high)``."""
+def within_bounds(spec: Any, value: float, subject: str) -> None:
+    """Refuse (:class:`OutOfBounds`) a number past ``spec``'s min or max, naming ``subject`` ("Ann's coins"). Saturating
+    is written out: ``$clamp(x, low, high)``."""
     if spec.min is not None and value < spec.min:
         limit = f"cannot go below {format_value(spec.min)}"
     elif spec.max is not None and value > spec.max:
         limit = f"cannot go above {format_value(spec.max)}"
     else:
         return
-    prop = where.rsplit(".", 1)[-1]
-    raise OutOfBounds(f"{owner}'s {prop} {limit}: it would be {format_value(value)}." if owner else
-                f"{prop} {limit}: it would be {format_value(value)}.")
+    raise OutOfBounds(f"{subject} {limit}: it would be {format_value(value)}.")
 
 
 def _short(value: Optional[float]) -> str:

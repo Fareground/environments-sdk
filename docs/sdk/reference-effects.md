@@ -9,8 +9,8 @@ Assignment text:
 * `+=`/`-=` on a list prop append/remove an item.
 * Element assignment: `"$world.board[$i] = $actor.mark"`, `"$actor.scores[round_2] += 1"` (lists and maps).
 * Links: `"$link($actor, $params.who, trusts).value += 0.1"`, `"$link($actor, $params.who, trusts).since = $round"`
-  (the link must exist; its value is clamped to the relation's min/max, fields are typed like props).
-* A write past a numeric prop's min/max is refused, like a transfer that does not fit: an action is rolled
+  (the link must exist; its value keeps to the relation's min/max and fields are typed, like props).
+* A write past a numeric prop's, link value's or layer cell's min/max is refused, like a transfer that does not fit: an action is rolled
   back and its actor told why; world logic (an event, a stage hook) that does it fails the run at its path.
   To saturate, say so: `$clamp(x, low, high)`.
   Types are enforced.

@@ -671,6 +671,14 @@ def test_relations_decay_toward_baseline_and_thresholds_rearm_after_crossing_bac
     assert env.props["fired"] == 1
 
 
+def test_relate_add_saturates_at_the_relations_bound_while_an_explicit_set_past_it_is_refused():
+    env = fg_env.load(BONDS, seed=1)
+    assert do(env, None, [{**RELATE, "add": 0.8}, {**RELATE, "add": 0.5}])
+    assert ev(env, "$relation(fr, uk, trust)") == pytest.approx(1.0)
+    with pytest.raises(fg_env.RunError, match="France's trust link to Britain cannot go above 1: it would be 1.5"):
+        do(env, None, [{**RELATE, "set": 1.5}])
+
+
 def test_factions_invitations_alliances_and_allies():
     env = fg_env.load(BONDS, seed=1)
     assert ev(env, "$allies(fr, de)") is False and ev(env, "$joinable(uk)") == ["central"]
