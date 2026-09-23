@@ -15,7 +15,7 @@ from pydantic import BaseModel, ValidationError
 from . import contract as C
 from .errors import Issue
 
-__all__ = ["validation_issues"]
+__all__ = ["validation_issues", "shape_issue"]
 
 #: What a pydantic type error expects, and the loc tag a union branch of that type adds.
 _EXPECTED: Dict[str, Tuple[str, str]] = {
@@ -141,9 +141,13 @@ def validation_issues(exc: ValidationError) -> List[Issue]:
             issues.append(Issue(path, "is required"))
         else:
             issues.append(Issue(path, error["msg"], (error.get("ctx") or {}).get("fix")))
-    for path, (expected, value) in unions.items():
-        issues.append(Issue(path, f"must be {' or '.join(expected)}, got {_got(value)}", _fix(path, expected, value)))
+    issues.extend(shape_issue(path, expected, value) for path, (expected, value) in unions.items())
     return [_with_guide_part(issue) for issue in issues]
+
+
+def shape_issue(path: str, expected: List[str], value: Any) -> Issue:
+    """``path`` holds ``value`` but must be one of ``expected`` (\"a list\", \"an object\" …), with how to write it."""
+    return _with_guide_part(Issue(path, f"must be {' or '.join(expected)}, got {_got(value)}", _fix(path, expected, value)))
 
 
 def _with_guide_part(issue: Issue) -> Issue:
