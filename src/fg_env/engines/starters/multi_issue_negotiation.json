@@ -1,7 +1,7 @@
 {
   "fg_env": "1",
   "name": "Multi-Issue Negotiation Engine",
-  "description": "A reusable bilateral negotiation over several configurable issues. Each party has private priorities and a private walk-away value, can propose or counter complete terms, and may accept, reject, withdraw, or leave without agreement before the deadline. The coded baseline opens at its best terms, concedes each round toward the other side's opening offer (the whole way by the deadline, never below its walk-away value) and accepts an offer worth at least the counter it would make.",
+  "description": "A reusable bilateral negotiation over several configurable issues. Each party has private priorities and a private walk-away value, can propose or counter complete terms, and may accept, reject, withdraw, or leave without agreement before the deadline. The coded baseline opens at its best terms, concedes each round toward the other side's opening offer, giving up first the issues it cares least about (the whole way by the deadline, never below its walk-away value), and accepts an offer worth at least the counter it would make.",
   "inputs": {
     "deadline": {
       "type": "int",
@@ -292,19 +292,39 @@
       "expr": "$first($filter(agreement_offer, $it.sender == $party.counterparty)).terms if $any(agreement_offer, $it.sender == $party.counterparty) else $best_terms($party)",
       "description": "Where the coded party concedes toward: the other side's opening offer (its own best terms until one arrives)."
     },
-    "room": {
+    "issues": {
+      "expr": "['amount', 'scope', 'timing']",
+      "description": "The issues every offer sets (rename with the mechanism's issues)."
+    },
+    "issue_cost": {
       "args": [
-        "party"
+        "party",
+        "issue"
       ],
-      "expr": "1 if $agreement_value($party, $target($party)) >= $party.agreement_reservation else (0 if $agreement_value($party, $best_terms($party)) <= $party.agreement_reservation else ($agreement_value($party, $best_terms($party)) - $party.agreement_reservation) / ($agreement_value($party, $best_terms($party)) - $agreement_value($party, $target($party))))",
-      "description": "How far toward the target the party can move before its terms fall below its walk-away value."
+      "expr": "$abs($get($party, $issue + '_weight') * ($get($target($party), $issue) - $get($best_terms($party), $issue)))",
+      "description": "What giving the issue up entirely, from the party's best terms to its target, costs the party."
     },
     "concession": {
       "args": [
         "party"
       ],
-      "expr": "$min($room($party), $clamp($round / $inputs.deadline + $normal_for([$party, $round], 0, 0.1), 0, 1))",
-      "description": "How far the coded party has moved from its best terms toward the target: linear in time (the whole way at the deadline) with a little noise fixed per party and round, never past its walk-away value."
+      "expr": "$clamp($round / $inputs.deadline + $normal_for([$party, $round], 0, 0.1), 0, 1)",
+      "description": "How far through its concessions the coded party is: linear in time (all of them at the deadline) with a little noise fixed per party and round."
+    },
+    "conceded": {
+      "args": [
+        "party"
+      ],
+      "expr": "$min($concession($party) * $sum($issues, $issue_cost($party, $it)), $max(0, $agreement_value($party, $best_terms($party)) - $party.agreement_reservation))",
+      "description": "The value the coded party has given up from its best terms: its share of the way to its target, never so much that its terms fall below its walk-away value."
+    },
+    "issue_share": {
+      "args": [
+        "party",
+        "issue"
+      ],
+      "expr": "$clamp(($conceded($party) - $sum($issues, $issue_cost($party, $it), $issue_cost($party, $it) < $issue_cost($party, $issue) or $issue_cost($party, $it) == $issue_cost($party, $issue) and $index($issues, $it) < $index($issues, $issue))) / $issue_cost($party, $issue), 0, 1) if $issue_cost($party, $issue) > 0 else 1",
+      "description": "How far toward its target the coded party has moved on one issue: it gives up the issues that cost it least first, trading what it cares little about for what it cares about most."
     },
     "toward": {
       "args": [
@@ -320,7 +340,7 @@
       "args": [
         "party"
       ],
-      "expr": "{amount: $toward($best_terms($party).amount, $target($party).amount, $concession($party), 0.1), scope: $toward($best_terms($party).scope, $target($party).scope, $concession($party), 0.1), timing: $toward($best_terms($party).timing, $target($party).timing, $concession($party), 1)}",
+      "expr": "{amount: $toward($best_terms($party).amount, $target($party).amount, $issue_share($party, 'amount'), 0.1), scope: $toward($best_terms($party).scope, $target($party).scope, $issue_share($party, 'scope'), 0.1), timing: $toward($best_terms($party).timing, $target($party).timing, $issue_share($party, 'timing'), 1)}",
       "description": "The complete terms the coded party would offer now."
     },
     "worth_taking": {
@@ -336,6 +356,14 @@
     {
       "expr": "$count(party) == 2",
       "why": "The negotiation is bilateral: give inputs.participants exactly two parties, each naming the other as counterparty."
+    },
+    {
+      "expr": "$all(party, $it.counterparty != $it.id and $it.counterparty in $ids(party))",
+      "why": "Each party names the other as its counterparty: set each row's counterparty to the other party's id."
+    },
+    {
+      "expr": "$any(party, $it.initiator)",
+      "why": "Somebody has to open: set initiator to true for the party that makes the first offer."
     }
   ]
 }

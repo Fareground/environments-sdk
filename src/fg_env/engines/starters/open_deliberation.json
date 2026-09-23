@@ -1,53 +1,65 @@
 {
   "fg_env": "1",
   "name": "Deliberation Engine",
-  "description": "A reusable deliberation engine in which people exchange reasons, revise views, propose a conclusion, and vote. Each speech pulls every listener's stance part of the way toward the speaker's, so views move during the debate and the vote can go either way.",
+  "description": "A reusable deliberation engine in which people exchange reasons, revise views, propose a conclusion, and vote. Each member's view blends where they started with the average stance of the speeches made so far, so views move during the debate and the vote can go either way without the group being talked into unanimity.",
   "inputs": {
     "question": {"type": "text", "default": "Should the group adopt the proposed course of action?"},
-    "persuasion": {"type": "number", "default": 0.3, "min": 0, "max": 0.5, "description": "Average share of the gap to a speaker's stance that each listener moves per speech (each listener draws between 0 and twice this); 0 = nobody changes their mind."},
+    "persuasion": {"type": "number", "default": 0.3, "min": 0, "max": 0.5, "description": "Average share of a member's view that comes from the speeches made rather than their starting stance (each member draws between 0 and twice this); 0 = nobody changes their mind."},
     "participants": {
       "type": "table",
       "columns": {"id": "text", "name": "text", "stance": "number", "perspective": "text"},
       "default": [
         {"id": "m1", "name": "Member 1", "stance": 0.7, "perspective": "Focuses on expected benefits."},
         {"id": "m2", "name": "Member 2", "stance": -0.6, "perspective": "Focuses on risks and safeguards."},
-        {"id": "m3", "name": "Member 3", "stance": 0.2, "perspective": "Looks for a workable compromise."}
+        {"id": "m3", "name": "Member 3", "stance": 0.2, "perspective": "Looks for a workable compromise."},
+        {"id": "m4", "name": "Member 4", "stance": -0.15, "perspective": "Worries about the cost and who bears it."},
+        {"id": "m5", "name": "Member 5", "stance": -0.05, "perspective": "Undecided; wants to hear the arguments first."}
       ]
     }
   },
   "brief": {
     "situation": "A group is considering: {$inputs.question}",
-    "rules": "Members may speak, propose a conclusion, second it, amend it, signal readiness, call the question, and vote. Every speech moves each listener's stance part of the way toward the speaker's. The purpose is reasoned view revision rather than role-specific institutional procedure.",
+    "rules": "Members may speak, propose a conclusion, second it, amend it, signal readiness, call the question, and vote. Every speech can move each listener's stance toward the speaker's, while members keep part of their starting view. The purpose is reasoned view revision rather than role-specific institutional procedure.",
     "roles": {"member": "Contribute your perspective, listen to reasons, revise when warranted, and vote according to your considered judgment."}
   },
   "clock": {"rounds": 3, "unit": "session"},
   "types": {"member": {"agent": true, "policy": "baseline", "props": {
     "stance": {"type": "number", "default": 0, "min": -1, "max": 1, "private": true, "description": "Current view, from -1 (against) to 1 (for); speeches move it."},
-    "perspective": {"type": "text", "default": "", "private": true}
+    "perspective": {"type": "text", "default": "", "private": true},
+    "initial_stance": {"type": "number", "default": 0, "min": -1, "max": 1, "private": true, "description": "Where the member started; their view stays partly anchored to it."},
+    "openness": {"type": "number", "default": 0, "min": 0, "max": 1, "private": true, "description": "Share of the member's view that comes from the speeches made."},
+    "spoke_on": {"type": "int", "default": null, "private": true, "description": "The motion this member last spoke on (null before their first speech on a motion)."}
   }}},
-  "population": [{"type": "member", "from": "$inputs.participants", "id": "{$row.id}", "name": "{$row.name}", "props": {"stance": "$row.stance", "perspective": "$row.perspective"}}],
+  "population": [{"type": "member", "from": "$inputs.participants", "id": "{$row.id}", "name": "{$row.name}", "props": {"stance": "$row.stance", "perspective": "$row.perspective", "initial_stance": "$row.stance", "openness": "$uniform(0, 2 * $inputs.persuasion)"}}],
   "mechanisms": {"forum": {
     "kind": "decision", "mode": "deliberation", "who": "member", "question": "$inputs.question",
     "passes": 4, "method": "majority", "floor": false, "motions": true,
     "second": true, "amendments": true, "min_debate": 1, "private": true, "backstop": "vote", "end": "decision"
   }},
+  "stages": [{"name": "forum", "order": "random"}],
   "views": {"private_view": {"for": "member", "show": "Your current stance is {stance|2}. Your perspective: {perspective}"}},
-  "world": {"heard": {"type": "int", "default": 0, "description": "Speeches whose persuasion has been applied."}},
+  "world": {
+    "heard": {"type": "int", "default": 0, "description": "Entries of the forum record whose persuasion has been applied."},
+    "said": {"type": "number", "default": 0, "description": "Sum of the speakers' stances over every speech made."},
+    "speeches": {"type": "int", "default": 0, "description": "Speeches made."}
+  },
   "defs": {
     "open_motion": "$pending_motion() != null and $pending_motion().status == 'open'",
-    "speeches": "$filter($records(forum), $it.says == says)",
-    "debate": {"args": ["motion"], "expr": "$filter($speeches, $it.motion == $motion.id)", "description": "Speeches on this motion."}
+    "speeches": "$filter($records(forum), $it.says == says)"
   },
-  "triggers": [{"name": "persuasion", "when": "$len($speeches) > $world.heard", "do": [
-    "$speaker = $last($speeches).author", "$world.heard = $len($speeches)",
-    {"each": "member", "where": "$it.id != $speaker.id", "do": ["$it.stance += $uniform(0, 2 * $inputs.persuasion) * ($speaker.stance - $it.stance)"]}
+  "triggers": [{"name": "persuasion", "when": "$len($records(forum)) > $world.heard", "do": [
+    "$world.heard = $len($records(forum))", "$speech = $last($records(forum))",
+    {"if": "$speech.says == says", "then": [
+      "$speech.author.spoke_on = $speech.motion", "$world.said += $speech.author.stance", "$world.speeches += 1",
+      {"each": "member", "do": ["$it.stance = (1 - $it.openness) * $it.initial_stance + $it.openness * $world.said / $world.speeches"]}
+    ]}
   ]}],
   "policies": {"baseline": {"repeat": true, "rules": [
     {"when": "$world.forum.phase == voting", "do": "forum_vote", "with": {"choice": "$'yes' if $actor.stance >= 0 else 'no'"}},
     {"when": "$pending_motion() == null and $abs($actor.stance) > 0.4", "do": "forum_propose", "with": {"text": "$inputs.question"}},
     {"when": "$pending_motion() != null and $pending_motion().status == proposed and $pending_motion().mover != $actor.id", "do": "forum_second"},
-    {"when": "$open_motion and not $any($debate($pending_motion()), $it.author.id == $actor.id)", "do": "forum_speak", "with": {"text": "$actor.perspective"}},
-    {"when": "$open_motion and $len($debate($pending_motion())) >= $count(member)", "do": "forum_call_question"},
+    {"when": "$open_motion and $actor.spoke_on != $pending_motion().id", "do": "forum_speak", "with": {"text": "$actor.perspective"}},
+    {"when": "$open_motion and $pending_motion().speeches >= $count(member)", "do": "forum_call_question"},
     {"do": "forum_ready"}
   ]}},
   "metrics": {"contributions": {"expr": "$len($speeches)"}},

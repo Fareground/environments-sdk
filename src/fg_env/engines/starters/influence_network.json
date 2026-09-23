@@ -4,6 +4,7 @@
   "description": "A reusable human network engine for explicit relationships, trust-weighted exposure, influence, and behavioral adoption without geography or physical propagation. Word of mouth spreads the idea on its own each round; people may also adopt what they heard, turn it down, or recommend it to a contact (adopters, the seed included, stay committed), and the coded baseline leaves it to word of mouth.",
   "inputs": {
     "rounds": {"type": "int", "default": 5, "min": 1, "max": 50},
+    "seeds": {"type": "list", "items": {"type": "text", "required": true}, "default": ["p1"], "description": "Ids of the people who hold the idea at the start (each must be in participants; [] for nobody)."},
     "participants": {
       "type": "table",
       "description": "People supplied directly or by the shared persona sampler.",
@@ -21,6 +22,7 @@
       "type": "table",
       "description": "Human relationships; value is the trust from 0 to 1 that scales how likely one person convinces the other.",
       "columns": {"from": "text", "to": "text", "value": "number"},
+      "fields": {"value": {"type": "number", "min": 0, "max": 1, "required": true}},
       "default": [
         {"from": "p1", "to": "p2", "value": 0.9}, {"from": "p2", "to": "p3", "value": 0.8},
         {"from": "p3", "to": "p4", "value": 0.6}, {"from": "p4", "to": "p5", "value": 0.8},
@@ -44,8 +46,10 @@
   "links": [{"relation": "knows", "rows": "$inputs.ties"}],
   "mechanisms": {"influence": {
     "kind": "social", "mode": "diffusion", "who": "person", "over": "knows", "flow": "both", "model": "cascade", "persistent": true,
-    "p": "$relation($from, $to, knows) * $to.receptivity", "seeds": {"proposal": ["p1"]}, "on_adopt": ["$it.adoptions += 1"]
+    "p": "$relation($from, $to, knows) * $to.receptivity", "seeds": {"proposal": []}, "on_adopt": ["$it.adoptions += 1"]
   }},
+  "events": [{"name": "seeding", "at": 1, "phase": "start", "each": "person", "where": "$it.id in $inputs.seeds",
+              "do": [{"social": "influence", "action": "adopt", "item": "proposal", "who": "$it"}]}],
   "actions": {
     "adopt": {"by": "person", "description": "Take up the idea you have heard about.", "terminal": true,
               "when": [{"expr": "$spread_state($actor, proposal) == exposed", "why": "You have not heard about it yet, or have already decided."}],
@@ -72,5 +76,7 @@
     "reached": {"type": "int", "expr": "$reach(proposal)"},
     "adopted": {"type": "int", "expr": "$adopters(proposal)"},
     "adoption_rate": {"type": "number", "expr": "$metrics.adoption_rate"}
-  }
+  },
+  "invariants": [{"expr": "$all($inputs.seeds, $it in $ids(person))",
+                  "why": "inputs.seeds names someone who is not in inputs.participants: give the ids of people in the table, or [] for no initial adopter."}]
 }

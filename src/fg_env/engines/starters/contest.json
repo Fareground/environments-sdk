@@ -48,14 +48,14 @@
   "views": {"private_approach": {"for": "contestant", "show": "Your assigned approach: {approach}"}},
   "policies": {"baseline": {"rules": [{"do": "submit", "with": {"text": "A concise response that addresses the challenge with a clear claim, supporting reason, and practical implication."}}]}},
   "defs": {
-    "top_scorers": "$filter(contestant, $it.score == $max(contestant, $it.score))",
-    "strongest": "$filter($top_scorers, $it.performance == $max($top_scorers, $it.performance))"
+    "leaders": {"expr": "$top(contestant, [$it.score, $it.performance], 2)", "description": "The two best contestants: highest rubric total, then stronger hidden performance (one sort, so it scales to large fields)."}
   },
   "outputs": {
-    "winner": {"type": "text", "expr": "$first($strongest).name if $len($strongest) == 1 else null", "description": "The single top scorer (a rubric tie goes to the stronger hidden performance), or null when that ties too."},
+    "winner": {"type": "text", "expr": "$leaders[0].name if [$leaders[0].score, $leaders[0].performance] != [$leaders[1].score, $leaders[1].performance] else null", "description": "The single top scorer (a rubric tie goes to the stronger hidden performance), or null when that ties too."},
     "judged": {"type": "bool", "expr": "not $any($values($world.host_tape), $get($it, fallback, false))", "description": "Whether a bound judge scored every submission; false means the rubric scores are the midpoint stand-in and skill and luck alone decided."},
     "winning_score": {"type": "number", "expr": "$max(contestant, $it.score) if $outputs.judged else null", "description": "The top rubric total, or null when no judge scored it."},
     "submissions": {"type": "int", "expr": "$count($records(submissions))"},
     "contestants": {"type": "int", "expr": "$count(contestant)"}
-  }
+  },
+  "invariants": [{"expr": "$count(contestant) >= 2", "why": "A contest needs at least two contestants: give inputs.participants two or more rows."}]
 }
