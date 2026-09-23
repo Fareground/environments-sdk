@@ -39,3 +39,23 @@ def test_a_policy_can_pass_a_list_of_entities_to_a_list_param():
     env = fg_env.load(contract, seed=1)
     env.run()
     assert env.entity("v")["props"]["ballot"] == ["y", "x"]
+
+
+def test_a_rule_whose_action_is_not_legal_is_skipped_before_its_arguments_are_worked_out():
+    contract = {"name": "Court", "clock": {"rounds": 3},
+                "types": {"clerk": {"agent": True, "policy": "file", "props": {"released": 0}},
+                          "exhibit": {"props": {"held": False, "weight": 0}}},
+                "entities": {"c": {"type": "clerk"}, "e": {"type": "exhibit", "props": {"weight": 2}}},
+                "policies": {"file": {"rules": [
+                    # only computable while something is held, which is exactly when `release` is legal
+                    {"do": "release", "with": {"exhibit": "$top($filter(exhibit, $it.held), $it.weight, 1)[0]"}},
+                    {"do": "hold"}]}},
+                "actions": {"release": {"by": "clerk", "when": {"expr": "$any(exhibit, $it.held)", "why": "Nothing held."},
+                                        "params": {"exhibit": {"type": "entity", "of": "exhibit"}},
+                                        "do": ["$params.exhibit.held = false", "$actor.released += 1"], "terminal": True},
+                            "hold": {"by": "clerk", "do": ["$entity(e).held = true"], "terminal": True}}}
+    env = fg_env.load(contract, seed=1)
+    result = env.run()
+    assert result.status == "completed", result.error
+    assert env.entity("c")["props"]["released"] == 1  # hold, release, hold
+    assert not any(i.severity == "error" for i in fg_env.check(contract))

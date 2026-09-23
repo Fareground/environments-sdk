@@ -223,14 +223,14 @@ class PolicyAgent:
                     self._probe(turn, index)
                 wake.end()
                 return "passed"
+            with turn.env._lock:  # legality without building tool schemas: coded crowds never read them
+                legal = not wake.done and turn._allows(rule.do)
+            if not legal:  # before `with`, whose arguments may only exist while the action is legal
+                return "skipped"
             args = resolve(rule.with_, scope)
         except ExprError as exc:
             raise RunError(str(exc), path) from None
         args = {k: _as_ids(v) for k, v in args.items()}
-        with turn.env._lock:  # legality without building tool schemas: coded crowds never read them
-            legal = not wake.done and turn._allows(rule.do)
-        if not legal:
-            return "skipped"
         with turn.env._lock:
             _, problem = turn.env.actions.validate(turn.actor, rule.do, args)
         if problem is None:
