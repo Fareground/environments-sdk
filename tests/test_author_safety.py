@@ -168,15 +168,18 @@ def test_an_empty_reply_is_retried_and_one_that_persists_stops_the_session(monke
 
 
 @pytest.mark.parametrize("broken", ["check", "load"])
-def test_whatever_a_models_contract_raises_is_its_problem_not_a_crash(monkeypatch, broken):
+def test_whatever_a_models_contract_raises_is_its_problem_not_a_crash(monkeypatch, tmp_path, broken):
+    # What the test process does with a saved contract, run here so the engine can be broken on purpose.
+    from fg_env.authoring import _test, _tool
+
     def boom(*args, **kwargs):
         raise TypeError("'int' object is not iterable")
 
     monkeypatch.setattr(f"fg_env.authoring.{broken}", boom)
-    client = FakeOpenAI([write(WORKING)], [call("check"), call("run"), call("preview", agent="north")], [], [])
+    path = tmp_path / "env.json"
+    path.write_text(json.dumps(WORKING))
 
-    result = fg_env.author("A game.", "openai:m", client=client)
-
-    assert not result.ok and result.problem == "TypeError: 'int' object is not iterable"
-    assert "TypeError: 'int' object is not iterable" in tool_replies(client)[1 if broken == "check" else 2]
-    assert result.summary().startswith("NOT WORKING")
+    assert _test(str(path), 5, [1], 1)["problem"] == "TypeError: 'int' object is not iterable"
+    tool = "check" if broken == "check" else "preview"
+    assert _tool(tool, str(path), {} if tool == "check" else {"agent": "north"}) == \
+        "TypeError: 'int' object is not iterable"

@@ -6,10 +6,14 @@
 The model starts from ``guide("authoring")`` and works with six tools — ``write_contract``, ``edit_contract``,
 ``check``, ``run``, ``preview`` and ``guide`` — until it says it is done or the budget runs out. Every contract it
 saves is tested (:func:`tested`: checked, then run with random, idle and edge-value agents within a time budget — a
-long run that budget cuts short counts for the rounds it reached, and the result says so); the result keeps the
-latest one that works, so a later revision that breaks it never replaces it, and ``out`` is written each time a new
-one works, so an interrupted session keeps it. A model that stops before any saved contract works is sent back, with
-the problem, a couple of times; one that stops on a broken revision after an earlier one worked is sent back once. A
+long run that budget cuts short counts for the rounds it reached, and the result says so), in a child process killed
+when that budget is spent (:mod:`fg_env.author_sandbox`), so a contract too slow to test is reported, never hangs the
+session. Its host calls are answered by the SDK's stand-in stubs (:mod:`fg_env.host.stubs`). The result keeps the
+latest one that works, so a later revision that breaks it never replaces it; what that revision removed from the first
+one that worked is named to the model and in the summary. ``out`` is written each time a new one works, so an
+interrupted session keeps it; a session where nothing worked writes its latest contract beside ``out`` as
+``<name>.not-working.json`` instead. A model that stops before any saved contract works is sent back, with the
+problem, a couple of times; one that stops on a broken revision after an earlier one worked is sent back once. A
 reply cut off at the output limit is named to the model as such, and rate limits, overload and empty replies are
 retried with backoff.
 
@@ -29,15 +33,19 @@ import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
+from types import SimpleNamespace
+from typing import Any, Callable, Dict, List, Mapping, NamedTuple, Optional, Set, Tuple
 
-from .api import ContractLike, check, load, parse
+from .api import ContractLike, check, contract_source, load, parse
+from .author_sandbox import Sandbox, TooSlow, step
 from .contract import Contract
 from .diagnostics import DEGRADING
 from .guides import guide
+from .host.hosts import Hosts
+from .host.stubs import StubDescriber, StubEvaluator, StubFeed, StubGameMaster, StubRanker, StubTools, StubWriter
 from .measure import RunResult
-from .participants import (_MAX_BACKOFF_SECONDS, _PROVIDERS, _fill_dependent, _retry_after, _retryable, _seed_for,
-                           official_client, sample_args)
+from .participants import (_MAX_BACKOFF_SECONDS, _PROVIDERS, Idle, RandomAgent, _fill_dependent, _retry_after,
+                           _retryable, _seed_for, official_client, sample_args)
 from .session import Wake
 
 __all__ = ["author", "AuthorResult"]
@@ -52,10 +60,14 @@ CACHED_WEIGHT = 0.1
 MAX_REVISIONS = 8
 #: Seeds every saved contract is run on, with random agents and with idle ones.
 TEST_SEEDS = (1, 2, 3)
-#: Longest all of a saved contract's test runs may take together. A run still going then has passed the rounds it
-#: reached: the contract works, with the rest of its rounds untested.
+#: Most seeds random agents play a saved contract on: when every run on :data:`TEST_SEEDS` finished with test time to
+#: spare, random agents play on further seeds while it lasts, so a problem that shows in one run in ten is found too.
+MOST_SEEDS = 20
+#: Longest testing a saved contract may take: its check, then all its test runs together. A run still going then has
+#: passed the rounds it reached: the contract works, with the rest of its rounds untested. A check, or a single turn,
+#: still going then makes the contract too slow to test.
 TEST_SECONDS = 60
-#: Longest one run of the model's ``run`` tool may take.
+#: Longest one call of the model's ``check``, ``run`` or ``preview`` tool may take.
 RUN_SECONDS = 60
 #: How often a rate-limited, overloaded or failing provider call is retried, with backoff.
 RETRIES = 4
@@ -70,7 +82,8 @@ ANTHROPIC_MAX_TOKENS = 20_000
 TOOLS: List[Dict[str, Any]] = [
     {"name": "write_contract", "description": "Save the environment contract (the whole JSON object, as text). "
      "Replaces the previous version.", "parameters": {"type": "object", "properties": {
-         "contract": {"type": "string", "description": "The contract as JSON text."}}, "required": ["contract"]}},
+         "contract": {"type": "string", "description": "The contract as JSON text (a JSON object is taken too)."}},
+         "required": ["contract"]}},
     {"name": "edit_contract", "description": "Change parts of the saved contract without writing it all again. Each "
      "edit sets the value at a path such as 'outputs.score' or 'actions.take.do[0]' (on a list, the index one past "
      "the end adds an item); an edit without a value removes what is there. Saved as a new revision.",
@@ -89,7 +102,9 @@ TOOLS: List[Dict[str, Any]] = [
      "parameters": {"type": "object", "properties": {"agent": {"type": "string", "description": "Entity id."}},
                     "required": ["agent"]}},
     {"name": "guide", "description": "Read one part of the SDK guide, e.g. 'actions', 'effects', 'functions.collections'.",
-     "parameters": {"type": "object", "properties": {"part": {"type": "string"}}, "required": ["part"]}},
+     "parameters": {"type": "object", "properties": {"part": {"type": "string"}, "start": {
+         "type": "integer", "description": "Where to start reading, in characters: a part longer than one reply is "
+                                           "cut, and the cut says where to read on."}}, "required": ["part"]}},
 ]
 
 INSTRUCTION = ("\n\nBuild this environment. Save it with write_contract, revise it with edit_contract, and use the other "
@@ -125,8 +140,9 @@ class AuthorResult:
     ok: bool
     #: What is wrong with the model's last write, when that is not the contract kept ("" when it is).
     problem: str
-    #: Why the loop ended: "done"; "gave_up" (the model stopped with nothing working); "revisions" (it used every
-    #: revision with nothing working); "tokens" or "calls" (the budget); or "error: <the provider's error>".
+    #: Why the loop ended: "done"; "gave_up" (the model stopped with nothing working); "revisions" (it saved every
+    #: revision it may: ``ok`` says whether one works); "refused" (the provider refused to go on); "tokens" or "calls"
+    #: (the budget); or "error: <the provider's error>".
     stop: str
     #: Every write, in order: the contract saved, or the text of one that saved nothing (not valid JSON, cut off).
     writes: List[Any]
@@ -136,6 +152,7 @@ class AuthorResult:
     #: truncated (replies cut off at the output limit), and cost when the provider reports it (OpenRouter does).
     usage: Dict[str, Any]
     seconds: float
+    #: Where ``contract`` was written: ``out``, or beside it as ``<name>.not-working.json`` when nothing worked.
     path: Optional[str] = None
     #: The revisions that worked, numbered from 1 in the order they were saved.
     working: List[int] = field(default_factory=list)
@@ -159,9 +176,14 @@ class AuthorResult:
         elif self.problem:
             last = f"revision {len(revisions)} did not work" if self.writes[-1] is revisions[-1] else "the last write"
             lines.append(f"  kept revision {kept} of {len(revisions)}; {last}: {self.problem}")
-        changed = _changes(revisions[self.working[0] - 1], self.contract) if self.ok and self.contract else ""
+        first = revisions[self.working[0] - 1] if self.ok and self.contract else None
+        changed = _changes(first, self.contract) if first is not None and self.contract else ""
         if changed:
             lines.append(f"  changed since revision {self.working[0]}, the first that worked: {changed}")
+        removed = _removed(first, self.contract) if first is not None and self.contract else []
+        if removed:
+            lines.append(f"  REMOVED since revision {self.working[0]}, the first that worked: {', '.join(removed)} — "
+                         "check the brief is still met")
         agent = self._describe(lines)
         said = next((m["content"] for m in reversed(self.messages) if m["role"] == "assistant"), "").strip()
         if said:
@@ -194,13 +216,38 @@ class AuthorResult:
 
 
 def _changes(before: Dict[str, Any], after: Dict[str, Any]) -> str:
-    """How ``after`` differs from ``before`` in what the environment is: its name, types and outputs."""
+    """How ``after`` differs from ``before`` in what the environment is: its name and the parts :func:`_parts` names."""
     changes = [f"name {before.get('name')!r} → {after.get('name')!r}"] if before.get("name") != after.get("name") else []
-    for key in ("types", "outputs"):
-        old, new = set(before.get(key) or {}), set(after.get(key) or {})
+    old_parts, new_parts = _parts(before), _parts(after)
+    for key in [k for k in old_parts if k in new_parts]:
+        old, new = old_parts[key], new_parts[key]
         if old != new:
             changes.append(f"{key} " + " ".join([f"-{k}" for k in sorted(old - new)] + [f"+{k}" for k in sorted(new - old)]))
     return "; ".join(changes)
+
+
+def _removed(before: Dict[str, Any], after: Dict[str, Any]) -> List[str]:
+    """The parts of ``before`` that ``after`` no longer has, e.g. ``actions.take`` or ``actions.take.params.count``."""
+    old_parts, new_parts = _parts(before), _parts(after)
+    gone = [f"{key}.{name}" for key, names in old_parts.items() for name in sorted(names - new_parts.get(key, set()))]
+    return [path for path in gone if not any(path.startswith(other + ".") for other in gone)]  # an action, not its params
+
+
+#: The contract sections whose parts make up what an environment is.
+_SECTIONS = ("types", "actions", "stages", "views", "outputs", "mechanisms", "inputs")
+
+
+def _parts(contract: Dict[str, Any]) -> Dict[str, Set[str]]:
+    """The names of the parts of each of :data:`_SECTIONS` (a stage by its name), and of each action's params."""
+    parts: Dict[str, Set[str]] = {}
+    for key in _SECTIONS:
+        value = contract.get(key) or {}
+        parts[key] = set(value) if isinstance(value, dict) else {
+            str(item.get("name", n)) if isinstance(item, dict) else str(n) for n, item in enumerate(value)}
+    for name, action in (contract.get("actions") or {}).items():
+        if isinstance(action, dict) and isinstance(action.get("params"), dict):
+            parts[f"actions.{name}.params"] = set(action["params"])
+    return parts
 
 
 def author(brief: str, model: str, *, client: Any = None, out: Optional[str] = None,
@@ -209,9 +256,9 @@ def author(brief: str, model: str, *, client: Any = None, out: Optional[str] = N
     :class:`AuthorResult` (``result.contract``, ``result.ok``, ``result.summary()``).
 
     ``out`` is where the contract is written (nothing is written when None): each time a revision works, and at the
-    end. ``budget`` caps ``tokens`` (input + output, a cache read counting :data:`CACHED_WEIGHT` of one) and model
-    ``calls``, by default 600,000 and 30. ``client`` replaces the official client made from the
-    environment; ``progress`` is called with one line per model call. Rate limits, overload and server errors are
+    end; when none works, the latest is written beside it as ``<name>.not-working.json``. ``budget`` caps ``tokens``
+    (input + output, a cache read counting :data:`CACHED_WEIGHT` of one) and model ``calls``, by default 600,000 and
+    30. ``client`` replaces the official client made from the environment; ``progress`` is called with one line per model call. Rate limits, overload and server errors are
     retried with backoff; a provider error that persists or that retrying cannot fix does not raise: the loop stops
     (``result.stop`` says why) and keeps what already works."""
     provider, name = _model(model)
@@ -226,13 +273,21 @@ def author(brief: str, model: str, *, client: Any = None, out: Optional[str] = N
     try:
         stop = _converse(_retrying(ask, progress), messages, bench, usage, limits, progress, out)
     finally:
+        bench.box.close()
         shutil.rmtree(bench.path.parent, ignore_errors=True)
     contract = bench.best if bench.best is not None else bench.latest
-    if out and contract is not None:
-        _write(out, contract)
+    path = (out if bench.best is not None else _not_working(out)) if out and contract is not None else None
+    if path and contract is not None:
+        _write(path, contract)
     return AuthorResult(contract, bench.best is not None, bench.problem, stop, bench.writes, messages, usage,
-                        round(time.time() - started, 1), out if out and contract is not None else None, bench.working,
+                        round(time.time() - started, 1), path, bench.working,
                         bench.untested.get(bench.working[-1], "") if bench.working else "")
+
+
+def _not_working(out: str) -> str:
+    """Where a contract that does not work is written instead of ``out``: beside it, named so it cannot pass for it."""
+    path = Path(out)
+    return str(path.with_name(f"{path.stem}.not-working{path.suffix or '.json'}"))
 
 
 def _converse(ask: Ask, messages: List[Message], bench: "_Workbench", usage: Dict[str, Any], limits: Dict[str, int],
@@ -248,6 +303,7 @@ def _converse(ask: Ask, messages: List[Message], bench: "_Workbench", usage: Dic
             message, used = ask(messages)
         except Exception as exc:  # the provider's error ends the loop; what already works is kept
             return f"error: {type(exc).__name__}: {exc}"[:500]
+        refused = used.pop("refused", 0)
         for key, value in used.items():
             usage[key] = usage.get(key, 0) + value
         usage["calls"] += 1
@@ -257,6 +313,8 @@ def _converse(ask: Ask, messages: List[Message], bench: "_Workbench", usage: Dic
             progress(f"call {usage['calls']}: {', '.join(c['function']['name'] for c in calls) or 'done'}"
                      f"{' (cut off)' if used['truncated'] else ''} "
                      f"({usage['input_tokens']:,}+{usage['output_tokens']:,} tokens)")
+        if not calls and refused:
+            return "refused"
         if not calls:
             if bench.best is not None and bench.problem and not regressed:
                 regressed = True  # stopped on a broken revision after an earlier one worked: send it back once
@@ -274,7 +332,7 @@ def _converse(ask: Ask, messages: List[Message], bench: "_Workbench", usage: Dic
         messages += _answer(calls, bool(used["truncated"]), bench)
         if out and bench.best is not None and bench.best is not best:
             _write(out, bench.best)
-        if bench.best is None and bench.out_of_revisions:
+        if bench.out_of_revisions:
             return "revisions"
 
 
@@ -352,68 +410,222 @@ def _budget(budget: Optional[Mapping[str, int]]) -> Dict[str, int]:
 
 def contract_problem(source: ContractLike) -> str:
     """What stops a contract from working, or "" when it works (see :func:`tested`)."""
-    return tested(source)[0]
+    return tested(source).problem
 
 
-def tested(source: ContractLike) -> Tuple[str, str]:
-    """``(problem, untested)``. ``problem`` is what stops the contract from working, or "": its first check error,
-    else the first of its test runs — on each of :data:`TEST_SEEDS` with random agents and with idle ones (agents
-    that never act), then once with agents that choose each tool's edge values — that fails, whose random agents
-    could not play (see ``RunResult.degraded``), or in which an edge value breaks a rule. Anything evaluating the
-    contract raises is its problem too. The runs share :data:`TEST_SECONDS`, each taking an even share of what is
-    left; a run still going when its share ends has passed the rounds it reached, and ``untested`` then says how far
-    the runs got ("" when every run finished)."""
+class Tested(NamedTuple):
+    """What testing a contract found (see :func:`tested`)."""
+
+    #: What stops the contract from working, or "".
+    problem: str
+    #: How far the test runs got when the time budget ended them ("" when every run finished).
+    untested: str = ""
+    #: Its check's warnings.
+    warnings: Tuple[str, ...] = ()
+    #: How many seeds random agents played it on.
+    seeds: int = 0
+    #: The hosts its runs consulted, answered by the SDK's stand-in stubs.
+    hosts: Tuple[str, ...] = ()
+
+
+def tested(source: ContractLike, box: Optional[Sandbox] = None) -> Tested:
+    """What testing the contract finds. Its ``problem`` is what stops it from working, or "": its first check error;
+    else that it declares no outputs, or has an agent type with no action; else the first of its test runs — on each
+    of :data:`TEST_SEEDS` with random agents and with idle ones (agents that never act), once with agents that choose
+    each tool's edge values, then with random agents on more seeds, up to :data:`MOST_SEEDS`, while test time is left —
+    that fails, has an output that fails, does not show how the environment plays (``RunResult.degraded``; for idle
+    and edge-value agents, beyond their not acting) or in which an agent's choice breaks a rule. Every test agent reads
+    its brief and update each turn, as a model does, so a view that breaks on a state play reaches is found. Anything
+    evaluating the contract raises is its problem too.
+
+    It all runs in a child process within :data:`TEST_SECONDS`: the check first, then the runs, each taking an even
+    share of what is left. A run still going when its share ends has passed the rounds it reached, and ``untested``
+    then says how far the runs got; a check or a turn still going when the time is up makes the contract too slow to
+    test. Hosts the contract consults are answered by the SDK's stand-in stubs. ``box`` is the child process to use
+    (by default, one of its own)."""
+    request = {"source": _plain(source), "seconds": TEST_SECONDS, "seeds": list(TEST_SEEDS), "most": MOST_SEEDS}
     try:
-        errors = [str(i) for i in check(source) if i.severity == "error"]
+        if box is None:
+            with Sandbox() as own:
+                found = own.call("fg_env.authoring:_test", request, TEST_SECONDS)
+        else:
+            found = box.call("fg_env.authoring:_test", request, TEST_SECONDS)
+    except TooSlow as exc:
+        return Tested(f"too slow to test: {exc.step or 'starting'} was still going when the {TEST_SECONDS:g}s test "
+                      "budget ran out → make each round cheaper: fewer entities, or views and rules that do not go "
+                      "over every entity for every agent (such a view grows with the square of their number)")
+    except RuntimeError as exc:  # the child died: a contract can break the engine in any way
+        return Tested(str(exc))
+    return Tested(found["problem"], found["untested"], tuple(found["warnings"]), found["seeds"], tuple(found["hosts"]))
+
+
+def _plain(source: ContractLike) -> Any:
+    """``source`` as JSON data a child process can read: a path or JSON text as it is, a contract as written."""
+    if isinstance(source, Contract):
+        return contract_source(source)
+    return str(source) if isinstance(source, os.PathLike) else source
+
+
+def _test(source: Any, seconds: float, seeds: List[int], most: int) -> Dict[str, Any]:
+    """:func:`tested`'s work, in the child process: its findings as JSON data."""
+    hosts, deadline = _StubHosts(source), time.monotonic() + seconds
+    found: Dict[str, Any] = {"problem": "", "untested": "", "warnings": [], "seeds": 0, "hosts": []}
+    try:
+        step("checking it")
+        issues = check(source, hosts=hosts)
+        errors = [str(i) for i in issues if i.severity == "error"]
+        found["warnings"] = [str(i) for i in issues if i.severity != "error"]
         if errors:
-            return errors[0] + (f" (and {len(errors) - 1} more: call check)" if len(errors) > 1 else ""), ""
-        contract, deadline = parse(source), time.monotonic() + TEST_SECONDS
-        random_findings = _random_findings(contract)
-        plays: List[Tuple[Any, str, int, frozenset]] = [
-            (agents, f"{agents} agents", seed, random_findings if agents == "random" else frozenset())
-            for seed in TEST_SEEDS for agents in ("random", "idle")]
-        plays.append((_EdgeAgent(1), "agents choosing edge values", 1, _FAULTS))
-        reached, total = [], 0
-        for n, (participant, who, seed, findings) in enumerate(plays):
-            env = load(source, seed=seed)
-            share = (deadline - time.monotonic()) / (len(plays) - n)
-            result = env.run({"*": participant}, budget={"seconds": max(share, 0.001)})  # every run plays a round
-            problem = _run_problem(result, f"{who} (seed {seed})", findings)
-            if problem:
-                return problem, ""
-            if result.budget.get("exhausted") == "seconds":
-                reached.append(result.rounds)
-                total = env.world.rounds
+            found["problem"] = errors[0] + (f" (and {len(errors) - 1} more: call check)" if len(errors) > 1 else "")
+            return found
+        contract = parse(source)
+        found["problem"] = _pointless(contract)
+        if not found["problem"]:
+            found["problem"], found["untested"], found["seeds"] = _plays(source, contract, hosts, seconds, deadline,
+                                                                         seeds, most)
     except Exception as exc:  # a model's contract can break the engine in any way: that is its problem to fix
-        return f"{type(exc).__name__}: {exc}", ""
-    if not reached:
-        return "", ""
-    of = f" of {total:,}" if contract.clock.mode == "rounds" else ""
-    return "", (f"tested at least {min(reached):,}{of} rounds in every test run within the {TEST_SECONDS}s test "
-                "budget; longer runs untested")
+        found["problem"] = f"{type(exc).__name__}: {exc}"
+    found["hosts"] = list(hosts.asked)
+    return found
 
 
-def _run_problem(result: RunResult, who: str, findings: frozenset) -> str:
-    """What a test run with ``who`` shows is wrong — a failure, or a diagnostic among ``findings`` — or ""."""
+def _pointless(contract: Contract) -> str:
+    """What makes a contract that plays still no environment — nothing to measure, an agent that can do nothing — or
+    ""."""
+    if not contract.outputs:
+        return ("outputs: it declares no outputs, so a run measures nothing → declare the results this environment "
+                "produces (guide('outputs'))")
+    acting = {kind for action in contract.actions.values() for kind in ([action.by] if isinstance(action.by, str)
+                                                                        else action.by)}
+    for name in contract.agent_types():
+        parent = any(contract.is_a(other, name) for other in contract.types if other != name)
+        if not parent and not any(contract.is_a(name, kind) for kind in acting):
+            return (f"types.{name}: this agent type has no action, so its agents can do nothing → add an action with "
+                    f"`\"by\": \"{name}\"` (guide('actions')), or make it a plain type")
+    return ""
+
+
+def _plays(source: Any, contract: Contract, hosts: Hosts, seconds: float, deadline: float, seeds: List[int],
+           most: int) -> Tuple[str, str, int]:
+    """``(problem, untested, random seeds)`` from :func:`tested`'s runs, within ``deadline`` (the end of the
+    ``seconds`` of the test budget)."""
+    random_exempt = _random_exempt(contract)
+    plays: List[Tuple[Any, str, int, frozenset]] = [
+        (_Reading(RandomAgent(seed)) if agents == "random" else _Reading(Idle()), f"{agents} agents", seed,
+         random_exempt if agents == "random" else _NOT_ACTING)
+        for seed in seeds for agents in ("random", "idle")]
+    plays.append((_Reading(_EdgeAgent(1)), "agents choosing edge values", 1, _NOT_ACTING))
+    reached, total = [], 0
+    for n, (participant, who, seed, exempt) in enumerate(plays):
+        step(f"the run with {who} (seed {seed})")
+        env = load(source, seed=seed, hosts=hosts)
+        share = (deadline - time.monotonic()) / (len(plays) - n)
+        result = env.run({"*": participant}, budget={"seconds": max(share, 0.001)})  # every run plays a round
+        problem = _run_problem(result, f"{who} (seed {seed})", exempt)
+        if problem:
+            return problem, "", 0
+        if result.budget.get("exhausted") == "seconds":
+            reached.append(result.rounds)
+            total = env.world.rounds
+    if reached:
+        of = f" of {total:,}" if contract.clock.mode == "rounds" else ""
+        return "", (f"tested at least {min(reached):,}{of} rounds in every test run within the {seconds:g}s test "
+                    "budget; longer runs untested"), len(seeds)
+    return _more_seeds(source, hosts, deadline, seeds, most, random_exempt)
+
+
+def _more_seeds(source: Any, hosts: Hosts, deadline: float, seeds: List[int], most: int,
+                exempt: frozenset) -> Tuple[str, str, int]:
+    """Random agents on further seeds, up to ``most`` in all, while each run is likely to finish before ``deadline``:
+    ``(problem, "", seeds played)``."""
+    played, seed, took = len(seeds), max(seeds), 0.0
+    while played < most and time.monotonic() + took < deadline:
+        seed += 1
+        step(f"the run with random agents (seed {seed})")
+        began = time.monotonic()
+        result = load(source, seed=seed, hosts=hosts).run({"*": _Reading(RandomAgent(seed))},
+                                                          budget={"seconds": deadline - began})
+        problem = _run_problem(result, f"random agents (seed {seed})", exempt)
+        if problem:
+            return problem, "", played
+        if result.budget.get("exhausted") == "seconds":
+            break  # the time is spent: the rounds this run reached are tested, the seed does not count
+        played, took = played + 1, time.monotonic() - began
+    return "", "", played
+
+
+def _run_problem(result: RunResult, who: str, exempt: frozenset) -> str:
+    """What a test run with ``who`` shows is wrong — a failure, an output that fails, or a degrading or fault finding
+    not among ``exempt`` — or ""."""
     if result.status == "failed":
         return f"a run with {who} failed in round {result.rounds}: {result.error}"
-    found = [f for f in result.diagnostics if f["code"] in findings]
+    if result.output_issues:
+        issue = result.output_issues[0]
+        return f"a run with {who} has an output that fails: {issue['path']}: {issue['message']}"
+    found = [f for f in result.diagnostics if f["code"] in (DEGRADING | _FAULTS) - exempt]
     if found:
         return (f"a run with {who} shows {found[0]['code']}: {found[0]['path']}: {found[0]['message']} → "
                 f"{found[0]['fix']}")
     return ""
 
 
-def _random_findings(contract: Contract) -> frozenset:
-    """The degrading findings a run with random agents is judged by. Random agents write placeholder text, so when an
-    action takes free text, their calls all being refused says nothing about the contract."""
-    writes_text = any(param.type == "text" and not param.values
-                      for action in contract.actions.values() for param in action.params.values())
-    return DEGRADING - {"agents_never_acted"} if writes_text else DEGRADING
-
-
 #: Findings that an agent's choice broke a rule as its action applied (the action was refused and undone).
 _FAULTS = frozenset({"action_rule_failed", "action_broke_invariant"})
+#: What says nothing about a contract when its test agents mean not to act, or act only on the edges.
+_NOT_ACTING = frozenset({"agents_never_acted"})
+
+
+def _random_exempt(contract: Contract) -> frozenset:
+    """The findings a run with random agents is not judged by. Random agents write placeholder text, so when an action
+    takes free text, their calls all being refused says nothing about the contract."""
+    writes_text = any(param.type == "text" and not param.values
+                      for action in contract.actions.values() for param in action.params.values())
+    return _NOT_ACTING if writes_text else frozenset()
+
+
+class _Reading:
+    """``agent``, reading its brief and update first each turn, as a model does: a view or template that fails on a
+    state play reaches fails the run."""
+
+    concurrent = False
+
+    def __init__(self, agent: Any) -> None:
+        self.agent = agent
+
+    def __call__(self, wake: Wake) -> None:
+        wake.brief
+        wake.update
+        self.agent(wake)
+
+
+class _StubHosts(Hosts):
+    """Every host the contract at ``source`` names, answered by the SDK's deterministic stand-ins
+    (:mod:`fg_env.host.stubs`), so a judged or game-mastered contract is tested without a model — except a feed's host
+    when the feed declares a fallback: the stub's numbers are no data, the contract's own stand-in is. ``asked`` names
+    the hosts consulted."""
+
+    def __init__(self, source: Any) -> None:
+        super().__init__()
+        try:
+            feeds = parse(source).feeds
+        except Exception:  # check reports what is wrong with it
+            feeds = {}
+        self.unbound = {spec.host for spec in feeds.values() if spec.fallback is not None}
+        self.asked: List[str] = []
+        self._stub = SimpleNamespace(judge=StubEvaluator().judge, resolve=StubGameMaster().resolve,
+                                     call=StubTools().call, write=StubWriter().write, rank=StubRanker().rank,
+                                     fetch=StubFeed().fetch, describe=StubDescriber().describe)
+
+    def adapter(self, name: str) -> Any:
+        if name in self.unbound:
+            return None
+        if name not in self.asked:
+            self.asked.append(name)
+        return self._stub
+
+    @property
+    def names(self) -> List[str]:
+        return list(self.asked)
 
 
 class _Edges(random.Random):
@@ -452,13 +664,51 @@ class _EdgeAgent:
             wake.end()
 
 
+def _tool(name: str, path: str, args: Dict[str, Any]) -> str:
+    """The model's ``check``, ``run`` or ``preview`` tool on the saved contract at ``path``, in the child process."""
+    hosts = _StubHosts(path)
+    try:
+        text = _CHILD_TOOLS[name](path, hosts, **args)
+    except Exception as exc:  # the SDK's own errors are what the author reads
+        return f"{type(exc).__name__}: {exc}"
+    if hosts.asked:
+        text += f"\n(host answers — {', '.join(hosts.asked)} — came from the SDK's stand-in stubs, not a model)"
+    return text
+
+
+def _check_tool(path: str, hosts: Hosts) -> str:
+    return "\n".join(map(str, check(path, hosts=hosts))) or "No issues."
+
+
+def _run_tool(path: str, hosts: Hosts, seconds: float, seed: int = 1,
+              participants: Optional[Dict[str, str]] = None) -> str:
+    env = load(path, seed=seed, hosts=hosts)
+    wrong = _unplayable(participants, list(env.contract.policies))
+    if wrong:
+        return f"Bad tool call: run: {wrong}. Nothing was run."
+    result = env.run(participants, budget={"seconds": seconds})
+    return result.summary() + "\noutputs: " + json.dumps(result.outputs, default=str)
+
+
+def _preview_tool(path: str, hosts: Hosts, agent: str) -> str:
+    shown = load(path, seed=1, hosts=hosts).preview(agent)
+    tools = "\n".join(f"- {t['name']}: {t['description']} {json.dumps(t['input_schema'])}" for t in shown["tools"])
+    return f"BRIEF:\n{shown['brief']}\n\nUPDATE:\n{shown['update']}\n\nTOOLS:\n{tools}"
+
+
+_CHILD_TOOLS: Dict[str, Callable[..., str]] = {"check": _check_tool, "run": _run_tool, "preview": _preview_tool}
+
+
 class _Workbench:
     """The author's tools, backed by one contract file in a scratch folder. Every saved revision is tested with
-    :func:`contract_problem`; ``best`` is the latest that works, ``latest`` the latest saved and ``problem`` what is
-    wrong with the last write ("" when it works)."""
+    :func:`tested`; ``best`` is the latest that works, ``latest`` the latest saved and ``problem`` what is wrong with
+    the last write ("" when it works)."""
 
     def __init__(self) -> None:
         self.path = Path(tempfile.mkdtemp(prefix="fg-author-")) / "contract.json"
+        #: The child process the saved contract is tested, checked, run and previewed in.
+        self.box = Sandbox()
+        self.box.start()  # it imports the SDK while the model writes
         self.writes: List[Any] = []
         self.revisions: List[Dict[str, Any]] = []
         self.working: List[int] = []
@@ -486,9 +736,14 @@ class _Workbench:
         if wrong:
             return f"Bad tool call: {name}: {wrong}. It takes: {', '.join(tool['parameters']['properties']) or 'nothing'}."
         try:
-            return str(getattr(self, "tool_" + name)(**args))[:MAX_RESULT]
+            text = str(getattr(self, "tool_" + name)(**args))
         except Exception as exc:  # the SDK's own errors are what the author reads
-            return f"{type(exc).__name__}: {exc}"[:MAX_RESULT]
+            text = f"{type(exc).__name__}: {exc}"
+        if len(text) <= MAX_RESULT:
+            return text
+        more = (f": read on with guide({args['part']!r}, start={int(args.get('start') or 0) + MAX_RESULT})"
+                if name == "guide" else "")
+        return text[:MAX_RESULT] + f"\n[cut at {MAX_RESULT:,} of {len(text):,} characters{more}]"
 
     def cut_off(self, name: str, arguments: str) -> str:
         """Answer a call the provider cut off at the output limit; a cut-off write is recorded as a write."""
@@ -498,9 +753,11 @@ class _Workbench:
         self.problem = "the last write was cut off at the output limit, so it saved nothing"
         return CUT_CALL.format(tool=name, done="saved") + CUT_WRITE
 
-    def tool_write_contract(self, contract: str) -> str:
+    def tool_write_contract(self, contract: Any) -> str:
+        if isinstance(contract, dict):  # many models send the object itself
+            return self._save(contract)
         try:
-            data = json.loads(contract)
+            data = json.loads(contract) if isinstance(contract, str) else contract
         except json.JSONDecodeError as exc:
             self.writes.append(contract)
             self.problem = f"the last write was not valid JSON ({exc}), so it saved nothing"
@@ -523,43 +780,63 @@ class _Workbench:
 
     def _save(self, data: Dict[str, Any]) -> str:
         if self.out_of_revisions:
-            return f"Revision limit reached ({MAX_REVISIONS}); the last saved contract is final."
+            kept = f"revision {self.working[-1]}, the latest that works, is kept" if self.working else "none works"
+            return f"Revision limit reached ({MAX_REVISIONS}): nothing more is saved; {kept}."
         self.writes.append(data)
         self.revisions.append(data)
         self.path.write_text(json.dumps(data, indent=2))
-        problem, untested = tested(str(self.path))
-        self.problem, number = problem[:MAX_RESULT], len(self.revisions)
+        found = tested(str(self.path), self.box)
+        self.problem, number = found.problem[:MAX_RESULT], len(self.revisions)
         if self.problem:
-            return f"Saved revision {number}, but it does not work yet: {self.problem}"
+            return f"Saved revision {number}, but it does not work yet: {self.problem}" + _notes(found)
         self.working.append(number)
-        self.untested[number] = untested
-        if untested:
-            return (f"Saved revision {number}: it works — it checks clean, and runs without a problem on "
-                    f"{len(TEST_SEEDS)} seeds with random agents and with idle ones, and with agents choosing edge "
-                    f"values; {untested}.")
-        return (f"Saved revision {number}: it works — it checks clean, and runs to the end on {len(TEST_SEEDS)} seeds "
-                "with random agents and with idle ones, and with agents choosing edge values.")
+        self.untested[number] = found.untested
+        first = self.working[0]
+        removed = _removed(self.revisions[first - 1], data) if number != first else []
+        gutted = (f"\nSince revision {first}, the first that worked, this removed: {', '.join(removed)}. Put back what "
+                  "the brief asks for.") if removed else ""
+        return f"Saved revision {number}: it works — {_verdict(found)}.{gutted}" + _notes(found)
 
     def tool_check(self) -> str:
-        if not self.path.exists():
-            return "No contract saved yet."
-        return "\n".join(map(str, check(str(self.path)))) or "No issues."
+        return self._in_child("check")
 
     def tool_run(self, seed: int = 1, participants: Optional[Dict[str, str]] = None) -> str:
-        env = load(str(self.path), seed=seed)
-        wrong = _unplayable(participants, list(env.contract.policies))
-        if wrong:
-            return f"Bad tool call: run: {wrong}. Nothing was run."
-        result = env.run(participants, budget={"seconds": RUN_SECONDS})
-        return result.summary() + "\noutputs: " + json.dumps(result.outputs, default=str)
+        return self._in_child("run", seconds=RUN_SECONDS, seed=seed, participants=participants)
 
     def tool_preview(self, agent: str) -> str:
-        shown = load(str(self.path), seed=1).preview(agent)
-        tools = "\n".join(f"- {t['name']}: {t['description']} {json.dumps(t['input_schema'])}" for t in shown["tools"])
-        return f"BRIEF:\n{shown['brief']}\n\nUPDATE:\n{shown['update']}\n\nTOOLS:\n{tools}"
+        return self._in_child("preview", agent=agent)
 
-    def tool_guide(self, part: str) -> str:
-        return guide(part)
+    def tool_guide(self, part: str, start: int = 0) -> str:
+        return guide(part)[int(start or 0):]
+
+    def _in_child(self, name: str, **args: Any) -> str:
+        """The ``name`` tool on the saved contract, in a child process of at most :data:`RUN_SECONDS`."""
+        if not self.path.exists():
+            return "No contract saved yet."
+        try:
+            text: str = self.box.call("fg_env.authoring:_tool", {"name": name, "path": str(self.path), "args": args},
+                                      RUN_SECONDS)
+        except TooSlow as exc:
+            return f"Too slow: {name} was still going after {RUN_SECONDS:g}s ({exc.step or 'building it'})."
+        return text
+
+
+def _verdict(found: Tested) -> str:
+    """What the tests of a working revision showed."""
+    checked = "it checks clean" if not found.warnings else "it checks with no errors (warnings below)"
+    how = "without a problem" if found.untested else "to the end"
+    ran = (f"{checked}, and runs {how} on {found.seeds} seeds with random agents, {len(TEST_SEEDS)} with idle ones, and "
+           "once with agents choosing edge values")
+    return f"{ran}; {found.untested}" if found.untested else ran
+
+
+def _notes(found: Tested) -> str:
+    """The host stand-ins and check warnings behind a save's verdict, as lines to add to its reply."""
+    lines = [f"Its host calls ({', '.join(found.hosts)}) were answered by the SDK's stand-in stubs, not a model: real "
+             "answers need a real host bound (fg_env.host.load(..., hosts=...))."] if found.hosts else []
+    if found.warnings:
+        lines += ["Check warnings:", *found.warnings]
+    return "".join("\n" + line for line in lines)
 
 
 def _unplayable(participants: Any, policies: List[str]) -> str:
@@ -657,7 +934,8 @@ def _openai(client: Any, model: str) -> Ask:
         cached = getattr(getattr(used, "prompt_tokens_details", None), "cached_tokens", 0) or 0
         counts = {"input_tokens": (getattr(used, "prompt_tokens", 0) or 0) - cached, "cached_tokens": cached,
                   "output_tokens": getattr(used, "completion_tokens", 0) or 0,
-                  "truncated": int(getattr(choice, "finish_reason", None) == "length")}
+                  "truncated": int(getattr(choice, "finish_reason", None) == "length"),
+                  "refused": int(getattr(choice, "finish_reason", None) == "content_filter")}
         cost = getattr(used, "cost", None)  # OpenRouter reports it; OpenAI does not
         return message, {**counts, "cost": float(cost)} if isinstance(cost, (int, float)) else counts
 
@@ -686,7 +964,8 @@ def _anthropic(client: Any, model: str) -> Ask:
         return message, {"input_tokens": used.input_tokens + (getattr(used, "cache_creation_input_tokens", 0) or 0),
                          "cached_tokens": getattr(used, "cache_read_input_tokens", 0) or 0,
                          "output_tokens": used.output_tokens,
-                         "truncated": int(getattr(response, "stop_reason", None) == "max_tokens")}
+                         "truncated": int(getattr(response, "stop_reason", None) == "max_tokens"),
+                         "refused": int(getattr(response, "stop_reason", None) == "refusal")}
 
     return ask
 

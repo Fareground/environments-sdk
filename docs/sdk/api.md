@@ -175,9 +175,9 @@ Have ``model`` (``"anthropic:<model>"`` or ``"openai:<model>"``) write an enviro
 :class:`AuthorResult` (``result.contract``, ``result.ok``, ``result.summary()``).
 
 ``out`` is where the contract is written (nothing is written when None): each time a revision works, and at the
-end. ``budget`` caps ``tokens`` (input + output, a cache read counting :data:`CACHED_WEIGHT` of one) and model
-``calls``, by default 600,000 and 30. ``client`` replaces the official client made from the
-environment; ``progress`` is called with one line per model call. Rate limits, overload and server errors are
+end; when none works, the latest is written beside it as ``<name>.not-working.json``. ``budget`` caps ``tokens``
+(input + output, a cache read counting :data:`CACHED_WEIGHT` of one) and model ``calls``, by default 600,000 and
+30. ``client`` replaces the official client made from the environment; ``progress`` is called with one line per model call. Rate limits, overload and server errors are
 retried with backoff; a provider error that persists or that retrying cannot fix does not raise: the loop stops
 (``result.stop`` says why) and keeps what already works.
 
