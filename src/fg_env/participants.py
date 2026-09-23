@@ -19,6 +19,7 @@ from .assets.multimodal import ANTHROPIC_MEDIA, OPENAI_MEDIA, anthropic_parts, m
 from .errors import RunError
 from .probability import is_probability
 from .expr import ExprError, compile_expr, resolve, truthy
+from .seeds import LazyStream
 from .session import END_TURN, ToolResult, Wake
 
 if TYPE_CHECKING:
@@ -167,7 +168,7 @@ class PolicyAgent:
         self.seed = seed
 
     def __call__(self, wake: Wake) -> None:
-        rng = random.Random(_seed_for(self.seed, wake))
+        rng: Any = LazyStream(lambda: random.Random(_seed_for(self.seed, wake)))  # only `chance` rules draw
         turn = wake._turn
         while not wake.done:
             acted = False
@@ -205,7 +206,7 @@ class PolicyAgent:
             raise RunError(str(exc), f"{path}.each") from None
         return list(items or [])
 
-    def _try(self, wake: Wake, index: int, scope: Any, rng: random.Random) -> str:
+    def _try(self, wake: Wake, index: int, scope: Any, rng: Any) -> str:
         """Try one rule: "acted", "passed" (the turn ends), or "skipped"."""
         turn, rule, path = wake._turn, self.spec.rules[index], f"policies.{self.name}.rules[{index}]"
         try:
@@ -227,7 +228,7 @@ class PolicyAgent:
             raise RunError(str(exc), path) from None
         args = {k: _as_ids(v) for k, v in args.items()}
         with turn.env._lock:  # legality without building tool schemas: coded crowds never read them
-            legal = not wake.done and rule.do in turn._legal()
+            legal = not wake.done and turn._allows(rule.do)
         if not legal:
             return "skipped"
         with turn.env._lock:

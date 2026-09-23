@@ -107,6 +107,22 @@ def test_seen_lets_rules_ask_what_an_agent_was_shown():
     assert result.outputs == {"bo_saw_ann": True, "ann_saw_bo": False}
 
 
+def test_what_seen_answers_is_never_read_from_a_cache_made_before_the_agent_looked():
+    """A look changes nothing else in the world: a def or requirement read before it must still be read again."""
+    contract = copy.deepcopy(SEEN)
+    contract["defs"] = {"read_board": {"args": ["who"], "expr": "$seen($who, 'board')"}}
+    contract["actions"]["say"]["when"] = [{"expr": "$read_board($actor)", "why": "Look at the board first."}]
+    answers = []
+
+    def bo(wake):
+        answers.append(wake.call("say", {"text": "too soon"}).ok)
+        wake.call("look", {"view": "board"})
+        answers.append(wake.call("say", {"text": "agreed"}).ok)
+
+    fg_env.load(contract, seed=1).run({"ann": "idle", "bo": bo})
+    assert answers == [False, True]
+
+
 def test_seen_says_what_it_can_ask_about():
     contract = copy.deepcopy(SEEN)
     contract["outputs"] = {"odd": {"expr": "$seen(ann, 3)", "type": "bool"}}

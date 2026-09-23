@@ -70,6 +70,11 @@ def _index(container: Any, index: Any, source: str) -> Any:
 
 
 def _entity_id(value: Any) -> Any:
+    kind = type(value)
+    if kind is str or kind is int or kind is float or value is None:  # the common cases, without a failed lookup
+        return value
+    if kind is _Entity:
+        return value.id
     if hasattr(value, "entity_type") and hasattr(value, "id"):
         return value.id
     return value
@@ -107,12 +112,12 @@ def _in(item: Any, container: Any, source: str) -> bool:
         if not isinstance(item, str):
             raise ExprError(f"'in' text needs text on the left, got {_describe(item)}", source)
         return item in container
-    if isinstance(container, Mapping):
-        return item in container
-    if isinstance(container, (list, tuple, set, frozenset)):
+    if isinstance(container, (list, tuple, set, frozenset)):  # before Mapping: an ABC check costs far more
         charge(len(container), source)
         key = _entity_id(item)
         return any(_entity_id(x) == key for x in container)
+    if isinstance(container, Mapping):
+        return item in container
     raise ExprError(f"'in' needs a list or text on the right, got {_describe(container)}", source)
 
 

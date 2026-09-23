@@ -58,11 +58,12 @@ class Stats:
     faulted_actions: int = 0
 
     def add(self, other: "Stats") -> None:
-        for name in self.__dataclass_fields__:
-            setattr(self, name, getattr(self, name) + getattr(other, name))
+        for name, value in vars(other).items():  # every field is a count: most of a turn's are zero
+            if value:
+                setattr(self, name, getattr(self, name) + value)
 
     def to_dict(self) -> Dict[str, Any]:
-        out: Dict[str, Any] = asdict(self)
+        out: Dict[str, Any] = dict(vars(self))
         wakes = max(1, self.wakes)
         out["avg_update_tokens"] = round(self.update_chars / max(1, self.update_reads) / 4)
         out["avg_brief_tokens"] = round(self.brief_chars / max(1, self.brief_reads) / 4)

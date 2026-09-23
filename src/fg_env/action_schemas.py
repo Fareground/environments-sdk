@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import math
 import re
-from copy import deepcopy
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple
 
@@ -14,7 +13,7 @@ from .assets.intake import file_schema
 from .contract import ParamSpec
 from .expr import ExprError, compile_expr, is_expr, resolve
 from .tool_text import compact_ids, shared_description, shared_param, text_limit, usage_limits
-from .world import _plain
+from .world import _copy, _plain
 
 if TYPE_CHECKING:
     from .actions import ActionBook
@@ -37,6 +36,10 @@ class ToolSpec:
     input_schema: Dict[str, Any]
     kind: str = "act"  # act | look | end
     terminal: bool = False
+
+    def copy(self) -> "ToolSpec":
+        """The tool with a schema of its own, for a caller that may change it (a schema is plain JSON data)."""
+        return ToolSpec(self.name, self.description, _copy(self.input_schema), self.kind, self.terminal)
 
     def to_anthropic(self) -> Dict[str, Any]:
         return {"name": self.name, "description": self.description, "input_schema": self.input_schema}
@@ -115,7 +118,7 @@ class ActionSchemas:
 
     def tool(self: "ActionBook", actor: Entity, name: str, staged: bool = False) -> ToolSpec:  # type: ignore[misc]
         # A copy: callers may change the schema they are given (the remembered one is listed again this turn).
-        return deepcopy(self.world.remembered(("tool", actor.id, name, staged), lambda: self._tool(actor, name, staged)))
+        return self.world.remembered(("tool", actor.id, name, staged), lambda: self._tool(actor, name, staged)).copy()
 
     def _tool(self: "ActionBook", actor: Entity, name: str, staged: bool) -> ToolSpec:  # type: ignore[misc]
         spec = self.contract.actions[name]

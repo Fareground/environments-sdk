@@ -119,10 +119,10 @@ class Call:
             items = list(self.scope.world.alive_of(value)) if copy else self.scope.world.alive_of(value)
         elif value is None:
             return []
+        elif isinstance(value, (list, tuple)):  # before Mapping: an ABC check costs far more
+            items = list(value)
         elif isinstance(value, Mapping):
             items = list(value.values())
-        elif isinstance(value, (list, tuple)):
-            items = list(value)
         elif hasattr(value, "entity_type"):
             return [value]
         else:

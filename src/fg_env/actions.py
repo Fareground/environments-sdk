@@ -80,7 +80,12 @@ class ActionBook(ActionSchemas, ActionValidation):
     # -- legality -------------------------------------------------------------
 
     def blocked(self, actor: Entity, name: str, used_turn: Dict[str, int], used_round: Dict[str, int]) -> Optional[str]:
-        """Why ``name`` is not legal for ``actor`` right now, or None when it is."""
+        """Why ``name`` is not legal for ``actor`` right now, or None when it is. A turn asks this several times in
+        the same state (its tools, a coded policy's rule, the call itself), so the answer is remembered."""
+        key = ("blocked", actor.id, name, used_turn.get(name, 0), used_round.get(name, 0))
+        return self.world.remembered(key, lambda: self._blocked(actor, name, used_turn, used_round))
+
+    def _blocked(self, actor: Entity, name: str, used_turn: Dict[str, int], used_round: Dict[str, int]) -> Optional[str]:
         spec = self.contract.actions[name]
         if not actor.alive:
             return "you are no longer active"
@@ -142,10 +147,11 @@ class ActionBook(ActionSchemas, ActionValidation):
                  params: Optional[Dict[str, Any]] = None, first: bool = False) -> List[Entity]:
         """Entities that qualify. A `where` over earlier params is applied once they are known
         (at validation); before that (tool schemas) every entity of the type is listed. With
-        ``first``, stop at the first one (enough to know whether any qualifies)."""
+        ``first``, stop at the first one (enough to know whether any qualifies). The list may be shared: read it,
+        never change it."""
         if param.of is None:
             raise RunError("an entity parameter needs `of` (the entity type)", f"actions.{action}.params.{pname}")
-        items = self.world.entities_of(param.of)
+        items = self.world.alive_of(param.of)
         if param.where is None:
             return items
         expr = compile_expr(param.where)
@@ -153,8 +159,8 @@ class ActionBook(ActionSchemas, ActionValidation):
             return items if params is None else self._qualifying(actor, action, pname, expr, items, params, first)
         if first:
             return self._qualifying(actor, action, pname, expr, items, None, first)
-        return list(self.world.remembered(("choices", action, pname, actor.id, param.of, param.where),
-                                          lambda: self._qualifying(actor, action, pname, expr, items, None, False)))
+        return self.world.remembered(("choices", action, pname, actor.id, param.of, param.where),
+                                     lambda: self._qualifying(actor, action, pname, expr, items, None, False))
 
     def _qualifying(self, actor: Entity, action: str, pname: str, expr: Any, items: List[Entity],
                     params: Optional[Dict[str, Any]], first: bool) -> List[Entity]:
