@@ -2,7 +2,7 @@ PYTHON ?= python
 SCHEMA := schema/contract.schema.json
 RUN := PYTHONPATH=src $(PYTHON)
 
-.PHONY: test lint schema check-schema
+.PHONY: test lint schema check-schema docs check-docs
 
 test:
 	$(RUN) -m pytest tests -q -n auto
@@ -23,3 +23,12 @@ check-schema:
 		echo "The contract schema changed. If intended, run 'make schema', commit $(SCHEMA) and add a CHANGELOG entry." >&2; \
 		exit 1; \
 	fi
+
+# Regenerate the reference docs (docs/sdk/reference*.md, docs/sdk/api.md) and the examples table after a change to
+# the guides, the public API or an example contract.
+docs:
+	$(RUN) scripts/build_docs_reference.py
+
+# Fail if the generated docs differ from the committed files.
+check-docs:
+	$(RUN) scripts/build_docs_reference.py --check

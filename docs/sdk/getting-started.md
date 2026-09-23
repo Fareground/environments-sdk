@@ -23,6 +23,7 @@ Use Python 3.11 or later. Save the following contract as `inventory.json`:
 ```json
 {
   "name": "Weekly inventory decision",
+  "description": "One retailer orders stock each week before a fixed demand arrives, tracking units sold, lost sales and cash.",
   "brief": {
     "situation": "A retailer serves weekly demand from one stock pool.",
     "rules": "Choose a replenishment quantity before demand arrives. Orders arrive immediately in this introductory model."

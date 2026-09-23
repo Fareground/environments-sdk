@@ -1,6 +1,6 @@
 # Contract reference
 
-Generated from the installed source models, expression registry and authoring guides. Regenerate with `python scripts/build_docs_reference.py`.
+Generated from the installed source models, expression registry and authoring guides. Regenerate with `make docs`.
 
 [Python API](api.md) · [Authoring workflow](authoring.md)
 

@@ -1,6 +1,7 @@
 {
  "fg_env": "1",
  "name": "Matching pennies",
+ "description": "The one-shot zero-sum game: both show a coin at once and the matcher wins when they match.",
  "brief": {
   "situation": "Two players show a coin at once.",
   "rules": "The matcher wins when the coins match. A player who does not show a coin loses; if neither shows one, nobody scores."

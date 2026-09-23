@@ -1,6 +1,7 @@
 {
   "fg_env": "1",
   "name": "Nim",
+  "description": "Two players take 1 to 3 stones from one heap in turn; whoever takes the last stone wins.",
   "brief": {
     "situation": "A heap of stones between two players.",
     "rules": "Take 1 to 3 stones on your move. Whoever takes the last stone wins."
