@@ -8,7 +8,10 @@ from __future__ import annotations
 
 import heapq
 import math
+from difflib import get_close_matches
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
+
+from .errors import RunError
 
 if TYPE_CHECKING:
     from .contract import Space
@@ -71,15 +74,25 @@ class Geometry:
         self.nodes = list(nodes)
         self._node_index = {node: index for index, node in enumerate(self.nodes)}
         self._adjacent = {node: [] for node in self.nodes}
-        for edge in edges:
+        for index, edge in enumerate(edges):
             if isinstance(edge, dict):
-                a, b, weight = edge.get("from"), edge.get("to"), float(edge.get("weight", 1))
+                ends, weight = (edge.get("from"), edge.get("to")), float(edge.get("weight", 1))
             elif isinstance(edge, (list, tuple)) and len(edge) == 2:
-                a, b, weight = edge[0], edge[1], 1.0
+                ends, weight = (edge[0], edge[1]), 1.0
             else:
                 raise SpaceError(f"an edge is [a, b] or {{from, to, weight}}, got {edge!r}")
-            self._adjacent.setdefault(a, []).append((b, weight))
-            self._adjacent.setdefault(b, []).append((a, weight))
+            a, b = (self._place_of_edge(end, index) for end in ends)
+            self._adjacent[a].append((b, weight))
+            self._adjacent[b].append((a, weight))
+
+    def _place_of_edge(self, end: Any, index: int) -> str:
+        """``end`` of edge ``index``, refused when the nodes lack it (checked at build: either may be an expression)."""
+        if end in self._adjacent:
+            return str(end)
+        hint = get_close_matches(str(end), self.nodes, n=1)
+        raise RunError(f"'{end}' is not a place (places: {', '.join(self.nodes)}); "
+                       f"{f'did you mean {hint[0]!r}? ' if hint else ''}add it to the nodes or fix the edge",
+                       f"space.graph.edges[{index}]")
 
     # -- positions ---------------------------------------------------------------------
 

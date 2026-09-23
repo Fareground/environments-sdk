@@ -75,9 +75,8 @@ check_untyped_defs = true
 
 [[tool.mypy.overrides]]
 # These look up untyped event/entity data by a key that may be missing (`table.get(data.get("k"))`); making each
-# lookup explicit, and refusing a graph edge whose endpoint is missing, is left for a focused change.
-module = ["fg_env.geometry", "fg_env.host.stubs", "fg_env.mechanisms.cards", "fg_env.perception",
-          "fg_env.world"]
+# lookup explicit is left for a focused change.
+module = ["fg_env.host.stubs", "fg_env.mechanisms.cards", "fg_env.perception", "fg_env.world"]
 strict_optional = false
 
 [tool.pytest.ini_options]
