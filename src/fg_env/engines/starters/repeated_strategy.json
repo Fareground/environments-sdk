@@ -1,17 +1,20 @@
 {
   "fg_env": "1",
   "name": "Strategy Engine",
-  "description": "A reusable repeated-interaction engine for interdependent human choices, cooperation, competition, commitments, and configurable consequences.",
+  "description": "A reusable repeated-interaction engine for interdependent human choices, cooperation, competition, commitments, and configurable consequences. Coded players follow a classic strategy (tit for tat, grim trigger, always cooperate, always compete or random) and occasionally make a mistake.",
   "inputs": {
     "rounds": {"type": "int", "default": 4, "min": 1, "max": 50},
     "participants": {
       "type": "table",
-      "columns": {"id": "text", "name": "text", "cooperative": "bool"},
+      "description": "strategy is what the coded baseline plays: tit_for_tat (cooperate first, then compete only after most others competed last round), grim_trigger (cooperate until anyone else ever competes), always_cooperate, always_compete or random.",
+      "columns": {"id": "text", "name": "text", "strategy": "text"},
       "default": [
-        {"id": "a", "name": "Participant A", "cooperative": true},
-        {"id": "b", "name": "Participant B", "cooperative": true}
+        {"id": "a", "name": "Participant A", "strategy": "tit_for_tat"},
+        {"id": "b", "name": "Participant B", "strategy": "grim_trigger"},
+        {"id": "c", "name": "Participant C", "strategy": "random"}
       ]
     },
+    "mistakes": {"type": "number", "default": 0.05, "min": 0, "max": 1, "description": "Chance a coded player picks at random instead of following its strategy (a trembling hand)."},
     "mutual_cooperate": {"type": "number", "default": 3},
     "mutual_compete": {"type": "number", "default": 1},
     "compete_bonus": {"type": "number", "default": 5},
@@ -24,14 +27,14 @@
   },
   "clock": {"rounds": "$inputs.rounds", "unit": "round"},
   "types": {"strategist": {"agent": true, "policy": "baseline", "props": {
-    "cooperative": {"type": "bool", "default": true, "private": true},
+    "strategy": {"type": "enum", "values": ["tit_for_tat", "grim_trigger", "always_cooperate", "always_compete", "random"], "default": "tit_for_tat", "private": true},
     "choice": {"type": "text", "default": "", "private": true},
     "last_choice": {"type": "text", "default": "none"},
     "score": {"type": "number", "default": 0},
     "cooperations": {"type": "int", "default": 0},
     "competitions": {"type": "int", "default": 0}
   }}},
-  "population": [{"type": "strategist", "from": "$inputs.participants", "id": "{$row.id}", "name": "{$row.name}", "props": {"cooperative": "$row.cooperative"}}],
+  "population": [{"type": "strategist", "from": "$inputs.participants", "id": "{$row.id}", "name": "{$row.name}", "props": {"strategy": "$row.strategy"}}],
   "actions": {"choose": {
     "by": "strategist", "description": "Privately choose cooperate or compete for this round.", "private": true, "terminal": true,
     "params": {"choice": {"type": "enum", "values": ["cooperate", "compete"]}},
@@ -48,9 +51,14 @@
     ]},
     {"emit": "round_result", "say": "Choices are revealed and consequences applied."}
   ]}],
+  "defs": {"rivals": {"args": ["me"], "expr": "$filter(strategist, $it.id != $me.id)", "description": "Everyone else."}},
   "policies": {"baseline": {"rules": [
-    {"when": "$actor.cooperative", "do": "choose", "with": {"choice": "cooperate"}},
-    {"do": "choose", "with": {"choice": "compete"}}
+    {"chance": "$inputs.mistakes", "do": "choose", "with": {"choice": "$choice([cooperate, compete])"}},
+    {"when": "$actor.strategy == tit_for_tat", "do": "choose", "with": {"choice": "$'compete' if $count($rivals($actor), $it.last_choice == compete) * 2 > $count($rivals($actor)) else 'cooperate'"}},
+    {"when": "$actor.strategy == grim_trigger", "do": "choose", "with": {"choice": "$'compete' if $sum($rivals($actor), $it.competitions) > 0 else 'cooperate'"}},
+    {"when": "$actor.strategy == always_cooperate", "do": "choose", "with": {"choice": "cooperate"}},
+    {"when": "$actor.strategy == always_compete", "do": "choose", "with": {"choice": "compete"}},
+    {"when": "$actor.strategy == random", "do": "choose", "with": {"choice": "$choice([cooperate, compete])"}}
   ]}},
   "metrics": {"cooperation_rate": {"expr": "$sum(strategist, $it.cooperations) / $max(1, $sum(strategist, $it.cooperations + $it.competitions))"}},
   "outputs": {

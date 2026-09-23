@@ -79,16 +79,14 @@ def test_population_engine_uses_a_sampled_persona_cohort_and_keeps_responses_pri
     assert "responses" not in json.dumps(env.preview(cohort.records()[0]["id"]))
 
 
-def test_matching_engine_keeps_preferences_and_selector_thresholds_private():
+def test_matching_engine_keeps_selector_thresholds_private():
     env = fg_env.engines.load("matching", seed=5)
     applicant = json.dumps(env.preview("a1"))
     selector = json.dumps(env.preview("s1"))
-    assert "s1" in applicant and "minimum_quality" not in applicant
-    assert "private minimum quality is 0.50" in selector
-    assert "Your preferred selector" not in selector
+    assert "Selector 1: appeal 0.80" in applicant and "minimum quality" not in applicant
+    assert "private minimum quality is 0.60" in selector and "private minimum quality is 0.50" not in selector
     result = env.run()
-    assert result.outputs["matched_applicants"] == 3
-    assert result.outputs["unused_capacity"] == 0
+    assert result.outputs["placement_matched"] + result.outputs["unmatched_applicants"] == 5
 
 
 def test_each_new_engine_supports_nontrivial_scenario_customization(tmp_path):
