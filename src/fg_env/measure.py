@@ -111,6 +111,9 @@ class RunResult:
     clock: Dict[str, Any] = field(default_factory=dict)
     #: The assets the run knew — its catalog and submitted files — as metadata with content hashes (empty without any).
     assets: Dict[str, Any] = field(default_factory=dict)
+    #: The world as the run left it, kept small: world props, and per type its living count and first few entities
+    #: (see :mod:`fg_env.end_state`). :meth:`summary` shows it.
+    state: Dict[str, Any] = field(default_factory=dict)
 
     @property
     def ok(self) -> bool:
@@ -174,7 +177,9 @@ class RunResult:
 
             key = self.budget["exhausted"]
             lines.append(f"budget: {key} ran out ({spent(key, self.budget['used'][key], self.budget['limits'][key])})")
-        return "\n".join(lines)
+        from .end_state import state_lines
+
+        return "\n".join(lines + state_lines(self.state, self.series))
 
 
 def shown(value: Any, fmt: Optional[str] = None) -> str:

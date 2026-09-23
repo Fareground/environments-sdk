@@ -4,11 +4,12 @@
 
 ```python
 result = fg_env.run("game.json", seed=1)     # random agents; {"player": my_agent} for yours
-print(result.summary())                       # status, winner, outputs, output issues, diagnostics
+print(result.summary())                       # status, winner, outputs, issues, diagnostics, metrics, end state
 result.outputs, result.winner, result.ended_by, result.metrics, result.series["price"]
 ```
 Summaries show numbers to 4 decimals; an output's `"format": "money"` (any template format) shows it that way.
-Stored values stay exact.
+Stored values stay exact. A summary ends with each metric's last values and the state the run left: world props and
+the first few entities of each type with every prop (`result.state`), so you can look without adding outputs.
 
 `result.diagnostics` is `[{code, path, message, fix}]`: logic problems the run revealed. It reports:
 * a tool offered when none of its choices could succeed;
@@ -21,7 +22,8 @@ Stored values stay exact.
 
 `fg-env check` plays up to 12 rounds with random agents and again with each policy, and reports what those plays
 reveal: crashes as errors (naming the policy that ran into one), diagnostics (including each policy's always-refused
-rules) as warnings.
+rules) as warnings. Before a policy rule acts, the later rules whose action is legal are evaluated too, so a broken rule
+is reported even when an earlier one always wins.
 `--rounds 30` plays exactly that many for more evidence.
 
 `result.events` is the log in order: `{seq, round, stage, kind, actor, text, data}`. Its kinds are `action`,
