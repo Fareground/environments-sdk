@@ -13,8 +13,7 @@ Roots (plus everywhere: $inputs $world $physics $clock $round $stage $metrics $s
 - `name`: text
 - `at`: int | [int] | text — Round(s) it fires.
 - `every`: int | text — Fires every N rounds, from round 1: a number or an expression over $inputs.
-- `when`: text — Fires when true.
-- `chance`: any | text — Probability of firing when otherwise due.
+- `when`: text — Fires when true; `$chance(0.1)` fires it at random.
 - `phase`: text = "start" — start (before stages) | end (after stages).
 - `each`: text — Run `do` once per item ($it): a type or expression.
 - `as`: text — Name for the item instead of $it.

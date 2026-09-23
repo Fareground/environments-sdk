@@ -279,7 +279,7 @@ def _table(stacks: list, score: str = "$it.seat", streets: dict = None, **pot) -
                          for i, s in enumerate(stacks)},
             "mechanisms": {"table": {"kind": "game", "mode": "pot", "who": "player", "seat": "$it.seat", "stack": 0, "score": score,
                                      "streets": streets or {"preflop": [], "flop": []}, **pot}},
-            "outputs": {"stacks": {"expr": "$map($bottom(player, $it.seat), $it.stack)", "type": "list"}}}
+            "outputs": {"stacks": {"expr": "$map($sort(player, $it.seat), $it.stack)", "type": "list"}}}
 
 
 def test_side_pots_count_folded_chips_and_return_uncalled_bets():

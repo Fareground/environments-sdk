@@ -25,7 +25,7 @@ QUEUE = {
             {"after": "$exponential(0.1)", "do": [{"block": "arrive"}]}]},
         "pull": {"do": [
             {"if": "$world.busy < $world.capacity", "then": [
-                "$next = $bottom(call, $it.arrived, 1, $it.status == waiting)",
+                "$next = $sort(call, $it.arrived, 1, $it.status == waiting)",
                 {"after": 30, "do": ["$world.busy -= 1", {"block": "pull"}]}]}]}},
     "events": [{"at": 1, "do": [{"block": "arrive"}, {"block": "pull"}]}],
     "outputs": {"calls": "$count(call)"},
@@ -56,7 +56,7 @@ def test_a_block_that_reschedules_itself_and_scans_every_call_is_reported_with_a
     assert through_def.severity == "warning"
     assert "$waiting (defs.waiting uses $count(call, …)) visits every call for each run of block arrive" in through_def.message
     assert "$world.queue += $made.id" in through_def.fix
-    assert "$bottom(call, …) visits every call for each run of block pull" in found["blocks.pull.do[0].then[0]"].message
+    assert "$sort(call, …) visits every call for each run of block pull" in found["blocks.pull.do[0].then[0]"].message
 
 
 def test_the_same_queue_kept_as_a_world_list_is_not_reported():

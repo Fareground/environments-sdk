@@ -15,9 +15,6 @@ def contract(surface, probability, dynamic=False):
         value = '$inputs.p'
     if surface == 'action':
         c['actions']['attempt']['chance'] = value
-    elif surface == 'event':
-        c['actions']['attempt']['do'] = []
-        c['events'] = [{'chance': value, 'do': '$world.converted += 1'}]
     elif surface == 'policy':
         c['policies']['p']['rules'][0]['chance'] = value
     elif surface == 'expression':
@@ -26,8 +23,7 @@ def contract(surface, probability, dynamic=False):
     return c
 
 
-@pytest.mark.parametrize('surface,path', [('action', 'actions.attempt.chance'), ('event', 'events[0].chance'),
-                                         ('policy', 'policies.p.rules[0].chance')])
+@pytest.mark.parametrize('surface,path', [('action', 'actions.attempt.chance'), ('policy', 'policies.p.rules[0].chance')])
 @pytest.mark.parametrize('value', [-0.1, 1.1, 80, float('inf'), float('nan'), True])
 def test_invalid_literal_probabilities_are_rejected_at_the_authored_field(surface, path, value):
     issues = [i for i in fg_env.check(contract(surface, value), rounds=0) if i.severity == 'error']
@@ -36,7 +32,7 @@ def test_invalid_literal_probabilities_are_rejected_at_the_authored_field(surfac
         assert any(i.fix and '0.8' in i.fix for i in issues)
 
 
-@pytest.mark.parametrize('surface', ['event', 'policy', 'expression'])
+@pytest.mark.parametrize('surface', ['policy', 'expression'])
 @pytest.mark.parametrize('value', [-0.1, 80, True])
 def test_dynamic_invalid_probability_fails_instead_of_running_a_different_model(surface, value):
     with pytest.raises(fg_env.RunError) as failed:
@@ -55,7 +51,7 @@ def test_dynamic_invalid_action_probability_refuses_the_action_instead_of_runnin
     assert finding['path'] == 'actions.attempt.chance' and 'chance' in finding['message']
 
 
-@pytest.mark.parametrize('surface', ['action', 'event', 'policy', 'expression'])
+@pytest.mark.parametrize('surface', ['action', 'policy', 'expression'])
 @pytest.mark.parametrize('value', [0, 1])
 def test_probability_boundaries_retain_their_exact_meaning(surface, value):
     result = fg_env.run(contract(surface, value, dynamic=True), seed=3)
@@ -63,7 +59,7 @@ def test_probability_boundaries_retain_their_exact_meaning(surface, value):
     assert result.outputs['converted'] == value
 
 
-@pytest.mark.parametrize('surface', ['action', 'event', 'policy', 'expression'])
+@pytest.mark.parametrize('surface', ['action', 'policy', 'expression'])
 def test_fractional_literal_is_valid_and_reproducible(surface):
     c = contract(surface, 0.8)
     assert not [i for i in fg_env.check(c, rounds=0) if i.severity == 'error']

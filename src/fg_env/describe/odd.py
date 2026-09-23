@@ -165,8 +165,6 @@ def _fires(event: C.EventSpec) -> str:
         parts.append(f"every {event.every} rounds")
     if event.when:
         parts.append(f"when `{event.when}`")
-    if event.chance is not None:
-        parts.append(f"with chance {event.chance}")
     if event.arms:
         parts.append(f"in arms {', '.join(event.arms)}")
     return ", ".join(parts) or "every round"

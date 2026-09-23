@@ -13,12 +13,26 @@ from .values import _ENTITY_FIELDS, _Entity, _describe, _entity_id, _number
 __all__ = ["Evaluator", "EqualityGuard", "Call", "FunctionSpec", "FUNCTIONS", "function"]
 
 
+#: Names authors reach for that are not functions, and the one way the language says each. A near spelling would
+#: suggest something else ($mean → $median, $bottom → $book, $log_base → $log_loss).
+_SAY_INSTEAD = {
+    "mean": "$avg", "bottom": "$sort", "log_base": "$log(x, base)", "pow": "x ** y", "e": "$exp(1)",
+    "lerp": "a + (b - a) * t", "hypot": "$sqrt(x ** 2 + y ** 2)", "char_at": "$chars(text)[i]",
+    "count_of": "$count(list, $it == value)", "enumerate": "$map(list, [$i, $it])", "is_subset": "$all(a, $it in b)",
+    "argmax": "$index(xs, $max(xs))", "argmin": "$index(xs, $min(xs))", "chance_for": "$random_for(key) < p",
+    "realized_vol": "$market_stats(prices).sigma", "vol_clustering": "$market_stats(prices).acf_abs",
+    "volume_vol_corr": "$market_stats(prices, volumes).vol_volume_corr", "lmsr_prices": "$softmax(q, b)",
+    "lmsr_cost": "b * $logsumexp($map(q, $it / b))", "cpmm_prices": "$amm(name).prices",
+}
+
+
 def suggest_function(name: str, candidates: Sequence[str]) -> Optional[str]:
-    """Suggest a known name without confusing arithmetic mean with median."""
-    if name == "mean" and "avg" in candidates:
-        return "avg"
+    """What to write instead of the unknown function ``name``: the one way the language says it, or the closest
+    known name (a built-in or a def among ``candidates``), with its ``$``."""
+    if name in _SAY_INSTEAD:
+        return _SAY_INSTEAD[name]
     matches = get_close_matches(name, candidates, n=1)
-    return matches[0] if matches else None
+    return f"${matches[0]}" if matches else None
 
 
 Evaluator = Callable[[Scope], Any]

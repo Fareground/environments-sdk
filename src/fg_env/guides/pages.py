@@ -127,8 +127,8 @@ def section_page(section: str) -> str:
 
 #: Group of each core function (the rest are grouped by the module that registers them).
 _CORE_GROUPS = {
-    "collections": "count sum avg min max median quantile stdev top bottom filter map pick any all ids len first last "
-                   "unique tally mode sort reverse slice range flatten dict keys values get is",
+    "collections": "count sum avg min max median quantile stdev top sort filter map pick any all ids len first last "
+                   "unique tally mode reverse slice range flatten dict keys values get is",
     "world": "entity exists records events seen asset",
     "space": "relation linked link links neighbors distance",
     "math": "abs floor ceil sqrt exp log round clamp pct",

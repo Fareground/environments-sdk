@@ -82,7 +82,7 @@
       "brief": "Trick {$world.trick + 1} of 13. {$'Led: ' + $world.lead_suit + '.' if $world.lead_suit != '' else 'You lead.'} Hearts are {$'broken' if $world.hearts_broken else 'not broken yet'}.",
       "on_enter": ["$world.lead_suit = ''"],
       "on_idle": [
-        "$card = $bottom($filter($hand($actor), $legal($actor, $it)), $it.rank, 1)[0]",
+        "$card = $sort($filter($hand($actor), $legal($actor, $it)), $it.rank, 1)[0]",
         {"game": "cards", "action": "play", "cards": "$card", "to": "trick"},
         {"block": "after_play", "with": {"card": "$card"}},
         {"emit": "timeout", "say": "{$actor.name} ran out of time and plays {$card.name}."}
@@ -140,7 +140,7 @@
   "policies": {
     "duck": {
       "rules": [
-        {"do": "cards_play", "with": {"card": "$bottom($filter($hand($actor), $legal($actor, $it)), $it.rank, 1)[0]"}}
+        {"do": "cards_play", "with": {"card": "$sort($filter($hand($actor), $legal($actor, $it)), $it.rank, 1)[0]"}}
       ]
     }
   },
@@ -149,11 +149,11 @@
     "leader_score": "$min(player, $it.score)"
   },
   "end": [
-    {"name": "target_reached", "when": "$world.trick == 0 and $max(player, $it.score) >= $inputs.target", "winner": "$bottom(player, $it.score, 1)[0]", "say": "{$bottom(player, $it.score, 1)[0].name} wins with the lowest score."}
+    {"name": "target_reached", "when": "$world.trick == 0 and $max(player, $it.score) >= $inputs.target", "winner": "$sort(player, $it.score, 1)[0]", "say": "{$sort(player, $it.score, 1)[0].name} wins with the lowest score."}
   ],
   "outputs": {
     "scores": {"expr": "$dict(player, $it.name, $it.score)", "type": "map"},
-    "winner": {"expr": "$bottom(player, $it.score, 1)[0].name", "type": "text", "description": "Lowest score (the first seat wins ties)."},
+    "winner": {"expr": "$sort(player, $it.score, 1)[0].name", "type": "text", "description": "Lowest score (the first seat wins ties)."},
     "hands_played": {"expr": "$world.hand", "type": "int"},
     "moons_shot": {"expr": "$world.moons", "type": "int"}
   }

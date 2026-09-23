@@ -37,12 +37,6 @@ def _difference(call: Call) -> List[Any]:
     return [item for key, item in _distinct(sequence_arg(call, 0)).items() if key not in other]
 
 
-@function("is_subset(a, b)", "True when every item of `a` is in `b`.", min_args=2, max_args=2)
-def _is_subset(call: Call) -> bool:
-    other = _distinct(sequence_arg(call, 1))
-    return all(key_of(item) in other for item in sequence_arg(call, 0))
-
-
 @function("merge(map, map, ...)", "One map from several; a key in a later map wins.", min_args=2)
 def _merge(call: Call) -> Dict[Any, Any]:
     entries = [entry for index in range(len(call)) for entry in map_arg(call, index).items()]

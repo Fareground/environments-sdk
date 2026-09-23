@@ -74,7 +74,7 @@
     {"name": "one_player_left", "when": "$pot_total(table) == 0 and $count(player, $it.stack > 0) <= 1", "winner": "$top(player, $it.stack, 1)[0]", "say": "{$top(player, $it.stack, 1)[0].name} has won every chip."}
   ],
   "outputs": {
-    "final_stacks": {"expr": "$map($bottom(player, $it.seat), $it.name + ': ' + $text($it.stack))", "type": "list", "description": "Chips each player holds at the end."},
+    "final_stacks": {"expr": "$map($sort(player, $it.seat), $it.name + ': ' + $text($it.stack))", "type": "list", "description": "Chips each player holds at the end."},
     "chip_leader": {"expr": "$top(player, $it.stack, 1)[0].name", "type": "text"},
     "hands_played": {"expr": "$world.table_hands", "type": "int"},
     "biggest_pot": {"expr": "$max($series.pot + [0])", "type": "int", "description": "Largest pot of the run, in chips."}

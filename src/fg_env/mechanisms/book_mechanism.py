@@ -221,7 +221,7 @@ def _expand_order_book(name: str, cfg: OrderBookConfig, contract: Mapping[str, A
             f"{name}_trades": {"expr": f"$world.{name}_trades", "type": "int", "description": "Number of fills."},
             f"{name}_halts": {"expr": f"$world.{name}_halts", "type": "int", "description": "Circuit-breaker halts."},
             f"{name}_fees": {"expr": f"$round($world.{name}_fees, 4)", "type": "number", "description": "Fees collected."},
-            f"{name}_volatility": {"expr": f"$realized_vol($series.{name}_price)", "type": "number",
+            f"{name}_volatility": {"expr": f"$market_stats($series.{name}_price).sigma", "type": "number",
                                    "description": "Standard deviation of per-round log returns."},
         },
     }

@@ -61,7 +61,7 @@ SHOP = {
     "stages": [{"name": "shop", "max_actions": 3}],
     "policies": {"thrifty": {"rules": [
         {"when": "$actor.cash >= 3", "do": "buy",
-         "with": {"offer": "$bottom(offer, $it.price, 1, $it.stock > 0)[0]", "qty": 1}}]}},
+         "with": {"offer": "$sort(offer, $it.price, 1, $it.stock > 0)[0]", "qty": 1}}]}},
     "metrics": {"revenue": "$world.revenue", "stock_left": "$sum(offer, $it.stock)"},
     "outputs": {
         "revenue": {"expr": "$metrics.revenue", "type": "number"},

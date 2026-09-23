@@ -4,11 +4,8 @@ from __future__ import annotations
 import math
 from typing import Any, Dict, List, Optional
 
-from ..expr import MAX_LIST_LEN, Call, _describe, charge, check_size, function
+from ..expr import Call, _describe, check_size, function
 from ._args import check_len, fail, int_arg, key_of, list_arg, present_numbers, sequence_arg, series_arg
-
-#: Deepest nesting `$flatten_deep` unpacks.
-MAX_FLATTEN_DEPTH = 64
 
 
 @function("zip(a, b, ...)", "Lists combined position by position into [a_i, b_i, ...] (as long as the shortest).",
@@ -18,15 +15,6 @@ def _zip(call: Call) -> List[List[Any]]:
     size = min(len(items) for items in lists)
     check_len(call, size * len(lists))
     return [list(row) for row in zip(*lists)]
-
-
-@function("enumerate(list, start?)", "Each item with its position: [[start, item], [start + 1, item], ...] (start defaults to 0).",
-          min_args=1, max_args=2)
-def _enumerate(call: Call) -> List[List[Any]]:
-    items = sequence_arg(call, 0)
-    start = int_arg(call, 1, 0, what="the first position")
-    check_len(call, 2 * len(items))
-    return [[start + i, item] for i, item in enumerate(items)]
 
 
 @function("chunk(list, size)", "The list cut into consecutive pieces of `size` items (the last may be shorter).",
@@ -49,26 +37,6 @@ def _window(call: Call) -> List[List[Any]]:
     return [items[i:i + size] for i in starts]
 
 
-@function("flatten_deep(lists)", "One flat list from lists nested to any depth.", min_args=1, max_args=1)
-def _flatten_deep(call: Call) -> List[Any]:
-    out: List[Any] = []
-
-    def walk(items: List[Any], depth: int) -> None:
-        if depth > MAX_FLATTEN_DEPTH:
-            raise fail(call, f"lists are nested deeper than {MAX_FLATTEN_DEPTH} levels")
-        charge(len(items), call.source)
-        for item in items:
-            if isinstance(item, (list, tuple)):
-                walk(list(item), depth + 1)
-            else:
-                if len(out) >= MAX_LIST_LEN:
-                    raise fail(call, f"the result would have more than {MAX_LIST_LEN:,} items")
-                out.append(item)
-
-    walk(sequence_arg(call, 0), 1)
-    return out
-
-
 @function("index(list, value)", "Position of the first item equal to `value` (entities match their id), or -1.",
           min_args=2, max_args=2)
 def _index(call: Call) -> int:
@@ -79,39 +47,12 @@ def _index(call: Call) -> int:
     return -1
 
 
-@function("count_of(list, value)", "How many items equal `value` (entities match their id).", min_args=2, max_args=2)
-def _count_of(call: Call) -> int:
-    target = key_of(call.arg(1))
-    return sum(1 for item in sequence_arg(call, 0) if key_of(item) == target)
-
-
 def _scores(call: Call) -> List[Optional[Any]]:
     """One number (or null) per item: the items themselves, or the per-item `value` argument."""
     items = call.collection(0)
     raw = items if len(call) < 2 else [call.each(1, it, i) for i, it in enumerate(items)]
     present_numbers(call, raw, "the values compared")
     return raw
-
-
-def _arg_extreme(call: Call, better: Any) -> Optional[int]:
-    best: Optional[int] = None
-    scores = _scores(call)
-    for position, score in enumerate(scores):
-        if score is not None and (best is None or better(score, scores[best])):
-            best = position
-    return best
-
-
-@function("argmax(items, value?)", "Position of the largest item (or largest per-item `value`); first wins ties, nulls skipped, null when none.",
-          min_args=1, max_args=2, lazy=[1])
-def _argmax(call: Call) -> Optional[int]:
-    return _arg_extreme(call, lambda a, b: a > b)
-
-
-@function("argmin(items, value?)", "Position of the smallest item (or smallest per-item `value`); first wins ties, nulls skipped, null when none.",
-          min_args=1, max_args=2, lazy=[1])
-def _argmin(call: Call) -> Optional[int]:
-    return _arg_extreme(call, lambda a, b: a < b)
 
 
 @function("rank(items, value?)", "Rank of each item, 1 = largest; ties share the best rank (1, 2, 2, 4); a null value ranks null.",

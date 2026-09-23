@@ -11,7 +11,6 @@ from .delivery import run_delivery
 from .contract import StageSpec
 from .build import whole_setting
 from .errors import RunError
-from .probability import is_probability
 from .expr import ExprError, compile_expr, truthy
 from .sync_events import run_sync
 from .template import compile_template
@@ -123,12 +122,6 @@ class Happenings:
                 return False
             if event.when is not None and not truthy(compile_expr(event.when)(scope)):
                 return False
-            if event.chance is not None:
-                p = compile_expr(event.chance)(scope) if isinstance(event.chance, str) else event.chance
-                if not is_probability(p):
-                    raise ExprError(f"chance must be a number from 0 to 1, got {p!r}", str(event.chance))
-                if world.rng.random() >= p:
-                    return False
         except ExprError as exc:
             raise RunError(str(exc), path) from None
         return True

@@ -104,3 +104,16 @@ def test_a_chance_chooser_given_at_load_decides_every_outcome_and_copies_keep_it
     assert copy_of_env.run().outputs["heads"] == 0
     with pytest.raises(ValueError, match="fg_env.rl.game"):
         fg_env.load(COIN, chance="explicit")
+
+
+def test_an_event_fires_at_random_through_its_when():
+    contract = copy.deepcopy(COIN)
+    contract["events"][0]["chance"] = 0.5
+    with pytest.raises(fg_env.ContractError) as info:
+        fg_env.parse(contract)
+    issue = next(i for i in info.value.issues if i.path == "events[0].chance")
+    assert "'chance' is not a field here" in issue.message and '"when": "$chance(0.5)"' in (issue.fix or "")
+    contract["events"][0].pop("chance")
+    contract["events"][0]["when"] = "$chance(0.5)"
+    heads = fg_env.run(contract, seed=2).outputs["heads"]
+    assert 0 < heads < 6

@@ -582,7 +582,7 @@
               "repeat": 2000,
               "while": "$left > 0 and not $world.halted and $any(order, $it.side == sell and $it.price <= $limit)",
               "do": [
-                "$best = $bottom(order, $it.price * 1000000 + $it.seq, 1, $it.side == sell and $it.price <= $limit)[0]",
+                "$best = $sort(order, $it.price * 1000000 + $it.seq, 1, $it.side == sell and $it.price <= $limit)[0]",
                 "$maker = $entity($best.owner)",
                 "$q = $min($left, $best.qty)",
                 "$px = $best.price",

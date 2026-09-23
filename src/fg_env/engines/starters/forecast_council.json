@@ -418,7 +418,7 @@
     },
     "initial_median": {
       "type": "number",
-      "expr": "$round(($bottom(panelist, $it.initial)[$count(panelist) // 2].initial + $bottom(panelist, $it.initial)[($count(panelist) - 1) // 2].initial) / 2, 2)",
+      "expr": "$round(($sort(panelist, $it.initial)[$count(panelist) // 2].initial + $sort(panelist, $it.initial)[($count(panelist) - 1) // 2].initial) / 2, 2)",
       "description": "Median initial probability (%)."
     },
     "final_mean": {
@@ -428,7 +428,7 @@
     },
     "final_median": {
       "type": "number",
-      "expr": "$round(($bottom(panelist, $it.final)[$count(panelist) // 2].final + $bottom(panelist, $it.final)[($count(panelist) - 1) // 2].final) / 2, 2)",
+      "expr": "$round(($sort(panelist, $it.final)[$count(panelist) // 2].final + $sort(panelist, $it.final)[($count(panelist) - 1) // 2].final) / 2, 2)",
       "description": "Median final probability (%)."
     },
     "aggregate_shift": {

@@ -73,7 +73,7 @@ class World:
         from .calls import FUNCTIONS, suggest_function
 
         hint = suggest_function(name, list(FUNCTIONS))
-        raise ExprError(f"unknown function ${name}" + (f" — did you mean ${hint}?" if hint else ""), source)
+        raise ExprError(f"unknown function ${name}" + (f" — did you mean {hint}?" if hint else ""), source)
 
 
 _EMPTY_WORLD = World()
