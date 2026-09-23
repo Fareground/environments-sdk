@@ -551,7 +551,7 @@ def test_tools_one_offers_every_betting_move_as_one_tool():
 
 def test_guide_documents_the_card_mechanisms_ops_and_functions():
     mechanisms = fg_env.guide("mechanisms")
-    assert "| `game` | board, cards, pot, slots |" in mechanisms and "| `groups` | roles, relationships, factions |" in mechanisms
+    assert "| `game` | board, cards, pot, slots |" in mechanisms and "| `groups` | roles, relationships, factions, matching |" in mechanisms
     game = "\n".join(fg_env.guide(key) for key in ("game.cards", "game.pot", "game.slots"))
     for key in ("game.cards", "game.pot", "game.slots"):
         assert f"### `{key}`" in game

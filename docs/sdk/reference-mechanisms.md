@@ -15,14 +15,14 @@ mechanism made to end the run does (victory, a board's game over, a terminal pha
 
 | kind | modes | for |
 |---|---|---|
-| `market` | order_book, prediction, auction, posted | Trading venues: continuous order books, auctions, prediction markets and posted-price shops. |
+| `market` | order_book, prediction, auction, posted | Trading venues: continuous order books, auctions and procurement tenders, prediction markets and posted-price shops. |
 | `economy` | inventory, ledger, production, supply_chain, demand, replenishment | Money, goods and making things: ledgers (currencies, taxes, loans), inventories, production, supply chains, customers' demand for stocked items and the policies that replenish them. |
 | `agreements` | bookings, labor, negotiation, subscriptions | Commitments between agents over time: negotiated deals, jobs, subscriptions and bookings. |
 | `decision` | ballot, deliberation | Collective choice: ballots and structured deliberation with motions and votes. |
 | `game` | board, cards, pot, slots | Game equipment: boards with enforced rules, cards, betting pots and worker-placement slots. |
 | `flow` | procedure, order, victory | Who acts when and how it ends: turn order, procedures with phases, victory conditions. |
 | `operations` | queue | Service operations: customers arriving on channels and served by staffed server pools — contact centres, clinics, counters, repair crews — with queues, patience, callbacks and service levels. |
-| `groups` | roles, relationships, factions | Who belongs with whom: hidden roles and teams, factions and alliances, relationships. |
+| `groups` | roles, relationships, factions, matching | Who belongs with whom: hidden roles and teams, factions and alliances, relationships, stable matching. |
 | `social` | channels, diffusion, feed | Talking and spreading: channels (rooms, direct messages), a social feed, diffusion over a network. |
 | `mind` | beliefs, personas, memory | What agents know and remember: beliefs with confidence, memory with recall, generated personas. |
 | `conditions` | status, cooldowns, channeling, terrain | Effects on entities over time: statuses, cooldowns, channeled actions and terrain. |

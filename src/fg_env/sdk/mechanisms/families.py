@@ -26,7 +26,7 @@ SHARED = {
     "qty": "a number of units (items, shares, cards, batches); money is `amount`",
 }
 
-family("market", "Trading venues: continuous order books, auctions, prediction markets and posted-price shops.",
+family("market", "Trading venues: continuous order books, auctions and procurement tenders, prediction markets and posted-price shops.",
        {"who": "agent type that trades (in effects: the trading agent, default $actor)", "currency": SHARED["currency"],
         "qty": "units traded (shares, items); money is `amount`", "stage": SHARED["stage"], "tools": SHARED["tools"]})
 family("economy", "Money, goods and making things: ledgers (currencies, taxes, loans), inventories, production, supply chains, "
@@ -46,7 +46,7 @@ family("flow", "Who acts when and how it ends: turn order, procedures with phase
 family("operations", "Service operations: customers arriving on channels and served by staffed server pools — contact "
                      "centres, clinics, counters, repair crews — with queues, patience, callbacks and service levels.",
        {"unit": "the time unit of every duration and threshold (second, minute, hour)"})
-family("groups","Who belongs with whom: hidden roles and teams, factions and alliances, relationships.",
+family("groups","Who belongs with whom: hidden roles and teams, factions and alliances, relationships, stable matching.",
        {"who": "agent type that belongs to groups", "views": SHARED["views"], "phase": SHARED["phase"],
         "tools": SHARED["tools"]})
 family("social", "Talking and spreading: channels (rooms, direct messages), a social feed, diffusion over a network.",

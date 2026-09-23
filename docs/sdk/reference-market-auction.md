@@ -1,7 +1,7 @@
 # market / auction
 
 ### `market.auction`
-An auction: sealed first_price, second_price (Vickrey), english (ascending, increment, timeout), dutch (falling clock), double (call market at one price) or uniform (multi-unit, one price). Tools `<name>_bid` (price, qty) and, for double, `<name>_ask`. Bids escrow cash, asks escrow units; proceeds go to the `house` entity or $world.<name>_revenue. Each closed lot is posted to the `<name>_results` record (winner, price, qty, lot, note): read the last sale as $auction(<name>).last.winner and .price: null before the first lot closes, kept until another closes. The other fields of $auction(name) describe the open lot; $auction_text(name, viewer) describes it.
+An auction: sealed first_price, second_price (Vickrey), english (ascending, increment, timeout), dutch (falling clock), double (call market at one price) or uniform (multi-unit, one price). Tools `<name>_bid` (price, qty) and, for double, `<name>_ask`. Bids escrow cash, asks escrow units; proceeds go to the `house` entity or $world.<name>_revenue. `reverse: true` makes it a procurement tender (the house buys; the lowest offer at or below the reserve wins and is paid); `score` awards a first_price lot to the best score instead of the best price. Each closed lot is posted to the `<name>_results` record (winner, price, qty, lot, note): read the last sale as $auction(<name>).last.winner and .price: null before the first lot closes, kept until another closes. The other fields of $auction(name) describe the open lot; $auction_text(name, viewer) describes it.
 
 Config:
 - `format` (required): first_price | second_price (Vickrey) | english | dutch | double | uniform (multi-unit) | combinatorial (package bids on `items`).
@@ -9,10 +9,12 @@ Config:
 - `sellers` (default null): double: agent type that asks (default: `who`).
 - `currency` (default "cash"): Property holding money.
 - `item` (default "lot"): What is sold, in plain words.
-- `house` (default null): Entity id of the auction house: sells its units and is paid; default: the mechanism itself (stock and revenue in world props).
-- `stock` (default 1): Units the house has to sell (number or expression).
+- `house` (default null): Entity id of the auction house: sells its units and is paid (with `reverse`: buys and pays); default: the mechanism itself (stock and revenue in world props).
+- `stock` (default 1): Units the house has to sell, or with `reverse` to buy (number or expression).
 - `units` (default 1): Units in each lot (uniform; the last lot sells what is left), or the most units one bid or ask may carry (double).
-- `reserve` (default 0.0): Lowest acceptable price per unit (number or expression).
+- `reserve` (default 0.0): Lowest acceptable price per unit (number or expression); with `reverse`, the highest the house pays.
+- `reverse` (default false): first_price / second_price: a procurement tender: the `house` buys, the lowest offer wins and is paid (its offer, or the second-lowest).
+- `score` (default null): first_price: award to the acceptable bid with the highest score, an expression over $price and $it (the bidder), e.g. "$it.quality * 10 - $price".
 - `start_price` (default null): dutch: where the clock starts.
 - `decrement` (default 1): dutch: how much the clock falls each round.
 - `increment` (default 1): english: minimum raise over the high bid.

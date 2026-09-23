@@ -27,6 +27,11 @@ def describe(world: Any, name: str, viewer: Optional[Entity]) -> str:
              "uniform": f"Uniform-price auction ({lot.get('units') or cfg.units} units to the highest bids at one price)",
              "combinatorial": "Combinatorial auction (sealed package bids; you win at most one package; winners pay "
                               + ("VCG prices)" if cfg.payment == "vcg" else "their bids)")}[cfg.format]
+    if cfg.reverse:
+        label = ("Sealed tender (lowest offer wins and is paid its offer)" if cfg.format == "first_price" else
+                 "Sealed Vickrey tender (lowest offer wins and is paid the second-lowest offer)")
+    if cfg.score is not None:
+        label = f"Sealed {'tender' if cfg.reverse else 'auction'} (best score wins: {cfg.score})"
     if not lot.get("open"):
         return f"{label}: no lot is open right now."
     reserve = _reserve(world, name, cfg)
@@ -47,7 +52,9 @@ def describe(world: Any, name: str, viewer: Optional[Entity]) -> str:
     elif cfg.format == "dutch":
         parts.append(f"clock price {fmt(lot['price'], 4)}, falling {fmt(cfg.decrement, 4)} a round, reserve {fmt(reserve, 4)}")
     else:
-        if reserve and cfg.format != "double":
+        if cfg.reverse:
+            parts.append(f"the house pays at most {fmt(reserve, 4)}")
+        elif reserve and cfg.format != "double":
             parts.append(f"reserve {fmt(reserve, 4)}")
         mine = [b for b in lot.get("bids", []) if viewer is not None and b["bidder"] == viewer.id]
         if mine:
