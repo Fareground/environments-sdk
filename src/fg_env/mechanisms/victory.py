@@ -8,8 +8,9 @@
                                {"most": "$it.gold", "at": 30}]}
 
 Conditions are tried in order wherever the engine checks `end` (after start events, after each
-stage, at the end of the round). ``most`` is decided at the end of its round, and ``stable`` counts
-rounds at the end of each round. The winner is one id, a list of ids when players share a win, a
+stage, at the end of the round); ``first_to`` and ``objectives`` are also checked the moment any action
+commits, so under sequential turns the first player to get there wins alone. ``most`` is decided at the
+end of its round, and ``stable`` counts rounds at the end of each round. The winner is one id, a list of ids when players share a win, a
 team value (``last_team``), or null when nobody wins.
 
 When ``who`` is an agent type the mechanism also fills the contract's ``game`` section where the author
@@ -169,7 +170,9 @@ def _expand(name: str, cfg: VictoryConfig, contract: Mapping[str, Any]) -> Dict[
             events.append({"name": f"{name}_{label}", "phase": "end", "at": c.at if c.at is not None else "$clock.rounds",
                            "do": [entry]})
             continue
-        end.append({"name": label, "when": when, "say": say, **({"winner": winner} if winner else {})})
+        race = kind in ("first_to", "objectives")  # the first to get there wins: checked the moment an action commits
+        end.append({"name": label, "when": when, "say": say, **({"winner": winner} if winner else {}),
+                    **({"check": "action"} if race else {})})
     if not cfg.conditions:
         raise MechanismError("give at least one condition", None, "conditions")
     fragment: Dict[str, Any] = {"end": end, "events": events, **({"world": world} if world else {})}
