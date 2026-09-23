@@ -37,7 +37,7 @@
     {"name": "volume_controller", "phase": "end", "when": "$bar_ends()",
      "do": ["$volume = $last($records(demo_bars)).volume",
             "$world.volume_ema = 0.7 * $world.volume_ema + 0.3 * $volume",
-            "$world.size_scale = $clamp($world.size_scale * ($clamp($sqrt($world.target_volume / $world.volume_ema), 0.7, 1.4) if $volume > 0 and $world.volume_ema > 0 else 1.3), 0.05, 20)"]},
+            "$world.size_scale = $clamp($world.size_scale * ($clamp($sqrt($world.target_volume / $world.volume_ema), 0.9, 1.1) if $volume > 0 and $world.volume_ema > 0 else 1.1), 0.25, 4)"]},
     {"name": "volatility_controller", "phase": "end", "when": "$bar_ends() and $len($records(demo_bars)) >= 6 and $inputs.volatility_gain > 0",
      "do": ["$realised = $stdev($map($slice($records(demo_bars), -16), $log($it.close / $it.open)))",
             {"if": "$realised > 0", "then": "$world.flow_scale = $clamp($world.flow_scale * $exp($clamp(0.5 * $log($world.target_sigma / $realised), -$inputs.volatility_gain, $inputs.volatility_gain)), 0.25 * $inputs.flow_scale, 4 * $inputs.flow_scale)"}]},
@@ -46,7 +46,7 @@
             "$world.sentiment = 0 if $abs($world.sentiment) < 0.001 else $world.sentiment",
             "$world.news = $filter($world.news, $it.until > $round // $inputs.substeps + 1)"]},
     {"name": "fundamental_walk", "phase": "start",
-     "do": "$world.fundamental = $max(0.01, $world.fundamental * $exp($inputs.drift_pct_per_bar / 100 / $inputs.substeps + $world.target_sigma * 0.7 / $sqrt($inputs.substeps) * $pattern.fundamental_shock))"},
+     "do": "$world.fundamental = $max(0.01, $world.fundamental * $exp($inputs.drift_pct_per_bar / 100 / $inputs.substeps + $world.target_sigma * 0.5 / $sqrt($inputs.substeps) * $pattern.fundamental_shock))"},
     {"name": "fundamental_jumps", "phase": "start", "when": "$pattern.jump > 0",
      "do": "$world.fundamental = $max(0.01, $world.fundamental * $exp($pattern.jump_size))"}
   ]

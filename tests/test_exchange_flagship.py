@@ -41,7 +41,7 @@ def test_the_default_crowd_follows_the_balanced_preset_and_is_calibrated_to_the_
     with open(PATH.parent / "exchange_flagship" / "seed_history.csv", newline="") as handle:
         history = [{k: float(v) for k, v in row.items()} for row in csv.DictReader(handle)][-120:]
     avg_volume = sum(row["volume"] for row in history) / len(history)
-    expected_orders = 12 * (18 * 0.9 + 54 * 0.12 + 48 * 0.15 + 42 * 0.08 + 120 * 0.06 + 18 * 0.5)
+    expected_orders = 8 * (18 * 0.9 + 54 * 0.12 + 48 * 0.15 + 42 * 0.08 + 120 * 0.06 + 18 * 0.5)
     assert world["target_volume"] == pytest.approx(avg_volume)
     assert world["base_qty"] == pytest.approx(avg_volume / (expected_orders * 0.35))
     assert world["median_capital"] == pytest.approx(world["base_qty"] * history[-1]["close"] / 0.03)

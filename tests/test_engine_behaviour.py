@@ -1,6 +1,8 @@
 """The bundled engines report what actually happened: no fabricated winners, ties as ties, every player paid,
 advertised inputs that move outcomes, and verdicts that agree with the evidence they are measured against."""
 import statistics
+from importlib.resources import files
+from pathlib import Path
 
 import pytest
 
@@ -88,9 +90,15 @@ def _sharer(wake):
 
 def test_network_people_can_act_on_the_idea():
     assert _adoption({}) > 0
-    assert statistics.fmean(run("network", _rejecter, seed=seed).outputs["adopted"] for seed in range(12)) == 0
+    turned_down = statistics.fmean(run("network", _rejecter, seed=seed).outputs["adoption_rate"] for seed in range(12))
+    assert turned_down < _adoption({})  # whoever hears of it and turns it down never passes it on
     shared = statistics.fmean(run("network", _sharer, seed=seed).outputs["adoption_rate"] for seed in range(12))
     assert shared > _adoption({})  # recommending on top of word of mouth spreads it further
+
+
+def test_network_seed_stays_committed_so_the_idea_never_dies_at_its_source():
+    assert all(run("network", _rejecter, seed=seed).outputs["adopted"] >= 1 for seed in range(12))
+    assert all(run("network", "random", seed=seed).outputs["adopted"] >= 1 for seed in range(12))
 
 
 def test_network_trust_and_time_drive_adoption():
@@ -108,12 +116,23 @@ def test_dispute_verdict_mostly_follows_the_evidence_it_is_measured_against():
     assert {"liable", "not_liable"} <= {o["verdict"] for o in verdicts}  # the starter is not locked to one verdict
 
 
+def test_coded_counsel_lead_with_their_strongest_admissible_exhibits_so_verdicts_track_the_merits():
+    env = fg_env.engines.load("dispute")
+    env.run()
+    first_day = {e["props"]["side"]: e["id"] for e in env.entities("exhibit") if e["props"]["day"] == 1}
+    assert first_day == {"plaintiff": "P1", "defense": "D1"}  # each side's strongest clean exhibit, not a hearsay one
+    for rounds in (1, 2, 3, 4):  # the plaintiff holds the stronger admissible case however many days of evidence
+        verdicts = [run("dispute", seed=seed, inputs={"evidence_rounds": rounds}).outputs["verdict"] for seed in range(20)]
+        assert verdicts.count("liable") > 2 * verdicts.count("not_liable"), (rounds, verdicts)
+
+
 def test_jury_room_speeches_move_the_jury():
-    unmoved = [run("dispute", seed=seed, inputs={"persuasion": 0}).outputs for seed in range(20)]
+    close = {"evidence_rounds": 1}  # one exhibit a side: a close case the jury room has to settle
+    unmoved = [run("dispute", seed=seed, inputs={**close, "persuasion": 0}).outputs for seed in range(20)]
     # nobody is persuaded, so every re-ballot repeats the first: a jury that needs a second ballot hangs
     assert all(o["verdict"] == "hung" for o in unmoved if o["ballots_taken"] > 1)
     assert any(o["verdict"] == "hung" for o in unmoved)
-    moved = [run("dispute", seed=seed, inputs={"persuasion": 0.3}).outputs for seed in range(20)]
+    moved = [run("dispute", seed=seed, inputs=close).outputs for seed in range(20)]
     assert any(o["verdict"] != "hung" and o["ballots_taken"] > 1 for o in moved)  # deliberation broke a deadlock
 
 
@@ -128,10 +147,20 @@ def test_council_scores_forecasts_against_the_outcome_and_measures_consensus_by_
 
     runs = [run("council", seed=seed).outputs for seed in range(12)]
     assert len({o["initial_mean"] for o in runs}) > 1  # each panelist reads the briefing with private noise
-    assert {o["consensus_reached"] for o in runs} == {True, False}  # moving toward the group is partial, not forced
+    assert all(o["final_stdev"] < o["initial_stdev"] for o in runs)  # hearing each other narrows the spread...
+    assert all(o["final_range"] > 0 for o in runs)  # ...part of the way: nobody is averaged into agreement
+    assert run("council", inputs={"consensus_within": 100}).outputs["consensus_reached"] is True
 
     anchored = run("council", "policy:anchored").outputs
     assert anchored["final_range"] > 10 and anchored["consensus_reached"] is False  # all ready, far apart
+
+
+def test_council_panel_and_question_are_inputs():
+    panel = [{"id": f"x{i}", "name": f"Expert {i}", "expertise": "e", "lens": "l", "prior": prior, "private_info": ""}
+             for i, prior in enumerate((20, 80, 50))]
+    env = fg_env.engines.load("council", inputs={"panel": panel, "question": "Will the bridge open on time?"})
+    assert "3 experts" in env.preview("x0")["brief"] and "Will the bridge open on time?" in env.preview("x0")["brief"]
+    assert env.run().outputs["messages"] == 3
 
 
 def test_negotiation_never_binds_a_party_below_its_walk_away():
@@ -149,6 +178,8 @@ def test_coded_negotiators_concede_toward_a_deal_before_the_deadline():
     assert all(o["deal_signed"] and o["counteroffers"] > 0 for o in runs)  # they bargain, not sign the opener
     assert all(min(o["surplus"].values()) >= 0 for o in runs)
     assert len({tuple(sorted(o["terms"].items())) for o in runs}) > 1  # the terms depend on the run
+    shortest = fg_env.engines.get("negotiation").source()["inputs"]["deadline"]["min"]
+    assert all(run("negotiation", seed=seed, inputs={"deadline": shortest}).outputs["deal_signed"] for seed in range(10))
     later = [run("negotiation", seed=seed, inputs={"deadline": 20}).outputs for seed in range(10)]
     assert statistics.fmean(o["agreement_round"] for o in later) > statistics.fmean(o["agreement_round"] for o in runs)
     parties = fg_env.engines.get("negotiation").source()["inputs"]["participants"]["default"]
@@ -287,3 +318,68 @@ def test_every_engine_runs_at_both_ends_of_each_declared_input(engine_id, name, 
     result = fg_env.engines.load(engine_id, inputs={name: value}, seed=1).run(rounds=rounds)
     assert result.error is None and (rounds is not None or result.ok), result.error
     assert not result.output_issues
+
+
+#: Smaller settings the market and exchange are swept under, so a sweep takes seconds (other inputs keep defaults).
+_SWEEP_BASE = {"market": {"days": 60, "sample_size": 10, "launch_day": 5}, "exchange": {"bars": 6, "participants": 40},
+               "dispute": {"evidence_rounds": 1}}  # one exhibit a side: a close case, where every jury rule can bite
+#: Rounds a sweep stops at where an extreme would run for minutes; outputs are read where it stops.
+_SWEEP_ROUNDS = {("market", "sample_size"): 1, ("exchange", "bars"): 24, ("exchange", "participants"): 4}
+#: The market's launch inputs act in its chain_launch arm, which runs the baseline's rules too.
+_SWEEP_ARM = {"market": "chain_launch"}
+#: Declared inputs no output shows when moved alone from one bound to the other, and why.
+_INERT = {
+    ("exchange", "circuit_breaker_pct"): "0 turns the breaker off and a 50% move within one bar does not happen in "
+                                         "a normal session; the breaker_tight arm (3%) shows the breaker at work",
+}
+
+
+def _numeric_ranges():
+    for engine in fg_env.list_engines():
+        for name, spec in engine.source()["inputs"].items():
+            if spec.get("type") in ("int", "number") and spec.get("min") is not None and spec.get("max") is not None:
+                yield pytest.param(engine.id, name, spec["min"], spec["max"], id=f"{engine.id}-{name}")
+
+
+def _swept_outputs(engine_id, name, value):
+    engine = fg_env.engines.get(engine_id)
+    path = Path(str(files("fg_env.engines").joinpath(engine.path)))
+    inputs = {**_SWEEP_BASE.get(engine_id, {}), name: value}
+    seeds = (1,) if engine_id in ("market", "exchange") else (1, 2, 3)  # the big engines' outputs move with anything
+    return [fg_env.load(path, inputs=inputs, seed=seed, arm=_SWEEP_ARM.get(engine_id))
+            .run(rounds=_SWEEP_ROUNDS.get((engine_id, name))).outputs for seed in seeds]
+
+
+@pytest.mark.parametrize("engine_id, name, low, high", list(_numeric_ranges()))
+def test_every_declared_numeric_input_moves_an_output_across_its_range(engine_id, name, low, high):
+    """An input a starter advertises must do something: moved from its min to its max it changes an output, unless
+    it is listed in _INERT with the reason no output can show it."""
+    changed = _swept_outputs(engine_id, name, low) != _swept_outputs(engine_id, name, high)
+    assert changed != ((engine_id, name) in _INERT), _INERT.get((engine_id, name), f"{name} changed no output of {engine_id}")
+
+
+def test_the_market_sample_stands_for_the_city_so_capacity_scales_with_it():
+    def one_day(size):
+        env = fg_env.engines.load("market", inputs={"sample_size": size})
+        return env, env.run(rounds=1).outputs
+
+    small, _ = one_day(150)
+    large, outputs = one_day(2000)
+    capacity = {env: {c["id"]: c["props"]["capacity"] for c in env.entities("cafe")} for env in (small, large)}
+    assert capacity[small]["bean_there"] == 42 and capacity[large]["bean_there"] == pytest.approx(42 * 2000 / 150, rel=0.01)
+    assert outputs["turned_away_total"] == 0  # the same city, sampled finer: nobody is turned away on day one
+
+
+def test_the_chain_launch_refuses_a_launch_after_the_run_ends():
+    path = Path(str(files("fg_env.engines").joinpath(fg_env.engines.get("market").path)))
+    with pytest.raises(fg_env.InvariantViolation, match="launch_day no later than days"):
+        fg_env.load(path, inputs={"days": 28, "launch_day": 40}, arm="chain_launch")
+
+
+@pytest.mark.parametrize("engine_id, inputs, output", [
+    ("population", {"participants": []}, "support_share"),
+    ("matching", {"applicants": []}, "match_rate"),
+    ("network", {"participants": [], "ties": []}, "adoption_rate"),
+])
+def test_a_rate_over_nobody_is_null_not_zero(engine_id, inputs, output):
+    assert run(engine_id, inputs=inputs).outputs[output] is None

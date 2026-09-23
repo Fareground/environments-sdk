@@ -1,14 +1,30 @@
 {
   "fg_env": "1",
   "name": "Rate Decision Forecasting Council",
-  "description": "Seven expert panelists forecast whether the central bank cuts rates at its next meeting: sealed initial ballot, open deliberation until everyone is ready, sealed final ballot. Give the resolved outcome to score the final ballots (Brier score); consensus means the final ballots lie within consensus_within points. Coded panelists forecast from their prior with private noise; averagers move a random share of the way toward the council average each turn.",
+  "description": "A panel of experts (inputs.panel; seven by default) forecasts a yes/no question (inputs.question; by default whether the central bank cuts rates at its next meeting): sealed initial ballot, open deliberation until everyone is ready, sealed final ballot. Give the resolved outcome to score the final ballots (Brier score); consensus means the final ballots lie within consensus_within points. Coded panelists forecast from their prior with private noise, state their view, and once they have heard everyone move part of the way toward the others' average by a personal openness (less when they hold private information).",
   "inputs": {
-    "outcome": {"type": "bool", "default": null, "description": "Whether the bank did cut, once known; null leaves the forecasts unscored."},
+    "question": {"type": "text", "default": "Will the central bank cut its policy rate at its next meeting, three weeks from now?", "description": "The yes/no question the council forecasts."},
+    "briefing": {"type": "text", "default": "Policy rate 4.50%, unchanged for the last two meetings. Headline CPI 2.9% y/y (down from 3.4% six months ago); core CPI 3.1% and sticky in services. Unemployment 4.3%, up from 3.9% over six months; payroll growth has slowed to roughly a third of last year's pace. GDP grew 0.3% q/q last quarter. The last statement dropped the phrase 'further tightening may be warranted' and said risks are 'more balanced' and decisions are 'data-dependent'. Rate futures imply about a 55% chance of a cut. One CPI print and one jobs report land before the meeting.", "description": "The public briefing every panelist reads."},
+    "panel": {
+      "type": "table",
+      "description": "The panelists. prior (0-100) is each one's private starting inclination; private_info is what only they know (empty for none).",
+      "columns": {"id": "text", "name": "text", "expertise": "text", "lens": "text", "prior": "number", "private_info": "text"},
+      "default": [
+        {"id": "okafor", "name": "Dr. Amara Okafor", "expertise": "former central bank staff economist; policy reaction functions", "lens": "Committees move slowly and telegraph cuts; a cut without explicit guidance is rare.", "prior": 45, "private_info": ""},
+        {"id": "lindqvist", "name": "Marcus Lindqvist", "expertise": "rates strategist; futures and swaps pricing", "lens": "Market pricing aggregates information well; deviations need a strong reason.", "prior": 58, "private_info": "Your desk's client flow shows large real-money accounts adding receive-fixed positions this week, and two primary dealers you trust privately put the cut at 70%."},
+        {"id": "raman", "name": "Dr. Priya Raman", "expertise": "labor economist; employment and wages", "lens": "The labor market leads the policy turn; a cooling job market forces the bank's hand.", "prior": 65, "private_info": "Your research team's unpublished regional hiring survey (large sample, historically tracks official payrolls closely) points to the coming jobs report being flat to slightly negative."},
+        {"id": "vogel", "name": "Henrik Vogel", "expertise": "inflation economist; former fiscal council member", "lens": "Sticky services inflation keeps central banks cautious; they fear cutting too early more than too late.", "prior": 30, "private_info": ""},
+        {"id": "marin", "name": "Sofía Marín", "expertise": "central bank communications and committee politics", "lens": "Read the committee, not the data: who votes, what they said, and what they need to see.", "prior": 50, "private_info": "At an off-record roundtable last week, two voting committee members separately stressed there was 'no urgency' and that they want 'at least two more months of services inflation data'."},
+        {"id": "watanabe", "name": "Kenji Watanabe", "expertise": "global macro and currencies", "lens": "External conditions matter: a weak currency or energy shock ties the bank's hands.", "prior": 48, "private_info": "Your contacts in energy markets expect a supply cut announcement next week that could add roughly 0.3 percentage points to headline inflation within two months."},
+        {"id": "haddad", "name": "Leila Haddad", "expertise": "generalist superforecaster; base rates and calibration", "lens": "Start from the base rate, adjust modestly, avoid overconfidence in stories.", "prior": 50, "private_info": "Your base-rate study: after a statement shifts to 'balanced risks / data-dependent' language, this bank cut at the very next meeting 35% of the time and within two meetings 70% of the time."}
+      ]
+    },
+    "outcome": {"type": "bool", "default": null, "description": "The question's answer once known (true = yes); null leaves the forecasts unscored."},
     "consensus_within": {"type": "number", "default": 10, "min": 0, "max": 100, "unit": "points", "description": "Largest spread of final ballots that counts as consensus."}
   },
   "brief": {
-    "situation": "You sit on a forecasting council of seven experts. The question: will the central bank cut its policy rate at its next meeting, three weeks from now? Public briefing: policy rate 4.50%, unchanged for the last two meetings. Headline CPI 2.9% y/y (down from 3.4% six months ago); core CPI 3.1% and sticky in services. Unemployment 4.3%, up from 3.9% over six months; payroll growth has slowed to roughly a third of last year's pace. GDP grew 0.3% q/q last quarter. The last statement dropped the phrase 'further tightening may be warranted' and said risks are 'more balanced' and decisions are 'data-dependent'. Rate futures imply about a 55% chance of a cut. One CPI print and one jobs report land before the meeting.",
-    "rules": "The session has three stages. 1) Initial ballot: privately submit your probability (0-100%) that the bank cuts, with a one-line rationale. 2) Discussion: the initial ballots are revealed and the council talks in a shared chat over several passes. On your turn you may post a message, revise your working estimate, and mark yourself ready. Any new message un-readies everyone, so the discussion ends when a full pass goes by with everyone ready and no new messages, or when the pass cap is reached. 3) Final ballot: privately submit your final probability. Some panelists hold private information that only they can see; you decide whether and how to share yours. You are scored on the accuracy of your final ballot, not on agreeing with anyone.",
+    "situation": "You sit on a forecasting council of {$count(panelist)} experts. The question: {$inputs.question} Public briefing: {$inputs.briefing}",
+    "rules": "The session has three stages. 1) Initial ballot: privately submit your probability (0-100%) that the answer is yes, with a one-line rationale. 2) Discussion: the initial ballots are revealed and the council talks in a shared chat over several passes. On your turn you may post a message, revise your working estimate, and mark yourself ready. Any new message un-readies everyone, so the discussion ends when a full pass goes by with everyone ready and no new messages, or when the pass cap is reached. 3) Final ballot: privately submit your final probability. Some panelists hold private information that only they can see; you decide whether and how to share yours. You are scored on the accuracy of your final ballot, not on agreeing with anyone.",
     "roles": {
       "panelist": "You are an expert panelist. Bring your own expertise and prior, read the others' arguments carefully, update when the evidence warrants it, and hold your ground when it does not."
     }
@@ -46,6 +62,14 @@
           "default": "",
           "private": true,
           "description": "Information only this panelist holds."
+        },
+        "openness": {
+          "type": "number",
+          "default": 0.5,
+          "min": 0,
+          "max": 1,
+          "private": true,
+          "description": "Share of the way a coded panelist moves toward the others' average once it has heard everyone; those holding private information move less."
         },
         "initial": {
           "type": "number",
@@ -92,76 +116,21 @@
       }
     }
   },
-  "entities": {
-    "okafor": {
+  "population": [
+    {
       "type": "panelist",
-      "name": "Dr. Amara Okafor",
+      "from": "$inputs.panel",
+      "id": "{$row.id}",
+      "name": "{$row.name}",
       "props": {
-        "expertise": "former central bank staff economist; policy reaction functions",
-        "lens": "Committees move slowly and telegraph cuts; a cut without explicit guidance is rare.",
-        "prior": 45
-      }
-    },
-    "lindqvist": {
-      "type": "panelist",
-      "name": "Marcus Lindqvist",
-      "props": {
-        "expertise": "rates strategist; futures and swaps pricing",
-        "lens": "Market pricing aggregates information well; deviations need a strong reason.",
-        "prior": 58,
-        "private_info": "Your desk's client flow shows large real-money accounts adding receive-fixed positions this week, and two primary dealers you trust privately put the cut at 70%."
-      }
-    },
-    "raman": {
-      "type": "panelist",
-      "name": "Dr. Priya Raman",
-      "props": {
-        "expertise": "labor economist; employment and wages",
-        "lens": "The labor market leads the policy turn; a cooling job market forces the bank's hand.",
-        "prior": 65,
-        "private_info": "Your research team's unpublished regional hiring survey (large sample, historically tracks official payrolls closely) points to the coming jobs report being flat to slightly negative."
-      }
-    },
-    "vogel": {
-      "type": "panelist",
-      "name": "Henrik Vogel",
-      "props": {
-        "expertise": "inflation economist; former fiscal council member",
-        "lens": "Sticky services inflation keeps central banks cautious; they fear cutting too early more than too late.",
-        "prior": 30
-      }
-    },
-    "marin": {
-      "type": "panelist",
-      "name": "Sofía Marín",
-      "props": {
-        "expertise": "central bank communications and committee politics",
-        "lens": "Read the committee, not the data: who votes, what they said, and what they need to see.",
-        "prior": 50,
-        "private_info": "At an off-record roundtable last week, two voting committee members separately stressed there was 'no urgency' and that they want 'at least two more months of services inflation data'."
-      }
-    },
-    "watanabe": {
-      "type": "panelist",
-      "name": "Kenji Watanabe",
-      "props": {
-        "expertise": "global macro and currencies",
-        "lens": "External conditions matter: a weak currency or energy shock ties the bank's hands.",
-        "prior": 48,
-        "private_info": "Your contacts in energy markets expect a supply cut announcement next week that could add roughly 0.3 percentage points to headline inflation within two months."
-      }
-    },
-    "haddad": {
-      "type": "panelist",
-      "name": "Leila Haddad",
-      "props": {
-        "expertise": "generalist superforecaster; base rates and calibration",
-        "lens": "Start from the base rate, adjust modestly, avoid overconfidence in stories.",
-        "prior": 50,
-        "private_info": "Your base-rate study: after a statement shifts to 'balanced risks / data-dependent' language, this bank cut at the very next meeting 35% of the time and within two meetings 70% of the time."
+        "expertise": "$row.expertise",
+        "lens": "$row.lens",
+        "prior": "$row.prior",
+        "private_info": "$row.private_info",
+        "openness": "$uniform(0.2, 0.8) * (0.5 if $row.private_info != '' else 1)"
       }
     }
-  },
+  ],
   "records": {
     "chat": {
       "description": "The council's shared discussion.",
@@ -174,13 +143,13 @@
   "actions": {
     "cast_initial": {
       "by": "panelist",
-      "description": "Submit your sealed initial probability that the bank cuts at the next meeting, with a one-line rationale. Others see it when discussion opens.",
+      "description": "Submit your sealed initial probability that the answer is yes, with a one-line rationale. Others see it when discussion opens.",
       "params": {
         "probability": {
           "type": "number",
           "min": 0,
           "max": 100,
-          "description": "Chance of a cut, in percent (0-100)."
+          "description": "Chance of yes, in percent (0-100)."
         },
         "rationale": {
           "type": "text",
@@ -237,7 +206,7 @@
           "type": "number",
           "min": 0,
           "max": 100,
-          "description": "Your current estimate of a cut, in percent."
+          "description": "Your current estimate of yes, in percent."
         }
       },
       "when": [
@@ -282,13 +251,13 @@
     },
     "cast_final": {
       "by": "panelist",
-      "description": "Submit your sealed final probability that the bank cuts at the next meeting. This is the ballot you are scored on.",
+      "description": "Submit your sealed final probability that the answer is yes. This is the ballot you are scored on.",
       "params": {
         "probability": {
           "type": "number",
           "min": 0,
           "max": 100,
-          "description": "Chance of a cut, in percent (0-100)."
+          "description": "Chance of yes, in percent (0-100)."
         }
       },
       "when": [
@@ -495,6 +464,13 @@
       "description": "Mean Brier score of the final ballots against the outcome (0 is perfect, lower is better), or null while unresolved."
     }
   },
+  "defs": {
+    "others_average": {
+      "args": ["me"],
+      "expr": "$avg($filter(panelist, $it.id != $me.id), $it.working)",
+      "description": "The mean working estimate of everyone else on the council."
+    }
+  },
   "policies": {
     "anchored": {
       "repeat": true,
@@ -538,14 +514,14 @@
           "when": "$actor.messages == 0",
           "do": "say",
           "with": {
-            "text": "'The council average is ' + $text($round($avg(panelist, $it.working), 1)) + '%; I will move toward it.'"
+            "text": "'I am at ' + $text($actor.working) + '%. ' + $actor.initial_why"
           }
         },
         {
-          "when": "$abs($actor.working - $avg(panelist, $it.working)) > 1",
+          "when": "$actor.revisions == 0 and $all(panelist, $it.messages > 0) and $abs($others_average($actor) - $actor.working) >= 1",
           "do": "revise_estimate",
           "with": {
-            "probability": "$round($actor.working + $uniform(0, 1) * ($avg(panelist, $it.working) - $actor.working), 1)"
+            "probability": "$round($actor.working + $actor.openness * ($others_average($actor) - $actor.working), 1)"
           }
         },
         {

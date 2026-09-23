@@ -8,7 +8,7 @@
       "default": 480000,
       "min": 0,
       "unit": "USD",
-      "description": "Damages the plaintiff asks for."
+      "description": "Damages the plaintiff asks for. A coded juror who finds liability awards a share of it that grows with how strongly they lean for the plaintiff, so coded awards scale in proportion to the claim."
     },
     "evidence_rounds": {
       "type": "int",
@@ -1009,8 +1009,8 @@
           "when": "$count(exhibit, $it.side == $actor.side and $it.status == held) > 0",
           "do": "offer_exhibit",
           "with": {
-            "exhibit": "$top(exhibit, $it.strength, 1, $it.side == $actor.side and $it.status == held)[0]",
-            "claimed_credibility": "$clamp($top(exhibit, $it.strength, 1, $it.side == $actor.side and $it.status == held)[0].strength + 0.1, 0, 1)",
+            "exhibit": "$next_exhibit($actor)",
+            "claimed_credibility": "$clamp($next_exhibit($actor).strength + 0.1, 0, 1)",
             "pitch": "This exhibit speaks for itself."
           }
         },
@@ -1170,6 +1170,13 @@
         "s"
       ],
       "expr": "'compelling' if $s >= 0.7 else ('fairly convincing' if $s >= 0.5 else ('not very convincing' if $s >= 0.3 else 'hard to believe'))"
+    },
+    "next_exhibit": {
+      "args": [
+        "counsel"
+      ],
+      "expr": "$top(exhibit, $it.strength - (0 if $it.defect == clean else 1), 1, $it.side == $counsel.side and $it.status == held)[0]",
+      "description": "The exhibit coded counsel offers next: its strongest clean one, and one with a defect only once no clean one is left."
     }
   },
   "mechanisms": {

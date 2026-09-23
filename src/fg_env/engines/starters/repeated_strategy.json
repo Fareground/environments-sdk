@@ -61,7 +61,7 @@
     {"when": "$actor.strategy == always_compete", "do": "choose", "with": {"choice": "compete"}},
     {"when": "$actor.strategy == random", "do": "choose", "with": {"choice": "$choice([cooperate, compete])"}}
   ]}},
-  "metrics": {"cooperation_rate": {"expr": "$sum(strategist, $it.cooperations) / $max(1, $sum(strategist, $it.cooperations + $it.competitions))"}},
+  "metrics": {"cooperation_rate": {"expr": "$sum(strategist, $it.cooperations) / $sum(strategist, $it.cooperations + $it.competitions) if $sum(strategist, $it.cooperations + $it.competitions) > 0 else null"}},
   "outputs": {
     "cooperation_rate": {"type": "number", "expr": "$metrics.cooperation_rate"},
     "total_cooperations": {"type": "int", "expr": "$sum(strategist, $it.cooperations)"},
