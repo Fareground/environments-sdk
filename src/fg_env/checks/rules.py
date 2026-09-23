@@ -52,6 +52,7 @@ class RuleChecks:
             self.effects(event.do, f"{path}.do", roots, types)
             check_event_order(self, event, path, frozenset(roots), types)
             self.template(event.say, f"{path}.say", None, BASE)
+            self._shared_text(event.say, f"{path}.say", {})
             if not event.do and not event.say:
                 self.warn(path, "does nothing", "add `do` or `say`")
 
@@ -64,6 +65,7 @@ class RuleChecks:
             self.expr(trigger.when, f"{path}.when", BASE)
             self.effects(trigger.do, f"{path}.do", set(BASE), {})
             self.template(trigger.say, f"{path}.say", None, BASE)
+            self._shared_text(trigger.say, f"{path}.say", {})
             if not trigger.do and not trigger.say:
                 self.warn(path, "does nothing", "add `do` or `say`")
 

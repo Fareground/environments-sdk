@@ -8,7 +8,7 @@ from __future__ import annotations
 import math
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, FrozenSet, Iterator, List, Optional, Sequence, Tuple
 
 from .entity import Entity
 from .action_faults import fault_reason
@@ -17,10 +17,10 @@ from .action_schemas import _ENUM_CHOICES, ActionSchemas, ToolSpec
 from .action_validation import ActionValidation
 from .assets.delivery import attached_ids
 from .contract import ActionSpec, Contract, ParamSpec, RecordSpec, StageSpec
-from .effects import EffectRunner
+from .effects import EffectRunner, compile_statement
 from .errors import RunError
 from .probability import is_probability
-from .expr import EVAL_BUDGET, Expr, ExprError, PrivateRead, Scope, compile_expr, is_expr, shared_budget, truthy
+from .expr import EVAL_BUDGET, EVERYONE, Expr, ExprError, PrivateRead, Scope, compile_expr, is_expr, shared_budget, truthy
 from .template import compile_template, format_value
 from .world import Abort, LuckAhead, SdkWorld, _plain
 
@@ -71,6 +71,9 @@ class ActionBook(ActionSchemas, ActionValidation):
         self.contract = contract
         self.world = world
         self.effects = effects
+        #: Every property name some type keeps private, and per action the arguments its effects write into one.
+        self._private_props = frozenset(p for t in contract.types for p, s in contract.props_of(t).items() if s.private)
+        self._kept_secrets: Dict[str, FrozenSet[str]] = {}
         #: Shared tool name → the actions offered inside it, in declaration order.
         self.groups: Dict[str, List[str]] = {}
         for name, spec in contract.actions.items():
@@ -107,10 +110,11 @@ class ActionBook(ActionSchemas, ActionValidation):
             if param.type == "entity" and not self._choices(actor, name, pname, param, first=True):
                 return f"there is no {param.of or 'target'} you can choose for {pname} right now"
             if param.type in ("number", "int"):
-                empty = self._empty_range(actor, param)
+                empty = self._empty_range(actor, param, f"actions.{name}.params.{pname}")
                 if empty is not None:
                     return f"there is no valid {pname} right now ({empty})"
-            if param.type == "enum" and isinstance(param.values, str) and self._static(actor, param.values) == []:
+            if param.type == "enum" and isinstance(param.values, str) \
+                    and self._static(actor, param.values, f"actions.{name}.params.{pname}.values") == []:
                 return f"there is no value you can choose for {pname} right now"
         return None
 
@@ -132,8 +136,8 @@ class ActionBook(ActionSchemas, ActionValidation):
                     continue
             except ExprError as exc:
                 raise RunError(str(exc), path) from None
-            try:  # the why is a template, like a `fail` text
-                why = compile_template(condition.why, None).render(scope) if condition.why else ""
+            try:  # the why is a template, like a `fail` text: text the actor is shown
+                why = compile_template(condition.why, None).render(scope.child(viewer=actor)) if condition.why else ""
             except ExprError as exc:
                 raise RunError(str(exc), f"{path}.why") from None
             return (why or "its requirements are not met").rstrip(". ")
@@ -151,9 +155,9 @@ class ActionBook(ActionSchemas, ActionValidation):
             pass  # evaluated in the true state next, where it is reported
         return False
 
-    def _empty_range(self, actor: Entity, param: ParamSpec) -> Optional[str]:
+    def _empty_range(self, actor: Entity, param: ParamSpec, where: str) -> Optional[str]:
         """The bounds, when no value lies between them right now (min above max)."""
-        low, high = _tidy(self._static(actor, param.min)), _tidy(self._static(actor, param.max))
+        low, high = _tidy(self._static(actor, param.min, f"{where}.min")), _tidy(self._static(actor, param.max, f"{where}.max"))
         if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in (low, high)):
             return None
         least, most = (math.ceil(low), math.floor(high)) if param.type == "int" else (low, high)
@@ -278,12 +282,13 @@ class ActionBook(ActionSchemas, ActionValidation):
             announce = spec.announce
             if trial:
                 if announce is not None and not spec.private:
-                    self._render(announce, vars, f"{path}.announce")
+                    self._render(announce, {**vars, "viewer": EVERYONE}, f"{path}.announce")
                 world.touch()  # the announcement would have changed the state version
             elif not spec.private:
-                public = {} if self._sealed() else self._public_params(params, self._posted_since(record_mark))
+                public = {} if self._sealed() else \
+                    self._public_params(params, self._posted_since(record_mark), self._kept_secret(name))
                 if announce is not None:
-                    line = self._render(announce, vars, f"{path}.announce")
+                    line = self._render(announce, {**vars, "viewer": EVERYONE}, f"{path}.announce")
                 elif _notified_since(world, log_mark):
                     line = ""  # the posted entry itself is the news
                 else:
@@ -393,17 +398,27 @@ class ActionBook(ActionSchemas, ActionValidation):
         stage = self.world.stage
         return any(spec.name == stage and spec.turns == "simultaneous" for spec in self.contract.stage_list())
 
+    def _kept_secret(self, name: str) -> FrozenSet[str]:
+        """The arguments of action ``name`` that its effects write into a private property."""
+        known = self._kept_secrets.get(name)
+        if known is None:
+            spec = self.contract.actions[name]
+            known = self._kept_secrets[name] = frozenset(_written_into(self._private_props, [spec.do, spec.otherwise]))
+        return known
+
     @staticmethod
-    def _public_params(params: Dict[str, Any], posted: Sequence[Tuple[RecordSpec, Dict[str, Any]]]) -> Dict[str, Any]:
+    def _public_params(params: Dict[str, Any], posted: Sequence[Tuple[RecordSpec, Dict[str, Any]]],
+                       secret: FrozenSet[str]) -> Dict[str, Any]:
         """The arguments an announcement may repeat. An entry that is not broadcast to everyone
         (a record that does not notify, a directed or restricted entry) keeps its content to
-        its own audience, so arguments carried into it are left out."""
+        its own audience, so arguments carried into it are left out; so are ``secret`` ones, which the action keeps
+        in a private property."""
         kept = [entry.get(field) for spec, entry in posted
                 if not spec.notify or entry.get("to") is not None or spec.visible != "all"
                 for field in spec.fields]
-        if not kept:
+        if not kept and not secret:
             return params
-        return {k: v for k, v in params.items() if not _carried(_plain(v), kept)}
+        return {k: v for k, v in params.items() if k not in secret and not _carried(_plain(v), kept)}
 
     def _render(self, template: str, vars: Dict[str, Any], path: str) -> str:
         try:
@@ -424,6 +439,21 @@ class ActionBook(ActionSchemas, ActionValidation):
         verb = name.replace("_", " ")
         suffix = "" if success else " — it did not succeed"
         return f"{actor.name}: {verb}{self._args_text(params)}{suffix}."
+
+
+def _written_into(private: FrozenSet[str], effects: Any) -> Iterator[str]:
+    """The arguments (``$params.<name>``) read on the right of each assignment in ``effects``, however nested, that
+    writes into a property named in ``private``."""
+    if isinstance(effects, str):
+        try:
+            statement = compile_statement(effects)
+        except ExprError:
+            return  # a condition or a text, not an assignment
+        if statement.local is None and any(kind == "field" and step in private for kind, step in statement.steps):
+            yield from (chain[1] for chain in statement.value.paths if chain[0] == "params" and len(chain) > 1)
+    elif isinstance(effects, (list, dict)):
+        for item in effects.values() if isinstance(effects, dict) else effects:
+            yield from _written_into(private, item)
 
 
 def _carried(value: Any, fields: Sequence[Any]) -> bool:

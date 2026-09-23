@@ -2748,7 +2748,7 @@
         },
         "private": {
           "default": false,
-          "description": "Hidden from other agents' inspect tool. An agent's private property is shown only to that agent: reading another agent's in what one agent is shown or offered (views, tool choices and bounds, outcome text, policies) is an error at run time.",
+          "description": "Hidden from other agents' inspect tool. An agent's private property is shown only to that agent: reading another agent's in what one agent is shown or offered (views, tool choices and bounds, outcome text, policies), or any agent's in text sent to several (announcements, news), is an error at run time.",
           "title": "Private",
           "type": "boolean"
         },

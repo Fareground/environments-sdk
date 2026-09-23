@@ -262,6 +262,8 @@ class EffectChecks:
             check_delivery(self, op, effect, path)
         elif op == "emit":
             self.template(effect.get("say"), f"{path}.say", None, roots, types, params)
+            if "to" not in effect:
+                self._shared_text(effect.get("say"), f"{path}.say", types, params)
             v("to")
             v("data")
             v("delay")

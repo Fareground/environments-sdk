@@ -31,7 +31,8 @@
   "events": [{"phase": "end", "do": [
     "$a = $entity('a')", "$b = $entity('b')",
     "$a.score = $world.payoff[$a.move][$b.move]", "$b.score = $world.payoff[$b.move][$a.move]",
-    {"emit": "shown", "say": "A chose {$a.move}; B chose {$b.move}."}
+    "$shown_a = $a.move", "$shown_b = $b.move",
+    {"emit": "shown", "say": "A chose {$shown_a}; B chose {$shown_b}."}
   ]}],
   "game": {"players": "player", "seat": "$it.seat", "returns": "$actor.score", "utility": "general_sum",
            "min_return": -10, "max_return": 1},
