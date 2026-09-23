@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import fg_env
+from fg_env.authoring import contract_problem
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -51,7 +52,7 @@ def score(slug: str, transcript: Dict[str, Any]) -> Dict[str, Any]:
     else:
         evaluation = evaluate(final, required, checks)
     passed = sum(c["passed"] for c in evaluation["checks"])
-    saved = _saved(transcript["writes"], errors_per_write)
+    saved = _saved(transcript["writes"])
     saved_passed = passed if saved is final else (
         sum(c["passed"] for c in evaluate(saved, required, checks)["checks"]) if saved is not None else 0)
     usage = transcript["usage"]
@@ -72,16 +73,9 @@ def score(slug: str, transcript: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _saved(writes: List[Any], errors_per_write: List[List[str]]) -> Optional[Dict[str, Any]]:
-    """The contract ``fg_env.author`` keeps: the latest write that checks clean and runs once (seed 1)."""
-    for written, errors in zip(reversed(writes), reversed(errors_per_write)):
-        if isinstance(written, dict) and not errors:
-            try:
-                fg_env.load(written, seed=1).run(None, budget={"seconds": 60})
-            except Exception:
-                continue
-            return written
-    return None
+def _saved(writes: List[Any]) -> Optional[Dict[str, Any]]:
+    """The contract ``fg_env.author`` keeps: the latest write that works, by the same test it uses."""
+    return next((w for w in reversed(writes) if isinstance(w, dict) and not contract_problem(w)), None)
 
 
 def friction(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

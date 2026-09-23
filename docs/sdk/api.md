@@ -173,7 +173,8 @@ Have ``model`` (``"anthropic:<model>"`` or ``"openai:<model>"``) write an enviro
 
 ``out`` is where the contract is written (nothing is written when None). ``budget`` caps ``tokens`` (input +
 output) and model ``calls``, by default 600,000 and 30. ``client`` replaces the official client made from the
-environment; ``progress`` is called with one line per model call. A provider error does not raise: the loop stops
+environment; ``progress`` is called with one line per model call. Rate limits, overload and server errors are
+retried with backoff; a provider error that persists or that retrying cannot fix does not raise: the loop stops
 (``result.stop`` says why) and keeps what already works.
 
 ## `Env`
