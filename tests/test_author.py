@@ -257,7 +257,8 @@ def test_a_contract_that_fails_after_the_smoke_rounds_is_not_built():
 def test_a_contract_that_fails_when_agents_do_not_act_is_not_built():
     result = fg_env.author("A game.", "openai:m", client=FakeOpenAI([write(IDLE_CRASH)], [], [], []))
 
-    assert not result.ok and result.problem.startswith("a run with idle agents failed in round 3")
+    # check's own pass with agents that never act already reports it, before the author's runs.
+    assert not result.ok and "agents that never act" in result.problem and "events[0].do[0]" in result.problem
 
 
 def test_a_dropped_last_revision_is_named_in_the_reply_and_the_summary():

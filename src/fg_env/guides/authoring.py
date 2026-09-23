@@ -11,18 +11,18 @@ gets a brief, an update and one typed tool per action it can take right now.
 **Faithful first, configurable second.** Implement every requirement and deliverable the brief states, exactly as
 stated: its counts and numbers, its rules and timing, who sees what, and every output under the name it gives. Then
 make values configurable: an input whose default *is* the brief's value, never a smaller stand-in. Keep every stated
-requirement while you repair check issues.
+requirement while repairing check issues.
 
 ## The loop: write → check → preview → run
 
 1. Write the contract; the example below is a complete one.
 2. `fg-env check lake.json` (`fg_env.check`): static checks, then short plays with random agents and each policy.
-   Fix every error; each names its path, a fix and the guide part that explains it.
+   Fix every error; each names its path, a fix and the guide part to read.
 3. `fg-env preview lake.json fisher_1` (`env.preview(id)`; a population's ids are `fisher_1`, `fisher_2` …):
-   exactly what that agent reads. Each role should see what the brief says it sees, and nothing more.
+   exactly what that agent reads. Each role should see what the brief says, nothing more.
 4. `fg-env run lake.json --seed 1` (`fg_env.run`): compare the outputs with what the brief implies, worked out by
    hand for a small case. A clean check proves it runs, not that it is right. To look at state, read the run's summary
-   (it ends with metric values and the entities as the run left them) or a preview; never swap outputs for probes.
+   (metric values and the entities as the run left them) or a preview; never swap outputs for probes.
 
 ## Worked example
 

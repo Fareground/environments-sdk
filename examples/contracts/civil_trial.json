@@ -1191,7 +1191,7 @@
           "next": [
             {
               "to": "direct",
-              "all_did": "opening_statement"
+              "when": "$all(attorney, $it.opened)"
             },
             {
               "to": "direct",
@@ -1300,7 +1300,7 @@
           "next": [
             {
               "to": "deliberation",
-              "all_did": "instruct_jury"
+              "when": "$all(judge, $it.instructed)"
             },
             {
               "to": "deliberation",
