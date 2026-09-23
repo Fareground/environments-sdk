@@ -252,7 +252,7 @@ def check(source: ContractLike, rounds: Optional[int] = None, seed: int = 0, *, 
         except ContractError as exc:
             errors.extend(exc.issues)
         except RunError as exc:
-            errors.append(run_issue(str(exc), exc.path))
+            errors.append(run_issue(str(exc)))  # its text starts with its path
     return errors + [i for i in issues if i.severity != "error"] + warnings_from_smoke
 
 

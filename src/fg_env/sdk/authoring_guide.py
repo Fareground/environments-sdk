@@ -1,181 +1,163 @@
-"""Compact, executable starting context for human and agent authors."""
+"""The start page for human and agent authors: ``guide('authoring')`` is :data:`START` plus :data:`READ_NEXT`, and the
+core guide is :data:`START` plus the mechanism families and the map of every part."""
 
-AUTHORING = '''\
-# Environments SDK: author a faithful scenario
+START = '''\
+# fg_env — from a brief to a working environment
 
-Preserve requirements during repairs.
+An environment is one JSON contract, data not code: what exists (`types`, `entities`), what agents can do
+(`actions`), when they act (`stages`), what they see (`views`) and what is measured (`outputs`). Each turn an agent
+gets a brief, an update and one typed tool per action it can take right now.
 
-## Example: shared capacity
+**Faithful first, configurable second.** Implement every requirement and deliverable the brief states, exactly as
+stated: its counts and numbers, its rules and timing, who sees what, and every output under the name it gives. Then
+make values configurable: an input whose default *is* the brief's value, never a smaller stand-in. Keep every stated
+requirement while you repair check issues.
+
+## The loop: write → check → preview → run
+
+1. Write the contract; the example below is a complete one.
+2. `fg-env check game.json` (`fg_env.check`): static checks, then short plays with random agents and each policy.
+   Fix every error; each names its path, a fix and the guide part that explains it.
+3. `fg-env preview game.json <agent id>` (`env.preview(id)`): exactly what that agent reads. Each role should see
+   what the brief says it sees, and nothing more.
+4. `fg-env run game.json --seed 1` (`fg_env.run`): compare the outputs with what the brief implies, worked out by
+   hand for a small case. A clean check proves it runs, not that it is right.
+
+## Worked example
+
+Brief: *Three fishers share a lake of 100 fish for five seasons. Each season every fisher secretly decides how many
+fish to catch, 0 to 10. After the catch the lake regrows by 20%, never above 100. Fishers see the lake and their own
+total catch. Report `catch_by_fisher` (fisher id → total catch) and `fish_left`.*
 
 ```json
 {
-  "name": "Shared capacity",
-  "clock": {"rounds": "$inputs.horizon", "unit": "day"},
-  "brief": {"rules": "Complete work. Shared and item allowances reset daily.", "roles": {"operator": "Prioritize {$inputs.facility.priority}."}},
+  "name": "Shared lake",
+  "brief": {"rules": "You share a lake. Each season everyone secretly picks a catch; then the lake regrows by {$inputs.regrowth|pct}, up to {$inputs.capacity} fish."},
+  "clock": {"rounds": "$inputs.seasons", "unit": "season"},
   "inputs": {
-    "horizon": {"type": "int", "default": 2, "min": 1, "display": "number", "label": "Days"},
-    "facility": {"type": "map", "display": "object", "default": {}, "fields": {
-      "capacity": {"type": "int", "default": 4, "min": 0, "display": "number", "label": "Daily capacity"},
-      "priority": {"type": "enum", "values": ["smallest backlog", "largest backlog"], "default": "largest backlog", "display": "select"}
-    }},
-    "items": {"type": "table", "display": "table", "fields": {
-      "name": {"type": "text", "required": true},
-      "quantity": {"type": "int", "min": 0, "required": true},
-      "daily_limit": {"type": "int", "min": 0, "default": 2}
-    }, "default": [{"name": "A", "quantity": 3}, {"name": "B", "quantity": 2}]}
+    "fishers": {"type": "int", "default": 3, "min": 1},
+    "seasons": {"type": "int", "default": 5, "min": 1},
+    "capacity": {"type": "int", "default": 100, "min": 0},
+    "max_catch": {"type": "int", "default": 10, "min": 0},
+    "regrowth": {"type": "number", "default": 0.2, "min": 0}
   },
-  "world": {"available": 0},
-  "types": {
-    "operator": {"agent": true},
-    "item": {"props": {"pending": 0, "completed": 0, "daily_limit": 2, "remaining_today": 0}}
-  },
-  "entities": {"manager": {"type": "operator"}},
-  "population": [{"type": "item", "from": "$inputs.items", "name": "{$row.name}", "props": {"pending": "$row.quantity", "daily_limit": "$row.daily_limit"}}],
-  "stages": [{"name": "allocate", "max_actions": 100, "max_calls": 110}],
-  "events": [{"phase": "start", "do": ["$world.available = $inputs.facility.capacity", {"each": "item", "do": "$it.remaining_today = $it.daily_limit"}]}],
-  "actions": {"allocate": {
-    "by": "operator", "description": "Complete work using shared capacity.",
-    "params": {
-      "item": {"type": "entity", "of": "item", "where": "$it.pending > 0 and $it.remaining_today > 0"},
-      "quantity": {"type": "int", "min": 1, "max": "$min($world.available, $params.item.pending, $params.item.remaining_today)"}
-    },
-    "when": ["$world.available > 0"],
-    "do": ["$params.item.pending -= $params.quantity", "$params.item.completed += $params.quantity", "$world.available -= $params.quantity", "$params.item.remaining_today -= $params.quantity"]
+  "world": {"fish": "$inputs.capacity"},
+  "types": {"fisher": {"agent": true, "props": {"caught": 0}}},
+  "population": [{"type": "fisher", "count": "$inputs.fishers"}],
+  "stages": [{"name": "fish", "turns": "simultaneous"}],
+  "actions": {"catch": {
+    "by": "fisher", "description": "Take fish from the lake this season.",
+    "params": {"amount": {"type": "int", "min": 0, "max": "$inputs.max_catch"}},
+    "do": ["$got = $min($params.amount, $world.fish)", "$world.fish -= $got", "$actor.caught += $got"],
+    "outcome": "You caught {$got} fish."
   }},
-  "views": {
-    "capacity": {"show": "Available capacity: {$world.available}"},
-    "items": {"of": "item", "show": "{$it.id}: {$it.name}, pending {$it.pending}, completed {$it.completed}, allowance left today {$it.remaining_today}"}
-  },
-  "metrics": {"completed": "$sum(item, $it.completed)", "pending": "$sum(item, $it.pending)"},
-  "outputs": {"completed": "$sum(item, $it.completed)", "pending": "$sum(item, $it.pending)"},
-  "invariants": [{"expr": "$world.available >= 0", "why": "Shared capacity cannot be overspent."}]
+  "events": [{"phase": "end", "do": "$world.fish = $min($inputs.capacity, $floor($world.fish * (1 + $inputs.regrowth)))"}],
+  "views": {"lake": {"show": "The lake holds {$world.fish} fish. You have caught {caught} in all."}},
+  "outputs": {"catch_by_fisher": "$dict(fisher, $it.id, $it.caught)", "fish_left": "$world.fish"},
+  "invariants": [{"expr": "$world.fish >= 0 and $world.fish <= $inputs.capacity", "why": "The lake holds 0 to capacity fish."}]
 }
 ```
 
-Save as `scenario.json`:
+Each number in the brief is an input defaulting to it; "secretly" is a simultaneous stage; regrowth after the catch
+is an end event; outputs carry the brief's names. Save it as `lake.json`; test a case worked out from the brief:
 
 ```python
 import fg_env
 
-assert fg_env.check("scenario.json", rounds=0) == []
-print(fg_env.load("scenario.json").preview("manager"))
+assert fg_env.check("lake.json") == []
+print(fg_env.load("lake.json").preview("fisher_1"))
 
-def fixed_policy(wake):
-    calls = [("item_1", 1, True), ("item_1", 1, True),
-             ("item_1", 1, False), ("item_2", 2, True)] if wake.round == 1 else [("item_1", 1, True)]
-    for item, quantity, expected_ok in calls:
-        result = wake.call("allocate", {"item": item, "quantity": quantity})
-        assert result.ok == expected_ok, result.text
+def greedy(wake):  # every fisher asks for 10 every season
+    wake.call("catch", {"amount": 10})
     wake.end()
 
-result = fg_env.run("scenario.json", fixed_policy, seed=1)
-assert result.ok
-assert result.outputs == {"completed": 5, "pending": 0}
-assert result.series["completed"] == [4, 5]
-assert result.series["pending"] == [1, 0]
-short = fg_env.run("scenario.json", fixed_policy, inputs={"horizon": 1}, seed=1)
-assert short.ok and short.outputs == {"completed": 4, "pending": 1}
-preview = fg_env.load("scenario.json", inputs={"facility": {"priority": "smallest backlog"}}).preview("manager")
-assert "Prioritize smallest backlog." in preview["brief"]
+# By hand: 100 → 70 → 84 → 54 → 64 → 34 → 40 → 10 → 12 → 0 fish, so 4 × 30 + 12 = 132 caught.
+result = fg_env.run("lake.json", greedy, seed=1)
+assert result.ok and result.outputs["fish_left"] == 0
+assert sum(result.outputs["catch_by_fisher"].values()) == 132
 ```
 
-## Compose without losing fidelity
+## How a round runs
 
-- Inputs are typed, bound data. `map` + `fields` defines
-  nested objects; `table` + `fields` defines rows; `list` + `items` defines lists.
-  Bind `$inputs` in defaults, `population.from`, actions or events. `display` may be
-  text, textarea, number, select, toggle, date, slider, knob, table, object, list or
-  json. Dropdowns use `type: "enum"`, `values: [...]`, `display: "select"`.
-  Bind goals in `brief.roles.<type>`. Action descriptions are static.
-  Use number for open ranges; sliders/knobs need justified bounds. Bind duration with
-  `"clock": {"rounds": "$inputs.horizon", "unit": "day"}`.
-- `population.from` creates one entity per input row if count is omitted.
-  Never hardcode row indices. Test empty,
-  added, removed and reordered rows. Use stable input IDs as entity IDs when the
-  domain needs persistent identity; duplicate IDs are invalid.
-- Entities have lifecycles; maps hold settings, relations links, records history.
-  Decision-makers use `agent: true`; processes use events; views control visibility.
-- Order matters: start events, stages, end events, metrics. Rounds advance after stages, not individual actions. Set `max_actions` explicitly for repeated choices. A round cap tracks ALL calls and resets once; parameter maxima limit one call.
-  Test repeated calls exceeding the cap.
-  Charge a shared budget/capacity once, in the same atomic action as the outcome.
-  Cash = opening + receipts - payments; deposits are liabilities.
-  Model cash holders as entities with `cash_cents`. Move money in one effect:
-  `{"transfer": "cash_cents", "from": "$params.customer", "to": "$entity(shop)", "amount": "$amount"}`.
-  Refunds reverse from/to. Both sides change atomically. Assert total cash is conserved
-  except for explicit external sources/sinks.
-  Use dollar inputs/outputs; compute budgets and floor ratios in cents
-  (`$round(value * 100)`). For cents: `inputs` use `multiple_of: 0.01` (`step` is UI-only);
-  action `params` use enforced `step: 0.01` from `min` or 0, and `description`,
-  not input-only `label`/`display`/`multiple_of`.
-  Money formats take dollars in reports AND receipts:
-  `"outcome": "Paid {$cost_cents / 100|money}." Test 0.10 + 0.20 under a 0.30 cap and
-  0.30 buying three units at 0.10. Define refund, settlement and arrival timing.
-  `{"after": n, "do": [...]}` needs integer rounds `n >= 1`; due effects run
-  before start events/decisions. For zero delay, branch to immediate effects
-  or constrain the input to start at 1 if same-round delivery is unsupported.
-- Entity `id`, `name`, `type`, `alive`, `at` are built in, not custom `props`.
-  Set display names on `entities`/`population` entries with `name`, outside `props`.
-- Property shorthand is a DEFAULT value: `"done": false` is Boolean; `"done":
-  "bool"` is literal text. For types use `{"type": "bool", "default": false}`.
-- Expressions read `$inputs`, `$world`, `$actor`, `$params`; `population` uses
-  `$row`; loops use `$it`. In `create.props`, `$it` is the NEW entity; capture
-  outer values in locals before `create` (e.g. `$delay = $it.delay`). `{$...}` substitutes only in template fields (brief,
-  show, outcome, say), not stored strings. Use focused syntax references.
-- Validation/random runs establish executability, not fidelity. Derive expected
-  results from the brief BEFORE running, never from the contract or its output.
-  Check balances, conservation, timing, zero cases, sensitivity and overlap. Inputs must change rules.
-- Per-round `metrics` use expressions, no `format`. Final `outputs` support `format`.
-  Entity reports: `$map(type, {id: $it.id, ...})`; names may repeat.
-  Test intermediate balances: pending means ALL created but unsettled items,
-  not just those due after the horizon. Check created = settled + lost + pending.
-- Deliver assumptions, input controls, output meanings and tested limitations.
-  Running does not prove accuracy.
+Start events → each stage in order → end events → metrics → `end` conditions. A run ends when an `end` condition
+holds, an `end` effect runs, or the rounds run out.
+* A stage wakes agents (`who`, in `order`). `turns: sequential` — one at a time, actions apply at once.
+  `turns: simultaneous` — everyone chooses from the same picture, then choices commit together (sealed bids, votes).
+* A turn ends after `max_actions` actions (default 1), on `end_turn`, or after `max_calls` calls.
+* An action is atomic: if an effect `fail`s or a `transfer` lacks funds, all of it is undone and the agent is told why.
 
-## Nested inputs
+## Sections
 
-Lists use `items`; `required: true` rejects null. Define missing-data behavior:
-`$get(list, index, 0)` returns zero beyond the list; indexing fails. Test empty/short
-schedules and longer horizons.
+Every section is optional except `name` and `types`. `guide('<section>')` has each one's fields.
 
-```python
-import fg_env
+| section | shape and main fields |
+|---|---|
+| `brief` | `{situation, rules, roles: {type: text}}` — templates |
+| `clock` | `{rounds: 20, unit: "round"}` |
+| `inputs` | `{name: {type, default, min, max, values, fields}}` — set at load, read as `$inputs.name` |
+| `world` | `{prop: default}` — global props, `$world.prop`; a default may read `$inputs` |
+| `types` | `{type: {agent, props: {prop: default or {type, default, min, max, values, private}}, extends}}` |
+| `entities` | `{id: {type, name, props}}` |
+| `population` | `[{type, count, from, name: "Buyer {$i}", props}]` — `from` makes one entity per input row (`$row`) |
+| `records` | `{log: {fields, show, visible}}` — logs (chat, bids) written by `post` |
+| `actions` | `{act: {by, description, params: {p: {type, min, max, values, of, where}}, when, do, outcome, announce, private}}` |
+| `stages` | `[{name, actions, turns, who, order, max_actions, until, on_enter, on_exit}]` |
+| `views` | `{v: {for, title, of, where, sort, desc, limit, show}}` — `of` omitted: one line about `$actor` |
+| `events` | `[{phase: start or end, at, every, when, chance, each, do, say}]` |
+| `end` | `[{when, winner, say, check: stage or action}]` |
+| `metrics`, `outputs` | `{name: expr}` or `{name: {expr, type}}`; an output's `format` (money, pct, 2 …) shapes summaries |
+| `invariants` | `[expr or {expr, why}]` — must always hold |
+| `patterns` | `{name: {kind, …}}` — trends, seasons, random paths, draws; read `$pattern.name` |
+| `mechanisms` | `{name: {kind, mode, ...}}` — markets, auctions, ballots, hidden roles, queues …; `guide('mechanisms')` |
+| `policies` | `{name: {rules: [{when, do, with}]}}` — coded participants for baselines (`policy:<name>`) |
 
-input_example = {"name": "Typed schedules", "types": {}, "inputs": {
-    "rows": {"type": "table", "display": "table", "default": [], "fields": {
-        "name": {"type": "text", "required": True},
-        "schedule": {"type": "list", "display": "list", "default": [],
-                     "items": {"type": "int", "min": 0, "required": True}}
-    }}
-}}
-loaded = fg_env.load(input_example, inputs={"rows": [{"name": "A", "schedule": [0, 2]}]})
-assert loaded.inputs["rows"][0]["schedule"] == [0, 2]
-input_example.update(clock={"rounds": 4}, world={"total": 0},
-    events=[{"each": "$inputs.rows", "do": "$world.total += $get($it.schedule, $round - 1, 0)"}],
-    outputs={"total": "$world.total"})
-for schedule, total in (([0, 2], 2), ([], 0)):
-    result = fg_env.run(input_example, inputs={"rows": [{"name": "A", "schedule": schedule}]})
-    assert result.ok and result.outputs == {"total": total}
-for invalid in ([-1], ["invalid"], [None]):
-    try:
-        fg_env.load(input_example, inputs={"rows": [{"name": "A", "schedule": invalid}]})
-    except fg_env.ContractError:
-        pass
-    else:
-        raise AssertionError("Invalid schedule was accepted")
+Also: `assets`, `game`, `triggers`, `space`, `relations`, `links`, `physics`, `feeds`, `arms`, `calibration`,
+`defs`, `blocks`, `imports`. Property types: number int bool text enum list map any (inferred from the default);
+inputs also take `table` (rows with `fields`). Parameter types: number int bool text enum entity list file; an
+`entity` parameter names its type in `of` and may filter with `where` (`$it` the candidate).
 
-```
+## Expressions
 
-Defaults are not bounds. Use `number` for fractions, `int` for counts. Test zero,
-empty lists, duplicate names and changed row counts. Derive loops from inputs;
-never hide zero behind a nonzero divisor.
+A string with `$name` in it is an expression; other strings are text.
+* Roots: `$actor` (who acts), `$params` (its arguments), `$it` (the current item), `$world`, `$inputs`, `$round`,
+  `$metrics`; locals you assign (`$total`). Props: `$actor.coins`, `$params.target.name`, `$entity(shop).stock`.
+  Entities also have `id name type alive`.
+* Operators: `+ - * / // % **`, `== != < <= > >=`, `and or not`, `in`, `a if cond else b`, lists `[1, 2]`, maps
+  `{price: 3}`, indexing `$list[0]`. Bare words are text: `$actor.role == wolf`. Compare with `==`, never `=`.
+* Functions always take `$`: `$count(buyer, $it.cash > 0)`, `$sum(player, $it.coins)`, `$avg`, `$min`, `$max`,
+  `$filter(player, $it.alive)`, `$map(player, $it.name)`, `$dict(player, $it.id, $it.coins)`,
+  `$top(offer, $it.price, 3)`, `$best(player, $it.score)`, `$any`, `$all`, `$len`, `$get(list, i, 0)`,
+  `$chance(0.3)`, `$randint(1, 6)`, `$normal(0, 1)`, `$choice(list)`, `$round(x, 2)`, `$floor`, `$clamp`.
+* Templates (`show`, `outcome`, `announce`, `say`, `brief`, `name`): `"{name} has {coins} coins"` reads the subject
+  (`$it` in lists, `$actor` otherwise); `{$params.amount|money}` is any expression with a format.
 
-## Focused references
+## Effects
 
-`fg_env.guide(part)` / `fg-env guide PART`:
-- `effects`: create/remove entities, transfers, delays (not `patterns`).
-- `functions`: lookup `$entity(id)`; `functions.collections`: filter/sum/map.
-- `population`: rows to entities; `inputs`: controls; `actions`: decisions.
-- `stages`: turn order; `events`: lifecycle; `metrics`/`outputs`: reports.
-- `patterns`: trends/randomness; `mechanisms`: rule families; `views`: visibility.
-Exact fields: `fg_env.schema()`.
+`do` (actions, events, stage hooks) is one effect or a list:
+* `"$actor.coins -= $params.amount"`, `"$total = $params.qty * 2"` (a local); `+=` on a list appends.
+* `{"if": "$world.stock < $params.qty", "then": [{"fail": "Not enough stock."}], "else": [...]}`
+* `{"each": "player", "where": "$it.coins == 0", "do": ["$it.out = true"]}`
+* `{"transfer": "coins", "from": "$actor", "to": "$params.target", "amount": 3}` — fails the action if short
+* `{"create": "order", "props": {"price": "$params.price"}}` · `{"remove": "$params.order"}`
+* `{"post": "chat", "text": "$params.text"}` · `{"after": 2, "do": [...]}` (later, same locals)
+* `{"end": "bankrupt", "winner": "$best(player, $it.coins)", "say": "{$actor.name} went broke."}`
+
+An action's `when` holds requirements: `["$actor.coins > 0", {"expr": "$params.amount <= $world.cap", "why": "Too
+much."}]`. Requirements over `$actor` decide whether the tool is offered; ones that read `$params` refuse a call
+with their `why`.
 '''
+
+READ_NEXT = '''
+## Read next, only when you need it
+
+`fg_env.guide('<part>')` or `fg-env guide <part>`:
+- a section's fields and roots: `actions`, `stages`, `views`, `events`, `inputs`, `population`, `outputs`, `policies` …
+- `effects` — every effect with an example; `expressions` — the full language
+- `functions.collections` — counting, ranking, maps; `functions.random` — draws and distributions
+- `mechanisms` — ready-made markets, auctions, ballots, hidden roles, queues, inventories
+- `patterns` — demand, trends, seasons and random paths over time
+- `inspect` — reading a run: summary, events, diagnostics
+- `guide()` maps every other part.
+'''
+
+AUTHORING = START + READ_NEXT

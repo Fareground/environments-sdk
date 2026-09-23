@@ -6,6 +6,7 @@ value nor the fix. These turn each validation error into an :class:`Issue` a fir
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from difflib import get_close_matches
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
@@ -38,6 +39,8 @@ def _all_field_names() -> List[str]:
 
 
 _FIELD_NAMES = _all_field_names()
+#: Contract sections with a guide page of their own.
+_SECTIONS = set(C.Contract.model_fields) - {"fg_env", "name", "description"}
 
 
 def _path(loc: Sequence[Any]) -> str:
@@ -131,4 +134,15 @@ def validation_issues(exc: ValidationError) -> List[Issue]:
             issues.append(Issue(path, error["msg"], (error.get("ctx") or {}).get("fix")))
     for path, (expected, value) in unions.items():
         issues.append(Issue(path, f"must be {' or '.join(expected)}, got {_got(value)}", _fix(path, expected, value)))
-    return issues
+    return [_with_guide_part(issue) for issue in issues]
+
+
+def _with_guide_part(issue: Issue) -> Issue:
+    """``issue`` with its fix pointing to the guide part that lists its section's fields (``see guide('stages')``),
+    unless the fix already names the replacement or a guide part."""
+    section = issue.path.split(".")[0].split("[")[0]
+    fix = issue.fix or ""
+    if section not in _SECTIONS or "did you mean" in fix or "guide(" in fix:
+        return issue
+    pointer = f"see guide('{section}')"
+    return replace(issue, fix=f"{fix}; {pointer}" if fix else pointer)

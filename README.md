@@ -189,8 +189,8 @@ One small, strict expression language is used everywhere:
 `$top(offer, [$it.rating, -$it.price], 5)`. Unknown properties and type errors are reported with
 the fix; nothing silently evaluates to zero.
 
-Start with `fg-env guide authoring`: a compact, executable path from configurable
-objects and tables to decisions, rounds and known-answer checks. Hosts can put
+Start with `fg-env guide authoring`: one page with a complete worked contract, the
+write → check → preview → run loop and a known-answer check. Hosts can put
 `fg_env.guide("authoring")` directly in an authoring agent’s starting context.
 Field references are generated from the installed SDK; `fg-env guide` maps the
 full language and `fg-env guide all` prints the complete reference.
