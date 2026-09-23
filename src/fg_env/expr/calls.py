@@ -58,6 +58,8 @@ class EqualityGuard:
         """The value every item is compared with, or ``_NO_KEY`` when it cannot be known up front."""
         if not all(root in scope.vars for root in self.roots):
             return _NO_KEY  # a missing root may be a def, which is evaluated per item
+        if self.field in scope.world.private_names and scope.vars.get("viewer") is not None:
+            return _NO_KEY  # skipping by another's private field would decide by it unseen: each item reads it
         try:
             return _entity_id(self.value(scope))
         except Exception:  # evaluating per item raises the same way; nothing is skipped

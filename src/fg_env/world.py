@@ -140,6 +140,11 @@ class SdkWorld(World):
         self._clock_view = ClockView(self)
         self.patterns = PatternRuntime(self)
         self._type_props = {t: contract.props_of(t) for t in contract.types}
+        #: An agent's private properties, which only that agent may be shown. Other entities have no owner the SDK
+        #: knows of: their private properties are hidden from inspect, and the contract's views say who sees them.
+        self._private = {t: frozenset(p for p, spec in props.items() if spec.private)
+                         for t, props in self._type_props.items() if contract.is_agent(t)}
+        self.private_names = frozenset().union(*self._private.values())
         #: Def results for the current world state (see :meth:`call_def`).
         self._def_cache: Dict[Any, Any] = {}
         self._def_cache_state: Any = None
@@ -237,6 +242,9 @@ class SdkWorld(World):
         if isinstance(entity_id, Entity):
             return entity_id
         return self.entities.get(entity_id) if isinstance(entity_id, str) else None
+
+    def is_private(self, type_name: str, prop: str) -> bool:
+        return prop in self._private.get(type_name, ())
 
     def records(self, name: str) -> List[Entry]:
         if name not in self.records_store:
@@ -842,13 +850,16 @@ _CACHEABLE = (int, float, bool, str, type(None), Entity)
 
 def within_bounds(spec: Any, value: float, subject: str) -> None:
     """Refuse (:class:`OutOfBounds`) a number past ``spec``'s min or max, naming ``subject`` ("Ann's coins"). Saturating
-    is written out: ``$clamp(x, low, high)``."""
+    is written out: ``$clamp(x, low, high)``. A private property's value stays out of the reason, which the acting
+    agent is told."""
     if spec.min is not None and value < spec.min:
         limit = f"cannot go below {format_value(spec.min)}"
     elif spec.max is not None and value > spec.max:
         limit = f"cannot go above {format_value(spec.max)}"
     else:
         return
+    if getattr(spec, "private", False):
+        raise OutOfBounds(f"{subject} {limit}.")
     raise OutOfBounds(f"{subject} {limit}: it would be {format_value(value)}.")
 
 

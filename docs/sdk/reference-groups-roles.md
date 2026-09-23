@@ -18,5 +18,5 @@ Actions of the `groups` op:
 - `reveal` — takes `who` (needs `who`): {"groups": "roles", "action": "reveal", "who": "$filter(player, true)"}  (make these players' roles public)
 
 ```json
-{"mechanisms": {"my_roles": {"kind": "groups", "mode": "roles", "who": "player", "deck": {"werewolf": 2, "seer": 1, "villager": "rest"}, "teams": {"wolves": ["werewolf"], "village": ["seer", "villager"]}, "know": ["wolves"], "actions": {"inspect_player": {"roles": ["seer"], "params": {"target": {"type": "entity", "of": "player"}}, "do": [], "outcome": "{$params.target.name} is {$params.target.role}."}}}}}
+{"mechanisms": {"my_roles": {"kind": "groups", "mode": "roles", "who": "player", "deck": {"werewolf": 2, "seer": 1, "villager": "rest"}, "teams": {"wolves": ["werewolf"], "village": ["seer", "villager"]}, "know": ["wolves"], "actions": {"inspect_player": {"roles": ["seer"], "params": {"target": {"type": "entity", "of": "player"}}, "do": ["$seen = $params.target.role"], "outcome": "{$params.target.name} is {$seen}."}}}}}
 ```

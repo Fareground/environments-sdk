@@ -142,7 +142,7 @@ class Diagnosis:
         env, actor = turn.env, turn.actor
         used_round = env._used_round.get(actor.id, {})
         for name in stage_actions(env.contract, turn.stage, actor.entity_type):
-            why = env.actions.blocked(actor, name, turn.used, used_round)
+            why = env.actions.blocked(actor, name, turn.used, used_round, offered=True)
             if why:
                 _tally(entry["reasons"], f"{name}: {why}")
                 return

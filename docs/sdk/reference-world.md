@@ -14,6 +14,6 @@ parent's ``private``, ``type``, ``min``, ``max`` and ``values`` still apply.
 - `min`: number — Lowest allowed value: a write below it is refused, never clamped (saturate with $clamp).
 - `max`: number — Highest allowed value: a write above it is refused, never clamped (saturate with $clamp).
 - `values`: [any]
-- `private`: bool = false — Hidden from other agents' inspect tool; a view listing it for every entity, or another agent's in an entity choice's `where`, is a check error.
+- `private`: bool = false — Hidden from other agents' inspect tool. An agent's private property is shown only to that agent: reading another agent's in what one agent is shown or offered (views, tool choices and bounds, outcome text, policies) is an error at run time.
 - `description`: text
 - `unit`: text

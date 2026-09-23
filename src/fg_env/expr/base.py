@@ -8,7 +8,7 @@ from typing import Any, Callable, Mapping, Optional
 
 __all__ = [
     "EVAL_BUDGET", "MAX_INT_BITS", "MAX_LIST_LEN", "MAX_RANGE", "MAX_TEXT_LEN", "Untrusted", "tainted", "derived",
-    "ExprError", "charge", "check_size", "shared_budget", "nested_free", "is_expr", "truthy", "EXPRESSION_WORDS",
+    "ExprError", "PrivateRead", "charge", "check_size", "shared_budget", "nested_free", "is_expr", "truthy", "EXPRESSION_WORDS",
 ]
 
 _EXPR_MARK = re.compile(r"\$[A-Za-z_]")
@@ -69,6 +69,10 @@ class ExprError(ValueError):
         self.source = source
         self.detail = message
         super().__init__(f"{message} — in `{source}`" if source else message)
+
+
+class PrivateRead(ExprError):
+    """What one agent is shown or offered (``$viewer`` is bound) read another agent's private property."""
 
 
 # ---------------------------------------------------------------------------
