@@ -209,3 +209,102 @@ def test_an_unknown_invariant_check_is_reported_with_a_fix():
     contract["invariants"][0]["check"] = "rounds"
     issues = [i for i in fg_env.check(contract) if i.path == "invariants[0].check"]
     assert issues and "did you mean 'round'?" in issues[0].fix
+
+
+def test_an_each_event_with_a_trigger_is_still_checked_once_after_its_last_item():
+    contract = json.loads(json.dumps(LENDING))
+    contract["triggers"] = [{"when": "$world.owed > 5", "do": ["$world.owed = 0"]}]
+    assert fg_env.load(contract, seed=1).run().status == "completed"
+
+
+def _lending_with(hook):
+    contract = json.loads(json.dumps(LENDING))
+    contract["world"]["alarms"] = 0
+    contract["types"]["boss"] = {"agent": True, "props": {}}
+    contract["entities"] = {"boss": {"type": "boss"}}
+    contract["actions"] = {"wait": {"by": "boss", "terminal": True}}
+    contract.update(hook)
+    return contract
+
+
+def test_an_each_item_that_breaks_an_invariant_fails_the_run_before_a_trigger_acts_on_it():
+    contract = _lending_with({"triggers": [{"when": "$world.owed != 0", "do": ["$world.alarms += 1"]}]})
+    env = fg_env.load(contract, seed=1)
+    result = env.run("idle")
+    assert result.status == "failed" and "after events[0].do" in result.error and "the books balance" in result.error
+    assert env.props["alarms"] == 0
+
+
+def test_an_each_item_that_breaks_an_invariant_fails_the_run_before_an_agent_reacts_to_it():
+    contract = _lending_with({})
+    contract["events"][0]["do"][0]["else"].append({"wake": "$entity(boss)", "now": True, "why": "A loan went out."})
+    woken = []
+    result = fg_env.load(contract, seed=1).run(lambda wake: woken.append(wake.reason) or wake.call("wait"))
+    assert result.status == "failed" and "the books balance" in result.error
+    assert "A loan went out." not in woken
+
+
+#: Everyone may hold at most 5: an `$all` over one type that reads only each member's own properties is re-checked
+#: after an action only for the entities the action changed, so a crowd's round costs the same per turn at any size.
+CAPPED = {
+    "name": "Capped crowd",
+    "clock": {"rounds": 1},
+    "world": {"cap": 5},
+    "types": {"p": {"agent": True, "props": {"c": 0, "rival": {"type": "text", "default": "p_1"}}},
+              "vip": {"extends": "p"}},
+    "population": [{"type": "p", "count": 30}],
+    "entities": {"v": {"type": "vip"}},
+    "invariants": [{"expr": "$all(p, $it.c <= 5)", "why": "nobody may hold more than 5"}],
+    "actions": {
+        "give": {"by": "p", "params": {"to": {"type": "entity", "of": "p"}, "n": {"type": "int", "min": 1, "max": 9}},
+                 "do": "$params.to.c += $params.n"},
+        "spawn": {"by": "p", "params": {"n": {"type": "int", "min": 0, "max": 9}},
+                  "do": {"create": "vip", "props": {"c": "$params.n"}}},
+        "cap": {"by": "p", "params": {"n": {"type": "int", "min": 0, "max": 9}}, "do": "$world.cap = $params.n"},
+    },
+    "stages": [{"name": "play", "max_actions": 3}],
+}
+
+
+def _refusals(invariant, *calls):
+    contract = json.loads(json.dumps(CAPPED))
+    contract["invariants"][0]["expr"] = invariant
+    seen = []
+
+    def play(wake):
+        for name, args in calls:
+            seen.append(wake.call(name, args))
+        wake.call("end_turn")
+    env = fg_env.load(contract, seed=1)
+    result = env.run({"p_2": play, "*": "idle"})
+    assert result.status == "completed", result.error
+    return [not outcome.ok and "nobody may hold more than 5" in outcome.text for outcome in seen], env
+
+
+def test_an_action_that_breaks_an_all_invariant_on_another_entity_is_refused():
+    refused, env = _refusals("$all(p, $it.c <= 5)", ("give", {"to": "p_7", "n": 4}), ("give", {"to": "p_7", "n": 2}),
+                             ("give", {"to": "v", "n": 6}))
+    assert refused == [False, True, True]
+    assert env.entity("p_7")["props"]["c"] == 4 and env.entity("v")["props"]["c"] == 0
+
+
+def test_an_action_that_creates_an_entity_breaking_an_all_invariant_is_refused():
+    refused, env = _refusals("$all(p, $it.c <= 5)", ("spawn", {"n": 5}), ("spawn", {"n": 6}))
+    assert refused == [False, True] and len(env.entities("vip")) == 2
+
+
+def test_an_all_invariant_that_reads_more_than_its_items_is_checked_whole():
+    refused, _ = _refusals("$all(p, $it.c <= $world.cap)", ("give", {"to": "p_7", "n": 3}), ("cap", {"n": 2}))
+    assert refused == [False, True]
+    refused, _ = _refusals("$all(p, $it.c <= $entity($it.rival).c + 5)", ("give", {"to": "p_7", "n": 5}),
+                           ("give", {"to": "p_7", "n": 1}), ("give", {"to": "p_1", "n": 1}))
+    assert refused == [False, True, False]
+    refused, _ = _refusals("$all(p, $it.c < 5) and $all(vip, $it.c < 3)", ("give", {"to": "v", "n": 3}),
+                           ("give", {"to": "p_3", "n": 4}))
+    assert refused == [True, False]
+
+
+def test_a_fork_that_tightens_an_all_invariant_checks_every_member_it_restored():
+    _, env = _refusals("$all(p, $it.c <= 5)", ("give", {"to": "p_7", "n": 4}))
+    with pytest.raises(fg_env.InvariantViolation, match="no longer holds after fork"):
+        env.fork(patch={"invariants": [{"expr": "$all(p, $it.c <= 3)", "why": "tighter"}]})

@@ -133,6 +133,9 @@ class SdkWorld(World):
         self.exposures: Any = None
         #: Names of properties written since the build (read by the run's diagnostics; see run_diagnosis.py).
         self.written: "set[str]" = set()
+        #: Ids of the entities created or given property values since the invariants last held, in order (None: not
+        #: known, so every invariant is checked whole; see run_checks.py).
+        self.touched: Optional[Dict[str, None]] = None
         #: While sealed choices commit or an `each` loop runs, notes `=` assignments (see run_diagnosis.py).
         self.watched_writes: Any = None
         #: The run's diagnosis counts (a run_diagnosis.Diagnosis), set by the run.
@@ -255,6 +258,7 @@ class SdkWorld(World):
 
     def rebuild_index(self) -> None:
         """Re-index every entity after the entity store was replaced wholesale (a restore)."""
+        self.touched = None
         self.types.rebuild(self.entities.values())
         if self.space is not None:
             self.space.positions.rebuild(self.entities.values())
@@ -572,7 +576,17 @@ class SdkWorld(World):
             return
         old = entity.properties.get(prop)
         entity.properties[prop] = new
-        self.journal.push(lambda: entity.properties.__setitem__(prop, old))
+        self._touch_entity(entity)
+
+        def undo() -> None:
+            entity.properties[prop] = old
+            self._touch_entity(entity)  # an undo can bring back values no invariant check has seen together
+
+        self.journal.push(undo)
+
+    def _touch_entity(self, entity: Entity) -> None:
+        if self.touched is not None:
+            self.touched[entity.id] = None
 
     def set_world(self, prop: str, value: Any, *, trusted: bool = False) -> None:
         """Set a world property. ``trusted``: the caller built ``value`` from plain data and never changes it in
@@ -659,6 +673,7 @@ class SdkWorld(World):
             self._make_room(entity, entity.location_id, "cannot be placed")
         self.entities[eid] = entity
         self.types.created(entity)
+        self._touch_entity(entity)
         if space is not None:
             space.positions.add(entity)
 
@@ -685,6 +700,7 @@ class SdkWorld(World):
         def undo_remove() -> None:
             entity.alive = True
             self.types.changed(entity)
+            self._touch_entity(entity)
             if space is not None:
                 space.positions.add(entity)
 

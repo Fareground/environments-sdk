@@ -57,28 +57,37 @@ KEEP_ARM: Any = _KeepArm()
 _FORK_HINT = "to continue it under changes, use fg_env.fork(original_contract, snapshot, arm=..., inputs=..., patch=...)"
 
 
+#: Values encoded and decoded as they are (a subclass, like Untrusted text, is not one of them). Plain values are
+#: passed over without a call: a long run's log is mostly them.
+_PLAIN = frozenset({str, int, float, bool, type(None)})
+
+
 def encode(value: Any) -> Any:
     """A JSON-safe copy that keeps participant-text provenance."""
+    if type(value) in _PLAIN:
+        return value
     if isinstance(value, Untrusted):
         return {"$untrusted": str.__str__(value)}
     if isinstance(value, (list, tuple)):
-        return [encode(v) for v in value]
+        return [v if type(v) in _PLAIN else encode(v) for v in value]
     if isinstance(value, dict):
         if any(type(key) is not str for key in value) or "$untrusted" in value or "$map" in value:
             return {"$map": [[encode(k), encode(v)] for k, v in value.items()]}
-        return {k: encode(v) for k, v in value.items()}
+        return {k: v if type(v) in _PLAIN else encode(v) for k, v in value.items()}
     return value
 
 
 def decode(value: Any) -> Any:
+    if type(value) in _PLAIN:
+        return value
     if isinstance(value, list):
-        return [decode(v) for v in value]
+        return [v if type(v) in _PLAIN else decode(v) for v in value]
     if isinstance(value, dict):
         if len(value) == 1 and isinstance(value.get("$untrusted"), str):
             return Untrusted(value["$untrusted"])
         if len(value) == 1 and isinstance(value.get("$map"), list):
             return {_key(decode(k)): decode(v) for k, v in value["$map"]}
-        return {k: decode(v) for k, v in value.items()}
+        return {k: v if type(v) in _PLAIN else decode(v) for k, v in value.items()}
     return value
 
 
@@ -110,7 +119,7 @@ def take_snapshot(env: "Env") -> Dict[str, Any]:
                          for (a, b), v in edges.items()] for kind, edges in w.links.items()},
         "records": {name: [encode(dict(row)) for row in rows] for name, rows in w.records_store.items()},
         "record_seq": w._record_seq,
-        "log": [encode(e.to_dict()) for e in w.log], "seq": w._seq,
+        "log": [encode(row) for row in env._event_rows()], "seq": w._seq,
         "physics": w.physics.to_dict() if w.physics else None,
         "metrics": encode(w.metrics), "series": encode(w.series),
         "scheduled": [[due, order, encode(item)] for due, order, item in w.scheduled],

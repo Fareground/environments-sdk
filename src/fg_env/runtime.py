@@ -120,6 +120,9 @@ class Env(Copying, RunChecks, RunRounds, RunStages):
         #: The state each invariant was last found to hold in (see _check_invariants).
         self._invariant_held: Dict[int, Any] = {}
         self._end_on_action = any(end.check == "action" for end in contract.end)
+        #: The log as plain data for results, converted once per event (see _event_rows).
+        self._rows: List[Dict[str, Any]] = []
+        self._rows_last: Any = None
         self.diagnosis = self.world.diagnosis = Diagnosis(self.world.written)
         self._check_invariants("build", "build")
 
@@ -257,7 +260,7 @@ class Env(Copying, RunChecks, RunRounds, RunStages):
             series={k: list(v) for k, v in self.world.series.items()}, winner=end.get("winner"),
             error=self.error, output_issues=issues, stats=self.stats.to_dict(),
             agent_stats={key: self.agent_stats[key].to_dict() for key in sorted(self.agent_stats)},
-            events=[e.to_dict() for e in self.world.log], time=self.world.time if self.world.continuous else None,
+            events=self._event_rows(), time=self.world.time if self.world.continuous else None,
             exposures=recording(self),
             frames=[dict(frame) for frame in self.previews.frames], returns=returns,
             host_tape=tape_of(self) if self.world.exposures is not None else {}, budget=Budget.report(self),
@@ -365,6 +368,17 @@ class Env(Copying, RunChecks, RunRounds, RunStages):
             if attached:
                 self._brief_assets[actor.id] = attached
         return brief
+
+    def _event_rows(self) -> List[Dict[str, Any]]:
+        """The log as plain data, each event converted once, so a result costs the same late in a run as early.
+        Results share the converted events; the log only grows at its end or loses events a rollback undid, so the
+        rows are rebuilt only when their last event is no longer where it was."""
+        log, rows = self.world.log, self._rows
+        if rows and (len(rows) > len(log) or log[len(rows) - 1] is not self._rows_last):
+            rows.clear()
+        rows.extend(event.to_dict() for event in log[len(rows):])
+        self._rows_last = log[-1] if log else None
+        return list(rows)
 
     def _flush_events(self) -> None:
         if self._on_event is None:

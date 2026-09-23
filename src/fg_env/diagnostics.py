@@ -12,6 +12,7 @@ agents that never acted or most of whose turns failed, are reported too: such a 
 from __future__ import annotations
 
 import json
+import math
 import re
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 
@@ -298,7 +299,7 @@ def _stuck_measures(env: "Env", outputs: Dict[str, Any], rules: "_Rules") -> Lis
                                     "set what it reads in an action or event, or read what the rules do change"))
     for name, metric in env.contract.metrics.items():
         series = env.world.series.get(name, [])
-        if len(series) < MIN_ROUNDS or len({json.dumps(v, sort_keys=True, default=str) for v in series}) != 1:
+        if len(series) < MIN_ROUNDS or _changes(series):
             continue
         cause = rules.cause(metric.expr)
         if cause:
@@ -307,6 +308,17 @@ def _stuck_measures(env: "Env", outputs: Dict[str, Any], rules: "_Rules") -> Lis
                                 f"stayed {shown} for all {len(series)} rounds: {cause}",
                                 "set what it reads in an action or event, or read what the rules do change"))
     return out
+
+
+def _changes(series: List[Any]) -> bool:
+    """Whether a metric's values ever differ, as their JSON would (every result of a stepped run asks): plain values
+    are compared directly, anything else by its JSON text."""
+    first = series[0]
+    kind = type(first)
+    if first is None or kind in (str, int, bool) or (kind is float and math.isfinite(first)):
+        return any(type(value) is not kind or value != first for value in series)
+    text = json.dumps(first, sort_keys=True, default=str)
+    return any(json.dumps(value, sort_keys=True, default=str) != text for value in series[1:])
 
 
 class _Rules:

@@ -67,8 +67,10 @@ turn, uses `max_actions`, or runs out of `max_calls`.
   inside that change, so a `fail` in a hook refuses it. Entities made at build run on_create once the
   whole world exists, in creation order (`on_create_at_build: false` skips them). `$it` is the entity;
   in on_remove it is already no longer alive. Hooks setting off hooks stop at 16 levels.
-* Invariants are checked after every action and effect block (an `each` event once its last item ran) and after
-  physics: write them for states that must hold at all times, not ones that only settle at the end of a stage. An
+* Invariants are checked after every action and effect block (an `each` event once its last item ran, or before a
+  trigger or reaction an item sets off) and after physics: write them for states that must hold at all times, not
+  ones that only settle at the end of a stage. `$all(<type>, <condition>)` whose condition reads only each member's
+  own properties and `$inputs` re-checks only the members a change touched, so it stays cheap in any crowd. An
   agent's action that breaks one — itself or through the triggers and hooks its commit sets off — is refused and
   undone, and the agent is told the invariant's `why` (give one: without it the agent only hears that a rule would
   break; it is a template, which may read no agent's private prop); the run goes on and its diagnostics count it. A break by anything else (events, physics, the build) fails

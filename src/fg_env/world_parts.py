@@ -50,7 +50,7 @@ class Entry(dict):
         raise ExprError(f"record entry has no field '{name}' (fields: {', '.join(sorted(self))})", source)
 
 
-@dataclass(eq=False)
+@dataclass(eq=False, slots=True)
 class LogEvent:
     """Something that happened, in order. ``to`` None means every agent may learn of it."""
 

@@ -41,13 +41,14 @@ _ENV_FIELDS = frozenset({
     "agent_stats", "status", "ended_by", "error", "_memories", "_briefs", "_used_round", "_fired_once", "_lock",
     "_signal", "_running", "driver", "time_limit", "budget", "happenings", "previews", "_on_event", "_emitted",
     "_turn_count", "_cursor", "_where", "_trigger_armed", "_triggers_fired", "_in_round", "origin", "_inspectable",
-    "_invariant_held", "pilot", "calibration", "build_seed", "stepper", "diagnosis", "_end_on_action", "_brief_assets", "_inspect_cache"})
+    "_invariant_held", "pilot", "calibration", "build_seed", "stepper", "diagnosis", "_end_on_action", "_brief_assets", "_inspect_cache",
+    "_rows", "_rows_last"})
 _WORLD_FIELDS = frozenset({
     "contract", "inputs", "seeds", "arm", "_local", "_rng", "entities", "props", "links", "link_fields", "adjacent",
     "records_store", "entry_by_seq", "record_authors", "record_events", "entity_briefs", "log", "physics", "physics_writes", "entity_dynamics", "round",
     "stage", "rounds", "metrics", "series", "scheduled", "wake_requests", "reactions", "time", "horizon", "start", "wake_at",
     "_schedule_seq", "space", "buffer", "end_request", "chance_picker", "counters", "firings", "journal", "lifecycle",
-    "exposures", "written", "watched_writes", "diagnosis", "_seq", "_record_seq", "_props_view", "_physics_view", "_clock_view",
+    "exposures", "written", "touched", "watched_writes", "diagnosis", "_seq", "_record_seq", "_props_view", "_physics_view", "_clock_view",
     "_type_props", "_private", "private_names", "private_metrics", "_def_cache", "_def_cache_state", "_def_cache_on", "_remembered", "_remembered_state",
     "_subtypes", "types", "assets", "patterns"})
 #: Mechanisms keep plain data of their own on the world under these prefixes.
@@ -82,6 +83,7 @@ def copy_run(source: SteppedEnv, waiting: Optional[Waiting]) -> Tuple[SteppedEnv
         _turn_count=source._turn_count, _in_round=source._in_round, _inspectable=source._inspectable,
         _end_on_action=source._end_on_action, pilot=None, calibration=source.calibration, _inspect_cache=None,
         build_seed=source.build_seed, stepper=None, _invariant_held={}, _briefs=dict(source._briefs),
+        _rows=list(source._rows), _rows_last=source._rows_last,
         _brief_assets={key: list(ids) for key, ids in source._brief_assets.items()},
         _fired_once=set(source._fired_once), _trigger_armed=dict(source._trigger_armed),
         _triggers_fired=set(source._triggers_fired),
@@ -184,7 +186,7 @@ def _copy_world(source: SdkWorld) -> SdkWorld:
         space=None,
         buffer=None, end_request=_copy(source.end_request), chance_picker=None, counters=dict(source.counters),
         firings=dict(source.firings), journal=journal, lifecycle=None, exposures=_copy_exposures(source.exposures), written=set(source.written),
-        watched_writes=None, diagnosis=None, _seq=source._seq,
+        touched=None, watched_writes=None, diagnosis=None, _seq=source._seq,
         _record_seq=source._record_seq, _type_props=source._type_props, _private=source._private,
         private_names=source.private_names, private_metrics=source.private_metrics, _def_cache={}, _def_cache_state=None, _remembered={}, _remembered_state=None,
         _def_cache_on=source._def_cache_on, _subtypes=source._subtypes, types=types, assets=source.assets.copy())
