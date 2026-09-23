@@ -13,7 +13,7 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tupl
 from .entity import Entity
 from .action_faults import fault_reason
 from .action_params import MAX_SAFE_INT, TEXT_MAX_LEN, _tidy
-from .action_schemas import ActionSchemas, ToolSpec
+from .action_schemas import _ENUM_CHOICES, ActionSchemas, ToolSpec
 from .action_validation import ActionValidation
 from .assets.delivery import attached_ids
 from .contract import ActionSpec, Contract, ParamSpec, RecordSpec, StageSpec
@@ -181,16 +181,19 @@ class ActionBook(ActionSchemas, ActionValidation):
 
     def fill_dependent(self, actor: Entity, name: str, args: Dict[str, Any],
                        pick: Callable[[List[Entity]], Optional[Entity]]) -> Dict[str, Any]:
-        """``args`` with each entity argument whose choices depend on earlier arguments set to ``pick`` of the
-        entities that qualify given them — for participants that choose arguments without reading the rules. It
-        stops at the first earlier argument that is missing or invalid: validation then says what to fix."""
+        """``args`` with each entity argument its tool cannot list the choices of — they depend on earlier arguments,
+        or are too many to enumerate — set to ``pick`` of the entities that qualify, for participants that choose
+        arguments from the tool schema without reading the rules. It stops at the first earlier argument that is
+        missing or invalid: validation then says what to fix."""
         spec = self.contract.actions[name]
-        if not any(p.type == "entity" and self._depends_on_params(p) for p in spec.params.values()):
+        unlisted = {pname for pname, p in spec.params.items() if p.type == "entity" and (
+            self._depends_on_params(p) or len(self._choices(actor, name, pname, p)) > _ENUM_CHOICES)}
+        if not unlisted:
             return args
         filled: Dict[str, Any] = dict(args)
         params: Dict[str, Any] = {}
         for pname, param in spec.params.items():
-            if param.type == "entity" and self._depends_on_params(param):
+            if pname in unlisted:
                 chosen = pick(self._choices(actor, name, pname, param, params))
                 if chosen is None:
                     filled.pop(pname, None)

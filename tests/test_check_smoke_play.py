@@ -108,6 +108,17 @@ def test_random_agents_fill_dependent_choices():
     assert ("action_never_taken", "actions.accuse") not in report.codes()
 
 
+def test_random_agents_choose_among_more_candidates_than_a_tool_lists():
+    crowd = {"name": "Gifts", "clock": {"rounds": 1},
+             "types": {"p": {"agent": True, "props": {"gifts": 0}}},
+             "population": [{"type": "p", "count": 80}],
+             "actions": {"give": {"by": "p", "params": {"to": {"type": "entity", "of": "p", "where": "$it.id != $actor.id"}},
+                                  "do": ["$params.to.gifts += 1"], "terminal": True}},
+             "outputs": {"gifts": {"expr": "$sum(p, $it.gifts)", "type": "int"}}}
+    result = fg_env.run(crowd, "random", seed=1)
+    assert result.outputs["gifts"] == 80 and result.stats["invalid_calls"] == 0
+
+
 def test_an_invariant_broken_at_build_names_its_path_once():
     broken = shop(invariants=[{"expr": "$entity(shop).stock > 100", "why": "Stock starts high."}])
     found = errors(fg_env.check(broken))
