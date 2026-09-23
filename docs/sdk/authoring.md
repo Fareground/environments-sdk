@@ -144,7 +144,7 @@ Give every delayed effect a clear starting point and due time. Include explicit 
 
 ```bash
 fg-env new blank scenario.json
-fg-env guide
+fg-env guide authoring
 fg-env guide actions
 fg-env guide events
 fg-env check scenario.json

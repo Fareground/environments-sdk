@@ -432,7 +432,8 @@ def add_commands(sub: Any) -> None:
     p.add_argument("--mechanisms", action="store_true", help="also expand every mechanism into ordinary sections")
     p.set_defaults(func=_guarded(cmd_expand))
 
-    p = sub.add_parser("guide", help="print the core authoring guide, or one part of it (the core guide maps them)")
+    p = sub.add_parser("guide", help="print one part of the guide (start with: fg-env guide authoring); with no part, "
+                                     "the map of every part")
     p.add_argument("part", nargs="?", help="a section (actions), topic (expressions), function group (functions.stats), "
                                            "family (market) or mode (market.auction); all for everything")
     p.set_defaults(func=_guarded(cmd_guide))

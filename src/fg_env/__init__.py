@@ -9,7 +9,7 @@
     env = fg_env.load("shop.json", seed=7)                  # full control: preview, run, snapshot, fork
     exp = fg_env.experiment("shop.json", runs=20, arms=["control", "promo"])
 
-``fg_env.guide("authoring")`` is the start page for an authoring agent; ``fg_env.guide()`` adds a map of every part;
+``fg_env.guide("authoring")`` is the start page, for humans and authoring agents; ``fg_env.guide()`` maps every part;
 ``fg_env.new("game", "my_game.json")`` writes a ready-to-run contract to start from.
 ``fg_env.author(brief, "anthropic:<model>")`` has a model write, check and run one from a plain-language brief.
 

@@ -141,10 +141,10 @@ it be garbage collected) to discard it.
 guide(part: 'Optional[str]' = None) -> 'str'
 ```
 
-The core guide, or one part by name: a section (``"actions"``), a topic (``"expressions"``, ``"effects"``,
+The map of every part, or one part by name: a section (``"actions"``), a topic (``"expressions"``, ``"effects"``,
 ``"functions"``, ``"mechanisms"``, ``"patterns"``, ``"recipes"``, ``"running"`` …), a function group (``"functions.stats"``),
 a mechanism family (``"market"``) or mode (``"market.auction"``) — or ``"all"`` for everything.
-The core guide ends with a map of the parts.
+With no part, the map of every part; start with ``guide("authoring")``.
 
 ## `schema`
 
