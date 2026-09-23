@@ -494,7 +494,8 @@ when the game is created (one per combination of listed argument values; free te
 parametric: apply them as `{"tool", "args"}`). `fg_env.load(..., chance=callable)` chooses chance outcomes.
 
 LLM participants: `fg_env.participants.anthropic(anthropic.Anthropic(), "claude-sonnet-5")` or
-`fg_env.participants.openai(client, model)` with the sync client; they cache the brief and loop over tool calls.
+`fg_env.participants.openai(client, model)` with the sync client, or the string `anthropic:<model>` / `openai:<model>`
+(the official client, keyed by `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`; `fg-env run --agent`); they loop over tool calls.
 Rate limits, timeouts and server errors are retried (`retries=4`), then the turn is forfeited (`forfeits`, and a
 `turns_forfeited` diagnostic). Any other error — a rejected API key, an unknown model, a bad request, an async or
 unfitting client — fails the run at once with the agent, the provider's error and the fix. A refused reply ends the

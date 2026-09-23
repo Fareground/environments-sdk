@@ -210,6 +210,7 @@ fg-env expand shop.json --mechanisms       # the contract with every mechanism e
 fg-env preview shop.json shopper_1        # exactly what that agent reads, its tools, token estimates
 fg-env preview shop.json shopper_1 --rounds 5 --agent shopper=policy:thrifty
 fg-env run shop.json --seed 1 --input budget=50 --agent shopper=policy:thrifty --json
+fg-env run shop.json --agent shopper=anthropic:YOUR_MODEL_ID   # an LLM agent; key from ANTHROPIC_API_KEY (or openai:<model>)
 fg-env experiment shop.json --runs 20 --arms control,promo
 fg-env schema                             # JSON Schema of the contract
 ```

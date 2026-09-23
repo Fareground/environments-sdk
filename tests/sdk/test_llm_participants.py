@@ -134,3 +134,28 @@ def test_usage_survives_snapshots_and_resumes():
     env.run(agent, rounds=1)
     restored = fg_env.Env.restore(env.contract, env.snapshot())
     assert restored.stats.llm_calls == 1 and restored.stats.input_tokens == 100
+
+
+def test_a_provider_and_model_name_an_llm_participant_on_the_official_client(tmp_path, monkeypatch, capsys):
+    from types import ModuleType
+
+    from fg_env.__main__ import main
+
+    made = []
+    sdk = ModuleType("anthropic")
+    sdk.Anthropic = lambda: made.append(FakeAnthropic([[("end_turn", {})]] * 10)) or made[-1]
+    monkeypatch.setitem(__import__("sys").modules, "anthropic", sdk)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    path = tmp_path / "shop.json"
+    path.write_text(json.dumps(SHOP))
+    assert main(["run", str(path), "--seed", "1", "--agent", "shopper=anthropic:claude-sonnet-5"]) == 0
+    assert made and made[-1].requests[0]["model"] == "claude-sonnet-5"
+    monkeypatch.delenv("ANTHROPIC_API_KEY")
+    assert main(["run", str(path), "--agent", "shopper=anthropic:claude-sonnet-5"]) == 1
+    assert "set ANTHROPIC_API_KEY in the environment" in capsys.readouterr().err
+    monkeypatch.setitem(__import__("sys").modules, "openai", None)  # not installed
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    assert main(["run", str(path), "--agent", "openai:gpt-x"]) == 1
+    assert "pip install openai" in capsys.readouterr().err
+    assert main(["run", str(path), "--agent", "anthropic:"]) == 1
+    assert "'anthropic:<model>'" in capsys.readouterr().err
