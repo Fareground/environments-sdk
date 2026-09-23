@@ -7,9 +7,11 @@ the agents' tool calls, ``host_calls`` the host answers on the run's tape (live 
 fallback costs nothing), ``seconds`` the wall-clock time spent inside ``run``.
 
 A budget is checked at the run's safe points — before every round, stage, pass and sequential turn —
-so a turn in progress always finishes and, for coded participants, the run stops at the same point on
-every replay (``seconds`` is wall-clock time, so it is the one limit that is not deterministic). Once a
-limit is reached, ``on_exhaust: "end"`` ends the run there (``ended_by: "budget"``, outputs computed as
+so, for coded participants, the run stops at the same point on every replay (``seconds`` is wall-clock
+time, so it is the one limit that is not deterministic). ``tokens`` is also checked each time a participant
+reports usage, counting the turns still in play: once it is reached, the reporting agent's turn ends there
+(calls it makes after that are refused), so a simultaneous stage of LLM agents cannot overshoot it by
+many model calls. Once a limit is reached, ``on_exhaust: "end"`` ends the run there (``ended_by: "budget"``, outputs computed as
 for any ended run) and ``"idle"`` keeps the world running while every agent's later turns are idle.
 ``result.budget`` reports the limits, what was used and which limit ran out; snapshots carry it.
 
@@ -102,6 +104,16 @@ class Budget:
         return {"tokens": env.stats.input_tokens + env.stats.output_tokens, "calls": env.stats.calls,
                 "host_calls": sum(1 for entry in entries if isinstance(entry, Mapping) and not entry.get("fallback")),
                 "seconds": round(self.seconds, 3)}
+
+    def tokens_spent(self, env: "Env", turn: Any) -> bool:
+        """Whether the token limit is reached counting the turns still in play (``turn``, and in a simultaneous stage
+        all of its turns), whose usage joins the run's totals only when they finish (call under the run's lock)."""
+        limit = self.limits.get("tokens")
+        if limit is None:
+            return False
+        playing = {id(t): t for t in (*env.origin.staged, turn) if not t.tallied}
+        used = env.stats.input_tokens + env.stats.output_tokens
+        return used + sum(t.stats.input_tokens + t.stats.output_tokens for t in playing.values()) >= limit
 
     def check(self, env: "Env") -> Optional[str]:
         """The limit that has run out (recorded the first time one does), or None. Called at safe points: the

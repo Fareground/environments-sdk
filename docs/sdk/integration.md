@@ -63,7 +63,7 @@ Errors retrying cannot fix — a rejected API key, an unknown model, a bad reque
 
 A hosting application stores the contract and data, chooses participant implementations, runs the environment, and displays outputs and traces. It also owns authentication, tenant boundaries, resource limits, credential handling and artifact access. The SDK itself is not a sandbox for arbitrary host code.
 
-Generated environments should pass contract checks and requirement-level tests before a customer run. Preview roles, cap workloads, and retain the exact contract, inputs and version. Run budgets are checked at execution boundaries; an in-progress turn can finish before a limit is applied.
+Generated environments should pass contract checks and requirement-level tests before a customer run. Preview roles, cap workloads, and retain the exact contract, inputs and version. Run budgets are checked at execution boundaries, and the token budget also after every model reply: the turn that spends it ends there, while other limits let an in-progress turn finish.
 
 ## Save and resume
 
