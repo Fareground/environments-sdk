@@ -1,5 +1,5 @@
 # fg-env playthrough: Tic-tac-toe
-Game: tic_tac_toe@24063d4d:4642e142
+Game: tic_tac_toe@6f35d2a2:4642e142
 Seed: 1
 Seats: 0 x, 1 o
 Dynamics: sequential; chance: deterministic; information: unknown; utility: zero_sum
