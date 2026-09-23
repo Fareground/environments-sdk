@@ -65,6 +65,13 @@ def test_every_function_belongs_to_a_named_group():
     assert "$variance(" in guide("functions.stats") and "$auction(" in guide("market")
 
 
+def test_the_function_map_keeps_core_functions_apart_from_mechanism_ones():
+    core, _, families = guide("functions").partition("Mechanism functions")
+    assert "$sum" in core and "$lookup" in core
+    assert "$poker_hand" not in core and "$wordle_feedback" not in core and "$board_moves" not in core
+    assert "$poker_hand" in families and "$wordle_feedback" in guide("functions.game")
+
+
 def test_an_unknown_part_suggests_the_closest_one():
     for group in ("math", "collections", "stats"):
         with pytest.raises(KeyError, match=f"did you mean 'functions.{group}'"):
