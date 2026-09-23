@@ -20,7 +20,7 @@ from .api import ContractLike, _merge, apply_arm, contract_source, default_data_
 from .build import _rounds
 from .check import BASE, _Checker, check_contract, parse_contract
 from .contract import Contract, PropSpec
-from .errors import ContractError, Issue, RunError
+from .errors import ContractError, Issue, RunError, SnapshotError
 from .expr import ExprError, compile_expr, is_expr
 from .inputs import resolve_inputs
 from .links import _fields as link_fields
@@ -84,6 +84,10 @@ def _fork(cls: Any, contract: ContractLike, snapshot: Mapping[str, Any], *, arm:
           effects: Optional[List[Any]], parallel: int, hosts: Any, data_dir: Any,
           unarmed_source: Optional[Contract] = None) -> "Env":
     old, unarmed = matching_contract(contract, snapshot)
+    if "part_way" in snapshot:
+        raise SnapshotError(f"this snapshot was taken part-way through round {snapshot.get('round')}, and changes "
+                            "apply between rounds: restore it (fg_env.Env.restore), finish the round with "
+                            "env.run(rounds=1), then fork the run (env.fork(...))")
     if unarmed_source is not None:
         unarmed = unarmed_source
     base = parse(to) if to is not None else unarmed

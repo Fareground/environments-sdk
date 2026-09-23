@@ -286,7 +286,8 @@ class Env(Copying, RunChecks, RunRounds, RunStages):
         return self.previews.preview(entity_id, stage)
 
     def snapshot(self) -> Dict[str, Any]:
-        """Everything needed to continue this run later, as JSON-safe data (between rounds)."""
+        """Everything needed to continue this run later, as JSON-safe data: between rounds, or stopped part-way
+        through a round (``run(stop=...)``)."""
         return take_snapshot(self)
 
     @classmethod

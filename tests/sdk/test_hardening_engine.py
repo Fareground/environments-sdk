@@ -126,10 +126,10 @@ def test_stopping_mid_round_resumes_exactly():
     env = _load(seed=4)
     first = env.run(_talker, stop=stop_on_fourth_point)
     assert first.status == "stopped" and env._in_round
-    with pytest.raises(SnapshotError, match="middle of round"):
-        env.snapshot()
+    saved = json.loads(json.dumps(env.snapshot()))
     resumed = env.run(_talker)
     assert resumed.to_dict() == straight.to_dict()
+    assert fg_env.Env.restore(TALK, saved).run(_talker).to_dict() == straight.to_dict()
 
 
 def test_a_stopped_round_counts_as_one_of_rounds():

@@ -8,7 +8,7 @@ env = fg_env.load("shop.json", inputs={"budget": 50}, seed=7, arm=None)
 print(env.preview("shopper_1"))                   # brief, update, tools, token estimates
 result = env.run({"shopper": "policy:thrifty", "owner": my_agent})
 result.outputs, result.metrics, result.series, result.stats, result.events, result.summary()
-snap = env.snapshot(); env2 = fg_env.Env.restore("shop.json", snap)   # between rounds; JSON-safe
+snap = env.snapshot(); env2 = fg_env.Env.restore("shop.json", snap)   # between rounds or stopped mid-round; JSON-safe
 exp = fg_env.experiment("shop.json", runs=20, arms=["control", "promo"]); print(exp.table())
 exp.deltas("control")   # paired promo − control per output: mean, sd, ci95, clear (CI excludes 0)
 print(fg_env.report(exp, contract="shop.json", objective="max:profit", require={"fill_rate": ">= 0.95"}))
@@ -80,7 +80,9 @@ limit that ran out; snapshots keep it. `experiment` (with `branch_at` the shared
 `env.step(participants)` runs one round; `env.run(participants, rounds=N)` runs N more (an unfinished
 run returns provisional outputs). `env.run(..., stop=lambda env: ...)` is checked before every round,
 stage, pass and sequential turn; the next `run` continues exactly where it stopped (finishing that
-round counts as one of `rounds`). Snapshots are taken between rounds. A participant that raises fails
+round counts as one of `rounds`). Snapshots are taken between rounds or where a run stopped: one taken
+part-way through a round holds the run's last between-round state and every call since, and restoring plays them
+back (a long single-round negotiation can be saved turn by turn). A participant that raises fails
 the run with its entity id: `fg_env.run` raises the `RunError` (its `.result` is the failed run), `env.run` returns
 the run with `status="failed"` and `error`, and experiments keep such runs and carry on.
 Read state with `env.entity(id)`, `env.entities(type)`, `env.props`,

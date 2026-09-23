@@ -245,7 +245,7 @@ stage hook, an action and the agent taking it) and the round. What that guarante
 - Adding a rule at the end of a list changes no other draw. Inserting one earlier renumbers the ones
   after it (`events[2]` becomes `events[3]`), and they draw anew.
 
-Runs snapshot to JSON between rounds and resume identically.
+Runs snapshot to JSON — between rounds, or wherever `run(stop=...)` stopped them — and resume identically.
 
 ## Template API
 
