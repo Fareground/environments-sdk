@@ -67,6 +67,7 @@ Every run is now either correct or fails loudly (T-797 phase 1). Several default
   `tournament`, `evaluate`, …) live in `fg_env.rl`. `get_engine`/`load_engine` are now `engines.get`/`engines.load`.
   Persona sampling lives in `fg_env.personas`. The old-vocabulary rename hints are replaced by two lookups against
   the live registry (T-815).
+
 ### Added
 - Several deliberation, channels, feed, beliefs or factions mechanisms in one contract. Their functions take an
   optional trailing mechanism name (T-809).
