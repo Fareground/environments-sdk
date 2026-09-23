@@ -76,7 +76,7 @@ GUARDED = {
                                                           "worth": "$randint(0, 3)"}}],
     "actions": {"sell": {"by": "owner",
                          "params": {"item": {"type": "entity", "of": "item",
-                                             "where": "$it.owner == $actor.id and $chance(0.7) and $it.worth > 0"}},
+                                             "where": "$it.owner == $actor.id and $it.worth > 0"}},
                          "do": ["$params.item.owner = ''", "$actor.cash += $params.item.worth"]}},
     "policies": {"seller": {"rules": [{"do": "sell", "with": {
         "item": "$pick(item, $it.owner == $actor.id and $it.worth > $randint(0, 2))"}}]}},
@@ -122,20 +122,9 @@ def _validation_listings(monkeypatch, contract):
     return result, listings["n"]
 
 
-PLAIN_RULE = json.loads(json.dumps(GUARDED))
-PLAIN_RULE["actions"]["sell"]["params"]["item"]["where"] = "$it.owner == $actor.id and $it.worth > 0"
-
-
 def test_a_policy_choice_is_validated_without_listing_every_candidate(monkeypatch):
-    result, listings = _validation_listings(monkeypatch, PLAIN_RULE)
-    assert listings == 0 and result["stats"]["actions"] > 0
-    monkeypatch.setattr(actions.ActionBook, "_chosen", lambda self, *args: None)
-    assert _fingerprint(PLAIN_RULE, "policy:seller") == result
-
-
-def test_a_choice_whose_rule_draws_randomness_is_decided_by_the_full_listing(monkeypatch):
     result, listings = _validation_listings(monkeypatch, GUARDED)
-    assert listings > 0
+    assert listings == 0 and result["stats"]["actions"] > 0
     monkeypatch.setattr(actions.ActionBook, "_chosen", lambda self, *args: None)
     assert _fingerprint(GUARDED, "policy:seller") == result
 

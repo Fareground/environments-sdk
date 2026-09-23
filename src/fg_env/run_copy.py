@@ -48,15 +48,15 @@ _WORLD_FIELDS = frozenset({
     "stage", "rounds", "metrics", "series", "scheduled", "wake_requests", "reactions", "time", "horizon", "start", "wake_at",
     "_schedule_seq", "space", "buffer", "end_request", "chance_picker", "counters", "firings", "journal", "lifecycle",
     "exposures", "written", "watched_writes", "diagnosis", "_seq", "_record_seq", "_props_view", "_physics_view", "_clock_view",
-    "_type_props", "_private", "private_names", "_def_cache", "_def_cache_state", "_def_cache_on", "_remembered", "_remembered_state",
+    "_type_props", "_private", "private_names", "private_metrics", "_def_cache", "_def_cache_state", "_def_cache_on", "_remembered", "_remembered_state",
     "_subtypes", "types", "assets", "patterns"})
 #: Mechanisms keep plain data of their own on the world under these prefixes.
 _WORLD_STORES = ("_channel_visible:",)
 _TURN_FIELDS = frozenset({
     "env", "actor", "stage", "reason", "staged", "peek", "round", "_since", "_views", "_brief", "_update", "max_actions", "max_calls", "calls_left",
     "reads_left", "_reads", "did_not_act", "actions_left", "done", "used", "intents", "pending", "stats", "elapsed", "_offered", "_tools", "time_limit",
-    "deadline", "timed_out", "closed", "busy", "tallied", "atomic", "_mark", "_part", "_counted", "number", "exposure",
-    "_delivered"})
+    "deadline", "timed_out", "closed", "busy", "tallied", "atomic", "_mark", "_part", "_counted", "_held", "_committed",
+    "number", "exposure", "_delivered"})
 _WAKE_FIELDS = frozenset({"_turn", "_extras", "_used"})
 _RECORD_LISTS = ("views", "news", "entries", "view_events", "tools", "tool_sets", "calls")
 
@@ -186,7 +186,7 @@ def _copy_world(source: SdkWorld) -> SdkWorld:
         firings=dict(source.firings), journal=journal, lifecycle=None, exposures=_copy_exposures(source.exposures), written=set(source.written),
         watched_writes=None, diagnosis=None, _seq=source._seq,
         _record_seq=source._record_seq, _type_props=source._type_props, _private=source._private,
-        private_names=source.private_names, _def_cache={}, _def_cache_state=None, _remembered={}, _remembered_state=None,
+        private_names=source.private_names, private_metrics=source.private_metrics, _def_cache={}, _def_cache_state=None, _remembered={}, _remembered_state=None,
         _def_cache_on=source._def_cache_on, _subtypes=source._subtypes, types=types, assets=source.assets.copy())
     world._props_view, world._physics_view, world._clock_view = PropsView(world), PhysicsView(world), ClockView(world)
     world.rebuild_record_index()
@@ -255,7 +255,8 @@ def _copy_turn(source: Turn, env: SteppedEnv, entities: Dict[str, Entity], log: 
     turn.__dict__.update(
         env=env, actor=actor, _views=memory.views if shares_memory and memory is not None else dict(source._views),
         used=dict(source.used), intents=list(source.intents), pending=list(source.pending),
-        stats=_copy_stats(source.stats), _tools=None, _counted=list(source._counted), _delivered=list(source._delivered),
+        stats=_copy_stats(source.stats), _tools=None, _counted=list(source._counted), _held=list(source._held),
+        _committed=list(source._committed), _delivered=list(source._delivered),
         exposure=_copy_exposure(source.exposure, log) if source.exposure is not None else None)
     return turn
 

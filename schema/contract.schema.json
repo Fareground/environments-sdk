@@ -33,7 +33,7 @@
           "type": "object"
         },
         "when": {
-          "description": "Requirements (one or a list). Those over $actor decide whether the tool is offered; those that read $params refuse a call that breaks them, with their `why`.",
+          "description": "Requirements (one or a list). Those over $actor decide whether the tool is offered; those that read $params refuse a call that breaks them, with their `why`. They may not draw at random (nor may parameters' bounds, defaults, values or `where`): a refused call costs nothing, so an agent could call again until luck let it through — draw in `do` or `chance`.",
           "items": {
             "$ref": "#/$defs/Condition"
           },
@@ -1562,6 +1562,7 @@
         },
         "why": {
           "default": "",
+          "description": "What the agent whose action broke it is told: a template, which may read no agent's private property.",
           "title": "Why",
           "type": "string"
         },
@@ -1919,7 +1920,7 @@
     },
     "MetricSpec": {
       "additionalProperties": false,
-      "description": "A number tracked every round (a series). Shorthand: the expression.",
+      "description": "A number tracked every round (a series). Shorthand: the expression. One that names an agent's private property\n(directly or through a def or metric) is not shown to agents: `$metrics`/`$series` reads of it in what they are\nshown are refused.",
       "properties": {
         "expr": {
           "title": "Expr",
@@ -3097,7 +3098,7 @@
             }
           ],
           "default": null,
-          "description": "seat | random | expression over $it (lowest first): the order agents take turns in, and a simultaneous stage's choices commit in. Default: seat; a simultaneous stage's choices then commit in a random order drawn anew each time, so no seat always wins a contested item.",
+          "description": "seat | random | expression over $it (lowest first): the order agents take turns in, and a simultaneous stage's choices commit in. Every agent sees it, so it may read no agent's private property. Default: seat; a simultaneous stage's choices then commit in a random order drawn anew each time, so no seat always wins a contested item.",
           "title": "Order"
         },
         "who": {
@@ -3274,7 +3275,7 @@
         },
         "atomic": {
           "default": false,
-          "description": "The turn's actions apply together or not at all: triggers, reactions and invariants wait until the turn ends, and a turn that breaks `valid` is undone.",
+          "description": "The turn's actions apply together or not at all: triggers, reactions and invariants wait until the turn ends, and a turn that breaks `valid` is undone. An action's own `outcome` text (and attached files) is shown once the turn commits, so an undone turn shows nothing it was not charged for.",
           "title": "Atomic",
           "type": "boolean"
         },
@@ -3631,7 +3632,7 @@
         },
         "look": {
           "default": false,
-          "description": "Offer it on demand as look(view) instead of always including it.",
+          "description": "Offer it on demand as look(view) instead of always including it. Randomness a view draws is fixed for the turn: looking again shows the same text.",
           "title": "Look",
           "type": "boolean"
         },

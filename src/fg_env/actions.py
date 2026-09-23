@@ -28,6 +28,10 @@ __all__ = ["ACTION_BUDGET", "TEXT_MAX_LEN", "MAX_SAFE_INT", "ToolSpec", "Outcome
 
 #: Work one action application may do in total (all its conditions, effects and templates).
 ACTION_BUDGET = 5 * EVAL_BUDGET
+#: Why nothing that decides whether a call is allowed, or what its arguments may be, may draw at random.
+UNDECIDED_BY_LUCK = ("luck cannot decide whether a call is allowed or what its arguments may be: a refused call costs "
+                     "nothing, so an agent could call again until luck let it through. Draw in the action's `do` (or "
+                     "use its `chance`), or in an event that stores the result for this to read")
 
 
 @dataclass
@@ -90,7 +94,13 @@ class ActionBook(ActionSchemas, ActionValidation):
         several times in the same state (its tools, a coded policy's rule, the call itself), so the answer is
         remembered."""
         key = ("blocked", actor.id, name, used_turn.get(name, 0), used_round.get(name, 0), offered)
-        return self.world.remembered(key, lambda: self._blocked(actor, name, used_turn, used_round, offered))
+        with self.deciding():
+            return self.world.remembered(key, lambda: self._blocked(actor, name, used_turn, used_round, offered))
+
+    def deciding(self) -> Any:
+        """A block that decides whether a call is allowed or what its arguments may be: a random draw in it fails as a
+        rule (see :data:`UNDECIDED_BY_LUCK`)."""
+        return self.world.without_luck(UNDECIDED_BY_LUCK)
 
     def _blocked(self, actor: Entity, name: str, used_turn: Dict[str, int], used_round: Dict[str, int],
                  offered: bool) -> Optional[str]:
@@ -223,6 +233,11 @@ class ActionBook(ActionSchemas, ActionValidation):
         for participants that choose arguments from the tool schema without reading the rules. It stops at the first
         earlier argument that is missing or invalid, or a choice with nothing to pick: validation then says what to
         fix."""
+        with self.deciding():
+            return self._fill_dependent(actor, name, args, pick)
+
+    def _fill_dependent(self, actor: Entity, name: str, args: Dict[str, Any],
+                        pick: Callable[[List[Any]], Any]) -> Dict[str, Any]:
         spec = self.contract.actions[name]
         unlisted = {pname for pname, p in spec.params.items() if (p.type == "entity" and (
             self._depends_on_params(p) or len(self._choices(actor, name, pname, p)) > _ENUM_CHOICES))
@@ -286,7 +301,7 @@ class ActionBook(ActionSchemas, ActionValidation):
                 success = world.rng.random() < probability
             self.effects.run(spec.do if success else spec.otherwise, vars, f"{path}.{'do' if success else 'otherwise'}")
             text = self._render(spec.outcome, {**vars, "viewer": actor}, f"{path}.outcome") if spec.outcome else \
-                "" if trial else self._default_outcome(name, params, success)
+                "" if trial else self.default_outcome(name, params, success)
             assets = attached_ids(world, spec.attach, world.scope(**vars), f"{path}.attach") if spec.attach else []
             announce = spec.announce
             if trial:
@@ -440,7 +455,7 @@ class ActionBook(ActionSchemas, ActionValidation):
         parts = [f"{k}={format_value(v)}" for k, v in params.items() if v is not None]
         return f" ({', '.join(parts)})" if parts else ""
 
-    def _default_outcome(self, name: str, params: Dict[str, Any], success: bool) -> str:
+    def default_outcome(self, name: str, params: Dict[str, Any], success: bool) -> str:
         verb = name.replace("_", " ")
         return f"Done: {verb}{self._args_text(params)}." if success else f"{verb.capitalize()} did not succeed."
 

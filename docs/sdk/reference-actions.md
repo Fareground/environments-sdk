@@ -16,7 +16,7 @@ Roots (plus everywhere: $inputs $world $physics $clock $round $stage $metrics $s
 - `by`: text | [text] (required) — Agent type(s) allowed to take it.
 - `description`: text — Tool description the agent reads.
 - `params`: object
-- `when`: [Condition] — Requirements (one or a list). Those over $actor decide whether the tool is offered; those that read $params refuse a call that breaks them, with their `why`.
+- `when`: [Condition] — Requirements (one or a list). Those over $actor decide whether the tool is offered; those that read $params refuse a call that breaks them, with their `why`. They may not draw at random (nor may parameters' bounds, defaults, values or `where`): a refused call costs nothing, so an agent could call again until luck let it through — draw in `do` or `chance`.
 - `chance`: any | text — Probability of success; `do` on success, `otherwise` on failure.
 - `do`: effects — Effects applied atomically.
 - `otherwise`: effects — Effects when the chance roll fails.

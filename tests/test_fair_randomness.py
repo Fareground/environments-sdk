@@ -4,7 +4,11 @@ A call refused before it draws gives nothing away and costs nothing; a call refu
 its luck is spent and the attempt counts. Sealed choices are checked without their luck, which is drawn when they
 commit; an atomic turn is settled by the action that draws, so what the turn does next cannot undo it.
 """
+import pytest
+
 import fg_env
+from fg_env.checks import parse_contract
+from fg_env.runtime import Env
 
 ROUNDS = 300
 
@@ -215,3 +219,87 @@ def test_who_a_stage_wakes_by_chance_does_not_depend_on_what_the_agents_do():
         return seen
 
     assert woken("wait") == woken("roll") == woken("make")
+
+
+def _lucky(**action):
+    return {"name": "Lucky", "clock": {"rounds": 20},
+            "types": {"p": {"agent": True, "props": {"cash": 0}}}, "entities": {"a": {"type": "p"}},
+            "actions": {"lucky": {"by": "p", "do": ["$actor.cash += 1"], **action}},
+            "stages": [{"name": "s", "max_calls": 8}]}
+
+
+def _retry(wake):
+    for _ in range(8):
+        reply = wake.call("lucky", {"x": 1})
+        if reply.ok or reply.ended:
+            break
+    wake.end()
+
+
+@pytest.mark.parametrize("path, action", [
+    ("when[0]", {"when": "$random() < 0.5"}),
+    ("when[0]", {"params": {"x": {"type": "int", "min": 0, "max": 1}}, "when": "$chance(0.5) && $params.x >= 0"}),
+    ("params.x.max", {"params": {"x": {"type": "int", "min": 0, "max": "$floor($random() * 2)"}}}),
+    ("params.y.default", {"params": {"x": {"type": "int"}, "y": {"type": "int", "default": "$randint(0, 1)"}}}),
+    ("params.x.where", {"params": {"x": {"type": "entity", "of": "p", "where": "$chance(0.5)"}}}),
+])
+def test_luck_cannot_decide_whether_a_call_is_allowed(path, action):
+    # A refused call costs nothing, so luck drawn while deciding it would be a free reroll: calling again until it
+    # let the call through won ~398 of 400 "50%" rounds.
+    contract = _lucky(**action)
+    issues = [i for i in fg_env.check(contract) if i.path == f"actions.lucky.{path}" and i.severity == "error"]
+    assert issues and "`do`" in issues[0].fix, fg_env.check(contract)
+    unchecked = Env(parse_contract(contract), {}, 1)  # the engine refuses it even when nothing checked it
+    result = unchecked.run(_retry)
+    assert unchecked.entity("a")["props"]["cash"] == 0
+    finding = next(d for d in result.diagnostics if d["code"] == "action_rule_failed")
+    assert finding["path"] == f"actions.lucky.{path}" and "luck cannot decide" in finding["message"]
+
+
+def test_a_rule_that_fails_after_drawing_spends_the_attempt():
+    contract = {"name": "Fault", "clock": {"rounds": ROUNDS}, "world": {"zero": 0},
+                "types": {"p": {"agent": True, "props": {"cash": 10.0, "wins": 0}}}, "entities": {"a": {"type": "p"}},
+                "actions": {"gamble": {"by": "p", "chance": 0.5, "do": ["$actor.wins += 1"],
+                                       "otherwise": ["$actor.cash = $actor.cash / $world.zero"]}},
+                "stages": [{"name": "s", "max_actions": 1, "max_calls": 8}],
+                "outputs": {"wins": "$entity(a).wins"}}
+    replies = []
+
+    def retry(wake):
+        for _ in range(8):
+            replies.append(wake.call("gamble", {}))
+            if replies[-1].ok or replies[-1].ended:
+                break
+
+    wins = fg_env.run(contract, retry, seed=1).outputs["wins"]
+    assert 0.4 * ROUNDS < wins < 0.6 * ROUNDS  # retrying the faulting branch won every round
+    faulted = [r for r in replies if not r.ok]
+    assert faulted and all(r.ended and "divide by zero" in r.text for r in faulted)
+
+
+NOISY = {"name": "Noisy", "clock": {"rounds": 3}, "world": {"truth": 37.0},
+         "types": {"p": {"agent": True}}, "entities": {"a": {"type": "p"}},
+         "actions": {"wait": {"by": "p"}},
+         "views": {"signal": {"for": "p", "look": True, "show": "Signal: {$round($world.truth + $normal(0, 20), 1)}"},
+                   "hint": {"for": "p", "show": "Hint: {$round($world.truth + $normal(0, 20), 1)}"}},
+         "stages": [{"name": "s", "max_calls": 40}]}
+
+
+def test_looking_again_shows_the_same_noisy_signal_within_a_turn():
+    looks = []
+
+    def stare(wake):
+        looks.append({wake.call("look", {"view": "signal"}).text for _ in range(10)})
+
+    fg_env.run(NOISY, stare, seed=1)
+    firsts = [texts - {"Unchanged since you read it earlier this turn."} for texts in looks]
+    assert all(len(texts) == 1 for texts in firsts), looks  # 30 free looks cut the noise ~5x
+    assert len(set().union(*firsts)) == 3  # a fresh signal every turn
+
+
+def test_a_preview_shows_the_noisy_view_the_turn_will_show():
+    env = fg_env.load(NOISY, seed=1)
+    previewed = env.preview("a")["update"]
+    updates = []
+    env.run(lambda wake: updates.append(wake.update), rounds=1)
+    assert previewed.splitlines()[-1] == updates[0].splitlines()[-1]

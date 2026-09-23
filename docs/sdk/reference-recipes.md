@@ -50,8 +50,9 @@
 * Hidden information: `private` props, per-type views, record `visible` rules, `to` on posts/emits,
   `private: true` actions (no announcement). `inspect` shows an agent only itself unless a type sets `inspect`.
   An agent's private prop is shown only to that agent: reading another agent's in anything worked out for one agent
-  (views, sort keys, tool choices and bounds, outcome text, briefs, policies, defs they call) is an error at run
-  time, however it is spelled. Reveal what an agent may learn by working it out in game logic
+  (views, sort keys, tool choices and bounds, outcome text, briefs, policies, defs they call, metrics worked out
+  from private props) is an error at run time, however it is spelled; so is a stage `order` that reads one, since
+  every agent sees the turn order. Reveal what an agent may learn by working it out in game logic
   (`"do": ["$seen = $params.target.role"], "outcome": "... {$seen}"`, or a prop the agent owns). Text sent to
   several agents — an `announce`, an event's or trigger's `say`, an emit's `say` without a lone `to` — may read no
   agent's private prop, not even the actor's: reveal it the same way (`"$shown = $actor.card"`, then `{$shown}`).

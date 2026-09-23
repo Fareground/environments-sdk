@@ -50,6 +50,8 @@ def attr(obj: Any, name: str, source: Optional[str] = None, scope: Any = None) -
         raise ExprError(f"{obj.entity_type} '{obj.id}' has no property '{name}' (has: {known})", source)
     if isinstance(obj, Mapping):
         if name in obj:
+            if scope is not None and name in scope.world.private_metrics:
+                _check_metric(obj, name, scope, source)
             return obj[name]
         if not obj:
             raise ExprError(f"no field '{name}': the map is empty (nothing has set it yet)", source)
@@ -91,6 +93,18 @@ def _check_visible(entity: _Entity, name: str, scope: Any, source: Optional[str]
         f"{entity.name}'s {name} is private, and this is what {getattr(viewer, 'name', viewer)} is shown or offered: "
         "read only the agent's own (guard with `$it.id == $actor.id`), or work out what it may learn in game logic "
         "(an action's do, an event) and show that", source)
+
+
+def _check_metric(values: Mapping[str, Any], name: str, scope: Any, source: Optional[str]) -> None:
+    """Refuse (:class:`PrivateRead`) reading metric ``name`` (in ``$metrics`` or ``$series``), worked out from agents'
+    private properties, in what an agent is shown or offered."""
+    world, viewer = scope.world, scope.vars.get("viewer")
+    if viewer is None or not (values is getattr(world, "metrics", None) or values is getattr(world, "series", None)):
+        return
+    raise PrivateRead(
+        f"metric {name} is worked out from agents' private properties, and this is what "
+        f"{getattr(viewer, 'name', viewer)} is shown or offered: show a metric that reads no private property, or "
+        "work out what the agent may learn in game logic (an action's do, an event) and show that", source)
 
 
 def _index(container: Any, index: Any, source: str, scope: Any = None) -> Any:

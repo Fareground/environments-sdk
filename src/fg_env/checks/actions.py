@@ -87,6 +87,7 @@ class ActionChecks:
             for key in ("outcome", "announce"):
                 self.template(getattr(spec, key), f"{path}.{key}", None, after, types, spec.params)
             self._private_action(spec, types, path)
+            self._undecided_by_luck(spec, path)
             if isinstance(spec.terminal, str):
                 self.expr(spec.terminal, f"{path}.terminal", after, types, spec.params)
             for pname, param in spec.params.items():
@@ -97,6 +98,24 @@ class ActionChecks:
                               BASE | {"actor", "params", "value"}, types, spec.params)
             if not any(name in _stage_action_names(s, self.c) for s in self.c.stage_list()):
                 self.warn(path, "is not available in any stage", "add it to a stage's `actions`")
+
+    def _undecided_by_luck(self: "_Checker", spec: C.ActionSpec, path: str) -> None:  # type: ignore[misc]
+        """Nothing that decides whether a call is allowed, or what its arguments may be, draws at random: the engine
+        refuses it, since a refused call costs nothing and calling again would roll fresh luck."""
+        from ..describe.walk import draws  # imported late: describe imports the API, which imports the checker
+
+        texts = {f"when[{index}]": condition.expr for index, condition in enumerate(spec.when)}
+        texts.update({f"when[{index}].why": condition.why for index, condition in enumerate(spec.when)})
+        for pname, param in spec.params.items():
+            texts.update({f"params.{pname}.{key}": getattr(param, key)
+                          for key in ("min", "max", "default", "values", "where", "invalid")})
+        for key, text in texts.items():
+            if isinstance(text, str) and draws(self.c, [text]):
+                self.error(f"{path}.{key}", "draws at random, but it decides whether a call is allowed or what its "
+                                            "arguments may be: a refused call costs nothing, so an agent could call "
+                                            "again until luck let it through",
+                           "draw in the action's `do` (or use its `chance`), or in an event that stores the result for "
+                           "this to read")
 
     def _tool_group(self: "_Checker", spec: C.ActionSpec, path: str) -> None:  # type: ignore[misc]
         """An action offered inside a shared tool: the tool's name is free, and `action` is the tool's own argument."""

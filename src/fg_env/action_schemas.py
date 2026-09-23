@@ -120,7 +120,8 @@ class ActionSchemas:
 
     def tool(self: "ActionBook", actor: Entity, name: str, staged: bool = False) -> ToolSpec:  # type: ignore[misc]
         # A copy: callers may change the schema they are given (the remembered one is listed again this turn).
-        return self.world.remembered(("tool", actor.id, name, staged), lambda: self._tool(actor, name, staged)).copy()
+        with self.deciding():
+            return self.world.remembered(("tool", actor.id, name, staged), lambda: self._tool(actor, name, staged)).copy()
 
     def _tool(self: "ActionBook", actor: Entity, name: str, staged: bool) -> ToolSpec:  # type: ignore[misc]
         spec = self.contract.actions[name]

@@ -13,7 +13,7 @@ from .build import whole_setting
 from .clock_math import advance_time
 from .contract import MAX_STAGE_PASSES, StageSpec
 from .errors import RunError
-from .expr import ExprError, compile_expr, truthy
+from .expr import EVERYONE, ExprError, PrivateRead, compile_expr, truthy
 from .measure import Stats
 from .run_diagnosis import SealedWrites
 from .run_rounds import _Point, _Steps
@@ -95,10 +95,14 @@ class RunStages:
             if stage.order == "random":
                 self._shuffle(stage, agents)
             elif stage.order is not None and stage.order != "seat":
-                key = compile_expr(stage.order)
-                keyed = [(key(world.scope(it=a, i=i)), i, a) for i, a in enumerate(agents)]
+                key = compile_expr(stage.order)  # every agent sees the order: it may read no agent's private property
+                keyed = [(key(world.scope(it=a, i=i, viewer=EVERYONE)), i, a) for i, a in enumerate(agents)]
                 keyed.sort(key=lambda t: (t[0], t[1]))
                 agents = [a for _, _, a in keyed]
+        except PrivateRead as exc:
+            raise RunError(f"{exc.detail.partition(', and ')[0]}, and every agent sees the turn order, so ordering by "
+                           "it would reveal how the agents rank: order by a property that is not private, or `random`",
+                           f"{path}.order") from None
         except ExprError as exc:
             raise RunError(str(exc), path) from None
         except TypeError:
