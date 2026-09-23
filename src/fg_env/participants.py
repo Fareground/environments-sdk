@@ -13,7 +13,7 @@ import os
 import random
 import threading
 import time
-from typing import TYPE_CHECKING, Any, Callable, Collection, Dict, List, Mapping, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Collection, Dict, List, Mapping, Optional, Union
 
 from .assets.multimodal import ANTHROPIC_MEDIA, OPENAI_MEDIA, anthropic_parts, media_set, openai_parts
 from .errors import RunError
@@ -162,9 +162,6 @@ class PolicyAgent:
         self.name = name
         self.spec = contract.policies[name]
         self.seed = seed
-        #: Rule path → (times its call was refused, the last refusal); and the rule paths that acted at least once.
-        self.refused: Dict[str, Tuple[int, str]] = {}
-        self.acted: Set[str] = set()
 
     def __call__(self, wake: Wake) -> None:
         rng = random.Random(_seed_for(self.seed, wake))
@@ -233,11 +230,10 @@ class PolicyAgent:
         if problem is None:
             result = wake.call(rule.do, args)
             if result.ok:
-                self.acted.add(path)
+                turn.env.diagnosis.policy_rule(path)
                 return "acted"
             problem = result.text
-        count, _ = self.refused.get(path, (0, ""))
-        self.refused[path] = (count + 1, problem)
+        turn.env.diagnosis.policy_rule(path, problem)
         return "skipped"  # this rule does not fit right now; try the next one
 
     def __repr__(self) -> str:

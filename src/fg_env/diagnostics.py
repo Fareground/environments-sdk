@@ -3,7 +3,7 @@
 A contract can pass every check and still not do what its author meant: a rule that fails for some choice an agent
 can make, a tool offered when none of its choices can work, sealed choices that overwrite each other, an agent type
 that never has anything to do, a stage that can never run, a measure that stays empty because nothing ever sets what
-it reads, a host's answers that were the contract's fallback stand-ins because no host was bound. These are read from
+it reads, a coded policy rule whose call is refused every time it is tried, a host's answers that were the contract's fallback stand-ins because no host was bound. These are read from
 what the run counted (:mod:`fg_env.run_diagnosis`) and reported on ``RunResult.diagnostics``, in
 ``result.summary()`` and as warnings from ``fg_env.check``. Each is reported only on evidence that random play cannot
 explain away, so a clean contract raises none. Turns an LLM participant forfeited to a failing model provider are
@@ -41,8 +41,8 @@ _RULE_SECTIONS = ("actions", "stages", "events", "triggers", "blocks", "end", "f
 def diagnose(env: "Env", outputs: Dict[str, Any]) -> List[Dict[str, str]]:
     """Every likely logic problem the run so far shows, as ``{code, path, message, fix}``."""
     rules = _Rules(env)
-    return [*_forfeits(env), *_arm_inputs(env), *_host_fallbacks(env), *_faults(env), *_actions(env), *_overwrites(env), *_idle_agents(env),
-            *_stages(env, rules), *_stuck_measures(env, outputs, rules)]
+    return [*_forfeits(env), *_arm_inputs(env), *_host_fallbacks(env), *_faults(env), *_actions(env), *_policy_rules(env),
+            *_overwrites(env), *_idle_agents(env), *_stages(env, rules), *_stuck_measures(env, outputs, rules)]
 
 
 def _forfeits(env: "Env") -> List[Dict[str, str]]:
@@ -126,6 +126,13 @@ def _actions(env: "Env") -> List[Dict[str, str]]:
                                 "make the tool say what is allowed: tighten its parameters (min, max, values, where) and "
                                 "describe the rule in its description"))
     return out
+
+
+def _policy_rules(env: "Env") -> List[Dict[str, str]]:
+    return [_finding("policy_rule_never_acted", path,
+                     f"was tried {refused} time(s) and refused every time: {refusal}",
+                     "fix its `with` so the arguments are valid, or its `when` so it is tried only when they are")
+            for path, (acted, refused, refusal) in env.diagnosis.policy_rules.items() if not acted]
 
 
 def _overwrites(env: "Env") -> List[Dict[str, str]]:

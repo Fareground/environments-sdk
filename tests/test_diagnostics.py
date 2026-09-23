@@ -133,3 +133,22 @@ def test_diagnostics_show_in_the_summary_and_resume_exactly_from_a_snapshot():
     env.run(rounds=1)
     restored = fg_env.Env.restore(SHOP, json.loads(json.dumps(env.snapshot())))
     assert restored.run().to_dict() == straight.to_dict()
+
+
+def test_a_policy_rule_refused_every_time_it_was_tried_is_reported_by_the_run_quoting_the_refusal():
+    contract = _contract(policies={"greedy": {"rules": [{"do": "buy", "with": {"qty": 3}}]}})
+    contract["types"]["buyer"]["policy"] = "greedy"
+    found = [d for d in fg_env.run(contract, seed=1).diagnostics if d["code"] == "policy_rule_never_acted"]
+    assert [(d["path"], d["message"]) for d in found] == [
+        ("policies.greedy.rules[0]", "was tried 6 time(s) and refused every time: You cannot afford that")]
+    assert "`with`" in found[0]["fix"]
+    warned = [i for i in fg_env.check(contract) if i.path == "policies.greedy.rules[0]"]
+    assert len(warned) == 1 and warned[0].severity == "warning"
+    assert warned[0].message.startswith("was tried 6 time(s) and refused every time: You cannot afford that (smoke run")
+
+
+def test_a_policy_rule_that_acts_at_least_once_is_not_reported():
+    contract = _contract(world={"price": 1, "phase": "open", "sold": 0},
+                         policies={"thrifty": {"rules": [{"do": "buy", "with": {"qty": 2}}]}})
+    contract["types"]["buyer"]["policy"] = "thrifty"
+    assert _codes(fg_env.run(contract, seed=1)) == []
