@@ -23,20 +23,6 @@ __all__ = ["ActionValidation"]
 _NUMBER_TEXT = 64
 
 
-class _Drew(Exception):
-    """A rule tried to draw from :data:`_NO_DRAWS`."""
-
-
-class _NoDraws:
-    """A random stream that refuses every draw: a rule read through it leaves every real stream as it was."""
-
-    def __getattr__(self, name: str) -> Any:
-        raise _Drew(name)
-
-
-_NO_DRAWS = _NoDraws()
-
-
 class ActionValidation:
     """Argument validation for actions (mixed into :class:`~fg_env.actions.ActionBook`)."""
 
@@ -45,8 +31,9 @@ class ActionValidation:
         its call before making it, so the answer is remembered for the same arguments in the same state."""
         if not isinstance(args, dict):
             return self._validate(actor, name, args)
-        params, problem = self.world.remembered(("valid", actor.id, name, repr(args)),
-                                                lambda: self._validate(actor, name, args))
+        with self.deciding():
+            params, problem = self.world.remembered(("valid", actor.id, name, repr(args)),
+                                                    lambda: self._validate(actor, name, args))
         return dict(params), problem
 
     def _validate(self: "ActionBook", actor: Entity, name: str, args: Any) -> Tuple[Dict[str, Any], Optional[str]]:  # type: ignore[misc]
@@ -127,7 +114,8 @@ class ActionValidation:
                     return None, f"must be a whole number, got {_preview(raw) if isinstance(raw, str) else raw}"
                 value = int(value)
             scope: Optional[Scope] = None  # built only for a bound that is an expression
-            for label, bound, bad in (("at least", param.min, lambda v, b: v < b), ("at most", param.max, lambda v, b: v > b)):
+            for key, label, bound, bad in (("min", "at least", param.min, lambda v, b: v < b),
+                                           ("max", "at most", param.max, lambda v, b: v > b)):
                 if bound is None:
                     continue
                 try:
@@ -137,7 +125,7 @@ class ActionValidation:
                     else:
                         limit = bound
                 except ExprError as exc:
-                    raise RunError(str(exc), f"actions.{action}.params.{pname}") from None
+                    raise RunError(str(exc), f"actions.{action}.params.{pname}.{key}") from None
                 if limit is not None and (isinstance(limit, bool) or not isinstance(limit, (int, float))):
                     raise RunError(f"the {label} bound must be a number, got {format_value(limit)}",
                                    f"actions.{action}.params.{pname}")
@@ -225,15 +213,10 @@ class ActionValidation:
         expr = compile_expr(param.where)
         if "i" in expr.roots or not nested_free():  # $i needs the full listing; nested work charges a budget
             return None
-        world = self.world
-        drawn = world.draws()
-        try:
-            with world.drawing_from(_NO_DRAWS):
-                holds = truthy(expr(world.scope(actor=actor, viewer=actor, params=params).child(it=entity)))
-        except (ExprError, _Drew):
+        try:  # it draws nothing: whether a call is allowed is decided without luck (see ActionBook.deciding)
+            holds = truthy(expr(self.world.scope(actor=actor, viewer=actor, params=params).child(it=entity)))
+        except ExprError:
             holds = False  # the full listing reports it
-        if world.draws() != drawn:
-            return None  # the full listing makes every draw, in its own order
         return entity if holds else None
 
     def _list_value(self: "ActionBook", actor: Entity, action: str, pname: str, param: ParamSpec, raw: Any,  # type: ignore[misc]

@@ -52,6 +52,8 @@ _TIMEOUT = {"error": "timeout"}
 _UNDONE = {"error": "undone"}
 #: A call refused after it drew randomness: played all the same (its luck spent, its attempt counted).
 _SPENT = {"error": "rejected", "spent": True}
+#: What an atomic turn's action says in place of its outcome, until the turn commits.
+_HELD = "Its outcome is shown when your turn ends."
 #: What a closed turn reads instead of its brief or update (its participant has been left behind).
 _CLOSED_TEXT = "This turn is over."
 
@@ -116,6 +118,11 @@ class Turn:
         self._mark: Optional[int] = None
         self._part: Tuple[int, Dict[str, int], int, float, int] = (self.actions_left, {}, 0, 0.0, 0)
         self._counted: List[str] = []
+        #: Atomic turns: the outcome texts (and files) of the part's actions, shown once the part commits — an undone
+        #: part must not leave its agent knowing what it showed (a peek whose cost was refunded) — and those committed,
+        #: shown with the next result.
+        self._held: List[Tuple[str, List[Attachment]]] = []
+        self._committed: List[Tuple[str, List[Attachment]]] = []
         if self.atomic:
             self._begin_part()
         if peek:
@@ -181,7 +188,8 @@ class Turn:
                     return _CLOSED_TEXT
                 shown = _shown() if self.exposure is not None else None
                 attached: List[str] = []
-                with shared_budget(ACTION_BUDGET, "update"), entity_handles(handle_filter(self.env, self.actor)):
+                with shared_budget(ACTION_BUDGET, "update"), entity_handles(handle_filter(self.env, self.actor)), \
+                        self._views_luck("update"):
                     self._update = self.env.perception.update(self.actor, self.stage, self.reason, self._since,
                                                               self._views, self.time_limit, shown, attached,
                                                               self.calls_left if self.call_limit else None)
@@ -191,6 +199,11 @@ class Turn:
                 if self.exposure is not None and shown is not None:
                     self.exposure.read_update(self._update, shown)
             return self._update
+
+    def _views_luck(self, *site: str) -> Any:
+        """A block that renders what the agent reads, drawing from a stream of this turn's own: looking again shows the
+        same noise (re-looking cannot average it away), and a preview of the turn shows what the turn will."""
+        return self.env.world.drawing_from(self.env.seeds.lazy_rng(*site, self.number))
 
     def _deliver(self, ids: List[str], where: str) -> None:
         fresh = [key for key in ids if key not in self._delivered]
@@ -233,12 +246,11 @@ class Turn:
         if self._tools is not None:  # nothing changed since the last look (reset by every call)
             return self._tools
         env = self.env
-        with env._lock:
+        with env._lock:  # never while another agent's sealed choices are tried on the world
             tools = env.actions.tools(self.actor, self._legal(), self.staged)
-        looks = env.perception.look_views(self.actor, self.stage)
-        if looks:
-            tools.append(look_tool([(name, env.contract.views[name].title) for name in looks], self.max_calls))
-        with env._lock:
+            looks = env.perception.look_views(self.actor, self.stage)
+            if looks:
+                tools.append(look_tool([(name, env.contract.views[name].title) for name in looks], self.max_calls))
             inspect = inspect_tool(env, self.actor, self.max_calls)
         if inspect is not None:
             tools.append(inspect)
@@ -325,8 +337,7 @@ class Turn:
             why = self.settle()
             if why is not None:
                 return self._after(self._undone(why))
-            self.done = True
-            return ToolResult(True, "Turn ended.", True)
+            return self._after(ToolResult(True, "Turn ended.", True))
         available = stage_actions(env.contract, self.stage, self.actor.entity_type)
         if name not in env.contract.actions and name in env.actions.groups:  # a shared tool: its `action` picks one
             name, args, problem = env.actions.route(name, args, self._legal())
@@ -341,13 +352,20 @@ class Turn:
         if self.actions_left <= 0:
             self.stats.invalid_calls += 1
             return self._after(ToolResult(False, "You have no actions left this turn; call end_turn.", data=_INVALID))
+        drawn = env.world.draws()
         acted, fault = guarded(env, lambda: self._act(name, spec, args), action=name)
         if acted is None:
             assert fault is not None
             self.stats.rejected_actions += 1
             self.stats.faulted_actions += 1
-            return self._after(ToolResult(False, refused_text(name, fault), data=_REJECTED))
-        result, applied, drew = acted
+            drew = env.world.draws() != drawn
+            if drew:  # a rule failed after the action drew: its luck is spent, as when a rule refuses it
+                self._count(name)
+            result = ToolResult(False, refused_text(name, fault), drew and self.actions_left <= 0,
+                                dict(_SPENT if drew else _REJECTED))
+            applied = False
+        else:
+            result, applied, drew = acted
         if drew and self._mark is not None:  # luck settles an atomic turn at once: nothing after it can undo it
             why = self.settle()
             if why is not None:
@@ -425,8 +443,12 @@ class Turn:
         self._count(name)
         self.elapsed += elapsed
         self.stats.actions += 1
-        return ToolResult(True, _with_references(outcome.text, files) + cut, ended or self.actions_left <= 0,
-                          {"success": outcome.success}, files), True, drew
+        text, closes = _with_references(outcome.text, files), ended or self.actions_left <= 0
+        settles = drew or closes or env.world.end_request is not None  # the part commits in this call
+        if self._mark is not None and not settles and (spec.outcome or files):
+            self._held.append((text, files))
+            text, files = f"{env.actions.default_outcome(name, params, True)} {_HELD}", []
+        return ToolResult(True, text + cut, closes, {"success": outcome.success}, files), True, drew
 
     def _must_act(self) -> bool:
         """The stage requires an action, the turn has taken none, and one is available."""
@@ -475,6 +497,8 @@ class Turn:
             self._undo()
             return why
         self._mark = None
+        self._committed += self._held
+        self._held.clear()
         self.env.happenings.react(self.stage)
         return None
 
@@ -530,6 +554,7 @@ class Turn:
         for name in self._counted:
             per_round[name] = per_round.get(name, 1) - 1
         self._counted.clear()
+        self._held.clear()
         self.used.clear()
         self.used.update(used)
         del self.pending[pending:]  # the same list $pending reads
@@ -550,6 +575,10 @@ class Turn:
                                  "this turn, and your turn is over.", True, dict(_UNDONE))
 
     def _after(self, result: ToolResult) -> ToolResult:
+        if self._committed:  # what the actions of a part that has now committed showed, before the result itself
+            result.text = " ".join([*(text for text, _ in self._committed), result.text])
+            result.attachments = [*(file for _, files in self._committed for file in files), *result.attachments]
+            self._committed.clear()
         if result.ended:
             self.done = True
         elif self.calls_left <= 0:
@@ -599,7 +628,8 @@ class Turn:
             return ToolResult(False, f"view must be one of: {', '.join(looks) or 'none'}.", data=_INVALID)
         shown = _shown() if self.exposure is not None else None
         attached: List[str] = []
-        with shared_budget(ACTION_BUDGET, f"views.{name}"), entity_handles(handle_filter(env, self.actor)):
+        with shared_budget(ACTION_BUDGET, f"views.{name}"), entity_handles(handle_filter(env, self.actor)), \
+                self._views_luck("view", name):
             text = env.perception.render_view(name, env.contract.views[name], self.actor, shown, attached)
         if self.exposure is not None and shown is not None and text is not None:
             shown.views.append((name, text))

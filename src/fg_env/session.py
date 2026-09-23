@@ -86,9 +86,11 @@ class Wake:
     @property
     def me(self) -> Dict[str, Any]:
         """A copy of this agent's own properties plus ``id``, ``name``, ``type`` and ``at``: changing it changes nothing
-        in the world."""
+        in the world. Read under the run's lock, so it never catches another agent's sealed choices being tried."""
         actor = self._turn.actor
-        return {**_copy(dict(actor.properties)), "id": actor.id, "name": actor.name, "type": actor.entity_type, "at": actor.location_id}
+        with self._turn.env._lock:
+            return {**_copy(dict(actor.properties)), "id": actor.id, "name": actor.name, "type": actor.entity_type,
+                    "at": actor.location_id}
 
     # -- what the agent reads ---------------------------------------------------
 

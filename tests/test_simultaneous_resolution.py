@@ -1,9 +1,9 @@
 """Simultaneous stages are fair: sealed choices commit in a seeded random order (not seat order), a choice is tried at
 submit after the agent's own earlier choices in the stage, and choices that must be resolved together (auctions,
 pro-rata fills) are recorded by the action and resolved in the stage's `on_exit`."""
+import threading
 import time
 from collections import Counter
-
 
 import fg_env
 
@@ -174,3 +174,32 @@ def test_how_many_sealed_turns_run_at_once_does_not_change_the_outcome():
          "stages": [{"name": "s", "turns": "simultaneous"}], "outputs": {"pot": "$world.pot"}}
     runs = [fg_env.load(c, seed=9, parallel=n).run({"*": lambda w: w.call("roll", {})}).to_dict() for n in (1, 3, 8)]
     assert runs[0] == runs[1] == runs[2]
+
+
+def test_another_agents_sealed_choices_never_show_in_what_an_agent_reads():
+    contract = {
+        "name": "Sealed gifts", "clock": {"rounds": 1},
+        "types": {"p": {"agent": True, "props": {"cash": {"default": 1000, "min": 0}}}},
+        "entities": {"a": {"type": "p"}, "b": {"type": "p"}},
+        "actions": {"give": {"by": "p", "private": True, "params": {
+            "to": {"type": "entity", "of": "p", "where": "$it != $actor"}, "n": {"type": "int", "min": 1, "max": 5}},
+            "do": [{"transfer": "cash", "from": "$actor", "to": "$params.to", "amount": "$params.n"}]}},
+        "stages": [{"name": "s", "turns": "simultaneous", "max_actions": 150, "max_calls": 200}],
+    }
+    seen = set()
+    giving = threading.Event()
+
+    def a(wake):
+        giving.set()
+        for _ in range(150):  # each call tries the next gift against a's earlier sealed ones
+            wake.call("give", {"to": "b", "n": 1})
+        giving.clear()
+
+    def b(wake):
+        giving.wait(5)
+        while giving.is_set():
+            seen.add(wake.me["cash"])
+            seen.update(tool.name for tool in wake.tools)
+
+    fg_env.load(contract, seed=1).run({"a": a, "b": b})
+    assert 1000 in seen and not any(isinstance(cash, int) and cash > 1000 for cash in seen), sorted(map(str, seen))

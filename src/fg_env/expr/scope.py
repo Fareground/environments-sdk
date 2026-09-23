@@ -18,6 +18,8 @@ class World:
     rng: Any = None
     #: Every property name some type declares private: reading any other name needs no visibility check.
     private_names: FrozenSet[str] = frozenset()
+    #: Metrics worked out from agents' private properties: what an agent is shown may not read them.
+    private_metrics: FrozenSet[str] = frozenset()
 
     def entities_of(self, type_name: str) -> List[Any]:
         raise ExprError(f"no entities of type '{type_name}' exist in this context")

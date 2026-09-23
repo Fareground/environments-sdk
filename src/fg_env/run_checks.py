@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict
 
 from .errors import InvariantViolation, RunError
-from .expr import ExprError, compile_expr, truthy
+from .expr import EVERYONE, ExprError, Scope, compile_expr, truthy
 from .template import compile_template
 from .world import _plain
 
@@ -46,9 +46,9 @@ class RunChecks:
             except ExprError as exc:
                 raise RunError(str(exc), f"invariants[{index}]") from None
             if not holds:
-                why = f" ({invariant.why})" if invariant.why else ""
-                raise InvariantViolation(f"invariant `{invariant.expr}` no longer holds after {path}{why}",
-                                         f"invariants[{index}]", invariant.why)
+                why = _why(invariant.why, scope, f"invariants[{index}].why")
+                raise InvariantViolation(f"invariant `{invariant.expr}` no longer holds after {path}"
+                                         f"{f' ({why})' if why else ''}", f"invariants[{index}]", why)
             fresh = world.draws() == drawn and world.state_version() == state
             self._invariant_held[index] = state if fresh else None
 
@@ -73,3 +73,14 @@ class RunChecks:
                 raise RunError(str(exc), path) from None
             world.request_end(end.name or f"end_{index}", winner, text)
             return
+
+
+def _why(template: str, scope: Scope, path: str) -> str:
+    """An invariant's `why`, rendered: the agent whose action broke it is told, so it may read no agent's private
+    property (whose action it is, the invariant does not know)."""
+    if not template:
+        return ""
+    try:
+        return compile_template(template, None).render(scope.child(viewer=EVERYONE))
+    except ExprError as exc:
+        raise RunError(str(exc), path) from None

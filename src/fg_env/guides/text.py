@@ -42,13 +42,18 @@ turn, uses `max_actions`, or runs out of `max_calls`.
   `env.run(..., time_limit=30)` covers stages that set none). Past it the turn ends, later calls are
   refused, a `timeout` event is logged and `on_timeout` runs instead of `on_idle`. The agent's update says
   how long it has. A participant that finishes in time plays exactly as it would without a limit.
-* `atomic: true` makes a turn's actions apply together: each applies at once (the agent sees its result),
-  but triggers, reactions and invariants wait until the turn ends. `valid` conditions (`$actor`, `$pending`)
+* `atomic: true` makes a turn's actions apply together: each applies at once (the agent sees its move),
+  but triggers, reactions and invariants wait until the turn ends, and an action's own `outcome` text (and
+  attached files) is shown once the turn commits — an undone turn shows nothing it was not charged for. `valid` conditions (`$actor`, `$pending`)
   are checked when a turn that acted ends; if one fails, every action of the turn is undone, the agent is
   told `why` and plays the turn again (castling through check, a full backgammon move). `valid` makes a
   stage atomic. An action that draws randomness settles the turn so far at once, so later actions cannot
   undo its luck (if `valid` fails then, the turn is undone and over). In a simultaneous stage each agent's
   choices commit or are undone together.
+* Luck never decides whether a call is allowed: `when` requirements and parameters' bounds, defaults, values and
+  `where` may not draw at random (a check error), since a refused call costs nothing and calling again would roll
+  fresh luck. Draw in `do` or `chance`: a call that drew has been played, even when a rule then fails. A view's
+  randomness is fixed for the turn, so looking again shows the same noisy signal (and a preview shows the turn's).
 * Views with `"for": "spectator"` are an omniscient picture for UIs and reports: rendered at the end of
   every round into `result.frames` (the last marked `final`) and on demand by `env.spectate()`, never
   shown to an agent. They have no `$actor`; randomness they draw never changes the run.
@@ -64,7 +69,7 @@ turn, uses `max_actions`, or runs out of `max_calls`.
   physics: write them for states that must hold at all times, not ones that only settle at the end of a stage. An
   agent's action that breaks one — itself or through the triggers and hooks its commit sets off — is refused and
   undone, and the agent is told the invariant's `why` (give one: without it the agent only hears that a rule would
-  break); the run goes on and its diagnostics count it. A break by anything else (events, physics, the build) fails
+  break; it is a template, which may read no agent's private prop); the run goes on and its diagnostics count it. A break by anything else (events, physics, the build) fails
   the run. `"check": "round"` checks one only at the end of every round (a conservation sum over a big crowd then
   costs one pass a round, not one per change) — a break found then fails the run, whatever caused it;
   `"check": "end"` once, when the run finishes.
@@ -297,8 +302,9 @@ RECIPES = """\
 * Hidden information: `private` props, per-type views, record `visible` rules, `to` on posts/emits,
   `private: true` actions (no announcement). `inspect` shows an agent only itself unless a type sets `inspect`.
   An agent's private prop is shown only to that agent: reading another agent's in anything worked out for one agent
-  (views, sort keys, tool choices and bounds, outcome text, briefs, policies, defs they call) is an error at run
-  time, however it is spelled. Reveal what an agent may learn by working it out in game logic
+  (views, sort keys, tool choices and bounds, outcome text, briefs, policies, defs they call, metrics worked out
+  from private props) is an error at run time, however it is spelled; so is a stage `order` that reads one, since
+  every agent sees the turn order. Reveal what an agent may learn by working it out in game logic
   (`"do": ["$seen = $params.target.role"], "outcome": "... {$seen}"`, or a prop the agent owns). Text sent to
   several agents — an `announce`, an event's or trigger's `say`, an emit's `say` without a lone `to` — may read no
   agent's private prop, not even the actor's: reveal it the same way (`"$shown = $actor.card"`, then `{$shown}`).

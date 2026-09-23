@@ -11,6 +11,8 @@ import json
 import pytest
 
 import fg_env
+from fg_env.checks import parse_contract
+from fg_env.runtime import Env
 
 
 def contract():
@@ -293,3 +295,41 @@ def test_a_bound_read_through_entity_of_another_agents_private_property_is_an_er
 def test_another_agents_private_property_cannot_be_read_around_the_rule(path, patch):
     errors = [i for i in fg_env.check(_secrets(**patch)) if i.severity == "error"]
     assert [i.path for i in errors] == [path] and "'s secret is private" in errors[0].message
+
+
+@pytest.mark.parametrize("show", ["Ann holds {$metrics.held}.", "Ann held {$last($series.held)}."])
+def test_a_metric_worked_out_from_a_private_property_is_not_shown_to_agents(show):
+    c = _secrets(metrics={"held": "$entity(ann).secret", "count": "$count(p)"}, views={"v": {"show": show}},
+                 clock={"rounds": 2})
+    assert any(i.severity == "error" and i.path == "views.v" and "metric held" in i.message for i in fg_env.check(c))
+    seen = []
+
+    def participant(wake):
+        seen.append(wake.update)
+        wake.end()
+
+    result = Env(parse_contract(c), {}, 1).run(participant)
+    assert result.status == "failed" and "views.v" in result.error
+    assert not any("4242" in text for text in seen)
+    public = _secrets(metrics={"count": "$count(p)"}, views={"v": {"show": "{$metrics.count} players."}})
+    assert fg_env.run(public, seed=1).status == "completed"
+
+
+def test_turn_order_cannot_rank_agents_by_a_private_property():
+    c = _secrets(stages=[{"name": "s", "order": "-$it.secret"}])
+    assert any(i.severity == "error" and i.path == "stages.s.order" and "ann's secret is private" in i.message
+               for i in fg_env.check(c))
+    result = Env(parse_contract(c), {}, 1).run()
+    assert result.status == "failed" and "stages.s.order" in result.error
+
+
+@pytest.mark.parametrize("why, told", [("{$entity(bob).name} cannot owe secrets", "bob cannot owe secrets."),
+                                       ("ann holds {$entity(ann).secret}", "the environment's rules could not be")])
+def test_an_invariants_why_is_a_template_that_shows_only_what_everyone_may_know(why, told):
+    c = _secrets(invariants=[{"expr": "$entity(bob).secret >= 0", "why": why}],
+                 actions={"steal": {"by": "p", "do": ["$entity(bob).secret -= 1"]}})
+    replies = []
+    fg_env.run(c, lambda wake: replies.append(wake.call("steal")) if wake.entity_id == "ann" else None, seed=1)
+    assert replies[0].text.startswith(f"Your steal was not done: {told}"), replies[0].text
+    broken = _secrets(invariants=[{"expr": "$entity(bob).secret >= 0", "why": "{$actor.name} broke it"}])
+    assert any(i.severity == "error" and i.path == "invariants[0].why" for i in fg_env.check(broken))

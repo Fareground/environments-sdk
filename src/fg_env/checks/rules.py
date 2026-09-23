@@ -125,6 +125,7 @@ class RuleChecks:
                            self._suggest(end.check, C.END_CHECKS) or ", ".join(C.END_CHECKS))
         for index, invariant in enumerate(self.c.invariants):
             self.condition(invariant.expr, f"invariants[{index}]", BASE)
+            self.template(invariant.why or None, f"invariants[{index}].why", None, BASE)
             if invariant.check not in C.INVARIANT_CHECKS:
                 self.error(f"invariants[{index}].check", f"unknown check '{invariant.check}'",
                            self._suggest(invariant.check, C.INVARIANT_CHECKS) or ", ".join(C.INVARIANT_CHECKS))

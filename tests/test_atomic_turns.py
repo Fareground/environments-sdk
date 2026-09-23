@@ -134,3 +134,37 @@ def test_valid_is_checked_like_any_rule():
     shorthand = copy.deepcopy(WALK)
     shorthand["stages"][0]["valid"] = "$actor.pos >= 0"
     assert [i for i in fg_env.check(shorthand) if i.severity == "error"] == []
+
+
+PEEK = {
+    "name": "Peek", "clock": {"rounds": 1},
+    "types": {"p": {"agent": True, "props": {"coins": 10, "peeks": 0}}}, "entities": {"a": {"type": "p"}},
+    "world": {"card": "ace"},
+    "actions": {"peek": {"by": "p", "when": "$actor.coins >= 5", "do": ["$actor.coins -= 5", "$actor.peeks += 1"],
+                         "outcome": "The top card is {$world.card}."},
+                "splurge": {"by": "p", "do": ["$actor.coins -= 100"]}},
+    "stages": [{"name": "s", "max_actions": 3, "valid": {"expr": "$actor.coins >= 0", "why": "no debt"}}],
+}
+
+
+def test_what_an_undone_turn_showed_its_agent_is_never_shown():
+    replies = []
+
+    def cheat(wake):  # peek, then break the turn on purpose so the peek is refunded
+        replies.extend([wake.call("peek"), wake.call("splurge"), wake.call("end_turn")])
+
+    env = fg_env.load(PEEK, seed=2)
+    env.run(cheat)
+    assert env.entity("a")["props"] == {"coins": 10, "peeks": 0}
+    assert not any("ace" in reply.text for reply in replies), replies
+    assert replies[0].ok and "when your turn ends" in replies[0].text
+
+
+def test_an_atomic_turn_shows_its_outcomes_once_it_commits():
+    replies = []
+
+    def honest(wake):
+        replies.extend([wake.call("peek"), wake.call("end_turn")])
+
+    fg_env.load(PEEK, seed=2).run(honest)
+    assert replies[1].ok and replies[1].text == "The top card is ace. Turn ended."

@@ -27,7 +27,7 @@ from .type_index import TypeIndex
 from . import links as _links, world_physics
 from .patterns.runtime import PatternRuntime
 from .links import Link
-from .world_parts import ClockView, Entry, Journal, LogEvent, PhysicsView, PropsView
+from .world_parts import ClockView, Entry, Journal, LogEvent, PhysicsView, PropsView, private_metrics
 
 if TYPE_CHECKING:
     from .sync_events import WriteBuffer
@@ -43,7 +43,7 @@ class _TurnLocal:
     pending: Optional[List[Dict[str, Any]]]
     draws: int
     depth: int
-    luckless: bool
+    luckless: Optional[str]
 
 
 #: The turn running in this thread or asyncio task, as ``(world, state)``. A context variable rather
@@ -151,6 +151,7 @@ class SdkWorld(World):
         self._private = {t: frozenset(p for p, spec in props.items() if spec.private)
                          for t, props in self._type_props.items() if contract.is_agent(t)}
         self.private_names = frozenset().union(*self._private.values())
+        self.private_metrics = private_metrics(contract, self.private_names)
         #: Def results for the current world state (see :meth:`call_def`).
         self._def_cache: Dict[Any, Any] = {}
         self._def_cache_state: Any = None
@@ -170,7 +171,10 @@ class SdkWorld(World):
         stream while an agent's turn runs outside one (so concurrent turns never race for draws), otherwise the
         run's main stream — and none inside :meth:`without_luck`."""
         local = self._here()
-        if getattr(local, "luckless", False):
+        luckless = getattr(local, "luckless", None)
+        if luckless is not None:
+            if luckless:
+                raise ExprError(luckless)
             raise LuckAhead()
         local.draws = getattr(local, "draws", 0) + 1
         rng = getattr(local, "rng", None)
@@ -214,12 +218,13 @@ class SdkWorld(World):
             local.rng = previous
 
     @contextmanager
-    def without_luck(self) -> Iterator[None]:
-        """Inside the block — a trial of a call, which must not learn its luck (see ``ActionBook.trial``) — a random
-        draw raises :class:`LuckAhead` instead of drawing."""
+    def without_luck(self, refusal: str = "") -> Iterator[None]:
+        """Inside the block a random draw raises :class:`LuckAhead` instead of drawing — a trial of a call, which must
+        not learn its luck (see ``ActionBook.trial``) — or, given a ``refusal``, fails as a rule does with that text:
+        where nothing may be left to luck."""
         local = self._here()
-        previous = getattr(local, "luckless", False)
-        local.luckless = True
+        previous = getattr(local, "luckless", None)
+        local.luckless = refusal
         try:
             yield
         finally:
