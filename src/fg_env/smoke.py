@@ -1,6 +1,6 @@
-"""The smoke play of :func:`fg_env.check`: the contract built and played with random agents, then once per declared
-policy, so problems that only appear with real values — in a later round, in a policy's own rules — are reported like
-the static ones."""
+"""The smoke play of :func:`fg_env.check`: the contract built and played with random agents, then with agents that
+never act, then once per declared policy, so problems that only appear with real values — in a later round, in a
+policy's own rules, on a missed turn — are reported like the static ones."""
 from __future__ import annotations
 
 import time
@@ -25,12 +25,12 @@ _SMOKE_SECONDS = 2.0
 def smoke_issues(contract: Contract, build: Callable[[], "Env"], rounds: Optional[int],
                  seed: int) -> Tuple[List[Issue], List[Issue]]:
     """``(errors, warnings)`` from playing the contract built by ``build``: first with random agents that read
-    everything they are shown, then with each policy playing the agent types whose default it is, or else the types that can take every action it
+    everything they are shown, then with every agent idle (as when a model times out or refuses), then with each policy playing the agent types whose default it is, or else the types that can take every action it
     takes (every other agent plays as in a plain run: its type's policy, or random). ``rounds`` None plays up to :data:`SMOKE_ROUNDS`
     rounds within a few seconds in all; a number plays exactly that many rounds."""
     policies = [(name, _players(contract, name)) for name in contract.policies]
     policies = [(name, players) for name, players in policies if players]
-    seconds = _SMOKE_SECONDS / (1 + len(policies)) if rounds is None else None
+    seconds = _SMOKE_SECONDS / (2 + len(policies)) if rounds is None else None
     errors: List[Issue] = []
     warnings: List[Issue] = []
 
@@ -42,6 +42,10 @@ def smoke_issues(contract: Contract, build: Callable[[], "Env"], rounds: Optiona
     for found in random_play.diagnostics:
         warnings.append(Issue(found["path"], f"{found['message']} (smoke run of {random_play.rounds} round(s), "
                               "random agents)", found["fix"], "warning"))
+    idle_play = _play(build(), {"*": "idle"}, rounds, seconds)
+    _failure(idle_play, "agents that never act", errors,
+             "a turn can pass without an action (a timeout, a refusal, a forfeit): give what the action sets a default "
+             "the rules allow, or guard the rule for it")
     for name, players in policies:
         agent, who = _Probing(contract, name, seed), f"policy '{name}' playing {', '.join(players)}"
         played = _play(build(), {kind: agent for kind in players}, rounds, seconds)
@@ -85,14 +89,14 @@ def _play(env: "Env", participants: Any, rounds: Optional[int], seconds: Optiona
     return env.run(participants, rounds=SMOKE_ROUNDS, stop=lambda e: e.round > 1 and time.monotonic() > deadline)
 
 
-def _failure(result: RunResult, who: str, errors: List[Issue]) -> None:
+def _failure(result: RunResult, who: str, errors: List[Issue], fix: Optional[str] = None) -> None:
     """Add the error a failed play ran into, unless an earlier play already reported it."""
     if result.status != "failed":
         return
     issue = run_issue(result.error or "the run failed")
     if any(e.path == issue.path and e.message.startswith(issue.message) for e in errors):
         return
-    errors.append(Issue(issue.path, f"{issue.message} (smoke run of {result.rounds} round(s), {who})", issue.fix))
+    errors.append(Issue(issue.path, f"{issue.message} (smoke run of {result.rounds} round(s), {who})", fix or issue.fix))
 
 
 class _Probing(PolicyAgent):

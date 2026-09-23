@@ -27,7 +27,7 @@ from ._common import ToolsSetting, tools_field
 from ._game import game_section
 from .contract_cache import parse_kind, per_contract
 
-__all__ = ["PotConfig", "side_pots"]
+__all__ = ["PotConfig", "side_pots", "uncalled"]
 
 def _props(entity: Entity) -> Dict[str, Any]:
     """An entity's properties, typed loosely: values are whatever the contract declared."""
@@ -304,6 +304,14 @@ def side_pots(committed: Mapping[str, int], live: List[str]) -> List[Tuple[int, 
     return pots
 
 
+def uncalled(committed: Mapping[str, int], live: List[str]) -> Dict[str, int]:
+    """The chips a live player put in beyond what anyone else matched: not a pot, they go straight back."""
+    ranked = sorted(committed.items(), key=lambda item: -item[1])
+    if len(ranked) < 2 or ranked[0][1] <= ranked[1][1] or ranked[0][0] not in live:
+        return {}
+    return {ranked[0][0]: ranked[0][1] - ranked[1][1]}
+
+
 def showdown(runner: Any, config: PotConfig, name: str, vars: Dict[str, Any], where: str) -> None:
     world = runner.world
     seats = _seats(world, config, where)
@@ -313,7 +321,9 @@ def showdown(runner: Any, config: PotConfig, name: str, vars: Dict[str, Any], wh
     committed = {p.id: _p(p, "committed") for p in seats if _p(p, "committed") > 0}
     if not committed:
         return
-    payouts: Dict[str, int] = {}
+    returned = uncalled(committed, [p.id for p in live]) if len(live) > 1 else {}
+    committed = {pid: chips - returned.get(pid, 0) for pid, chips in committed.items()}
+    payouts: Dict[str, int] = dict(returned)
     scores: Dict[str, Any] = {}
     labels: Dict[str, str] = {}
     if len(live) > 1:
@@ -343,24 +353,23 @@ def showdown(runner: Any, config: PotConfig, name: str, vars: Dict[str, Any], wh
         world.set_prop(player, "bet", 0)
     world.set_world(f"{name}_to_act", "")
     world.set_world(f"{name}_result", {"hand": world.props[f"{name}_hands"], "pots": record, "payouts": payouts,
-                                       "uncontested": len(live) == 1})
-    world.emit(name, _showdown_text(world, record, labels, len(live) == 1))
+                                       "returned": returned, "uncontested": len(live) == 1})
+    world.emit(name, _showdown_text(world, record, returned, labels, len(live) == 1))
 
 
-def _showdown_text(world: Any, pots: List[Dict[str, Any]], labels: Mapping[str, str], uncontested: bool) -> str:
+def _showdown_text(world: Any, pots: List[Dict[str, Any]], returned: Mapping[str, int], labels: Mapping[str, str],
+                   uncontested: bool) -> str:
     if uncontested and pots:
         winner = world.entities[pots[0]["winners"][0]].name
         return f"{winner} wins the pot ({sum(p['amount'] for p in pots)}); everyone else folded."
-    contested = [pot for pot in pots if len(pot["eligible"]) > 1]
     parts = []
-    for index, pot in enumerate(contested):
-        title = "the pot" if len(contested) == 1 else ("the main pot" if index == 0 else f"side pot {index}")
+    for index, pot in enumerate(pots):
+        title = "the pot" if len(pots) == 1 else ("the main pot" if index == 0 else f"side pot {index}")
         names = " and ".join(world.entities[w].name + (f" ({labels[w]})" if w in labels else "") for w in pot["winners"])
         verb = "split" if len(pot["winners"]) > 1 else "wins"
         parts.append(f"{names} {verb} {title} ({pot['amount']})")
-    for pot in pots:
-        if len(pot["eligible"]) == 1:  # chips nobody could match go back to their owner
-            parts.append(f"{world.entities[pot['winners'][0]].name} takes back {pot['amount']} uncalled chips")
+    for pid, chips in returned.items():
+        parts.append(f"{world.entities[pid].name} takes back {chips} uncalled chips")
     return "Showdown: " + "; ".join(parts) + "."
 
 
@@ -581,7 +590,8 @@ def _expand_pot(name: str, config: PotConfig, contract: Mapping[str, Any]) -> Di
         f"{name}_hands": {"type": "int", "default": 0},
         f"{name}_raises": {"type": "int", "default": 0},
         f"{name}_street": {"type": "text", "default": ""},
-        f"{name}_result": {"type": "map", "default": {}, "description": "Last showdown: {hand, pots, payouts, uncontested}."},
+        f"{name}_result": {"type": "map", "default": {}, "description": "Last showdown: {hand, pots, payouts, returned "
+                                                                           "(uncalled chips given back, by player), uncontested}."},
         f"{name}_last": {"type": "map", "default": {}, "description": "Last wager: {player, move, amount, to}."},
     }
     fragment: Dict[str, Any] = {

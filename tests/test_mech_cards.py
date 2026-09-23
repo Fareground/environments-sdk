@@ -344,6 +344,8 @@ def test_holdem_showdown_ranks_real_hands_and_returns_uncalled_chips():
     showdown = next(e["text"] for e in result.events if e.get("text", "").startswith("Showdown"))
     assert showdown == ("Showdown: Ana (three of a kind, aces) wins the main pot (300); "
                         "Ben (three of a kind, kings) wins side pot 1 (200); Cleo takes back 100 uncalled chips.")
+    shown = env.props["table_result"]
+    assert [p["amount"] for p in shown["pots"]] == [300, 200] and shown["returned"] == {"p3": 100}  # uncalled is no pot
     assert all(card_visible(env.world, env.world.entities[c], None) for c in ("AS", "KD", "7D"))
 
 

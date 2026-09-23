@@ -188,8 +188,9 @@ class ActionSchemas:
             values = self._static(actor, param.values) if isinstance(param.values, str) else param.values
             if isinstance(values, list) and values:
                 out["enum"] = [_plain(v) for v in values]
-                if all(isinstance(v, str) for v in out["enum"]):
-                    out["type"] = "string"
+                kind = _enum_type(out["enum"])
+                if kind:
+                    out["type"] = kind
         elif param.type == "list":
             item = _item_spec(param)
             item_schema = self._param_schema(actor, action, pname, item)
@@ -244,6 +245,15 @@ class ActionSchemas:
         if isinstance(value, float) and not math.isfinite(value):
             return None
         return _tidy(value)
+
+
+def _enum_type(values: Sequence[Any]) -> Optional[str]:
+    """The JSON type every enum value shares (some providers refuse an enum without one); None when they are mixed."""
+    kinds = {"boolean" if isinstance(v, bool) else "integer" if isinstance(v, int) else "number" if isinstance(v, float)
+             else "string" if isinstance(v, str) else "other" for v in values}
+    if kinds == {"integer", "number"}:
+        return "number"
+    return next(iter(kinds)) if len(kinds) == 1 and "other" not in kinds else None
 
 
 def _choice_names(group: str, members: Sequence[str]) -> Dict[str, str]:
