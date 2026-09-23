@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Round 3 (T-828–T-833) comes from an independent adversarial audit of 0.8.0. It closes silent failures and makes
+both authoring paths, by hand from the docs or through `fg-env author`, reliable.
+
+### Breaking
+- A removed agent no longer ends its stage for the agents seated after it. Agents created mid-round act in the
+  next pass (T-832).
+- `$best` always returns one item (ties are broken at random by the seed) or, with `ties: "all"`, a list.
+  `ties: "share"` is removed (T-832).
+- Anything shown or offered to one agent that reads another agent's private property is an error. A `when` that
+  reads hidden state no longer hides the tool; the call is refused instead. Out-of-bounds refusals omit private
+  values (T-833).
+- Declaring a stage with a generated stage's name refines it field by field instead of replacing it (T-832).
+- Order-book crowd bots have their own `<book>_crowd` type, so other mechanisms no longer count them as
+  traders, voters or winners. Prediction-market effect keys are `shares`, `spend` and `receive` (T-830).
+- The double auction clears inside the market-clearing interval. Uncalled chips return to their owner under
+  `returned`. Negative maker fees are rebates (T-830).
+- `fg_env.author` keeps a contract only if `check` is clean and full runs with random and idle agents finish.
+  `stop` can be `gave_up` or `revisions`, and `MAX_WRITES` is now `MAX_REVISIONS` (T-828).
+- Engines: Negotiation's `cooperative` policy is now `concession` and its `rounds` input is removed. Exchange
+  `seats` defaults to 4. Dispute gains `persuasion`. Contest's `winning_score` is null without a judge (T-831).
+- Unknown participants and unknown preview targets raise `ContractError` with a fix. `check()` returns
+  unreadable or invalid sources as issues instead of raising (T-829).
+
+### Added
+- `check` escalates an action that faulted on every attempt to an error, and plays one pass where every
+  agent is idle. New diagnostics `action_always_faulted`, `agents_never_acted` and `stage_until_never_held`,
+  plus `RunResult.degraded` (T-830, T-832).
+- A spent token budget ends every turn in progress; judge and game-master tokens count toward it (T-832).
+- `fg_env.author`: an `edit_contract` tool, cut-off-reply detection, retries on provider errors, and a
+  summary that names the kept revision and the dropped one. CLI `--calls` (T-828).
+- A `when`'s `why` is a template. Snapshot restore validates types and bounds. The five matrix games and
+  matching pennies state a missed-move rule. `FatalRunError` is exported (T-829, T-830, T-832).
+- Every README and guide code sample runs in the test suite. Templates and engine starters check with zero
+  warnings. Every engine starter runs at the min and max of each input (T-829, T-831).
+
 ## [0.8.0] - 2026-09-23
 
 Every run is now either correct or fails loudly (T-797). Several defaults changed. Round 2 adds one-command

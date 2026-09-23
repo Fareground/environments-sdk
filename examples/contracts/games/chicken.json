@@ -4,7 +4,7 @@
   "description": "The one-shot anti-coordination game. The pure equilibria have exactly one player go straight; the mixed equilibrium goes straight with probability 1/10.",
   "brief": {
     "situation": "Two drivers head at each other; each chooses to swerve or go straight, at the same time.",
-    "rules": "Both swerve: 0 each. One goes straight: that driver scores 1 and the swerver -1. Both go straight: -10 each."
+    "rules": "Both swerve: 0 each. One goes straight: that driver scores 1 and the swerver -1. Both go straight: -10 each. A driver who does not choose swerves."
   },
   "clock": {"rounds": 1},
   "world": {
@@ -15,7 +15,7 @@
   },
   "types": {"player": {"agent": true, "props": {
     "seat": 0,
-    "move": {"type": "text", "default": "", "private": true},
+    "move": {"type": "text", "default": "swerve", "private": true},
     "score": 0
   }}},
   "entities": {

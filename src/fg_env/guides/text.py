@@ -212,8 +212,9 @@ for priority and tie-breaking; multiplying a key by a large constant can change
 priority when the second key grows. Negate a numeric key for descending order.
 The list is selected once before the loop; effects still see current entity
 properties. Filter with `$filter` when needed. For one highest-ranked item use
-`$best(items, [key1, key2])`; exact ties return a list by default, so use a unique
-last key when the rule requires one deterministic item.
+`$best(items, [key1, key2])`: it always gives one item, breaking an exact tie at
+random (seeded); add a unique last key when the rule needs a fixed order, or use
+`$best(items, key, 'all')` for the list of every item tied for best.
 """
 
 EFFECT_EXAMPLES = {
@@ -289,10 +290,14 @@ RECIPES = """\
   removed; a player the mechanism eliminates stays in the world with its `living` prop false.
 * Hidden information: `private` props, per-type views, record `visible` rules, `to` on posts/emits,
   `private: true` actions (no announcement). `inspect` shows an agent only itself unless a type sets `inspect`.
-  A view listing every entity with a private prop and no `where`, or an entity choice whose `where` reads another
-  agent's private prop, is a check error: it would reveal the value. A refusal is information too — a `when` or
-  `fail` that reads hidden state tells the actor something about it. Visibility shapes only what an
-  agent is shown or offered (brief, updates, views, tool choices, outcome text, its policy); game logic — action
+  An agent's private prop is shown only to that agent: reading another agent's in anything worked out for one agent
+  (views, sort keys, tool choices and bounds, outcome text, briefs, policies, defs they call) is an error at run
+  time, however it is spelled. Reveal what an agent may learn by working it out in game logic
+  (`"do": ["$seen = $params.target.role"], "outcome": "... {$seen}"`, or a prop the agent owns). A `when` that reads
+  another agent's private prop does not hide the tool: it stays listed and a call is refused when the `when` fails.
+  A private prop of an entity that is not an agent is hidden from inspect; the views say who sees it. A refusal
+  is information too — a `when` or `fail` that reads hidden state tells the actor something about it. Visibility
+  shapes only what an agent is shown or offered (brief, updates, views, tool choices, outcome text, its policy); game logic — action
   `when`/`do`, events, triggers, stages, `end`, metrics, outputs, invariants — reads every record entry and event,
   so an auditor's `accuse` can count messages it never saw. To ask what one agent can see inside logic, filter
   explicitly: `$records(chat, $it.author == $actor or $actor.id in ($it.to or []))`.
@@ -585,5 +590,6 @@ CHECKLIST = """\
 * Measurement: metrics for the dynamics you care about; typed outputs for every result a caller
   needs; invariants for conservation laws.
 * Always: run `check` until clean, `preview` every agent type, run a few seeds, read
-  `result.stats` (invalid_rate and avg_update_tokens should stay low; faulted_actions should be 0).
+  `result.stats` (invalid_rate and avg_update_tokens should stay low; faulted_actions should be 0) and
+  `result.degraded` (empty for a run that shows how the environment plays).
 """

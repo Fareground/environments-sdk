@@ -14,7 +14,7 @@ Config:
 - `quorum` (default null): Share of eligible voters who must cast a ballot (abstentions count).
 - `abstain` (default true): Voters may abstain.
 - `private` (default true): Ballots stay private; only the result is announced.
-- `ties` (default "random"): How a tie is decided (random uses the run's seed).
+- `ties` (default "random"): How a tie is decided (random uses the run's seed; none leaves it undecided, and in a ranked count eliminates every option tied for last together).
 - `stage` (default null): Vote during this declared stage (tally at its end); default: a simultaneous stage named after the vote.
 - `when` (default null): Hold the vote only when true (e.g. "$round == 3").
 - `question` (default ""): What is being decided, shown with the ballot.

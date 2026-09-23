@@ -1,5 +1,5 @@
 # fg-env playthrough: Matching pennies
-Game: matching_pennies@aa8549ee:4642e142
+Game: matching_pennies@a87ab1e8:4642e142
 Seed: 1
 Seats: 0 m, 1 n
 Dynamics: simultaneous; chance: deterministic; information: imperfect; utility: zero_sum
@@ -10,7 +10,7 @@ Action space: 3 ids
   | Two players show a coin at once.
   | 
   | ## Rules
-  | The matcher wins when the coins match.
+  | The matcher wins when the coins match. A player who does not show a coin loses; if neither shows one, nobody scores.
   | 
   | ## You
   | You are m (player, id m).
@@ -21,7 +21,7 @@ Action space: 3 ids
   | Two players show a coin at once.
   | 
   | ## Rules
-  | The matcher wins when the coins match.
+  | The matcher wins when the coins match. A player who does not show a coin loses; if neither shows one, nobody scores.
   | 
   | ## You
   | You are n (player, id n).
@@ -34,10 +34,10 @@ Legal calls of seat 1: [1] show(side=heads); [2] show(side=tails)
 Seat 0 (m) reads:
   | Round 1 of 1 · show
   | Now: Everyone chooses at the same time.
-Seat 0 information state: 46510827117b387f
+Seat 0 information state: 5f7209a442ca507f
 Seat 1 (n) reads:
   | Round 1 of 1 · show
-Seat 1 information state: 6839e38822b44f58
+Seat 1 information state: 1555181fa56d8258
 Returns: [0, 0]
 Chosen: seat 0: show(side=heads); seat 1: show(side=tails)
 Step: {"joint": {"0": {"args": {"side": "heads"}, "tool": "show"}, "1": {"args": {"side": "tails"}, "tool": "show"}}}

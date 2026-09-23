@@ -1,7 +1,7 @@
 {
   "fg_env": "1",
   "name": "Harbor Fabrication v. Meridian Logistics (procedure)",
-  "description": "The civil jury trial on the procedure mechanism: openings, direct examination with exhibits, objections and rulings, cross-examination, closings, a sealed jury room, secret ballots and a judgment.",
+  "description": "The civil jury trial on the procedure mechanism: openings, direct examination with exhibits, objections and rulings, cross-examination, closings, a sealed jury room where each juror's speech pulls the others' leanings toward the speaker's, secret ballots and a judgment.",
   "inputs": {
     "claimed_damages": {
       "type": "number",
@@ -30,6 +30,13 @@
       "min": 1,
       "max": 5,
       "description": "Ballots before the judge declares a hung jury."
+    },
+    "persuasion": {
+      "type": "number",
+      "default": 0.1,
+      "min": 0,
+      "max": 0.5,
+      "description": "Average share of the gap to a speaking juror's lean that each other juror moves per jury-room speech (each draws between 0 and twice this; every juror hears the others each time the jury deliberates); 0 = deliberation changes no coded juror's mind."
     }
   },
   "brief": {
@@ -143,8 +150,7 @@
         },
         "ready": {
           "type": "bool",
-          "default": false,
-          "private": true
+          "default": false
         },
         "spoke": {
           "type": "bool",
@@ -718,7 +724,7 @@
     },
     "speak": {
       "by": "juror",
-      "description": "Say something to the other jurors in the jury room. Only jurors hear it.",
+      "description": "Say something to the other jurors in the jury room. Only jurors hear it, and it can move them.",
       "params": {
         "text": {
           "type": "text",
@@ -735,7 +741,8 @@
           "each": "juror",
           "where": "$it.id != $actor.id",
           "do": [
-            "$it.ready = false"
+            "$it.ready = false",
+            "$it.lean += $uniform(0, 2 * $inputs.persuasion) * ($actor.lean - $it.lean)"
           ]
         }
       ],
@@ -999,6 +1006,7 @@
           }
         },
         {
+          "when": "$count(exhibit, $it.side == $actor.side and $it.status == held) > 0",
           "do": "offer_exhibit",
           "with": {
             "exhibit": "$top(exhibit, $it.strength, 1, $it.side == $actor.side and $it.status == held)[0]",
@@ -1183,7 +1191,7 @@
           "next": [
             {
               "to": "direct",
-              "all_did": "opening_statement"
+              "when": "$all(attorney, $it.opened)"
             },
             {
               "to": "direct",
@@ -1292,7 +1300,7 @@
           "next": [
             {
               "to": "deliberation",
-              "all_did": "instruct_jury"
+              "when": "$all(judge, $it.instructed)"
             },
             {
               "to": "deliberation",
@@ -1304,10 +1312,15 @@
           "title": "Jury deliberation",
           "on_enter": [
             {
-              "each": "juror",
-              "as": "j",
-              "do": [
-                "$j.lean = $sum(impression, $it.score * $it.sign, $it.juror == $j.id) + 0.3 * $j.bias - 0.05"
+              "if": "$world.ballots == 0",
+              "then": [
+                {
+                  "each": "juror",
+                  "as": "j",
+                  "do": [
+                    "$j.lean = $sum(impression, $it.score * $it.sign, $it.juror == $j.id) + 0.3 * $j.bias - 0.05"
+                  ]
+                }
               ]
             }
           ],

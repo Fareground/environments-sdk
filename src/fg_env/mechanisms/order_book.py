@@ -17,7 +17,8 @@ Rules:
   from the touch and its remainder is cancelled.
 * A resting buy reserves ``qty × price × (1 + maker fee)`` cash, a resting sell its shares. A
   fill against a resting order charges the maker fee to its owner and the taker fee to the
-  aggressor; fees go to the book's fee account ``<name>_fees``.
+  aggressor; fees go to the book's fee account ``<name>_fees``. A negative maker fee is a rebate
+  the fee account pays the resting order's owner out of the fill's taker fee.
 * Self-trade prevention: an order never trades with its owner's resting orders on the other side;
   those are cancelled (reservations returned) as the order reaches them.
 * Circuit breaker (``halt_check: trade``): a trade printing more than ``halt_pct`` from the reference price halts
@@ -43,7 +44,7 @@ from .common import config_of, entity_of, fmt, lot_floor
 from .ledger import EPS, Account, balance, clean, move
 
 __all__ = ["OrderBookConfig", "CrowdSpec", "STRATEGIES", "book_config", "place", "cancel", "cancel_all", "quote", "depth",
-           "account", "audit", "props_for", "short_room", "top", "trip", "bar_end"]
+           "account", "audit", "crowd_type", "props_for", "short_room", "top", "traders", "trip", "bar_end"]
 
 KEY = "market.order_book"
 STRATEGIES = ("market_maker", "momentum", "mean_reversion", "fundamentalist", "noise", "passive")
@@ -51,6 +52,7 @@ STRATEGIES = ("market_maker", "momentum", "mean_reversion", "fundamentalist", "n
 _Positive = Annotated[float, Field(gt=0)]
 _Share = Annotated[float, Field(gt=0, le=1)]
 _Fee = Annotated[float, Field(ge=0, le=1000)]
+_MakerFee = Annotated[float, Field(ge=-1000, le=1000)]
 _NonNegative = Annotated[float, Field(ge=0)]
 _Count = Annotated[int, Field(ge=1)]
 _EXPR = " (number or expression over $inputs, resolved when the world is built)"
@@ -79,7 +81,8 @@ class OrderBookConfig(BaseModel):
     tick_size: Union[_Positive, str] = Field(0.01, description="Minimum price increment" + _EXPR + ".")
     lot_size: Union[_Positive, str] = Field(1.0, description="Minimum quantity; orders are whole multiples of it" + _EXPR
                                             + ". A literal whole lot makes order quantities integers.")
-    maker_fee_bps: Union[_Fee, str] = Field(0.0, description="Fee on fills of resting orders, in basis points of notional" + _EXPR + ".")
+    maker_fee_bps: Union[_MakerFee, str] = Field(0.0, description="Fee on fills of resting orders, in basis points of notional"
+                                                 + _EXPR + "; negative is a rebate, at most the taker fee that pays it.")
     taker_fee_bps: Union[_Fee, str] = Field(0.0, description="Fee on fills of incoming orders, in basis points" + _EXPR + ".")
     collar_pct: Union[_Share, str] = Field(0.05, description="A market order never trades further than this from the touch" + _EXPR + ".")
     price_band_pct: Union[Annotated[float, Field(gt=0, le=10)], str] = Field(
@@ -350,7 +353,7 @@ def release(world: Any, cfg: OrderBookConfig, v: Venue, name: str, order: Dict[s
         raise RunError(f"order {order['id']} belongs to unknown trader {order['owner']!r}", f"mechanisms.{name}")
     p = props_for(name)
     if order["side"] == "buy":
-        move(world, Account(owner, p["reserved_cash"]), Account(owner, cfg.currency), order["qty"] * order["price"] * (1 + v.maker),
+        move(world, Account(owner, p["reserved_cash"]), Account(owner, cfg.currency), order["qty"] * order["price"] * v.hold,
              what="reserved cash")
     else:
         move(world, Account(owner, p["reserved_shares"]), Account(owner, p["shares"]), order["qty"], what="reserved shares",
@@ -375,7 +378,7 @@ def _reconcile_reservations(world: Any, cfg: OrderBookConfig, v: Venue, name: st
     required_cash = {owner_id: 0.0 for owner_id in owner_ids}
     required_shares = {owner_id: 0.0 for owner_id in owner_ids}
     for order in [o for o in world.props.get(f"{name}_bids") or [] if o["owner"] in owner_ids]:
-        required_cash[order["owner"]] += order["qty"] * order["price"] * (1 + v.maker)
+        required_cash[order["owner"]] += order["qty"] * order["price"] * v.hold
     for order in [o for o in world.props.get(f"{name}_asks") or [] if o["owner"] in owner_ids]:
         required_shares[order["owner"]] += order["qty"]
     for owner_id in owner_ids:
@@ -501,12 +504,16 @@ def place(world: Any, name: str, trader: Entity, side: str, qty: Any, price: Any
             move(world, cash, Account(maker_entity, cfg.currency), notional, what="cash")
             move(world, Account(maker_entity, p["reserved_shares"]), shares, q, what="reserved shares")
             move(world, cash, fees, notional * taker, what="cash")
-            move(world, Account(maker_entity, cfg.currency), fees, notional * maker, what="cash")
+            maker_pays, paid_from = Account(maker_entity, cfg.currency), "cash"
         else:
             move(world, Account(maker_entity, p["reserved_cash"]), cash, notional, what="reserved cash")
-            move(world, Account(maker_entity, p["reserved_cash"]), fees, notional * maker, what="reserved cash")
             move(world, shares, Account(maker_entity, p["shares"]), q, what="shares", floor=-v.short_limit)
             move(world, cash, fees, notional * taker, what="cash")
+            maker_pays, paid_from = Account(maker_entity, p["reserved_cash"]), "reserved cash"
+        if maker >= 0:
+            move(world, maker_pays, fees, notional * maker, what=paid_from)
+        else:  # a rebate, out of the taker fee just collected
+            move(world, fees, Account(maker_entity, cfg.currency), -notional * maker, what="rebate")
         world.set_prop(trader, p["fees_paid"], clean(_num(trader, p["fees_paid"]) + notional * taker))
         world.set_prop(maker_entity, p["fees_paid"],
                        clean(_num(maker_entity, p["fees_paid"]) + notional * maker))
@@ -526,7 +533,7 @@ def place(world: Any, name: str, trader: Entity, side: str, qty: Any, price: Any
     rested = 0.0
     if left > EPS and price is not None and not tripped:
         if side == "buy":
-            move(world, cash, Account(trader, p["reserved_cash"]), left * limit_price * (1 + maker), what="cash")
+            move(world, cash, Account(trader, p["reserved_cash"]), left * limit_price * v.hold, what="cash")
         else:
             move(world, shares, Account(trader, p["reserved_shares"]), left, what="shares", floor=-v.short_limit)
         seq = int(world.props.get(f"{name}_seq") or 0) + 1
@@ -648,17 +655,30 @@ def _siblings(world: Any, name: str, cfg: OrderBookConfig) -> List[str]:
             if raw.get("who") == cfg.who and raw.get("currency", "cash") == cfg.currency]
 
 
+def crowd_type(name: str) -> str:
+    """The type every coded crowd trader of the book is: ``<name>_crowd``, beside ``who`` and never one of its subtypes,
+    so other mechanisms on ``who`` (a ballot, a victory) do not count the crowd."""
+    return f"{name}_crowd"
+
+
+def traders(world: Any, name: str, cfg: OrderBookConfig) -> List[Entity]:
+    """Every account of the book's cash: the ``who`` traders and the crowds of the books sharing them."""
+    uses = uses_of(world.contract.mechanisms, KEY)
+    kinds = [cfg.who] + [crowd_type(book) for book in _siblings(world, name, cfg) if uses[book].get("crowd")]
+    return [trader for kind in kinds for trader in world.entities_of(kind)]
+
+
 def cash_total(world: Any, name: str, cfg: OrderBookConfig) -> float:
     reserves = [f"{book}_reserved_cash" for book in _siblings(world, name, cfg)]
     total = 0.0
-    for trader in world.entities_of(cfg.who):
+    for trader in traders(world, name, cfg):
         total += _num(trader, cfg.currency) + sum(_num(trader, prop) for prop in reserves)
     return total + sum(float(world.props.get(f"{prop[:-len('_reserved_cash')]}_fees") or 0) for prop in reserves)
 
 
 def share_total(world: Any, name: str, cfg: OrderBookConfig) -> float:
     p = props_for(name)
-    return sum(_num(t, p["shares"]) + _num(t, p["reserved_shares"]) for t in world.entities_of(cfg.who))
+    return sum(_num(t, p["shares"]) + _num(t, p["reserved_shares"]) for t in traders(world, name, cfg))
 
 
 def audit(world: Any, name: str) -> List[str]:
@@ -675,7 +695,7 @@ def audit(world: Any, name: str) -> List[str]:
             if order["side"] != side or order["qty"] <= 0:
                 problems.append(f"order {order['id']} is malformed ({order})")
             if side == "buy":
-                reserved_cash[order["owner"]] = reserved_cash.get(order["owner"], 0.0) + order["qty"] * order["price"] * (1 + v.maker)
+                reserved_cash[order["owner"]] = reserved_cash.get(order["owner"], 0.0) + order["qty"] * order["price"] * v.hold
             else:
                 reserved_shares[order["owner"]] = reserved_shares.get(order["owner"], 0.0) + order["qty"]
     if bids and asks and bids[0]["price"] >= asks[0]["price"]:
@@ -684,7 +704,7 @@ def audit(world: Any, name: str) -> List[str]:
         if [key(o) for o in orders] != sorted(key(o) for o in orders):
             problems.append("orders are out of price-time priority")
     tolerance = 1e-6
-    for trader in world.entities_of(cfg.who):
+    for trader in traders(world, name, cfg):
         acct = {"cash": _num(trader, cfg.currency), "shares": _num(trader, p["shares"]), "rc": _num(trader, p["reserved_cash"]),
                 "rs": _num(trader, p["reserved_shares"])}
         if abs(acct["rc"] - reserved_cash.get(trader.id, 0.0)) > tolerance * max(1.0, acct["rc"]):

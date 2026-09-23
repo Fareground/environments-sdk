@@ -29,6 +29,7 @@
         "last_protected": {"type": "text", "default": "", "private": true},
         "inspected": {"type": "list", "default": [], "private": true},
         "reads": {"type": "list", "default": [], "private": true},
+        "wolves_found": {"type": "list", "default": [], "private": true},
         "ready": {"type": "bool", "default": false}
       }
     }
@@ -78,7 +79,7 @@
             "$actor.inspected += $params.target.id",
             "$actor.reads += $params.target.name + ' is ' + $verdict + ' (night ' + $text($round) + ')'",
             "$world.seer_reads += 1",
-            {"if": "$params.target.role == werewolf", "then": ["$world.seer_wolf_reads += 1"]}
+            {"if": "$params.target.role == werewolf", "then": ["$world.seer_wolf_reads += 1", "$actor.wolves_found += $params.target.id"]}
           ],
           "outcome": "Your vision is clear: {$params.target.name} is {$verdict}.",
           "terminal": true
@@ -217,14 +218,13 @@
   "policies": {
     "honest": {
       "rules": [
-        {"when": "$stage == night_wolves and $actor.nomination == '' and $any(player, $it.role == werewolf and $it.living and $it.nomination != '')", "do": "choose_victim", "with": {"target": "$pick(player, $it.role == werewolf and $it.living and $it.nomination != '').nomination"}},
-        {"when": "$stage == night_wolves", "do": "choose_victim", "with": {"target": "$choice($filter(player, $it.living and $it.team != wolves))"}},
+        {"when": "$stage == night_wolves", "do": "choose_victim", "with": {"target": "$filter(player, $it.living and $known_role($actor, $it) != werewolf)[0]"}},
         {"when": "$stage == night_seer", "do": "inspect_player", "with": {"target": "$choice($filter(player, $it.living and $it.id != $actor.id and not ($it.id in $actor.inspected)))"}},
         {"when": "$stage == night_doctor", "do": "protect", "with": {"target": "$choice($filter(player, $it.living and $it.id != $actor.last_protected))"}},
-        {"when": "$stage == day_discussion and $actor.role == seer and $any(player, $it.living and $it.role == werewolf and $it.id in $actor.inspected)", "do": "say", "with": {"text": "$text('I am the seer. ') + $pick(player, $it.living and $it.role == werewolf and $it.id in $actor.inspected).name + ' is a werewolf.'"}, "chance": 0.5},
+        {"when": "$stage == day_discussion and $actor.role == seer and $any(player, $it.living and $it.id in $actor.wolves_found)", "do": "say", "with": {"text": "$text('I am the seer. ') + $pick(player, $it.living and $it.id in $actor.wolves_found).name + ' is a werewolf.'"}, "chance": 0.5},
         {"when": "$stage == day_discussion", "do": "done_talking"},
-        {"when": "$stage == day_vote and $actor.role == werewolf", "do": "exile_vote", "with": {"choice": "$choice($filter(player, $it.living and $it.team != wolves)).id"}},
-        {"when": "$stage == day_vote and $actor.role == seer and $any(player, $it.living and $it.role == werewolf and $it.id in $actor.inspected)", "do": "exile_vote", "with": {"choice": "$pick(player, $it.living and $it.role == werewolf and $it.id in $actor.inspected).id"}},
+        {"when": "$stage == day_vote and $actor.role == werewolf", "do": "exile_vote", "with": {"choice": "$choice($filter(player, $it.living and $known_role($actor, $it) != werewolf)).id"}},
+        {"when": "$stage == day_vote and $actor.role == seer and $any(player, $it.living and $it.id in $actor.wolves_found)", "do": "exile_vote", "with": {"choice": "$pick(player, $it.living and $it.id in $actor.wolves_found).id"}},
         {"when": "$stage == day_vote", "do": "exile_vote", "with": {"choice": "$choice($filter(player, $it.living and $it.id != $actor.id)).id"}}
       ]
     }

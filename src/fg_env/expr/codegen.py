@@ -125,16 +125,25 @@ def _inlined() -> Dict[Any, str]:
 class _Function:
     """One generated function while its body is being written."""
 
-    __slots__ = ("name", "lines", "temps", "reads_roots")
+    __slots__ = ("name", "lines", "temps", "reads_roots", "hidden")
 
     def __init__(self, name: str):
         self.name = name
         self.lines: List[str] = []
         self.temps = 0
         self.reads_roots = False
+        #: Property name constant → the local that says whether some agent keeps that property private.
+        self.hidden: Dict[str, str] = {}
+
+    def hides(self, key: str) -> str:
+        """The local, set once per call, that is true when property ``key`` needs a visibility check."""
+        return self.hidden.setdefault(key, f"_h{len(self.hidden)}")
 
     def source(self) -> str:
         head = [f"def {self.name}(scope):"] + (["    _V = scope.vars"] if self.reads_roots else [])
+        if self.hidden:
+            head.append("    _P = scope.world.private_names")
+            head += [f"    {flag} = {key} in _P" for key, flag in self.hidden.items()]
         return "\n".join(head + self.lines)
 
 
@@ -307,12 +316,13 @@ class Codegen:
             self._line(f"{value} = {base}.{_ENTITY_ATTRIBUTES[name]} if _type({base}) is _Entity "
                        f"else _attr({base}, {key}, {source})")
             return value
-        self._line(f"if _type({base}) is _Entity and {key} in {base}.properties:")
+        hidden = self._fn.hides(key)  # a private property is read through _attr, which checks who may see it
+        self._line(f"if _type({base}) is _Entity and {key} in {base}.properties and not {hidden}:")
         self._line(f"    {value} = {base}.properties[{key}]")
         self._line(f"elif _type({base}) is _PropsView and {key} in {base}._world.props:")
         self._line(f"    {value} = {base}._world.props[{key}]")
         self._line("else:")
-        self._line(f"    {value} = _attr({base}, {key}, {source})")
+        self._line(f"    {value} = _attr({base}, {key}, {source}, scope)")
         return value
 
     def _Subscript(self, node: ast.Subscript) -> str:
@@ -321,7 +331,7 @@ class Codegen:
         self._line(f"if _type({base}) is _list and _type({key}) is _int and -_len({base}) <= {key} < _len({base}):")
         self._line(f"    {value} = {base}[{key}]")
         self._line("else:")
-        self._line(f"    {value} = _index({base}, {key}, {self._source()})")
+        self._line(f"    {value} = _index({base}, {key}, {self._source()}, scope)")
         return value
 
     def _List(self, node: ast.List) -> str:

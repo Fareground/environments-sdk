@@ -8,7 +8,8 @@ until it closes:
   simultaneous stage and cleared at its end. First price pays its bid; second price pays the
   highest losing bid (or the reserve); uniform sells ``units`` (or what stock is left, if less) to
   the highest bids at one price (the lowest accepted bid, or with ``price_rule: highest_rejected``
-  the highest rejected one, or the reserve when no bid was rejected); double matches buyers' bids with sellers' asks at the midpoint of the marginal pair.
+  the highest rejected one, or the reserve when no bid was rejected); double matches buyers' bids with sellers' asks at one
+  market-clearing price: the middle of the range no matched order would refuse and no unmatched one would take.
 * ``english`` — open ascending: each bid beats the high bid by at least ``increment``; the lot
   closes when ``timeout`` rounds pass without a new bid. The winner pays its bid.
 * ``dutch`` — a descending clock starts at ``start_price`` and falls by ``decrement`` each round;
@@ -344,8 +345,10 @@ def close_sealed(world: Any, name: str) -> None:
     for entry in bids:
         if all(entry is not e for e, _ in allocation):
             _refund(world, name, cfg, entry)
+    by_reserve = len(bids) < 2 or reserve > bids[1]["price"]  # the reserve, not a losing bid, set a second price
     labels = {"first_price": "best score, pays its bid" if cfg.score else "pays its bid",
-              "second_price": "pays the second-highest bid", "uniform": f"uniform price ({cfg.price_rule.replace('_', ' ')})"}
+              "second_price": "pays the reserve" if by_reserve else "pays the second-highest bid",
+              "uniform": f"uniform price ({cfg.price_rule.replace('_', ' ')})"}
     _close(world, name, cfg, lot, winners, note=labels[cfg.format])
 
 
@@ -373,8 +376,10 @@ def _award_tender(world: Any, name: str, cfg: AuctionConfig, lot: Dict[str, Any]
     move(world, payer, Account(winner, cfg.currency), price, what="cash")
     move(world, source, Account(winner, f"{name}_units"), 1, what="units")
     _won(world, name, winner, 1)
+    capped = price == cap and not any(p <= cap for p in others)
     notes = {"first_price": "best score, paid its offer" if cfg.score else "lowest offer, paid its offer",
-             "second_price": "lowest offer, paid the second-lowest"}
+             "second_price": ("lowest offer, paid the reserve" if cap == _reserve(world, name, cfg) else
+                              "lowest offer, paid what the house had left") if capped else "lowest offer, paid the second-lowest"}
     _close(world, name, cfg, lot, [(winner.id, 1, price)], note=notes[cfg.format])
 
 
@@ -394,7 +399,11 @@ def _clear_double(world: Any, name: str, cfg: AuctionConfig, lot: Dict[str, Any]
         ask_left[id(a)] -= q
         bi += bid_left[id(b)] == 0
         ai += ask_left[id(a)] == 0
-    price = clean((marginal[0] + marginal[1]) / 2) if marginal else 0.0
+    price = 0.0
+    if marginal:  # the middle of the prices that clear the market: every matched order trades, no unmatched one would
+        low = max([marginal[1]] + ([bids[bi]["price"]] if bi < len(bids) else []))
+        high = min([marginal[0]] + ([asks[ai]["price"]] if ai < len(asks) else []))
+        price = clean((low + high) / 2)
     bought: Dict[str, int] = {}
     for b, a, q in trades:
         buyer = entity_of(world, b["bidder"], f"mechanisms.{name}", "a bidder")
@@ -729,7 +738,7 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
              "english": f"Open bids; beat the high bid by at least {fmt(cfg.increment, 4)}. The lot closes after "
                         f"{cfg.timeout} round(s) without a new bid; the winner pays its bid.",
              "dutch": "The clock price falls every round; the first bid at or above it takes the lot at the clock price.",
-             "double": "Sealed bids to buy and asks to sell, cleared together at one price between the marginal bid and ask.",
+             "double": "Sealed bids to buy and asks to sell, cleared together at one market-clearing price (the middle of the range that clears).",
              "uniform": f"Sealed bids for up to {cfg.units} units; the highest bids win and all pay one clearing price.",
              "combinatorial": f"Sealed bids on packages of {', '.join(cfg.items)}: bid on up to {cfg.packages} packages; you win "
                               "at most one of them and each item goes to one winner, chosen to raise the most over the reserves. "
@@ -747,7 +756,7 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
     if packaged:
         amount = {"package": {"type": "list", "items": {"type": "enum", "values": cfg.items}, "min_items": 1,
                               "max_items": len(cfg.items), "description": "The items you want together."}}
-    price: Dict[str, Any] = {"type": "number", "min": f"$auction({name}).min_bid",
+    price: Dict[str, Any] = {"type": "number", "min": f"$max(0.0001, $auction({name}).min_bid)",  # a price is positive
                              "max": f"$actor.{cfg.currency} + $actor.{name}_escrow" if packaged else f"$actor.{cfg.currency}",
                              "description": "Price for the whole package." if packaged else "Price per unit."}
     when = [{"expr": f"$auction({name}).open", "why": "No lot is open."},

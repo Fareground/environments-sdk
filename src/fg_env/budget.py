@@ -9,9 +9,9 @@ fallback costs nothing), ``seconds`` the wall-clock time spent inside ``run``.
 A budget is checked at the run's safe points — before every round, stage, pass and sequential turn —
 so, for coded participants, the run stops at the same point on every replay (``seconds`` is wall-clock
 time, so it is the one limit that is not deterministic). ``tokens`` is also checked each time a participant
-reports usage, counting the turns still in play: once it is reached, the reporting agent's turn ends there
-(calls it makes after that are refused), so a simultaneous stage of LLM agents cannot overshoot it by
-many model calls. Once a limit is reached, ``on_exhaust: "end"`` ends the run there (``ended_by:
+reports usage, counting the turns still in play: once it is reached, every turn in play ends there (calls
+made after that are refused), so a simultaneous stage of LLM agents overshoots it by at most the model
+calls already under way. Once a limit is reached, ``on_exhaust: "end"`` ends the run there (``ended_by:
 "budget"``, outputs computed as for any ended run) and ``"idle"`` keeps the world running while every
 agent's later turns are idle.
 ``result.budget`` reports the limits, what was used and which limit ran out; snapshots carry it.
@@ -27,6 +27,8 @@ from __future__ import annotations
 import math
 import time
 from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional
+
+from .host.hosts import count_host_tokens
 
 if TYPE_CHECKING:
     from .runtime import Env
@@ -125,6 +127,7 @@ class Budget:
             if self._mark is not None:
                 self.seconds += now - self._mark
             self._mark = now
+            count_host_tokens(env)
             used = self.used(env)
             self.exhausted = next((key for key in LIMITS if key in self.limits and used[key] >= self.limits[key]), None)
         return self.exhausted

@@ -11,18 +11,18 @@ gets a brief, an update and one typed tool per action it can take right now.
 **Faithful first, configurable second.** Implement every requirement and deliverable the brief states, exactly as
 stated: its counts and numbers, its rules and timing, who sees what, and every output under the name it gives. Then
 make values configurable: an input whose default *is* the brief's value, never a smaller stand-in. Keep every stated
-requirement while you repair check issues.
+requirement while repairing check issues.
 
 ## The loop: write → check → preview → run
 
 1. Write the contract; the example below is a complete one.
-2. `fg-env check game.json` (`fg_env.check`): static checks, then short plays with random agents and each policy.
-   Fix every error; each names its path, a fix and the guide part that explains it.
-3. `fg-env preview game.json <agent id>` (`env.preview(id)`): exactly what that agent reads. Each role should see
-   what the brief says it sees, and nothing more.
-4. `fg-env run game.json --seed 1` (`fg_env.run`): compare the outputs with what the brief implies, worked out by
+2. `fg-env check lake.json` (`fg_env.check`): static checks, then short plays with random agents and each policy.
+   Fix every error; each names its path, a fix and the guide part to read.
+3. `fg-env preview lake.json fisher_1` (`env.preview(id)`; a population's ids are `fisher_1`, `fisher_2` …):
+   exactly what that agent reads. Each role should see what the brief says, nothing more.
+4. `fg-env run lake.json --seed 1` (`fg_env.run`): compare the outputs with what the brief implies, worked out by
    hand for a small case. A clean check proves it runs, not that it is right. To look at state, read the run's summary
-   (it ends with metric values and the entities as the run left them) or a preview; never swap outputs for probes.
+   (metric values and the entities as the run left them) or a preview; never swap outputs for probes.
 
 ## Worked example
 
@@ -83,7 +83,8 @@ assert sum(result.outputs["catch_by_fisher"].values()) == 132
 Start events → each stage in order → end events → metrics → `end` conditions. A run ends when an `end` condition
 holds, an `end` effect runs, or the rounds run out.
 * A stage wakes agents (`who`, in `order`). `turns: sequential` — one at a time, actions apply at once.
-  `turns: simultaneous` — everyone chooses from the same picture, then choices commit together (sealed bids, votes).
+  `turns: simultaneous` — everyone chooses from the same picture (sealed bids, votes); choices then commit one
+  agent at a time (in `order`, else random), so resolve them jointly in `on_exit`.
 * A turn ends after `max_actions` actions (default 1), on `end_turn`, or after `max_calls` calls.
 * An action is atomic: if an effect `fail`s or a `transfer` lacks funds, all of it is undone and the agent is told why.
 

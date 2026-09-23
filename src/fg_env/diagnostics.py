@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 if TYPE_CHECKING:
     from .runtime import Env
 
-__all__ = ["diagnose", "MIN_CALLS", "REFUSED_SHARE", "MIN_ROUNDS"]
+__all__ = ["diagnose", "DEGRADING", "MIN_CALLS", "REFUSED_SHARE", "MIN_ROUNDS", "ALWAYS_FAULTED"]
 
 #: In a run with model participants (which report their usage), an action called this often and mostly refused is
 #: reported; random and coded agents choose blindly, so their refusals say nothing about the tools.
@@ -26,6 +26,11 @@ MIN_CALLS = 4
 REFUSED_SHARE = 0.5
 #: Rounds of evidence needed before a metric that never changes, or an agent type that never can act, is reported.
 MIN_ROUNDS = 2
+#: An action that failed this often as it applied, and never once took effect, is broken for every choice, not just some.
+ALWAYS_FAULTED = 2
+#: Findings that mean the run does not show what the environment is for: an action that can never happen, agents that
+#: never acted, turns lost to a failing provider. ``RunResult.degraded`` lists them.
+DEGRADING = frozenset({"action_always_faulted", "agents_never_acted", "turns_forfeited"})
 
 _RECORD_READ = re.compile(r"\$records\(\s*([A-Za-z_]\w*)")
 _WORLD_READ = re.compile(r"\$world\.([A-Za-z_]\w*)")
@@ -41,7 +46,7 @@ _RULE_SECTIONS = ("actions", "stages", "events", "triggers", "blocks", "end", "f
 def diagnose(env: "Env", outputs: Dict[str, Any]) -> List[Dict[str, str]]:
     """Every likely logic problem the run so far shows, as ``{code, path, message, fix}``."""
     rules = _Rules(env)
-    return [*_forfeits(env), *_arm_inputs(env), *_host_fallbacks(env), *_faults(env), *_actions(env), *_policy_rules(env),
+    return [*_forfeits(env), *_never_acted(env), *_arm_inputs(env), *_host_fallbacks(env), *_faults(env), *_actions(env), *_policy_rules(env),
             *_overwrites(env), *_idle_agents(env), *_stages(env, rules), *_stuck_measures(env, outputs, rules)]
 
 
@@ -54,6 +59,28 @@ def _forfeits(env: "Env") -> List[Dict[str, str]]:
                      f"retry ({', '.join(f'{agent} {count}' for agent, count in lost.items())}); those agents did "
                      "nothing in them, so this run does not show how they play",
                      "rerun when the provider is healthy, or give the participant more `retries`")]
+
+
+def _never_acted(env: "Env") -> List[Dict[str, str]]:
+    """Agents that tried — called a model, or tools that were invalid or refused — and none of it ever became an
+    action. (Refusals from a rule that failed are the contract's: `action_always_faulted` reports those.)"""
+    stats = env.stats
+    refused = stats.rejected_actions - stats.faulted_actions
+    if not env.finished or not stats.wakes or stats.actions or not (stats.llm_calls or stats.invalid_calls or refused):
+        return []
+    offered = env.diagnosis.agents.values()
+    if offered and not any(entry["able"] for entry in offered):
+        return []  # they never had an action to take: agents_never_able_to_act says why
+    tried = [f"{stats.llm_calls} model call(s)", f"{stats.invalid_calls} invalid tool call(s) (unknown tools or bad "
+             f"arguments)", f"{refused} refused by the rules"]
+    if stats.refusals:
+        tried.append(f"{stats.refusals} model refusal(s)")
+    return [_finding("agents_never_acted", "participants",
+                     f"no agent took an action in any of {stats.wakes} turn(s): {', '.join(tried)}; outputs and any "
+                     "winner come from the rules alone, so this run does not show how the agents play",
+                     "read what the agents were shown and did (load with exposures=True, then result.exposures): a "
+                     "model that only replies in text, calls tools that do not exist or is always refused needs "
+                     "clearer tools and brief")]
 
 
 def _arm_inputs(env: "Env") -> List[Dict[str, str]]:
@@ -112,6 +139,13 @@ def _faults(env: "Env") -> List[Dict[str, str]]:
 def _actions(env: "Env") -> List[Dict[str, str]]:
     out = []
     for name, entry in env.diagnosis.actions.items():
+        if entry["faulted"] >= ALWAYS_FAULTED and not entry["applied"]:
+            out.append(_finding("action_always_faulted", f"actions.{name}",
+                                f"never happened: all {entry['faulted']} attempt(s) were refused because a rule failed or "
+                                "an invariant broke as it applied, so the rule is broken for every choice agents made, "
+                                "not just some",
+                                "fix the rule the action_rule_failed or action_broke_invariant finding names; until then "
+                                "no agent can take this action"))
         if entry["unusable"]:
             out.append(_finding("action_offered_but_unusable", f"actions.{name}",
                                 f"was offered {entry['unusable']} time(s) when none of its choices could succeed; "
@@ -162,7 +196,13 @@ def _idle_agents(env: "Env") -> List[Dict[str, str]]:
 def _stages(env: "Env", rules: "_Rules") -> List[Dict[str, str]]:
     out = []
     for stage in env.contract.stage_list():
-        reached, ran, woke = env.diagnosis.stages.get(stage.name, [0, 0, 0])
+        reached, ran, woke, capped = env.diagnosis.stages.get(stage.name, [0, 0, 0, 0])
+        if capped and capped == ran and stage.until:
+            out.append(_finding("stage_until_never_held", f"stages.{stage.name}.until",
+                                f"never held: all {ran} time(s) the stage ran, it played every pass it allows and "
+                                f"stopped there with `{stage.until}` still false",
+                                "make an action or event set what `until` reads, or set `passes` to the number of passes "
+                                "the stage should always play"))
         if reached and not ran and stage.when:
             cause = rules.frozen(stage.when)
             if cause:

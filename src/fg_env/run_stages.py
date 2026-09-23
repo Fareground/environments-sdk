@@ -65,6 +65,9 @@ class RunStages:
                         break
                 except ExprError as exc:
                     raise RunError(str(exc), f"{path}.until") from None
+        else:
+            if stage.until is not None:
+                self.diagnosis.stage(stage.name, capped=1)  # every pass ran and `until` still did not hold
         self._atomic(stage.on_exit, {}, f"{path}.on_exit")
 
     def _stage_runs(self: "Env", stage: StageSpec) -> bool:  # type: ignore[misc]
@@ -128,8 +131,10 @@ class RunStages:
                 assert turn is not None
                 yield from self.driver.drive_steps([turn], resume=0)
             else:
-                if not actor.alive or self._ended():
+                if self._ended():
                     return
+                if not actor.alive:  # removed earlier this pass: everyone after it still takes their turn
+                    continue
                 reason = self._reason(actor, stage, pass_index)
                 if reason is None:
                     continue
@@ -162,8 +167,10 @@ class RunStages:
                 due.append((at, position, actor))
         due.sort(key=lambda item: (item[0], item[1]))
         for _, _, actor in due:
-            if not actor.alive or self._ended():
+            if self._ended():
                 return
+            if not actor.alive:
+                continue
             reason = self._reason(actor, stage, pass_index)
             if reason is None:
                 world.set_wake_at(actor.id, advance_time(now, self._interval(stage, actor), f"stages.{stage.name}.interval"))
@@ -355,7 +362,7 @@ class RunStages:
         whole turn's settling. A rule that fails or an invariant it breaks refuses the choice alone."""
         actor, world = turn.actor, self.world
         with self._lock:
-            applied, fault = guarded(self, lambda: self._apply_intent(turn, name, args, deferred))
+            applied, fault = guarded(self, lambda: self._apply_intent(turn, name, args, deferred), action=name)
             if applied is None:
                 assert fault is not None
                 world.emit("outcome", f"Your {name.replace('_', ' ')} did not happen: {fault}.",
@@ -394,5 +401,6 @@ class RunStages:
             return 0
         if not deferred:
             self._after_commit(f"actions.{name}")
+        self.diagnosis.committed(name)
         self._tally(actor.id, Stats(actions=1))
         return 1

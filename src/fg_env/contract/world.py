@@ -168,7 +168,7 @@ class PropSpec(_Model):
     min: Optional[float] = Field(None, description="Lowest allowed value: a write below it is refused, never clamped (saturate with $clamp).")
     max: Optional[float] = Field(None, description="Highest allowed value: a write above it is refused, never clamped (saturate with $clamp).")
     values: Optional[List[Any]] = None
-    private: bool = Field(False, description="Hidden from other agents' inspect tool; a view listing it for every entity, or another agent's in an entity choice's `where`, is a check error.")
+    private: bool = Field(False, description="Hidden from other agents' inspect tool. An agent's private property is shown only to that agent: reading another agent's in what one agent is shown or offered (views, tool choices and bounds, outcome text, policies) is an error at run time.")
     description: str = ""
     unit: str = ""
 

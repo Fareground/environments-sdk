@@ -1,21 +1,14 @@
 {
   "fg_env": "1",
   "name": "Multi-Issue Negotiation Engine",
-  "description": "A reusable bilateral negotiation over several configurable issues. Each party has private priorities and a private walk-away value, can propose or counter complete terms, and may accept, reject, withdraw, or leave without agreement before the deadline.",
+  "description": "A reusable bilateral negotiation over several configurable issues. Each party has private priorities and a private walk-away value, can propose or counter complete terms, and may accept, reject, withdraw, or leave without agreement before the deadline. The coded baseline opens at its best terms, concedes each round toward the other side's opening offer (the whole way by the deadline, never below its walk-away value) and accepts an offer worth at least the counter it would make.",
   "inputs": {
-    "rounds": {
-      "type": "int",
-      "default": 6,
-      "min": 2,
-      "max": 30,
-      "description": "Maximum negotiation rounds."
-    },
     "deadline": {
       "type": "int",
       "default": 5,
       "min": 1,
       "max": 30,
-      "description": "Last round in which an offer may be made or accepted."
+      "description": "Last round in which an offer may be made or accepted: the negotiation runs this many rounds."
     },
     "participants": {
       "type": "table",
@@ -65,13 +58,13 @@
     }
   },
   "clock": {
-    "rounds": "$inputs.rounds",
+    "rounds": "$inputs.deadline",
     "unit": "round"
   },
   "types": {
     "party": {
       "agent": true,
-      "policy": "cooperative",
+      "policy": "concession",
       "description": "A human party to the negotiation.",
       "props": {
         "role": {
@@ -174,25 +167,54 @@
     }
   },
   "policies": {
-    "cooperative": {
+    "concession": {
       "repeat": true,
       "rules": [
         {
-          "when": "$any(agreement_offer, $it.status == open and $actor.id in $it.recipients and $agreement_value($actor, $it.terms) >= $actor.agreement_reservation)",
+          "when": "$any(agreement_offer, $it.status == open and $actor.id in $it.recipients and $worth_taking($actor, $it))",
           "do": "agreement_accept",
+          "with": {
+            "offer": "$pick(agreement_offer, $it.status == open and $actor.id in $it.recipients and $worth_taking($actor, $it))"
+          }
+        },
+        {
+          "when": "$any(agreement_offer, $it.status == open and $actor.id in $it.recipients) and $agreement_value($actor, $counter_terms($actor)) >= $actor.agreement_reservation",
+          "do": "agreement_counter",
+          "with": {
+            "offer": "$pick(agreement_offer, $it.status == open and $actor.id in $it.recipients)",
+            "amount": "$counter_terms($actor).amount",
+            "scope": "$counter_terms($actor).scope",
+            "timing": "$counter_terms($actor).timing",
+            "note": "Moving toward your position."
+          }
+        },
+        {
+          "when": "$any(agreement_offer, $it.status == open and $actor.id in $it.recipients) and $any(agreement_offer, $it.sender == $actor.id)",
+          "do": "agreement_counter",
+          "with": {
+            "offer": "$pick(agreement_offer, $it.status == open and $actor.id in $it.recipients)",
+            "amount": "$last($filter(agreement_offer, $it.sender == $actor.id)).terms.amount",
+            "scope": "$last($filter(agreement_offer, $it.sender == $actor.id)).terms.scope",
+            "timing": "$last($filter(agreement_offer, $it.sender == $actor.id)).terms.timing",
+            "note": "This is as far as I can go."
+          }
+        },
+        {
+          "when": "$any(agreement_offer, $it.status == open and $actor.id in $it.recipients)",
+          "do": "agreement_reject",
           "with": {
             "offer": "$pick(agreement_offer, $it.status == open and $actor.id in $it.recipients)"
           }
         },
         {
-          "when": "$actor.initiator and $count(agreement_offer, $it.status == open) == 0 and not $world.agreement_closed",
+          "when": "not $any(agreement_offer, $it.status == open and ($it.sender == $actor.id or $actor.id in $it.recipients)) and ($actor.initiator or $any(agreement_offer, $it.sender == $actor.counterparty)) and $agreement_value($actor, $counter_terms($actor)) >= $actor.agreement_reservation",
           "do": "agreement_propose",
           "with": {
             "to": "$actor.counterparty",
-            "amount": 50,
-            "scope": 70,
-            "timing": 6,
-            "note": "A balanced opening package."
+            "amount": "$counter_terms($actor).amount",
+            "scope": "$counter_terms($actor).scope",
+            "timing": "$counter_terms($actor).timing",
+            "note": "My proposal."
           }
         }
       ]
@@ -253,6 +275,67 @@
       "when": "$world.agreement_closed",
       "name": "agreement",
       "say": "The parties signed an agreement."
+    }
+  ],
+  "defs": {
+    "best_terms": {
+      "args": [
+        "party"
+      ],
+      "expr": "{amount: 100 if $party.amount_weight > 0 else 0, scope: 100 if $party.scope_weight > 0 else 0, timing: 12 if $party.timing_weight > 0 else 1}",
+      "description": "The terms a party likes best: each issue at the end of its range the party's priority favours (rename and rebound with the issues)."
+    },
+    "target": {
+      "args": [
+        "party"
+      ],
+      "expr": "$first($filter(agreement_offer, $it.sender == $party.counterparty)).terms if $any(agreement_offer, $it.sender == $party.counterparty) else $best_terms($party)",
+      "description": "Where the coded party concedes toward: the other side's opening offer (its own best terms until one arrives)."
+    },
+    "room": {
+      "args": [
+        "party"
+      ],
+      "expr": "1 if $agreement_value($party, $target($party)) >= $party.agreement_reservation else (0 if $agreement_value($party, $best_terms($party)) <= $party.agreement_reservation else ($agreement_value($party, $best_terms($party)) - $party.agreement_reservation) / ($agreement_value($party, $best_terms($party)) - $agreement_value($party, $target($party))))",
+      "description": "How far toward the target the party can move before its terms fall below its walk-away value."
+    },
+    "concession": {
+      "args": [
+        "party"
+      ],
+      "expr": "$min($room($party), $clamp($round / $inputs.deadline + $normal_for([$party, $round], 0, 0.1), 0, 1))",
+      "description": "How far the coded party has moved from its best terms toward the target: linear in time (the whole way at the deadline) with a little noise fixed per party and round, never past its walk-away value."
+    },
+    "toward": {
+      "args": [
+        "from",
+        "to",
+        "share",
+        "unit"
+      ],
+      "expr": "$round($from + $sign($to - $from) * $floor($abs($share * ($to - $from)) / $unit) * $unit, 6)",
+      "description": "Move part of the way from one value to another, in whole units and never past the share (so rounding never costs the party that moves)."
+    },
+    "counter_terms": {
+      "args": [
+        "party"
+      ],
+      "expr": "{amount: $toward($best_terms($party).amount, $target($party).amount, $concession($party), 0.1), scope: $toward($best_terms($party).scope, $target($party).scope, $concession($party), 0.1), timing: $toward($best_terms($party).timing, $target($party).timing, $concession($party), 1)}",
+      "description": "The complete terms the coded party would offer now."
+    },
+    "worth_taking": {
+      "args": [
+        "party",
+        "offer"
+      ],
+      "expr": "$agreement_value($party, $offer.terms) >= $party.agreement_reservation and ($agreement_value($party, $offer.terms) >= $agreement_value($party, $counter_terms($party)) or $round >= $inputs.deadline)",
+      "description": "An offer clears the walk-away value and is worth at least the counter the party would make now (at the deadline, anything above walk-away)."
+    }
+  },
+  "invariants": [
+    {
+      "expr": "$count(party) == 2",
+      "why": "The negotiation is bilateral: give inputs.participants exactly two parties, each naming the other as counterparty."
     }
   ]
 }

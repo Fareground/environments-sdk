@@ -12,6 +12,7 @@ Examples are editable contracts. Use them to learn a pattern, then test the assu
 
 ## Run from a checkout
 
+<!-- not run: clones and installs the repository -->
 ```bash
 git clone https://github.com/Fareground/environments-sdk.git
 cd environments-sdk

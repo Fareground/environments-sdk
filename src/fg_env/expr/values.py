@@ -7,20 +7,23 @@ import operator
 from typing import Any, Callable, Dict, Mapping, Optional
 
 from ..entity import Entity as _Entity
-from .base import MAX_INT_BITS, MAX_LIST_LEN, MAX_TEXT_LEN, ExprError, Untrusted, charge
+from .base import MAX_INT_BITS, MAX_LIST_LEN, MAX_TEXT_LEN, ExprError, PrivateRead, Untrusted, charge
 
 __all__ = ["attr"]
 
 _ENTITY_FIELDS = frozenset({"id", "name", "type", "alive", "at"})
 
 
-def attr(obj: Any, name: str, source: Optional[str] = None) -> Any:
-    """Read ``obj.name`` under expression semantics (entities, dicts, records)."""
+def attr(obj: Any, name: str, source: Optional[str] = None, scope: Any = None) -> Any:
+    """Read ``obj.name`` under expression semantics (entities, dicts, records). With the ``scope`` it is read in, an
+    agent's private property is refused while ``$viewer`` is bound to anyone but that agent."""
     if name.startswith("_"):
         raise ExprError(f"private field '{name}' cannot be read", source)
     if type(obj) is _Entity:  # the common case, first
         own = obj.properties
         if name in own and name not in _ENTITY_FIELDS:
+            if scope is not None and name in scope.world.private_names:
+                _check_visible(obj, name, scope, source)
             return own[name]
     if obj is None:
         raise ExprError(f"cannot read '.{name}' of null", source)
@@ -53,10 +56,25 @@ def attr(obj: Any, name: str, source: Optional[str] = None) -> Any:
         raise ExprError(f"no field '{name}' (fields: {', '.join(sorted(str(k) for k in obj))})", source)
     if isinstance(obj, (list, tuple)) and name in ("count", "size", "length"):
         return len(obj)
+    if isinstance(obj, (list, tuple)):  # never the items themselves: they may be entities with private props
+        items = f"{len(obj)} item" + ("" if len(obj) == 1 else "s")
+        raise ExprError(f"cannot read '.{name}' of a list ({items}); pick one first, e.g. $first(list).{name}", source)
     raise ExprError(f"cannot read '.{name}' of {type(obj).__name__} {obj!r}", source)
 
 
-def _index(container: Any, index: Any, source: str) -> Any:
+def _check_visible(entity: _Entity, name: str, scope: Any, source: Optional[str]) -> None:
+    """Refuse (:class:`PrivateRead`) reading ``entity``'s private ``name`` in what one agent is shown or offered.
+    Game logic binds no ``$viewer`` and reads the true state; an agent always sees its own properties."""
+    viewer = scope.vars.get("viewer")
+    if viewer is None or _entity_id(viewer) == entity.id or not scope.world.is_private(entity.entity_type, name):
+        return
+    raise PrivateRead(
+        f"{entity.name}'s {name} is private, and this is what {getattr(viewer, 'name', viewer)} is shown or offered: "
+        "read only the agent's own (guard with `$it.id == $actor.id`), or work out what it may learn in game logic "
+        "(an action's do, an event) and show that", source)
+
+
+def _index(container: Any, index: Any, source: str, scope: Any = None) -> Any:
     """``container[index]``: a list element, or a field of a map or entity."""
     if isinstance(container, (list, tuple)):
         if isinstance(index, bool) or not isinstance(index, int):
@@ -65,7 +83,7 @@ def _index(container: Any, index: Any, source: str) -> Any:
             raise ExprError(f"index {index} is out of range (length {len(container)})", source)
         return container[index]
     if isinstance(container, Mapping) or hasattr(container, "entity_type"):
-        return attr(container, str(index), source)
+        return attr(container, str(index), source, scope)
     raise ExprError(f"cannot index {_describe(container)}", source)
 
 

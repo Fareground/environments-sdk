@@ -52,10 +52,11 @@
   },
   "stages": [{"name": "respond", "turns": "simultaneous", "must_act": true}],
   "views": {"private_context": {"for": "person", "show": "Segment: {segment}. Private inclination: {inclination|2}."}},
+  "defs": {"felt_confidence": {"args": ["person"], "expr": "$round($clamp($abs($person.leaning), 0, 1), 2)", "description": "How sure the coded baseline says it is: the strength of today's leaning, so the undecided report little confidence."}},
   "policies": {"baseline": {"rules": [
-    {"when": "$actor.leaning > 0.25", "do": "respond", "with": {"choice": "support", "confidence": "$actor.default_confidence", "reason": "The change fits my priorities."}},
-    {"when": "$actor.leaning < -0.25", "do": "respond", "with": {"choice": "oppose", "confidence": "$actor.default_confidence", "reason": "The change conflicts with my priorities."}},
-    {"do": "respond", "with": {"choice": "undecided", "confidence": "$actor.default_confidence", "reason": "I would need more information."}}
+    {"when": "$actor.leaning > 0.25", "do": "respond", "with": {"choice": "support", "confidence": "$felt_confidence($actor)", "reason": "The change fits my priorities."}},
+    {"when": "$actor.leaning < -0.25", "do": "respond", "with": {"choice": "oppose", "confidence": "$felt_confidence($actor)", "reason": "The change conflicts with my priorities."}},
+    {"do": "respond", "with": {"choice": "undecided", "confidence": "$felt_confidence($actor)", "reason": "I would need more information."}}
   ]}},
   "metrics": {
     "support_share": {"expr": "$count(person, $it.response == support) / $max(1, $count(person))"},
@@ -67,6 +68,6 @@
     "oppose": {"type": "int", "expr": "$count(person, $it.response == oppose)"},
     "undecided": {"type": "int", "expr": "$count(person, $it.response == undecided)"},
     "support_share": {"type": "number", "expr": "$metrics.support_share"},
-    "average_confidence": {"type": "number", "expr": "$avg(person, $it.reported_confidence)"}
+    "average_confidence": {"type": "number", "expr": "$avg(person, $it.reported_confidence)", "description": "Mean confidence people reported (the coded baseline reports the strength of its leaning)."}
   }
 }

@@ -20,7 +20,7 @@ from .contract import ActionSpec, Contract, ParamSpec, RecordSpec, StageSpec
 from .effects import EffectRunner
 from .errors import RunError
 from .probability import is_probability
-from .expr import EVAL_BUDGET, ExprError, Scope, compile_expr, is_expr, shared_budget, truthy
+from .expr import EVAL_BUDGET, Expr, ExprError, PrivateRead, Scope, compile_expr, is_expr, shared_budget, truthy
 from .template import compile_template, format_value
 from .world import Abort, SdkWorld, _plain
 
@@ -79,13 +79,18 @@ class ActionBook(ActionSchemas, ActionValidation):
 
     # -- legality -------------------------------------------------------------
 
-    def blocked(self, actor: Entity, name: str, used_turn: Dict[str, int], used_round: Dict[str, int]) -> Optional[str]:
-        """Why ``name`` is not legal for ``actor`` right now, or None when it is. A turn asks this several times in
-        the same state (its tools, a coded policy's rule, the call itself), so the answer is remembered."""
-        key = ("blocked", actor.id, name, used_turn.get(name, 0), used_round.get(name, 0))
-        return self.world.remembered(key, lambda: self._blocked(actor, name, used_turn, used_round))
+    def blocked(self, actor: Entity, name: str, used_turn: Dict[str, int], used_round: Dict[str, int],
+                offered: bool = False) -> Optional[str]:
+        """Why ``name`` is not legal for ``actor`` right now, or None when it is. ``offered``: whether to offer it as
+        a tool, where a requirement that reads another agent's private property does not count — the tool is listed
+        and a call is refused if the requirement fails, so the list itself reveals nothing hidden. A turn asks this
+        several times in the same state (its tools, a coded policy's rule, the call itself), so the answer is
+        remembered."""
+        key = ("blocked", actor.id, name, used_turn.get(name, 0), used_round.get(name, 0), offered)
+        return self.world.remembered(key, lambda: self._blocked(actor, name, used_turn, used_round, offered))
 
-    def _blocked(self, actor: Entity, name: str, used_turn: Dict[str, int], used_round: Dict[str, int]) -> Optional[str]:
+    def _blocked(self, actor: Entity, name: str, used_turn: Dict[str, int], used_round: Dict[str, int],
+                 offered: bool) -> Optional[str]:
         spec = self.contract.actions[name]
         if not actor.alive:
             return "you are no longer active"
@@ -93,7 +98,7 @@ class ActionBook(ActionSchemas, ActionValidation):
             return f"{name} can be used {spec.per_turn} time(s) per turn"
         if spec.per_round is not None and used_round.get(name, 0) >= spec.per_round:
             return f"{name} can be used {spec.per_round} time(s) per round"
-        refused = self._unmet(actor, name, None)
+        refused = self._unmet(actor, name, None, offered)
         if refused is not None:
             return refused
         for pname, param in spec.params.items():
@@ -109,23 +114,42 @@ class ActionBook(ActionSchemas, ActionValidation):
                 return f"there is no value you can choose for {pname} right now"
         return None
 
-    def _unmet(self, actor: Entity, name: str, params: Optional[Dict[str, Any]]) -> Optional[str]:
+    def _unmet(self, actor: Entity, name: str, params: Optional[Dict[str, Any]], offered: bool = False) -> Optional[str]:
         """The `why` of the first requirement that does not hold: those over $actor alone (``params`` None), or
-        those that read $params."""
+        those that read $params. ``offered``: leave out those that read another agent's private property."""
         scope: Optional[Scope] = None
         for index, condition in enumerate(self.contract.actions[name].when):
             compiled = compile_expr(condition.expr)
             if ("params" in compiled.roots) is not (params is not None):
                 continue
+            if offered and self._reads_hidden(actor, compiled):
+                continue
             if scope is None:  # built for the first requirement evaluated
                 scope = self.world.scope(actor=actor) if params is None else self.world.scope(actor=actor, params=params)
+            path = f"actions.{name}.when[{index}]"
             try:
-                ok = truthy(compiled(scope))
+                if truthy(compiled(scope)):
+                    continue
             except ExprError as exc:
-                raise RunError(str(exc), f"actions.{name}.when[{index}]") from None
-            if not ok:
-                return (condition.why or "its requirements are not met").rstrip(". ")
+                raise RunError(str(exc), path) from None
+            try:  # the why is a template, like a `fail` text
+                why = compile_template(condition.why, None).render(scope) if condition.why else ""
+            except ExprError as exc:
+                raise RunError(str(exc), f"{path}.why") from None
+            return (why or "its requirements are not met").rstrip(". ")
         return None
+
+    def _reads_hidden(self, actor: Entity, compiled: Expr) -> bool:
+        """Whether a requirement, read as ``actor`` is shown things, reads another agent's private property."""
+        if not self.world.private_names:
+            return False
+        try:
+            compiled(self.world.scope(actor=actor, viewer=actor))
+        except PrivateRead:
+            return True
+        except ExprError:
+            pass  # evaluated in the true state next, where it is reported
+        return False
 
     def _empty_range(self, actor: Entity, param: ParamSpec) -> Optional[str]:
         """The bounds, when no value lies between them right now (min above max)."""

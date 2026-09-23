@@ -286,3 +286,13 @@ def test_the_social_follow_target_lists_the_accounts_and_the_brief_says_the_fact
     fg_env.run(_example("social_network.json"), {"u1": lambda wake: briefs.append(wake.brief)}, seed=1,
                inputs={"accounts": 150}, rounds=1)
     assert "fact desk" in briefs[0] and "cannot be followed" in briefs[0]
+
+
+def test_an_enum_schema_names_the_type_its_values_share():
+    """Some providers refuse an enum without a `type`: goofspiel's cards are integers."""
+    card = _first_tools(_example("games/goofspiel.json"), "a")["tools"]["bid"].input_schema["properties"]["card"]
+    assert card["type"] == "integer" and all(isinstance(v, int) for v in card["enum"])
+    mixed = {"name": "Mixed", "clock": {"rounds": 1}, "types": {"p": {"agent": True}}, "entities": {"a": {"type": "p"}},
+             "actions": {"pick": {"by": "p", "params": {"v": {"type": "enum", "values": [1, 2.5]}, "w": {"type": "enum", "values": [1, "x"]}}}}}
+    schema = _first_tools(mixed, "a")["tools"]["pick"].input_schema["properties"]
+    assert schema["v"]["type"] == "number" and "type" not in schema["w"]

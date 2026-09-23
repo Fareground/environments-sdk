@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from ..api import default_data_dir, load, parse
 from ..contract import Contract
+from ..errors import ContractError
 from ..runtime import Env
 from ..tournament.scoring import SeatScorer
 
@@ -137,6 +138,8 @@ def _scenario(entry: Any, defaults: Mapping[str, Any], focal: Any, folder: Optio
 def _check_participant(probe: Env, seat: str, role: str, player: Any) -> None:
     try:
         probe.driver.bind({seat: player})
+    except ContractError as exc:
+        raise ValueError(f"{role}: " + "; ".join(f"{i.message} → {i.fix}" for i in exc.issues)) from None
     except (TypeError, ValueError) as exc:
         raise ValueError(f"{role}: {exc}") from None
 

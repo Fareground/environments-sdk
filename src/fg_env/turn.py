@@ -211,15 +211,15 @@ class Turn:
         env = self.env
         names = stage_actions(env.contract, self.stage, self.actor.entity_type)
         used_round = env._used_round.get(self.actor.id, {})
-        return [n for n in names if env.actions.blocked(self.actor, n, self.used, used_round) is None]
+        return [n for n in names if env.actions.blocked(self.actor, n, self.used, used_round, offered=True) is None]
 
     def _allows(self, name: str) -> bool:
-        """Whether action ``name`` is legal now: :meth:`_legal` for one action."""
+        """Whether action ``name`` is offered now: :meth:`_legal` for one action."""
         if self.actions_left <= 0:
             return False
         env = self.env
         return name in stage_actions(env.contract, self.stage, self.actor.entity_type) and \
-            env.actions.blocked(self.actor, name, self.used, env._used_round.get(self.actor.id, {})) is None
+            env.actions.blocked(self.actor, name, self.used, env._used_round.get(self.actor.id, {}), offered=True) is None
 
     def tools(self) -> List[ToolSpec]:
         if self.done:
@@ -335,7 +335,7 @@ class Turn:
         if self.actions_left <= 0:
             self.stats.invalid_calls += 1
             return self._after(ToolResult(False, "You have no actions left this turn; call end_turn.", data=_INVALID))
-        acted, fault = guarded(env, lambda: self._act(name, spec, args))
+        acted, fault = guarded(env, lambda: self._act(name, spec, args), action=name)
         if acted is None:
             assert fault is not None
             self.stats.rejected_actions += 1

@@ -36,10 +36,13 @@
       "agent": true,
       "policy": "frequency",
       "description": "A duellist.",
+      "on_create": ["$it.board = $board_of($it)"],
       "props": {
         "secret": {"type": "text", "default": "$choice($inputs.words)", "private": true,
                    "description": "The word your rival must uncover this game."},
         "guessed": {"type": "list", "default": [], "description": "Letters guessed this game."},
+        "board": {"type": "text", "default": "", "private": true,
+                  "description": "Your rival's word as you see it: unguessed letters hidden (kept by game logic)."},
         "strikes": {"type": "int", "default": 0},
         "solved": {"type": "bool", "default": false},
         "wins": {"type": "int", "default": 0},
@@ -58,7 +61,7 @@
                  "description": "A player's board: their rival's word with unguessed letters hidden."},
     "playing": {"args": ["p"], "expr": "not $p.solved and $p.strikes < $inputs.strikes",
                 "description": "Still trying to uncover the word this game."},
-    "candidates": {"args": ["p"], "expr": "$filter($inputs.words, $mask($it, $p.guessed) == $mask($rival_of($p).secret, $p.guessed))",
+    "candidates": {"args": ["p"], "expr": "$filter($inputs.words, $join($chars($mask($it, $p.guessed)), ' ') == $p.board)",
                    "description": "Words that fit a player's board and misses."},
     "best_letter": {"args": ["p"],
                     "expr": "$top($filter($items($tally($flatten($map($candidates($p), $unique($chars($it)))))), not ($it[0] in $p.guessed)), $it[1], 1)[0][0]",
@@ -81,9 +84,10 @@
         "$actor.guessed = $sort($actor.guessed + [$l])",
         "$actor.letters_guessed += 1",
         {"if": "$hits == 0", "then": ["$actor.strikes += 1"]},
-        {"if": "not $contains($mask($rival.secret, $actor.guessed), '_')", "then": ["$actor.solved = true"]}
+        {"if": "not $contains($mask($rival.secret, $actor.guessed), '_')", "then": ["$actor.solved = true"]},
+        "$actor.board = $board_of($actor)"
       ],
-      "outcome": "{$upper($l)}: {$text($hits) + ' in the word' if $hits > 0 else 'not in the word, a strike'}. Board: {$board_of($actor)} (strikes {$actor.strikes} of {$inputs.strikes})",
+      "outcome": "{$upper($l)}: {$text($hits) + ' in the word' if $hits > 0 else 'not in the word, a strike'}. Board: {$actor.board} (strikes {$actor.strikes} of {$inputs.strikes})",
       "private": true
     },
     "solve": {
@@ -101,9 +105,10 @@
         {"if": "$a == $lower($rival.secret)",
          "then": ["$actor.solved = true", "$actor.guessed = $sort($union($actor.guessed, $chars($a)))"],
          "else": ["$actor.strikes = $min($inputs.strikes, $actor.strikes + $inputs.solve_penalty)"]},
-        "$verdict = 'right' if $actor.solved else ('wrong, but close' if $similar($a, $lower($rival.secret)) >= 0.7 else 'wrong')"
+        "$verdict = 'right' if $actor.solved else ('wrong, but close' if $similar($a, $lower($rival.secret)) >= 0.7 else 'wrong')",
+        "$actor.board = $board_of($actor)"
       ],
-      "outcome": "{$upper($a)} is {$verdict}. Board: {$board_of($actor)} (strikes {$actor.strikes} of {$inputs.strikes})",
+      "outcome": "{$upper($a)} is {$verdict}. Board: {$actor.board} (strikes {$actor.strikes} of {$inputs.strikes})",
       "private": true
     }
   },
@@ -115,7 +120,7 @@
       "max_actions": 1,
       "max_calls": 6,
       "must_act": true,
-      "brief": "Game {$world.game}. Your board: {$board_of($actor)}. Strikes {$actor.strikes} of {$inputs.strikes}. Guess a letter or solve."
+      "brief": "Game {$world.game}. Your board: {$actor.board}. Strikes {$actor.strikes} of {$inputs.strikes}. Guess a letter or solve."
     },
     {
       "name": "settle",
@@ -144,7 +149,8 @@
            "$world.game += 1",
            "$world.turns = 0",
            {"each": "player",
-            "do": ["$it.secret = $choice($inputs.words)", "$it.guessed = []", "$it.strikes = 0", "$it.solved = false"]}
+            "do": ["$it.secret = $choice($inputs.words)", "$it.guessed = []", "$it.strikes = 0", "$it.solved = false"]},
+           {"each": "player", "do": ["$it.board = $board_of($it)"]}
          ]}
       ]
     }
@@ -152,7 +158,7 @@
   "views": {
     "board": {
       "for": "player",
-      "show": "Your board: {$board_of($actor)}   Letters tried: {$join($map($actor.guessed, $upper($it)), ' ') or 'none'}   Strikes: {$actor.strikes} of {$inputs.strikes}"
+      "show": "Your board: {$actor.board}   Letters tried: {$join($map($actor.guessed, $upper($it)), ' ') or 'none'}   Strikes: {$actor.strikes} of {$inputs.strikes}"
     },
     "rival": {
       "for": "player",

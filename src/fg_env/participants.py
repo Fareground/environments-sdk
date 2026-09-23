@@ -13,10 +13,11 @@ import os
 import random
 import threading
 import time
+from difflib import get_close_matches
 from typing import TYPE_CHECKING, Any, Callable, Collection, Dict, List, Mapping, Optional, Union
 
 from .assets.multimodal import ANTHROPIC_MEDIA, OPENAI_MEDIA, anthropic_parts, media_set, openai_parts
-from .errors import RunError
+from .errors import ContractError, Issue, RunError
 from .probability import is_probability
 from .expr import ExprError, compile_expr, resolve, truthy
 from .seeds import LazyStream
@@ -223,14 +224,14 @@ class PolicyAgent:
                     self._probe(turn, index)
                 wake.end()
                 return "passed"
+            with turn.env._lock:  # legality without building tool schemas: coded crowds never read them
+                legal = not wake.done and turn._allows(rule.do)
+            if not legal:  # before `with`, whose arguments may only exist while the action is legal
+                return "skipped"
             args = resolve(rule.with_, scope)
         except ExprError as exc:
             raise RunError(str(exc), path) from None
         args = {k: _as_ids(v) for k, v in args.items()}
-        with turn.env._lock:  # legality without building tool schemas: coded crowds never read them
-            legal = not wake.done and turn._allows(rule.do)
-        if not legal:
-            return "skipped"
         with turn.env._lock:
             _, problem = turn.env.actions.validate(turn.actor, rule.do, args)
         if problem is None:
@@ -279,7 +280,8 @@ def _as_ids(value: Any) -> Any:
     return value.id if hasattr(value, "entity_type") else value
 
 
-def resolve_participant(value: Any, contract: "Contract", seed: int) -> Participant:
+def resolve_participant(value: Any, contract: "Contract", seed: int, path: str = "participants") -> Participant:
+    """The participant ``value`` names; an unknown name raises :class:`~fg_env.ContractError` at ``path``."""
     if callable(value):
         return value
     if isinstance(value, str):
@@ -298,12 +300,13 @@ def resolve_participant(value: Any, contract: "Contract", seed: int) -> Particip
         algorithm = algorithm_participant(value, contract, seed)
         if algorithm is not None:
             return algorithm
-    raise ValueError(
-        f"unknown participant {value!r}: use a callable, 'random', 'idle', 'policy:<name>', 'anthropic:<model>', "
-        "'openai:<model>', or a game algorithm: "
-        f"'mcts:<simulations>', 'ismcts:<simulations>', 'minimax[:<depth>]', 'cfr:<policy.json>' or "
-        f"'cfr:<iterations>' (policies: {', '.join(contract.policies) or 'none'})"
-    )
+    named = ["random", "idle", *(f"policy:{name}" for name in contract.policies)]
+    hint = get_close_matches(str(value), named, n=1)
+    raise ContractError([Issue(path, f"unknown participant {value!r}", (f"did you mean '{hint[0]}'? " if hint else "")
+                               + "use a callable, 'random', 'idle', 'policy:<name>', 'anthropic:<model>', 'openai:<model>', "
+                               "or a game algorithm: 'mcts:<simulations>', 'ismcts:<simulations>', 'minimax[:<depth>]', "
+                               f"'cfr:<policy.json>' or 'cfr:<iterations>' (policies: {', '.join(contract.policies) or 'none'})")],
+                        title="participants are invalid")
 
 
 #: ``<provider>:<model>`` participants: the official client's class, and the variable holding its API key.

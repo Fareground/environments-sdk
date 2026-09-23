@@ -1,7 +1,7 @@
 """What an expression reads: the :class:`World` it queries and the :class:`Scope` of named roots it runs in."""
 from __future__ import annotations
 
-from typing import Any, List, Mapping, Optional, Sequence
+from typing import Any, FrozenSet, List, Mapping, Optional, Sequence
 
 from .base import ExprError, _held
 
@@ -16,6 +16,8 @@ class World:
     """
 
     rng: Any = None
+    #: Every property name some type declares private: reading any other name needs no visibility check.
+    private_names: FrozenSet[str] = frozenset()
 
     def entities_of(self, type_name: str) -> List[Any]:
         raise ExprError(f"no entities of type '{type_name}' exist in this context")
@@ -26,6 +28,10 @@ class World:
 
     def entity(self, entity_id: str) -> Any:
         return None
+
+    def is_private(self, type_name: str, prop: str) -> bool:
+        """Whether entities of ``type_name`` keep ``prop`` private: only the entity itself may be shown it."""
+        return False
 
     def records(self, name: str) -> List[Any]:
         raise ExprError(f"no record '{name}' exists in this context")

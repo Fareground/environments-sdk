@@ -65,7 +65,9 @@ def test_an_llm_participant_makes_no_more_model_calls_once_the_token_budget_is_s
     client = FakeAnthropic([[("look", {"view": "board"})]] * 20)
     town = {**TOWN, "stages": [{"name": "talk", "turns": "simultaneous"}]}
     result = fg_env.run(town, participants.anthropic(client, "m"), seed=1, budget={"tokens": 200})
-    assert result.ended_by == "budget" and len(client.requests) == 3
+    # The reply that spends it ends both turns. The two turns run in parallel, so one may already have sent its next
+    # request before the other's reply spent the budget: at most one call per agent is in flight, never more.
+    assert result.ended_by == "budget" and 2 <= len(client.requests) <= 3
 
 
 def test_host_calls_count_answers_on_the_tape_but_not_declared_fallbacks():

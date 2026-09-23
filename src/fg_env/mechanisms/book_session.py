@@ -13,7 +13,7 @@ from typing import Any, Dict, List
 from .book_rules import CLOSES_WINDOW, Venue, venue
 from .common import fmt, number
 from .order_book import (KEY, OrderBookConfig, account, book_config, cash_total, merge_flow, props_for, release, share_total,
-                         trip)
+                         traders, trip)
 from .ledger import clean
 
 __all__ = ["open_round", "close_round", "rebase", "start_price"]
@@ -43,7 +43,7 @@ def open_round(world: Any, name: str) -> None:
     last = float(world.props.get(f"{name}_last") or 0)
     if not world.props.get(f"{name}_supply"):
         rebase(world, name)
-        for trader in world.entities_of(cfg.who):
+        for trader in traders(world, name, cfg):
             world.set_prop(trader, p["start_value"], account(world, name, trader)["equity"])
     elif cfg.fair_value is None:  # the value starts at the start price and walks from the second round
         _walk_value(world, name, cfg)

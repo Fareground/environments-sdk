@@ -63,3 +63,26 @@ def test_a_removed_spelling_is_refused_and_points_to_the_one_way_to_say_it(sourc
     with pytest.raises(ExprError) as info:
         evaluate(source)
     assert expected in str(info.value)
+
+
+@pytest.mark.parametrize("source, expected", [
+    ("$maximum(agent, $it.score)", "did you mean $max?"),
+    ("$minimum(agent, $it.score)", "did you mean $min?"),
+    ("$average(agent, $it.score)", "did you mean $avg?"),
+    ("$str(1)", "did you mean $text?"),
+    ("$length([1, 2])", "did you mean $len?"),
+    ("$sum_of(agent, $it.score)", "did you mean $sum?"),
+])
+def test_a_word_people_write_for_a_builtin_points_to_it(source, expected):
+    c = {"name": "Scores", "clock": {"rounds": 1}, "types": {"agent": {"props": {"score": 1}}},
+         "entities": {"a": {"type": "agent"}}, "outputs": {"value": source}}
+    errors = [i for i in fg_env.check(c, rounds=0) if i.severity == "error"]
+    assert [expected in (i.fix or "") for i in errors] == [True], [str(i) for i in errors]
+
+
+def test_an_unknown_function_reports_no_follow_on_error_for_the_item_it_would_bind():
+    c = {"name": "Scores", "clock": {"rounds": 1}, "types": {"agent": {"props": {"score": 1}}},
+         "entities": {"a": {"type": "agent"}}, "outputs": {"value": "$maximum(agent, $it.score) + $nope"}}
+    errors = [str(i) for i in fg_env.check(c, rounds=0) if i.severity == "error"]
+    assert len(errors) == 2 and "unknown function $maximum" in errors[0] and "$nope is not available" in errors[1]
+    assert not any("$it is not available" in e for e in errors)

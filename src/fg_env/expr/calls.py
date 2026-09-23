@@ -14,9 +14,10 @@ __all__ = ["Evaluator", "EqualityGuard", "Call", "FunctionSpec", "FUNCTIONS", "f
 
 
 #: Names authors reach for that are not functions, and the one way the language says each. A near spelling would
-#: suggest something else ($mean → $median, $bottom → $book, $log_base → $log_loss).
+#: suggest something else ($mean → $median, $average → $range, $str → $substr, $bottom → $book).
 _SAY_INSTEAD = {
-    "mean": "$avg", "bottom": "$sort", "log_base": "$log(x, base)", "pow": "x ** y", "e": "$exp(1)",
+    "mean": "$avg", "average": "$avg", "str": "$text", "string": "$text", "bottom": "$sort",
+    "log_base": "$log(x, base)", "pow": "x ** y", "e": "$exp(1)",
     "lerp": "a + (b - a) * t", "hypot": "$sqrt(x ** 2 + y ** 2)", "char_at": "$chars(text)[i]",
     "count_of": "$count(list, $it == value)", "enumerate": "$map(list, [$i, $it])", "is_subset": "$all(a, $it in b)",
     "argmax": "$index(xs, $max(xs))", "argmin": "$index(xs, $min(xs))", "chance_for": "$random_for(key) < p",
@@ -31,8 +32,12 @@ def suggest_function(name: str, candidates: Sequence[str]) -> Optional[str]:
     known name (a built-in or a def among ``candidates``), with its ``$``."""
     if name in _SAY_INSTEAD:
         return _SAY_INSTEAD[name]
-    matches = get_close_matches(name, candidates, n=1)
-    return f"${matches[0]}" if matches else None
+    # A near misspelling first ($random_int → $randint); else a known name it spells out ($maximum → $max, $sum_of →
+    # $sum), which a looser match would miss ($maximum → $matmul).
+    stems = [known for known in candidates if len(known) >= 3 and name.startswith(known)]
+    close = get_close_matches(name, candidates, n=1, cutoff=0.8 if stems else 0.6)
+    best = close[0] if close else max(stems, key=len, default=None)
+    return f"${best}" if best else None
 
 
 Evaluator = Callable[[Scope], Any]
@@ -58,6 +63,8 @@ class EqualityGuard:
         """The value every item is compared with, or ``_NO_KEY`` when it cannot be known up front."""
         if not all(root in scope.vars for root in self.roots):
             return _NO_KEY  # a missing root may be a def, which is evaluated per item
+        if self.field in scope.world.private_names and scope.vars.get("viewer") is not None:
+            return _NO_KEY  # skipping by another's private field would decide by it unseen: each item reads it
         try:
             return _entity_id(self.value(scope))
         except Exception:  # evaluating per item raises the same way; nothing is skipped

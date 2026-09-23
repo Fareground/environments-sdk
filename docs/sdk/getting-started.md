@@ -13,6 +13,7 @@ run the contract for you with the SDK's own tools, and saves the latest version 
 
 ## 1. Install
 
+<!-- not run: installs the package -->
 ```bash
 python -m pip install fg-env
 ```
@@ -147,11 +148,11 @@ fg-env check inventory.json
 fg-env preview inventory.json shop
 ```
 
-`check` validates the contract, then plays it for a few rounds with random agents and with each declared policy. `preview` shows the retailer's brief, current information, and available tools. A successful smoke check is an authoring aid; it does not establish the model's business accuracy.
+`check` validates the contract, then plays it for a few rounds with random agents, with agents that never act (a missed turn must not break the rules) and with each declared policy. `preview` shows the retailer's brief, current information, and available tools. A successful smoke check is an authoring aid; it does not establish the model's business accuracy.
 
 ## 3. Run a repeatable policy
 
-Save this as `run_inventory.py` beside the contract:
+Save this as `run_inventory.py` beside the contract and run it with `python run_inventory.py`:
 
 ```python
 import fg_env
@@ -161,8 +162,9 @@ print(result.outputs)
 assert result.outputs == {"units_sold": 24, "lost_sales": 0, "closing_cash": 244.0}
 ```
 
+The same run from the command line:
+
 ```bash
-python run_inventory.py
 fg-env run inventory.json --seed 7 --agent retailer=policy:steady --json
 ```
 

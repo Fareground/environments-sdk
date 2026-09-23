@@ -31,8 +31,8 @@ from typing import Any, Optional
 
 # Re-exported: the language's pieces are imported from here (helpers used by function modules included).
 from .base import (  # noqa: F401
-    EVAL_BUDGET, EXPRESSION_WORDS, MAX_INT_BITS, MAX_LIST_LEN, MAX_RANGE, MAX_TEXT_LEN, ExprError, Untrusted, _held, charge,
-    check_size, derived, is_expr, nested_free, shared_budget, tainted, truthy,
+    EVAL_BUDGET, EXPRESSION_WORDS, MAX_INT_BITS, MAX_LIST_LEN, MAX_RANGE, MAX_TEXT_LEN, ExprError, PrivateRead, Untrusted,
+    _held, charge, check_size, derived, is_expr, nested_free, shared_budget, tainted, truthy,
 )
 from .calls import _NO_KEY, FUNCTIONS, Call, EqualityGuard, FunctionSpec, function  # noqa: F401
 from .compile import Expr, compile_expr
@@ -53,6 +53,7 @@ __all__ = [
     "check_size",
     "shared_budget",
     "ExprError",
+    "PrivateRead",
     "Expr",
     "Scope",
     "World",

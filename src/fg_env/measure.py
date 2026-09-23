@@ -13,7 +13,7 @@ from .inputs import check_value
 from .template import apply_format
 from .world import SdkWorld, _plain
 
-__all__ = ["Stats", "RunResult", "sample_metrics", "compute_outputs"]
+__all__ = ["Stats", "RunResult", "sample_metrics", "compute_outputs", "ending"]
 
 
 @dataclass
@@ -120,6 +120,14 @@ class RunResult:
     def ok(self) -> bool:
         return self.status in ("completed", "ended") and not self.output_issues
 
+    @property
+    def degraded(self) -> List[str]:
+        """The codes of the diagnostics that mean this run does not show what the environment is for — an action no
+        agent could ever take, agents that never acted, turns lost to a failing provider. Empty for a sound run."""
+        from .diagnostics import DEGRADING
+
+        return list(dict.fromkeys(found["code"] for found in self.diagnostics if found["code"] in DEGRADING))
+
     def to_dict(self, events: bool = True) -> Dict[str, Any]:
         out = asdict(self)
         if not events:
@@ -160,11 +168,14 @@ class RunResult:
     def summary(self) -> str:
         from .clock_words import plural
 
-        how = f"ended by {self.ended_by}" if self.ended_by else self.status
-        lines = [f"{self.status} after {self.rounds} {plural(self.unit, self.rounds)} — {how} (seed {self.seed}"
+        how = ending(self.status, self.ended_by)
+        lines = [f"{self.status} after {self.rounds} {plural(self.unit, self.rounds)}{how} (seed {self.seed}"
                  f"{', arm ' + self.arm if self.arm else ''})"]
         if self.error:
             lines.append(f"error: {self.error}")
+        if self.degraded:
+            lines.append(f"DEGRADED ({', '.join(self.degraded)}): this run does not show how the environment plays; "
+                         "see the diagnostics below")
         if self.winner is not None and "winner" not in self.outputs:
             lines.append(f"winner: {self.winner}")
         for key, value in self.outputs.items():
@@ -190,6 +201,13 @@ def shown(value: Any, fmt: Optional[str] = None) -> str:
         return apply_format(value, fmt)
     text = json.dumps(_readable(value), default=str)
     return text if len(text) <= 120 else text[:117] + "…"
+
+
+def ending(status: str, ended_by: Optional[str]) -> str:
+    """What stopped a run, for its summary line: what ended it, or that it was stopped before its end."""
+    if ended_by:
+        return f" — ended by {ended_by}"
+    return " — stopped before the end" if status == "running" else ""
 
 
 def _readable(value: Any) -> Any:

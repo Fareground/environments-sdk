@@ -124,7 +124,10 @@ def _expand(name: str, cfg: VictoryConfig, contract: Mapping[str, Any]) -> Dict[
     world: Dict[str, Any] = {}
 
     def best_of(items: str, keys: List[str]) -> str:
-        return f"$best({items}, [{', '.join(keys) or '0'}], '{cfg.ties}')"
+        ranked = f"$best({items}, [{', '.join(keys) or '0'}]"
+        if cfg.ties == "share":  # the one winner, else every player tied for the win (null when nobody is left)
+            return f"({ranked}, 'none') or {ranked}, 'all') or null)"
+        return f"{ranked}, '{cfg.ties}')"
 
     for index, (label, c) in enumerate(_labelled(cfg)):
         field = f"conditions[{index}]"
@@ -196,26 +199,27 @@ def _key(call: Call, value: Any) -> Any:
 
 
 @function("best(items, by, ties?)",
-          "The best of `items` by `by` (a value or list of values, highest first): one item, a list when tied and ties is "
-          "'share' (default), null when tied and ties is 'none', one at random (seeded) when 'random'; null when empty.",
+          "The best of `items` by `by` (a value or list of values, highest first): always one item — a tie is broken at "
+          "random (seeded) with ties 'random' (default), or gives null with 'none'; null when empty. ties 'all' always "
+          "gives a list: every item tied for best ([] when empty).",
           min_args=2, max_args=3, lazy=[1])
 def _best(call: Call) -> Any:
     items = call.collection(0)
-    ties = call.arg(2, "share")
-    if ties not in ("share", "none", "random"):
-        raise ExprError(f"$best: ties is share, none or random, got {ties!r}", call.source)
+    ties = call.arg(2, "random")
+    if ties not in ("random", "none", "all"):
+        raise ExprError(f"$best: ties is random, none or all, got {ties!r}", call.source)
     if not items:
-        return None
+        return [] if ties == "all" else None
     try:
         keyed = [(_key(call, call.each(1, item, i)), item) for i, item in enumerate(items)]
         best = max(key for key, _ in keyed)
     except TypeError:
         raise ExprError("$best: ranking keys must be comparable (all numbers or all text)", call.source) from None
     top = [item for key, item in keyed if key == best]
+    if ties == "all":
+        return top
     if len(top) == 1:
         return top[0]
-    if ties == "share":
-        return top
     if ties == "none":
         return None
     world: Any = call.scope.world

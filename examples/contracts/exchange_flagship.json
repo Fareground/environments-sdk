@@ -1,7 +1,7 @@
 {
   "fg_env": "1",
   "name": "Exchange (flagship)",
-  "description": "A stock exchange session calibrated to a seed history: one instrument on a continuous price-time limit order book with maker/taker fees, a market-order collar, short selling capped by equity and a circuit breaker on the bar's open, traded pass by pass by a calibrated crowd of market makers, momentum, mean-reversion, fundamental, noise and passive traders, with scheduled news that moves a hidden fundamental and market sentiment, online volume and volatility controllers, stop-loss liquidations, optional model-trader seats that decide between bars, and a realism score against the seed tape.",
+  "description": "A stock exchange session calibrated to a seed history: one instrument on a continuous price-time limit order book with maker/taker fees, a market-order collar, short selling capped by equity and a circuit breaker on the bar's open, traded pass by pass by a calibrated crowd of market makers, momentum, mean-reversion, fundamental, noise and passive traders, with scheduled news that moves a hidden fundamental and market sentiment, online volume and volatility controllers, stop-loss liquidations, a few trader seats (4 by default) that participants fill and that decide between bars, and a realism score against the seed tape. Fundamental traders each hold a noisy private estimate of the hidden value; because price reverts toward that value they profit as a class from uninformed flow.",
   "imports": ["exchange_flagship/calibration.json", "exchange_flagship/seats.json"],
   "brief": {
     "situation": "You trade DEMO on an electronic exchange alongside a crowd of market makers, momentum, mean-reversion, value, retail and passive traders. Your score is your equity (cash plus shares marked at the last price) against your start.",
@@ -33,7 +33,7 @@
     "volatility_gain": {"type": "number", "default": 0.015, "min": 0, "max": 0.2},
     "events": {"type": "list", "description": "Scheduled news: [{bar, headline, shock_pct, sentiment, duration_bars}].",
                "default": [{"bar": 30, "headline": "DEMO cuts full-year guidance; analysts rush to revise their valuations.", "shock_pct": -8, "sentiment": -0.7, "duration_bars": 5}]},
-    "seats": {"type": "int", "default": 0, "min": 0, "max": 100, "description": "Model-trader seats."},
+    "seats": {"type": "int", "default": 4, "min": 0, "max": 100, "description": "Trader seats for participants (a model, a person or the coded stand-in); 0 runs the coded crowd alone."},
     "seat_cash": {"type": "number", "default": 100000, "min": 1000},
     "decision_every_bars": {"type": "int", "default": 1, "min": 1, "max": 50}
   },
@@ -124,13 +124,13 @@
     "return_pct": {"expr": "$round(100 * ($book(demo).last / $world.start_price - 1), 3)", "type": "number"},
     "high": {"expr": "$max($map($records(demo_bars), $it.high))", "type": "number"},
     "low": {"expr": "$min($map($records(demo_bars), $it.low))", "type": "number"},
-    "worst_bar_drop": {"expr": "$round($min($map($records(demo_bars), $it.low / $it.open - 1)), 5)", "type": "number", "description": "Deepest fall within one bar from its open."},
+    "worst_bar_drop": {"expr": "$round($min($map($records(demo_bars), $it.low / $it.open - 1)), 5) if $len($records(demo_bars)) > 0 else null", "type": "number", "description": "Deepest fall within one bar from its open."},
     "halted_bars": {"expr": "$count($records(demo_bars), $it.halted)", "type": "int"},
     "liquidations": {"expr": "$book(demo).liquidations", "type": "int"},
     "spread_bps_avg": {"expr": "$round($avg($series.spread_bps), 3)", "type": "number"},
     "depth_avg": {"expr": "$round($avg($series.depth), 1)", "type": "number"},
     "pnl_by_kind": {"expr": "{market_maker: $round($sum(demo_market_maker, $book_account(demo, $it).pnl), 2), momentum: $round($sum(demo_momentum, $book_account(demo, $it).pnl), 2), mean_reversion: $round($sum(demo_mean_reversion, $book_account(demo, $it).pnl), 2), fundamentalist: $round($sum(demo_fundamentalist, $book_account(demo, $it).pnl), 2), noise: $round($sum(demo_noise, $book_account(demo, $it).pnl), 2), passive: $round($sum(demo_passive, $book_account(demo, $it).pnl), 2), seats: $round($sum(seat, $book_account(demo, $it).pnl), 2)}", "type": "map"},
-    "leaderboard": {"expr": "$map($top($filter(trader, $it.type != book_seed), $book_account(demo, $it).pnl / $max(1, $it.demo_start_value), 10), {name: $it.name, pnl_pct: $round(100 * $book_account(demo, $it).pnl / $max(1, $it.demo_start_value), 3)})", "type": "list"},
+    "leaderboard": {"expr": "$map($top($filter(trader, $it.type != book_seed) + $filter(demo_crowd, true), $book_account(demo, $it).pnl / $max(1, $it.demo_start_value), 10), {name: $it.name, pnl_pct: $round(100 * $book_account(demo, $it).pnl / $max(1, $it.demo_start_value), 3)})", "type": "list"},
     "stats": {"expr": "$market_stats($bar_closes(), $bar_volumes())", "type": "map"},
     "realism": {"expr": "$market_realism({prices: $bar_closes(), volumes: $bar_volumes()}, $seed_stats())", "type": "map"},
     "realism_score": {"expr": "$market_realism({prices: $bar_closes(), volumes: $bar_volumes()}, $seed_stats()).score", "type": "number"},

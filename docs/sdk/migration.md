@@ -12,12 +12,14 @@
 
 For the current contract SDK, the repository and product rename does not require changing `fg_env` imports. The older published distribution was `fg-env-kernel` (0.2.x); the contract SDK is distributed as `fg-env` (0.3.x). This is a package migration, not an in-place rename of an existing PyPI project. Upgrade in a fresh virtual environment and verify your scenario tests. Update Git remotes and links that point to `env-kernel`:
 
+<!-- not run: changes a git remote -->
 ```bash
 git remote set-url origin https://github.com/Fareground/environments-sdk.git
 ```
 
 Install the published distribution from PyPI:
 
+<!-- not run: installs an older release -->
 ```bash
 python -m pip install "fg-env==0.4.2"
 ```

@@ -3,7 +3,7 @@
 Expands into trader props, world props (the book, last price, bar, fees), the ``<name>_tape`` and
 ``<name>_bars`` records, tools ``<name>_buy``/``_sell``/``_cancel``/``_cancel_all``/``_algo`` with
 numeric bounds, a trading stage (or hooks into a declared one), open/close events, views (market,
-depth, own orders, tape, account), the ``<name>_algo`` policy and crowd subtypes for coded traders,
+depth, own orders, tape, account), the ``<name>_algo`` policy and the ``<name>_crowd`` types of coded traders,
 metrics, outputs and the conservation invariant. Everything is ordinary contract data backed by
 the native engine in :mod:`.order_book`.
 """
@@ -15,14 +15,20 @@ from ..registry import MechanismError, mode
 from . import book_functions  # noqa: F401  (registers $book … and the market op's order_book actions)
 from .book_rules import rules_default
 from .common import fmt
-from .order_book import OrderBookConfig, props_for
+from .order_book import OrderBookConfig, crowd_type, props_for
 
 _LABELS = {"market_maker": "Market maker", "momentum": "Momentum trader", "mean_reversion": "Mean reverter",
            "fundamentalist": "Fundamentalist", "noise": "Noise trader", "passive": "Passive flow"}
 
 
+def _who(name: str, cfg: OrderBookConfig) -> Any:
+    """Who trades on the book: the ``who`` type and the book's crowd."""
+    return [cfg.who, crowd_type(name)] if cfg.crowd else cfg.who
+
+
 def _actions(name: str, cfg: OrderBookConfig, qty_type: str) -> Dict[str, Any]:
     unit = cfg.instrument or name
+    who = _who(name, cfg)
     p = props_for(name)
     lot: Any = f"$book({name}).lot" if isinstance(cfg.lot_size, str) else int(cfg.lot_size) if qty_type == "int" else cfg.lot_size
     if any(isinstance(value, str) for value in (cfg.tick_size, cfg.lot_size, cfg.maker_fee_bps, cfg.taker_fee_bps)):
@@ -30,8 +36,10 @@ def _actions(name: str, cfg: OrderBookConfig, qty_type: str) -> Dict[str, Any]:
                  "trade against the book ($book shows the tick, lot and fees).")
         multiple = "the lot"
     else:
-        rules = (f"Tick {fmt(float(cfg.tick_size), 6)}, lot {fmt(float(cfg.lot_size), 6)}; fees {fmt(float(cfg.maker_fee_bps))} bps "
-                 f"when your resting order fills, {fmt(float(cfg.taker_fee_bps))} bps when you trade against the book.")
+        maker = float(cfg.maker_fee_bps)
+        rules = (f"Tick {fmt(float(cfg.tick_size), 6)}, lot {fmt(float(cfg.lot_size), 6)}; "
+                 + (f"a rebate of {fmt(-maker)} bps paid to you" if maker < 0 else f"fees {fmt(maker)} bps")
+                 + f" when your resting order fills, {fmt(float(cfg.taker_fee_bps))} bps when you trade against the book.")
         multiple = fmt(float(cfg.lot_size), 6)
     collar = "the market-order collar" if isinstance(cfg.collar_pct, str) else f"{cfg.collar_pct:.0%}"
     receipt = f"{{$world.{name}_receipt}}"
@@ -46,7 +54,7 @@ def _actions(name: str, cfg: OrderBookConfig, qty_type: str) -> Dict[str, Any]:
         reserve = "cash (price × qty + maker fee)" if side == "buy" else "shares"
         bound = "max_buy" if side == "buy" else "max_sell"
         return {
-            "by": cfg.who,
+            "by": who,
             "description": (f"{side.capitalize()} {unit}. With a price it is a limit order: it trades at once against {other} "
                             f"orders {edge} your price (best price first, then oldest), possibly in part, and the rest rests "
                             f"on the book with its {reserve} reserved. Without a price it is a market order that trades within "
@@ -69,19 +77,19 @@ def _actions(name: str, cfg: OrderBookConfig, qty_type: str) -> Dict[str, Any]:
         f"{name}_buy": order("buy"),
         f"{name}_sell": order("sell"),
         f"{name}_cancel": {
-            "by": cfg.who, "description": f"Cancel one of your resting {unit} orders and release what it reserved.",
+            "by": who, "description": f"Cancel one of your resting {unit} orders and release what it reserved.",
             "params": {"order": {"type": "enum", "values": f"$map($book_orders({name}, $actor), $it.id)",
                                  "description": "Id of your resting order."}},
             "when": [manual, has_orders], "do": [{"market": name, "action": "cancel", "order": "$params.order"}],
             "outcome": receipt, "private": True,
         },
         f"{name}_cancel_all": {
-            "by": cfg.who, "description": f"Cancel all your resting {unit} orders at once (before requoting).",
+            "by": who, "description": f"Cancel all your resting {unit} orders at once (before requoting).",
             "when": [manual, has_orders], "per_turn": 1,
             "do": [{"market": name, "action": "cancel_all"}], "outcome": receipt, "private": True,
         },
         f"{name}_algo": {
-            "by": cfg.who, "description": f"Let your coded {unit} trading strategy act for this turn.",
+            "by": who, "description": f"Let your coded {unit} trading strategy act for this turn.",
             "when": [{"expr": f"$actor.{p['strategy']} != ''", "why": "You have no coded strategy."}],
             "do": [{"market": name, "action": "algo"}], "outcome": receipt, "private": True,
             "terminal": True,
@@ -91,11 +99,12 @@ def _actions(name: str, cfg: OrderBookConfig, qty_type: str) -> Dict[str, Any]:
 
 def _views(name: str, cfg: OrderBookConfig) -> Dict[str, Any]:
     unit = cfg.instrument or name
+    who = _who(name, cfg)
     book = f"$book({name})"
     acct = f"$book_account({name}, $actor)"
     return {
         f"{name}_market": {
-            "for": cfg.who, "title": unit,
+            "for": who, "title": unit,
             "show": (f"Last {{{book}.last|money}} · best bid {{{book}.bid|money}} × {{{book}.bid_qty}} · best ask "
                      f"{{{book}.ask|money}} × {{{book}.ask_qty}} · this round: open {{{book}.open|money}}, high "
                      f"{{{book}.high|money}}, low {{{book}.low|money}}, volume {{{book}.round_volume}} · VWAP "
@@ -103,22 +112,22 @@ def _views(name: str, cfg: OrderBookConfig) -> Dict[str, Any]:
                      f"{{$' · TRADING HALTED' if {book}.halted else ''}}"),
         },
         f"{name}_depth": {
-            "for": cfg.who, "title": f"{unit} order book (asks above, bids below)",
+            "for": who, "title": f"{unit} order book (asks above, bids below)",
             "of": f"$book_depth({name}, {cfg.depth_levels}, $actor)", "bullet": False,
             "show": "{side} {qty} @ {price|money} ({orders} order(s){$', yours ' + $text($it.mine) if $it.mine > 0 else ''})",
             "empty": "The book is empty.",
         },
         f"{name}_orders": {
-            "for": cfg.who, "title": f"Your resting {unit} orders", "of": f"$book_orders({name}, $actor)",
+            "for": who, "title": f"Your resting {unit} orders", "of": f"$book_orders({name}, $actor)",
             "show": "[{id}] {side} {qty} @ {price|money}, placed round {round}", "empty": "You have no resting orders.",
         },
         f"{name}_tape": {
-            "for": cfg.who, "title": f"Recent {unit} trades (newest first)",
+            "for": who, "title": f"Recent {unit} trades (newest first)",
             "of": f"$reverse($slice($records({name}_tape), -5))",
             "show": "round {round}: {qty} @ {price|money} ({aggressor}-initiated)", "empty": "No trades yet.",
         },
         f"{name}_account": {
-            "for": cfg.who, "title": f"Your {unit} account",
+            "for": who, "title": f"Your {unit} account",
             "show": (f"Cash {{{acct}.cash|money}} free + {{{acct}.reserved_cash|money}} reserved · shares {{{acct}.shares}} "
                      f"free + {{{acct}.reserved_shares}} reserved · equity {{{acct}.equity|money}} · P&L {{{acct}.pnl|money}}"
                      f" · fees paid {{{acct}.fees_paid|money}}"),
@@ -141,7 +150,8 @@ def _views(name: str, cfg: OrderBookConfig) -> Dict[str, Any]:
            "{bar, open, high, low, close, volume, vwap, trades, halted, flow} in `<name>_bars`; $book(name).bar is the bar in "
            "progress. The book opens and closes each round once, in its own start and end events, which run after yours: an "
            "end event that reads the round or bar the book closes runs {\"market\": name, \"action\": \"close\"} first. `crowd` adds coded traders (market_maker, momentum, mean_reversion, fundamentalist, "
-           "noise, passive) as subtypes `<name>_<strategy>`; any trader whose `<name>_strategy` prop names a strategy trades only "
+           "noise, passive) as types `<name>_<strategy>` extending `<name>_crowd`, which holds what a `who` trader holds but is "
+           "not of that type, so other mechanisms on `who` (a ballot, a victory, channels) leave the crowd out; any trader whose `<name>_strategy` prop names a strategy trades only "
            "through `<name>_algo` (the `<name>_algo` policy calls it). A strategy with a `stop_loss` param (in multiples of the "
            "per-round volatility) liquidates a losing position at market. $book(name).flow is the last round's aggressive "
            "quantity by trader kind. Fundamentalists estimate `fair_value`, by default $world.<name>_value: a random walk from the "
@@ -238,13 +248,36 @@ def _expand_order_book(name: str, cfg: OrderBookConfig, contract: Mapping[str, A
                                           "balances stay within limits and the book is never crossed."}]
     if cfg.crowd:
         fragment["population"] = []
+        fragment["types"][crowd_type(name)] = {
+            "agent": True, "policy": f"{name}_algo", "description": f"A coded {unit} trader of the book's crowd.",
+            "props": _props_of(types, cfg.who, fragment["types"][cfg.who]["props"])}
         for kind, spec in cfg.crowd.items():
             fragment["types"][f"{name}_{kind}"] = {
-                "extends": cfg.who, "policy": f"{name}_algo", "description": f"Coded {_LABELS[kind].lower()}.",
+                "extends": crowd_type(name), "description": f"Coded {_LABELS[kind].lower()}.",
                 "props": {p["strategy"]: {"type": "text", "default": kind, "private": True}}}
             fragment["population"].append({"type": f"{name}_{kind}", "count": spec.count, "name": f"{_LABELS[kind]} {{$i}}",
                                            "props": {cfg.currency: spec.cash, p["shares"]: spec.shares}})
     return fragment
+
+
+def _props_of(types: Mapping[str, Any], name: str, generated: Mapping[str, Any]) -> Dict[str, Any]:
+    """The ``generated`` props overlaid with those ``name`` declares or inherits (on contract data), so a crowd trader
+    holds what a trader holds without being one: each override changes only the fields it writes."""
+    lineage: List[str] = []
+    current: Any = name
+    while isinstance(current, str) and isinstance(types.get(current), Mapping) and current not in lineage:
+        lineage.insert(0, current)
+        current = types[current].get("extends")
+    props: Dict[str, Any] = dict(generated)
+    for kind in lineage:
+        for prop, value in (types[kind].get("props") or {}).items():
+            inherited = props.get(prop)
+            if isinstance(inherited, Mapping) and not isinstance(value, Mapping):
+                value = {**inherited, "default": value}
+            elif isinstance(inherited, Mapping):
+                value = {**inherited, **value}
+            props[prop] = value
+    return props
 
 
 def _is_agent(types: Mapping[str, Any], name: str) -> bool:
