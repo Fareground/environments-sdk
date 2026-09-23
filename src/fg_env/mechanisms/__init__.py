@@ -33,7 +33,7 @@ from ..errors import Issue
 from ..parse_errors import shape_issue
 from ..registry import FAMILIES, MechanismError, config_data, family_of_mode
 
-__all__ = ["expand_mechanisms", "merge_sections", "generated_summary", "FAMILIES"]
+__all__ = ["expand_mechanisms", "merge_sections", "generated_summary", "separate_turns", "FAMILIES"]
 
 _NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
 
@@ -174,6 +174,34 @@ def generated_summary(data: Mapping[str, Any]) -> List[str]:
         ends = " · can end the run" if _can_end(out["mechanisms"].get(name)) else ""
         lines.append(f"{name} ({label}): {' · '.join(shown) or 'extends declared parts only'}{ends}")
     return lines
+
+
+def separate_turns(data: Mapping[str, Any]) -> List[Issue]:
+    """A warning for each agent type that several mechanisms wake in stages of their own: every such stage is another
+    turn (another model call) per agent per round, and the agent cannot weigh one mechanism against another. They are
+    not merged by default, since their stages differ in how turns run (sealed or in order) and when they open."""
+    uses = data.get("mechanisms")
+    generated: Dict[str, Dict[str, List[str]]] = {}
+    if not isinstance(uses, Mapping) or len(uses) < 2 or expand_mechanisms(data, generated)[1]:
+        return []
+    staged: Dict[str, List[str]] = {}
+    for name, use in uses.items():
+        found = _spec(use, "") if isinstance(use, Mapping) and "kind" in use else None
+        who = use.get("who") if isinstance(use, Mapping) else None
+        if not isinstance(found, tuple) or "stage" not in found[0].config.model_fields or use.get("stage") is not None \
+                or not generated.get(name, {}).get("stages") or not isinstance(who, (str, list)):
+            continue
+        for kind in [who] if isinstance(who, str) else who:
+            staged.setdefault(str(kind), []).append(name)
+    return [Issue("mechanisms", f"{kind} agents take a separate turn in the stage of each of {_listed(names)} whenever "
+                                f"they run: one decision, and one model call, per mechanism",
+                  f"to decide in one turn, declare a stage, e.g. {{\"name\": \"turn\", \"turns\": \"sequential\"}}, and "
+                  f"set \"stage\": \"turn\" on each of them", "warning")
+            for kind, names in staged.items() if len(names) > 1]
+
+
+def _listed(names: Sequence[str]) -> str:
+    return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
 
 
 def _can_end(use: Any) -> bool:

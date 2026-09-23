@@ -124,3 +124,16 @@ def test_mechanisms_attached_to_one_declared_stage_share_its_turn():
     game["actions"] = {"move": {"by": "trader", "do": []}}
     _, replies = play(game, {(1, "a"): [("move", {}), ("move", {})]})
     assert [reply.ok for _, reply in replies] == [True, False]  # a stage with the author's own moves keeps one per turn
+
+
+def test_check_warns_when_one_agent_type_takes_a_separate_turn_per_mechanism():
+    floor = {"acme": {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 10},
+             "chat": {"kind": "social", "mode": "channels", "who": "trader"},
+             "v": {"kind": "decision", "mode": "ballot", "who": "trader", "options": ["y", "n"]}}
+    contract = {"name": "Floor", "clock": {"rounds": 1}, "types": {"trader": {"agent": True}},
+                "entities": {"a": {"type": "trader"}, "b": {"type": "trader"}}, "mechanisms": floor}
+    warned = [i for i in fg_env.check(contract) if i.severity == "warning" and i.path == "mechanisms"]
+    assert len(warned) == 1 and "acme, chat and v" in warned[0].message and '"stage"' in warned[0].fix
+    shared = {**contract, "stages": [{"name": "floor", "turns": "sequential"}],
+              "mechanisms": {name: {**use, "stage": "floor"} for name, use in floor.items()}}
+    assert not [i for i in fg_env.check(shared) if i.path == "mechanisms"]
