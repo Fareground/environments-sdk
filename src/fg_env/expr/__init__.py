@@ -35,7 +35,7 @@ from .base import (  # noqa: F401
     _held, charge, check_size, derived, is_expr, nested_free, shared_budget, tainted, truthy,
 )
 from .calls import _NO_KEY, FUNCTIONS, Call, EqualityGuard, FunctionSpec, function  # noqa: F401
-from .compile import Expr, compile_expr
+from .compile import Expr, compile_expr, item_conditions
 from .scope import Scope, World
 from .values import EVERYONE, _describe, _entity_id, _number, _pow, attr, map_key  # noqa: F401
 
@@ -61,6 +61,7 @@ __all__ = [
     "FunctionSpec",
     "FUNCTIONS",
     "compile_expr",
+    "item_conditions",
     "evaluate",
     "resolve",
     "is_expr",

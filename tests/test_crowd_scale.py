@@ -313,3 +313,9 @@ def test_an_all_invariant_that_reads_more_than_its_items_is_checked_whole():
     refused, _ = _refusals("$all(p, $it.c < 5) and $all(vip, $it.c < 3)", ("give", {"to": "v", "n": 3}),
                            ("give", {"to": "p_3", "n": 4}))
     assert refused == [True, False]
+
+
+def test_a_fork_that_tightens_an_all_invariant_checks_every_member_it_restored():
+    _, env = _refusals("$all(p, $it.c <= 5)", ("give", {"to": "p_7", "n": 4}))
+    with pytest.raises(fg_env.InvariantViolation, match="no longer holds after fork"):
+        env.fork(patch={"invariants": [{"expr": "$all(p, $it.c <= 3)", "why": "tighter"}]})
