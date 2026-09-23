@@ -19,6 +19,7 @@ from .assets.multimodal import ANTHROPIC_MEDIA, OPENAI_MEDIA, anthropic_parts, m
 from .errors import RunError
 from .probability import is_probability
 from .expr import ExprError, compile_expr, resolve, truthy
+from .seeds import LazyStream
 from .session import END_TURN, ToolResult, Wake
 
 if TYPE_CHECKING:
@@ -155,6 +156,9 @@ class PolicyAgent:
     holds, whose action is legal and whose arguments are valid is taken."""
 
     concurrent = False
+    #: Before a rule acts, also evaluate the later rules whose action is legal, so a broken rule that an earlier one
+    #: always beats is still reported. Check's smoke play sets it; the policy acts the same either way.
+    _probe_later = False
 
     def __init__(self, contract: "Contract", name: str, seed: int = 0):
         if name not in contract.policies:
@@ -164,7 +168,7 @@ class PolicyAgent:
         self.seed = seed
 
     def __call__(self, wake: Wake) -> None:
-        rng = random.Random(_seed_for(self.seed, wake))
+        rng: Any = LazyStream(lambda: random.Random(_seed_for(self.seed, wake)))  # only `chance` rules draw
         turn = wake._turn
         while not wake.done:
             acted = False
@@ -172,7 +176,7 @@ class PolicyAgent:
                 path = f"policies.{self.name}.rules[{index}]"
                 scope = turn.env.world.scope(actor=turn.actor, viewer=turn.actor)
                 if rule.each is None:
-                    outcome = self._try(wake, rule, scope, rng, path)
+                    outcome = self._try(wake, index, scope, rng)
                     if outcome == "passed":
                         return
                     if outcome == "acted":
@@ -182,7 +186,7 @@ class PolicyAgent:
                 for position, item in enumerate(self._items(turn, rule.each, scope, path)):
                     if wake.done:
                         return
-                    outcome = self._try(wake, rule, scope.child(it=item, i=position), rng, path)
+                    outcome = self._try(wake, index, scope.child(it=item, i=position), rng)
                     if outcome == "passed":
                         return
                     acted = acted or outcome == "acted"
@@ -202,9 +206,9 @@ class PolicyAgent:
             raise RunError(str(exc), f"{path}.each") from None
         return list(items or [])
 
-    def _try(self, wake: Wake, rule: Any, scope: Any, rng: random.Random, path: str) -> str:
+    def _try(self, wake: Wake, index: int, scope: Any, rng: Any) -> str:
         """Try one rule: "acted", "passed" (the turn ends), or "skipped"."""
-        turn = wake._turn
+        turn, rule, path = wake._turn, self.spec.rules[index], f"policies.{self.name}.rules[{index}]"
         try:
             if rule.when is not None and not truthy(compile_expr(rule.when)(scope)):
                 return "skipped"
@@ -215,6 +219,8 @@ class PolicyAgent:
                 if rng.random() >= p:
                     return "skipped"
             if rule.do == "pass":
+                if self._probe_later:
+                    self._probe(turn, index)
                 wake.end()
                 return "passed"
             args = resolve(rule.with_, scope)
@@ -222,12 +228,14 @@ class PolicyAgent:
             raise RunError(str(exc), path) from None
         args = {k: _as_ids(v) for k, v in args.items()}
         with turn.env._lock:  # legality without building tool schemas: coded crowds never read them
-            legal = not wake.done and rule.do in turn._legal()
+            legal = not wake.done and turn._allows(rule.do)
         if not legal:
             return "skipped"
         with turn.env._lock:
             _, problem = turn.env.actions.validate(turn.actor, rule.do, args)
         if problem is None:
+            if self._probe_later:
+                self._probe(turn, index)
             result = wake.call(rule.do, args)
             if result.ok:
                 turn.env.diagnosis.policy_rule(path)
@@ -235,6 +243,30 @@ class PolicyAgent:
             problem = result.text
         turn.env.diagnosis.policy_rule(path, problem)
         return "skipped"  # this rule does not fit right now; try the next one
+
+    def _probe(self, turn: Any, index: int) -> None:
+        """Evaluate each rule after ``index`` whose action is legal now, as a turn would reach it — `when`, then
+        `chance` and `with` if it holds — for the first of its `each` items. Nothing acts, and draws come from a stream
+        of their own."""
+        scope = turn.env.world.scope(actor=turn.actor, viewer=turn.actor)
+        with turn.env._lock:
+            legal = set(turn._legal()) | {"pass"}
+        with turn.env.world.drawing_from(random.Random(0)):
+            for later in range(index + 1, len(self.spec.rules)):
+                rule, path = self.spec.rules[later], f"policies.{self.name}.rules[{later}]"
+                if rule.do not in legal:
+                    continue
+                items = [scope] if rule.each is None else [
+                    scope.child(it=item, i=0) for item in self._items(turn, rule.each, scope, path)[:1]]
+                for here in items:
+                    try:
+                        if rule.when is None or truthy(compile_expr(rule.when)(here)):
+                            if isinstance(rule.chance, str):
+                                compile_expr(rule.chance)(here)
+                            resolve(rule.with_, here)
+                    except ExprError as exc:
+                        raise RunError(f"{exc} (evaluated while rules[{index}] acted first; a turn that reaches this "
+                                       "rule fails the same way)", path) from None
 
     def __repr__(self) -> str:
         return f"PolicyAgent({self.name!r})"
@@ -280,17 +312,22 @@ _PROVIDERS = {"anthropic": ("Anthropic", "ANTHROPIC_API_KEY"), "openai": ("OpenA
 
 def _on_official_client(provider: str, model: str) -> Participant:
     """The LLM participant ``<provider>:<model>`` names, on the provider's client made from the environment's key."""
+    make = anthropic if provider == "anthropic" else openai
+    return make(official_client(provider, model), model)
+
+
+def official_client(provider: str, model: str) -> Any:
+    """The official ``anthropic`` or ``openai`` client for ``<provider>:<model>``, made from the environment's key."""
     client_class, key = _PROVIDERS[provider]
     if not model:
-        raise ValueError(f"participant '{provider}:' names no model: use '{provider}:<model>'")
+        raise ValueError(f"'{provider}:' names no model: use '{provider}:<model>'")
     if not os.environ.get(key):
-        raise ValueError(f"participant '{provider}:{model}' needs an API key: set {key} in the environment")
+        raise ValueError(f"'{provider}:{model}' needs an API key: set {key} in the environment")
     try:
         module = importlib.import_module(provider)
     except ImportError:
-        raise ValueError(f"participant '{provider}:{model}' needs the {provider} package: pip install {provider}") from None
-    make = anthropic if provider == "anthropic" else openai
-    return make(getattr(module, client_class)(), model)
+        raise ValueError(f"'{provider}:{model}' needs the {provider} package: pip install {provider}") from None
+    return getattr(module, client_class)()
 
 
 def replay(recording: Any, fallback: Any = None) -> Participant:

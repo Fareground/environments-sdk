@@ -4,7 +4,6 @@
 
 - `$at(position, type?)` — Entities at a position (of `type`, subtypes included), in creation order; given an entity, the others at its position.
 - `$cells(center?, radius?)` — Every cell of a grid (or place of a graph) with no arguments; with a position or entity, the cells within `radius` (default 1) of it, not its own — on a grid row by row, on a graph nearest first.
-- `$chance_for(key, p)` — True with probability p, fixed by `key` (aligned across experiment arms).
 - `$clustering(entity, relation)` — Share of an entity's neighbour pairs that are linked to each other (0 to 1).
 - `$components(type, relation)` — Groups of entities of `type` connected by `relation`, largest first (lists of entities).
 - `$degree(entity, relation)` — How many living entities `entity` is linked with by `relation` (either direction).

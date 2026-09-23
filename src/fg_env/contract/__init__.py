@@ -148,6 +148,9 @@ __all__ = [
     "one_or_many",
 ]
 
+#: The single stage of a contract that declares none: every action is available (shared, read-only).
+_PLAY = StageSpec(name="play")
+
 
 class Contract(_Model):
     """An environment: world, people, rules, what agents see, what is measured."""
@@ -258,4 +261,4 @@ class Contract(_Model):
 
     def stage_list(self) -> List[StageSpec]:
         """Declared stages, or the default single stage where every action is available."""
-        return list(self.stages) or [StageSpec(name="play")]
+        return list(self.stages) or [_PLAY]

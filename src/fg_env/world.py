@@ -327,7 +327,7 @@ class SdkWorld(World):
         spec = self.contract.defs.get(name)
         if spec is None:
             hint = suggest_function(name, list(FUNCTIONS) + list(self.contract.defs))
-            raise ExprError(f"unknown function ${name}" + (f" — did you mean ${hint}?" if hint else ""), source)
+            raise ExprError(f"unknown function ${name}" + (f" — did you mean {hint}?" if hint else ""), source)
         if len(args) != len(spec.args):
             raise ExprError(f"${name} takes {len(spec.args)} argument(s) ({', '.join(spec.args) or 'none'}), got {len(args)}", source)
         local = self._here()  # the running turn's state, read once: nothing before the evaluation changes it

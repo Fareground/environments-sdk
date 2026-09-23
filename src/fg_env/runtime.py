@@ -21,6 +21,7 @@ from .copying import Copying
 from .diagnostics import diagnose
 from .driving import WAITING, Driver, run_on_worker
 from .effects import EffectRunner
+from .end_state import end_state
 from .errors import RunError
 from .exposure import ExposureLog, asks_seen, recording
 from .expr import ExprError
@@ -263,6 +264,7 @@ class Env(Copying, RunChecks, RunRounds, RunStages):
             clock={"mode": self.contract.clock.mode, "unit": self.contract.clock.unit, "step": self.contract.clock.step,
                    "start": self.world.start},
             assets=self.world.assets.to_dict() if len(self.world.assets) else {},
+            state=end_state(self.contract, self.world),
         )
 
     @property

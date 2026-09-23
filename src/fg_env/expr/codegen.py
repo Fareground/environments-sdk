@@ -184,7 +184,7 @@ class Codegen:
         self._depth = 0
         self._item: Optional[_Item] = None
         self._arguments: List[Tuple[str, List[str]]] = []
-        self._guards: List[Tuple[str, str, str, FrozenSet[str]]] = []
+        self._guards: List[Tuple[str, str, str, str, FrozenSet[str]]] = []
 
     # -- output ----------------------------------------------------------------------------------------
 
@@ -198,8 +198,8 @@ class Codegen:
         exec(compile("\n".join(fn.source() for fn in self._written), "<fg_env expression>", "exec"), namespace)
         for name, members in self._arguments:
             namespace[name] = [namespace[member] for member in members]
-        for owner, field, value, roots in self._guards:
-            namespace[owner].guard = EqualityGuard(field, namespace[value], roots)
+        for owner, kind, field, value, roots in self._guards:
+            setattr(namespace[owner], kind, EqualityGuard(field, namespace[value], roots))
         run: Evaluator = namespace[main]
         return run
 
@@ -232,9 +232,12 @@ class Codegen:
         self._fn, self._depth, self._item = outer, depth, item
         if guarded:
             guard = self._guard(node.values[0] if isinstance(node, ast.BoolOp) and isinstance(node.op, ast.And)
-                                else node)
+                                else node, ast.Eq)
             if guard is not None:
-                self._guards.append((fn.name, *guard))
+                self._guards.append((fn.name, "guard", *guard))
+            unequal = self._guard(node, ast.NotEq)  # the whole condition only: then a differing field decides it
+            if unequal is not None:
+                self._guards.append((fn.name, "unequal", *unequal))
         return fn.name
 
     def _scope(self) -> str:
@@ -422,10 +425,10 @@ class Codegen:
             return f"{left} {symbol} {right} if {numbers} else {helper}({left}, {right}, {source})"
         return f"{'not ' if op is ast.NotIn else ''}_in({left}, {right}, {source})"
 
-    def _guard(self, node: ast.AST) -> Optional[Tuple[str, str, FrozenSet[str]]]:
+    def _guard(self, node: ast.AST, op: type) -> Optional[Tuple[str, str, FrozenSet[str]]]:
         """``(field, value function, roots)`` of the :class:`EqualityGuard` a comparison ``$it.field == value``
-        (either way round) makes, if any."""
-        if not (isinstance(node, ast.Compare) and len(node.ops) == 1 and isinstance(node.ops[0], ast.Eq)):
+        (``op`` Eq) or ``$it.field != value`` (``op`` NotEq), either way round, makes, if any."""
+        if not (isinstance(node, ast.Compare) and len(node.ops) == 1 and isinstance(node.ops[0], op)):
             return None
         for field_side, value_side in ((node.left, node.comparators[0]), (node.comparators[0], node.left)):
             chain = _chain(field_side)

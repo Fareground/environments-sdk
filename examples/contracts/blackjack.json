@@ -208,7 +208,7 @@
     {"name": "table_empty", "when": "$all(player, $it.chips < $inputs.min_bet and $it.wager == 0)", "say": "Nobody can afford the minimum bet any more."}
   ],
   "outputs": {
-    "final_chips": {"expr": "$map($bottom(player, $it.seat), $it.name + ': ' + $text($it.chips))", "type": "list"},
+    "final_chips": {"expr": "$map($sort(player, $it.seat), $it.name + ': ' + $text($it.chips))", "type": "list"},
     "net_results": {"expr": "$dict(player, $it.name, $it.net)", "type": "map", "description": "Chips won (+) or lost (-) by each player."},
     "dealer_busts": {"expr": "$world.dealer_busts", "type": "int"},
     "house_edge_observed": {"expr": "-$sum(player, $it.net)", "type": "int", "description": "Chips the house won overall."}

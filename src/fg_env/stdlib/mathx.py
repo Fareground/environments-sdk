@@ -5,7 +5,7 @@ import bisect
 import math
 from typing import Any, Callable, List
 
-from ..expr import MAX_INT_BITS, Call, ExprError, _pow, charge, function
+from ..expr import MAX_INT_BITS, Call, charge, function
 from ._args import fail, int_arg, list_arg, number_arg, present_numbers
 
 
@@ -41,35 +41,6 @@ def _atan2(call: Call) -> float:
     return math.atan2(number_arg(call, 0), number_arg(call, 1))
 
 
-@function("hypot(x, y)", "Length of the vector (x, y): sqrt(x² + y²).", min_args=2, max_args=2)
-def _hypot(call: Call) -> float:
-    return _finite(call, math.hypot(number_arg(call, 0), number_arg(call, 1)))
-
-
-@function("pow(x, y)", "x to the power y (like x ** y).", min_args=2, max_args=2)
-def _power(call: Call) -> Any:
-    try:
-        return _pow(number_arg(call, 0), number_arg(call, 1), call.source)
-    except ExprError as exc:
-        raise fail(call, exc.detail) from None
-
-
-@function("log_base(x, base)", "Logarithm of x in `base` (e.g. 2 or 10); $log(x) is the natural logarithm.",
-          min_args=2, max_args=2)
-def _log_base(call: Call) -> float:
-    x = number_arg(call, 0)
-    base = number_arg(call, 1)
-    if x <= 0:
-        raise fail(call, f"x must be above 0, got {x}")
-    if base <= 0 or base == 1:
-        raise fail(call, f"the base must be above 0 and not 1, got {base}")
-    if base == 10:  # exact at powers of the base: log(1000) / log(10) is 2.9999999999999996
-        return math.log10(x)
-    if base == 2:
-        return math.log2(x)
-    return math.log(x) / math.log(base)
-
-
 @function("sigmoid(x)", "Logistic function 1 / (1 + e^-x), in (0, 1).", min_args=1, max_args=1)
 def _sigmoid(call: Call) -> float:
     return sigmoid(number_arg(call, 0))
@@ -94,13 +65,6 @@ def _logit(call: Call) -> float:
 def _sign(call: Call) -> int:
     x = number_arg(call, 0)
     return (x > 0) - (x < 0)
-
-
-@function("lerp(a, b, t)", "The point a fraction `t` of the way from a to b: a + (b - a) × t (t is not clamped).",
-          min_args=3, max_args=3)
-def _lerp(call: Call) -> float:
-    a, b, t = number_arg(call, 0), number_arg(call, 1), number_arg(call, 2)
-    return _finite(call, a + (b - a) * t)
 
 
 @function("interp(x, xs, ys)", "Piecewise-linear y at x through the points (xs, ys); xs strictly increasing; flat beyond the ends.",
@@ -174,11 +138,6 @@ def _comb(call: Call) -> int:
 @function("pi()", "The constant pi (3.14159…).", max_args=0)
 def _pi(call: Call) -> float:
     return math.pi
-
-
-@function("e()", "The constant e (2.71828…).", max_args=0)
-def _e(call: Call) -> float:
-    return math.e
 
 
 def _logits(call: Call) -> List[float]:

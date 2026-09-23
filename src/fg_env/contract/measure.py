@@ -85,7 +85,7 @@ class InvariantSpec(_ExprShorthand):
 
     expr: str
     why: str = ""
-    check: str = Field("action", description="When it is checked: action (after the build, every action and effect block, and every round) | round (after the build and at the end of every round: much cheaper for sums over big crowds) | end (once, when the run finishes).")
+    check: str = Field("action", description="When it is checked: action (after the build, every action and effect block — an `each` event once its last item ran — and every round) | round (after the build and at the end of every round: much cheaper for sums over big crowds) | end (once, when the run finishes).")
 
 
 class CalibrationSpec(_Model):

@@ -140,6 +140,24 @@ def test_a_choice_whose_rule_draws_randomness_is_decided_by_the_full_listing(mon
     assert _fingerprint(GUARDED, "policy:seller") == result
 
 
+def _choices_of(where):
+    contract = {"name": "Teams", "clock": {"rounds": 1},
+                "types": {"p": {"agent": True, "props": {"team": "red", "rival": ""}}},
+                "entities": {"a": {"type": "p", "props": {"rival": "c"}}, "b": {"type": "p"},
+                             "c": {"type": "p", "props": {"team": "blue"}}, "d": {"type": "p", "props": {"team": "blue"}}},
+                "actions": {"pick": {"by": "p", "params": {"who": {"type": "entity", "of": "p", "where": where}},
+                                     "do": []}}}
+    tools = {t["name"]: t for t in fg_env.load(contract).preview("a")["tools"]}
+    return tools["pick"]["input_schema"]["properties"]["who"]["enum"]
+
+
+def test_a_choice_that_only_excludes_by_inequality_lists_exactly_what_its_rule_allows():
+    assert _choices_of("$it.id != $actor.id") == ["b", "c", "d"]
+    assert _choices_of("$it.team != $actor.team") == ["c", "d"]
+    assert _choices_of("$actor.rival != $it") == ["a", "b", "d"]
+    assert _choices_of("$it.team != 'red' or $it.id == 'a'") == ["a", "c", "d"]
+
+
 BALANCE = {
     "name": "Balance",
     "clock": {"rounds": 3},
@@ -153,6 +171,32 @@ BALANCE = {
 
 def test_an_action_invariant_fails_the_moment_a_change_breaks_it():
     result = fg_env.load(BALANCE, seed=1).run()
+    assert result.status == "failed" and "after events[0].do" in result.error and "the books balance" in result.error
+
+
+#: Clerks take turns lending and repaying: the books are off after every lender and balance again after the
+#: borrower who follows, so they balance whenever the whole event has run.
+LENDING = {
+    "name": "Lending",
+    "clock": {"rounds": 2},
+    "world": {"owed": 0},
+    "types": {"clerk": {"props": {"seat": 0}}},
+    "population": [{"type": "clerk", "count": 4, "props": {"seat": "$i"}}],
+    "events": [{"phase": "end", "each": "clerk", "order": "$it.seat",
+                "do": [{"if": "$it.seat % 2 == 0", "then": ["$world.owed += 1"], "else": ["$world.owed -= 1"]}]}],
+    "invariants": [{"expr": "$world.owed == 0", "why": "the books balance"}],
+    "outputs": {"owed": {"expr": "$world.owed", "type": "int"}},
+}
+
+
+def test_an_each_event_is_checked_once_after_its_last_item():
+    assert fg_env.load(LENDING, seed=1).run().status == "completed"
+
+
+def test_an_each_event_that_leaves_an_invariant_broken_fails_the_run_naming_the_event():
+    contract = json.loads(json.dumps(LENDING))
+    contract["population"][0]["count"] = 3
+    result = fg_env.load(contract, seed=1).run()
     assert result.status == "failed" and "after events[0].do" in result.error and "the books balance" in result.error
 
 

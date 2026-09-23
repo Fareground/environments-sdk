@@ -29,7 +29,7 @@ def bars(env, name="acme_bars"):
 
 
 def test_venue_rules_can_be_expressions_over_inputs_resolved_when_the_world_is_built():
-    contract = crowd_book(tick_size="10 ** ($floor($log_base($inputs.price, 10)) - 4)", taker_fee_bps="$inputs.fee")
+    contract = crowd_book(tick_size="10 ** ($floor($log($inputs.price, 10)) - 4)", taker_fee_bps="$inputs.fee")
     for price, tick in ((50, 0.001), (1000, 0.1), (250.5, 0.01)):
         env = fg_env.load(contract, inputs={"price": price, "fee": 7}, seed=1)
         book = expr.evaluate("$book(acme)", env.world.scope())

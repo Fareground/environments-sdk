@@ -183,8 +183,7 @@ class EventSpec(_Model):
     name: Optional[str] = None
     at: Union[int, List[int], str, None] = Field(None, description="Round(s) it fires.")
     every: Union[int, str, None] = Field(None, description="Fires every N rounds, from round 1: a number or an expression over $inputs.")
-    when: Optional[str] = Field(None, description="Fires when true.")
-    chance: Union[StrictFloat, str, None] = Field(None, description="Probability of firing when otherwise due.")
+    when: Optional[str] = Field(None, description="Fires when true; `$chance(0.1)` fires it at random.")
     phase: str = Field("start", description="start (before stages) | end (after stages).")
     each: Optional[str] = Field(None, description="Run `do` once per item ($it): a type or expression.")
     as_: Optional[str] = Field(None, alias="as", description="Name for the item instead of $it.")

@@ -144,7 +144,6 @@ def _chance(contract: Contract, scan: _Scan) -> Tuple[str, List[str], List[str]]
         if _lossy(node):
             play.append(f"{path} may lose the message (drop)")
     play += [f"actions.{name}.chance is {spec.chance}" for name, spec in contract.actions.items() if spec.chance is not None]
-    play += [f"events[{i}].chance is {e.chance}" for i, e in enumerate(contract.events) if e.chance is not None]
     play += [f"stage {s.name} wakes agents in random order" for s in contract.stage_list() if s.order == "random"]
     if contract.physics is not None:
         play += [f"physics.vars.{name}.noise is a random term" for name, var in contract.physics.vars.items() if var.noise]

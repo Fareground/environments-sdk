@@ -213,6 +213,14 @@ class Turn:
         used_round = env._used_round.get(self.actor.id, {})
         return [n for n in names if env.actions.blocked(self.actor, n, self.used, used_round) is None]
 
+    def _allows(self, name: str) -> bool:
+        """Whether action ``name`` is legal now: :meth:`_legal` for one action."""
+        if self.actions_left <= 0:
+            return False
+        env = self.env
+        return name in stage_actions(env.contract, self.stage, self.actor.entity_type) and \
+            env.actions.blocked(self.actor, name, self.used, env._used_round.get(self.actor.id, {})) is None
+
     def tools(self) -> List[ToolSpec]:
         if self.done:
             return []

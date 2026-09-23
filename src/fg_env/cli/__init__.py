@@ -431,9 +431,11 @@ def add_commands(sub: Any) -> None:
     add_run_commands(sub)
     add_game_commands(sub)
 
+    from .author import add_author_command
     from .new import add_new_command
 
     add_new_command(sub)
+    add_author_command(sub)
 
     p = sub.add_parser("expand", help="print the contract as the engine reads it: imports merged, macros expanded")
     p.add_argument("file", help="contract JSON file")

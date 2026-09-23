@@ -58,14 +58,14 @@ turn, uses `max_actions`, or runs out of `max_calls`.
   inside that change, so a `fail` in a hook refuses it. Entities made at build run on_create once the
   whole world exists, in creation order (`on_create_at_build: false` skips them). `$it` is the entity;
   in on_remove it is already no longer alive. Hooks setting off hooks stop at 16 levels.
-* Invariants are checked after every action and effect block (and after physics): write them for states that
-  must hold at all times, not ones that only settle at the end of a stage. An agent's action that breaks one —
-  itself or through the triggers and hooks its commit sets off — is refused and undone, and the agent is told the
-  invariant's `why` (give one: without it the agent only hears that a rule would break); the run goes on and its
-  diagnostics count it. A break by anything else (events, physics, the build) fails the run. `"check": "round"`
-  checks one only at the end of every round (a conservation sum over a big crowd then costs one pass a round, not
-  one per change) — a break found then fails the run, whatever caused it; `"check": "end"` once, when the run
-  finishes.
+* Invariants are checked after every action and effect block (an `each` event once its last item ran) and after
+  physics: write them for states that must hold at all times, not ones that only settle at the end of a stage. An
+  agent's action that breaks one — itself or through the triggers and hooks its commit sets off — is refused and
+  undone, and the agent is told the invariant's `why` (give one: without it the agent only hears that a rule would
+  break); the run goes on and its diagnostics count it. A break by anything else (events, physics, the build) fails
+  the run. `"check": "round"` checks one only at the end of every round (a conservation sum over a big crowd then
+  costs one pass a round, not one per change) — a break found then fails the run, whatever caused it;
+  `"check": "end"` once, when the run finishes.
 * An agent's action is one undoable unit: the checks of its call (requirements, arguments), its effects, and the
   hooks and triggers its commit sets off. A rule that fails anywhere in it (a division by zero, a number too large) refuses and undoes that action
   alone — in a sealed stage when the choices commit, in an atomic turn the whole turn — and the agent is told the cause
@@ -265,7 +265,7 @@ RECIPES = """\
 * Money & trade: number props + `transfer` (atomic, never negative). Invariants like
   `"$all(trader, $it.cash >= 0)"` guard the books.
 * Markets / order books: orders as entities (`create` with side, price, qty, owner); an end-phase
-  event matches with `repeat` while best bid ≥ best ask using `$top`/`$bottom`; trades update
+  event matches with `repeat` while best bid ≥ best ask using `$top`/`$sort`; trades update
   holdings and `remove` filled orders.
 * Voting: the `decision` family — `{"kind": "decision", "mode": "ballot", "who": "voter", "options": [...]}` adds
   the vote tools, a sealed stage and the tally (`$world.<name>_result.winner`); `mode: deliberation` adds motions
@@ -348,7 +348,7 @@ RECIPES = """\
   at="date", value="close")` replays a price history for backtests. Answers are recorded on the host tape:
   snapshots, restores and replays never ask again, and host text reaches agents «quoted».
 * Scenarios & experiments: `inputs` for scenario knobs, `arms` for variants (input overrides or
-  patches), `events` with `at`/`every`/`chance`/`arms` for shocks; `fg_env.experiment` runs arms
+  patches), `events` with `at`/`every`/`arms` (and `when: "$chance(p)"`) for shocks; `fg_env.experiment` runs arms
   with shared seeds (`branch_at=N`: every arm continues from one shared history of N rounds).
 * Games: a `game` section names the seats and what each scores (`"game": {"players": "player", "seat":
   "$it.seat", "returns": "$actor.chips - 10", "utility": "zero_sum"}`); dealt cards and dice as `chance`
@@ -531,11 +531,12 @@ INSPECT = """\
 
 ```python
 result = fg_env.run("game.json", seed=1)     # random agents; {"player": my_agent} for yours
-print(result.summary())                       # status, winner, outputs, output issues, diagnostics
+print(result.summary())                       # status, winner, outputs, issues, diagnostics, metrics, end state
 result.outputs, result.winner, result.ended_by, result.metrics, result.series["price"]
 ```
 Summaries show numbers to 4 decimals; an output's `"format": "money"` (any template format) shows it that way.
-Stored values stay exact.
+Stored values stay exact. A summary ends with each metric's last values and the state the run left: world props and
+the first few entities of each type with every prop (`result.state`), so you can look without adding outputs.
 
 `result.diagnostics` is `[{code, path, message, fix}]`: logic problems the run revealed. It reports:
 * a tool offered when none of its choices could succeed;
@@ -548,7 +549,8 @@ Stored values stay exact.
 
 `fg-env check` plays up to 12 rounds with random agents and again with each policy, and reports what those plays
 reveal: crashes as errors (naming the policy that ran into one), diagnostics (including each policy's always-refused
-rules) as warnings.
+rules) as warnings. Before a policy rule acts, the later rules whose action is legal are evaluated too, so a broken rule
+is reported even when an earlier one always wins.
 `--rounds 30` plays exactly that many for more evidence.
 
 `result.events` is the log in order: `{seq, round, stage, kind, actor, text, data}`. Its kinds are `action`,

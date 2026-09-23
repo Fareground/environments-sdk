@@ -58,11 +58,12 @@ class Stats:
     faulted_actions: int = 0
 
     def add(self, other: "Stats") -> None:
-        for name in self.__dataclass_fields__:
-            setattr(self, name, getattr(self, name) + getattr(other, name))
+        for name, value in vars(other).items():  # every field is a count: most of a turn's are zero
+            if value:
+                setattr(self, name, getattr(self, name) + value)
 
     def to_dict(self) -> Dict[str, Any]:
-        out: Dict[str, Any] = asdict(self)
+        out: Dict[str, Any] = dict(vars(self))
         wakes = max(1, self.wakes)
         out["avg_update_tokens"] = round(self.update_chars / max(1, self.update_reads) / 4)
         out["avg_brief_tokens"] = round(self.brief_chars / max(1, self.brief_reads) / 4)
@@ -111,6 +112,9 @@ class RunResult:
     clock: Dict[str, Any] = field(default_factory=dict)
     #: The assets the run knew — its catalog and submitted files — as metadata with content hashes (empty without any).
     assets: Dict[str, Any] = field(default_factory=dict)
+    #: The world as the run left it, kept small: world props, and per type its living count and first few entities
+    #: (see :mod:`fg_env.end_state`). :meth:`summary` shows it.
+    state: Dict[str, Any] = field(default_factory=dict)
 
     @property
     def ok(self) -> bool:
@@ -174,7 +178,9 @@ class RunResult:
 
             key = self.budget["exhausted"]
             lines.append(f"budget: {key} ran out ({spent(key, self.budget['used'][key], self.budget['limits'][key])})")
-        return "\n".join(lines)
+        from .end_state import state_lines
+
+        return "\n".join(lines + state_lines(self.state, self.series))
 
 
 def shown(value: Any, fmt: Optional[str] = None) -> str:

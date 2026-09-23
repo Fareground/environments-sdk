@@ -870,24 +870,8 @@
             }
           ],
           "default": null,
-          "description": "Fires when true.",
+          "description": "Fires when true; `$chance(0.1)` fires it at random.",
           "title": "When"
-        },
-        "chance": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Probability of firing when otherwise due.",
-          "title": "Chance"
         },
         "phase": {
           "default": "start",
@@ -1583,7 +1567,7 @@
         },
         "check": {
           "default": "action",
-          "description": "When it is checked: action (after the build, every action and effect block, and every round) | round (after the build and at the end of every round: much cheaper for sums over big crowds) | end (once, when the run finishes).",
+          "description": "When it is checked: action (after the build, every action and effect block — an `each` event once its last item ran — and every round) | round (after the build and at the end of every round: much cheaper for sums over big crowds) | end (once, when the run finishes).",
           "title": "Check",
           "type": "string"
         }

@@ -126,7 +126,3 @@ def _normal_for(call: Call) -> float:
         raise ExprError(f"$normal_for: sd must be a number ≥ 0, got {sd}", call.source)
     return _keyed_rng(call, call.arg(0)).gauss(mean, sd)
 
-
-@function("chance_for(key, p)", "True with probability p, fixed by `key` (aligned across experiment arms).", min_args=2, max_args=2)
-def _chance_for(call: Call) -> bool:
-    return _keyed_rng(call, call.arg(0)).random() < call.number(1)

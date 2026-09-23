@@ -162,6 +162,20 @@ A ready-to-run contract from a template (blank, game, market, simulation, social
 With ``path`` it is also written there as JSON (an existing file is kept unless ``overwrite``); ``name``
 replaces the contract's name (default: the template's, or the file name when a path is given).
 
+## `author`
+
+```python
+author(brief: 'str', model: 'str', *, client: 'Any' = None, out: 'Optional[str]' = None, budget: 'Optional[Mapping[str, int]]' = None, progress: 'Optional[Callable[[str], None]]' = None) -> 'AuthorResult'
+```
+
+Have ``model`` (``"anthropic:<model>"`` or ``"openai:<model>"``) write an environment for ``brief``; returns an
+:class:`AuthorResult` (``result.contract``, ``result.ok``, ``result.summary()``).
+
+``out`` is where the contract is written (nothing is written when None). ``budget`` caps ``tokens`` (input +
+output) and model ``calls``, by default 600,000 and 30. ``client`` replaces the official client made from the
+environment; ``progress`` is called with one line per model call. A provider error does not raise: the loop stops
+(``result.stop`` says why) and keeps what already works.
+
 ## `Env`
 
 ```python
@@ -182,7 +196,7 @@ An environment: world, people, rules, what agents see, what is measured.
 ## `RunResult`
 
 ```python
-RunResult(status: 'str', ended_by: 'Optional[str]', rounds: 'int', seed: 'int', arm: 'Optional[str]', inputs: 'Dict[str, Any]', outputs: 'Dict[str, Any]', metrics: 'Dict[str, Any]', series: 'Dict[str, List[Any]]', winner: 'Any' = None, error: 'Optional[str]' = None, time: 'Optional[float]' = None, returns: 'Dict[str, float]' = <factory>, output_issues: 'List[Dict[str, Any]]' = <factory>, stats: 'Dict[str, Any]' = <factory>, agent_stats: 'Dict[str, Dict[str, Any]]' = <factory>, events: 'List[Dict[str, Any]]' = <factory>, exposures: 'Dict[str, Any]' = <factory>, frames: 'List[Dict[str, Any]]' = <factory>, host_tape: 'Dict[str, Any]' = <factory>, budget: 'Dict[str, Any]' = <factory>, formats: 'Dict[str, str]' = <factory>, diagnostics: 'List[Dict[str, str]]' = <factory>, clock: 'Dict[str, Any]' = <factory>, assets: 'Dict[str, Any]' = <factory>) -> None
+RunResult(status: 'str', ended_by: 'Optional[str]', rounds: 'int', seed: 'int', arm: 'Optional[str]', inputs: 'Dict[str, Any]', outputs: 'Dict[str, Any]', metrics: 'Dict[str, Any]', series: 'Dict[str, List[Any]]', winner: 'Any' = None, error: 'Optional[str]' = None, time: 'Optional[float]' = None, returns: 'Dict[str, float]' = <factory>, output_issues: 'List[Dict[str, Any]]' = <factory>, stats: 'Dict[str, Any]' = <factory>, agent_stats: 'Dict[str, Dict[str, Any]]' = <factory>, events: 'List[Dict[str, Any]]' = <factory>, exposures: 'Dict[str, Any]' = <factory>, frames: 'List[Dict[str, Any]]' = <factory>, host_tape: 'Dict[str, Any]' = <factory>, budget: 'Dict[str, Any]' = <factory>, formats: 'Dict[str, str]' = <factory>, diagnostics: 'List[Dict[str, str]]' = <factory>, clock: 'Dict[str, Any]' = <factory>, assets: 'Dict[str, Any]' = <factory>, state: 'Dict[str, Any]' = <factory>) -> None
 ```
 
 Everything a run produced. ``outputs`` follows the contract's output contract.

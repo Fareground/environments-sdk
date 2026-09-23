@@ -7,7 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Every run is now either correct or fails loudly (T-797 phase 1). Several defaults changed.
+Every run is now either correct or fails loudly (T-797). Several defaults changed. Round 2 adds one-command
+authoring, visible end state, a smaller function set and a faster engine.
+
+### Round 2
+- `fg_env.author(brief, model)` and `fg-env author BRIEF --model anthropic:<m>|openai:<m>` turn a plain description
+  into a checked, running contract. The saved contract is always the latest one that checks clean and runs (T-823).
+- `RunResult.state` holds the world props and, per type, the first entities with every prop. `summary()` and
+  `fg-env run` end with each metric's last values and that end state, so authors never need debug outputs. `check`
+  evaluates policy rules that an earlier rule always beats (T-821).
+- Removed 20 duplicate `$functions` and `events[].chance`. Each removed name's error points to its replacement:
+  `$bottom` → `$sort` (which gains `n` and `where`), `$log_base` → `$log(x, base)`, `$pow` → `**`, and more (T-824).
+- Engine: coded decisions no longer copy the type list or repeat legality checks, so a 5k-agent crowd is 1.6× faster
+  and its cost per decision no longer grows with the crowd. An `each` event's invariants are checked once after its
+  last item, which makes coffee_market 33% faster. Random agents pick valid entities when there are more than 60
+  choices; before, they were always refused. `$seen` inside a def no longer returns a stale value
+  (T-822, T-825).
 
 ### Breaking
 - Game logic reads the true state. `$records` and `$events` filter by `$viewer` only, never the acting agent, so

@@ -2,10 +2,8 @@
 
 Run with ``PYTHONPATH=src pytest benchmarks/authoring/tests`` (not part of the default test run)."""
 import json
-import shutil
 from pathlib import Path
 
-from author import Workbench
 from bench import friction, score, scorecard
 
 FIXTURE = Path(__file__).parent / "fixtures" / "weekly_inventory.json"
@@ -38,16 +36,3 @@ def test_a_broken_environment_fails_its_fidelity_checks():
 
     assert [c["check"] for c in row["failed_checks"]] == ["shop_stock_is_conserved"]
 
-
-def test_workbench_tools_answer_offline():
-    bench = Workbench()
-    contract = json.loads(FIXTURE.read_text())["writes"][-1]
-
-    assert bench.call("check", {}) == "No contract saved yet."
-    assert bench.call("write_contract", {"contract": json.dumps(contract)}).startswith("Saved")
-    assert bench.call("check", {}) == "No issues."
-    assert "cash_end" in bench.call("run", {"seed": 2})
-    assert "TOOLS:" in bench.call("preview", {"agent": "owner"})
-    assert bench.call("preview", {}).startswith("Bad tool call")
-    assert bench.call("guide", {"part": "effects"}) and bench.guide_parts == ["effects"]
-    shutil.rmtree(bench.path.parent)

@@ -284,7 +284,7 @@ class Driver:
                 turn.exposure.close(turn)
 
     def _rng(self, turn: "Turn") -> Any:
-        return self.env.seeds.rng("turn", turn.round, turn.number)
+        return self.env.seeds.lazy_rng("turn", turn.round, turn.number)
 
     def _inline(self, turn: "Turn", participant: Participant, rng: Any) -> Any:
         with self.env.world.turn_context(rng, turn.pending):

@@ -13,7 +13,6 @@ their name in what that agent reads (``Moderator [chair]``), so the handle to pa
 """
 from __future__ import annotations
 
-from copy import deepcopy
 from dataclasses import dataclass
 from difflib import get_close_matches
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Tuple
@@ -144,7 +143,7 @@ def inspect_tool(env: "Env", viewer: Entity, allowance: int) -> Optional[ToolSpe
         cache.ready = True
     # ToolSpec is frozen but its schema is mutable. Never share that schema
     # across callers; enums have at most 60 ids, so copying stays bounded.
-    return deepcopy(cache.tool)
+    return cache.tool.copy() if cache.tool is not None else None
 
 
 def _build_inspect_tool(env: "Env", viewer: Entity, allowance: int) -> Optional[ToolSpec]:

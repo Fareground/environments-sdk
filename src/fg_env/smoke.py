@@ -43,7 +43,7 @@ def smoke_issues(contract: Contract, build: Callable[[], "Env"], rounds: Optiona
         warnings.append(Issue(found["path"], f"{found['message']} (smoke run of {random_play.rounds} round(s), "
                               "random agents)", found["fix"], "warning"))
     for name, players in policies:
-        agent, who = PolicyAgent(contract, name, seed), f"policy '{name}' playing {', '.join(players)}"
+        agent, who = _Probing(contract, name, seed), f"policy '{name}' playing {', '.join(players)}"
         played = _play(build(), {kind: agent for kind in players}, rounds, seconds)
         _failure(played, who, errors)
         warnings.extend(Issue(found["path"], f"{found['message']} (smoke run of {played.rounds} round(s), {who})",
@@ -93,6 +93,12 @@ def _failure(result: RunResult, who: str, errors: List[Issue]) -> None:
     if any(e.path == issue.path and e.message.startswith(issue.message) for e in errors):
         return
     errors.append(Issue(issue.path, f"{issue.message} (smoke run of {result.rounds} round(s), {who})", issue.fix))
+
+
+class _Probing(PolicyAgent):
+    """A policy that also evaluates the later rules an earlier one beat to the turn."""
+
+    _probe_later = True
 
 
 def _reading(agent: Any) -> Any:

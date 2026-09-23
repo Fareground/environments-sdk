@@ -19,7 +19,8 @@ requirement while you repair check issues.
 3. `fg-env preview game.json <agent id>` (`env.preview(id)`): exactly what that agent reads. Each role should see
    what the brief says it sees, and nothing more.
 4. `fg-env run game.json --seed 1` (`fg_env.run`): compare the outputs with what the brief implies, worked out by
-   hand for a small case. A clean check proves it runs, not that it is right.
+   hand for a small case. A clean check proves it runs, not that it is right. To look at state, read the run's summary
+   (it ends with metric values and the entities as the run left them) or a preview; never swap outputs for probes.
 
 ## Worked example
 
@@ -101,7 +102,7 @@ Every section is optional except `name` and `types`. `guide('<section>')` has ea
 | `actions` | `{act: {by, description, params: {p: {type, min, max, values, of, where}}, when, do, outcome, announce, private}}` |
 | `stages` | `[{name, actions, turns, who, order, max_actions, until, on_enter, on_exit}]` |
 | `views` | `{v: {for, title, of, where, sort, desc, limit, show}}` — `of` omitted: one line about `$actor` |
-| `events` | `[{phase: start or end, at, every, when, chance, each, do, say}]` |
+| `events` | `[{phase: start or end, at, every, when, each, do, say}]` |
 | `end` | `[{when, winner, say, check: stage or action}]` |
 | `metrics`, `outputs` | `{name: expr}` or `{name: {expr, type}}`; an output's `format` (money, pct, 2 …) shapes summaries |
 | `invariants` | `[expr or {expr, why}]` — must always hold |
@@ -163,6 +164,9 @@ Ready-made rules that expand into ordinary actions, stages, views and outputs:
 | `mind` | beliefs, personas, memory | What agents know and remember: beliefs with confidence, memory with recall, generated personas. |
 | `conditions` | status, cooldowns, channeling, terrain | Effects on entities over time: statuses, cooldowns, channeled actions and terrain. |
 | `host` | judge, game_master, tool, recap | Services the host provides during a run: an LLM judge, a game master, recaps and tools such as web search. |
+
+To have a model do the write → check → preview → run loop for you: `fg-env author brief.md --model anthropic:<model>`
+(`fg_env.author`); it keeps the latest contract that checks clean and runs.
 
 ## Every other part
 

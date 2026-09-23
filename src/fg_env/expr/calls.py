@@ -13,18 +13,34 @@ from .values import _ENTITY_FIELDS, _Entity, _describe, _entity_id, _number
 __all__ = ["Evaluator", "EqualityGuard", "Call", "FunctionSpec", "FUNCTIONS", "function"]
 
 
+#: Names authors reach for that are not functions, and the one way the language says each. A near spelling would
+#: suggest something else ($mean → $median, $bottom → $book, $log_base → $log_loss).
+_SAY_INSTEAD = {
+    "mean": "$avg", "bottom": "$sort", "log_base": "$log(x, base)", "pow": "x ** y", "e": "$exp(1)",
+    "lerp": "a + (b - a) * t", "hypot": "$sqrt(x ** 2 + y ** 2)", "char_at": "$chars(text)[i]",
+    "count_of": "$count(list, $it == value)", "enumerate": "$map(list, [$i, $it])", "is_subset": "$all(a, $it in b)",
+    "argmax": "$index(xs, $max(xs))", "argmin": "$index(xs, $min(xs))", "chance_for": "$random_for(key) < p",
+    "realized_vol": "$market_stats(prices).sigma", "vol_clustering": "$market_stats(prices).acf_abs",
+    "volume_vol_corr": "$market_stats(prices, volumes).vol_volume_corr", "lmsr_prices": "$softmax(q, b)",
+    "lmsr_cost": "b * $logsumexp($map(q, $it / b))", "cpmm_prices": "$amm(name).prices",
+}
+
+
 def suggest_function(name: str, candidates: Sequence[str]) -> Optional[str]:
-    """Suggest a known name without confusing arithmetic mean with median."""
-    if name == "mean" and "avg" in candidates:
-        return "avg"
+    """What to write instead of the unknown function ``name``: the one way the language says it, or the closest
+    known name (a built-in or a def among ``candidates``), with its ``$``."""
+    if name in _SAY_INSTEAD:
+        return _SAY_INSTEAD[name]
     matches = get_close_matches(name, candidates, n=1)
-    return matches[0] if matches else None
+    return f"${matches[0]}" if matches else None
 
 
 Evaluator = Callable[[Scope], Any]
 
 #: An :class:`EqualityGuard` key that could not be worked out up front.
 _NO_KEY = object()
+#: The attribute holding an entity field whose name differs from it.
+_FIELD_ATTRS = {"at": "location_id", "type": "entity_type"}
 
 
 @dataclass(frozen=True)
@@ -52,9 +68,9 @@ class EqualityGuard:
         if type(item) is not _Entity:
             return False
         field = self.field
-        if field in _ENTITY_FIELDS:
-            value = item.location_id if field == "at" else item.entity_type if field == "type" else getattr(item, field)
-        elif field in item.properties:
+        if field in _ENTITY_FIELDS:  # text, a flag or null: each its own id
+            return bool(getattr(item, _FIELD_ATTRS.get(field, field)) != key)
+        if field in item.properties:
             value = item.properties[field]
         else:
             return False  # evaluating it reports the missing property
@@ -105,10 +121,10 @@ class Call:
             items = list(self.scope.world.alive_of(value)) if copy else self.scope.world.alive_of(value)
         elif value is None:
             return []
+        elif isinstance(value, (list, tuple)):  # before Mapping: an ABC check costs far more
+            items = list(value)
         elif isinstance(value, Mapping):
             items = list(value.values())
-        elif isinstance(value, (list, tuple)):
-            items = list(value)
         elif hasattr(value, "entity_type"):
             return [value]
         else:

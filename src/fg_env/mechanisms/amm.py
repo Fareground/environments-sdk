@@ -339,15 +339,6 @@ def _market(call: Call) -> str:
     return str(call.arg(0))
 
 
-def _numbers(call: Call, index: int) -> List[float]:
-    value = call.arg(index)
-    values = list(value.values()) if isinstance(value, Mapping) else value
-    if not isinstance(values, (list, tuple)) or not values or not all(
-            isinstance(v, (int, float)) and not isinstance(v, bool) for v in values):
-        raise ExprError(f"${call.name}: expected a list (or map) of numbers, got {value!r}", call.source)
-    return [float(v) for v in values]
-
-
 @function("amm(name)", "A prediction market: {prices: {outcome: price}, vault, fees, volume, resolved, payout, maker, "
           "liquidity, question}.", min_args=1, max_args=1)
 def _amm_function(call: Call) -> Dict[str, Any]:
@@ -381,22 +372,6 @@ def _cost_function(call: Call) -> float:
     value = lmsr_cost(state[:i] + [state[i] + n] + state[i + 1:], cfg.liquidity) - lmsr_cost(state, cfg.liquidity) \
         if cfg.maker == "lmsr" else cpmm_cost_for_shares(state, i, n)
     return value * (1 + cfg.fee_pct)
-
-
-@function("lmsr_prices(q, b)", "LMSR prices for net shares sold `q` (a list or map) and liquidity `b`.", min_args=2, max_args=2)
-def _lmsr_prices_function(call: Call) -> List[float]:
-    return lmsr_prices(_numbers(call, 0), call.number(1))
-
-
-@function("lmsr_cost(q, b)", "LMSR cost function b·ln Σ exp(q_i/b); a trade costs the difference before and after.",
-          min_args=2, max_args=2)
-def _lmsr_cost_function(call: Call) -> float:
-    return lmsr_cost(_numbers(call, 0), call.number(1))
-
-
-@function("cpmm_prices(pools)", "Constant-product prices for outcome pools (a list or map).", min_args=1, max_args=1)
-def _cpmm_prices_function(call: Call) -> List[float]:
-    return cpmm_prices(_numbers(call, 0))
 
 
 @function("amm_ok(name)", "True while a prediction market conserves cash and its vault covers every share.", min_args=1, max_args=1)

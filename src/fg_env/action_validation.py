@@ -23,11 +23,33 @@ __all__ = ["ActionValidation"]
 _NUMBER_TEXT = 64
 
 
+class _Drew(Exception):
+    """A rule tried to draw from :data:`_NO_DRAWS`."""
+
+
+class _NoDraws:
+    """A random stream that refuses every draw: a rule read through it leaves every real stream as it was."""
+
+    def __getattr__(self, name: str) -> Any:
+        raise _Drew(name)
+
+
+_NO_DRAWS = _NoDraws()
+
+
 class ActionValidation:
     """Argument validation for actions (mixed into :class:`~fg_env.actions.ActionBook`)."""
 
     def validate(self: "ActionBook", actor: Entity, name: str, args: Any) -> Tuple[Dict[str, Any], Optional[str]]:  # type: ignore[misc]
-        """Resolve arguments to typed values. Returns (params, None) or ({}, correction text)."""
+        """Resolve arguments to typed values. Returns (params, None) or ({}, correction text). A coded policy checks
+        its call before making it, so the answer is remembered for the same arguments in the same state."""
+        if not isinstance(args, dict):
+            return self._validate(actor, name, args)
+        params, problem = self.world.remembered(("valid", actor.id, name, repr(args)),
+                                                lambda: self._validate(actor, name, args))
+        return dict(params), problem
+
+    def _validate(self: "ActionBook", actor: Entity, name: str, args: Any) -> Tuple[Dict[str, Any], Optional[str]]:  # type: ignore[misc]
         spec = self.contract.actions[name]
         if args is None:
             args = {}
@@ -204,16 +226,14 @@ class ActionValidation:
         if "i" in expr.roots or not nested_free():  # $i needs the full listing; nested work charges a budget
             return None
         world = self.world
-        rng = world.rng
-        state = rng.getstate()
         drawn = world.draws()
         try:
-            holds = truthy(expr(world.scope(actor=actor, viewer=actor, params=params).child(it=entity)))
-        except ExprError:
+            with world.drawing_from(_NO_DRAWS):
+                holds = truthy(expr(world.scope(actor=actor, viewer=actor, params=params).child(it=entity)))
+        except (ExprError, _Drew):
             holds = False  # the full listing reports it
         if world.draws() != drawn:
-            rng.setstate(state)  # the full listing makes every draw, in its own order
-            return None
+            return None  # the full listing makes every draw, in its own order
         return entity if holds else None
 
     def _list_value(self: "ActionBook", actor: Entity, action: str, pname: str, param: ParamSpec, raw: Any,  # type: ignore[misc]

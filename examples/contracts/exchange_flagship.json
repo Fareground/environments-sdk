@@ -59,7 +59,7 @@
     "demo": {
       "kind": "market", "mode": "order_book", "who": "trader", "instrument": "DEMO",
       "start_price": "$last($seed_bars()).close",
-      "tick_size": "10 ** ($floor($log_base($last($seed_bars()).close, 10)) - 4)", "lot_size": 1,
+      "tick_size": "10 ** ($floor($log($last($seed_bars()).close, 10)) - 4)", "lot_size": 1,
       "maker_fee_bps": 0, "taker_fee_bps": 0.5, "collar_pct": 0.005, "price_band_pct": 0.25,
       "short_limit": 10000000, "max_short_leverage": 2, "max_orders": 20, "depth_levels": 5,
       "bar_rounds": "$inputs.substeps", "halt_pct": "$inputs.circuit_breaker_pct / 100",
