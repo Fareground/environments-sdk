@@ -41,7 +41,9 @@ turn, uses `max_actions`, or runs out of `max_calls`.
   but triggers, reactions and invariants wait until the turn ends. `valid` conditions (`$actor`, `$pending`)
   are checked when a turn that acted ends; if one fails, every action of the turn is undone, the agent is
   told `why` and plays the turn again (castling through check, a full backgammon move). `valid` makes a
-  stage atomic. In a simultaneous stage each agent's choices commit or are undone together.
+  stage atomic. An action that draws randomness settles the turn so far at once, so later actions cannot
+  undo its luck (if `valid` fails then, the turn is undone and over). In a simultaneous stage each agent's
+  choices commit or are undone together.
 * Views with `"for": "spectator"` are an omniscient picture for UIs and reports: rendered at the end of
   every round into `result.frames` (the last marked `final`) and on demand by `env.spectate()`, never
   shown to an agent. They have no `$actor`; randomness they draw never changes the run.

@@ -22,7 +22,7 @@ from .errors import RunError
 from .probability import is_probability
 from .expr import EVAL_BUDGET, Expr, ExprError, PrivateRead, Scope, compile_expr, is_expr, shared_budget, truthy
 from .template import compile_template, format_value
-from .world import Abort, SdkWorld, _plain
+from .world import Abort, LuckAhead, SdkWorld, _plain
 
 __all__ = ["ACTION_BUDGET", "TEXT_MAX_LEN", "MAX_SAFE_INT", "ToolSpec", "Outcome", "ActionBook", "stage_actions"]
 
@@ -250,8 +250,8 @@ class ActionBook(ActionSchemas, ActionValidation):
     def _apply(self, actor: Entity, name: str, params: Dict[str, Any], trial: bool = False) -> Outcome:
         """Apply atomically. A ``trial`` (a dry run, rolled back by the caller) leaves out the default outcome text,
         the announcement and its event: they cannot fail or draw, and a rollback would undo them unseen. The action
-        draws from its actor's own stream, so it never shifts another agent's luck or the world's; a refusal gives
-        its draws back, so retrying rolls the same luck (see :class:`~fg_env.seeds.DrawSite`)."""
+        draws from its actor's own stream, so it never shifts another agent's luck or the world's; a refusal keeps
+        what it drew spent, so retrying rolls fresh luck (see :class:`~fg_env.seeds.DrawSite`)."""
         with self.world.drawing_at(f"actions.{name}@{actor.id}"):
             return self._apply_drawn(actor, name, params, trial)
 
@@ -331,21 +331,27 @@ class ActionBook(ActionSchemas, ActionValidation):
 
     @contextmanager
     def trying(self) -> Iterator[None]:
-        """Nothing done inside the block stays: its changes are undone on the way out, draws included, so the real
-        call rolls what a trial rolled; a trial's chance rolls are sampled, never asked for."""
+        """Nothing done inside the block stays: its changes are undone on the way out."""
         world = self.world
         mark = world.journal.mark()
-        picker, world.chance_picker = world.chance_picker, None
         try:
             yield
         finally:
             world.journal.rollback(mark)
-            world.chance_picker = picker
 
     def trial(self, actor: Entity, name: str, params: Dict[str, Any]) -> Optional[str]:
-        """Apply inside :meth:`trying`, to catch a doomed call before it is made: the refusal, or None."""
-        with shared_budget(ACTION_BUDGET, f"actions.{name}"):
-            outcome = self._apply(actor, name, params, trial=True)
+        """Apply inside :meth:`trying`, to catch a doomed call before it is made: the refusal, or None. A trial draws
+        nothing and asks no chance picker: at its first random draw it stops and refuses nothing, because what follows
+        is luck, and telling it would let an agent probe its luck before playing (the call itself rolls it)."""
+        world = self.world
+        picker, world.chance_picker = world.chance_picker, None
+        try:
+            with shared_budget(ACTION_BUDGET, f"actions.{name}"), world.without_luck():
+                outcome = self._apply(actor, name, params, trial=True)
+        except LuckAhead:
+            return None
+        finally:
+            world.chance_picker = picker
         return None if outcome.ok else outcome.text
 
     def dry_run(self, actor: Entity, name: str, params: Dict[str, Any]) -> Optional[str]:

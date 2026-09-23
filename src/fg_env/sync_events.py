@@ -53,13 +53,15 @@ def run_sync(env: "Env", event: EventSpec, items: Sequence[Any], name: str, path
     with env._lock:
         for position, item in enumerate(items):
             inner = {name: item, "i": position}
-            if event.where is not None and not truthy(compile_expr(event.where)(world.scope(**inner))):
-                continue
+            if event.where is not None:
+                with world.drawing_for(f"{path}.where", item):
+                    if not truthy(compile_expr(event.where)(world.scope(**inner))):
+                        continue
             ran = True
             mark = world.journal.mark()
             world.buffer = buffer
             try:
-                with shared_budget(ACTION_BUDGET, f"{path}.do"):
+                with shared_budget(ACTION_BUDGET, f"{path}.do"), world.drawing_for(f"{path}.do", item):
                     env.effects.run(event.do, dict(inner), f"{path}.do")
             except Abort as refusal:
                 buffer.item.clear()
