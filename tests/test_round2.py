@@ -1,6 +1,8 @@
 """Capabilities and fixes from the second LLM side-agent stress round."""
 import json
 
+import pytest
+
 import fg_env
 from fg_env.expr import Scope, evaluate
 
@@ -136,6 +138,20 @@ def test_directed_random_graph_with_per_pair_probability():
     into_stars = sum(1 for (_, b) in edges if b in stars) / len(stars)
     into_others = sum(1 for (_, b) in edges if b not in stars) / (30 - len(stars))
     assert into_stars > 5 * into_others
+
+
+@pytest.mark.parametrize("graph", ["random", "ring", "small_world"])
+@pytest.mark.parametrize("one_way", [True, False])
+def test_degree_is_the_mean_number_of_neighbours_in_every_graph(graph, one_way):
+    contract = {"name": "Degree", "clock": {"rounds": 1}, "types": {"person": {}},
+                "population": [{"type": "person", "count": 600}],
+                "relations": {"knows": {} if one_way else {"symmetric": True}},
+                "links": [{"relation": "knows", "among": "person", "graph": graph, "degree": 4}]}
+    neighbours = {}
+    for a, b in fg_env.load(contract, seed=3).world.links["knows"]:
+        neighbours.setdefault(a, set()).add(b)
+        neighbours.setdefault(b, set()).add(a)
+    assert sum(len(v) for v in neighbours.values()) / 600 == pytest.approx(4, rel=0.06)
 
 
 def test_quote_marker_is_accepted_inside_expressions():

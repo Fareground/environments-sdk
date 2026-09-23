@@ -289,7 +289,8 @@ class LinkSpec(_Model):
     with_: Optional[str] = Field(None, alias="with", description="bipartite: the other type (links run among → with).")
     hub: Optional[str] = Field(None, description="star: expression giving the hub entity (default: the first member).")
     rows: Optional[str] = Field(None, description="Edges from data: an expression giving rows with `from`, `to` and optional `value`.")
-    degree: Union[int, str, None] = Field(None, description="Links per member (number or expression).")
+    degree: Union[int, str, None] = Field(None, description="Mean neighbours per member (number or expression); on a one-way "
+                                                            "random graph a link either way makes a neighbour.")
     p: Union[float, str, None] = Field(None, description="Link probability (random) or rewiring probability (small_world). For random it may depend on the pair: '0.1 if $to.influencer else 0.02'.")
     props: Dict[str, Any] = Field(default_factory=dict, description="Link field values or expressions over $from and $to ($row too with `rows`, whose columns named like a field fill it).")
     where: Optional[str] = None

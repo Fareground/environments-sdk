@@ -342,9 +342,11 @@ def _links(world: SdkWorld, spec: LinkSpec, index: int, seeds: SeedTree) -> None
         pairs = {_pair(i, (i + d) % n) for i in range(n) for d in range(1, k + 1) if n > 1 and i != (i + d) % n}
     elif graph == "random":
         # On a one-way relation every ordered pair is drawn on its own (follows, trusts);
-        # on a symmetric relation each unordered pair once.
+        # on a symmetric relation each unordered pair once. Either way `degree` is the mean number of
+        # neighbours, as in every other graph: a member linked either way to another has it as a neighbour.
         default = min(1.0, (degree or 4) / max(1, n - 1))
         if directed:
+            default = 1 - math.sqrt(1 - default)
             one_way = [(i, j) for i in range(n) for j in range(n) if i != j and rng.random() < probability(i, j, default)]
             for i, j in one_way:
                 _pair_link(world, spec, members[i], members[j], path)
