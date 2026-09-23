@@ -73,8 +73,9 @@ def _auction(call: Call) -> str:
 
 @function("auction(name)", "An auction's state: {format, open, lot, price, leader, min_bid, reserve, bids, sold, revenue, stock, "
           "items, last}. price, leader and bids describe the open lot; items what a combinatorial lot still has for sale; "
-          "last the latest closed lot's result {lot, winner, winners, price, qty, note} (winner: the first winner's id, '' "
-          "when unsold), kept until another lot closes, null before any has.", min_args=1, max_args=1)
+          "last the latest closed lot's result, sold or not: {lot, winner, winners, price, qty, note} (winner: the first "
+          "winner's id, '' when unsold; price: the first winner's price per unit), kept until another lot closes, null "
+          "before any has.", min_args=1, max_args=1)
 def _auction_function(call: Call) -> Dict[str, Any]:
     name = _auction(call)
     world: Any = call.scope.world

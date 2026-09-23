@@ -41,3 +41,20 @@ def test_last_moves_to_the_next_closed_lot_and_reports_an_unsold_one():
     env.run("idle", rounds=1)
     assert _read(env, "$auction(sale).last") == {"lot": 2, "winner": "", "winners": [], "price": 0, "qty": 0,
                                                  "note": "no bids"}
+
+
+def test_a_uniform_lot_lists_every_winner_at_the_one_clearing_price():
+    uniform = {**SALE, "mechanisms": {"sale": {"kind": "market", "mode": "auction", "format": "uniform", "who": "bidder",
+                                               "stock": 3, "units": 3}}}
+    env = fg_env.load(uniform, seed=1)
+    ids = [e["id"] for e in env.entities("bidder")]
+    prices = dict(zip(ids, [50, 90, 70]))
+
+    def bid(wake):
+        wake.call("sale_bid", {"price": prices[wake.entity_id], "qty": 2 if wake.entity_id == ids[1] else 1})
+        wake.end()
+
+    result = env.run(bid, rounds=1)
+    last = _read(env, "$auction(sale).last")
+    assert last["winners"] == [ids[1], ids[2]] and last["winner"] == ids[1] and last["qty"] == 3
+    assert result.outputs["sale_prices"] == [last["price"], last["price"]]  # one price per winner, not per unit

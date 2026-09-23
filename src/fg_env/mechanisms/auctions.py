@@ -674,9 +674,11 @@ def _check_packages(cfg: AuctionConfig) -> None:
            "and, for double, `<name>_ask`. Bids escrow cash, asks escrow units; proceeds go to the `house` entity or "
            "$world.<name>_revenue. `reverse: true` makes it a procurement tender (the house buys; the lowest offer at or below "
            "the reserve wins and is paid); `score` awards a first_price lot to the best score instead of the best price. "
-           "Each closed lot is posted to the `<name>_results` record (winner, price, qty, lot, note): read the "
-           "last sale as $auction(<name>).last.winner and .price: null before the first lot closes, kept until another "
-           "closes. The other fields of $auction(name) describe the open lot; $auction_text(name, viewer) describes it.",
+           "Each closed lot is posted to the `<name>_results` record, one entry per winner (winner, price, qty, lot, note; "
+           "an unsold lot has one entry with winner ''). $auction(<name>).last is the latest closed lot, sold or not: "
+           "{lot, winner (the first winner, '' when unsold), winners, price (the first winner's price per unit; in a "
+           "uniform auction every winner pays it), qty (units sold), note}, null before the first lot closes; output "
+           "`<name>_prices` lists the price of every winning entry. The other fields of $auction(name) describe the open lot; $auction_text(name, viewer) describes it.",
            example={"format": "second_price", "who": "collector", "item": "a painting", "stock": 3, "reserve": 50})
 def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     types = contract.get("types") or {}
@@ -787,7 +789,7 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
         "outputs": {f"{name}_sold": {"expr": f"$world.{name}_sold", "type": "int", "description": "Units sold."},
                     f"{name}_revenue": {"expr": f"$world.{name}_revenue", "type": "number", "description": "House proceeds."},
                     f"{name}_prices": {"expr": f"$map($filter($records({name}_results), $it.winner != ''), $it.price)",
-                                       "type": "list", "description": "Clearing price of each sale."}},
+                                       "type": "list", "description": "Price per unit of each winning entry (one per winner of a lot)."}},
     }
     names = list(actions)
     if not sealed:
