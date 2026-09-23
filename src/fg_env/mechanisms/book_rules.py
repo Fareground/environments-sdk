@@ -33,7 +33,7 @@ class _Limit(NamedTuple):
 RULES: Dict[str, _Limit] = {
     "tick_size": _Limit(False, 0, False, None, False),
     "lot_size": _Limit(False, 0, False, None, False),
-    "maker_fee_bps": _Limit(False, 0, True, 1000, False),
+    "maker_fee_bps": _Limit(False, -1000, True, 1000, False),  # below 0: a rebate, paid out of the taker fee
     "taker_fee_bps": _Limit(False, 0, True, 1000, False),
     "collar_pct": _Limit(False, 0, False, 1, False),
     "price_band_pct": _Limit(False, 0, False, 10, False),
@@ -75,6 +75,11 @@ class Venue:
     def taker(self) -> float:
         return self.taker_fee_bps / 1e4
 
+    @property
+    def hold(self) -> float:
+        """Cash a resting buy reserves per unit of notional: the price and the maker fee (a rebate reserves nothing)."""
+        return 1 + max(self.maker, 0.0)
+
 
 def rules_default(name: str, config: Any) -> Any:
     """The default of ``<name>_rules``: the literal rules, or an expression that resolves and checks them."""
@@ -105,6 +110,15 @@ def _checked(name: str, rule: str, value: Any) -> Any:
     return value
 
 
+def _rebate_checked(name: str, values: Dict[str, Any]) -> Dict[str, Any]:
+    """A maker rebate is paid out of the taker fee of the same fill, so it is at most that fee."""
+    maker, taker = values.get("maker_fee_bps"), values.get("taker_fee_bps", 0)
+    if maker is not None and maker < 0 and -maker > taker:
+        raise ValueError(f"mechanisms.{name}.maker_fee_bps {maker:g} is a rebate larger than the taker fee "
+                         f"({taker:g} bps) that pays it; set maker_fee_bps to at least {-taker:g}")
+    return values
+
+
 @function("book_rules(name, rules)", "An order book's venue rules {tick_size, lot_size, ...}, each checked against its "
           "limits; the book's generated `<name>_rules` world prop resolves its expressions through it.", min_args=2, max_args=2)
 def _rules_function(call: Call) -> Dict[str, Any]:
@@ -112,7 +126,7 @@ def _rules_function(call: Call) -> Dict[str, Any]:
     if not isinstance(rules, Mapping):
         raise ExprError(f"$book_rules: expected a map of rules, got {rules!r}", call.source)
     try:
-        return {rule: _checked(str(name), rule, value) for rule, value in rules.items()}
+        return _rebate_checked(str(name), {rule: _checked(str(name), rule, value) for rule, value in rules.items()})
     except ValueError as exc:
         raise ExprError(str(exc), call.source) from None
 
@@ -130,8 +144,8 @@ def venue(world: Any, name: str) -> Venue:
     if not isinstance(rules, Mapping):
         raise RunError(f"the book has no venue rules in $world.{name}_rules", f"mechanisms.{name}")
     try:
-        values = {rule: _checked(name, rule, rules.get(rule)) for rule in RULES
-                  if rule in rules or not RULES[rule].optional}
+        values = _rebate_checked(name, {rule: _checked(name, rule, rules.get(rule)) for rule in RULES
+                                        if rule in rules or not RULES[rule].optional})
     except ValueError as exc:
         raise RunError(str(exc), f"world.{name}_rules") from None
     halt = values.get("halt_pct")

@@ -20,8 +20,8 @@ Config:
 - `tools` (default "each"): How the generated tools are offered: each (one tool per action) | one (one tool named after the mechanism, whose `action` argument lists the actions legal now) | auto (one tool only when every action takes the same arguments).
 
 Actions of the `market` op:
-- `buy` — takes `who`, `outcome`, `qty`, `amount` (needs `outcome`): {"market": "election", "action": "buy", "outcome": "yes", "amount": 20}  (buy one outcome by shares (`qty`) or money (`amount`, the most paid when both are given))
-- `sell` — takes `who`, `outcome`, `qty`, `amount` (needs `outcome`): {"market": "election", "action": "sell", "outcome": "yes", "qty": 5}  (sell one outcome by shares (`qty`) or money (`amount`, the least accepted when both are given))
+- `buy` — takes `who`, `outcome`, `shares`, `spend` (needs `outcome`): {"market": "election", "action": "buy", "outcome": "yes", "spend": 20}  (buy one outcome by `shares` or money (`spend`, the most paid when both are given))
+- `sell` — takes `who`, `outcome`, `shares`, `receive` (needs `outcome`): {"market": "election", "action": "sell", "outcome": "yes", "shares": 5}  (sell one outcome by `shares` or money (`receive`, the least accepted when both are given))
 - `resolve` — takes `outcome` (needs `outcome`): {"market": "election", "action": "resolve", "outcome": "$world.truth"}  (pay 1 per winning share and close trading)
 
 ```json

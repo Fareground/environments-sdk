@@ -27,6 +27,25 @@ def test_every_example_game_is_conformant(path):
         assert sealed.ok, sealed.summary()
 
 
+@pytest.mark.parametrize("stem, tool, move, returns", [
+    ("rock_paper_scissors", "throw", {"move": "rock"}, {"a": -1, "b": 1}),      # showing nothing loses
+    ("biased_pennies", "show", {"side": "heads"}, {"a": -1, "b": 1}),         # A's worst result
+    ("prisoners_dilemma", "choose", {"move": "defect"}, {"a": 0, "b": 5}),    # a missed choice cooperates
+    ("chicken", "drive", {"move": "straight"}, {"a": -1, "b": 1}),           # a missed choice swerves
+    ("stag_hunt", "hunt", {"move": "hare"}, {"a": 0, "b": 3}),                # a missed choice hunts stag
+])
+def test_a_matrix_game_scores_a_missed_move_by_its_stated_rule(stem, tool, move, returns):
+    env = fg_env.load(GAMES / f"{stem}.json", seed=1)
+
+    def b_moves(wake):
+        wake.call(tool, move)
+
+    result = env.run({"a": "idle", "b": b_moves})
+    assert result.status == "completed", result.error
+    assert result.returns == returns
+    assert fg_env.load(GAMES / f"{stem}.json", seed=1).run("idle").status == "completed"
+
+
 def test_a_view_that_shows_another_players_private_card_is_reported_with_both_playouts():
     leaky = load_game("kuhn_poker")
     leaky["views"]["table"]["show"] = "Your card: {$actor.card}. Theirs: {$filter(player, $it.id != $actor.id)[0].card}."

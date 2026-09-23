@@ -36,6 +36,21 @@ def test_tally_methods():
 
 
 
+def test_a_ballot_short_of_quorum_still_shows_its_counts_but_decides_nothing():
+    short = tally("plurality", {"a": "x", "b": "x", "c": "y"}, ["x", "y"], eligible=10, quorum=0.5)
+    assert short["reason"] == "no quorum" and short["winner"] is None and not short["decided"]
+    assert short["counts"] == {"x": 2, "y": 1} and short["turnout"] == pytest.approx(0.3)
+    tied = tally("plurality", {"a": "x", "b": "y"}, ["x", "y"], eligible=10, quorum=0.5)  # no seed needed: no tie is drawn
+    assert tied["counts"] == {"x": 1, "y": 1} and tied["winner"] is None
+
+
+def test_a_ranked_count_without_tie_breaks_eliminates_every_option_tied_for_last():
+    # y and z tie for last with 2 each: ties none drops both at once, so their voters' next choices decide
+    ballots = [["x"]] * 4 + [["y", "w"]] * 2 + [["z", "w"]] * 2 + [["w"]] * 3
+    irv = tally("ranked", ballots, ["x", "y", "z", "w"], ties="none")
+    assert irv["winner"] == "w" and [sorted(r["counts"]) for r in irv["rounds"]] == [["w", "x", "y", "z"], ["w", "x"]]
+
+
 def test_passed_means_the_motion_listed_first_carried_and_decided_means_a_winner():
     lost = tally("majority", {"a": "yes", "b": "no", "c": "no"}, ["yes", "no"])
     assert lost["winner"] == "no" and lost["decided"] and not lost["passed"]

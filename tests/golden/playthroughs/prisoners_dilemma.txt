@@ -1,5 +1,5 @@
 # fg-env playthrough: Prisoner's dilemma
-Game: prisoner_s_dilemma@76b35b7e:4642e142
+Game: prisoner_s_dilemma@d59dc86e:4642e142
 Seed: 1
 Seats: 0 a, 1 b
 Dynamics: simultaneous; chance: deterministic; information: imperfect; utility: general_sum
@@ -11,7 +11,7 @@ Returns between: 0 and 5
   | Two players each choose to cooperate or defect, at the same time.
   | 
   | ## Rules
-  | Both cooperate: 3 each. Both defect: 1 each. One defects while the other cooperates: the defector scores 5 and the cooperator 0.
+  | Both cooperate: 3 each. Both defect: 1 each. One defects while the other cooperates: the defector scores 5 and the cooperator 0. A player who does not choose cooperates.
   | 
   | ## You
   | You are A (player, id a).
@@ -22,7 +22,7 @@ Returns between: 0 and 5
   | Two players each choose to cooperate or defect, at the same time.
   | 
   | ## Rules
-  | Both cooperate: 3 each. Both defect: 1 each. One defects while the other cooperates: the defector scores 5 and the cooperator 0.
+  | Both cooperate: 3 each. Both defect: 1 each. One defects while the other cooperates: the defector scores 5 and the cooperator 0. A player who does not choose cooperates.
   | 
   | ## You
   | You are B (player, id b).
@@ -35,10 +35,10 @@ Legal calls of seat 1: [1] choose(move=cooperate); [2] choose(move=defect)
 Seat 0 (a) reads:
   | Round 1 of 1 · choose
   | Now: Everyone chooses at the same time.
-Seat 0 information state: 97b8b99706eee185
+Seat 0 information state: fb20af01a9323207
 Seat 1 (b) reads:
   | Round 1 of 1 · choose
-Seat 1 information state: a3e4a81b8dd8a250
+Seat 1 information state: fab6a4ba25c685e4
 Returns: [0, 0]
 Chosen: seat 0: choose(move=cooperate); seat 1: choose(move=defect)
 Step: {"joint": {"0": {"args": {"move": "cooperate"}, "tool": "choose"}, "1": {"args": {"move": "defect"}, "tool": "choose"}}}

@@ -4,7 +4,7 @@
   "description": "The one-shot coordination game. Both pure profiles (stag, stag) and (hare, hare) are equilibria; the mixed equilibrium hunts stag with probability 3/4.",
   "brief": {
     "situation": "Two hunters each choose to hunt stag or hare, at the same time.",
-    "rules": "A stag needs both hunters: both hunting stag score 4 each. A hare hunter always scores 3. A lone stag hunter scores 0."
+    "rules": "A stag needs both hunters: both hunting stag score 4 each. A hare hunter always scores 3. A lone stag hunter scores 0. A hunter who does not choose hunts stag."
   },
   "clock": {"rounds": 1},
   "world": {
@@ -15,7 +15,7 @@
   },
   "types": {"player": {"agent": true, "props": {
     "seat": 0,
-    "move": {"type": "text", "default": "", "private": true},
+    "move": {"type": "text", "default": "stag", "private": true},
     "score": 0
   }}},
   "entities": {

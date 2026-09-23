@@ -141,7 +141,7 @@ def _checked(path: str, rounds: Optional[int]) -> str:
     else:
         length = f"up to {SMOKE_ROUNDS} rounds" if rounds is None else f"{rounds} round(s)"
         policies = " and with each policy" if contract.policies else ""
-        played = f" and played {length} with random agents{policies}"
+        played = f" and played {length} with random agents, with idle agents{policies}"
     clock = contract.clock
     note = "" if clock.mode == "continuous" or "rounds" in clock.model_fields_set else \
         f"; clock.rounds is not set, so a run lasts {clock.rounds} rounds"
@@ -333,7 +333,7 @@ def add_commands(sub: Any) -> None:
     p = sub.add_parser("check", help="check a contract and list every problem with its fix")
     p.add_argument("file", help="contract JSON file")
     p.add_argument("--rounds", type=int,
-                   help="play exactly this many rounds with random agents and with each policy (default: up to "
+                   help="play exactly this many rounds with random agents, idle agents and each policy (default: up to "
                         "12 rounds within a few seconds; 0 = static check only)")
     p.add_argument("--data-dir", help="folder input data files are read from (default: the contract's folder)")
     p.add_argument("--input", action="append", metavar="NAME=VALUE", help="check a configured input (JSON value or text)")

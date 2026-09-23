@@ -4,7 +4,7 @@
   "description": "The one-shot general-sum matrix game (T=5, R=3, P=1, S=0). Defecting strictly dominates, so the only equilibrium is mutual defection (1, 1).",
   "brief": {
     "situation": "Two players each choose to cooperate or defect, at the same time.",
-    "rules": "Both cooperate: 3 each. Both defect: 1 each. One defects while the other cooperates: the defector scores 5 and the cooperator 0."
+    "rules": "Both cooperate: 3 each. Both defect: 1 each. One defects while the other cooperates: the defector scores 5 and the cooperator 0. A player who does not choose cooperates."
   },
   "clock": {"rounds": 1},
   "world": {
@@ -15,7 +15,7 @@
   },
   "types": {"player": {"agent": true, "props": {
     "seat": 0,
-    "move": {"type": "text", "default": "", "private": true},
+    "move": {"type": "text", "default": "cooperate", "private": true},
     "score": 0
   }}},
   "entities": {

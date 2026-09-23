@@ -62,9 +62,9 @@ def tally(method: str, ballots: Any, options: Optional[Sequence[Any]] = None, th
                               "ranking": []}
     if eligible:
         result["turnout"] = cast / eligible
-    if quorum is not None and eligible is not None and cast < quorum * eligible:
-        result["reason"] = "no quorum"
-        return result
+    short = quorum is not None and eligible is not None and cast < quorum * eligible
+    if short:  # still counted, so the result shows how it stood; nothing is decided (and no tie is drawn)
+        ties, rng = "none", None
     if method == "ranked":
         _instant_runoff(result, order, _rankings(valid, order, method), ties, rng)
     elif method == "condorcet":
@@ -72,6 +72,8 @@ def tally(method: str, ballots: Any, options: Optional[Sequence[Any]] = None, th
     else:
         _decide(result, _scores(method, order, valid), method, threshold, base, ties, rng)
     _veto(result, order, pairs, vetoers or ())
+    if short:
+        result.update(winner=None, reason="no quorum")
     result["decided"] = result["winner"] is not None
     result["passed"] = result["decided"] and bool(order) and result["winner"] == order[0]
     return result
@@ -219,6 +221,9 @@ def _instant_runoff(result: Dict[str, Any], order: List[str], ballots: List[Tupl
             result.update(counts=rounds[0]["counts"], rounds=rounds, ranking=list(remaining), tie=True, tied=losers)
             result["winner"] = _break_tie(losers, ties, rng)
             return result
+        if ties == "none":  # no draw: every option tied for last is eliminated together
+            remaining = [o for o in remaining if o not in losers]
+            continue
         out = losers[0] if len(losers) == 1 or ties == "first" or rng is None else losers[rng.randrange(len(losers))]
         remaining.remove(out)
     result.update(counts=rounds[0]["counts"] if rounds else {}, rounds=rounds)
@@ -302,7 +307,7 @@ class BallotConfig(BaseModel):
     quorum: Optional[float] = Field(None, ge=0, le=1, description="Share of eligible voters who must cast a ballot (abstentions count).")
     abstain: bool = Field(True, description="Voters may abstain.")
     private: bool = Field(True, description="Ballots stay private; only the result is announced.")
-    ties: Literal["random", "none", "first"] = Field("random", description="How a tie is decided (random uses the run's seed).")
+    ties: Literal["random", "none", "first"] = Field("random", description="How a tie is decided (random uses the run's seed; none leaves it undecided, and in a ranked count eliminates every option tied for last together).")
     stage: Optional[str] = Field(None, description="Vote during this declared stage (tally at its end); default: a simultaneous stage named after the vote.")
     when: Optional[str] = Field(None, description="Hold the vote only when true (e.g. \"$round == 3\").")
     question: str = Field("", description="What is being decided, shown with the ballot.")

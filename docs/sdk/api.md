@@ -47,7 +47,8 @@ Every problem in a contract, errors first then warnings. Never raises for contra
 
 A contract without errors is also built and played, so problems that only appear with real values (sampling,
 later rounds, views, outputs, a policy's own rules) are reported the same way: once with random agents that read
-everything they are shown, then once per declared policy, played by the agent types whose default it is (or else
+everything they are shown, once with every agent idle (a turn that passes without an action, as when a model
+times out or refuses, must not break the rules), then once per declared policy, played by the agent types whose default it is (or else
 those that can take every action it takes). By default each play lasts up to 12 rounds (fewer when the run ends
 sooner) and all of them share a few seconds; ``rounds`` plays exactly that many rounds instead (0 checks
 statically only). Inputs with a ``source`` are read from ``data_dir`` (default: the contract file's folder);

@@ -31,6 +31,21 @@ def test_a_clean_contract_stays_clean():
     assert fg_env.check(shop()) == []
 
 
+def test_rules_that_break_when_an_agent_does_not_act_fail_the_check():
+    """A turn can pass without an action (a timeout, a refusal): check plays one run where nobody acts."""
+    pick = {"types": {"retailer": {"agent": True, "props": {"stock": 10, "plan": ""}}},
+            "world": {"sizes": {"type": "map", "default": {"small": 5, "big": 20}}},
+            "actions": {"plan": {"by": "retailer", "params": {"size": {"type": "enum", "values": ["small", "big"]}},
+                                 "do": ["$actor.plan = $params.size"], "terminal": True}},
+            "stages": [{"name": "plan", "turns": "simultaneous", "must_act": True}], "policies": {},
+            "events": [{"phase": "end", "do": ["$entity(shop).stock += $world.sizes[$entity(shop).plan]"]}]}
+    found = errors(fg_env.check(shop(**pick)))
+    assert [i.path for i in found] == ["events[0].do[0]"]
+    assert "agents that never act" in found[0].message and "default" in found[0].fix
+    pick["types"]["retailer"]["props"]["plan"] = "small"  # a missed turn plans small
+    assert errors(fg_env.check(shop(**pick))) == []
+
+
 def test_a_failure_in_a_later_round_is_found():
     late = shop(events=[{"phase": "end", "do": ["$world.rate = 10 / (4 - $round)"]}])
     found = errors(fg_env.check(late))
