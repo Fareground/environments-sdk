@@ -84,8 +84,8 @@ What an agent reads:
 
 Unless an action is `private` or sets `announce`, others read a default line
 "Name: action (args)." — in a simultaneous stage only "Name: action." (sealed choices stay sealed
-unless `announce` reveals them); an action that posts to a record announces nothing extra (the entry
-is the news). Text an agent types (text params) keeps its provenance wherever it is stored and
+unless `announce` reveals them), and without the arguments the action writes into a private property;
+an action that posts to a record announces nothing extra (the entry is the news). Text an agent types (text params) keeps its provenance wherever it is stored and
 always renders «quoted» on one line, in news, views and outcomes.
 
 An action applies atomically: if any effect `fail`s or a `transfer` lacks funds, every change

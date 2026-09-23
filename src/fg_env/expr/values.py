@@ -9,7 +9,7 @@ from typing import Any, Callable, Dict, Mapping, Optional
 from ..entity import Entity as _Entity
 from .base import MAX_INT_BITS, MAX_LIST_LEN, MAX_TEXT_LEN, ExprError, PrivateRead, Untrusted, charge
 
-__all__ = ["attr"]
+__all__ = ["attr", "EVERYONE"]
 
 _ENTITY_FIELDS = frozenset({"id", "name", "type", "alive", "at"})
 
@@ -62,12 +62,31 @@ def attr(obj: Any, name: str, source: Optional[str] = None, scope: Any = None) -
     raise ExprError(f"cannot read '.{name}' of {type(obj).__name__} {obj!r}", source)
 
 
+class _Everyone:
+    """The ``$viewer`` of text sent to more than one agent (an announcement, news): no agent's private property may
+    show in it, not even the actor's."""
+
+    name = "everyone"
+
+    def __repr__(self) -> str:
+        return "everyone"
+
+
+EVERYONE = _Everyone()
+
+
 def _check_visible(entity: _Entity, name: str, scope: Any, source: Optional[str]) -> None:
-    """Refuse (:class:`PrivateRead`) reading ``entity``'s private ``name`` in what one agent is shown or offered.
-    Game logic binds no ``$viewer`` and reads the true state; an agent always sees its own properties."""
+    """Refuse (:class:`PrivateRead`) reading ``entity``'s private ``name`` in what one agent is shown or offered, or
+    in text sent to several (:data:`EVERYONE`). Game logic binds no ``$viewer`` and reads the true state; an agent
+    always sees its own properties."""
     viewer = scope.vars.get("viewer")
     if viewer is None or _entity_id(viewer) == entity.id or not scope.world.is_private(entity.entity_type, name):
         return
+    if viewer is EVERYONE:
+        raise PrivateRead(
+            f"{entity.name}'s {name} is private, and this text is sent to others than {entity.name}: work out what "
+            "they may learn in game logic (e.g. `\"$shown = ...\"` in the action's do) and show that, or send it `to` "
+            f"{entity.name} alone", source)
     raise PrivateRead(
         f"{entity.name}'s {name} is private, and this is what {getattr(viewer, 'name', viewer)} is shown or offered: "
         "read only the agent's own (guard with `$it.id == $actor.id`), or work out what it may learn in game logic "

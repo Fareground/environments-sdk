@@ -121,8 +121,8 @@
          ]},
         {"if": "$game_over",
          "then": [
-           {"emit": "game_over",
-            "say": "{$world.last_result} The words were {$join($map(player, $it.name + ' held ' + $upper($it.secret)), ', ')}."},
+           "$words = $join($map(player, $it.name + ' held ' + $upper($it.secret)), ', ')",
+           {"emit": "game_over", "say": "{$world.last_result} The words were {$words}."},
            "$world.game += 1",
            "$world.guesses = 0",
            {"each": "player",

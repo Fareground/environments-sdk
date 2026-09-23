@@ -37,7 +37,7 @@ from .base import (  # noqa: F401
 from .calls import _NO_KEY, FUNCTIONS, Call, EqualityGuard, FunctionSpec, function  # noqa: F401
 from .compile import Expr, compile_expr
 from .scope import Scope, World
-from .values import _describe, _entity_id, _number, _pow, attr  # noqa: F401
+from .values import EVERYONE, _describe, _entity_id, _number, _pow, attr  # noqa: F401
 
 __all__ = [
     "EVAL_BUDGET",
@@ -54,6 +54,7 @@ __all__ = [
     "shared_budget",
     "ExprError",
     "PrivateRead",
+    "EVERYONE",
     "Expr",
     "Scope",
     "World",

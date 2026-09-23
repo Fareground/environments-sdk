@@ -21,6 +21,7 @@ from .actions import ActionChecks
 from .inventory import check_inventory
 from .effects import EffectChecks
 from .roots import BASE, ENTITY_FIELDS, Types
+from .privacy import PrivacyChecks
 from .rules import RuleChecks
 from .scans import check_scans
 from .world import WorldChecks
@@ -97,7 +98,7 @@ def check_contract(contract: Contract) -> List[Issue]:
     return [i for i in issues if i.severity == "error"] + [i for i in issues if i.severity != "error"]
 
 
-class _Checker(EffectChecks, WorldChecks, ActionChecks, RuleChecks):
+class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleChecks):
     def __init__(self, contract: Contract):
         self.c = contract
         self.issues: List[Issue] = []
@@ -384,6 +385,7 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, RuleChecks):
         self._actions()
         self._stages()
         self._views()
+        self._secret_subtypes()
         self._events()
         self._triggers()
         self._policies()

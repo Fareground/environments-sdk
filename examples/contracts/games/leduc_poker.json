@@ -47,7 +47,8 @@
       "$s0 = $strength($entity('p0'))", "$s1 = $strength($entity('p1'))",
       "$world.winner = 'p0' if $s0 > $s1 else ('p1' if $s1 > $s0 else '')",
       "$world.over = true",
-      {"emit": "showdown", "say": "Showdown: P0 holds {$card_name($entity('p0').card)}, P1 holds {$card_name($entity('p1').card)}."},
+      "$held = [$card_name($entity('p0').card), $card_name($entity('p1').card)]",
+      {"emit": "showdown", "say": "Showdown: P0 holds {$held[0]}, P1 holds {$held[1]}."},
       {"end": "showdown"}
     ]}
   },

@@ -11,7 +11,8 @@ from .entity import Entity
 from .action_params import TEXT_MAX_LEN, _LISTED_UNKNOWN, _STEP_TOLERANCE, _item_spec, _list_bounds, _preview, _tidy
 from .assets.intake import file_schema
 from .contract import ParamSpec
-from .expr import ExprError, compile_expr, is_expr, resolve
+from .errors import RunError
+from .expr import ExprError, PrivateRead, compile_expr, is_expr, resolve
 from .tool_text import compact_ids, shared_description, shared_param, text_limit, usage_limits
 from .world import _copy, _plain
 
@@ -143,8 +144,9 @@ class ActionSchemas:
             description += " " + limits
         return ToolSpec(name, description, schema, "act", spec.terminal is True)
 
-    def _static(self: "ActionBook", actor: Entity, raw: Any) -> Any:  # type: ignore[misc]
-        """Evaluate a bound that depends only on the actor; None when it needs call arguments."""
+    def _static(self: "ActionBook", actor: Entity, raw: Any, where: str) -> Any:  # type: ignore[misc]
+        """Evaluate a bound that depends only on the actor; None when it needs call arguments. One that reads another
+        agent's private property is an error at ``where``: the tool would be offered without it, and refused."""
         if not is_expr(raw):
             return raw
         expr = compile_expr(raw)
@@ -152,6 +154,8 @@ class ActionSchemas:
             return None
         try:
             return expr(self.world.scope(actor=actor, viewer=actor))
+        except PrivateRead as exc:
+            raise RunError(str(exc), where) from None
         except ExprError:
             return None
 
@@ -160,8 +164,8 @@ class ActionSchemas:
         description = param.description
         if param.type in ("number", "int"):
             out["type"] = "integer" if param.type == "int" else "number"
-            for key, bound in (("minimum", param.min), ("maximum", param.max)):
-                value = _tidy(self._static(actor, bound))
+            for key, field in (("minimum", "min"), ("maximum", "max")):
+                value = _tidy(self._static(actor, getattr(param, field), f"actions.{action}.params.{pname}.{field}"))
                 if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
                     out[key] = math.ceil(value) if (param.type == "int" and key == "minimum") else (
                         math.floor(value) if param.type == "int" else value)
@@ -185,7 +189,8 @@ class ActionSchemas:
             if param.max_len is not None:
                 description = f"{description or ''} {text_limit(param.max_len, param.overflow)}".strip()
         elif param.type == "enum":
-            values = self._static(actor, param.values) if isinstance(param.values, str) else param.values
+            values = self._static(actor, param.values, f"actions.{action}.params.{pname}.values") \
+                if isinstance(param.values, str) else param.values
             if isinstance(values, list) and values:
                 out["enum"] = [_plain(v) for v in values]
                 kind = _enum_type(out["enum"])

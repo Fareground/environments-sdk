@@ -34,14 +34,14 @@ import re
 from dataclasses import dataclass
 from difflib import get_close_matches
 from functools import lru_cache
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .entity import Entity
 from .errors import RunError
 from .clock_math import advance_time
 from .contract import MAX_CREATE
 from .delivery import dropped, send
-from .expr import MAX_INT_BITS, Expr, ExprError, attr, check_size, compile_expr, is_expr, resolve, truthy
+from .expr import EVERYONE, MAX_INT_BITS, Expr, ExprError, attr, check_size, compile_expr, is_expr, resolve, truthy
 from .template import compile_template, format_value
 from .links import Link
 from .registry import OPS, OpSpec, family_action_hint
@@ -564,6 +564,12 @@ class EffectRunner:
             return ""
         return compile_template(template, None).render(self.world.scope(**vars))
 
+    def said(self, template: Optional[str], vars: Dict[str, Any], to: Optional[Sequence[str]]) -> str:
+        """Render text sent ``to`` these entity ids (None: everyone), in which only its one recipient's private
+        properties may show."""
+        viewer = self.world.entities.get(to[0]) if to is not None and len(to) == 1 else None
+        return self.text(template, {**vars, "viewer": viewer or EVERYONE})
+
     _eval = eval
     _text = text
 
@@ -629,20 +635,29 @@ class EffectRunner:
         into = effect.get("into") or prop
         have = _amount_held(source, prop, where)
         held = _amount_held(target, into, where)
-        if have < amount:
-            raise Abort(f"{source.name} has only {format_value(have)} {prop}; {format_value(amount)} is needed.")
         # A transfer moves value; it never creates or destroys it. Limits that would clamp
-        # either side refuse the transfer instead.
+        # either side refuse the transfer instead. Neither side's private amount is told to another actor.
+        hidden = self._hidden(source, prop, vars)
+        if have < amount:
+            raise Abort(f"{source.name} cannot cover that." if hidden else
+                        f"{source.name} has only {format_value(have)} {prop}; {format_value(amount)} is needed.")
         low = self.world.prop_spec(source, prop).min
         if low is not None and have - amount < low:
-            raise Abort(f"{source.name} cannot go below {format_value(low)} {prop}; "
+            raise Abort(f"{source.name} cannot cover that." if hidden else
+                        f"{source.name} cannot go below {format_value(low)} {prop}; "
                         f"at most {format_value(have - low)} can be given.")
         high = self.world.prop_spec(target, into).max
         if high is not None and held + amount > high:
-            raise Abort(f"{target.name} can hold at most {format_value(high)} {into}; "
+            raise Abort(f"{target.name} cannot take that much more {into}." if self._hidden(target, into, vars) else
+                        f"{target.name} can hold at most {format_value(high)} {into}; "
                         f"at most {format_value(max(0, high - held))} more fits.")
         self.world.set_prop(source, prop, have - amount)
         self.world.set_prop(target, into, _amount_held(target, into, where) + amount)
+
+    def _hidden(self, entity: Entity, prop: str, vars: Dict[str, Any]) -> bool:
+        """Whether a refusal must not show ``entity``'s ``prop``: it is private and the actor, who is told, is
+        someone else."""
+        return bool(self.world.prop_spec(entity, prop).private) and getattr(vars.get("actor"), "id", None) != entity.id
 
     def _op_link(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
         value = self._eval(effect["value"], vars) if "value" in effect else None
@@ -682,7 +697,7 @@ class EffectRunner:
         actor = vars.get("actor")
         data = self._eval(effect.get("data") or {}, vars)
         send(self.world, self._eval(effect["delay"], vars) if "delay" in effect else None,
-             {"kind": "emit", "event": str(effect["emit"]), "text": self._text(effect.get("say"), vars),
+             {"kind": "emit", "event": str(effect["emit"]), "text": self.said(effect.get("say"), vars, to),
               "actor": actor.id if isinstance(actor, Entity) else None, "to": list(to) if to is not None else None,
               "data": {k: _plain_value(v) for k, v in data.items()}}, where)
 
@@ -691,7 +706,9 @@ class EffectRunner:
         return "drop" in effect and dropped(self.world, self._eval(effect["drop"], vars), f"{where}.drop")
 
     def _op_fail(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-        raise Abort(self._text(effect["fail"], vars) or "That is not possible right now.")
+        actor = vars.get("actor")  # the refusal is text the actor is shown
+        text = self.text(effect["fail"], {**vars, "viewer": actor} if isinstance(actor, Entity) else vars)
+        raise Abort(text or "That is not possible right now.")
 
     def _op_end(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
         winner = self._eval(effect.get("winner"), vars) if "winner" in effect else None

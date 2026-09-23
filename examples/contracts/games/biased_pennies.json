@@ -32,7 +32,8 @@
     "$a = $entity('a')", "$b = $entity('b')",
     "$a.score = 0 if $a.side == '' and $b.side == '' else -1 if $a.side == '' else 3 if $b.side == '' else $world.payoff[$a.side][$b.side]",
     "$b.score = -$a.score",
-    {"emit": "shown", "say": "A showed {$a.side or 'nothing'}; B showed {$b.side or 'nothing'}."}
+    "$shown_a = $a.side", "$shown_b = $b.side",
+    {"emit": "shown", "say": "A showed {$shown_a or 'nothing'}; B showed {$shown_b or 'nothing'}."}
   ]}],
   "game": {"players": "player", "seat": "$it.seat", "returns": "$actor.score", "utility": "zero_sum",
            "min_return": -3, "max_return": 3},

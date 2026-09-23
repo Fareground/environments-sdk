@@ -11,7 +11,7 @@ from .delivery import run_delivery
 from .contract import StageSpec
 from .build import whole_setting
 from .errors import RunError
-from .expr import ExprError, compile_expr, truthy
+from .expr import EVERYONE, ExprError, compile_expr, truthy
 from .sync_events import run_sync
 from .template import compile_template
 from .turn import Turn
@@ -86,7 +86,7 @@ class Happenings:
             env._atomic(event.do, {}, f"{path}.do")
         if event.say:
             try:
-                text = compile_template(event.say, None).render(world.scope())
+                text = compile_template(event.say, None).render(world.scope(viewer=EVERYONE))
             except ExprError as exc:
                 raise RunError(str(exc), f"{path}.say") from None
             if text.strip():
@@ -156,7 +156,7 @@ class Happenings:
                 env._atomic(trigger.do, {}, f"{where}.do")
                 if trigger.say:
                     try:
-                        text = compile_template(trigger.say, None).render(world.scope())
+                        text = compile_template(trigger.say, None).render(world.scope(viewer=EVERYONE))
                     except ExprError as exc:
                         raise RunError(str(exc), f"{where}.say") from None
                     if text.strip():
