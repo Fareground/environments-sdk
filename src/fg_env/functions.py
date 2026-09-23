@@ -9,8 +9,8 @@ from .poisson import sample_poisson
 from .probability import is_probability
 
 from .expr import (
-    MAX_LIST_LEN, MAX_RANGE, Call, ExprError, Untrusted, _describe, _entity_id, _held, _number, attr, charge,
-    check_size, derived, function, truthy,
+    MAX_LIST_LEN, MAX_RANGE, Call, ExprError, PrivateRead, Untrusted, _describe, _entity_id, _held, _number, attr,
+    charge, check_size, derived, function, truthy,
 )
 
 # ---------------------------------------------------------------------------
@@ -305,7 +305,9 @@ def _get(call: Call) -> Any:
     if obj is None:
         return call.arg(2)
     try:
-        return attr(obj, str(key), call.source)
+        return attr(obj, str(key), call.source, call.scope)
+    except PrivateRead:
+        raise
     except ExprError:
         if len(call) > 2:
             return call.arg(2)

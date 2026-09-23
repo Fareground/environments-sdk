@@ -42,6 +42,7 @@
         "history": {"type": "list", "default": [], "private": true,
                     "description": "This game's guesses and their marks: [{guess, marks}]."},
         "grid": {"type": "list", "default": [], "private": true, "description": "This game's guesses as shown to you."},
+        "marks": {"type": "list", "default": [], "description": "This game's marks as G / Y / - lines, without the letters."},
         "solved": {"type": "bool", "default": false},
         "wins": {"type": "int", "default": 0},
         "total_guesses": {"type": "int", "default": 0}
@@ -81,6 +82,7 @@
         "$line = $marks_line($marks)",
         "$actor.history = $actor.history + [{guess: $w, marks: $marks}]",
         "$actor.grid = $actor.grid + [$upper($w) + '   ' + $line]",
+        "$actor.marks = $actor.marks + [$line]",
         "$actor.total_guesses += 1",
         {"if": "$w == $rival.secret", "then": ["$actor.solved = true"]}
       ],
@@ -124,7 +126,7 @@
            "$world.game += 1",
            "$world.guesses = 0",
            {"each": "player",
-            "do": ["$it.secret = $choice($inputs.words)", "$it.history = []", "$it.grid = []", "$it.solved = false"]}
+            "do": ["$it.secret = $choice($inputs.words)", "$it.history = []", "$it.grid = []", "$it.marks = []", "$it.solved = false"]}
          ]}
       ]
     }
@@ -141,7 +143,7 @@
     "rival": {
       "for": "player",
       "title": "Your rival's marks so far (their letters stay hidden)",
-      "of": "$map($slice($rival_of($actor).history, 0, $world.guesses), $marks_line($it.marks))",
+      "of": "$slice($rival_of($actor).marks, 0, $world.guesses)",
       "show": "{$it}",
       "bullet": false,
       "empty": "Your rival has no completed guesses this game."

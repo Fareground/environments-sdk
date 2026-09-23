@@ -209,7 +209,7 @@ def _team_alive_function(call: Call) -> int:
       example={"who": "player", "deck": {"werewolf": 2, "seer": 1, "villager": "rest"},
                "teams": {"wolves": ["werewolf"], "village": ["seer", "villager"]}, "know": ["wolves"],
                "actions": {"inspect_player": {"roles": ["seer"], "params": {"target": {"type": "entity", "of": "player"}},
-                                              "do": [], "outcome": "{$params.target.name} is {$params.target.role}."}}})
+                                              "do": ["$seen = $params.target.role"], "outcome": "{$params.target.name} is {$seen}."}}})
 def _expand_roles(name: str, config: RolesConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
     types = contract.get("types") or {}
     if config.who not in types:

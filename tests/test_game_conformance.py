@@ -46,9 +46,13 @@ def test_a_matrix_game_scores_a_missed_move_by_its_stated_rule(stem, tool, move,
     assert fg_env.load(GAMES / f"{stem}.json", seed=1).run("idle").status == "completed"
 
 
-def test_a_view_that_shows_another_players_private_card_is_reported_with_both_playouts():
+def test_a_view_that_shows_a_hidden_card_is_reported_with_both_playouts():
+    # A private property of an entity that is not an agent is hidden from inspect; the views decide who sees it.
     leaky = load_game("kuhn_poker")
-    leaky["views"]["table"]["show"] = "Your card: {$actor.card}. Theirs: {$filter(player, $it.id != $actor.id)[0].card}."
+    leaky["types"]["envelope"] = {"props": {"card": {"type": "int", "default": 0, "private": True}}}
+    leaky["entities"]["envelope"] = {"type": "envelope"}
+    leaky["events"][0]["do"][1]["do"].append("$entity('envelope').card = $second")
+    leaky["views"]["table"]["show"] = "Your card: {$actor.card}. P1's: {$entity('envelope').card}."
     report = fg_env.rl.conformance(leaky, sims=2, resume=False)
     leaks = [issue for issue in report.issues if issue.check == "leak"]
     assert leaks and "can tell apart" in leaks[0].message and leaks[0].other_steps is not None
@@ -56,11 +60,11 @@ def test_a_view_that_shows_another_players_private_card_is_reported_with_both_pl
     assert not state.is_terminal()
 
 
-def test_a_view_that_shows_the_other_players_hand_in_a_simultaneous_game_is_reported():
+def test_a_view_that_reads_the_other_players_private_hand_is_refused_by_the_engine():
     peeking = load_game("goofspiel")
     peeking["views"]["table"]["show"] = "Prize: {$world.prize}. Their cards: {$join($other($actor).hand, ' ')}."
     report = fg_env.rl.conformance(peeking, sims=4, resume=False, leak_branches=4)
-    assert any(issue.check == "leak" and "Their cards" in issue.message for issue in report.issues), report.summary()
+    assert any("B's hand is private" in issue.message for issue in report.issues), report.summary()
 
 
 def test_an_offered_move_that_the_effects_refuse_is_caught_without_dry_runs():
