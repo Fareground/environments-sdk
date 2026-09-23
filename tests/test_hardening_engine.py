@@ -439,3 +439,13 @@ def test_arithmetic_overflow_in_a_rule_is_the_rule_s_error_not_the_participant_s
         message = next(d["message"] for d in result.diagnostics if d["code"] == "action_rule_failed")
         assert expected in message and "participant" not in message, (action, message)
         assert "digits" not in message and len(message) < 400, message
+
+
+def test_a_snapshot_is_refused_by_a_contract_changed_since_it_was_taken():
+    c = {"name": "Save", "clock": {"rounds": 3}, "types": {"p": {"agent": True, "props": {"coins": 1}}},
+         "entities": {"a": {"type": "p"}}, "actions": {"earn": {"by": "p", "do": "$actor.coins += 1"}}}
+    env = fg_env.load(c, seed=1)
+    env.run(lambda wake: wake.call("earn", {}), rounds=1)
+    changed = {**c, "actions": {"earn": {"by": "p", "do": "$actor.coins += 100"}}}
+    with pytest.raises(SnapshotError, match="different contract"):
+        fg_env.Env.restore(changed, env.snapshot())

@@ -1,7 +1,10 @@
 """Simultaneous stages are fair: sealed choices commit in a seeded random order (not seat order), a choice is tried at
 submit after the agent's own earlier choices in the stage, and choices that must be resolved together (auctions,
 pro-rata fills) are recorded by the action and resolved in the stage's `on_exit`."""
+import time
 from collections import Counter
+
+import pytest
 
 import fg_env
 
@@ -143,3 +146,34 @@ def test_orders_larger_than_the_stock_are_filled_pro_rata():
     result = fg_env.load(c, seed=1).run(participant)
     assert result.status == "completed", result.error
     assert (result.outputs["a"], result.outputs["b"], result.outputs["left"]) == (15, 45, 0)
+
+
+@pytest.mark.xfail(strict=True, reason="diagnosis records agent types in the order concurrent turns first read their "
+                   "tools, so result.diagnostics follows thread timing (also after Env.restore) — engine fidelity")
+def test_the_same_choices_give_the_same_result_however_long_each_agent_takes():
+    c = {"name": "Stuck", "clock": {"rounds": 3},
+         "types": {"a": {"agent": True, "props": {"x": 0}}, "b": {"agent": True, "props": {"x": 0}}},
+         "entities": {"a1": {"type": "a"}, "b1": {"type": "b"}},
+         "actions": {"go": {"by": "a", "when": "$actor.x > 0", "do": []}, "run": {"by": "b", "when": "$actor.x > 0", "do": []}},
+         "stages": [{"name": "s", "turns": "simultaneous"}]}
+
+    def slow(who):
+        def play(wake):
+            if wake.entity_id == who:
+                time.sleep(0.05)  # the other agent reads its tools first
+            wake.tools
+            wake.end()
+        return play
+
+    assert fg_env.run(c, slow("a1"), seed=1).to_dict() == fg_env.run(c, slow("b1"), seed=1).to_dict()
+
+
+def test_how_many_sealed_turns_run_at_once_does_not_change_the_outcome():
+    c = {"name": "Conc", "clock": {"rounds": 5}, "world": {"pot": 0, "order": {"type": "list", "default": []}},
+         "types": {"p": {"agent": True, "props": {"luck": 0, "cash": 20}}},
+         "entities": {f"p{i}": {"type": "p"} for i in range(12)},
+         "actions": {"roll": {"by": "p", "chance": 0.5, "otherwise": ["$actor.cash -= 1"],
+                              "do": ["$actor.luck += $randint(1, 100)", "$world.pot += 1", "$world.order += $actor.id"]}},
+         "stages": [{"name": "s", "turns": "simultaneous"}], "outputs": {"pot": "$world.pot"}}
+    runs = [fg_env.load(c, seed=9, parallel=n).run({"*": lambda w: w.call("roll", {})}).to_dict() for n in (1, 3, 8)]
+    assert runs[0] == runs[1] == runs[2]

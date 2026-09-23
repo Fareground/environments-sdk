@@ -252,3 +252,13 @@ def test_compact_ids_keep_order_and_cut_a_long_listing():
 
     assert compact_ids(["p1", "p2", "p3", "x", "p5", "p6", "a07"]) == "p1–p3, x, p5, p6, a07"
     assert compact_ids([f"k{i}" for i in range(0, 200, 2)]).endswith(" and 40 more")
+
+
+def test_a_crowded_update_keeps_the_latest_news_and_says_how_much_it_left_out():
+    c = {"name": "Crowd", "clock": {"rounds": 2}, "types": {"p": {"agent": True}},
+         "entities": {f"p{i}": {"type": "p"} for i in range(300)}, "actions": {"work": {"by": "p"}},
+         "outputs": {"n": "$count(p)"}}
+    env = fg_env.load(c, seed=1)
+    env.run({"*": lambda w: w.call("work", {})}, rounds=1)
+    update = env.preview("p0")["update"]
+    assert "earlier items not shown" in update and "p299: work." in update and len(update) < 5000

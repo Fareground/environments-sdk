@@ -171,3 +171,10 @@ def test_decaying_a_layer_stays_within_its_bounds_because_no_rule_wrote_the_valu
     env = fg_env.load(floored, seed=1)
     assert env.run("idle").status == "completed"
     assert env.world.space.layers.values["sugar"] == [1, 1]
+
+
+def test_a_fractional_value_written_to_a_whole_number_property_fails_the_run_at_its_path():
+    split = {"name": "Split", "clock": {"rounds": 1}, "types": {"p": {"props": {"n": {"type": "int", "default": 0}}}},
+             "entities": {"a": {"type": "p"}}, "events": [{"do": ["$entity(a).n = 7 / 2"]}]}
+    with pytest.raises(RunError, match=r"n: must be a whole number, got 3\.5"):
+        fg_env.run(split, seed=1)

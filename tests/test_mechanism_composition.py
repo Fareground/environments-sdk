@@ -108,3 +108,11 @@ def test_check_lists_the_mechanisms_that_can_end_the_run():
     lines = generated_summary(_with(a={"kind": "decision", "mode": "deliberation", "who": "member"},
                                     b={"kind": "decision", "mode": "deliberation", "who": "member", "end": "adoption"}))
     assert not lines[0].endswith("can end the run") and lines[1].endswith(" · can end the run")
+
+
+def test_a_mechanism_named_like_another_ones_records_is_an_error_naming_both():
+    contract = {"name": "Clash", "clock": {"rounds": 2}, "types": {"trader": {"agent": True, "props": {"cash": 100}}},
+                "entities": {"t1": {"type": "trader"}},
+                "mechanisms": {"a": {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 5},
+                               "a_tape": {"kind": "social", "mode": "channels", "who": "trader"}}}
+    assert any("'a' and 'a_tape' both generate records 'a_tape'" in e for e in errors(contract))

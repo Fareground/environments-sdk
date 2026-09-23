@@ -238,3 +238,57 @@ def test_an_inspectable_agent_type_with_a_secret_subtype_is_a_warning():
     assert issue.severity == "warning" and "inspect" in issue.message
     c["types"]["player"]["inspect"] = False
     assert not [i for i in fg_env.check(c) if i.path == "types.wolf"]
+
+
+def _secrets(**extra):
+    c = {"name": "Secrets", "clock": {"rounds": 1},
+         "types": {"p": {"agent": True, "props": {"secret": {"type": "int", "default": 0, "private": True}}}},
+         "entities": {"ann": {"type": "p", "props": {"secret": 4242}}, "bob": {"type": "p"}},
+         "actions": {"wave": {"by": "p", "do": []}}}
+    c.update(extra)
+    return c
+
+
+@pytest.mark.parametrize("extra, path", [
+    ({"brief": {"roles": {"p": "Ann holds {$entity(ann).secret}."}}}, "brief.roles.p"),
+    ({"stages": [{"name": "s", "brief": "Ann holds {$entity(ann).secret}."}]}, "stages.s.brief"),
+    ({"records": {"log": {"fields": {"n": "int"}, "show": "Ann holds {$entity(ann).secret}"}},
+      "events": [{"phase": "start", "do": [{"post": "log", "n": 1}]}]}, "records.log.show"),
+])
+def test_a_brief_or_record_line_naming_another_agents_private_property_is_refused(extra, path):
+    c = _secrets(**extra)
+    assert any(i.severity == "error" and "ann's secret is private" in i.message for i in fg_env.check(c))
+    seen = []
+
+    def participant(wake):
+        if wake.entity_id == "bob":
+            seen.append(wake.brief + wake.update)
+        wake.end()
+
+    result = fg_env.load(c, seed=1).run(participant)
+    assert result.status == "failed" and path in result.error
+    assert not any("4242" in text for text in seen)  # bob never reads ann's secret
+
+
+def test_a_bound_read_through_entity_of_another_agents_private_property_is_not_offered():
+    c = _secrets(actions={"guess": {"by": "p", "do": [],
+                                    "params": {"x": {"type": "int", "min": 0, "max": "$entity(ann).secret"}}}})
+    bounds = {}
+
+    def participant(wake):
+        bounds[wake.entity_id] = next(t.input_schema for t in wake.tools if t.name == "guess")["properties"]["x"]
+        wake.end()
+
+    fg_env.load(c, seed=1).run(participant)
+    assert bounds["ann"]["maximum"] == 4242 and "maximum" not in bounds["bob"]
+
+
+@pytest.mark.parametrize("path, patch", [
+    ("views.v", {"views": {"v": {"show": "{$get($entity(ann), secret)}"}}}),
+    ("views.v", {"views": {"v": {"show": "{$dict(p, $it.id, $it.secret)}"}}}),
+    ("types.p.inspect", {"types": {"p": {"agent": True, "inspect": "$entity(ann).secret > 10",
+                                          "props": {"secret": {"type": "int", "default": 0, "private": True}}}}}),
+])
+def test_another_agents_private_property_cannot_be_read_around_the_rule(path, patch):
+    errors = [i for i in fg_env.check(_secrets(**patch)) if i.severity == "error"]
+    assert [i.path for i in errors] == [path] and "'s secret is private" in errors[0].message
