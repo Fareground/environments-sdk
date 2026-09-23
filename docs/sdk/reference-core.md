@@ -14,11 +14,11 @@ requirement while you repair check issues.
 ## The loop: write → check → preview → run
 
 1. Write the contract; the example below is a complete one.
-2. `fg-env check game.json` (`fg_env.check`): static checks, then short plays with random agents and each policy.
+2. `fg-env check lake.json` (`fg_env.check`): static checks, then short plays with random agents and each policy.
    Fix every error; each names its path, a fix and the guide part that explains it.
-3. `fg-env preview game.json <agent id>` (`env.preview(id)`): exactly what that agent reads. Each role should see
-   what the brief says it sees, and nothing more.
-4. `fg-env run game.json --seed 1` (`fg_env.run`): compare the outputs with what the brief implies, worked out by
+3. `fg-env preview lake.json fisher_1` (`env.preview(id)`; a population's ids are `fisher_1`, `fisher_2` …):
+   exactly what that agent reads. Each role should see what the brief says it sees, and nothing more.
+4. `fg-env run lake.json --seed 1` (`fg_env.run`): compare the outputs with what the brief implies, worked out by
    hand for a small case. A clean check proves it runs, not that it is right. To look at state, read the run's summary
    (it ends with metric values and the entities as the run left them) or a preview; never swap outputs for probes.
 

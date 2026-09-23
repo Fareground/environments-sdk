@@ -155,18 +155,19 @@ def clone(engine_id: str, destination: Union[str, Path], *, name: Optional[str] 
     """Clone a reusable engine contract into a project-owned JSON file."""
     engine = get(engine_id)
     path = Path(destination).expanduser()
-    if path.exists() and not overwrite:
-        raise FileExistsError(f"refusing to replace existing file: {path}")
+    resources = [Path(resource) for resource in engine.resources]
+    for relative in resources:
+        if relative.is_absolute() or ".." in relative.parts:
+            raise ValueError(f"unsafe bundled resource path: {relative}")
+    existing = [target for target in (path, *(path.parent / r for r in resources)) if target.exists()]
+    if existing and not overwrite:
+        raise FileExistsError(f"refusing to replace existing file: {existing[0]} → pass overwrite=True to replace it, "
+                              "or clone to another path")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(_named(engine.source(), name), indent=2) + "\n")
     root = files("fg_env.engines").joinpath("starters")
-    for resource in engine.resources:
-        relative = Path(resource)
-        if relative.is_absolute() or ".." in relative.parts:
-            raise ValueError(f"unsafe bundled resource path: {resource}")
+    for relative in resources:
         target = path.parent / relative
-        if target.exists() and not overwrite:
-            raise FileExistsError(f"refusing to replace existing file: {target}")
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(root.joinpath(*relative.parts).read_bytes())
     return path

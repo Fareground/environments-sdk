@@ -29,6 +29,7 @@ from .state import check_feeds, check_hooks, check_physics_state, check_relation
 from ..errors import ContractError, Issue
 from ..expr import FUNCTIONS, ExprError, compile_expr, is_expr
 from ..expr.calls import suggest_function
+from ..expr.codegen import _ITEM_ROOTS
 from ..parse_errors import validation_issues
 from ..patterns.check import check_pattern_call, check_patterns
 from ..returns import check_game
@@ -204,14 +205,16 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, RuleChecks):
 
     def _refs(self, compiled: Any, path: str, roots: Set[str], types: Types,
               params: Mapping[str, C.ParamSpec]) -> None:
-        # Unknown callees can explain downstream scope errors (e.g. a misspelled
-        # aggregate no longer binds $it). Put the repair first, but keep independent errors.
-        for name in sorted(compiled.functions):
-            if name not in FUNCTIONS and name not in self.c.defs:
-                hint = suggest_function(name, list(FUNCTIONS) + list(self.c.defs))
-                self.error(path, f"unknown function ${name}",
-                           (f"did you mean {hint}?" if hint else "declare it under `defs`") + f" — in `{compiled.source}`")
+        # An unknown callee may be the collection function that binds $it, $i and $outer (a misspelled $max): report
+        # the name to repair, not those roots. Independent errors are kept.
+        unknown = sorted(name for name in compiled.functions if name not in FUNCTIONS and name not in self.c.defs)
+        for name in unknown:
+            hint = suggest_function(name, list(FUNCTIONS) + list(self.c.defs))
+            self.error(path, f"unknown function ${name}",
+                       (f"did you mean {hint}?" if hint else "declare it under `defs`") + f" — in `{compiled.source}`")
         for root in compiled.roots:
+            if unknown and root in _ITEM_ROOTS:
+                continue
             if root not in roots and not (root in self.c.defs and not self.c.defs[root].args):
                 available = ", ".join(f"${r}" for r in sorted(roots))
                 self.error(path, f"${root} is not available here", f"available: {available} — in `{compiled.source}`")
@@ -363,8 +366,6 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, RuleChecks):
         c = self.c
         if c.fg_env != C.CONTRACT_VERSION:
             self.error("fg_env", f"unsupported contract version '{c.fg_env}'", f"use \"{C.CONTRACT_VERSION}\"")
-        if not self.agents:
-            self.warn("types", "no agent type, so nothing takes turns", "fine for a pure simulation; otherwise set agent: true")
         self._inputs()
         self._brief()
         self._clock_space()

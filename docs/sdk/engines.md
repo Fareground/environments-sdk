@@ -82,6 +82,8 @@ Persona sampling creates a cohort; an environment still determines what those
 people know, want, and are allowed to do.
 
 ```python
+population = [{"id": f"p{i}", "state": ["IL", "WI"][i % 2], "household_id": f"h{i // 3}"} for i in range(300)]
+subject_matter_expert = {"id": "expert", "state": "IL"}
 sample = fg_env.personas.sample_records(
     population, size=40, seed=11, run=2, resample=True,
     constraints={"state": "IL"}, fixed=[subject_matter_expert],

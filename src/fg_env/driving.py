@@ -22,10 +22,11 @@ import threading
 import time
 from collections import deque
 from concurrent.futures import Future
+from difflib import get_close_matches
 from typing import TYPE_CHECKING, Any, Callable, Deque, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple
 
 from .entity import Entity
-from .errors import RunError
+from .errors import ContractError, Issue, RunError
 from .expr import ExprError
 from .participants import Idle, Participant, resolve_participant
 from .session import END_TURN, Wake
@@ -158,10 +159,15 @@ class Driver:
         env = self.env
         known = set(env.contract.types) | set(env.world.entities) | {"*"}
         for key, value in participants.items():
+            path = "participants" if key == "*" else f"participants.{key}"
             if key not in known:
-                raise ValueError(f"participants key '{key}' is not an entity id, a type, or '*'")
+                hint = get_close_matches(str(key), sorted(known), n=1)
+                raise ContractError([Issue(path, f"'{key}' is not an entity id, a type, or '*'",
+                                           f"did you mean '{hint[0]}'?" if hint else
+                                           f"types: {', '.join(env.contract.types)}; '*' is everyone")],
+                                    title="participants are invalid")
             if not callable(value):
-                resolve_participant(value, env.contract, 0)  # an unknown name fails now, not mid-run
+                resolve_participant(value, env.contract, 0, path)  # an unknown name fails now, not mid-run
             elif _is_async_generator(value):
                 raise TypeError(f"participant for '{key}' is an async generator; a participant plays one turn per "
                                 "call — use a plain function or an async def")

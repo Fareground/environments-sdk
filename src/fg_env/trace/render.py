@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, List, Mapping, Sequence
 
+from ..measure import ending
 from ..tournament.result import _columns
 
 __all__ = ["overview", "turns", "timeline", "search", "invalid", "agent", "args_text", "one_line"]
@@ -30,8 +31,7 @@ def _call(call: Mapping[str, Any]) -> str:
 
 def overview(data: Mapping[str, Any]) -> str:
     run = data["run"]
-    how = f"ended by {run['ended_by']}" if run["ended_by"] else run["status"]
-    lines = [f"{run['status']} after {run['rounds']} round(s), {how} (seed {run['seed']}"
+    lines = [f"{run['status']} after {run['rounds']} round(s){ending(run['status'], run['ended_by'])} (seed {run['seed']}"
              f"{', arm ' + run['arm'] if run['arm'] else ''}); {run['wakes']} wake(s)"]
     if run["winner"] is not None:
         lines.append(f"winner: {run['winner']}")

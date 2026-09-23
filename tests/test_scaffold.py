@@ -8,9 +8,9 @@ from fg_env.scaffold import TEMPLATES, new
 
 
 @pytest.mark.parametrize("template", list(TEMPLATES))
-def test_every_template_checks_without_errors_and_runs(template):
+def test_every_template_checks_clean_and_runs(template):
     contract = new(template)
-    assert [i for i in fg_env.check(contract) if i.severity == "error"] == []
+    assert [str(i) for i in fg_env.check(contract)] == []
     result = fg_env.run(contract, seed=1)
     assert result.ok and result.output_issues == [], result.summary()
 

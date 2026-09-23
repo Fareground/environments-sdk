@@ -13,7 +13,7 @@ from .inputs import check_value
 from .template import apply_format
 from .world import SdkWorld, _plain
 
-__all__ = ["Stats", "RunResult", "sample_metrics", "compute_outputs"]
+__all__ = ["Stats", "RunResult", "sample_metrics", "compute_outputs", "ending"]
 
 
 @dataclass
@@ -160,8 +160,8 @@ class RunResult:
     def summary(self) -> str:
         from .clock_words import plural
 
-        how = f"ended by {self.ended_by}" if self.ended_by else self.status
-        lines = [f"{self.status} after {self.rounds} {plural(self.unit, self.rounds)} — {how} (seed {self.seed}"
+        how = ending(self.status, self.ended_by)
+        lines = [f"{self.status} after {self.rounds} {plural(self.unit, self.rounds)}{how} (seed {self.seed}"
                  f"{', arm ' + self.arm if self.arm else ''})"]
         if self.error:
             lines.append(f"error: {self.error}")
@@ -190,6 +190,13 @@ def shown(value: Any, fmt: Optional[str] = None) -> str:
         return apply_format(value, fmt)
     text = json.dumps(_readable(value), default=str)
     return text if len(text) <= 120 else text[:117] + "…"
+
+
+def ending(status: str, ended_by: Optional[str]) -> str:
+    """What stopped a run, for its summary line: what ended it, or that it was stopped before its end."""
+    if ended_by:
+        return f" — ended by {ended_by}"
+    return " — stopped before the end" if status == "running" else ""
 
 
 def _readable(value: Any) -> Any:

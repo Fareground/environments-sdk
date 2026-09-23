@@ -196,7 +196,8 @@ def test_cli_reports_user_mistakes_without_tracebacks(tmp_path, capsys):
     ]
     for argv, status, message in cases:
         assert main(argv) == status, argv
-        assert message in capsys.readouterr().err, argv
+        shown = capsys.readouterr()
+        assert message in (shown.out if argv[0] == "check" else shown.err), argv  # check lists its issues on stdout
 
 
 def test_authoring_guide_example_and_known_answer_run_verbatim(tmp_path, monkeypatch):
@@ -264,3 +265,17 @@ def test_ordered_processing_reference_runs_without_priority_scaling():
     result = fg_env.run(contract)
     assert result.ok
     assert result.outputs['seen'] == ['early_first', 'early_second', 'later']
+
+
+def test_run_says_when_it_stopped_before_the_end_and_its_help_names_real_commands(tmp_path, capsys):
+    path = tmp_path / "game.json"
+    fg_env.new("game", path)
+    assert main(["run", str(path), "--rounds", "2", "--seed", "1"]) == 0
+    first = capsys.readouterr().out.splitlines()[0]
+    assert first.startswith("running after 2 turns — stopped before the end (seed 1"), first
+    assert main(["run", str(path), "--seed", "1"]) == 0
+    assert capsys.readouterr().out.startswith("ended after ")
+    with pytest.raises(SystemExit):
+        main(["run", "--help"])
+    shown = capsys.readouterr().out
+    assert "fg-env replay" not in shown and "fg-env trace FILE replay" in " ".join(shown.split())

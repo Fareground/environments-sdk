@@ -148,7 +148,7 @@ fg-env guide
 fg-env guide actions
 fg-env guide events
 fg-env check scenario.json
-fg-env preview scenario.json participant_id
+fg-env preview scenario.json ada    # an agent's id: the blank template's agents are ada and bo
 ```
 
 Read only the reference sections needed for the current task. Expand mechanisms when you need to inspect their generated rules: `fg-env expand scenario.json --mechanisms`.
@@ -161,6 +161,7 @@ Calculate at least one small run by hand. Assert exact inventory, cash or capaci
 
 Check configured values without editing the contract's defaults:
 
+<!-- not run: inputs.json holds your scenario's configured values -->
 ```bash
 fg-env check scenario.json --inputs-file inputs.json --rounds 8
 fg-env checks scenario.json --inputs-file inputs.json --boundaries --runs 2 --rounds 8

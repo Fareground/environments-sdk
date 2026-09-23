@@ -55,7 +55,7 @@ def test_nested_numeric_summaries_also_mark_single_observation_uncertainty_unava
     summary = _describe([{'north': 10, 'south': 20}])
     assert summary['keys']['north']['ci95'] is None
     assert summary['keys']['south']['ci95'] is None
-    assert _describe([[1, 2, 3]])['length']['ci95'] is None
+    assert _describe([[1, 2, 3]])['items'][0]['ci95'] is None
     assert _describe([]) == {'n': 0}
 
 

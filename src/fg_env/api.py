@@ -204,7 +204,10 @@ def _without_unknown_fields(data: Any, issues: List[Issue]) -> Any:
 
 
 def _check_all(source: ContractLike, data_dir: DataDir = None) -> tuple[Optional[Contract], List[Issue]]:
-    data = _read(source)
+    try:
+        data = _read(source)
+    except ContractError as exc:  # a missing file or text that is not JSON
+        return None, exc.issues + exc.warnings
     try:
         contract = located(parse_contract(data), default_data_dir(source, data_dir))
     except ContractError as exc:
@@ -223,7 +226,8 @@ def _check_all(source: ContractLike, data_dir: DataDir = None) -> tuple[Optional
 
 def check(source: ContractLike, rounds: Optional[int] = None, seed: int = 0, *, data_dir: DataDir = None,
           hosts: Any = None, inputs: Optional[Mapping[str, Any]] = None) -> List[Issue]:
-    """Every problem in a contract, errors first then warnings. Never raises for contract problems.
+    """Every problem in a contract, errors first then warnings. Never raises for contract problems: a missing file
+    or text that is not JSON is an issue too.
 
     A contract without errors is also built and played, so problems that only appear with real values (sampling,
     later rounds, views, outputs, a policy's own rules) are reported the same way: once with random agents that read
