@@ -1,0 +1,235 @@
+[
+ {
+  "brief": "beer_game",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "token cap",
+  "writes": 8,
+  "clean_at": 4,
+  "final_clean": true,
+  "runs_ok": 3,
+  "runs": 3,
+  "checks_passed": 5,
+  "checks": 6,
+  "input_tokens": 477529,
+  "output_tokens": 127473,
+  "cost": 0.0665,
+  "wall_seconds": 1526.8,
+  "contract_lines": 468,
+  "guide_parts": [
+   "guide",
+   "expressions",
+   "effects",
+   "functions.collections",
+   "stages",
+   "actions",
+   "views",
+   "events",
+   "inputs",
+   "outputs",
+   "population",
+   "brief",
+   "policies",
+   "functions.random",
+   "end",
+   "defs",
+   "types",
+   "functions",
+   "metrics"
+  ],
+  "guide_chars": 50386,
+  "check_errors": [
+   [
+    "types.company.props.upstream.of: 'of' is not a field here \u2192 'of' belongs to another part of the contract; remove it here; see guide('types')",
+    "types.company.props.downstream.of: 'of' is not a field here \u2192 'of' belongs to another part of the contract; remove it here; see guide('types')",
+    "brief.roles.retailer: 'retailer' is not a declared type \u2192 types: company",
+    "brief.roles.wholesaler: 'wholesaler' is not a declared type \u2192 types: company",
+    "brief.roles.distributor: 'distributor' is not a declared type \u2192 types: company",
+    "brief.roles.factory: 'factory' is not a declared type \u2192 types: company",
+    "types.company.props.upstream.type: unknown type 'entity'",
+    "types.company.props.downstream.type: unknown type 'entity'",
+    "views.position.show: unknown format 'capitalize' (use one of: money, pct, pct1, int, upper, lower, title, yesno, list, 0, 1, 2, 3, 4) \u2192 template: It is week {$round} of {$inputs.weeks}. {$actor.role|capitalize}: stock {stock} cases, backlog {backlog} cases, incoming orders {incoming} cases, cost so far {$actor.cost|money}.",
+    "events[1].do[0]: $actor is not available here \u2192 available: $arm, $clock, $i, $inputs, $it, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world \u2014 in `$actor.incoming`",
+    "events[1].do[1]: $actor is not available here \u2192 available: $arm, $clock, $d, $i, $inputs, $it, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world",
+    "events[1].do[2]: $actor is not available here \u2192 available: $arm, $clock, $d, $i, $inputs, $it, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world",
+    "events[1].do[3]: $actor is not available here \u2192 available: $arm, $clock, $d, $i, $inputs, $it, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world",
+    "events[1].do[4]: $actor is not available here \u2192 available: $arm, $clock, $d, $i, $inputs, $it, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world",
+    "events[1].do[5]: $actor is not available here \u2192 available: $arm, $clock, $d, $i, $inputs, $it, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world \u2014 in `$actor.production`",
+    "events[1].do[6]: $actor is not available here \u2192 available: $arm, $clock, $d, $i, $inputs, $it, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world",
+    "events[1].say: $actor is not available here \u2192 available: $arm, $clock, $inputs, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world \u2014 in `$actor.name`",
+    "events[3].do[0]: $actor is not available here \u2192 available: $arm, $clock, $i, $inputs, $it, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world \u2014 in `$actor.ordered`",
+    "events[3].do[1]: $actor is not available here \u2192 available: $arm, $clock, $i, $inputs, $it, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world",
+    "events[4].do[0]: $actor is not available here \u2192 available: $arm, $clock, $i, $inputs, $it, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world \u2014 in `$actor.stock * $inputs.holding_cost + $actor.backlog * $inputs.backlog_cost`",
+    "events[4].do[1]: $actor is not available here \u2192 available: $arm, $clock, $i, $inputs, $it, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world \u2014 in `$actor.stock * $inputs.holding_cost + $actor.backlog * $inputs.backlog_cost`",
+    "outputs.bullwhip_ratio: $series.customer_demand: no such metric",
+    "outputs.bullwhip_ratio: $series.factory_orders: no such metric"
+   ],
+   [
+    "(contract): not valid JSON"
+   ],
+   [
+    "invariants[2]: invariant `$len($world.customer_demand) <= $inputs.weeks and $len($world.factory_orders) <= $inputs.weeks` no longer holds after events[0].do (The game lasts the stated number of weeks.) (smoke run of 11 round(s), random agents) \u2192 fix the rule at this path (found by a smoke run)"
+   ],
+   [],
+   [
+    "invariants[2]: invariant `$sum(company, $it.stock + $it.incoming + $it.production) + $sum($world.customer_demand) == $inputs.start_stock * 4 + $inputs.start_pipeline * 5 + $sum($world.factory_orders)` no longer holds after events[0].do (Beer is conserved: everything shipped or produced is in stock, in transit or delivered to customers.) (smoke run of 1 round(s), random agents) \u2192 fix the rule at this path (found by a smoke run)"
+   ],
+   [
+    "invariants[2]: invariant `$sum(company, $it.stock + $it.incoming + $it.production) + $sum($world.customer_demand) == $inputs.start_stock * 4 + $inputs.start_pipeline * 5 + $sum($world.factory_orders)` no longer holds after events[0].do (Beer is conserved: everything shipped or produced is in stock, in transit or delivered to customers.) (smoke run of 1 round(s), random agents) \u2192 fix the rule at this path (found by a smoke run)"
+   ],
+   [
+    "(contract): not valid JSON"
+   ],
+   []
+  ],
+  "failed_checks": [
+   {
+    "check": "beer_costs_add_up",
+    "passed": false,
+    "why": "roles: ['filler', 'retailer', 'wholesaler', 'distributor', 'factory']"
+   }
+  ],
+  "run_errors": []
+ },
+ {
+  "brief": "treaty",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "done",
+  "writes": 4,
+  "clean_at": 2,
+  "final_clean": true,
+  "runs_ok": 12,
+  "runs": 12,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 389036,
+  "output_tokens": 63854,
+  "cost": 0.0451,
+  "wall_seconds": 332.8,
+  "contract_lines": 426,
+  "guide_parts": [
+   "patterns",
+   "functions.random",
+   "types",
+   "stages",
+   "views",
+   "records",
+   "effects",
+   "brief",
+   "actions",
+   "functions.collections",
+   "inputs",
+   "events",
+   "population",
+   "end",
+   "outputs",
+   "expressions",
+   "policies",
+   "metrics",
+   "invariants",
+   "entities"
+  ],
+  "guide_chars": 59127,
+  "check_errors": [
+   [
+    "inputs.nations.fields.id: must be an object, got the text \"text\" \u2192 write an object {...} with the fields guide('inputs') lists",
+    "inputs.nations.fields.name: must be an object, got the text \"text\" \u2192 write an object {...} with the fields guide('inputs') lists",
+    "actions.message.params.text.max_len: must be a whole number, got the text \"$inputs.message_max_len\" \u2192 write a whole number without quotes; see guide('actions')"
+   ],
+   [],
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "classroom",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "done",
+  "writes": 3,
+  "clean_at": 2,
+  "final_clean": true,
+  "runs_ok": 12,
+  "runs": 12,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 215391,
+  "output_tokens": 19669,
+  "cost": 0.0158,
+  "wall_seconds": 177.0,
+  "contract_lines": 261,
+  "guide_parts": [
+   "actions",
+   "stages",
+   "effects",
+   "expressions",
+   "functions.collections",
+   "functions.random",
+   "views",
+   "events",
+   "outputs",
+   "views",
+   "policies"
+  ],
+  "guide_chars": 39155,
+  "check_errors": [
+   [
+    "actions.study.outcome: '{effort}' needs a subject; write {$actor.effort} or similar \u2192 template: You decide to {effort} this week."
+   ],
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "ed_triage",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "token cap",
+  "writes": 5,
+  "clean_at": 1,
+  "final_clean": true,
+  "runs_ok": 6,
+  "runs": 6,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 522333,
+  "output_tokens": 108914,
+  "cost": 0.0629,
+  "wall_seconds": 1593.2,
+  "contract_lines": 380,
+  "guide_parts": [
+   "patterns",
+   "functions.random",
+   "effects",
+   "stages",
+   "actions",
+   "views",
+   "outputs",
+   "functions.collections",
+   "events",
+   "inputs",
+   "patterns.noise",
+   "patterns.counts",
+   "inspect",
+   "guide",
+   "overview",
+   "population",
+   "clock",
+   "policies",
+   "expressions"
+  ],
+  "guide_chars": 56103,
+  "check_errors": [
+   [],
+   [],
+   [
+    "patterns.arrival_process.dist: Input should be 'poisson' or 'negative_binomial' \u2192 see guide('patterns') for `counts`"
+   ],
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ }
+]

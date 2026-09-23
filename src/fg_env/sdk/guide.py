@@ -3,8 +3,8 @@
 ``fg_env.guide()`` returns the core guide: the start page (enough to write a first environment) with a map of every
 other part. ``fg_env.guide("authoring")`` is the start page alone, for an authoring agent's starting context;
 ``fg_env.guide("actions")`` returns one part, ``fg_env.guide("all")`` everything (a human's reference, far too long
-for an agent's context). Field references, functions,
-effects and mechanisms come straight from the code, so the guide cannot drift from what the engine accepts.
+for an agent's context). Field references, functions, effects and mechanisms come straight from the code, so the guide
+cannot drift from what the engine accepts.
 """
 from __future__ import annotations
 

@@ -1,0 +1,361 @@
+[
+ {
+  "brief": "beer_game",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "token cap",
+  "writes": 6,
+  "clean_at": 5,
+  "final_clean": false,
+  "runs_ok": 0,
+  "runs": 12,
+  "checks_passed": 0,
+  "checks": 6,
+  "input_tokens": 432302,
+  "output_tokens": 184758,
+  "cost": 0.1034,
+  "wall_seconds": 2049.8,
+  "contract_lines": 616,
+  "guide_parts": [
+   "functions.collections",
+   "functions.random",
+   "effects",
+   "stages",
+   "types",
+   "views",
+   "events",
+   "actions",
+   "policies",
+   "outputs",
+   "population",
+   "inputs",
+   "brief",
+   "end",
+   "metrics",
+   "expressions",
+   "records",
+   "world",
+   "invariants",
+   "clock",
+   "entities",
+   "defs",
+   "functions",
+   "inspect",
+   "functions.stats",
+   "functions.math"
+  ],
+  "guide_chars": 63519,
+  "check_errors": [
+   [
+    "(contract): not valid JSON"
+   ],
+   [
+    "types.company.props.order_rule.max: must be a number, got the text \"$inputs.max_order\" \u2192 write a number without quotes; see guide('types')",
+    "types.company.props.production_rule.max: must be a number, got the text \"$inputs.max_order\" \u2192 write a number without quotes; see guide('types')",
+    "types.company.props.pending_order.max: must be a number, got the text \"$inputs.max_order\" \u2192 write a number without quotes; see guide('types')",
+    "types.company.props.pending_production.max: must be a number, got the text \"$inputs.max_order\" \u2192 write a number without quotes; see guide('types')"
+   ],
+   [
+    "brief.roles.retailer: 'retailer' is not a declared type \u2192 types: company, beer",
+    "brief.roles.wholesaler: 'wholesaler' is not a declared type \u2192 types: company, beer",
+    "brief.roles.distributor: 'distributor' is not a declared type \u2192 types: company, beer",
+    "brief.roles.factory: 'factory' is not a declared type \u2192 types: company, beer",
+    "actions.produce.by: 'factory' is not a declared type \u2192 types: company, beer",
+    "actions.replenish.when[0]: $actor.settled: company has no property 'settled' \u2192 properties: backlog, delivered, down, incoming, incoming_last, order_rule, orders_out, pending_order, pending_production, pending_ship, production_rule, role, round_cost, ship_rule, spent, stock, up \u2014 in `not $actor.settled`",
+    "stages[0].on_turn_end[0]: $actor.settled: company has no property 'settled' \u2192 properties: backlog, delivered, down, incoming, incoming_last, order_rule, orders_out, pending_order, pending_production, pending_ship, production_rule, role, round_cost, ship_rule, spent, stock, up \u2014 in `$actor.settled = $actor.pending_order >= 0 and $actor.pending_ship >= 0 and ($actor.role != factory or $actor.pending_production >= 0)`",
+    "stages[1].on_enter[1].do[0]: $it.settled: company has no property 'settled' \u2192 properties: backlog, delivered, down, incoming, incoming_last, order_rule, orders_out, pending_order, pending_production, pending_ship, production_rule, role, round_cost, ship_rule, spent, stock, up \u2014 in `$it.settled = $it.pending_order >= 0 and $it.pending_ship >= 0 and ($it.role != factory or $it.pending_production >= 0)`",
+    "stages[1].on_enter[3].do[4].props.owner: $it.up: beer has no property 'up' \u2192 properties: arrives, owner, qty, stage \u2014 in `$it.up`",
+    "stages[1].on_enter[3].do[4].props.qty: $it.pending_order: beer has no property 'pending_order' \u2192 properties: arrives, owner, qty, stage \u2014 in `$it.pending_order`"
+   ],
+   [
+    "stages.settle.on_enter: Retailer's orders_out cannot go below 0: it would be -1. Keep it in range where it is written, e.g. with $clamp(x, low, high), or guard the write with an `if` (smoke run of 1 round(s), random agents) \u2192 fix the rule at this path (found by a smoke run)"
+   ],
+   [],
+   [
+    "stages.week.on_enter[3].do[0]: beer 'beer_4' has no property 'stock' (has: arrives, owner, qty, stage) \u2014 in `$entity($it.owner).stock + $it.qty` (smoke run of 4 round(s), random agents) \u2192 fix the rule at this path (found by a smoke run)"
+   ]
+  ],
+  "failed_checks": [
+   {
+    "check": "outputs_present",
+    "passed": false,
+    "why": "random runs fail"
+   },
+   {
+    "check": "beer_demand_is_random_and_in_range",
+    "passed": false,
+    "why": "random runs fail"
+   },
+   {
+    "check": "beer_demand_is_exogenous",
+    "passed": false,
+    "why": "random runs fail"
+   },
+   {
+    "check": "beer_costs_add_up",
+    "passed": false,
+    "why": "random runs fail"
+   },
+   {
+    "check": "beer_idle_team_pays_backlog",
+    "passed": false,
+    "why": "random runs fail"
+   },
+   {
+    "check": "beer_bullwhip_matches_its_definition",
+    "passed": false,
+    "why": "random runs fail"
+   }
+  ],
+  "run_errors": [
+   {
+    "participants": "random",
+    "seed": 1,
+    "ok": false,
+    "error": "stages.week.on_enter[3].do[0]: beer 'beer_4' has no property 'stock' (has: arrives, owner, qty, stage) \u2014 in `$entity($it.owner).stock + $it.qty`"
+   },
+   {
+    "participants": "random",
+    "seed": 2,
+    "ok": false,
+    "error": "stages.week.on_enter[3].do[0]: beer 'beer_4' has no property 'stock' (has: arrives, owner, qty, stage) \u2014 in `$entity($it.owner).stock + $it.qty`"
+   },
+   {
+    "participants": "random",
+    "seed": 3,
+    "ok": false,
+    "error": "stages.week.on_enter[3].do[0]: beer 'beer_4' has no property 'stock' (has: arrives, owner, qty, stage) \u2014 in `$entity($it.owner).stock + $it.qty`"
+   },
+   {
+    "participants": {
+     "company": "policy:order_8",
+     "factory": "policy:order_8"
+    },
+    "seed": 1,
+    "ok": false,
+    "error": "stages.week.on_enter[3].do[0]: beer 'beer_4' has no property 'stock' (has: arrives, owner, qty, stage) \u2014 in `$entity($it.owner).stock + $it.qty`"
+   },
+   {
+    "participants": {
+     "company": "policy:order_8",
+     "factory": "policy:order_8"
+    },
+    "seed": 2,
+    "ok": false,
+    "error": "stages.week.on_enter[3].do[0]: beer 'beer_4' has no property 'stock' (has: arrives, owner, qty, stage) \u2014 in `$entity($it.owner).stock + $it.qty`"
+   },
+   {
+    "participants": {
+     "company": "policy:order_8",
+     "factory": "policy:order_8"
+    },
+    "seed": 3,
+    "ok": false,
+    "error": "stages.week.on_enter[3].do[0]: beer 'beer_4' has no property 'stock' (has: arrives, owner, qty, stage) \u2014 in `$entity($it.owner).stock + $it.qty`"
+   },
+   {
+    "participants": {
+     "company": "policy:order_upstream",
+     "factory": "policy:order_upstream"
+    },
+    "seed": 1,
+    "ok": false,
+    "error": "stages.week.on_enter[3].do[0]: beer 'beer_4' has no property 'stock' (has: arrives, owner, qty, stage) \u2014 in `$entity($it.owner).stock + $it.qty`"
+   },
+   {
+    "participants": {
+     "company": "policy:order_upstream",
+     "factory": "policy:order_upstream"
+    },
+    "seed": 2,
+    "ok": false,
+    "error": "stages.week.on_enter[3].do[0]: beer 'beer_4' has no property 'stock' (has: arrives, owner, qty, stage) \u2014 in `$entity($it.owner).stock + $it.qty`"
+   },
+   {
+    "participants": {
+     "company": "policy:order_upstream",
+     "factory": "policy:order_upstream"
+    },
+    "seed": 3,
+    "ok": false,
+    "error": "stages.week.on_enter[3].do[0]: beer 'beer_4' has no property 'stock' (has: arrives, owner, qty, stage) \u2014 in `$entity($it.owner).stock + $it.qty`"
+   },
+   {
+    "participants": {
+     "company": "policy:order_rule_only",
+     "factory": "policy:order_rule_only"
+    },
+    "seed": 1,
+    "ok": false,
+    "error": "stages.week.on_enter[3].do[0]: beer 'beer_4' has no property 'stock' (has: arrives, owner, qty, stage) \u2014 in `$entity($it.owner).stock + $it.qty`"
+   },
+   {
+    "participants": {
+     "company": "policy:order_rule_only",
+     "factory": "policy:order_rule_only"
+    },
+    "seed": 2,
+    "ok": false,
+    "error": "stages.week.on_enter[3].do[0]: beer 'beer_4' has no property 'stock' (has: arrives, owner, qty, stage) \u2014 in `$entity($it.owner).stock + $it.qty`"
+   },
+   {
+    "participants": {
+     "company": "policy:order_rule_only",
+     "factory": "policy:order_rule_only"
+    },
+    "seed": 3,
+    "ok": false,
+    "error": "stages.week.on_enter[3].do[0]: beer 'beer_4' has no property 'stock' (has: arrives, owner, qty, stage) \u2014 in `$entity($it.owner).stock + $it.qty`"
+   }
+  ]
+ },
+ {
+  "brief": "treaty",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "token cap",
+  "writes": 6,
+  "clean_at": 3,
+  "final_clean": true,
+  "runs_ok": 6,
+  "runs": 6,
+  "checks_passed": 3,
+  "checks": 4,
+  "input_tokens": 590180,
+  "output_tokens": 42867,
+  "cost": 0.0335,
+  "wall_seconds": 226.3,
+  "contract_lines": 329,
+  "guide_parts": [
+   "guide",
+   "types",
+   "stages",
+   "actions",
+   "inputs",
+   "population",
+   "views",
+   "events",
+   "end",
+   "outputs",
+   "patterns",
+   "mechanisms",
+   "functions.random",
+   "records",
+   "effects",
+   "defs",
+   "functions.collections",
+   "expressions",
+   "policies"
+  ],
+  "guide_chars": 61227,
+  "check_errors": [
+   [
+    "types.nation.props.red_line.min: must be a number, got the text \"$inputs.cut_min\" \u2192 write a number without quotes; see guide('types')",
+    "types.nation.props.red_line.max: must be a number, got the text \"$inputs.cut_max\" \u2192 write a number without quotes; see guide('types')"
+   ],
+   [
+    "actions.propose.announce: '{name}' needs a subject; write {$actor.name} or similar \u2192 template: {name} puts a {$params.cut}% emissions cut on the table.",
+    "actions.ratify.announce: '{name}' needs a subject; write {$actor.name} or similar \u2192 template: {name}: {$stance} \u2014 the {$world.proposal}% cut."
+   ],
+   [],
+   [],
+   [],
+   []
+  ],
+  "failed_checks": [
+   {
+    "check": "treaty_red_lines_stay_secret",
+    "passed": false,
+    "why": "nation_2 was shown nation_1's red line 24: \u2026a: decline \u2014 the 58% cut.\n- Westmark: decline \u2014 the 58% cut.\n- Norland puts a 24% emissions cut on the table.\n\nThe table: A 24% emissions cut is on the table, put forwa\u2026"
+   }
+  ],
+  "run_errors": []
+ },
+ {
+  "brief": "classroom",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "done",
+  "writes": 2,
+  "clean_at": 2,
+  "final_clean": true,
+  "runs_ok": 12,
+  "runs": 12,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 111842,
+  "output_tokens": 14929,
+  "cost": 0.0111,
+  "wall_seconds": 143.7,
+  "contract_lines": 245,
+  "guide_parts": [
+   "functions.collections",
+   "stages",
+   "events",
+   "views",
+   "effects",
+   "inputs",
+   "actions",
+   "outputs",
+   "policies",
+   "types"
+  ],
+  "guide_chars": 35787,
+  "check_errors": [
+   [
+    "brief.rules: '{+/-}' is not a field name; write an expression as {$...} \u2192 template: Every week the teacher picks one topic to teach and each student privately decides whether to study hard or take it easy. Understanding of a topic grows by {$inputs.base_gain} when it is taught, plus {$inputs.study_gain} more when the student studies hard. Then there is a quiz on that week's topic: 0 to {$inputs.max_score}, based on understanding plus up to {+/-}{$inputs.luck_range} of luck. Students see only their own scores; the teacher sees everyone's. A final grade is the average of a student's quiz scores."
+   ],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ },
+ {
+  "brief": "ed_triage",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "stop": "token cap",
+  "writes": 6,
+  "clean_at": 2,
+  "final_clean": true,
+  "runs_ok": 15,
+  "runs": 15,
+  "checks_passed": 4,
+  "checks": 4,
+  "input_tokens": 501461,
+  "output_tokens": 105813,
+  "cost": 0.0588,
+  "wall_seconds": 1463.3,
+  "contract_lines": 470,
+  "guide_parts": [
+   "effects",
+   "functions.random",
+   "events",
+   "functions.collections",
+   "patterns",
+   "stages",
+   "actions",
+   "policies",
+   "views",
+   "outputs",
+   "expressions",
+   "patterns.counts",
+   "patterns",
+   "inputs",
+   "patterns.counts",
+   "pattern",
+   "mechanisms",
+   "population"
+  ],
+  "guide_chars": 68533,
+  "check_errors": [
+   [
+    "inputs.treatment_hours.fields.urgency: must be an object, got the text \"int\" \u2192 write an object {...} with the fields guide('inputs') lists",
+    "inputs.treatment_hours.fields.hours: must be an object, got the text \"number\" \u2192 write an object {...} with the fields guide('inputs') lists"
+   ],
+   [],
+   [],
+   [],
+   [],
+   []
+  ],
+  "failed_checks": [],
+  "run_errors": []
+ }
+]

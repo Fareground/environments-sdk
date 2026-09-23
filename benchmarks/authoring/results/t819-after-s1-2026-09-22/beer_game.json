@@ -1,0 +1,3401 @@
+{
+ "model": "deepseek/deepseek-v4.1-flash",
+ "stop": "token cap",
+ "nudges": 0,
+ "messages": [
+  {
+   "role": "system",
+   "content": "(guide text)"
+  },
+  {
+   "role": "user",
+   "content": "# Beer distribution game\n\nBuild the classic beer distribution game. Four companies form a supply chain for one product: a retailer, a wholesaler, a distributor and a factory, each run by an AI agent. Every week, customers buy from the retailer; weekly customer demand is random, a whole number of cases between 0 and 8. Each week every company ships what it can to the company below it, then places an order with the company above it (the factory instead starts production). Orders reach the supplier the following week, and shipments take two weeks to arrive; production also takes two weeks. Everyone starts with 12 cases in stock and 4 cases already on the way on each shipping link. Demand a company cannot fill becomes backlog and must be shipped later. Each company pays $0.50 per case in stock and $1.00 per case of backlog at the end of every week. Companies only see their own stock, backlog, incoming orders and deliveries, never the others' positions. The game lasts 20 weeks and the team's goal is the lowest total cost.\n\n## Deliverables\n\nReport these outputs:\n- `customer_demand` \u2014 a list of the cases customers demanded each week, in week order.\n- `factory_orders` \u2014 a list of the cases the factory put into production each week, in week order.\n- `costs_by_role` \u2014 a map from role (\"retailer\", \"wholesaler\", \"distributor\", \"factory\") to that company's total cost.\n- `total_team_cost` \u2014 the sum of all four companies' costs.\n- `bullwhip_ratio` \u2014 the variance of the factory's weekly production orders divided by the variance of weekly customer demand.\n\n\nBuild this environment. Save it with write_contract and use the other tools as you see fit. Reply without calling a tool when you are done."
+  },
+  {
+   "role": "assistant",
+   "content": "I'll start by reading the SDK guide to understand the sections I'll need.\n\n",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-b7954ff35c7fe979",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"guide\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-ba6fbd3bed8328ed",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"expressions\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "chatcmpl-tool-ada90357c4051d94",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"effects\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "chatcmpl-tool-a64625372126496e",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions.collections\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b7954ff35c7fe979",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-ba6fbd3bed8328ed",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-ada90357c4051d94",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a64625372126496e",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "Let me read the sections I'll need.\n\n",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-8e021f5384eb5284",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"stages\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-92efa21c8660b748",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"actions\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "chatcmpl-tool-b286c62209eb100b",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"views\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "chatcmpl-tool-a06c3b151e3d50ae",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"events\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 4,
+     "id": "chatcmpl-tool-84fae9a68c6b6500",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"inputs\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 5,
+     "id": "chatcmpl-tool-b9bad499f1a84570",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"outputs\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-8e021f5384eb5284",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-92efa21c8660b748",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b286c62209eb100b",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a06c3b151e3d50ae",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-84fae9a68c6b6500",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b9bad499f1a84570",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "Let me read more guide sections before writing the contract.\n\n",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-ae28a7de369e0381",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"population\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-a594e7848fc0dea3",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"brief\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "chatcmpl-tool-9007a8d4bc22d3e1",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"policies\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 3,
+     "id": "chatcmpl-tool-b089f254d42c3240",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions.random\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 4,
+     "id": "chatcmpl-tool-8bed033c51fc0ae9",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"end\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 5,
+     "id": "chatcmpl-tool-9c0e831e68b384a3",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"defs\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-ae28a7de369e0381",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a594e7848fc0dea3",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-9007a8d4bc22d3e1",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b089f254d42c3240",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-8bed033c51fc0ae9",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-9c0e831e68b384a3",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "Now I have what I need. Let me write the contract.\n\n",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-848c0865d15f0321",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-848c0865d15f0321",
+   "content": "Saved (212 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-a561f156be0e1e0c",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a561f156be0e1e0c",
+   "content": "types.company.props.upstream.of: 'of' is not a field here \u2192 'of' belongs to another part of the contract; remove it here; see guide('types')\ntypes.company.props.downstream.of: 'of' is not a field here \u2192 'of' belongs to another part of the contract; remove it here; see guide('types')\nbrief.roles.retailer: 'retailer' is not a declared type \u2192 types: company\nbrief.roles.wholesaler: 'wholesaler' is not a declared type \u2192 types: company\nbrief.roles.distributor: 'distributor' is not a declared type \u2192 types: company\nbrief.roles.factory: 'factory' is not a declared type \u2192 types: company\ntypes.company.props.upstream.type: unknown type 'entity'\ntypes.company.props.downstream.type: unknown type 'entity'\nviews.position.show: unknown format 'capitalize' (use one of: money, pct, pct1, int, upper, lower, title, yesno, list, 0, 1, 2, 3, 4) \u2192 template: It is week {$round} of {$inputs.weeks}. {$actor.role|capitalize}: stock {stock} cases, backlog {backlog} cases, incoming orders {incoming} cases, cost so far {$actor.cost|money}.\nevents[1].do[0]: $actor is not available here \u2192 available: $arm, $clock, $i, $inputs, $it, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world \u2014 in `$actor.incoming`\nevents[1].do[1]: $actor is not available here \u2192 available: $arm, $clock, $d, $i, $inputs, $it, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world\nevents[1].do[2]: $actor is not available here \u2192 available: $arm, $clock, $d, $i, $inputs, $it, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world\nevents[1].do[3]: $actor is not available here \u2192 available: $arm, $clock, $d, $i, $inputs, $it, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world\nevents[1].do[4]: $actor is not available here \u2192 available: $arm, $clock, $d, $i, $inputs, $it, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world\nevents[1].do[5]: $actor is not available here \u2192 available: $arm, $clock, $d, $i, $inputs, $it, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world \u2014 in `$actor.production`\nevents[1].do[6]: $actor is not available here \u2192 available: $arm, $clock, $d, $i, $inputs, $it, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world\nevents[1].say: $actor is not available here \u2192 available: $arm, $clock, $inputs, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world \u2014 in `$actor.name`\nevents[3].do[0]: $actor is not available here \u2192 available: $arm, $clock, $i, $inputs, $it, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world \u2014 in `$actor.ordered`\nevents[3].do[1]: $actor is not available here \u2192 available: $arm, $clock, $i, $inputs, $it, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world\nevents[4].do[0]: $actor is not available here \u2192 available: $arm, $clock, $i, $inputs, $it, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world \u2014 in `$actor.stock * $inputs.holding_cost + $actor.backlog * $inputs.backlog_cost`\nevents[4].do[1]: $actor is not available here \u2192 available: $arm, $clock, $i, $inputs, $it, $metrics, $pattern, $pending, $physics, $round, $series, $stage, $world \u2014 in `$actor.stock * $inputs.holding_cost + $actor.backlog * $inputs.backlog_cost`\noutputs.bullwhip_ratio: $series.customer_demand: no such metric\noutputs.bullwhip_ratio: $series.factory_orders: no such metric"
+  },
+  {
+   "role": "assistant",
+   "content": "Good, clear errors. Let me read the relevant guides.\n\n",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-a3a3353d3ac30ff3",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"types\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 1,
+     "id": "chatcmpl-tool-9dc0148fe87535e2",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"functions\"}"
+     }
+    },
+    {
+     "type": "function",
+     "index": 2,
+     "id": "chatcmpl-tool-9b29872880acc5d2",
+     "function": {
+      "name": "guide",
+      "arguments": "{\"part\": \"metrics\"}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-a3a3353d3ac30ff3",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-9dc0148fe87535e2",
+   "content": "(guide text)"
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-9b29872880acc5d2",
+   "content": "(guide text)"
+  },
+  {
+   "role": "assistant",
+   "content": "Now I understand the constraints. Let me write a corrected contract.\n\n",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-8e434f09df0051f3",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-8e434f09df0051f3",
+   "content": "Not valid JSON: Expecting value: line 1 column 1 (char 0). Nothing saved."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-acfd53f8151fa62c",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-acfd53f8151fa62c",
+   "content": "Saved (205 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-9a82e8f40e31cc4c",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-9a82e8f40e31cc4c",
+   "content": "invariants[2]: invariant `$len($world.customer_demand) <= $inputs.weeks and $len($world.factory_orders) <= $inputs.weeks` no longer holds after events[0].do (The game lasts the stated number of weeks.) (smoke run of 11 round(s), random agents) \u2192 fix the rule at this path (found by a smoke run)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-b534f23762655a3d",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b534f23762655a3d",
+   "content": "Saved (205 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-b435e00adde18218",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-b435e00adde18218",
+   "content": "[warning] invariants[2]: agents' actions broke it 12 time(s); each was refused and undone: invariant `$len($world.customer_demand) <= $round and $len($world.factory_orders) <= $round` no longer holds after actions.ship (One round of demand and one production order per week.) (smoke run of 12 round(s), random agents) \u2192 refuse such actions before they apply: a `when` requirement (with a `why`) or parameter bounds on the action tell agents the rule up front; the invariant stays as the backstop"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-ba6825b6a891a7d0",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-ba6825b6a891a7d0",
+   "content": "Saved (205 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-93f9b3a8f9f83518",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-93f9b3a8f9f83518",
+   "content": "invariants[2]: invariant `$sum(company, $it.stock + $it.incoming + $it.production) + $sum($world.customer_demand) == $inputs.start_stock * 4 + $inputs.start_pipeline * 5 + $sum($world.factory_orders)` no longer holds after events[0].do (Beer is conserved: everything shipped or produced is in stock, in transit or delivered to customers.) (smoke run of 1 round(s), random agents) \u2192 fix the rule at this path (found by a smoke run)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-bf17e41e965c0c6c",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-bf17e41e965c0c6c",
+   "content": "Saved (207 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-83f4241de6bfe98a",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-83f4241de6bfe98a",
+   "content": "invariants[2]: invariant `$sum(company, $it.stock + $it.incoming + $it.production) + $sum($world.customer_demand) == $inputs.start_stock * 4 + $inputs.start_pipeline * 5 + $sum($world.factory_orders)` no longer holds after events[0].do (Beer is conserved: everything shipped or produced is in stock, in transit or delivered to customers.) (smoke run of 1 round(s), random agents) \u2192 fix the rule at this path (found by a smoke run)"
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-844647c11263edff",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-844647c11263edff",
+   "content": "Not valid JSON: Invalid control character at: line 120 column 45 (char 7923). Nothing saved."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "call_d8f8524a0cbb4cd08335bb1d",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "call_d8f8524a0cbb4cd08335bb1d",
+   "content": "Saved (208 lines)."
+  },
+  {
+   "role": "assistant",
+   "content": "",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-ae09bcd687d04298",
+     "function": {
+      "name": "check",
+      "arguments": "{}"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-ae09bcd687d04298",
+   "content": "[warning] actions.ship: was offered 34 time(s) when none of its choices could succeed; refused with: Retailer's incoming cannot go below 0: it would be -6 (12\u00d7) (smoke run of 12 round(s), random agents) \u2192 hide it while it cannot work: put the requirement in `when` over $actor, or bound its parameters (min, max, where) so the tool only offers choices that can succeed"
+  },
+  {
+   "role": "assistant",
+   "content": "Now let me restructure the pipeline model properly (two-bucket transit, orders vs backlog separated).\n\n",
+   "tool_calls": [
+    {
+     "type": "function",
+     "index": 0,
+     "id": "chatcmpl-tool-ba5e1d998026c238",
+     "function": {
+      "name": "write_contract",
+      "arguments": "(in writes)"
+     }
+    }
+   ]
+  },
+  {
+   "role": "tool",
+   "tool_call_id": "chatcmpl-tool-ba5e1d998026c238",
+   "content": "Revision limit reached (8); the last saved contract is final."
+  }
+ ],
+ "writes": [
+  {
+   "name": "Beer distribution game",
+   "brief": {
+    "situation": "You run one company in a four-stage beer supply chain \u2014 a retailer, a wholesaler, a distributor and a factory \u2014 each run by an agent. Customers buy beer from the retailer every week. The product is a single brand of beer, measured in cases.",
+    "rules": "The game lasts {$inputs.weeks} weeks. Each week runs in this order: first every company ships to the company below it (the factory ships nothing downstream), then every company orders from the company above it (the factory starts production instead of ordering). An order reaches the supplier the following week. Shipments take {$inputs.ship_lead} weeks to arrive and production takes {$inputs.prod_lead} weeks to arrive. Demand a company cannot fill becomes backlog and must be shipped later. At the end of every week each company pays {$inputs.holding_cost|money} per case in stock and {$inputs.backlog_cost|money} per case of backlog. Every company starts with {$inputs.start_stock} cases in stock and {$inputs.start_pipeline} cases on the way on each shipping link. You only ever see your own stock, backlog, incoming orders and incoming deliveries \u2014 never the other companies' positions. The team's goal is the lowest total cost.",
+    "roles": {
+     "retailer": "You are the retailer. Customers buy beer from you every week; you ship to them and you order from the wholesaler.",
+     "wholesaler": "You are the wholesaler. You ship to the retailer and you order from the distributor.",
+     "distributor": "You are the distributor. You ship to the wholesaler and you order from the factory.",
+     "factory": "You are the factory. You ship to the distributor and, instead of ordering, you start production."
+    }
+   },
+   "clock": {
+    "rounds": "$inputs.weeks",
+    "unit": "week"
+   },
+   "inputs": {
+    "weeks": {
+     "type": "int",
+     "default": 20,
+     "min": 1,
+     "description": "Number of weeks the game lasts"
+    },
+    "demand_min": {
+     "type": "int",
+     "default": 0,
+     "min": 0,
+     "description": "Lowest weekly customer demand"
+    },
+    "demand_max": {
+     "type": "int",
+     "default": 8,
+     "min": 0,
+     "description": "Highest weekly customer demand"
+    },
+    "start_stock": {
+     "type": "int",
+     "default": 12,
+     "min": 0,
+     "description": "Cases each company starts with in stock"
+    },
+    "start_pipeline": {
+     "type": "int",
+     "default": 4,
+     "min": 0,
+     "description": "Cases already on the way on each shipping link at the start"
+    },
+    "ship_lead": {
+     "type": "int",
+     "default": 2,
+     "min": 0,
+     "description": "Weeks a shipment takes to arrive"
+    },
+    "prod_lead": {
+     "type": "int",
+     "default": 2,
+     "min": 0,
+     "description": "Weeks production takes to arrive"
+    },
+    "holding_cost": {
+     "type": "number",
+     "default": 0.5,
+     "min": 0,
+     "description": "Cost per case in stock at the end of a week"
+    },
+    "backlog_cost": {
+     "type": "number",
+     "default": 1.0,
+     "min": 0,
+     "description": "Cost per case of backlog at the end of a week"
+    },
+    "max_order": {
+     "type": "int",
+     "default": 30,
+     "min": 0,
+     "description": "Largest order or production batch a company may place"
+    }
+   },
+   "world": {
+    "current_order": {
+     "type": "int",
+     "default": -1,
+     "min": -1
+    },
+    "customer_demand": {
+     "type": "list",
+     "default": []
+    },
+    "factory_orders": {
+     "type": "list",
+     "default": []
+    },
+    "total_cost": {
+     "type": "number",
+     "default": 0.0,
+     "min": 0
+    }
+   },
+   "types": {
+    "company": {
+     "agent": true,
+     "props": {
+      "role": {
+       "type": "text",
+       "default": "retailer"
+      },
+      "upstream": {
+       "type": "entity",
+       "of": "company"
+      },
+      "downstream": {
+       "type": "entity",
+       "of": "company"
+      },
+      "stock": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "incoming": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "ordered": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "backlog": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "production": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "shipped": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "received": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "cost": {
+       "type": "number",
+       "default": 0.0,
+       "min": 0
+      },
+      "last_order": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "last_shipped": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "last_received": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      }
+     }
+    }
+   },
+   "population": [
+    {
+     "type": "company",
+     "count": "$inputs.weeks",
+     "id": "filler_{$i}",
+     "name": "Filler {$i}",
+     "props": {
+      "role": "filler",
+      "stock": 0,
+      "incoming": 0
+     }
+    },
+    {
+     "type": "company",
+     "count": 1,
+     "id": "retailer",
+     "name": "Retailer",
+     "props": {
+      "role": "retailer",
+      "stock": "$inputs.start_stock",
+      "incoming": "$inputs.start_pipeline"
+     }
+    },
+    {
+     "type": "company",
+     "count": 1,
+     "id": "wholesaler",
+     "name": "Wholesaler",
+     "props": {
+      "role": "wholesaler",
+      "stock": "$inputs.start_stock",
+      "incoming": "$inputs.start_pipeline"
+     }
+    },
+    {
+     "type": "company",
+     "count": 1,
+     "id": "distributor",
+     "name": "Distributor",
+     "props": {
+      "role": "distributor",
+      "stock": "$inputs.start_stock",
+      "incoming": "$inputs.start_pipeline"
+     }
+    },
+    {
+     "type": "company",
+     "count": 1,
+     "id": "factory",
+     "name": "Factory",
+     "props": {
+      "role": "factory",
+      "stock": "$inputs.start_stock",
+      "incoming": "$inputs.start_pipeline",
+      "production": "$inputs.start_pipeline"
+     }
+    }
+   ],
+   "stages": [
+    {
+     "name": "shipping",
+     "brief": "Ship beer to the company below you. If you owe backlog, ship at least that much whenever you can.",
+     "actions": [
+      "ship"
+     ],
+     "turns": "sequential",
+     "order": "$it.role == retailer and 0 or ($it.role == wholesaler and 1 or ($it.role == distributor and 2 or 3))",
+     "who": "$it.role != filler and $it.role != factory and ($it.stock + $it.incoming > 0)",
+     "max_actions": 1
+    },
+    {
+     "name": "ordering",
+     "brief": "Place your order with the company above you (the factory starts production instead). The order reaches them next week.",
+     "actions": [
+      "order"
+     ],
+     "turns": "simultaneous",
+     "who": "$it.role != filler",
+     "max_actions": 1
+    }
+   ],
+   "actions": {
+    "ship": {
+     "by": "company",
+     "description": "Ship beer to the company below you this week.",
+     "params": {
+      "amount": {
+       "type": "int",
+       "min": 0,
+       "max": "$min($actor.stock + $actor.incoming, $actor.backlog + $world.current_order)",
+       "description": "Cases to ship this week"
+      }
+     },
+     "when": [
+      "$actor.role != factory and $actor.role != filler",
+      {
+       "expr": "$world.current_order >= 0",
+       "why": "You can only ship during the shipping step of a week."
+      },
+      {
+       "expr": "$actor.stock + $actor.incoming > 0",
+       "why": "You have nothing to ship."
+      },
+      {
+       "expr": "$params.amount >= $actor.backlog",
+       "why": "You must clear your whole backlog before shipping anything else."
+      },
+      {
+       "expr": "$params.amount <= $actor.stock + $actor.incoming",
+       "why": "You do not have that much beer."
+      },
+      {
+       "expr": "$params.amount <= $actor.backlog + $world.current_order",
+       "why": "You cannot ship more than your backlog plus the orders you have received."
+      }
+     ],
+     "do": [
+      "$got = $min($actor.backlog + $world.current_order, $actor.stock + $actor.incoming)",
+      "$actor.incoming -= $got",
+      "$actor.stock -= $got",
+      "$actor.shipped += $got",
+      "$actor.last_shipped = $got",
+      "$actor.backlog = $actor.backlog + $world.current_order - $got",
+      {
+       "if": "$actor.downstream != null",
+       "then": [
+        "$actor.downstream.incoming += $got"
+       ],
+       "else": [
+        "$world.customer_demand += $got"
+       ]
+      }
+     ],
+     "outcome": "You shipped {$got} cases to the company below you.",
+     "private": true
+    },
+    "order": {
+     "by": "company",
+     "description": "Order beer from the company above you (the factory starts production instead).",
+     "params": {
+      "amount": {
+       "type": "int",
+       "min": 0,
+       "max": "$inputs.max_order",
+       "description": "Cases to order from your supplier"
+      }
+     },
+     "when": [
+      "$actor.role != filler",
+      {
+       "expr": "$world.current_order >= 0",
+       "why": "You can only order during the ordering step of a week."
+      }
+     ],
+     "do": [
+      "$world.current_order = $params.amount",
+      "$actor.last_order = $params.amount",
+      {
+       "if": "$actor.role == factory",
+       "then": [
+        "$world.factory_orders += $params.amount",
+        "$actor.production += $params.amount"
+       ],
+       "else": [
+        "$actor.upstream.ordered += $params.amount"
+       ]
+      }
+     ],
+     "outcome": "You ordered {$params.amount} cases from your supplier.",
+     "private": true
+    }
+   },
+   "events": [
+    {
+     "name": "customer demand",
+     "phase": "start",
+     "do": [
+      "$world.customer_demand += $randint($inputs.demand_min, $inputs.demand_max)",
+      "$ret = $entity(retailer)",
+      "$ret.incoming += $last($world.customer_demand)"
+     ],
+     "say": "Customers order {$last($world.customer_demand)} cases of beer from the retailer this week."
+    },
+    {
+     "name": "deliveries",
+     "phase": "start",
+     "each": "$filter(company, $it.role != filler)",
+     "do": [
+      "$d = $actor.incoming",
+      "$actor.incoming = 0",
+      "$actor.stock += $d",
+      "$actor.received += $d",
+      "$actor.last_received = $d",
+      "$actor.incoming = $actor.production",
+      "$actor.production = 0"
+     ],
+     "say": "Deliveries arrive: {$actor.name} receives {$actor.last_received} cases."
+    },
+    {
+     "name": "shipping step opens",
+     "phase": "start",
+     "do": [
+      "$world.current_order = -1"
+     ]
+    },
+    {
+     "name": "orders reach suppliers",
+     "phase": "end",
+     "each": "$filter(company, $it.role != filler and $it.role != factory)",
+     "do": [
+      "$actor.incoming += $actor.ordered",
+      "$actor.ordered = 0"
+     ],
+     "say": "Orders reach the suppliers."
+    },
+    {
+     "name": "weekly costs",
+     "phase": "end",
+     "each": "$filter(company, $it.role != filler)",
+     "do": [
+      "$actor.cost += $actor.stock * $inputs.holding_cost + $actor.backlog * $inputs.backlog_cost",
+      "$world.total_cost += $actor.stock * $inputs.holding_cost + $actor.backlog * $inputs.backlog_cost"
+     ]
+    }
+   ],
+   "views": {
+    "position": {
+     "title": "Your position",
+     "show": "It is week {$round} of {$inputs.weeks}. {$actor.role|capitalize}: stock {stock} cases, backlog {backlog} cases, incoming orders {incoming} cases, cost so far {$actor.cost|money}."
+    },
+    "deliveries": {
+     "title": "This week's arrivals",
+     "show": "Arrived: {last_received} cases. Shipped: {last_shipped} cases. Last order placed: {last_order} cases."
+    },
+    "pipeline": {
+     "title": "On the way to you",
+     "show": "{incoming} cases are on the way to you (including production if you are the factory)."
+    },
+    "chain": {
+     "for": "spectator",
+     "of": "company",
+     "title": "Supply chain",
+     "where": "$it.role != filler",
+     "show": "{role}: stock {stock}, backlog {backlog}, incoming {incoming}, production {production}, cost {$it.cost|money}"
+    }
+   },
+   "outputs": {
+    "customer_demand": {
+     "expr": "$world.customer_demand",
+     "type": "list",
+     "description": "Cases customers demanded each week, in week order"
+    },
+    "factory_orders": {
+     "expr": "$world.factory_orders",
+     "type": "list",
+     "description": "Cases the factory put into production each week, in week order"
+    },
+    "costs_by_role": {
+     "expr": "$dict(company, $it.role, $it.cost)",
+     "type": "map",
+     "description": "Total cost of each company, by role"
+    },
+    "total_team_cost": {
+     "expr": "$world.total_cost",
+     "type": "number",
+     "format": "money",
+     "description": "Sum of all four companies' costs"
+    },
+    "bullwhip_ratio": {
+     "expr": "$variance($series.factory_orders) / $variance($series.customer_demand)",
+     "type": "number",
+     "description": "Variance of the factory's weekly production orders divided by the variance of weekly customer demand"
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$count(company, $it.role != filler) == 4",
+     "why": "The supply chain has exactly four companies."
+    },
+    {
+     "expr": "$all(company, $it.stock >= 0 and $it.backlog >= 0 and $it.incoming >= 0 and $it.production >= 0 and $it.cost >= 0)",
+     "why": "Stocks, backlogs and costs are never negative."
+    },
+    {
+     "expr": "$len($world.customer_demand) <= $inputs.weeks and $len($world.factory_orders) <= $inputs.weeks",
+     "why": "The game lasts the stated number of weeks."
+    }
+   ]
+  },
+  "",
+  {
+   "name": "Beer distribution game",
+   "brief": {
+    "situation": "You run one company in a four-stage beer supply chain: a retailer, a wholesaler, a distributor and a factory, each run by an agent. Customers buy beer from the retailer every week. The product is a single brand of beer, measured in cases.",
+    "rules": "The game lasts {$inputs.weeks} weeks. Each week runs in this order: first every company ships to the company below it, then every company orders from the company above it (the factory starts production instead of ordering). An order reaches the supplier the following week. Shipments take {$inputs.ship_lead} weeks to arrive and production takes {$inputs.prod_lead} weeks to arrive. Demand a company cannot fill becomes backlog and must be shipped later. At the end of every week each company pays {$inputs.holding_cost|money} per case in stock and {$inputs.backlog_cost|money} per case of backlog. Every company starts with {$inputs.start_stock} cases in stock and {$inputs.start_pipeline} cases on the way on each shipping link. You only ever see your own stock, backlog, incoming orders and incoming deliveries \u2014 never the other companies' positions. The team's goal is the lowest total cost.",
+    "roles": {
+     "company": "You run one company of the supply chain; your role is given in your position. Customers buy from the retailer. You ship to the company below you and order from the company above you (the factory starts production instead)."
+    }
+   },
+   "clock": {
+    "rounds": "$inputs.weeks",
+    "unit": "week"
+   },
+   "inputs": {
+    "weeks": {
+     "type": "int",
+     "default": 20,
+     "min": 1,
+     "description": "Number of weeks the game lasts"
+    },
+    "demand_min": {
+     "type": "int",
+     "default": 0,
+     "min": 0,
+     "description": "Lowest weekly customer demand"
+    },
+    "demand_max": {
+     "type": "int",
+     "default": 8,
+     "min": 0,
+     "description": "Highest weekly customer demand"
+    },
+    "start_stock": {
+     "type": "int",
+     "default": 12,
+     "min": 0,
+     "description": "Cases each company starts with in stock"
+    },
+    "start_pipeline": {
+     "type": "int",
+     "default": 4,
+     "min": 0,
+     "description": "Cases already on the way on each shipping link at the start"
+    },
+    "ship_lead": {
+     "type": "int",
+     "default": 2,
+     "min": 0,
+     "description": "Weeks a shipment takes to arrive"
+    },
+    "prod_lead": {
+     "type": "int",
+     "default": 2,
+     "min": 0,
+     "description": "Weeks production takes to arrive"
+    },
+    "holding_cost": {
+     "type": "number",
+     "default": 0.5,
+     "min": 0,
+     "description": "Cost per case in stock at the end of a week"
+    },
+    "backlog_cost": {
+     "type": "number",
+     "default": 1.0,
+     "min": 0,
+     "description": "Cost per case of backlog at the end of a week"
+    },
+    "max_order": {
+     "type": "int",
+     "default": 30,
+     "min": 0,
+     "description": "Largest order or production batch a company may place"
+    }
+   },
+   "world": {
+    "customer_demand": {
+     "type": "list",
+     "default": []
+    },
+    "factory_orders": {
+     "type": "list",
+     "default": []
+    },
+    "total_cost": {
+     "type": "number",
+     "default": 0.0,
+     "min": 0
+    }
+   },
+   "types": {
+    "company": {
+     "agent": true,
+     "props": {
+      "role": {
+       "type": "text",
+       "default": "retailer"
+      },
+      "upstream": {
+       "type": "text",
+       "default": ""
+      },
+      "downstream": {
+       "type": "text",
+       "default": ""
+      },
+      "stock": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "incoming": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "ordered": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "backlog": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "production": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "shipped": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "received": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "cost": {
+       "type": "number",
+       "default": 0.0,
+       "min": 0
+      },
+      "last_order": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "last_shipped": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "last_received": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      }
+     }
+    }
+   },
+   "population": [
+    {
+     "type": "company",
+     "count": "$inputs.weeks",
+     "id": "filler_{$i}",
+     "name": "Filler {$i}",
+     "props": {
+      "role": "filler",
+      "stock": 0,
+      "incoming": 0
+     }
+    },
+    {
+     "type": "company",
+     "count": 1,
+     "id": "retailer",
+     "name": "Retailer",
+     "props": {
+      "role": "retailer",
+      "upstream": "wholesaler",
+      "stock": "$inputs.start_stock",
+      "incoming": "$inputs.start_pipeline"
+     }
+    },
+    {
+     "type": "company",
+     "count": 1,
+     "id": "wholesaler",
+     "name": "Wholesaler",
+     "props": {
+      "role": "wholesaler",
+      "upstream": "distributor",
+      "downstream": "retailer",
+      "stock": "$inputs.start_stock",
+      "incoming": "$inputs.start_pipeline"
+     }
+    },
+    {
+     "type": "company",
+     "count": 1,
+     "id": "distributor",
+     "name": "Distributor",
+     "props": {
+      "role": "distributor",
+      "upstream": "factory",
+      "downstream": "wholesaler",
+      "stock": "$inputs.start_stock",
+      "incoming": "$inputs.start_pipeline"
+     }
+    },
+    {
+     "type": "company",
+     "count": 1,
+     "id": "factory",
+     "name": "Factory",
+     "props": {
+      "role": "factory",
+      "downstream": "distributor",
+      "stock": "$inputs.start_stock",
+      "incoming": "$inputs.start_pipeline",
+      "production": "$inputs.start_pipeline"
+     }
+    }
+   ],
+   "stages": [
+    {
+     "name": "shipping",
+     "brief": "Ship beer to the company below you. If you owe backlog, ship at least that much whenever you can.",
+     "actions": [
+      "ship"
+     ],
+     "turns": "sequential",
+     "order": "$it.role == retailer and 0 or ($it.role == wholesaler and 1 or ($it.role == distributor and 2 or 3))",
+     "who": "$it.role != filler and $it.role != factory",
+     "max_actions": 1
+    },
+    {
+     "name": "ordering",
+     "brief": "Place your order with the company above you (the factory starts production instead). The order reaches them next week.",
+     "actions": [
+      "order"
+     ],
+     "turns": "simultaneous",
+     "who": "$it.role != filler",
+     "max_actions": 1
+    }
+   ],
+   "actions": {
+    "ship": {
+     "by": "company",
+     "description": "Ship beer to the company below you this week.",
+     "params": {
+      "amount": {
+       "type": "int",
+       "min": 0,
+       "max": "$min($actor.stock + $actor.incoming, $actor.backlog + $actor.incoming)",
+       "description": "Cases to ship this week"
+      }
+     },
+     "when": [
+      "$actor.role != factory and $actor.role != filler",
+      {
+       "expr": "$actor.stock + $actor.incoming > 0",
+       "why": "You have nothing to ship."
+      },
+      {
+       "expr": "$params.amount >= $actor.backlog",
+       "why": "You must clear your whole backlog before shipping anything else."
+      },
+      {
+       "expr": "$params.amount <= $actor.stock + $actor.incoming",
+       "why": "You do not have that much beer."
+      },
+      {
+       "expr": "$params.amount <= $actor.backlog + $actor.incoming",
+       "why": "You cannot ship more than your backlog plus the orders you have received."
+      }
+     ],
+     "do": [
+      "$got = $min($actor.backlog + $actor.incoming, $actor.stock + $actor.incoming)",
+      "$actor.incoming -= $got",
+      "$actor.stock -= $got",
+      "$actor.shipped += $got",
+      "$actor.last_shipped = $got",
+      "$actor.backlog = $actor.backlog + $actor.incoming - $got",
+      {
+       "if": "$actor.downstream != ''",
+       "then": [
+        "$entity($actor.downstream).incoming += $got"
+       ],
+       "else": [
+        "$world.customer_demand += $got"
+       ]
+      }
+     ],
+     "outcome": "You shipped {$got} cases to the company below you.",
+     "private": true
+    },
+    "order": {
+     "by": "company",
+     "description": "Order beer from the company above you (the factory starts production instead).",
+     "params": {
+      "amount": {
+       "type": "int",
+       "min": 0,
+       "max": "$inputs.max_order",
+       "description": "Cases to order from your supplier"
+      }
+     },
+     "when": [
+      "$actor.role != filler"
+     ],
+     "do": [
+      "$actor.last_order = $params.amount",
+      {
+       "if": "$actor.role == factory",
+       "then": [
+        "$world.factory_orders += $params.amount",
+        "$actor.production += $params.amount"
+       ],
+       "else": [
+        "$entity($actor.upstream).ordered += $params.amount"
+       ]
+      }
+     ],
+     "outcome": "You ordered {$params.amount} cases from your supplier.",
+     "private": true
+    }
+   },
+   "events": [
+    {
+     "name": "customer demand",
+     "phase": "start",
+     "do": [
+      "$world.customer_demand += $randint($inputs.demand_min, $inputs.demand_max)",
+      "$ret = $entity(retailer)",
+      "$ret.incoming += $last($world.customer_demand)"
+     ],
+     "say": "Customers order {$last($world.customer_demand)} cases of beer from the retailer this week."
+    },
+    {
+     "name": "deliveries",
+     "phase": "start",
+     "each": "$filter(company, $it.role != filler)",
+     "do": [
+      "$d = $it.incoming",
+      "$it.incoming = 0",
+      "$it.stock += $d",
+      "$it.received += $d",
+      "$it.last_received = $d",
+      "$it.incoming = $it.production",
+      "$it.production = 0"
+     ],
+     "say": "Deliveries arrive."
+    },
+    {
+     "name": "orders reach suppliers",
+     "phase": "end",
+     "each": "$filter(company, $it.role != filler and $it.role != factory)",
+     "do": [
+      "$it.incoming += $it.ordered",
+      "$it.ordered = 0"
+     ],
+     "say": "Orders reach the suppliers."
+    },
+    {
+     "name": "weekly costs",
+     "phase": "end",
+     "each": "$filter(company, $it.role != filler)",
+     "do": [
+      "$it.cost += $it.stock * $inputs.holding_cost + $it.backlog * $inputs.backlog_cost",
+      "$world.total_cost += $it.stock * $inputs.holding_cost + $it.backlog * $inputs.backlog_cost"
+     ]
+    }
+   ],
+   "metrics": {
+    "customer_demand": {
+     "expr": "$last($world.customer_demand)",
+     "description": "Customer demand this week"
+    },
+    "factory_orders": {
+     "expr": "$last($world.factory_orders)",
+     "description": "Factory production orders this week"
+    },
+    "total_cost": {
+     "expr": "$world.total_cost",
+     "unit": "$"
+    }
+   },
+   "views": {
+    "position": {
+     "title": "Your position",
+     "show": "It is week {$round} of {$inputs.weeks}. You are the {$actor.role}: stock {stock} cases, backlog {backlog} cases, orders received {incoming} cases, cost so far {$actor.cost|money}."
+    },
+    "arrivals": {
+     "title": "This week",
+     "show": "Arrived: {last_received} cases. Shipped: {last_shipped} cases. Last order you placed: {last_order} cases."
+    },
+    "pipeline": {
+     "title": "On the way to you",
+     "show": "{incoming} cases are on the way to you (production included, if you are the factory)."
+    },
+    "chain": {
+     "for": "spectator",
+     "of": "company",
+     "title": "Supply chain",
+     "where": "$it.role != filler",
+     "show": "{role}: stock {stock}, backlog {backlog}, incoming {incoming}, production {production}, cost {$it.cost|money}"
+    }
+   },
+   "outputs": {
+    "customer_demand": {
+     "expr": "$world.customer_demand",
+     "type": "list",
+     "description": "Cases customers demanded each week, in week order"
+    },
+    "factory_orders": {
+     "expr": "$world.factory_orders",
+     "type": "list",
+     "description": "Cases the factory put into production each week, in week order"
+    },
+    "costs_by_role": {
+     "expr": "$dict(company, $it.role, $it.cost)",
+     "type": "map",
+     "description": "Total cost of each company, by role"
+    },
+    "total_team_cost": {
+     "expr": "$world.total_cost",
+     "type": "number",
+     "format": "money",
+     "description": "Sum of all four companies' costs"
+    },
+    "bullwhip_ratio": {
+     "expr": "$variance($series.factory_orders) / $variance($series.customer_demand)",
+     "type": "number",
+     "description": "Variance of the factory's weekly production orders divided by the variance of weekly customer demand"
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$count(company, $it.role != filler) == 4",
+     "why": "The supply chain has exactly four companies."
+    },
+    {
+     "expr": "$all(company, $it.stock >= 0 and $it.backlog >= 0 and $it.incoming >= 0 and $it.production >= 0 and $it.cost >= 0)",
+     "why": "Stocks, backlogs and costs are never negative."
+    },
+    {
+     "expr": "$len($world.customer_demand) <= $inputs.weeks and $len($world.factory_orders) <= $inputs.weeks",
+     "why": "The game lasts the stated number of weeks."
+    }
+   ]
+  },
+  {
+   "name": "Beer distribution game",
+   "brief": {
+    "situation": "You run one company in a four-stage beer supply chain: a retailer, a wholesaler, a distributor and a factory, each run by an agent. Customers buy beer from the retailer every week. The product is a single brand of beer, measured in cases.",
+    "rules": "The game lasts {$inputs.weeks} weeks. Each week runs in this order: first every company ships to the company below it, then every company orders from the company above it (the factory starts production instead of ordering). An order reaches the supplier the following week. Shipments take {$inputs.ship_lead} weeks to arrive and production takes {$inputs.prod_lead} weeks to arrive. Demand a company cannot fill becomes backlog and must be shipped later. At the end of every week each company pays {$inputs.holding_cost|money} per case in stock and {$inputs.backlog_cost|money} per case of backlog. Every company starts with {$inputs.start_stock} cases in stock and {$inputs.start_pipeline} cases on the way on each shipping link. You only ever see your own stock, backlog, incoming orders and incoming deliveries \u2014 never the other companies' positions. The team's goal is the lowest total cost.",
+    "roles": {
+     "company": "You run one company of the supply chain; your role is given in your position. Customers buy from the retailer. You ship to the company below you and order from the company above you (the factory starts production instead)."
+    }
+   },
+   "clock": {
+    "rounds": "$inputs.weeks",
+    "unit": "week"
+   },
+   "inputs": {
+    "weeks": {
+     "type": "int",
+     "default": 20,
+     "min": 1,
+     "description": "Number of weeks the game lasts"
+    },
+    "demand_min": {
+     "type": "int",
+     "default": 0,
+     "min": 0,
+     "description": "Lowest weekly customer demand"
+    },
+    "demand_max": {
+     "type": "int",
+     "default": 8,
+     "min": 0,
+     "description": "Highest weekly customer demand"
+    },
+    "start_stock": {
+     "type": "int",
+     "default": 12,
+     "min": 0,
+     "description": "Cases each company starts with in stock"
+    },
+    "start_pipeline": {
+     "type": "int",
+     "default": 4,
+     "min": 0,
+     "description": "Cases already on the way on each shipping link at the start"
+    },
+    "ship_lead": {
+     "type": "int",
+     "default": 2,
+     "min": 0,
+     "description": "Weeks a shipment takes to arrive"
+    },
+    "prod_lead": {
+     "type": "int",
+     "default": 2,
+     "min": 0,
+     "description": "Weeks production takes to arrive"
+    },
+    "holding_cost": {
+     "type": "number",
+     "default": 0.5,
+     "min": 0,
+     "description": "Cost per case in stock at the end of a week"
+    },
+    "backlog_cost": {
+     "type": "number",
+     "default": 1.0,
+     "min": 0,
+     "description": "Cost per case of backlog at the end of a week"
+    },
+    "max_order": {
+     "type": "int",
+     "default": 30,
+     "min": 0,
+     "description": "Largest order or production batch a company may place"
+    }
+   },
+   "world": {
+    "customer_demand": {
+     "type": "list",
+     "default": []
+    },
+    "factory_orders": {
+     "type": "list",
+     "default": []
+    },
+    "total_cost": {
+     "type": "number",
+     "default": 0.0,
+     "min": 0
+    }
+   },
+   "types": {
+    "company": {
+     "agent": true,
+     "props": {
+      "role": {
+       "type": "text",
+       "default": "retailer"
+      },
+      "upstream": {
+       "type": "text",
+       "default": ""
+      },
+      "downstream": {
+       "type": "text",
+       "default": ""
+      },
+      "stock": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "incoming": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "ordered": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "backlog": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "production": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "shipped": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "received": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "cost": {
+       "type": "number",
+       "default": 0.0,
+       "min": 0
+      },
+      "last_order": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "last_shipped": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "last_received": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      }
+     }
+    }
+   },
+   "population": [
+    {
+     "type": "company",
+     "count": "$inputs.weeks",
+     "id": "filler_{$i}",
+     "name": "Filler {$i}",
+     "props": {
+      "role": "filler",
+      "stock": 0,
+      "incoming": 0
+     }
+    },
+    {
+     "type": "company",
+     "count": 1,
+     "id": "retailer",
+     "name": "Retailer",
+     "props": {
+      "role": "retailer",
+      "upstream": "wholesaler",
+      "stock": "$inputs.start_stock",
+      "incoming": "$inputs.start_pipeline"
+     }
+    },
+    {
+     "type": "company",
+     "count": 1,
+     "id": "wholesaler",
+     "name": "Wholesaler",
+     "props": {
+      "role": "wholesaler",
+      "upstream": "distributor",
+      "downstream": "retailer",
+      "stock": "$inputs.start_stock",
+      "incoming": "$inputs.start_pipeline"
+     }
+    },
+    {
+     "type": "company",
+     "count": 1,
+     "id": "distributor",
+     "name": "Distributor",
+     "props": {
+      "role": "distributor",
+      "upstream": "factory",
+      "downstream": "wholesaler",
+      "stock": "$inputs.start_stock",
+      "incoming": "$inputs.start_pipeline"
+     }
+    },
+    {
+     "type": "company",
+     "count": 1,
+     "id": "factory",
+     "name": "Factory",
+     "props": {
+      "role": "factory",
+      "downstream": "distributor",
+      "stock": "$inputs.start_stock",
+      "incoming": "$inputs.start_pipeline",
+      "production": "$inputs.start_pipeline"
+     }
+    }
+   ],
+   "stages": [
+    {
+     "name": "shipping",
+     "brief": "Ship beer to the company below you. If you owe backlog, ship at least that much whenever you can.",
+     "actions": [
+      "ship"
+     ],
+     "turns": "sequential",
+     "order": "$it.role == retailer and 0 or ($it.role == wholesaler and 1 or ($it.role == distributor and 2 or 3))",
+     "who": "$it.role != filler and $it.role != factory",
+     "max_actions": 1
+    },
+    {
+     "name": "ordering",
+     "brief": "Place your order with the company above you (the factory starts production instead). The order reaches them next week.",
+     "actions": [
+      "order"
+     ],
+     "turns": "simultaneous",
+     "who": "$it.role != filler",
+     "max_actions": 1
+    }
+   ],
+   "actions": {
+    "ship": {
+     "by": "company",
+     "description": "Ship beer to the company below you this week.",
+     "params": {
+      "amount": {
+       "type": "int",
+       "min": 0,
+       "max": "$min($actor.stock + $actor.incoming, $actor.backlog + $actor.incoming)",
+       "description": "Cases to ship this week"
+      }
+     },
+     "when": [
+      "$actor.role != factory and $actor.role != filler",
+      {
+       "expr": "$actor.stock + $actor.incoming > 0",
+       "why": "You have nothing to ship."
+      },
+      {
+       "expr": "$params.amount >= $actor.backlog",
+       "why": "You must clear your whole backlog before shipping anything else."
+      },
+      {
+       "expr": "$params.amount <= $actor.stock + $actor.incoming",
+       "why": "You do not have that much beer."
+      },
+      {
+       "expr": "$params.amount <= $actor.backlog + $actor.incoming",
+       "why": "You cannot ship more than your backlog plus the orders you have received."
+      }
+     ],
+     "do": [
+      "$got = $min($actor.backlog + $actor.incoming, $actor.stock + $actor.incoming)",
+      "$actor.incoming -= $got",
+      "$actor.stock -= $got",
+      "$actor.shipped += $got",
+      "$actor.last_shipped = $got",
+      "$actor.backlog = $actor.backlog + $actor.incoming - $got",
+      {
+       "if": "$actor.downstream != ''",
+       "then": [
+        "$entity($actor.downstream).incoming += $got"
+       ],
+       "else": [
+        "$world.customer_demand += $got"
+       ]
+      }
+     ],
+     "outcome": "You shipped {$got} cases to the company below you.",
+     "private": true
+    },
+    "order": {
+     "by": "company",
+     "description": "Order beer from the company above you (the factory starts production instead).",
+     "params": {
+      "amount": {
+       "type": "int",
+       "min": 0,
+       "max": "$inputs.max_order",
+       "description": "Cases to order from your supplier"
+      }
+     },
+     "when": [
+      "$actor.role != filler"
+     ],
+     "do": [
+      "$actor.last_order = $params.amount",
+      {
+       "if": "$actor.role == factory",
+       "then": [
+        "$world.factory_orders += $params.amount",
+        "$actor.production += $params.amount"
+       ],
+       "else": [
+        "$entity($actor.upstream).ordered += $params.amount"
+       ]
+      }
+     ],
+     "outcome": "You ordered {$params.amount} cases from your supplier.",
+     "private": true
+    }
+   },
+   "events": [
+    {
+     "name": "customer demand",
+     "phase": "start",
+     "do": [
+      "$world.customer_demand += $randint($inputs.demand_min, $inputs.demand_max)",
+      "$ret = $entity(retailer)",
+      "$ret.incoming += $last($world.customer_demand)"
+     ],
+     "say": "Customers order {$last($world.customer_demand)} cases of beer from the retailer this week."
+    },
+    {
+     "name": "deliveries",
+     "phase": "start",
+     "each": "$filter(company, $it.role != filler)",
+     "do": [
+      "$d = $it.incoming",
+      "$it.incoming = 0",
+      "$it.stock += $d",
+      "$it.received += $d",
+      "$it.last_received = $d",
+      "$it.incoming = $it.production",
+      "$it.production = 0"
+     ],
+     "say": "Deliveries arrive."
+    },
+    {
+     "name": "orders reach suppliers",
+     "phase": "end",
+     "each": "$filter(company, $it.role != filler and $it.role != factory)",
+     "do": [
+      "$it.incoming += $it.ordered",
+      "$it.ordered = 0"
+     ],
+     "say": "Orders reach the suppliers."
+    },
+    {
+     "name": "weekly costs",
+     "phase": "end",
+     "each": "$filter(company, $it.role != filler)",
+     "do": [
+      "$it.cost += $it.stock * $inputs.holding_cost + $it.backlog * $inputs.backlog_cost",
+      "$world.total_cost += $it.stock * $inputs.holding_cost + $it.backlog * $inputs.backlog_cost"
+     ]
+    }
+   ],
+   "metrics": {
+    "customer_demand": {
+     "expr": "$last($world.customer_demand)",
+     "description": "Customer demand this week"
+    },
+    "factory_orders": {
+     "expr": "$last($world.factory_orders)",
+     "description": "Factory production orders this week"
+    },
+    "total_cost": {
+     "expr": "$world.total_cost",
+     "unit": "$"
+    }
+   },
+   "views": {
+    "position": {
+     "title": "Your position",
+     "show": "It is week {$round} of {$inputs.weeks}. You are the {$actor.role}: stock {stock} cases, backlog {backlog} cases, orders received {incoming} cases, cost so far {$actor.cost|money}."
+    },
+    "arrivals": {
+     "title": "This week",
+     "show": "Arrived: {last_received} cases. Shipped: {last_shipped} cases. Last order you placed: {last_order} cases."
+    },
+    "pipeline": {
+     "title": "On the way to you",
+     "show": "{incoming} cases are on the way to you (production included, if you are the factory)."
+    },
+    "chain": {
+     "for": "spectator",
+     "of": "company",
+     "title": "Supply chain",
+     "where": "$it.role != filler",
+     "show": "{role}: stock {stock}, backlog {backlog}, incoming {incoming}, production {production}, cost {$it.cost|money}"
+    }
+   },
+   "outputs": {
+    "customer_demand": {
+     "expr": "$world.customer_demand",
+     "type": "list",
+     "description": "Cases customers demanded each week, in week order"
+    },
+    "factory_orders": {
+     "expr": "$world.factory_orders",
+     "type": "list",
+     "description": "Cases the factory put into production each week, in week order"
+    },
+    "costs_by_role": {
+     "expr": "$dict(company, $it.role, $it.cost)",
+     "type": "map",
+     "description": "Total cost of each company, by role"
+    },
+    "total_team_cost": {
+     "expr": "$world.total_cost",
+     "type": "number",
+     "format": "money",
+     "description": "Sum of all four companies' costs"
+    },
+    "bullwhip_ratio": {
+     "expr": "$variance($series.factory_orders) / $variance($series.customer_demand)",
+     "type": "number",
+     "description": "Variance of the factory's weekly production orders divided by the variance of weekly customer demand"
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$count(company, $it.role != filler) == 4",
+     "why": "The supply chain has exactly four companies."
+    },
+    {
+     "expr": "$all(company, $it.stock >= 0 and $it.backlog >= 0 and $it.incoming >= 0 and $it.production >= 0 and $it.cost >= 0)",
+     "why": "Stocks, backlogs and costs are never negative."
+    },
+    {
+     "expr": "$len($world.customer_demand) <= $round and $len($world.factory_orders) <= $round",
+     "why": "One round of demand and one production order per week."
+    }
+   ]
+  },
+  {
+   "name": "Beer distribution game",
+   "brief": {
+    "situation": "You run one company in a four-stage beer supply chain: a retailer, a wholesaler, a distributor and a factory, each run by an agent. Customers buy beer from the retailer every week. The product is a single brand of beer, measured in cases.",
+    "rules": "The game lasts {$inputs.weeks} weeks. Each week runs in this order: first every company ships to the company below it, then every company orders from the company above it (the factory starts production instead of ordering). An order reaches the supplier the following week. Shipments take {$inputs.ship_lead} weeks to arrive and production takes {$inputs.prod_lead} weeks to arrive. Demand a company cannot fill becomes backlog and must be shipped later. At the end of every week each company pays {$inputs.holding_cost|money} per case in stock and {$inputs.backlog_cost|money} per case of backlog. Every company starts with {$inputs.start_stock} cases in stock and {$inputs.start_pipeline} cases on the way on each shipping link. You only ever see your own stock, backlog, incoming orders and incoming deliveries \u2014 never the other companies' positions. The team's goal is the lowest total cost.",
+    "roles": {
+     "company": "You run one company of the supply chain; your role is given in your position. Customers buy from the retailer. You ship to the company below you and order from the company above you (the factory starts production instead)."
+    }
+   },
+   "clock": {
+    "rounds": "$inputs.weeks",
+    "unit": "week"
+   },
+   "inputs": {
+    "weeks": {
+     "type": "int",
+     "default": 20,
+     "min": 1,
+     "description": "Number of weeks the game lasts"
+    },
+    "demand_min": {
+     "type": "int",
+     "default": 0,
+     "min": 0,
+     "description": "Lowest weekly customer demand"
+    },
+    "demand_max": {
+     "type": "int",
+     "default": 8,
+     "min": 0,
+     "description": "Highest weekly customer demand"
+    },
+    "start_stock": {
+     "type": "int",
+     "default": 12,
+     "min": 0,
+     "description": "Cases each company starts with in stock"
+    },
+    "start_pipeline": {
+     "type": "int",
+     "default": 4,
+     "min": 0,
+     "description": "Cases already on the way on each shipping link at the start"
+    },
+    "ship_lead": {
+     "type": "int",
+     "default": 2,
+     "min": 0,
+     "description": "Weeks a shipment takes to arrive"
+    },
+    "prod_lead": {
+     "type": "int",
+     "default": 2,
+     "min": 0,
+     "description": "Weeks production takes to arrive"
+    },
+    "holding_cost": {
+     "type": "number",
+     "default": 0.5,
+     "min": 0,
+     "description": "Cost per case in stock at the end of a week"
+    },
+    "backlog_cost": {
+     "type": "number",
+     "default": 1.0,
+     "min": 0,
+     "description": "Cost per case of backlog at the end of a week"
+    },
+    "max_order": {
+     "type": "int",
+     "default": 30,
+     "min": 0,
+     "description": "Largest order or production batch a company may place"
+    }
+   },
+   "world": {
+    "customer_demand": {
+     "type": "list",
+     "default": []
+    },
+    "factory_orders": {
+     "type": "list",
+     "default": []
+    },
+    "total_cost": {
+     "type": "number",
+     "default": 0.0,
+     "min": 0
+    }
+   },
+   "types": {
+    "company": {
+     "agent": true,
+     "props": {
+      "role": {
+       "type": "text",
+       "default": "retailer"
+      },
+      "upstream": {
+       "type": "text",
+       "default": ""
+      },
+      "downstream": {
+       "type": "text",
+       "default": ""
+      },
+      "stock": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "incoming": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "ordered": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "backlog": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "production": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "shipped": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "received": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "cost": {
+       "type": "number",
+       "default": 0.0,
+       "min": 0
+      },
+      "last_order": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "last_shipped": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "last_received": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      }
+     }
+    }
+   },
+   "population": [
+    {
+     "type": "company",
+     "count": "$inputs.weeks",
+     "id": "filler_{$i}",
+     "name": "Filler {$i}",
+     "props": {
+      "role": "filler",
+      "stock": 0,
+      "incoming": 0
+     }
+    },
+    {
+     "type": "company",
+     "count": 1,
+     "id": "retailer",
+     "name": "Retailer",
+     "props": {
+      "role": "retailer",
+      "upstream": "wholesaler",
+      "stock": "$inputs.start_stock",
+      "incoming": "$inputs.start_pipeline"
+     }
+    },
+    {
+     "type": "company",
+     "count": 1,
+     "id": "wholesaler",
+     "name": "Wholesaler",
+     "props": {
+      "role": "wholesaler",
+      "upstream": "distributor",
+      "downstream": "retailer",
+      "stock": "$inputs.start_stock",
+      "incoming": "$inputs.start_pipeline"
+     }
+    },
+    {
+     "type": "company",
+     "count": 1,
+     "id": "distributor",
+     "name": "Distributor",
+     "props": {
+      "role": "distributor",
+      "upstream": "factory",
+      "downstream": "wholesaler",
+      "stock": "$inputs.start_stock",
+      "incoming": "$inputs.start_pipeline"
+     }
+    },
+    {
+     "type": "company",
+     "count": 1,
+     "id": "factory",
+     "name": "Factory",
+     "props": {
+      "role": "factory",
+      "downstream": "distributor",
+      "stock": "$inputs.start_stock",
+      "incoming": "$inputs.start_pipeline",
+      "production": "$inputs.start_pipeline"
+     }
+    }
+   ],
+   "stages": [
+    {
+     "name": "shipping",
+     "brief": "Ship beer to the company below you. If you owe backlog, ship at least that much whenever you can.",
+     "actions": [
+      "ship"
+     ],
+     "turns": "sequential",
+     "order": "$it.role == retailer and 0 or ($it.role == wholesaler and 1 or ($it.role == distributor and 2 or 3))",
+     "who": "$it.role != filler and $it.role != factory",
+     "max_actions": 1
+    },
+    {
+     "name": "ordering",
+     "brief": "Place your order with the company above you (the factory starts production instead). The order reaches them next week.",
+     "actions": [
+      "order"
+     ],
+     "turns": "simultaneous",
+     "who": "$it.role != filler",
+     "max_actions": 1
+    }
+   ],
+   "actions": {
+    "ship": {
+     "by": "company",
+     "description": "Ship beer to the company below you this week.",
+     "params": {
+      "amount": {
+       "type": "int",
+       "min": 0,
+       "max": "$min($actor.stock + $actor.incoming, $actor.backlog + $actor.incoming)",
+       "description": "Cases to ship this week"
+      }
+     },
+     "when": [
+      "$actor.role != factory and $actor.role != filler",
+      {
+       "expr": "$actor.stock + $actor.incoming > 0",
+       "why": "You have nothing to ship."
+      },
+      {
+       "expr": "$params.amount >= $actor.backlog",
+       "why": "You must clear your whole backlog before shipping anything else."
+      },
+      {
+       "expr": "$params.amount <= $actor.stock + $actor.incoming",
+       "why": "You do not have that much beer."
+      },
+      {
+       "expr": "$params.amount <= $actor.backlog + $actor.incoming",
+       "why": "You cannot ship more than your backlog plus the orders you have received."
+      }
+     ],
+     "do": [
+      "$got = $min($actor.backlog + $actor.incoming, $actor.stock + $actor.incoming)",
+      "$actor.incoming -= $got",
+      "$actor.stock -= $got",
+      "$actor.shipped += $got",
+      "$actor.last_shipped = $got",
+      "$actor.backlog = $actor.backlog + $actor.incoming - $got",
+      {
+       "if": "$actor.downstream != ''",
+       "then": [
+        "$entity($actor.downstream).incoming += $got"
+       ],
+       "else": [
+        "$world.customer_demand += $got"
+       ]
+      }
+     ],
+     "outcome": "You shipped {$got} cases to the company below you.",
+     "private": true
+    },
+    "order": {
+     "by": "company",
+     "description": "Order beer from the company above you (the factory starts production instead).",
+     "params": {
+      "amount": {
+       "type": "int",
+       "min": 0,
+       "max": "$inputs.max_order",
+       "description": "Cases to order from your supplier"
+      }
+     },
+     "when": [
+      "$actor.role != filler"
+     ],
+     "do": [
+      "$actor.last_order = $params.amount",
+      {
+       "if": "$actor.role == factory",
+       "then": [
+        "$world.factory_orders += $params.amount",
+        "$actor.production += $params.amount"
+       ],
+       "else": [
+        "$entity($actor.upstream).ordered += $params.amount"
+       ]
+      }
+     ],
+     "outcome": "You ordered {$params.amount} cases from your supplier.",
+     "private": true
+    }
+   },
+   "events": [
+    {
+     "name": "customer demand",
+     "phase": "start",
+     "do": [
+      "$world.customer_demand += $randint($inputs.demand_min, $inputs.demand_max)",
+      "$ret = $entity(retailer)",
+      "$ret.incoming += $last($world.customer_demand)"
+     ],
+     "say": "Customers order {$last($world.customer_demand)} cases of beer from the retailer this week."
+    },
+    {
+     "name": "deliveries",
+     "phase": "start",
+     "each": "$filter(company, $it.role != filler)",
+     "do": [
+      "$d = $it.incoming",
+      "$it.incoming = 0",
+      "$it.stock += $d",
+      "$it.received += $d",
+      "$it.last_received = $d",
+      "$it.incoming = $it.production",
+      "$it.production = 0"
+     ],
+     "say": "Deliveries arrive."
+    },
+    {
+     "name": "orders reach suppliers",
+     "phase": "end",
+     "each": "$filter(company, $it.role != filler and $it.role != factory)",
+     "do": [
+      "$it.incoming += $it.ordered",
+      "$it.ordered = 0"
+     ],
+     "say": "Orders reach the suppliers."
+    },
+    {
+     "name": "weekly costs",
+     "phase": "end",
+     "each": "$filter(company, $it.role != filler)",
+     "do": [
+      "$it.cost += $it.stock * $inputs.holding_cost + $it.backlog * $inputs.backlog_cost",
+      "$world.total_cost += $it.stock * $inputs.holding_cost + $it.backlog * $inputs.backlog_cost"
+     ]
+    }
+   ],
+   "metrics": {
+    "customer_demand": {
+     "expr": "$last($world.customer_demand)",
+     "description": "Customer demand this week"
+    },
+    "factory_orders": {
+     "expr": "$last($world.factory_orders)",
+     "description": "Factory production orders this week"
+    },
+    "total_cost": {
+     "expr": "$world.total_cost",
+     "unit": "$"
+    }
+   },
+   "views": {
+    "position": {
+     "title": "Your position",
+     "show": "It is week {$round} of {$inputs.weeks}. You are the {$actor.role}: stock {stock} cases, backlog {backlog} cases, orders received {incoming} cases, cost so far {$actor.cost|money}."
+    },
+    "arrivals": {
+     "title": "This week",
+     "show": "Arrived: {last_received} cases. Shipped: {last_shipped} cases. Last order you placed: {last_order} cases."
+    },
+    "pipeline": {
+     "title": "On the way to you",
+     "show": "{incoming} cases are on the way to you (production included, if you are the factory)."
+    },
+    "chain": {
+     "for": "spectator",
+     "of": "company",
+     "title": "Supply chain",
+     "where": "$it.role != filler",
+     "show": "{role}: stock {stock}, backlog {backlog}, incoming {incoming}, production {production}, cost {$it.cost|money}"
+    }
+   },
+   "outputs": {
+    "customer_demand": {
+     "expr": "$world.customer_demand",
+     "type": "list",
+     "description": "Cases customers demanded each week, in week order"
+    },
+    "factory_orders": {
+     "expr": "$world.factory_orders",
+     "type": "list",
+     "description": "Cases the factory put into production each week, in week order"
+    },
+    "costs_by_role": {
+     "expr": "$dict(company, $it.role, $it.cost)",
+     "type": "map",
+     "description": "Total cost of each company, by role"
+    },
+    "total_team_cost": {
+     "expr": "$world.total_cost",
+     "type": "number",
+     "format": "money",
+     "description": "Sum of all four companies' costs"
+    },
+    "bullwhip_ratio": {
+     "expr": "$variance($series.factory_orders) / $variance($series.customer_demand)",
+     "type": "number",
+     "description": "Variance of the factory's weekly production orders divided by the variance of weekly customer demand"
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$count(company, $it.role != filler) == 4",
+     "why": "The supply chain has exactly four companies."
+    },
+    {
+     "expr": "$all(company, $it.stock >= 0 and $it.backlog >= 0 and $it.incoming >= 0 and $it.production >= 0 and $it.cost >= 0)",
+     "why": "Stocks, backlogs and costs are never negative."
+    },
+    {
+     "expr": "$sum(company, $it.stock + $it.incoming + $it.production) + $sum($world.customer_demand) == $inputs.start_stock * 4 + $inputs.start_pipeline * 5 + $sum($world.factory_orders)",
+     "why": "Beer is conserved: everything shipped or produced is in stock, in transit or delivered to customers."
+    }
+   ]
+  },
+  {
+   "name": "Beer distribution game",
+   "brief": {
+    "situation": "You run one company in a four-stage beer supply chain: a retailer, a wholesaler, a distributor and a factory, each run by an agent. Customers buy beer from the retailer every week. The product is a single brand of beer, measured in cases.",
+    "rules": "The game lasts {$inputs.weeks} weeks. Each week runs in this order: first every company ships to the company below it, then every company orders from the company above it (the factory starts production instead of ordering). An order reaches the supplier the following week. Shipments take {$inputs.ship_lead} weeks to arrive and production takes {$inputs.prod_lead} weeks to arrive. Demand a company cannot fill becomes backlog and must be shipped later. At the end of every week each company pays {$inputs.holding_cost|money} per case in stock and {$inputs.backlog_cost|money} per case of backlog. Every company starts with {$inputs.start_stock} cases in stock and {$inputs.start_pipeline} cases on the way on each shipping link. You only ever see your own stock, backlog, incoming orders and incoming deliveries \u2014 never the other companies' positions. The team's goal is the lowest total cost.",
+    "roles": {
+     "company": "You run one company of the supply chain; your role is given in your position. Customers buy from the retailer. You ship to the company below you and order from the company above you (the factory starts production instead)."
+    }
+   },
+   "clock": {
+    "rounds": "$inputs.weeks",
+    "unit": "week"
+   },
+   "inputs": {
+    "weeks": {
+     "type": "int",
+     "default": 20,
+     "min": 1,
+     "description": "Number of weeks the game lasts"
+    },
+    "demand_min": {
+     "type": "int",
+     "default": 0,
+     "min": 0,
+     "description": "Lowest weekly customer demand"
+    },
+    "demand_max": {
+     "type": "int",
+     "default": 8,
+     "min": 0,
+     "description": "Highest weekly customer demand"
+    },
+    "start_stock": {
+     "type": "int",
+     "default": 12,
+     "min": 0,
+     "description": "Cases each company starts with in stock"
+    },
+    "start_pipeline": {
+     "type": "int",
+     "default": 4,
+     "min": 0,
+     "description": "Cases already on the way on each shipping link at the start"
+    },
+    "ship_lead": {
+     "type": "int",
+     "default": 2,
+     "min": 0,
+     "description": "Weeks a shipment takes to arrive"
+    },
+    "prod_lead": {
+     "type": "int",
+     "default": 2,
+     "min": 0,
+     "description": "Weeks production takes to arrive"
+    },
+    "holding_cost": {
+     "type": "number",
+     "default": 0.5,
+     "min": 0,
+     "description": "Cost per case in stock at the end of a week"
+    },
+    "backlog_cost": {
+     "type": "number",
+     "default": 1.0,
+     "min": 0,
+     "description": "Cost per case of backlog at the end of a week"
+    },
+    "max_order": {
+     "type": "int",
+     "default": 30,
+     "min": 0,
+     "description": "Largest order or production batch a company may place"
+    }
+   },
+   "world": {
+    "customer_demand": {
+     "type": "list",
+     "default": []
+    },
+    "factory_orders": {
+     "type": "list",
+     "default": []
+    },
+    "total_cost": {
+     "type": "number",
+     "default": 0.0,
+     "min": 0
+    }
+   },
+   "types": {
+    "company": {
+     "agent": true,
+     "props": {
+      "role": {
+       "type": "text",
+       "default": "retailer"
+      },
+      "upstream": {
+       "type": "text",
+       "default": ""
+      },
+      "downstream": {
+       "type": "text",
+       "default": ""
+      },
+      "stock": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "incoming": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "orders_in": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "ordered": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "backlog": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "production": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "shipped": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "received": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "cost": {
+       "type": "number",
+       "default": 0.0,
+       "min": 0
+      },
+      "last_order": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "last_shipped": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "last_received": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      }
+     }
+    }
+   },
+   "population": [
+    {
+     "type": "company",
+     "count": "$inputs.weeks",
+     "id": "filler_{$i}",
+     "name": "Filler {$i}",
+     "props": {
+      "role": "filler",
+      "stock": 0,
+      "incoming": 0
+     }
+    },
+    {
+     "type": "company",
+     "count": 1,
+     "id": "retailer",
+     "name": "Retailer",
+     "props": {
+      "role": "retailer",
+      "upstream": "wholesaler",
+      "stock": "$inputs.start_stock",
+      "incoming": "$inputs.start_pipeline"
+     }
+    },
+    {
+     "type": "company",
+     "count": 1,
+     "id": "wholesaler",
+     "name": "Wholesaler",
+     "props": {
+      "role": "wholesaler",
+      "upstream": "distributor",
+      "downstream": "retailer",
+      "stock": "$inputs.start_stock",
+      "incoming": "$inputs.start_pipeline"
+     }
+    },
+    {
+     "type": "company",
+     "count": 1,
+     "id": "distributor",
+     "name": "Distributor",
+     "props": {
+      "role": "distributor",
+      "upstream": "factory",
+      "downstream": "wholesaler",
+      "stock": "$inputs.start_stock",
+      "incoming": "$inputs.start_pipeline"
+     }
+    },
+    {
+     "type": "company",
+     "count": 1,
+     "id": "factory",
+     "name": "Factory",
+     "props": {
+      "role": "factory",
+      "downstream": "distributor",
+      "stock": "$inputs.start_stock",
+      "incoming": "$inputs.start_pipeline",
+      "production": "$inputs.start_pipeline"
+     }
+    }
+   ],
+   "stages": [
+    {
+     "name": "shipping",
+     "brief": "Ship beer to the company below you. If you owe backlog, ship at least that much whenever you can.",
+     "actions": [
+      "ship"
+     ],
+     "turns": "sequential",
+     "order": "$it.role == retailer and 0 or ($it.role == wholesaler and 1 or ($it.role == distributor and 2 or 3))",
+     "who": "$it.role != filler and $it.role != factory",
+     "max_actions": 1
+    },
+    {
+     "name": "ordering",
+     "brief": "Place your order with the company above you (the factory starts production instead). The order reaches them next week.",
+     "actions": [
+      "order"
+     ],
+     "turns": "simultaneous",
+     "who": "$it.role != filler",
+     "max_actions": 1
+    }
+   ],
+   "actions": {
+    "ship": {
+     "by": "company",
+     "description": "Ship beer to the company below you this week. You must clear your whole backlog before shipping anything else, and you can never ship more than your backlog plus the orders you have received.",
+     "params": {
+      "amount": {
+       "type": "int",
+       "min": 0,
+       "max": "$min($actor.stock + $actor.incoming, $actor.backlog + $actor.orders_in)",
+       "description": "Cases to ship this week"
+      }
+     },
+     "when": [
+      "$actor.role != factory and $actor.role != filler",
+      {
+       "expr": "$actor.stock + $actor.incoming > 0",
+       "why": "You have nothing to ship."
+      },
+      {
+       "expr": "$params.amount >= $actor.backlog",
+       "why": "You must clear your whole backlog before shipping anything else."
+      },
+      {
+       "expr": "$params.amount <= $actor.stock + $actor.incoming",
+       "why": "You do not have that much beer."
+      },
+      {
+       "expr": "$params.amount <= $actor.backlog + $actor.orders_in",
+       "why": "You cannot ship more than your backlog plus the orders you have received."
+      }
+     ],
+     "do": [
+      "$got = $min($actor.backlog + $actor.orders_in, $actor.stock + $actor.incoming)",
+      "$actor.incoming -= $got",
+      "$actor.stock -= $got",
+      "$actor.shipped += $got",
+      "$actor.last_shipped = $got",
+      "$actor.backlog = $actor.backlog + $actor.orders_in - $got",
+      "$actor.orders_in = 0",
+      {
+       "if": "$actor.downstream != ''",
+       "then": [
+        "$entity($actor.downstream).incoming += $got"
+       ],
+       "else": [
+        "$world.customer_demand += $got"
+       ]
+      }
+     ],
+     "outcome": "You shipped {$got} cases to the company below you.",
+     "private": true
+    },
+    "order": {
+     "by": "company",
+     "description": "Order beer from the company above you (the factory starts production instead). The order reaches them next week.",
+     "params": {
+      "amount": {
+       "type": "int",
+       "min": 0,
+       "max": "$inputs.max_order",
+       "description": "Cases to order from your supplier"
+      }
+     },
+     "when": [
+      "$actor.role != filler"
+     ],
+     "do": [
+      "$actor.last_order = $params.amount",
+      {
+       "if": "$actor.role == factory",
+       "then": [
+        "$world.factory_orders += $params.amount",
+        "$actor.production += $params.amount"
+       ],
+       "else": [
+        "$entity($actor.upstream).ordered += $params.amount"
+       ]
+      }
+     ],
+     "outcome": "You ordered {$params.amount} cases from your supplier.",
+     "private": true
+    }
+   },
+   "events": [
+    {
+     "name": "customer demand",
+     "phase": "start",
+     "do": [
+      "$world.customer_demand += $randint($inputs.demand_min, $inputs.demand_max)",
+      "$ret = $entity(retailer)",
+      "$ret.orders_in += $last($world.customer_demand)"
+     ],
+     "say": "Customers order {$last($world.customer_demand)} cases of beer from the retailer this week."
+    },
+    {
+     "name": "deliveries",
+     "phase": "start",
+     "each": "$filter(company, $it.role != filler)",
+     "do": [
+      "$d = $it.incoming",
+      "$it.incoming = 0",
+      "$it.stock += $d",
+      "$it.received += $d",
+      "$it.last_received = $d",
+      "$it.incoming = $it.production",
+      "$it.production = 0"
+     ],
+     "say": "Deliveries arrive."
+    },
+    {
+     "name": "orders reach suppliers",
+     "phase": "end",
+     "each": "$filter(company, $it.role != filler and $it.role != factory)",
+     "do": [
+      "$it.orders_in += $it.ordered",
+      "$it.ordered = 0"
+     ],
+     "say": "Orders reach the suppliers."
+    },
+    {
+     "name": "weekly costs",
+     "phase": "end",
+     "each": "$filter(company, $it.role != filler)",
+     "do": [
+      "$it.cost += $it.stock * $inputs.holding_cost + $it.backlog * $inputs.backlog_cost",
+      "$world.total_cost += $it.stock * $inputs.holding_cost + $it.backlog * $inputs.backlog_cost"
+     ]
+    }
+   ],
+   "metrics": {
+    "customer_demand": {
+     "expr": "$last($world.customer_demand)",
+     "description": "Customer demand this week"
+    },
+    "factory_orders": {
+     "expr": "$last($world.factory_orders)",
+     "description": "Factory production orders this week"
+    },
+    "total_cost": {
+     "expr": "$world.total_cost",
+     "unit": "$"
+    }
+   },
+   "views": {
+    "position": {
+     "title": "Your position",
+     "show": "It is week {$round} of {$inputs.weeks}. You are the {$actor.role}: stock {stock} cases, backlog {backlog} cases, orders waiting to be shipped {orders_in} cases, cost so far {$actor.cost|money}."
+    },
+    "arrivals": {
+     "title": "This week",
+     "show": "Arrived: {last_received} cases. Shipped: {last_shipped} cases. Last order you placed: {last_order} cases."
+    },
+    "pipeline": {
+     "title": "On the way to you",
+     "show": "{incoming} cases are on the way to you (production included, if you are the factory)."
+    },
+    "chain": {
+     "for": "spectator",
+     "of": "company",
+     "title": "Supply chain",
+     "where": "$it.role != filler",
+     "show": "{role}: stock {stock}, backlog {backlog}, incoming {incoming}, orders_in {orders_in}, production {production}, cost {$it.cost|money}"
+    }
+   },
+   "outputs": {
+    "customer_demand": {
+     "expr": "$world.customer_demand",
+     "type": "list",
+     "description": "Cases customers demanded each week, in week order"
+    },
+    "factory_orders": {
+     "expr": "$world.factory_orders",
+     "type": "list",
+     "description": "Cases the factory put into production each week, in week order"
+    },
+    "costs_by_role": {
+     "expr": "$dict(company, $it.role, $it.cost)",
+     "type": "map",
+     "description": "Total cost of each company, by role"
+    },
+    "total_team_cost": {
+     "expr": "$world.total_cost",
+     "type": "number",
+     "format": "money",
+     "description": "Sum of all four companies' costs"
+    },
+    "bullwhip_ratio": {
+     "expr": "$variance($series.factory_orders) / $variance($series.customer_demand)",
+     "type": "number",
+     "description": "Variance of the factory's weekly production orders divided by the variance of weekly customer demand"
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$count(company, $it.role != filler) == 4",
+     "why": "The supply chain has exactly four companies."
+    },
+    {
+     "expr": "$all(company, $it.stock >= 0 and $it.backlog >= 0 and $it.incoming >= 0 and $it.production >= 0 and $it.cost >= 0)",
+     "why": "Stocks, backlogs and costs are never negative."
+    },
+    {
+     "expr": "$sum(company, $it.stock + $it.incoming + $it.production) + $sum($world.customer_demand) == $inputs.start_stock * 4 + $inputs.start_pipeline * 5 + $sum($world.factory_orders)",
+     "why": "Beer is conserved: everything shipped or produced is in stock, in transit or delivered to customers."
+    }
+   ]
+  },
+  "{\n  \"name\": \"Beer distribution game\",\n  \"brief\": {\n    \"situation\": \"You run one company in a four-stage beer supply chain: a retailer, a wholesaler, a distributor and a factory, each run by an agent. Customers buy beer from the retailer every week. The product is a single brand of beer, measured in cases.\",\n    \"rules\": \"The game lasts {$inputs.weeks} weeks. Each week runs in this order: first every company ships to the company below it, then every company orders from the company above it (the factory starts production instead of ordering). An order reaches the supplier the following week. Shipments take {$inputs.ship_lead} weeks to arrive and production takes {$inputs.prod_lead} weeks to arrive. Demand a company cannot fill becomes backlog and must be shipped later. At the end of every week each company pays {$inputs.holding_cost|money} per case in stock and {$inputs.backlog_cost|money} per case of backlog. Every company starts with {$inputs.start_stock} cases in stock and {$inputs.start_pipeline} cases on the way on each shipping link. You only ever see your own stock, backlog, incoming orders and incoming deliveries \u2014 never the other companies' positions. The team's goal is the lowest total cost.\",\n    \"roles\": {\n      \"company\": \"You run one company of the supply chain; your role is given in your position. Customers buy from the retailer. You ship to the company below you and order from the company above you (the factory starts production instead).\"\n    }\n  },\n  \"clock\": {\"rounds\": \"$inputs.weeks\", \"unit\": \"week\"},\n  \"inputs\": {\n    \"weeks\": {\"type\": \"int\", \"default\": 20, \"min\": 1, \"description\": \"Number of weeks the game lasts\"},\n    \"demand_min\": {\"type\": \"int\", \"default\": 0, \"min\": 0, \"description\": \"Lowest weekly customer demand\"},\n    \"demand_max\": {\"type\": \"int\", \"default\": 8, \"min\": 0, \"description\": \"Highest weekly customer demand\"},\n    \"start_stock\": {\"type\": \"int\", \"default\": 12, \"min\": 0, \"description\": \"Cases each company starts with in stock\"},\n    \"start_pipeline\": {\"type\": \"int\", \"default\": 4, \"min\": 0, \"description\": \"Cases already on the way on each shipping link at the start\"},\n    \"ship_lead\": {\"type\": \"int\", \"default\": 2, \"min\": 0, \"description\": \"Weeks a shipment takes to arrive\"},\n    \"prod_lead\": {\"type\": \"int\", \"default\": 2, \"min\": 0, \"description\": \"Weeks production takes to arrive\"},\n    \"holding_cost\": {\"type\": \"number\", \"default\": 0.5, \"min\": 0, \"description\": \"Cost per case in stock at the end of a week\"},\n    \"backlog_cost\": {\"type\": \"number\", \"default\": 1.0, \"min\": 0, \"description\": \"Cost per case of backlog at the end of a week\"},\n    \"max_order\": {\"type\": \"int\", \"default\": 30, \"min\": 0, \"description\": \"Largest order or production batch a company may place\"}\n  },\n  \"world\": {\n    \"customer_demand\": {\"type\": \"list\", \"default\": []},\n    \"factory_orders\": {\"type\": \"list\", \"default\": []},\n    \"sold_to_customers\": {\"type\": \"int\", \"default\": 0, \"min\": 0},\n    \"total_cost\": {\"type\": \"number\", \"default\": 0.0, \"min\": 0}\n  },\n  \"types\": {\n    \"company\": {\n      \"agent\": true,\n      \"props\": {\n        \"role\": {\"type\": \"text\", \"default\": \"retailer\"},\n        \"upstream\": {\"type\": \"text\", \"default\": \"\"},\n        \"downstream\": {\"type\": \"text\", \"default\": \"\"},\n        \"stock\": {\"type\": \"int\", \"default\": 0, \"min\": 0},\n        \"incoming\": {\"type\": \"int\", \"default\": 0, \"min\": 0},\n        \"orders_in\": {\"type\": \"int\", \"default\": 0, \"min\": 0},\n        \"ordered\": {\"type\": \"int\", \"default\": 0, \"min\": 0},\n        \"backlog\": {\"type\": \"int\", \"default\": 0, \"min\": 0},\n        \"production\": {\"type\": \"int\", \"default\": 0, \"min\": 0},\n        \"shipped\": {\"type\": \"int\", \"default\": 0, \"min\": 0},\n        \"received\": {\"type\": \"int\", \"default\": 0, \"min\": 0},\n        \"cost\": {\"type\": \"number\", \"default\": 0.0, \"min\": 0},\n        \"last_order\": {\"type\": \"int\", \"default\": 0, \"min\": 0},\n        \"last_shipped\": {\"type\": \"int\", \"default\": 0, \"min\": 0},\n        \"last_received\": {\"type\": \"int\", \"default\": 0, \"min\": 0}\n      }\n    }\n  },\n  \"population\": [\n    {\n      \"type\": \"company\",\n      \"count\": \"$inputs.weeks\",\n      \"id\": \"filler_{$i}\",\n      \"name\": \"Filler {$i}\",\n      \"props\": {\"role\": \"filler\", \"stock\": 0, \"incoming\": 0}\n    },\n    {\"type\": \"company\", \"count\": 1, \"id\": \"retailer\", \"name\": \"Retailer\", \"props\": {\"role\": \"retailer\", \"upstream\": \"wholesaler\", \"stock\": \"$inputs.start_stock\", \"incoming\": \"$inputs.start_pipeline\"}},\n    {\"type\": \"company\", \"count\": 1, \"id\": \"wholesaler\", \"name\": \"Wholesaler\", \"props\": {\"role\": \"wholesaler\", \"upstream\": \"distributor\", \"downstream\": \"retailer\", \"stock\": \"$inputs.start_stock\", \"incoming\": \"$inputs.start_pipeline\"}},\n    {\"type\": \"company\", \"count\": 1, \"id\": \"distributor\", \"name\": \"Distributor\", \"props\": {\"role\": \"distributor\", \"upstream\": \"factory\", \"downstream\": \"wholesaler\", \"stock\": \"$inputs.start_stock\", \"incoming\": \"$inputs.start_pipeline\"}},\n    {\"type\": \"company\", \"count\": 1, \"id\": \"factory\", \"name\": \"Factory\", \"props\": {\"role\": \"factory\", \"downstream\": \"distributor\", \"stock\": \"$inputs.start_stock\", \"incoming\": \"$inputs.start_pipeline\", \"production\": \"$inputs.start_pipeline\"}}\n  ],\n  \"stages\": [\n    {\n      \"name\": \"shipping\",\n      \"brief\": \"Ship beer to the company below you. If you owe backlog, ship at least that much whenever you can.\",\n      \"actions\": [\"ship\"],\n      \"turns\": \"sequential\",\n      \"order\": \"$it.role == retailer and 0 or ($it.role == wholesaler and 1 or ($it.role == distributor and 2 or 3))\",\n      \"who\": \"$it.role != filler and $it.role != factory\",\n      \"max_actions\": 1\n    },\n    {\n      \"name\": \"ordering\",\n      \"brief\": \"Place your order with the company above you (the factory starts production instead). The order reaches them next week.\",\n      \"actions\": [\"order\"],\n      \"turns\": \"simultaneous\",\n      \"who\": \"$it.role != filler\",\n      \"max_actions\": 1\n    }\n  ],\n  \"actions\": {\n    \"ship\": {\n      \"by\": \"company\",\n      \"description\": \"Ship beer to the company below you this week. You must clear your whole backlog before shipping anything else, and you can never ship more than your backlog plus the orders you have received.\",\n      \"params\": {\n        \"amount\": {\"type\": \"int\", \"min\": 0, \"max\": \"$min($actor.stock + $actor.incoming, $actor.backlog + $actor.orders_in)\", \"description\": \"Cases to ship this week\"}\n      },\n      \"when\": [\n        \"$actor.role != factory and $actor.role != filler\",\n        {\"expr\": \"$actor.stock + $actor.incoming > 0\", \"why\": \"You have nothing to ship.\"},\n        {\"expr\": \"$params.amount >= $actor.backlog\", \"why\": \"You must clear your whole backlog before shipping anything else.\"},\n        {\"expr\": \"$params.amount <= $actor.stock + $actor.incoming\", \"why\": \"You do not have that much beer.\"},\n        {\"expr\": \"$params.amount <= $actor.backlog + $actor.orders_in\", \"why\": \"You cannot ship more than your backlog plus the orders you have received.\"}\n      ],\n      \"do\": [\n        \"$got = $min($actor.backlog + $actor.orders_in, $actor.stock + $actor.incoming)\",\n        \"$actor.incoming -= $got\",\n        \"$actor.stock -= $got\",\n        \"$actor.shipped += $got\",\n        \"$actor.last_shipped = $got\",\n        \"$actor.backlog = $actor.backlog + $actor.orders_in - $got\",\n        \"$actor.orders_in = 0\",\n        {\"if\": \"$actor.downstream != ''\", \"then\": [\"$entity($actor.downstream).incoming += $got\"], \"else\": [\"$world.sold_to_customers += $got\"]}\n      ],\n      \"outcome\": \"You shipped {$got} cases to the company below you.\",\n      \"private\": true\n    },\n    \"order\": {\n      \"by\": \"company\",\n      \"description\": \"Order beer from the company above you (the factory starts production instead). The order reaches them next week.\",\n      \"params\": {\n        \"amount\": {\"type\": \"int\", \"min\": 0, \"max\": \"$inputs.max_order\", \"description\": \"Cases to order from your supplier\"}\n      },\n      \"when\": [\n        \"$actor.role != filler\"\n      ],\n      \"do\": [\n        \"$actor.last_order = $params.amount,\n        {\"if\": \"$actor.role == factory\", \"then\": [\"$world.factory_orders += $params.amount\", \"$actor.production += $params.amount\"], \"else\": [\"$entity($actor.upstream).ordered += $params.amount\"]}\n      ],\n      \"outcome\": \"You ordered {$params.amount} cases from your supplier.\",\n      \"private\": true\n    }\n  },\n  \"events\": [\n    {\n      \"name\": \"customer demand\",\n      \"phase\": \"start\",\n      \"do\": [\n        \"$world.customer_demand += $randint($inputs.demand_min, $inputs.demand_max)\",\n        \"$ret = $entity(retailer)\",\n        \"$ret.orders_in += $last($world.customer_demand)\"\n      ],\n      \"say\": \"Customers order {$last($world.customer_demand)} cases of beer from the retailer this week.\"\n    },\n    {\n      \"name\": \"deliveries\",\n      \"phase\": \"start\",\n      \"each\": \"$filter(company, $it.role != filler)\",\n      \"do\": [\n        \"$d = $it.incoming\",\n        \"$it.incoming = 0\",\n        \"$it.stock += $d\",\n        \"$it.received += $d\",\n        \"$it.last_received = $d\",\n        \"$it.incoming = $it.production\",\n        \"$it.production = 0\"\n      ],\n      \"say\": \"Deliveries arrive.\"\n    },\n    {\n      \"name\": \"orders reach suppliers\",\n      \"phase\": \"end\",\n      \"each\": \"$filter(company, $it.role != filler and $it.role != factory)\",\n      \"do\": [\"$it.orders_in += $it.ordered\", \"$it.ordered = 0\"],\n      \"say\": \"Orders reach the suppliers.\"\n    },\n    {\n      \"name\": \"weekly costs\",\n      \"phase\": \"end\",\n      \"each\": \"$filter(company, $it.role != filler)\",\n      \"do\": [\n        \"$it.cost += $it.stock * $inputs.holding_cost + $it.backlog * $inputs.backlog_cost\",\n        \"$world.total_cost += $it.stock * $inputs.holding_cost + $it.backlog * $inputs.backlog_cost\"\n      ]\n    }\n  ],\n  \"metrics\": {\n    \"customer_demand\": {\"expr\": \"$last($world.customer_demand)\", \"description\": \"Customer demand this week\"},\n    \"factory_orders\": {\"expr\": \"$last($world.factory_orders)\", \"description\": \"Factory production orders this week\"},\n    \"total_cost\": {\"expr\": \"$world.total_cost\", \"unit\": \"$\"}\n  },\n  \"views\": {\n    \"position\": {\n      \"title\": \"Your position\",\n      \"show\": \"It is week {$round} of {$inputs.weeks}. You are the {$actor.role}: stock {stock} cases, backlog {backlog} cases, orders waiting to be shipped {orders_in} cases, cost so far {$actor.cost|money}.\"\n    },\n    \"arrivals\": {\n      \"title\": \"This week\",\n      \"show\": \"Arrived: {last_received} cases. Shipped: {last_shipped} cases. Last order you placed: {last_order} cases.\"\n    },\n    \"pipeline\": {\n      \"title\": \"On the way to you\",\n      \"show\": \"{incoming} cases are on the way to you (production included, if you are the factory).\"\n    },\n    \"chain\": {\n      \"for\": \"spectator\",\n      \"of\": \"company\",\n      \"title\": \"Supply chain\",\n      \"where\": \"$it.role != filler\",\n      \"show\": \"{role}: stock {stock}, backlog {backlog}, incoming {incoming}, orders_in {orders_in}, production {production}, cost {$it.cost|money}\"\n    }\n  },\n  \"outputs\": {\n    \"customer_demand\": {\"expr\": \"$world.customer_demand\", \"type\": \"list\", \"description\": \"Cases customers demanded each week, in week order\"},\n    \"factory_orders\": {\"expr\": \"$world.factory_orders\", \"type\": \"list\", \"description\": \"Cases the factory put into production each week, in week order\"},\n    \"costs_by_role\": {\"expr\": \"$dict(company, $it.role, $it.cost)\", \"type\": \"map\", \"description\": \"Total cost of each company, by role\"},\n    \"total_team_cost\": {\"expr\": \"$world.total_cost\", \"type\": \"number\", \"format\": \"money\", \"description\": \"Sum of all four companies' costs\"},\n    \"bullwhip_ratio\": {\"expr\": \"$variance($series.factory_orders) / $variance($series.customer_demand)\", \"type\": \"number\", \"description\": \"Variance of the factory's weekly production orders divided by the variance of weekly customer demand\"}\n  },\n  \"invariants\": [\n    {\"expr\": \"$count(company, $it.role != filler) == 4\", \"why\": \"The supply chain has exactly four companies.\"},\n    {\"expr\": \"$all(company, $it.stock >= 0 and $it.backlog >= 0 and $it.incoming >= 0 and $it.production >= 0 and $it.cost >= 0)\", \"why\": \"Stocks, backlogs and costs are never negative.\"},\n    {\"expr\": \"$sum(company, $it.stock + $it.incoming + $it.production) + $world.sold_to_customers == $inputs.start_stock * 4 + $inputs.start_pipeline * 5 + $sum($world.factory_orders)\", \"why\": \"Beer is conserved: everything shipped or produced is in stock, in transit or delivered to customers.\"}\n  ]\n}\n",
+  {
+   "name": "Beer distribution game",
+   "brief": {
+    "situation": "You run one company in a four-stage beer supply chain: a retailer, a wholesaler, a distributor and a factory, each run by an agent. Customers buy beer from the retailer every week. The product is a single brand of beer, measured in cases.",
+    "rules": "The game lasts {$inputs.weeks} weeks. Each week runs in this order: first every company ships to the company below it, then every company orders from the company above it (the factory starts production instead of ordering). An order reaches the supplier the following week. Shipments take {$inputs.ship_lead} weeks to arrive and production takes {$inputs.prod_lead} weeks to arrive. Demand a company cannot fill becomes backlog and must be shipped later. At the end of every week each company pays {$inputs.holding_cost|money} per case in stock and {$inputs.backlog_cost|money} per case of backlog. Every company starts with {$inputs.start_stock} cases in stock and {$inputs.start_pipeline} cases on the way on each shipping link. You only ever see your own stock, backlog, incoming orders and incoming deliveries \u2014 never the other companies' positions. The team's goal is the lowest total cost.",
+    "roles": {
+     "company": "You run one company of the supply chain; your role is given in your position. Customers buy from the retailer. You ship to the company below you and order from the company above you (the factory starts production instead)."
+    }
+   },
+   "clock": {
+    "rounds": "$inputs.weeks",
+    "unit": "week"
+   },
+   "inputs": {
+    "weeks": {
+     "type": "int",
+     "default": 20,
+     "min": 1,
+     "description": "Number of weeks the game lasts"
+    },
+    "demand_min": {
+     "type": "int",
+     "default": 0,
+     "min": 0,
+     "description": "Lowest weekly customer demand"
+    },
+    "demand_max": {
+     "type": "int",
+     "default": 8,
+     "min": 0,
+     "description": "Highest weekly customer demand"
+    },
+    "start_stock": {
+     "type": "int",
+     "default": 12,
+     "min": 0,
+     "description": "Cases each company starts with in stock"
+    },
+    "start_pipeline": {
+     "type": "int",
+     "default": 4,
+     "min": 0,
+     "description": "Cases already on the way on each shipping link at the start"
+    },
+    "ship_lead": {
+     "type": "int",
+     "default": 2,
+     "min": 0,
+     "description": "Weeks a shipment takes to arrive"
+    },
+    "prod_lead": {
+     "type": "int",
+     "default": 2,
+     "min": 0,
+     "description": "Weeks production takes to arrive"
+    },
+    "holding_cost": {
+     "type": "number",
+     "default": 0.5,
+     "min": 0,
+     "description": "Cost per case in stock at the end of a week"
+    },
+    "backlog_cost": {
+     "type": "number",
+     "default": 1.0,
+     "min": 0,
+     "description": "Cost per case of backlog at the end of a week"
+    },
+    "max_order": {
+     "type": "int",
+     "default": 30,
+     "min": 0,
+     "description": "Largest order or production batch a company may place"
+    }
+   },
+   "world": {
+    "customer_demand": {
+     "type": "list",
+     "default": []
+    },
+    "factory_orders": {
+     "type": "list",
+     "default": []
+    },
+    "sold_to_customers": {
+     "type": "int",
+     "default": 0,
+     "min": 0
+    },
+    "total_cost": {
+     "type": "number",
+     "default": 0.0,
+     "min": 0
+    }
+   },
+   "types": {
+    "company": {
+     "agent": true,
+     "props": {
+      "role": {
+       "type": "text",
+       "default": "retailer"
+      },
+      "upstream": {
+       "type": "text",
+       "default": ""
+      },
+      "downstream": {
+       "type": "text",
+       "default": ""
+      },
+      "stock": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "incoming": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "orders_in": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "ordered": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "backlog": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "production": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "shipped": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "received": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "cost": {
+       "type": "number",
+       "default": 0.0,
+       "min": 0
+      },
+      "last_order": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "last_shipped": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      },
+      "last_received": {
+       "type": "int",
+       "default": 0,
+       "min": 0
+      }
+     }
+    }
+   },
+   "population": [
+    {
+     "type": "company",
+     "count": "$inputs.weeks",
+     "id": "filler_{$i}",
+     "name": "Filler {$i}",
+     "props": {
+      "role": "filler",
+      "stock": 0,
+      "incoming": 0
+     }
+    },
+    {
+     "type": "company",
+     "count": 1,
+     "id": "retailer",
+     "name": "Retailer",
+     "props": {
+      "role": "retailer",
+      "upstream": "wholesaler",
+      "stock": "$inputs.start_stock",
+      "incoming": "$inputs.start_pipeline"
+     }
+    },
+    {
+     "type": "company",
+     "count": 1,
+     "id": "wholesaler",
+     "name": "Wholesaler",
+     "props": {
+      "role": "wholesaler",
+      "upstream": "distributor",
+      "downstream": "retailer",
+      "stock": "$inputs.start_stock",
+      "incoming": "$inputs.start_pipeline"
+     }
+    },
+    {
+     "type": "company",
+     "count": 1,
+     "id": "distributor",
+     "name": "Distributor",
+     "props": {
+      "role": "distributor",
+      "upstream": "factory",
+      "downstream": "wholesaler",
+      "stock": "$inputs.start_stock",
+      "incoming": "$inputs.start_pipeline"
+     }
+    },
+    {
+     "type": "company",
+     "count": 1,
+     "id": "factory",
+     "name": "Factory",
+     "props": {
+      "role": "factory",
+      "downstream": "distributor",
+      "stock": "$inputs.start_stock",
+      "incoming": "$inputs.start_pipeline",
+      "production": "$inputs.start_pipeline"
+     }
+    }
+   ],
+   "stages": [
+    {
+     "name": "shipping",
+     "brief": "Ship beer to the company below you. If you owe backlog, ship at least that much whenever you can.",
+     "actions": [
+      "ship"
+     ],
+     "turns": "sequential",
+     "order": "$it.role == retailer and 0 or ($it.role == wholesaler and 1 or ($it.role == distributor and 2 or 3))",
+     "who": "$it.role != filler and $it.role != factory",
+     "max_actions": 1
+    },
+    {
+     "name": "ordering",
+     "brief": "Place your order with the company above you (the factory starts production instead). The order reaches them next week.",
+     "actions": [
+      "order"
+     ],
+     "turns": "simultaneous",
+     "who": "$it.role != filler",
+     "max_actions": 1
+    }
+   ],
+   "actions": {
+    "ship": {
+     "by": "company",
+     "description": "Ship beer to the company below you this week. You must clear your whole backlog before shipping anything else, and you can never ship more than your backlog plus the orders you have received.",
+     "params": {
+      "amount": {
+       "type": "int",
+       "min": 0,
+       "max": "$min($actor.stock + $actor.incoming, $actor.backlog + $actor.orders_in)",
+       "description": "Cases to ship this week"
+      }
+     },
+     "when": [
+      "$actor.role != factory and $actor.role != filler",
+      {
+       "expr": "$actor.stock + $actor.incoming > 0",
+       "why": "You have nothing to ship."
+      },
+      {
+       "expr": "$params.amount >= $actor.backlog",
+       "why": "You must clear your whole backlog before shipping anything else."
+      },
+      {
+       "expr": "$params.amount <= $actor.stock + $actor.incoming",
+       "why": "You do not have that much beer."
+      },
+      {
+       "expr": "$params.amount <= $actor.backlog + $actor.orders_in",
+       "why": "You cannot ship more than your backlog plus the orders you have received."
+      }
+     ],
+     "do": [
+      "$got = $min($actor.backlog + $actor.orders_in, $actor.stock + $actor.incoming)",
+      "$actor.incoming -= $got",
+      "$actor.stock -= $got",
+      "$actor.shipped += $got",
+      "$actor.last_shipped = $got",
+      "$actor.backlog = $actor.backlog + $actor.orders_in - $got",
+      "$actor.orders_in = 0",
+      {
+       "if": "$actor.downstream != ''",
+       "then": [
+        "$entity($actor.downstream).incoming += $got"
+       ],
+       "else": [
+        "$world.sold_to_customers += $got"
+       ]
+      }
+     ],
+     "outcome": "You shipped {$got} cases to the company below you.",
+     "private": true
+    },
+    "order": {
+     "by": "company",
+     "description": "Order beer from the company above you (the factory starts production instead). The order reaches them next week.",
+     "params": {
+      "amount": {
+       "type": "int",
+       "min": 0,
+       "max": "$inputs.max_order",
+       "description": "Cases to order from your supplier"
+      }
+     },
+     "when": [
+      "$actor.role != filler"
+     ],
+     "do": [
+      "$actor.last_order = $params.amount",
+      {
+       "if": "$actor.role == factory",
+       "then": [
+        "$world.factory_orders += $params.amount",
+        "$actor.production += $params.amount"
+       ],
+       "else": [
+        "$entity($actor.upstream).ordered += $params.amount"
+       ]
+      }
+     ],
+     "outcome": "You ordered {$params.amount} cases from your supplier.",
+     "private": true
+    }
+   },
+   "events": [
+    {
+     "name": "customer demand",
+     "phase": "start",
+     "do": [
+      "$world.customer_demand += $randint($inputs.demand_min, $inputs.demand_max)",
+      "$ret = $entity(retailer)",
+      "$ret.orders_in += $last($world.customer_demand)"
+     ],
+     "say": "Customers order {$last($world.customer_demand)} cases of beer from the retailer this week."
+    },
+    {
+     "name": "deliveries",
+     "phase": "start",
+     "each": "$filter(company, $it.role != filler)",
+     "do": [
+      "$d = $it.incoming",
+      "$it.incoming = 0",
+      "$it.stock += $d",
+      "$it.received += $d",
+      "$it.last_received = $d",
+      "$it.incoming = $it.production",
+      "$it.production = 0"
+     ],
+     "say": "Deliveries arrive."
+    },
+    {
+     "name": "orders reach suppliers",
+     "phase": "end",
+     "each": "$filter(company, $it.role != filler and $it.role != factory)",
+     "do": [
+      "$it.orders_in += $it.ordered",
+      "$it.ordered = 0"
+     ],
+     "say": "Orders reach the suppliers."
+    },
+    {
+     "name": "weekly costs",
+     "phase": "end",
+     "each": "$filter(company, $it.role != filler)",
+     "do": [
+      "$it.cost += $it.stock * $inputs.holding_cost + $it.backlog * $inputs.backlog_cost",
+      "$world.total_cost += $it.stock * $inputs.holding_cost + $it.backlog * $inputs.backlog_cost"
+     ]
+    }
+   ],
+   "metrics": {
+    "customer_demand": {
+     "expr": "$last($world.customer_demand)",
+     "description": "Customer demand this week"
+    },
+    "factory_orders": {
+     "expr": "$last($world.factory_orders)",
+     "description": "Factory production orders this week"
+    },
+    "total_cost": {
+     "expr": "$world.total_cost",
+     "unit": "$"
+    }
+   },
+   "views": {
+    "position": {
+     "title": "Your position",
+     "show": "It is week {$round} of {$inputs.weeks}. You are the {$actor.role}: stock {stock} cases, backlog {backlog} cases, orders waiting to be shipped {orders_in} cases, cost so far {$actor.cost|money}."
+    },
+    "arrivals": {
+     "title": "This week",
+     "show": "Arrived: {last_received} cases. Shipped: {last_shipped} cases. Last order you placed: {last_order} cases."
+    },
+    "pipeline": {
+     "title": "On the way to you",
+     "show": "{incoming} cases are on the way to you (production included, if you are the factory)."
+    },
+    "chain": {
+     "for": "spectator",
+     "of": "company",
+     "title": "Supply chain",
+     "where": "$it.role != filler",
+     "show": "{role}: stock {stock}, backlog {backlog}, incoming {incoming}, orders_in {orders_in}, production {production}, cost {$it.cost|money}"
+    }
+   },
+   "outputs": {
+    "customer_demand": {
+     "expr": "$world.customer_demand",
+     "type": "list",
+     "description": "Cases customers demanded each week, in week order"
+    },
+    "factory_orders": {
+     "expr": "$world.factory_orders",
+     "type": "list",
+     "description": "Cases the factory put into production each week, in week order"
+    },
+    "costs_by_role": {
+     "expr": "$dict(company, $it.role, $it.cost)",
+     "type": "map",
+     "description": "Total cost of each company, by role"
+    },
+    "total_team_cost": {
+     "expr": "$world.total_cost",
+     "type": "number",
+     "format": "money",
+     "description": "Sum of all four companies' costs"
+    },
+    "bullwhip_ratio": {
+     "expr": "$variance($series.factory_orders) / $variance($series.customer_demand)",
+     "type": "number",
+     "description": "Variance of the factory's weekly production orders divided by the variance of weekly customer demand"
+    }
+   },
+   "invariants": [
+    {
+     "expr": "$count(company, $it.role != filler) == 4",
+     "why": "The supply chain has exactly four companies."
+    },
+    {
+     "expr": "$all(company, $it.stock >= 0 and $it.backlog >= 0 and $it.incoming >= 0 and $it.production >= 0 and $it.cost >= 0)",
+     "why": "Stocks, backlogs and costs are never negative."
+    },
+    {
+     "expr": "$sum(company, $it.stock + $it.incoming + $it.production) + $world.sold_to_customers == $inputs.start_stock * 4 + $inputs.start_pipeline * 5 + $sum($world.factory_orders)",
+     "why": "Beer is conserved: everything shipped or produced is in stock, in transit or delivered to customers."
+    }
+   ]
+  }
+ ],
+ "guide_parts": [
+  "guide",
+  "expressions",
+  "effects",
+  "functions.collections",
+  "stages",
+  "actions",
+  "views",
+  "events",
+  "inputs",
+  "outputs",
+  "population",
+  "brief",
+  "policies",
+  "functions.random",
+  "end",
+  "defs",
+  "types",
+  "functions",
+  "metrics"
+ ],
+ "guide_chars": 50386,
+ "usage": {
+  "input_tokens": 477529,
+  "output_tokens": 127473,
+  "cost": 0.0664991536,
+  "calls": 19
+ },
+ "wall_seconds": 1526.8
+}
