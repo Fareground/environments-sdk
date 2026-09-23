@@ -232,7 +232,7 @@ class Driver:
         env = self.env
         discarded = False
         if resume is None:
-            auto = [turn for turn in turns if turn.stage.auto and not turn.staged]
+            auto = [turn for turn in turns if turn.stage.auto]
             played = [turn for turn in turns if turn not in auto or not self._auto(turn)]
         else:
             played = list(turns)  # a waiting turn was never an auto turn
@@ -281,9 +281,14 @@ class Driver:
             turn.done = True
             env.origin.tape.closed(turn.number)
             if turn.stats.actions == 0 and not turn.intents:
-                turn.stats.idle_turns += 1
-                turn.did_not_act = ((turn.stage.must_act or turn.calls_left <= 0) and not turn.timed_out
-                                    and turn.actor.alive and bool(turn._legal()))
+                stats = turn.stats
+                stats.idle_turns += 1
+                went_wrong = bool(stats.invalid_calls or stats.rejected_actions or stats.refusals or stats.truncated
+                                  or stats.out_of_steps)
+                had_to = turn.stage.must_act or turn.calls_left <= 0
+                if (went_wrong or had_to) and turn.actor.alive and not turn.timed_out and turn._legal():
+                    stats.failed_turns += went_wrong  # an action was there to take
+                    turn.did_not_act = had_to
             env._tally(turn.actor.id, turn.stats)
             turn.tallied = True
             if turn.exposure is not None and not turn.staged:  # simultaneous turns close once their choices commit

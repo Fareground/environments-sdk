@@ -49,6 +49,8 @@ class Stats:
     truncated: int = 0
     #: Model replies the provider refused to give (reported by LLM participants).
     refusals: int = 0
+    #: Turns an LLM participant ended because it used all its ``max_steps`` model calls.
+    out_of_steps: int = 0
     #: Turns that ran past their time limit.
     timeouts: int = 0
     #: Atomic turns undone because the whole turn was not `valid`.
@@ -56,6 +58,9 @@ class Stats:
     #: Actions refused and undone because a rule failed or an invariant broke while they applied (also counted in
     #: ``rejected_actions``): a contract bug, explained in the run's diagnostics.
     faulted_actions: int = 0
+    #: Turns that ended with an action available and none taken after the agent's attempts went wrong: invalid or
+    #: refused calls, a model refusal, a reply cut off, its model calls used up.
+    failed_turns: int = 0
 
     def add(self, other: "Stats") -> None:
         for name, value in vars(other).items():  # every field is a count: most of a turn's are zero
@@ -118,12 +123,15 @@ class RunResult:
 
     @property
     def ok(self) -> bool:
-        return self.status in ("completed", "ended") and not self.output_issues
+        """The run reached its end, its outputs are sound and it shows how the environment plays (nothing in
+        :attr:`degraded`). A run its budget ended is ok: it stopped where it was told to."""
+        return self.status in ("completed", "ended") and not self.output_issues and not self.degraded
 
     @property
     def degraded(self) -> List[str]:
         """The codes of the diagnostics that mean this run does not show what the environment is for — an action no
-        agent could ever take, agents that never acted, turns lost to a failing provider. Empty for a sound run."""
+        agent could ever take, agents that never acted or whose turns mostly failed, agents that never had an action
+        to take, turns lost to a failing provider. Empty for a sound run; a degraded run is not :attr:`ok`."""
         from .diagnostics import DEGRADING
 
         return list(dict.fromkeys(found["code"] for found in self.diagnostics if found["code"] in DEGRADING))

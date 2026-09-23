@@ -74,7 +74,7 @@ def test_refused_scheduling_action_leaves_relationship_and_queue_unchanged():
         wake.end()
 
     result = env.run(play)
-    assert result.ok, result.error
+    assert result.status == 'completed' and result.degraded == ['agents_never_acted'], result.error
     assert result.outputs['balance'] == 100
 
 

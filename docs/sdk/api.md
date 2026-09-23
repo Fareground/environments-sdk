@@ -334,7 +334,7 @@ holds, whose action is legal and whose arguments are valid is taken.
 ### `participants.anthropic`
 
 ```pyi
-anthropic(client: 'Any', model: 'str', *, max_tokens: 'int' = 1024, max_steps: 'int' = 8, system: 'str' = '', retries: 'int' = 4, media: 'Optional[Collection[str]]' = None, retry_truncated: 'bool' = True, extra: 'Optional[Mapping[str, Any]]' = None) -> 'Participant'
+anthropic(client: 'Any', model: 'str', *, max_tokens: 'int' = 16000, max_steps: 'int' = 8, system: 'str' = '', retries: 'int' = 4, media: 'Optional[Collection[str]]' = None, retry_truncated: 'bool' = True, extra: 'Optional[Mapping[str, Any]]' = None) -> 'Participant'
 ```
 
 An LLM participant using an ``anthropic.Anthropic()`` client.
@@ -357,11 +357,12 @@ not fit — fails the run at once, naming the agent, the provider's error and th
 ends the turn and counts in ``stats["refusals"]``. Real token usage lands in the run's statistics and in
 ``participant.usage``.
 
-A reply cut off at ``max_tokens`` counts in ``stats["truncated"]``; when it called no tool, the model is asked
-once for a short tool call (``retry_truncated=False`` ends the turn instead). Any other reply that calls no tool
-is reminded once of the tools offered. Calls left in a reply after one of them ended the turn are not made. In a
-stage where the agent must act, the participant never ends the turn itself: the engine closes it and reports
-that the agent did not act.
+A reply cut off at ``max_tokens`` (default 16000: room for a model that thinks before it answers) counts in
+``stats["truncated"]``; when it called no tool, the model is asked once for a short tool call
+(``retry_truncated=False`` ends the turn instead). Any other reply that calls no tool is reminded once of the tools
+offered. A turn that makes all ``max_steps`` model calls ends there and counts in ``stats["out_of_steps"]``. Calls
+left in a reply after one of them ended the turn are not made. In a stage where the agent must act, the
+participant never ends the turn itself: the engine closes it and reports that the agent did not act.
 
 ### `participants.openai`
 

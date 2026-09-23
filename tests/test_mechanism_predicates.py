@@ -27,7 +27,7 @@ def test_production_requirement_controls_actual_production(condition, allowed):
         accepted.append(wake.call('plant_start', {'recipe': 'make'}).ok)
         wake.end()
     result = env.run(play)
-    assert result.ok, result.error
+    assert result.status == 'completed', result.error  # refused production degrades the run: the agent never acted
     assert accepted == [allowed]
     assert env.entity('p')['props']['goods'].get('widget', 0) == int(allowed)
 
