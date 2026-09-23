@@ -140,6 +140,24 @@ def test_a_choice_whose_rule_draws_randomness_is_decided_by_the_full_listing(mon
     assert _fingerprint(GUARDED, "policy:seller") == result
 
 
+def _choices_of(where):
+    contract = {"name": "Teams", "clock": {"rounds": 1},
+                "types": {"p": {"agent": True, "props": {"team": "red", "rival": ""}}},
+                "entities": {"a": {"type": "p", "props": {"rival": "c"}}, "b": {"type": "p"},
+                             "c": {"type": "p", "props": {"team": "blue"}}, "d": {"type": "p", "props": {"team": "blue"}}},
+                "actions": {"pick": {"by": "p", "params": {"who": {"type": "entity", "of": "p", "where": where}},
+                                     "do": []}}}
+    tools = {t["name"]: t for t in fg_env.load(contract).preview("a")["tools"]}
+    return tools["pick"]["input_schema"]["properties"]["who"]["enum"]
+
+
+def test_a_choice_that_only_excludes_by_inequality_lists_exactly_what_its_rule_allows():
+    assert _choices_of("$it.id != $actor.id") == ["b", "c", "d"]
+    assert _choices_of("$it.team != $actor.team") == ["c", "d"]
+    assert _choices_of("$actor.rival != $it") == ["a", "b", "d"]
+    assert _choices_of("$it.team != 'red' or $it.id == 'a'") == ["a", "c", "d"]
+
+
 BALANCE = {
     "name": "Balance",
     "clock": {"rounds": 3},

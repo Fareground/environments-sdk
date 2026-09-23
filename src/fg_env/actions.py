@@ -166,9 +166,14 @@ class ActionBook(ActionSchemas, ActionValidation):
                     params: Optional[Dict[str, Any]], first: bool) -> List[Entity]:
         out = []
         base = self.world.scope(actor=actor, viewer=actor, params=params or {})
-        ruled_out = expr.rules_out(base)
+        ruled_out, ruled_in = expr.rules_out(base), expr.rules_in(base)
         for position, item in enumerate(items):
             if ruled_out is not None and ruled_out(item):
+                continue
+            if ruled_in is not None and ruled_in(item):
+                out.append(item)
+                if first:
+                    break
                 continue
             try:
                 if truthy(expr(base.child(it=item, i=position))):

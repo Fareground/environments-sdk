@@ -11,6 +11,7 @@ refusal names what the agent can call in the form its tools take (``Use hall wit
 from __future__ import annotations
 
 import re
+from functools import lru_cache
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 __all__ = ["text_limit", "cut_text", "usage_limits", "shared_description", "shared_param", "compact_ids",
@@ -190,9 +191,10 @@ def _close_run(parts: List[str], first: str, last: str, length: int) -> None:
         parts.append(first)
 
 
+@lru_cache(maxsize=1 << 16)
 def _numbered(key: str) -> Tuple[str, str]:
     """``key`` split into its text and its trailing digits ("" when it has none) — without a pattern match for the
-    usual ASCII digits: a listing splits every candidate's id."""
+    usual ASCII digits, and kept per id: every turn's tools list and split the same candidates' ids again."""
     stem = key.rstrip("0123456789")
     if stem and stem[-1].isdecimal():  # digits of another script before or instead of them: the pattern decides
         match = _NUMBERED.match(key)
