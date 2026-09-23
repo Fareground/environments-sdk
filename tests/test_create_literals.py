@@ -41,4 +41,5 @@ def test_participant_text_stored_by_a_native_op_is_never_evaluated():
         texts = [e["props"]["text"] for e in env.entities("note")]
         assert texts == ["$world.secret", "$world.secret"]
         assert isinstance(env.world.entities["note_1"].properties["text"], Untrusted)
-        assert "4321" not in json.dumps(result.to_dict(), default=str)
+        # The end state shows the world's own secret prop; nothing else may hold its value.
+        assert "4321" not in json.dumps({**result.to_dict(), "state": result.state["types"]}, default=str)

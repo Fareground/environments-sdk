@@ -19,7 +19,8 @@ requirement while you repair check issues.
 3. `fg-env preview game.json <agent id>` (`env.preview(id)`): exactly what that agent reads. Each role should see
    what the brief says it sees, and nothing more.
 4. `fg-env run game.json --seed 1` (`fg_env.run`): compare the outputs with what the brief implies, worked out by
-   hand for a small case. A clean check proves it runs, not that it is right.
+   hand for a small case. A clean check proves it runs, not that it is right. To look at state, read the run's summary
+   (it ends with metric values and the entities as the run left them) or a preview; never swap outputs for probes.
 
 ## Worked example
 
