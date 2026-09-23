@@ -1,6 +1,7 @@
 {
   "fg_env": "1",
   "name": "Kuhn poker",
+  "description": "The smallest poker as a game with explicit chance nodes: three cards, one each, ante 1, pass or bet.",
   "brief": {
     "situation": "Two players, a deck of three cards (1, 2, 3), one card each, ante 1.",
     "rules": "P0 acts first: pass or bet 1. A bet facing a bet calls; a pass facing a bet folds. The higher card wins at showdown."

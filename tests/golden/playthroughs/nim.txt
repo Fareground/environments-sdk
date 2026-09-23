@@ -1,5 +1,5 @@
 # fg-env playthrough: Nim
-Game: nim@17d6bb7a:53eb4f84
+Game: nim@d53097e9:53eb4f84
 Seed: 1
 Seats: 0 a, 1 b
 Dynamics: sequential; chance: deterministic; information: unknown; utility: zero_sum

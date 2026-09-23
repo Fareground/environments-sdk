@@ -1,4 +1,4 @@
-"""Command line for analysis: sweep, sensitivity, calibrate, optimise, backtest, checks, highlights.
+"""Command line for analysis: sweep, sensitivity, calibrate, optimise, backtest, playtest, highlights.
 
 Wire into the ``fg-env`` parser with ``add_analysis_commands(sub)``. Every command prints a
 plain-text report, or JSON with ``--json``; mistakes a user can make become one-line errors
@@ -257,7 +257,7 @@ def cmd_backtest(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_checks(args: argparse.Namespace) -> int:
+def cmd_playtest(args: argparse.Namespace) -> int:
     from .checks import behavior_checks
 
     report = behavior_checks(args.file, runs=args.runs, rounds=args.rounds, seed=args.seed,
@@ -308,6 +308,28 @@ def _holdout_options(parser: argparse.ArgumentParser) -> None:
     group.add_argument("--folds", type=int, help="k-fold cross-validation over the cases")
 
 
+def _optimise_options(p: argparse.ArgumentParser) -> None:
+    from .search import METHODS
+
+    _run_options(p)
+    p.add_argument("--decision", action="append", metavar="NAME=LOW:HIGH[:STEP]|NAME=V1,V2|NAME={json}",
+                   help="an input to decide (JSON for vectors: {\"length\": 24, \"low\": 3, \"high\": 40, \"step\": 1})")
+    p.add_argument("--decisions-file", help="JSON object of input → decision spec")
+    p.add_argument("--objective", action="append", required=True, metavar="'maximise [STAT of] MEASURE'",
+                   help="repeat for a Pareto frontier of two or three objectives")
+    p.add_argument("--constraint", action="append",
+                   metavar="'[each|at most K of] MEASURE >= NUMBER [in 90%% of runs] [with 95%% confidence]'")
+    p.add_argument("--confidence", type=float, default=0.9,
+                   help="how sure each constraint must be, unless it states its own (default 0.9)")
+    p.add_argument("--runs", type=int, default=10, help="shared seeds each decision is judged on")
+    p.add_argument("--budget", type=int, default=50, help="most distinct decisions to search")
+    p.add_argument("--method", choices=("auto", *METHODS), default="auto")
+    p.add_argument("--holdout-seeds", type=int, help="fresh seeds that check the choice (default: --runs; 0 skips)")
+    p.add_argument("--uncertainty-file", help="JSON priors or points to draw parameters from per run")
+    p.add_argument("--arm")
+    p.set_defaults(func=_guarded(cmd_optimise))
+
+
 def add_analysis_commands(sub: Any) -> None:
     """Register the analysis commands on an ``argparse`` sub-parser collection."""
     p = sub.add_parser("sweep", help="run a grid or Latin hypercube of inputs and show main effects")
@@ -351,27 +373,10 @@ def add_analysis_commands(sub: Any) -> None:
     _holdout_options(p)
     p.set_defaults(func=_guarded(cmd_calibrate))
 
-    from .search import METHODS
-
-    p = sub.add_parser("optimise", aliases=["optimize"],
-                       help="search decisions for the best objective under constraints, checked on fresh seeds")
-    _run_options(p)
-    p.add_argument("--decision", action="append", metavar="NAME=LOW:HIGH[:STEP]|NAME=V1,V2|NAME={json}",
-                   help="an input to decide (JSON for vectors: {\"length\": 24, \"low\": 3, \"high\": 40, \"step\": 1})")
-    p.add_argument("--decisions-file", help="JSON object of input → decision spec")
-    p.add_argument("--objective", action="append", required=True, metavar="'maximise [STAT of] MEASURE'",
-                   help="repeat for a Pareto frontier of two or three objectives")
-    p.add_argument("--constraint", action="append",
-                   metavar="'[each|at most K of] MEASURE >= NUMBER [in 90%% of runs] [with 95%% confidence]'")
-    p.add_argument("--confidence", type=float, default=0.9,
-                   help="how sure each constraint must be, unless it states its own (default 0.9)")
-    p.add_argument("--runs", type=int, default=10, help="shared seeds each decision is judged on")
-    p.add_argument("--budget", type=int, default=50, help="most distinct decisions to search")
-    p.add_argument("--method", choices=("auto", *METHODS), default="auto")
-    p.add_argument("--holdout-seeds", type=int, help="fresh seeds that check the choice (default: --runs; 0 skips)")
-    p.add_argument("--uncertainty-file", help="JSON priors or points to draw parameters from per run")
-    p.add_argument("--arm")
-    p.set_defaults(func=_guarded(cmd_optimise))
+    # One spelling is listed; the other is accepted but not listed (a parser without `help` stays out of the list).
+    _optimise_options(sub.add_parser(
+        "optimise", help="search decisions for the best objective under constraints, checked on fresh seeds"))
+    _optimise_options(sub.add_parser("optimize"))
 
     p = sub.add_parser("backtest", help="score the contract's forecasts against known outcomes")
     _run_options(p)
@@ -383,13 +388,13 @@ def add_analysis_commands(sub: Any) -> None:
     _holdout_options(p)
     p.set_defaults(func=_guarded(cmd_backtest))
 
-    p = sub.add_parser("checks", help="play the contract with random agents and report what looks broken "
-                                      "(exit status 1 when runs fail)")
+    p = sub.add_parser("playtest", help="play the contract many times with random agents and report what looks broken: "
+                                        "dead actions, unused inputs, runs that fail (exit status 1 when runs fail)")
     _run_options(p)
     p.add_argument("--runs", type=int, default=4)
     p.add_argument("--boundaries", action="store_true", help="also sample declared input boundaries, including nested fields")
     p.add_argument("--max-boundary-cases", type=int, default=24, help="maximum boundary configurations to sample")
-    p.set_defaults(func=_guarded(cmd_checks))
+    p.set_defaults(func=_guarded(cmd_playtest))
 
     p = sub.add_parser("highlights", help="the notable moments of one run")
     _run_options(p, seed_default=0, workers=False)

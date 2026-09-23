@@ -1,5 +1,5 @@
-"""The start page for human and agent authors: ``guide('authoring')`` is :data:`START` plus :data:`READ_NEXT`, and the
-core guide is :data:`START` plus the mechanism families and the map of every part."""
+"""The start page for human and agent authors: ``guide('authoring')`` is :data:`START` plus :data:`READ_NEXT`.
+``guide()`` is the map of every other part, so nothing here is repeated there."""
 
 START = '''\
 # fg_env — from a brief to a working environment
@@ -87,6 +87,8 @@ holds, an `end` effect runs, or the rounds run out.
   agent at a time (in `order`, else random), so resolve them jointly in `on_exit`.
 * A turn ends after `max_actions` actions (default 1), on `end_turn`, or after `max_calls` calls.
 * An action is atomic: if an effect `fail`s or a `transfer` lacks funds, all of it is undone and the agent is told why.
+* Besides action tools, an agent gets `inspect` (one entity's non-`private` props): only itself, unless the type
+  sets `"inspect": true` or an expression over `$viewer` and `$it`.
 
 ## Sections
 
@@ -104,7 +106,7 @@ Every section is optional except `name` and `types`. `guide('<section>')` has ea
 | `records` | `{log: {fields, show, visible}}` — logs (chat, bids) written by `post` |
 | `actions` | `{act: {by, description, params: {p: {type, min, max, values, of, where}}, when, do, outcome, announce, private}}` |
 | `stages` | `[{name, actions, turns, who, order, max_actions, until, on_enter, on_exit}]` |
-| `views` | `{v: {for, title, of, where, sort, desc, limit, show}}` — `of` omitted: one line about `$actor` |
+| `views` | `{v: {for, title, of, where, sort, desc, limit, show}}` — `of` omitted: one line about `$actor`; a list includes the viewer unless `where: "$it.id != $actor.id"` |
 | `events` | `[{phase: start or end, at, every, when, each, do, say}]` |
 | `end` | `[{when, winner, say, check: stage or action}]` |
 | `metrics`, `outputs` | `{name: expr}` or `{name: {expr, type}}`; an output's `format` (money, pct, 2 …) shapes summaries |
@@ -114,8 +116,10 @@ Every section is optional except `name` and `types`. `guide('<section>')` has ea
 | `policies` | `{name: {rules: [{when, do, with}]}}` — coded participants for baselines (`policy:<name>`) |
 
 Also: `assets`, `game`, `triggers`, `space`, `relations`, `links`, `physics`, `feeds`, `arms`, `calibration`,
-`defs`, `blocks`, `imports`. Property types: number int bool text enum list map any (inferred from the default);
-inputs also take `table` (rows with `fields`). Parameter types: number int bool text enum entity list file; an
+`defs`, `blocks`, `imports`. Property types: number int bool text enum list map any. Without `type` the default
+decides: a number → `number` (fractions too; `"type": "int"` for whole numbers), true/false → `bool`, text → `text`
+(`enum` with `values`), a list or object → `list`/`map`, an expression → `any`. Inputs also take `table` (rows with
+`fields`). Parameter types: number int bool text enum entity list file; an
 `entity` parameter names its type in `of` and may filter with `where` (`$it` the candidate).
 
 ## Expressions
@@ -130,6 +134,8 @@ A string with `$name` in it is an expression; other strings are text.
   `$filter(player, $it.alive)`, `$map(player, $it.name)`, `$dict(player, $it.id, $it.coins)`,
   `$top(offer, $it.price, 3)`, `$best(player, $it.score)`, `$any`, `$all`, `$len`, `$get(list, i, 0)`,
   `$chance(0.3)`, `$randint(1, 6)`, `$normal(0, 1)`, `$choice(list)`, `$round(x, 2)`, `$floor`, `$clamp`.
+  `$min` `$max` `$sum` `$avg` take a collection and a value (`$min(stand, $it.price)`) or a list; `$min` and
+  `$max` also take numbers (`$min(3, $x)`).
 * Templates (`show`, `outcome`, `announce`, `say`, `brief`, `name`): `"{name} has {coins} coins"` reads the subject
   (`$it` in lists, `$actor` otherwise); `{$params.amount|money}` is any expression with a format.
 
@@ -137,6 +143,8 @@ A string with `$name` in it is an expression; other strings are text.
 
 `do` (actions, events, stage hooks) is one effect or a list:
 * `"$actor.coins -= $params.amount"`, `"$total = $params.qty * 2"` (a local); `+=` on a list appends.
+  A local lasts to the end of the `do` or hook that sets it (nested `if`/`each`/`after` and `outcome` too), never
+  into the next action, event or hook: keep such state in a property.
 * `{"if": "$world.stock < $params.qty", "then": [{"fail": "Not enough stock."}], "else": [...]}`
 * `{"each": "player", "where": "$it.coins == 0", "do": ["$it.out = true"]}`
 * `{"transfer": "coins", "from": "$actor", "to": "$params.target", "amount": 3}` — fails the action if short
@@ -152,14 +160,10 @@ with their `why`.
 READ_NEXT = '''
 ## Read next, only when you need it
 
-`fg_env.guide('<part>')` or `fg-env guide <part>`:
-- a section's fields and roots: `actions`, `stages`, `views`, `events`, `inputs`, `population`, `outputs`, `policies` …
-- `effects` — every effect with an example; `expressions` — the full language
-- `functions.collections` — counting, ranking, maps; `functions.random` — draws and distributions
-- `mechanisms` — ready-made markets, auctions, ballots, hidden roles, queues, inventories
-- `patterns` — demand, trends, seasons and random paths over time
-- `inspect` — reading a run: summary, events, diagnostics
-- `guide()` maps every other part.
+`fg_env.guide('<part>')` or `fg-env guide <part>`: a section's fields and roots (`actions`, `stages`, `views`,
+`events`, `inputs` …), `effects`, `expressions`, `functions.collections`, `functions.random`, `mechanisms` (markets,
+auctions, ballots, hidden roles, queues, inventories), `patterns` (demand, trends and seasons over time), `inspect`
+(reading a run). `guide()` maps every part.
 '''
 
 AUTHORING = START + READ_NEXT

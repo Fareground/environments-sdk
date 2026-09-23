@@ -1,6 +1,7 @@
 {
   "fg_env": "1",
   "name": "Tic-tac-toe",
+  "description": "Noughts and crosses on a 3x3 board written in plain rules: alternating marks, three in a row wins, a full board draws.",
   "brief": {
     "situation": "A 3x3 board.",
     "rules": "Mark an empty cell (0-8, row by row). Three in a row wins."

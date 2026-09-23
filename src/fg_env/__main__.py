@@ -21,7 +21,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     from .report.cli import add_report_command
 
     parser.add_argument("--version", action="version", version=f"fg-env {__version__}")
-    sub = parser.add_subparsers(dest="cmd", required=True)
+    sub = parser.add_subparsers(dest="cmd", required=True, metavar="<command>")
     add_commands(sub)
     add_analysis_commands(sub)
     add_report_command(sub)
