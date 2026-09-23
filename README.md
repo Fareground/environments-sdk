@@ -64,6 +64,7 @@ fg-env is one of Fareground's open-source building blocks, alongside
 
 Install Environments SDK from PyPI:
 
+<!-- not run: installs the package -->
 ```bash
 python -m pip install --upgrade fg-env
 ```
@@ -76,6 +77,7 @@ Python 3.11 or newer is required. The only runtime dependency is `pydantic`.
 
 Describe the environment in plain language and let a model build it with the SDK's own tools:
 
+<!-- not run: needs a model API key -->
 ```bash
 python -m pip install anthropic         # or openai
 export ANTHROPIC_API_KEY=...
@@ -120,8 +122,9 @@ import fg_env
 for engine in fg_env.list_engines():
     print(engine.id, engine.status, engine.available)
 
-fg_env.clone_engine("market", "my_market.json", name="My market study")
-result = fg_env.experiment("my_market.json", runs=20, participants="random")
+fg_env.clone_engine("market", "my_market.json", name="My market study")  # overwrite=True to clone it again
+# A quick first look: 2 runs of each arm over 40 sampled households. More runs give tighter intervals.
+result = fg_env.experiment("my_market.json", runs=2, participants="random", inputs={"sample_size": 40})
 print(result.table())
 ```
 
@@ -131,6 +134,7 @@ scenario presets, or Arena games. All twelve engines are native, available, and 
 Persona generation is shared infrastructure rather than an environment:
 
 ```python
+people = [{"id": f"p{i}", "region": ["north", "south"][i % 2], "household_id": f"h{i // 3}"} for i in range(300)]
 cohort = fg_env.personas.sample_records(
     people, size=100, seed=7, run=0, resample=True,
     constraints={"region": "north"}, group_by="household_id",
@@ -144,7 +148,7 @@ Or start from a template and read the short core guide:
 
 ```bash
 fg-env new game my_game.json    # blank, game, market, simulation or social — checks clean and runs
-fg-env check my_game.json       # static checks plus one played round
+fg-env check my_game.json       # static checks, then plays up to 12 rounds with random agents
 fg-env guide                    # the core guide; it maps every other part: fg-env guide actions, fg-env guide market.auction
 ```
 
@@ -221,6 +225,7 @@ fg-env guide market       # a mechanism family; fg-env guide market.auction for 
 
 ## Tooling
 
+<!-- not run: shop.json stands for your own contract -->
 ```bash
 fg-env check shop.json                    # every problem with its path and a fix, then plays it with random agents and each policy
 fg-env expand shop.json --mechanisms       # the contract with every mechanism expanded into plain sections
@@ -244,6 +249,7 @@ lower-level mechanics; they are examples, not entries in the behavioral engine c
 human-behavior scenarios, begin with the closest engine starter and customize it rather than
 copying a named example.
 
+<!-- not run: needs a clone of the repository -->
 ```bash
 fg-env run examples/contracts/werewolf.json --seed 3
 ```

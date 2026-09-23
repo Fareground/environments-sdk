@@ -13,6 +13,7 @@ run the contract for you with the SDK's own tools, and saves the latest version 
 
 ## 1. Install
 
+<!-- not run: installs the package -->
 ```bash
 python -m pip install fg-env
 ```
@@ -151,7 +152,7 @@ fg-env preview inventory.json shop
 
 ## 3. Run a repeatable policy
 
-Save this as `run_inventory.py` beside the contract:
+Save this as `run_inventory.py` beside the contract and run it with `python run_inventory.py`:
 
 ```python
 import fg_env
@@ -161,8 +162,9 @@ print(result.outputs)
 assert result.outputs == {"units_sold": 24, "lost_sales": 0, "closing_cash": 244.0}
 ```
 
+The same run from the command line:
+
 ```bash
-python run_inventory.py
 fg-env run inventory.json --seed 7 --agent retailer=policy:steady --json
 ```
 

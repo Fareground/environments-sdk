@@ -30,6 +30,7 @@ The engine enforces the rules you specify. Scenario quality also depends on choo
 
 Python 3.11 or later. The core package depends on Pydantic; language-model clients are optional and supplied by the host.
 
+<!-- not run: installs the package -->
 ```bash
 python -m pip install fg-env
 ```
