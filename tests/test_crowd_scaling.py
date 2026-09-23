@@ -47,3 +47,33 @@ def _seconds(action):
 def test_a_crowd_choosing_among_each_other_lists_the_choices_once_per_turn():
     slower = _seconds(CHOOSING) / _seconds(PLAIN)
     assert slower < MOST_SLOWER, f"choosing among {CROWD} agents made the round {slower:.1f} times slower"
+
+
+#: A coded crowd's turn costs the same whatever the crowd's size: 16 times the agents measures about 1.05 times the
+#: time per turn; listing the whole type on every legality check and validation measured 1.3.
+MOST_SLOWER_PER_TURN = 1.2
+
+
+def _giving(count):
+    return {"name": "givers", "clock": {"rounds": 1},
+            "types": {"p": {"agent": True, "policy": "give", "props": {"coins": 5}}},
+            "population": [{"type": "p", "count": count}],
+            "actions": {"give": {"by": "p", "params": {"to": {"type": "entity", "of": "p", "where": "$it.id != $actor.id"}},
+                                 "do": ["$actor.coins -= 1", "$params.to.coins += 1"]}},
+            "policies": {"give": {"rules": [{"do": "give", "with": {"to": "$choice(p)"}}]}}}
+
+
+def _seconds_per_turn(count):
+    best = float("inf")
+    for _ in range(2):
+        env = fg_env.load(_giving(count), seed=1)
+        start = time.process_time()
+        env.run()
+        best = min(best, (time.process_time() - start) / count)
+    return best
+
+
+@slow
+def test_a_coded_crowd_turn_costs_the_same_in_a_crowd_sixteen_times_larger():
+    slower = _seconds_per_turn(8000) / _seconds_per_turn(500)
+    assert slower < MOST_SLOWER_PER_TURN, f"a turn in a crowd of 8000 took {slower:.2f} times a turn in a crowd of 500"

@@ -12,9 +12,9 @@ from __future__ import annotations
 
 import hashlib
 import random
-from typing import Any, Dict, Optional, Union
+from typing import Any, Callable, Dict, Optional, Union
 
-__all__ = ["SeedTree", "DrawSite", "mint_seed"]
+__all__ = ["SeedTree", "DrawSite", "LazyStream", "mint_seed"]
 
 PathPart = Union[str, int]
 
@@ -42,8 +42,29 @@ class SeedTree:
     def rng(self, *path: PathPart) -> random.Random:
         return random.Random(self.derive(*path))
 
+    def lazy_rng(self, *path: PathPart) -> "LazyStream":
+        """:meth:`rng`, seeded at its first use."""
+        return LazyStream(lambda: self.rng(*path))
+
     def __repr__(self) -> str:
         return f"SeedTree({self.seed})"
+
+
+class LazyStream:
+    """A random stream made by ``make`` at its first use: seeding one costs more than most of its users ever draw
+    (a turn's own stream, a coded policy's), and most never draw at all."""
+
+    __slots__ = ("_make", "_stream")
+
+    def __init__(self, make: Callable[[], random.Random]):
+        self._make: Optional[Callable[[], random.Random]] = make
+        self._stream: Optional[random.Random] = None
+
+    def __getattr__(self, name: str) -> Any:
+        if self._stream is None:
+            assert self._make is not None
+            self._stream, self._make = self._make(), None
+        return getattr(self._stream, name)
 
 
 class DrawSite:
