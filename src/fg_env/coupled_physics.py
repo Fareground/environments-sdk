@@ -19,6 +19,9 @@ from .stochastic_integration import integrate_noise
 if TYPE_CHECKING:
     from .world import SdkWorld
 
+#: Roots an entity's read may use and still be the same at every RK stage of an interval (nothing there evolves).
+_FIXED_ROOTS = frozenset({"world", "inputs", "round", "stage", "arm"})
+
 
 def integrate_coupled(world: "SdkWorld", dt: float) -> List[Dict[str, Any]]:
     from .world_physics import _number, _refresh_reads
@@ -38,6 +41,8 @@ def integrate_coupled(world: "SdkWorld", dt: float) -> List[Dict[str, Any]]:
     bounds = [(model.variables[name].min, model.variables[name].max) for name in world_names]
     rates = [model._compiled[name] for name in world_names]
     noises = []
+    #: Each entity's reads that nothing evolving can change, worked out once per interval instead of per RK stage.
+    fixed_reads: Dict[Any, Dict[str, float]] = {}
     for index, name in enumerate(world_names):
         if name in model._noise:
             noises.append((index, model._noise[name], world.seeds.rng("physics", "noise", "world", name, world.round)))
@@ -47,6 +52,10 @@ def integrate_coupled(world: "SdkWorld", dt: float) -> List[Dict[str, Any]]:
                 continue
             offset = len(y)
             entities.append((step, entity, offset))
+            fixed_reads[(id(step), entity.id)] = {
+                name: step._number(step._eval(world, expr, entity, f"{step.path}.read.{name}"), entity,
+                                   f"{step.path}.read.{name}")
+                for name, expr in step.reads if not expr.functions and expr.roots <= _FIXED_ROOTS}
             state_names.extend(step.vars)
             for index in range(len(step.vars)):
                 noise_read_names[offset+index] = {name for name, _ in step.reads}
@@ -97,9 +106,10 @@ def integrate_coupled(world: "SdkWorld", dt: float) -> List[Dict[str, Any]]:
             ns = {**shared, **step.params}
             for name in step.inputs + step.vars:
                 ns[name] = step._number(entity.properties.get(name), entity, f"{step.path}.vars.{name}")
+            fixed = fixed_reads[(id(step), entity.id)]
             for name, expr in step.reads:
-                ns[name] = step._number(step._eval(world, expr, entity, f"{step.path}.read.{name}"),
-                                        entity, f"{step.path}.read.{name}")
+                ns[name] = fixed[name] if name in fixed else step._number(
+                    step._eval(world, expr, entity, f"{step.path}.read.{name}"), entity, f"{step.path}.read.{name}")
             entity_spaces[(id(step), entity.id)] = ns
             spaces.extend([ns] * len(step.vars))
         last_values, last_time, last_spaces = values, time, spaces
