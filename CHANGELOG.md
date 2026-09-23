@@ -7,10 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round 4
+
 Round 4 (T-834, T-835) fixes the third independent audit, and adds generated tests that keep whole classes of
 failure from coming back.
 
-### Breaking
+#### Breaking
 - Luck cannot be probed. Trials (submitting a sealed choice, listing legal tools, RL masks, diagnostics) never draw.
   A refusal after a draw counts as a move and spends its luck; a refusal before any draw stays free. This reverses
   0.8's "same luck on retry". In an atomic stage an action that draws settles the turn so far. `each` and stage
@@ -39,7 +41,7 @@ failure from coming back.
   inputs. Coded Dispute lawyers lead with their strongest exhibit. Rates over nobody are null. Negotiation's
   `deadline` minimum is 2 (R4.7).
 
-### Added
+#### Added
 - Generated tests: a contract fuzzer (a random valid contract always checks and runs without escaping exceptions,
   is deterministic, resumes identically from a snapshot, never costs an agent its turn when another is removed,
   and never shows one agent another's private values), a leak scanner over every example, starter and template,
@@ -47,15 +49,17 @@ failure from coming back.
 - Run diagnostics `agents_mostly_failed`, `out_of_steps`, `policy_repeat_refused` and `output_failed`, and
   `$money_held(ledger)`.
 
-### Fixed
+#### Fixed
 - Diagnostics no longer depend on the order concurrent sealed turns ran in.
 - An event `each` over a number is a clear error instead of a raw exception.
 
 
+### Round 3
+
 Round 3 (T-828–T-833) comes from an independent adversarial audit of 0.8.0. It closes silent failures and makes
 both authoring paths, by hand from the docs or through `fg-env author`, reliable.
 
-### Breaking
+#### Breaking
 - A removed agent no longer ends its stage for the agents seated after it. Agents created mid-round act in the
   next pass (T-832).
 - `$best` always returns one item (ties are broken at random by the seed) or, with `ties: "all"`, a list.
@@ -75,7 +79,7 @@ both authoring paths, by hand from the docs or through `fg-env author`, reliable
 - Unknown participants and unknown preview targets raise `ContractError` with a fix. `check()` returns
   unreadable or invalid sources as issues instead of raising (T-829).
 
-### Added
+#### Added
 - `check` escalates an action that faulted on every attempt to an error, and plays one pass where every
   agent is idle. New diagnostics `action_always_faulted`, `agents_never_acted` and `stage_until_never_held`,
   plus `RunResult.degraded` (T-830, T-832).
