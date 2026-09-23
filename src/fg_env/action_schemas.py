@@ -2,6 +2,7 @@
 a shared tool's call to the action it picks."""
 from __future__ import annotations
 
+import itertools
 import math
 import re
 from dataclasses import dataclass
@@ -191,6 +192,9 @@ class ActionSchemas:
         elif param.type == "enum":
             values = self._static(actor, param.values, f"actions.{action}.params.{pname}.values") \
                 if isinstance(param.values, str) else param.values
+            if values is None and self._values_depend_on_params(param):
+                values = self._every_value(actor, action, pname, param)
+                description = (description + " Valid choices depend on the other arguments.").strip()
             if isinstance(values, list) and values:
                 out["enum"] = [_plain(v) for v in values]
                 kind = _enum_type(out["enum"])
@@ -232,6 +236,35 @@ class ActionSchemas:
         if default is not None:
             out["default"] = default
         return out
+
+    def _every_value(self: "ActionBook", actor: Entity, action: str, pname: str,  # type: ignore[misc]
+                     param: ParamSpec) -> Optional[List[Any]]:
+        """Every value an enum's `values` over earlier arguments can give, over each choice those arguments offer
+        (so the tool lists real options; validation enforces the ones that fit the arguments given). None when the
+        earlier arguments cannot all be listed, or there are too many combinations to try."""
+        spec = self.contract.actions[action]
+        earlier = list(spec.params)[:list(spec.params).index(pname)]
+        axes: Dict[str, List[Any]] = {}
+        for name in earlier:
+            before = spec.params[name]
+            if before.type == "entity":
+                axes[name] = list(self._choices(actor, action, name, before))
+            elif before.type == "enum" and isinstance(before.values, list):
+                axes[name] = list(before.values)
+            elif before.type == "bool":
+                axes[name] = [False, True]
+            else:
+                return None
+        if math.prod(len(options) for options in axes.values()) > _ENUM_CHOICES:
+            return None
+        found: List[Any] = []
+        for combination in itertools.product(*axes.values()):
+            try:
+                values = self.enum_values(actor, action, pname, param, dict(zip(axes, combination)))
+            except RunError:
+                continue  # a combination the values cannot be worked out for offers nothing
+            found.extend(value for value in values if value not in found)
+        return found if len(found) <= _ENUM_CHOICES else None
 
     def _schema_default(self: "ActionBook", actor: Entity, param: ParamSpec) -> Any:  # type: ignore[misc]
         """The default as the agent would get it, or None when it cannot be known before the call

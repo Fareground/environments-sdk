@@ -148,7 +148,7 @@ fg-env check inventory.json
 fg-env preview inventory.json shop
 ```
 
-`check` validates the contract, then plays it for a few rounds with random agents, with agents that never act (a missed turn must not break the rules) and with each declared policy. `preview` shows the retailer's brief, current information, and available tools. A successful smoke check is an authoring aid; it does not establish the model's business accuracy.
+`check` validates the contract, then plays it for a few rounds with random agents, with agents that choose boundary values (least, zero, greatest), with agents that never act (a missed turn must not break the rules) and with each declared policy. `preview` shows the retailer's brief, current information, and available tools. A successful smoke check is an authoring aid; it does not establish the model's business accuracy.
 
 ## 3. Run a repeatable policy
 

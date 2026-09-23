@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import math
 import re
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Set
+from difflib import get_close_matches
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Set, Tuple
 
 from .. import contract as C
 from ..chance import check_chance
@@ -19,7 +20,7 @@ from ..effects import (
     select_ops,
     statement_parts,
 )
-from ..expr import ExprError, is_expr
+from ..expr import ExprError, compile_expr, is_expr
 from ..registry import family_action_hint
 
 if TYPE_CHECKING:
@@ -27,6 +28,9 @@ if TYPE_CHECKING:
     from .roots import Types
 
 __all__ = ["EffectChecks"]
+
+#: The kinds of value an assignment's text can make plain, as its messages name them.
+_KIND_WORDS = {"number": "a number", "int": "a whole number", "bool": "true or false", "text": "text"}
 
 
 class EffectChecks:
@@ -100,15 +104,67 @@ class EffectChecks:
             self.error(path, f"${root} is read-only", "assign to an entity's property, $world.x or $physics.x")
             return
         self._chain((root, *fields), path, types, params or {}, source)
+        if len(fields) == len(steps):  # the property itself, not an element of it
+            self._assigned_kind((root, *fields), op, right, path, types, params or {}, source)
+
+    def _assigned_kind(self: "_Checker", target: Tuple[str, ...], op: str, right: str, path: str,  # type: ignore[misc]
+                       types: Types, params: Mapping[str, C.ParamSpec], source: str) -> None:
+        """A value whose kind the text makes plain (a literal, or a property or argument read on its own) assigned to
+        a property declared as another kind: it would fail every time the rule runs."""
+        declared, given = self._spec_for(target, types, params), self._value_kind(right, types, params)
+        if declared is None or given is None:
+            return
+        values, kind = declared
+        got, word = given
+        field = "$" + ".".join(target)
+        if values and got == "text" and word is not None and word not in values:
+            hint = get_close_matches(word, [str(v) for v in values], n=1)
+            self.error(path, f"{field} is one of {', '.join(map(str, values))}; '{word}' is not",
+                       (f"did you mean '{hint[0]}'?" if hint else "assign one of its values") + f" — in `{source}`")
+        elif kind in ("number", "int") and got in ("text", "bool") \
+                or op == "=" and (kind == "bool" and got != "bool" or kind == "text" and got in ("number", "bool")):
+            self.error(path, f"{field} is declared as {kind}, but this assigns {_KIND_WORDS[got]}",
+                       f"assign {_KIND_WORDS[kind]}, or declare the property with the type it holds — in `{source}`")
+
+    def _value_kind(self: "_Checker", right: str, types: Types,  # type: ignore[misc]
+                    params: Mapping[str, C.ParamSpec]) -> Optional[Tuple[str, Optional[str]]]:
+        """``(kind, literal text)`` of a value that is a literal or one property or argument read on its own; None
+        when the text does not make its kind plain."""
+        text = right.strip()
+        quoted = re.fullmatch(r"'([^']*)'|\"([^\"]*)\"", text)
+        if quoted:
+            return "text", quoted.group(1) if quoted.group(1) is not None else quoted.group(2)
+        if text in ("true", "false"):
+            return "bool", None
+        if re.fullmatch(r"-?\d+(?:\.\d+)?", text):
+            return "number", None
+        chain = re.fullmatch(r"\$([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+)", text)
+        known = self._spec_for(tuple(chain.group(1).split(".")), types, params) if chain else None
+        if known is None or known[1] not in _KIND_WORDS:
+            return None
+        return ("number" if known[1] == "int" else known[1]), None
+
+    def _shadowed_it(self: "_Checker", type_name: str, path: str, types: Types) -> None:  # type: ignore[misc]
+        """`$it` in a `create`'s props, where an enclosing loop also binds it: there it means the new entity, which is
+        rarely what the author meant."""
+        outer = "/".join(sorted(types.get("it") or ())) or "enclosing"
+        self.error(path, f"`$it` here is the new {type_name} being created, not the {outer} item of the enclosing loop",
+                   'to read the loop\'s item, name it: `"as": "src"` on the `each`, then `$src.id` here (in `create` '
+                   f"props `$it` always means the new {type_name}, so its earlier props read as `$it.<prop>`)")
 
     def _keyed(self: "_Checker", effect: Dict[str, Any], path: str, roots: Set[str], types: Types,  # type: ignore[misc]
                params: Optional[Mapping[str, C.ParamSpec]]) -> None:
         known = all_ops()
         ops = select_ops(effect)
-        if len(ops) != 1:
-            keys = ", ".join(effect) or "none"
-            hint = family_action_hint(effect) or self._suggest(next(iter(effect), ""), known)
-            self.error(path, f"an operation object names exactly one of: {', '.join(known)} (got keys {keys})", hint)
+        if len(ops) > 1:
+            self.error(path, f"an operation object names exactly one operation; this one names {', '.join(ops)}",
+                       "split it into one object per operation, in the order they should run")
+            return
+        if not ops:
+            key = next(iter(effect), "")
+            hint = family_action_hint(effect) or self._suggest(key, known) or \
+                'write an assignment as text ("$actor.price = 3", "$actor.cash -= 5"); guide("effects") lists the operations'
+            self.error(path, f"`{key or '{}'}` is not an effect operation (got keys {', '.join(effect) or 'none'})", hint)
             return
         op = ops[0]
         allowed = set(known[op])
@@ -196,6 +252,9 @@ class EffectChecks:
                     if prop not in self.type_props[type_name]:
                         self.error(f"{path}.props.{prop}", f"'{type_name}' has no property '{prop}'",
                                    self._suggest(prop, self.type_props[type_name]))
+                    if "it" in roots and _reads_it(raw):
+                        self._shadowed_it(type_name, f"{path}.props.{prop}", types)
+                        continue
                     self.value(raw, f"{path}.props.{prop}", roots | {"i", "it"},
                                {**types, "it": {type_name}}, params)
             v("count")
@@ -322,3 +381,15 @@ class EffectChecks:
                 merge_types(types, dict(types), body_types)
         elif op == "chance":
             roots |= check_chance(self, effect, path, roots, types, params)
+
+
+def _reads_it(raw: Any) -> bool:
+    """Whether a value (an expression, or a list or object of them) reads `$it`."""
+    if isinstance(raw, str):
+        try:
+            return is_expr(raw) and "it" in compile_expr(raw).roots
+        except ExprError:
+            return False  # reported where the value is checked
+    if isinstance(raw, (list, dict)):
+        return any(_reads_it(item) for item in (raw.values() if isinstance(raw, dict) else raw))
+    return False

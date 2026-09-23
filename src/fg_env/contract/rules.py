@@ -12,6 +12,7 @@ from .base import (
     MAX_TURN_CALLS,
     PARAM_TYPES,
     Effects,
+    SPELLINGS,
     TypeName,
     _ceiling,
     _ExprShorthand,
@@ -41,7 +42,7 @@ class RecordSpec(_Model):
 class ParamSpec(_Model):
     """A tool argument. Shorthand: ``"qty": "int"``."""
 
-    type: TypeName = Field("number", description="One of: " + ", ".join(PARAM_TYPES))
+    type: TypeName = Field("number", description="One of: " + ", ".join(PARAM_TYPES) + SPELLINGS)
     of: Optional[str] = Field(None, description="Entity type (type entity).")
     where: Optional[str] = Field(None, description="Which entities qualify ($it, $actor, $params for earlier params, $pending).")
     values: Union[List[Any], str, None] = Field(None, description="Allowed values or an expression giving them (type enum).")

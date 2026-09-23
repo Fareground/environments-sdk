@@ -1367,7 +1367,7 @@
       "properties": {
         "type": {
           "default": "number",
-          "description": "One of: number, int, bool, text, enum, list, table, map, date, any",
+          "description": "One of: number, int, bool, text, enum, list, table, map, date, any (`integer`, `float`, `string` and `boolean` are read as int, number, text and bool)",
           "title": "Type",
           "type": "string"
         },
@@ -2027,7 +2027,7 @@
       "properties": {
         "type": {
           "default": "number",
-          "description": "One of: number, int, bool, text, enum, entity, list, file",
+          "description": "One of: number, int, bool, text, enum, entity, list, file (`integer`, `float`, `string` and `boolean` are read as int, number, text and bool)",
           "title": "Type",
           "type": "string"
         },
@@ -2699,7 +2699,7 @@
             }
           ],
           "default": null,
-          "description": "One of: number, int, bool, text, enum, list, map, any, asset (inferred from default).",
+          "description": "One of: number, int, bool, text, enum, list, map, any, asset (inferred from default) (`integer`, `float`, `string` and `boolean` are read as int, number, text and bool).",
           "title": "Type"
         },
         "default": {

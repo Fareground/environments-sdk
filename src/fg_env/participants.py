@@ -99,8 +99,8 @@ def sample_args(schema: Mapping[str, Any], rng: random.Random) -> Dict[str, Any]
 
 
 def _fill_dependent(wake: Wake, tool: str, args: Dict[str, Any], rng: random.Random) -> Dict[str, Any]:
-    """``args`` with each choice that depends on earlier arguments (``where: $it.id != $params.a.id``) drawn from
-    the entities that qualify given them: a schema can only list every candidate."""
+    """``args`` with each choice that depends on earlier arguments (``where: $it.id != $params.a.id``, ``values:
+    $params.army.exits``) drawn from the choices that qualify given them: a schema can only list every candidate."""
     from .errors import RunError
 
     turn = wake._turn
@@ -114,7 +114,7 @@ def _fill_dependent(wake: Wake, tool: str, args: Dict[str, Any], rng: random.Ran
         return args
     with turn.env._lock:
         try:
-            filled = actions.fill_dependent(turn.actor, name, own, lambda found: rng.choice(found) if found else None)
+            filled = actions.fill_dependent(turn.actor, name, own, rng.choice)
         except RunError:
             return args  # the call reports the broken rule at its path
     return {**filled, "action": args["action"]} if name != tool else filled

@@ -11,6 +11,7 @@ from ..probability import check_literal_probability
 from .roots import BASE
 from .turns import check_spectator_view, check_stage_turns, spectator_audience_issues
 from ..contract import Contract
+from ..expr import is_expr
 from ..perception import SPECTATOR
 from ..reads import READS
 from ..session import END_TURN
@@ -47,7 +48,7 @@ class ActionChecks:
             for pname, param in spec.params.items():
                 ppath = f"{path}.params.{pname}"
                 if param.type not in C.PARAM_TYPES:
-                    self.error(f"{ppath}.type", f"unknown type '{param.type}'", self._suggest(param.type, C.PARAM_TYPES))
+                    self.error(f"{ppath}.type", f"unknown type '{param.type}'", self._suggest_type(param.type, C.PARAM_TYPES))
                     continue
                 if param.type == "entity":
                     if param.of is None:
@@ -124,7 +125,7 @@ class ActionChecks:
         item = param.items
         if item is not None:
             if item.type not in C.PARAM_TYPES:
-                self.error(f"{ppath}.items.type", f"unknown type '{item.type}'", self._suggest(item.type, C.PARAM_TYPES))
+                self.error(f"{ppath}.items.type", f"unknown type '{item.type}'", self._suggest_type(item.type, C.PARAM_TYPES))
                 return
             if item.type == "list":
                 self.error(f"{ppath}.items", "a list of lists is not supported", "use items of enum, entity, text, number, int or bool")
@@ -193,6 +194,23 @@ class ActionChecks:
             for hook in ("on_idle", "on_wake", "on_turn_end"):
                 self.effects(getattr(stage, hook), f"{path}.{hook}", set(BASE) | {"actor"}, {"actor": set(self.agents)})
             check_stage_turns(self, stage, path, BASE)
+        self._open_stages()
+
+    def _open_stages(self: "_Checker") -> None:  # type: ignore[misc]
+        """A stage without `actions` offers every action — including ones another stage lists as its own, which
+        agents can then take in the wrong phase. (An explicit `"actions": "all"` says every action is meant.)"""
+        listed = {name for stage in self.c.stages if "actions" in stage.model_fields_set
+                  for name in _stage_action_names(stage, self.c, raw=True)}
+        for index, stage in enumerate(self.c.stages):
+            if "actions" in stage.model_fields_set:
+                continue
+            elsewhere = [name for name in self.c.actions if name in listed]
+            if elsewhere:
+                self.warn(f"stages[{index}].actions",
+                          f"is not set, so stage '{stage.name}' offers every action, including "
+                          f"{', '.join(elsewhere[:5])}{' …' if len(elsewhere) > 5 else ''} that another stage lists",
+                          "list the actions of this stage (\"actions\": [...]); write \"actions\": \"all\" if every "
+                          "action belongs in it too")
 
     def _count(self: "_Checker", value: Any, path: str) -> None:  # type: ignore[misc]
         """A stage count setting: a whole number ≥ 1, or an expression over $inputs giving one."""
@@ -225,6 +243,10 @@ class ActionChecks:
                 types["it"] = {view.of}
             elif view.of in self.c.records:
                 pass
+            elif not is_expr(view.of):
+                self.error(f"{path}.of", f"'{view.of}' is not a declared type or record",
+                           self._suggest(view.of, [*self.c.types, *self.c.records])
+                           or "name a type or record, or write an expression giving a list ($filter(...))")
             else:
                 self.expr(view.of, f"{path}.of", BASE | {"actor"}, types)
             self.condition(view.where, f"{path}.where", item_roots, types)

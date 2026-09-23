@@ -5,7 +5,7 @@
 Typed values supplied when the contract is loaded ($inputs.x): knobs, data tables.
 
 **InputSpec** — A typed value supplied when the environment is loaded (``fg_env.load(..., inputs=)``).
-- `type`: text = "number" — One of: number, int, bool, text, enum, list, table, map, date, any
+- `type`: text = "number" — One of: number, int, bool, text, enum, list, table, map, date, any (`integer`, `float`, `string` and `boolean` are read as int, number, text and bool)
 - `default`: any — Used when the caller supplies nothing.
 - `required`: bool = false — The caller must supply it (no default).
 - `min`: number

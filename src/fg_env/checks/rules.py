@@ -114,10 +114,17 @@ class RuleChecks:
                 self.error(f"{path}.format", f"unknown format '{output.format}'",
                            self._suggest(output.format, FORMATS) or ", ".join(FORMATS))
             if output.type not in C.OUTPUT_TYPES:
-                self.error(f"{path}.type", f"unknown type '{output.type}'", self._suggest(output.type, C.OUTPUT_TYPES))
+                self.error(f"{path}.type", f"unknown type '{output.type}'", self._suggest_type(output.type, C.OUTPUT_TYPES))
             self.expr(output.expr, path, BASE | {"outputs", "result"})
         for index, end in enumerate(self.c.end):
             self.condition(end.when, f"end[{index}].when", BASE)
+            if _at_last_round(end.when, self.c.clock.rounds):
+                self.warn(f"end[{index}].when",
+                          f"`{end.when}` holds as the last round starts: `end` is checked after the start events, so "
+                          "the run stops before the last round's stages play",
+                          "remove it: the run ends by itself after its last round (clock.rounds); to name a winner "
+                          "then, end in an end-phase event: "
+                          '{"phase": "end", "do": {"if": "$round == $clock.rounds", "then": {"end": "final", "winner": ...}}}')
             self.expr(end.winner, f"end[{index}].winner", BASE)
             self.template(end.say, f"end[{index}].say", None, BASE)
             if end.check not in C.END_CHECKS:
@@ -203,3 +210,13 @@ class RuleChecks:
             if measure not in measures:
                 self.error(path, f"'{measure}' is not an output or metric", self._hint(measure, measures, "outputs and metrics"))
             self.value(target.get("value") if isinstance(target, dict) else target, path, BASE)
+
+
+_ROUND_IS = re.compile(r"\s*\$round\s*(?:==|>=)\s*(.+?)\s*")
+
+
+def _at_last_round(when: str, rounds: Any) -> bool:
+    """Whether an `end` condition only says the round is the clock's last one (`$round == $clock.rounds`, or the
+    number or input the clock's `rounds` is)."""
+    match = _ROUND_IS.fullmatch(when)
+    return match is not None and match.group(1) in ("$clock.rounds", str(rounds))

@@ -23,7 +23,8 @@ Any string containing `$name` is an expression; other strings are literal text.
   param `where` or `when` to stop ordering the same army twice.
 * A param `where` may read earlier params: `{"to": {"type": "entity", "of": "province",
   "where": "$linked($params.army.at, $it.id, border)"}}` (the tool then lists every province and
-  validation enforces the rule).
+  validation enforces the rule). An enum's `values` may read earlier params the same way
+  (`{"to": {"type": "enum", "values": "$params.army.exits"}}`): the tool lists every value they can give.
 * Reserved roots cannot be used as local names: $actor $params $it $i $row $inputs $world $physics
   $clock $round $stage $metrics $series $arm $viewer $event $outer $pending $result.
 * Contract `defs` are called like built-ins: `$utility($actor, $params.offer)`. A def reads `$records` and

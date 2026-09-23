@@ -28,6 +28,8 @@ turn, uses `max_actions`, or runs out of `max_calls`.
 * `look` and `inspect` are free reads: up to `max_calls` of them per turn use no call, and one past that is refused
   without spending a call, so an agent can always still act. The same read twice in a turn answers "Unchanged".
 * A stage with `actions: []` wakes nobody: use it as a pure resolution step (`on_enter`/`on_exit`).
+* A stage without `actions` offers every action. When other stages list their own, list this stage's too
+  (check warns otherwise: agents could take another phase's actions here), or write `"actions": "all"`.
 * `must_act: true` removes `end_turn` while an action is available; `on_idle` effects run for each agent
   that ends a turn without acting (`$actor`) — a forfeit or a default move. An agent that could act and did not — in
   a `must_act` stage, or any stage once its calls ran out — is reported as an `idle` event ("Ben did not act.").
@@ -70,7 +72,9 @@ turn, uses `max_actions`, or runs out of `max_calls`.
   `stats.faulted_actions` counts these refusals. Guard such rules (`min`/`max` on the parameter, or a `when` with a
   `why`) so agents are told the limit up front. The same failure in events, world logic or physics fails the run, as
   do a host that fails and a crash in a mechanism's own code, wherever they happen.
-* `end` conditions are checked after the start events, after each stage, and at the end of the round.
+* `end` conditions are checked after the start events, after each stage, and at the end of the round, so
+  `$round == <clock.rounds>` ends the run before the last round plays (check warns): the run ends after its last
+  round by itself; to name a winner then, use an `end` effect in an end-phase event.
   `"check": "action"` also checks one the moment anything commits — an action, a sealed choice, an event or
   hook's effects — so a winning move ends the run before the next agent moves (in any kind of stage; sealed
   choices commit one after another, so later ones are not applied). The `end` effect inside an action does the same.

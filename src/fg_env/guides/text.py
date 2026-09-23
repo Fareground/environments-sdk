@@ -33,6 +33,8 @@ turn, uses `max_actions`, or runs out of `max_calls`.
 * `look` and `inspect` are free reads: up to `max_calls` of them per turn use no call, and one past that is refused
   without spending a call, so an agent can always still act. The same read twice in a turn answers "Unchanged".
 * A stage with `actions: []` wakes nobody: use it as a pure resolution step (`on_enter`/`on_exit`).
+* A stage without `actions` offers every action. When other stages list their own, list this stage's too
+  (check warns otherwise: agents could take another phase's actions here), or write `"actions": "all"`.
 * `must_act: true` removes `end_turn` while an action is available; `on_idle` effects run for each agent
   that ends a turn without acting (`$actor`) — a forfeit or a default move. An agent that could act and did not — in
   a `must_act` stage, or any stage once its calls ran out — is reported as an `idle` event ("Ben did not act.").
@@ -75,7 +77,9 @@ turn, uses `max_actions`, or runs out of `max_calls`.
   `stats.faulted_actions` counts these refusals. Guard such rules (`min`/`max` on the parameter, or a `when` with a
   `why`) so agents are told the limit up front. The same failure in events, world logic or physics fails the run, as
   do a host that fails and a crash in a mechanism's own code, wherever they happen.
-* `end` conditions are checked after the start events, after each stage, and at the end of the round.
+* `end` conditions are checked after the start events, after each stage, and at the end of the round, so
+  `$round == <clock.rounds>` ends the run before the last round plays (check warns): the run ends after its last
+  round by itself; to name a winner then, use an `end` effect in an end-phase event.
   `"check": "action"` also checks one the moment anything commits — an action, a sealed choice, an event or
   hook's effects — so a winning move ends the run before the next agent moves (in any kind of stage; sealed
   choices commit one after another, so later ones are not applied). The `end` effect inside an action does the same.
@@ -125,7 +129,8 @@ Any string containing `$name` is an expression; other strings are literal text.
   param `where` or `when` to stop ordering the same army twice.
 * A param `where` may read earlier params: `{"to": {"type": "entity", "of": "province",
   "where": "$linked($params.army.at, $it.id, border)"}}` (the tool then lists every province and
-  validation enforces the rule).
+  validation enforces the rule). An enum's `values` may read earlier params the same way
+  (`{"to": {"type": "enum", "values": "$params.army.exits"}}`): the tool lists every value they can give.
 * Reserved roots cannot be used as local names: $actor $params $it $i $row $inputs $world $physics
   $clock $round $stage $metrics $series $arm $viewer $event $outer $pending $result.
 * Contract `defs` are called like built-ins: `$utility($actor, $params.offer)`. A def reads `$records` and
@@ -226,7 +231,7 @@ random (seeded); add a unique last key when the rule needs a fixed order, or use
 EFFECT_EXAMPLES = {
     "if": '{"if": "$cost > $actor.cash", "then": [...], "else": [...]}',
     "each": '{"each": "offer", "where": "$it.stock == 0", "do": ["$it.listed = false"]}  (with "as": "o", write $o instead of $it)',
-    "create": '{"create": "review", "count": 1, "name": "Review {$i}", "props": {"stars": "$params.stars"}, "at": null, "as": "made"}',
+    "create": '{"create": "review", "count": 1, "name": "Review {$i}", "props": {"stars": "$params.stars"}, "at": null, "as": "made"}  (in `props`, `$it` is the new entity, so a prop can read an earlier one: "double": "$it.base * 2"; inside a loop, name the loop\'s item with `as` to read it there)',
     "remove": '{"remove": "$params.target"}',
     "transfer": '{"transfer": "cash", "from": "$actor", "to": "$params.seller", "amount": 10}  (fails the action if short)',
     "link": '{"link": "trusts", "from": "$actor", "to": "$params.who", "value": 0.8, "props": {"since": "$round"}}  (creates or updates: without `value` an existing link keeps its value and a new one gets the relation\'s `default`; `props` sets link fields, a new link starting from their defaults)',

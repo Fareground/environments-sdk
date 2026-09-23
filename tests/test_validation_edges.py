@@ -68,10 +68,13 @@ def test_create_props_validate_new_entity_scope_without_leaking_into_outer_loop(
                     "$world.after = $it.order_index"]}],
                 "outputs": {"after": "$world.after", "created": "$sum(cohort, $it.twice)"}}
     issues = fg_env.check(contract, rounds=0)
-    assert any(i.path.endswith("props.channel_order") and "cohort" in i.message
-               and "order_index" in i.message for i in issues)
-    contract["events"][0]["do"].insert(0, "$source = $it")
-    contract["events"][0]["do"][1]["props"]["channel_order"] = "$source.order_index"
+    assert any(i.path.endswith("props.channel_order") and "new cohort" in i.message and "source" in i.message
+               for i in issues)
+    loop = contract["events"][0]
+    loop["as"] = "src"
+    loop["do"][0]["name"] = "{$src.name}"
+    loop["do"][0]["props"]["channel_order"] = "$src.order_index"
+    loop["do"][1] = "$world.after = $src.order_index"
     assert not [i for i in fg_env.check(contract, rounds=0) if i.severity == "error"]
     result = fg_env.run(contract)
     assert result.ok and result.outputs == {"after": 7, "created": 14}

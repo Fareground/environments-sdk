@@ -19,7 +19,7 @@ Assignment text:
 Operation objects (exactly one operation key each):
 - `if`: {"if": "$cost > $actor.cash", "then": [...], "else": [...]}
 - `each`: {"each": "offer", "where": "$it.stock == 0", "do": ["$it.listed = false"]}  (with "as": "o", write $o instead of $it)
-- `create`: {"create": "review", "count": 1, "name": "Review {$i}", "props": {"stars": "$params.stars"}, "at": null, "as": "made"}
+- `create`: {"create": "review", "count": 1, "name": "Review {$i}", "props": {"stars": "$params.stars"}, "at": null, "as": "made"}  (in `props`, `$it` is the new entity, so a prop can read an earlier one: "double": "$it.base * 2"; inside a loop, name the loop's item with `as` to read it there)
 - `remove`: {"remove": "$params.target"}
 - `transfer`: {"transfer": "cash", "from": "$actor", "to": "$params.seller", "amount": 10}  (fails the action if short)
 - `link`: {"link": "trusts", "from": "$actor", "to": "$params.who", "value": 0.8, "props": {"since": "$round"}}  (creates or updates: without `value` an existing link keeps its value and a new one gets the relation's `default`; `props` sets link fields, a new link starting from their defaults)

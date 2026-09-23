@@ -30,7 +30,7 @@ Roots (plus everywhere: $inputs $world $physics $clock $round $stage $metrics $s
 - `tool`: text — Offer this action inside one tool of this name, shared by every action naming it: the agent picks the action with the tool's `action` argument, which lists the ones legal now.
 - `attach`: text — Assets the actor receives with the result (an expression over $actor, $params giving an asset id, a list or null); a sealed choice's arrive with its outcome.
 **ParamSpec** — A tool argument. Shorthand: ``"qty": "int"``.
-- `type`: text = "number" — One of: number, int, bool, text, enum, entity, list, file
+- `type`: text = "number" — One of: number, int, bool, text, enum, entity, list, file (`integer`, `float`, `string` and `boolean` are read as int, number, text and bool)
 - `of`: text — Entity type (type entity).
 - `where`: text — Which entities qualify ($it, $actor, $params for earlier params, $pending).
 - `values`: [any] | text — Allowed values or an expression giving them (type enum).

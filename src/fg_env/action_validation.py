@@ -169,16 +169,7 @@ class ActionValidation:
                 return None, f"is {len(raw)} characters; the limit is {limit}"
             return Untrusted(str.__str__(raw) if isinstance(raw, str) else repr(raw)), None
         if kind == "enum":
-            values = param.values
-            if isinstance(values, str):
-                try:
-                    values = compile_expr(values)(self.world.scope(actor=actor, viewer=actor, params=params))
-                except ExprError as exc:
-                    raise RunError(str(exc), f"actions.{action}.params.{pname}.values") from None
-            if values is not None and not isinstance(values, (list, tuple)):
-                raise RunError(f"values must give a list, got {format_value(values)}",
-                               f"actions.{action}.params.{pname}.values")
-            values = [_plain(v) for v in (values or [])]
+            values = self.enum_values(actor, action, pname, param, params)
             same = [v for v in values if v == raw and isinstance(v, bool) == isinstance(raw, bool)]
             if same:
                 return same[0], None
@@ -209,6 +200,19 @@ class ActionValidation:
             shown = f"'{raw}'" if len(raw) <= 60 else _preview(raw)
             return None, f"{shown} is not a valid {param.of} {_given(param, params)} (valid: {listing or 'none'})"
         raise RunError(f"unknown parameter type '{kind}'", f"actions.{action}.params.{pname}")
+
+    def enum_values(self: "ActionBook", actor: Entity, action: str, pname: str, param: ParamSpec,  # type: ignore[misc]
+                    params: Dict[str, Any]) -> List[Any]:
+        """The values an enum parameter allows, given the arguments before it."""
+        values = param.values
+        if isinstance(values, str):
+            try:
+                values = compile_expr(values)(self.world.scope(actor=actor, viewer=actor, params=params))
+            except ExprError as exc:
+                raise RunError(str(exc), f"actions.{action}.params.{pname}.values") from None
+        if values is not None and not isinstance(values, (list, tuple)):
+            raise RunError(f"values must give a list, got {format_value(values)}", f"actions.{action}.params.{pname}.values")
+        return [_plain(v) for v in (values or [])]
 
     def _chosen(self: "ActionBook", actor: Entity, param: ParamSpec, raw: Any, params: Dict[str, Any]) -> Optional[Entity]:  # type: ignore[misc]
         """The entity an argument names by id when it plainly qualifies — found without listing every
