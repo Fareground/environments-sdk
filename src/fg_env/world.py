@@ -571,7 +571,15 @@ class SdkWorld(World):
             return
         old = entity.properties.get(prop)
         entity.properties[prop] = new
-        self.journal.push(lambda: entity.properties.__setitem__(prop, old))
+        self._touch_entity(entity)
+
+        def undo() -> None:
+            entity.properties[prop] = old
+            self._touch_entity(entity)  # an undo can bring back values no invariant check has seen together
+
+        self.journal.push(undo)
+
+    def _touch_entity(self, entity: Entity) -> None:
         if self.touched is not None:
             self.touched[entity.id] = None
 
@@ -660,8 +668,7 @@ class SdkWorld(World):
             self._make_room(entity, entity.location_id, "cannot be placed")
         self.entities[eid] = entity
         self.types.created(entity)
-        if self.touched is not None:
-            self.touched[eid] = None
+        self._touch_entity(entity)
         if space is not None:
             space.positions.add(entity)
 
@@ -688,6 +695,7 @@ class SdkWorld(World):
         def undo_remove() -> None:
             entity.alive = True
             self.types.changed(entity)
+            self._touch_entity(entity)
             if space is not None:
                 space.positions.add(entity)
 
