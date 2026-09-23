@@ -43,7 +43,7 @@ def score(slug: str, transcript: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(written, dict):
             errors_per_write.append(["(contract): not valid JSON"])
             continue
-        errors_per_write.append([str(i) for i in fg_env.check(written) if i.severity == "error"])
+        errors_per_write.append(_check_errors(written))
     clean_at = next((n + 1 for n, errors in enumerate(errors_per_write) if not errors), None)
     final = next((w for w in reversed(transcript["writes"]) if isinstance(w, dict)), None)
     required, checks = BRIEFS[slug]
@@ -63,7 +63,7 @@ def score(slug: str, transcript: Dict[str, Any]) -> Dict[str, Any]:
         "runs_ok": sum(r["ok"] for r in evaluation["runs"]), "runs": len(evaluation["runs"]),
         "checks_passed": passed, "checks": len(evaluation["checks"]),
         "saved_checks_passed": saved_passed,
-        "input_tokens": usage["input_tokens"], "output_tokens": usage["output_tokens"],
+        "input_tokens": _input_tokens(usage), "output_tokens": usage["output_tokens"],
         "cost": round(usage.get("cost", 0.0), 4), "wall_seconds": transcript["wall_seconds"],
         "contract_lines": len(json.dumps(final, indent=2).splitlines()) if final else 0,
         "guide_parts": transcript["guide_parts"], "guide_chars": transcript.get("guide_chars"),
@@ -71,6 +71,19 @@ def score(slug: str, transcript: Dict[str, Any]) -> Dict[str, Any]:
         "failed_checks": [c for c in evaluation["checks"] if not c["passed"]],
         "run_errors": [r for r in evaluation["runs"] if not r["ok"]],
     }
+
+
+def _check_errors(contract: Dict[str, Any]) -> List[str]:
+    """The check errors of one written contract; a contract that makes check itself raise has that as its error."""
+    try:
+        return [str(i) for i in fg_env.check(contract) if i.severity == "error"]
+    except Exception as exc:  # the author's contract broke the SDK: score it, do not crash the benchmark
+        return [f"(contract): check raised {type(exc).__name__}: {exc}"]
+
+
+def _input_tokens(usage: Dict[str, Any]) -> int:
+    """Every input token, fresh or read from the provider's cache, as recorded before the two were counted apart."""
+    return usage["input_tokens"] + usage.get("cached_tokens", 0)
 
 
 def _saved(writes: List[Any]) -> Optional[Dict[str, Any]]:
@@ -151,7 +164,7 @@ def record(slugs: List[str], args: argparse.Namespace, out: Path) -> Dict[str, D
         brief = (HERE / "briefs" / f"{slug}.md").read_text()
         transcript = author(brief, args.model, key, args.brief_tokens, slug)
         with lock:
-            spent[0] += transcript["usage"]["input_tokens"] + transcript["usage"]["output_tokens"]
+            spent[0] += _input_tokens(transcript["usage"]) + transcript["usage"]["output_tokens"]
         (out / f"{slug}.json").write_text(json.dumps(compact(transcript), indent=1, default=str))
         return transcript
 

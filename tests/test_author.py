@@ -34,19 +34,25 @@ class ProviderError(Exception):
         self.status_code, self.response = status, SimpleNamespace(headers={})
 
 
+#: A turn on which the provider sends a response with no choices (OpenRouter does, now and then).
+EMPTY = "empty"
+
+
 class FakeOpenAI:
     """An ``openai.OpenAI()`` look-alike replying from a script: each turn is a list of tool calls ([] = done), a
-    :class:`Cut` list, or an exception to raise."""
+    :class:`Cut` list, :data:`EMPTY`, or an exception to raise. ``cached`` of each call's ``tokens`` are cache reads."""
 
-    def __init__(self, *turns, tokens=100, cost=None):
-        self.turns, self.tokens, self.cost, self.sent = list(turns), tokens, cost, []
+    def __init__(self, *turns, tokens=100, cost=None, cached=None):
+        self.turns, self.tokens, self.cost, self.cached, self.sent = list(turns), tokens, cost, cached, []
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.create))
 
     def create(self, model, messages, tools):
         self.sent.append([dict(m) for m in messages])
         calls = self.turns.pop(0) if self.turns else []
-        if isinstance(calls, Exception):
+        if isinstance(calls, BaseException):
             raise calls
+        if calls == EMPTY:
+            return SimpleNamespace(choices=[], usage=None)
         arguments = [c.get("raw") or json.dumps(c["args"]) for c in calls]
         if isinstance(calls, Cut):
             arguments[-1] = arguments[-1][:len(arguments[-1]) // 2]
@@ -56,6 +62,8 @@ class FakeOpenAI:
         usage = SimpleNamespace(prompt_tokens=self.tokens, completion_tokens=10)
         if self.cost is not None:
             usage.cost = self.cost
+        if self.cached is not None:
+            usage.prompt_tokens_details = SimpleNamespace(cached_tokens=self.cached)
         return SimpleNamespace(choices=[SimpleNamespace(message=message,
                                                         finish_reason="length" if isinstance(calls, Cut) else "stop")],
                                usage=usage)
@@ -250,7 +258,7 @@ def test_a_contract_that_fails_after_the_smoke_rounds_is_not_built():
     result = fg_env.author("A game.", "openai:m", client=client)
 
     assert not result.ok and result.stop == "gave_up"
-    assert result.problem.startswith("a run with random agents failed in round 15: events[0].do[0]")
+    assert result.problem.startswith("a run with random agents (seed 1) failed in round 15: events[0].do[0]")
     assert tool_replies(client)[0].startswith("Saved revision 1, but it does not work yet: a run with random agents")
 
 

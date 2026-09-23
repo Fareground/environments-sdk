@@ -5,10 +5,13 @@
 
 The model starts from ``guide("authoring")`` and works with six tools — ``write_contract``, ``edit_contract``,
 ``check``, ``run``, ``preview`` and ``guide`` — until it says it is done or the budget runs out. Every contract it
-saves is checked, then run to the end once with random agents and once with idle ones; the result keeps the latest
-one that checks clean and completes both runs, so a later revision that breaks it never replaces it. A model that
-stops before any saved contract works is sent back, with the problem, a couple of times. A reply cut off at the
-output limit is named to the model as such, and rate limits and overload are retried with backoff.
+saves is tested (:func:`tested`: checked, then run with random, idle and edge-value agents within a time budget — a
+long run that budget cuts short counts for the rounds it reached, and the result says so); the result keeps the
+latest one that works, so a later revision that breaks it never replaces it, and ``out`` is written each time a new
+one works, so an interrupted session keeps it. A model that stops before any saved contract works is sent back, with
+the problem, a couple of times; one that stops on a broken revision after an earlier one worked is sent back once. A
+reply cut off at the output limit is named to the model as such, and rate limits, overload and empty replies are
+retried with backoff.
 
 ``model`` is ``"anthropic:<model>"`` or ``"openai:<model>"``, on the official client made from ``ANTHROPIC_API_KEY``
 or ``OPENAI_API_KEY``. Any OpenAI-compatible server (OpenRouter, a local server) works through ``openai:``: the
@@ -19,6 +22,8 @@ from __future__ import annotations
 
 import copy
 import json
+import os
+import random
 import shutil
 import tempfile
 import time
@@ -27,17 +32,30 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 
 from .api import ContractLike, check, load, parse
-from .errors import ContractError
+from .contract import Contract
+from .diagnostics import DEGRADING
 from .guides import guide
-from .participants import _MAX_BACKOFF_SECONDS, _PROVIDERS, _retry_after, _retryable, official_client
+from .measure import RunResult
+from .participants import (_MAX_BACKOFF_SECONDS, _PROVIDERS, _fill_dependent, _retry_after, _retryable, _seed_for,
+                           official_client, sample_args)
+from .session import Wake
 
 __all__ = ["author", "AuthorResult"]
 
-#: What a brief may spend unless ``budget`` says otherwise: model tokens (input + output) and model calls.
+#: What a brief may spend unless ``budget`` says otherwise: model tokens (input + output, cache reads weighted by
+#: :data:`CACHED_WEIGHT`) and model calls.
 DEFAULT_BUDGET = {"tokens": 600_000, "calls": 30}
+#: What an input token read from the provider's prompt cache counts for in the budget: providers bill it at a small
+#: fraction of a fresh one (a tenth on Anthropic, a tenth to a half on OpenAI-compatible servers).
+CACHED_WEIGHT = 0.1
 #: Most contract revisions the model may save (a write that saves nothing, such as invalid JSON, is not one).
 MAX_REVISIONS = 8
-#: Longest a saved contract's test runs may take, each, before they count as finished.
+#: Seeds every saved contract is run on, with random agents and with idle ones.
+TEST_SEEDS = (1, 2, 3)
+#: Longest all of a saved contract's test runs may take together. A run still going then has passed the rounds it
+#: reached: the contract works, with the rest of its rounds untested.
+TEST_SECONDS = 60
+#: Longest one run of the model's ``run`` tool may take.
 RUN_SECONDS = 60
 #: How often a rate-limited, overloaded or failing provider call is retried, with backoff.
 RETRIES = 4
@@ -75,10 +93,14 @@ TOOLS: List[Dict[str, Any]] = [
 ]
 
 INSTRUCTION = ("\n\nBuild this environment. Save it with write_contract, revise it with edit_contract, and use the other "
-               "tools as you see fit. "
+               "tools as you see fit. The guide's steps name fg-env commands; here your tools do them: write_contract or "
+               "edit_contract saves the file, `fg-env check` is check, `fg-env preview <file> <id>` is preview(agent), "
+               "`fg-env run <file> --seed N` is run(seed) and `fg-env guide <part>` is guide(part). "
                "Reply without calling a tool when you are done.")
 NUDGE = "No contract is saved yet. Save it with write_contract (keep replies short; put the contract in the tool call)."
 NOT_WORKING = "Nothing you saved works yet: {problem}\nFix it and save it again."
+#: What a model that stops on a broken revision, after an earlier one worked, is told once.
+REGRESSED = "{latest} does not work: {problem}\nStopping now keeps revision {kept}; or fix it and save it again."
 #: What a reply cut off at the output limit, with no tool call, is told.
 CUT_REPLY = "Your reply was cut off at the output limit. Keep replies short; put the contract in the tool call."
 #: What a tool call cut off at the output limit is answered.
@@ -88,6 +110,10 @@ CUT_WRITE = (" Write the contract shorter, or save a smaller one first and add t
 
 Message = Dict[str, Any]
 Ask = Callable[[List[Message]], Tuple[Message, Dict[str, Any]]]
+
+
+class EmptyReply(Exception):
+    """A provider response with no reply in it; retried like overload."""
 
 
 @dataclass
@@ -106,13 +132,15 @@ class AuthorResult:
     writes: List[Any]
     #: The whole conversation, in OpenAI chat format.
     messages: List[Message]
-    #: input_tokens, output_tokens, calls, truncated (replies cut off at the output limit), and cost when the
-    #: provider reports it (OpenRouter does).
+    #: input_tokens (fresh ones), cached_tokens (read from the provider's prompt cache), output_tokens, calls,
+    #: truncated (replies cut off at the output limit), and cost when the provider reports it (OpenRouter does).
     usage: Dict[str, Any]
     seconds: float
     path: Optional[str] = None
     #: The revisions that worked, numbered from 1 in the order they were saved.
     working: List[int] = field(default_factory=list)
+    #: How far the kept contract's test runs got when the time budget ended them ("" when every run finished).
+    untested: str = ""
 
     def summary(self) -> str:
         """What it built — name, agent types, actions, stages, outputs — what changed along the way, what it used, and
@@ -124,6 +152,8 @@ class AuthorResult:
         else:
             lines = [f"{'built' if self.ok else 'NOT WORKING'}: {self.contract.get('name') or '(unnamed)'} — revision "
                      f"{kept} of {len(revisions)}, stopped: {self.stop}"]
+        if self.untested:
+            lines.append(f"  {self.untested}")
         if self.problem and not self.ok:
             lines.append(f"  problem: {self.problem}")
         elif self.problem:
@@ -133,9 +163,14 @@ class AuthorResult:
         if changed:
             lines.append(f"  changed since revision {self.working[0]}, the first that worked: {changed}")
         agent = self._describe(lines)
+        said = next((m["content"] for m in reversed(self.messages) if m["role"] == "assistant"), "").strip()
+        if said:
+            lines.append("  the model's last words: " + said.replace("\n", "\n    "))
         cost = f", ${self.usage['cost']:.2f}" if "cost" in self.usage else ""
+        cached = f" (+{self.usage['cached_tokens']:,} cached)" if self.usage.get("cached_tokens") else ""
         lines.append(f"  used: {self.usage['calls']} model calls, "
-                     f"{self.usage['input_tokens'] + self.usage['output_tokens']:,} tokens{cost}, {self.seconds:.0f}s")
+                     f"{self.usage['input_tokens'] + self.usage['output_tokens']:,} tokens{cached}{cost}, "
+                     f"{self.seconds:.0f}s")
         if self.path:
             lines.append(f"next: fg-env preview {self.path} {agent} · fg-env run {self.path} --seed 1"
                          + ("" if self.ok else f" · fg-env check {self.path}"))
@@ -144,17 +179,17 @@ class AuthorResult:
     def _describe(self, lines: List[str]) -> str:
         """Add the contract's types, actions, stages and outputs to ``lines``; returns an agent id to preview."""
         agent = "<agent id>"
-        try:
+        try:  # a model's contract can fail to parse or build in any way; the summary then leaves this part out
             built = parse(self.contract) if self.contract is not None else None
-        except ContractError:
+            if built is not None and self.ok:  # population-made agents too: the built world's first agent
+                agent = next((e["id"] for e in load(built, seed=1).entities() if built.types[e["type"]].agent), agent)
+        except Exception:
             built = None
         if built is not None:
             types = [f"{name} (agent)" if spec.agent else name for name, spec in built.types.items()]
             for label, names in (("types", types), ("actions", list(built.actions)),
                                  ("stages", [stage.name for stage in built.stages]), ("outputs", list(built.outputs))):
                 lines.append(f"  {label}: {', '.join(names) or '-'}")
-            if self.ok:  # population-made agents too: the built world's first agent
-                agent = next((e["id"] for e in load(built, seed=1).entities() if built.types[e["type"]].agent), agent)
         return agent
 
 
@@ -173,37 +208,41 @@ def author(brief: str, model: str, *, client: Any = None, out: Optional[str] = N
     """Have ``model`` (``"anthropic:<model>"`` or ``"openai:<model>"``) write an environment for ``brief``; returns an
     :class:`AuthorResult` (``result.contract``, ``result.ok``, ``result.summary()``).
 
-    ``out`` is where the contract is written (nothing is written when None). ``budget`` caps ``tokens`` (input +
-    output) and model ``calls``, by default 600,000 and 30. ``client`` replaces the official client made from the
+    ``out`` is where the contract is written (nothing is written when None): each time a revision works, and at the
+    end. ``budget`` caps ``tokens`` (input + output, a cache read counting :data:`CACHED_WEIGHT` of one) and model
+    ``calls``, by default 600,000 and 30. ``client`` replaces the official client made from the
     environment; ``progress`` is called with one line per model call. Rate limits, overload and server errors are
     retried with backoff; a provider error that persists or that retrying cannot fix does not raise: the loop stops
     (``result.stop`` says why) and keeps what already works."""
     provider, name = _model(model)
     limits = _budget(budget)
     ask = _ANSWERERS[provider](client if client is not None else official_client(provider, name), name)
+    if out and not Path(out).parent.is_dir():
+        raise ValueError(f"out {out!r}: the folder {str(Path(out).parent)!r} does not exist")
     bench, started = _Workbench(), time.time()
     messages: List[Message] = [{"role": "system", "content": guide("authoring")},
                                {"role": "user", "content": brief + INSTRUCTION}]
-    usage: Dict[str, Any] = {"input_tokens": 0, "output_tokens": 0, "calls": 0, "truncated": 0}
+    usage: Dict[str, Any] = {"input_tokens": 0, "cached_tokens": 0, "output_tokens": 0, "calls": 0, "truncated": 0}
     try:
-        stop = _converse(_retrying(ask, progress), messages, bench, usage, limits, progress)
+        stop = _converse(_retrying(ask, progress), messages, bench, usage, limits, progress, out)
     finally:
         shutil.rmtree(bench.path.parent, ignore_errors=True)
     contract = bench.best if bench.best is not None else bench.latest
     if out and contract is not None:
-        Path(out).write_text(json.dumps(contract, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        _write(out, contract)
     return AuthorResult(contract, bench.best is not None, bench.problem, stop, bench.writes, messages, usage,
-                        round(time.time() - started, 1), out if out and contract is not None else None, bench.working)
+                        round(time.time() - started, 1), out if out and contract is not None else None, bench.working,
+                        bench.untested.get(bench.working[-1], "") if bench.working else "")
 
 
 def _converse(ask: Ask, messages: List[Message], bench: "_Workbench", usage: Dict[str, Any], limits: Dict[str, int],
-              progress: Optional[Callable[[str], None]]) -> str:
-    """The tool loop; returns why it stopped."""
-    nudges = 0
+              progress: Optional[Callable[[str], None]], out: Optional[str]) -> str:
+    """The tool loop; returns why it stopped. Each revision that works is written to ``out`` at once."""
+    nudges, regressed = 0, False
     while True:
         if usage["calls"] >= limits["calls"]:
             return "calls"
-        if usage["input_tokens"] + usage["output_tokens"] >= limits["tokens"]:
+        if _spent(usage) >= limits["tokens"]:
             return "tokens"
         try:
             message, used = ask(messages)
@@ -219,6 +258,10 @@ def _converse(ask: Ask, messages: List[Message], bench: "_Workbench", usage: Dic
                      f"{' (cut off)' if used['truncated'] else ''} "
                      f"({usage['input_tokens']:,}+{usage['output_tokens']:,} tokens)")
         if not calls:
+            if bench.best is not None and bench.problem and not regressed:
+                regressed = True  # stopped on a broken revision after an earlier one worked: send it back once
+                messages.append({"role": "user", "content": _regressed(bench)})
+                continue
             if bench.best is not None:
                 return "done"
             if nudges >= MAX_NUDGES:
@@ -227,9 +270,30 @@ def _converse(ask: Ask, messages: List[Message], bench: "_Workbench", usage: Dic
             messages.append({"role": "user", "content": CUT_REPLY if used["truncated"] else
                              NOT_WORKING.format(problem=bench.problem) if bench.writes else NUDGE})
             continue
+        best = bench.best
         messages += _answer(calls, bool(used["truncated"]), bench)
+        if out and bench.best is not None and bench.best is not best:
+            _write(out, bench.best)
         if bench.best is None and bench.out_of_revisions:
             return "revisions"
+
+
+def _spent(usage: Dict[str, Any]) -> float:
+    """The tokens ``usage`` counts against the budget."""
+    return usage["input_tokens"] + usage["output_tokens"] + usage["cached_tokens"] * CACHED_WEIGHT
+
+
+def _regressed(bench: "_Workbench") -> str:
+    latest = f"Revision {len(bench.revisions)}" if bench.writes[-1] is bench.latest else "Your last write"
+    return REGRESSED.format(latest=latest, problem=bench.problem, kept=bench.working[-1])
+
+
+def _write(out: str, contract: Dict[str, Any]) -> None:
+    """Write ``contract`` to ``out`` whole or not at all: a session stopped mid-write never leaves half a file."""
+    path = Path(out)
+    scratch = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    scratch.write_text(json.dumps(contract, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    os.replace(scratch, path)
 
 
 def _answer(calls: List[Dict[str, Any]], truncated: bool, bench: "_Workbench") -> List[Message]:
@@ -256,7 +320,7 @@ def _retrying(ask: Ask, progress: Optional[Callable[[str], None]]) -> Ask:
             try:
                 return ask(messages)
             except Exception as exc:
-                if attempt >= RETRIES or not _retryable(exc):
+                if attempt >= RETRIES or not (isinstance(exc, EmptyReply) or _retryable(exc)):
                     raise
                 delay = _retry_after(exc)
                 wait = min(_MAX_BACKOFF_SECONDS, delay if delay is not None else 2.0 ** attempt)
@@ -287,19 +351,105 @@ def _budget(budget: Optional[Mapping[str, int]]) -> Dict[str, int]:
 
 
 def contract_problem(source: ContractLike) -> str:
-    """What stops a contract from working, or "" when it works: its first check error, else how a run to the end
-    with random agents, or with idle ones (an agent that never acts), fails."""
+    """What stops a contract from working, or "" when it works (see :func:`tested`)."""
+    return tested(source)[0]
+
+
+def tested(source: ContractLike) -> Tuple[str, str]:
+    """``(problem, untested)``. ``problem`` is what stops the contract from working, or "": its first check error,
+    else the first of its test runs — on each of :data:`TEST_SEEDS` with random agents and with idle ones (agents
+    that never act), then once with agents that choose each tool's edge values — that fails, whose random agents
+    could not play (see ``RunResult.degraded``), or in which an edge value breaks a rule. Anything evaluating the
+    contract raises is its problem too. The runs share :data:`TEST_SECONDS`, each taking an even share of what is
+    left; a run still going when its share ends has passed the rounds it reached, and ``untested`` then says how far
+    the runs got ("" when every run finished)."""
     try:
         errors = [str(i) for i in check(source) if i.severity == "error"]
         if errors:
-            return errors[0] + (f" (and {len(errors) - 1} more: call check)" if len(errors) > 1 else "")
-        for agents in ("random", "idle"):
-            result = load(source, seed=1).run({"*": agents}, budget={"seconds": RUN_SECONDS})
-            if result.status == "failed":
-                return f"a run with {agents} agents failed in round {result.rounds}: {result.error}"
-    except Exception as exc:
-        return f"{type(exc).__name__}: {exc}"
+            return errors[0] + (f" (and {len(errors) - 1} more: call check)" if len(errors) > 1 else ""), ""
+        contract, deadline = parse(source), time.monotonic() + TEST_SECONDS
+        random_findings = _random_findings(contract)
+        plays: List[Tuple[Any, str, int, frozenset]] = [
+            (agents, f"{agents} agents", seed, random_findings if agents == "random" else frozenset())
+            for seed in TEST_SEEDS for agents in ("random", "idle")]
+        plays.append((_EdgeAgent(1), "agents choosing edge values", 1, _FAULTS))
+        reached, total = [], 0
+        for n, (participant, who, seed, findings) in enumerate(plays):
+            env = load(source, seed=seed)
+            share = (deadline - time.monotonic()) / (len(plays) - n)
+            result = env.run({"*": participant}, budget={"seconds": max(share, 0.001)})  # every run plays a round
+            problem = _run_problem(result, f"{who} (seed {seed})", findings)
+            if problem:
+                return problem, ""
+            if result.budget.get("exhausted") == "seconds":
+                reached.append(result.rounds)
+                total = env.world.rounds
+    except Exception as exc:  # a model's contract can break the engine in any way: that is its problem to fix
+        return f"{type(exc).__name__}: {exc}", ""
+    if not reached:
+        return "", ""
+    of = f" of {total:,}" if contract.clock.mode == "rounds" else ""
+    return "", (f"tested at least {min(reached):,}{of} rounds in every test run within the {TEST_SECONDS}s test "
+                "budget; longer runs untested")
+
+
+def _run_problem(result: RunResult, who: str, findings: frozenset) -> str:
+    """What a test run with ``who`` shows is wrong — a failure, or a diagnostic among ``findings`` — or ""."""
+    if result.status == "failed":
+        return f"a run with {who} failed in round {result.rounds}: {result.error}"
+    found = [f for f in result.diagnostics if f["code"] in findings]
+    if found:
+        return (f"a run with {who} shows {found[0]['code']}: {found[0]['path']}: {found[0]['message']} → "
+                f"{found[0]['fix']}")
     return ""
+
+
+def _random_findings(contract: Contract) -> frozenset:
+    """The degrading findings a run with random agents is judged by. Random agents write placeholder text, so when an
+    action takes free text, their calls all being refused says nothing about the contract."""
+    writes_text = any(param.type == "text" and not param.values
+                      for action in contract.actions.values() for param in action.params.values())
+    return DEGRADING - {"agents_never_acted"} if writes_text else DEGRADING
+
+
+#: Findings that an agent's choice broke a rule as its action applied (the action was refused and undone).
+_FAULTS = frozenset({"action_rule_failed", "action_broke_invariant"})
+
+
+class _Edges(random.Random):
+    """Draws on the edges: a range's least or greatest value, a list's first or last item."""
+
+    def __init__(self, high: bool) -> None:
+        super().__init__(0)
+        self.high = high
+
+    def randint(self, a: int, b: int) -> int:
+        return b if self.high else a
+
+    def uniform(self, a: float, b: float) -> float:
+        return b if self.high else a
+
+    def choice(self, seq: Any) -> Any:
+        return seq[-1] if self.high else seq[0]
+
+
+class _EdgeAgent:
+    """Takes one random action a turn, with every argument on an edge of what its tool allows — its minimum or
+    maximum, its last or first choice — high in odd rounds, low in even ones: the values random play almost never
+    picks."""
+
+    concurrent = False
+
+    def __init__(self, seed: int) -> None:
+        self.seed = seed
+
+    def __call__(self, wake: Wake) -> None:
+        acts = [t for t in wake.tools if t.kind == "act"]
+        if acts and not wake.done:
+            tool, edges = random.Random(_seed_for(self.seed, wake)).choice(acts), _Edges(wake.round % 2 == 1)
+            wake.call(tool.name, _fill_dependent(wake, tool.name, sample_args(tool.input_schema, edges), edges))
+        if not wake.done:
+            wake.end()
 
 
 class _Workbench:
@@ -312,6 +462,8 @@ class _Workbench:
         self.writes: List[Any] = []
         self.revisions: List[Dict[str, Any]] = []
         self.working: List[int] = []
+        #: Per working revision, how far its test runs got when the time budget ended them ("" when all finished).
+        self.untested: Dict[int, str] = {}
         self.problem = ""
 
     @property
@@ -375,12 +527,18 @@ class _Workbench:
         self.writes.append(data)
         self.revisions.append(data)
         self.path.write_text(json.dumps(data, indent=2))
-        self.problem = contract_problem(str(self.path))[:MAX_RESULT]
-        number = len(self.revisions)
+        problem, untested = tested(str(self.path))
+        self.problem, number = problem[:MAX_RESULT], len(self.revisions)
         if self.problem:
             return f"Saved revision {number}, but it does not work yet: {self.problem}"
         self.working.append(number)
-        return f"Saved revision {number}: it works — it checks clean and runs to the end with random and idle agents."
+        self.untested[number] = untested
+        if untested:
+            return (f"Saved revision {number}: it works — it checks clean, and runs without a problem on "
+                    f"{len(TEST_SEEDS)} seeds with random agents and with idle ones, and with agents choosing edge "
+                    f"values; {untested}.")
+        return (f"Saved revision {number}: it works — it checks clean, and runs to the end on {len(TEST_SEEDS)} seeds "
+                "with random agents and with idle ones, and with agents choosing edge values.")
 
     def tool_check(self) -> str:
         if not self.path.exists():
@@ -388,7 +546,11 @@ class _Workbench:
         return "\n".join(map(str, check(str(self.path)))) or "No issues."
 
     def tool_run(self, seed: int = 1, participants: Optional[Dict[str, str]] = None) -> str:
-        result = load(str(self.path), seed=seed).run(participants, budget={"seconds": RUN_SECONDS})
+        env = load(str(self.path), seed=seed)
+        wrong = _unplayable(participants, list(env.contract.policies))
+        if wrong:
+            return f"Bad tool call: run: {wrong}. Nothing was run."
+        result = env.run(participants, budget={"seconds": RUN_SECONDS})
         return result.summary() + "\noutputs: " + json.dumps(result.outputs, default=str)
 
     def tool_preview(self, agent: str) -> str:
@@ -398,6 +560,20 @@ class _Workbench:
 
     def tool_guide(self, part: str) -> str:
         return guide(part)
+
+
+def _unplayable(participants: Any, policies: List[str]) -> str:
+    """What is wrong with the run tool's ``participants``, or "": only the contract's own agents may play — model,
+    file and search participants would spend money, read files or run for hours outside the author's budget."""
+    if participants is None:
+        return ""
+    allowed = ["random", "idle", *(f"policy:{name}" for name in policies)]
+    if not isinstance(participants, dict):
+        return f"participants maps a type or entity id to one of {', '.join(map(repr, allowed))}"
+    for key, value in participants.items():
+        if value not in allowed:
+            return f"participants.{key}: {value!r} cannot play here: use {', '.join(map(repr, allowed))}"
+    return ""
 
 
 def _arguments(params: Dict[str, Any], arguments: str) -> Tuple[Dict[str, Any], str]:
@@ -466,6 +642,9 @@ def _openai(client: Any, model: str) -> Ask:
 
     def ask(messages: List[Message]) -> Tuple[Message, Dict[str, Any]]:
         response = client.chat.completions.create(model=model, messages=messages, tools=tools)
+        if not getattr(response, "choices", None):  # OpenRouter does this now and then, with the reason in `error`
+            error = getattr(response, "error", None)
+            raise EmptyReply("the provider sent a response with no reply in it" + (f": {error}" if error else ""))
         choice = response.choices[0]
         reply = choice.message
         calls = [{"id": c.id, "type": "function", "function": {"name": c.function.name,
@@ -475,7 +654,8 @@ def _openai(client: Any, model: str) -> Ask:
         if calls:
             message["tool_calls"] = calls
         used = response.usage
-        counts = {"input_tokens": getattr(used, "prompt_tokens", 0) or 0,
+        cached = getattr(getattr(used, "prompt_tokens_details", None), "cached_tokens", 0) or 0
+        counts = {"input_tokens": (getattr(used, "prompt_tokens", 0) or 0) - cached, "cached_tokens": cached,
                   "output_tokens": getattr(used, "completion_tokens", 0) or 0,
                   "truncated": int(getattr(choice, "finish_reason", None) == "length")}
         cost = getattr(used, "cost", None)  # OpenRouter reports it; OpenAI does not
@@ -503,8 +683,8 @@ def _anthropic(client: Any, model: str) -> Ask:
         if calls:
             message["tool_calls"] = calls
         used = response.usage
-        return message, {"input_tokens": used.input_tokens + (getattr(used, "cache_read_input_tokens", 0) or 0)
-                         + (getattr(used, "cache_creation_input_tokens", 0) or 0),
+        return message, {"input_tokens": used.input_tokens + (getattr(used, "cache_creation_input_tokens", 0) or 0),
+                         "cached_tokens": getattr(used, "cache_read_input_tokens", 0) or 0,
                          "output_tokens": used.output_tokens,
                          "truncated": int(getattr(response, "stop_reason", None) == "max_tokens")}
 

@@ -4,6 +4,7 @@ Run with ``PYTHONPATH=src pytest benchmarks/authoring/tests`` (not part of the d
 import json
 from pathlib import Path
 
+import bench
 from bench import friction, score, scorecard
 
 FIXTURE = Path(__file__).parent / "fixtures" / "weekly_inventory.json"
@@ -36,3 +37,21 @@ def test_a_broken_environment_fails_its_fidelity_checks():
 
     assert [c["check"] for c in row["failed_checks"]] == ["shop_stock_is_conserved"]
 
+
+
+def test_a_contract_that_makes_check_raise_is_scored_not_a_crash(monkeypatch):
+    def boom(contract):
+        raise TypeError("'int' object is not iterable")
+
+    monkeypatch.setattr(bench.fg_env, "check", boom)
+    row = score("weekly_inventory", json.loads(FIXTURE.read_text()))
+
+    assert row["check_errors"][1] == ["(contract): check raised TypeError: 'int' object is not iterable"]
+    assert row["clean_at"] is None
+
+
+def test_cached_input_tokens_count_as_input_tokens():
+    transcript = json.loads(FIXTURE.read_text())
+    transcript["usage"] = {**transcript["usage"], "input_tokens": 100, "cached_tokens": 900}
+
+    assert score("weekly_inventory", transcript)["input_tokens"] == 1000
