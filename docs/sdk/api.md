@@ -16,11 +16,11 @@ Errors raise :class:`ContractError` listing every problem with a fix; ``strict=T
 also rejects warnings. ``seed`` defaults to a fresh one (readable as ``env.seed``).
 Inputs with a ``source`` and the contract's ``assets`` read their files from ``data_dir`` (default: the contract
 file's folder).
-``hosts`` (a :class:`~fg_env.sdk.host.Hosts` or a mapping of host name to adapter) answers the
+``hosts`` (a :class:`~fg_env.host.Hosts` or a mapping of host name to adapter) answers the
 judgment the contract asks of a host; build-time host work (personas) is done before round 1.
 ``exposures=True`` records what every agent was shown on every wake (``result.exposures``); a
 contract that calls ``$seen`` records it anyway. ``chance`` decides `chance` effects: ``"sampled"`` (the
-default: drawn from the seeded stream) or a callable given each :class:`~fg_env.sdk.chance.ChanceNode`
+default: drawn from the seeded stream) or a callable given each :class:`~fg_env.chance.ChanceNode`
 that returns the index of the outcome to take (a fixed deal, duplicate formats); :func:`fg_env.rl.game`
 enumerates chance for search. A contract with a ``calibration`` section fits its inputs with pilot sessions first
 (``env.calibration`` is the report); ``calibrate=False`` skips that, as ``fg_env.check``'s smoke play does.
@@ -91,12 +91,12 @@ builds fresh participants per run when they hold state.
 arm continues from that same state (a fork: the arm's patch and inputs apply from round N + 1, and
 an arm whose patch the state cannot follow raises before the experiment goes on).
 
-``budget`` caps each run on its own (:mod:`fg_env.sdk.budget`); with ``branch_at`` the shared rounds are part of
+``budget`` caps each run on its own (:mod:`fg_env.budget`); with ``branch_at`` the shared rounds are part of
 every arm's run, so they count toward each arm's budget. ``exposures=True`` records what agents saw in every run
 (``result.arms[label].runs[i].exposures``, events kept): each run is a trace to read or replay.
 ``data_dir`` is where inputs with a ``source`` are read (default: the contract file's folder); ``hosts``
 answers the contract's host requests in every run. ``uncertainty`` (a calibration, a list of points or priors;
-:mod:`fg_env.sdk.analysis.draws`) draws parameters per run, the same for run *i* in every arm, so the spread of
+:mod:`fg_env.analysis.draws`) draws parameters per run, the same for run *i* in every arm, so the spread of
 outcomes includes not knowing them.
 
 Problems shared by every run (an unknown arm, bad inputs, an unknown participant) raise
@@ -174,7 +174,7 @@ and :meth:`fork`.
 ## `Contract`
 
 ```python
-Contract(*, fg_env: str = '1', name: str, description: str = '', imports: List[str] = <factory>, brief: fg_env.sdk.contract_world.Brief = <factory>, assets: Dict[str, fg_env.sdk.assets.spec.AssetSpec] = <factory>, inputs: Dict[str, fg_env.sdk.contract_world.InputSpec] = <factory>, clock: fg_env.sdk.contract_world.Clock = <factory>, space: Optional[fg_env.sdk.contract_world.Space] = None, world: Dict[str, fg_env.sdk.contract_world.PropSpec] = <factory>, types: Dict[str, fg_env.sdk.contract_world.TypeSpec], entities: Dict[str, fg_env.sdk.contract_world.EntitySpec] = <factory>, population: List[fg_env.sdk.contract_world.PopulationSpec] = <factory>, relations: Dict[str, fg_env.sdk.contract_world.RelationSpec] = <factory>, links: List[fg_env.sdk.contract_world.LinkSpec] = <factory>, physics: Optional[fg_env.sdk.contract_world.PhysicsSpec] = None, feeds: Dict[str, fg_env.sdk.contract_world.FeedSpec] = <factory>, patterns: Dict[str, Dict[str, Any]] = <factory>, records: Dict[str, fg_env.sdk.contract_rules.RecordSpec] = <factory>, actions: Dict[str, fg_env.sdk.contract_rules.ActionSpec] = <factory>, stages: List[fg_env.sdk.contract_rules.StageSpec] = <factory>, views: Dict[str, fg_env.sdk.contract_rules.ViewSpec] = <factory>, events: List[fg_env.sdk.contract_rules.EventSpec] = <factory>, triggers: List[fg_env.sdk.contract_rules.TriggerSpec] = <factory>, policies: Dict[str, fg_env.sdk.contract_rules.PolicySpec] = <factory>, metrics: Dict[str, fg_env.sdk.contract_measure.MetricSpec] = <factory>, outputs: Dict[str, fg_env.sdk.contract_measure.OutputSpec] = <factory>, end: List[fg_env.sdk.contract_measure.EndSpec] = <factory>, arms: Dict[str, fg_env.sdk.contract_measure.ArmSpec] = <factory>, calibration: Optional[fg_env.sdk.contract_measure.CalibrationSpec] = None, game: Optional[fg_env.sdk.game_spec.GameSpec] = None, invariants: List[fg_env.sdk.contract_measure.InvariantSpec] = <factory>, defs: Dict[str, fg_env.sdk.contract_measure.DefSpec] = <factory>, blocks: Dict[str, fg_env.sdk.contract_measure.BlockSpec] = <factory>, mechanisms: Dict[str, Dict[str, Any]] = <factory>) -> None
+Contract(*, fg_env: str = '1', name: str, description: str = '', imports: List[str] = <factory>, brief: fg_env.contract.world.Brief = <factory>, assets: Dict[str, fg_env.assets.spec.AssetSpec] = <factory>, inputs: Dict[str, fg_env.contract.world.InputSpec] = <factory>, clock: fg_env.contract.world.Clock = <factory>, space: Optional[fg_env.contract.world.Space] = None, world: Dict[str, fg_env.contract.world.PropSpec] = <factory>, types: Dict[str, fg_env.contract.world.TypeSpec], entities: Dict[str, fg_env.contract.world.EntitySpec] = <factory>, population: List[fg_env.contract.world.PopulationSpec] = <factory>, relations: Dict[str, fg_env.contract.world.RelationSpec] = <factory>, links: List[fg_env.contract.world.LinkSpec] = <factory>, physics: Optional[fg_env.contract.world.PhysicsSpec] = None, feeds: Dict[str, fg_env.contract.world.FeedSpec] = <factory>, patterns: Dict[str, Dict[str, Any]] = <factory>, records: Dict[str, fg_env.contract.rules.RecordSpec] = <factory>, actions: Dict[str, fg_env.contract.rules.ActionSpec] = <factory>, stages: List[fg_env.contract.rules.StageSpec] = <factory>, views: Dict[str, fg_env.contract.rules.ViewSpec] = <factory>, events: List[fg_env.contract.rules.EventSpec] = <factory>, triggers: List[fg_env.contract.rules.TriggerSpec] = <factory>, policies: Dict[str, fg_env.contract.rules.PolicySpec] = <factory>, metrics: Dict[str, fg_env.contract.measure.MetricSpec] = <factory>, outputs: Dict[str, fg_env.contract.measure.OutputSpec] = <factory>, end: List[fg_env.contract.measure.EndSpec] = <factory>, arms: Dict[str, fg_env.contract.measure.ArmSpec] = <factory>, calibration: Optional[fg_env.contract.measure.CalibrationSpec] = None, game: Optional[fg_env.game_spec.GameSpec] = None, invariants: List[fg_env.contract.measure.InvariantSpec] = <factory>, defs: Dict[str, fg_env.contract.measure.DefSpec] = <factory>, blocks: Dict[str, fg_env.contract.measure.BlockSpec] = <factory>, mechanisms: Dict[str, Dict[str, Any]] = <factory>) -> None
 ```
 
 An environment: world, people, rules, what agents see, what is measured.
@@ -318,7 +318,7 @@ the agent is offered the same tools as in an earlier call (typically in a phase 
 
 Files the agent receives are sent as image and document blocks after the text (``media``: the attachment types
 sent as content, default image, pdf and text; ``media=()`` for a text-only model, which reads each file's
-reference — its caption and alt text — in the text only). See :mod:`fg_env.sdk.assets.multimodal`.
+reference — its caption and alt text — in the text only). See :mod:`fg_env.assets.multimodal`.
 
 ``extra`` holds more request fields sent with every call, such as ``{"temperature": 0}``. Pass the sync
 client: an async client fails the run saying so.
@@ -920,7 +920,7 @@ Agents in the loop: a contract as a game, a Gymnasium or PettingZoo environment,
 
 * ``game`` / ``Game`` / ``GameState`` — any contract as a game for search, solving and learning code;
   ``conformance`` checks it, ``playthrough`` prints one game move by move. Transforms, benchmarks and verified
-  algorithms live in :mod:`fg_env.sdk.game`.
+  algorithms live in :mod:`fg_env.game`.
 * ``gym`` / ``GymEnv``, ``pettingzoo_aec`` / ``pettingzoo_parallel`` — reinforcement-learning adapters.
 * ``tournament`` — pit participants against each other in the contract's seats, then rate and rank them.
 * ``evaluate`` — how well a focal participant does among background agents, against a baseline on the same seeds.
@@ -960,7 +960,7 @@ node when chance is explicit); agents that are not seats are played by ``others`
 GameState(game: "'Game'", run: 'Union[Branch, Run]', history: 'List[Dict[str, Any]]', previous: 'Optional[List[float]]' = None, legal: 'Optional[Dict[int, Legal]]' = None, path: 'bytes' = b'')
 ```
 
-One state of a :class:`~fg_env.sdk.game.Game`. ``apply_action`` changes it; ``child`` and ``clone``
+One state of a :class:`~fg_env.game.Game`. ``apply_action`` changes it; ``child`` and ``clone``
 give new independent states. Players are seat indices (``game.players[i]`` is the entity id).
 
 ### `rl.conformance`
@@ -1054,7 +1054,7 @@ both are reported, with win/draw/loss, points and score means. ``evaluation`` ad
 α-Rank and a Schulze vote, which stay meaningful when skill is not transitive; ``returns`` gives every
 entrant's score in every seat, and each standing's ``cost`` its turns, calls, invalid calls, timeouts,
 undone turns and model tokens. A callable entrant is shared by all its games: with ``workers > 1`` those run in threads at once.
-``budget`` caps each game on its own (:mod:`fg_env.sdk.budget`); ``exposures=True`` records what agents saw in
+``budget`` caps each game on its own (:mod:`fg_env.budget`); ``exposures=True`` records what agents saw in
 every game (``result.runs[i].exposures``, events kept), each a trace to read or replay.
 
 ### `rl.TournamentResult`
@@ -1074,7 +1074,7 @@ evaluate(suite: 'Any', *, focal: 'Any', background: 'Any' = None, baseline: 'Any
 
 How ``focal`` does among ``background`` agents, compared with ``baseline`` in the same seats on the same seeds.
 
-``suite`` is a contract, a list of scenarios, or a suite file (see :mod:`fg_env.sdk.evaluate.suite`); the other
+``suite`` is a contract, a list of scenarios, or a suite file (see :mod:`fg_env.evaluate.suite`); the other
 arguments are defaults for scenarios that leave them out. ``seats`` are the agents the focal participant may
 take (ids, or a type; default every starting agent). ``modes`` maps a mode name to the share of those seats the
 focal participant takes (``{"resident": 0.75, "visitor": 0.25}``; default ``{"all": 1.0}``); which seats is
@@ -1250,7 +1250,7 @@ Run to the end, or for ``rounds`` more rounds, or until ``stop(env)`` is true.
 ``"policy:<name>"``). Agents without one use their type's ``policy`` or ``"random"``. Every
 participant is offered the contract's in-turn host tools; ``hosts`` binds the run to host
 adapters first. ``time_limit`` sets :attr:`time_limit`, the wall-clock seconds per turn for
-stages that set none; ``budget`` caps the run (:mod:`fg_env.sdk.budget`). In an event loop, use :meth:`arun`.
+stages that set none; ``budget`` caps the run (:mod:`fg_env.budget`). In an event loop, use :meth:`arun`.
 
 ``stop`` is checked before every round, stage, pass and sequential turn. A stopped run
 continues exactly where it stopped on the next call; finishing a round that was

@@ -27,7 +27,7 @@ from typing import Any, Dict, List
 
 import fg_env
 from contact_centre_history import HISTORY, TRAIN_END, by_day, day_inputs
-from fg_env.sdk.analysis.optimise_result import OptimisationResult
+from fg_env.analysis.optimise_result import OptimisationResult
 
 CONTRACT = Path(__file__).parent / "contracts" / "contact_centre.json"
 #: How the recommended plan was found: the optimisation result, kept so the report and tests need not search again.

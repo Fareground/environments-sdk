@@ -103,7 +103,7 @@
 * External data (prices, news, weather): `"feeds": {"oil": {"host": "market", "into": "world.oil_price",
   "query": {"symbol": "BRENT", "date": "{$clock.date}"}, "fallback": "$world.oil_price * $uniform(0.98, 1.02)"}}`,
   or `"into": "records.news"` for entries. Bind the host when loading: `fg_env.load(path, hosts={"market":
-  adapter})`, where the adapter is any object with `fetch(request)`; `fg_env.sdk.host.adapters.historical(rows,
+  adapter})`, where the adapter is any object with `fetch(request)`; `fg_env.host.adapters.historical(rows,
   at="date", value="close")` replays a price history for backtests. Answers are recorded on the host tape:
   snapshots, restores and replays never ask again, and host text reaches agents «quoted».
 * Scenarios & experiments: `inputs` for scenario knobs, `arms` for variants (input overrides or

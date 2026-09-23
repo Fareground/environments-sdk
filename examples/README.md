@@ -3,7 +3,7 @@
 ## Contracts
 
 Complete environments in [`contracts/`](contracts/). Each one checks clean, runs, and is covered by a
-golden-run test (`tests/sdk/test_examples.py`). All except the lemonade stand were written by LLM
+golden-run test (`tests/test_examples.py`). All except the lemonade stand were written by LLM
 agents using only `fg-env guide`, as a stress test of the SDK.
 
 | Contract | What it exercises |

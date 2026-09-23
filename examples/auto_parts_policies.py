@@ -15,8 +15,8 @@ import sys
 from pathlib import Path
 
 import fg_env
-from fg_env.sdk.analysis.optimise_result import OptimisationResult
-from fg_env.sdk.analysis.validate import ValidationResult
+from fg_env.analysis.optimise_result import OptimisationResult
+from fg_env.analysis.validate import ValidationResult
 
 CONTRACT = Path(__file__).parent / "contracts" / "auto_parts_store.json"
 CATEGORIES = ["brake_pads", "batteries", "wipers"]

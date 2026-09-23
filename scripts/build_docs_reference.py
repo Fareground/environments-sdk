@@ -1,7 +1,7 @@
 from pathlib import Path
 import inspect
 import fg_env
-from fg_env.sdk.guide import guide_parts
+from fg_env.guides import guide_parts
 root=Path(__file__).resolve().parents[1]
 out=root/'docs/sdk'
 parts=[p for p in guide_parts() if p!='all']

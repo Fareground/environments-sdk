@@ -76,6 +76,6 @@ content; `host.stubs.StubDescriber` answers offline. Every answer is on the host
 **Recordings and copies.** Snapshots, clones, forks and the engine's tape hold asset ids and content hashes,
 never bytes; the exposure log lists, per wake, the assets shown (`assets: [{id, hash, in}]`) and a replay checks
 them. Bytes are found by hash in this process; elsewhere, load the contract from its folder and call
-`fg_env.sdk.assets.provide(folder)` for submitted files. `result.save("run.json")` writes every asset the run
+`fg_env.assets.provide(folder)` for submitted files. `result.save("run.json")` writes every asset the run
 knows into `run.assets/` beside it (files named by hash), and `RunResult.load` provides that folder again, so a
 saved run with its contract folder replays anywhere.
