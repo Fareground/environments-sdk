@@ -22,7 +22,7 @@ Roots (plus everywhere: $inputs $world $physics $clock $round $stage $metrics $s
 - `with`: text — bipartite: the other type (links run among → with).
 - `hub`: text — star: expression giving the hub entity (default: the first member).
 - `rows`: text — Edges from data: an expression giving rows with `from`, `to` and optional `value`.
-- `degree`: int | text — Links per member (number or expression).
+- `degree`: int | text — Mean neighbours per member (number or expression); on a one-way random graph a link either way makes a neighbour.
 - `p`: number | text — Link probability (random) or rewiring probability (small_world). For random it may depend on the pair: '0.1 if $to.influencer else 0.02'.
 - `props`: object — Link field values or expressions over $from and $to ($row too with `rows`, whose columns named like a field fill it).
 - `where`: text

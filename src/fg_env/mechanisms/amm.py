@@ -154,7 +154,7 @@ class PredictionMarketConfig(BaseModel):
     outcome: Optional[str] = Field(None, description="Expression giving the winning outcome when the market resolves.")
     stage: Optional[str] = Field(None, description="Trade during this declared stage; default: a sequential stage named after the market.")
     max_actions: int = Field(2, ge=1, description="Trades per turn in the generated stage.")
-    conserve: bool = Field(True, description="Declare invariants that cash is conserved and the vault covers every share.")
+    conserve: bool = Field(True, description="Declare the invariant that the vault covers every share.")
     tools: ToolsSetting = tools_field()
 
 
@@ -288,26 +288,13 @@ def resolve(world: Any, name: str, winner: Any) -> None:
                data={"mechanism": KEY, "winner": winner, "paid": paid})
 
 
-def open_market(world: Any, name: str) -> None:
-    cfg = market_config(world, name)
-    if not world.props.get(f"{name}_supply"):
-        total = sum(balance(world, Account(t, cfg.currency)) for t in world.entities_of(cfg.who))
-        world.set_world(f"{name}_supply", {"cash": clean(total + float(world.props.get(f"{name}_vault") or 0)
-                                                        + float(world.props.get(f"{name}_fees") or 0))})
-
-
 def audit(world: Any, name: str) -> List[str]:
     cfg = market_config(world, name)
     problems: List[str] = []
     traders = world.entities_of(cfg.who)
     vault = float(world.props.get(f"{name}_vault") or 0)
-    supply = world.props.get(f"{name}_supply") or {}
-    if supply:
-        cash = sum(balance(world, Account(t, cfg.currency)) for t in traders) + vault + float(world.props.get(f"{name}_fees") or 0)
-        if abs(cash - supply["cash"]) > 1e-4 + 1e-9 * abs(supply["cash"]):
-            problems.append(f"cash is not conserved: {cash} now vs {supply['cash']} supplied")
-    if any(balance(world, Account(t, cfg.currency)) < -1e-6 for t in traders) or vault < -1e-6:
-        problems.append("a balance is negative")
+    if vault < -1e-6:
+        problems.append("the vault is negative")
     if world.props.get(f"{name}_resolved"):
         return problems
     held = {o: sum(_holdings(t, name).get(o, 0.0) for t in traders) for o in cfg.outcomes}
@@ -374,7 +361,7 @@ def _cost_function(call: Call) -> float:
     return value * (1 + cfg.fee_pct)
 
 
-@function("amm_ok(name)", "True while a prediction market conserves cash and its vault covers every share.", min_args=1, max_args=1)
+@function("amm_ok(name)", "True while a prediction market's vault covers every share.", min_args=1, max_args=1)
 def _ok_function(call: Call) -> bool:
     return not audit(call.scope.world, _market(call))
 
@@ -400,7 +387,6 @@ _ACTIONS: Dict[str, Tuple[Tuple[str, ...], Tuple[str, ...], bool, str, str]] = {
     "sell": (("who", "outcome", "shares", "receive"), ("outcome",), False, '"outcome": "yes", "shares": 5',
              "sell one outcome by `shares` or money (`receive`, the least accepted when both are given)"),
     "resolve": (("outcome",), ("outcome",), False, '"outcome": "$world.truth"', "pay 1 per winning share and close trading"),
-    "open": ((), (), True, "", "take the starting cash supply the invariants conserve"),
 }
 
 
@@ -409,9 +395,7 @@ def _runner(action: str) -> Callable[[Any, Dict[str, Any], Dict[str, Any], str],
         world = runner.world
         name = effect["market"]
         try:
-            if action == "open":
-                open_market(world, name)
-            elif action == "resolve":
+            if action == "resolve":
                 resolve(world, name, runner.eval(effect["outcome"], vars))
             else:
                 trader = entity_of(world, runner.eval(effect.get("who", "$actor"), vars), f"{where}.who", "a trader")
@@ -493,10 +477,9 @@ def _expand_market(name: str, cfg: PredictionMarketConfig, contract: Mapping[str
         "world": {f"{name}_q": {"type": "map", "default": start_q},
                   f"{name}_vault": {"type": "number", "default": subsidy, "description": "Collateral held by the market maker."},
                   f"{name}_fees": {"type": "number", "default": 0}, f"{name}_volume": {"type": "number", "default": 0},
-                  f"{name}_resolved": {"type": "text", "default": ""}, f"{name}_payout": {"type": "number", "default": 0},
-                  f"{name}_supply": {"type": "map", "default": {}}, f"{name}_receipt": {"type": "text", "default": ""}},
+                  f"{name}_resolved": {"type": "text", "default": ""}, f"{name}_payout": {"type": "number", "default": 0}, f"{name}_receipt": {"type": "text", "default": ""}},
         "actions": actions,
-        "events": [{"name": f"{name}_open", "phase": "start", "do": [{"market": name, "action": "open"}]}],
+        "events": [],
         "views": {
             f"{name}_prices": {"for": cfg.who, "title": cfg.question or f"{name} market", "of": f"$amm_outcomes({name}, $actor)",
                                "show": "{outcome}: {price|pct1}{$' · you hold ' + $text($round($it.held, 2)) if $it.held > 0 else ''}"},
@@ -524,8 +507,8 @@ def _expand_market(name: str, cfg: PredictionMarketConfig, contract: Mapping[str
                                "max_actions": cfg.max_actions, "when": f"$world.{name}_resolved == ''",
                                "brief": f"Trade{question}, or end your turn."}]
     else:
-        fragment["stage_hooks"] = {cfg.stage: {"actions": names}}
+        fragment["stage_hooks"] = {cfg.stage: {"actions": names, "max_actions": cfg.max_actions}}
     if cfg.conserve:
         fragment["invariants"] = [{"expr": f"$amm_ok({name})",
-                                   "why": f"The {name} market conserves cash and its vault covers every outstanding share."}]
+                                   "why": f"The {name} market's vault covers every outstanding share."}]
     return fragment

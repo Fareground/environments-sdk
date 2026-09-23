@@ -1787,7 +1787,7 @@
             }
           ],
           "default": null,
-          "description": "Links per member (number or expression).",
+          "description": "Mean neighbours per member (number or expression); on a one-way random graph a link either way makes a neighbour.",
           "title": "Degree"
         },
         "p": {

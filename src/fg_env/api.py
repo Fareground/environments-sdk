@@ -168,7 +168,8 @@ def located(contract: Contract, folder: DataDir) -> Contract:
 
 def expand(source: ContractLike, *, mechanisms: bool = False) -> Dict[str, Any]:
     """The contract data the engine reads: imports merged and macros expanded (and, with
-    ``mechanisms=True``, every mechanism expanded into ordinary sections too).
+    ``mechanisms=True``, every mechanism expanded into ordinary sections too; the ``mechanisms`` block stays,
+    since the generated effects read their config there, and loading the result again changes nothing).
 
     Raises :class:`ContractError` for problems found while expanding; ``check`` reports the rest."""
     from .mechanisms import expand_mechanisms

@@ -25,7 +25,7 @@ from ..registry import MechanismError, family_action, mode
 from ..world import Abort
 from ._common import ToolsSetting, tools_field
 from .common import config_of, entity_of, fmt
-from .ledger import Account, balance, clean, move
+from .ledger import Account, clean, move
 
 __all__ = ["ListingSpec", "PostedMarketConfig"]
 
@@ -75,7 +75,7 @@ class PostedMarketConfig(BaseModel):
     max_promo: float = Field(0.5, gt=0, lt=1, description="Largest promotion discount a seller may run.")
     stage: Optional[str] = Field(None, description="Trade during this declared stage; default: a sequential stage named after the market.")
     max_actions: int = Field(3, ge=1, description="Actions per turn in the generated stage.")
-    conserve: bool = Field(True, description="Declare invariants that cash and goods are conserved.")
+    conserve: bool = Field(True, description="Declare the invariant that no listing's stock goes negative.")
     tools: ToolsSetting = tools_field()
 
 
@@ -242,57 +242,17 @@ def _manage(world: Any, name: str, cfg: PostedMarketConfig, action: str, seller:
     raise RunError(f"'{action}' is not an action of a posted market", f"mechanisms.{name}")
 
 
-def _open(world: Any, name: str, cfg: PostedMarketConfig) -> None:
+def _open(world: Any, name: str) -> None:
     for listing in world.entities_of(f"{name}_listing"):
         if int(_prop(listing, "sold_round", 0)):
             world.set_prop(listing, "sold_round", 0)
-    if not world.props.get(f"{name}_supply"):
-        cash, goods = _totals(world, name, cfg)
-        world.set_world(f"{name}_supply", {"cash": clean(cash), "goods": goods})
-
-
-def _parties(world: Any, name: str, cfg: PostedMarketConfig) -> List[Entity]:
-    seen: Dict[str, Entity] = {e.id: e for e in world.entities_of(cfg.who)}
-    for listing in world.entities_of(f"{name}_listing"):
-        seller = world.entity(_prop(listing, "seller"))
-        if seller is not None:
-            seen[seller.id] = seller
-    if cfg.sellers:
-        seen.update((e.id, e) for e in world.entities_of(cfg.sellers))
-    return list(seen.values())
-
-
-def _totals(world: Any, name: str, cfg: PostedMarketConfig) -> Tuple[float, Dict[str, int]]:
-    cash = float(world.props.get(f"{name}_ad_revenue") or 0)
-    goods: Dict[str, int] = {}
-    for party in _parties(world, name, cfg):
-        cash += balance(world, Account(party, cfg.currency))
-    for buyer in world.entities_of(cfg.who):
-        for item, count in dict(_prop(buyer, f"{name}_basket", {})).items():
-            goods[item] = goods.get(item, 0) + int(count)
-    for listing in world.entities_of(f"{name}_listing"):
-        item = str(_prop(listing, "item"))
-        goods[item] = goods.get(item, 0) + int(_prop(listing, "stock", 0))
-    return cash, goods
 
 
 def audit(world: Any, name: str) -> List[str]:
-    cfg = posted_config(world, name)
     problems: List[str] = []
-    for party in _parties(world, name, cfg):
-        if balance(world, Account(party, cfg.currency)) < -1e-6:
-            problems.append(f"{party.id} has negative cash")
     for listing in world.entities_of(f"{name}_listing"):
         if int(_prop(listing, "stock", 0)) < 0:
             problems.append(f"{listing.id} has negative stock")
-    supply = world.props.get(f"{name}_supply") or {}
-    if supply:
-        cash, goods = _totals(world, name, cfg)
-        if abs(cash - supply["cash"]) > 1e-4 + 1e-9 * abs(supply["cash"]):
-            problems.append(f"cash is not conserved: {cash} now vs {supply['cash']} supplied")
-        expected = {k: v for k, v in supply["goods"].items() if v}
-        if {k: v for k, v in goods.items() if v} != expected:
-            problems.append(f"goods are not conserved: {goods} now vs {supply['goods']} supplied")
     return problems
 
 
@@ -368,7 +328,7 @@ def _counters_function(call: Call) -> List[str]:
             and world.entity(k) is not None and int(_prop(world.entity(k), "stock", 0)) > 0]
 
 
-@function("posted_ok(name)", "True while a posted-price market conserves cash and goods.", min_args=1, max_args=1)
+@function("posted_ok(name)", "True while no listing of a posted-price market has negative stock.", min_args=1, max_args=1)
 def _ok_function(call: Call) -> bool:
     return not audit(call.scope.world, _market(call))
 
@@ -393,7 +353,7 @@ def _runner(action: str) -> Callable[[Any, Dict[str, Any], Dict[str, Any], str],
         name = effect["market"]
         try:
             if action == "open":
-                _open(world, name, posted_config(world, name))
+                _open(world, name)
                 return
             value = {key: runner.eval(effect.get(key), vars) for key in ("listing", "qty", "price", "pct", "rounds", "stars")}
             trader = entity_of(world, runner.eval(effect.get("who", "$actor"), vars), f"{where}.who", "a trader")
@@ -525,7 +485,7 @@ def _expand_posted(name: str, cfg: PostedMarketConfig, contract: Mapping[str, An
     fragment: Dict[str, Any] = {
         "types": fragment_types,
         "entities": generated,
-        "world": {f"{name}_supply": {"type": "map", "default": {}}, f"{name}_receipt": {"type": "text", "default": ""},
+        "world": {f"{name}_receipt": {"type": "text", "default": ""},
                   f"{name}_ad_revenue": {"type": "number", "default": 0}, f"{name}_sales": {"type": "int", "default": 0},
                   f"{name}_turnover": {"type": "number", "default": 0}},
         "records": {f"{name}_ledger": {"fields": {"listing": "text", "item": "text", "qty": "int", "unit_price": "number",
@@ -553,7 +513,7 @@ def _expand_posted(name: str, cfg: PostedMarketConfig, contract: Mapping[str, An
         fragment["stages"] = [{"name": name, "turns": "sequential", "order": "random", "actions": names,
                                "max_actions": cfg.max_actions, "brief": "Shop, haggle or manage your listings, or end your turn."}]
     else:
-        fragment["stage_hooks"] = {cfg.stage: {"actions": names}}
+        fragment["stage_hooks"] = {cfg.stage: {"actions": names, "max_actions": cfg.max_actions}}
     if cfg.conserve:
-        fragment["invariants"] = [{"expr": f"$posted_ok({name})", "why": f"The {name} market conserves cash and goods."}]
+        fragment["invariants"] = [{"expr": f"$posted_ok({name})", "why": f"No {name} listing sells more stock than it has."}]
     return fragment

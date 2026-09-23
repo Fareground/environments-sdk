@@ -17,7 +17,7 @@ Config:
 - `max_promo` (default 0.5): Largest promotion discount a seller may run.
 - `stage` (default null): Trade during this declared stage; default: a sequential stage named after the market.
 - `max_actions` (default 3): Actions per turn in the generated stage.
-- `conserve` (default true): Declare invariants that cash and goods are conserved.
+- `conserve` (default true): Declare the invariant that no listing's stock goes negative.
 - `tools` (default "each"): How the generated tools are offered: each (one tool per action) | one (one tool named after the mechanism, whose `action` argument lists the actions legal now) | auto (one tool only when every action takes the same arguments).
 
 Nested config:

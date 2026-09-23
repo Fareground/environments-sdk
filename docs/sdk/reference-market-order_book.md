@@ -13,7 +13,7 @@ Config:
 - `maker_fee_bps` (default 0.0): Fee on fills of resting orders, in basis points of notional (number or expression over $inputs, resolved when the world is built); negative is a rebate, at most the taker fee that pays it.
 - `taker_fee_bps` (default 0.0): Fee on fills of incoming orders, in basis points (number or expression over $inputs, resolved when the world is built).
 - `collar_pct` (default 0.05): A market order never trades further than this from the touch (number or expression over $inputs, resolved when the world is built).
-- `price_band_pct` (default 0.5): Limit prices must be within this fraction of the last price (number or expression over $inputs, resolved when the world is built).
+- `price_band_pct` (default 0.5): Limit prices must be within this fraction of the round's opening price (number or expression over $inputs, resolved when the world is built).
 - `halt_pct` (default null): Circuit breaker: halt when the price moves this far from the reference price (number or expression over $inputs, resolved when the world is built); null or 0 = no breaker.
 - `halt_reference` (default "round_open"): What the breaker measures a move from: round_open (the last price when the round opened), bar_open (when the bar opened; on a continuous book that is also the previous bar's close) or rolling (the close `halt_window` rounds back).
 - `halt_window` (default null): Rounds a rolling reference looks back (1 = the round's open) (number or expression over $inputs, resolved when the world is built).
@@ -27,7 +27,7 @@ Config:
 - `bar_rounds` (default 1): Rounds in one OHLCV bar of the `<name>_bars` record (a bar of several passes) (number or expression over $inputs, resolved when the world is built); $book(name).bar is the bar in progress.
 - `depth_levels` (default 5): Price levels per side shown in the book view.
 - `tape` (default 50): Recent trades kept in the <name>_tape record.
-- `volatility` (default 0.02): Per-round return volatility coded strategies assume before the tape shows one, and the default fair value walks at (number or expression).
+- `volatility` (default 0.02): Per-round return volatility coded strategies assume before the tape shows one, and the default fair value walks at (number or expression). The traded price only follows the value as far as fundamentalists pull it, so a crowd's realised volatility is lower (without fundamentalists, far lower): measure it with $market_stats.
 - `measure_volatility` (default true): Coded strategies measure volatility from recent closes; false makes them always assume `volatility` (a calibrated value).
 - `base_qty` (default null): Coded strategies' unit of order size (default 10 lots); an expression is read on every turn, so a controller can steer it.
 - `flow_scale` (default null): Expression multiplying speculative order sizes (momentum, noise, passive); default 1.
@@ -36,7 +36,7 @@ Config:
 - `crowd` (default {}): Coded traders by strategy: {market_maker: {count, cash, shares, params}}.
 - `stage` (default null): Trade during this declared stage; default: a sequential stage named after the book.
 - `max_actions` (default 4): Actions per turn in the generated stage.
-- `conserve` (default true): Declare invariants that cash and shares are conserved and reserves match the book: true or action (checked after every action), round (after every round: much cheaper for big crowds), end (once, when the run finishes), or false.
+- `conserve` (default true): Declare the invariant that reserves match the book and balances stay within limits: true or action (checked after every action), round (after every round: much cheaper for big crowds), end (once, when the run finishes), or false.
 - `tools` (default "each"): How the generated tools are offered: each (one tool per action) | one (one tool named after the mechanism, whose `action` argument lists the actions legal now) | auto (one tool only when every action takes the same arguments).
 
 Nested config:
@@ -52,7 +52,6 @@ Actions of the `market` op:
 - `cancel` — takes `who`, `order` (needs `order`): {"market": "acme", "action": "cancel", "order": "$params.order"}  (cancel one resting order by id)
 - `cancel_all` — takes `who`: {"market": "acme", "action": "cancel_all"}  (cancel every resting order of the trader)
 - `algo` — takes `who`: {"market": "acme", "action": "algo"}  (let the trader's coded strategy act once)
-- `rebase`: {"market": "acme", "action": "rebase"}  (take current cash and share totals as the supply the invariants conserve)
 - `open`: {"market": "acme", "action": "open"}  (open the round (once a round; the book's own start event runs it after yours): expire orders, resume after a halt, start a bar, reset the round)
 - `close`: {"market": "acme", "action": "close"}  (close the round (once a round; the book's own end event runs it after yours, so run it first in an end event that reads the closed round or bar): breaker check, record the bar)
 

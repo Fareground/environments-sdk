@@ -641,5 +641,5 @@ def _expand(name: str, config: FeedConfig, contract: Mapping[str, Any]) -> Dict[
     if config.stage is None:
         fragment["stages"] = [{"name": name, "turns": config.turns, "actions": names, "max_actions": 2}]
     else:
-        fragment["stage_hooks"] = {config.stage: {"actions": names}}
+        fragment["stage_hooks"] = {config.stage: {"actions": names, "max_actions": 2}}
     return fragment

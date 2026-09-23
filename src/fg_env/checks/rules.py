@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Set
+from typing import TYPE_CHECKING, Any, Optional, Set
 
 from .. import contract as C
 from ..probability import check_literal_probability
@@ -34,6 +34,7 @@ class RuleChecks:
                 if arm not in self.c.arms:
                     self.error(f"{path}.arms", f"'{arm}' is not a declared arm", self._hint(arm, self.c.arms, "arms"))
             self.value(event.at, f"{path}.at", BASE)
+            self._after_the_clock(event.at, event.name, path)
             self.condition(event.when, f"{path}.when", BASE)
             if isinstance(event.every, str):
                 self.expr(event.every, f"{path}.every", {"inputs"})
@@ -55,6 +56,15 @@ class RuleChecks:
             self._shared_text(event.say, f"{path}.say", {})
             if not event.do and not event.say:
                 self.warn(path, "does nothing", "add `do` or `say`")
+
+    def _after_the_clock(self: "_Checker", at: Any, name: Optional[str], path: str) -> None:  # type: ignore[misc]
+        """An event whose every round is past the clock's last never fires in a run of the clock's length."""
+        rounds, planned = self.c.clock.rounds, at if isinstance(at, list) else [at]
+        if not isinstance(rounds, int) or not planned or not all(isinstance(r, int) and r > rounds for r in planned):
+            return
+        what = f"event '{name}'" if name else "this event"
+        self.warn(f"{path}.at", f"{what} fires at round {min(planned)}, after the clock's last round {rounds}, so it never "
+                                "fires", f"use a round up to {rounds}, or lengthen clock.rounds")
 
     def _triggers(self: "_Checker") -> None:  # type: ignore[misc]
         for index, trigger in enumerate(self.c.triggers):

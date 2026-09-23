@@ -461,6 +461,23 @@ def test_first_to_score_and_most_after_rounds():
     assert result.rounds == 4 and result.winner == "r3" and result.ended_by == "most"
 
 
+@pytest.mark.parametrize("condition", [{"first_to": 1, "score": "$it.score"}, {"objectives": ["$it.score >= 1"]}])
+def test_the_first_player_to_reach_a_goal_in_sequential_turns_wins_alone(condition):
+    race = {"name": "Race", "clock": {"rounds": 3}, "types": {"p": {"agent": True, "props": {"score": 0}}},
+            "entities": {"a": {"type": "p"}, "b": {"type": "p"}},
+            "stages": [{"name": "play", "turns": "sequential", "order": "seat"}],
+            "actions": {"gain": {"by": "p", "do": ["$actor.score += 1"]}},
+            "mechanisms": {"win": {"kind": "flow", "mode": "victory", "who": "p", "conditions": [condition], "ties": "none"}}}
+
+    def gain(wake):
+        wake.call("gain", {})
+        if not wake.done:
+            wake.end()
+
+    result = fg_env.load(race, seed=1).run(gain)
+    assert result.winner == "a" and result.rounds == 1 and result.returns == {"a": 1, "b": 0}
+
+
 def test_ties_share_none_or_break():
     tied = _race([{"first_to": 1, "score": "$it.hp"}])
     assert sorted(fg_env.run(tied, seed=1).winner) == ["r1", "r2", "r3"]
@@ -677,3 +694,10 @@ def test_epidemic_shocks_draws_its_uncertain_quantities_per_run_and_reports_them
     assert len({o["transmissibility"] for o in outputs}) == 3
     assert all(math.isfinite(o["transmissibility"]) for o in outputs)
     assert all("superspreader_events" in o for o in outputs)
+
+
+def test_check_warns_about_a_victory_decided_after_the_clock_ends():
+    late = _race([{"most": "$it.score", "at": 12}])
+    warning = next(i for i in fg_env.check(late) if i.path.endswith(".at"))
+    assert warning.severity == "warning" and "event 'win_most' fires at round 12, after the clock's last round 10" in warning.message
+    assert not [i for i in fg_env.check(_race([{"most": "$it.score", "at": 10}])) if i.path.endswith(".at")]

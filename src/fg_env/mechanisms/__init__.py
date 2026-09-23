@@ -9,10 +9,13 @@
 config the rest of the entry is. A mechanism expands into ordinary contract sections — actions,
 stages, world props, events, views, defs — backed by native functions and effect ops. Everything the engine does (checking,
 preview, atomic actions, snapshots, determinism) therefore applies to it unchanged. Anything
-the author declares under a generated name wins, so generated parts can be overridden, while two
-mechanisms generating different entries under one name is an error naming both; types the author
-declares gain the mechanism's properties without losing their own. A mechanism may
-extend declared actions (``action_hooks``) and stages (``stage_hooks``), and generate other mechanisms.
+the author declares under a generated name wins (a named event, trigger or end entry too), so generated
+parts can be overridden, while two mechanisms generating different entries under one name is an error
+naming both; types the author declares gain the mechanism's properties without losing their own. A
+mechanism may extend declared actions (``action_hooks``) and stages (``stage_hooks``), and generate other
+mechanisms.
+A declared stage that offers only mechanisms' actions and sets no ``max_actions`` allows, per turn, what each
+mechanism attached to it allows (a hook's ``max_actions``, default 1).
 """
 from __future__ import annotations
 
@@ -25,6 +28,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from pydantic import BaseModel, ValidationError
 
+from ..contract.rules import StageSpec
 from ..errors import Issue
 from ..registry import FAMILIES, MechanismError, config_data, family_of_mode
 
@@ -36,13 +40,15 @@ _NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
 _KEYED = ("inputs", "world", "relations", "records", "actions", "views", "policies", "metrics",
           "outputs", "defs", "blocks", "arms", "patterns")
 #: Stage settings a mechanism may fill in on a stage the author declared (never overriding the author).
-_HOOK_SETTINGS = ("turns", "order", "who", "until", "passes", "quiet", "max_actions", "max_calls", "must_act", "auto",
-                  "brief")
+_HOOK_SETTINGS = ("turns", "order", "who", "until", "passes", "quiet", "must_act", "auto", "brief")
 #: Stage effect lists a mechanism may append to.
 _HOOK_EFFECTS = ("on_enter", "on_exit", "on_idle", "on_wake", "on_turn_end")
-_HOOK_KEYS = frozenset({"actions", *_HOOK_EFFECTS, *_HOOK_SETTINGS})
+#: ``max_actions`` in a hook is the mechanism's share of the stage's turn (see :func:`_share_turns`).
+_HOOK_KEYS = frozenset({"actions", "max_actions", *_HOOK_EFFECTS, *_HOOK_SETTINGS})
 #: Sections merged by appending generated items (an identical item is never added twice).
 _LISTED = ("population", "links", "events", "triggers", "end", "invariants")
+#: Listed sections whose items may have a `name`: a declared item of that name replaces the generated one.
+_NAMED_ITEMS = ("events", "triggers", "end")
 #: What an action hook may add to a declared action.
 _ACTION_HOOK_KEYS = ("when", "do", "otherwise")
 #: Words authors use for the agent type a mechanism involves; every family calls it `who`.
@@ -67,6 +73,7 @@ def expand_mechanisms(data: Mapping[str, Any], generated: Optional[Dict[str, Dic
     issues: List[Issue] = []
     expanded: List[str] = []
     owners: Dict[Tuple[str, str], str] = {}  # (section, name) → the mechanism that generated it
+    shares: Dict[str, int] = {}  # declared stage → the actions per turn its attached mechanisms allow
     while True:  # generated mechanisms are expanded too, until nothing new appears
         todo = [(name, use) for name, use in out["mechanisms"].items() if name not in expanded]
         if not todo:
@@ -77,10 +84,31 @@ def expand_mechanisms(data: Mapping[str, Any], generated: Optional[Dict[str, Dic
         for name, use in todo:
             expanded.append(name)
             before = _names(out) if generated is not None else {}
-            issues.extend(_expand_one(out, name, use, owners))
+            issues.extend(_expand_one(out, name, use, owners, shares))
             if generated is not None:
                 generated[str(name)] = _added(before, _names(out))
+    _share_turns(data, out, shares)
     return out, issues
+
+
+def _share_turns(declared: Mapping[str, Any], out: Dict[str, Any], shares: Mapping[str, int]) -> None:
+    """A stage the author declared for mechanisms only, without ``max_actions``, gives each mechanism attached to it
+    the actions it allows per turn, so a chat message never ends a turn meant for trading and voting too. A stage
+    with actions of the author's own keeps its budget: only the author knows how many of their moves a turn holds."""
+    authored = {s.get("name"): s for s in declared.get("stages") or [] if isinstance(s, Mapping)}
+    for stage in out.get("stages") or []:
+        mine = authored.get(stage.get("name")) if isinstance(stage, dict) else None
+        if mine is None or stage["name"] not in shares or "max_actions" in mine:
+            continue
+        offered = mine.get("actions", "all")
+        own = offered == "all" and bool(declared.get("actions")) or isinstance(offered, list) and bool(offered) \
+            or isinstance(offered, Mapping) and any(offered.values())
+        if own:
+            continue
+        stage["max_actions"] = shares[stage["name"]]
+        calls = StageSpec.model_fields["max_calls"].default
+        if "max_calls" not in mine and stage["max_actions"] >= calls:  # room to retry a refused call
+            stage["max_calls"] = stage["max_actions"] + calls // 2
 
 
 #: Sections whose entries have names (``stages`` by each stage's name).
@@ -143,7 +171,8 @@ def _can_end(use: Any) -> bool:
         return False
 
 
-def _expand_one(out: Dict[str, Any], name: Any, use: Any, owners: Dict[Tuple[str, str], str]) -> List[Issue]:
+def _expand_one(out: Dict[str, Any], name: Any, use: Any, owners: Dict[Tuple[str, str], str],
+                shares: Dict[str, int]) -> List[Issue]:
     """Validate one declared mechanism and merge what it generates into ``out``."""
     path = f"mechanisms.{name}"
     if not isinstance(name, str) or not _NAME.match(name):
@@ -165,6 +194,9 @@ def _expand_one(out: Dict[str, Any], name: Any, use: Any, owners: Dict[Tuple[str
         if clash is not None:
             return [clash]
         merge_sections(out, fragment)
+        for stage, hook in (fragment.get("stage_hooks") or {}).items():
+            if hook.get("actions"):
+                shares[stage] = shares.get(stage, 0) + int(hook.get("max_actions", 1))
     except MechanismError as exc:
         return [Issue(f"{path}.{exc.path}" if exc.path else path, str(exc), exc.fix)]
     except Exception as exc:  # a broken mechanism must not crash parsing: report it against its use
@@ -174,7 +206,7 @@ def _expand_one(out: Dict[str, Any], name: Any, use: Any, owners: Dict[Tuple[str
 
 
 #: Sections whose generated entries are claimed by name: two mechanisms must not generate different ones alike.
-_CLAIMED = (*_KEYED, "stages", "entities", "mechanisms")
+_CLAIMED = (*_KEYED, "stages", *_NAMED_ITEMS, "entities", "mechanisms")
 
 
 def _claim(out: Mapping[str, Any], name: str, fragment: Mapping[str, Any], owners: Dict[Tuple[str, str], str]
@@ -197,8 +229,8 @@ def _claim(out: Mapping[str, Any], name: str, fragment: Mapping[str, Any], owner
 
 def _entries(data: Mapping[str, Any], section: str) -> Mapping[str, Any]:
     value = data.get(section)
-    if section == "stages" and isinstance(value, list):
-        return {str(s.get("name")): s for s in value if isinstance(s, Mapping)}
+    if section in ("stages", *_NAMED_ITEMS) and isinstance(value, list):
+        return {str(s["name"]): s for s in value if isinstance(s, Mapping) and s.get("name")}
     return value if isinstance(value, Mapping) else {}
 
 
@@ -332,8 +364,9 @@ def merge_sections(data: Dict[str, Any], fragment: Mapping[str, Any]) -> None:
         elif section in _LISTED:
             target_list = data.setdefault(section, [])
             seen = {_canonical(item) for item in target_list}
+            named = set(_entries(data, section)) if section in _NAMED_ITEMS else set()
             for item in value:
-                if _canonical(item) not in seen:
+                if _canonical(item) not in seen and not (isinstance(item, Mapping) and item.get("name") in named):
                     target_list.append(copy.deepcopy(item))
         elif section == "stages":
             _merge_stages(data.setdefault("stages", []), value)

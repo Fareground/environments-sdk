@@ -577,11 +577,12 @@ def _expand(name: str, config: ChannelsConfig, contract: Mapping[str, Any]) -> D
                                     "empty": "You are in no channels."}},
     }
     names = list(actions)
+    per_turn = max(1, config.per_turn or 3) + 1
     if config.stage is None:
         fragment["stages"] = [{"name": name, "turns": "sequential", "actions": names, "quiet": "skip",
-                               "passes": config.passes, "max_actions": max(1, config.per_turn or 3) + 1}]
+                               "passes": config.passes, "max_actions": per_turn}]
     else:
-        fragment["stage_hooks"] = {config.stage: {"actions": names}}
+        fragment["stage_hooks"] = {config.stage: {"actions": names, "max_actions": per_turn}}
     return fragment
 
 

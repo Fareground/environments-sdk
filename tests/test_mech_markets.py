@@ -746,15 +746,15 @@ def test_market_actions_check_their_own_keys():
         book(), {"market": "acme", "action": "cancel_all", "trader": "a"}))
     path, message, fix = _op_issues(book(), {"market": "acme", "action": "bid"})[0]
     assert path.endswith(".action") and message == "'bid' is not an action of acme (market order_book)"
-    assert fix == "actions: buy, sell, cancel, cancel_all, algo, rebase, open, close"
-    _, _, fix = _op_issues(book(), {"market": "acmee", "action": "rebase"})[0]
+    assert fix == "actions: buy, sell, cancel, cancel_all, algo, open, close"
+    _, _, fix = _op_issues(book(), {"market": "acmee", "action": "open"})[0]
     assert fix == "did you mean 'acme'?"
     _, _, fix = _op_issues(book(), {"buy": "acme", "qty": 1})[0]
     assert fix.startswith('`buy` is an action of the `market` op: {"market": "<mechanism>", "action": "buy"')
     assert any(m == "a first_price auction takes no asks" for _, m, _ in _op_issues(
         house("first_price"), {"market": "house", "action": "ask", "price": 10}))
-    assert any(m == "`items` belongs to a combinatorial auction, not a first_price auction" for _, m, _ in _op_issues(
-        house("first_price"), {"market": "house", "action": "bid", "price": 40, "items": ["x"]}))
+    assert any(m == "`package` belongs to a combinatorial auction, not a first_price auction" for _, m, _ in _op_issues(
+        house("first_price"), {"market": "house", "action": "bid", "price": 40, "package": ["x"]}))
     assert any(m == "`market.bid` needs `price`" for _, m, _ in _op_issues(house("english"), {"market": "house", "action": "bid"}))
     assert any("needs `shares`, `spend` (money) or both" in m for _, m, _ in _op_issues(
         market("lmsr"), {"market": "pm", "action": "buy", "outcome": "ada"}))
@@ -798,3 +798,15 @@ def test_guide_documents_the_market_family():
     assert all(f"- `{mode}`:" in family for mode in ("order_book", "auction", "prediction", "posted"))
     posted = fg_env.guide("market.posted")
     assert "- `set_price`" in posted and "- `open`" not in posted
+
+
+def test_the_price_band_is_anchored_to_the_rounds_open_not_the_last_print():
+    env, replies = play(book(), {
+        (1, "a"): [("acme_sell", {"qty": 2, "price": 74})],
+        (1, "b"): [("acme_buy", {"qty": 2, "price": 74})],
+        (1, "c"): [("acme_buy", {"qty": 1, "price": 100})]})
+    assert env.props["acme_last"] == 74
+    refused = replies_of(replies, "c")[0]
+    assert not refused.ok and "at most 75" in refused.text
+    quote = order_book.quote(env.world, "acme")
+    assert (quote["band_low"], quote["band_high"]) == (25, 75)
