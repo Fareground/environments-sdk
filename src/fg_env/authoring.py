@@ -5,11 +5,13 @@
 
 The model starts from ``guide("authoring")`` and works with six tools — ``write_contract``, ``edit_contract``,
 ``check``, ``run``, ``preview`` and ``guide`` — until it says it is done or the budget runs out. Every contract it
-saves is tested (:func:`contract_problem`); the result keeps the latest one that works, so a later revision that breaks
-it never replaces it, and ``out`` is written each time a new one works, so an interrupted session keeps it. A model
-that stops before any saved contract works is sent back, with the problem, a couple of times; one that stops on a
-broken revision after an earlier one worked is sent back once. A reply cut off at the output limit is named to the
-model as such, and rate limits, overload and empty replies are retried with backoff.
+saves is tested (:func:`tested`: checked, then run with random, idle and edge-value agents within a time budget — a
+long run that budget cuts short counts for the rounds it reached, and the result says so); the result keeps the
+latest one that works, so a later revision that breaks it never replaces it, and ``out`` is written each time a new
+one works, so an interrupted session keeps it. A model that stops before any saved contract works is sent back, with
+the problem, a couple of times; one that stops on a broken revision after an earlier one worked is sent back once. A
+reply cut off at the output limit is named to the model as such, and rate limits, overload and empty replies are
+retried with backoff.
 
 ``model`` is ``"anthropic:<model>"`` or ``"openai:<model>"``, on the official client made from ``ANTHROPIC_API_KEY``
 or ``OPENAI_API_KEY``. Any OpenAI-compatible server (OpenRouter, a local server) works through ``openai:``: the
@@ -50,7 +52,8 @@ CACHED_WEIGHT = 0.1
 MAX_REVISIONS = 8
 #: Seeds every saved contract is run on, with random agents and with idle ones.
 TEST_SEEDS = (1, 2, 3)
-#: Longest all of a saved contract's test runs may take together; a contract slower than that does not work.
+#: Longest all of a saved contract's test runs may take together. A run still going then has passed the rounds it
+#: reached: the contract works, with the rest of its rounds untested.
 TEST_SECONDS = 60
 #: Longest one run of the model's ``run`` tool may take.
 RUN_SECONDS = 60
@@ -136,6 +139,8 @@ class AuthorResult:
     path: Optional[str] = None
     #: The revisions that worked, numbered from 1 in the order they were saved.
     working: List[int] = field(default_factory=list)
+    #: How far the kept contract's test runs got when the time budget ended them ("" when every run finished).
+    untested: str = ""
 
     def summary(self) -> str:
         """What it built — name, agent types, actions, stages, outputs — what changed along the way, what it used, and
@@ -147,6 +152,8 @@ class AuthorResult:
         else:
             lines = [f"{'built' if self.ok else 'NOT WORKING'}: {self.contract.get('name') or '(unnamed)'} — revision "
                      f"{kept} of {len(revisions)}, stopped: {self.stop}"]
+        if self.untested:
+            lines.append(f"  {self.untested}")
         if self.problem and not self.ok:
             lines.append(f"  problem: {self.problem}")
         elif self.problem:
@@ -224,7 +231,8 @@ def author(brief: str, model: str, *, client: Any = None, out: Optional[str] = N
     if out and contract is not None:
         _write(out, contract)
     return AuthorResult(contract, bench.best is not None, bench.problem, stop, bench.writes, messages, usage,
-                        round(time.time() - started, 1), out if out and contract is not None else None, bench.working)
+                        round(time.time() - started, 1), out if out and contract is not None else None, bench.working,
+                        bench.untested.get(bench.working[-1], "") if bench.working else "")
 
 
 def _converse(ask: Ask, messages: List[Message], bench: "_Workbench", usage: Dict[str, Any], limits: Dict[str, int],
@@ -343,36 +351,50 @@ def _budget(budget: Optional[Mapping[str, int]]) -> Dict[str, int]:
 
 
 def contract_problem(source: ContractLike) -> str:
-    """What stops a contract from working, or "" when it works: its first check error, else the first of its test
-    runs to the end — on each of :data:`TEST_SEEDS` with random agents and with idle ones (agents that never act),
-    then once with agents that choose each tool's edge values — that fails, whose random agents could not play (see
-    ``RunResult.degraded``), in which an edge value breaks a rule, or that is still going after :data:`TEST_SECONDS`
-    for all of them. Anything evaluating the contract raises is its problem too."""
+    """What stops a contract from working, or "" when it works (see :func:`tested`)."""
+    return tested(source)[0]
+
+
+def tested(source: ContractLike) -> Tuple[str, str]:
+    """``(problem, untested)``. ``problem`` is what stops the contract from working, or "": its first check error,
+    else the first of its test runs — on each of :data:`TEST_SEEDS` with random agents and with idle ones (agents
+    that never act), then once with agents that choose each tool's edge values — that fails, whose random agents
+    could not play (see ``RunResult.degraded``), or in which an edge value breaks a rule. Anything evaluating the
+    contract raises is its problem too. The runs share :data:`TEST_SECONDS`, each taking an even share of what is
+    left; a run still going when its share ends has passed the rounds it reached, and ``untested`` then says how far
+    the runs got ("" when every run finished)."""
     try:
         errors = [str(i) for i in check(source) if i.severity == "error"]
         if errors:
-            return errors[0] + (f" (and {len(errors) - 1} more: call check)" if len(errors) > 1 else "")
-        deadline, random_findings = time.monotonic() + TEST_SECONDS, _random_findings(parse(source))
-        plays = [(agents, f"{agents} agents", seed, random_findings if agents == "random" else frozenset())
-                 for seed in TEST_SEEDS for agents in ("random", "idle")]
-        for participant, who, seed, findings in plays + [(_EdgeAgent(1), "agents choosing edge values", 1, _FAULTS)]:
-            left = deadline - time.monotonic()
-            result = load(source, seed=seed).run({"*": participant}, budget={"seconds": left}) if left > 0 else None
+            return errors[0] + (f" (and {len(errors) - 1} more: call check)" if len(errors) > 1 else ""), ""
+        contract, deadline = parse(source), time.monotonic() + TEST_SECONDS
+        random_findings = _random_findings(contract)
+        plays: List[Tuple[Any, str, int, frozenset]] = [
+            (agents, f"{agents} agents", seed, random_findings if agents == "random" else frozenset())
+            for seed in TEST_SEEDS for agents in ("random", "idle")]
+        plays.append((_EdgeAgent(1), "agents choosing edge values", 1, _FAULTS))
+        reached, total = [], 0
+        for n, (participant, who, seed, findings) in enumerate(plays):
+            env = load(source, seed=seed)
+            share = (deadline - time.monotonic()) / (len(plays) - n)
+            result = env.run({"*": participant}, budget={"seconds": max(share, 0.001)})  # every run plays a round
             problem = _run_problem(result, f"{who} (seed {seed})", findings)
             if problem:
-                return problem
+                return problem, ""
+            if result.budget.get("exhausted") == "seconds":
+                reached.append(result.rounds)
+                total = env.world.rounds
     except Exception as exc:  # a model's contract can break the engine in any way: that is its problem to fix
-        return f"{type(exc).__name__}: {exc}"
-    return ""
+        return f"{type(exc).__name__}: {exc}", ""
+    if not reached:
+        return "", ""
+    of = f" of {total:,}" if contract.clock.mode == "rounds" else ""
+    return "", (f"tested at least {min(reached):,}{of} rounds in every test run within the {TEST_SECONDS}s test "
+                "budget; longer runs untested")
 
 
-def _run_problem(result: Optional[RunResult], who: str, findings: frozenset) -> str:
-    """What a test run with ``who`` shows is wrong — a failure, or a diagnostic among ``findings`` — or ""; None is a
-    run there was no time left for."""
-    if result is None or result.budget.get("exhausted") == "seconds":
-        reached = f" (a run with {who} reached round {result.rounds})" if result is not None else ""
-        return (f"too slow to test: its test runs did not all finish within {TEST_SECONDS}s{reached}; make a round "
-                "cheaper (fewer entities, loops or draws) or the run shorter")
+def _run_problem(result: RunResult, who: str, findings: frozenset) -> str:
+    """What a test run with ``who`` shows is wrong — a failure, or a diagnostic among ``findings`` — or ""."""
     if result.status == "failed":
         return f"a run with {who} failed in round {result.rounds}: {result.error}"
     found = [f for f in result.diagnostics if f["code"] in findings]
@@ -440,6 +462,8 @@ class _Workbench:
         self.writes: List[Any] = []
         self.revisions: List[Dict[str, Any]] = []
         self.working: List[int] = []
+        #: Per working revision, how far its test runs got when the time budget ended them ("" when all finished).
+        self.untested: Dict[int, str] = {}
         self.problem = ""
 
     @property
@@ -503,11 +527,16 @@ class _Workbench:
         self.writes.append(data)
         self.revisions.append(data)
         self.path.write_text(json.dumps(data, indent=2))
-        self.problem = contract_problem(str(self.path))[:MAX_RESULT]
-        number = len(self.revisions)
+        problem, untested = tested(str(self.path))
+        self.problem, number = problem[:MAX_RESULT], len(self.revisions)
         if self.problem:
             return f"Saved revision {number}, but it does not work yet: {self.problem}"
         self.working.append(number)
+        self.untested[number] = untested
+        if untested:
+            return (f"Saved revision {number}: it works — it checks clean, and runs without a problem on "
+                    f"{len(TEST_SEEDS)} seeds with random agents and with idle ones, and with agents choosing edge "
+                    f"values; {untested}.")
         return (f"Saved revision {number}: it works — it checks clean, and runs to the end on {len(TEST_SEEDS)} seeds "
                 "with random agents and with idle ones, and with agents choosing edge values.")
 

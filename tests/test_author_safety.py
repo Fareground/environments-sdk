@@ -70,14 +70,28 @@ def test_it_works_only_when_every_test_run_plays(contract, problem):
     assert not result.ok and result.problem.startswith(problem), result.problem
 
 
-def test_a_contract_too_slow_to_test_does_not_work(monkeypatch):
+def test_a_contract_longer_than_the_test_budget_works_with_its_untested_rounds_named(tmp_path, monkeypatch):
     monkeypatch.setattr("fg_env.authoring.TEST_SECONDS", 0.2)
-    slow = game("Slow", clock={"rounds": 100_000})
+    long = game("Long", clock={"rounds": 100_000})
+    client = FakeOpenAI([write(long)], [])
 
-    result = fg_env.author("A game.", "openai:m", client=FakeOpenAI([write(slow)], [], [], []))
+    result = fg_env.author("A game.", "openai:m", client=client, out=str(tmp_path / "long.json"))
 
-    assert not result.ok and result.problem.startswith("too slow to test: its test runs did not all finish within 0.2s "
-                                                       "(a run with random agents (seed 1) reached round ")
+    assert result.ok and result.stop == "done"
+    note = tool_replies(client)[0]
+    assert note.startswith("Saved revision 1: it works — it checks clean, and runs without a problem on 3 seeds")
+    assert " of 100,000 rounds in every test run within the 0.2s test budget; longer runs untested." in note
+    assert result.untested in note and result.untested in result.summary()
+
+
+def test_a_crash_within_the_rounds_the_test_budget_reaches_still_counts(monkeypatch):
+    monkeypatch.setattr("fg_env.authoring.TEST_SECONDS", 5)
+    late = game("Late", clock={"rounds": 100_000}, world={"table": {"type": "map", "default": {"a": 1}}, "x": 0},
+                events=[{"at": 20, "do": ["$world.x = $world.table['b']"]}])
+
+    result = fg_env.author("A game.", "openai:m", client=FakeOpenAI([write(late)], [], [], []))
+
+    assert not result.ok and result.problem.startswith("a run with random agents (seed 1) failed in round 20")
 
 
 def test_stopping_on_a_broken_revision_after_a_working_one_sends_the_model_back_once():
