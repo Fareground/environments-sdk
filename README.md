@@ -125,8 +125,9 @@ for engine in fg_env.list_engines():
     print(engine.id, engine.status, engine.available)
 
 fg_env.clone_engine("market", "my_market.json", name="My market study")  # overwrite=True to clone it again
-# A quick first look: 2 runs of each arm over 40 sampled households. More runs give tighter intervals.
-result = fg_env.experiment("my_market.json", runs=2, participants="random", inputs={"sample_size": 40})
+# A quick first look: 2 runs of each arm, two weeks over 80 sampled households (the fewest the market takes).
+# More runs give tighter intervals.
+result = fg_env.experiment("my_market.json", runs=2, participants="random", inputs={"sample_size": 80, "days": 14})
 print(result.table())
 ```
 

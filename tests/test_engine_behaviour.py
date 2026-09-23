@@ -321,7 +321,7 @@ def test_every_engine_runs_at_both_ends_of_each_declared_input(engine_id, name, 
 
 
 #: Smaller settings the market and exchange are swept under, so a sweep takes seconds (other inputs keep defaults).
-_SWEEP_BASE = {"market": {"days": 60, "sample_size": 10, "launch_day": 5}, "exchange": {"bars": 6, "participants": 40},
+_SWEEP_BASE = {"market": {"days": 60, "sample_size": 80, "launch_day": 5}, "exchange": {"bars": 6, "participants": 40},
                "dispute": {"evidence_rounds": 1}}  # one exhibit a side: a close case, where every jury rule can bite
 #: Rounds a sweep stops at where an extreme would run for minutes; outputs are read where it stops.
 _SWEEP_ROUNDS = {("market", "sample_size"): 1, ("exchange", "bars"): 24, ("exchange", "participants"): 4}
@@ -366,7 +366,9 @@ def test_the_market_sample_stands_for_the_city_so_capacity_scales_with_it():
     small, _ = one_day(150)
     large, outputs = one_day(2000)
     capacity = {env: {c["id"]: c["props"]["capacity"] for c in env.entities("cafe")} for env in (small, large)}
-    assert capacity[small]["bean_there"] == 42 and capacity[large]["bean_there"] == pytest.approx(42 * 2000 / 150, rel=0.01)
+    city = sum(row["weight"] for row in fg_env.engines.get("market").source()["inputs"]["households"]["default"])
+    assert capacity[small]["bean_there"] == pytest.approx(7000 * 150 / city)  # kept exact: no rounding to whole cups
+    assert capacity[large]["bean_there"] == pytest.approx(7000 * 2000 / city)
     assert outputs["turned_away_total"] == 0  # the same city, sampled finer: nobody is turned away on day one
 
 

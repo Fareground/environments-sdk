@@ -14,11 +14,17 @@ Environment code must not reimplement the mechanics below.
 - **Actions:** raise hand, recognize, propose, second, speak, amend, withdraw,
   call the question and vote.
 - **State and phases:** floor queue, recognized member, procedural stack,
-  debate, division and recorded decisions. Each floor speech moves every other
-  member's stance a random share (averaging `persuasion`) of the way toward the
-  speaker's; coded members vote their current stance, so debate can change the
-  result, and never amend (amending is there for participants). The coded chair calls the question once the motion has had as many
-  speeches as the chamber has members.
+  debate, division and recorded decisions. Each member's stance blends their
+  starting stance with the average stance of the floor speeches so far, a
+  personal share (averaging `persuasion`) coming from the speeches; a speech from
+  another party counts `1 - party_loyalty` of one from the member's own. Members
+  stay anchored to where they started, so the order of the members table does
+  not decide the vote and debate does not collapse the chamber into unanimity.
+  Coded members vote their current stance and never amend (amending is there for
+  participants). The mover is recognized first; after that the coded chair
+  recognizes a random raised hand, every coded member asks to speak once on the
+  question, and the chair calls the question once no hand is left (at most 100
+  passes, then the vote is forced).
 - **Termination and outputs:** a decided main motion ends the starter; output
   the outcome (passed, rejected, or status_quo when nothing came to a vote),
   final text, vote counts and participation evidence.
@@ -30,7 +36,8 @@ Environment code must not reimplement the mechanics below.
 - **Roles:** contestants plus one host judge or a configurable judge panel.
 - **Private/public information:** assigned approach may be private; submissions
   and scores follow the configured visibility; blind judging hides identity.
-- **Actions:** submit one performance per contest round.
+- **Actions:** submit one performance per contest round. A contest needs at
+  least two contestants.
 - **State and phases:** simultaneous submissions followed by rubric judging;
   weighted criterion scores accumulate by contestant. Each submission also adds
   a hidden performance draw around the contestant's private `skill` (spread
@@ -54,8 +61,10 @@ Environment code must not reimplement the mechanics below.
 - **Actions:** speak, signal readiness, propose, second, amend, withdraw, call
   the question and vote.
 - **State and phases:** discussion passes, pending conclusion, amendments and
-  final ballot. Each speech moves every listener's stance a random share
-  (averaging `persuasion`) of the way toward the speaker's; coded members with
+  final ballot. Each member's stance blends their starting stance with the
+  average stance of the speeches so far, a personal share (averaging
+  `persuasion`) coming from the speeches, so views move without collapsing into
+  unanimity; members speak in a random order each pass. Coded members with
   a strong view either way put the question, anyone seconds it, and each speaks
   once per motion and votes their current stance, so an opposed group rejects the
   question rather than leaving it undecided. Coded members never amend.
@@ -84,7 +93,9 @@ Environment code must not reimplement the mechanics below.
 
 ## Network
 
-- **Roles:** people connected by explicit supplied or generated relationships.
+- **Roles:** people connected by explicit supplied or generated relationships;
+  `inputs.seeds` names the initial adopters (each must be in the participants
+  table; `[]` for none), and a tie's trust must lie between 0 and 1.
 - **Private/public information:** receptivity may be private; ties, exposures and
   adoption visibility are configurable.
 - **Actions:** take up an idea one has heard about, turn it down (then one never

@@ -135,11 +135,11 @@ def scan(contract: Any, seed: int = 1, inner: Any = None, rounds: Any = None, **
 
 #: Inputs that make the large examples and engine starters small enough to play quickly.
 SMALL = {
-    "coffee_market": {"sample_size": 10}, "epidemic_shocks": {"residents": 20}, "town_epidemic": {"residents": 20},
+    "coffee_market": {"sample_size": 80}, "epidemic_shocks": {"residents": 20}, "town_epidemic": {"residents": 20},
     "exchange_flagship": {"participants": 20, "seed_bars": 20}, "misinformation": {"crowd_users": 10},
     "outbreak_network": {"residents": 10}, "social_network": {"accounts": 10}, "ride_hailing": {"drivers": 3},
     "corner_shop_town": {"households": 3},
-    "market": {"sample_size": 10, "days": 7}, "exchange": {"participants": 20, "seed_bars": 20, "bars": 5},
+    "market": {"sample_size": 80, "days": 7}, "exchange": {"participants": 20, "seed_bars": 20, "bars": 5},
 }
 #: Every example contract.
 EXAMPLES = sorted((Path(__file__).parents[1] / "examples" / "contracts").glob("*.json"))
