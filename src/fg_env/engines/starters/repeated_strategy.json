@@ -51,6 +51,7 @@
     ]},
     {"emit": "round_result", "say": "Choices are revealed and consequences applied."}
   ]}],
+  "invariants": [{"expr": "$count(strategist) >= 2", "why": "Choices only play against other players: give inputs.participants at least two rows."}],
   "defs": {"rivals": {"args": ["me"], "expr": "$filter(strategist, $it.id != $me.id)", "description": "Everyone else."}},
   "policies": {"baseline": {"rules": [
     {"chance": "$inputs.mistakes", "do": "choose", "with": {"choice": "$choice([cooperate, compete])"}},

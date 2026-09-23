@@ -44,8 +44,8 @@
   ]}],
   "policies": {"baseline": {"repeat": true, "rules": [
     {"when": "$world.forum.phase == voting", "do": "forum_vote", "with": {"choice": "$'yes' if $actor.stance >= 0 else 'no'"}},
-    {"when": "$pending_motion() == null and $actor.stance > 0.4", "do": "forum_propose", "with": {"text": "$inputs.question"}},
-    {"when": "$pending_motion() != null and $pending_motion().status == proposed and $pending_motion().mover != $actor.id and $actor.stance >= 0", "do": "forum_second"},
+    {"when": "$pending_motion() == null and $abs($actor.stance) > 0.4", "do": "forum_propose", "with": {"text": "$inputs.question"}},
+    {"when": "$pending_motion() != null and $pending_motion().status == proposed and $pending_motion().mover != $actor.id", "do": "forum_second"},
     {"when": "$open_motion and not $any($debate($pending_motion()), $it.author.id == $actor.id)", "do": "forum_speak", "with": {"text": "$actor.perspective"}},
     {"when": "$open_motion and $len($debate($pending_motion())) >= $count(member)", "do": "forum_call_question"},
     {"do": "forum_ready"}

@@ -12,21 +12,21 @@
     {
       "id": "council",
       "title": "Council",
-      "description": "Simulates a panel giving sealed probability forecasts, deliberating and forecasting again; scores the final forecasts (Brier) once the outcome is supplied and measures consensus by their spread.",
+      "description": "Simulates a panel giving sealed probability forecasts, deliberating and forecasting again; scores the final forecasts (Brier) once the outcome is supplied and measures consensus by their spread; coded panelists forecast from their prior with private noise and move part of the way toward the council.",
       "status": "native",
       "path": "starters/forecast_council.json"
     },
     {
       "id": "dispute",
       "title": "Dispute",
-      "description": "Simulates two sides offering, objecting to and cross-examining evidence before a judge; jurors weigh the total strength of what was admitted and vote on liability and damages.",
+      "description": "Simulates two sides offering, objecting to and cross-examining evidence before a judge; jurors weigh the total strength of what was admitted, sway one another in the jury room and vote on liability and damages, re-deliberating until a verdict or a hung jury.",
       "status": "native",
       "path": "starters/civil_trial.json"
     },
     {
       "id": "exchange",
       "title": "Exchange",
-      "description": "Simulates configurable trading among human participants across assets, market structures, and information conditions.",
+      "description": "Simulates a stock exchange calibrated to a seed history: a coded crowd of market makers, trend, value, noise and passive traders trades one instrument on a limit order book while a few trader seats, filled by participants or a coded stand-in, decide between bars; news moves a hidden fundamental.",
       "status": "native",
       "path": "starters/exchange_flagship.json",
       "resources": [
@@ -45,7 +45,7 @@
     {
       "id": "contest",
       "title": "Contest",
-      "description": "Simulates participants submitting each round while a host judge scores them on a weighted rubric; the single top scorer wins, a rubric tie goes to the stronger hidden performance (skill plus luck), and without a judge skill and luck decide and the run says so.",
+      "description": "Simulates participants submitting each round while a host judge scores them on a weighted rubric; the single top scorer wins, a rubric tie goes to the stronger hidden performance (skill plus luck), and without a judge skill and luck decide and the run says so (judged is false).",
       "status": "native",
       "path": "starters/contest.json"
     },
@@ -59,7 +59,7 @@
     {
       "id": "negotiation",
       "title": "Negotiation",
-      "description": "Simulates two parties exchanging complete multi-issue offers and counteroffers before a deadline; nobody can offer or accept terms worth less to them than their private walk-away value, and each party's surplus is reported.",
+      "description": "Simulates two parties exchanging complete multi-issue offers and counteroffers before a deadline; nobody can offer or accept terms worth less to them than their private walk-away value, and each party's surplus is reported; coded parties concede toward the other side as the deadline nears.",
       "status": "native",
       "path": "starters/multi_issue_negotiation.json"
     },
@@ -73,7 +73,7 @@
     {
       "id": "network",
       "title": "Network",
-      "description": "Simulates an idea spreading over explicit ties: each round every adopter may convince each contact with a chance of trust times receptivity, so trust and time drive adoption.",
+      "description": "Simulates an idea spreading over explicit ties: each round every adopter may convince each contact with a chance of trust times receptivity, so trust and time drive adoption; people may also take up, reject or recommend the idea.",
       "status": "native",
       "path": "starters/influence_network.json"
     },

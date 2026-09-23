@@ -9,21 +9,23 @@ The engine catalog contains exactly these twelve boundaries:
 
 - **Market** — buyers and sellers form demand, supply, prices, and responses.
 - **Council** — a panel forecasts, deliberates and forecasts again; final forecasts are scored against a supplied outcome.
-- **Dispute** — opposing parties present claims and evidence toward a resolution.
-- **Exchange** — participants trade configurable assets under configurable rules.
+- **Dispute** — opposing parties present claims and evidence toward a resolution; in the jury room each juror's speech pulls the others toward the speaker's leaning.
+- **Exchange** — a calibrated coded crowd trades one instrument on a limit order book while a few trader seats (4 by default) are filled by participants.
 - **Legislature** — legislative bodies use motions, amendments, coalitions, and votes; floor speeches move stances.
 - **Contest** — participants submit and a host judge scores them on a rubric; a rubric tie goes to the stronger hidden performance (skill plus luck).
 - **Deliberation** — people exchange reasons, revise views (each speech pulls listeners toward the speaker), and seek a conclusion.
-- **Negotiation** — parties make proposals, concessions and agreements, never below their walk-away values.
+- **Negotiation** — two parties make proposals, concessions and agreements, never below their walk-away values; coded parties concede toward the other side as the deadline nears.
 - **Population** — sampled people independently respond from their inclination, blurred by their uncertainty, and outcomes are aggregated.
-- **Network** — behavior and information spread through explicit human relationships.
+- **Network** — behavior and information spread through explicit human relationships; people may also take up, reject or recommend an idea.
 - **Matching** — both sides rank each other and deferred acceptance makes a stable match within capacity.
 - **Strategy** — any number of players' choices play against each other, round-robin, with configurable payoffs and classic coded strategies.
 
-All twelve have native SDK implementations. Legislature, Contest, Deliberation,
-Population, Matching and Strategy ship coded baseline participants whose
-outcomes vary with the seed, and Network advances mechanically, so a run without
-LLM participants is a real simulation rather than a fixed script. Every engine can be discovered,
+All twelve have native SDK implementations, and every one ships coded
+baseline participants whose outcomes vary with the seed (Network's baseline
+leaves the spread to word of mouth), so a run without LLM participants is a real
+simulation rather than a fixed script. Every engine runs at either end of each
+declared input's range; a setup an engine cannot honour, such as a three-party
+negotiation or a one-player strategy game, is refused with the fix. Every engine can be discovered,
 inspected, cloned, customized, loaded from the installed package, run with a
 deterministic seed, supplied with sampled or fixed people, and executed across
 an N-run experiment. The SDK packages reusable mechanics and neutral starters;
