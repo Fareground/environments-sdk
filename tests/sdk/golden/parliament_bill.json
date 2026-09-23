@@ -2,6 +2,18 @@
   "actions": 5,
   "events": 13,
   "events_sha256": "b7c78d509ec68dd7429153482999f97d79d189531b9e66d759f77ecf37248d38",
+  "first_events": [
+    "r1 bill: First reading of the Clean Rivers Bill.",
+    "r1 action mp_3: {\"action\": \"vote\", \"params\": {\"choice\": \"no\"}, \"private\": true, \"success\": true}",
+    "r1 outcome mp_3: You voted no.",
+    "r1 action mp_5: {\"action\": \"vote\", \"params\": {\"choice\": \"no\"}, \"private\": true, \"success\": true}",
+    "r1 outcome mp_5: You voted no.",
+    "r1 action mp_4: {\"action\": \"vote\", \"params\": {\"choice\": \"aye\"}, \"private\": true, \"success\": true}",
+    "r1 outcome mp_4: You voted aye.",
+    "r1 action mp_2: {\"action\": \"vote\", \"params\": {\"choice\": \"no\"}, \"private\": true, \"success\": true}",
+    "r1 outcome mp_2: You voted no.",
+    "r1 action mp_1: {\"action\": \"vote\", \"params\": {\"choice\": \"aye\"}, \"private\": true, \"success\": true}"
+  ],
   "metrics": {},
   "rounds": 1,
   "status": "ended",

@@ -2,6 +2,18 @@
   "actions": 31,
   "events": 59,
   "events_sha256": "bacd2c1c776b42c8b7d7f63a17d776740117bc635c12dfb8eeedd17a4117a52e",
+  "first_events": [
+    "r1 action ana: Ana: market promote (listing=Ana's apples, pct=0.15, rounds=2).",
+    "r1 record shopper_6: {\"entry\": 1, \"fields\": {\"item\": \"pears\", \"listing\": \"pears\", \"negotiated\": false, \"qty\": 1, \"unit_price\": 4.0}, \"record\": \"market_ledger\"}",
+    "r1 action shopper_6: {\"action\": \"market_buy\", \"params\": {\"listing\": \"pears\", \"qty\": 1}, \"private\": true, \"success\": true}",
+    "r1 record shopper_10: {\"entry\": 2, \"fields\": {\"item\": \"apples\", \"listing\": \"apples\", \"negotiated\": false, \"qty\": 1, \"unit_price\": 2.72}, \"record\": \"market_ledger\"}",
+    "r1 action shopper_10: {\"action\": \"market_buy\", \"params\": {\"listing\": \"apples\", \"qty\": 1}, \"private\": true, \"success\": true}",
+    "r1 record shopper_11: {\"entry\": 3, \"fields\": {\"item\": \"apples\", \"listing\": \"apples\", \"negotiated\": false, \"qty\": 1, \"unit_price\": 2.72}, \"record\": \"market_ledger\"}",
+    "r1 action shopper_11: {\"action\": \"market_buy\", \"params\": {\"listing\": \"apples\", \"qty\": 1}, \"private\": true, \"success\": true}",
+    "r1 record shopper_1: {\"entry\": 4, \"fields\": {\"item\": \"pears\", \"listing\": \"pears\", \"negotiated\": false, \"qty\": 1, \"unit_price\": 4.0}, \"record\": \"market_ledger\"}",
+    "r1 action shopper_1: {\"action\": \"market_buy\", \"params\": {\"listing\": \"pears\", \"qty\": 1}, \"private\": true, \"success\": true}",
+    "r1 record shopper_7: {\"entry\": 5, \"fields\": {\"item\": \"pears\", \"listing\": \"pears\", \"negotiated\": false, \"qty\": 1, \"unit_price\": 4.0}, \"record\": \"market_ledger\"}"
+  ],
   "metrics": {
     "market_avg_price": 5.073333333,
     "market_sales": 28,

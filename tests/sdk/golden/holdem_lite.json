@@ -2,6 +2,18 @@
   "actions": 15,
   "events": 23,
   "events_sha256": "05e8323884c4ba0ce7d8287029f392dcd77f824b59d10f5bbe85be36445c3119",
+  "first_events": [
+    "r1 deal: Hand 1: Ana has the button; Ben posts 5, Cleo posts 10. Board: Q\u2666 3\u2666 J\u2660.",
+    "r1 action p2: Ben folds.",
+    "r1 action p3: Cleo raises to 494.",
+    "r1 action p4: Dev raises to 500 (all-in).",
+    "r1 action p1: Ana folds.",
+    "r1 action p3: Cleo calls 6 (all-in).",
+    "r1 record: {\"entry\": 1, \"fields\": {\"detail\": \"Showdown on Q\\u2666 3\\u2666 J\\u2660: Cleo 2\\u2663 7\\u2666 = high card (Q J 7 3 2); Dev J\\u2666 A\\u2660 = pair (J J A Q 3).\", \"hand\": 1, \"pot\": 1005, \"winner\": \"Dev\"}, \"record\": \"hands\"}",
+    "r2 deal: Hand 2: Ben has the button; Dev posts 5, Ana posts 10. Board: 9\u2663 J\u2665 6\u2663.",
+    "r2 action p4: Dev folds.",
+    "r2 action p1: Ana raises to 374."
+  ],
   "metrics": {
     "biggest_pot": 1879,
     "chip_leader_stack": 1627,

@@ -2,6 +2,18 @@
   "actions": 17,
   "events": 29,
   "events_sha256": "56ecf8ac30d47742220e2cccc05340ed6543abaaebe01b0efa6b70b50b3355ae",
+  "first_events": [
+    "r1 action trust_safety: The platform set its misinformation policy to none.",
+    "r1 action checker: {\"action\": \"research\", \"params\": {\"story\": \"story_transit\"}, \"private\": true, \"success\": true}",
+    "r2 action checker: {\"action\": \"research\", \"params\": {\"story\": \"story_ballots\"}, \"private\": true, \"success\": true}",
+    "r2 action u109: {\"action\": \"share\", \"params\": {\"post\": \"post_2\"}, \"private\": true, \"success\": true}",
+    "r2 outcome u109: You shared user155's post.",
+    "r2 action u9: {\"action\": \"like\", \"params\": {\"post\": \"post_2\"}, \"private\": true, \"success\": true}",
+    "r2 outcome u9: You liked user155's post.",
+    "r3 action checker: {\"action\": \"research\", \"params\": {\"story\": \"story_heatwave\"}, \"private\": true, \"success\": true}",
+    "r3 action u27: {\"action\": \"post\", \"params\": {\"comment\": \"\", \"story\": \"story_ballots\"}, \"private\": true, \"success\": true}",
+    "r3 outcome u27: You posted about \u00abThousands of mail ballots found dumped behind a warehouse\u00bb."
+  ],
   "metrics": {
     "exposed_false_share": 0.06,
     "false_reach": 12,

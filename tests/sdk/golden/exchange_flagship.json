@@ -2,6 +2,18 @@
   "actions": 167,
   "events": 167,
   "events_sha256": "937c0daa772341c4f2b635ada360f80b412b39d7377963fc9c1949187a86cdc1",
+  "first_events": [
+    "r1 action demo_market_maker_8: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r1 action demo_market_maker_17: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r1 action demo_market_maker_15: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r1 action demo_noise_23: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r1 action demo_market_maker_7: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r1 action demo_fundamentalist_22: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r1 action demo_mean_reversion_47: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r1 action demo_market_maker_1: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r1 action demo_market_maker_13: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r1 action demo_market_maker_16: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}"
+  ],
   "metrics": {
     "demo_mid": 100.325,
     "demo_orders": 183,

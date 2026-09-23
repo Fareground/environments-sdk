@@ -2,6 +2,18 @@
   "actions": 16,
   "events": 21,
   "events_sha256": "2771174ab1a06ed784ae4ac5f6498e1e1f7dcbbc09de953332d574a9c0f21418",
+  "first_events": [
+    "r1 deal: Hand 1: the cards are dealt; Dev holds the 2 of clubs and leads.",
+    "r1 action p4: Dev plays 2\u2663.",
+    "r1 action p1: Ana plays A\u2663.",
+    "r1 action p2: Ben plays J\u2666.",
+    "r1 action p3: Cleo plays 10\u2663.",
+    "r1 trick: Ana takes the trick (2\u2663, A\u2663, J\u2666, 10\u2663) with A\u2663.",
+    "r2 action p1: Ana plays 3\u2660.",
+    "r2 action p2: Ben plays 9\u2660.",
+    "r2 action p3: Cleo plays K\u2660.",
+    "r2 action p4: Dev plays 10\u2660."
+  ],
   "metrics": {
     "hearts_broken": 1,
     "leader_score": 0

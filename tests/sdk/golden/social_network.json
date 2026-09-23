@@ -2,6 +2,18 @@
   "actions": 79,
   "events": 165,
   "events_sha256": "a040d21556f635d20617dbfd59064f5f416552dab81af99f2e2f950cd4491901",
+  "first_events": [
+    "r1 action u139: {\"action\": \"net_post\", \"params\": {\"text\": \"Traffic on the east bridge again.\"}, \"private\": true, \"success\": true}",
+    "r1 outcome u139: Posted.",
+    "r1 action u22: {\"action\": \"net_post\", \"params\": {\"text\": \"New bakery on Main Street is great.\"}, \"private\": true, \"success\": true}",
+    "r1 outcome u22: Posted.",
+    "r1 action u2: {\"action\": \"net_post\", \"params\": {\"text\": \"Anyone watching the game tonight?\"}, \"private\": true, \"success\": true}",
+    "r1 outcome u2: Posted.",
+    "r1 action u59: {\"action\": \"net_post\", \"params\": {\"text\": \"New bakery on Main Street is great.\"}, \"private\": true, \"success\": true}",
+    "r1 outcome u59: Posted.",
+    "r1 action u67: {\"action\": \"net_post\", \"params\": {\"text\": \"New bakery on Main Street is great.\"}, \"private\": true, \"success\": true}",
+    "r1 outcome u67: Posted."
+  ],
   "metrics": {
     "believers": 26,
     "insularity": 0.06195506346,
