@@ -253,24 +253,17 @@ def cmd_tournament(args: argparse.Namespace) -> int:
     return 0
 
 
-def _description(args: argparse.Namespace) -> Any:
+def cmd_describe(args: argparse.Namespace) -> int:
     from ..describe import describe
 
-    return describe(args.file, inputs=_inputs(args), arm=args.arm, data_dir=args.data_dir)
-
-
-def cmd_describe(args: argparse.Namespace) -> int:
-    description = _description(args)
-    if args.json:
+    description = describe(args.file, inputs=_inputs(args), arm=args.arm, data_dir=args.data_dir)
+    if args.metadata:
+        print(json.dumps(description.metadata, indent=2, default=str, ensure_ascii=False) if args.json
+              else description.info())
+    elif args.json:
         print(json.dumps(description.to_dict(), indent=2, default=str, ensure_ascii=False))
     else:
         print(description.markdown, end="")
-    return 0
-
-
-def cmd_info(args: argparse.Namespace) -> int:
-    description = _description(args)
-    print(json.dumps(description.metadata, indent=2, default=str, ensure_ascii=False) if args.json else description.info())
     return 0
 
 
@@ -398,18 +391,17 @@ def add_commands(sub: Any) -> None:
     _batch_flags(p, "game")
     p.set_defaults(func=_guarded(cmd_tournament))
 
-    for name, text, command in (
-            ("describe", "write an ODD-protocol description of a contract (markdown; --json adds the game metadata)",
-             cmd_describe),
-            ("info", "derived game metadata: turns, chance, information, players, length, action space", cmd_info)):
-        p = sub.add_parser(name, help=text)
-        p.add_argument("file", help="contract JSON file")
-        p.add_argument("--input", action="append", metavar="NAME=VALUE", help="set an input (JSON value or text)")
-        p.add_argument("--inputs-file", help="JSON file of inputs")
-        p.add_argument("--arm", help="describe the contract with this arm applied")
-        p.add_argument("--data-dir", help="folder input data files are read from (default: the contract's folder)")
-        p.add_argument("--json", action="store_true", help="print JSON")
-        p.set_defaults(func=_guarded(command))
+    p = sub.add_parser("describe", help="write an ODD-protocol description of a contract (markdown); --metadata prints "
+                                        "only the derived game metadata: turns, chance, information, players, length, "
+                                        "action space")
+    p.add_argument("file", help="contract JSON file")
+    p.add_argument("--input", action="append", metavar="NAME=VALUE", help="set an input (JSON value or text)")
+    p.add_argument("--inputs-file", help="JSON file of inputs")
+    p.add_argument("--arm", help="describe the contract with this arm applied")
+    p.add_argument("--data-dir", help="folder input data files are read from (default: the contract's folder)")
+    p.add_argument("--metadata", action="store_true", help="only the derived game metadata, each with its evidence")
+    p.add_argument("--json", action="store_true", help="print JSON (with --metadata: the metadata alone)")
+    p.set_defaults(func=_guarded(cmd_describe))
 
     p = sub.add_parser("bench", help="time contracts (default: the reference models): ms per round, rounds per "
                                      "second and time per phase")

@@ -214,6 +214,8 @@ def test_the_command_line_prints_the_answer_or_json_and_one_line_errors(tmp_path
     assert answer["best"] == {"x": 0, "y": 9} and answer["verdict"] == "feasible" and answer["confidence"] == 0.95
     assert _cli(["optimise", *common]) == 0
     assert 'Best decision: x=0, y=9' in capsys.readouterr().out
+    assert _cli(["optimize", *common]) == 0  # the other spelling works, unlisted
+    assert 'Best decision: x=0, y=9' in capsys.readouterr().out
     assert _cli(["optimise", str(path), "--objective", "minimise cost"]) == 1
     assert "give at least one --decision" in capsys.readouterr().err
 

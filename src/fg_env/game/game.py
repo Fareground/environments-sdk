@@ -97,7 +97,7 @@ class Game:
     @property
     def info(self) -> Dict[str, Any]:
         """The game's derived metadata (dynamics, chance, information, players, length, action space; see
-        ``fg-env info``), computed once."""
+        ``fg-env describe --metadata``), computed once."""
         if self._info is None:
             from ..describe.metadata import game_metadata
 
