@@ -4,7 +4,7 @@ indexes, journal version and undoable bookkeeping — while the luck it drew sta
 Blocks are drawn from the corpus itself: an example's own action bodies (with valid arguments) and the effect grammar
 of ``_fuzz.py``, each with a failure injected at a random place — a `fail` (an ``Abort``), an expression that cannot be
 worked out (a ``RunError``), a write out of bounds and, where the contract has one, a broken invariant. They run the
-way an agent's action does (inside :func:`~fg_env.actions.faults.guarded`) and as bare world logic, and a generated
+way an agent's action does (inside :meth:`~fg_env.runtime.rules.Rules.guarded`) and as bare world logic, and a generated
 contract's agents also call such a block as an action of their own, through the whole turn pipeline.
 """
 import copy
@@ -27,7 +27,6 @@ from _corpus import (
 )
 
 import fg_env
-from fg_env.actions.faults import guarded
 from fg_env.contract.base import TAPE
 from fg_env.errors import RunError
 from fg_env.participants import RandomAgent
@@ -119,10 +118,10 @@ def _undo_restores(subject, seed, trials, pick):
         before, version, spent = restored_state(env), env.world.journal.version, _spent(env)
 
         def work(block=block, vars=vars, path=path, actor=actor):
-            env._atomic(block, vars, path, owner=actor)
+            env.rules.run_block(block, vars, path, owner=actor)
 
         if is_guarded:  # as inside an agent's action: refused and undone, the run goes on
-            _, fault = guarded(env, work)
+            _, fault = env.rules.guarded(work)
             assert fault is not None, block
         else:  # as world logic: the run would fail, with the block undone
             with pytest.raises(RunError):
@@ -241,18 +240,19 @@ def test_undoing_back_to_a_mark_restores_armed_and_fired_events_as_they_were_the
     before = undoable_state(env)
     mark = world.journal.mark()
     with world.journal.held():  # a part of an atomic turn: a change committed in it, then a failure undoes it all
-        env._atomic(["$world.x = 1"], {}, "kernel.earlier")
+        env.rules.run_block(["$world.x = 1"], {}, "kernel.earlier")
         assert world.props["rang"] == 1 and world.props["once"] == 1
-        _, fault = guarded(env, lambda: env._atomic([FAIL], {}, "kernel.later"), mark)
+        _, fault = env.rules.guarded(lambda: env.rules.run_block([FAIL], {}, "kernel.later"), mark)
     assert fault is not None and world.props == {"x": 0, "rang": 0, "once": 0}
     assert undoable_state(env) == before  # armed[0], armed[1] and fired_once {1} undone with the commit
-    env._atomic(["$world.x = 1"], {}, "kernel.again")
+    env.rules.run_block(["$world.x = 1"], {}, "kernel.again")
     assert world.props["rang"] == 1 and world.props["once"] == 1  # the events should fire as the first time
 
 
 def test_undoing_a_scheduled_effect_restores_the_schedule_count():
     env = fg_env.load(LATCH, seed=1)
     before = undoable_state(env)
-    _, fault = guarded(env, lambda: env._atomic([{"after": 1, "do": ["$world.x = 1"]}, FAIL], {}, "kernel.block"))
+    block = [{"after": 1, "do": ["$world.x = 1"]}, FAIL]
+    _, fault = env.rules.guarded(lambda: env.rules.run_block(block, {}, "kernel.block"))
     assert fault is not None and not env.world.scheduled
     assert undoable_state(env) == before

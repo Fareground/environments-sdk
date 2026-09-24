@@ -26,7 +26,7 @@ from ..world.props import prop_type
 
 if TYPE_CHECKING:
     from ..world.live import SdkWorld
-    from .env import Env
+    from .rules import Rules
 
 __all__ = ["run_feeds", "feed_target"]
 
@@ -37,22 +37,22 @@ def feed_target(spec: FeedSpec) -> tuple[str, str]:
     return owner, name
 
 
-def run_feeds(env: Env) -> None:
-    """Write this round's due feeds into the world, each in its own atomic change."""
-    world = env.world
-    for name, spec in env.contract.feeds.items():
-        if env._ended():
+def run_feeds(rules: Rules) -> None:
+    """Write this round's due feeds into the world, each in its own atomic change committed by ``rules``."""
+    world = rules.world
+    for name, spec in rules.contract.feeds.items():
+        if rules.ended():
             return
         if not _due(world, name, spec):
             continue
-        with env._lock:
+        with rules.lock:
             mark = world.journal.mark()
             try:
                 _pull(world, name, spec)
             except BaseException:
                 world.journal.rollback(mark)
                 raise
-            env._after_commit(f"mechanisms.{name}")
+            rules.commit(f"mechanisms.{name}")
 
 
 def _due(world: SdkWorld, name: str, spec: FeedSpec) -> bool:

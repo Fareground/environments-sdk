@@ -1,17 +1,12 @@
 """The round loop: a round's safe points, starting a round (scheduled effects, feeds, `round.start` events, physics),
-playing its stages in order, ending the round or the run, and atomic effect blocks."""
+playing its stages in order, and ending the round or the run."""
 from __future__ import annotations
 
 from collections.abc import Generator
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from ..actions.book import ACTION_BUDGET
-from ..actions.faults import world_logic_refused
 from ..contract import StageSpec
-from ..errors import RunError
-from ..expr import shared_budget
-from ..world.live import Abort, OutOfBounds
 from .feeds import run_feeds
 from .measure import sample_metrics
 from .state import Where
@@ -49,19 +44,19 @@ class RunRounds:
         world.luck.firings.clear()  # counts of this round's luck, and of its uses of actions: never undone
         world.used_round.clear()
         world.stage = None
-        self.happenings.run_scheduled()
-        run_feeds(self)
-        self.happenings.fire("round.start")
-        self._check_end()
-        if self._ended():
+        self.rules.run_scheduled()
+        run_feeds(self.rules)
+        self.rules.fire("round.start")
+        self.rules.check_end()
+        if self.rules.ended():
             self._finish()
             return False
         with self._lock:
             world.step_physics()
             world.journal.clear()
-        self._check_invariants("physics")
-        self.happenings.check_changes("physics")
-        if self._ended():
+        self.rules.check_invariants("physics")
+        self.rules.check_changes("physics")
+        if self.rules.ended():
             self._finish()
             return False
         return True
@@ -84,19 +79,19 @@ class RunRounds:
                 self.state.where.stage = index
                 yield _Point(stage)
                 yield from self._run_stage(stage)
-            self._check_end()
-            if self._ended():
+            self.rules.check_end()
+            if self.rules.ended():
                 self._finish()
                 return
         world.stage = None
-        self.happenings.fire("round.end")
+        self.rules.fire("round.end")
         world.patterns.commit()
         sample_metrics(self.contract, world)
-        self.happenings.check_changes("round end")
-        self._check_invariants("round", "round")
-        self._check_end()
+        self.rules.check_changes("round end")
+        self.rules.check_invariants("round", "round")
+        self.rules.check_end()
         self._flush_events()
-        if self._ended():
+        if self.rules.ended():
             self._finish()
             return
         self.state.in_round = False
@@ -106,9 +101,6 @@ class RunRounds:
             self._final_event()
         else:
             self.previews.frame(final=False)
-
-    def _ended(self: Env) -> bool:  # type: ignore[misc]
-        return self.world.end_request is not None
 
     def _finish(self: Env) -> None:  # type: ignore[misc]
         world = self.world
@@ -122,50 +114,10 @@ class RunRounds:
         self._final_event()
 
     def _final_event(self: Env) -> None:  # type: ignore[misc]
-        self._check_invariants("the run", "end")
+        self.rules.check_invariants("the run", "end")
         end = self.world.end_request or {}
         text = end.get("text") or (f"The run ended: {self.ended_by}." if self.ended_by != "rounds" else "Time is up.")
         self.world.emit("end", text, data={"ended_by": self.ended_by, "winner": end.get("winner")})
         self.world.journal.clear()
         self.previews.frame(final=True)
         self._flush_events()
-
-    def _atomic(self: Env, effects: list[Any], vars: dict[str, Any], path: str,  # type: ignore[misc]
-                check: bool = True, owner: Any = None, luck: str | None = None) -> None:
-        """Apply ``effects`` as one undoable block of world logic: a refusal in it (a `fail`, a transfer or write that
-        does not fit) fails the run — or, inside an agent's action, refuses that action. ``check=False``: one item of a
-        block whose invariants are checked once it is whole (a round event's `each`), unless a `change` event fires or
-        an agent reacts first. The block draws from the stream of ``luck`` (default: its path) and ``owner`` (default:
-        its $actor), so an entity's luck does not shift when others come or go."""
-        if not effects:
-            return
-        site = luck or path
-        with self._lock, self.world.luck.at(site, vars.get("actor") if owner is None else owner):
-            mark = self.world.journal.mark()
-            try:
-                with shared_budget(ACTION_BUDGET, path):
-                    self.effects.run(effects, dict(vars), path)
-            except OutOfBounds as refusal:
-                self.world.journal.rollback(mark)
-                raise RunError(f"{refusal.reason} Keep it in range where it is written, e.g. with "
-                               "$clamp(x, low, high), or guard the write with an `if`", path) from None
-            except Abort as refusal:
-                self.world.journal.rollback(mark)
-                raise RunError(world_logic_refused(refusal.reason), path) from None
-            except BaseException:
-                self.world.journal.rollback(mark)
-                raise
-            self._after_commit(path, check)
-            self.happenings.react(self._stage_spec())
-
-    def _stage_spec(self: Env) -> StageSpec | None:  # type: ignore[misc]
-        name = self.world.stage
-        return next((s for s in self.contract.stage_list() if s.name == name), None) if name else None
-
-    def _after_commit(self: Env, path: str, check: bool = True) -> None:  # type: ignore[misc]
-        if check or self.world.reactions:
-            self._check_invariants(path)
-        if self._end_on_action:
-            self._check_end("action")
-        self.world.journal.clear()
-        self.happenings.check_changes(path)

@@ -19,7 +19,7 @@ def ev(env, source, **vars):
 
 def do(env, actor, effects):
     """Apply effects atomically (as `actor` when given); a refusal raises, as any refused world logic does."""
-    env._atomic(effects, {"actor": env.world.entities[actor]} if actor else {}, "test")
+    env.rules.run_block(effects, {"actor": env.world.entities[actor]} if actor else {}, "test")
     return True
 
 

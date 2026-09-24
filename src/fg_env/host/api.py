@@ -54,7 +54,7 @@ def build(env: Env) -> None:
     with env._lock:
         for name in names:
             generate(env.world, name, f"mechanisms.{name}")
-        env._check_invariants("personas")
+        env.rules.check_invariants("personas")
         env.world.journal.clear()
         env.origin.base = take_snapshot(env)  # copies of the run start from the personas, never asking for them again
 

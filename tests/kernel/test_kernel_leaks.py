@@ -33,8 +33,8 @@ UNGATED = Counter({
     "mechanisms/host_personas.py::_render": 1,  # a persona template, rendered for a host at build
     "mechanisms/procedure_stack.py::_describe": 1,  # a procedure item's `show`
     "mechanisms/status.py::_say": 1,  # a status mechanism's news line
-    "runtime/checks.py::RunChecks._check_end": 1,  # an end condition's `say`
-    "runtime/turn.py::Turn.invalid": 1,  # a stage `valid` rule's `why`, told to the acting agent
+    "runtime/rules.py::Rules.check_end": 1,  # an end condition's `say`
+    "runtime/rules.py::Rules.invalid": 1,  # a stage `valid` rule's `why`, told to the acting agent
     "runtime/turn_tools.py::HostWake._commit": 1,  # an in-turn host tool's outcome (viewer: the actor)
     "world/build.py::_generate": 2,  # generated entity ids and names (every agent may read them)
     "world/build.py::build_world": 1,  # per-entity briefs (viewer: the entity)

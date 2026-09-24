@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from ..actions.book import ACTION_BUDGET, ToolSpec
-from ..actions.faults import guarded, refused_text
+from ..actions.faults import refused_text
 from ..errors import RunError
 from ..expr import ExprError, shared_budget
 from ..expr.template import compile_template
@@ -160,7 +160,7 @@ class HostWake(Wake):
         """Apply and commit the call; a rule that fails or an invariant it breaks refuses it (see
         :mod:`fg_env.actions.faults`)."""
         turn = self._turn
-        result, fault = guarded(turn.env, lambda: self._commit(name, params))
+        result, fault = turn.env.rules.guarded(lambda: self._commit(name, params))
         if result is None:
             assert fault is not None
             turn.stats.rejected_actions += 1

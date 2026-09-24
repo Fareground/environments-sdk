@@ -15,10 +15,9 @@ from typing import TYPE_CHECKING, Any
 from ..errors import RunError
 
 if TYPE_CHECKING:
-    from ..runtime.env import Env
     from ..world.live import SdkWorld
 
-__all__ = ["dropped", "send", "run_delivery"]
+__all__ = ["dropped", "send", "deliver"]
 
 
 def dropped(world: SdkWorld, chance: Any, where: str) -> bool:
@@ -48,20 +47,6 @@ def deliver(world: SdkWorld, payload: Mapping[str, Any], where: str) -> None:
     else:
         world.emit(payload["event"], payload["text"], actor=payload["actor"], to=_ids(payload["to"]),
                    data=dict(payload["data"]))
-
-
-def run_delivery(env: Env, item: Mapping[str, Any]) -> None:
-    """Deliver one scheduled message as its own atomic change."""
-    world = env.world
-    with env._lock:
-        mark = world.journal.mark()
-        try:
-            deliver(world, item["delivery"], item["path"])
-        except BaseException:
-            world.journal.rollback(mark)
-            raise
-        env._after_commit(item["path"])
-        env.happenings.react(env._stage_spec())
 
 
 def _ids(value: Any | None) -> tuple | None:

@@ -125,7 +125,7 @@ class SdkWorld(World):
         #: Names of properties written since the build (read by the run's diagnostics; see runtime/diagnosis.py).
         self.written: set[str] = set()
         #: Ids of the entities created or given property values since the invariants last held, in order (None: not
-        #: known, so every invariant is checked whole; see runtime/checks.py).
+        #: known, so every invariant is checked whole; see runtime/rules.py).
         self.touched: dict[str, None] | None = None
         #: While sealed choices commit or an `each` loop runs, notes `=` assignments (see runtime/diagnosis.py).
         self.watched_writes: Any = None

@@ -34,7 +34,7 @@ __all__ = ["observation_text", "observation_struct", "information_state", "state
 def _stage(env: Env, turn: Turn | None) -> StageSpec:
     if turn is not None:
         return turn.stage
-    return env._stage_spec() or env.contract.stage_list()[0]
+    return env.rules.stage_spec() or env.contract.stage_list()[0]
 
 
 def _peek(env: Env, actor: Entity, turn: Turn | None) -> Turn:

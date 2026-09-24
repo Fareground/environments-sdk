@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import json
 import time
-from collections.abc import Iterator, Mapping
-from contextlib import contextmanager
+from collections.abc import Mapping
+from contextlib import AbstractContextManager
 from typing import TYPE_CHECKING, Any
 
 from ..actions.book import ACTION_BUDGET, ToolSpec, stage_actions
-from ..actions.faults import guarded, refused_text
+from ..actions.faults import refused_text
 from ..actions.params import REFUSED_ARGS
 from ..actions.reads import (
     READS,
@@ -29,10 +29,9 @@ from ..actions.reads import (
 from ..actions.tool_text import cut_text, offer_text
 from ..assets.delivery import Attachment
 from ..contract import MAX_TURN_ACTIONS, MAX_TURN_CALLS, ActionSpec, StageSpec
-from ..errors import RunError
-from ..expr import ExprError, compile_expr, shared_budget, truthy
+from ..expr import shared_budget
 from ..expr.objects import Entity
-from ..expr.template import compile_template, entity_handles, format_value
+from ..expr.template import entity_handles, format_value
 from ..world.build import whole_setting
 from ..world.live import _plain
 from .ledger import AttemptLedger
@@ -219,20 +218,17 @@ class Turn:
     def _legal(self) -> list[str]:
         if self.ledger.actions_left <= 0:
             return []
-        env = self.env
-        names = stage_actions(env.contract, self.stage, self.actor.entity_type)
-        used_round = env.world.used_round.get(self.actor.id, {})
-        used = self.ledger.used
-        return [n for n in names if env.actions.blocked(self.actor, n, used, used_round, offered=True) is None]
+        rules, used = self.env.rules, self.ledger.used
+        names = stage_actions(rules.contract, self.stage, self.actor.entity_type)
+        return [n for n in names if rules.blocked(self.actor, n, used, offered=True) is None]
 
     def _allows(self, name: str) -> bool:
         """Whether action ``name`` is offered now: :meth:`_legal` for one action."""
         if self.ledger.actions_left <= 0:
             return False
-        env = self.env
-        used_round = env.world.used_round.get(self.actor.id, {})
-        return name in stage_actions(env.contract, self.stage, self.actor.entity_type) and \
-            env.actions.blocked(self.actor, name, self.ledger.used, used_round, offered=True) is None
+        rules = self.env.rules
+        return name in stage_actions(rules.contract, self.stage, self.actor.entity_type) and \
+            rules.blocked(self.actor, name, self.ledger.used, offered=True) is None
 
     def tools(self) -> list[ToolSpec]:
         if self.done:
@@ -346,7 +342,7 @@ class Turn:
             self.stats.invalid_calls += 1
             return self._after(ToolResult(False, "You have no actions left this turn; call end_turn.", data=_INVALID))
         observed = env.world.luck.observe()
-        acted, fault = guarded(env, lambda: self._act(name, spec, args, observed), action=name)
+        acted, fault = env.rules.guarded(lambda: self._act(name, spec, args, observed), action=name)
         if acted is None:
             assert fault is not None
             self.stats.rejected_actions += 1
@@ -372,21 +368,14 @@ class Turn:
 
     def _act(self, name: str, spec: ActionSpec, args: Any, observed: Observation) -> tuple[ToolResult, bool, bool]:
         """Check, then submit (sealed turns) or apply and commit one action call — ``observed`` from its start: its
-        result, whether it applied, and whether applying it drew randomness. Runs inside :func:`guarded`, so the turn's
-        own counts change only once nothing can fail any more."""
+        result, whether it applied, and whether applying it drew randomness. Runs inside :meth:`Rules.guarded`, so the
+        turn's own counts change only once nothing can fail any more."""
         with self.after_choices():
             return self._checked_act(name, spec, args, observed)
 
-    @contextmanager
-    def after_choices(self) -> Iterator[None]:
-        """The world as this turn's next sealed choice will meet it when it commits: after the choices the turn
-        already submitted, undone on the way out (two buys cannot spend the same coins). Blocks do not nest."""
-        if not self.ledger.intents:
-            yield
-            return
-        with self.env.actions.trying():
-            self.env.actions.replay(self.actor, self.ledger.intents)
-            yield
+    def after_choices(self) -> AbstractContextManager[None]:
+        """The world as this turn's next sealed choice will meet it when it commits (:meth:`Rules.replay_intents`)."""
+        return self.env.rules.replay_intents(self.actor, self.ledger.intents)
 
     def _refused(self, name: str, text: str, observed: Observation, free: dict[str, Any]) -> ToolResult:
         """The result of a refused call to ``name``, ``observed`` from the call's start: spent for good when working it
@@ -398,20 +387,20 @@ class Turn:
 
     def _checked_act(self, name: str, spec: ActionSpec, args: Any,
                      observed: Observation) -> tuple[ToolResult, bool, bool]:
-        env = self.env
-        blocked = env.actions.blocked(self.actor, name, self.ledger.used, env.world.used_round.get(self.actor.id, {}))
+        env, rules = self.env, self.env.rules
+        blocked = rules.blocked(self.actor, name, self.ledger.used)
         if blocked:
             self.stats.invalid_calls += 1
             return (self._refused(name, f"You cannot {name.replace('_', ' ')} now: {blocked}.", observed, _INVALID),
                     False, False)
         args, cut = _cut(spec.params, args)
-        params, problem = env.actions.validate(self.actor, name, args)
+        params, problem = rules.validate(self.actor, name, args)
         if problem:
             self.stats.invalid_calls += 1
             return (self._refused(name, f"{name} was not done: {problem}. Correct the arguments and call again.",
                                   observed, _INVALID), False, False)
         if self.staged:  # checked without its luck (a trial draws nothing): the luck is rolled when it commits
-            refusal = env.actions.dry_run(self.actor, name, params)
+            refusal = rules.trial(self.actor, name, params)
             if refusal is not None:
                 self.stats.rejected_actions += 1
                 return self._refused(name, refusal, observed, _REJECTED), False, False
@@ -419,7 +408,7 @@ class Turn:
             self.ledger.submitted(name, dict(args or {}), {"action": name, **_plain(params)})
             text = f"Submitted {name.replace('_', ' ')}{_args_text(params)}; it resolves when everyone has chosen.{cut}"
             return ToolResult(True, text, ended or self.ledger.actions_left <= 0), False, False
-        outcome = env.actions.apply(self.actor, name, params)
+        outcome = rules.apply(self.actor, name, params)
         drew = observed.drew  # checking the call drew nothing (it may not): what applying it drew
         if not outcome.ok:
             self.stats.rejected_actions += 1
@@ -456,7 +445,7 @@ class Turn:
         """A change inside the turn has applied: settle it now, or — atomic turns — when the turn ends. Reactions it
         asks for are the caller's to run, once nothing can undo the change any more."""
         if not self.ledger.part_open:
-            self.env._after_commit(path)
+            self.env.rules.commit(path)
 
     def settle(self) -> str | None:
         """Atomic turns: commit a turn that meets `valid` (then run what waited for it), or undo every action of the
@@ -465,7 +454,7 @@ class Turn:
         ledger = self.ledger
         if not ledger.part_open:
             return None
-        why, fault = guarded(self.env, self._commit_turn, ledger.mark)
+        why, fault = self.env.rules.guarded(self._commit_turn, ledger.mark)
         if fault is not None:
             why = fault
             self.stats.faulted_actions += 1
@@ -478,9 +467,10 @@ class Turn:
 
     def _commit_turn(self) -> str | None:
         """Why the turn as played is not allowed, or None once it has committed."""
-        why = self.invalid() if self.ledger.counted_in_part else None
+        rules = self.env.rules
+        why = rules.invalid(self.actor, self.stage) if self.ledger.counted_in_part else None
         if why is None:
-            self.env._after_commit(f"stages.{self.stage.name}")
+            rules.commit(f"stages.{self.stage.name}")
         return why
 
     def settle_at_end(self) -> None:
@@ -496,21 +486,6 @@ class Turn:
                 env.world.emit("outcome", f"Your turn was undone: {why}.", actor=self.actor.id, to=(self.actor.id,),
                                data={"ok": False, "undone": True})
                 env.world.journal.clear()
-
-    def invalid(self) -> str | None:
-        """Why the turn as played breaks the stage's `valid` rules, or None when it meets them."""
-        env, path = self.env, f"stages.{self.stage.name}.valid"
-        scope = env.world.scope(actor=self.actor)
-        with shared_budget(ACTION_BUDGET, path):
-            for index, condition in enumerate(self.stage.valid):
-                try:
-                    if truthy(compile_expr(condition.expr)(scope)):
-                        continue
-                    why = compile_template(condition.why, None).render(scope) if condition.why else ""
-                except ExprError as exc:
-                    raise RunError(str(exc), f"{path}[{index}]") from None
-                return str(why).strip().rstrip(".") or "this turn is not allowed"
-        return None
 
     def _undo(self) -> None:
         """Undo the turn's open part (see :meth:`AttemptLedger.undo_part`); what the turn drew stays spent."""

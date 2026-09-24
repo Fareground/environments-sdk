@@ -6,7 +6,6 @@ import bisect
 from typing import TYPE_CHECKING, Any
 
 from ..actions.book import announces, stage_actions
-from ..actions.faults import guarded
 from ..contract import MAX_STAGE_PASSES, StageSpec
 from ..errors import RunError
 from ..expr import EVERYONE, ExprError, PrivateRead, compile_expr, truthy
@@ -35,8 +34,8 @@ class RunStages:
             if not runs:
                 return
             world.stage = stage.name
-            self.happenings.fire(f"stage.{stage.name}.start")
-            if self._ended():
+            self.rules.fire(f"stage.{stage.name}.start")
+            if self.rules.ended():
                 return
             where.pass_index = 0
         passes = whole_setting(world, stage.passes, f"{path}.passes", MAX_STAGE_PASSES) or (10 if stage.until else 1)
@@ -54,7 +53,7 @@ class RunStages:
             else:
                 yield from self._sequential(stage, agents, pass_index, resumed)
             resumed = False
-            if self._ended():
+            if self.rules.ended():
                 return
             if stage.until is not None:
                 try:
@@ -65,7 +64,7 @@ class RunStages:
         else:
             if stage.until is not None:
                 self.diagnosis.stage(stage.name, capped=1)  # every pass ran and `until` still did not hold
-        self.happenings.fire(f"stage.{stage.name}.end")
+        self.rules.fire(f"stage.{stage.name}.end")
 
     def _stage_runs(self: Env, stage: StageSpec) -> bool:  # type: ignore[misc]
         if stage.when is None:
@@ -164,7 +163,7 @@ class RunStages:
                 assert turn is not None
                 yield from self.driver.drive_steps([turn], resume=0)
             else:
-                if self._ended():
+                if self.rules.ended():
                     return
                 if not actor.alive:  # removed earlier this pass: everyone after it still takes their turn
                     continue
@@ -187,14 +186,14 @@ class RunStages:
         stage's `turn` events for a living agent ($actor, $acted, $timed_out)."""
         actor = turn.actor
         timed_out = self._timed_out(turn)
-        if stop_when_ended and self._ended():
+        if stop_when_ended and self.rules.ended():
             return
         if not (timed_out or acted) and actor.alive and turn.did_not_act:
             with self._lock:
                 self.world.emit("idle", f"{actor.name} did not act.", actor=actor.id, data={"stage": stage.name})
                 self.world.journal.clear()
-        if actor.alive and not self._ended():
-            self.happenings.fire(f"stage.{stage.name}.turn", {"actor": actor, "acted": acted, "timed_out": timed_out},
+        if actor.alive and not self.rules.ended():
+            self.rules.fire(f"stage.{stage.name}.turn", {"actor": actor, "acted": acted, "timed_out": timed_out},
                                  owner=actor)
 
     def _timed_out(self: Env, turn: Turn) -> bool:  # type: ignore[misc]
@@ -251,14 +250,14 @@ class RunStages:
                 applied = 0
                 writes.writer = turn.actor.name or turn.actor.id
                 for name, args in turn.ledger.intents:
-                    if self._ended() and mark is None:
+                    if self.rules.ended() and mark is None:
                         return
                     writes.action = name
                     applied += self._commit_intent(turn, name, args, deferred=mark is not None)
                 acted = bool(turn.ledger.intents)
                 if mark is not None:
                     acted = self._settle_choices(turn, mark, applied)
-                    if self._ended():
+                    if self.rules.ended():
                         return
                 self._after_turn(stage, turn, acted, stop_when_ended=True)
         finally:
@@ -273,13 +272,13 @@ class RunStages:
 
         def commit() -> str | None:
             with world.luck.turn_context(None, turn.ledger.pending):
-                why = turn.invalid() if applied else None
+                why = self.rules.invalid(turn.actor, stage) if applied else None
             if why is None:
-                self._after_commit(f"stages.{stage.name}")
+                self.rules.commit(f"stages.{stage.name}")
             return why
 
         with self._lock:
-            why, fault = guarded(self, commit, mark)
+            why, fault = self.rules.guarded(commit, mark)
             if fault is not None:
                 why = fault
             if why is None:
@@ -300,7 +299,7 @@ class RunStages:
         whole turn's settling. A rule that fails or an invariant it breaks refuses the choice alone."""
         actor, world = turn.actor, self.world
         with self._lock:
-            applied, fault = guarded(self, lambda: self._apply_intent(turn, name, args, deferred), action=name)
+            applied, fault = self.rules.guarded(lambda: self._apply_intent(turn, name, args, deferred), action=name)
             if applied is None:
                 assert fault is not None
                 world.emit("outcome", f"Your {name.replace('_', ' ')} did not happen: {fault}.",
@@ -317,8 +316,8 @@ class RunStages:
     def _apply_intent(self: Env, turn: Turn, name: str, args: dict[str, Any],  # type: ignore[misc]
                       deferred: bool) -> int:
         actor, world = turn.actor, self.world
-        blocked = self.actions.blocked(actor, name, {}, {}) if actor.alive else "you are no longer active"
-        params, problem = ({}, blocked) if blocked else self.actions.validate(actor, name, args)
+        blocked = self.rules.blocked(actor, name, {}, {}) if actor.alive else "you are no longer active"
+        params, problem = ({}, blocked) if blocked else self.rules.validate(actor, name, args)
         verb = name.replace("_", " ")
         if problem:
             world.emit("outcome", f"Your {verb} did not happen: {str(problem).rstrip('.')}.",
@@ -328,7 +327,7 @@ class RunStages:
                 world.journal.clear()
             self.state.tally(actor.id, Stats(rejected_actions=1))
             return 0
-        outcome = self.actions.apply(actor, name, params)
+        outcome = self.rules.apply(actor, name, params)
         text = outcome.text if outcome.ok else f"Your {verb} failed: {outcome.text}"
         data = {"action": name, "ok": outcome.ok, **({"assets": outcome.assets} if outcome.assets else {})}
         world.emit("outcome", text, actor=actor.id, to=(actor.id,), data=data)
@@ -339,7 +338,7 @@ class RunStages:
                 world.journal.clear()
             return 0
         if not deferred:
-            self._after_commit(f"actions.{name}")
+            self.rules.commit(f"actions.{name}")
         self.diagnosis.committed(name)
         self.state.tally(actor.id, Stats(actions=1))
         return 1

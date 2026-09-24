@@ -29,7 +29,6 @@ from ..sampling.seeds import SeedTree
 from ..world.build import build_world
 from ..world.live import _plain
 from .budget import Budget, is_seconds
-from .checks import RunChecks
 from .diagnosis import Diagnosis
 from .diagnostics import diagnose
 from .driving import WAITING, Driver, run_on_worker
@@ -41,6 +40,7 @@ from .measure import RunResult
 from .perception import Perception
 from .returns import measured
 from .rounds import RunRounds, _Steps
+from .rules import Rules
 from .stages import RunStages
 from .state import Memory, RunState
 from .turn import entity_dict
@@ -48,7 +48,7 @@ from .turn import entity_dict
 __all__ = ["Env", "SNAPSHOT_VERSION"]
 
 
-class Env(RunChecks, RunRounds, RunStages):
+class Env(RunRounds, RunStages):
     """A loaded environment. Create with :func:`fg_env.load`; run with :meth:`run`; copy with :meth:`clone`
     and :meth:`fork`."""
 
@@ -56,6 +56,7 @@ class Env(RunChecks, RunRounds, RunStages):
     status: str
     origin: Origin
     diagnosis: Diagnosis
+    rules: Rules
     happenings: Happenings
     driver: Driver
     previews: Previews
@@ -63,7 +64,6 @@ class Env(RunChecks, RunRounds, RunStages):
     _signal: threading.Condition
     _emitted: int
     _inspectable: bool
-    _end_on_action: bool
 
     def __init__(self, contract: Contract, inputs: dict[str, Any], seed: int, arm: str | None = None,
                  parallel: int = 8, exposures: bool = False, assets: AssetStore | None = None, events: bool = True):
@@ -89,6 +89,8 @@ class Env(RunChecks, RunRounds, RunStages):
         self.ended_by: str | None = None
         self.error: str | None = None
         self._lock = threading.RLock()
+        self.diagnosis = self.world.diagnosis = Diagnosis(self.world.written)
+        self.rules = Rules(contract, self.world, self.effects, self.actions, self.state, self.diagnosis, self._lock)
         #: Signalled when a participant's turn lands or a call returns; waiting on it releases the lock.
         self._signal = threading.Condition(self._lock)
         self._running = threading.Lock()
@@ -100,6 +102,7 @@ class Env(RunChecks, RunRounds, RunStages):
         self.world.exposures = ExposureLog() if exposures or asks_seen(contract) else None
         self._reads_log = reads_log(contract) if not events else True
         self.happenings = Happenings(self)
+        self.rules.react = self.happenings.react
         self.previews = Previews(self)
         self._on_event: Callable[[dict[str, Any]], None] | None = None
         self._emitted = 0
@@ -108,9 +111,7 @@ class Env(RunChecks, RunRounds, RunStages):
         self.origin = Origin(contract)  # what copies of this run replay from (see copying/replay.py)
         #: Whether some type lets agents inspect entities besides themselves (whose [id] handles then show).
         self._inspectable = any(self._inspect_rule(kind) is not False for kind in contract.types)
-        self._end_on_action = any(end.check == "action" for end in contract.end)
-        self.diagnosis = self.world.diagnosis = Diagnosis(self.world.written)
-        self._check_invariants("build", "build")
+        self.rules.check_invariants("build", "build")
 
     # -- public API ----------------------------------------------------------------
 

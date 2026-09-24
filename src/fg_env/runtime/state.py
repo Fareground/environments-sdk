@@ -81,7 +81,7 @@ class RunState:
         self.stats = Stats()
         #: The same numbers per agent entity id (a tournament bills each entrant for its own turns).
         self.agent_stats: dict[str, Stats] = {}
-        #: A cache, not state: the world state each invariant was last found to hold in (see runtime/checks.py).
+        #: A cache, not state: the world state each invariant was last found to hold in (see runtime/rules.py).
         self.invariant_held: dict[int, Any] = {}
         #: A cache, not state: the log as plain data, converted once per event (see :meth:`event_rows`).
         self.rows: list[dict[str, Any]] = []

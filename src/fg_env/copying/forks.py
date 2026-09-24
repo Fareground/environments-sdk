@@ -132,8 +132,8 @@ def _fork(cls: Any, contract: ContractLike, snapshot: Mapping[str, Any], *, arm:
     world.journal.clear()
     env._emitted = len(world.log)
     if effects:
-        env._atomic(list(effects), {}, "fork.effects")
-    env._check_invariants("fork")
+        env.rules.run_block(list(effects), {}, "fork.effects")
+    env.rules.check_invariants("fork")
     env._emitted = len(world.log)
     env.origin.base = take_snapshot(env)
     # The fork's changes are not in its build, so a recording of it replays from here.

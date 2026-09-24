@@ -47,7 +47,7 @@ _ENV_FIELDS = frozenset({
     "contract", "inputs", "seed", "arm", "parallel", "seeds", "world", "effects", "actions", "perception", "state",
     "status", "ended_by", "error", "_lock", "_signal", "_running", "driver", "time_limit", "budget", "happenings",
     "previews", "_on_event", "_emitted", "_cursor", "origin", "_inspectable", "pilot", "build_seed", "stepper",
-    "diagnosis", "_end_on_action", "_reads_log"})
+    "diagnosis", "rules", "_reads_log"})
 _STATE_FIELDS = frozenset({
     "world", "keep_events", "turn_count", "memories", "briefs", "brief_assets", "in_round", "where", "stats",
     "agent_stats", "invariant_held", "rows", "rows_last"})
@@ -92,7 +92,7 @@ def copy_run(source: SteppedEnv, waiting: Waiting | None) -> tuple[SteppedEnv, W
         contract=source.contract, inputs=source.inputs, seed=source.seed, arm=source.arm, parallel=source.parallel,
         seeds=source.seeds, world=world, state=_copy_state(source.state, world), status=source.status,
         ended_by=source.ended_by, error=source.error, time_limit=source.time_limit, budget=None, _on_event=None,
-        _emitted=source._emitted, _inspectable=source._inspectable, _end_on_action=source._end_on_action, pilot=None,
+        _emitted=source._emitted, _inspectable=source._inspectable, pilot=None,
         build_seed=source.build_seed, stepper=None, _reads_log=source._reads_log)
     env._lock = threading.RLock()
     env._signal = threading.Condition(env._lock)
@@ -102,10 +102,14 @@ def copy_run(source: SteppedEnv, waiting: Waiting | None) -> tuple[SteppedEnv, W
     world.joined = env._joined
     env.actions = _rebound(source.actions, world=world, effects=env.effects)
     env.perception = _rebound(source.perception, world=world)
+    env.diagnosis = world.diagnosis = _copy_diagnosis(source.diagnosis, world.written)
+    env.rules = _rebound(source.rules, world=world, effects=env.effects, actions=env.actions, state=env.state,
+                         diagnosis=env.diagnosis, lock=env._lock)
+    env.rules.events = _rebound(source.rules.events, rules=env.rules)
     env.happenings = _rebound(source.happenings, env=env)
+    env.rules.react = env.happenings.react
     env.previews = _rebound(source.previews, env=env, frames=list(source.previews.frames))
     env.driver = _rebound(source.driver, env=env, spec=dict(source.driver.spec), _resolved={}, loop=None)
-    env.diagnosis = world.diagnosis = _copy_diagnosis(source.diagnosis, world.written)
     origin = Origin.__new__(Origin)
     kept = source.origin
     origin.base, origin.start, origin.tape = kept.base, kept.start, kept.tape.copy()

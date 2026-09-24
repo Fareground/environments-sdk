@@ -128,10 +128,11 @@ def _measure(contract: Any, rounds: int | None, seed: int, inputs: dict[str, Any
     env = load(contract, seed=seed, inputs={key: value for key, value in inputs.items() if key in declared})
     build_ms = (time.perf_counter() - started) * 1000
     watch = _Stopwatch()
-    env.happenings.fire = watch.wrap("events", env.happenings.fire)  # type: ignore[method-assign]
-    env.happenings.run_scheduled = watch.wrap("events", env.happenings.run_scheduled)  # type: ignore[method-assign]
-    env.happenings.check_changes = watch.wrap("events", env.happenings.check_changes)  # type: ignore[method-assign]
-    env._check_invariants = watch.wrap("invariants", env._check_invariants)  # type: ignore[method-assign]
+    rules = env.rules
+    rules.fire = watch.wrap("events", rules.fire)  # type: ignore[method-assign]
+    rules.run_scheduled = watch.wrap("events", rules.run_scheduled)  # type: ignore[method-assign]
+    rules.check_changes = watch.wrap("events", rules.check_changes)  # type: ignore[method-assign]
+    rules.check_invariants = watch.wrap("invariants", rules.check_invariants)  # type: ignore[method-assign]
     env._run_stage = watch.wrap_steps("stages", env._run_stage)  # type: ignore[method-assign, assignment]
     env.world.step_physics = watch.wrap("physics", env.world.step_physics)  # type: ignore[method-assign]
     sampler = _run_rounds.sample_metrics
