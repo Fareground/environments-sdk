@@ -2,13 +2,17 @@
 
 The copy gets its own world — entities, properties, links, records, log, schedule, counters, random stream,
 exposures, the asset index — its own bookkeeping — statistics, memories, triggers, tape — its own copies of the turns in
-progress with their random streams, and a round that resumes where the original's is (:class:`~fg_env.runtime.env._Where`).
+progress with their random streams, and a round that resumes where the original's is (:class:`~fg_env.runtime.rounds._Where`).
 Nothing mutable is shared, so the two runs continue independently and each exactly as the original would.
 Immutable things are shared: the contract, logged events, scheduled items, snapshots.
 
 Every attribute of a run, its world and its turns is accounted for below. A run holding what is not copied here —
 physics, a space, hosts, a budget, changes not yet committed (an atomic turn), a scheduled stage, or an attribute
 this module does not know — raises :class:`NotCopyable`, and the caller copies it by replaying instead.
+
+It exists for speed: game search and playouts clone a state at every decision, and a direct copy costs the same at
+any depth where a replay grows with the history (about 10x faster per clone on the example games, 2x on a whole
+game-tree walk). ``tests/test_game_stepping.py`` holds it to the replayed copy on every example game.
 """
 from __future__ import annotations
 
@@ -22,7 +26,7 @@ from ..host.hosts import hosts_for
 from ..runtime.measure import Stats
 from .replay import Origin
 from ..runtime.diagnosis import Diagnosis, _copy as _copy_counts
-from ..runtime.env import _Where
+from ..runtime.rounds import _Where
 from .stepping import SteppedEnv, Waiting
 from ..runtime.turn import Memory, Turn
 from ..world.type_index import TypeIndex
