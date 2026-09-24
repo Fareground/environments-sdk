@@ -12,8 +12,9 @@ so, for coded participants, the run stops at the same point on every replay (``s
 time, so it is the one limit that is not deterministic). ``tokens`` is also checked each time a participant
 reports usage, counting the turns still in play: once it is reached, every turn in play ends there (calls
 made after that are refused). The built-in LLM participants also hold back a model call while the calls already
-under way may spend what is left (each reserves what the participant's previous call used; its first call, of unknown
-cost, runs alone), so parallel turns overshoot the limit by about one call, not one call per turn in flight. Once a limit is reached, ``on_exhaust: "end"`` ends the run there (``ended_by:
+under way may spend what is left (each reserves what the participant's previous call used; its first call, the size
+of its prompt), so parallel turns overshoot the limit by about one call, not one call per turn in flight, and a
+budget far from its limit never makes parallel turns wait for each other. Once a limit is reached, ``on_exhaust: "end"`` ends the run there (``ended_by:
 "budget"``, outputs computed as for any ended run) and ``"idle"`` keeps the world running while every
 agent's later turns are idle.
 ``result.budget`` reports the limits, what was used and which limit ran out; snapshots carry it.
@@ -138,12 +139,11 @@ class Budget:
         playing = {id(t): t for t in (*env.origin.staged, turn) if not t.tallied}
         return limit - tokens_of(env.stats) - sum(tokens_of(t.stats) for t in playing.values())
 
-    def reserve(self, env: "Env", turn: "Turn", tokens: Optional[int]) -> Optional[float]:
-        """Hold ``tokens`` of the token limit for a model call ``turn`` is about to make — None when its cost is not
-        known yet, which holds all that is left, so the calls in parallel wait for one measured call — waiting while
-        the calls already under way may spend what is left. Returns what was held, to :meth:`release` once the call's
-        usage is recorded, or None when the turn is over first (the limit ran out, or its time did). A call waits only
-        for others, so a limit is overshot by about one call."""
+    def reserve(self, env: "Env", turn: "Turn", tokens: float) -> Optional[float]:
+        """Hold ``tokens`` of the token limit (what a model call ``turn`` is about to make is expected to spend), waiting
+        while the calls already under way may spend what is left. Returns what was held, to :meth:`release` once the
+        call's usage is recorded, or None when the turn is over first (the limit ran out, or its time did). A call waits
+        only for others, so a limit is overshot by about one call."""
         if "tokens" not in self.limits:
             return 0
         signal = env._signal
@@ -152,10 +152,9 @@ class Budget:
                 left = self.tokens_left(env, turn)
                 if left <= 0:
                     return None
-                held = left if tokens is None else tokens
-                if not self._reserved or held <= left - self._reserved:
-                    self._reserved += held
-                    return held
+                if not self._reserved or tokens <= left - self._reserved:
+                    self._reserved += tokens
+                    return tokens
                 time_left = turn.time_left()
                 if time_left is not None and time_left <= 0:
                     return None

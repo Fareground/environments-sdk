@@ -38,17 +38,49 @@ def test_anthropic_participant_drives_a_turn_with_corrections():
     env = fg_env.load(SHOP, seed=1, inputs={"shoppers": 1})
     env.run(agent, rounds=1)
     first = client.requests[0]
-    assert first["system"][0]["cache_control"] == {"type": "ephemeral"}
-    assert "# Corner shop" in first["system"][0]["text"]
-    [opening] = first["messages"][0]["content"]
-    assert "On the shelf" in opening["text"] and opening["cache_control"] == {"type": "ephemeral"}
-    later = client.requests[1]["messages"]  # the breakpoint follows the latest message: the next call reads the rest
-    assert isinstance(later[0]["content"], str) and later[-1]["content"][-1]["cache_control"] == {"type": "ephemeral"}
+    assert "# Corner shop" in first["system"][0]["text"] and "On the shelf" in first["messages"][0]["content"]
+    assert "cache_control" not in json.dumps(first)  # a prompt this short: no model caches it
     correction = client.requests[1]["messages"][-1]["content"][0]
     assert correction["is_error"] and "qty must be at most 10" in correction["content"]
     assert client.requests[2]["messages"][-1]["content"][0]["content"] == "You bought 2 × Espresso for $6.00."
     assert env.world.props["revenue"] == 6
     assert agent.usage.calls == 3 and agent.usage.cache_read_tokens == 240
+
+
+def test_one_tool_list_serves_the_whole_turn_so_each_call_reads_the_one_before_from_the_prompt_cache():
+    client = FakeAnthropic([
+        [("buy", {"offer": "espresso", "qty": 1})],
+        [("buy", {"offer": "latte", "qty": 1})],
+        [("end_turn", {})],
+    ])
+    rules = "House rules: pay at the counter, one queue, no refunds. " * 60  # a prompt long enough to cache
+    env = fg_env.load(SHOP, seed=1, inputs={"shoppers": 1})
+    env.run(participants.anthropic(client, "claude-x", system=rules), rounds=1)
+    first, second, third = client.requests
+    assert first["system"][0]["cache_control"] == {"type": "ephemeral"}
+    assert first["messages"][-1]["content"][-1]["cache_control"] == {"type": "ephemeral"}
+    assert third["messages"][-1]["content"][-1]["cache_control"] == {"type": "ephemeral"}  # it follows the latest
+    assert sum("cache_control" in json.dumps(m) for m in third["messages"]) == 1
+    # Buying made `review` legal: it joins the list (the one change a turn's tools can make); the rest stays as it was.
+    names = [[tool["name"] for tool in request["tools"]] for request in client.requests]
+    assert "review" not in names[0] and names[1] == names[2] == names[0] + ["review"]
+    assert first["tools"] == second["tools"][:-1]
+
+
+def test_a_tool_that_stops_being_legal_stays_offered_and_the_result_says_it_is_not_available_now():
+    client = FakeAnthropic([
+        [("buy", {"offer": "espresso", "qty": 1})],
+        [("review", {"offer": "espresso", "stars": 5, "text": "Good."})],
+        [("review", {"offer": "espresso", "stars": 4, "text": "Again."})],
+        [("end_turn", {})],
+    ])
+    env = fg_env.load(SHOP, seed=1, inputs={"shoppers": 1})
+    env.run(participants.anthropic(client, "claude-x"), rounds=1)
+    after_review = client.requests[2]["messages"][-1]["content"][0]
+    assert after_review["content"].endswith("(Not available now: review.)")
+    assert "review" in [tool["name"] for tool in client.requests[2]["tools"]]
+    refused = client.requests[3]["messages"][-1]["content"][0]  # the engine still refuses it, saying why
+    assert refused["is_error"] and "1 time(s) per round" in refused["content"]
 
 
 class FakeOpenAI:
@@ -75,7 +107,7 @@ def test_openai_participant_handles_bad_json_and_bids():
     assert result.ok, result.summary()
     assert result.outputs == {"winner": "Ann", "price": 30}
     tool_messages = [m for m in client.requests[1]["messages"] if m["role"] == "tool"]
-    assert "a JSON object" in tool_messages[0]["content"]
+    assert "not valid JSON" in tool_messages[0]["content"]
     assert "tool_calls" not in client.requests[1]["messages"][-1] or client.requests[1]["messages"][-1]["tool_calls"]
     assert client.requests[0]["tools"][0]["function"]["name"] == "bid"
 
@@ -120,8 +152,8 @@ def test_a_model_that_only_talks_is_nudged_once():
     agent = participants.anthropic(client, "claude-sonnet-5")
     env = fg_env.load(SHOP, seed=1, inputs={"shoppers": 1})
     env.run(agent, rounds=1)
-    assert client.requests[1]["messages"][-1]["content"][-1]["text"] == (
-        "Act only by calling your tools (buy, inspect, end_turn). When you have nothing more to do, call end_turn.")
+    assert client.requests[1]["messages"][-1]["content"] == (
+        "Act only by calling your tools (buy, end_turn). When you have nothing more to do, call end_turn.")
     assert env.world.props["revenue"] == 3
 
     silent = FakeAnthropic([])
