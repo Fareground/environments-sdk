@@ -105,6 +105,9 @@ def _check_award(cfg: AuctionConfig) -> None:
         if not isinstance(cfg.reserve, str) and cfg.reserve <= 0:
             raise MechanismError("a reverse auction needs `reserve`: the most the house pays per unit",
                                  'e.g. "reserve": 500', "reserve")
+    if cfg.deliver_from and not cfg.reverse:
+        raise MechanismError("`deliver_from` belongs to a tender: the winner's stock supplies the house",
+                             "set reverse: true, or remove deliver_from", "deliver_from")
     if cfg.score is not None:
         if cfg.format != "first_price":
             raise MechanismError("a scored award pays the winner its own bid, so it needs format first_price, not "
@@ -135,18 +138,19 @@ def _check_packages(cfg: AuctionConfig) -> None:
 
 @mode("market", "auction", AuctionConfig,
            "An auction: sealed first_price, second_price (Vickrey), english (ascending, increment, timeout), dutch "
-           "(falling clock), double (call market at one price) or uniform (multi-unit, one price). Tools `<name>_bid` "
-           "(price, qty) and, for double, `<name>_ask`. Each party holds the units it bought, or a double auction's "
-           "sellers the units they offer, in `<name>_units` (give sellers their stock there). Bids escrow cash, asks "
-           "escrow units; proceeds go to the `house` entity or $world.<name>_revenue. `reverse: true` makes it a "
-           "procurement tender (the house buys; the lowest offer at or below the reserve wins, is paid and supplies "
-           "one unit to the house's `<name>_units`); `score` awards a first_price lot to the best score instead of "
-           "the best price. Each closed lot is posted to the `<name>_results` record, one entry per winner (winner, "
-           "price, qty, lot, note; an unsold lot has one entry with winner ''). $auction(<name>).last is the latest "
-           "closed lot, sold or not: {lot, winner (the first winner, '' when unsold), winners, price (the first "
-           "winner's price per unit; in a uniform auction every winner pays it), qty (units sold), note}, null "
-           "before the first lot closes; output `<name>_prices` lists the price of every winning entry. The other "
-           "fields of $auction(name) describe the open lot; $auction_text(name, viewer) describes it.",
+           "(falling clock), double (call market at one price) or uniform (multi-unit, one price). Tools "
+           "`<name>_bid` (price, qty) and, for double, `<name>_ask`. Each party holds the units it bought, or a "
+           "double auction's sellers the units they offer, in `<name>_units` (give sellers their stock there). Bids "
+           "escrow cash, asks escrow units; proceeds go to the `house` entity or $world.<name>_revenue. `reverse: "
+           "true` makes it a procurement tender (the house buys; the lowest offer at or below the reserve wins, is "
+           "paid and supplies one unit to the house's `<name>_units`, taken from its `deliver_from` stock when set); "
+           "`score` awards a first_price lot to the best score instead of the best price. Each closed lot is posted "
+           "to the `<name>_results` record, one entry per winner (winner, price, qty, lot, note; an unsold lot has "
+           "one entry with winner ''). $auction(<name>).last is the latest closed lot, sold or not: {lot, winner "
+           "(the first winner, '' when unsold), winners, price (the first winner's price per unit; in a uniform "
+           "auction every winner pays it), qty (units sold), note}, null before the first lot closes; output "
+           "`<name>_prices` lists the price of every winning entry. The other fields of $auction(name) describe the "
+           "open lot; $auction_text(name, viewer) describes it.",
            example={"format": "second_price", "who": "collector", "item": "a painting", "stock": 3, "reserve": 50})
 def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     types = contract.get("types") or {}
@@ -160,6 +164,11 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
         raise MechanismError("only uniform and double auctions trade several units at once", "set units: 1", "units")
     _check_packages(cfg)
     _check_award(cfg)
+    stocked = (types[cfg.who].get("props") or {}) if isinstance(types[cfg.who], Mapping) else {}
+    if cfg.deliver_from and cfg.deliver_from not in stocked:
+        raise MechanismError(f"deliver_from '{cfg.deliver_from}' is not a property of {cfg.who}",
+                             f"declare it under types.{cfg.who}.props (the stock each bidder can supply)",
+                             "deliver_from")
     packaged = cfg.format == "combinatorial"
     party_types = {cfg.who: {"props": _party_props(name, cfg, contract, cfg.who)}}
     if cfg.format == "double":
@@ -202,8 +211,9 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
             f"its own price. Score: {cfg.score} ($price is your price, $it you)."
     escrow = (" Your highest package bid is held until the lot closes; you get back whatever you do not pay."
               if packaged else
-              " Nothing is held: when the lot closes the house pays the winner, who supplies one unit." if cfg.reverse
-              else
+              " Nothing is held: when the lot closes the house pays the winner, who supplies one unit"
+              + (f" from its {cfg.deliver_from} (you need one in stock to offer)." if cfg.deliver_from else ".")
+              if cfg.reverse else
               " Your bid's full amount is held until the lot closes; you get back whatever you do not pay.")
     amount = {"qty": {"type": "int", "min": 1, "max": 1 if single else cfg.units, "default": 1,
                       "description": "Units wanted."}}
@@ -220,6 +230,8 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
         price = {"type": "number", "min": MIN_PRICE, "max": f"$auction({name}).reserve",
                  "description": "Price per unit you want to be paid."}
         when = when[:1]
+        if cfg.deliver_from:
+            when.append({"expr": f"$actor.{cfg.deliver_from} >= 1", "why": f"You have no {cfg.item} in stock."})
     actions: dict[str, Any] = {
         f"{name}_bid": {
             "by": cfg.who,

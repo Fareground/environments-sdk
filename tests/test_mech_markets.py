@@ -622,6 +622,20 @@ def test_a_lone_vickrey_offer_is_paid_the_reserve_and_the_house_never_pays_more_
     assert broke.world.records("house_results")[-1]["winner"] == "" and props(broke, "city")["cash"] == 40
 
 
+@pytest.mark.parametrize("fmt, paid", [("first_price", 50), ("second_price", 60)])
+def test_a_tender_with_deliver_from_takes_the_winners_unit_out_of_its_stock(fmt, paid):
+    contract = tender(fmt, deliver_from="stock")
+    contract["types"]["bidder"]["props"]["stock"] = 0
+    for bidder, stock in (("a", 1), ("c", 2)):
+        contract["entities"][bidder]["props"] = {**contract["entities"][bidder].get("props", {}), "stock": stock}
+    env, replies = play(contract, {(1, "a"): [("house_bid", {"price": 50})], (1, "b"): [("house_bid", {"price": 40})],
+                                   (1, "c"): [("house_bid", {"price": 60})]})
+    assert not replies_of(replies, "b")[0].ok  # nothing in stock to supply, so its low offer never sets a price
+    assert props(env, "a")["stock"] == 0 and props(env, "a")["cash"] == paid and props(env, "c")["stock"] == 2
+    assert props(env, "city")["house_units"] == 1 and env.props["house_stock"] == 1
+    assert not auctions.audit(env.world, "house")
+
+
 @pytest.mark.parametrize("reverse, a_price, b_price, cash", [(True, 60, 70, 70), (False, 70, 60, 100 - 60)])
 def test_a_scored_award_goes_to_the_best_score_not_the_best_price(reverse, a_price, b_price, cash):
     """b's quality outweighs a's better price; b pays (or is paid) its own price."""
@@ -644,6 +658,8 @@ def test_a_scored_award_goes_to_the_best_score_not_the_best_price(reverse, a_pri
     ({"reserve": 0}, "a reverse auction needs `reserve`"),
     ({"format": "second_price", "score": "$it.quality - $price"}, "a scored award pays the winner its own bid"),
     ({"score": "$bogus - $price"}, "$bogus is not available here"),
+    ({"deliver_from": "stock"}, "deliver_from 'stock' is not a property of bidder"),
+    ({"reverse": False, "house": None, "deliver_from": "quality"}, "`deliver_from` belongs to a tender"),
 ])
 def test_misconfigured_tenders_say_how_to_fix_them(config, message):
     contract = tender("first_price")

@@ -171,7 +171,7 @@ def _break_tie(tied: list[str], ties: str, rng: Any) -> str | None:
 
 
 def _drop(tied: list[str], ties: str, rng: Any) -> str:
-    """The option eliminated from a tie for last: the mirror of ``_break_tie``, so ``first`` keeps the first-declared."""
+    """The option eliminated from a tie for last: the mirror of ``_break_tie`` (``first`` keeps the first-declared)."""
     if ties == "first":
         return tied[-1]
     if rng is None:
