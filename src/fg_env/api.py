@@ -323,7 +323,8 @@ def load(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, se
     (``env.calibration`` is the report); ``calibrate=False`` skips that, as ``fg_env.check``'s smoke play does.
     ``events=False`` keeps no event log, for a big crowd played for many rounds: ``result.events`` is empty (``on_event``
     still streams every event) and the run forgets each event once no agent's news can reach it, so its memory stays
-    flat however long it plays; everything the run does is the same (a contract that reads `$events` keeps its log).
+    flat however long it plays; everything the run does is the same (a contract that reads `$events` or `$seen` keeps
+    its log).
     """
     contract, issues = _check_all(source, data_dir)
     blocking = [i for i in issues if i.severity == "error" or strict]

@@ -67,7 +67,8 @@ def _may_inspect_rule(env: "Env", viewer: Entity, target: Entity, rule: Any) -> 
 def inspectable(env: "Env", viewer: Entity) -> List[Entity]:
     """The living entities ``viewer`` may inspect, in the world's order."""
     rules = {kind: inspect_rule(env.contract, kind) for kind in env.contract.types}
-    return [entity for entity in _candidates(env, viewer, rules) if _may_inspect_rule(env, viewer, entity, rules[entity.entity_type])]
+    return [entity for entity in _candidates(env, viewer, rules)
+            if _may_inspect_rule(env, viewer, entity, rules[entity.entity_type])]
 
 
 def _candidates(env: "Env", viewer: Entity, rules: Dict[str, Any]) -> List[Entity]:

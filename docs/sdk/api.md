@@ -26,7 +26,8 @@ enumerates chance for search. A contract with a ``calibration`` section fits its
 (``env.calibration`` is the report); ``calibrate=False`` skips that, as ``fg_env.check``'s smoke play does.
 ``events=False`` keeps no event log, for a big crowd played for many rounds: ``result.events`` is empty (``on_event``
 still streams every event) and the run forgets each event once no agent's news can reach it, so its memory stays
-flat however long it plays; everything the run does is the same (a contract that reads `$events` keeps its log).
+flat however long it plays; everything the run does is the same (a contract that reads `$events` or `$seen` keeps
+its log).
 
 ## `run`
 

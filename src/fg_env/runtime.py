@@ -24,8 +24,8 @@ from .effects import EffectRunner
 from .end_state import end_state
 from .errors import RunError
 from .exposure import ExposureLog, asks_seen, recording
-from .forgetting import forget, reads_log
 from .expr import ExprError
+from .forgetting import forget, reads_log
 from .happenings import Happenings
 from .host.hosts import count_host_tokens
 from .host.tape import tape_of
