@@ -1055,7 +1055,7 @@
       "title": "Your recent posts",
       "of": "post",
       "where": "$it.author == $actor.id and $recent($it)",
-      "sort": "born",
+      "sort": "$it.born",
       "desc": true,
       "limit": 5,
       "show": "\"{headline}\" · {impressions} impressions · {shares} shares · {likes} likes"
