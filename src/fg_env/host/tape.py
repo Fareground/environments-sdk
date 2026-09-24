@@ -17,7 +17,7 @@ import math
 import threading
 from typing import Any, Callable, Dict, Mapping, Optional
 
-from ..errors import FatalRunError
+from ..errors import FatalRunError, RunError
 from ..expr import Untrusted
 from .hosts import counting, hosts_for
 from .protocols import HostError
@@ -124,6 +124,8 @@ def _live(adapter: Any, service: str, site: str, ask: Callable[[Any], Any],
                 raise FatalRunError(f"host '{service}' failed, also when asked again: {exc}", site) from None
             correction = str(exc)
             continue
+        except RunError as exc:  # the provider failed (a reference adapter says how to fix it): asking again cannot help
+            raise FatalRunError(f"host '{service}' failed: {exc}", site) from exc
         except Exception as exc:  # an adapter defect or provider error: surfaced with its type, never swallowed
             raise FatalRunError(f"host '{service}' raised {type(exc).__name__}: {exc}", site) from exc
         try:
