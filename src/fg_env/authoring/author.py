@@ -11,13 +11,14 @@ within a time budget — a long run that budget cuts short counts for the rounds
 a child process killed when that budget is spent (:mod:`fg_env.authoring.sandbox`), so a contract too slow to test is
 reported, never hangs the session. Its host calls are answered by the SDK's stand-in stubs (:mod:`fg_env.host.stubs`).
 The result keeps the best revision that works: the latest one that removes nothing the kept one has. A working
-revision that removes parts (an action, a view, an output, an event, an entity ...) is named to the model and kept
-only once the model saves that removal again. ``out`` is written each time a new one is kept, so an interrupted
-session keeps it; a session where nothing worked writes its latest contract beside ``out`` as
+revision that removes parts (an action, a view, an output, an event, an entity ...), or rewrites a rule to do nothing,
+is named to the model and kept only once the model saves that removal again. A save that changes nothing is no new
+revision, and a contract saved before is not tested again. ``out`` is written each time a new one is kept, so an
+interrupted session keeps it; a session where nothing worked writes its latest contract beside ``out`` as
 ``<name>.not-working.json`` instead. A model that stops before any saved contract works is sent back, with the
 problem, a couple of times; one that stops with something unsettled after one worked — its last revision broken, a
 removal not confirmed, its reply cut off at the output limit — is sent back once. Rate limits, overload and empty
-replies are retried with backoff.
+replies are retried with backoff, within the ``seconds`` budget.
 
 ``model`` is ``"anthropic:<model>"`` or ``"openai:<model>"``, on the official client made from ``ANTHROPIC_API_KEY``
 or ``OPENAI_API_KEY``. Any OpenAI-compatible server (OpenRouter, a local server) works through ``openai:``: the
@@ -40,19 +41,15 @@ from ..engines import list_engines
 from ..guides import guide
 from ..participants.llm import _MAX_BACKOFF_SECONDS, PROVIDERS, _retry_after, _retryable, official_client
 from ..runtime.budget import CACHED_WEIGHT, is_seconds
-from .testing import Tested
-from .workbench import TOOLS, Workbench, describe_changes, removed_parts
+from .testing import TEST_SECONDS, Tested
+from .workbench import MAX_REVISIONS, TOOLS, Workbench, describe_changes, removed_parts
 
 __all__ = ["author", "AuthorResult"]
 
-#: What a brief may spend unless ``budget`` says otherwise: model tokens (input + output, cache reads weighted by
-#: :data:`~fg_env.runtime.budget.CACHED_WEIGHT` and cache writes by :data:`CACHE_WRITE_WEIGHT`), model calls, and
-#: wall-clock
-#: seconds (checked before each model call, so the session ends at most one step past them).
+#: What a brief may spend unless ``budget`` says otherwise: model tokens (counted as a run's token budget counts them:
+#: input, output and cache writes in full, cache reads at :data:`~fg_env.runtime.budget.CACHED_WEIGHT`), model calls,
+#: and wall-clock seconds (checked before each model call, so the session ends at most one step past them).
 DEFAULT_BUDGET = {"tokens": 600_000, "calls": 30, "seconds": 1800}
-#: What an input token written to the provider's prompt cache counts for in the budget: providers bill it at a quarter
-#: more than a fresh one.
-CACHE_WRITE_WEIGHT = 1.25
 #: How often a rate-limited, overloaded or failing provider call is retried, with backoff.
 RETRIES = 4
 #: How often a model that stops before any saved contract works is sent back.
@@ -66,9 +63,13 @@ INSTRUCTION = ("\n\nBuild this environment. Save it with write_contract, revise 
                "other tools as you see fit. The guide's steps name fg-env commands; here your tools do them: "
                "write_contract or edit_contract saves the file, `fg-env check` is check, `fg-env preview <file> <id>` "
                "is preview(agent), `fg-env run <file> --seed N` is run(seed) and `fg-env guide <part>` is "
-               "guide(part). Reply without calling a tool when you are done.\n\nEngine starters: working environments "
-               "to adapt. When one is close to this brief, start from it with start_from and change what the brief "
-               "needs; otherwise write your own.\n")
+               "guide(part). Reply without calling a tool when you are done.\n\nLimits: {revisions} saved revisions "
+               "(each write_contract, edit_contract or start_from call that changes the contract saves one — put "
+               "several edits in one edit_contract call; a save that changes nothing or is not valid JSON does not "
+               "count), {calls} model calls, {tokens:,} tokens and {seconds:,.0f} seconds in all. Each save is tested "
+               "for up to {test:g} seconds.\n\nEngine starters: working environments to adapt. When one is close to "
+               "this brief, start from it with start_from and change what the brief needs; otherwise write your "
+               "own.\n")
 #: What a model that stops after a working revision that removed parts of the kept one is told once.
 UNKEPT = ("Revision {latest} works, but it removed {removed}, which revision {kept} has, so revision {kept} "
           "is kept. Put back what the brief asks for; if the brief does not need them, save it again to confirm the "
@@ -102,7 +103,8 @@ class AuthorResult:
     #: revision it may: ``ok`` says whether one works); "refused" (the provider refused to go on); "tokens", "calls" or
     #: "seconds" (the budget); or "error: <the provider's error>".
     stop: str
-    #: Every write, in order: the contract saved, or the text of one that saved nothing (not valid JSON, cut off).
+    #: Every write, in order: the contract saved, or the text of one that saved nothing (not valid JSON, cut off); a
+    #: save of the latest revision as it is is none.
     writes: list[Any]
     #: The whole conversation, in OpenAI chat format.
     messages: list[Message]
@@ -154,8 +156,12 @@ class AuthorResult:
         if self.tested and self.tested.hosts:
             lines.append(f"  hosts: {', '.join(self.tested.hosts)} answered by the SDK's stand-in stubs in testing, "
                          "not a model: bind real hosts to run it for real")
+        if self.tested:
+            average, largest = self.tested.prompt
+            lines.append(f"  prompt: an agent reads ~{average:,} tokens a turn (its brief and update), ~{largest:,} at "
+                         "most")
         if self.tested and self.tested.warnings:
-            lines += ["  check warnings:", *(f"    {warning}" for warning in self.tested.warnings)]
+            lines += ["  warnings:", *(f"    {warning}" for warning in self.tested.warnings)]
         said = next((m["content"] for m in reversed(self.messages) if m["role"] == "assistant"), "").strip()
         if said:
             lines.append("  the model's last words: " + said.replace("\n", "\n    "))
@@ -165,7 +171,10 @@ class AuthorResult:
         lines.append(f"  used: {self.usage['calls']} model calls, {fresh:,} tokens{cached}{cost}, "
                      f"{self.seconds:.0f}s")
         if self.path:
-            lines.append(f"next: fg-env preview {self.path} {agent} · fg-env run {self.path} --seed 1"
+            hosts = ", ".join(f"{name!r}: ..." for name in self.tested.hosts) if self.tested else ""
+            run = (f"run it with its hosts bound: fg_env.host.load({self.path!r}, hosts={{{hosts}}}).run()" if hosts
+                   else f"fg-env run {self.path} --seed 1")
+            lines.append(f"next: fg-env preview {self.path} {agent} · {run}"
                          + ("" if self.ok else f" · fg-env check {self.path}"))
         return "\n".join(lines)
 
@@ -193,24 +202,27 @@ def author(brief: str, model: str, *, client: Any = None, out: str | None = None
 
     ``out`` is where the contract is written (nothing is written when None): each time a revision is kept, and at the
     end; when none works, the latest is written beside it as ``<name>.not-working.json``. ``budget`` caps ``tokens``
-    (input + output, a cache read counting :data:`CACHED_WEIGHT` of one and a cache write :data:`CACHE_WRITE_WEIGHT`),
-    model ``calls`` and wall-clock ``seconds``, by default :data:`DEFAULT_BUDGET`. ``client`` replaces the official
-    client made from the environment; ``progress`` is called with one line per model call. Rate limits, overload and
-    server errors are retried with backoff; a provider error that persists or that retrying cannot fix does not raise:
-    the loop stops (``result.stop`` says why) and keeps what already works."""
+    (input, output and cache writes in full, a cache read counting :data:`CACHED_WEIGHT` of one, as a run's token
+    budget counts them), model ``calls`` and wall-clock ``seconds``, by default :data:`DEFAULT_BUDGET`; the model is
+    told these limits, the revision limit and the test time of a save up front. ``client`` replaces the official client
+    made from the environment; ``progress`` is called with one line per model call. Rate limits, overload, server
+    errors and empty replies are retried with backoff, never waiting past the ``seconds`` budget; a provider error that
+    persists or that retrying cannot fix does not raise: the loop stops (``result.stop`` says why) and keeps what
+    already works."""
     provider, name = _model(model)
     limits = _budget(budget)
     ask = _ANSWERERS[provider](client if client is not None else official_client(provider, name), name)
     if out and not Path(out).parent.is_dir():
         raise ValueError(f"out {out!r}: the folder {str(Path(out).parent)!r} does not exist")
     bench, started = Workbench(), time.time()
+    instruction = INSTRUCTION.format(revisions=MAX_REVISIONS, test=TEST_SECONDS, **limits)
     messages: list[Message] = [{"role": "system", "content": guide("authoring")},
-                               {"role": "user", "content": brief + INSTRUCTION + _starters()}]
+                               {"role": "user", "content": brief + instruction + _starters()}]
     usage: dict[str, Any] = {"input_tokens": 0, "cached_tokens": 0, "cache_write_tokens": 0, "output_tokens": 0,
                              "calls": 0, "truncated": 0}
     try:
-        stop = _converse(_retrying(ask, progress), messages, bench, usage, limits, progress, out,
-                         started + limits["seconds"])
+        deadline = started + limits["seconds"]
+        stop = _converse(_retrying(ask, progress, deadline), messages, bench, usage, limits, progress, out, deadline)
     finally:
         bench.box.close()
         shutil.rmtree(bench.path.parent, ignore_errors=True)
@@ -285,9 +297,9 @@ def _converse(ask: Ask, messages: list[Message], bench: Workbench, usage: dict[s
 
 
 def _spent(usage: dict[str, Any]) -> float:
-    """The tokens ``usage`` counts against the budget."""
-    return (usage["input_tokens"] + usage["output_tokens"] + usage["cached_tokens"] * CACHED_WEIGHT
-            + usage["cache_write_tokens"] * CACHE_WRITE_WEIGHT)
+    """The tokens ``usage`` counts against the budget, as a run's token budget counts them."""
+    return (usage["input_tokens"] + usage["output_tokens"] + usage["cache_write_tokens"]
+            + usage["cached_tokens"] * CACHED_WEIGHT)
 
 
 def _unsettled(bench: Workbench) -> str:
@@ -325,8 +337,10 @@ def _answer(calls: list[dict[str, Any]], truncated: bool, bench: Workbench) -> l
     return results
 
 
-def _retrying(ask: Ask, progress: Callable[[str], None] | None) -> Ask:
-    """``ask``, retrying rate limits, overload, timeouts and server errors with backoff (honouring retry-after)."""
+def _retrying(ask: Ask, progress: Callable[[str], None] | None, deadline: float) -> Ask:
+    """``ask``, retrying rate limits, overload, timeouts, server errors and empty replies with backoff (honouring
+    retry-after), never waiting past ``deadline`` (a ``time.time()``): a wait that would is not made, and the error
+    stands."""
 
     def retried(messages: list[Message]) -> tuple[Message, dict[str, Any]]:
         for attempt in range(RETRIES + 1):
@@ -337,6 +351,8 @@ def _retrying(ask: Ask, progress: Callable[[str], None] | None) -> Ask:
                     raise
                 delay = _retry_after(exc)
                 wait = min(_MAX_BACKOFF_SECONDS, delay if delay is not None else 2.0 ** attempt)
+                if time.time() + wait >= deadline:
+                    raise
                 if progress:
                     progress(f"provider busy ({type(exc).__name__}: {str(exc)[:200]}); retrying in {wait:.0f}s")
                 time.sleep(wait)
@@ -409,6 +425,9 @@ def _anthropic(client: Any, model: str) -> Ask:
         text = "".join(b.text for b in response.content if b.type == "text")
         calls = [{"id": b.id, "type": "function", "function": {"name": b.name, "arguments": json.dumps(b.input)}}
                  for b in response.content if b.type == "tool_use"]
+        stop = getattr(response, "stop_reason", None)
+        if not calls and not text.strip() and stop not in ("max_tokens", "refusal"):
+            raise EmptyReply(f"the provider sent a reply with nothing in it (stop_reason {stop!r})")
         message: Message = {"role": "assistant", "content": text}
         if calls:
             message["tool_calls"] = calls
@@ -417,8 +436,7 @@ def _anthropic(client: Any, model: str) -> Ask:
                          "cached_tokens": getattr(used, "cache_read_input_tokens", 0) or 0,
                          "cache_write_tokens": getattr(used, "cache_creation_input_tokens", 0) or 0,
                          "output_tokens": used.output_tokens,
-                         "truncated": int(getattr(response, "stop_reason", None) == "max_tokens"),
-                         "refused": int(getattr(response, "stop_reason", None) == "refusal")}
+                         "truncated": int(stop == "max_tokens"), "refused": int(stop == "refusal")}
 
     return ask
 

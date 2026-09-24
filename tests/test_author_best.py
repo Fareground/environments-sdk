@@ -43,7 +43,8 @@ def test_saving_the_removal_again_confirms_it():
 
     result = fg_env.author("A lemonade stand duel.", "openai:m", client=client)
 
-    assert result.ok and result.contract == GUTTED and result.kept == 3 and result.working == [1, 2, 3]
+    assert result.ok and result.contract == GUTTED and result.kept == 2 and result.working == [1, 2]
+    assert tool_replies(client)[2] == "Revision 2 saved again unchanged: its removals are confirmed, and it is kept."
     assert "REMOVED since revision 1, the first that worked: views.market, events.0, outputs.winner" in result.summary()
 
 
@@ -124,7 +125,7 @@ def test_the_summary_names_the_stub_hosts_the_check_warnings_and_partial_testing
 
     assert game_master.ok and ("  hosts: game_master answered by the SDK's stand-in stubs in testing, not a model"
                                in game_master.summary())
-    assert warned.ok and "  check warnings:\n    [warning] metrics.avg_price: stayed 1.0" in warned.summary()
+    assert warned.ok and "  warnings:\n    [warning] metrics.avg_price: stayed 1.0" in warned.summary()
     summary = partly.summary()
     assert partly.ok and summary.startswith("built, PARTLY TESTED: Lemonade stand")
     assert "\n  PARTLY TESTED: tested at least" in summary and "of 100,000 rounds" in summary
@@ -157,7 +158,7 @@ def test_a_bad_seconds_budget_says_how_to_fix_it(budget, message):
         fg_env.author("A game.", "openai:m", client=FakeOpenAI(), budget=budget)
 
 
-def test_anthropic_is_never_sent_whitespace_only_text_and_cache_writes_weigh_more():
+def test_anthropic_is_never_sent_whitespace_only_text_and_cache_writes_count_in_full():
     sent = []
 
     def create(**kwargs):
@@ -172,8 +173,8 @@ def test_anthropic_is_never_sent_whitespace_only_text_and_cache_writes_weigh_mor
 
     texts = [b for m in sent[-1]["messages"] for b in m["content"] if isinstance(b, dict) and b["type"] == "text"]
     assert all(b["text"].strip() for b in texts)
-    # Each call spends 100 + 1,000 × 1.25 = 1,350: the second reaches 2,400, where a write counted in full would not.
-    assert result.stop == "tokens" and result.usage["calls"] == 2 and result.usage["cache_write_tokens"] == 2000
+    # Each call spends 100 + 1,000 = 1,100, as a run's token budget counts it: the third passes 2,400.
+    assert result.stop == "tokens" and result.usage["calls"] == 3 and result.usage["cache_write_tokens"] == 3000
 
 
 def test_the_run_tool_does_not_show_the_host_tape():

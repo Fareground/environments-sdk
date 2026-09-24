@@ -63,7 +63,7 @@ def test_check_warnings_reach_the_model_and_only_a_clean_check_is_called_clean()
     result, replies = authored(warned)
 
     assert result.ok and "it checks with no errors (warnings below)" in replies[0] and "checks clean" not in replies[0]
-    assert "Check warnings:\n[warning] actions.wait.do[1]: stores `{$...}` literally" in replies[0]
+    assert "Warnings:\n[warning] actions.wait.do[1]: stores `{$...}` literally" in replies[0]
 
 
 @pytest.mark.parametrize("example, host", [("debate_judged", "judge"), ("tavern_gm", "game_master")])
@@ -97,7 +97,7 @@ def test_write_contract_takes_the_json_object_itself():
     assert result.ok and result.contract == WORKING
 
 
-def test_random_agents_play_more_seeds_while_test_time_lasts():
+def test_random_agents_play_more_seeds_of_a_contract_that_draws_on_chance_while_test_time_lasts():
     # Its end-of-round event fails on seeds 8 and 12 only: the first three seeds, and check's plays, all pass.
     rare = game("Rare", world={"table": {"type": "map", "default": {"a": 1}}, "x": 0},
                 events=[{"phase": "end",
@@ -106,7 +106,9 @@ def test_random_agents_play_more_seeds_while_test_time_lasts():
     result, _ = authored(rare)
 
     assert not result.ok and result.problem.startswith("a run with random agents (seed 8) failed in round")
-    _, replies = authored(WORKING)
+    _, replies = authored(WORKING)  # it draws nothing at random: more seeds would only vary the random agents
+    assert "runs to the end on 3 seeds with random agents, 3 with idle ones" in replies[0]
+    _, replies = authored(game("Dice", events=[{"phase": "end", "do": ["$world.x = $random()"]}]))
     assert "runs to the end on 20 seeds with random agents, 3 with idle ones" in replies[0]
 
 

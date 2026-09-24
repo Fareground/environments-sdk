@@ -114,10 +114,12 @@ fg-env run shop.json --seed 1
 
 The model starts from the closest engine starter when one fits, then writes, checks, previews and runs the contract
 until it works; the saved contract is the best one that checks without errors and plays soundly with random, idle and
-edge-value agents on many seeds, every view read and every game-master effect applied (a long simulation is tested as
-far as a minute of runs reaches, and the summary says PARTLY TESTED and how far), written to `--out` as soon as it is
-kept, so stopping early keeps it. A later revision that removes parts is kept only once the model confirms the
-removal; when nothing works, the draft is written beside `--out` as `<name>.not-working.json`. `--tokens`, `--calls`
+edge-value agents on several seeds (more when it draws on chance), every view read and every game-master effect
+applied (a long simulation is tested as far as a minute of runs reaches, and the summary says PARTLY TESTED and how
+far), written to `--out` as soon as it is kept, so stopping early keeps it. A later revision that removes parts, or
+rewrites a rule to do nothing, is kept only once the model confirms it; the summary warns about outputs that came out
+the same in every test run, briefs that never give an agent a goal and rounds that send models a great many prompt
+tokens. When nothing works, the draft is written beside `--out` as `<name>.not-working.json`. `--tokens`, `--calls`
 and `--seconds` cap the session. `--model openai:<model>` uses
 `OPENAI_API_KEY`; OpenRouter or any OpenAI-compatible server works through it by also setting `OPENAI_BASE_URL` (for
 OpenRouter, `https://openrouter.ai/api/v1` with the OpenRouter key as `OPENAI_API_KEY`). From Python:
