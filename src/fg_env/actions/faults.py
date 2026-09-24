@@ -3,7 +3,8 @@ commit sets off, and the invariants checked after it. A rule that fails anywhere
 the contract's bug, not the agent's — but it is found through one agent's choice, so that action alone is refused and
 undone, the agent is told why in words that reveal nothing hidden, the run's diagnostics tell the author where and
 how to fix it, and the run goes on. The same failure outside an agent's action (events, triggers nothing an agent did
-set off, physics, the build) still fails the run.
+set off, physics, the build) still fails the run — a `fail` or a transfer that does not fit too: world logic has no one
+to refuse it to (:func:`world_logic_refused`).
 """
 from __future__ import annotations
 
@@ -16,7 +17,7 @@ from ..expr import ExprError
 if TYPE_CHECKING:
     from ..runtime.env import Env
 
-__all__ = ["guarded", "refused_text", "fault_reason"]
+__all__ = ["guarded", "refused_text", "fault_reason", "world_logic_refused"]
 
 T = TypeVar("T")
 
@@ -54,6 +55,13 @@ def refused_text(name: str, reason: str) -> str:
     """What the agent is told when its action was refused because of :func:`guarded`."""
     return (f"Your {name.replace('_', ' ')} was not done: {reason}. Nothing changed; try other arguments or another "
             "action.")
+
+
+def world_logic_refused(reason: str) -> str:
+    """Why world logic (an event, a stage hook, a trigger) that was refused — a `fail`, a transfer that does not fit —
+    fails the run: undoing it quietly would leave a run that looks complete without what its rules said happen."""
+    return (f"{reason.rstrip()} World logic cannot be refused: guard it with an `if` so it runs only when it can "
+            "succeed (a `fail` or a transfer that does not fit only refuses an agent's action)")
 
 
 def fault_reason(error: RunError) -> str:

@@ -109,7 +109,8 @@ an action that posts to a record announces nothing extra (the entry is the news)
 always renders «quoted» on one line, in news, views and outcomes.
 
 An action applies atomically: if any effect `fail`s or a `transfer` lacks funds, every change
-is rolled back and the agent is told why. A refusal that rolled luck or read a private property of another entity
+is rolled back and the agent is told why. World logic (events, stage hooks, triggers) has no one to refuse: the same
+failure there fails the run at its path, so guard such a block with an `if`. A refusal that rolled luck or read a private property of another entity
 spends the action (a wrong guess at a hidden code is a guess); any other refusal — a taken cell, bad arguments, an unmet
 `when` — costs nothing. Contract errors (bad expression at run time) stop
 the run with status `failed` and the path of the broken rule.
@@ -247,7 +248,7 @@ EFFECT_EXAMPLES = {
               '"double": "$it.base * 2"; inside a loop, name the loop\'s item with `as` to read it there)',
     "remove": '{"remove": "$params.target"}',
     "transfer": '{"transfer": "cash", "from": "$actor", "to": "$params.seller", "amount": 10}  (fails the action if '
-                'short)',
+                'short; in world logic, the run)',
     "link": '{"link": "trusts", "from": "$actor", "to": "$params.who", "value": 0.8, "props": {"since": '
             '"$round"}}  (creates or updates: without `value` an existing link keeps its value and a new one gets '
             'the relation\'s `default`; `props` sets link fields, a new link starting from their defaults)',
@@ -258,7 +259,8 @@ EFFECT_EXAMPLES = {
             'chance)',
     "emit": '{"emit": "shock", "say": "Prices jump {$world.inflation|pct}.", "to": "$filter(buyer, $it.vip)", "data": '
             '{}, "delay": 1}  (optional `delay` and `drop`, as for post)',
-    "fail": '{"fail": "You cannot afford that."}  (roll back the action; text goes to the actor)',
+    "fail": '{"fail": "You cannot afford that."}  (roll back the action; text goes to the actor; in world logic it '
+            'fails the run)',
     "end": '{"end": "bankrupt", "winner": "$top(player, $it.score, 1)[0]", "say": "..."}',
     "after": '{"after": 3, "do": [...]}  (runs 3 rounds later with the same locals; on a continuous clock, 3 time '
              'units later)',

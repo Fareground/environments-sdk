@@ -19,12 +19,11 @@ def test_expression_word_names_are_errors_but_other_python_keywords_are_fine():
     assert any("actions.pay.params.in" in e and "word expressions use" in e for e in errors)
 
 
-def test_a_refusal_inside_an_event_is_logged_for_the_record_and_shown_to_no_agent():
+def test_a_refusal_inside_an_event_fails_the_run_with_its_reason_and_undoes_the_block():
     env = fg_env.load(_contract(events=[{"phase": "start", "do": ["$world.tick = 1", {"fail": "the vault is empty"}]}],
                                 world={"tick": 0}), seed=1)
     result = env.run("idle")
-    refused = [e for e in result.events if "was refused" in e.get("text", "")]
-    assert refused and "the vault is empty" in refused[0]["text"]
+    assert result.status == "failed" and result.error.startswith("events[0].do: the vault is empty")
     assert env.props["tick"] == 0  # the refused block was undone
 
 

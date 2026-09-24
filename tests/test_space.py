@@ -116,10 +116,10 @@ def test_moving_into_a_full_cell_is_refused_and_changes_nothing():
     assert env.entity("a")["at"] == [0, 0]
 
 
-def test_creating_into_a_full_cell_is_refused_like_any_failed_effect():
-    result = fg_env.run(CROWDED, "idle", seed=1)
-    assert result.status == "completed"
-    assert any(e["kind"] == "refused" and "cannot be placed" in e["text"] for e in result.events)
+def test_creating_into_a_full_cell_in_world_logic_fails_the_run_like_any_refused_effect():
+    result = fg_env.load(CROWDED, seed=1).run("idle")
+    assert result.status == "failed" and result.error.startswith("events[0].do: ")
+    assert "cannot be placed" in result.error
 
 
 def test_a_full_cell_at_build_is_an_error():

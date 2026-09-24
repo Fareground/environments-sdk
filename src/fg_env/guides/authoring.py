@@ -92,7 +92,8 @@ or effect, or when rounds run out.
   agent at a time (in `order`, else random), so resolve them jointly in `on_exit`.
 * A turn ends after `max_actions` actions (default 1), on `end_turn`, or at `max_calls` calls.
 * An action is atomic: if an effect `fail`s or a `transfer` lacks funds, all of it is undone and the agent is told
-  why; that costs the action only if it rolled luck or read a hidden value.
+  why; that costs the action only if it rolled luck or read a hidden value. In world logic (events, hooks, triggers)
+  the same failure fails the run: guard such a block with an `if`.
 * An agent also gets `inspect` (one entity's non-`private` props) when a type sets `"inspect": true` or an
   expression over `$viewer` and `$it`; own state belongs in a view.
 
