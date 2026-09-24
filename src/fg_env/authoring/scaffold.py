@@ -1,4 +1,4 @@
-"""Ready-to-run starting contracts: ``fg_env.new("game")`` / ``fg-env new game my_game.json``.
+"""Ready-to-run starting contracts: ``fg_env.new("duel")`` / ``fg-env new duel my_game.json``.
 
 Each template is small, checks clean and runs with random agents, and shows one way of working: a blank
 world, a turn-based game with a winner, a market, a simulation of a population, and a social setting with a vote.
@@ -30,7 +30,7 @@ _BLANK: dict[str, Any] = {
     "outputs": {"top_score": "$max(worker, $it.score)"},
 }
 
-_GAME: dict[str, Any] = {
+_DUEL: dict[str, Any] = {
     "name": "Take the last stone",
     "brief": {"situation": "Two players share a pile of 15 stones.",
               "rules": "Take turns removing 1 to 3 stones. Whoever takes the last stone wins."},
@@ -51,7 +51,7 @@ _GAME: dict[str, Any] = {
     "game": {"players": "player", "returns": "1 if $result.winner == $actor else 0"},
 }
 
-_MARKET: dict[str, Any] = {
+_SHOP: dict[str, Any] = {
     "name": "Bread market",
     "brief": {"situation": "A baker sells bread to three households each day.",
               "rules": "Each morning the baker sets a price. Then households buy what they can afford.",
@@ -98,7 +98,7 @@ _SIMULATION: dict[str, Any] = {
                 "broke": {"expr": "$metrics.broke", "type": "int"}},
 }
 
-_SOCIAL: dict[str, Any] = {
+_MEETING: dict[str, Any] = {
     "name": "Town meeting",
     "brief": {"situation": "Five neighbours decide how to spend the town's small budget.",
               "rules": "Everyone speaks once, then the town votes on a park, a library or a road."},
@@ -123,16 +123,16 @@ _SOCIAL: dict[str, Any] = {
 #: Template name → (what it shows, the contract).
 TEMPLATES: dict[str, tuple] = {
     "blank": ("one agent type, one action, a view and an output: the smallest useful start", _BLANK),
-    "game": ("a two-player turn-based game with a winner and per-seat returns", _GAME),
-    "market": ("a seller and a crowd of buyers trading with money over days", _MARKET),
+    "duel": ("a two-player turn-based game with a winner and per-seat returns", _DUEL),
+    "shop": ("a seller and a crowd of buyers trading with money over days", _SHOP),
     "simulation": ("a population with no agents, world events, metrics and an invariant", _SIMULATION),
-    "social": ("agents talking in a shared record and deciding with a vote mechanism", _SOCIAL),
+    "meeting": ("agents talking in a shared record and deciding with a vote mechanism", _MEETING),
 }
 
 
 def new(template: str = "blank", path: str | os.PathLike[str] | None = None, *,
         name: str | None = None, overwrite: bool = False) -> dict[str, Any]:
-    """A ready-to-run contract from a template (blank, game, market, simulation, social).
+    """A ready-to-run contract from a template (blank, duel, shop, simulation, meeting).
 
     With ``path`` it is also written there as JSON (an existing file is kept unless ``overwrite``); ``name``
     replaces the contract's name (default: the template's, or the file name when a path is given)."""

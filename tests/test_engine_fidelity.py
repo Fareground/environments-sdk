@@ -257,14 +257,14 @@ def test_a_jury_must_be_able_to_reach_the_verdict_threshold():
 
 def _cafes(**changes):
     """The default cafés with each column change applied as a function of the row: _cafes(price=lambda r: ...)."""
-    return [{**row, **{k: f(row) for k, f in changes.items()}} for row in default("market", "cafes")]
+    return [{**row, **{k: f(row) for k, f in changes.items()}} for row in default("retail", "cafes")]
 
 
 def test_price_moves_total_demand():
     """Households weigh the best café against making coffee at home, so dearer coffee sells fewer cups (a week, before
     any café reprices)."""
     def cups(scale):
-        return mean("market", "cups_sold", {"days": 7, "sample_size": 80,
+        return mean("retail", "cups_sold", {"days": 7, "sample_size": 80,
                                             "cafes": _cafes(price=lambda row: round(row["price"] * scale, 2))},
                     seeds=range(3))
     assert cups(0.6) > cups(1) > cups(1.6)
@@ -274,27 +274,27 @@ def test_a_cafe_reprices_toward_more_profit_not_toward_a_full_house():
     """A lone café with room to spare and a price barely above cost raises it: demand for coffee is inelastic, so a
     fill-seeking rule would cut instead."""
     alone = _cafes(price=lambda row: 2 * row["unit_cost"], capacity=lambda row: 100000)[:1]
-    env = fg_env.engines.load("market", inputs={"cafes": alone, "days": 36, "sample_size": 80}, seed=1)
+    env = fg_env.engines.load("retail", inputs={"cafes": alone, "days": 36, "sample_size": 80}, seed=1)
     env.run()
     assert env.entities("cafe")[0]["props"]["price"] > 1.1 * 2 * alone[0]["unit_cost"]  # four weekly reviews
 
 
 def test_competing_cafes_keep_their_margins_over_a_long_run():
-    env = fg_env.engines.load("market", inputs={"days": 64, "sample_size": 80}, seed=2)
+    env = fg_env.engines.load("retail", inputs={"days": 64, "sample_size": 80}, seed=2)
     env.run()
     assert all(c["props"]["price"] > 2.2 * c["props"]["unit_cost"] for c in env.entities("cafe") if c["props"]["open"])
 
 
 def test_the_smallest_sample_does_not_invent_crowds():
-    assert all(run("market", seed=seed, inputs={"sample_size": 80, "days": 14}).outputs["turned_away_total"] == 0
+    assert all(run("retail", seed=seed, inputs={"sample_size": 80, "days": 14}).outputs["turned_away_total"] == 0
                for seed in range(3))
     with pytest.raises(fg_env.InputError, match="sample_size"):
-        run("market", inputs={"sample_size": 10})
+        run("retail", inputs={"sample_size": 10})
 
 
 def test_the_cafes_are_an_input():
     renamed = _cafes(name=lambda row: f"Shop {row['id']}")
-    shares = run("market", inputs={"cafes": renamed, "days": 7, "sample_size": 80}).outputs["market_shares"]
+    shares = run("retail", inputs={"cafes": renamed, "days": 7, "sample_size": 80}).outputs["market_shares"]
     assert {name for name, _ in shares} == {f"Shop {row['id']}" for row in renamed}
 
 

@@ -10,7 +10,7 @@
     exp = fg_env.experiment("shop.json", runs=20, arms=["control", "promo"])
 
 ``fg_env.guide("authoring")`` is the start page, for humans and authoring agents; ``fg_env.guide()`` maps every part;
-``fg_env.new("game", "my_game.json")`` writes a ready-to-run contract to start from.
+``fg_env.new("duel", "my_game.json")`` writes a ready-to-run contract to start from.
 ``fg_env.author(brief, "anthropic:<model>")`` has a model write, check and run one from a plain-language brief.
 
 The core lives here; everything else is one subpackage away: ``fg_env.analysis`` (sweeps, calibration,

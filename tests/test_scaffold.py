@@ -19,16 +19,16 @@ def test_every_template_checks_clean_and_runs(template):
 
 def test_new_writes_the_file_named_after_it_and_keeps_an_existing_one(tmp_path):
     path = tmp_path / "harbour_town.json"
-    contract = new("market", path)
+    contract = new("shop", path)
     assert json.loads(path.read_text()) == contract and contract["name"] == "Harbour town"
     with pytest.raises(FileExistsError):
-        new("game", path)
-    assert new("game", path, overwrite=True, name="Stones")["name"] == "Stones"
+        new("duel", path)
+    assert new("duel", path, overwrite=True, name="Stones")["name"] == "Stones"
 
 
 def test_an_unknown_template_suggests_the_closest():
-    with pytest.raises(fg_env.ContractError, match="did you mean 'market'"):
-        new("markt")
+    with pytest.raises(fg_env.ContractError, match="did you mean 'shop'"):
+        new("shp")
 
 
 def test_simulation_with_one_person_retains_wealth_without_needing_a_counterparty():
@@ -109,8 +109,8 @@ def test_simulation_counterparty_guard_preserves_existing_exchange_results(peopl
 
 def test_cli_new_writes_a_contract_that_checks(tmp_path, capsys):
     path = tmp_path / "duel.json"
-    assert main(["new", "game", str(path)]) == 0
+    assert main(["new", "duel", str(path)]) == 0
     assert "fg-env check" in capsys.readouterr().out
     assert main(["check", str(path)]) == 0
     assert "contract OK" in capsys.readouterr().out
-    assert main(["new", "game", str(path)]) == 1
+    assert main(["new", "duel", str(path)]) == 1

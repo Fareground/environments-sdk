@@ -164,7 +164,7 @@ JSON Schema of the contract (structure only; ``fg_env.check`` verifies meaning).
 new(template: 'str' = 'blank', path: 'str | os.PathLike[str] | None' = None, *, name: 'str | None' = None, overwrite: 'bool' = False) -> 'dict[str, Any]'
 ```
 
-A ready-to-run contract from a template (blank, game, market, simulation, social).
+A ready-to-run contract from a template (blank, duel, shop, simulation, meeting).
 
 With ``path`` it is also written there as JSON (an existing file is kept unless ``overwrite``); ``name``
 replaces the contract's name (default: the template's, or the file name when a path is given).

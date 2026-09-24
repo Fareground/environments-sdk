@@ -7,7 +7,7 @@ import pytest
 import fg_env
 from fg_env.__main__ import main
 
-WORKING = fg_env.new("game")
+WORKING = fg_env.new("duel")
 BROKEN = {**WORKING, "bogus": 1}
 
 

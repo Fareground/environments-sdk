@@ -7,7 +7,7 @@ measurements.
 
 The engine catalog contains exactly these twelve boundaries:
 
-- **Market** — buyers and sellers form demand, supply, prices, and responses: each household weighs the best café (`inputs.cafes`) against making coffee at home, so total demand falls as prices rise, and coded cafés reprice weekly toward more profit; the sampled households (at least 80) stand for the whole city (weighted by the household table), so café capacities scale with the sample and revenue and turn-aways are reported at city scale.
+- **Retail** — buyers and sellers form demand, supply, prices, and responses: each household weighs the best café (`inputs.cafes`) against making coffee at home, so total demand falls as prices rise, and coded cafés reprice weekly toward more profit; the sampled households (at least 80) stand for the whole city (weighted by the household table), so café capacities scale with the sample and revenue and turn-aways are reported at city scale.
 - **Council** — a panel (`inputs.panel`) forecasts a yes/no question (`inputs.question`, `inputs.briefing`), deliberates and forecasts again; final forecasts are scored against a supplied outcome.
 - **Dispute** — opposing parties present claims and evidence toward a resolution; the parties, case, jury and exhibits are inputs (coded counsel lead with their strongest admissible exhibits, so verdicts track the merits, now and then risk a flawed one, and object to any exhibit whose foundation shows a defect); in the jury room each juror's speech pulls the others toward the speaker's leaning; coded awards are a share of `claimed_damages` that grows with a juror's lean, so they scale in proportion to the claim.
 - **Exchange** — a calibrated coded crowd trades one instrument on a limit order book while a few trader seats (4 by default) are filled by participants; by default a scripted guidance cut at bar 30 knocks 8% off the fundamental (`inputs.events`, `[]` for none), and `demo_volatility` (per pass) and `bar_stats.sigma` (per bar) report volatility at the two time scales.
@@ -50,7 +50,7 @@ import fg_env
 for engine in fg_env.list_engines():
     print(engine.id, engine.status, engine.available)
 
-path = fg_env.clone_engine("market", "campaign_market.json", name="Campaign market")
+path = fg_env.clone_engine("retail", "campaign_market.json", name="Campaign market")
 contract = fg_env.parse(path)
 ```
 

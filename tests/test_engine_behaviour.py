@@ -329,9 +329,9 @@ def _input_extremes():
 
 @pytest.mark.parametrize("engine_id, name, value", list(_input_extremes()))
 def test_every_engine_runs_at_both_ends_of_each_declared_input(engine_id, name, value):
-    # the market and exchange at their largest simulate thousands of people for many days or passes: their first
+    # the retail and exchange engines at their largest simulate thousands of people for many days or passes: their first
     # days or passes show they run at that size; every other engine runs to its end
-    rounds = {"market": 1, "exchange": 12}.get(engine_id)
+    rounds = {"retail": 1, "exchange": 12}.get(engine_id)
     result = fg_env.engines.load(engine_id, inputs={name: value}, seed=1).run(rounds=rounds)
     # a contest with no judge bound scores by its stand-in rubric: that run is degraded (host_fallback), not broken
     unjudged = result.degraded == ["host_fallback"] and engine_id == "contest"
@@ -339,13 +339,14 @@ def test_every_engine_runs_at_both_ends_of_each_declared_input(engine_id, name, 
     assert not result.output_issues
 
 
-#: Smaller settings the market and exchange are swept under, so a sweep takes seconds (other inputs keep defaults).
-_SWEEP_BASE = {"market": {"days": 60, "sample_size": 80, "launch_day": 5}, "exchange": {"bars": 6, "participants": 40},
+#: Smaller settings the retail and exchange engines are swept under, so a sweep takes seconds (other inputs keep
+#: defaults).
+_SWEEP_BASE = {"retail": {"days": 60, "sample_size": 80, "launch_day": 5}, "exchange": {"bars": 6, "participants": 40},
                "dispute": {"evidence_rounds": 1}}  # one exhibit a side: a close case, where every jury rule can bite
 #: Rounds a sweep stops at where an extreme would run for minutes; outputs are read where it stops.
-_SWEEP_ROUNDS = {("market", "sample_size"): 1, ("exchange", "bars"): 24, ("exchange", "participants"): 4}
-#: The market's launch inputs act in its chain_launch arm, which runs the baseline's rules too.
-_SWEEP_ARM = {"market": "chain_launch"}
+_SWEEP_ROUNDS = {("retail", "sample_size"): 1, ("exchange", "bars"): 24, ("exchange", "participants"): 4}
+#: The retail engine's launch inputs act in its chain_launch arm, which runs the baseline's rules too.
+_SWEEP_ARM = {"retail": "chain_launch"}
 #: Declared inputs no output shows when moved alone from one bound to the other, and why.
 _INERT = {
     ("exchange", "circuit_breaker_pct"): "0 turns the breaker off and a 50% move within one bar does not happen in "
@@ -364,7 +365,7 @@ def _swept_outputs(engine_id, name, value):
     engine = fg_env.engines.get(engine_id)
     path = Path(str(files("fg_env.engines").joinpath(engine.path)))
     inputs = {**_SWEEP_BASE.get(engine_id, {}), name: value}
-    seeds = (1,) if engine_id in ("market", "exchange") else (1, 2, 3)  # the big engines' outputs move with anything
+    seeds = (1,) if engine_id in ("retail", "exchange") else (1, 2, 3)  # the big engines' outputs move with anything
     return [fg_env.load(path, inputs=inputs, seed=seed, arm=_SWEEP_ARM.get(engine_id))
             .run(rounds=_SWEEP_ROUNDS.get((engine_id, name))).outputs for seed in seeds]
 
@@ -380,20 +381,20 @@ def test_every_declared_numeric_input_moves_an_output_across_its_range(engine_id
 
 def test_the_market_sample_stands_for_the_city_so_capacity_scales_with_it():
     def one_day(size):
-        env = fg_env.engines.load("market", inputs={"sample_size": size})
+        env = fg_env.engines.load("retail", inputs={"sample_size": size})
         return env, env.run(rounds=1).outputs
 
     small, _ = one_day(150)
     large, outputs = one_day(2000)
     capacity = {env: {c["id"]: c["props"]["capacity"] for c in env.entities("cafe")} for env in (small, large)}
-    city = sum(row["weight"] for row in fg_env.engines.get("market").source()["inputs"]["households"]["default"])
+    city = sum(row["weight"] for row in fg_env.engines.get("retail").source()["inputs"]["households"]["default"])
     assert capacity[small]["bean_there"] == pytest.approx(7000 * 150 / city)  # kept exact: no rounding to whole cups
     assert capacity[large]["bean_there"] == pytest.approx(7000 * 2000 / city)
     assert outputs["turned_away_total"] == 0  # the same city, sampled finer: nobody is turned away on day one
 
 
 def test_the_chain_launch_refuses_a_launch_after_the_run_ends():
-    path = Path(str(files("fg_env.engines").joinpath(fg_env.engines.get("market").path)))
+    path = Path(str(files("fg_env.engines").joinpath(fg_env.engines.get("retail").path)))
     with pytest.raises(fg_env.InvariantViolation, match="launch_day no later than days"):
         fg_env.load(path, inputs={"days": 28, "launch_day": 40}, arm="chain_launch")
 

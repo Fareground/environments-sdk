@@ -8,7 +8,7 @@ import fg_env
 from fg_env.host.stubs import StubEvaluator
 
 ENGINE_IDS = {
-    "market", "council", "dispute", "exchange", "legislature", "contest",
+    "retail", "council", "dispute", "exchange", "legislature", "contest",
     "deliberation", "negotiation", "population", "network", "matching", "strategy",
 }
 
@@ -48,10 +48,10 @@ def test_every_starter_checks_without_warnings(engine_id):
 
 
 def test_available_engine_can_clone_customize_and_run(tmp_path):
-    target = fg_env.clone_engine("market", tmp_path / "custom_market.json", name="Custom market")
+    target = fg_env.clone_engine("retail", tmp_path / "custom_market.json", name="Custom market")
     contract = json.loads(target.read_text())
     assert contract["name"] == "Custom market"
-    env = fg_env.engines.load("market", seed=4)
+    env = fg_env.engines.load("retail", seed=4)
     result = env.run("random", rounds=1)
     assert result.rounds == 1 and result.status == "running"
 
@@ -166,7 +166,7 @@ def test_negotiation_engine_accepts_sampled_people_and_keeps_positions_private()
 
 
 def test_cloned_market_uses_sampled_personas_across_an_aggregated_batch(tmp_path):
-    target = fg_env.clone_engine("market", tmp_path / "neighborhood_market.json",
+    target = fg_env.clone_engine("retail", tmp_path / "neighborhood_market.json",
                                  name="Neighborhood market")
     contract = json.loads(target.read_text())
     households = contract["inputs"]["households"]["default"]

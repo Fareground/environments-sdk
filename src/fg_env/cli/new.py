@@ -35,7 +35,7 @@ def cmd_new(args: argparse.Namespace) -> int:
 
 
 def _clone(args: argparse.Namespace) -> int:
-    """With --engine the one positional is the file: `fg-env new --engine market cafes.json`."""
+    """With --engine the one positional is the file: `fg-env new --engine retail cafes.json`."""
     from ..engines import EngineNotFound, clone, get
 
     if args.file is not None:

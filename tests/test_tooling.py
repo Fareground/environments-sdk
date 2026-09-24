@@ -291,7 +291,7 @@ def test_ordered_processing_reference_runs_without_priority_scaling():
 
 def test_run_says_when_it_stopped_before_the_end_and_its_help_names_real_commands(tmp_path, capsys):
     path = tmp_path / "game.json"
-    fg_env.new("game", path)
+    fg_env.new("duel", path)
     assert main(["run", str(path), "--rounds", "2", "--seed", "1"]) == 0
     first = capsys.readouterr().out.splitlines()[0]
     assert first.startswith("running after 2 turns — stopped before the end (seed 1"), first

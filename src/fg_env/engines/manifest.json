@@ -3,8 +3,8 @@
   "source": "Fareground behavioral engine architecture",
   "engines": [
     {
-      "id": "market",
-      "title": "Market",
+      "id": "retail",
+      "title": "Retail",
       "summary": "households choose whether and where to buy while sellers set prices",
       "description": "Simulates households choosing each day whether to buy (against making coffee at home, so total demand answers to price) and at which café, while sellers set prices, promotions and subscriptions (coded cafés reprice toward more profit); the sampled households (at least 80) stand for the whole city, so capacities scale with the sample and a bigger sample is a finer estimate of the same market.",
       "status": "native",

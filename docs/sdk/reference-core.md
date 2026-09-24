@@ -55,6 +55,12 @@ Reach for one of these when the core cannot say it.
 | `blocks` | Reusable effect lists, run with {"block": name, "with": {...}}. |
 | `imports` | Contract files merged into this one (relative to it, inside its folder); this contract's own entries win, and imported files may import others. |
 
+## Mechanism, engine or template?
+
+A mechanism (`market`, `decision` …) is a building block inside your contract. An engine (`retail`, `council` …) is a
+complete contract to copy and edit: `fg-env new --engine <id>`. A starting template is a small contract to start from:
+`fg-env new <template>` with `blank`, `duel`, `shop`, `simulation`, `meeting`.
+
 ## Mechanisms
 
 Ready-made rules that expand into ordinary actions, stages, views and outputs:
@@ -80,7 +86,7 @@ Ready-made rules that expand into ordinary actions, stages, views and outputs:
 Complete, runnable scenarios with coded participants, to copy and edit rather than start blank:
 `fg-env new --engine <id> my_env.json` (`fg_env.clone_engine`); `fg-env engines` lists them.
 
-- `market` — households choose whether and where to buy while sellers set prices
+- `retail` — households choose whether and where to buy while sellers set prices
 - `council` — a panel forecasts a yes/no question, deliberates and forecasts again (Brier-scored)
 - `dispute` — a civil trial: evidence, objections and cross-examination before a judge, then a jury verdict
 - `exchange` — a calibrated trader crowd on a limit order book, with a few trader seats

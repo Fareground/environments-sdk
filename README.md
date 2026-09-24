@@ -29,7 +29,7 @@ transitions, stopping conditions, and measurements. The runtime builds the world
 agent an appropriate view and typed tools, applies actions atomically, and returns typed outputs.
 
 Use this SDK when you need to simulate people interacting under explicit rules and run the same
-scenario repeatedly. Twelve reusable behavioral engines—Market, Council, Dispute, Exchange,
+scenario repeatedly. Twelve reusable behavioral engines—Retail, Council, Dispute, Exchange,
 Legislature, Contest, Deliberation, Negotiation, Population, Network, Matching and Strategy—can be
 cloned as a starting point, then customized: topic, participants, rules, information and outcomes.
 
@@ -173,7 +173,7 @@ import fg_env
 for engine in fg_env.list_engines():
     print(engine.id, engine.status, engine.available)
 
-fg_env.clone_engine("market", "my_market.json", name="My market study")  # overwrite=True to clone it again
+fg_env.clone_engine("retail", "my_market.json", name="My market study")  # overwrite=True to clone it again
 # A quick first look: 2 runs of each arm, two weeks over 80 sampled households (the fewest the market takes).
 # More runs give tighter intervals.
 result = fg_env.experiment("my_market.json", runs=2, participants="random", inputs={"sample_size": 80, "days": 14})
@@ -233,7 +233,7 @@ fg-env guide market       # a mechanism family; fg-env guide market.auction for 
 
 <!-- not run: shop.json stands for your own contract -->
 ```bash
-fg-env new market shop.json               # a ready-to-run start: blank, game, market, simulation or social
+fg-env new shop shop.json                 # a ready-to-run start: blank, duel, shop, simulation or meeting
 fg-env engines                            # the engines: complete scenarios with coded participants to start from
 fg-env new --engine legislature vote.json # a copy of one to edit
 fg-env check shop.json                    # every problem with its path and a fix, then plays it with random agents and each policy

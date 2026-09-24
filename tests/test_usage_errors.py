@@ -5,7 +5,7 @@ import fg_env
 
 
 def _game():
-    return fg_env.new("game")
+    return fg_env.new("duel")
 
 
 @pytest.mark.parametrize("participants, path, fix", [
@@ -22,7 +22,7 @@ def test_an_unknown_participant_or_key_is_a_contract_error_with_a_fix(participan
 
 def test_an_unknown_policy_lists_the_declared_ones():
     with pytest.raises(fg_env.ContractError) as info:
-        fg_env.run(fg_env.new("market"), {"household": "policy:thrifty"})
+        fg_env.run(fg_env.new("shop"), {"household": "policy:thrifty"})
     assert "unknown participant 'policy:thrifty'" in info.value.issues[0].message
     assert "policies: none" in info.value.issues[0].fix
 
@@ -45,7 +45,7 @@ def test_check_reports_an_unreadable_contract_as_an_issue(tmp_path, monkeypatch,
 
 def test_clone_engine_refuses_to_replace_a_file_and_says_how(tmp_path):
     path = tmp_path / "my_market.json"
-    fg_env.clone_engine("market", path)
+    fg_env.clone_engine("retail", path)
     with pytest.raises(FileExistsError, match="overwrite=True"):
-        fg_env.clone_engine("market", path)
-    assert fg_env.clone_engine("market", path, overwrite=True) == path
+        fg_env.clone_engine("retail", path)
+    assert fg_env.clone_engine("retail", path, overwrite=True) == path

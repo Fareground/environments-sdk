@@ -15,6 +15,7 @@ from typing import Any
 from .. import contract as C
 from ..analysis.optimise_guide import OPTIMISE
 from ..assets.guide import ASSETS
+from ..authoring.scaffold import TEMPLATES as STARTING_TEMPLATES
 from ..contract.macros import MAX_MACRO_DEPTH, MAX_MACRO_ITEMS
 from ..engines import list_engines
 from ..expr.template import FORMATS
@@ -76,6 +77,12 @@ Reach for one of these when the core cannot say it.
 
 EXTENDED
 
+## Mechanism, engine or template?
+
+A mechanism (`market`, `decision` …) is a building block inside your contract. An engine (`retail`, `council` …) is a
+complete contract to copy and edit: `fg-env new --engine <id>`. A starting template is a small contract to start from:
+`fg-env new <template>` with TEMPLATES.
+
 ## Mechanisms
 
 Ready-made rules that expand into ordinary actions, stages, views and outputs:
@@ -130,7 +137,8 @@ def _core() -> str:
     engines = "\n".join(f"- `{engine.id}` — {engine.summary}" for engine in list_engines(available=True))
     functions = " ".join(f"`${name}`" for name in CORE_FUNCTIONS)
     return (_MAP.replace("CORE", "\n".join(core)).replace("EXTENDED", "\n".join(extended))
-            .replace("FUNCTIONS", functions).replace("FAMILIES", "\n".join(families))
+            .replace("FUNCTIONS", functions).replace("TEMPLATES", ", ".join(f"`{name}`" for name in STARTING_TEMPLATES))
+            .replace("FAMILIES", "\n".join(families))
             .replace("ENGINES", engines).replace("PARTS", parts))
 
 
