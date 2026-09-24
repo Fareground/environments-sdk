@@ -313,8 +313,8 @@ def test_a_copy_shares_nothing_its_run_changes(path):
 _CACHES = {"effects": {"_hooks"}, "actions.redaction": {"_kept_secrets"},
            "information.perception": {"_selections", "_news"}, "driver": {"_resolved", "_turn_tools"},
            "schedule": {"_round"}}
-_PARTS = ("effects", "actions", "actions.redaction", "information", "information.perception", "information.schemas",
-          "facts", "rules", "rules.events", "driver", "previews", "schedule")
+_PARTS = ("effects", "actions", "actions.redaction", "actions.validation", "information", "information.perception",
+          "information.schemas", "facts", "rules", "rules.events", "driver", "previews", "schedule")
 
 
 def _part(env, path):

@@ -13,12 +13,12 @@ from ..effects.statements import RESERVED_ROOTS, statement_parts
 from ..expr import ExprError, compile_expr, is_expr
 from ..registry import family_action_hint
 from .params import check_entity_literals
+from .privacy import PrivacyChecks
 from .roots import merge_types
 from .space import check_sync
 from .state import check_delivery, check_link_fields
 
 if TYPE_CHECKING:
-    from . import _Checker
     from .roots import Types
 
 __all__ = ["EffectChecks"]
@@ -31,10 +31,10 @@ _REMOVED = {("wake", "in"): "a wake that comes later is a `wake` inside an `afte
 _KIND_WORDS = {"number": "a number", "int": "a whole number", "bool": "true or false", "text": "text"}
 
 
-class EffectChecks:
-    """Effect lists and the operations in them (mixed into the contract checker)."""
+class EffectChecks(PrivacyChecks):
+    """Effect lists and the operations in them (a part of the contract checker)."""
 
-    def effects(self: _Checker, effects: Any, path: str, roots: set[str], types: Types,  # type: ignore[misc]
+    def effects(self, effects: Any, path: str, roots: set[str], types: Types,
                 params: Mapping[str, C.ParamSpec] | None = None) -> set[str]:
         """Check an effect list; returns the roots available after it (locals included)."""
         roots = set(roots)
@@ -53,7 +53,7 @@ class EffectChecks:
                 self.error(where, "an effect is an assignment text or an operation object")
         return roots
 
-    def _statement(self: _Checker, source: str, path: str, roots: set[str], types: Types,  # type: ignore[misc]
+    def _statement(self, source: str, path: str, roots: set[str], types: Types,
                    params: Mapping[str, C.ParamSpec] | None) -> None:
         try:
             base, steps, local, op, right = statement_parts(source)
@@ -108,7 +108,7 @@ class EffectChecks:
         if len(fields) == len(steps):  # the property itself, not an element of it
             self._assigned_kind((root, *fields), op, right, path, types, params or {}, source)
 
-    def _reaction_actions(self: _Checker, effect: dict[str, Any], path: str) -> None:  # type: ignore[misc]
+    def _reaction_actions(self, effect: dict[str, Any], path: str) -> None:
         """A reaction (`wake` with `now`) names the actions it offers; without them it gets every action of the
         stage it happens in — the very action that woke it included — so it could act out of turn."""
         actions = effect.get("actions")
@@ -129,7 +129,7 @@ class EffectChecks:
                 self.error(f"{path}.actions", f"'{name}' is not a declared action",
                            self._suggest(name, self.c.actions) or f"actions: {', '.join(self.c.actions) or 'none'}")
 
-    def _assigned_kind(self: _Checker, target: tuple[str, ...], op: str, right: str, path: str,  # type: ignore[misc]
+    def _assigned_kind(self, target: tuple[str, ...], op: str, right: str, path: str,
                        types: Types, params: Mapping[str, C.ParamSpec], source: str) -> None:
         """A value whose kind the text makes plain (a literal, or a property or argument read on its own) assigned to
         a property declared as another kind: it would fail every time the rule runs."""
@@ -148,8 +148,7 @@ class EffectChecks:
             self.error(path, f"{field} is declared as {kind}, but this assigns {_KIND_WORDS[got]}",
                        f"assign {_KIND_WORDS[kind]}, or declare the property with the type it holds — in `{source}`")
 
-    def _value_kind(self: _Checker, right: str, types: Types,  # type: ignore[misc]
-                    params: Mapping[str, C.ParamSpec]) -> tuple[str, str | None] | None:
+    def _value_kind(self, right: str, types: Types, params: Mapping[str, C.ParamSpec]) -> tuple[str, str | None] | None:
         """``(kind, literal text)`` of a value that is a literal or one property or argument read on its own; None
         when the text does not make its kind plain."""
         text = right.strip()
@@ -166,7 +165,7 @@ class EffectChecks:
             return None
         return ("number" if known[1] == "int" else known[1]), None
 
-    def _shadowed_it(self: _Checker, type_name: str, path: str, types: Types) -> None:  # type: ignore[misc]
+    def _shadowed_it(self, type_name: str, path: str, types: Types) -> None:
         """`$it` in a `create`'s props, where an enclosing loop also binds it: there it means the new entity, which is
         rarely what the author meant."""
         outer = "/".join(sorted(types.get("it") or ())) or "enclosing"
@@ -174,7 +173,7 @@ class EffectChecks:
                    'to read the loop\'s item, name it: `"as": "src"` on the `each`, then `$src.id` here (in `create` '
                    f"props `$it` always means the new {type_name}, so its earlier props read as `$it.<prop>`)")
 
-    def _keyed(self: _Checker, effect: dict[str, Any], path: str, roots: set[str], types: Types,  # type: ignore[misc]
+    def _keyed(self, effect: dict[str, Any], path: str, roots: set[str], types: Types,
                params: Mapping[str, C.ParamSpec] | None) -> None:
         known = all_ops()
         ops = select_ops(effect)

@@ -8,12 +8,13 @@ from .. import contract as C
 from ..information.perception import SPECTATOR
 
 if TYPE_CHECKING:
-    from . import _Checker
+    from .core import Checker
+    from .privacy import PrivacyChecks
 
 __all__ = ["check_stage_turns", "check_spectator_view", "spectator_audience_issues"]
 
 
-def check_stage_turns(checker: _Checker, stage: C.StageSpec, path: str, base: AbstractSet[str]) -> None:
+def check_stage_turns(checker: PrivacyChecks, stage: C.StageSpec, path: str, base: AbstractSet[str]) -> None:
     """The `valid` rules of one stage."""
     agents = {"actor": set(checker.agents)}
     for index, condition in enumerate(stage.valid):
@@ -25,7 +26,7 @@ def check_stage_turns(checker: _Checker, stage: C.StageSpec, path: str, base: Ab
         checker.warn(f"{path}.valid", "the stage wakes nobody, so there is no turn to check")
 
 
-def check_spectator_view(checker: _Checker, name: str, view: C.ViewSpec, base: AbstractSet[str]) -> None:
+def check_spectator_view(checker: Checker, name: str, view: C.ViewSpec, base: AbstractSet[str]) -> None:
     """A view for spectators: no reader, so no $actor; rendered once per round, never as a look."""
     path = f"views.{name}"
     if view.look:
@@ -48,7 +49,7 @@ def check_spectator_view(checker: _Checker, name: str, view: C.ViewSpec, base: A
         checker.error(f"{path}.limit", "must be at least 1")
 
 
-def spectator_audience_issues(checker: _Checker, name: str, view: C.ViewSpec) -> bool:
+def spectator_audience_issues(checker: Checker, name: str, view: C.ViewSpec) -> bool:
     """Report `for` lists that mix spectators with agents; True when the view is a spectator view."""
     if view.for_ == SPECTATOR:
         return True

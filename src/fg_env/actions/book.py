@@ -86,13 +86,15 @@ def announces(contract: Contract, stage: StageSpec) -> bool:
                for kind in contract.agent_types() for name in stage_actions(contract, stage, kind))
 
 
-class ActionBook(ActionValidation):
+class ActionBook:
     def __init__(self, contract: Contract, world: World, effects: EffectRunner):
         self.contract = contract
         self.world = world
         self.effects = effects
         #: What each action's announcement may repeat of its arguments.
         self.redaction = Redaction(contract)
+        #: Resolves what a participant passed to an action into typed values, or a correction.
+        self.validation = ActionValidation(self)
 
     # -- legality -------------------------------------------------------------
 
@@ -108,6 +110,11 @@ class ActionBook(ActionValidation):
             return self.world.evaluation.remembered(
                 key, lambda: self._blocked(actor, name, used_turn, used_round, offered))
 
+    def validate(self, actor: Entity, name: str, args: Any) -> tuple[dict[str, Any], str | None]:
+        """``args`` for ``name`` as typed values: ``(params, None)``, or ``({}, correction)`` (see
+        :meth:`ActionValidation.validate`)."""
+        return self.validation.validate(actor, name, args)
+
     def deciding(self) -> Any:
         """A block that decides whether a call is allowed or what its arguments may be: a random draw in it fails as a
         rule (see :data:`UNDECIDED_BY_LUCK`)."""
@@ -122,7 +129,7 @@ class ActionBook(ActionValidation):
             return f"{name} can be used {spec.per_turn} time(s) per turn"
         if spec.per_round is not None and used_round.get(name, 0) >= spec.per_round:
             return f"{name} can be used {spec.per_round} time(s) per round"
-        refused = self._unmet(actor, name, None, offered)
+        refused = self.unmet(actor, name, None, offered)
         if refused is not None:
             return refused
         for pname, param in spec.params.items():
@@ -139,7 +146,7 @@ class ActionBook(ActionValidation):
                 return f"there is no value you can choose for {pname} right now"
         return None
 
-    def _unmet(self, actor: Entity, name: str, params: dict[str, Any] | None, offered: bool = False) -> str | None:
+    def unmet(self, actor: Entity, name: str, params: dict[str, Any] | None, offered: bool = False) -> str | None:
         """The `why` of the first requirement that does not hold: those over $actor alone (``params`` None), or
         those that read $params. ``offered``: leave out those that read another agent's private property."""
         vars: dict[str, Any] = {"actor": actor} if params is None else {"actor": actor, "params": params}
@@ -282,7 +289,7 @@ class ActionBook(ActionValidation):
             if pname in unlisted:
                 entity = param.type == "entity"
                 options = self.choices(actor, name, pname, param, params) if entity else \
-                    self.enum_values(actor, name, pname, param, params)
+                    self.validation.enum_values(actor, name, pname, param, params)
                 if not options:
                     filled.pop(pname, None)
                     break
@@ -292,7 +299,7 @@ class ActionBook(ActionValidation):
             raw = filled.get(pname)
             if raw is None:
                 break
-            value, problem = self._value(actor, name, pname, param, raw, params)
+            value, problem = self.validation.value(actor, name, pname, param, raw, params)
             if problem:
                 break
             params[pname] = value

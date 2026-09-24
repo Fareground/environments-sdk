@@ -15,11 +15,11 @@ from ..effects.runner import POST_KEYS
 from ..expr import EXPRESSION_WORDS, is_expr
 from ..physics.model import _CONSTS, _FUNCS, PhysicsExprError, _CompiledExpr
 from ..world.defaults import default_order
+from .core import Checker
 from .roots import BASE, ENTITY_FIELDS, ENTRY_FIELDS, RECORD_FIELD_TYPES
 from .space import check_space
 
 if TYPE_CHECKING:
-    from . import _Checker
     from .roots import Types
 
 __all__ = ["WorldChecks"]
@@ -28,10 +28,10 @@ __all__ = ["WorldChecks"]
 _NUMBER_TEXT = re.compile(r"-?\d+(\.\d+)?")
 
 
-class WorldChecks:
-    """The world-model sections of a contract (mixed into the contract checker)."""
+class WorldChecks(Checker):
+    """The world-model sections of a contract (a part of the contract checker)."""
 
-    def _inputs(self: _Checker) -> None:  # type: ignore[misc]
+    def _inputs(self) -> None:
         def visit(spec: C.InputSpec, path: str) -> None:
             if spec.type not in C.INPUT_TYPES:
                 self.error(f"{path}.type", f"unknown type '{spec.type}'", self._suggest_type(spec.type, C.INPUT_TYPES))
@@ -72,7 +72,7 @@ class WorldChecks:
         for name, spec in self.c.inputs.items():
             visit(spec, f"inputs.{name}")
 
-    def _brief(self: _Checker) -> None:  # type: ignore[misc]
+    def _brief(self) -> None:
         roots, types = BASE | {"actor"}, {"actor": set(self.agents)}
         self.template(self.c.brief.situation or None, "brief.situation", "actor", roots, types)
         self.template(self.c.brief.rules or None, "brief.rules", "actor", roots, types)
@@ -80,7 +80,7 @@ class WorldChecks:
             if self._type(type_name, f"brief.roles.{type_name}", agent=True):
                 self.template(text, f"brief.roles.{type_name}", "actor", roots, {"actor": {type_name}})
 
-    def _clock_space(self: _Checker) -> None:  # type: ignore[misc]
+    def _clock_space(self) -> None:
         clock = self.c.clock
         self._count(clock.rounds, "clock.rounds")
         if clock.start and is_expr(clock.start):
@@ -98,8 +98,7 @@ class WorldChecks:
         if self.c.space is not None:
             check_space(self, self.c.space)
 
-    def _prop_spec(self: _Checker, spec: C.PropSpec, path: str, roots: Iterable[str],  # type: ignore[misc]
-                   types: Types | None = None) -> None:
+    def _prop_spec(self, spec: C.PropSpec, path: str, roots: Iterable[str], types: Types | None = None) -> None:
         if spec.type is not None and spec.type not in C.PROP_TYPES:
             self.error(f"{path}.type", f"unknown type '{spec.type}'", self._suggest_type(spec.type, C.PROP_TYPES))
         if spec.type == "enum" and not spec.values:
@@ -110,7 +109,7 @@ class WorldChecks:
                       f'{{"type": "text", "default": "{spec.default}"}} to keep text')
         self.value(spec.default, f"{path}.default", roots, types or {})
 
-    def _keyword_names(self: _Checker) -> None:  # type: ignore[misc]
+    def _keyword_names(self) -> None:
         """Names expressions read cannot be the language's own words (`$count(in)`, `$it.not`)."""
         named = [(f"types.{t}", t) for t in self.c.types]
         named += [(f"entities.{e}", e) for e in self.c.entities]
@@ -123,7 +122,7 @@ class WorldChecks:
                 self.error(path, f"'{name}' is a word expressions use themselves, so they cannot name it",
                            f"rename it, e.g. '{name}_'")
 
-    def _types_and_world(self: _Checker) -> None:  # type: ignore[misc]
+    def _types_and_world(self) -> None:
         for name, spec in self.c.types.items():
             if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", name):
                 self.error(f"types.{name}", "type names are letters, digits and underscores")
@@ -160,7 +159,7 @@ class WorldChecks:
                        + " → ".join(f"$world.{name}" for name in cycle),
                        "give one of them a literal default and set it in an opening event")
 
-    def _entities(self: _Checker) -> None:  # type: ignore[misc]
+    def _entities(self) -> None:
         self._generated_ids()
         for eid, spec in self.c.entities.items():
             path = f"entities.{eid}"
@@ -184,7 +183,7 @@ class WorldChecks:
                 self.template(getattr(spec, key), f"{path}.{key}", None, BASE | {"row", "i"})
             self.template(spec.brief, f"{path}.brief", "actor", BASE | {"row", "i", "actor"}, {"actor": {spec.type}})
 
-    def _generated_ids(self: _Checker) -> None:  # type: ignore[misc]
+    def _generated_ids(self) -> None:
         """A generator with a literal count and default ids makes `<key>_<n>`: none may be a named entity's id."""
         named = list(self.c.named_entities())
         for key, spec in self.c.entities.items():
@@ -198,7 +197,7 @@ class WorldChecks:
                                "rename one of them, or give the generator an `id` template")
                     break
 
-    def _relations(self: _Checker) -> None:  # type: ignore[misc]
+    def _relations(self) -> None:
         for _, path, link in self.c.starting_links():
             if not is_expr(link.value) and (isinstance(link.value, bool) or not isinstance(link.value, (int, float))):
                 self.error(f"{path}.value",
@@ -234,7 +233,7 @@ class WorldChecks:
                         self.warn(f"{path}.{key}", f"'{raw}' is not a named entity",
                                   "use an id from `entities` or an expression")
 
-    def _physics(self: _Checker) -> None:  # type: ignore[misc]
+    def _physics(self) -> None:
         spec = self.c.physics
         if spec is None:
             return
@@ -265,7 +264,7 @@ class WorldChecks:
                 self.error(path, "write targets are 'world.<prop>' or '<type>.<prop>'")
             self._physics_expr(src, path, names)
 
-    def _physics_expr(self: _Checker, source: str, path: str, names: set[str]) -> None:  # type: ignore[misc]
+    def _physics_expr(self, source: str, path: str, names: set[str]) -> None:
         try:
             compiled = _CompiledExpr(source)
         except PhysicsExprError as exc:
@@ -275,7 +274,7 @@ class WorldChecks:
         if unknown:
             self.error(path, f"unknown name(s) {sorted(unknown)}", "use physics variables, params or read names")
 
-    def _records(self: _Checker) -> None:  # type: ignore[misc]
+    def _records(self) -> None:
         for name, spec in self.c.records.items():
             path = f"records.{name}"
             for field, kind in spec.fields.items():

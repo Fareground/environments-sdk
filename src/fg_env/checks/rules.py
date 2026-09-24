@@ -11,10 +11,10 @@ from ..expr import ExprError, compile_expr
 from ..expr.calls import callable_in
 from ..expr.template import FORMATS, compile_template
 from ..sampling.probability import check_literal_probability
+from .effects import EffectChecks
 from .roots import BASE
 
 if TYPE_CHECKING:
-    from . import _Checker
     from .roots import Types
 
 __all__ = ["RuleChecks"]
@@ -30,10 +30,10 @@ def scheduled_rounds(when: str | None) -> list[str]:
     return [one or listed for one, listed in _ON_ROUNDS.findall(when)]
 
 
-class RuleChecks:
-    """The event, policy, measure, def and arm sections of a contract (mixed into the contract checker)."""
+class RuleChecks(EffectChecks):
+    """The event, policy, measure, def and arm sections of a contract (a part of the contract checker)."""
 
-    def _events(self: _Checker) -> None:  # type: ignore[misc]
+    def _events(self) -> None:
         for index, event in enumerate(self.c.events):
             path = f"events[{index}]"
             roots, types = self._anchor(event.on, f"{path}.on")
@@ -55,7 +55,7 @@ class RuleChecks:
             if not event.do and not event.say:
                 self.warn(path, "does nothing", "add `do` or `say`")
 
-    def _anchor(self: _Checker, anchor: str, path: str) -> tuple[frozenset[str], Types]:  # type: ignore[misc]
+    def _anchor(self, anchor: str, path: str) -> tuple[frozenset[str], Types]:
         """The roots and item types an event on ``anchor`` reads, after checking the stage or type it names."""
         kind, _, rest = anchor.partition(".")
         if kind == "stage":
@@ -71,7 +71,7 @@ class RuleChecks:
             return BASE | {"it"}, {}
         return BASE, {}
 
-    def _after_the_clock(self: _Checker, when: str | None, name: str | None, path: str) -> None:  # type: ignore[misc]
+    def _after_the_clock(self, when: str | None, name: str | None, path: str) -> None:
         """An event whose `when` holds only on rounds past the clock's last never fires in a run of the clock's
         length."""
         rounds = self.c.clock.rounds
@@ -84,14 +84,13 @@ class RuleChecks:
         self.warn(path, f"{what} fires at round {min(planned)}, after the clock's last round {rounds}, so it never "
                         "fires", f"use a round up to {rounds}, or lengthen clock.rounds")
 
-    def _policies(self: _Checker) -> None:  # type: ignore[misc]
+    def _policies(self) -> None:
         for owner, spec in self.c.types.items():
             players = [kind for kind in self.c.subtypes(owner) if kind in self.agents]
             for name, policy in spec.policies.items():
                 self._policy(f"types.{owner}.policies.{name}", policy, owner, players)
 
-    def _policy(self: _Checker, base: str, policy: C.PolicySpec, owner: str,  # type: ignore[misc]
-                players: list[str]) -> None:
+    def _policy(self, base: str, policy: C.PolicySpec, owner: str, players: list[str]) -> None:
         if not players:
             self.error(base, f"'{owner}' is not an agent type, so no agent plays this policy",
                        "declare it under an agent type's `policies`")
@@ -126,7 +125,7 @@ class RuleChecks:
             check_literal_probability(self, rule.chance, f"{path}.chance")
             self.value(rule.with_, f"{path}.with", rule_roots, actor_types)
 
-    def _measure(self: _Checker) -> None:  # type: ignore[misc]
+    def _measure(self) -> None:
         for name, output in self.c.outputs.items():
             path = f"outputs.{name}"
             if output.format and output.format not in FORMATS:
@@ -164,7 +163,7 @@ class RuleChecks:
         if not self.c.outputs:
             self.warn("outputs", "no outputs declared", "declare the typed results this environment produces")
 
-    def _defs(self: _Checker) -> None:  # type: ignore[misc]
+    def _defs(self) -> None:
         for name, spec in self.c.defs.items():
             path = f"defs.{name}"
             if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", name):
@@ -188,7 +187,7 @@ class RuleChecks:
                 self.error(f"{path}.expr", f"argument '{arg}' is written without $, so it is the text '{arg}'",
                            f"write ${arg}")
 
-    def _arms(self: _Checker) -> None:  # type: ignore[misc]
+    def _arms(self) -> None:
         for name, arm in self.c.arms.items():
             for key in arm.inputs:
                 if key not in self.c.inputs:

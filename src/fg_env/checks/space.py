@@ -9,7 +9,7 @@ from ..expr import is_expr
 from ..world.geometry import MAX_CELLS, NEIGHBORHOODS
 
 if TYPE_CHECKING:
-    from . import _Checker
+    from .core import Checker
 
 __all__ = ["check_space", "check_sync", "SYNC_OPS"]
 
@@ -17,7 +17,7 @@ __all__ = ["check_space", "check_sync", "SYNC_OPS"]
 SYNC_OPS = frozenset({"if", "each", "layer", "fail"})
 
 
-def check_space(checker: _Checker, space: Space) -> None:
+def check_space(checker: Checker, space: Space) -> None:
     kinds = [kind for kind in ("grid", "graph", "plane") if getattr(space, kind) is not None]
     if len(kinds) != 1:
         checker.error("space", "declare exactly one of grid, graph, plane")
@@ -63,7 +63,7 @@ def check_space(checker: _Checker, space: Space) -> None:
                           f"a {layer.type} layer needs a {layer.type} default, got {layer.default!r}")
 
 
-def _size(checker: _Checker, raw: Any, path: str, whole: bool) -> Any:
+def _size(checker: Checker, raw: Any, path: str, whole: bool) -> Any:
     if isinstance(raw, str):
         checker.expr(raw, path, {"inputs"})
         return None
@@ -72,7 +72,7 @@ def _size(checker: _Checker, raw: Any, path: str, whole: bool) -> Any:
     return raw
 
 
-def _edges(checker: _Checker, nodes: list[str], edges: list[Any]) -> None:
+def _edges(checker: Checker, nodes: list[str], edges: list[Any]) -> None:
     known = set(nodes)
     for index, edge in enumerate(edges):
         ends = ([edge.get("from"), edge.get("to")] if isinstance(edge, dict) else list(edge) if isinstance(edge, list)
@@ -86,7 +86,7 @@ def _edges(checker: _Checker, nodes: list[str], edges: list[Any]) -> None:
                               checker._suggest(str(end), nodes))
 
 
-def _capacity(checker: _Checker, raw: Any, cells: bool) -> None:
+def _capacity(checker: Checker, raw: Any, cells: bool) -> None:
     if not cells:
         checker.error("space.capacity", "capacity needs a grid or a graph (a plane has no cells)")
     limits: dict[str, Any] = raw if isinstance(raw, dict) else {"": raw}
@@ -100,7 +100,7 @@ def _capacity(checker: _Checker, raw: Any, cells: bool) -> None:
             checker.error(path, f"must be a whole number ≥ 0, got {limit!r}")
 
 
-def check_sync(checker: _Checker, effects: Any, path: str) -> None:
+def check_sync(checker: Checker, effects: Any, path: str) -> None:
     """The effects of a `sync` loop may only assign properties and layer cells."""
     for index, effect in enumerate(effects if isinstance(effects, list) else []):
         where = f"{path}[{index}]"

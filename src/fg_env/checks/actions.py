@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from .. import contract as C
 from ..actions.params import choice_list
@@ -13,12 +13,12 @@ from ..expr import ExprError, compile_expr, is_expr
 from ..information.perception import SPECTATOR
 from ..information.reads import READS
 from ..runtime.session import END_TURN
+from .effects import EffectChecks
 from .params import check_param_bounds
 from .roots import BASE
 from .turns import check_spectator_view, check_stage_turns, spectator_audience_issues
 
 if TYPE_CHECKING:
-    from . import _Checker
     from .roots import Types
 
 __all__ = ["ActionChecks"]
@@ -30,10 +30,10 @@ _PROVIDER_NAME = re.compile(r"[a-zA-Z0-9_-]{1,64}")
 _TURNS = ("sequential", "simultaneous")
 
 
-class ActionChecks:
-    """The action, stage and view sections of a contract (mixed into the contract checker)."""
+class ActionChecks(EffectChecks):
+    """The action, stage and view sections of a contract (a part of the contract checker)."""
 
-    def _actions(self: _Checker) -> None:  # type: ignore[misc]
+    def _actions(self) -> None:
         for name, spec in self.c.actions.items():
             path = f"actions.{name}"
             if "{$" in spec.description:
@@ -92,7 +92,7 @@ class ActionChecks:
             if not any(name in _stage_action_names(s, self.c) for s in self.c.stage_list()):
                 self.warn(path, "is not available in any stage", "add it to a stage's `actions`")
 
-    def _undecided_by_luck(self: _Checker, spec: C.ActionSpec, path: str) -> None:  # type: ignore[misc]
+    def _undecided_by_luck(self, spec: C.ActionSpec, path: str) -> None:
         """Nothing that decides whether a call is allowed, or what its arguments may be, draws at random: the engine
         refuses it, since a refused call costs nothing and calling again would roll fresh luck."""
         from ..describe.walk import draws  # imported late: describe imports the API, which imports the checker
@@ -109,7 +109,7 @@ class ActionChecks:
                                             "again until luck let it through",
                            "draw in the action's `do`, or in an event that stores the result for this to read")
 
-    def _tool_name(self: _Checker, name: str, path: str) -> None:  # type: ignore[misc]
+    def _tool_name(self, name: str, path: str) -> None:
         """A name offered to models as a tool: not a built-in tool's, and one every provider accepts."""
         if name in BUILT_IN_TOOLS:
             self.error(path, f"'{name}' is a built-in tool, so a model could never call this one",
@@ -118,7 +118,7 @@ class ActionChecks:
             self.error(path, f"'{name}' is not a tool name model providers accept: letters, digits, _ and - only, at "
                              "most 64 characters", f"rename it, e.g. '{_provider_name(name)}'")
 
-    def _list_param(self: _Checker, param: C.ParamSpec, ppath: str, by_types: set[str],  # type: ignore[misc]
+    def _list_param(self, param: C.ParamSpec, ppath: str, by_types: set[str],
                     types: Types,
                     params: Mapping[str, C.ParamSpec]) -> None:
         item = param.items
@@ -160,7 +160,7 @@ class ActionChecks:
             self.error(f"{ppath}.items", "enum items need `values`")
         self.value(values, f"{ppath}.values", BASE | {"actor", "params"}, types, params)
 
-    def _stages(self: _Checker) -> None:  # type: ignore[misc]
+    def _stages(self) -> None:
         seen: set[str] = set()
         for index, stage in enumerate(self.c.stages):
             path = f"stages[{index}]"
@@ -200,7 +200,7 @@ class ActionChecks:
             self._private_who(stage, f"{path}.who")
         self._open_stages()
 
-    def _open_stages(self: _Checker) -> None:  # type: ignore[misc]
+    def _open_stages(self) -> None:
         """A stage without `actions` offers every action — including ones another stage lists as its own, which
         agents can then take in the wrong phase. (An explicit `"actions": "all"` says every action is meant.)"""
         listed = {name for stage in self.c.stages if "actions" in stage.model_fields_set
@@ -216,19 +216,7 @@ class ActionChecks:
                           "list the actions of this stage (\"actions\": [...]); write \"actions\": \"all\" if every "
                           "action belongs in it too")
 
-    def _count(self: _Checker, value: Any, path: str) -> None:  # type: ignore[misc]
-        """A count setting (`clock.rounds`, a stage's `passes`, `max_actions`, `max_calls`): a
-        whole number ≥ 1, or an expression over $inputs giving one."""
-        if isinstance(value, str) and not is_expr(value):
-            self.error(path, f"must be a whole number or an expression with $, got the text '{value}'",
-                       f"write {value.strip()} without quotes" if value.strip().isdigit() else
-                       'e.g. 5 or "$inputs.rounds"')
-        elif isinstance(value, str):
-            self.expr(value, path, {"inputs"})
-        elif isinstance(value, int) and value < 1:
-            self.error(path, f"is {value}; it must be at least 1", "remove it for the default")
-
-    def _views(self: _Checker) -> None:  # type: ignore[misc]
+    def _views(self) -> None:
         if SPECTATOR in self.c.types:
             self.error(f"types.{SPECTATOR}", f"'{SPECTATOR}' is reserved for spectator views", "rename the type")
         for name, view in self.c.views.items():

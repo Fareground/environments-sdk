@@ -20,7 +20,7 @@ from ..effects.statements import statement_parts
 from ..expr import ExprError, compile_expr, is_expr
 
 if TYPE_CHECKING:
-    from . import _Checker
+    from .core import Checker
 
 __all__ = ["check_scans"]
 
@@ -48,7 +48,7 @@ class _Work:
 
 
 class _Scans:
-    def __init__(self, checker: _Checker):
+    def __init__(self, checker: Checker):
         self.checker = checker
         self.c = checker.c
         self.scanners = checker.collection_funcs
@@ -198,6 +198,6 @@ def _calls(effects: Any, timed: bool) -> Iterable[tuple[str, bool]]:
                 yield from _calls(effect[key], timed or "after" in effect)
 
 
-def check_scans(checker: _Checker) -> None:
+def check_scans(checker: Checker) -> None:
     """Warn about scans that repeat for every entity, row or arrival (see the module notes)."""
     _Scans(checker).run()

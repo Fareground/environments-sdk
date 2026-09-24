@@ -35,21 +35,24 @@ _NUMBER_TEXT = 64
 
 
 class ActionValidation:
-    """Argument validation for actions (mixed into :class:`~fg_env.actions.book.ActionBook`)."""
+    """Argument validation for the actions of ``book`` (its :attr:`~fg_env.actions.book.ActionBook.validation`)."""
 
-    def validate(self: ActionBook, actor: Entity, name: str, args: Any) -> tuple[dict[str, Any],  # type: ignore[misc]
-                 str | None]:
+    def __init__(self, book: ActionBook):
+        self.book = book
+        self.contract = book.contract
+        self.world = book.world
+
+    def validate(self, actor: Entity, name: str, args: Any) -> tuple[dict[str, Any], str | None]:
         """Resolve arguments to typed values. Returns (params, None) or ({}, correction text). A coded policy checks
         its call before making it, so the answer is remembered for the same arguments in the same state."""
         if not isinstance(args, dict):
             return self._validate(actor, name, args)
-        with self.deciding():
+        with self.book.deciding():
             params, problem = self.world.evaluation.remembered(("valid", actor.id, name, repr(args)),
                                                                lambda: self._validate(actor, name, args))
         return dict(params), problem
 
-    def _validate(self: ActionBook, actor: Entity, name: str, args: Any) -> tuple[dict[str, Any],  # type: ignore[misc]
-                  str | None]:
+    def _validate(self, actor: Entity, name: str, args: Any) -> tuple[dict[str, Any], str | None]:
         spec = self.contract.actions[name]
         if args is None:
             args = {}
@@ -80,14 +83,14 @@ class ActionValidation:
                             problems.append(_waiting_on(pname, failed))
                             continue
                         raise RunError(str(exc), f"actions.{name}.params.{pname}.default") from None
-                elif self.required(param):
+                elif self.book.required(param):
                     problems.append(f"{pname} is required")
                     continue
                 else:
                     params[pname] = None
                     continue
             try:
-                value, problem = self._value(actor, name, pname, param, raw, params)
+                value, problem = self.value(actor, name, pname, param, raw, params)
             except RunError:
                 if not failed:
                     raise
@@ -104,12 +107,12 @@ class ActionValidation:
                 params[pname] = value
         if problems:
             return {}, "; ".join(problems)
-        refused = self._unmet(actor, name, params)
+        refused = self.book.unmet(actor, name, params)
         if refused is not None:
             return {}, refused
         return params, None
 
-    def _value(self: ActionBook, actor: Entity, action: str, pname: str, param: ParamSpec,  # type: ignore[misc]
+    def value(self, actor: Entity, action: str, pname: str, param: ParamSpec,
                raw: Any,
                params: dict[str, Any]) -> tuple[Any, str | None]:
         kind = param.type
@@ -185,7 +188,7 @@ class ActionValidation:
             chosen = self._chosen(actor, param, raw, params)
             if chosen is not None:
                 return chosen, None
-            choices = self.choices(actor, action, pname, param, params)
+            choices = self.book.choices(actor, action, pname, param, params)
             if isinstance(raw, dict) and isinstance(raw.get("id"), str):
                 raw = raw["id"]
             if not isinstance(raw, str):
@@ -202,7 +205,7 @@ class ActionValidation:
             return None, f"{shown} is not a valid {param.of} {_given(param, params)} (valid: {listing or 'none'})"
         raise RunError(f"unknown parameter type '{kind}'", f"actions.{action}.params.{pname}")
 
-    def enum_values(self: ActionBook, actor: Entity, action: str, pname: str, param: ParamSpec,  # type: ignore[misc]
+    def enum_values(self, actor: Entity, action: str, pname: str, param: ParamSpec,
                     params: dict[str, Any]) -> list[Any]:
         """The values an enum parameter allows, given the arguments before it."""
         values = param.values
@@ -216,8 +219,7 @@ class ActionValidation:
                            f"actions.{action}.params.{pname}.values")
         return [plain_value(v) for v in (values or [])]
 
-    def _chosen(self: ActionBook, actor: Entity, param: ParamSpec, raw: Any,  # type: ignore[misc]
-                params: dict[str, Any]) -> Entity | None:
+    def _chosen(self, actor: Entity, param: ParamSpec, raw: Any, params: dict[str, Any]) -> Entity | None:
         """The entity an argument names by id when it plainly qualifies — found without listing every
         choice, which coded crowds would otherwise pay on every call. None sends the argument through the
         full listing, which decides every other case (names, refusals, errors) exactly as before."""
@@ -239,7 +241,7 @@ class ActionValidation:
             holds = False  # the full listing reports it
         return entity if holds else None
 
-    def _list_value(self: ActionBook, actor: Entity, action: str, pname: str, param: ParamSpec,  # type: ignore[misc]
+    def _list_value(self, actor: Entity, action: str, pname: str, param: ParamSpec,
                     raw: Any,
                     params: dict[str, Any]) -> tuple[Any, str | None]:
         if isinstance(raw, str):  # a model sometimes sends a list as JSON text or comma-separated words
@@ -269,7 +271,7 @@ class ActionValidation:
         values: list[Any] = []
         seen: set = set()
         for index, element in enumerate(raw):
-            value, problem = self._value(actor, action, pname, item, element, params)
+            value, problem = self.value(actor, action, pname, item, element, params)
             if problem:
                 return None, f"item {index + 1} {problem}"
             key = getattr(value, "id", None) or json.dumps(plain_value(value), sort_keys=True, default=str)

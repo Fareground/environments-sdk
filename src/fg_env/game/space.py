@@ -296,7 +296,7 @@ def _walk(env: Env, turn: Turn, name: str, items: list[tuple[str, ParamSpec]], i
         if value is None:
             _walk(env, turn, name, items, index + 1, raw, resolved, found, limit, dry_run)
             continue
-        typed, problem = book._value(actor, name, pname, param, value, resolved)
+        typed, problem = book.validation.value(actor, name, pname, param, value, resolved)
         if problem is None:
             _walk(env, turn, name, items, index + 1, {**raw, pname: value}, {**resolved, pname: typed}, found, limit,
                   dry_run)

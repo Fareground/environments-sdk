@@ -11,7 +11,7 @@ from .compose import operand_names
 from .expand import validated
 
 if TYPE_CHECKING:
-    from ..checks import _Checker
+    from ..checks.core import Checker
 
 __all__ = ["check_patterns", "check_pattern_call", "configs"]
 
@@ -28,7 +28,7 @@ def configs(contract: Any) -> dict[str, PatternConfig]:
     return out
 
 
-def check_patterns(checker: _Checker, base: frozenset[str]) -> None:
+def check_patterns(checker: Checker, base: frozenset[str]) -> None:
     declared = configs(checker.c)
     for name, cfg in declared.items():
         path = f"mechanisms.{name}"
@@ -61,7 +61,7 @@ def check_patterns(checker: _Checker, base: frozenset[str]) -> None:
     _cycles(checker, declared)
 
 
-def _record(checker: _Checker, name: str, cfg: PatternConfig, path: str) -> None:
+def _record(checker: Checker, name: str, cfg: PatternConfig, path: str) -> None:
     source = checker.c._source if isinstance(checker.c._source, dict) else {}
     if name in (source.get("outputs") or {}):
         checker.error(f"{path}.record", f"an output is already named '{name}'",
@@ -73,7 +73,7 @@ def _record(checker: _Checker, name: str, cfg: PatternConfig, path: str) -> None
                       "record a metric that calls it instead")
 
 
-def _keys(checker: _Checker, cfg: PatternConfig, path: str) -> None:
+def _keys(checker: Checker, cfg: PatternConfig, path: str) -> None:
     if isinstance(cfg.keys, str):
         if is_expr(cfg.keys):
             checker.expr(cfg.keys, f"{path}.keys", {"inputs"})
@@ -90,7 +90,7 @@ def _keys(checker: _Checker, cfg: PatternConfig, path: str) -> None:
         checker.error(f"{path}.column", "`column` names the key column of a `table`", "add `table` or remove `column`")
 
 
-def _fixed(checker: _Checker, declared: dict[str, PatternConfig], raw: Any, path: str, roots: set[str]) -> None:
+def _fixed(checker: Checker, declared: dict[str, PatternConfig], raw: Any, path: str, roots: set[str]) -> None:
     """A parameter: a literal, or an expression over the roots fixed for a run, calling nothing random."""
     if hasattr(raw, "model_dump"):
         raw = raw.model_dump()
@@ -130,7 +130,7 @@ def _fixed(checker: _Checker, declared: dict[str, PatternConfig], raw: Any, path
     checker.expr(raw, path, roots)
 
 
-def _operands(checker: _Checker, declared: dict[str, PatternConfig], name: str, cfg: Any, path: str) -> None:
+def _operands(checker: Checker, declared: dict[str, PatternConfig], name: str, cfg: Any, path: str) -> None:
     for index, (item, other_name) in enumerate(zip(cfg.of, operand_names(cfg))):
         at = f"{path}.of[{index}]"
         other = declared.get(other_name)
@@ -154,7 +154,7 @@ def _operands(checker: _Checker, declared: dict[str, PatternConfig], name: str, 
                 checker.error(f"{at}.key", f"'{other_name}' has no keys", "name it on its own")
 
 
-def _time(checker: _Checker, cfg: Any, path: str) -> None:
+def _time(checker: Checker, cfg: Any, path: str) -> None:
     clock = checker.c.clock
     # a start read from $inputs is only known at build, so dates are checked there
     known_start = clock.start is not None and not is_expr(clock.start)
@@ -180,7 +180,7 @@ def _time(checker: _Checker, cfg: Any, path: str) -> None:
                     checker.error(at, str(exc), "write clock units from round 1 or an ISO date with clock.start set")
 
 
-def _fit(checker: _Checker, declared: dict[str, PatternConfig], name: str, cfg: PatternConfig, path: str) -> None:
+def _fit(checker: Checker, declared: dict[str, PatternConfig], name: str, cfg: PatternConfig, path: str) -> None:
     fit = cfg.fit
     assert fit is not None
     checker.expr(fit.data, f"{path}.fit.data", {"inputs"})
@@ -210,7 +210,7 @@ def _fit(checker: _Checker, declared: dict[str, PatternConfig], name: str, cfg: 
                       checker._suggest(fit.noise, declared))
 
 
-def _cycles(checker: _Checker, declared: dict[str, PatternConfig]) -> None:
+def _cycles(checker: Checker, declared: dict[str, PatternConfig]) -> None:
     edges: dict[str, list[str]] = {name: operand_names(cfg) if KINDS[cfg.kind].shape == "composite" else []
                                    for name, cfg in declared.items()}
     state: dict[str, int] = {}
@@ -236,7 +236,7 @@ def _cycles(checker: _Checker, declared: dict[str, PatternConfig]) -> None:
                 return
 
 
-def check_pattern_call(checker: _Checker, compiled: Any, path: str) -> None:
+def check_pattern_call(checker: Checker, compiled: Any, path: str) -> None:
     """Reads (``$pattern.x``) and calls (``$pattern.x(a, key)``) of patterns in one expression."""
     declared = configs(checker.c)
     called = {name for root, name, _ in compiled.methods if root == "pattern"}

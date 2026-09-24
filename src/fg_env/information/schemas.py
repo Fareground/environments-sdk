@@ -213,7 +213,7 @@ class ToolSchemas:
         found: list[Any] = []
         for combination in itertools.product(*axes.values()):
             try:
-                values = self.actions.enum_values(actor, action, pname, param, dict(zip(axes, combination)))
+                values = self.actions.validation.enum_values(actor, action, pname, param, dict(zip(axes, combination)))
             except RunError:
                 continue  # a combination the values cannot be worked out for offers nothing
             found.extend(value for value in values if value not in found)

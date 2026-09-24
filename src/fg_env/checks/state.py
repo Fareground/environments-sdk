@@ -16,7 +16,9 @@ from ..world.links import LINK_ATTRS
 from ..world.props import prop_type
 
 if TYPE_CHECKING:
-    from . import Types, _Checker
+    from . import _Checker
+    from .core import Checker
+    from .roots import Types
 
 __all__ = ["check_physics_state", "check_relation_fields", "check_link_fields", "check_feeds",
            "check_delivery"]
@@ -24,7 +26,7 @@ __all__ = ["check_physics_state", "check_relation_fields", "check_link_fields", 
 _FIELD_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*$")
 
 
-def check_delivery(checker: _Checker, op: str, effect: dict[str, Any], path: str) -> None:
+def check_delivery(checker: Checker, op: str, effect: dict[str, Any], path: str) -> None:
     """Literal `delay` and `drop` values on a post or emit effect."""
     drop, delay = effect.get("drop"), effect.get("delay")
     if _literal_number(drop) and not 0 <= drop <= 1:
@@ -37,7 +39,7 @@ def _literal_number(value: Any) -> TypeGuard[float]:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
-def check_feeds(checker: _Checker, base: frozenset[str]) -> None:
+def check_feeds(checker: Checker, base: frozenset[str]) -> None:
     """Feeds: a host name, a declared target, and valid expressions for query, when and fallback."""
     contract = checker.c
     for name, spec in contract.feeds.items():
@@ -65,7 +67,7 @@ def check_feeds(checker: _Checker, base: frozenset[str]) -> None:
         checker.value(spec.fallback, f"{path}.fallback", base)
 
 
-def _literal_fallback(checker: _Checker, spec: FeedSpec, target: str, prop: PropSpec, path: str) -> None:
+def _literal_fallback(checker: Checker, spec: FeedSpec, target: str, prop: PropSpec, path: str) -> None:
     raw = spec.fallback
     if raw is None or (isinstance(raw, str) and ("{$" in raw or is_expr(raw))):
         return
@@ -101,7 +103,7 @@ def check_relation_fields(checker: _Checker, base: frozenset[str]) -> None:
         check_link_fields(checker, relation, entry.props, f"{path}.props", roots)
 
 
-def check_link_fields(checker: _Checker, relation: Any, fields: Any, path: str, roots: Iterable[str],
+def check_link_fields(checker: Checker, relation: Any, fields: Any, path: str, roots: Iterable[str],
                       types: Types | None = None, params: Mapping[str, ParamSpec] | None = None) -> None:
     """Fields set on a `relation` link: each declared, each value a valid expression here."""
     spec = checker.c.relations.get(relation) if isinstance(relation, str) else None

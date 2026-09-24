@@ -8,16 +8,16 @@ from ..expr import is_expr
 from ..registry import config_data, use_key
 
 if TYPE_CHECKING:
-    from . import _Checker
+    from .core import Checker
 
 
-def check_inventory(checker: _Checker) -> None:
+def check_inventory(checker: Checker) -> None:
     for name, raw in checker.c.mechanisms.items():
         if use_key(raw) == "economy.inventory":
             _check_one(checker, name, config_data(raw))
 
 
-def _check_one(checker: _Checker, name: str, config: Mapping[str, Any]) -> None:
+def _check_one(checker: Checker, name: str, config: Mapping[str, Any]) -> None:
     """The authored literals of one inventory mechanism."""
     contract = checker.c
     prop = config.get("prop") or name
