@@ -85,17 +85,16 @@ assert result.outputs["catch_by_fisher"] == {"fisher_1": 44, "fisher_2": 44, "fi
 
 ## How a round runs
 
-Start events → each stage in order → end events → metrics → `end` conditions. A run ends when an `end` condition
-holds, an `end` effect runs, or the rounds run out.
+Start events → each stage in order → end events → metrics → `end` conditions. A run ends on an `end` condition
+or effect, or when rounds run out.
 * A stage wakes agents (`who`, in `order`). `turns: sequential` — one at a time, actions apply at once.
   `turns: simultaneous` — everyone chooses from the same picture (sealed bids, votes); choices then commit one
   agent at a time (in `order`, else random), so resolve them jointly in `on_exit`.
-* A turn ends after `max_actions` actions (default 1), on `end_turn`, or after `max_calls` calls.
-* An action is atomic: if an effect `fail`s or a `transfer` lacks funds, all of it is undone and the agent is told why;
-  it spends the action only if it rolled luck or read another entity's private property (so hidden values cannot be
-  guessed for free); a taken cell, a bad argument or an unmet `when` costs nothing.
-* Besides action tools, an agent gets `inspect` (one entity's non-`private` props) when a type sets
-  `"inspect": true` or an expression over `$viewer` and `$it`; an agent's own state belongs in a view.
+* A turn ends after `max_actions` actions (default 1), on `end_turn`, or at `max_calls` calls.
+* An action is atomic: if an effect `fail`s or a `transfer` lacks funds, all of it is undone and the agent is told
+  why; that costs the action only if it rolled luck or read a hidden value.
+* An agent also gets `inspect` (one entity's non-`private` props) when a type sets `"inspect": true` or an
+  expression over `$viewer` and `$it`; own state belongs in a view.
 
 ## Sections
 

@@ -162,6 +162,7 @@ class SdkWorld(World):
         self._hidden = {t: frozenset(p for p, spec in props.items() if spec.private) for t, props in self._type_props.items()}
         self.private_metrics = private_metrics(contract, frozenset().union(*self._private.values()))
         self.private_names = frozenset().union(*self._hidden.values())
+        self.hidden_reads = 0
         #: Def results for the current world state (see :meth:`call_def`).
         self._def_cache: Dict[Any, Any] = {}
         self._def_cache_state: Any = None
