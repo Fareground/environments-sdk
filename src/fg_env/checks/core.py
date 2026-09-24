@@ -62,7 +62,6 @@ class Checker:
         for input_spec in contract.inputs.values():
             words |= {str(v) for v in input_spec.values or []}
         self.known_words = words
-        self.stage_names = [s.name for s in contract.stage_list()]
         self.collection_funcs = _collection_funcs()
         self.families = contract.mechanism_families()
 

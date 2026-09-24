@@ -36,10 +36,12 @@ repo root discovers everything. Narrow a run with `pytest tests/<file>.py -k <ex
 The package lives in `src/fg_env/`. `fg_env/__init__.py` is the public surface: every name in its `__all__`
 and the subpackages it exports (`analysis`, `rl`, `engines`, `personas`, `participants`). Below it:
 
-- **The core engine** is a few subpackages, one per part of a run: `world/` (the live world: entities, links,
-  records, space, its luck, and building it from a contract), `runtime/` (the rules, the schedule of rounds, stages
-  and turns, what a run measures), `actions/` (legal actions and their arguments), `information/` (everything an
-  agent is shown or offered — brief, update, views, inspect, tools — rendered through one gate for its reader),
+- **The core engine** is a few subpackages, one per part of a run: `world/` (the world's store — entities, links,
+  records, the log, space — whose every change is journaled; how expressions read it; its luck; and building it from
+  a contract), `runtime/` (the run's state, the rules, the schedule of rounds, stages and turns, driving participants
+  under the run's one lock, what a run measures), `actions/` (legal actions and their arguments), `information/`
+  (everything an agent is shown or offered — brief, update, views, inspect, tools — rendered through one gate for its
+  reader),
   `effects/` (how rules change the world), `physics/` (continuous dynamics), `copying/` (branches, forks, replays,
   snapshots, stepped copies) and `sampling/` (seeded random streams and exact draws). `api.py` and `errors.py` sit
   beside them.

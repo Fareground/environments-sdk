@@ -135,7 +135,7 @@ feature with the core of the contract language marked apart from the rest.
 - **Package layout.** The engine's modules are grouped by feature into `world/`, `runtime/`, `actions/`, `effects/`,
   `physics/`, `copying/`, `sampling/`, `authoring/` and `experiments/`; every built-in expression function lives in
   `stdlib/`; `participants` is a package. `fg_env`'s public names and the documented subpackages are unchanged; code
-  importing internal modules must use their new paths (for example `fg_env.runtime.env.Env`, `fg_env.world.live`,
+  importing internal modules must use their new paths (for example `fg_env.runtime.env.Env`, `fg_env.world.store`,
   `fg_env.copying.branch`).
 
 ### Added
