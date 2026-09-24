@@ -7,7 +7,7 @@ Config:
 - `who` (required): Agent type(s) that may attempt things.
 - `allow` (required): Every change the game master may make.
 - `host` (default "game_master"): Host game master name.
-- `model` (default null): Model hint passed to the host.
+- `model` (default null): A name for the kind of model wanted (e.g. "strong"), which the host maps to one of its own models (LLMHost(..., models={...})); a host that does not map it uses its own model.
 - `tool` (default "attempt"): Name of the free-text tool.
 - `description` (default ""): Tool description (default explains the tool).
 - `max_chars` (default 500): Longest attempt text, in characters.

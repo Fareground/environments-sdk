@@ -18,7 +18,7 @@ from ..errors import RunError
 from ..expr import ExprError, Untrusted
 from ..expr.template import compile_template, format_value
 from ..registry import MechanismError, family_action, mode
-from .common import NAME, agents_of, clip, config_of, type_list
+from .common import MODEL_HINT, NAME, agents_of, clip, config_of, type_list
 from .protocols import HostError
 from .tape import consult, plain, tape_prop
 
@@ -35,7 +35,7 @@ class PersonaConfig(BaseModel):
     who: str = Field(..., description="Type whose entities get a persona.")
     prompt: str = Field(..., description="What to write, as a template over $it (the entity and its props).")
     host: str = Field("personas", description="Host writer name.")
-    model: str | None = Field(None, description="Model hint passed to the host.")
+    model: str | None = Field(None, description=MODEL_HINT)
     prop: str = Field("persona", description="Text property that holds the persona.")
     brief: bool = Field(True, description="Add the persona to the entity's brief.")
     fallback: str | None = Field(None,

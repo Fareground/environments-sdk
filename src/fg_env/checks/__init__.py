@@ -28,6 +28,7 @@ from ..expr.base import WrongKind
 from ..expr.calls import suggest_function
 from ..expr.codegen import _ITEM_ROOTS
 from ..expr.template import compile_template, quoted_placeholders
+from ..host.common import raw_model_ids
 from ..patterns.check import check_pattern_call, check_patterns
 from ..runtime.returns import check_game
 from ..world.live import prop_type
@@ -457,3 +458,4 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
 
         self.issues.extend(separate_turns(c._source or {}))
         self.issues.extend(authored_slips(c._source or {}))
+        self.issues.extend(raw_model_ids(c._source or {}))

@@ -21,7 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from ..errors import RunError
 from ..expr import Call, ExprError, Untrusted, function
 from ..expr.template import format_value
-from ..host.common import NAME, agents_of, clip, config_of, prop_of, type_list
+from ..host.common import MODEL_HINT, NAME, agents_of, clip, config_of, prop_of, type_list
 from ..host.protocols import HostError
 from ..host.tape import consult, plain, tape_prop
 from ..registry import MechanismError, family_action, mode, use_key
@@ -420,7 +420,7 @@ class RecapConfig(BaseModel):
     record: str = Field(..., description="The record to summarise.")
     every: int = Field(..., ge=1, description="Write a recap every N rounds.")
     host: str = Field("writer", description="Host writer name.")
-    model: str | None = Field(None, description="Model hint passed to the host.")
+    model: str | None = Field(None, description=MODEL_HINT)
     prompt: str = Field("Summarise the story so far for participants who need to catch up: who did what, what was "
                         "decided, what is still open. Be faithful and brief.", description="What the recap asks for.")
     last: int = Field(50, ge=1, le=500, description="Most new entries one recap reads.")

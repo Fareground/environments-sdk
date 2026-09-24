@@ -138,14 +138,23 @@ class _Provider:
 
 class LLMHost(_Provider):
     """One model serving as evaluator (``judge``), game master (``resolve``), writer, ranker and describer
-    (``describe``). Files in a request are sent as multimodal content (:mod:`fg_env.assets.multimodal`)."""
+    (``describe``). Files in a request are sent as multimodal content (:mod:`fg_env.assets.multimodal`).
+
+    ``model`` answers every request: a contract's ``model`` hint (``"strong"``) chooses another only through
+    ``models``, the operator's map of hints to models (``models={"strong": "claude-opus-5"}``), so a contract never
+    picks what its host spends."""
 
     def __init__(self, client: Any, model: str, *, provider: str = "anthropic", max_tokens: int = 16000,
-                 retries: int = 4, system: str = ""):
+                 retries: int = 4, system: str = "", models: Mapping[str, str] | None = None):
         if provider not in ("anthropic", "openai"):
             raise ValueError(f"provider must be 'anthropic' or 'openai', got {provider!r}")
+        if models is not None and (not isinstance(models, Mapping) or not all(
+                isinstance(hint, str) and isinstance(name, str) and name for hint, name in models.items())):
+            raise ValueError(f"models maps a contract's model hints to model names, such as {{'strong': "
+                             f"'claude-opus-5'}}; got {models!r}")
         super().__init__(client, model, retries, max_tokens, provider)
         self.system = system
+        self.models = dict(models or {})
 
     def judge(self, request: Mapping[str, Any]) -> Any:
         return parse_json(self._complete("judge", request))
@@ -170,7 +179,8 @@ class LLMHost(_Provider):
         return text
 
     def _complete(self, role: str, request: Mapping[str, Any]) -> str:
-        model = request.get("model") or self.model
+        hint = request.get("model")
+        model = self.models.get(hint, self.model) if isinstance(hint, str) else self.model
         own = self.system + "\n\n" if self.system else ""
         system = own + _SYSTEM.format(role=_ROLES[role], answer=_ANSWERS[role])
         files = [Carried(item) for item in request.get("attachments") or []]

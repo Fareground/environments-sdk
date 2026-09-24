@@ -6,7 +6,7 @@ import threading
 import time
 from types import SimpleNamespace as NS
 
-from test_host_tape import PITCH, _Anthropic, pitcher
+from test_host_tape import PITCH, _Anthropic, _message, pitcher
 from test_llm_failures import EmptyThenBidding
 from test_llm_participants import FakeAnthropic, FakeOpenAI
 from test_runtime import AUCTION, SHOP
@@ -150,3 +150,29 @@ def test_broken_json_arguments_are_refused_saying_the_json_is_invalid():
     [reply] = [m for m in client.requests[1]["messages"] if m["role"] == "tool"]
     assert reply["content"].startswith("bid was not done: its arguments are not valid JSON (")
     assert result.agent_stats["ann"]["invalid_calls"] == 1 and result.outputs["price"] == 30
+
+
+def _judged(models=None, **panel):
+    answer = _message(json.dumps({"scores": {"quality": 7}, "rationale": "fine"}))
+    client = _Anthropic([answer] * 4)
+    contract = {**PITCH, "mechanisms": {"panel": {**PITCH["mechanisms"]["panel"], **panel}}}
+    judge = host.adapters.anthropic(client, "claude-host", models=models)
+    host.run(host.load(contract, hosts={"judge": judge}, seed=1), pitcher)
+    return {request["model"] for request in client.requests}
+
+
+def test_the_hosts_own_model_answers_whatever_model_the_contract_names():
+    assert _judged(model="claude-opus-9-most-expensive") == {"claude-host"}
+
+
+def test_a_contract_model_hint_picks_a_model_only_through_the_hosts_own_map():
+    assert _judged({"strong": "claude-big"}, model="strong") == {"claude-big"}
+    assert _judged({"strong": "claude-big"}, model="cheap") == {"claude-host"}
+
+
+def test_check_flags_a_raw_model_id_in_a_host_mechanism():
+    contract = {**PITCH, "mechanisms": {"panel": {**PITCH["mechanisms"]["panel"], "model": "gpt-4o"}}}
+    [found] = [i for i in fg_env.check(contract, rounds=0) if i.path == "mechanisms.panel.model"]
+    assert found.severity == "warning" and "'gpt-4o' reads as a provider's model id" in found.message
+    named = {**PITCH, "mechanisms": {"panel": {**PITCH["mechanisms"]["panel"], "model": "strong"}}}
+    assert not [i for i in fg_env.check(named, rounds=0) if i.path == "mechanisms.panel.model"]

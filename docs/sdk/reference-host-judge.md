@@ -7,7 +7,7 @@ Config:
 - `criteria` (required): {criterion: {description, weight, scale}}.
 - `instructions` (default ""): What the judge is judging and how (plain text).
 - `host` (default "judge"): Host evaluator name.
-- `model` (default null): Model hint passed to the host.
+- `model` (default null): A name for the kind of model wanted (e.g. "strong"), which the host maps to one of its own models (LLMHost(..., models={...})); a host that does not map it uses its own model.
 - `panel` (default []): Several judges; scores are aggregated per criterion.
 - `aggregate` (default "mean"): How a panel's scores combine (trimmed_mean drops the highest and lowest with 3+ judges).
 - `out_of` (default 10): The total is the weighted rubric score on a 0..out_of scale.
@@ -30,7 +30,7 @@ Nested config:
 **Seat** — One judge of a panel.
 - `name`: text (required) — The judge's name (it is asked as this judge).
 - `host`: text — Host answering for this judge (default: the mechanism's host).
-- `model`: text — Model hint passed to the host.
+- `model`: text — A name for the kind of model wanted (e.g. "strong"), which the host maps to one of its own models (LLMHost(..., models={...})); a host that does not map it uses its own model.
 
 Actions of the `host` op:
 - `judge` — takes `text`, `subject`, `entry`, `context`, `attach`: {"host": "speeches", "action": "judge", "text": "$params.text", "subject": "$actor"}  (score `text`, or a record `entry`, with the judge; the verdict goes to the record speeches and its totals; without either, judge the new entries of its `record`; `attach` gives the judge files, and a judged entry brings its own)

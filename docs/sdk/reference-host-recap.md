@@ -7,7 +7,7 @@ Config:
 - `record` (required): The record to summarise.
 - `every` (required): Write a recap every N rounds.
 - `host` (default "writer"): Host writer name.
-- `model` (default null): Model hint passed to the host.
+- `model` (default null): A name for the kind of model wanted (e.g. "strong"), which the host maps to one of its own models (LLMHost(..., models={...})); a host that does not map it uses its own model.
 - `prompt` (default "Summarise the story so far for participants who need to catch up: who did what, what was decided, what is still open. Be faithful and brief."): What the recap asks for.
 - `last` (default 50): Most new entries one recap reads.
 - `visible` (default "all"): Who reads recaps: 'all' or an expression over $viewer and $it.
