@@ -16,8 +16,9 @@ until it closes:
   the first bid at or above the clock takes the lot at the clock price. It closes unsold below the
   reserve.
 * ``reverse`` (first or second price) — a procurement tender: the ``house`` buys, bidders offer prices, the
-  lowest offer at or below ``reserve`` (the most the house pays) wins a unit and is paid its offer, or with second
-  price the second-lowest offer (or the reserve). Offers escrow nothing; the house pays from its ``currency``.
+  lowest offer at or below ``reserve`` (the most the house pays) wins and is paid its offer, or with second price the
+  second-lowest offer (or the reserve). The winner supplies one unit: it lands in the house's ``<name>_units`` and the
+  contract counts in the winner's ``<name>_won``. Offers escrow nothing; the house pays from its ``currency``.
 * ``score`` (first price) — the award goes to the acceptable bid with the highest score, an expression over the
   bid's ``$price`` and ``$it`` (the bidder), e.g. quality points minus price; the winner pays (or is paid) its bid.
 * ``combinatorial`` — sealed package bids on bundles of distinct ``items``; each bidder wins at most
@@ -53,6 +54,7 @@ __all__ = ["AuctionConfig", "FORMATS", "SEALED"]
 KEY = "market.auction"
 FORMATS = ("first_price", "second_price", "english", "dutch", "double", "uniform", "combinatorial")
 SEALED = ("first_price", "second_price", "double", "uniform", "combinatorial")
+MIN_PRICE = 0.0001  # a price is positive: the smallest one a bid, ask or offer may carry
 
 
 class AuctionConfig(BaseModel):
@@ -136,14 +138,15 @@ def _reserve(world: Any, name: str, cfg: AuctionConfig) -> float:
 
 
 def min_bid(world: Any, name: str) -> float:
+    """The smallest legal bid right now: the next English raise, the Dutch clock, else the reserve (never below MIN_PRICE)."""
     cfg = auction_config(world, name)
     lot = world.props.get(f"{name}_lot") or {}
     reserve = _reserve(world, name, cfg)
     if cfg.format == "english" and lot.get("leader"):
-        return float(lot["price"]) + cfg.increment
+        return max(MIN_PRICE, float(lot["price"]) + cfg.increment)
     if cfg.format == "dutch" and lot.get("open"):
-        return float(lot["price"])
-    return 0.0 if cfg.format in ("double", "combinatorial") or cfg.reverse else reserve
+        return max(MIN_PRICE, float(lot["price"]))
+    return MIN_PRICE if cfg.format in ("double", "combinatorial") or cfg.reverse else max(MIN_PRICE, reserve)
 
 
 def _receipt(world: Any, name: str, text: str) -> str:
@@ -362,7 +365,7 @@ def _merit(world: Any, name: str, cfg: AuctionConfig) -> Callable[[Dict[str, Any
 
 def _award_tender(world: Any, name: str, cfg: AuctionConfig, lot: Dict[str, Any], bids: List[Dict[str, Any]],
                   payer: Account, source: Account) -> None:
-    """A procurement lot: the best offer the house can pay, at most the reserve, wins a unit and is paid."""
+    """A procurement lot: the best offer the house can pay, at most the reserve, wins, is paid and delivers a unit."""
     cap = min(_reserve(world, name, cfg), balance(world, payer))
     accepted = [b for b in bids if b["price"] <= cap + 1e-9]
     if not accepted:
@@ -373,7 +376,7 @@ def _award_tender(world: Any, name: str, cfg: AuctionConfig, lot: Dict[str, Any]
     price = best["price"] if cfg.format == "first_price" else min([cap, *others])
     winner = entity_of(world, best["bidder"], f"mechanisms.{name}", "a bidder")
     move(world, payer, Account(winner, cfg.currency), price, what="cash")
-    move(world, source, Account(winner, f"{name}_units"), 1, what="units")
+    move(world, source, Account(payer.entity, f"{name}_units"), 1, what="units")  # the winner supplies it to the house
     _won(world, name, winner, 1)
     capped = price == cap and not any(p <= cap for p in others)
     notes = {"first_price": "best score, paid its offer" if cfg.score else "lowest offer, paid its offer",
@@ -671,9 +674,10 @@ def _check_packages(cfg: AuctionConfig) -> None:
 @mode("market", "auction", AuctionConfig,
            "An auction: sealed first_price, second_price (Vickrey), english (ascending, increment, timeout), dutch (falling "
            "clock), double (call market at one price) or uniform (multi-unit, one price). Tools `<name>_bid` (price, qty) "
-           "and, for double, `<name>_ask`. Bids escrow cash, asks escrow units; proceeds go to the `house` entity or "
+           "and, for double, `<name>_ask`. Each party holds the units it bought, or a double auction's sellers the units they "
+           "offer, in `<name>_units` (give sellers their stock there). Bids escrow cash, asks escrow units; proceeds go to the `house` entity or "
            "$world.<name>_revenue. `reverse: true` makes it a procurement tender (the house buys; the lowest offer at or below "
-           "the reserve wins and is paid); `score` awards a first_price lot to the best score instead of the best price. "
+           "the reserve wins, is paid and supplies one unit to the house's `<name>_units`); `score` awards a first_price lot to the best score instead of the best price. "
            "Each closed lot is posted to the `<name>_results` record, one entry per winner (winner, price, qty, lot, note; "
            "an unsold lot has one entry with winner ''). $auction(<name>).last is the latest closed lot, sold or not: "
            "{lot, winner (the first winner, '' when unsold), winners, price (the first winner's price per unit; in a "
@@ -725,19 +729,19 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
                  if cfg.reverse else "Sealed bids; among bids at or above the reserve, the best score wins and pays ") + \
                 f"its own price. Score: {cfg.score} ($price is your price, $it you)."
     escrow = (" Your highest package bid is held until the lot closes; you get back whatever you do not pay." if packaged else
-              " Nothing is held: the house pays the winner when the lot closes." if cfg.reverse else
+              " Nothing is held: when the lot closes the house pays the winner, who supplies one unit." if cfg.reverse else
               " Your bid's full amount is held until the lot closes; you get back whatever you do not pay.")
     amount = {"qty": {"type": "int", "min": 1, "max": 1 if single else cfg.units, "default": 1, "description": "Units wanted."}}
     if packaged:
         amount = {"package": {"type": "list", "items": {"type": "enum", "values": cfg.items}, "min_items": 1,
                               "max_items": len(cfg.items), "description": "The items you want together."}}
-    price: Dict[str, Any] = {"type": "number", "min": f"$max(0.0001, $auction({name}).min_bid)",  # a price is positive
+    price: Dict[str, Any] = {"type": "number", "min": f"$auction({name}).min_bid",
                              "max": f"$actor.{cfg.currency} + $actor.{name}_escrow" if packaged else f"$actor.{cfg.currency}",
                              "description": "Price for the whole package." if packaged else "Price per unit."}
     when = [{"expr": f"$auction({name}).open", "why": "No lot is open."},
             {"expr": f"$actor.{cfg.currency} > 0", "why": "You have no cash."}]
     if cfg.reverse:
-        price = {"type": "number", "min": 0.0001, "max": f"$auction({name}).reserve",
+        price = {"type": "number", "min": MIN_PRICE, "max": f"$auction({name}).reserve",
                  "description": "Price per unit you want to be paid."}
         when = when[:1]
     actions: Dict[str, Any] = {
@@ -754,7 +758,7 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
     if cfg.format == "double":
         actions[f"{name}_ask"] = {
             "by": cfg.sellers or cfg.who, "description": f"Offer {cfg.item} for sale. {rules} Your units are held until the lot closes.",
-            "params": {"price": {"type": "number", "min": 0.0001, "description": "Lowest price per unit you accept."},
+            "params": {"price": {"type": "number", "min": MIN_PRICE, "description": "Lowest price per unit you accept."},
                        "qty": {"type": "int", "min": 1, "max": f"$min($actor.{name}_units, {cfg.units})", "default": 1, "description": "Units offered."}},
             "when": [{"expr": f"$auction({name}).open", "why": "No lot is open."},
                      {"expr": f"$actor.{name}_units > 0", "why": "You have nothing to sell."}],

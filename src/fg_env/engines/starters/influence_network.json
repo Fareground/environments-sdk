@@ -69,12 +69,12 @@
   "views": {"exposure": {"for": "person", "title": "Your exposure", "of": "$heard($actor)", "show": "{item}: {state}; {exposures} exposure(s)"}},
   "metrics": {
     "reach": {"expr": "$reach(proposal)"},
-    "adoption_rate": {"expr": "$adopters(proposal) / $count(person) if $count(person) > 0 else null"}
+    "adoption_rate": {"expr": "$adopter_count(proposal) / $count(person) if $count(person) > 0 else null"}
   },
   "outputs": {
     "population_size": {"type": "int", "expr": "$count(person)"},
     "reached": {"type": "int", "expr": "$reach(proposal)"},
-    "adopted": {"type": "int", "expr": "$adopters(proposal)"},
+    "adopted": {"type": "int", "expr": "$adopter_count(proposal)"},
     "adoption_rate": {"type": "number", "expr": "$metrics.adoption_rate"}
   },
   "invariants": [{"expr": "$all($inputs.seeds, $it in $ids(person))",
