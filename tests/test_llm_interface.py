@@ -15,27 +15,28 @@ import fg_env
 from fg_env import host, participants
 
 
-class SlowBidder:
-    """An Anthropic client whose every call takes a moment, counting how many are under way at once."""
+class MeetingBidders:
+    """An Anthropic client counting how many calls are under way at once. Until three have been, each call waits for
+    the others to arrive (never on a clock), so parallel calls always meet and serial ones never do."""
 
     def __init__(self):
-        self.lock = threading.Lock()
+        self.arrived = threading.Condition()
         self.active = self.most = 0
         self.messages = self
 
     def create(self, **request):
-        with self.lock:
+        with self.arrived:
             self.active += 1
             self.most = max(self.most, self.active)
-        time.sleep(0.2)
-        with self.lock:
+            self.arrived.notify_all()
+            self.arrived.wait_for(lambda: self.most >= 3, timeout=10)
             self.active -= 1
         usage = NS(input_tokens=100, output_tokens=10, cache_read_input_tokens=0, cache_creation_input_tokens=0)
         return NS(content=[NS(type="tool_use", id="c1", name="bid", input={"amount": 10})], usage=usage)
 
 
 def test_a_token_budget_far_from_its_limit_keeps_parallel_turns_parallel():
-    client = SlowBidder()
+    client = MeetingBidders()
     bidders = {name: participants.anthropic(client, "m") for name in ("ann", "bo", "cy")}
     result = fg_env.load(AUCTION, seed=1).run(bidders, budget={"tokens": 10**9})
     assert result.ok, result.summary()

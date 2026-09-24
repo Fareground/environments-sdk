@@ -94,13 +94,17 @@ def test_cancelling_arun_stops_the_run_at_its_next_safe_point_and_it_can_continu
     long_game = {**GAME, "clock": {"rounds": 40}}
     env = fg_env.load(long_game, seed=1)
 
+    played = asyncio.Event()
+
     async def agent(wake):
         await asyncio.sleep(0.01)
         wake.call("score", {"points": 1})
+        if wake.round == 2:
+            played.set()
 
     async def main():
         task = asyncio.create_task(env.arun(agent))
-        await asyncio.sleep(0.15)
+        await played.wait()  # cancelled mid-game, after a round has certainly finished, however slow the machine
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
