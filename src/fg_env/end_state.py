@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Dict, List
 
+from .host.tape import TAPE
 from .measure import shown
 from .world import _plain
 
@@ -47,8 +48,9 @@ def state_lines(state: Dict[str, Any], series: Dict[str, List[Any]]) -> List[str
     if not state:
         return lines
     lines.append("state at the end:")
-    if state["world"]:
-        lines.append("  world: " + _props(state["world"]))
+    world = {name: value for name, value in state["world"].items() if name != TAPE}  # the engine's, not the author's
+    if world:
+        lines.append("  world: " + _props(world))
     for kind, group in state["types"].items():
         count = group["alive"]
         more = f", first {len(group['entities'])}" if count > len(group["entities"]) else ""

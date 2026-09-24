@@ -28,10 +28,13 @@ class TypeIndex:
         #: entity id → its creation position (only the order matters)
         self.ordinal: Dict[str, int] = {}
         self._next = 0
+        #: How many entities are alive, of every type.
+        self.living = 0
 
     def created(self, entity: Entity) -> None:
         self.ordinal[entity.id] = self._next
         self._next += 1
+        self.living += entity.alive
         self._members[entity.entity_type].append(entity)
         for name in self._queries[entity.entity_type]:
             cached = self._alive.get(name)
@@ -46,10 +49,15 @@ class TypeIndex:
         elif entity in members:
             members.remove(entity)
         self.ordinal.pop(entity.id, None)
-        self.changed(entity)
+        self.living -= entity.alive
+        self._refresh(entity)
 
     def changed(self, entity: Entity) -> None:
         """An entity was removed or brought back: the cached lists that hold its type refresh on next read."""
+        self.living += 1 if entity.alive else -1
+        self._refresh(entity)
+
+    def _refresh(self, entity: Entity) -> None:
         for name in self._queries[entity.entity_type]:
             self._alive[name] = None
 
@@ -80,5 +88,6 @@ class TypeIndex:
         self._alive = {}
         self.ordinal = {}
         self._next = 0
+        self.living = 0
         for entity in entities:
             self.created(entity)

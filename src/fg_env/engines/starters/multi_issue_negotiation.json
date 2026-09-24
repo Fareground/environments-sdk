@@ -1,7 +1,7 @@
 {
   "fg_env": "1",
   "name": "Multi-Issue Negotiation Engine",
-  "description": "A reusable bilateral negotiation over several configurable issues. Each party has private priorities and a private walk-away value, can propose or counter complete terms, and may accept, reject, withdraw, or leave without agreement before the deadline. The coded baseline opens at its best terms, concedes each round toward the other side's opening offer, giving up first the issues it cares least about (the whole way by the deadline, never below its walk-away value), and accepts an offer worth at least the counter it would make.",
+  "description": "A reusable bilateral negotiation over several configurable issues. Each party has private priorities and a private walk-away value, can propose or counter complete terms, and may accept, reject, withdraw, or leave without agreement before the deadline. The coded baseline opens at its best terms, concedes toward the other side's opening offer at a pace drawn each run (some hold out, some concede early), giving up first the issues it cares least about (the whole way by the deadline, never below its walk-away value), and accepts an offer worth at least the counter it would make.",
   "inputs": {
     "deadline": {
       "type": "int",
@@ -94,6 +94,13 @@
           "type": "number",
           "default": 0,
           "private": true
+        },
+        "pace": {
+          "type": "number",
+          "default": 1,
+          "min": 0,
+          "private": true,
+          "description": "How the coded party spreads its concessions over time, drawn each run: above 1 it holds out and concedes late, below 1 it concedes early."
         }
       }
     }
@@ -111,7 +118,8 @@
         "amount_weight": "$row.amount_weight",
         "scope_weight": "$row.scope_weight",
         "timing_weight": "$row.timing_weight",
-        "agreement_reservation": "$row.reservation"
+        "agreement_reservation": "$row.reservation",
+        "pace": "$exp($normal(0, 0.5))"
       },
       "brief": "Your scenario role: {$actor.role}"
     }
@@ -308,8 +316,8 @@
       "args": [
         "party"
       ],
-      "expr": "$clamp($round / $inputs.deadline + $normal_for([$party, $round], 0, 0.1), 0, 1)",
-      "description": "How far through its concessions the coded party is: linear in time (all of them at the deadline) with a little noise fixed per party and round."
+      "expr": "$min(1, $round / $inputs.deadline) ** $party.pace",
+      "description": "How far through its concessions the coded party is: all of them by the deadline, sooner or later on the way by its pace."
     },
     "conceded": {
       "args": [

@@ -46,3 +46,18 @@ def test_a_snapshot_holding_a_value_its_contract_does_not_allow_is_refused(value
     next(row for row in snapshot["entities"] if row["id"] == "a")["props"]["x"] = value
     with pytest.raises(SnapshotError, match=problem):
         fg_env.Env.restore(CAPPED, snapshot)
+
+
+_CULL = [{"if": "$it.id == 'a'", "then": [{"remove": "$entity(b)"}]}, "$it.coins += 1"]
+
+
+@pytest.mark.parametrize("event", [{"do": [{"each": "p", "do": _CULL}]}, {"each": "p", "do": _CULL}],
+                         ids=["each effect", "event each"])
+def test_an_each_loop_skips_an_entity_removed_earlier_in_the_same_loop(event):
+    culling = {"name": "Cull", "clock": {"rounds": 1},
+               "types": {"p": {"agent": True, "props": {"coins": 10}}},
+               "entities": {"a": {"type": "p"}, "b": {"type": "p"}},
+               "events": [event],
+               "outputs": {"b": "$entity(b).coins", "a": "$entity(a).coins"}}
+    result = fg_env.run(culling, "idle", seed=1)
+    assert result.outputs == {"b": 10, "a": 11}

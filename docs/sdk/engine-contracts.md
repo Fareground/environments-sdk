@@ -84,8 +84,9 @@ Environment code must not reimplement the mechanics below.
 - **State and phases:** one sealed simultaneous response stage. The coded
   baseline answers from each person's leaning: the inclination plus normal
   noise whose spread is one minus their confidence (support above 0.25, oppose
-  below -0.25, otherwise undecided) and reports the strength of that leaning as
-  its confidence.
+  below -0.25, otherwise undecided) and reports as its confidence the chance
+  that leaning would land on the same answer again, so certain people with a
+  clear inclination report high confidence and uncertain or borderline ones less.
 - **Termination and outputs:** completes after the cohort responds; output cohort
   size, response counts, support share and average reported confidence.
 - **Extension points:** response schema, population source, stratification,
@@ -138,8 +139,14 @@ Environment code must not reimplement the mechanics below.
   until simultaneous choices resolve; history and scores are public.
 - **Coded strategies:** tit for tat (cooperate first, then compete only after
   most others competed last round), grim trigger (cooperate until anyone else
-  ever competes), always cooperate, always compete and random; each coded move
-  is replaced by a random one with probability `mistakes`.
+  ever competes), always cooperate, always compete and random ignore the payoffs
+  by design; forward looking reads them: it cooperates while most others
+  cooperated last round and `(mutual_cooperate - mutual_compete) × rounds left ≥
+  compete_bonus - mutual_cooperate` (the cooperation still to come outweighs the
+  one-round gain from competing), so a bigger temptation or a nearer end brings
+  competition. Each coded move is replaced by a random one with probability
+  `mistakes`. The payoffs are not required to form a prisoner's dilemma: any
+  cooperate/compete matrix (a stag hunt, chicken) is accepted.
 - **Actions:** privately cooperate or compete each round.
 - **State and phases:** simultaneous choice followed by configurable consequence
   resolution and revealed history.

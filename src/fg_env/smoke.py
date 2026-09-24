@@ -4,11 +4,13 @@ per declared policy, so problems that only appear with real values — in a late
 allows, in a policy's own rules, on a missed turn — are reported like the static ones."""
 from __future__ import annotations
 
+import math
 import random
 import time
+from collections import Counter
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
-from .contract import Contract
+from .contract import MAX_ENTITIES, Contract
 from .diagnostics import MIN_CALLS
 from .errors import Issue
 from .measure import RunResult
@@ -23,6 +25,9 @@ __all__ = ["SMOKE_ROUNDS", "EdgeAgent", "smoke_issues", "run_issue"]
 SMOKE_ROUNDS = 12
 #: Wall-clock seconds the plays of a default check share; every play still plays its first round.
 _SMOKE_SECONDS = 2.0
+#: Entities gained per round late in the random play against early, above which the population is taken to compound
+#: (agents creating agents) rather than grow by a steady amount (which is assumed when unsure: it projects less).
+_COMPOUNDING = 1.5
 #: Findings of the boundary play that are worth reporting: a rule that fails for an edge value. (Its other findings
 #: say how the edges play, not whether the rules work.)
 _EDGE_FINDINGS = ("action_rule_failed", "action_broke_invariant")
@@ -44,8 +49,14 @@ def smoke_issues(contract: Contract, build: Callable[[], "Env"], rounds: Optiona
     warnings: List[Issue] = []
     played: List["Env"] = []
 
-    random_play = _play(_kept(build(), played), {"*": _reading(RandomAgent(seed))}, rounds, seconds)
+    census = _Census()
+    random_env = _kept(build(), played)
+    random_play = _play(random_env, {"*": _reading(RandomAgent(seed))}, rounds, seconds, census)
+    census.take(random_env)
     _failure(random_play, "random agents", errors)
+    runaway = census.runaway(random_env)
+    if runaway is not None:
+        warnings.append(runaway)
     _outputs(random_play, errors, warnings)
     _random_findings(random_play, errors, warnings)
     edge_play = _play(_kept(build(), played), {"*": EdgeAgent(seed)}, rounds, seconds)
@@ -94,11 +105,13 @@ def _outputs(play: RunResult, errors: List[Issue], warnings: List[Issue]) -> Non
 
 def _random_findings(play: RunResult, errors: List[Issue], warnings: List[Issue]) -> None:
     """The random play's diagnostics, one per cause: an action whose rule always failed is not also reported as
-    offered when none of its choices could succeed (the failing rule is why)."""
+    offered when none of its choices could succeed (the failing rule is why). The play's own time running out
+    (`budget_cut`) says nothing about the contract."""
     broken = {found["path"] for found in play.diagnostics if found["code"] == "action_always_faulted"}
     for found in play.diagnostics:
-        if found["code"] == "action_offered_but_unusable" and found["path"] in broken:
-            continue
+        if found["code"] in ("output_failed", "budget_cut") or (
+                found["code"] == "action_offered_but_unusable" and found["path"] in broken):
+            continue  # a failing output is reported by _outputs; the failing rule is why the action was unusable
         severity = "error" if found["code"] == "action_always_faulted" else "warning"  # a broken rule, not a hunch
         (errors if severity == "error" else warnings).append(
             Issue(found["path"], f"{found['message']} (smoke run of {play.rounds} round(s), random agents)",
@@ -156,13 +169,63 @@ def _players(contract: Contract, policy: str) -> List[str]:
         for action in actions)]
 
 
-def _play(env: "Env", participants: Any, rounds: Optional[int], seconds: Optional[float]) -> RunResult:
+def _play(env: "Env", participants: Any, rounds: Optional[int], seconds: Optional[float],
+          census: Optional["_Census"] = None) -> RunResult:
     """Play ``rounds`` rounds; or, when ``seconds`` is set, up to :data:`SMOKE_ROUNDS` rounds while time is left —
-    the first round always, then stopping in the round that is under way when time runs out."""
-    if seconds is None:
-        return env.run(participants, rounds=rounds)
-    deadline = time.monotonic() + seconds
-    return env.run(participants, rounds=SMOKE_ROUNDS, stop=lambda e: e.round > 1 and time.monotonic() > deadline)
+    the first round always, then stopping in the round that is under way when time runs out. ``census`` counts the
+    living entities as the play goes."""
+    deadline = time.monotonic() + seconds if seconds is not None else None
+
+    def stop(e: "Env") -> bool:
+        if census is not None:
+            census.take(e)
+        return deadline is not None and e.round > 1 and time.monotonic() > deadline
+
+    return env.run(participants, rounds=SMOKE_ROUNDS if seconds is not None else rounds, stop=stop)
+
+
+class _Census:
+    """The living entities of a play, the latest count kept per round, and whether that growth, kept up, would pass the
+    engine's ceiling (:data:`~fg_env.contract.MAX_ENTITIES`) before the run's last round — a run that fails there."""
+
+    def __init__(self) -> None:
+        self.counts: Dict[int, int] = {}
+        self.start: Counter = Counter()
+
+    def take(self, env: "Env") -> None:
+        if not self.counts:
+            self.start = _by_type(env)
+        self.counts[env.round] = env.world.types.living
+
+    def runaway(self, env: "Env") -> Optional[Issue]:
+        rounds = sorted(self.counts)
+        if len(rounds) < 3:
+            return None
+        first, middle, last = rounds[0], rounds[len(rounds) // 2], rounds[-1]
+        start, half, end = self.counts[first], self.counts[middle], self.counts[last]
+        early, late = (half - start) / (middle - first), (end - half) / (last - middle)
+        if late <= 0:
+            return None
+        if early > 0 and late > _COMPOUNDING * early:
+            rate = (end / half) ** (1 / (last - middle))
+            reached = last + math.ceil(math.log(MAX_ENTITIES / end) / math.log(rate))
+        else:
+            reached = last + math.ceil((MAX_ENTITIES - end) / late)
+        total = env.world.rounds
+        if reached > total:
+            return None
+        grew = _by_type(env) - self.start
+        kind = max(sorted(grew), key=lambda name: grew[name])
+        return Issue(f"types.{kind}",
+                     f"the population grows from {start:,} to {end:,} living entities in {last - first} smoke round(s), "
+                     f"most of them '{kind}'; at that pace it passes the ceiling of {MAX_ENTITIES:,} around round "
+                     f"{reached} of {total}, and the run fails there",
+                     f"bound the growth: create only while a limit holds, e.g. {{\"if\": \"$count({kind}) < 1000\", "
+                     f"\"then\": [{{\"create\": \"{kind}\"}}]}}, or remove entities that are done", "warning")
+
+
+def _by_type(env: "Env") -> Counter:
+    return Counter(entity.entity_type for entity in env.world.entities.values() if entity.alive)
 
 
 def _failure(result: RunResult, who: str, errors: List[Issue], fix: Optional[str] = None) -> None:

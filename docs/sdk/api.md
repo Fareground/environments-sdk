@@ -7,7 +7,7 @@ Generated from public exports in `fg_env`. Start with `check`, `load`, `run` and
 ## `load`
 
 ```pyi
-load(source: 'ContractLike', *, inputs: 'Optional[Mapping[str, Any]]' = None, seed: 'Optional[int]' = None, arm: 'Optional[str]' = None, strict: 'bool' = False, parallel: 'int' = 8, data_dir: 'DataDir' = None, hosts: 'Any' = None, exposures: 'bool' = False, chance: 'Any' = None, calibrate: 'bool' = True) -> 'Env'
+load(source: 'ContractLike', *, inputs: 'Optional[Mapping[str, Any]]' = None, seed: 'Optional[int]' = None, arm: 'Optional[str]' = None, strict: 'bool' = False, parallel: 'int' = 8, data_dir: 'DataDir' = None, hosts: 'Any' = None, exposures: 'bool' = False, chance: 'Any' = None, calibrate: 'bool' = True, events: 'bool' = True) -> 'Env'
 ```
 
 Check a contract and build a runnable :class:`Env`.
@@ -24,11 +24,15 @@ default: drawn from the seeded stream) or a callable given each :class:`~fg_env.
 that returns the index of the outcome to take (a fixed deal, duplicate formats); :func:`fg_env.rl.game`
 enumerates chance for search. A contract with a ``calibration`` section fits its inputs with pilot sessions first
 (``env.calibration`` is the report); ``calibrate=False`` skips that, as ``fg_env.check``'s smoke play does.
+``events=False`` keeps no event log, for a big crowd played for many rounds: ``result.events`` is empty (``on_event``
+still streams every event) and the run forgets each event once no agent's news can reach it, so its memory stays
+flat however long it plays; everything the run does is the same (a contract that reads `$events` or `$seen` keeps
+its log).
 
 ## `run`
 
 ```pyi
-run(source: 'ContractLike', participants: 'Any' = None, *, inputs: 'Optional[Mapping[str, Any]]' = None, seed: 'Optional[int]' = None, arm: 'Optional[str]' = None, rounds: 'Optional[int]' = None, on_event: 'Any' = None, strict: 'bool' = False, data_dir: 'DataDir' = None, hosts: 'Any' = None, time_limit: 'Optional[float]' = None, exposures: 'bool' = False, budget: 'Optional[Mapping[str, Any]]' = None) -> 'RunResult'
+run(source: 'ContractLike', participants: 'Any' = None, *, inputs: 'Optional[Mapping[str, Any]]' = None, seed: 'Optional[int]' = None, arm: 'Optional[str]' = None, rounds: 'Optional[int]' = None, on_event: 'Any' = None, strict: 'bool' = False, data_dir: 'DataDir' = None, hosts: 'Any' = None, time_limit: 'Optional[float]' = None, exposures: 'bool' = False, budget: 'Optional[Mapping[str, Any]]' = None, events: 'bool' = True) -> 'RunResult'
 ```
 
 Load and run in one call: ``fg_env.run("shop.json", {"buyer": "policy:thrifty"}, seed=1)``.
@@ -170,23 +174,23 @@ replaces the contract's name (default: the template's, or the file name when a p
 ## `author`
 
 ```pyi
-author(brief: 'str', model: 'str', *, client: 'Any' = None, out: 'Optional[str]' = None, budget: 'Optional[Mapping[str, int]]' = None, progress: 'Optional[Callable[[str], None]]' = None) -> 'AuthorResult'
+author(brief: 'str', model: 'str', *, client: 'Any' = None, out: 'Optional[str]' = None, budget: 'Optional[Mapping[str, float]]' = None, progress: 'Optional[Callable[[str], None]]' = None) -> 'AuthorResult'
 ```
 
 Have ``model`` (``"anthropic:<model>"`` or ``"openai:<model>"``) write an environment for ``brief``; returns an
 :class:`AuthorResult` (``result.contract``, ``result.ok``, ``result.summary()``).
 
-``out`` is where the contract is written (nothing is written when None): each time a revision works, and at the
+``out`` is where the contract is written (nothing is written when None): each time a revision is kept, and at the
 end; when none works, the latest is written beside it as ``<name>.not-working.json``. ``budget`` caps ``tokens``
-(input + output, a cache read counting :data:`CACHED_WEIGHT` of one) and model ``calls``, by default 600,000 and
-30. ``client`` replaces the official client made from the environment; ``progress`` is called with one line per model call. Rate limits, overload and server errors are
+(input + output, a cache read counting :data:`CACHED_WEIGHT` of one and a cache write :data:`CACHE_WRITE_WEIGHT`),
+model ``calls`` and wall-clock ``seconds``, by default :data:`DEFAULT_BUDGET`. ``client`` replaces the official client made from the environment; ``progress`` is called with one line per model call. Rate limits, overload and server errors are
 retried with backoff; a provider error that persists or that retrying cannot fix does not raise: the loop stops
 (``result.stop`` says why) and keeps what already works.
 
 ## `Env`
 
 ```pyi
-Env(contract: 'Contract', inputs: 'Dict[str, Any]', seed: 'int', arm: 'Optional[str]' = None, parallel: 'int' = 8, exposures: 'bool' = False, assets: 'Optional[AssetStore]' = None)
+Env(contract: 'Contract', inputs: 'Dict[str, Any]', seed: 'int', arm: 'Optional[str]' = None, parallel: 'int' = 8, exposures: 'bool' = False, assets: 'Optional[AssetStore]' = None, events: 'bool' = True)
 ```
 
 A loaded environment. Create with :func:`fg_env.load`; run with :meth:`run`; copy with :meth:`clone`
@@ -280,8 +284,8 @@ FatalRunError(message: 'str', path: 'Optional[str]' = None)
 ```
 
 A failure outside the contract's rules — a host failed or cannot be asked, a replay stopped matching its
-recording, a mechanism's code crashed. Unlike a rule failing inside an agent's action, it fails the run wherever
-it happens.
+recording, a mechanism's code crashed, the world reached its ceiling of living entities. Unlike a rule failing
+inside an agent's action, it fails the run wherever it happens.
 
 ## `SnapshotError`
 
@@ -343,11 +347,13 @@ anthropic(client: 'Any', model: 'str', *, max_tokens: 'int' = 16000, max_steps: 
 
 An LLM participant using an ``anthropic.Anthropic()`` client.
 
-Two prompt-cache breakpoints: the system prompt (``system`` and the brief), and the latest message, so each model
-call of a turn reads the one before it from the cache. Anthropic caches the tools ahead of both, and the tools are
-the actions legal right now with their live choices, so a call reads the cache only when the agent is offered the
-same tools as in the earlier call. A prompt shorter than the model's minimum is simply not cached (no charge).
-When the agent has no action it could take, the model is not called and the turn ends.
+The model is shown one tool list for the whole turn: the tools legal when the turn starts. A call to one that is no
+longer legal is refused with the reason, each tool result names the offered tools not available any more, and a
+tool that becomes legal during the turn is added. So every call of a turn sends the same prefix, and two
+prompt-cache breakpoints — the system prompt (``system`` and the brief, cached after the tools) and the latest
+message — let each call read the one before it from the cache. A breakpoint is placed only once its prefix is long
+enough for any model to cache (about 512 tokens). When the agent has no action it could take, the model is not
+called and the turn ends.
 
 Files the agent receives are sent as image and document blocks after the text (``media``: the attachment types
 sent as content, default image, pdf and text; ``media=()`` for a text-only model, which reads each file's
@@ -383,11 +389,12 @@ An LLM participant using an ``openai.OpenAI()``-compatible client (chat completi
 
 ``max_tokens`` caps each reply (sent as ``max_completion_tokens``) and ``reasoning_effort`` (``"low"``,
 ``"medium"``, ``"high"``) is passed on to reasoning models; each is sent only when given. A server that knows only
-the older ``max_tokens`` field takes ``extra={"max_tokens": 1024}`` instead. A response with no choices in it
-(OpenRouter sends one now and then) is retried like an overload. Retries, failures, refusals (a
+the older ``max_tokens`` field takes ``extra={"max_tokens": 1024}`` instead. A response with no choices in it, or
+with ``finish_reason`` ``error`` (OpenRouter sends both now and then), is retried like an overload. Retries, failures, refusals (a
 ``refusal`` message or ``finish_reason`` ``content_filter``), ``extra``, usage accounting, truncated replies
-(``finish_reason`` ``length``) and ``retry_truncated`` work as for :func:`anthropic`; arguments that are not a
-JSON object are refused and counted as invalid calls. Files are sent as
+(``finish_reason`` ``length``), ``retry_truncated`` and the one tool list per turn work as for :func:`anthropic`;
+arguments that are not a JSON object (or not valid JSON, which the refusal says) are refused and counted as invalid
+calls. Files are sent as
 ``image_url`` data URLs, ``file`` and ``input_audio`` parts (``media``: default image, pdf, audio and text; ``()``
 for text only); files from tool results follow the tool messages in one user message.
 
@@ -1170,7 +1177,7 @@ An engine is defined but its reusable implementation is not shipped yet.
 ### `engines.EngineSpec`
 
 ```pyi
-EngineSpec(id: 'str', title: 'str', description: 'str', status: 'str', path: 'Optional[str]' = None, resources: 'Tuple[str, ...]' = ()) -> None
+EngineSpec(id: 'str', title: 'str', summary: 'str', description: 'str', status: 'str', path: 'Optional[str]' = None, resources: 'Tuple[str, ...]' = ()) -> None
 ```
 
 One reusable human-interaction engine.
@@ -1267,15 +1274,18 @@ Assign labels by proportional shares using largest remainder, then shuffle.
 ### `Env.preview`
 
 ```pyi
-preview(self, entity_id: 'str', stage: 'Optional[str]' = None) -> 'Dict[str, Any]'
+preview(self, entity_id: 'str', stage: 'Optional[str]' = None, participants: 'Any' = None) -> 'Dict[str, Any]'
 ```
 
 What the agent would receive on its next turn: brief, update, tools and time limit. Changes nothing.
 
 Between rounds this plays the next round on a copy up to the agent's turn — scheduled
-effects, start events, physics and the turns of agents before it (with their built-in
-or named participants; your own callables are never called) — so the preview shows the
-turn as the agent will get it.
+effects, start events, physics and the turns of agents before it — so the preview shows the
+turn as the agent will get it. ``participants`` (as for :meth:`run`) plays those earlier turns; by default
+the run's own participants do. Only free ones play: random, idle, a policy, or a callable you pass here. A
+named LLM or search algorithm is never called — its agent plays its default (its type's policy, else random)
+— and a run's own callables are not called either. A turn an `auto` stage plays without waking the agent is
+skipped, as the run skips it.
 
 ### `Env.run`
 
@@ -1357,7 +1367,7 @@ fork(self: "'Env'", **changes: 'Any') -> "'Env'"
 A new run continuing this one from now under changes, leaving this run untouched: another ``arm``
 (``None`` for none), ``inputs``, a contract ``patch`` or a whole replacement ``contract``, a ``seed`` for
 the luck from here on, and intervention ``effects`` applied at the fork (logged as a `fork` event,
-invariants checked). Without changes it is :meth:`clone`.
+invariants checked). Without changes it is :meth:`clone`; like a clone, it keeps this run's participants.
 
 Changes apply between rounds. Whatever the changed contract cannot hold of the current state is refused
 with a :class:`~fg_env.ContractError` listing each problem and its fix. See :func:`fg_env.fork`.

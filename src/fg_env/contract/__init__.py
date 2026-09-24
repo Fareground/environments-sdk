@@ -19,6 +19,7 @@ from .base import (
     CONTRACT_VERSION,
     INPUT_TYPES,
     MAX_CREATE,
+    MAX_ENTITIES,
     MAX_LIST_ITEMS,
     MAX_POPULATION,
     MAX_ROUNDS,
@@ -144,6 +145,7 @@ __all__ = [
     "MAX_TURN_ACTIONS",
     "MAX_POPULATION",
     "MAX_CREATE",
+    "MAX_ENTITIES",
     "MAX_SUBSTEPS",
     "one_or_many",
 ]

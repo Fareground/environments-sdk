@@ -7,7 +7,7 @@ For a compact example with editable objects and multiple entities, use
 actual output, and the [authoring workflow](authoring.md) explains how to adapt it.
 
 Prefer to describe it? `fg-env author brief.md --model anthropic:<model>` has a model write, check, preview and
-run the contract for you with the SDK's own tools, and saves the latest version that checks without errors and runs
+run the contract for you with the SDK's own tools, and saves the best version that checks without errors and runs
 (`--model openai:<model>` for OpenAI, or OpenRouter and other OpenAI-compatible servers through `OPENAI_BASE_URL`;
 `fg_env.author(...)` from Python). This page builds one by hand, so you know what it wrote.
 

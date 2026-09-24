@@ -17,6 +17,7 @@ from .pages import (SECTIONS, effects_page, expressions_page, family_page, funct
                     functions_page, mechanisms_page, mode_page, section_page)
 from ..analysis.optimise_guide import OPTIMISE
 from ..assets.guide import ASSETS
+from ..engines import list_engines
 from .text import CHECKLIST, INSPECT, MACROS, MODEL, RECIPES, RUNNING, TEMPLATES
 from ..patterns.guide import patterns_page
 from ..patterns.schema import patterns_definitions, patterns_field_schema
@@ -41,7 +42,7 @@ _MAP = """\
 Start with `guide('authoring')` (`fg-env guide authoring`): one page with a complete worked contract, the
 write → check → preview → run loop and the core language. It is enough for a first environment; read the parts
 below only when you need them. To have a model do the loop for you: `fg-env author brief.md --model
-anthropic:<model>` (`fg_env.author`); it keeps the latest contract that checks without errors and plays soundly.
+anthropic:<model>` (`fg_env.author`); it keeps the best contract that checks without errors and plays soundly.
 
 ## Sections
 
@@ -56,6 +57,13 @@ Ready-made rules that expand into ordinary actions, stages, views and outputs:
 `"mechanisms": {"sale": {"kind": "market", "mode": "auction", "format": "first_price", "who": "bidder"}}`.
 
 FAMILIES
+
+## Engines
+
+Complete, runnable scenarios with coded participants, to copy and edit rather than start blank:
+`fg-env new --engine <id> my_env.json` (`fg_env.clone_engine`); `fg-env engines` lists them.
+
+ENGINES
 
 ## Every other part
 
@@ -92,8 +100,9 @@ def _core() -> str:
     families = ["| kind | modes | for |", "|---|---|---|"]
     families += [f"| `{name}` | {', '.join(family.modes) or '—'} | {family.doc} |" for name, family in FAMILIES.items()]
     parts = "\n".join(f"- `{name}` — {about}" for name, about in _PARTS_MAP)
+    engines = "\n".join(f"- `{engine.id}` — {engine.summary}" for engine in list_engines(available=True))
     return (_MAP.replace("SECTIONS", "\n".join(sections)).replace("FAMILIES", "\n".join(families))
-            .replace("PARTS", parts))
+            .replace("ENGINES", engines).replace("PARTS", parts))
 
 
 def _game_page() -> str:

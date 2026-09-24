@@ -42,12 +42,10 @@ def test_setting_one_cell_rolls_back_with_its_action():
     env = fg_env.load(FIELD, seed=1)
     outcomes = {}
 
-    def play(wake):
-        outcomes["gorge"] = wake.call("gorge", {})
-        outcomes["eat"] = wake.call("eat", {})
-        wake.end()
+    def play(wake):  # the refused gorge is spent: eat on the next turn
+        outcomes["eat" if "gorge" in outcomes else "gorge"] = wake.call("eat" if "gorge" in outcomes else "gorge", {})
 
-    env.run(play, rounds=1)
+    env.run(play, rounds=2)
     assert not outcomes["gorge"].ok and outcomes["eat"].ok
     assert env.entity("a")["props"]["eaten"] == 2 and _layer(env, "sugar")[4] == 0
 

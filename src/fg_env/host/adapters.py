@@ -12,10 +12,11 @@ that replays a history (prices by date) for backtests::
     hosts = host.Hosts({"judge": host.adapters.anthropic(client, "claude-opus-5"),
                         "web_search": host.adapters.anthropic_web_search(client, "claude-opus-5")})
 
-Rate limits, timeouts and server errors are retried with backoff; anything still failing, and
-any answer that is not what the protocol asks for, raises :class:`HostError`. The engine then
-validates the answer against the contract (asking once more, with a ``correction``, when it cannot
-use it) and records it for replay.
+Rate limits, timeouts and server errors are retried with backoff, never waiting past the deadline of
+the turn that asked. A call that still fails, or fails in a way retrying cannot fix (a rejected key,
+an unknown model), stops the run with the provider's error and the fix. An answer that is not what
+the protocol asks for raises :class:`HostError`: the engine validates every answer against the
+contract, asks once more with a ``correction`` when it cannot use it, and records it for replay.
 """
 from __future__ import annotations
 
@@ -25,7 +26,8 @@ import time
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence
 
 from ..assets.multimodal import ANTHROPIC_MEDIA, OPENAI_MEDIA, Carried, anthropic_parts, openai_parts, without_content
-from .hosts import credit_tokens
+from ..errors import RunError
+from .hosts import credit_tokens, time_left
 from .protocols import HostError
 
 __all__ = ["LLMHost", "AnthropicWebSearch", "HistoricalFeed", "anthropic", "openai", "anthropic_web_search",
@@ -79,7 +81,11 @@ def _count(owner: Any, name: str) -> int:
 class _Provider:
     """Retries and usage accounting shared by the adapters."""
 
-    def __init__(self, client: Any, model: str, retries: int, max_tokens: int):
+    #: The provider call and client each adapter makes, named in its failures.
+    CALLS = {"anthropic": ("client.messages.create", "anthropic.Anthropic()"),
+             "openai": ("client.chat.completions.create", "openai.OpenAI()")}
+
+    def __init__(self, client: Any, model: str, retries: int, max_tokens: int, provider: str = "anthropic"):
         if not isinstance(model, str) or not model:
             raise ValueError(f"model must be a model name, got {model!r}")
         if isinstance(retries, bool) or not isinstance(retries, int) or retries < 0:
@@ -90,21 +96,29 @@ class _Provider:
         self.model = model
         self.retries = retries
         self.max_tokens = max_tokens
+        self.provider = provider
         self.usage: Dict[str, int] = {"calls": 0, "input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0,
                                       "cache_write_tokens": 0, "retries": 0}
         self._lock = threading.Lock()
 
     def _retrying(self, request: Callable[[], Any]) -> Any:
-        from ..participants import _backoff, _retryable
+        """The provider's response. A failure is never a :class:`HostError`, which would ask the model again with a
+        correction: nothing was wrong with its answer, there was none."""
+        from ..participants import _backoff, _retryable, provider_failure
 
         for attempt in range(self.retries + 1):
             try:
                 return request()
             except Exception as exc:
-                if attempt >= self.retries or not _retryable(exc):
-                    raise HostError(f"{type(exc).__name__}: {exc}") from exc
+                wait, left = _backoff(attempt, exc), time_left()
+                retry = attempt < self.retries and _retryable(exc)
+                late = retry and left is not None and left < wait
+                if not retry or late:
+                    call, client = self.CALLS[self.provider]
+                    text = provider_failure(exc, call, client, self.model, attempt)
+                    raise RunError(text + (" (The turn's time ran out before another try.)" if late else "")) from exc
                 self._add(retries=1)
-                time.sleep(_backoff(attempt, exc))
+                time.sleep(wait)
         raise AssertionError("unreachable")
 
     def _add(self, **counts: int) -> None:
@@ -129,8 +143,7 @@ class LLMHost(_Provider):
                  retries: int = 4, system: str = ""):
         if provider not in ("anthropic", "openai"):
             raise ValueError(f"provider must be 'anthropic' or 'openai', got {provider!r}")
-        super().__init__(client, model, retries, max_tokens)
-        self.provider = provider
+        super().__init__(client, model, retries, max_tokens, provider)
         self.system = system
 
     def judge(self, request: Mapping[str, Any]) -> Any:

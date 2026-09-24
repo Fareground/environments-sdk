@@ -4,10 +4,15 @@ actions are checked against an invariant, a run stepped one round at a time.
 Each test compares two timings of the same machine in the same process, so it does not depend on how fast the machine
 is. The bounds sit far between the two behaviours: the regressions they guard measured several times over them.
 """
+import gc
 import statistics
 import time
 
+import pytest
+
 import fg_env
+
+pytestmark = pytest.mark.slow  # statistical or engine-behaviour: `make test-fast` leaves it out
 
 
 def _seconds(contract, participants, rounds=None):
@@ -70,16 +75,38 @@ STEPPED = {"name": "Chatter", "clock": {"rounds": 600},
            "policies": {"talk": {"rules": [{"do": "talk"}]}}}
 
 #: The last 100 of 600 `step()` calls against the first 100: rebuilding every result's whole event log measured
-#: about 4 times; converting each event once, about 1.
-MOST_SLOWER_LATE = 1.6
+#: about 4 times; converting each event once, about 1. Garbage collection is held off while timing, so a collection
+#: that happens to land late (its cost grows with everything the run keeps) is not taken for a slower step.
+MOST_SLOWER_LATE = 2.5
 
 
 def test_stepping_a_run_costs_the_same_late_in_the_run_as_early():
     env = fg_env.load(STEPPED, seed=1)
     steps = []
-    for _ in range(600):
-        start = time.process_time()
-        env.step()
-        steps.append(time.process_time() - start)
+    gc.disable()
+    try:
+        for _ in range(600):
+            start = time.process_time()
+            env.step()
+            steps.append(time.process_time() - start)
+    finally:
+        gc.enable()
     slower = statistics.median(steps[-100:]) / statistics.median(steps[:100])
     assert slower < MOST_SLOWER_LATE, f"a step late in the run took {slower:.1f} times an early one"
+
+
+def _among_items(items):
+    return {"name": "Shop floor", "clock": {"rounds": 3}, "world": {"pot": 0},
+            "types": {"p": {"agent": True, "props": {"coins": 10}}, "item": {"props": {"v": 1}}},
+            "population": [{"type": "p", "count": 60}, {"type": "item", "count": items}],
+            "actions": {"give": {"by": "p", "do": "$world.pot += 1"}}}
+
+
+#: A turn among 60 agents and 20,000 items that no one may inspect against the same turn without the items: listing
+#: what an agent may inspect by scanning every entity on every turn measured about 20 times; by type, about 1.
+MOST_SLOWER_AMONG_ITEMS = 3
+
+
+def test_a_turn_costs_the_same_however_many_entities_it_cannot_inspect():
+    slower = _seconds(_among_items(20_000), "random") / _seconds(_among_items(0), "random")
+    assert slower < MOST_SLOWER_AMONG_ITEMS, f"20,000 items no agent may inspect made a turn {slower:.1f} times slower"

@@ -67,8 +67,10 @@ def test_a_view_that_reads_the_other_players_private_hand_is_refused_by_the_engi
     assert any("B's hand is private" in issue.message for issue in report.issues), report.summary()
 
 
-def test_an_offered_move_that_the_effects_refuse_is_caught_without_dry_runs():
+def test_an_offered_move_whose_rule_fails_as_it_applies_is_caught_without_dry_runs():
     contract = load_game("tic_tac_toe")
+    # a taken cell breaks a rule (a `fail` there would be a played, wasted move, not a failure)
+    contract["actions"]["mark"]["do"][0]["then"] = ["$world.turn = 1 / 0"]
     subject = game(contract, dry_run=False)  # lists every call that validates, taken cells included
     report = fg_env.rl.conformance(subject, sims=1, resume=False, leak_branches=0)
     assert any(issue.check == "legal" and "applying it fails" in issue.message for issue in report.issues)

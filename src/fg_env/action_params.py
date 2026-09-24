@@ -3,9 +3,10 @@ element spec and length bounds of list parameters."""
 from __future__ import annotations
 
 import reprlib
-from typing import Any, Tuple
+from typing import Any, Callable, Optional, Tuple
 
 from .contract import MAX_LIST_ITEMS, ParamSpec
+from .errors import RunError
 
 __all__ = ["TEXT_MAX_LEN", "MAX_SAFE_INT"]
 
@@ -49,7 +50,20 @@ def _item_spec(param: ParamSpec) -> ParamSpec:
     return ParamSpec(type="text", max_len=param.max_len)
 
 
-def _list_bounds(param: ParamSpec) -> Tuple[int, int]:
-    low = param.min_items or 0
-    high = min(param.max_items if param.max_items is not None else MAX_LIST_ITEMS, MAX_LIST_ITEMS)
-    return low, high
+def _list_bounds(param: ParamSpec, count: Callable[[Any, str], Optional[int]]) -> Tuple[int, int]:
+    """A list parameter's fewest and most elements. ``count(raw, key)`` resolves a bound (a number or an expression;
+    None when it cannot be known yet)."""
+    low = count(param.min_items, "min_items") if param.min_items is not None else None
+    high = count(param.max_items, "max_items") if param.max_items is not None else None
+    return low or 0, min(high if high is not None else MAX_LIST_ITEMS, MAX_LIST_ITEMS)
+
+
+def _item_count(value: Any, path: str) -> Optional[int]:
+    """A resolved `min_items` / `max_items`: a whole number ≥ 0 (None stays unknown)."""
+    if value is None:
+        return None
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise RunError(f"must be a whole number ≥ 0, got {_preview(value)}", path)
+    return value

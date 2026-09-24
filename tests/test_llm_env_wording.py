@@ -307,7 +307,7 @@ def test_the_social_follow_target_lists_the_accounts_and_the_brief_says_the_fact
     seen = _first_tools(_example("social_network.json"), "u1", inputs={"accounts": 150})
     who = seen["tools"]["net_follow"].input_schema["properties"]["who"]
     assert who["description"] == "The account (not yourself). One of: u1–u150."
-    assert "checker" not in seen["tools"]["inspect"].description
+    assert "inspect" not in seen["tools"]  # only the agent itself would be inspectable
     briefs = []
     fg_env.run(_example("social_network.json"), {"u1": lambda wake: briefs.append(wake.brief)}, seed=1,
                inputs={"accounts": 150}, rounds=1)

@@ -8,6 +8,8 @@ import pytest
 
 import fg_env
 
+pytestmark = pytest.mark.slow  # statistical or engine-behaviour: `make test-fast` leaves it out
+
 SEEDS = range(8)
 
 
@@ -33,7 +35,7 @@ def _contestants(count, skill=lambda i: 0.5):
 
 def test_a_large_contest_still_names_its_winner():
     result = run("contest", inputs={"participants": _contestants(100), "rounds": 1})
-    assert result.ok and result.output_issues == []
+    assert result.degraded == ["host_fallback"] and result.output_issues == []  # no judge bound: stand-in scores
     assert result.outputs["winner"] is not None and result.outputs["contestants"] == 100
 
 

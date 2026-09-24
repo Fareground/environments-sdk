@@ -109,7 +109,9 @@ an action that posts to a record announces nothing extra (the entry is the news)
 always renders «quoted» on one line, in news, views and outcomes.
 
 An action applies atomically: if any effect `fail`s or a `transfer` lacks funds, every change
-is rolled back and the agent is told why. Contract errors (bad expression at run time) stop
+is rolled back and the agent is told why. A refusal that rolled luck or read a private property of another entity
+spends the action (a wrong guess at a hidden code is a guess); any other refusal — a taken cell, bad arguments, an unmet
+`when` — costs nothing. Contract errors (bad expression at run time) stop
 the run with status `failed` and the path of the broken rule.
 """
 
@@ -250,7 +252,7 @@ EFFECT_EXAMPLES = {
     "fail": '{"fail": "You cannot afford that."}  (roll back the action; text goes to the actor)',
     "end": '{"end": "bankrupt", "winner": "$top(player, $it.score, 1)[0]", "say": "..."}',
     "after": '{"after": 3, "do": [...]}  (runs 3 rounds later with the same locals; on a continuous clock, 3 time units later)',
-    "wake": '{"wake": "$params.who", "why": "{$actor.name} asked you a question."}  (a turn later; "now": true — they react as soon as this action has taken effect, before this turn continues (a reaction cannot stop or change the action that woke them: to let others answer first, use a procedure stack; reactions set off more than 4 deep wait for a normal turn); "in": 5 — continuous clock, that much later; "drop": 0.2 — the wake may be lost)',
+    "wake": '{"wake": "$params.who", "why": "{$actor.name} asked you a question."}  (a turn later; "now": true — they react as soon as this action has taken effect, before this turn continues, offered the actions named in "actions": ["accept", "reject"] (without it, every action of the current stage) (a reaction cannot stop or change the action that woke them: to let others answer first, use a procedure stack; reactions set off more than 4 deep wait for a normal turn); "in": 5 — continuous clock, that much later; "drop": 0.2 — the wake may be lost)',
     "repeat": '{"repeat": "$count(order)", "while": "$count(order) > 1", "do": [...]}  (limit may be an expression; derive it from the data, not an arbitrary constant; 0 runs nothing; error if still true at the limit)',
     "block": '{"block": "settle", "with": {"buyer": "$actor", "qty": "$params.qty"}}  (runs a named effect list from `blocks`)',
     "chance": '{"chance": [{"p": 0.5, "label": "heads", "do": [...]}, {"p": 0.5, "label": "tails", "do": [...]}], '
@@ -308,7 +310,7 @@ RECIPES = """\
   eliminates and reveals players (guide('groups.roles')). An entity's built-in `alive` turns false only when it is
   removed; a player the mechanism eliminates stays in the world with its `living` prop false.
 * Hidden information: `private` props, per-type views, record `visible` rules, `to` on posts/emits,
-  `private: true` actions (no announcement). `inspect` shows an agent only itself unless a type sets `inspect`.
+  `private: true` actions (no announcement). Agents get `inspect` only for types that set `inspect`.
   An agent's private prop is shown only to that agent: reading another agent's in anything worked out for one agent
   (views, sort keys, tool choices and bounds, outcome text, briefs, policies, defs they call, metrics worked out
   from private props) is an error at run time, however it is spelled; so is a stage `order` that reads one, since
@@ -316,6 +318,8 @@ RECIPES = """\
   (`"do": ["$seen = $params.target.role"], "outcome": "... {$seen}"`, or a prop the agent owns). Text sent to
   several agents — an `announce`, an event's or trigger's `say`, an emit's `say` without a lone `to` — may read no
   agent's private prop, not even the actor's: reveal it the same way (`"$shown = $actor.card"`, then `{$shown}`).
+  A public fact about private data (how many cards a hand holds) is a public prop the rules keep up to date: write it
+  wherever the private one changes (`"$actor.cards = $len($actor.hand)"`).
   The engine's own refusals (a transfer that does not fit, a bound) never show another agent's private value. A
   `when` that reads another agent's private prop does not hide the tool: it stays listed and a call is refused when
   the `when` fails. A private prop of an entity that is not an agent is hidden from inspect; the views say who sees
@@ -391,8 +395,9 @@ RECIPES = """\
   was created, is counted and connected; closing one lays off its jobs.
 * Reusable logic: `defs` for formulas (`"utility": {"args": ["side", "offer"], "expr": "..."}`) and
   `blocks` for effect lists (`{"block": "match", "with": {"order": "$made"}}`).
-* Inspection: each agent may inspect itself; `types.X.inspect: true` (or an expression over `$viewer` and `$it`)
-  lets agents inspect those entities too, showing every prop that is not `private`.
+* Inspection: `types.X.inspect: true` (or an expression over `$viewer` and `$it`) gives agents an `inspect` tool for
+  those entities, showing every prop that is not `private`. Without one it is not offered (its only choice would be
+  the agent itself: show an agent's own state in a view).
 * Boards and tables in views: `"bullet": false` prints lines without "- ". View titles are templates.
 * Participants keyed by a parent type (`{"tier": ...}`) and `policy` on a parent type reach every subtype.
 * Calendars: `clock.start` with unit day, week, month, year, hour or minute adds the date to the time label, and may
@@ -458,6 +463,10 @@ stored once. `$seen(agent, item)` asks whether an agent was shown an event, a re
 a contract that uses it records exposures automatically. `experiment`, `tournament`, `evaluate` and `run_jobs`
 take `exposures=True` too, every run keeping its own (`--exposures` with `--json`). `result.frames` and
 `env.spectate()` give the spectator views (`fg-env run file.json --frames frames.json` saves them).
+A big crowd played for many rounds: `fg_env.run(..., events=False)` (or `load`) keeps no event log, so memory stays
+flat however long the run: `result.events` is empty (`on_event=` still streams every event), and the run forgets each
+event once every agent's news is past it. Everything the run does is the same; a contract that reads `$events` or
+`$seen` keeps its log.
 
 Traces: a run with `exposures=True` is a trace (`fg-env run file.json --trace run.jsonl`); `result.save("run.json")`
 or `.jsonl`, `fg_env.RunResult.load(path)`. `t = fg_env.analysis.trace(result_or_file)`: `t.overview()` (per agent: turns,
@@ -481,8 +490,8 @@ Budgets: `env.run(..., budget={"tokens": 200000, "calls": 500, "host_calls": 50,
 "on_exhaust": "end"})` caps a run: reported input + output tokens, tool calls, host answers on the tape, wall-clock
 seconds. It is checked before every round, stage, pass and turn, and `tokens` after every model reply too (the
 turn that spends it ends there; other limits let a turn in progress finish): `end` ends the run
-(`ended_by: "budget"`), `idle` lets it finish with every agent idle. `result.budget` has the limits, use and the
-limit that ran out; snapshots keep it. `experiment` (with `branch_at` the shared rounds count toward each arm),
+(`ended_by: "budget"`), `idle` lets it finish with every agent idle. Either way the run is cut short: it is
+degraded (`budget_cut`), not `ok`. `result.budget` has the limits, use and the limit that ran out; snapshots keep it. `experiment` (with `branch_at` the shared rounds count toward each arm),
 `tournament`, `evaluate` and `run_jobs` give every run the whole budget, as `--budget tokens=200000` does on
 `fg-env run`, `experiment`, `tournament` and `evaluate`. Usage reported after a turn ran out of time still counts.
 `env.step(participants)` runs one round; `env.run(participants, rounds=N)` runs N more (an unfinished
@@ -579,15 +588,18 @@ the first few entities of each type with every prop (`result.state`), so you can
 * a coded policy rule whose call was refused every time it was tried (`policy_rule_never_acted`), quoting the refusal,
   and a `repeat` policy's rule that was refused after it had acted (`policy_repeat_refused`);
 * agents that never acted, or most of whose turns ended with no action after failed calls (`agents_never_acted`,
-  `agents_mostly_failed`), and turns an LLM participant ended out of `max_steps` (`out_of_steps`);
+  `agents_mostly_failed`), any turns of a model participant (or any participant out of time) that ended so, with
+  their rate (`some_turns_failed`), and turns an LLM participant ended out of `max_steps` (`out_of_steps`);
 * a stage that can never run, or a measure that reads only what no rule changes;
-* host answers that were the contract's fallback stand-ins because no host was bound;
+* host answers that were the contract's fallback stand-ins because no host was bound (`host_fallback`), and a run its
+  budget cut short (`budget_cut`) — both degrade the run;
 * with model participants, an action that was mostly refused.
 
 `fg-env check` plays up to 12 rounds with random agents and again with each policy, and reports what those plays
 reveal: crashes as errors (naming the policy that ran into one), diagnostics (including each policy's always-refused
 rules) as warnings. Before a policy rule acts, the later rules whose action is legal are evaluated too, so a broken rule
-is reported even when an earlier one always wins.
+is reported even when an earlier one always wins. A population that grows fast enough (agents creating agents) to pass
+the engine's ceiling of 1,000,000 living entities before the run ends is a warning: a run fails when it reaches it.
 `--rounds 30` plays exactly that many for more evidence.
 
 `result.events` is the log in order: `{seq, round, stage, kind, actor, text, data}`. Its kinds are `action`,

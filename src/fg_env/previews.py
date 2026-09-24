@@ -57,7 +57,7 @@ class Previews:
 
     # -- preview -------------------------------------------------------------------------
 
-    def preview(self, entity_id: str, stage: Optional[str]) -> Dict[str, Any]:
+    def preview(self, entity_id: str, stage: Optional[str], participants: Any = None) -> Dict[str, Any]:
         env = self.env
         if env.world.entity(entity_id) is None:
             agents = [e.id for e in env.world.entities.values() if env.contract.is_agent(e.entity_type)]
@@ -68,19 +68,28 @@ class Previews:
         if env.finished or env._in_round:
             return self.now(entity_id, stage)
         snapshot = env.snapshot()
-        probe = self.probe(snapshot)
+        probe = self.probe(snapshot, participants)
         for point in probe._round():
             if point.stage is not None and entity_id in point.reasons and stage in (None, point.stage.name):
-                return probe.previews.turn(entity_id, point.stage, point.reasons[entity_id])
-        start = self.probe(snapshot)  # not woken this round: show the round as it opens
+                reason = point.reasons[entity_id]
+                if not probe.previews.plays_itself(entity_id, point.stage, reason):
+                    return probe.previews.turn(entity_id, point.stage, reason)
+        start = self.probe(snapshot, participants)  # not woken this round: show the round as it opens
         start._begin_round()
         return start.previews.now(entity_id, stage)
 
-    def probe(self, snapshot: Mapping[str, Any]) -> "Env":
-        """A restored copy of the run to play a preview on (hosts bind their copies here)."""
+    def probe(self, snapshot: Mapping[str, Any], participants: Any = None) -> "Env":
+        """A restored copy of the run to play a preview on (hosts bind their copies here), its agents played by
+        ``participants`` — by default the run's built-in and named ones."""
         env = self.env
         probe = restore_env(type(env), env.contract, snapshot, parallel=1)
-        probe.driver.spec = {k: v for k, v in env.driver.spec.items() if isinstance(v, str)}
+        policies = env.contract.policies
+        if participants is None:  # the run's own: only those that play for free
+            probe.driver.spec = {k: v for k, v in env.driver.spec.items() if _plays_free(v, policies)}
+        else:  # the caller's: its own callables play, but a named LLM or search algorithm never does
+            probe.driver.bind(participants)
+            probe.driver.spec = {k: v for k, v in probe.driver.spec.items()
+                                 if callable(v) or _plays_free(v, policies)}
         probe.time_limit = env.time_limit
         return probe
 
@@ -102,7 +111,18 @@ class Previews:
             reason = f"(Preview only: stage {spec.name} does not run now.)"
         elif actor not in env._eligible(spec, ordered=False):
             reason = f"(Preview only: {actor.name} would not be woken in {spec.name} now.)"
+        elif self.plays_itself(entity_id, spec, reason):
+            reason = (f"(Preview only: {actor.name} would not be woken in {spec.name} now: the stage is `auto` and "
+                      "the turn has no real choice, so it plays itself.)")
         return self.turn(entity_id, spec, reason)
+
+    def plays_itself(self, entity_id: str, spec: StageSpec, reason: str) -> bool:
+        """Whether the run would play this turn without waking the agent (an `auto` stage with no real choice)."""
+        if not spec.auto:
+            return False
+        env = self.env
+        turn = Turn(env, env.world.entities[entity_id], spec, reason, spec.turns == "simultaneous", peek=True)
+        return env.driver.trivial(turn)
 
     def turn(self, entity_id: str, spec: StageSpec, reason: str) -> Dict[str, Any]:
         env = self.env
@@ -119,6 +139,15 @@ class Previews:
                 "time_limit": turn.time_limit,
                 "tokens": {"brief": len(turn.brief) // 4, "update": len(turn.update) // 4,
                            "tools": len(json.dumps([t.to_anthropic() for t in tools])) // 4}}
+
+
+def _plays_free(participant: Any, policies: Mapping[str, Any]) -> bool:
+    """Whether a participant plays the earlier turns of a preview: only the built-in ones that cost nothing and answer at
+    once (random, idle, a contract policy). An LLM, a search algorithm or your own callable is replaced by the agent's
+    default (its type's policy, else random): a preview never makes a paid or slow call."""
+    if not isinstance(participant, str):
+        return False
+    return participant in ("random", "idle") or participant.removeprefix("policy:") in policies
 
 
 def _refuse(path: str, message: str, name: str, known: List[str], kind: str) -> NoReturn:

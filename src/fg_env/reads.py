@@ -7,9 +7,10 @@ for a loop that only reads. The same read twice in a turn answers that it is unc
 The rules depend on nothing but the calls made, so runs stay deterministic.
 
 `inspect` offers the ids of entities with something to show (a property with a value, or a place), as an enum when
-they are few and a compact listing otherwise; it finds an entity by its name as well as its id, and a refusal suggests
-the closest id. Its result leaves out properties without a value. Entities an agent may inspect show their id next to
-their name in what that agent reads (``Moderator [chair]``), so the handle to pass is always in view.
+they are few and a compact listing otherwise, and is not offered when its only choice is the agent itself; it finds an
+entity by its name as well as its id, and a refusal suggests the closest id. Its result leaves out properties without a
+value. Entities an agent may inspect show their id next to their name in what that agent reads (``Moderator [chair]``),
+so the handle to pass is always in view.
 """
 from __future__ import annotations
 
@@ -66,28 +67,40 @@ def _may_inspect_rule(env: "Env", viewer: Entity, target: Entity, rule: Any) -> 
 
 def inspectable(env: "Env", viewer: Entity) -> List[Entity]:
     """The living entities ``viewer`` may inspect, in the world's order."""
-    return [entity for entity in env.world.entities.values() if entity.alive and may_inspect(env, viewer, entity)]
+    rules = {kind: inspect_rule(env.contract, kind) for kind in env.contract.types}
+    return [entity for entity in _candidates(env, viewer, rules)
+            if _may_inspect_rule(env, viewer, entity, rules[entity.entity_type])]
+
+
+def _candidates(env: "Env", viewer: Entity, rules: Dict[str, Any]) -> List[Entity]:
+    """The living entities ``viewer`` might inspect, in the world's order: itself, and the members of every type
+    whose rule is not false. A type only its members may inspect is never scanned, so a turn costs the same however
+    many of them the world holds."""
+    world = env.world
+    found = [viewer] if viewer.alive else []
+    for kind, rule in rules.items():
+        if rule is not False:
+            found.extend(entity for entity in world.alive_of(kind) if entity.entity_type == kind and entity is not viewer)
+    order = world.types.ordinal
+    return sorted(found, key=lambda entity: order[entity.id]) if len(found) > 1 else found
 
 
 def _offered(env: "Env", viewer: Entity) -> List[Entity]:
     """The inspectable entities worth offering: inspecting them shows more than their name."""
+    rules = {kind: inspect_rule(env.contract, kind) for kind in env.contract.types}
     # Type metadata is identical for every instance, but permissions and values
     # are live state: cache only metadata, and only for this listing.
-    metadata: Dict[str, Tuple[Any, set[str]]] = {}
+    private: Dict[str, set[str]] = {}
     offered: List[Entity] = []
-    for entity in env.world.entities.values():
-        if not entity.alive:
-            continue
+    for entity in _candidates(env, viewer, rules):
         kind = entity.entity_type
-        if kind not in metadata:
-            metadata[kind] = (inspect_rule(env.contract, kind),
-                              {key for key, spec in env.contract.props_of(kind).items() if spec.private})
-        rule, private = metadata[kind]
-        if not _may_inspect_rule(env, viewer, entity, rule):
+        if kind not in private:
+            private[kind] = {key for key, spec in env.contract.props_of(kind).items() if spec.private}
+        if not _may_inspect_rule(env, viewer, entity, rules[kind]):
             continue
         own = entity.id == viewer.id
         if entity.location_id is not None or any(
-                (own or key not in private) and not _empty(value) for key, value in entity.properties.items()):
+                (own or key not in private[kind]) and not _empty(value) for key, value in entity.properties.items()):
             offered.append(entity)
     return offered
 
@@ -137,13 +150,17 @@ def inspect_tool(env: "Env", viewer: Entity, allowance: int) -> Optional[ToolSpe
                 shared.add(kind)
         cache = env._inspect_cache = InspectCache(env.world.journal.version, allowance, shared)
     if viewer.entity_type not in cache.shared_viewers:
-        return _build_inspect_tool(env, viewer, allowance)
-    if not cache.ready:
-        cache.tool = _build_inspect_tool(env, viewer, allowance)
-        cache.ready = True
-    # ToolSpec is frozen but its schema is mutable. Never share that schema
-    # across callers; enums have at most 60 ids, so copying stays bounded.
-    return cache.tool.copy() if cache.tool is not None else None
+        tool = _build_inspect_tool(env, viewer, allowance)
+    else:
+        if not cache.ready:
+            cache.tool = _build_inspect_tool(env, viewer, allowance)
+            cache.ready = True
+        # ToolSpec is frozen but its schema is mutable. Never share that schema
+        # across callers; enums have at most 60 ids, so copying stays bounded.
+        tool = cache.tool.copy() if cache.tool is not None else None
+    if tool is not None and tool.input_schema["properties"]["id"].get("enum") == [viewer.id]:
+        return None  # its only choice is the agent itself: its views are where it reads its own state
+    return tool
 
 
 def _build_inspect_tool(env: "Env", viewer: Entity, allowance: int) -> Optional[ToolSpec]:

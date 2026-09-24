@@ -19,14 +19,15 @@ def cmd_author(args: argparse.Namespace) -> int:
     if Path(out).exists() and not args.force:
         print(f"error: '{out}' already exists: choose another --out, or --force to replace it", file=sys.stderr)
         return 1
-    budget = {key: value for key, value in (("tokens", args.tokens), ("calls", args.calls)) if value is not None}
+    budget = {key: value for key, value in (("tokens", args.tokens), ("calls", args.calls), ("seconds", args.seconds))
+              if value is not None}
     result = author(brief, args.model, out=out, budget=budget, progress=lambda line: print(line, file=sys.stderr))
     print(result.summary())
     return 0 if result.ok else 1
 
 
 def add_author_command(sub: Any) -> None:
-    from ..authoring import DEFAULT_BUDGET
+    from ..authoring import CACHE_WRITE_WEIGHT, DEFAULT_BUDGET
     from ..budget import CACHED_WEIGHT
     from . import _guarded
 
@@ -38,6 +39,8 @@ def add_author_command(sub: Any) -> None:
     p.add_argument("--out", help="where to write the contract (default: the brief file's name as .json, or env.json)")
     p.add_argument("--force", action="store_true", help="replace --out if it exists")
     p.add_argument("--tokens", type=int, help="most model tokens to spend, input + output, a cache read counting "
-                                              f"{CACHED_WEIGHT:g} of one (default: {DEFAULT_BUDGET['tokens']})")
+                                              f"{CACHED_WEIGHT:g} of one and a cache write {CACHE_WRITE_WEIGHT:g} "
+                                              f"(default: {DEFAULT_BUDGET['tokens']})")
     p.add_argument("--calls", type=int, help=f"most model calls to make (default: {DEFAULT_BUDGET['calls']})")
+    p.add_argument("--seconds", type=float, help=f"most wall-clock seconds to take (default: {DEFAULT_BUDGET['seconds']})")
     p.set_defaults(func=_guarded(cmd_author))

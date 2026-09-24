@@ -34,7 +34,7 @@ import re
 from dataclasses import dataclass
 from difflib import get_close_matches
 from functools import lru_cache
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from .entity import Entity
 from .errors import RunError
@@ -67,7 +67,7 @@ EFFECT_OPS: Dict[str, Tuple[str, ...]] = {
     "fail": ("fail",),
     "end": ("end", "winner", "say"),
     "after": ("after", "do"),
-    "wake": ("wake", "why", "in", "now", "drop"),
+    "wake": ("wake", "why", "in", "now", "actions", "drop"),
     "repeat": ("repeat", "while", "do"),
     "block": ("block", "with"),
     "chance": ("chance", "outcomes", "weight", "as", "do"),
@@ -338,6 +338,13 @@ def each_items(value: Any, world: SdkWorld, where: str) -> List[Any]:
     raise RunError(f"`each` must be a type name or a list, got {value!r}", where)
 
 
+def removed_since(items: Sequence[Any]) -> Callable[[int], bool]:
+    """For a loop over ``items``: whether the item at a position is an entity that was active when the loop began and
+    has been removed since (by an earlier item's rules), so the loop skips it instead of writing to it."""
+    active = [isinstance(item, Entity) and item.alive for item in items]
+    return lambda position: active[position] and not items[position].alive
+
+
 class EffectRunner:
     """Applies effect lists to one world, and runs the types' lifecycle hooks when entities are
     created or removed (inside whatever change made them, so they commit or roll back with it)."""
@@ -590,8 +597,11 @@ class EffectRunner:
         from .run_diagnosis import LoopWrites  # run_diagnosis reads actions, which run effects
 
         watch = LoopWrites.start(self.world, effect, where)
+        removed = removed_since(items)
         try:
             for position, item in enumerate(items):
+                if removed(position):
+                    continue
                 inner = {**vars, name: item, "i": position}
                 if where_expr is not None and not self._condition(where_expr, inner):
                     continue
@@ -680,7 +690,6 @@ class EffectRunner:
     def _op_post(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
         if self._dropped(effect, vars, where):
             return
-        fields = {k: _plain_value(self._eval(v, vars)) for k, v in effect.items() if k not in POST_KEYS}
         if "author" in effect:
             author_value = self._eval(effect["author"], vars)
             author = _entity(author_value, self.world, where).id if author_value is not None else None
@@ -688,9 +697,21 @@ class EffectRunner:
             actor = vars.get("actor")
             author = actor.id if isinstance(actor, Entity) else None
         to = _to_ids(self._eval(effect.get("to"), vars), where) if "to" in effect else None
+        read = {**vars, "viewer": self._entry_reader(effect["post"], author, to)}
+        fields = {k: _plain_value(self._eval(v, read)) for k, v in effect.items() if k not in POST_KEYS}
         send(self.world, self._eval(effect["delay"], vars) if "delay" in effect else None,
              {"kind": "post", "record": effect["post"], "fields": fields, "author": author,
               "to": list(to) if to is not None else None}, where)
+
+    def _entry_reader(self, record: str, author: Optional[str], to: Optional[Sequence[str]]) -> Any:
+        """Who an entry is shown to, as its fields are worked out: its one reader (its author and whom it is sent `to`),
+        whose own private properties it may carry; everyone when several read it; None — game logic reading the true
+        state — when the record's `visible` rule decides."""
+        if to is not None:
+            readers = {*to, *([author] if author is not None else [])}
+            return self.world.entities.get(next(iter(readers))) if len(readers) == 1 else EVERYONE
+        spec = self.world.contract.records.get(record)
+        return EVERYONE if spec is not None and spec.visible == "all" else None
 
     def _op_emit(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
         if self._dropped(effect, vars, where):
@@ -755,7 +776,7 @@ class EffectRunner:
             return
         for entity_id in _to_ids(self._eval(effect["wake"], vars), where) or ():
             if now:
-                world.request_reaction(entity_id, why)
+                world.request_reaction(entity_id, why, effect.get("actions"))
                 continue
             world.request_wake(entity_id, why)
             if world.continuous:

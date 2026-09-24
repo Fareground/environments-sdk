@@ -18,15 +18,18 @@ the first few entities of each type with every prop (`result.state`), so you can
 * a coded policy rule whose call was refused every time it was tried (`policy_rule_never_acted`), quoting the refusal,
   and a `repeat` policy's rule that was refused after it had acted (`policy_repeat_refused`);
 * agents that never acted, or most of whose turns ended with no action after failed calls (`agents_never_acted`,
-  `agents_mostly_failed`), and turns an LLM participant ended out of `max_steps` (`out_of_steps`);
+  `agents_mostly_failed`), any turns of a model participant (or any participant out of time) that ended so, with
+  their rate (`some_turns_failed`), and turns an LLM participant ended out of `max_steps` (`out_of_steps`);
 * a stage that can never run, or a measure that reads only what no rule changes;
-* host answers that were the contract's fallback stand-ins because no host was bound;
+* host answers that were the contract's fallback stand-ins because no host was bound (`host_fallback`), and a run its
+  budget cut short (`budget_cut`) — both degrade the run;
 * with model participants, an action that was mostly refused.
 
 `fg-env check` plays up to 12 rounds with random agents and again with each policy, and reports what those plays
 reveal: crashes as errors (naming the policy that ran into one), diagnostics (including each policy's always-refused
 rules) as warnings. Before a policy rule acts, the later rules whose action is legal are evaluated too, so a broken rule
-is reported even when an earlier one always wins.
+is reported even when an earlier one always wins. A population that grows fast enough (agents creating agents) to pass
+the engine's ceiling of 1,000,000 living entities before the run ends is a warning: a run fails when it reaches it.
 `--rounds 30` plays exactly that many for more evidence.
 
 `result.events` is the log in order: `{seq, round, stage, kind, actor, text, data}`. Its kinds are `action`,

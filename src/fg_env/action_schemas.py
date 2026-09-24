@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple
 
 from .entity import Entity
-from .action_params import TEXT_MAX_LEN, _LISTED_UNKNOWN, _STEP_TOLERANCE, _item_spec, _list_bounds, _preview, _tidy
+from .action_params import TEXT_MAX_LEN, _LISTED_UNKNOWN, _STEP_TOLERANCE, _item_count, _item_spec, _list_bounds, _preview, _tidy
 from .assets.intake import file_schema
 from .contract import ParamSpec
 from .errors import RunError
@@ -137,7 +137,7 @@ class ActionSchemas:
         description = spec.description or name.replace("_", " ").capitalize() + "."
         if staged:
             description += " (Committed when everyone has chosen.)"
-        if spec.terminal is True and "turn" not in description.lower():
+        if spec.terminal is True and "ends your turn" not in description.lower():  # never said twice
             description += " Ends your turn."
         elif isinstance(spec.terminal, str):
             description += " May end your turn."
@@ -208,7 +208,9 @@ class ActionSchemas:
             item_description = item_schema.pop("description", "")
             out["type"] = "array"
             out["items"] = item_schema
-            low, high = _list_bounds(param)
+            where = f"actions.{action}.params.{pname}"
+            low, high = _list_bounds(param, lambda raw, key: _item_count(self._static(actor, raw, f"{where}.{key}"),
+                                                                         f"{where}.{key}"))
             if low:
                 out["minItems"] = low
             out["maxItems"] = high

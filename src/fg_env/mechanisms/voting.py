@@ -184,7 +184,8 @@ def _decide(result: Dict[str, Any], scores: Dict[str, float], method: str, thres
         share = top / total if total > 0 else 0.0
         result["share"] = share
         strictly = method == "majority" and threshold is None
-        passed = share > need if strictly else share >= need
+        casting = ties == "first" and len(tied) > 1  # a casting vote carries an exact draw at the threshold
+        passed = share > need or (share >= need and (casting or not strictly))
         if not passed:
             of = "" if base is None else " of all members"
             result["reason"] = f"no option reached {'more than ' if strictly else ''}{need:.0%}{of}"

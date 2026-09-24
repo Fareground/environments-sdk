@@ -72,8 +72,8 @@ class InvariantViolation(RunError):
 
 class FatalRunError(RunError):
     """A failure outside the contract's rules — a host failed or cannot be asked, a replay stopped matching its
-    recording, a mechanism's code crashed. Unlike a rule failing inside an agent's action, it fails the run wherever
-    it happens."""
+    recording, a mechanism's code crashed, the world reached its ceiling of living entities. Unlike a rule failing
+    inside an agent's action, it fails the run wherever it happens."""
 
 
 class SnapshotError(ValueError):

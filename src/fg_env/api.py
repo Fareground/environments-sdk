@@ -305,7 +305,8 @@ def default_data_dir(source: ContractLike, data_dir: DataDir = None) -> Optional
 
 def load(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, seed: Optional[int] = None,
          arm: Optional[str] = None, strict: bool = False, parallel: int = 8,
-         data_dir: DataDir = None, hosts: Any = None, exposures: bool = False, chance: Any = None, calibrate: bool = True) -> Env:
+         data_dir: DataDir = None, hosts: Any = None, exposures: bool = False, chance: Any = None, calibrate: bool = True,
+         events: bool = True) -> Env:
     """Check a contract and build a runnable :class:`Env`.
 
     Errors raise :class:`ContractError` listing every problem with a fix; ``strict=True``
@@ -320,6 +321,10 @@ def load(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, se
     that returns the index of the outcome to take (a fixed deal, duplicate formats); :func:`fg_env.rl.game`
     enumerates chance for search. A contract with a ``calibration`` section fits its inputs with pilot sessions first
     (``env.calibration`` is the report); ``calibrate=False`` skips that, as ``fg_env.check``'s smoke play does.
+    ``events=False`` keeps no event log, for a big crowd played for many rounds: ``result.events`` is empty (``on_event``
+    still streams every event) and the run forgets each event once no agent's news can reach it, so its memory stays
+    flat however long it plays; everything the run does is the same (a contract that reads `$events` or `$seen` keeps
+    its log).
     """
     contract, issues = _check_all(source, data_dir)
     blocking = [i for i in issues if i.severity == "error" or strict]
@@ -346,7 +351,7 @@ def load(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, se
                                    lambda values: Env(contract, dict(values), run_seed, arm, parallel, False, assets))
         if report is not None:
             resolved = resolve_inputs(contract, {**merged, **report["params"]}, folder)
-    env = Env(contract, resolved, run_seed, arm, parallel, exposures, assets)
+    env = Env(contract, resolved, run_seed, arm, parallel, exposures, assets, events)
     env.calibration = report
     env.origin.unarmed = unarmed
     if chance is not None:
@@ -364,14 +369,14 @@ def run(source: ContractLike, participants: Any = None, *, inputs: Optional[Mapp
         seed: Optional[int] = None, arm: Optional[str] = None, rounds: Optional[int] = None,
         on_event: Any = None, strict: bool = False, data_dir: DataDir = None,
         hosts: Any = None, time_limit: Optional[float] = None, exposures: bool = False,
-        budget: Optional[Mapping[str, Any]] = None) -> RunResult:
+        budget: Optional[Mapping[str, Any]] = None, events: bool = True) -> RunResult:
     """Load and run in one call: ``fg_env.run("shop.json", {"buyer": "policy:thrifty"}, seed=1)``.
 
     A run that fails — a rule that cannot be evaluated, a participant that raises, a model provider that refuses the
     request — raises :class:`RunError` saying what failed and how to fix it; its ``result`` is the failed run.
     (``env.run`` returns a failed run instead, and experiments keep failed runs and carry on.)"""
     env = load(source, inputs=inputs, seed=seed, arm=arm, strict=strict, data_dir=data_dir, hosts=hosts,
-               exposures=exposures)
+               exposures=exposures, events=events)
     try:
         return env.run(participants, rounds=rounds, on_event=on_event, time_limit=time_limit, budget=budget,
                        raise_errors=True)

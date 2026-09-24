@@ -197,7 +197,7 @@ def cmd_preview(args: argparse.Namespace) -> int:
     except (RunError, ExprError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    view = env.preview(args.entity, args.stage)
+    view = env.preview(args.entity, args.stage, participants=_participants(args.agent))
     if args.json:
         print(json.dumps(view, indent=2, ensure_ascii=False))
         return 0
@@ -355,7 +355,7 @@ def add_commands(sub: Any) -> None:
     p.add_argument("--stage", help="stage name (default: the first stage where this agent can act)")
     p.add_argument("--rounds", type=int, default=0, help="play this many rounds first, then preview")
     p.add_argument("--agent", action="append", metavar="[TYPE_OR_ID=]PARTICIPANT",
-                   help="participants for the rounds played before the preview")
+                   help="participants for the rounds played first and the turns before the agent's")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=_guarded(cmd_preview))
 

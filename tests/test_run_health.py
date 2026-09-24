@@ -2,6 +2,7 @@
 engine never silently loses what an agent should see or do."""
 import itertools
 import json
+import threading
 import time
 from types import SimpleNamespace as NS
 
@@ -10,6 +11,7 @@ import pytest
 import fg_env
 from fg_env import participants
 from fg_env.__main__ import main
+from fg_env.errors import RunError
 
 CONNECT_FOUR = "examples/contracts/connect_four.json"
 
@@ -90,9 +92,17 @@ def test_sound_runs_exit_zero_and_degraded_runs_exit_three(tmp_path, capsys):
     assert "DEGRADED (agents_never_acted)" in capsys.readouterr().out
 
 
-def test_a_run_its_budget_ended_is_still_ok():
+def test_a_run_its_budget_cut_short_is_not_ok():
     result = fg_env.run(CONNECT_FOUR, _player(_first_legal), seed=1, budget={"calls": 3})
-    assert result.ended_by == "budget" and result.ok
+    assert result.ended_by == "budget" and result.degraded == ["budget_cut"] and not result.ok
+    assert result.winner is None
+
+
+def test_a_run_whose_budget_handed_its_turns_to_idle_agents_is_not_ok():
+    result = fg_env.run(CONNECT_FOUR, _player(_first_legal), seed=1, budget={"calls": 3, "on_exhaust": "idle"})
+    assert result.budget["exhausted"] == "calls" and result.degraded == ["budget_cut"] and not result.ok
+    [found] = [d for d in result.diagnostics if d["code"] == "budget_cut"]
+    assert "agents take no more actions" in found["message"]
 
 
 LEDGER = {
@@ -256,3 +266,51 @@ def test_an_unchanged_view_is_named_not_dropped():
     fg_env.run(contract, lambda wake: updates.append(wake.update), seed=1)
     assert "Price: 5" in updates[0]
     assert "Price: 5" not in updates[1] and "Price board: unchanged since your last turn." in updates[1]
+
+
+def test_timed_out_turns_count_as_failed_and_any_failed_turns_are_reported_with_their_rate():
+    slow = itertools.cycle([True, False, False])
+
+    def dawdles(wake):  # every third turn runs past the time limit
+        if next(slow):
+            threading.Event().wait(0.3)
+        else:
+            wake.call("file", {"n": 1})
+
+    result = fg_env.run(LEDGER, {"ann": dawdles}, seed=1, time_limit=0.05, rounds=3)
+    assert result.agent_stats["ann"]["timeouts"] == 1 and result.agent_stats["ann"]["failed_turns"] == 1
+    [found] = [d for d in result.diagnostics if d["code"] == "some_turns_failed"]
+    assert "ann 1 of 3" in found["message"] and "33%" in found["message"]
+    assert result.ok  # a minority of failed turns is reported, not degrading
+    assert "1 of 3 turns (33%) of ann" in result.summary()  # the failure rate, where a reader looks
+
+
+def test_the_built_in_idle_agent_in_a_stage_that_must_act_makes_no_invalid_calls():
+    must = {"name": "Must", "clock": {"rounds": 2}, "types": {"p": {"agent": True, "props": {"n": 0}}},
+            "entities": {"a": {"type": "p"}}, "actions": {"go": {"by": "p", "do": ["$actor.n += 1"]}},
+            "stages": [{"name": "s", "actions": ["go"], "must_act": True}], "outputs": {"n": "$entity(a).n"}}
+    result = fg_env.run(must, "idle", seed=1)
+    assert result.stats["invalid_calls"] == 0 and result.ok
+    assert not [d for d in result.diagnostics if d["code"] == "agents_never_acted"]
+
+
+@pytest.mark.parametrize("returned", ["file", {"tool": "file", "args": {"n": 1}}, ("file", {"n": 1})])
+def test_a_participant_that_returns_its_move_instead_of_calling_a_tool_fails_the_run_loudly(returned):
+    with pytest.raises(RunError, match=r"participant for ann returned .*wake\.call"):
+        fg_env.run(LEDGER, lambda wake: returned, seed=1)
+
+
+def test_an_async_participant_that_returns_its_move_fails_the_run_loudly():
+    async def gym_style(wake):
+        return "file"
+
+    with pytest.raises(RunError, match="participant for ann returned 'file'"):
+        fg_env.run(LEDGER, gym_style, seed=1)
+
+
+def test_host_answers_that_were_fallback_stand_ins_degrade_the_run():
+    judged = json.load(open("examples/contracts/host/debate_judged.json"))
+    judged["mechanisms"]["judge"]["fallback"] = "midpoint"
+    result = fg_env.run(judged, seed=1)
+    assert "host_fallback" in result.degraded and not result.ok
+

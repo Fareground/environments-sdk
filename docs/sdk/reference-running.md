@@ -52,6 +52,10 @@ stored once. `$seen(agent, item)` asks whether an agent was shown an event, a re
 a contract that uses it records exposures automatically. `experiment`, `tournament`, `evaluate` and `run_jobs`
 take `exposures=True` too, every run keeping its own (`--exposures` with `--json`). `result.frames` and
 `env.spectate()` give the spectator views (`fg-env run file.json --frames frames.json` saves them).
+A big crowd played for many rounds: `fg_env.run(..., events=False)` (or `load`) keeps no event log, so memory stays
+flat however long the run: `result.events` is empty (`on_event=` still streams every event), and the run forgets each
+event once every agent's news is past it. Everything the run does is the same; a contract that reads `$events` or
+`$seen` keeps its log.
 
 Traces: a run with `exposures=True` is a trace (`fg-env run file.json --trace run.jsonl`); `result.save("run.json")`
 or `.jsonl`, `fg_env.RunResult.load(path)`. `t = fg_env.analysis.trace(result_or_file)`: `t.overview()` (per agent: turns,
@@ -75,8 +79,8 @@ Budgets: `env.run(..., budget={"tokens": 200000, "calls": 500, "host_calls": 50,
 "on_exhaust": "end"})` caps a run: reported input + output tokens, tool calls, host answers on the tape, wall-clock
 seconds. It is checked before every round, stage, pass and turn, and `tokens` after every model reply too (the
 turn that spends it ends there; other limits let a turn in progress finish): `end` ends the run
-(`ended_by: "budget"`), `idle` lets it finish with every agent idle. `result.budget` has the limits, use and the
-limit that ran out; snapshots keep it. `experiment` (with `branch_at` the shared rounds count toward each arm),
+(`ended_by: "budget"`), `idle` lets it finish with every agent idle. Either way the run is cut short: it is
+degraded (`budget_cut`), not `ok`. `result.budget` has the limits, use and the limit that ran out; snapshots keep it. `experiment` (with `branch_at` the shared rounds count toward each arm),
 `tournament`, `evaluate` and `run_jobs` give every run the whole budget, as `--budget tokens=200000` does on
 `fg-env run`, `experiment`, `tournament` and `evaluate`. Usage reported after a turn ran out of time still counts.
 `env.step(participants)` runs one round; `env.run(participants, rounds=N)` runs N more (an unfinished

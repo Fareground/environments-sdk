@@ -140,6 +140,7 @@ def take_snapshot(env: "Env") -> Dict[str, Any]:
         "budget": env.budget.to_dict(env) if env.budget is not None else None,
         "start": env.origin.start,
         "diagnosis": env.diagnosis.to_dict(),
+        **({} if env._keep_events else {"events": False}),
         **({"assets": {**w.assets.to_dict(), "briefs": dict(env._brief_assets)}} if len(w.assets) else {}),
     }
 
@@ -331,7 +332,8 @@ def restore_state(cls: Type[_E], contract: Contract, snapshot: Mapping[str, Any]
 def _restore(cls: Type[_E], contract: Contract, snapshot: Mapping[str, Any], parallel: int) -> _E:
     from .physics import PhysicsModel
 
-    env = cls(contract, decode(snapshot["inputs"]), int(snapshot["seed"]), snapshot.get("arm"), parallel)
+    env = cls(contract, decode(snapshot["inputs"]), int(snapshot["seed"]), snapshot.get("arm"), parallel,
+              events=snapshot.get("events", True) is not False)
     w = env.world
     w.entities = {}
     for row in snapshot["entities"]:

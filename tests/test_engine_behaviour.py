@@ -1,5 +1,6 @@
 """The bundled engines report what actually happened: no fabricated winners, ties as ties, every player paid,
 advertised inputs that move outcomes, and verdicts that agree with the evidence they are measured against."""
+import json
 import statistics
 from importlib.resources import files
 from pathlib import Path
@@ -7,6 +8,9 @@ from pathlib import Path
 import pytest
 
 import fg_env
+from fg_env.host.stubs import StubEvaluator
+
+pytestmark = pytest.mark.slow  # statistical or engine-behaviour: `make test-fast` leaves it out
 
 SEEDS = range(6)
 
@@ -18,6 +22,7 @@ def run(engine_id, participants=None, *, seed=0, inputs=None):
 def test_contest_without_a_judge_is_decided_by_skill_and_luck_and_says_so():
     result = run("contest")
     assert [d["code"] for d in result.diagnostics] == ["host_fallback"]  # the rubric scores were a stand-in
+    assert result.degraded == ["host_fallback"] and not result.ok
     assert "judge" in result.diagnostics[0]["message"]
     assert result.outputs["judged"] is False and result.outputs["winning_score"] is None  # no stand-in score reported
     winners = [run("contest", seed=seed).outputs["winner"] for seed in range(20)]
@@ -26,6 +31,14 @@ def test_contest_without_a_judge_is_decided_by_skill_and_luck_and_says_so():
 
     even = [{"id": k, "name": k, "approach": "", "skill": 0.5} for k in ("c1", "c2")]
     assert run("contest", inputs={"participants": even, "luck": 0}).outputs["winner"] is None  # a true tie stays one
+
+
+def test_contest_knows_it_was_judged_from_the_verdicts_not_the_host_tape():
+    assert "host_tape" not in json.dumps(fg_env.engines.get("contest").source())
+    path = Path(str(files("fg_env.engines").joinpath(fg_env.engines.get("contest").path)))
+    judged = fg_env.host.load(path, hosts={"judge": StubEvaluator()}, seed=1).run()
+    assert judged.outputs["judged"] is True and judged.outputs["winning_score"] is not None
+    assert run("contest").outputs["judged"] is False
 
 
 def _players(**strategies):
@@ -316,7 +329,9 @@ def test_every_engine_runs_at_both_ends_of_each_declared_input(engine_id, name, 
     # days or passes show they run at that size; every other engine runs to its end
     rounds = {"market": 1, "exchange": 12}.get(engine_id)
     result = fg_env.engines.load(engine_id, inputs={name: value}, seed=1).run(rounds=rounds)
-    assert result.error is None and (rounds is not None or result.ok), result.error
+    # a contest with no judge bound scores by its stand-in rubric: that run is degraded (host_fallback), not broken
+    unjudged = result.degraded == ["host_fallback"] and engine_id == "contest"
+    assert result.error is None and (rounds is not None or result.ok or unjudged), result.error
     assert not result.output_issues
 
 
@@ -385,3 +400,37 @@ def test_the_chain_launch_refuses_a_launch_after_the_run_ends():
 ])
 def test_a_rate_over_nobody_is_null_not_zero(engine_id, inputs, output):
     assert run(engine_id, inputs=inputs).outputs[output] is None
+
+
+def test_population_reports_more_confidence_the_more_certain_people_are():
+    people = fg_env.engines.get("population").source()["inputs"]["participants"]["default"]
+
+    def reported(confidence):
+        table = [{**p, "confidence": confidence} for p in people]
+        return statistics.fmean(run("population", seed=s, inputs={"participants": table}).outputs["average_confidence"]
+                                for s in SEEDS)
+
+    assert reported(0) < reported(0.5) < reported(1)
+
+
+@pytest.mark.parametrize("engine_id, kind, at_least", [
+    ("population", "person", 100), ("network", "person", 50), ("matching", "applicant", 30), ("contest", "contestant", 5),
+    ("strategy", "strategist", 8), ("legislature", "member", 21), ("deliberation", "member", 10),
+])
+def test_engines_ship_realistic_default_sizes(engine_id, kind, at_least):
+    assert len(fg_env.engines.load(engine_id).entities(kind)) >= at_least
+
+
+def test_forward_looking_players_compete_more_as_the_temptation_grows():
+    def cooperation(bonus):
+        return statistics.fmean(run("strategy", seed=s, inputs={"compete_bonus": bonus}).outputs["cooperation_rate"]
+                                for s in SEEDS)
+
+    assert cooperation(50) < cooperation(8) < cooperation(5)
+    lookers = _players(a="forward_looking", b="forward_looking")
+    moves = run("strategy", inputs={"participants": lookers, "rounds": 4, "mistakes": 0}).outputs
+    assert moves["total_competitions"] == 2  # both cooperate until the last round, when nothing is left to protect
+
+
+def test_coded_negotiators_strike_different_deals_on_different_seeds():
+    assert len({json.dumps(run("negotiation", seed=seed).outputs["surplus"]) for seed in range(8)}) > 2

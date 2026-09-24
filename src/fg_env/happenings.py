@@ -8,7 +8,7 @@ import heapq
 from typing import TYPE_CHECKING, Any, List, Optional
 
 from .delivery import run_delivery
-from .effects import each_items
+from .effects import each_items, removed_since
 from .contract import StageSpec
 from .build import whole_setting
 from .errors import RunError
@@ -76,7 +76,10 @@ class Happenings:
                 if event.sync:
                     run_sync(env, event, items, item_name, path)
                     items = []
+                removed = removed_since(items)
                 for position, item in enumerate(items):
+                    if removed(position):
+                        continue
                     inner = {item_name: item, "i": position}
                     if event.where is not None:
                         with world.drawing_for(f"{path}.where", item):
@@ -173,7 +176,7 @@ class Happenings:
             self._trigger_depth -= 1
 
     def react(self, stage: Optional[StageSpec]) -> None:
-        """Give every agent asked to react (`wake` with `now`) a turn right away, in the current stage: once the
+        """Give every agent asked to react (`wake` with `now`) a turn right away, in the current stage — offered the actions the wake names, else the stage's: once the
         action that woke them has committed, so a reaction answers it and cannot undo it. While an agent's action is
         still committing (and could yet be undone), they wait for it to finish. Reactions to reactions nested deeper
         than :attr:`REACTION_DEPTH` become ordinary wakes: agents that keep answering each other never fail the run."""
@@ -181,7 +184,7 @@ class Happenings:
         if world.journal.holding:
             return
         while world.reactions and not env._ended():
-            entity_id, why = world.reactions.pop(0)
+            entity_id, why, actions = world.reactions.pop(0)
             actor = world.entities.get(entity_id)
             if actor is None or not actor.alive or not env.contract.is_agent(actor.entity_type):
                 continue
@@ -189,6 +192,8 @@ class Happenings:
                 world.request_wake(entity_id, why)
                 continue
             spec = stage or next(iter(env.contract.stage_list()))
+            if actions is not None:  # the answers the wake names, not every action of the stage
+                spec = spec.model_copy(update={"actions": list(actions)})
             self._reaction_depth += 1
             try:
                 turn = Turn(env, actor, spec, why, staged=False, kind="reaction")

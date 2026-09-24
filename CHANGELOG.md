@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Round 6
+
+Round 6 makes runs honest about what went wrong, keeps big worlds fast, makes `fg-env author` keep its best work,
+makes prompt caching pay, and closes more authoring traps.
+
+#### Breaking
+- A refused action costs the turn when the refusal rolled luck or read a private value of another entity, so a hidden
+  code cannot be guessed for free; any other refusal (a taken cell, bad arguments, an unmet `when`) stays free.
+- Runs: a run its budget cut short or handed to idle agents is not `ok` (`budget_cut`); stand-in host answers degrade
+  a run (`host_fallback`); timed-out turns count as failed; a shared `post` may not carry a private property; a
+  participant that returns a move without calling a tool is an error; `each` skips entities removed during the loop.
+  The built-in idle agent no longer calls `end_turn`.
+- Contracts are strict: `"agent": "yes"` or `"rounds": "5"` are errors. Literal text + number is a check error.
+  An each-event's `say` that reads the item is an error (emit inside `do`). A failed output is the diagnostic
+  `output_failed`.
+- LLM participants keep one tool list per turn (a tool that stops being legal says so in the result), place cache
+  breakpoints only on prefixes that can be cached, and no longer offer `inspect` when its only choice is the agent
+  itself. Previews never call an LLM or search algorithm. `Budget.reserve` needs a number.
+- `fg_env.author` keeps its richest working revision (a removal is kept only when the model saves it twice), needs at
+  least one action to succeed, reads every `look` view, has a `seconds` budget (30 minutes by default) and a
+  `start_from` tool for engine starters; `AuthorResult.untested` is `result.tested.untested`. The stand-in game master
+  applies its allowed effects.
+- Mechanisms and engines: a procurement tender's winner supplies the unit; `min_bid` is never below the smallest legal
+  bid; `$adopters` is `$adopter_count`; the exchange's `stats` output is `bar_stats`. Engine defaults are realistic in
+  size (population 100, network 60, legislature 25, …), coded players respond to the seed and to payoffs, and the
+  population engine's reported confidence rises with confidence.
+
+#### Added
+- `fg-env engines` and `fg-env new --engine <id>`; engines in `guide()`.
+- `env.preview(id, participants=...)`; previews skip turns an `auto` stage plays. `fork()` keeps its participants.
+- A reaction (`wake` with `now`) can name the `actions` it offers.
+- `min_items` / `max_items` take expressions.
+- `load(..., events=False)` keeps memory flat on long runs while `on_event` still streams every event.
+- A world holds at most 1,000,000 living entities; `check` warns when a population would outgrow it.
+- Check warnings: a `when` reading another agent's private value, a sealed stage announcing choices by name, an
+  override that drops a mechanism's effects, a bare `shares`/`units` property, a reaction without `actions`.
+- Diagnostics `some_turns_failed` and `budget_cut`; `make test-fast` for a quick local run.
+
+#### Fixed
+- A turn no longer costs more as the world grows (100 agents among 50,000 items: 30 ms → 0.35 ms per turn).
+- A token budget no longer makes parallel turns wait for each other; worker processes exit when their parent dies.
+- Created properties are worked out in the order they read each other.
+- The canonical lake example shares simultaneous catches, so identical choices give identical outcomes.
+
+
 ### Round 5
 
 Round 5 makes luck and hidden information airtight, makes `fg-env author`'s "it works" mean it really works, closes

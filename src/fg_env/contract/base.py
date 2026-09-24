@@ -9,7 +9,7 @@ from pydantic_core import PydanticCustomError
 
 __all__ = ["CONTRACT_VERSION", "INPUT_TYPES", "PROP_TYPES", "PARAM_TYPES", "MAX_LIST_ITEMS", "OUTPUT_TYPES",
            "one_or_many", "Effects", "TYPE_SYNONYMS", "SPELLINGS", "TypeName", "MAX_ROUNDS", "MAX_STAGE_PASSES", "MAX_TURN_CALLS",
-           "MAX_TURN_ACTIONS", "MAX_POPULATION", "MAX_CREATE", "MAX_SUBSTEPS"]
+           "MAX_TURN_ACTIONS", "MAX_POPULATION", "MAX_CREATE", "MAX_ENTITIES", "MAX_SUBSTEPS"]
 
 CONTRACT_VERSION = "1"
 
@@ -58,6 +58,8 @@ MAX_TURN_ACTIONS = 1_000
 MAX_POPULATION = 1_000_000
 #: Most entities one ``create`` effect may make (checked where the count is a literal).
 MAX_CREATE = 100_000
+#: Most living entities a world may hold at once (removed ones do not count).
+MAX_ENTITIES = 1_000_000
 #: Most physics sub-steps per round.
 MAX_SUBSTEPS = 10_000
 
@@ -71,7 +73,7 @@ def _ceiling(value: Any, limit: int, fix: str) -> Any:
 
 
 class _Model(BaseModel):
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    model_config = ConfigDict(extra="forbid", populate_by_name=True, strict=True)
 
 
 class _ExprShorthand(_Model):

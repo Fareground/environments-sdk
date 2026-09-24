@@ -10,15 +10,15 @@ The engine catalog contains exactly these twelve boundaries:
 - **Market** — buyers and sellers form demand, supply, prices, and responses: each household weighs the best café (`inputs.cafes`) against making coffee at home, so total demand falls as prices rise, and coded cafés reprice weekly toward more profit; the sampled households (at least 80) stand for the whole city (weighted by the household table), so café capacities scale with the sample and revenue and turn-aways are reported at city scale.
 - **Council** — a panel (`inputs.panel`) forecasts a yes/no question (`inputs.question`, `inputs.briefing`), deliberates and forecasts again; final forecasts are scored against a supplied outcome.
 - **Dispute** — opposing parties present claims and evidence toward a resolution; the parties, case, jury and exhibits are inputs (coded counsel lead with their strongest admissible exhibits, so verdicts track the merits, now and then risk a flawed one, and object to any exhibit whose foundation shows a defect); in the jury room each juror's speech pulls the others toward the speaker's leaning; coded awards are a share of `claimed_damages` that grows with a juror's lean, so they scale in proportion to the claim.
-- **Exchange** — a calibrated coded crowd trades one instrument on a limit order book while a few trader seats (4 by default) are filled by participants.
+- **Exchange** — a calibrated coded crowd trades one instrument on a limit order book while a few trader seats (4 by default) are filled by participants; by default a scripted guidance cut at bar 30 knocks 8% off the fundamental (`inputs.events`, `[]` for none), and `demo_volatility` (per pass) and `bar_stats.sigma` (per bar) report volatility at the two time scales.
 - **Legislature** — legislative bodies use motions, amendments, coalitions, and votes; each member's view blends their starting stance with the floor speeches so far, their own party's counting more (`party_loyalty`), so debate moves votes without talking the chamber into unanimity (members may amend; the coded members do not).
 - **Contest** — at least two participants submit and a host judge scores them on a rubric; a rubric tie goes to the stronger hidden performance (skill plus luck).
 - **Deliberation** — people exchange reasons, revise views (each member's view blends their starting stance with the speeches so far), and seek a conclusion.
-- **Negotiation** — two parties make proposals, concessions and agreements, never below their walk-away values, over at least two rounds; coded parties concede toward the other side as the deadline nears, giving up first the issues they care least about, so they find deals that trade priorities.
+- **Negotiation** — two parties make proposals, concessions and agreements, never below their walk-away values, over at least two rounds; coded parties concede toward the other side as the deadline nears, each at a pace drawn every run (some hold out, some concede early), giving up first the issues they care least about, so they find deals that trade priorities.
 - **Population** — sampled people independently respond from their inclination, blurred by their uncertainty, and outcomes are aggregated.
 - **Network** — behavior and information spread through explicit human relationships from the initial adopters in `inputs.seeds`; people may also take up or turn down an idea they heard of, or recommend it; adopters, the seed included, stay committed.
 - **Matching** — both sides rank each other and deferred acceptance makes a stable match within capacity.
-- **Strategy** — any number of players' choices play against each other, round-robin, with configurable payoffs and classic coded strategies.
+- **Strategy** — any number of players' choices play against each other, round-robin, with configurable payoffs; the classic coded strategies ignore the payoffs by design, and forward-looking players weigh them against the rounds left.
 
 All twelve have native SDK implementations, and every one ships coded
 baseline participants whose outcomes vary with the seed (Network's baseline
@@ -40,6 +40,9 @@ mechanics remain composable SDK primitives. Named games are configurations of
 those primitives, not entries in this behavioral engine catalog.
 
 ## Discover, clone, and customize
+
+From the command line, `fg-env engines` lists every engine with a one-line summary and
+`fg-env new --engine <id> my_env.json` clones one (bundled files included). In Python:
 
 ```python
 import fg_env

@@ -11,9 +11,9 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Iterator, List,
 from .entity import Entity
 from .physics import PhysicsModel, _CompiledExpr
 from .assets.store import AssetStore
-from .contract import Contract, PropSpec
+from .contract import MAX_ENTITIES, Contract, PropSpec
 from .captures import CAPTURE_VERSION, freeze, thaw
-from .errors import RunError
+from .errors import FatalRunError, RunError
 from .expr.calls import suggest_function
 from .expr import ExprError, FUNCTIONS, Scope, Untrusted, World, compile_expr, is_expr, truthy
 from .props import finite_number as _finite_number, prop_type, shown_value as _shown_value
@@ -27,6 +27,7 @@ from .type_index import TypeIndex
 from . import links as _links, world_physics
 from .patterns.runtime import PatternRuntime
 from .links import Link
+from .world_defaults import default_order
 from .world_parts import ClockView, Entry, Journal, LogEvent, PhysicsView, PropsView, private_metrics
 
 if TYPE_CHECKING:
@@ -36,11 +37,13 @@ __all__ = ["SdkWorld", "Entry", "LogEvent", "Abort", "LuckAhead", "prop_type"]
 
 
 class _TurnLocal:
-    """Per-turn state (a turn's random stream, its ``$pending``, draw and def-depth counters, whether it may draw)."""
+    """Per-turn state (a turn's random stream, its ``$pending``, its deadline, draw and def-depth counters, whether it
+    may draw)."""
 
-    __slots__ = ("rng", "pending", "draws", "depth", "luckless")
+    __slots__ = ("rng", "pending", "deadline", "draws", "depth", "luckless")
     rng: Any
     pending: Optional[List[Dict[str, Any]]]
+    deadline: Optional[float]
     draws: int
     depth: int
     luckless: Optional[str]
@@ -108,8 +111,9 @@ class SdkWorld(World):
         self.series: Dict[str, List[Any]] = {}
         self.scheduled: List[Tuple[float, int, Dict[str, Any]]] = []
         self.wake_requests: Dict[str, str] = {}
-        #: Agents asked to react right away (`wake` with `now`), answered as soon as the change commits.
-        self.reactions: List[Tuple[str, str]] = []
+        #: Agents asked to react right away (`wake` with `now`), answered as soon as the change commits: id, why, and the
+        #: actions offered (None: the stage's).
+        self.reactions: List[Tuple[str, str, Optional[List[str]]]] = []
         #: Continuous clock: the current time, when the run completes, and each agent's next wake time.
         self.time = 0.0
         self.horizon: Optional[float] = None
@@ -153,8 +157,12 @@ class SdkWorld(World):
         #: knows of: their private properties are hidden from inspect, and the contract's views say who sees them.
         self._private = {t: frozenset(p for p, spec in props.items() if spec.private)
                          for t, props in self._type_props.items() if contract.is_agent(t)}
-        self.private_names = frozenset().union(*self._private.values())
-        self.private_metrics = private_metrics(contract, self.private_names)
+        #: Every type's private properties: none is shown to agents by the engine, so game logic reading one of
+        #: another entity is a hidden read (see :attr:`hidden_reads`).
+        self._hidden = {t: frozenset(p for p, spec in props.items() if spec.private) for t, props in self._type_props.items()}
+        self.private_metrics = private_metrics(contract, frozenset().union(*self._private.values()))
+        self.private_names = frozenset().union(*self._hidden.values())
+        self.hidden_reads = 0
         #: Def results for the current world state (see :meth:`call_def`).
         self._def_cache: Dict[Any, Any] = {}
         self._def_cache_state: Any = None
@@ -189,16 +197,22 @@ class SdkWorld(World):
     def rng(self, value: Any) -> None:
         self._rng = value
 
+    def turn_deadline(self) -> Optional[float]:
+        """When the turn running in this thread or task must end (``time.monotonic()``), or None."""
+        return getattr(self._here(), "deadline", None)
+
     def draws(self) -> int:
         """How many times this thread has used a random stream: equal counts mean nothing random was drawn."""
         return getattr(self._here(), "draws", 0)
 
     @contextmanager
-    def turn_context(self, rng: Any, pending: Optional[List[Dict[str, Any]]]) -> Iterator[None]:
-        """Inside the block — in this thread or asyncio task only — random draws use ``rng`` and
-        ``$pending`` is ``pending``. Blocks nest (a reaction inside a turn) and restore on exit."""
+    def turn_context(self, rng: Any, pending: Optional[List[Dict[str, Any]]],
+                     deadline: Optional[float] = None) -> Iterator[None]:
+        """Inside the block — in this thread or asyncio task only — random draws use ``rng``, ``$pending`` is
+        ``pending`` and the turn ends at ``deadline`` (``time.monotonic()``; None: no limit), which host calls made in
+        it respect. Blocks nest (a reaction inside a turn) and restore on exit."""
         local = _TurnLocal()
-        local.rng, local.pending = rng, pending
+        local.rng, local.pending, local.deadline = rng, pending, deadline
         token = _TURN.set((self, local))
         try:
             yield
@@ -279,6 +293,9 @@ class SdkWorld(World):
 
     def is_private(self, type_name: str, prop: str) -> bool:
         return prop in self._private.get(type_name, ())
+
+    def is_hidden(self, type_name: str, prop: str) -> bool:
+        return prop in self._hidden.get(type_name, ())
 
     def records(self, name: str) -> List[Entry]:
         if name not in self.records_store:
@@ -647,6 +664,12 @@ class SdkWorld(World):
         spec = self.contract.types.get(type_name)
         if spec is None:
             raise RunError(f"'{type_name}' is not a declared type", where)
+        if self.types.living >= MAX_ENTITIES:  # an engine limit, not a rule failing: the run fails wherever it is
+            raise FatalRunError(
+                f"cannot create another '{type_name}': the world already holds {MAX_ENTITIES:,} living entities, the "
+                f"most a run may hold. Something creates entities without bound (agents creating agents?): create only "
+                f"while a limit holds, e.g. {{\"if\": \"$count({type_name}) < 1000\", \"then\": [{{\"create\": "
+                f"\"{type_name}\"}}]}}, or remove entities that are done", where)
         eid = entity_id or self.next_id(type_name)
         if eid in self.entities:
             raise RunError(f"an entity with id '{eid}' already exists", where)
@@ -658,17 +681,21 @@ class SdkWorld(World):
         space = self.space
         if at is not None:  # placed first, so props can read the position: `$layer(sugar, $it.at)`
             entity.location_id = self._check_location(at, where)
-        own = scope.child(it=entity)  # props read earlier props of the same entity: `$it.income * 0.3`
-        for prop, prop_spec in declared.items():
-            raw = props[prop] if prop in props else prop_spec.default
+        own = scope.child(it=entity)  # props read other props of the same entity: `$it.income * 0.3`
+        raws = {prop: props[prop] if prop in props else prop_spec.default for prop, prop_spec in declared.items()}
+        # Expressions: contract text given here, and a type's defaults. Participant text is never one.
+        expressions = {prop: raw for prop, raw in raws.items() if is_expr(raw) and (
+            prop not in props or (evaluate and not isinstance(raw, Untrusted)))}
+        order = self._prop_order(raws, expressions, where)
+        for prop in order:
+            raw = raws[prop]
             try:
-                expression = evaluate and prop in props and is_expr(raw) and not isinstance(raw, Untrusted)
-                if prop not in props and is_expr(raw):  # a type default is contract text
-                    expression = True
-                value = compile_expr(raw)(own) if expression else _copy(raw)
+                value = compile_expr(raw)(own) if prop in expressions else _copy(raw)
             except ExprError as exc:
                 raise RunError(str(exc), f"{where}.props.{prop}") from None
-            entity.properties[prop] = self._coerce(prop_spec, _plain(value), f"{where}.props.{prop}", entity.name)
+            entity.properties[prop] = self._coerce(declared[prop], _plain(value), f"{where}.props.{prop}", entity.name)
+        if order is not raws:  # evaluated out of declaration order: keep the declared order
+            entity.properties = {prop: entity.properties[prop] for prop in declared}
         if entity.location_id is not None:
             self._make_room(entity, entity.location_id, "cannot be placed")
         self.entities[eid] = entity
@@ -687,6 +714,18 @@ class SdkWorld(World):
         if self.lifecycle is not None:
             self.lifecycle("on_create", entity, where)
         return entity
+
+    @staticmethod
+    def _prop_order(raws: Dict[str, Any], expressions: Dict[str, Any], where: str) -> Iterable[str]:
+        """The order a new entity's props are evaluated in: declaration order (``raws`` itself), but each prop after
+        the props it reads through `$it`, whichever order they are written in."""
+        if not any("$it." in raw for raw in expressions.values()):
+            return raws
+        order, circle = default_order({prop: expressions.get(prop) for prop in raws}, "it")
+        if circle is not None:
+            raise RunError(f"props {' → '.join(circle)} read each other through $it in a circle, so none can be "
+                           "worked out first: give one of them a plain value", f"{where}.props")
+        return order
 
     def remove(self, entity: Entity, where: str = "remove") -> None:
         if not entity.alive:
@@ -837,8 +876,8 @@ class SdkWorld(World):
 
         self.journal.push(undo)
 
-    def request_reaction(self, entity_id: str, why: str) -> None:
-        entry = (entity_id, why)
+    def request_reaction(self, entity_id: str, why: str, actions: Optional[List[str]] = None) -> None:
+        entry = (entity_id, why, actions)
         self.reactions.append(entry)
 
         def undo() -> None:

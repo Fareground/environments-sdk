@@ -78,10 +78,7 @@ class WorldChecks:
 
     def _clock_space(self: "_Checker") -> None:  # type: ignore[misc]
         clock = self.c.clock
-        if isinstance(clock.rounds, str):
-            self.expr(clock.rounds, "clock.rounds", {"inputs"})
-        elif clock.rounds < 1:
-            self.error("clock.rounds", "must be at least 1")
+        self._count(clock.rounds, "clock.rounds")
         if clock.start and is_expr(clock.start):
             self.expr(clock.start, "clock.start", {"inputs"})
         elif clock.start:

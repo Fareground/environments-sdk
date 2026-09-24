@@ -161,3 +161,42 @@ def test_a_kept_worker_reads_a_relative_data_folder_where_each_batch_started(tmp
     second = run_jobs(contract, jobs, workers=2, data_dir="shared", events=False)
     assert all(r.status == "completed" for r in first + second)
     assert second == first
+
+
+_KILLED_PARENT = """
+import multiprocessing, os, signal
+from fg_env.workers import Workers
+Workers(2).executor().submit(os.getpid).result()
+print(" ".join(str(child.pid) for child in multiprocessing.active_children()), flush=True)
+os.kill(os.getpid(), signal.SIGKILL)
+"""
+
+
+def test_workers_exit_when_the_process_that_started_them_is_killed():
+    """A killed parent (a test run stopped with SIGKILL) leaves no idle worker processes behind."""
+    import os
+    import subprocess
+    import sys
+    import time
+
+    env = {**os.environ, "PYTHONPATH": os.pathsep.join(sys.path)}
+    parent = subprocess.Popen([sys.executable, "-c", _KILLED_PARENT], stdout=subprocess.PIPE, text=True, env=env)
+    with parent:  # the workers inherit its output pipe, so only the first line is read
+        pids = [int(pid) for pid in parent.stdout.readline().split()]
+        parent.wait(timeout=120)
+    assert pids, "the parent started no workers"
+
+    def alive(pid):
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        return True
+
+    deadline = time.monotonic() + 30
+    while any(alive(pid) for pid in pids) and time.monotonic() < deadline:
+        time.sleep(0.2)
+    left = [pid for pid in pids if alive(pid)]
+    for pid in left:
+        os.kill(pid, 9)
+    assert not left, f"worker processes {left} outlived their killed parent"

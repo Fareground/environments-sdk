@@ -111,14 +111,11 @@ def test_capacity_caps_orders_and_agents_orders_that_do_not_fit_are_refused_with
     contract["mechanisms"]["reorder"] = reorder(policy="manual", who="buyer", case_pack=6, capacity="32 if $it.id == 'a' else 100")
     results = []
 
-    def ann(wake):
-        if wake.round == 1:
-            results.append(wake.call("reorder_order", {"item": "a", "qty": 5}))
-            results.append(wake.call("reorder_order", {"item": "b", "qty": 1}))
-        wake.end()
+    def ann(wake):  # the refused order is spent: the next is the next turn's
+        results.append(wake.call("reorder_order", {"item": "a", "qty": 5} if wake.round == 1 else {"item": "b", "qty": 1}))
 
     env = fg_env.load(contract, seed=5)
-    env.run({"buyer": ann}, rounds=1)
+    env.run({"buyer": ann}, rounds=2)
     refused, accepted = results
     assert not refused.ok and "No room" in refused.text
     assert accepted.ok and item(env, "b")["reorder_on_order"] == 6 and item(env, "a")["reorder_orders"] == 0

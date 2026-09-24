@@ -117,7 +117,7 @@ def test_budget_mistakes_say_what_to_fix(budget, message):
 def test_cli_run_takes_a_budget(tmp_path, capsys):
     path = tmp_path / "shop.json"
     path.write_text(json.dumps(SHOP))
-    assert main(["run", str(path), "--seed", "1", "--budget", "calls=3", "--json"]) == 0
+    assert main(["run", str(path), "--seed", "1", "--budget", "calls=3", "--json"]) == 3  # cut short: degraded
     out = capsys.readouterr().out
     assert json.loads(out[out.index("{"):])["ended_by"] == "budget"
 
@@ -149,7 +149,9 @@ def test_parallel_model_calls_wait_while_the_calls_under_way_may_spend_the_token
              "stages": [{"name": "talk", "turns": "simultaneous"}]}
     client = CacheWriting([[("say", {"text": "hi"})]] * 40, pause=0.05)
     result = fg_env.run(crowd, participants.anthropic(client, "m"), seed=1, budget={"tokens": 1_000})
-    assert result.ended_by == "budget" and len(client.requests) <= 2  # not one call per agent in flight
+    # The first calls each hold the size of their prompt, so only the few that fit in what is left run at once — not one
+    # call per agent in flight; later calls hold what the last one really spent.
+    assert result.ended_by == "budget" and len(client.requests) < len(crowd["entities"])
 
 
 def test_a_host_models_cache_tokens_count_toward_the_run_budget():

@@ -6,7 +6,7 @@ import math
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from .entity import Entity
-from .action_params import MAX_SAFE_INT, TEXT_MAX_LEN, _LISTED_UNKNOWN, _STEP_TOLERANCE, _item_spec, _list_bounds, _preview
+from .action_params import MAX_SAFE_INT, TEXT_MAX_LEN, _LISTED_UNKNOWN, _STEP_TOLERANCE, _item_count, _item_spec, _list_bounds, _preview
 from .assets.intake import file_value
 from .contract import ParamSpec
 from .errors import RunError
@@ -234,7 +234,16 @@ class ActionValidation:
             raw = decoded if isinstance(decoded, list) else [part.strip() for part in text.split(",") if part.strip()]
         if not isinstance(raw, (list, tuple)):
             return None, f"must be a list, got {_preview(raw)}"
-        low, high = _list_bounds(param)
+        def count(bound: Any, key: str) -> Optional[int]:
+            path = f"actions.{action}.params.{pname}.{key}"
+            try:
+                value = compile_expr(bound)(self.world.scope(actor=actor, viewer=actor, params=params)) \
+                    if is_expr(bound) else bound
+            except ExprError as exc:
+                raise RunError(str(exc), path) from None
+            return _item_count(value, path)
+
+        low, high = _list_bounds(param, count)
         if len(raw) < low:
             return None, f"needs at least {low} item(s), got {len(raw)}"
         if len(raw) > high:

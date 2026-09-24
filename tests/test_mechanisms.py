@@ -275,6 +275,17 @@ def test_a_field_of_another_mode_or_a_typo_names_the_mode_and_its_fields():
     assert typo.fix.startswith("did you mean 'quorum'?") and "takes: who, options, method" in typo.fix
     foreign = _issues(_budget(kind="decision", mode="ballot", who="member", options=["a"], chair="member"))
     assert [i.message for i in foreign] == ["`chair` is not a field of `decision` mode `ballot`"]
+    actor = _issues(_budget(kind="decision", mode="ballot", options=["a"], voters="member"))
+    assert any(i.path == "mechanisms.budget.voters" and i.fix.startswith("did you mean 'who'?") for i in actor)
+
+
+def test_check_warns_when_an_authored_action_replaces_a_generated_one_without_its_effect():
+    expanded = fg_env.expand(COUNCIL, mechanisms=True)["actions"]["budget_vote"]
+    silent = {**COUNCIL, "actions": {"budget_vote": {**expanded, "do": []}}}
+    warned = [i for i in fg_env.check(silent) if i.severity == "warning" and i.path == "actions.budget_vote"]
+    assert len(warned) == 1 and "budget" in warned[0].message and "fg-env expand" in warned[0].fix
+    guarded = {**COUNCIL, "actions": {"budget_vote": {**expanded, "when": [{"expr": "$actor.mood >= 0", "why": "Too upset."}]}}}
+    assert not [i for i in fg_env.check(guarded) if i.path == "actions.budget_vote"]
 
 
 def test_family_ops_are_checked_against_the_action_they_name():

@@ -124,6 +124,9 @@ class Expr:
     arity_errors: FrozenSet[Tuple[str, str]] = frozenset()
     #: ``(root, name, argument count)`` — calls of a root's member, e.g. ``$pattern.season($it.sku)``.
     methods: FrozenSet[Tuple[str, str, int]] = frozenset()
+    #: ``(function, field, ...)`` chains read from what a function returned, e.g. ``("entity", "cash")`` for
+    #: ``$entity(bo).cash``.
+    call_paths: FrozenSet[Tuple[str, ...]] = frozenset()
 
     def __call__(self, scope: Scope) -> Any:
         budget = _BUDGET
@@ -211,7 +214,8 @@ def compile_expr(source: str) -> Expr:
     return Expr(source, run, frozenset(compiler.roots), frozenset(compiler.functions),
                 frozenset(compiler.symbols), frozenset(compiler.paths), frozenset(compiler.calls),
                 frozenset(compiler.item_paths), frozenset(compiler.comparisons),
-                frozenset(compiler.item_comparisons), frozenset(compiler.arity_errors), frozenset(compiler.methods))
+                frozenset(compiler.item_comparisons), frozenset(compiler.arity_errors), frozenset(compiler.methods),
+                frozenset(compiler.call_paths))
 
 
 #: What an item's own condition may read besides ``$it``: nothing that changes while a run plays.

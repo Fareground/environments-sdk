@@ -26,7 +26,7 @@ class Copying:
         """A new run continuing this one from now under changes, leaving this run untouched: another ``arm``
         (``None`` for none), ``inputs``, a contract ``patch`` or a whole replacement ``contract``, a ``seed`` for
         the luck from here on, and intervention ``effects`` applied at the fork (logged as a `fork` event,
-        invariants checked). Without changes it is :meth:`clone`.
+        invariants checked). Without changes it is :meth:`clone`; like a clone, it keeps this run's participants.
 
         Changes apply between rounds. Whatever the changed contract cannot hold of the current state is refused
         with a :class:`~fg_env.ContractError` listing each problem and its fix. See :func:`fg_env.fork`.

@@ -12,6 +12,8 @@ import fg_env
 from fg_env import expr
 from fg_env.mechanisms import order_book
 
+pytestmark = pytest.mark.slow  # statistical or engine-behaviour: `make test-fast` leaves it out
+
 PATH = Path(__file__).parents[1] / "examples" / "contracts" / "exchange_flagship.json"
 SMALL = {"participants": 40, "bars": 4, "substeps": 6}
 CRASH = [{"bar": 2, "headline": "DEMO's auditor resigns.", "shock_pct": -30, "sentiment": -1, "duration_bars": 3}]
@@ -149,7 +151,7 @@ FACT_BOUNDS = {
 def realism_facts(result):
     assert result.status == "completed", result.error
     out = result.outputs
-    stats, calibration = out["stats"], out["calibration"]
+    stats, calibration = out["bar_stats"], out["calibration"]
     assert out["depth_avg"] > 0
     return {"realism_score": out["realism_score"], "kurtosis": stats["kurtosis"], "acf_abs": stats["acf_abs"],
             "abs_acf1": abs(stats["acf1"]), "sigma_ratio": stats["sigma"] / calibration["target_sigma"],

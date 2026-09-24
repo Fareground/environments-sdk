@@ -5,7 +5,7 @@
 Start with `guide('authoring')` (`fg-env guide authoring`): one page with a complete worked contract, the
 write → check → preview → run loop and the core language. It is enough for a first environment; read the parts
 below only when you need them. To have a model do the loop for you: `fg-env author brief.md --model
-anthropic:<model>` (`fg_env.author`); it keeps the latest contract that checks without errors and plays soundly.
+anthropic:<model>` (`fg_env.author`); it keeps the best contract that checks without errors and plays soundly.
 
 ## Sections
 
@@ -65,6 +65,24 @@ Ready-made rules that expand into ordinary actions, stages, views and outputs:
 | `mind` | beliefs, personas, memory | What agents know and remember: beliefs with confidence, memory with recall, generated personas. |
 | `conditions` | status, cooldowns, channeling, terrain | Effects on entities over time: statuses, cooldowns, channeled actions and terrain. |
 | `host` | judge, game_master, tool, recap | Services the host provides during a run: an LLM judge, a game master, recaps and tools such as web search. |
+
+## Engines
+
+Complete, runnable scenarios with coded participants, to copy and edit rather than start blank:
+`fg-env new --engine <id> my_env.json` (`fg_env.clone_engine`); `fg-env engines` lists them.
+
+- `market` — households choose whether and where to buy while sellers set prices
+- `council` — a panel forecasts a yes/no question, deliberates and forecasts again (Brier-scored)
+- `dispute` — a civil trial: evidence, objections and cross-examination before a judge, then a jury verdict
+- `exchange` — a calibrated trader crowd on a limit order book, with a few trader seats
+- `legislature` — members move, second, amend, debate and vote on a measure
+- `contest` — participants submit each round and a host judge scores them on a rubric
+- `deliberation` — people exchange reasons, propose a conclusion and vote on it
+- `negotiation` — two parties trade multi-issue offers and counteroffers before a deadline
+- `population` — sampled people each respond to one situation; the responses are aggregated
+- `network` — an idea spreads over trust ties from its first adopters
+- `matching` — applicants and selectors rank each other; a stable match within capacity
+- `strategy` — repeated cooperate-or-compete choices among players under a payoff matrix
 
 ## Every other part
 

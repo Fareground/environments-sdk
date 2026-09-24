@@ -71,6 +71,10 @@ class ExprError(ValueError):
         super().__init__(f"{message} — in `{source}`" if source else message)
 
 
+class WrongKind(ExprError):
+    """A value of the wrong kind for an operation: text or a bool where a number is needed."""
+
+
 class PrivateRead(ExprError):
     """What one agent is shown or offered (``$viewer`` is bound) read another agent's private property."""
 

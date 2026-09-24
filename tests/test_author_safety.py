@@ -80,7 +80,7 @@ def test_a_contract_longer_than_the_test_budget_works_with_its_untested_rounds_n
     note = tool_replies(client)[0]
     assert note.startswith("Saved revision 1: it works — it checks clean, and runs without a problem on 3 seeds")
     assert " of 100,000 rounds in every test run within the 0.2s test budget; longer runs untested." in note
-    assert result.untested in note and result.untested in result.summary()
+    assert result.tested.untested in note and f"PARTLY TESTED: {result.tested.untested}" in result.summary()
 
 
 def test_a_crash_within_the_rounds_the_test_budget_reaches_still_counts(monkeypatch):
@@ -154,7 +154,7 @@ def test_anthropic_cache_reads_are_counted_apart():
     result = fg_env.author("A game.", "anthropic:m", client=SimpleNamespace(messages=SimpleNamespace(create=create)),
                            budget={"calls": 1})
 
-    assert (result.usage["input_tokens"], result.usage["cached_tokens"]) == (55, 800)
+    assert (result.usage["input_tokens"], result.usage["cached_tokens"], result.usage["cache_write_tokens"]) == (5, 800, 50)
 
 
 def test_an_empty_reply_is_retried_and_one_that_persists_stops_the_session(monkeypatch):

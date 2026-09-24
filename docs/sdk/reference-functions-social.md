@@ -2,7 +2,7 @@
 
 ## Functions: social
 
-- `$adopters(item)` — How many agents currently hold an item (adopted, not rejected).
+- `$adopter_count(item)` — How many agents currently hold an item (adopted, not rejected).
 - `$channel_log(agent, channel, n?, mechanism?)` — The latest n messages of a channel as the agent reads them (default: the read limit).
 - `$channels(agent, mechanism?)` — Rooms and groups an agent may post in (social channels mechanism).
 - `$exposures(agent, item)` — How many times an agent was exposed to an item.

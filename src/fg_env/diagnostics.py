@@ -6,15 +6,16 @@ that never has anything to do, a stage that can never run, a measure that stays 
 it reads, a coded policy rule whose call is refused every time it is tried, a host's answers that were the contract's
 fallback stand-ins because no host was bound. These are read from what the run counted (:mod:`fg_env.run_diagnosis`)
 and reported on ``RunResult.diagnostics``, in ``result.summary()`` and as warnings from ``fg_env.check``. Each is reported only on evidence that random play cannot
-explain away, so a clean contract raises none. Turns an LLM participant forfeited to a failing model provider, and
-agents that never acted or most of whose turns failed, are reported too: such a run does not show how its agents play.
+explain away, so a clean contract raises none. Turns an LLM participant forfeited to a failing model provider, agents
+that never acted or most of whose turns failed, and a run its budget cut short are reported too: such a run does not
+show how its agents play (any failed turns of a model participant, or turns out of time, are reported with their rate).
 """
 from __future__ import annotations
 
 import json
 import math
 import re
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Set, Tuple
 
 if TYPE_CHECKING:
     from .runtime import Env
@@ -30,10 +31,11 @@ MIN_ROUNDS = 2
 #: An action that failed this often as it applied, and never once took effect, is broken for every choice, not just some.
 ALWAYS_FAULTED = 2
 #: Findings that mean the run does not show what the environment is for: an action that can never happen, agents that
-#: never acted or whose turns mostly failed, agents that never had an action to take, turns lost to a failing provider.
+#: never acted or whose turns mostly failed, agents that never had an action to take, turns lost to a failing provider,
+#: an output that raised an error, a run its budget cut short, host answers that were the contract's stand-ins.
 #: ``RunResult.degraded`` lists them, and such a run is not ``ok``.
 DEGRADING = frozenset({"action_always_faulted", "agents_never_acted", "agents_mostly_failed", "agents_never_able_to_act",
-                       "turns_forfeited"})
+                       "turns_forfeited", "output_failed", "budget_cut", "host_fallback"})
 #: An agent more than this share of whose turns failed (``Stats.failed_turns``) does not show how it plays.
 FAILED_SHARE = 0.5
 #: Agents named in one finding; the rest are counted.
@@ -50,11 +52,27 @@ _BUILT_IN_FIELDS = {"id", "name", "type", "alive", "at"}
 _RULE_SECTIONS = ("actions", "stages", "events", "triggers", "blocks", "end", "feeds", "physics", "policies")
 
 
-def diagnose(env: "Env", outputs: Dict[str, Any]) -> List[Dict[str, str]]:
-    """Every likely logic problem the run so far shows, as ``{code, path, message, fix}``."""
+def diagnose(env: "Env", outputs: Dict[str, Any], issues: Sequence[Dict[str, Any]] = ()) -> List[Dict[str, str]]:
+    """Every likely logic problem the run so far shows, as ``{code, path, message, fix}``; ``issues`` are the outputs
+    that could not be worked out (``RunResult.output_issues``)."""
     rules = _Rules(env)
-    return [*_forfeits(env), *_never_acted(env), *_out_of_steps(env), *_arm_inputs(env), *_host_fallbacks(env), *_faults(env), *_actions(env), *_policy_rules(env),
-            *_overwrites(env), *_idle_agents(env), *_stages(env, rules), *_stuck_measures(env, outputs, rules)]
+    failed = [issue for issue in issues if issue["path"].startswith("outputs.")]
+    return [*(_finding("output_failed", issue["path"], issue["message"],
+                       issue.get("fix") or "fix the expression, or guard the case it fails in") for issue in failed),
+            *_budget_cut(env), *_forfeits(env), *_never_acted(env), *_out_of_steps(env), *_arm_inputs(env),
+            *_host_fallbacks(env), *_faults(env), *_actions(env), *_policy_rules(env),
+            *_overwrites(env), *_idle_agents(env), *_stages(env, rules),
+            *_stuck_measures(env, outputs, rules, {issue["path"] for issue in failed})]
+
+
+def _budget_cut(env: "Env") -> List[Dict[str, str]]:
+    budget = env.budget
+    if budget is None or budget.exhausted is None:
+        return []
+    return [_finding("budget_cut", "budget",
+                     f"{budget.message(env).rstrip('.')}, so the outputs are those of a run cut short, not of the "
+                     "environment played to its end",
+                     "give the run a larger budget, or fewer `rounds`, when the outputs are to count")]
 
 
 def _forfeits(env: "Env") -> List[Dict[str, str]]:
@@ -83,7 +101,8 @@ def _out_of_steps(env: "Env") -> List[Dict[str, str]]:
 
 def _never_acted(env: "Env") -> List[Dict[str, str]]:
     """Agents that tried — called a model, or tools that were invalid or refused — and none of it ever became an
-    action, and model-driven agents most of whose turns failed that way. A coded agent's misses are its author's code
+    action, and model-driven agents (or ones whose turns ran out of time) most or some of whose turns failed that way.
+    A coded agent's misses are its author's code
     and may be blind (random play): it is reported only when no agent acted at all. (Refusals from a rule that failed
     are the contract's: `action_always_faulted` reports those; an agent type that never had an action,
     `agents_never_able_to_act`.)"""
@@ -91,17 +110,20 @@ def _never_acted(env: "Env") -> List[Dict[str, str]]:
         return []
     never_able = {kind for kind, entry in sorted(env.diagnosis.agents.items()) if not entry["able"]}
     nobody_acted = not env.stats.actions
-    never, failing = [], []
+    never, failing, some = [], [], []
     for agent, stats in sorted(env.agent_stats.items()):
         entity = env.world.entities.get(agent)
         if not stats.wakes or (entity is not None and entity.entity_type in never_able):
             continue
         refused = stats.rejected_actions - stats.faulted_actions
         tried = stats.llm_calls or stats.invalid_calls or refused or stats.refusals
+        watched = stats.llm_calls or stats.timeouts  # a model's misses, and turns out of time, are never blind choices
         if not stats.actions and tried and (stats.llm_calls or nobody_acted):
             never.append((agent, stats))
-        elif stats.llm_calls and stats.failed_turns > FAILED_SHARE * stats.wakes:
+        elif watched and stats.failed_turns > FAILED_SHARE * stats.wakes:
             failing.append((agent, stats))
+        elif watched and stats.failed_turns:
+            some.append((agent, stats))
     out = []
     if never:
         out.append(_finding("agents_never_acted", "participants",
@@ -121,7 +143,21 @@ def _never_acted(env: "Env") -> List[Dict[str, str]]:
                             "result.exposures); for replies cut off, give the participant more `max_tokens`; for model "
                             "calls used up, more `max_steps` or clearer tools; for replies with no tool call, a brief "
                             "and tools that make the choice clear"))
+    if some:
+        failed, wakes = sum(s.failed_turns for _, s in some), sum(s.wakes for _, s in some)
+        out.append(_finding("some_turns_failed", "participants",
+                            f"{failed} of {wakes} turns ({failed / wakes:.0%}) of {_named(some)} ended with no action "
+                            f"though one was available "
+                            f"({', '.join(f'{agent} {s.failed_turns} of {s.wakes}' for agent, s in some[:_LISTED])}): "
+                            f"{_attempts(some)}{_timeouts(some)}",
+                            "read those turns (load with exposures=True, then result.exposures); turns out of time "
+                            "need a longer `time_limit` or a faster participant"))
     return out
+
+
+def _timeouts(agents: List[Tuple[str, Any]]) -> str:
+    count = sum(stats.timeouts for _, stats in agents)
+    return f", {count} turn(s) out of time" if count else ""
 
 
 def _named(agents: List[Tuple[str, Any]]) -> str:
@@ -289,11 +325,12 @@ def _stages(env: "Env", rules: "_Rules") -> List[Dict[str, str]]:
     return out
 
 
-def _stuck_measures(env: "Env", outputs: Dict[str, Any], rules: "_Rules") -> List[Dict[str, str]]:
+def _stuck_measures(env: "Env", outputs: Dict[str, Any], rules: "_Rules", failed: Set[str]) -> List[Dict[str, str]]:
     out = []
     if env.finished and env.status != "failed":
         for name, spec in env.contract.outputs.items():
-            cause = rules.cause(spec.expr) if name in outputs and outputs[name] is None else None
+            empty = name in outputs and outputs[name] is None and f"outputs.{name}" not in failed
+            cause = rules.cause(spec.expr) if empty else None
             if cause:
                 out.append(_finding("output_empty", f"outputs.{name}", f"is empty (null) at the end of the run: {cause}",
                                     "set what it reads in an action or event, or read what the rules do change"))
