@@ -127,7 +127,7 @@ def test_the_mechanism_family_table_lists_every_mode():
             assert f"- `{mode}`:" in page
             mode_page = guide(f"{name}.{mode}")
             assert mode_page.startswith(f"### `{name}.{mode}`")
-            for field in spec.config.model_fields:
+            for field in set(spec.config.model_fields) - {"kind", "mode"}:  # the entry's own kind and mode
                 assert f"- `{field}` (" in mode_page, (name, mode, field)
             marker = f"Actions of the `{name}` op:"
             listed = mode_page[mode_page.index(marker):] if marker in mode_page else ""

@@ -64,8 +64,8 @@ def _with_imports(data: Any, folder: Path, stack: tuple[Path, ...]) -> Any:
 
 def _resolve_imports(data: Mapping[str, Any], folder: Path, root: Path, stack: tuple[Path, ...], count: list[int],
                      where: str) -> dict[str, Any]:
-    """``data`` (macros already expanded) with its imports merged in. Each file's macros are expanded
-    before it is merged, so the importing contract's own entries, generated or written, win."""
+    """``data`` (macros already expanded) with its imports merged in. Each file's macros are expanded and its earlier
+    forms normalized before it is merged, so the importing contract's own entries, generated or written, win."""
     from .mechanisms import merge_sections
     from .registry import MechanismError
 
@@ -93,14 +93,13 @@ def _resolve_imports(data: Mapping[str, Any], folder: Path, root: Path, stack: t
         fragment = _json(_file_text(target), _shown(str(target)))
         if not isinstance(fragment, dict):
             raise ContractError([Issue(path, f"'{_shown(relative)}' must hold a JSON object of contract sections")])
-        fragment = _resolve_imports(expand_macros(fragment), target.parent, root, (*stack, target), count,
-                                    f"{path}.imports")
+        fragment = _resolve_imports(normalize(expand_macros(fragment))[0], target.parent, root, (*stack, target),
+                                    count, f"{path}.imports")
         for key in ("fg_env", "name", "description"):
             fragment.pop(key, None)
         try:
-            for key in ("space", "physics"):
-                if key in fragment:
-                    out.setdefault(key, fragment.pop(key))
+            if "space" in fragment:
+                out.setdefault("space", fragment.pop("space"))
             merge_sections(out, fragment)
         except MechanismError as exc:
             raise ContractError([Issue(path, f"cannot merge '{_shown(relative)}': {exc}", exc.fix)]) from None

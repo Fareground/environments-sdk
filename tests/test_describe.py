@@ -123,8 +123,8 @@ def test_feeds_noise_hooks_lossy_messages_atomic_turns_and_spectators_are_descri
     assert outbreak["external_data"] == [{"feed": "weather", "host": "weather", "into": "world.temperature",
                                           "every": 1}]
     chance = outbreak["evidence"]["chance_mode"]
-    assert "feeds.weather.fallback calls $normal" in chance
-    assert "physics.per.resident.vars.viral_load.noise is a random term" in chance
+    assert "mechanisms.weather.fallback calls $normal" in chance
+    assert "mechanisms.physics.per.resident.vars.viral_load.noise is a random term" in chance
     assert "actions.advise.do[0] may lose the message (drop)" in chance
     assert outbreak["information"] == "imperfect"
     assert ({"entity_dynamics", "lifecycle_hooks", "external_data", "delayed_or_lossy_messages"}

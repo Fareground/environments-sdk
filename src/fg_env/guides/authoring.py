@@ -117,11 +117,10 @@ Every section is optional except `name` and `types`. `guide('<section>')` has ea
 | `end` | `[{when, winner, say, check: stage or action}]` |
 | `metrics`, `outputs` | `{name: expr}` or `{name: {expr, type}}`; an output's `format` (money, pct, 2 …) shapes summaries |
 | `invariants` | `[expr or {expr, why}]` — must always hold |
-| `patterns` | `{name: {kind, …}}` — trends, seasons, random paths, draws; read `$pattern.name` |
-| `mechanisms` | `{name: {kind, mode, ...}}` — markets, auctions, ballots, hidden roles, queues …; `guide('mechanisms')` |
+| `mechanisms` | `{name: {kind, mode, ...}}` — markets, ballots, hidden roles, queues, physics, patterns (`{kind: pattern, mode: trend, …}`, read `$pattern.name`) …; `guide('mechanisms')` |
 | `policies` | `{name: {rules: [{when, do, with}]}}` — coded participants for baselines (`policy:<name>`) |
 
-Also: `assets`, `game`, `triggers`, `space`, `relations`, `links`, `physics`, `feeds`, `arms`, `calibration`,
+Also: `assets`, `game`, `triggers`, `space`, `relations`, `links`, `arms`, `calibration`,
 `defs`, `blocks`, `imports`. Property types: number int bool text enum list map any. Without `type` the default
 decides: a number → `number` (fractions too; `"type": "int"` for whole numbers), true/false → `bool`, text → `text`
 (`enum` with `values`), a list or object → `list`/`map`, an expression → `any`. Inputs also take `table` (rows with

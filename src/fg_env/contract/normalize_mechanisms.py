@@ -73,6 +73,134 @@ def removed_modes(data: dict[str, Any]) -> list[str]:
     return []
 
 
+@rule
+def sections_as_mechanisms(data: dict[str, Any]) -> list[str]:
+    """The ``physics``, ``feeds`` and ``patterns`` sections, which are mechanisms now: ``physics`` the one named
+    physics (kind ``dynamics``, mode ``ode``), each feed a ``host.feed``, each pattern a ``pattern`` whose mode is its
+    kind (a triangular draw's ``mode`` is its ``peak``) — in the contract and in its arms' patches. A pattern named
+    like another mechanism is renamed ``<name>_pattern``, with every reference to it."""
+    arms = data.get("arms")
+    patches = [(f"arms.{arm}.patch", spec["patch"]) for arm, spec in (arms.items() if isinstance(arms, Mapping) else ())
+               if isinstance(spec, Mapping) and isinstance(spec.get("patch"), dict)]
+    moving = ("physics", "feeds", "patterns")
+    if not any(key in part for _, part in [("", data), *patches] for key in moving):
+        return []
+    uses = data.setdefault("mechanisms", {}) if any(key in data for key in moving) else data.get("mechanisms", {})
+    if not isinstance(uses, dict):
+        return []  # the parser reports the malformed section
+    section = data.get("patterns")
+    patterns: Mapping[str, Any] = section if isinstance(section, Mapping) else {}
+    kinds = {name: spec.get("kind") for name, spec in patterns.items() if isinstance(spec, Mapping)}
+    renames, notes = _renamed_patterns(data, uses, patterns)
+    kinds = {renames.get(name, name): kind for name, kind in kinds.items()}
+    notes += _moved(data, uses, "", renames, kinds, whole=True)
+    for path, patch in patches:
+        notes += _moved(patch, patch.setdefault("mechanisms", {}), f"{path}.", renames, kinds, whole=False)
+    return notes
+
+
+def _renamed_patterns(data: dict[str, Any], uses: Mapping[str, Any], patterns: Mapping[str, Any]
+                      ) -> tuple[dict[str, str], list[str]]:
+    """The patterns named like a mechanism of another kind, renamed (old → new) with every reference, and a note for
+    each."""
+    taken, renames, notes = {*uses, *patterns}, {}, []
+    for name in [name for name in patterns if name in uses and not _is(uses[name], "pattern")]:
+        target = _free(f"{name}_pattern", taken)
+        taken.add(target)
+        renames[name] = target
+        _rename_pattern(data, name, target)
+        notes.append(f"patterns.{name} is named like mechanism '{name}': renamed '{target}' with every reference "
+                     "(its random draws follow the new name)")
+    return renames, notes
+
+
+def _moved(part: dict[str, Any], uses: Any, path: str, renames: Mapping[str, str], kinds: Mapping[str, Any],
+           whole: bool) -> list[str]:
+    """Move one document's (or patch's) sections into its ``mechanisms``. An entry updates the mechanism of its name
+    when there is one of its kind (a document mixing both forms); in a patch, an entry that names no kind changes the
+    contract's mechanism of that name, so it gets no kind and mode of its own."""
+    if not isinstance(uses, dict):
+        return []
+    notes = []
+    physics = part.get("physics")
+    if isinstance(physics, Mapping):
+        existing = uses.get("physics")
+        if existing is not None and not _is(existing, "dynamics", "ode"):
+            raise ContractError([Issue(f"{path}mechanisms.physics", "the `physics` section is now the mechanism named "
+                                       "physics, and another mechanism has that name", "rename that mechanism")])
+        del part["physics"]
+        uses["physics"] = {"kind": "dynamics", "mode": "ode", **(existing or {}), **physics}
+        notes.append(f"{path}physics → {path}mechanisms.physics (kind 'dynamics', mode 'ode')")
+    for name, spec in _section(part, "feeds"):
+        existing = uses.get(name)
+        if existing is not None and not _is(existing, "host", "feed"):
+            raise ContractError([Issue(f"{path}feeds.{name}", "feeds are mechanisms now, and another mechanism is "
+                                       f"named '{name}'", "rename the feed")])
+        uses[name] = {"kind": "host", "mode": "feed", **(existing or {}), **spec}
+        notes.append(f"{path}feeds.{name} → {path}mechanisms.{name} (kind 'host', mode 'feed')")
+    for old, spec in _section(part, "patterns"):
+        name = renames.get(old, old)
+        kind = spec.pop("kind", None)
+        existing = uses.get(name) if _is(uses.get(name), "pattern") else None
+        if (kind or (existing or {}).get("mode") or kinds.get(name)) == "draw" and "mode" in spec:
+            spec["peak"] = spec.pop("mode")
+        entry = {**(existing or {}), **spec}
+        if kind is not None or (whole and not existing):
+            entry = {"kind": "pattern", "mode": kind, **{k: v for k, v in entry.items() if k not in ("kind", "mode")}}
+        uses[name] = entry
+        notes.append(f"{path}patterns.{old} → {path}mechanisms.{name} (kind 'pattern', mode '{entry.get('mode')}')")
+    return notes
+
+
+def _is(use: Any, kind: str, mode: str | None = None) -> bool:
+    return isinstance(use, Mapping) and use.get("kind") == kind and (mode is None or use.get("mode") == mode)
+
+
+def _section(data: dict[str, Any], key: str) -> list[tuple[str, dict[str, Any]]]:
+    """The entries of a section moved into mechanisms (the section itself removed); a malformed one stays for the
+    parser to report."""
+    section = data.get(key)
+    if not isinstance(section, Mapping) or not all(isinstance(spec, Mapping) for spec in section.values()):
+        return []
+    del data[key]
+    return [(str(name), dict(spec)) for name, spec in section.items()]
+
+
+def _free(name: str, taken: set[str]) -> str:
+    candidate, number = name, 1
+    while candidate in taken:
+        number += 1
+        candidate = f"{name}_{number}"
+    return candidate
+
+
+#: Config fields that name a pattern (a demand's rate, factors and noise; a product's operands; a lead time …).
+_PATTERN_FIELDS = frozenset({"pattern", "noise", "rate", "factors", "of", "adjust"})
+
+
+def _rename_pattern(data: Any, old: str, new: str) -> None:
+    """Point every reference to the pattern ``old`` at ``new``: reads in expressions and templates, and the config
+    fields that name a pattern."""
+    reads = re.compile(r"(\$pattern\.)" + re.escape(old) + r"(?![A-Za-z0-9_])|(\$pattern_values\(\s*['\"])"
+                       + re.escape(old) + r"(?=['\"])")
+
+    def visit(value: Any, key: str | None) -> Any:
+        if isinstance(value, str):
+            if key in _PATTERN_FIELDS and value == old:
+                return new
+            return reads.sub(lambda m: (m.group(1) or m.group(2)) + new, value)
+        if isinstance(value, list):
+            return [visit(item, key if key in _PATTERN_FIELDS else None) for item in value]
+        if isinstance(value, dict):
+            renamed = {(new if key == "x" and name == old else name): visit(item, name)
+                       for name, item in value.items()}  # a fit's x: {pattern: column}
+            value.clear()
+            value.update(renamed)
+        return value
+
+    visit(data, None)
+
+
 def _uses(data: Mapping[str, Any]) -> list[tuple[str, dict[str, Any]]]:
     uses = data.get("mechanisms")
     if not isinstance(uses, Mapping):

@@ -16,13 +16,14 @@ Shapes (how a kind is read):
 """
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-__all__ = ["Number", "PatternConfig", "FitSpec", "KindSpec", "KINDS", "GROUPS", "SHAPES", "kind", "MEMORY_STATE"]
+__all__ = ["Number", "PatternConfig", "FitSpec", "KindSpec", "KINDS", "GROUPS", "SHAPES", "kind", "MEMORY_STATE",
+           "declared"]
 
 #: A number, or an expression over ``$inputs`` (and ``$key``/``$row`` for keyed patterns) giving one.
 Number = float | str
@@ -146,6 +147,15 @@ class KindSpec:
 
 
 KINDS: dict[str, KindSpec] = {}
+
+
+def declared(contract: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
+    """The patterns of contract data by name, each as its kind's data (``{"kind": "trend", ...}``): the `pattern`
+    mechanisms."""
+    uses = contract.get("mechanisms")
+    return {str(name): {"kind": use.get("mode"), **{k: v for k, v in use.items() if k not in ("kind", "mode")}}
+            for name, use in (uses.items() if isinstance(uses, Mapping) else ())
+            if isinstance(use, Mapping) and use.get("kind") == "pattern"}
 
 
 def kind(name: str, group: str, shape: Literal["signal", "process", "draw", "response", "memory", "composite"],

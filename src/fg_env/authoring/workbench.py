@@ -101,7 +101,7 @@ def removed_parts(before: dict[str, Any], after: dict[str, Any]) -> list[str]:
 
 
 #: The contract sections made of parts: together, what an environment is.
-_SECTIONS = ("inputs", "assets", "world", "types", "entities", "population", "relations", "links", "feeds", "patterns",
+_SECTIONS = ("inputs", "assets", "world", "types", "entities", "population", "relations", "links",
              "records", "actions", "stages", "views", "events", "triggers", "policies", "metrics", "outputs", "end",
              "arms", "invariants", "defs", "blocks", "mechanisms")
 #: The sections whose parts are rules with effects (`do`).

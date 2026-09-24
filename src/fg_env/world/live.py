@@ -663,10 +663,10 @@ class SdkWorld(World):
     def set_physics(self, name: str, value: Any) -> None:
         model = self.physics
         if model is None:
-            raise RunError("this environment declares no physics", f"physics.{name}")
+            raise RunError("this environment declares no physics", f"mechanisms.physics.{name}")
         if not _finite_number(value):
             raise RunError(f"must be a finite number that fits in a float, got {_shown_value(value)}",
-                           f"physics.{name}")
+                           f"mechanisms.physics.{name}")
         if name in model.variables:
             var = model.variables[name]
             old = var.value
@@ -682,7 +682,7 @@ class SdkWorld(World):
             model.params[name] = float(value)
             self.journal.push(lambda: model.params.__setitem__(name, old_param))
         else:
-            raise RunError(f"physics has no variable or param '{name}'", f"physics.{name}")
+            raise RunError(f"physics has no variable or param '{name}'", f"mechanisms.physics.{name}")
 
     def next_id(self, type_name: str) -> str:
         n = self.counters.get(type_name, 0)
@@ -966,7 +966,7 @@ class SdkWorld(World):
             return world_physics.step_physics(self, elapsed)
         except Abort as refusal:
             raise RunError(f"{refusal.reason} Keep the formula in range, e.g. with clamp(x, low, high)",
-                           "physics") from None
+                           "mechanisms.physics") from None
 
     # -- helpers ---------------------------------------------------------------
 

@@ -71,11 +71,6 @@ def parse_contract(data: Any) -> Contract:
     expanded, mechanism_issues = expand_mechanisms(source)
     if mechanism_issues:
         raise ContractError(_dedupe(mechanism_issues))
-    from ..patterns.expand import expand_patterns
-
-    expanded, pattern_issues = expand_patterns(expanded)
-    if pattern_issues:
-        raise ContractError(_dedupe(pattern_issues))
     try:
         contract = Contract.model_validate(expanded)
         contract._source = source

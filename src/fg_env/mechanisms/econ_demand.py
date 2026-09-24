@@ -16,7 +16,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..expr import Call, ExprError, compile_expr, function
-from ..patterns.base import KINDS
+from ..patterns.base import KINDS, declared
 from ..registry import MechanismError, mode
 from .econ_base import (
     DEMAND,
@@ -179,7 +179,7 @@ def _expand_demand(name: str, config: DemandConfig, contract: Mapping[str, Any])
     if config.segment in config.segments:
         raise MechanismError(f"'{config.segment}' is the main segment and a listed segment", "rename one of them",
                              "segments")
-    patterns = contract.get("patterns") or {}
+    patterns = declared(contract)
     drivers: list[str] = []
     for segment, spec in segments.items():
         path = "" if segment == config.segment else f"segments.{segment}."

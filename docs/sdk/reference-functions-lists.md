@@ -6,7 +6,7 @@
 - `$cumsum(series)` — Running totals: item i is the sum of items 0..i.
 - `$diff(series)` — Differences between consecutive items (one shorter than the series).
 - `$difference(a, b)` — Items of `a` that are not in `b`, each once, in `a`'s order.
-- `$index(list, value)` — Position of the first item equal to `value` (entities match their id), or -1.
+- `$index(list, value)` — Position of the first item equal to `value` (entities match their id), or -1. In text, the position of the first `value` in it (case-sensitive), or -1.
 - `$insert(list, index, value)` — A copy of the list with `value` inserted before position `index` (the length appends).
 - `$intersect(a, b)` — Items of `a` that are also in `b`, each once, in `a`'s order.
 - `$items(map)` — The entries of a map as [key, value] pairs.

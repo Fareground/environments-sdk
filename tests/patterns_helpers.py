@@ -9,18 +9,26 @@ import fg_env
 
 def world(patterns: dict[str, Any], *, rounds: int = 6, clock: dict[str, Any] | None = None,
           metrics: dict[str, Any] | None = None, **sections: Any) -> dict[str, Any]:
-    """A contract with one idle agent, the given patterns, and a metric for every recorded measure."""
+    """A contract with one idle agent, the given patterns (``{name: {kind, ...}}``, declared as `pattern`
+    mechanisms), and a metric for every recorded measure."""
     contract: dict[str, Any] = {
         "name": "Patterns under test",
         "clock": {"rounds": rounds, **(clock or {})},
         "types": {"clerk": {"agent": True}, **sections.pop("types", {})},
         "entities": {"clerk": {"type": "clerk"}, **sections.pop("entities", {})},
         "actions": {"wait": {"by": "clerk", "do": []}},
-        "patterns": copy.deepcopy(patterns),
+        "mechanisms": {**declared(patterns), **sections.pop("mechanisms", {})},
         "metrics": dict(metrics or {}),
     }
     contract.update(sections)
     return contract
+
+
+def declared(patterns: dict[str, Any]) -> dict[str, Any]:
+    """Patterns written ``{name: {kind, ...}}`` as the mechanisms they are declared as."""
+    return {name: {"kind": "pattern", "mode": spec.get("kind"), **{k: v for k, v in copy.deepcopy(spec).items()
+                                                                    if k != "kind"}}
+            for name, spec in patterns.items()}
 
 
 def series(patterns: dict[str, Any], measures: dict[str, str], *, seed: int = 1, values: dict[str, Any] | None = None,

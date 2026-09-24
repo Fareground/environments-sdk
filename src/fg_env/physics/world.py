@@ -22,25 +22,25 @@ def build_physics(world: SdkWorld) -> None:
     scope = world.scope()
     params: dict[str, float] = {}
     for name, raw in spec.params.items():
-        params[name] = _constant(world, raw, f"physics.params.{name}")
+        params[name] = _constant(world, raw, f"mechanisms.physics.params.{name}")
     for name in spec.read:
         if name in spec.vars or name in spec.params:
             raise RunError(f"'{name}' is both a read name and a variable or param; give the read its own name",
-                           f"physics.read.{name}")
+                           f"mechanisms.physics.read.{name}")
         params.setdefault(name, 0.0)
     variables = []
     for name, var in spec.vars.items():
         start = compile_expr(var.start)(scope) if is_expr(var.start) else var.start
-        variables.append(PhysicsVariable(name=name, value=_number(start, f"physics.vars.{name}.start"),
+        variables.append(PhysicsVariable(name=name, value=_number(start, f"mechanisms.physics.vars.{name}.start"),
                                          rate=var.rate, noise=var.noise, min=var.min, max=var.max))
     try:
         world.physics = PhysicsModel(variables=variables, params=params, substeps=spec.substeps)
         world.physics_writes = [(target, _CompiledExpr(src)) for target, src in spec.write.items()]
     except PhysicsExprError as exc:
-        raise RunError(str(exc), "physics") from None
+        raise RunError(str(exc), "mechanisms.physics") from None
     world.entity_dynamics = []
     for type_name, dynamics in spec.per.items():
-        constants = {name: _constant(world, raw, f"physics.per.{type_name}.params.{name}")
+        constants = {name: _constant(world, raw, f"mechanisms.physics.per.{type_name}.params.{name}")
                      for name, raw in dynamics.params.items()}
         world.entity_dynamics.append(EntityDynamicsStep(world, type_name, dynamics, constants))
     _refresh_reads(world)
@@ -71,7 +71,7 @@ def step_physics(world: SdkWorld, elapsed: float | None = None) -> list[dict[str
         world.rng.setstate(rng_state)
         world.touch()
         if isinstance(exc, (ArithmeticError, ValueError)):
-            raise RunError(f"dynamics broke down numerically ({exc})", "physics") from None
+            raise RunError(f"dynamics broke down numerically ({exc})", "mechanisms.physics") from None
         raise
 
 
@@ -112,8 +112,8 @@ def _refresh_reads(world: SdkWorld) -> None:
         try:
             value = compile_expr(src)(scope)
         except ExprError as exc:
-            raise RunError(str(exc), f"physics.read.{name}") from None
-        world.physics.params[name] = _number(value, f"physics.read.{name}")
+            raise RunError(str(exc), f"mechanisms.physics.read.{name}") from None
+        world.physics.params[name] = _number(value, f"mechanisms.physics.read.{name}")
 
 
 def _constant(world: SdkWorld, raw: Any, where: str) -> float:

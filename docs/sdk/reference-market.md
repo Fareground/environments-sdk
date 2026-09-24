@@ -31,9 +31,6 @@ Functions:
 - `$book_ok(name)` — True while the book's accounting holds: reserves equal resting orders, balances within limits, the book in price-time order and never crossed.
 - `$book_orders(name, trader)` — A trader's resting orders, best price first: [{id, side, price, qty, seq, round}].
 - `$book_rules(name, rules)` — An order book's venue rules {tick_size, lot_size, ...}, each checked against its limits; the book's generated `<name>_rules` world prop resolves its expressions through it.
-- `$excess_kurtosis(values)` — Excess kurtosis of a series (0 for a normal; positive = fat tails).
-- `$market_realism(series, reference)` — Realism score of a simulated tape against a reference: {score, components} on volatility, fat tails, no return memory, volatility clustering, volume and volume-volatility correlation. Each side is a price list, {prices, volumes} or $market_stats(...).
-- `$market_stats(prices, volumes?)` — Stylized facts of a price series: {bars, sigma, mean_return, kurtosis, acf1, acf_abs, max_drawdown, total_return, avg_volume, vol_volume_corr}.
 - `$package_winners(bids, reserves?, payment?)` — Exact winner determination for package bids [{bidder, items, price}] (each bidder wins at most one bid, no item twice): {winners: [{bidder, items, price, pays}], surplus, revenue}. `reserves` is one number per item or {item: reserve}; `payment` vcg (default: winners pay the surplus they displace) or pay_bid.
 - `$posted_counters(name, buyer)` — Ids of listings where the buyer holds an open counter-offer.
 - `$posted_line(name, listing, viewer?)` — A listing as one shelf line: price, rating, stock, capacity, offers, counters.

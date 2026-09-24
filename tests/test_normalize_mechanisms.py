@@ -1,5 +1,7 @@
 """Earlier mechanism and library forms load as the current ones: folded families, removed modes (refused with what to
 write instead), removed functions; and a mechanism's functions exist only beside a mechanism of its family."""
+import json
+
 import pytest
 
 import fg_env
@@ -98,3 +100,69 @@ def test_an_unknown_function_suggests_a_core_one_first_and_never_an_undeclared_m
 def test_best_is_a_core_function():
     result = fg_env.run({**POT, "outputs": {"richest": "$best(player, $it.chips, 'all')"}}, seed=1)
     assert result.ok and result.outputs["richest"] == ["a", "b"]
+
+
+GROWTH = {"name": "Growth", "clock": {"rounds": 4}, "types": {"shop": {"agent": True, "props": {"sales": 0.0}}},
+          "entities": {"s": {"type": "shop"}}, "world": {"temp": 0.0, "load": 0.0},
+          "physics": {"params": {"k": 0.5}, "vars": {"x": {"start": 1, "rate": "k * x"}}, "write": {"world.load": "x"}},
+          "feeds": {"weather": {"host": "weather", "into": "world.temp", "fallback": "$normal(10, 2)"}},
+          "patterns": {"trend": {"kind": "trend", "start": 10, "slope": 1},
+                       "size": {"kind": "draw", "dist": "triangular", "low": 1, "mode": 2, "high": 5}},
+          "events": [{"do": ["$entity(s).sales = $pattern.trend * $pattern.size"]}],
+          "outputs": {"x": "$physics.x", "sales": "$entity(s).sales", "temp": "$world.temp"}}
+
+
+def test_physics_feeds_and_patterns_are_mechanisms_read_the_same_way():
+    current, _ = normalize(GROWTH)
+    assert not {"physics", "feeds", "patterns"} & set(current)
+    assert current["mechanisms"] == {
+        "physics": {"kind": "dynamics", "mode": "ode", **GROWTH["physics"]},
+        "weather": {"kind": "host", "mode": "feed", **GROWTH["feeds"]["weather"]},
+        "trend": {"kind": "pattern", "mode": "trend", "start": 10, "slope": 1},
+        "size": {"kind": "pattern", "mode": "draw", "dist": "triangular", "low": 1, "peak": 2, "high": 5}}
+    assert normalize(current) == (current, [])
+    assert _errors(GROWTH) == []
+    assert fg_env.run(GROWTH, seed=3).outputs == fg_env.run(current, seed=3).outputs
+
+
+def test_a_pattern_named_like_another_mechanism_is_renamed_with_every_reference():
+    clash = {**GROWTH, "mechanisms": {"trend": {"kind": "decision", "mode": "ballot", "who": "shop",
+                                                "options": ["up", "down"]}},
+             "patterns": {**GROWTH["patterns"], "prod": {"kind": "product", "scale": 2, "of": ["trend"]}}}
+    current, notes = normalize(clash)
+    assert current["mechanisms"]["trend"]["kind"] == "decision"
+    assert current["mechanisms"]["trend_pattern"] == {"kind": "pattern", "mode": "trend", "start": 10, "slope": 1}
+    assert current["mechanisms"]["prod"]["of"] == ["trend_pattern"]
+    assert current["events"][0]["do"] == ["$entity(s).sales = $pattern.trend_pattern * $pattern.size"]
+    assert any("renamed 'trend_pattern'" in note for note in notes)
+    assert _errors(clash) == []
+
+
+def test_an_arm_or_fork_patch_in_the_earlier_form_changes_the_mechanism():
+    armed = {**GROWTH, "arms": {"steep": {"patch": {"patterns": {"trend": {"slope": 3}},
+                                                     "physics": {"params": {"k": 1}}}}}}
+    current, _ = normalize(armed)
+    assert current["arms"]["steep"]["patch"] == {"mechanisms": {"trend": {"slope": 3},
+                                                                "physics": {"kind": "dynamics", "mode": "ode",
+                                                                            "params": {"k": 1}}}}
+    steep = fg_env.run(armed, seed=1, arm="steep").outputs
+    assert steep["sales"] != fg_env.run(armed, seed=1).outputs["sales"]
+    env = fg_env.load(GROWTH, seed=1)
+    env.run(rounds=1)
+    forked = fg_env.fork(GROWTH, env.snapshot(), patch={"patterns": {"trend": {"slope": 3}}})
+    assert forked.contract.mechanisms["trend"] == {"kind": "pattern", "mode": "trend", "start": 10, "slope": 3}
+
+
+def test_the_dynamics_mechanism_is_named_physics():
+    renamed = {**{key: value for key, value in GROWTH.items() if key != "physics"},
+               "mechanisms": {"motion": {"kind": "dynamics", "mode": "ode", **GROWTH["physics"]}}}
+    [issue] = [i for i in _errors(renamed) if i.path.startswith("mechanisms.motion")]
+    assert "is named 'physics'" in issue.message and issue.fix == "rename mechanisms.motion to mechanisms.physics"
+
+
+def test_an_imported_file_in_the_earlier_form_is_normalized_before_it_is_merged(tmp_path):
+    (tmp_path / "physics.json").write_text(json.dumps({"physics": GROWTH["physics"]}))
+    main = {key: value for key, value in GROWTH.items() if key != "physics"}
+    (tmp_path / "main.json").write_text(json.dumps({**main, "imports": ["physics.json"]}))
+    contract = fg_env.parse(tmp_path / "main.json")
+    assert contract.physics is not None and contract.physics.params == {"k": 0.5}

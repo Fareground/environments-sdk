@@ -279,19 +279,19 @@ class WorldChecks:
         names = set(spec.vars) | set(spec.params) | set(spec.read) | set(_CONSTS) | set(_FUNCS) | {"t"}
         for name in spec.read:
             if name in spec.vars or name in spec.params:
-                self.error(f"physics.read.{name}",
+                self.error(f"mechanisms.physics.read.{name}",
                            f"'{name}' is also a variable or param, so the read would be ignored",
                            "give the read its own name and use it in the rates")
         for name, raw in spec.params.items():
-            self.value(raw, f"physics.params.{name}", {"inputs", "world"})
+            self.value(raw, f"mechanisms.physics.params.{name}", {"inputs", "world"})
         for name, src in spec.read.items():
-            self.expr(src, f"physics.read.{name}", BASE - {"physics", "metrics", "series"})
+            self.expr(src, f"mechanisms.physics.read.{name}", BASE - {"physics", "metrics", "series"})
         for name, var in spec.vars.items():
-            self.value(var.start, f"physics.vars.{name}.start", {"inputs", "world"})
+            self.value(var.start, f"mechanisms.physics.vars.{name}.start", {"inputs", "world"})
             if var.rate is not None:
-                self._physics_expr(var.rate, f"physics.vars.{name}.rate", names)
+                self._physics_expr(var.rate, f"mechanisms.physics.vars.{name}.rate", names)
         for target, src in spec.write.items():
-            path = f"physics.write.{target}"
+            path = f"mechanisms.physics.write.{target}"
             owner, _, prop = target.partition(".")
             if owner == "world":
                 if prop not in self.c.world:

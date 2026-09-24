@@ -23,7 +23,7 @@ from ..contract import Contract
 from ..errors import ContractError, Issue
 from ..expr import ExprError, Scope, compile_expr
 from ..patterns import timebase as tb
-from ..patterns.base import FitFactor, PatternConfig
+from ..patterns.base import FitFactor, PatternConfig, declared
 from ..patterns.expand import validated
 from ..patterns.runtime import key_text
 
@@ -121,12 +121,12 @@ class Problem:
         return tb.calendar_of(self.env.world)
 
     def fail(self, message: str) -> ContractError:
-        return ContractError([Issue(f"patterns.{self.name}.fit", message)])
+        return ContractError([Issue(f"mechanisms.{self.name}.fit", message)])
 
     def pattern(self, name: str, key: str | None, t: float, args: tuple[Any, ...] = ()) -> Any:
         runtime = self.env.world.patterns
         return runtime.evaluate(name, key if runtime.configs[name].keyed else None, list(args), t,
-                                f"patterns.{self.name}.fit")
+                                f"mechanisms.{self.name}.fit")
 
     def adjustment(self, row: Row) -> float:
         """The product of the patterns in ``adjust`` for this row (1 without any)."""
@@ -140,7 +140,7 @@ class Problem:
 
     def current(self, field_name: str, key: str | None) -> Any:
         """A parameter's value as the contract has it now (for what a fit assumes)."""
-        return self.env.world.patterns.param(self.name, key, field_name, f"patterns.{self.name}")
+        return self.env.world.patterns.param(self.name, key, field_name, f"mechanisms.{self.name}")
 
 
 def fit_patterns(contract: ContractLike, *, data_dir: str | Path | None = None,
@@ -155,7 +155,7 @@ def fit_patterns(contract: ContractLike, *, data_dir: str | Path | None = None,
     folder = default_data_dir(contract, data_dir)
     fitted = copy.deepcopy(dict(source))
     env = load(fitted, data_dir=folder, seed=0, inputs=dict(inputs or {}))
-    configs = {name: cfg for name, spec in (fitted.get("patterns") or {}).items()
+    configs = {name: cfg for name, spec in declared(fitted).items()
                for cfg in [validated(name, spec)[0]] if cfg is not None}
     order = _order(configs)
     covered = {factor for cfg in configs.values() if cfg.fit and isinstance(cfg.fit.x, dict) for factor in cfg.fit.x}
@@ -175,7 +175,7 @@ def fit_patterns(contract: ContractLike, *, data_dir: str | Path | None = None,
         reports.append(report)
         if index < len(order) - 1:  # later fits read the estimates written so far
             env = load(fitted, data_dir=folder, seed=0, inputs=dict(inputs or {}))
-            configs = {n: validated(n, spec)[0] or configs[n] for n, spec in fitted["patterns"].items()}
+            configs = {n: validated(n, spec)[0] or configs[n] for n, spec in declared(fitted).items()}
     return FitResult(fitted, reports, priors)
 
 
@@ -243,7 +243,7 @@ def _order(configs: dict[str, PatternConfig]) -> list[str]:
         if name in order:
             return
         if name in visiting:
-            raise ContractError([Issue(f"patterns.{name}.fit.adjust", "fits adjust each other in a cycle: "
+            raise ContractError([Issue(f"mechanisms.{name}.fit.adjust", "fits adjust each other in a cycle: "
                                        + " → ".join([*visiting, name]))])
         visiting.append(name)
         fit = configs[name].fit
@@ -274,7 +274,7 @@ def _number(value: Any, where: str) -> float:
 def _rows(name: str, cfg: PatternConfig, env: Any) -> list[Row]:
     fit = cfg.fit
     assert fit is not None
-    path = f"patterns.{name}.fit"
+    path = f"mechanisms.{name}.fit"
     scope = Scope({"inputs": env.inputs}, env.world)
     try:
         data = compile_expr(fit.data)(scope)
@@ -347,7 +347,7 @@ def _usable(error: Any) -> bool:
 def _write_back(contract: dict[str, Any], name: str, cfg: PatternConfig, per_key: Mapping[str | None, Estimate],
                 env: Any, data: str) -> dict[str, dict[str, Any]]:
     """Write one pattern's estimates into the contract; returns its number inputs with errors as normal priors."""
-    spec = contract["patterns"][name]
+    spec = contract["mechanisms"][name]
     priors: dict[str, dict[str, Any]] = {}
     inputs = contract.setdefault("inputs", {})
     fields = sorted({f for est in per_key.values() for f in est.params})
@@ -395,7 +395,7 @@ def _table_rows(name: str, cfg: PatternConfig, per_key: Mapping[str | None, Esti
     """One row per key: the pattern's own table row (when it has one), with the estimates in their columns; keys
     without an estimate keep the values the contract gave them."""
     runtime = env.world.patterns
-    where = f"patterns.{name}"
+    where = f"mechanisms.{name}"
     column = cfg.column or "key"
     keys = list(runtime.keys(name, where)) if cfg.keyed else []
     keys += [key for key in per_key if key is not None and key not in keys]

@@ -75,7 +75,7 @@ def test_truly_overflowing_products_remain_explicit_errors(values):
     c.pop('metrics')
     result = fg_env.load(c).run()
     assert not result.ok and result.outputs['net'] is None
-    assert 'patterns.net' in result.output_issues[0]['message']
+    assert 'mechanisms.net' in result.output_issues[0]['message']
     json.dumps(result.to_dict(), allow_nan=False)
 
 

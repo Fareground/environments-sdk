@@ -1,8 +1,7 @@
-"""Reading a contract's ``patterns``: each validated by its kind, plus what the section adds to the contract —
-a metric for every pattern with ``record: true``, and the world property memory patterns keep their state in."""
+"""A pattern's config validated by its kind, with messages that say what to fix (for tools that read patterns from
+contract data, such as fitting)."""
 from __future__ import annotations
 
-import copy
 import re
 from collections.abc import Mapping
 from difflib import get_close_matches
@@ -12,9 +11,9 @@ from pydantic import BaseModel, ValidationError
 
 from ..errors import Issue
 from . import catalogue  # noqa: F401 — registers every kind
-from .base import KINDS, MEMORY_STATE, PatternConfig
+from .base import KINDS, PatternConfig
 
-__all__ = ["expand_patterns", "validated"]
+__all__ = ["validated"]
 
 _NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
 #: What the dynamics family's modes became.
@@ -23,7 +22,7 @@ _FOLDED = {"drift": "trend, seasonal, random_walk or mean_reversion", "shocks": 
 
 def validated(name: str, spec: Any) -> tuple[PatternConfig | None, list[Issue]]:
     """``spec`` as its kind's config, or the issues saying what to fix."""
-    path = f"patterns.{name}"
+    path = f"mechanisms.{name}"
     if not isinstance(name, str) or not _NAME.match(name):
         return None, [Issue(path, "a pattern name starts with a letter and uses letters, digits and _",
                             "rename it, e.g. 'winter'")]
@@ -85,38 +84,3 @@ def _model_in(annotation: Any) -> Any:
         if found is not None:
             return found
     return None
-
-
-def expand_patterns(data: Mapping[str, Any]) -> tuple[dict[str, Any], list[Issue]]:
-    """The contract with what its patterns add, plus problems with their configs."""
-    raw = data.get("patterns")
-    if not raw:
-        return dict(data), []
-    if not isinstance(raw, Mapping):
-        return dict(data), [Issue("patterns", "must be an object of {name: {kind, ...}}", "guide('patterns')")]
-    out: dict[str, Any] = dict(data)
-    issues: list[Issue] = []
-    metrics: dict[str, Any] = {}
-    memory = False
-    for name, spec in raw.items():
-        cfg, problems = validated(name, spec)
-        issues += problems
-        if cfg is None:
-            continue
-        kind = KINDS[cfg.kind]
-        memory = memory or kind.shape == "memory"
-        if (cfg.record and name not in (data.get("metrics") or {})
-            and not kind.arg_names(cfg)):  # else the check says why
-            expr = f"$pattern_values('{name}')" if cfg.keyed else f"$pattern.{name}"
-            metrics[name] = {"expr": expr, "description": cfg.description or f"The {cfg.kind} pattern '{name}'.",
-                             "unit": cfg.unit}
-    if metrics:
-        out["metrics"] = {**copy.deepcopy(dict(data.get("metrics") or {})), **metrics}
-    if memory:
-        world = dict(data.get("world") or {}) if isinstance(data.get("world") or {}, Mapping) else data.get("world")
-        if isinstance(world, dict):
-            world.setdefault(MEMORY_STATE, {"type": "map", "default": {},
-                                            "description": "State memory patterns carry between rounds (managed by the "
-                                                           "engine)."})
-            out["world"] = world
-    return out, issues

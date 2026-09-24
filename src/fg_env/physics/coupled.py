@@ -100,7 +100,7 @@ def integrate_coupled(world: SdkWorld, dt: float) -> list[dict[str, Any]]:
         if dynamic_reads:
             scope = world.scope()
             for name, expr in dynamic_reads:
-                model.params[name] = _number(expr(scope), f"physics.read.{name}")
+                model.params[name] = _number(expr(scope), f"mechanisms.physics.read.{name}")
         shared = {**_FUNCS, **_CONSTS, **model.params, **model.values, "t": time}
         spaces = [shared] * len(world_names)
         for step, entity, _ in entities:
@@ -181,7 +181,7 @@ def integrate_coupled(world: SdkWorld, dt: float) -> list[dict[str, Any]]:
                     nxt[index] = min(high, nxt[index])
             y = nxt
     except (ArithmeticError, ValueError) as exc:
-        raise RunError(f"coupled dynamics broke down numerically ({exc})", "physics") from None
+        raise RunError(f"coupled dynamics broke down numerically ({exc})", "mechanisms.physics") from None
     finally:
         publish(before, start)
         last_values = None

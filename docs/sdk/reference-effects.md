@@ -36,17 +36,13 @@ Operation objects (exactly one operation key each):
 - `chance`: {"chance": [{"p": 0.5, "label": "heads", "do": [...]}, {"p": 0.5, "label": "tails", "do": [...]}], "as": "coin"} or {"chance": "deal", "outcomes": "$world.deck", "weight": "1", "as": "card", "do": [...]}  (picks one outcome from the listed distribution, logged as a `chance` event; `fg_env.rl.game` can enumerate and choose outcomes instead of sampling them)
 - `layer`: {"layer": "sugar", "set": "$min($value + 1, 4)"}  (every cell: `$cell` is its position, `$value` its value, all reading the old values; `"at": "$it.at"` sets one cell, `"where"` limits which) · {"layer": "scent", "diffuse": 0.1} (each cell hands that share out to its neighbours; with `"where"` only the cells it holds for take part, the others are walls that keep what would cross them) · {"layer": "scent", "decay": 0.05}
 - `market`: {"market": "<market mechanism>", "action": ...} — actions: order_book buy sell cancel cancel_all algo open close; prediction buy sell resolve; auction bid ask; posted buy offer accept rate set_price promote sponsor (guide("market"))
-- `economy`: {"economy": "<economy mechanism>", "action": ...} — actions: inventory give make use drop pickup; ledger pay mint burn lend repay; production start; supply_chain order; demand receive remove; replenishment order (guide("economy"))
-- `agreements`: {"agreements": "<agreements mechanism>", "action": ...} — actions: bookings book cancel; labor hire quit fire; negotiation propose counter accept reject withdraw fulfill; subscriptions subscribe set_price (guide("agreements"))
-- `decision`: {"decision": "<decision mechanism>", "action": ...} — actions: ballot tally; deliberation speak ready raise_hand recognize yield propose second amend withdraw call_question vote (guide("decision"))
-- `game`: {"game": "<game mechanism>", "action": ...} — actions: board move pass setup; cards shuffle collect deal draw burn move play discard give reveal peek; pot fold check call bet raise all_in; slots place (guide("game"))
-- `flow`: {"flow": "<flow mechanism>", "action": ...} — actions: procedure push pass counter; order extra_turn; victory — (guide("flow"))
-- `operations`: {"operations": "<operations mechanism>", "action": ...} — actions: queue — (guide("operations"))
-- `groups`: {"groups": "<groups mechanism>", "action": ...} — actions: roles eliminate reveal; relationships relate; factions join leave invite found ally break_alliance add remove; matching — (guide("groups"))
-- `social`: {"social": "<social mechanism>", "action": ...} — actions: channels say dm reply broadcast read create_group invite join leave; diffusion step seed adopt reject expose; feed post reply repost react follow unfollow befriend unfriend block unblock mute unmute label (guide("social"))
-- `mind`: {"mind": "<mind mechanism>", "action": ...} — actions: beliefs learn tell forget; personas write; memory note recall (guide("mind"))
-- `conditions`: {"conditions": "<conditions mechanism>", "action": ...} — actions: status apply cleanse; cooldowns reset; channeling interrupt; terrain enter (guide("conditions"))
-- `host`: {"host": "<host mechanism>", "action": ...} — actions: judge judge; game_master resolve; tool call; recap write (guide("host"))
+- `economy`: {"economy": "<economy mechanism>", "action": ...} — actions: inventory give make use drop pickup; ledger pay mint burn lend repay; production start; supply_chain order; demand receive remove; replenishment order; queue — (guide("economy"))
+- `agreements`: {"agreements": "<agreements mechanism>", "action": ...} — actions: bookings book cancel; negotiation propose counter accept reject withdraw fulfill; subscriptions subscribe set_price (guide("agreements"))
+- `decision`: {"decision": "<decision mechanism>", "action": ...} — actions: ballot tally; deliberation speak ready raise_hand recognize yield propose second amend withdraw call_question vote; procedure push pass counter (guide("decision"))
+- `game`: {"game": "<game mechanism>", "action": ...} — actions: board move pass setup; cards shuffle collect deal draw burn move play discard give reveal peek; pot fold check call bet raise all_in; status apply cleanse (guide("game"))
+- `groups`: {"groups": "<groups mechanism>", "action": ...} — actions: roles eliminate reveal; matching — (guide("groups"))
+- `social`: {"social": "<social mechanism>", "action": ...} — actions: diffusion step seed adopt reject expose; feed post reply repost react follow unfollow befriend unfriend block unblock mute unmute label (guide("social"))
+- `host`: {"host": "<host mechanism>", "action": ...} — actions: judge judge; game_master resolve; personas write; tool call; memory note recall; recap write; feed — (guide("host"))
 
 ### Ordered processing
 

@@ -48,8 +48,9 @@ class _Scan:
         posts = [path for path, node in self.effects if "post" in node]
         self.texts: list[tuple[str, str, frozenset[str]]] = []
         spectators = tuple(f"views.{name}." for name, view in contract.views.items() if _spectator(view))
+        engine = contract.run_by_engine()
         for path, text in walk.texts(data):
-            where = set(walk.roles(path))
+            where = set(walk.roles(path, engine))
             if any(_record_field(path, prefix) for prefix in posts):
                 where.add("shown")  # a post's fields become an entry agents read
             if path.startswith(spectators):
@@ -149,9 +150,9 @@ def _chance(contract: Contract, scan: _Scan) -> tuple[str, list[str], list[str]]
              if spec.chance is not None]
     play += [f"stage {s.name} wakes agents in random order" for s in contract.stage_list() if s.order == "random"]
     if contract.physics is not None:
-        play += [f"physics.vars.{name}.noise is a random term" for name, var in contract.physics.vars.items()
+        play += [f"mechanisms.physics.vars.{name}.noise is a random term" for name, var in contract.physics.vars.items()
                  if var.noise]
-        play += [f"physics.per.{kind}.vars.{name}.noise is a random term"
+        play += [f"mechanisms.physics.per.{kind}.vars.{name}.noise is a random term"
                  for kind, dynamics in contract.physics.per.items()
                  for name, var in dynamics.vars.items() if var.noise]
     for i, link in enumerate(contract.links):

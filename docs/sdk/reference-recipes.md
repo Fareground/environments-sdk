@@ -33,7 +33,7 @@
 * Deliberation: records (`chat`) + a sequential stage with `until: "$all(member, $it.ready)"`
   and `quiet: skip`; a `say` action posts and clears readiness.
 * Answers before something takes effect (an exhibit offered → objection → ruling → admitted or excluded; a
-  motion and its amendments; a spell and its counter): a procedure `stack` (guide('flow.procedure')). The offer
+  motion and its amendments; a spell and its counter): a procedure `stack` (guide('decision.procedure')). The offer
   only pushes an item; the agents its kind names answer it; items resolve last in, first out, so the ruling
   resolves before the objection and the objection (countering the offer when sustained) before the offer.
   `"stack": {..., "stage": "exam"}` holds the answers in the examination stage itself, so one stage runs many
@@ -101,22 +101,24 @@
   "channel": {"type": "enum", "values": ["work", "family"], "default": "work"}}}}`. Read `$link(a, b, trusts).since`;
   list `$links($actor, trusts)` in views (`"show": "{target.name} via {channel}"`); set fields with `link` +
   `props`, by assignment, or in `links` (`props` over `$from`/`$to`; `rows` columns named like a field fill it).
-* Continuous dynamics: `physics` vars with rates (math over bare names), `read` from the world,
+* Continuous dynamics: the `physics` mechanism (`"mechanisms": {"physics": {"kind": "dynamics", "mode": "ode",
+  ...}}`, guide('dynamics.ode')): vars with rates (math over bare names), `read` from the world,
   `write` back to props; effects adjust `$physics.x` (policy shocks). `noise` adds a random term
   (`"noise": "sigma*price"`, Itô noise drawn from stable entity/variable seed paths).
   Drift refines automatically with `rtol`/`atol`; general noise refines the same Brownian path with `noise_rtol`.
   Supported independent affine processes use exact transitions. Convergence failure stops the run.
-* Per-entity dynamics (viral load, firm capital, habit strength): `"physics": {"per": {"person": {"vars":
+* Per-entity dynamics (viral load, firm capital, habit strength): the physics mechanism's `"per": {"person": {"vars":
   {"viral_load": {"rate": "growth*viral_load - immunity*viral_load", "noise": "0.2*viral_load"}},
-  "read": {"exposure": "$count($neighbors($it, contact), $it.sick)"}, "write": {"sick": "viral_load > 5"}}}}`.
+  "read": {"exposure": "$count($neighbors($it, contact), $it.sick)"}, "write": {"sick": "viral_load > 5"}}}`.
   Every person integrates its own number props; rates read its number props, the type's `params` and
   `read`s (per entity, over `$it`) and world physics names. `where` limits who integrates this step.
   Entities couple through `read`; intermediate states are shared rather than held fixed for the round.
 * Latency and lossy channels: `"delay": 2` on `post`/`emit` delivers the message 2 rounds (or clock units)
   later with its content as it was when sent; `"drop": 0.1` loses it (also on `wake`), rolled from the
   run's seed when sent. A refused action sends nothing. Entries carry the round they arrive.
-* External data (prices, news, weather): `"feeds": {"oil": {"host": "market", "into": "world.oil_price",
-  "query": {"symbol": "BRENT", "date": "{$clock.date}"}, "fallback": "$world.oil_price * $uniform(0.98, 1.02)"}}`,
+* External data (prices, news, weather): a `host.feed` mechanism, `"oil": {"kind": "host", "mode": "feed", "host":
+  "market", "into": "world.oil_price", "query": {"symbol": "BRENT", "date": "{$clock.date}"}, "fallback":
+  "$world.oil_price * $uniform(0.98, 1.02)"}`,
   or `"into": "records.news"` for entries. Bind the host when loading: `fg_env.load(path, hosts={"market":
   adapter})`, where the adapter is any object with `fetch(request)`; `fg_env.host.adapters.historical(rows,
   at="date", value="close")` replays a price history for backtests. Answers are recorded on the host tape:

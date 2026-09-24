@@ -4,30 +4,19 @@
 
 Every function by group. Read one group's signatures and docs with `guide('functions.<group>')`.
 
-Core (the start page teaches them): $count $sum $avg $min $max $filter $map $dict $top $best $any $all $len $get $chance $randint $normal $choice $round $floor $clamp $entity. Every other function is extended.
+Core (the start page teaches them): $count $sum $avg $min $max $filter $map $dict $top $sort $best $any $all $len $get $entity $records $round $floor $clamp $chance $randint $normal $choice. Every other function is extended.
 
 General functions, for any contract:
 
-- `collections` (counting, summing, ranking and filtering lists and entity types): $all $any $avg $count $dict $filter $first $flatten $get $ids $is $keys $last $len $map $max $median $min $mode $pick $quantile $range $reverse $slice $sort $stdev $sum $tally $top $unique $values
-- `world` (entities, records, events and what agents were shown): $asset $entity $events $exists $pattern_values $records $seen
-- `math` (arithmetic, trigonometry, interpolation, linear algebra): $abs $acos $asin $atan $atan2 $ceil $clamp $comb $cos $det $dot $erf $exp $factorial $floor $gcd $identity $interp $inverse $lcm $linsolve $log $logit $logsumexp $matmul $mvnormal $pct $pi $round $sigmoid $sign $sin $softmax $sqrt $tan $tanh $transpose
-- `random` (seeded draws and distributions): $beta $binomial $chance $choice $dice $dirichlet $exponential $gamma $geometric $lognormal $multinomial $normal $poisson $randint $random $sample $shuffle $triangular $truncnormal $uniform $weibull $zipf
-- `text` (text and formatting): $chars $contains $count_text $ends_with $fmt $index_of $join $lower $matches $pad $repeat_text $replace $similar $split $starts_with $substr $text $title $trim $upper $words
+- `collections` (counting, summing, ranking and filtering lists and entity types): $all $any $avg $best $count $dict $filter $first $flatten $get $is $keys $last $len $map $max $median $min $mode $pick $quantile $range $reverse $slice $sort $stdev $sum $tally $top $unique $values
+- `world` (entities, records, events and what agents were shown): $asset $entity $events $records $seen
+- `math` (arithmetic, trigonometry, interpolation): $abs $acos $asin $atan $atan2 $ceil $clamp $comb $cos $erf $exp $factorial $floor $gcd $interp $lcm $log $logit $logsumexp $pct $pi $round $sigmoid $sign $sin $softmax $sqrt $tan $tanh
+- `random` (seeded draws and distributions): $beta $binomial $chance $choice $dice $dirichlet $exponential $gamma $geometric $lognormal $multinomial $mvnormal $normal $poisson $randint $sample $shuffle $triangular $truncnormal $uniform $weibull $zipf
+- `text` (text and formatting): $chars $contains $ends_with $fmt $join $lower $matches $pad $replace $similar $split $starts_with $substr $text $title $trim $upper $words
 - `dates` (calendar arithmetic and parts of ISO dates): $date_add $date_part $days_between $is_holiday
 - `lists` (list and map manipulation, sets): $chunk $cumsum $diff $difference $index $insert $intersect $items $lookup $lookup_one $merge $pick_keys $rank $remove_at $rotate $set_at $union $window $without $zip
-- `stats` (statistics, time series and forecast scores): $abs_error $autocorr $brier $corr $cov $crps $drawdown $elo $ema $entropy $gini $hhi $histogram $linreg $log_loss $percentile_rank $pool $returns $sma $variance $zscore
+- `stats` (statistics, time series and forecast scores): $abs_error $autocorr $brier $corr $cov $crps $drawdown $elo $ema $entropy $excess_kurtosis $gini $hhi $histogram $linreg $log_loss $market_realism $market_stats $percentile_rank $pool $returns $sma $tally_votes $variance $zscore
 - `space` (grids, graphs, networks and links): $at $cells $clustering $components $degree $distance $empty $hops $layer $link $linked $links $near $nearest $neighbors $normal_for $path_distance $random_empty $random_for $relation
+- `words` (word games and puzzles: dictionaries, anagrams, crosswords, sudoku): $anagram $mask $puzzle $solve $wordle_feedback
 
-Mechanism functions, for reading a mechanism family's state (a board, a deck, a market …); each group is also on its family's page:
-
-- `market` (Trading venues: continuous order books, auctions and procurement tenders, prediction markets and posted-price shops): $amm $amm_cost $amm_ok $amm_outcomes $auction $auction_ok $auction_text $book $book_account $book_depth $book_ok $book_orders $book_rules $excess_kurtosis $market_realism $market_stats $package_winners $posted_counters $posted_line $posted_ok $posted_price $shelf
-- `economy` (Money, goods and making things: ledgers (currencies, taxes, loans), inventories, production, supply chains, customers' demand for stocked items and the policies that replenish them): $conserved $count_items $demand_totals $ground_items $has $items_text $loose_total $max_batches $money_held $net_worth $owned_items $pipeline $pipeline_text $recipes $recipes_text $replenishment_totals $skill $space_left $stock_conserved $total_held
-- `agreements` (Commitments between agents over time: negotiated deals, jobs, subscriptions and bookings): $booking_text $places_text $subscribed $terms_text
-- `decision` (Collective choice: ballots and structured deliberation with motions and votes): $decisions $discussion_over $house $pending_motion $tally_votes
-- `game` (Game equipment: boards with enforced rules, cards, betting pots and worker-placement slots): $anagram $blackjack_soft $blackjack_value $board_at $board_cell $board_in_check $board_line $board_moves $board_render $board_score $card_names $card_visible $cards_table $claims $follow_suit $hand $mask $open_spaces $poker_hand $poker_rank $pot_live $pot_options $pot_table $pot_total $puzzle $runs $sets $slot_board $solve $top_card $top_cards $trick_winner $wordle_feedback $zone
-- `flow` (Who acts when and how it ends: turn order, procedures with phases, victory conditions): $best $stack $turn_order $turn_rank $won
-- `groups` (Who belongs with whom: hidden roles and teams, factions and alliances, relationships, stable matching): $allies $faction_of $factions $joinable $known_role $team_alive $teammates
-- `social` (Talking and spreading: channels (rooms, direct messages), a social feed, diffusion over a network): $adopter_count $channel_log $channels $exposures $feed $followers $following $groups $heard $homophily $inbox $inbox_channels $influence $insularity $invites $reach $recent_messages $spread_state $trending $unread
-- `mind` (What agents know and remember: beliefs with confidence, memory with recall, generated personas): $belief $beliefs_of $believes $confidence $memories
-- `conditions` (Effects on entities over time: statuses, cooldowns, channeled actions and terrain): $ability_text $can_enter $channeling $charges $cooldown_left $effective $has_status $ready $status_rounds $status_stacks $status_text $terrain
-- `host` (Services the host provides during a run: an LLM judge, a game master, recaps and tools such as web search): $host_bound
+A mechanism's functions read its state (a board, a deck, a market …) and can be called only in a contract that declares a mechanism of its family; each family's page lists them: `guide('market')`, `guide('economy')`, `guide('agreements')`, `guide('decision')`, `guide('game')`, `guide('groups')`, `guide('social')`, `guide('host')`, `guide('pattern')`.

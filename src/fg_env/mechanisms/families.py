@@ -55,3 +55,9 @@ family("host",
        "agents' memory with recall, and generated personas.",
        {"who": "agent type(s) served", "max_chars": SHARED["max_chars"], "private": SHARED["private"],
         "phase": SHARED["phase"], "views": SHARED["views"]})
+family("dynamics", "Continuous change integrated every round, before agents act: world variables and entity "
+                   "properties that follow differential equations (RK4, with Euler–Maruyama noise), read as "
+                   "$physics.<name>.", {})
+family("pattern", "Named patterns of the world, read as $pattern.<name>: trends, seasons, responses, random "
+                  "processes, draws, observation noise and memory; `guide('patterns')` teaches them.",
+       {"record": "record the pattern every round as a metric of its name ($series.<name>)"})

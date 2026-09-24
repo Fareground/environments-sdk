@@ -14,9 +14,9 @@ Use ordinary contract sections for custom rules. Use a built-in mechanism when i
 | Money and settlement | [Ledger](reference-economy-ledger.md), atomic effects | Cash versus revenue versus profit |
 | Sales pipeline and approvals | Entity state, stages, delayed effects | Stage exit conditions, dependencies, churn |
 | Bookings and subscriptions | [Bookings](reference-agreements-bookings.md), [subscriptions](reference-agreements-subscriptions.md) | Cancellation, renewal and capacity release |
-| Campaign exposure and diffusion | [Channels](reference-social-channels.md), [diffusion](reference-social-diffusion.md), relations | Audience overlap, repeated exposure, conversion lag |
-| Queued work and scarce staff | [Queues](reference-operations-queue.md), actions, events | Priority, skills, abandonment and service duration |
-| External judgments or data | [Feeds](reference-feeds.md), host mechanisms | Host response validation, availability and replay |
+| Campaign exposure and diffusion | [Diffusion](reference-social-diffusion.md), records posted to an audience, relations | Audience overlap, repeated exposure, conversion lag |
+| Queued work and scarce staff | [Queues](reference-economy-queue.md), actions, events | Priority, skills, abandonment and service duration |
+| External judgments or data | [Feeds](reference-host-feed.md), host mechanisms | Host response validation, availability and replay |
 
 ## Money and settlement
 

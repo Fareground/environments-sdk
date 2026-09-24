@@ -2,7 +2,7 @@
 
 ## Mechanism family `economy`
 
-Money, goods and making things: ledgers (currencies, taxes, loans), inventories, production, supply chains, customers' demand for stocked items and the policies that replenish them.
+Money, goods, making things and serving customers: ledgers (currencies, taxes, loans), inventories, production, supply chains, customers' demand for stocked items and the policies that replenish them, and service queues (customers arriving on channels, served by staffed server pools).
 
 Named the same in every mode:
 - `who`: agent type(s) holding money or goods
@@ -15,6 +15,7 @@ Modes (`"kind": "economy", "mode": ...`; read one with `guide('economy.<mode>')`
 - `supply_chain`: A serial supply chain (the beer game as data): each round every node receives what reached it, gets its order (customers' demand at the first node), ships what it can toward that order plus backlog and pays holding and backlog costs; then nodes order from the node upstream (the producer starts a batch) with `<name>_order`, one order a round.
 - `demand`: Customers' demand for stocked items, drawn from patterns and served from stock.
 - `replenishment`: Inventory policies for a demand mechanism's items: orders travel in a per-item pipeline for a lead time (fixed, or drawn per order from a noise pattern fitted from purchase orders) and arrive at the start of a round; at the end of every round, after the sales, each item's position (on hand + on order − backorders) is reviewed and the `policy` orders: s_S, s_Q, order_up_to (base stock, periodic with review_every), service (order up to the forecast over lead time + review plus z·σ safety stock for the service_level, σ from the forecast's error and the lead time's spread), custom (`decide`) or manual (agents' <name>_order tool and the `order` action).
+- `queue`: A service system played natively, interval by interval: customers arrive on each channel (a Poisson process at the interval's expected `arrivals`), are answered at once by a free server of a pool with the skill, or wait in line — by `priority`, then arrival — and give up when their `patience` runs out; `callback` offers customers facing a long wait a call back, served when nobody is waiting, and `retry` brings some who gave up back later.
 
 Functions:
 - `$conserved(ledger_or_inventory)` — True while every currency or item of a ledger or inventory adds up to its supply (and no balance passes its credit limit).

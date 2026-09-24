@@ -62,8 +62,8 @@ $metrics $series $arm):
 | types.on_create/on_remove | $it (the entity) + locals |
 | relations.props.*.default | $from $to |
 | links.props | $from $to (+ $row with `rows`) |
-| physics.per.*.read/where | $it |
-| feeds.query/when/fallback | — |
+| mechanisms.physics.per.*.read/where (dynamics) | $it |
+| mechanisms.<feed>.query/when/fallback (host.feed) | — |
 | defs.expr | the def's args |
 | blocks.do | the block's args + locals |
 | policies.rules.* | $actor ($it $i with `each`) |

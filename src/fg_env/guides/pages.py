@@ -53,8 +53,8 @@ ROOTS: list[tuple[str, str, str]] = [
     ("types", "on_create/on_remove", "$it (the entity) + locals"),
     ("relations", "props.*.default", "$from $to"),
     ("links", "props", "$from $to (+ $row with `rows`)"),
-    ("physics", "per.*.read/where", "$it"),
-    ("feeds", "query/when/fallback", "—"),
+    ("mechanisms", "physics.per.*.read/where (dynamics)", "$it"),
+    ("mechanisms", "<feed>.query/when/fallback (host.feed)", "—"),
     ("defs", "expr", "the def's args"),
     ("blocks", "do", "the block's args + locals"),
     ("policies", "rules.*", "$actor ($it $i with `each`)"),
@@ -106,17 +106,14 @@ SECTIONS: list[tuple[str, list[type[BaseModel]], str, str]] = [
      "Rules that must always hold. An agent's action that breaks one is refused and undone (the `why` is its reason); "
      "a break by anything else fails the run."),
     ("mechanisms", [], "{name: {kind, mode, ...config}}",
-     "Native building blocks by family (markets, voting, cards, roles …): see guide('mechanisms')."),
+     "Native building blocks by family (markets, voting, cards, roles, physics, patterns, feeds …): see "
+     "guide('mechanisms')."),
     ("game", [C.GameSpec], "GameSpec", "Seats and what each scores, for tournaments, game search and gyms."),
     ("space", [C.Space, C.GridSpace, C.GraphSpace, C.PlaneSpace, C.LayerSpec], "Space",
      "Positions: a grid, a graph of places or a plane, with values on cells."),
     ("relations", [C.RelationSpec], "{relation: RelationSpec}",
      "Typed links between entities (trust, follows), with fields."),
     ("links", [C.LinkSpec], "[LinkSpec]", "Links made at build: listed, from data rows, or generated networks."),
-    ("physics", [C.PhysicsSpec, C.PhysicsVar, C.EntityDynamics, C.EntityVar], "PhysicsSpec",
-     "Continuous variables integrated every round (world-level and per entity)."),
-    ("feeds", [C.FeedSpec], "{feed: FeedSpec}",
-     "External data written into world props or records, answered by host adapters."),
     ("policies", [C.PolicySpec, C.PolicyRule], "{policy: PolicySpec}",
      "Coded participants as rules, for crowds and baselines (`policy:<name>`)."),
     ("arms", [C.ArmSpec], "{arm: ArmSpec}", "Experiment variants: input overrides or contract patches."),
@@ -169,10 +166,10 @@ def section_page(section: str) -> str:
 _CORE_GROUPS = {
     "collections": "count sum avg min max median quantile stdev top sort best filter map pick any all len first last "
                    "unique tally mode reverse slice range flatten dict keys values get is",
-    "world": "entity exists records events seen asset",
+    "world": "entity records events seen asset",
     "space": "relation linked link links neighbors distance",
     "math": "abs floor ceil sqrt exp log round clamp pct",
-    "random": "random chance uniform randint normal lognormal beta exponential poisson choice sample shuffle",
+    "random": "chance uniform randint normal lognormal beta exponential poisson choice sample shuffle",
     "text": "text lower contains join fmt",
 }
 _MODULE_GROUPS = {
@@ -180,7 +177,7 @@ _MODULE_GROUPS = {
     "stdlib.words": "words", "stdlib.dates": "dates", "stdlib.lists": "lists", "stdlib.tables": "lists",
     "stdlib.sets": "lists", "stdlib.stats": "stats",
     "stdlib.scoring": "stats", "stdlib.space": "space", "world.networks": "space", "stdlib.puzzles": "words",
-    "patterns.runtime": "world", "mechanisms.market_stats": "stats", "mechanisms.voting": "stats",
+    "mechanisms.market_stats": "stats", "mechanisms.voting": "stats",
 }
 #: What each non-family group holds, in the order the guide lists them.
 FUNCTION_GROUPS = {
@@ -295,6 +292,8 @@ def family_page(name: str) -> str:
 def mode_page(spec: ModeSpec) -> str:
     lines = [f"### `{spec.key}`", spec.doc, "", "Config:"]
     for field_name, info in spec.config.model_fields.items():
+        if field_name in ("kind", "mode"):  # the entry's own kind and mode, above
+            continue
         default = "required" if info.is_required() else \
             f"default {json.dumps(info.get_default(call_default_factory=True), default=str)}"
         lines.append(f"- `{field_name}` ({default}): {info.description or ''}")

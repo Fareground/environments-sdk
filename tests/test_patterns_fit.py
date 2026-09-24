@@ -8,7 +8,7 @@ import statistics
 from datetime import date, timedelta
 
 import pytest
-from patterns_helpers import world
+from patterns_helpers import declared, world
 
 import fg_env
 
@@ -216,7 +216,7 @@ def _shop(stock_cap=None):
                         "props": {"category": "$row.category"}}],
         "records": {"history": {"fields": {"date": "text", "sku": "text", "price": "number", "promo": "number",
                                            "units": "int", "stockout": "int", "demand": "int"}, "notify": False}},
-        "patterns": {
+        "mechanisms": declared({
             "growth": {"kind": "trend", "form": "exponential", "rate": "$inputs.growth"},
             "demand": {"kind": "product", "table": "$inputs.skus", "column": "sku", "scale": "$row.base",
                        "of": ["growth"]},
@@ -226,7 +226,7 @@ def _shop(stock_cap=None):
                       "form": "exponential"},
             "sales": {"kind": "counts", "dispersion": "$inputs.k"},
             "wobble": {"kind": "noise", "sd": 0.2}, "roll": {"kind": "noise", "dist": "uniform"},
-        },
+        }),
         "actions": {"wait": {"by": "clerk", "do": []}},
         "events": [
             {"phase": "start", "each": "sku", "do": [
@@ -255,7 +255,7 @@ def _shop_fit(contract, rows, **fit):
     guess["inputs"]["cats"]["default"] = [{**c, "elasticity": -1.0} for c in SHOP_CATS]
     guess["inputs"]["skus"]["default"] = [{**s, "base": 10.0} for s in SHOP_SKUS]
     guess["inputs"]["growth"]["default"], guess["inputs"]["lift"]["default"] = 0.0, 0.1
-    guess["patterns"]["demand"]["fit"] = {"data": "$inputs.history", "value": "units", "time": "date", "key": "sku",
+    guess["mechanisms"]["demand"]["fit"] = {"data": "$inputs.history", "value": "units", "time": "date", "key": "sku",
                                           "x": {"price_effect": {"column": "price", "key": "$row.category"},
                                                 "promo": "promo"},
                                           "noise": "sales", **fit}
@@ -324,8 +324,8 @@ def test_fitted_parameters_are_written_back_as_inputs_with_errors_that_runs_draw
                             "fit": {"data": "$inputs.history", "value": "units", "x": "price"}}}, rows,
                      metrics={"e": "$log($pattern.p(40)) / $log(2)"})
     fitted = result.contract
-    assert fitted["patterns"]["p"]["elasticity"] == "$inputs.p_elasticity"
-    assert (fitted["patterns"]["p"]["uncertainty"]
+    assert fitted["mechanisms"]["p"]["elasticity"] == "$inputs.p_elasticity"
+    assert (fitted["mechanisms"]["p"]["uncertainty"]
             == {"elasticity": "$inputs.p_elasticity_se * $inputs.parameter_uncertainty"})
     estimate, error = fitted["inputs"]["p_elasticity"]["default"], fitted["inputs"]["p_elasticity_se"]["default"]
     draws = [fg_env.run(fitted, "idle", seed=s, rounds=1).series["e"][0] for s in range(60)]
@@ -447,7 +447,7 @@ def test_fitted_scales_and_a_seasonal_profile_carry_errors_as_wide_as_their_esti
 
 def test_a_promotion_that_is_always_a_price_cut_is_reported_as_overlapping_the_price_response_with_its_range():
     tied = _shop()
-    tied["patterns"]["wobble"]["sd"] = 0.03
+    tied["mechanisms"]["wobble"]["sd"] = 0.03
     tied["events"][0]["do"] = ["$it.promo = 0.3 if $pattern.roll($it) < 0.15 else 0",
                                "$it.price = $round(20 * (1 - $it.promo) * $exp($pattern.wobble($it)), 2)"]
     result = _shop_fit(tied, _history(tied, seed=23))
