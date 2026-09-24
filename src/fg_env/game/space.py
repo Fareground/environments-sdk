@@ -87,7 +87,7 @@ class ActionSpace:
                 if universe is None:
                     reason = f"{pname}: {why}"
                     break
-                if not env.actions._required(param):
+                if not env.actions.required(param):
                     universe = [None] + universe
                 size *= max(1, len(universe))
                 if size > limit:
@@ -291,7 +291,7 @@ def _walk(env: Env, turn: Turn, name: str, items: list[tuple[str, ParamSpec]], i
             found.append((name, dict(raw)))
         return
     pname, param = items[index]
-    for value in _choices(env, turn, name, pname, param, resolved, limit):
+    for value in choices(env, turn, name, pname, param, resolved, limit):
         if value is None:
             _walk(env, turn, name, items, index + 1, raw, resolved, found, limit, dry_run)
             continue
@@ -301,10 +301,10 @@ def _walk(env: Env, turn: Turn, name: str, items: list[tuple[str, ParamSpec]], i
                   dry_run)
 
 
-def _choices(env: Env, turn: Turn, name: str, pname: str, param: ParamSpec, resolved: dict[str, Any],
+def choices(env: Env, turn: Turn, name: str, pname: str, param: ParamSpec, resolved: dict[str, Any],
              limit: int) -> list[Any]:
     book, world, actor = env.actions, env.world, turn.actor
-    head: list[Any] = [] if book._required(param) else [None]
+    head: list[Any] = [] if book.required(param) else [None]
     path = f"actions.{name}.params.{pname}"
 
     def scope() -> Any:  # built only for a domain that is an expression
@@ -314,7 +314,7 @@ def _choices(env: Env, turn: Turn, name: str, pname: str, param: ParamSpec, reso
         if param.type == "bool":
             return head + [False, True]
         if param.type == "entity":
-            return head + [choice.id for choice in book._choices(actor, name, pname, param, resolved)]
+            return head + [choice.id for choice in book.choices(actor, name, pname, param, resolved)]
         if param.type == "enum":
             values = compile_expr(param.values)(scope()) if isinstance(param.values, str) else param.values
             return head + [_plain(value) for value in values or []]

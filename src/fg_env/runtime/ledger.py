@@ -79,7 +79,8 @@ class AttemptLedger:
         self.max_calls = max_calls
         self.atomic = atomic
         self.calls_left = max_calls
-        #: Looks and inspects that do not spend a call (see :mod:`fg_env.actions.reads`); below zero, the refused ones.
+        #: Looks and inspects that do not spend a call (see :mod:`fg_env.information.reads`); below zero, the refused
+        #: ones.
         self.reads_left = max_calls
         self.actions_left = max_actions
         #: This turn's uses of each action (this round's are the world's: ``world.used_round``).

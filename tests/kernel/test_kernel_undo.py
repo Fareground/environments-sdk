@@ -83,7 +83,7 @@ def _action_block(env, rng):
         if not actors or not spec.do:
             continue
         actor = rng.choice(actors)
-        schema = env.actions.tool(actor, name).input_schema
+        schema = env.information.tool(actor, name).input_schema
         params, problem = env.actions.validate(actor, name, sample_args(schema, rng))
         if problem:
             continue

@@ -10,8 +10,8 @@ import re
 from collections.abc import Iterable, Mapping
 from typing import Any
 
-from ..actions.reads import inspect_rule
 from ..contract import Contract, ParamSpec, StageSpec
+from ..information.reads import inspect_rule
 from ..runtime.returns import utility_class
 from . import walk
 

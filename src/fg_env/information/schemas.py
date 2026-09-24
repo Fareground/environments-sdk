@@ -9,13 +9,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from ..assets.intake import file_schema
-from ..contract import ParamSpec
-from ..errors import RunError
-from ..expr import ExprError, PrivateRead, compile_expr, is_expr, resolve
-from ..expr.objects import Entity
-from ..world.live import _copy, _plain
-from .params import (
+from ..actions.params import (
     _STEP_TOLERANCE,
     TEXT_MAX_LEN,
     _item_count,
@@ -24,12 +18,21 @@ from .params import (
     _preview,
     _tidy,
 )
+from ..assets.intake import file_schema
+from ..contract import ParamSpec
+from ..errors import RunError
+from ..expr import ExprError, is_expr, resolve
+from ..expr.objects import Entity
+from ..world.live import _copy, _plain
 from .tool_text import compact_ids, text_limit, usage_limits
 
 if TYPE_CHECKING:
-    from .book import ActionBook
+    from ..actions.book import ActionBook
 
-__all__ = ["ToolSpec", "ActionSchemas"]
+__all__ = ["ToolSpec", "ToolSchemas", "END_TURN"]
+
+#: The tool that ends a turn.
+END_TURN = "end_turn"
 
 _LEFTOVER_EXPR = re.compile(r"\$['\"(A-Za-z_]")
 #: Entity choices listed inline (id = name) in a tool schema up to this many.
@@ -65,27 +68,31 @@ class ToolSpec:
                 "kind": self.kind, "terminal": self.terminal}
 
 
-class ActionSchemas:
-    """Tool schemas for an actor's legal actions (mixed into :class:`~fg_env.actions.book.ActionBook`)."""
+class ToolSchemas:
+    """Tool schemas for an actor's legal actions, worked out from the action book's rules: the choices an entity
+    parameter offers, the bounds and values the actor's state sets."""
 
-    def tools(self: ActionBook, actor: Entity, names: Sequence[str],  # type: ignore[misc]
-              staged: bool = False) -> list[ToolSpec]:
+    def __init__(self, actions: ActionBook):
+        self.actions = actions
+
+    def tools(self, actor: Entity, names: Sequence[str], staged: bool = False) -> list[ToolSpec]:
         """One tool for each of these legal actions."""
         return [self.tool(actor, name, staged) for name in names]
 
-    def tool(self: ActionBook, actor: Entity, name: str, staged: bool = False) -> ToolSpec:  # type: ignore[misc]
+    def tool(self, actor: Entity, name: str, staged: bool = False) -> ToolSpec:
         # A copy: callers may change the schema they are given (the remembered one is listed again this turn).
-        with self.deciding():
+        book = self.actions
+        with book.deciding():
             key = ("tool", actor.id, name, staged)
-            return self.world.remembered(key, lambda: self._tool(actor, name, staged)).copy()
+            return book.world.remembered(key, lambda: self._tool(actor, name, staged)).copy()
 
-    def _tool(self: ActionBook, actor: Entity, name: str, staged: bool) -> ToolSpec:  # type: ignore[misc]
-        spec = self.contract.actions[name]
+    def _tool(self, actor: Entity, name: str, staged: bool) -> ToolSpec:
+        spec = self.actions.contract.actions[name]
         properties: dict[str, Any] = {}
         required: list[str] = []
         for pname, param in spec.params.items():
             properties[pname] = self._param_schema(actor, name, pname, param)
-            if self._required(param):
+            if self.actions.required(param):
                 required.append(pname)
         schema: dict[str, Any] = {"type": "object", "properties": properties, "additionalProperties": False}
         if required:
@@ -102,29 +109,14 @@ class ActionSchemas:
             description += " " + limits
         return ToolSpec(name, description, schema, "act", spec.terminal is True)
 
-    def _static(self: ActionBook, actor: Entity, raw: Any, where: str) -> Any:  # type: ignore[misc]
-        """Evaluate a bound that depends only on the actor; None when it needs call arguments. One that reads another
-        agent's private property is an error at ``where``: the tool would be offered without it, and refused."""
-        if not is_expr(raw):
-            return raw
-        expr = compile_expr(raw)
-        if "params" in expr.roots:
-            return None
-        try:
-            return expr(self.world.scope(actor=actor, viewer=actor))
-        except PrivateRead as exc:
-            raise RunError(str(exc), where) from None
-        except ExprError:
-            return None
-
-    def _param_schema(self: ActionBook, actor: Entity, action: str, pname: str,  # type: ignore[misc]
-                      param: ParamSpec) -> dict[str, Any]:
+    def _param_schema(self, actor: Entity, action: str, pname: str, param: ParamSpec) -> dict[str, Any]:
+        book = self.actions
         out: dict[str, Any] = {}
         description = param.description
         if param.type in ("number", "int"):
             out["type"] = "integer" if param.type == "int" else "number"
             for key, field in (("minimum", "min"), ("maximum", "max")):
-                value = _tidy(self._static(actor, getattr(param, field), f"actions.{action}.params.{pname}.{field}"))
+                value = _tidy(book.static(actor, getattr(param, field), f"actions.{action}.params.{pname}.{field}"))
                 if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
                     out[key] = math.ceil(value) if (param.type == "int" and key == "minimum") else (
                         math.floor(value) if param.type == "int" else value)
@@ -149,9 +141,9 @@ class ActionSchemas:
             if param.max_len is not None:
                 description = f"{description or ''} {text_limit(param.max_len, param.overflow)}".strip()
         elif param.type == "enum":
-            values = self._static(actor, param.values, f"actions.{action}.params.{pname}.values") \
+            values = book.static(actor, param.values, f"actions.{action}.params.{pname}.values") \
                 if isinstance(param.values, str) else param.values
-            if values is None and self._values_depend_on_params(param):
+            if values is None and book.values_depend_on_params(param):
                 values = self._every_value(actor, action, pname, param)
                 description = (description + " Valid choices depend on the other arguments.").strip()
             if isinstance(values, list) and values:
@@ -167,7 +159,7 @@ class ActionSchemas:
             out["type"] = "array"
             out["items"] = item_schema
             where = f"actions.{action}.params.{pname}"
-            low, high = _list_bounds(param, lambda raw, key: _item_count(self._static(actor, raw, f"{where}.{key}"),
+            low, high = _list_bounds(param, lambda raw, key: _item_count(book.static(actor, raw, f"{where}.{key}"),
                                                                          f"{where}.{key}"))
             if low:
                 out["minItems"] = low
@@ -179,8 +171,8 @@ class ActionSchemas:
                 description = f"{description} Each item: {item_description}".strip()
         elif param.type == "entity":
             out["type"] = "string"
-            choices = self._choices(actor, action, pname, param)  # every candidate when they depend on other arguments
-            if self._depends_on_params(param):
+            choices = book.choices(actor, action, pname, param)  # every candidate when they depend on other arguments
+            if book.depends_on_params(param):
                 description = (description + " Valid choices depend on the other arguments.").strip()
             if len(choices) <= _ENUM_CHOICES:
                 out["enum"] = [c.id for c in choices]
@@ -199,18 +191,17 @@ class ActionSchemas:
             out["default"] = default
         return out
 
-    def _every_value(self: ActionBook, actor: Entity, action: str, pname: str,  # type: ignore[misc]
-                     param: ParamSpec) -> list[Any] | None:
+    def _every_value(self, actor: Entity, action: str, pname: str, param: ParamSpec) -> list[Any] | None:
         """Every value an enum's `values` over earlier arguments can give, over each choice those arguments offer
         (so the tool lists real options; validation enforces the ones that fit the arguments given). None when the
         earlier arguments cannot all be listed, or there are too many combinations to try."""
-        spec = self.contract.actions[action]
+        spec = self.actions.contract.actions[action]
         earlier = list(spec.params)[:list(spec.params).index(pname)]
         axes: dict[str, list[Any]] = {}
         for name in earlier:
             before = spec.params[name]
             if before.type == "entity":
-                axes[name] = list(self._choices(actor, action, name, before))
+                axes[name] = list(self.actions.choices(actor, action, name, before))
             elif before.type == "enum" and isinstance(before.values, list):
                 axes[name] = list(before.values)
             elif before.type == "bool":
@@ -222,13 +213,13 @@ class ActionSchemas:
         found: list[Any] = []
         for combination in itertools.product(*axes.values()):
             try:
-                values = self.enum_values(actor, action, pname, param, dict(zip(axes, combination)))
+                values = self.actions.enum_values(actor, action, pname, param, dict(zip(axes, combination)))
             except RunError:
                 continue  # a combination the values cannot be worked out for offers nothing
             found.extend(value for value in values if value not in found)
         return found if len(found) <= _ENUM_CHOICES else None
 
-    def _schema_default(self: ActionBook, actor: Entity, param: ParamSpec) -> Any:  # type: ignore[misc]
+    def _schema_default(self, actor: Entity, param: ParamSpec) -> Any:
         """The default as the agent would get it, or None when it cannot be known before the call
         (it reads other arguments) — never the raw expression text."""
         raw = param.default
@@ -236,7 +227,7 @@ class ActionSchemas:
             return None
         if _mentions_expr(raw):
             try:
-                raw = resolve(raw, self.world.scope(actor=actor, viewer=actor))
+                raw = resolve(raw, self.actions.world.scope(actor=actor, viewer=actor))
             except ExprError:
                 return None
             if _mentions_expr(raw):

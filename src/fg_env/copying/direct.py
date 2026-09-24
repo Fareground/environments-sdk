@@ -23,9 +23,9 @@ from typing import Any
 
 from ..expr.objects import Entity, PropsView
 from ..host.hosts import hosts_for
+from ..information.exposure import Exposure, ExposureLog
 from ..runtime.diagnosis import Diagnosis
 from ..runtime.diagnosis import _copy as _copy_counts
-from ..runtime.exposure import Exposure, ExposureLog
 from ..runtime.measure import Stats
 from ..runtime.state import Cursor, Memory, RunState
 from ..runtime.turn import Turn
@@ -44,12 +44,12 @@ class NotCopyable(Exception):
 
 
 _ENV_FIELDS = frozenset({
-    "contract", "inputs", "seed", "arm", "parallel", "seeds", "world", "effects", "actions", "perception", "state",
+    "contract", "inputs", "seed", "arm", "parallel", "seeds", "world", "effects", "actions", "information", "state",
     "status", "ended_by", "error", "_lock", "_signal", "_running", "driver", "time_limit", "budget", "schedule",
-    "previews", "origin", "_inspectable", "pilot", "build_seed", "stepper", "diagnosis", "rules", "_reads_log"})
+    "previews", "origin", "pilot", "build_seed", "stepper", "diagnosis", "rules", "_reads_log"})
 _STATE_FIELDS = frozenset({
     "world", "keep_events", "turn_count", "memories", "briefs", "brief_assets", "in_round", "cursor", "emitted",
-    "stats", "agent_stats", "invariant_held", "rows", "rows_last"})
+    "frames", "stats", "agent_stats", "invariant_held", "rows", "rows_last"})
 _WORLD_FIELDS = frozenset({
     "contract", "inputs", "arm", "luck", "entities", "props", "links", "link_fields", "adjacent",
     "records_store", "entry_by_seq", "record_authors", "record_events", "entity_briefs", "log", "physics",
@@ -90,9 +90,8 @@ def copy_run(source: SteppedEnv, waiting: Waiting | None) -> tuple[SteppedEnv, W
     env.__dict__.update(
         contract=source.contract, inputs=source.inputs, seed=source.seed, arm=source.arm, parallel=source.parallel,
         seeds=source.seeds, world=world, state=_copy_state(source.state, world), status=source.status,
-        ended_by=source.ended_by, error=source.error, time_limit=source.time_limit, budget=None,
-        _inspectable=source._inspectable, pilot=None, build_seed=source.build_seed, stepper=None,
-        _reads_log=source._reads_log)
+        ended_by=source.ended_by, error=source.error, time_limit=source.time_limit, budget=None, pilot=None,
+        build_seed=source.build_seed, stepper=None, _reads_log=source._reads_log)
     env._lock = threading.RLock()
     env._signal = threading.Condition(env._lock)
     env._running = threading.Lock()
@@ -100,12 +99,14 @@ def copy_run(source: SteppedEnv, waiting: Waiting | None) -> tuple[SteppedEnv, W
     world.lifecycle = env.effects.lifecycle
     world.joined = env._joined
     env.actions = _rebound(source.actions, world=world, effects=env.effects)
-    env.perception = _rebound(source.perception, world=world)
+    env.information = _rebound(source.information, world=world, state=env.state, lock=env._lock,
+                               perception=_rebound(source.information.perception, world=world),
+                               schemas=_rebound(source.information.schemas, actions=env.actions))
     env.diagnosis = world.diagnosis = _copy_diagnosis(source.diagnosis, world.written)
     env.rules = _rebound(source.rules, world=world, effects=env.effects, actions=env.actions, state=env.state,
                          diagnosis=env.diagnosis, lock=env._lock)
     env.rules.events = _rebound(source.rules.events, rules=env.rules)
-    env.previews = _rebound(source.previews, env=env, frames=list(source.previews.frames))
+    env.previews = _rebound(source.previews, env=env)
     env.schedule = _rebound(source.schedule, env=env, rules=env.rules, _round=None, on_event=None)
     env.rules.react = env.schedule.react
     env.driver = _rebound(source.driver, env=env, spec=dict(source.driver.spec), _resolved={}, loop=None)
@@ -152,7 +153,8 @@ def _copy_state(source: RunState, world: SdkWorld) -> RunState:
     state.__dict__.update(
         turn_count=source.turn_count, in_round=source.in_round, emitted=source.emitted, briefs=dict(source.briefs),
         brief_assets={key: list(ids) for key, ids in source.brief_assets.items()},
-        stats=_copy_stats(source.stats), agent_stats={key: _copy_stats(s) for key, s in source.agent_stats.items()},
+        frames=list(source.frames), stats=_copy_stats(source.stats),
+        agent_stats={key: _copy_stats(s) for key, s in source.agent_stats.items()},
         memories={key: _copy_memory(memory) for key, memory in source.memories.items()},
         rows=list(source.rows), rows_last=source.rows_last)
     return state

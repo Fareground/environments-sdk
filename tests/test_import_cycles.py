@@ -114,7 +114,7 @@ LAYERS = (
     ("errors", "registry", "sampling"),
     ("contract",),
     ("expr",),
-    ("world", "physics", "assets", "effects", "actions", "mechanisms", "host", "stdlib", "patterns"),
+    ("world", "physics", "assets", "effects", "actions", "information", "mechanisms", "host", "stdlib", "patterns"),
     ("runtime", "participants", "copying", "checks", "api", "experiments"),
     ("analysis", "report", "trace", "describe", "tournament", "evaluate", "game", "authoring", "guides", "engines",
      "personas", "rl", "cli"),

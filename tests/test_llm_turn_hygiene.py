@@ -251,7 +251,7 @@ def test_many_ids_are_listed_compactly_and_uninspectable_entities_get_no_handle(
 
 
 def test_compact_ids_keep_order_and_cut_a_long_listing():
-    from fg_env.actions.reads import compact_ids
+    from fg_env.information.reads import compact_ids
 
     assert compact_ids(["p1", "p2", "p3", "x", "p5", "p6", "a07"]) == "p1–p3, x, p5, p6, a07"
     assert compact_ids([f"k{i}" for i in range(0, 200, 2)]).endswith(" and 40 more")

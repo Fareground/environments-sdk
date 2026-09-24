@@ -12,9 +12,9 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from ..actions.book import ToolSpec
 from ..effects.chance import ChanceNode
 from ..errors import RunError, SnapshotError
+from ..information.schemas import ToolSpec
 from ..participants import Participant
 from ..runtime.env import Env
 from ..runtime.measure import RunResult

@@ -3,7 +3,7 @@
 What the run changes as it plays is one value, :class:`~fg_env.runtime.state.RunState`. The parts are services over
 it: :class:`~fg_env.runtime.rules.Rules` evaluates and commits world logic, :class:`~fg_env.runtime.schedule.Schedule`
 says when everything happens and who acts in what order, the :class:`~fg_env.runtime.driving.Driver` plays each turn's
-participant, and :class:`~fg_env.runtime.perception.Perception` renders what an agent reads.
+participant, and :class:`~fg_env.information.core.Information` renders what agents and spectators read.
 """
 from __future__ import annotations
 
@@ -13,7 +13,6 @@ from collections.abc import Callable, Mapping
 from typing import Any
 
 from ..actions.book import ActionBook
-from ..actions.reads import inspect_rule
 from ..assets.store import AssetStore
 from ..contract import MAX_ROUNDS, Contract
 from ..copying.previews import Previews
@@ -25,6 +24,8 @@ from ..expr import ExprError
 from ..expr.objects import Entity
 from ..host.hosts import count_host_tokens
 from ..host.tape import tape_of
+from ..information.core import Information
+from ..information.exposure import recording
 from ..sampling.seeds import SeedTree
 from ..world.build import build_world
 from ..world.live import _plain
@@ -33,10 +34,8 @@ from .diagnosis import Diagnosis
 from .diagnostics import diagnose
 from .driving import Driver, run_on_worker
 from .end_state import end_state
-from .exposure import ExposureLog, asks_seen, recording
 from .forgetting import reads_log
 from .measure import RunResult
-from .perception import Perception
 from .returns import measured
 from .rules import Rules
 from .schedule import Schedule
@@ -63,7 +62,6 @@ class Env:
         self.effects = EffectRunner(self.world)
         self.world.joined = self._joined
         self.actions = ActionBook(contract, self.world, self.effects)
-        self.perception = Perception(contract, self.world)
         if exposures and not events:
             raise ValueError("events=False keeps no event log, but exposures=True records what every agent was shown "
                              "to replay against it: drop one of them")
@@ -74,6 +72,7 @@ class Env:
         self.ended_by: str | None = None
         self.error: str | None = None
         self._lock = threading.RLock()
+        self.information = Information(contract, self.world, self.actions, self.state, self._lock, exposures)
         self.diagnosis = self.world.diagnosis = Diagnosis(self.world.written)
         self.rules = Rules(contract, self.world, self.effects, self.actions, self.state, self.diagnosis, self._lock)
         #: Signalled when a participant's turn lands or a call returns; waiting on it releases the lock.
@@ -83,15 +82,11 @@ class Env:
         #: Wall-clock seconds each agent has for a turn (None: no limit).
         self.time_limit: float | None = None
         self.budget: Budget | None = None
-        #: Recorded when asked, or when the contract's rules ask `$seen`.
-        self.world.exposures = ExposureLog() if exposures or asks_seen(contract) else None
         self._reads_log = reads_log(contract) if not events else True
         self.previews = Previews(self)
         self.schedule = Schedule(self)
         self.rules.react = self.schedule.react
         self.origin = Origin(contract)  # what copies of this run replay from (see copying/replay.py)
-        #: Whether some type lets agents inspect entities besides themselves (whose [id] handles then show).
-        self._inspectable = any(inspect_rule(contract, kind) is not False for kind in contract.types)
         self.rules.check_invariants("build", "build")
 
     # -- public API ----------------------------------------------------------------
@@ -230,7 +225,7 @@ class Env:
             agent_stats={key: agent.to_dict() for key, agent in sorted(self.state.agent_stats.items())},
             events=self.state.event_rows() if self.state.keep_events else [],
             exposures=recording(self),
-            frames=[dict(frame) for frame in self.previews.frames], returns=returns,
+            frames=[dict(frame) for frame in self.state.frames], returns=returns,
             host_tape=tape_of(self) if self.world.exposures is not None else {}, budget=Budget.report(self),
             formats={name: spec.format for name, spec in self.contract.outputs.items() if spec.format},
             diagnostics=diagnose(self, outputs, issues),
@@ -242,12 +237,12 @@ class Env:
     @property
     def frames(self) -> list[dict[str, Any]]:
         """Spectator frames so far: ``[{round, views: {name: text}, final?}]``."""
-        return self.previews.frames
+        return self.state.frames
 
     def spectate(self) -> dict[str, str]:
         """Every spectator view (``"for": "spectator"``) rendered against the world now, by name. Changes
         nothing: views that draw randomness use a stream of their own."""
-        return self.previews.spectate()
+        return self.information.spectate()
 
     def preview(self, entity_id: str, stage: str | None = None, participants: Any = None) -> dict[str, Any]:
         """What the agent would receive on its next turn: brief, update, tools and time limit. Changes nothing.
@@ -315,13 +310,3 @@ class Env:
         if self.contract.is_agent(entity.entity_type):
             memory = self.state.memories[entity.id] = Memory()
             memory.cursor = self.world.log[-1].seq if self.world.log else 0
-
-    def _brief(self, actor: Entity) -> str:
-        state = self.state
-        brief = state.briefs.get(actor.id)
-        if brief is None:
-            attached: list[str] = []
-            brief = state.briefs[actor.id] = self.perception.brief(actor, attached)
-            if attached:
-                state.brief_assets[actor.id] = attached
-        return brief

@@ -86,5 +86,5 @@ def test_a_worked_out_reveal_is_announced_and_a_private_action_announces_nothing
 
         result = env.run(play)
         assert result.ok, result.summary()
-        lines, _ = env.perception.news(env.world.entities["b"], 0)
+        lines, _ = env.information.news(env.world.entities["b"], 0)
         assert any("Balance: 137" in line for line in lines) == (not private)

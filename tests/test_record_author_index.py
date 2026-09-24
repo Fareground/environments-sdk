@@ -99,7 +99,7 @@ def test_direct_record_view_uses_the_same_private_rows():
     post(env, "a", 111)
     post(env, "b", 222)
     view = env.contract.views["notes"]
-    text = env.perception.render_view("notes", view, env.world.entities["a"])
+    text = env.information.render_view("notes", view, env.world.entities["a"])
     assert "111" in text and "222" not in text
 
 

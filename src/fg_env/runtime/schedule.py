@@ -203,7 +203,7 @@ class Schedule:
             env.status = "completed"
             self._final_event()
         else:
-            env.previews.frame(final=False)
+            env.information.frame(final=False)
 
     def finish(self) -> None:
         """End the run where it is, as its end request says."""
@@ -224,7 +224,7 @@ class Schedule:
         text = end.get("text") or (f"The run ended: {env.ended_by}." if env.ended_by != "rounds" else "Time is up.")
         world.emit("end", text, data={"ended_by": env.ended_by, "winner": end.get("winner")})
         world.journal.clear()
-        env.previews.frame(final=True)
+        env.information.frame(final=True)
         self.flush()
 
     # -- stages ----------------------------------------------------------------------------------------------------
@@ -343,7 +343,7 @@ class Schedule:
         requested = env.world.wake_requests.pop(actor.id, None)
         memory = env.state.memory(actor.id)
         if stage.quiet == "skip" and requested is None and pass_index > 0:
-            if not env.perception.news(actor, memory.cursor, 1)[0]:
+            if not env.information.news(actor, memory.cursor, 1)[0]:
                 return None
         if requested:
             return requested

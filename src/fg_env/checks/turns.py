@@ -5,7 +5,7 @@ from collections.abc import Set as AbstractSet
 from typing import TYPE_CHECKING
 
 from .. import contract as C
-from ..runtime.perception import SPECTATOR
+from ..information.perception import SPECTATOR
 
 if TYPE_CHECKING:
     from . import _Checker

@@ -45,12 +45,12 @@ from ..expr.objects import Entity
 from ..world.live import Entry, LogEvent
 
 if TYPE_CHECKING:
-    from ..actions.book import ToolSpec
     from ..contract import Contract
     from ..effects.chance import ChanceNode
-    from .env import Env
-    from .session import ToolResult
-    from .turn import Turn
+    from ..runtime.env import Env
+    from ..runtime.session import ToolResult
+    from ..runtime.turn import Turn
+    from .schemas import ToolSpec
 
 __all__ = ["Shown", "Exposure", "ExposureLog", "asks_seen", "recording", "text_hash", "tokens"]
 

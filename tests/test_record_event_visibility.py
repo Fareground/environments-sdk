@@ -63,12 +63,12 @@ def test_event_expressions_follow_the_viewer_and_logic_reads_them_all():
 def test_omitted_counts_use_the_same_record_visibility_as_rendered_news(limit):
     env, _ = run()
     actor = env.world.entities["b"]
-    lines, hidden = env.perception.news(actor, 0, limit)
+    lines, hidden = env.information.news(actor, 0, limit)
     visible_count = 31 if limit is None else min(limit, 31)  # 30 public events plus the run-end notice
     assert len(lines) == visible_count
     assert hidden == 31 - visible_count
     env.world.set_world("shared", True)
-    lines, hidden = env.perception.news(actor, 0, limit)
+    lines, hidden = env.information.news(actor, 0, limit)
     visible_count = 32 if limit is None else min(limit, 32)
     assert len(lines) == visible_count
     assert hidden == 32 - visible_count
@@ -83,7 +83,7 @@ def test_event_visibility_updates_after_access_changes_and_snapshot_restore():
     assert len(restored.world.events("record", restored.world.entities["b"])) == 1
     restored.world.set_world("shared", False)
     assert restored.world.events("record", restored.world.entities["b"]) == []
-    assert restored.perception.news(restored.world.entities["b"], 0, 30)[1] == 1
+    assert restored.information.news(restored.world.entities["b"], 0, 30)[1] == 1
 
 
 def test_retired_entries_do_not_reappear_through_notification_payloads():

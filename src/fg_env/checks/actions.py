@@ -8,10 +8,10 @@ from typing import TYPE_CHECKING, Any
 
 from .. import contract as C
 from ..actions.params import choice_list
-from ..actions.reads import READS
 from ..contract import Contract
 from ..expr import ExprError, compile_expr, is_expr
-from ..runtime.perception import SPECTATOR
+from ..information.perception import SPECTATOR
+from ..information.reads import READS
 from ..runtime.session import END_TURN
 from .params import check_param_bounds
 from .roots import BASE

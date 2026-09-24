@@ -16,9 +16,9 @@ import time
 from collections.abc import Callable, Collection, Mapping
 from typing import TYPE_CHECKING, Any
 
-from ..actions.schemas import ToolSpec
 from ..assets.multimodal import ANTHROPIC_MEDIA, OPENAI_MEDIA, anthropic_parts, media_set, openai_parts
 from ..errors import RunError
+from ..information.schemas import ToolSpec
 from ..runtime.budget import tokens_of
 from ..runtime.measure import Stats
 from ..runtime.session import END_TURN, ToolResult, Wake

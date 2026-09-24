@@ -19,8 +19,8 @@ from typing import TYPE_CHECKING, Any
 from ..assets.store import AssetStore
 from ..errors import RunError, SnapshotError
 from ..expr.objects import Entity
+from ..information.exposure import ExposureLog
 from ..world.live import Abort, Entry, LogEvent
-from .exposure import ExposureLog
 from .measure import Stats
 
 if TYPE_CHECKING:
@@ -81,6 +81,8 @@ class RunState:
         self.cursor = Cursor()
         #: How many of the log's events have been handed to the run's ``on_event`` callback.
         self.emitted = 0
+        #: Spectator views rendered at the end of every round, the last one marked final (see information/core.py).
+        self.frames: list[dict[str, Any]] = []
         self.stats = Stats()
         #: The same numbers per agent entity id (a tournament bills each entrant for its own turns).
         self.agent_stats: dict[str, Stats] = {}

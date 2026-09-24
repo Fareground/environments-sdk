@@ -24,11 +24,11 @@ from ..expr import ExprError, compile_expr, truthy
 from ..expr.objects import Entity
 from ..expr.scope import Scope
 from ..expr.template import format_value
-from .book import ToolSpec
+from .schemas import ToolSpec
 from .tool_text import compact_ids, free_reads
 
 if TYPE_CHECKING:
-    from ..runtime.env import Env
+    from .core import Information
 
 __all__ = ["READS", "UNCHANGED", "inspect_rule", "may_inspect", "inspectable", "look_tool", "inspect_tool",
            "inspect_text", "find_target", "handle_filter", "compact_ids", "reads_refused"]
@@ -52,37 +52,37 @@ def inspect_rule(contract: Any, type_name: str) -> Any:
     return False
 
 
-def may_inspect(env: Env, viewer: Entity, target: Entity) -> bool:
+def may_inspect(info: Information, viewer: Entity, target: Entity) -> bool:
     """Whether ``viewer`` may inspect ``target`` (itself always)."""
-    return _may_inspect_rule(env, viewer, target, inspect_rule(env.contract, target.entity_type))
+    return _may_inspect_rule(info, viewer, target, inspect_rule(info.contract, target.entity_type))
 
 
-def _may_inspect_rule(env: Env, viewer: Entity, target: Entity, rule: Any, scope: Scope | None = None) -> bool:
+def _may_inspect_rule(info: Information, viewer: Entity, target: Entity, rule: Any, scope: Scope | None = None) -> bool:
     """``target``'s inspect ``rule`` for ``viewer``; ``scope``: the viewer's, when many targets are asked about."""
     if target.id == viewer.id:
         return True
     if isinstance(rule, bool):
         return rule
     try:
-        here = scope.child(it=target) if scope is not None else env.world.scope(viewer=viewer, it=target)
+        here = scope.child(it=target) if scope is not None else info.world.scope(viewer=viewer, it=target)
         return truthy(compile_expr(rule)(here))
     except ExprError as exc:
         raise RunError(str(exc), f"types.{target.entity_type}.inspect") from None
 
 
-def inspectable(env: Env, viewer: Entity) -> list[Entity]:
+def inspectable(info: Information, viewer: Entity) -> list[Entity]:
     """The living entities ``viewer`` may inspect, in the world's order."""
-    rules = {kind: inspect_rule(env.contract, kind) for kind in env.contract.types}
-    scope = env.world.scope(viewer=viewer)
-    return [entity for entity in _candidates(env, viewer, rules)
-            if _may_inspect_rule(env, viewer, entity, rules[entity.entity_type], scope)]
+    rules = {kind: inspect_rule(info.contract, kind) for kind in info.contract.types}
+    scope = info.world.scope(viewer=viewer)
+    return [entity for entity in _candidates(info, viewer, rules)
+            if _may_inspect_rule(info, viewer, entity, rules[entity.entity_type], scope)]
 
 
-def _candidates(env: Env, viewer: Entity, rules: dict[str, Any]) -> list[Entity]:
+def _candidates(info: Information, viewer: Entity, rules: dict[str, Any]) -> list[Entity]:
     """The living entities ``viewer`` might inspect, in the world's order: itself, and the members of every type
     whose rule is not false. A type only its members may inspect is never scanned, so a turn costs the same however
     many of them the world holds."""
-    world = env.world
+    world = info.world
     found = [viewer] if viewer.alive else []
     for kind, rule in rules.items():
         if rule is not False:
@@ -92,23 +92,23 @@ def _candidates(env: Env, viewer: Entity, rules: dict[str, Any]) -> list[Entity]
     return sorted(found, key=lambda entity: order[entity.id]) if len(found) > 1 else found
 
 
-def _offered(env: Env, viewer: Entity) -> list[Entity]:
+def _offered(info: Information, viewer: Entity) -> list[Entity]:
     """The inspectable entities worth offering: inspecting them shows more than their name."""
-    rules = {kind: inspect_rule(env.contract, kind) for kind in env.contract.types}
-    scope = env.world.scope(viewer=viewer)
-    return [entity for entity in _candidates(env, viewer, rules)
-            if _may_inspect_rule(env, viewer, entity, rules[entity.entity_type], scope)
-            and (entity.location_id is not None or any(True for _ in _shown(env, viewer, entity)))]
+    rules = {kind: inspect_rule(info.contract, kind) for kind in info.contract.types}
+    scope = info.world.scope(viewer=viewer)
+    return [entity for entity in _candidates(info, viewer, rules)
+            if _may_inspect_rule(info, viewer, entity, rules[entity.entity_type], scope)
+            and (entity.location_id is not None or any(True for _ in _shown(info, viewer, entity)))]
 
 
-def _details(env: Env, viewer: Entity, target: Entity) -> list[tuple[str, Any]]:
+def _details(info: Information, viewer: Entity, target: Entity) -> list[tuple[str, Any]]:
     """The properties an inspect of ``target`` shows ``viewer``: none hidden from it (its own private ones are not;
     see expr/hidden.py), none without a value."""
-    return list(_shown(env, viewer, target))
+    return list(_shown(info, viewer, target))
 
 
-def _shown(env: Env, viewer: Entity, target: Entity) -> Iterator[tuple[str, Any]]:
-    hides = env.world.hides
+def _shown(info: Information, viewer: Entity, target: Entity) -> Iterator[tuple[str, Any]]:
+    hides = info.world.hides
     return ((key, value) for key, value in target.properties.items()
             if not _empty(value) and not hides(target, key, viewer))
 
@@ -127,11 +127,11 @@ def look_tool(looks: Sequence[tuple[str, str]], allowance: int) -> ToolSpec:
         "required": ["view"], "additionalProperties": False}, "look")
 
 
-def inspect_tool(env: Env, viewer: Entity, allowance: int) -> ToolSpec | None:
+def inspect_tool(info: Information, viewer: Entity, allowance: int) -> ToolSpec | None:
     """The inspect tool ``viewer`` is offered, worked out once per world state: for every viewer of a type whose
     listing is the same for all (see :func:`_shares_listing`), else for each."""
-    key = ("inspect", allowance) if _shares_listing(env, viewer) else ("inspect", allowance, viewer.id)
-    listed = env.world.remembered(key, lambda: _build_inspect_tool(env, viewer, allowance))
+    key = ("inspect", allowance) if _shares_listing(info, viewer) else ("inspect", allowance, viewer.id)
+    listed = info.world.remembered(key, lambda: _build_inspect_tool(info, viewer, allowance))
     # A copy: callers may change the schema they are given (enums have at most 60 ids, so copying stays bounded).
     tool = listed.copy() if listed is not None else None
     if tool is not None and tool.input_schema["properties"]["id"].get("enum") == [viewer.id]:
@@ -139,20 +139,20 @@ def inspect_tool(env: Env, viewer: Entity, allowance: int) -> ToolSpec | None:
     return tool
 
 
-def _shares_listing(env: Env, viewer: Entity) -> bool:
+def _shares_listing(info: Information, viewer: Entity) -> bool:
     """Whether every agent of ``viewer``'s type is offered the same entities to inspect: every type's inspect rule is
     true or false (no rule reads the viewer), and its own type's is true with no private property (so none is hidden
     from one member but not from another)."""
-    contract = env.contract
+    contract = info.contract
     if any(not isinstance(inspect_rule(contract, kind), bool) for kind in contract.types):
         return False
     return inspect_rule(contract, viewer.entity_type) is True and not any(
         spec.private for spec in contract.props_of(viewer.entity_type).values())
 
 
-def _build_inspect_tool(env: Env, viewer: Entity, allowance: int) -> ToolSpec | None:
+def _build_inspect_tool(info: Information, viewer: Entity, allowance: int) -> ToolSpec | None:
     """The inspect tool, or None when nothing is worth inspecting."""
-    ids = [entity.id for entity in _offered(env, viewer)]
+    ids = [entity.id for entity in _offered(info, viewer)]
     if not ids:
         return None
     prop: dict[str, Any] = {"type": "string"}
@@ -166,13 +166,13 @@ def _build_inspect_tool(env: Env, viewer: Entity, allowance: int) -> ToolSpec | 
         "type": "object", "properties": {"id": prop}, "required": ["id"], "additionalProperties": False}, "look")
 
 
-def inspect_text(env: Env, viewer: Entity, target: Entity) -> tuple[str, list[str]]:
+def inspect_text(info: Information, viewer: Entity, target: Entity) -> tuple[str, list[str]]:
     """What inspecting ``target`` shows ``viewer``, and the ids of the files it references."""
-    specs = env.contract.props_of(target.entity_type)
-    details = _details(env, viewer, target)
+    specs = info.contract.props_of(target.entity_type)
+    details = _details(info, viewer, target)
     files = [str(v) for k, v in details if specs.get(k) is not None and specs[k].type == "asset"
-             and env.world.assets.has(v)]
-    shown = [f"{k}: {references(env.world.assets, [v]) if v in files else format_value(v)}" for k, v in details]
+             and info.world.assets.has(v)]
+    shown = [f"{k}: {references(info.world.assets, [v]) if v in files else format_value(v)}" for k, v in details]
     where = f" at {format_value(target.location_id)}" if target.location_id is not None else ""
     return (f"{target.name} [{target.id}] ({target.entity_type}){where}" + ("\n" + "\n".join(shown) if shown else ""),
             files)
@@ -187,14 +187,14 @@ def reads_refused(allowance: int, must_act: bool, stopped: bool) -> str:
     return f"{text} {'Take an action now.' if must_act else 'Act or end your turn.'}"
 
 
-def find_target(env: Env, viewer: Entity, wanted: Any) -> tuple[Entity | None, str]:
+def find_target(info: Information, viewer: Entity, wanted: Any) -> tuple[Entity | None, str]:
     """The entity an inspect call names — by id, or by a name only one inspectable entity has — or a refusal that
     suggests the closest id. Only entities the viewer may inspect are ever found, named or suggested."""
     if isinstance(wanted, str):
-        target = env.world.entity(wanted.strip())
-        if target is not None and target.alive and may_inspect(env, viewer, target):
+        target = info.world.entity(wanted.strip())
+        if target is not None and target.alive and may_inspect(info, viewer, target):
             return target, ""
-    choices = inspectable(env, viewer)
+    choices = inspectable(info, viewer)
     key = wanted.strip().lower() if isinstance(wanted, str) else ""
     named = [entity for entity in choices if key and (entity.name or "").lower() == key]
     if len(named) == 1:
@@ -203,7 +203,7 @@ def find_target(env: Env, viewer: Entity, wanted: Any) -> tuple[Entity | None, s
     hint = _closest(key, choices) if key else None
     if hint is not None:
         return None, f"{text} Did you mean '{hint}'?"
-    listed = compact_ids([entity.id for entity in _offered(env, viewer)])
+    listed = compact_ids([entity.id for entity in _offered(info, viewer)])
     return None, f"{text} You can inspect: {listed or 'nothing'}."
 
 
@@ -218,16 +218,16 @@ def _closest(key: str, choices: Sequence[Entity]) -> str | None:
     return by_text[found[0]] if found else None
 
 
-def handle_filter(env: Env, viewer: Entity) -> Callable[[Any], bool] | None:
+def handle_filter(info: Information, viewer: Entity) -> Callable[[Any], bool] | None:
     """Which entities show their [id] handle in what ``viewer`` reads: those it may inspect (None: no inspect tool)."""
-    if not env._inspectable:
+    if not info.inspectable:
         return None
     known: dict[str, bool] = {}
 
     def show(entity: Any) -> bool:
         seen = known.get(entity.id)
         if seen is None:
-            seen = known[entity.id] = entity.id != viewer.id and entity.alive and may_inspect(env, viewer, entity)
+            seen = known[entity.id] = entity.id != viewer.id and entity.alive and may_inspect(info, viewer, entity)
         return seen
 
     return show

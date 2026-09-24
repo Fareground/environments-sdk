@@ -17,12 +17,13 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from ..actions.book import ACTION_BUDGET, ToolSpec
+from ..actions.book import ACTION_BUDGET
 from ..actions.faults import refused_text
 from ..errors import RunError
 from ..expr import ExprError, shared_budget
 from ..expr.template import compile_template
 from ..host.tape import discard
+from ..information.schemas import ToolSpec
 from ..participants import resolve_participant
 from ..registry import config_data, use_key
 from ..world.live import Abort
@@ -153,7 +154,7 @@ class HostWake(Wake):
     def _spec(self, name: str) -> ToolSpec:
         env = self._turn.env
         with env._lock:
-            spec = env.actions.tool(self._turn.actor, name, staged=False)
+            spec = env.information.tool(self._turn.actor, name, staged=False)
         return ToolSpec(spec.name, spec.description, spec.input_schema, "look", False)
 
     def _apply(self, name: str, params: dict[str, Any]) -> ToolResult:

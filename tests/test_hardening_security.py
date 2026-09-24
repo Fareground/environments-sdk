@@ -381,10 +381,10 @@ def test_numbers_beyond_the_safe_range_and_text_length(tools_env):
 
 def test_tool_schemas_have_no_float_noise_and_no_expression_text(tools_env):
     actor = tools_env.world.entities["t1"]
-    trade = tools_env.actions.tool(actor, "trade").input_schema["properties"]
+    trade = tools_env.information.tool(actor, "trade").input_schema["properties"]
     assert trade["amount"]["maximum"] == 0.3
     assert trade["memo"]["maxLength"] == TEXT_MAX_LEN
-    defaults = tools_env.actions.tool(actor, "defaults").input_schema["properties"]
+    defaults = tools_env.information.tool(actor, "defaults").input_schema["properties"]
     assert defaults["a"]["default"] == 0.3
     assert "default" not in defaults["b"] and "default" not in defaults["c"]
     assert defaults["e"]["default"] == "plain" and defaults["long"]["maxLength"] == 10_000

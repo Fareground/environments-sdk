@@ -170,7 +170,7 @@ def test_eligible_limits_the_rank_tools_and_an_ineligible_pair_never_matches():
     eligible = "$receiver.id in $proposer.applied"
     agents = _applied(_market({s: [] for s in MEN}, WOMEN, agents=("student",), eligible=eligible), applied)
     env = fg_env.load(agents, seed=1)
-    schema = env.actions.tool(env.world.entities["m1"], "admit_rank").input_schema["properties"]["ranking"]
+    schema = env.information.tool(env.world.entities["m1"], "admit_rank").input_schema["properties"]["ranking"]
     assert schema["items"]["enum"] == ["w2"]
     replies = {}
 

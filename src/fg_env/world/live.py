@@ -120,7 +120,7 @@ class SdkWorld(World):
         #: Called with every entity created once the run has begun (set by the run: an agent that joins then hears the
         #: news from its arrival on, not the backlog of everything before it).
         self.joined: Callable[[Entity], None] | None = None
-        #: What each agent was shown (an :class:`~fg_env.runtime.exposure.ExposureLog`), when the run records it.
+        #: What each agent was shown (an :class:`~fg_env.information.exposure.ExposureLog`), when the run records it.
         self.exposures: Any = None
         #: Names of properties written since the build (read by the run's diagnostics; see runtime/diagnosis.py).
         self.written: set[str] = set()

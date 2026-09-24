@@ -18,8 +18,8 @@ from _corpus import FUZZ_FAST, FUZZ_SLOW, clean_fuzz, clean_seed
 import fg_env
 
 PACKAGE = Path(fg_env.__file__).parent
-#: Where agent-facing text is rendered (the rebuild's Information layer).
-GATE = {"runtime/perception.py"}
+#: Where agent-facing text is rendered: the Information component.
+GATE = "information/"
 #: The expression language itself, where templates are defined and compiled.
 LANGUAGE = "expr/"
 
@@ -88,7 +88,7 @@ def _ungated_renders() -> Counter:
     found: Counter = Counter()
     for path in sorted(PACKAGE.rglob("*.py")):
         where = path.relative_to(PACKAGE).as_posix()
-        if where in GATE or where.startswith(LANGUAGE):
+        if where.startswith((GATE, LANGUAGE)):
             continue
         scan = _Renders(where)
         scan.visit(ast.parse(path.read_text(), where))

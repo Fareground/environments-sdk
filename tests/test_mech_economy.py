@@ -36,7 +36,7 @@ def ok(result):
 
 
 def tool(env, entity_id, name):
-    return env.actions.tool(env.world.entities[entity_id], name).input_schema["properties"]
+    return env.information.tool(env.world.entities[entity_id], name).input_schema["properties"]
 
 
 def blocked(env, entity_id, name):
@@ -672,7 +672,7 @@ def test_offers_show_private_worth_and_walk_away_only_to_their_owner():
 
     def seen(entity_id):
         actor = env.world.entities[entity_id]
-        lines = (env.perception.render_view(name, view, actor) for name, view in env.contract.views.items())
+        lines = (env.information.render_view(name, view, actor) for name, view in env.contract.views.items())
         return "\n".join(line for line in lines if line)
 
     ar, bo = seen("ar"), seen("bo")

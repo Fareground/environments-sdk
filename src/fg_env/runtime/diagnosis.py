@@ -223,7 +223,7 @@ def usable(turn: Turn, name: str) -> bool | None:
         return None
     if env.actions.blocked(actor, name, turn.ledger.used, env.world.used_round.get(actor.id, {})) is not None:
         return None
-    found = _axes(env.actions.tool(actor, name, turn.staged).input_schema)
+    found = _axes(env.information.tool(actor, name, turn.staged).input_schema)
     if found is None:
         return None
     axes, complete = found

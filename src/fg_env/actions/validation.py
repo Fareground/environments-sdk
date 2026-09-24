@@ -78,7 +78,7 @@ class ActionValidation:
                             problems.append(_waiting_on(pname, failed))
                             continue
                         raise RunError(str(exc), f"actions.{name}.params.{pname}.default") from None
-                elif self._required(param):
+                elif self.required(param):
                     problems.append(f"{pname} is required")
                     continue
                 else:
@@ -185,7 +185,7 @@ class ActionValidation:
             chosen = self._chosen(actor, param, raw, params)
             if chosen is not None:
                 return chosen, None
-            choices = self._choices(actor, action, pname, param, params)
+            choices = self.choices(actor, action, pname, param, params)
             if isinstance(raw, dict) and isinstance(raw.get("id"), str):
                 raw = raw["id"]
             if not isinstance(raw, str):

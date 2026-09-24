@@ -24,14 +24,14 @@ def _busy():
 def test_what_is_sent_to_the_agent_comes_first_then_world_news_then_others_actions():
     env, world = _busy()
     a = world.entities["a"]
-    assert env.perception.news(a, 0, 5) == (["Notice 0", "Notice 1", "Notice 2", "Psst", "b acted last"], 6)
-    assert env.perception.news(a, 0, 2) == (["Notice 2", "Psst"], 9)
-    assert env.perception.news(a, 0, 0) == (["Psst"], 10)  # what is sent to it is always kept
-    lines, hidden = env.perception.news(a, 0)
+    assert env.information.news(a, 0, 5) == (["Notice 0", "Notice 1", "Notice 2", "Psst", "b acted last"], 6)
+    assert env.information.news(a, 0, 2) == (["Notice 2", "Psst"], 9)
+    assert env.information.news(a, 0, 0) == (["Psst"], 10)  # what is sent to it is always kept
+    lines, hidden = env.information.news(a, 0)
     assert hidden == 0 and len(lines) == 11 and "a acted" not in lines and "Not for a" not in lines
     since = next(event.seq for event in world.log if event.text == "Notice 1")
-    assert env.perception.news(a, since, 3) == (["Notice 2", "Psst", "b acted last"], 0)
-    assert env.perception.news(world.entities["b"], since) == (["Notice 2", "Not for a"], 0)
+    assert env.information.news(a, since, 3) == (["Notice 2", "Psst", "b acted last"], 0)
+    assert env.information.news(world.entities["b"], since) == (["Notice 2", "Not for a"], 0)
 
 
 def test_news_follows_undone_and_forgotten_events():
@@ -39,12 +39,12 @@ def test_news_follows_undone_and_forgotten_events():
     a = world.entities["a"]
     mark = world.journal.mark()
     world.emit("notice", "Tried")
-    assert "Tried" in env.perception.news(a, 0)[0]
+    assert "Tried" in env.information.news(a, 0)[0]
     world.journal.rollback(mark)
-    assert "Tried" not in env.perception.news(a, 0)[0]
+    assert "Tried" not in env.information.news(a, 0)[0]
     world.emit("notice", "Kept")
-    assert env.perception.news(a, 0)[0][-1] == "Kept"
+    assert env.information.news(a, 0)[0][-1] == "Kept"
     del world.log[:6]  # forgotten: b's first six actions
-    lines, hidden = env.perception.news(a, 0)
+    lines, hidden = env.information.news(a, 0)
     assert hidden == 0 and not any(line.startswith("b acted ") and line != "b acted last" for line in lines)
-    assert env.perception.news(a, 0, 3) == (["Notice 2", "Psst", "Kept"], 3)
+    assert env.information.news(a, 0, 3) == (["Notice 2", "Psst", "Kept"], 3)

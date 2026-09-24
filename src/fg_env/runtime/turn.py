@@ -12,26 +12,17 @@ from collections.abc import Mapping
 from contextlib import AbstractContextManager
 from typing import TYPE_CHECKING, Any
 
-from ..actions.book import ACTION_BUDGET, ToolSpec, stage_actions
+from ..actions.book import stage_actions
 from ..actions.faults import refused_text
 from ..actions.params import REFUSED_ARGS
-from ..actions.reads import (
-    READS,
-    UNCHANGED,
-    find_target,
-    handle_filter,
-    inspect_text,
-    inspect_tool,
-    look_tool,
-    may_inspect,
-    reads_refused,
-)
-from ..actions.tool_text import cut_text, offer_text
 from ..assets.delivery import Attachment
 from ..contract import MAX_TURN_ACTIONS, MAX_TURN_CALLS, ActionSpec, StageSpec
-from ..expr import shared_budget
 from ..expr.objects import Entity
-from ..expr.template import entity_handles, format_value
+from ..expr.template import format_value
+from ..information.exposure import Shown
+from ..information.reads import READS, UNCHANGED, reads_refused
+from ..information.schemas import ToolSpec
+from ..information.tool_text import cut_text, offer_text
 from ..world.build import whole_setting
 from ..world.live import _plain
 from .ledger import AttemptLedger
@@ -40,9 +31,9 @@ from .session import END_TURN, ToolResult
 from .state import Memory
 
 if TYPE_CHECKING:
+    from ..information.exposure import Exposure
     from ..world.randomness import Observation
     from .env import Env
-    from .exposure import Exposure
 
 __all__ = ["Turn", "entity_dict"]
 
@@ -155,11 +146,10 @@ class Turn:
             if self._brief is None:
                 if self.closed:
                     return _CLOSED_TEXT
-                with shared_budget(ACTION_BUDGET, "brief"):
-                    self._brief = self.env._brief(self.actor)
+                self._brief, assets = self.env.information.brief(self.actor)
                 self.stats.brief_chars = len(self._brief)
                 self.stats.brief_reads = 1
-                self._deliver(self.env.state.brief_assets.get(self.actor.id, []), "brief")
+                self._deliver(assets, "brief")
                 if self.exposure is not None:
                     self.exposure.read_brief(self._brief)
             return self._brief
@@ -170,31 +160,19 @@ class Turn:
             if self._update is None:
                 if self.closed:
                     return _CLOSED_TEXT
-                shown = _shown() if self.exposure is not None else None
+                shown = Shown() if self.exposure is not None else None
                 attached: list[str] = []
-                with shared_budget(ACTION_BUDGET, "update"), entity_handles(handle_filter(self.env, self.actor)), \
-                        self._views_luck("update"):
-                    self._update = self.env.perception.update(self.actor, self.stage, self.reason, self._since,
-                                                              self.time_limit, shown, attached,
-                                                              self.ledger.calls_left if self.call_limit else None,
-                                                              self.call_limit and self._offers_reads())
+                info = self.env.information
+                self._update = info.update(self.actor, self.stage, self.reason, self._since, self.number,
+                                           self.time_limit, shown, attached,
+                                           self.ledger.calls_left if self.call_limit else None,
+                                           self.call_limit and info.offers_reads(self.actor, self.ledger.max_calls))
                 self.stats.update_chars = len(self._update)
                 self.stats.update_reads = 1
                 self._deliver(attached, "update")
                 if self.exposure is not None and shown is not None:
                     self.exposure.read_update(self._update, shown)
             return self._update
-
-    def _offers_reads(self) -> bool:
-        """Whether the turn offers a read (a look view, or someone to inspect)."""
-        env = self.env
-        return bool(env.perception.look_views(self.actor)) or \
-            inspect_tool(env, self.actor, self.ledger.max_calls) is not None
-
-    def _views_luck(self, *site: str) -> Any:
-        """A block that renders what the agent reads, drawing from a stream of this turn's own: looking again shows the
-        same noise (re-looking cannot average it away), and a preview of the turn shows what the turn will."""
-        return self.env.world.luck.stream(*site, self.number)
 
     def _deliver(self, ids: list[str], where: str) -> None:
         fresh = [key for key in ids if key not in self._delivered]
@@ -237,22 +215,9 @@ class Turn:
             return self._tools
         env = self.env
         with env._lock:  # never while another agent's sealed choices are tried on the world
-            tools = env.actions.tools(self.actor, self._legal(), self.staged)
-            looks, allowance = env.perception.look_views(self.actor), self.ledger.max_calls
-            if looks:
-                tools.append(look_tool([(name, env.contract.views[name].title) for name in looks], allowance))
-            inspect = inspect_tool(env, self.actor, allowance)
-        if inspect is not None:
-            tools.append(inspect)
-        if not self._must_act_now(tools):
-            if self.staged:
-                end_text = "Finish your turn (your choices are submitted)."
-            elif self.ledger.atomic:
-                end_text = "Finish your turn (your actions are checked together; a turn that is not allowed is undone)."
-            else:
-                end_text = "Finish your turn."
-            tools.append(ToolSpec(END_TURN, end_text,
-                                  {"type": "object", "properties": {}, "additionalProperties": False}, "end", True))
+            tools = env.information.tools(self.actor, self._legal(), staged=self.staged, atomic=self.ledger.atomic,
+                                          allowance=self.ledger.max_calls,
+                                          must_act=self.stage.must_act and not self.ledger.acted)
         if not self._offered:
             self.stats.tools_offered += len(tools)
             self._offered = True
@@ -260,9 +225,6 @@ class Turn:
                 env.diagnosis.offered(self, any(tool.kind == "act" for tool in tools))
         self._tools = tools
         return tools
-
-    def _must_act_now(self, tools: list[ToolSpec]) -> bool:
-        return self.stage.must_act and not self.ledger.acted and any(t.kind == "act" for t in tools)
 
     # -- calls -------------------------------------------------------------------
 
@@ -519,9 +481,6 @@ class Turn:
             result.text += f" (Calls left: {self.ledger.calls_left}.)"
         return result
 
-    def _may_inspect(self, target: Entity) -> bool:
-        return may_inspect(self.env, self.actor, target)
-
     def _read(self, name: str, args: Any) -> ToolResult:
         """A look or an inspect: free within the turn's allowance, refused past it without spending a call."""
         allowance = self.ledger.max_calls
@@ -550,36 +509,26 @@ class Turn:
         return result
 
     def _look(self, args: Mapping[str, Any] | None) -> ToolResult:
-        env = self.env
+        info = self.env.information
         name = (args or {}).get("view")
-        looks = env.perception.look_views(self.actor)
+        looks = info.look_views(self.actor)
         if not isinstance(name, str) or name not in looks:
             self.stats.invalid_calls += 1
             return ToolResult(False, f"view must be one of: {', '.join(looks) or 'none'}.", data=_INVALID)
-        shown = _shown() if self.exposure is not None else None
+        shown = Shown() if self.exposure is not None else None
         attached: list[str] = []
-        with shared_budget(ACTION_BUDGET, f"views.{name}"), entity_handles(handle_filter(env, self.actor)), \
-                self._views_luck("view", name):
-            text = env.perception.render_view(name, env.contract.views[name], self.actor, shown, attached)
+        text = info.look(self.actor, name, self.number, shown, attached)
         if self.exposure is not None and shown is not None and text is not None:
             shown.views.append((name, text))
             self.exposure.looked(shown)
         return ToolResult(True, text or "Nothing to show.", attachments=self.attachments(attached))
 
     def _inspect(self, args: Mapping[str, Any] | None) -> ToolResult:
-        env = self.env
-        target, refusal = find_target(env, self.actor, (args or {}).get("id"))
-        if target is None:
+        found, text, files = self.env.information.inspect(self.actor, (args or {}).get("id"))
+        if not found:
             self.stats.invalid_calls += 1
-            return ToolResult(False, refusal, data=_INVALID)
-        text, files = inspect_text(env, self.actor, target)
+            return ToolResult(False, text, data=_INVALID)
         return ToolResult(True, text, attachments=self.attachments(files))
-
-
-def _shown() -> Any:
-    from .exposure import Shown
-
-    return Shown()
 
 
 def entity_dict(entity: Entity) -> dict[str, Any]:

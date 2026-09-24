@@ -1,4 +1,4 @@
-"""Looking without changing the run: previews of an agent's next turn, and spectator views."""
+"""Looking without changing the run: previews of an agent's next turn."""
 from __future__ import annotations
 
 import json
@@ -6,12 +6,10 @@ from collections.abc import Mapping
 from difflib import get_close_matches
 from typing import TYPE_CHECKING, Any, NoReturn
 
-from ..actions.book import ACTION_BUDGET, stage_actions
+from ..actions.book import stage_actions
 from ..contract import StageSpec
 from ..errors import ContractError, Issue
-from ..expr import shared_budget
 from ..participants.builtin import policy_names
-from ..runtime.perception import is_spectator
 from ..runtime.turn import Turn
 from ..runtime.turn_tools import HostWake
 from .snapshot import restore_env
@@ -23,38 +21,10 @@ __all__ = ["Previews"]
 
 
 class Previews:
-    """Previews of an agent's next turn (and the probes they play on); spectator views and frames."""
+    """Previews of an agent's next turn (and the probes they play on)."""
 
     def __init__(self, env: Env):
         self.env = env
-        self.spectator = [name for name, view in env.contract.views.items() if is_spectator(view)]
-        #: Spectator views rendered at the end of every round, the last one marked final.
-        self.frames: list[dict[str, Any]] = []
-
-    # -- spectator ---------------------------------------------------------------------
-
-    def spectate(self) -> dict[str, str]:
-        env, world = self.env, self.env.world
-        shown: dict[str, str] = {}
-        with env._lock, world.luck.turn_context(env.seeds.rng("spectator", world.round, len(self.frames)), None):
-            for name in self.spectator:
-                with shared_budget(ACTION_BUDGET, f"views.{name}"):
-                    text = env.perception.render_view(name, env.contract.views[name], None)
-                if text is not None:
-                    shown[name] = text
-        return shown
-
-    def frame(self, final: bool) -> None:
-        """Keep a spectator frame of the world as it is now (one per round; the last one marked final)."""
-        if not self.spectator:
-            return
-        world = self.env.world
-        if self.frames and self.frames[-1]["round"] == world.round:
-            self.frames.pop()  # the run ended at the start of a round: the frame it closed on is final
-        frame: dict[str, Any] = {"round": world.round, "views": self.spectate()}
-        if final:
-            frame["final"] = True
-        self.frames.append(frame)
 
     # -- preview -------------------------------------------------------------------------
 

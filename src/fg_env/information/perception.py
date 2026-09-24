@@ -142,7 +142,7 @@ class Perception:
                 lines.append(f"- ({hidden} more items not shown)")
             lines += [f"- {line}" for line in news]
         for name, view in self.contract.views.items():
-            if view.look or not self._applies(view, actor):
+            if view.look or not self.applies(view, actor):
                 continue
             listed: Shown | None = type(shown)() if shown is not None else None
             files: list[str] = []
@@ -158,11 +158,11 @@ class Perception:
             lines += ["", block]
         return "\n".join(lines)
 
-    def _applies(self, view: ViewSpec, actor: Entity) -> bool:
+    def applies(self, view: ViewSpec, actor: Entity) -> bool:
         return _for_type(self.contract, view.for_, actor.entity_type)
 
     def look_views(self, actor: Entity) -> list[str]:
-        return [n for n, v in self.contract.views.items() if v.look and self._applies(v, actor)]
+        return [n for n, v in self.contract.views.items() if v.look and self.applies(v, actor)]
 
     def render_view(self, name: str, view: ViewSpec, actor: Entity | None, shown: Shown | None = None,
                     attached: list[str] | None = None) -> str | None:
@@ -333,7 +333,7 @@ class Perception:
         files: list[str] = []
         lines: list[str] = []
         for event in sorted(kept, key=lambda e: e.seq):
-            line = self._event_line(event, actor)
+            line = self.event_line(event, actor)
             if line:
                 ids = self._event_assets(event)
                 lines.append(f"{line} {references(self.world.assets, ids)}" if ids else line)
@@ -383,7 +383,7 @@ class Perception:
         index.extend()
         return index
 
-    def _event_line(self, event: LogEvent, actor: Entity) -> str | None:
+    def event_line(self, event: LogEvent, actor: Entity) -> str | None:
         if event.kind == "record":
             return self._record_line(event, actor)
         if event.kind == "action" and event.actor == actor.id:

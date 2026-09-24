@@ -7,13 +7,13 @@ import time
 from types import SimpleNamespace
 from typing import Any, NamedTuple
 
-from ..actions.reads import inspect_tool, inspectable
 from ..api import ContractLike, check, contract_source, load, parse
 from ..checks.smoke import EdgeAgent
 from ..contract import Contract
 from ..describe.metadata import game_metadata
 from ..host.hosts import Hosts
 from ..host.stubs import StubDescriber, StubEvaluator, StubFeed, StubGameMaster, StubRanker, StubTools, StubWriter
+from ..information.reads import inspect_tool, inspectable
 from ..participants import Idle, RandomAgent
 from ..runtime.diagnostics import DEGRADING
 from ..runtime.measure import RunResult
@@ -254,10 +254,10 @@ def _reads(turn: Turn) -> list[tuple[str, str, dict[str, Any]]]:
     """``(kind, what, args)`` of a ``look`` at every view ``turn`` offers, and an ``inspect`` of one entity of every
     type it may inspect (a different one each round)."""
     env, actor = turn.env, turn.actor
-    reads = [("look", view, {"view": view}) for view in env.perception.look_views(actor)]
-    if inspect_tool(env, actor, turn.ledger.max_calls) is not None:
+    reads = [("look", view, {"view": view}) for view in env.information.look_views(actor)]
+    if inspect_tool(env.information, actor, turn.ledger.max_calls) is not None:
         members: dict[str, list[str]] = {}
-        for entity in inspectable(env, actor):
+        for entity in inspectable(env.information, actor):
             members.setdefault(entity.entity_type, []).append(entity.id)
         reads += [("inspect", kind, {"id": ids[turn.round % len(ids)]}) for kind, ids in members.items()]
     return reads

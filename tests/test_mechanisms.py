@@ -379,7 +379,7 @@ SHOP_LIST = {
 def test_list_parameters_validate_every_item_and_render_as_arrays():
     env = fg_env.load(SHOP_LIST, seed=1)
     book, actor = env.actions, env.world.entities["s"]
-    schema = book.tool(actor, "rank").input_schema["properties"]["order"]
+    schema = env.information.tool(actor, "rank").input_schema["properties"]["order"]
     assert schema["type"] == "array" and schema["items"]["enum"] == ["red", "green", "blue"]
     assert schema["minItems"] == 2 and schema["maxItems"] == 3 and schema["uniqueItems"]
     assert book.validate(actor, "rank", {"order": ["red"]})[1] == "order needs at least 2 item(s), got 1"

@@ -54,11 +54,11 @@ def observation_struct(env: Env, actor: Entity, turn: Turn | None, actions: list
     peek = _peek(env, actor, turn)
     stage = peek.stage
     with as_turn(env, peek):
-        views = {name: env.perception.render_view(name, view, actor) for name, view in env.contract.views.items()
-                 if not view.look and env.perception._applies(view, actor)}
+        views = {name: env.information.render_view(name, view, actor) for name, view in env.contract.views.items()
+                 if not view.look and env.information.applies(view, actor)}
         others = []
         for entity in env.world.entities.values():
-            if entity is actor or not entity.alive or not peek._may_inspect(entity):
+            if entity is actor or not entity.alive or not env.information.may_inspect(actor, entity):
                 continue
             shown = entity_dict(entity)
             shown["props"] = {key: value for key, value in shown["props"].items()
@@ -71,7 +71,7 @@ def observation_struct(env: Env, actor: Entity, turn: Turn | None, actions: list
 
 def information_state(env: Env, actor: Entity, turn: Turn | None) -> str:
     peek = _peek(env, actor, turn)
-    lines: list[str] = [env.perception.brief(actor), "", "History:"]
+    lines: list[str] = [env.information.render_brief(actor), "", "History:"]
     with as_turn(env, peek):
         for event in env.world.log:
             if not event.visible_to(actor.id):
@@ -82,14 +82,14 @@ def information_state(env: Env, actor: Entity, turn: Turn | None) -> str:
                 lines.append(f"- round {event.round}: you: {data.get('action')}({args})"
                              + ("" if data.get("success", True) else " — it did not succeed"))
                 continue
-            line = env.perception._event_line(event, actor)
+            line = env.information.event_line(event, actor)
             if line:
                 lines.append(f"- round {event.round}: {line}")
         lines += ["", "Now:"]
         for name, view in env.contract.views.items():
-            if view.look or not env.perception._applies(view, actor):
+            if view.look or not env.information.applies(view, actor):
                 continue
-            block = env.perception.render_view(name, view, actor)
+            block = env.information.render_view(name, view, actor)
             if block:
                 lines.append(block)
     sealed = [item for staged in env.origin.staged if staged.actor is actor and not staged.done

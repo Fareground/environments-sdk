@@ -3,8 +3,8 @@ typo'd settings, half-way rounding and stated word counts."""
 import pytest
 
 import fg_env
-from fg_env.actions.tool_text import text_limit
 from fg_env.errors import ContractError, RunError
+from fg_env.information.tool_text import text_limit
 
 
 def _errors(contract):

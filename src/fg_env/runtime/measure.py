@@ -101,7 +101,7 @@ class RunResult:
     #: ``stats`` per agent entity id: its turns, calls, invalid calls, actions and model usage.
     agent_stats: dict[str, dict[str, Any]] = field(default_factory=dict)
     events: list[dict[str, Any]] = field(default_factory=list)
-    #: What each agent was shown on every wake, when recorded (see :mod:`fg_env.runtime.exposure`).
+    #: What each agent was shown on every wake, when recorded (see :mod:`fg_env.information.exposure`).
     exposures: dict[str, Any] = field(default_factory=dict)
     #: Spectator views rendered at the end of every round: ``[{round, views: {name: text}, final?}]``.
     frames: list[dict[str, Any]] = field(default_factory=list)

@@ -111,13 +111,13 @@ def test_equality_guards_keep_errors_of_the_items_they_would_evaluate(monkeypatc
 
 def _validation_listings(monkeypatch, contract):
     listings = {"n": 0}
-    original = actions.ActionBook._choices
+    original = actions.ActionBook.choices
 
     def counting(self, actor, action, pname, param, params=None, first=False):
         listings["n"] += params is not None
         return original(self, actor, action, pname, param, params, first)
 
-    monkeypatch.setattr(actions.ActionBook, "_choices", counting)
+    monkeypatch.setattr(actions.ActionBook, "choices", counting)
     result = _fingerprint(contract, "policy:seller")
     monkeypatch.undo()
     return result, listings["n"]

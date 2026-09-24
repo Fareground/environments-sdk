@@ -108,7 +108,7 @@ def take_snapshot(env: Env) -> dict[str, Any]:
         **_identity(env),
         "status": env.status, "ended_by": env.ended_by, "error": env.error,
         **env.state.encode(),
-        "frames": encode(env.previews.frames),
+        "frames": encode(env.state.frames),
         "budget": env.budget.to_dict(env) if env.budget is not None else None,
         "start": env.origin.start,
         "diagnosis": env.diagnosis.to_dict(),
@@ -283,7 +283,7 @@ def _restore(cls: type[_E], contract: Contract, snapshot: Mapping[str, Any], par
     status = snapshot["status"]
     env.status = status if status != "stopped" else ("running" if env.world.round else "ready")
     env.ended_by, env.error = snapshot.get("ended_by"), snapshot.get("error")
-    env.previews.frames = decode(snapshot.get("frames") or [])
+    env.state.frames = decode(snapshot.get("frames") or [])
     env.origin.start = snapshot.get("start")
     if snapshot.get("budget") is not None:
         env.budget = Budget.from_dict(snapshot["budget"])

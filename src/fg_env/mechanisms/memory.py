@@ -255,7 +255,7 @@ def _actor(vars: dict[str, Any], action: str, where: str) -> Entity:
                example='{"host": "memory", "action": "capture"}  (remember what each agent did and read since the last '
                        'capture)')
 def _capture(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
-    from ..runtime.perception import Perception
+    from ..information.perception import Perception
 
     world = runner.world
     name = effect["host"]
@@ -275,7 +275,7 @@ def _capture(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: s
                     items.append(("did", _did(event)))
                 continue
             if "saw" in config.capture:
-                line = perception._event_line(event, agent)
+                line = perception.event_line(event, agent)
                 if line:
                     items.append(("saw", line))
         if "did" in config.capture:

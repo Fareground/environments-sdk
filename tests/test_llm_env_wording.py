@@ -39,7 +39,7 @@ def test_text_limits_are_stated_in_words_and_usage_caps_before_the_first_call():
     assert say.description == "Say. Once per turn and at most 3 times per round."
     assert (say.input_schema["properties"]["text"]["description"]
             == "What you say. Up to 400 characters (about 50 words).")
-    from fg_env.actions.tool_text import text_limit
+    from fg_env.information.tool_text import text_limit
 
     assert (text_limit(600) == "Up to 600 characters (about 75 words)." and text_limit(4)
             == "Up to 4 characters (about 1 word).")

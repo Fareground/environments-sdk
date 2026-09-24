@@ -38,7 +38,8 @@ and the subpackages it exports (`analysis`, `rl`, `engines`, `personas`, `partic
 
 - **The core engine** is a few subpackages, one per part of a run: `world/` (the live world: entities, links,
   records, space, its luck, and building it from a contract), `runtime/` (the rules, the schedule of rounds, stages
-  and turns, what agents perceive, what a run measures), `actions/` (legal actions as tools and their arguments),
+  and turns, what a run measures), `actions/` (legal actions and their arguments), `information/` (everything an
+  agent is shown or offered — brief, update, views, inspect, tools — rendered through one gate for its reader),
   `effects/` (how rules change the world), `physics/` (continuous dynamics), `copying/` (branches, forks, replays,
   snapshots, stepped copies) and `sampling/` (seeded random streams and exact draws). `api.py` and `errors.py` sit
   beside them.
@@ -48,8 +49,9 @@ and the subpackages it exports (`analysis`, `rl`, `engines`, `personas`, `partic
 
 The parts form layers, and a module imports at load time only from its own layer or the ones below:
 the contract (`contract/`), then the expression language (`expr/`), then the world and what changes it (`world/`,
-`effects/`, `actions/`, `mechanisms/`, `host/` …), then runs (`runtime/`, `participants/`, `copying/`, `checks/`,
-`api.py`), then the tools built on runs (`analysis/`, `report/`, `game/`, `authoring/`, `guides/`, `cli/` …).
+`effects/`, `actions/`, `information/`, `mechanisms/`, `host/` …), then runs (`runtime/`, `participants/`,
+`copying/`, `checks/`, `api.py`), then the tools built on runs (`analysis/`, `report/`, `game/`, `authoring/`,
+`guides/`, `cli/` …).
 `tests/test_import_cycles.py` holds the exact list and fails on an import that points up.
 
 Every module opens with a docstring saying what it is for: read those rather than a map here, which would go stale.

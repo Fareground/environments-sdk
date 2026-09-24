@@ -23,10 +23,10 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from ..actions.book import ToolSpec
 from ..actions.params import REFUSED_ARGS, unbounded
 from ..assets.delivery import Attachment
 from ..assets.intake import intake
+from ..information.schemas import END_TURN, ToolSpec
 from .measure import Stats
 
 if TYPE_CHECKING:
@@ -34,8 +34,6 @@ if TYPE_CHECKING:
     from .turn import Turn
 
 __all__ = ["Wake", "ToolResult", "END_TURN"]
-
-END_TURN = "end_turn"
 
 
 @dataclass

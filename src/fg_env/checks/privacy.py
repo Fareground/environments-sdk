@@ -12,10 +12,10 @@ from typing import TYPE_CHECKING
 
 from .. import contract as C
 from ..actions.book import announces, stage_actions
-from ..actions.reads import inspect_rule
 from ..expr import Expr, ExprError, compile_expr
 from ..expr.hidden import reveals
 from ..expr.template import compile_template
+from ..information.reads import inspect_rule
 
 if TYPE_CHECKING:
     from . import _Checker
