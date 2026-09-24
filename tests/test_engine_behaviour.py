@@ -408,6 +408,19 @@ def test_a_rate_over_nobody_is_null_not_zero(engine_id, inputs, output):
     assert run(engine_id, inputs=inputs).outputs[output] is None
 
 
+def test_population_answers_undecided_more_often_the_less_confident_people_are():
+    """Survey behaviour: doubt shows up as "undecided", never as noise that pushes people into a firm answer."""
+    people = fg_env.engines.get("population").source()["inputs"]["participants"]["default"]
+
+    def undecided(confidence):
+        table = [{**p, "confidence": confidence} for p in people]
+        return statistics.fmean(run("population", seed=s, inputs={"participants": table}).outputs["undecided"]
+                                for s in SEEDS)
+
+    shares = [undecided(c) for c in (1, 0.7, 0.4, 0.1)]
+    assert shares == sorted(shares) and shares[-1] > shares[0] + 20, shares
+
+
 def test_population_reports_more_confidence_the_more_certain_people_are():
     people = fg_env.engines.get("population").source()["inputs"]["participants"]["default"]
 

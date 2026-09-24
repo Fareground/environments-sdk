@@ -75,7 +75,7 @@
       "id": "population",
       "title": "Population",
       "summary": "sampled people each respond to one situation; the responses are aggregated",
-      "description": "Runs sampled people through a shared situation: each responds independently from their inclination, blurred by their uncertainty, and the responses are aggregated.",
+      "description": "Runs sampled people through a shared situation: each responds independently from their inclination, blurred by their uncertainty; the less confident answer undecided more often, and the responses are aggregated.",
       "status": "native",
       "path": "starters/population_response.json"
     },
